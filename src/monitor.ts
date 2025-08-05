@@ -7,39 +7,50 @@ interface Options {
   hosts: string[];
   batchSize?: number;
   monitoring?: true;
+  interval?: number;
   callback: (result: PingResponse) => Promise<void>;
   options?: PingConfig;
+}
+
+async function pingHosts({
+  hosts,
+  batchSize,
+  callback,
+  options
+}: Options) {
+  for (let i = 0; i < hosts.length; i += batchSize!) {
+    const batch = hosts.slice(i, i + batchSize!);
+
+    const results = await Promise.allSettled(
+      batch.map((host) => ping.promise.probe(host, options))
+    );
+
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        await callback(result.value);
+      } else {
+        console.error(
+          `Error pinging host: ${batch[results.indexOf(result)]}`,
+          result.reason
+        );
+      }
+    }
+  }
 }
 
 export async function checkHost({
   hosts,
   batchSize = 10,
   monitoring = true,
+  interval = 15000,
   callback,
   options
 }: Options) {
-  try {
-    for (let i = 0; i < hosts.length; i += batchSize) {
-      const batch = hosts.slice(i, i + batchSize);
-      const results = await Promise.all(
-        batch.map((host) => ping.promise.probe(host, options))
-      );
-
-      await Promise.all(results.map((result) => callback(result)));
-    }
-
-    if (monitoring) {
-      setTimeout(() => {
-        checkHost({
-          hosts,
-          batchSize,
-          callback,
-          monitoring,
-          options
-        });
-      }, 5000);
-    }
-  } catch (error) {
-    console.error(`Error pinging ${hosts}`, error);
+  if (monitoring) {
+    setInterval(() => {
+      pingHosts({ hosts, batchSize, callback, options });
+    }, interval);
+  } else {
+    await pingHosts({ hosts, batchSize, callback, options });
   }
 }
