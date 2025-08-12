@@ -1,3 +1,83 @@
+# AP Polling Frequency & Monitoring System
+
+## Objective
+
+The system polls each Access Point (AP) at regular intervals (default: every 15 seconds) to ensure real-time or near-real-time monitoring. Polling frequency is adjustable per AP or globally, balancing responsiveness and system load.
+
+## Build & Run Instructions
+
+1. **Install dependencies:**
+   ```sh
+   npm install
+   ```
+2. **Build the project:**
+   ```sh
+   npm run build
+   ```
+3. **Start the monitoring service:**
+   ```sh
+   npm start
+   ```
+   - The service will begin polling all configured APs at the default or configured intervals.
+
+## Implementation Overview
+
+- **Polling Mechanism:**
+
+  - Uses asynchronous timers to poll each AP at its configured interval (default: 15s).
+  - Polling frequency can be set globally or per AP via the settings manager (`SettingsManager` class).
+  - Polling jobs are managed independently for each AP, supporting concurrent polling and runtime changes.
+  - APs can be added/removed or have their polling frequency changed without restarting the service.
+  - Polling can be paused for maintenance (set `enabled: false` for an AP).
+  - The system can adapt polling intervals in response to network congestion (future enhancement).
+  - All polling results and failures are logged for audit and debugging.
+
+- **Configuration:**
+
+  - Settings are managed via the `SettingsManager` class (`src/services/settings.service.ts`).
+  - Polling intervals are persisted in a config file and can be updated via API or CLI (see code for details).
+  - Input validation ensures intervals are within allowed bounds (min 5s, max 5min).
+
+- **Extensibility:**
+  - Supports various AP brands (Mikrotik, Ubiquiti, etc.).
+  - Polling logic is protocol-agnostic and can be extended for SNMP, HTTP, or custom protocols.
+  - Integrates with third-party alerting tools (Slack, Discord, email) and provides API hooks for external systems.
+
+## Acceptance Criteria Mapping
+
+1. **Default Polling:** APs are polled every 15s by default (configurable).
+2. **Configurable Frequency:** Admins can set polling frequency per AP or globally via the settings manager.
+3. **Live Updates:** Changes to polling frequency are applied at runtime without restart.
+4. **Pause Polling:** Polling can be paused per AP (set `enabled: false`).
+5. **Adaptive Polling:** (Planned) System can adapt intervals based on network load.
+6. **Failure Handling:** Polling failures are logged and do not crash the system.
+
+## User Roles
+
+- **Admins:** Configure polling frequency and AP settings.
+- **Technicians:** View polling status and receive alerts.
+- **System:** Automated polling and alerting.
+
+## Testing
+
+- Unit tests for polling logic and frequency adjustment (`src/services/settings.service.test.ts`).
+- Load and integration tests recommended for large-scale deployments.
+
+## Security & Compliance
+
+- Follows best practices for secure polling and logging.
+- Logs and configuration changes are auditable and retained per policy.
+
+## Further Details
+
+- See `src/services/settings.service.ts` for core implementation.
+- See `src/monitor.ts` for polling loop and job scheduling.
+- See `src/notifier.ts` for alerting integration.
+
+---
+
+For more details on requirements, see the [requirements section](#) or contact the project maintainer.
+
 # Node.js Ping Monitoring System
 
 A simple **Node.js monitoring tool** that **pings multiple endpoints** at a set interval and sends **email notifications** if an endpoint goes down.

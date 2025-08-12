@@ -9,7 +9,9 @@
     "dev": "tsx --watch src/app.ts",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write src",
-    "start": "node --env-file=src/.env dist/app.js"
+    "start": "node --env-file=src/.env dist/app.js",
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "keywords": [],
   "author": "Jonathan O",
