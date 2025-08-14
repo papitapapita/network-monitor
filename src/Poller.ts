@@ -15,6 +15,20 @@ export class AccessPointPoller extends EventEmitter {
   private pollInterval?: NodeJS.Timeout;
   private results: PollResult[] = [];
 
+  /**
+   * Creates a new instance of the Poller class.
+   *
+   * @param options - Configuration options for the poller.
+   *   - `ipAddress`: The IP address to be monitored.
+   *   - `frequency`: The polling frequency in milliseconds.
+   *   - `timeout`: Optional. The timeout for each poll in milliseconds. Defaults to 5000.
+   *   - `maxRetries`: Optional. The maximum number of retry attempts for failed polls. Defaults to 3.
+   *   - `batchSize`: Optional. The number of concurrent polls to run in a batch. Defaults to 5.
+   *   - `autoStart`: Optional. If true, polling starts automatically after instantiation.
+   *
+   * @remarks
+   * Validates the provided options and starts polling automatically if `autoStart` is enabled.
+   */
   constructor(options: PollerOptions) {
     super();
 
@@ -31,6 +45,19 @@ export class AccessPointPoller extends EventEmitter {
     }
   }
 
+  /**
+   * Validates the configuration options for the poller instance.
+   *
+   * Throws an error if any of the following conditions are met:
+   * - `ipAddress` is missing or not provided.
+   * - `ipAddress` does not match a valid IP address format.
+   * - `frequency` is less than or equal to 0.
+   * - `timeout` is less than or equal to 0.
+   * - `maxRetries` is negative.
+   * - `batchSize` is less than or equal to 0.
+   *
+   * @throws {Error} If any validation check fails.
+   */
   private validateOptions(): void {
     if (!this.ipAddress) {
       throw new Error('IP address is required');
@@ -57,6 +84,16 @@ export class AccessPointPoller extends EventEmitter {
     }
   }
 
+  /**
+   * Checks whether a given string is a valid IPv4 or IPv6 address.
+   *
+   * This method uses regular expressions to validate the format of the IP address.
+   * It supports standard IPv4 addresses (e.g., "192.168.1.1") and IPv6 addresses
+   * (e.g., "2001:0db8:85a3:0000:0000:8a2e:0370:7334", "::1", "::").
+   *
+   * @param ip - The IP address string to validate.
+   * @returns `true` if the input is a valid IPv4 or IPv6 address, otherwise `false`.
+   */
   private isValidIP(ip: string): boolean {
     const ipv4Regex =
       /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
@@ -391,7 +428,7 @@ export class AccessPointPoller extends EventEmitter {
     this.emit('started');
 
     // Perform initial poll immediately
-    this.performPoll();
+    //this.performPoll();
 
     // Set up recurring polls
     this.pollInterval = setInterval(() => {
