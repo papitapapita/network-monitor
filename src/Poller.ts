@@ -69,20 +69,40 @@ export class AccessPointPoller extends EventEmitter {
     console.log(
       `[DEBUG] Starting ping for ${this.ipAddress} with ${attempts} attempts`
     );
+
     for (
       let attempt = 1;
       attempt <= Math.max(1, attempts);
       attempt++
     ) {
       console.log(`[DEBUG] Attempt ${attempt} of ${attempts}`);
+
       try {
         const pingCommand =
           process.platform === 'win32'
             ? `ping -n ${this.batchSize} -w ${this.timeout} ${this.ipAddress}`
             : `ping -c ${this.batchSize} -W ${Math.ceil(this.timeout / 1000)} ${this.ipAddress}`;
+
         console.log(`[DEBUG] Executing command: ${pingCommand}`);
 
-        const { stdout, stderr } = await execAsync(pingCommand);
+        let stdout = '';
+        let stderr = '';
+        let commandError: any = null;
+
+        try {
+          const result = await execAsync(pingCommand);
+          stdout = result.stdout;
+          stderr = result.stderr;
+        } catch (execError: any) {
+          // Ping command failed, but we might still have useful output
+          commandError = execError;
+          stdout = execError.stdout || '';
+          stderr = execError.stderr || '';
+          console.log(
+            `[DEBUG] Ping command exited with error, but parsing output: ${execError.message}`
+          );
+        }
+
         console.log(
           `[DEBUG] Ping output for ${this.ipAddress}:\n${stdout}`
         );
@@ -92,50 +112,71 @@ export class AccessPointPoller extends EventEmitter {
           );
         }
 
-        let pingTimes: number[] = [];
-        if (process.platform === 'win32') {
-          const matches = [...stdout.matchAll(/time[=<](\d+)ms/gi)];
-          pingTimes = matches.map((m) => parseInt(m[1]));
-        } else {
-          const matches = [
-            ...stdout.matchAll(/time=(\d+(?:\.\d+)?) ms/g)
-          ];
-          pingTimes = matches.map((m) => parseFloat(m[1]));
-        }
-        console.log(
-          `[DEBUG] Extracted ping times: ${JSON.stringify(pingTimes)}`
-        );
+        // Parse ping results from stdout/stderr even if command failed
+        const parseResult = this.parsePingOutput(stdout, stderr);
 
-        const minTime = pingTimes.length
-          ? Math.min(...pingTimes)
-          : undefined;
-        const maxTime = pingTimes.length
-          ? Math.max(...pingTimes)
-          : undefined;
-        const avgTime = pingTimes.length
-          ? pingTimes.reduce((a, b) => a + b, 0) / pingTimes.length
-          : undefined;
-        const packetLoss = pingTimes.length / this.batchSize;
-
+        // If we have parsing results, use them; otherwise fall back to command error
         const result: PollResult = {
           timestamp: new Date(),
-          success: true,
+          success: parseResult.success,
           attempts: attempt,
-          responseTimes: pingTimes,
-          packetLoss,
-          minTime,
-          maxTime,
-          avgTime
+          responseTimes: parseResult.responseTimes || [],
+          packetLoss: parseResult.packetLoss,
+          minTime: parseResult.minTime,
+          maxTime: parseResult.maxTime,
+          avgTime: parseResult.avgTime,
+          error:
+            parseResult.error ||
+            (commandError
+              ? `Command failed: ${commandError.message}`
+              : undefined)
         };
 
         console.log(`[DEBUG] Ping result: ${JSON.stringify(result)}`);
-        this.emit('ping-success', result);
-        return result;
+
+        // Determine if we should retry based on the result
+        if (result.success || parseResult.packetLoss !== undefined) {
+          // We got meaningful results (even if all packets failed)
+          if (result.success) {
+            this.emit('ping-success', result);
+          } else {
+            this.emit('ping-failure', result);
+          }
+          return result;
+        } else if (attempt === attempts) {
+          // No meaningful results and this was the last attempt
+          const fallbackResult: PollResult = {
+            timestamp: new Date(),
+            success: false,
+            error: commandError
+              ? commandError.message
+              : 'Unknown ping error',
+            attempts: attempt,
+            packetLoss: 100,
+            responseTimes: []
+          };
+
+          console.log(
+            `[DEBUG] Final failure result: ${JSON.stringify(fallbackResult)}`
+          );
+          this.emit('ping-failure', fallbackResult);
+          return fallbackResult;
+        }
+
+        // If we reach here, we should retry
+        console.log(
+          `[DEBUG] No meaningful results on attempt ${attempt}, retrying...`
+        );
+        await new Promise((resolve) =>
+          setTimeout(resolve, attempt * 1000)
+        );
       } catch (error) {
+        // This should rarely happen now, but keep as fallback
         console.error(
-          `[DEBUG] Ping error for ${this.ipAddress} on attempt ${attempt}:`,
+          `[DEBUG] Unexpected error on attempt ${attempt}:`,
           error
         );
+
         if (attempt === attempts) {
           const result: PollResult = {
             timestamp: new Date(),
@@ -144,21 +185,186 @@ export class AccessPointPoller extends EventEmitter {
               error instanceof Error
                 ? error.message
                 : 'Unknown error',
-            attempts: attempt
+            attempts: attempt,
+            packetLoss: 100,
+            responseTimes: []
           };
+
           console.log(
-            `[DEBUG] Final failure result: ${JSON.stringify(result)}`
+            `[DEBUG] Final unexpected failure result: ${JSON.stringify(result)}`
           );
           this.emit('ping-failure', result);
           return result;
         }
-        // Wait a bit before retrying (exponential backoff)
+
         await new Promise((resolve) =>
           setTimeout(resolve, attempt * 1000)
         );
       }
     }
+
     throw new Error('Unexpected end of ping method');
+  }
+
+  private parsePingOutput(
+    stdout: string,
+    stderr: string
+  ): {
+    success: boolean;
+    responseTimes: number[];
+    packetLoss: number;
+    minTime?: number;
+    maxTime?: number;
+    avgTime?: number;
+    error?: string;
+  } {
+    let pingTimes: number[] = [];
+    let packetLoss = 100; // Default to 100% loss
+    let error: string | undefined;
+
+    try {
+      // If we have no output at all, return early
+      if (!stdout && !stderr) {
+        return {
+          success: false,
+          responseTimes: [],
+          packetLoss: 100,
+          error: 'No ping output received'
+        };
+      }
+
+      if (process.platform === 'win32') {
+        // Windows ping parsing
+        const timeMatches = [...stdout.matchAll(/time[=<](\d+)ms/gi)];
+        pingTimes = timeMatches.map((m) => parseInt(m[1]));
+
+        // Parse packet loss from Windows output
+        const lossMatch = stdout.match(/\((\d+)% loss\)/i);
+        if (lossMatch) {
+          packetLoss = parseInt(lossMatch[1]);
+        } else {
+          // Calculate based on successful pings vs batch size
+          packetLoss = Math.round(
+            ((this.batchSize - pingTimes.length) / this.batchSize) *
+              100
+          );
+        }
+
+        // Check for Windows-specific errors
+        if (
+          stdout.includes('Request timed out') ||
+          stdout.includes('Destination host unreachable') ||
+          stdout.includes('could not find host')
+        ) {
+          error = this.extractWindowsError(stdout);
+        }
+      } else {
+        // Unix/Linux/macOS ping parsing
+        const timeMatches = [
+          ...stdout.matchAll(/time=(\d+(?:\.\d+)?) ms/g)
+        ];
+        pingTimes = timeMatches.map((m) => parseFloat(m[1]));
+
+        // Parse packet loss from Unix output - look for the standard format
+        const lossMatch = stdout.match(
+          /(\d+(?:\.\d+)?)% packet loss/
+        );
+        if (lossMatch) {
+          packetLoss = Math.round(parseFloat(lossMatch[1]));
+          console.log(
+            `[DEBUG] Found packet loss in output: ${packetLoss}%`
+          );
+        } else {
+          // Fallback: calculate based on successful pings vs batch size
+          packetLoss = Math.round(
+            ((this.batchSize - pingTimes.length) / this.batchSize) *
+              100
+          );
+          console.log(
+            `[DEBUG] Calculated packet loss from ping count: ${packetLoss}%`
+          );
+        }
+
+        // Check for Unix-specific errors in stderr or stdout
+        if (
+          stderr.includes('Name or service not known') ||
+          stderr.includes('No route to host') ||
+          stdout.includes('Destination Host Unreachable') ||
+          stdout.includes('Network is unreachable')
+        ) {
+          error = stderr.trim() || this.extractUnixError(stdout);
+        }
+
+        // If we found "Destination Host Unreachable" messages, that's still useful info
+        if (stdout.includes('Destination Host Unreachable')) {
+          error = 'Destination Host Unreachable';
+        }
+      }
+
+      console.log(
+        `[DEBUG] Extracted ping times: ${JSON.stringify(pingTimes)}`
+      );
+      console.log(`[DEBUG] Calculated packet loss: ${packetLoss}%`);
+
+      const minTime = pingTimes.length
+        ? Math.min(...pingTimes)
+        : undefined;
+      const maxTime = pingTimes.length
+        ? Math.max(...pingTimes)
+        : undefined;
+      const avgTime = pingTimes.length
+        ? Math.round(
+            (pingTimes.reduce((a, b) => a + b, 0) /
+              pingTimes.length) *
+              100
+          ) / 100
+        : undefined;
+
+      // Determine overall success
+      // Consider successful if we got at least some responses and packet loss < 100%
+      const success = pingTimes.length > 0 && packetLoss < 100;
+
+      return {
+        success,
+        responseTimes: pingTimes,
+        packetLoss,
+        minTime,
+        maxTime,
+        avgTime,
+        error
+      };
+    } catch (parseError) {
+      console.error(`[DEBUG] Error parsing ping output:`, parseError);
+      return {
+        success: false,
+        responseTimes: [],
+        packetLoss: 100,
+        error: `Parse error: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`
+      };
+    }
+  }
+
+  private extractWindowsError(stdout: string): string {
+    if (stdout.includes('Request timed out')) {
+      return 'Request timed out';
+    }
+    if (stdout.includes('Destination host unreachable')) {
+      return 'Destination host unreachable';
+    }
+    if (stdout.includes('could not find host')) {
+      return 'Could not find host';
+    }
+    return 'Windows ping failed';
+  }
+
+  private extractUnixError(stdout: string): string {
+    if (stdout.includes('Destination Host Unreachable')) {
+      return 'Destination Host Unreachable';
+    }
+    if (stdout.includes('Network is unreachable')) {
+      return 'Network is unreachable';
+    }
+    return 'Unix ping failed';
   }
 
   private async performPoll(): Promise<void> {
@@ -228,12 +434,21 @@ export class AccessPointPoller extends EventEmitter {
       .map((r) => r.avgTime)
       .filter((time): time is number => time !== undefined);
 
+    const avgPacketLoss =
+      this.results.length > 0
+        ? this.results.reduce(
+            (sum, r) =>
+              sum +
+              (typeof r.packetLoss === 'number' ? r.packetLoss : 100),
+            0
+          ) / this.results.length
+        : 100;
+
     return {
       totalPingsBatches: this.results.length,
       successfulPings: successfulPings.length,
       failedPings: failedPings.length,
-      successRate:
-        (successfulPings.length / this.results.length) * 100,
+      avgPacketLoss,
       averageResponseTime:
         responseTimes.length > 0
           ? responseTimes.reduce((a, b) => a + b, 0) /
@@ -277,7 +492,7 @@ const poller = new AccessPointPoller({
   timeout: 3000, // 3 second timeout
   maxRetries: 2, // Retry up to 2 times on failure
   autoStart: false,
-  batchSize: 5
+  batchSize: 10
 });
 
 // Event listeners
