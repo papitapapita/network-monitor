@@ -251,9 +251,7 @@ export class AccessPointPoller extends EventEmitter {
         if (result.success) {
           this.emit('ping-success', result);
           return result;
-        } /*else {
-          this.emit('ping-failure', result);
-        }*/
+        }
         // Determine if we should retry based on the result
         if (attempt === attempts) {
           // No meaningful results and this was the last attempt
@@ -274,33 +272,6 @@ export class AccessPointPoller extends EventEmitter {
           this.emit('ping-failure', fallbackResult);
           return fallbackResult;
         }
-        /*if (result.success || parseResult.packetLoss !== undefined) {
-          // We got meaningful results (even if all packets failed)
-          if (result.success) {
-            this.emit('ping-success', result);
-          } else {
-            this.emit('ping-failure', result);
-          }
-          return result;
-        } else if (attempt === attempts) {
-          // No meaningful results and this was the last attempt
-          const fallbackResult: PollResult = {
-            timestamp: new Date(),
-            success: false,
-            error: commandError
-              ? commandError.message
-              : 'Unknown ping error',
-            attempts: attempt,
-            packetLoss: 100,
-            responseTimes: []
-          };
-
-          console.log(
-            `[DEBUG] Final failure result: ${JSON.stringify(fallbackResult)}`
-          );
-          this.emit('ping-failure', fallbackResult);
-          return fallbackResult;
-        }*/
 
         // If we reach here, we should retry
         console.log(
@@ -532,8 +503,16 @@ export class AccessPointPoller extends EventEmitter {
     return 'Unix ping failed';
   }
 
+  /**
+   * Performs a single polling operation to execute a ping.
+   * Ensures that only one poll runs at a time by checking if a previous poll is still in progress.
+   * If a poll is already running, the method logs a debug message and skips execution.
+   * Handles errors by emitting a 'poll-error' event if polling is active.
+   * Resets the current ping promise after completion or error.
+   *
+   * @returns {Promise<void>} A promise that resolves when the poll operation is complete.
+   */
   private async performPoll(): Promise<void> {
-    // Prevent multiple polls from running simultaneously
     if (this.currentPingPromise) {
       console.log(
         '[DEBUG] Skipping poll - previous poll still running'
@@ -545,7 +524,6 @@ export class AccessPointPoller extends EventEmitter {
       this.currentPingPromise = this.executePing();
       await this.currentPingPromise;
     } catch (error) {
-      // Only emit error if we're still polling (not stopped)
       if (this.isPolling) {
         this.emit('poll-error', error);
       }
@@ -554,28 +532,43 @@ export class AccessPointPoller extends EventEmitter {
     }
   }
 
+  /**
+   * Executes a ping operation with a specified number of retries and processes the result.
+   *
+   * - Calls the `ping` method with `maxRetries + 1` attempts.
+   * - If polling is active (`isPolling` is true), appends the result to the `results` array,
+   *   emits a `'poll-result'` event, and ensures the results array does not exceed 1000 entries.
+   * - If an error occurs and polling is still active, the error is thrown.
+   *
+   * @returns {Promise<void>} A promise that resolves when the ping operation is complete.
+   * @throws Will throw an error if the ping operation fails while polling is active.
+   */
   private async executePing(): Promise<void> {
     try {
       const result = await this.ping(this.maxRetries + 1);
 
-      // Only process result if we're still polling
       if (this.isPolling) {
         this.results.push(result);
         this.emit('poll-result', result);
 
-        // Keep only last 1000 results to prevent memory issues
         if (this.results.length > 1000) {
           this.results = this.results.slice(-1000);
         }
       }
     } catch (error) {
-      // Only emit error if we're still polling
       if (this.isPolling) {
         throw error;
       }
     }
   }
 
+  /**
+   * Starts the polling process. If the poller is already running, an error is thrown.
+   * Initializes the polling state, sets up an abort controller, emits a 'started' event,
+   * and schedules recurring polls at the specified frequency.
+   *
+   * @throws {Error} If the poller is already running.
+   */
   public start(): void {
     if (this.isPolling) {
       throw new Error('Poller is already running');
@@ -587,14 +580,12 @@ export class AccessPointPoller extends EventEmitter {
 
     console.log('[DEBUG] Starting poller - performing initial poll');
 
-    // Perform initial poll immediately (but don't await to avoid blocking)
-    /*this.performPoll().catch((error) => {
+    this.performPoll().catch((error) => {
       if (this.isPolling) {
         console.error('[DEBUG] Initial poll error:', error);
       }
-    });*/
+    });
 
-    // Set up recurring polls
     this.pollInterval = setInterval(() => {
       if (this.isPolling) {
         this.performPoll().catch((error) => {
