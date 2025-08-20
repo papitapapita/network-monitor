@@ -5,6 +5,38 @@ import { PollResult, PollerOptions } from './types';
 
 const execAsync = promisify(exec);
 
+/**
+ * Monitors network connectivity to a specified access point by periodically executing ping operations.
+ *
+ * The `AccessPointPoller` class emits events for successful and failed ping attempts, supports configurable
+ * polling frequency, timeout, batch size, and retry logic. It parses ping command output to extract statistics
+ * such as response times and packet loss, and maintains a history of poll results.
+ *
+ * @remarks
+ * - Emits events: `'ping-success'`, `'ping-failure'`, `'poll-result'`, `'poll-error'`, `'started'`, `'stopped'`, `'results-cleared'`.
+ * - Supports both IPv4 and IPv6 addresses.
+ * - Automatically starts polling if `autoStart` is enabled in the constructor options.
+ * - Maintains up to 1000 recent poll results to prevent memory issues.
+ *
+ * @example
+ * ```typescript
+ * const poller = new AccessPointPoller({
+ *   ipAddress: '192.168.1.1',
+ *   frequency: 10000,
+ *   timeout: 5000,
+ *   maxRetries: 3,
+ *   batchSize: 5,
+ *   autoStart: true
+ * });
+ *
+ * poller.on('poll-result', (result) => {
+ *   console.log('Ping result:', result);
+ * });
+ * ```
+ *
+ * @see PollerOptions
+ * @see PollResult
+ */
 export class AccessPointPoller extends EventEmitter {
   private ipAddress: string;
   private frequency: number;
@@ -14,6 +46,8 @@ export class AccessPointPoller extends EventEmitter {
   private isPolling: boolean = false;
   private pollInterval?: NodeJS.Timeout;
   private results: PollResult[] = [];
+  private currentPingPromise?: Promise<void>;
+  private abortController?: AbortController;
 
   /**
    * Creates a new instance of the Poller class.
@@ -102,6 +136,21 @@ export class AccessPointPoller extends EventEmitter {
     return ipv4Regex.test(ip) || ipv6Regex.test(ip);
   }
 
+  /**
+   * Performs a ping operation to the configured IP address, with support for multiple attempts and error handling.
+   *
+   * This method executes the system's `ping` command, parses its output, and emits events based on the result.
+   * It retries the ping operation up to the specified number of attempts if unsuccessful, and aborts if polling is stopped.
+   *
+   * @param attempts - The number of ping attempts to perform. Defaults to 1.
+   * @returns A promise that resolves to a {@link PollResult} containing the ping statistics and outcome.
+   * @throws {Error} If the ping operation is aborted due to polling being stopped, or if an unexpected error occurs.
+   *
+   * @emits 'ping-success' - When a successful ping result is obtained.
+   * @emits 'ping-failure' - When all attempts fail or an error occurs.
+   *
+   * @internal
+   */
   private async ping(attempts: number = 1): Promise<PollResult> {
     console.log(
       `[DEBUG] Starting ping for ${this.ipAddress} with ${attempts} attempts`
@@ -112,6 +161,12 @@ export class AccessPointPoller extends EventEmitter {
       attempt <= Math.max(1, attempts);
       attempt++
     ) {
+      // Check if we should abort (poller stopped)
+      if (!this.isPolling) {
+        console.log('[DEBUG] Ping aborted - poller stopped');
+        throw new Error('Ping aborted - poller stopped');
+      }
+
       console.log(`[DEBUG] Attempt ${attempt} of ${attempts}`);
 
       try {
@@ -124,20 +179,42 @@ export class AccessPointPoller extends EventEmitter {
 
         let stdout = '';
         let stderr = '';
-        let commandError: any = null;
+        let commandError: Error | undefined = undefined;
 
         try {
+          console.log('[DEBUG] Calling execAsync...');
           const result = await execAsync(pingCommand);
           stdout = result.stdout;
           stderr = result.stderr;
-        } catch (execError: any) {
+          console.log('[DEBUG] execAsync completed successfully');
+        } catch (execError: unknown) {
+          // Check again if we should abort after execAsync
+          if (!this.isPolling) {
+            console.log(
+              '[DEBUG] Ping aborted after execAsync - poller stopped'
+            );
+            throw new Error('Ping aborted - poller stopped');
+          }
+
           // Ping command failed, but we might still have useful output
-          commandError = execError;
-          stdout = execError.stdout || '';
-          stderr = execError.stderr || '';
-          console.log(
-            `[DEBUG] Ping command exited with error, but parsing output: ${execError.message}`
-          );
+          if (typeof execError === 'object' && execError !== null) {
+            commandError = execError as Error;
+            stdout = (execError as { stdout?: string }).stdout || '';
+            stderr = (execError as { stderr?: string }).stderr || '';
+            console.log(
+              `[DEBUG] Ping command exited with error, but parsing output: ${(execError as Error).message}`
+            );
+            console.log(
+              `[DEBUG] stdout length: ${stdout.length}, stderr length: ${stderr.length}`
+            );
+          } else {
+            commandError = new Error('Unknown exec error');
+            stdout = '';
+            stderr = '';
+            console.log(
+              `[DEBUG] Ping command exited with unknown error type`
+            );
+          }
         }
 
         console.log(
@@ -171,8 +248,33 @@ export class AccessPointPoller extends EventEmitter {
 
         console.log(`[DEBUG] Ping result: ${JSON.stringify(result)}`);
 
+        if (result.success) {
+          this.emit('ping-success', result);
+          return result;
+        } /*else {
+          this.emit('ping-failure', result);
+        }*/
         // Determine if we should retry based on the result
-        if (result.success || parseResult.packetLoss !== undefined) {
+        if (attempt === attempts) {
+          // No meaningful results and this was the last attempt
+          const fallbackResult: PollResult = {
+            timestamp: new Date(),
+            success: false,
+            error: commandError
+              ? commandError.message
+              : 'Unknown ping error',
+            attempts: attempt,
+            packetLoss: 100,
+            responseTimes: []
+          };
+
+          console.log(
+            `[DEBUG] Final failure result: ${JSON.stringify(fallbackResult)}`
+          );
+          this.emit('ping-failure', fallbackResult);
+          return fallbackResult;
+        }
+        /*if (result.success || parseResult.packetLoss !== undefined) {
           // We got meaningful results (even if all packets failed)
           if (result.success) {
             this.emit('ping-success', result);
@@ -198,16 +300,34 @@ export class AccessPointPoller extends EventEmitter {
           );
           this.emit('ping-failure', fallbackResult);
           return fallbackResult;
-        }
+        }*/
 
         // If we reach here, we should retry
         console.log(
           `[DEBUG] No meaningful results on attempt ${attempt}, retrying...`
         );
+
+        // Check if we should abort before waiting
+        if (!this.isPolling) {
+          console.log(
+            '[DEBUG] Ping aborted during retry wait - poller stopped'
+          );
+          throw new Error('Ping aborted - poller stopped');
+        }
+
         await new Promise((resolve) =>
           setTimeout(resolve, attempt * 1000)
         );
       } catch (error) {
+        // Check if this is an abort due to stopping
+        if (
+          !this.isPolling ||
+          (error as Error).message.includes('poller stopped')
+        ) {
+          console.log('[DEBUG] Ping operation aborted');
+          throw error;
+        }
+
         // This should rarely happen now, but keep as fallback
         console.error(
           `[DEBUG] Unexpected error on attempt ${attempt}:`,
@@ -232,6 +352,14 @@ export class AccessPointPoller extends EventEmitter {
           );
           this.emit('ping-failure', result);
           return result;
+        }
+
+        // Check if we should abort before waiting
+        if (!this.isPolling) {
+          console.log(
+            '[DEBUG] Ping aborted during error retry wait - poller stopped'
+          );
+          throw new Error('Ping aborted - poller stopped');
         }
 
         await new Promise((resolve) =>
@@ -405,17 +533,46 @@ export class AccessPointPoller extends EventEmitter {
   }
 
   private async performPoll(): Promise<void> {
+    // Prevent multiple polls from running simultaneously
+    if (this.currentPingPromise) {
+      console.log(
+        '[DEBUG] Skipping poll - previous poll still running'
+      );
+      return;
+    }
+
+    try {
+      this.currentPingPromise = this.executePing();
+      await this.currentPingPromise;
+    } catch (error) {
+      // Only emit error if we're still polling (not stopped)
+      if (this.isPolling) {
+        this.emit('poll-error', error);
+      }
+    } finally {
+      this.currentPingPromise = undefined;
+    }
+  }
+
+  private async executePing(): Promise<void> {
     try {
       const result = await this.ping(this.maxRetries + 1);
-      this.results.push(result);
-      this.emit('poll-result', result);
 
-      // Keep only last 1000 results to prevent memory issues
-      if (this.results.length > 1000) {
-        this.results = this.results.slice(-1000);
+      // Only process result if we're still polling
+      if (this.isPolling) {
+        this.results.push(result);
+        this.emit('poll-result', result);
+
+        // Keep only last 1000 results to prevent memory issues
+        if (this.results.length > 1000) {
+          this.results = this.results.slice(-1000);
+        }
       }
     } catch (error) {
-      this.emit('poll-error', error);
+      // Only emit error if we're still polling
+      if (this.isPolling) {
+        throw error;
+      }
     }
   }
 
@@ -425,29 +582,70 @@ export class AccessPointPoller extends EventEmitter {
     }
 
     this.isPolling = true;
+    this.abortController = new AbortController();
     this.emit('started');
 
-    // Perform initial poll immediately
-    //this.performPoll();
+    console.log('[DEBUG] Starting poller - performing initial poll');
+
+    // Perform initial poll immediately (but don't await to avoid blocking)
+    /*this.performPoll().catch((error) => {
+      if (this.isPolling) {
+        console.error('[DEBUG] Initial poll error:', error);
+      }
+    });*/
 
     // Set up recurring polls
     this.pollInterval = setInterval(() => {
-      this.performPoll();
+      if (this.isPolling) {
+        this.performPoll().catch((error) => {
+          if (this.isPolling) {
+            console.error('[DEBUG] Scheduled poll error:', error);
+          }
+        });
+      }
     }, this.frequency);
+
+    console.log(
+      `[DEBUG] Poll interval set for every ${this.frequency}ms`
+    );
   }
 
-  public stop(): void {
+  public async stop(): Promise<void> {
     if (!this.isPolling) {
       return;
     }
 
+    console.log('[DEBUG] Stopping poller...');
+
+    // Set flag to stop polling first
     this.isPolling = false;
 
+    // Clear the interval to prevent new polls
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = undefined;
+      console.log('[DEBUG] Poll interval cleared');
     }
 
+    // Abort any ongoing operations
+    if (this.abortController) {
+      this.abortController.abort();
+    }
+
+    // Wait for current ping to complete if it's running
+    if (this.currentPingPromise) {
+      console.log('[DEBUG] Waiting for current ping to complete...');
+      try {
+        await this.currentPingPromise;
+      } catch {
+        // Ignore errors from cancelled operations
+        console.log(
+          '[DEBUG] Current ping completed with error (expected during stop)'
+        );
+      }
+    }
+
+    console.log('[DEBUG] Poller stopped');
     this.emit('stopped');
   }
 
@@ -525,11 +723,11 @@ export class AccessPointPoller extends EventEmitter {
 
 const poller = new AccessPointPoller({
   ipAddress: '192.168.1.1',
-  frequency: 5000, // Poll every 5 seconds
-  timeout: 3000, // 3 second timeout
+  frequency: 15000, // Poll every 5 seconds
+  timeout: 1000, // 1 second timeout
   maxRetries: 2, // Retry up to 2 times on failure
   autoStart: false,
-  batchSize: 10
+  batchSize: 5
 });
 
 // Event listeners

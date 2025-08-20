@@ -1,8 +1,18 @@
+/**
+ * Options for configuring a network poller.
+ *
+ * @property ipAddress - The IP address to poll.
+ * @property frequency - Polling frequency in milliseconds.
+ * @property timeout - Optional timeout for each poll in milliseconds.
+ * @property maxRetries - Optional maximum number of retry attempts on failure.
+ * @property autoStart - Optional flag to automatically start polling on initialization.
+ * @property batchSize - Optional number of IP addresses to poll in a single batch.
+ */
 export interface PollerOptions {
   ipAddress: string;
-  frequency: number; // polling interval in milliseconds
-  timeout?: number; // ping timeout in milliseconds (default: 5000)
-  maxRetries?: number; // max retry attempts on failure (default: 3)
-  autoStart?: boolean; // whether to start polling immediately (default: false)
-  batchSize?: number; // number of pings to send in each batch (default: 5)
+  frequency: number;
+  timeout?: number;
+  maxRetries?: number;
+  autoStart?: boolean;
+  batchSize?: number;
 }
