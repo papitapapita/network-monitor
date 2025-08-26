@@ -813,6 +813,18 @@ export class AccessPointPoller extends EventEmitter {
       maxRetries: this.maxRetries
     };
   }
+
+  public setConfiguration(config: {
+    ipAddress?: string;
+    frequency?: number;
+    timeout?: number;
+    maxRetries?: number;
+  }): void {
+    this.ipAddress = config.ipAddress ?? this.ipAddress;
+    this.frequency = config.frequency ?? this.frequency;
+    this.timeout = config.timeout ?? this.timeout;
+    this.maxRetries = config.maxRetries ?? this.maxRetries;
+  }
 }
 
 // Usage example:
