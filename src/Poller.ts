@@ -181,7 +181,7 @@ export class AccessPointPoller extends EventEmitter {
 
         if (attempt === attempts) {
           const failure = this.buildFailureResult(
-            commandError,
+            result.error ?? commandError,
             attempt
           );
           console.log(
@@ -316,7 +316,7 @@ export class AccessPointPoller extends EventEmitter {
 
     return {
       timestamp: new Date(),
-      success: !parseResult.success,
+      success: parseResult.success!,
       attempts: attempt,
       responseTimes: parseResult.responseTimes || [],
       packetLoss: parseResult.packetLoss,
@@ -331,10 +331,21 @@ export class AccessPointPoller extends EventEmitter {
     };
   }
 
+  /**
+   * Constructs a failure result object for a polling attempt.
+   *
+   * @param commandError - The error encountered during the ping command, if any.
+   * @param attempt - The current attempt number for the polling operation.
+   * @returns A `PollResult` object indicating failure, including error details, attempt count,
+   *          100% packet loss, and an empty array of response times.
+   */
   private buildFailureResult(
-    commandError: Error | undefined,
+    commandError: Error | string | undefined,
     attempt: number
   ): PollResult {
+    if (typeof commandError === 'string') {
+      commandError = new Error(commandError);
+    }
     return {
       timestamp: new Date(),
       success: false,
@@ -361,30 +372,24 @@ export class AccessPointPoller extends EventEmitter {
   /**
    * Parses the output from a ping command and extracts relevant statistics.
    *
-   * Handles both Windows and Unix-like platforms, extracting response times,
-   * packet loss percentage, and error messages if present. Calculates minimum,
-   * maximum, and average response times from successful pings. Determines
-   * overall success based on the presence of responses and packet loss.
+   * Depending on the operating system, it delegates parsing to either
+   * `parseWindowsPing` or `parseUnixPing`. It calculates response times,
+   * packet loss, and basic statistics (min, max, average) from the ping results.
+   * Handles cases where no output is received or parsing fails.
    *
-   * @param stdout - The standard output string from the ping command.
-   * @param stderr - The standard error string from the ping command.
-   * @returns An object containing:
-   * - `success`: Whether the ping was successful (at least one response and packet loss < 100%).
-   * - `responseTimes`: Array of response times in milliseconds.
-   * - `packetLoss`: Packet loss percentage (0-100).
-   * - `minTime`: Minimum response time (ms), if available.
-   * - `maxTime`: Maximum response time (ms), if available.
-   * - `avgTime`: Average response time (ms), if available.
-   * - `error`: Error message, if any was detected during parsing.
+   * @param stdout - The standard output from the ping command.
+   * @param stderr - The standard error output from the ping command.
+   * @returns A partial {@link PollResult} object containing:
+   *   - `success`: Whether the ping was successful.
+   *   - `responseTimes`: Array of response times in milliseconds.
+   *   - `packetLoss`: Percentage of packet loss.
+   *   - `minTime`, `maxTime`, `avgTime`: Calculated statistics for response times.
+   *   - `error`: Error message if parsing failed or no output was received.
    */
   private parsePingOutput(
     stdout: string,
     stderr: string
   ): Partial<PollResult> {
-    let pingTimes: number[] = [];
-    let packetLoss = 100;
-    let error: string | undefined;
-
     try {
       if (!stdout && !stderr) {
         return {
@@ -395,82 +400,22 @@ export class AccessPointPoller extends EventEmitter {
         };
       }
 
-      if (process.platform === 'win32') {
-        const timeMatches = [...stdout.matchAll(/time[=<](\d+)ms/gi)];
-        pingTimes = timeMatches.map((m) => parseInt(m[1]));
-
-        const lossMatch = stdout.match(/\((\d+)% loss\)/i);
-        if (lossMatch) {
-          packetLoss = parseInt(lossMatch[1]);
-        } else {
-          packetLoss = Math.round(
-            ((this.batchSize - pingTimes.length) / this.batchSize) *
-              100
-          );
-        }
-
-        if (
-          stdout.includes('Request timed out') ||
-          stdout.includes('Destination host unreachable') ||
-          stdout.includes('could not find host')
-        ) {
-          error = this.extractWindowsError(stdout);
-        }
-      } else {
-        const timeMatches = [
-          ...stdout.matchAll(/time=(\d+(?:\.\d+)?) ms/g)
-        ];
-        pingTimes = timeMatches.map((m) => parseFloat(m[1]));
-
-        const lossMatch = stdout.match(
-          /(\d+(?:\.\d+)?)% packet loss/
-        );
-        if (lossMatch) {
-          packetLoss = Math.round(parseFloat(lossMatch[1]));
-          console.log(
-            `[DEBUG] Found packet loss in output: ${packetLoss}%`
-          );
-        } else {
-          packetLoss = Math.round(
-            ((this.batchSize - pingTimes.length) / this.batchSize) *
-              100
-          );
-          console.log(
-            `[DEBUG] Calculated packet loss from ping count: ${packetLoss}%`
-          );
-        }
-
-        if (
-          stderr.includes('Name or service not known') ||
-          stderr.includes('No route to host') ||
-          stdout.includes('Destination Host Unreachable') ||
-          stdout.includes('Network is unreachable')
-        ) {
-          error = stderr.trim() || this.extractUnixError(stdout);
-        }
-      }
+      const { pingTimes, packetLoss, error } =
+        process.platform === 'win32'
+          ? this.parseWindowsPing(stdout)
+          : this.parseUnixPing(stdout, stderr);
 
       console.log(
         `[DEBUG] Extracted ping times: ${JSON.stringify(pingTimes)}`
       );
       console.log(`[DEBUG] Calculated packet loss: ${packetLoss}%`);
 
-      const minTime = pingTimes.length
-        ? Math.min(...pingTimes)
-        : undefined;
-      const maxTime = pingTimes.length
-        ? Math.max(...pingTimes)
-        : undefined;
-      const avgTime = pingTimes.length
-        ? Math.round(
-            (pingTimes.reduce((a, b) => a + b, 0) /
-              pingTimes.length) *
-              100
-          ) / 100
-        : undefined;
+      const { minTime, maxTime, avgTime } =
+        this.calculateStats(pingTimes);
 
       const success = pingTimes.length > 0 && packetLoss < 100;
 
+      console.log(`[DEBUG] Ping success: ${success}`);
       return {
         success,
         responseTimes: pingTimes,
@@ -489,6 +434,110 @@ export class AccessPointPoller extends EventEmitter {
         error: `Parse error: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`
       };
     }
+  }
+
+  /**
+   * Parses the output of the Windows `ping` command to extract ping times, packet loss percentage, and any error messages.
+   *
+   * @param stdout - The standard output string from the Windows `ping` command.
+   * @returns An object containing:
+   * - `pingTimes`: An array of ping times in milliseconds.
+   * - `packetLoss`: The percentage of packet loss.
+   * - `error`: An optional error message if a known error pattern is detected in the output.
+   */
+  private parseWindowsPing(stdout: string): {
+    pingTimes: number[];
+    packetLoss: number;
+    error?: string;
+  } {
+    const timeMatches = [...stdout.matchAll(/time[=<](\d+)ms/gi)];
+    const pingTimes = timeMatches.map((m) => parseInt(m[1]));
+
+    const packetLoss = Math.round(
+      ((this.batchSize - pingTimes.length) / this.batchSize) * 100
+    );
+
+    let error: string | undefined;
+    if (
+      stdout.includes('Request timed out') ||
+      stdout.includes('Destination host unreachable') ||
+      stdout.includes('could not find host')
+    ) {
+      error = this.extractWindowsError(stdout);
+    }
+
+    return { pingTimes, packetLoss, error };
+  }
+
+  /**
+   * Parses the output of a Unix `ping` command to extract ping times, packet loss percentage, and potential errors.
+   *
+   * @param stdout - The standard output string from the `ping` command.
+   * @param stderr - The standard error string from the `ping` command.
+   * @returns An object containing:
+   *   - `pingTimes`: An array of ping times in milliseconds.
+   *   - `packetLoss`: The percentage of packet loss.
+   *   - `error` (optional): An error message if a known network error is detected.
+   */
+  private parseUnixPing(
+    stdout: string,
+    stderr: string
+  ): { pingTimes: number[]; packetLoss: number; error?: string } {
+    const timeMatches = [
+      ...stdout.matchAll(/time=(\d+(?:\.\d+)?) ms/g)
+    ];
+    const pingTimes = timeMatches.map((m) => parseFloat(m[1]));
+
+    const lossMatch = stdout.match(/(\d+(?:\.\d+)?)% packet loss/);
+    const packetLoss = lossMatch
+      ? Math.round(parseFloat(lossMatch[1]))
+      : Math.round(
+          ((this.batchSize - pingTimes.length) / this.batchSize) * 100
+        );
+
+    console.log(
+      `[DEBUG] Found packet loss in output: ${packetLoss}%`
+    );
+
+    let error: string | undefined;
+    if (
+      stderr.includes('Name or service not known') ||
+      stderr.includes('No route to host') ||
+      stdout.includes('Destination Host Unreachable') ||
+      stdout.includes('Network is unreachable')
+    ) {
+      error = stderr.trim() || this.extractUnixError(stdout);
+    }
+
+    return { pingTimes, packetLoss, error };
+  }
+
+  /**
+   * Calculates statistical metrics (minimum, maximum, and average) from an array of ping times.
+   *
+   * @param pingTimes - An array of numbers representing ping times in milliseconds.
+   * @returns An object containing:
+   *   - `minTime`: The minimum ping time, if the array is not empty.
+   *   - `maxTime`: The maximum ping time, if the array is not empty.
+   *   - `avgTime`: The average ping time (rounded to two decimal places), if the array is not empty.
+   *   If the input array is empty, returns an empty object.
+   */
+  private calculateStats(pingTimes: number[]): {
+    minTime?: number;
+    maxTime?: number;
+    avgTime?: number;
+  } {
+    if (!pingTimes.length) return {};
+
+    const minTime = Math.min(...pingTimes);
+    const maxTime = Math.max(...pingTimes);
+    const avgTime =
+      Math.round(
+        (pingTimes.reduce((a, b) => a + b, 0) / pingTimes.length) *
+          100
+      ) / 100;
+
+    return { minTime, maxTime, avgTime };
   }
 
   private extractWindowsError(stdout: string): string {
@@ -612,6 +661,16 @@ export class AccessPointPoller extends EventEmitter {
     );
   }
 
+  /**
+   * Stops the polling process gracefully.
+   *
+   * This method halts the polling loop, clears any active intervals,
+   * aborts any ongoing ping operations, and waits for the current ping
+   * promise to resolve or reject before completing. Emits a 'stopped' event
+   * when the poller has fully stopped.
+   *
+   * @returns {Promise<void>} Resolves when the poller has stopped.
+   */
   public async stop(): Promise<void> {
     if (!this.isPolling) {
       return;
@@ -619,28 +678,23 @@ export class AccessPointPoller extends EventEmitter {
 
     console.log('[DEBUG] Stopping poller...');
 
-    // Set flag to stop polling first
     this.isPolling = false;
 
-    // Clear the interval to prevent new polls
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = undefined;
       console.log('[DEBUG] Poll interval cleared');
     }
 
-    // Abort any ongoing operations
     if (this.abortController) {
       this.abortController.abort();
     }
 
-    // Wait for current ping to complete if it's running
     if (this.currentPingPromise) {
       console.log('[DEBUG] Waiting for current ping to complete...');
       try {
         await this.currentPingPromise;
       } catch {
-        // Ignore errors from cancelled operations
         console.log(
           '[DEBUG] Current ping completed with error (expected during stop)'
         );
@@ -651,14 +705,38 @@ export class AccessPointPoller extends EventEmitter {
     this.emit('stopped');
   }
 
+  /**
+   * Returns a shallow copy of the current poll results.
+   *
+   * @returns {PollResult[]} An array containing the poll results.
+   */
   public getResults(): PollResult[] {
-    return [...this.results]; // Return a copy to prevent external modification
+    return [...this.results];
   }
 
+  /**
+   * Returns the most recent polling result.
+   *
+   * @returns The last {@link PollResult} in the results array, or `undefined` if there are no results.
+   */
   public getLastResult(): PollResult | undefined {
     return this.results[this.results.length - 1];
   }
 
+  /**
+   * Calculates and returns statistics based on the collected ping results.
+   *
+   * @returns An object containing the following statistics:
+   * - `totalPingsBatches`: Total number of ping result batches.
+   * - `successfulPings`: Number of successful ping batches.
+   * - `failedPings`: Number of failed ping batches.
+   * - `avgPacketLoss`: Average packet loss percentage across all batches.
+   * - `averageResponseTime`: Average response time (ms) for successful pings, or `undefined` if none.
+   * - `minResponseTime`: Minimum response time (ms) for successful pings, or `undefined` if none.
+   * - `maxResponseTime`: Maximum response time (ms) for successful pings, or `undefined` if none.
+   *
+   * Returns `null` if there are no results.
+   */
   public getStats() {
     if (this.results.length === 0) {
       return null;
@@ -702,15 +780,31 @@ export class AccessPointPoller extends EventEmitter {
     };
   }
 
+  /**
+   * Clears all stored ping results and emits a 'results-cleared' event.
+   *
+   * This method resets the `results` array to an empty state and notifies listeners
+   * that the results have been cleared.
+   */
   public clearResults(): void {
     this.results = [];
     this.emit('results-cleared');
   }
 
+  /**
+   * Indicates whether the polling process is currently active.
+   *
+   * @returns `true` if polling is in progress; otherwise, `false`.
+   */
   public isRunning(): boolean {
     return this.isPolling;
   }
 
+  /**
+   * Retrieves the current poller configuration.
+   *
+   * @returns An object containing the IP address, polling frequency, timeout, and maximum retries.
+   */
   public getConfiguration() {
     return {
       ipAddress: this.ipAddress,
@@ -724,7 +818,7 @@ export class AccessPointPoller extends EventEmitter {
 // Usage example:
 
 const poller = new AccessPointPoller({
-  ipAddress: '192.168.1.1',
+  ipAddress: '8.8.8.8',
   frequency: 15000, // Poll every 5 seconds
   timeout: 1000, // 1 second timeout
   maxRetries: 2, // Retry up to 2 times on failure
