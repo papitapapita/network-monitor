@@ -137,19 +137,13 @@ export class AccessPointPoller extends EventEmitter {
   }
 
   /**
-   * Performs a ping operation to the configured IP address, with support for multiple attempts and error handling.
+   * Performs a ping operation to the configured IP address, retrying up to the specified number of attempts.
+   * Emits 'ping-success' on a successful ping, or 'ping-failure' if all attempts fail.
+   * Handles polling state and aborts if polling is stopped.
    *
-   * This method executes the system's `ping` command, parses its output, and emits events based on the result.
-   * It retries the ping operation up to the specified number of attempts if unsuccessful, and aborts if polling is stopped.
-   *
-   * @param attempts - The number of ping attempts to perform. Defaults to 1.
-   * @returns A promise that resolves to a {@link PollResult} containing the ping statistics and outcome.
-   * @throws {Error} If the ping operation is aborted due to polling being stopped, or if an unexpected error occurs.
-   *
-   * @emits 'ping-success' - When a successful ping result is obtained.
-   * @emits 'ping-failure' - When all attempts fail or an error occurs.
-   *
-   * @internal
+   * @param attempts - The number of ping attempts to perform (default is 1).
+   * @returns A promise that resolves to a {@link PollResult} indicating the outcome of the ping operation.
+   * @throws {Error} If the ping operation is aborted due to polling being stopped or an unexpected error occurs.
    */
   private async ping(attempts: number = 1): Promise<PollResult> {
     console.log(
@@ -161,7 +155,6 @@ export class AccessPointPoller extends EventEmitter {
       attempt <= Math.max(1, attempts);
       attempt++
     ) {
-      // Check if we should abort (poller stopped)
       if (!this.isPolling) {
         console.log('[DEBUG] Ping aborted - poller stopped');
         throw new Error('Ping aborted - poller stopped');
@@ -170,81 +163,14 @@ export class AccessPointPoller extends EventEmitter {
       console.log(`[DEBUG] Attempt ${attempt} of ${attempts}`);
 
       try {
-        const pingCommand =
-          process.platform === 'win32'
-            ? `ping -n ${this.batchSize} -w ${this.timeout} ${this.ipAddress}`
-            : `ping -c ${this.batchSize} -W ${Math.ceil(this.timeout / 1000)} ${this.ipAddress}`;
-
-        console.log(`[DEBUG] Executing command: ${pingCommand}`);
-
-        let stdout = '';
-        let stderr = '';
-        let commandError: Error | undefined = undefined;
-
-        try {
-          console.log('[DEBUG] Calling execAsync...');
-          const result = await execAsync(pingCommand);
-          stdout = result.stdout;
-          stderr = result.stderr;
-          console.log('[DEBUG] execAsync completed successfully');
-        } catch (execError: unknown) {
-          // Check again if we should abort after execAsync
-          if (!this.isPolling) {
-            console.log(
-              '[DEBUG] Ping aborted after execAsync - poller stopped'
-            );
-            throw new Error('Ping aborted - poller stopped');
-          }
-
-          // Ping command failed, but we might still have useful output
-          if (typeof execError === 'object' && execError !== null) {
-            commandError = execError as Error;
-            stdout = (execError as { stdout?: string }).stdout || '';
-            stderr = (execError as { stderr?: string }).stderr || '';
-            console.log(
-              `[DEBUG] Ping command exited with error, but parsing output: ${(execError as Error).message}`
-            );
-            console.log(
-              `[DEBUG] stdout length: ${stdout.length}, stderr length: ${stderr.length}`
-            );
-          } else {
-            commandError = new Error('Unknown exec error');
-            stdout = '';
-            stderr = '';
-            console.log(
-              `[DEBUG] Ping command exited with unknown error type`
-            );
-          }
-        }
-
-        console.log(
-          `[DEBUG] Ping output for ${this.ipAddress}:\n${stdout}`
+        const { stdout, stderr, commandError } =
+          await this.runPingCommand();
+        const result = this.buildResult(
+          stdout,
+          stderr,
+          commandError,
+          attempt
         );
-        if (stderr) {
-          console.error(
-            `[DEBUG] Ping error output for ${this.ipAddress}:\n[STDERR] ${stderr}`
-          );
-        }
-
-        // Parse ping results from stdout/stderr even if command failed
-        const parseResult = this.parsePingOutput(stdout, stderr);
-
-        // If we have parsing results, use them; otherwise fall back to command error
-        const result: PollResult = {
-          timestamp: new Date(),
-          success: parseResult.success,
-          attempts: attempt,
-          responseTimes: parseResult.responseTimes || [],
-          packetLoss: parseResult.packetLoss,
-          minTime: parseResult.minTime,
-          maxTime: parseResult.maxTime,
-          avgTime: parseResult.avgTime,
-          error:
-            parseResult.error ||
-            (commandError
-              ? `Command failed: ${commandError.message}`
-              : undefined)
-        };
 
         console.log(`[DEBUG] Ping result: ${JSON.stringify(result)}`);
 
@@ -252,45 +178,24 @@ export class AccessPointPoller extends EventEmitter {
           this.emit('ping-success', result);
           return result;
         }
-        // Determine if we should retry based on the result
-        if (attempt === attempts) {
-          // No meaningful results and this was the last attempt
-          const fallbackResult: PollResult = {
-            timestamp: new Date(),
-            success: false,
-            error: commandError
-              ? commandError.message
-              : 'Unknown ping error',
-            attempts: attempt,
-            packetLoss: 100,
-            responseTimes: []
-          };
 
-          console.log(
-            `[DEBUG] Final failure result: ${JSON.stringify(fallbackResult)}`
+        if (attempt === attempts) {
+          const failure = this.buildFailureResult(
+            commandError,
+            attempt
           );
-          this.emit('ping-failure', fallbackResult);
-          return fallbackResult;
+          console.log(
+            `[DEBUG] Final failure result: ${JSON.stringify(failure)}`
+          );
+          this.emit('ping-failure', failure);
+          return failure;
         }
 
-        // If we reach here, we should retry
         console.log(
           `[DEBUG] No meaningful results on attempt ${attempt}, retrying...`
         );
-
-        // Check if we should abort before waiting
-        if (!this.isPolling) {
-          console.log(
-            '[DEBUG] Ping aborted during retry wait - poller stopped'
-          );
-          throw new Error('Ping aborted - poller stopped');
-        }
-
-        await new Promise((resolve) =>
-          setTimeout(resolve, attempt * 1000)
-        );
+        await this.delay(attempt * 1000);
       } catch (error) {
-        // Check if this is an abort due to stopping
         if (
           !this.isPolling ||
           (error as Error).message.includes('poller stopped')
@@ -299,14 +204,13 @@ export class AccessPointPoller extends EventEmitter {
           throw error;
         }
 
-        // This should rarely happen now, but keep as fallback
         console.error(
           `[DEBUG] Unexpected error on attempt ${attempt}:`,
           error
         );
 
         if (attempt === attempts) {
-          const result: PollResult = {
+          const failure: PollResult = {
             timestamp: new Date(),
             success: false,
             error:
@@ -317,29 +221,133 @@ export class AccessPointPoller extends EventEmitter {
             packetLoss: 100,
             responseTimes: []
           };
-
           console.log(
-            `[DEBUG] Final unexpected failure result: ${JSON.stringify(result)}`
+            `[DEBUG] Final unexpected failure result: ${JSON.stringify(failure)}`
           );
-          this.emit('ping-failure', result);
-          return result;
+          this.emit('ping-failure', failure);
+          return failure;
         }
 
-        // Check if we should abort before waiting
-        if (!this.isPolling) {
-          console.log(
-            '[DEBUG] Ping aborted during error retry wait - poller stopped'
-          );
-          throw new Error('Ping aborted - poller stopped');
-        }
-
-        await new Promise((resolve) =>
-          setTimeout(resolve, attempt * 1000)
-        );
+        await this.delay(attempt * 1000);
       }
     }
 
     throw new Error('Unexpected end of ping method');
+  }
+
+  /**
+   * Executes a platform-specific ping command asynchronously and returns the output.
+   *
+   * On Windows, uses the `ping -n` and `-w` flags; on other platforms, uses `ping -c` and `-W`.
+   * Handles errors gracefully, returning both stdout and stderr, and optionally an error object.
+   * If polling has been stopped (`isPolling` is false), throws an error to abort the operation.
+   *
+   * @returns A promise that resolves with an object containing `stdout`, `stderr`, and optionally `commandError` if the ping command fails.
+   */
+  private async runPingCommand(): Promise<{
+    stdout: string;
+    stderr: string;
+    commandError?: Error;
+  }> {
+    const pingCommand =
+      process.platform === 'win32'
+        ? `ping -n ${this.batchSize} -w ${this.timeout} ${this.ipAddress}`
+        : `ping -c ${this.batchSize} -W ${Math.ceil(this.timeout / 1000)} ${this.ipAddress}`;
+
+    console.log(`[DEBUG] Executing command: ${pingCommand}`);
+
+    try {
+      console.log('[DEBUG] Calling execAsync...');
+      const result = await execAsync(pingCommand);
+      console.log('[DEBUG] execAsync completed successfully');
+      return { stdout: result.stdout, stderr: result.stderr };
+    } catch (execError: any) {
+      if (!this.isPolling) {
+        console.log(
+          '[DEBUG] Ping aborted after execAsync - poller stopped'
+        );
+        throw new Error('Ping aborted - poller stopped');
+      }
+
+      const stdout = execError?.stdout || '';
+      const stderr = execError?.stderr || '';
+      console.log(
+        `[DEBUG] Ping command exited with error, but parsing output: ${execError?.message}`
+      );
+      console.log(
+        `[DEBUG] stdout length: ${stdout.length}, stderr length: ${stderr.length}`
+      );
+      return {
+        stdout,
+        stderr,
+        commandError:
+          execError instanceof Error
+            ? execError
+            : new Error('Unknown exec error')
+      };
+    }
+  }
+
+  private buildResult(
+    stdout: string,
+    stderr: string,
+    commandError: Error | undefined,
+    attempt: number
+  ): PollResult {
+    console.log(
+      `[DEBUG] Ping output for ${this.ipAddress}:\n${stdout}`
+    );
+    if (stderr) {
+      console.error(
+        `[DEBUG] Ping error output for ${this.ipAddress}:\n[STDERR] ${stderr}`
+      );
+    }
+
+    const parseResult = this.parsePingOutput(stdout, stderr);
+
+    return {
+      timestamp: new Date(),
+      success: parseResult.success,
+      attempts: attempt,
+      responseTimes: parseResult.responseTimes || [],
+      packetLoss: parseResult.packetLoss,
+      minTime: parseResult.minTime,
+      maxTime: parseResult.maxTime,
+      avgTime: parseResult.avgTime,
+      error:
+        parseResult.error ||
+        (commandError
+          ? `Command failed: ${commandError.message}`
+          : undefined)
+    };
+  }
+
+  /** Builds a fallback failure PollResult */
+  private buildFailureResult(
+    commandError: Error | undefined,
+    attempt: number
+  ): PollResult {
+    return {
+      timestamp: new Date(),
+      success: false,
+      error: commandError
+        ? commandError.message
+        : 'Unknown ping error',
+      attempts: attempt,
+      packetLoss: 100,
+      responseTimes: []
+    };
+  }
+
+  /** Utility for retry backoff delay */
+  private async delay(ms: number): Promise<void> {
+    if (!this.isPolling) {
+      console.log(
+        '[DEBUG] Ping aborted during retry wait - poller stopped'
+      );
+      throw new Error('Ping aborted - poller stopped');
+    }
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private parsePingOutput(
@@ -432,9 +440,9 @@ export class AccessPointPoller extends EventEmitter {
         }
 
         // If we found "Destination Host Unreachable" messages, that's still useful info
-        if (stdout.includes('Destination Host Unreachable')) {
+        /*if (stdout.includes('Destination Host Unreachable')) {
           error = 'Destination Host Unreachable';
-        }
+        }*/
       }
 
       console.log(
