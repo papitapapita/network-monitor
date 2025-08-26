@@ -288,6 +288,15 @@ export class AccessPointPoller extends EventEmitter {
     }
   }
 
+  /**
+   * Builds a `PollResult` object based on the output of a ping command.
+   *
+   * @param stdout - The standard output from the ping command.
+   * @param stderr - The standard error output from the ping command.
+   * @param commandError - An optional error object if the ping command failed.
+   * @param attempt - The current attempt number for the ping operation.
+   * @returns A `PollResult` containing parsed ping statistics and error information.
+   */
   private buildResult(
     stdout: string,
     stderr: string,
@@ -307,7 +316,7 @@ export class AccessPointPoller extends EventEmitter {
 
     return {
       timestamp: new Date(),
-      success: parseResult.success,
+      success: !parseResult.success,
       attempts: attempt,
       responseTimes: parseResult.responseTimes || [],
       packetLoss: parseResult.packetLoss,
@@ -322,7 +331,6 @@ export class AccessPointPoller extends EventEmitter {
     };
   }
 
-  /** Builds a fallback failure PollResult */
   private buildFailureResult(
     commandError: Error | undefined,
     attempt: number
@@ -350,24 +358,34 @@ export class AccessPointPoller extends EventEmitter {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /**
+   * Parses the output from a ping command and extracts relevant statistics.
+   *
+   * Handles both Windows and Unix-like platforms, extracting response times,
+   * packet loss percentage, and error messages if present. Calculates minimum,
+   * maximum, and average response times from successful pings. Determines
+   * overall success based on the presence of responses and packet loss.
+   *
+   * @param stdout - The standard output string from the ping command.
+   * @param stderr - The standard error string from the ping command.
+   * @returns An object containing:
+   * - `success`: Whether the ping was successful (at least one response and packet loss < 100%).
+   * - `responseTimes`: Array of response times in milliseconds.
+   * - `packetLoss`: Packet loss percentage (0-100).
+   * - `minTime`: Minimum response time (ms), if available.
+   * - `maxTime`: Maximum response time (ms), if available.
+   * - `avgTime`: Average response time (ms), if available.
+   * - `error`: Error message, if any was detected during parsing.
+   */
   private parsePingOutput(
     stdout: string,
     stderr: string
-  ): {
-    success: boolean;
-    responseTimes: number[];
-    packetLoss: number;
-    minTime?: number;
-    maxTime?: number;
-    avgTime?: number;
-    error?: string;
-  } {
+  ): Partial<PollResult> {
     let pingTimes: number[] = [];
-    let packetLoss = 100; // Default to 100% loss
+    let packetLoss = 100;
     let error: string | undefined;
 
     try {
-      // If we have no output at all, return early
       if (!stdout && !stderr) {
         return {
           success: false,
@@ -378,23 +396,19 @@ export class AccessPointPoller extends EventEmitter {
       }
 
       if (process.platform === 'win32') {
-        // Windows ping parsing
         const timeMatches = [...stdout.matchAll(/time[=<](\d+)ms/gi)];
         pingTimes = timeMatches.map((m) => parseInt(m[1]));
 
-        // Parse packet loss from Windows output
         const lossMatch = stdout.match(/\((\d+)% loss\)/i);
         if (lossMatch) {
           packetLoss = parseInt(lossMatch[1]);
         } else {
-          // Calculate based on successful pings vs batch size
           packetLoss = Math.round(
             ((this.batchSize - pingTimes.length) / this.batchSize) *
               100
           );
         }
 
-        // Check for Windows-specific errors
         if (
           stdout.includes('Request timed out') ||
           stdout.includes('Destination host unreachable') ||
@@ -403,13 +417,11 @@ export class AccessPointPoller extends EventEmitter {
           error = this.extractWindowsError(stdout);
         }
       } else {
-        // Unix/Linux/macOS ping parsing
         const timeMatches = [
           ...stdout.matchAll(/time=(\d+(?:\.\d+)?) ms/g)
         ];
         pingTimes = timeMatches.map((m) => parseFloat(m[1]));
 
-        // Parse packet loss from Unix output - look for the standard format
         const lossMatch = stdout.match(
           /(\d+(?:\.\d+)?)% packet loss/
         );
@@ -419,7 +431,6 @@ export class AccessPointPoller extends EventEmitter {
             `[DEBUG] Found packet loss in output: ${packetLoss}%`
           );
         } else {
-          // Fallback: calculate based on successful pings vs batch size
           packetLoss = Math.round(
             ((this.batchSize - pingTimes.length) / this.batchSize) *
               100
@@ -429,7 +440,6 @@ export class AccessPointPoller extends EventEmitter {
           );
         }
 
-        // Check for Unix-specific errors in stderr or stdout
         if (
           stderr.includes('Name or service not known') ||
           stderr.includes('No route to host') ||
@@ -438,11 +448,6 @@ export class AccessPointPoller extends EventEmitter {
         ) {
           error = stderr.trim() || this.extractUnixError(stdout);
         }
-
-        // If we found "Destination Host Unreachable" messages, that's still useful info
-        /*if (stdout.includes('Destination Host Unreachable')) {
-          error = 'Destination Host Unreachable';
-        }*/
       }
 
       console.log(
@@ -464,8 +469,6 @@ export class AccessPointPoller extends EventEmitter {
           ) / 100
         : undefined;
 
-      // Determine overall success
-      // Consider successful if we got at least some responses and packet loss < 100%
       const success = pingTimes.length > 0 && packetLoss < 100;
 
       return {
