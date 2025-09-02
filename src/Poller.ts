@@ -1,7 +1,8 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { EventEmitter } from 'events';
-import { PollResult, PollerOptions } from './types';
+import { PollResult, PollerOptions } from './types/';
+import { IAccessPointPoller } from './interfaces';
 
 const execAsync = promisify(exec);
 
@@ -37,7 +38,10 @@ const execAsync = promisify(exec);
  * @see PollerOptions
  * @see PollResult
  */
-export class AccessPointPoller extends EventEmitter {
+export class AccessPointPoller
+  extends EventEmitter
+  implements IAccessPointPoller
+{
   private ipAddress: string;
   private frequency: number;
   private timeout: number;
@@ -814,6 +818,17 @@ export class AccessPointPoller extends EventEmitter {
     };
   }
 
+  /**
+   * Updates the poller configuration with the provided values.
+   * Only the properties specified in the `config` object will be updated;
+   * unspecified properties will retain their current values.
+   *
+   * @param config - An object containing optional configuration properties:
+   *   - `ipAddress` (string): The IP address to poll.
+   *   - `frequency` (number): The polling frequency in milliseconds.
+   *   - `timeout` (number): The timeout for each poll in milliseconds.
+   *   - `maxRetries` (number): The maximum number of retry attempts.
+   */
   public setConfiguration(config: {
     ipAddress?: string;
     frequency?: number;

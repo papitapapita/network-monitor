@@ -1,4 +1,4 @@
-export interface APStatistics {
+export interface AccessPointStats {
   total: number;
   enabled: number;
   disabled: number;

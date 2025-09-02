@@ -2,18 +2,54 @@ import { EventEmitter } from 'events';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
-// Interfaces
 import {
   GlobalSettings,
   SettingsUpdatedData,
-  SettingsUpdateOptions,
   DatabaseData,
-  APEntry,
-  APStatistics
+  AccessPointConfig,
+  AccessPointStats
 } from '../types/';
+import { SettingsService } from '../interfaces';
 
-// Events
-export class SettingsManager extends EventEmitter {
+/**
+ * Manages global and per-access-point settings for the ping monitoring system,
+ * providing persistence, event-driven updates, and type-safe APIs for configuration.
+ *
+ * The `SettingsManager` class handles loading, saving, and updating settings for
+ * access points (APs) and global system parameters. It emits events for changes,
+ * errors, and data loading, allowing consumers to react to configuration updates.
+ *
+ * Features:
+ * - Load and save settings to a persistent file (TypeScript module).
+ * - Add, remove, and update individual or batch AP configurations.
+ * - Update global settings and propagate changes to APs.
+ * - Reset all settings to defaults.
+ * - Query enabled APs, statistics, and current configuration.
+ * - Emits events for settings updates, AP additions/removals, data loading, and errors.
+ *
+ * Usage:
+ * - Instantiate with a file path and auto-save option.
+ * - Call `initialize()` to load data before use.
+ * - Register event listeners for reactive updates.
+ * - Use provided methods to manage APs and settings.
+ *
+ * Events:
+ * - `settings-updated`: Fired when settings are changed (global, batch, or individual).
+ * - `ap-added`: Fired when a new AP is added.
+ * - `ap-removed`: Fired when an AP is removed.
+ * - `data-loaded`: Fired when data is loaded or reset.
+ * - `error`: Fired on any error during operations.
+ *
+ * @example
+ * const manager = new SettingsManager('./data.ts');
+ * await manager.initialize();
+ * manager.onSettingsUpdated((data) => { ... });
+ * await manager.addAP({ IPaddress: '1.2.3.4', ... });
+ */
+export class SettingsManager
+  extends EventEmitter
+  implements SettingsService
+{
   private dataFilePath: string;
   private data: DatabaseData;
   private autoSave: boolean;
@@ -52,7 +88,6 @@ export class SettingsManager extends EventEmitter {
     }
   }
 
-  // Type-safe event methods
   /**
    * Registers a listener for the `settings-updated` event.
    *
@@ -71,7 +106,7 @@ export class SettingsManager extends EventEmitter {
    * @param listener - Callback for AP added events.
    * @returns This instance for chaining.
    */
-  public onAPAdded(listener: (ap: APEntry) => void): this {
+  public onAPAdded(listener: (ap: AccessPointConfig) => void): this {
     return this.on('ap-added', listener);
   }
 
@@ -117,9 +152,9 @@ export class SettingsManager extends EventEmitter {
   /**
    * Gets a list of all AP entries with their polling settings.
    *
-   * @returns Array of APEntry objects.
+   * @returns Array of AccessPointConfig objects.
    */
-  public getAPList(): APEntry[] {
+  public getAPList(): AccessPointConfig[] {
     return this.data.apList.map((ap) => ({ ...ap }));
   }
 
@@ -127,9 +162,9 @@ export class SettingsManager extends EventEmitter {
    * Gets a specific AP entry by its IP address.
    *
    * @param IPaddress - The IP address of the AP.
-   * @returns The APEntry object or null if not found.
+   * @returns The AccessPointConfig object or null if not found.
    */
-  public getAP(IPaddress: string): APEntry | null {
+  public getAP(IPaddress: string): AccessPointConfig | null {
     const ap = this.data.apList.find(
       (entry) => entry.IPaddress === IPaddress
     );
@@ -145,11 +180,14 @@ export class SettingsManager extends EventEmitter {
    */
   public async updateBatchSettings(
     IPaddresses: string[],
-    options: Omit<SettingsUpdateOptions, 'IPaddress'>
+    options: Omit<AccessPointConfig, 'IPaddress'>
   ): Promise<void> {
     try {
       const changes: {
-        [key: string]: { old: APEntry; new: APEntry };
+        [key: string]: {
+          old: AccessPointConfig;
+          new: AccessPointConfig;
+        };
       } = {};
 
       for (const IPaddress of IPaddresses) {
@@ -171,10 +209,6 @@ export class SettingsManager extends EventEmitter {
           }
           if (options.name !== undefined) {
             this.data.apList[apIndex].name = options.name;
-          }
-          if (options.description !== undefined) {
-            this.data.apList[apIndex].description =
-              options.description;
           }
 
           this.data.apList[apIndex].lastUpdated = new Date();
@@ -200,15 +234,14 @@ export class SettingsManager extends EventEmitter {
   /**
    * Adds a new AP entry to the system.
    *
-   * @param ap - The APEntry data (without lastUpdated).
+   * @param ap - The AccessPointConfig data (without lastUpdated).
    * @returns Promise that resolves when AP is added.
    * @throws Error if the IP address already exists.
    */
   public async addAP(
-    ap: Omit<APEntry, 'lastUpdated'>
+    ap: Omit<AccessPointConfig, 'lastUpdated'>
   ): Promise<void> {
     try {
-      // Check if IP already exists
       if (
         this.data.apList.some(
           (entry) => entry.IPaddress === ap.IPaddress
@@ -217,7 +250,7 @@ export class SettingsManager extends EventEmitter {
         throw new Error(`IP address ${ap.IPaddress} already exists`);
       }
 
-      const newAP: APEntry = {
+      const newAP: AccessPointConfig = {
         ...ap,
         timeout:
           ap.timeout || this.data.globalSettings.defaultTimeout,
@@ -273,9 +306,9 @@ export class SettingsManager extends EventEmitter {
   /**
    * Gets all enabled AP entries.
    *
-   * @returns Array of enabled APEntry objects.
+   * @returns Array of enabled AccessPointConfig objects.
    */
-  public getEnabledAPs(): APEntry[] {
+  public getEnabledAPs(): AccessPointConfig[] {
     return this.data.apList
       .filter((ap) => ap.enabled !== false)
       .map((ap) => ({ ...ap }));
@@ -314,7 +347,6 @@ export class SettingsManager extends EventEmitter {
         .catch(() => false);
 
       if (!exists) {
-        // Create file with default data
         await this.saveData();
         return;
       }
@@ -327,7 +359,9 @@ export class SettingsManager extends EventEmitter {
       if (content.includes('export const databaseData')) {
         // Use dynamic import to load the module (ESM compatible)
         const fileUrl = pathToFileURL(this.dataFilePath).href;
-        const module = await import(fileUrl + `?update=${Date.now()}`); // cache busting
+        const module = await import(
+          fileUrl + `?update=${Date.now()}`
+        ); // cache busting
         if (module.databaseData) {
           this.data = {
             ...module.databaseData,
@@ -363,7 +397,7 @@ export class SettingsManager extends EventEmitter {
    *
    * @returns Object with total, enabled, disabled APs, average frequency, and last modified date.
    */
-  public getStats(): APStatistics {
+  public getStats(): AccessPointStats {
     const totalAPs = this.data.apList.length;
     const enabledAPs = this.data.apList.filter(
       (ap) => ap.enabled !== false
@@ -384,7 +418,7 @@ export class SettingsManager extends EventEmitter {
    * @param options The settings to update
    */
   public async updateIndividualAPSettings(
-    options: SettingsUpdateOptions
+    options: AccessPointConfig
   ): Promise<void> {
     const apIndex = this.data.apList.findIndex(
       (ap) => ap.IPaddress === options.IPaddress
@@ -408,9 +442,6 @@ export class SettingsManager extends EventEmitter {
     }
     if (options.name !== undefined) {
       this.data.apList[apIndex].name = options.name;
-    }
-    if (options.description !== undefined) {
-      this.data.apList[apIndex].description = options.description;
     }
 
     this.data.apList[apIndex].lastUpdated = new Date();
@@ -512,7 +543,6 @@ export class SettingsManager extends EventEmitter {
           timeout: 3000,
           enabled: true,
           name: 'Google DNS',
-          description: 'Primary Google DNS server',
           lastUpdated: new Date()
         },
         {
@@ -521,7 +551,6 @@ export class SettingsManager extends EventEmitter {
           timeout: 3000,
           enabled: true,
           name: 'Google DNS Secondary',
-          description: 'Secondary Google DNS server',
           lastUpdated: new Date()
         }
       ],
@@ -537,5 +566,3 @@ export const databaseData: DatabaseData = ${JSON.stringify(this.data, null, 2)};
 `;
   }
 }
-
-export default SettingsManager;

@@ -1,8 +1,8 @@
-import { GlobalSettings, APEntry } from "./";
+import { GlobalSettings, AccessPointConfig } from './';
 
 export interface DatabaseData {
   globalSettings: GlobalSettings;
-  apList: APEntry[];
+  apList: AccessPointConfig[];
   lastModified: Date;
-  //version: string;
+  globalPause?: boolean;
 }

@@ -1,11 +1,11 @@
 import SettingsManager from './services/settings.service';
 import ping from 'ping';
-import { APEntry } from './types/APEntry';
+import { AccessPointConfig } from './types/AccessPointConfig';
 import EventEmitter from 'events';
 
 interface PollingJob {
   timer: NodeJS.Timeout;
-  ap: APEntry;
+  ap: AccessPointConfig;
 }
 
 export class PollingScheduler extends EventEmitter {
@@ -44,7 +44,7 @@ export class PollingScheduler extends EventEmitter {
     }
   }
 
-  private startPolling(ap: APEntry) {
+  private startPolling(ap: AccessPointConfig) {
     const poll = async () => {
       try {
         const res = await ping.promise.probe(ap.IPaddress, {
