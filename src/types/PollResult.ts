@@ -12,7 +12,11 @@
  * @property avgTime - Optional average response time recorded (in milliseconds).
  */
 export interface PollResult {
+  //apId: string;
+  ipAddress: string;
   timestamp: Date;
+  //method: "ICMP, SNMP, HTTP";
+  status: boolean;
   success: boolean;
   responseTimes?: number[]; // in milliseconds
   error?: string;
