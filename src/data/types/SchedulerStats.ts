@@ -1,4 +1,4 @@
-import { AccessPointStats } from './';
+import { AccessPointStats } from '.';
 
 export interface SchedulerStats {
   totalAccessPoints: number;

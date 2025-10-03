@@ -5,7 +5,7 @@ import {
   AccessPointConfig,
   PollResult,
   GlobalSettings
-} from './types/';
+} from './data/types';
 
 /**
  * Manages multiple AccessPointPoller instances based on settings from SettingsManager.

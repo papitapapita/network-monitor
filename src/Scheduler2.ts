@@ -9,7 +9,7 @@ import {
   SchedulerStats,
   GlobalSettings,
   DatabaseData
-} from './types/';
+} from './data/types';
 
 /**
  * Manages multiple AccessPointPoller instances with dynamic configuration.

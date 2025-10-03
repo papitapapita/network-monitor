@@ -1,4 +1,4 @@
-import { GlobalSettings, AccessPointConfig } from './';
+import { GlobalSettings, AccessPointConfig } from '.';
 
 export interface DatabaseData {
   globalSettings: GlobalSettings;

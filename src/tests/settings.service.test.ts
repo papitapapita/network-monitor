@@ -2,7 +2,7 @@ import { SettingsManager } from '../services/settings.service';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { EventEmitter } from 'events';
-import { SettingsUpdateOptions, DatabaseData } from '../types';
+import { SettingsUpdateOptions, DatabaseData } from '../data/types';
 
 // Mock fs/promises
 jest.mock('fs/promises');
