@@ -1,5 +1,5 @@
 import { checkHost } from './monitor.js';
-import 'dotenv/config';
+import 'dotenv/config.js';
 import { analyzeResults } from './notifier.js';
 
 import dotenv from 'dotenv';
