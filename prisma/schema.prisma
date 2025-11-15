@@ -1,0 +1,288 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DeviceType {
+  ROUTER
+  SWITCH
+  ANTENNA
+  OLT
+  ONU
+  OTHER
+}
+
+enum LogLevel {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+enum DeviceStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+  OUT_OF_SERVICE
+  DAMAGED
+}
+
+// Possible owners of the device
+enum DeviceOwner {
+  COMPANY
+  CLIENT
+  THIRD_PARTY
+}
+
+
+enum MaintenanceType {
+  PREVENTIVE
+  CORRECTIVE
+  PREDICTIVE
+  EMERGENCY
+}
+
+enum NetworkDeviceType {
+  CORE_ROUTER
+  EDGE_ROUTER
+  DISTRIBUTION_SWITCH
+  ACCESS_SWITCH
+  WIRELESS_ACCESS_POINT
+  FIREWALL
+  LOAD_BALANCER
+  ACCESS_POINT
+  MODEM
+  OTHER
+}
+
+enum ConnectivityType {
+  ETHERNET
+  FIBER_OPTIC
+  WIRELESS
+  DSL
+  SATELLITE
+  OTHER
+}
+
+enum ManagementProtocol {
+  SNMP
+  SSH
+  TELNET
+  HTTP
+  HTTPS
+  OTHER
+}
+
+enum EnergySourceType {
+  SOLAR
+  BATTERY
+  MAINS
+  GENERATOR
+  POE
+  OTHER
+}
+
+enum BackupEnergyType {
+  UPS
+  BATTERY_BANK
+  SOLAR_PANEL
+  NONE
+  OTHER
+}
+
+model Supplier {
+  id            Int           @id @default(autoincrement())
+  name          String
+  contactInfo   String?
+  location      String?
+  deviceModels  DeviceModel[]
+}
+
+model DeviceModel {
+  idInt           Int         @id @default(autoincrement())
+  model           String
+  manufacturer    String
+  type            DeviceType
+  operatingSystem String?
+  specifications  String?
+  suppliers       Supplier[]
+}
+
+model PurchaseOrder {
+  id            Int       @id @default(autoincrement())
+  orderNumber   String    @unique
+  date          DateTime  @default(now())
+  observations  String?
+  totalPrice    Float
+  supplier      Supplier  @relation(fields: [supplierId], references: [id])
+  supplierId    Int
+}
+
+model Device {
+  id                Int           @id @default(autoincrement())
+  status            DeviceStatus  @default(INACTIVE)
+  owner             DeviceOwner   @default(COMPANY)
+  serialNumber      String        @unique
+  guaranteeEndDate  DateTime?
+  deviceModel       DeviceModel   @relation(fields: [deviceModelId], references: [idInt])
+  deviceModelId     Int
+  purchaseOrders    PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrderId   Int
+  location          Location      @relation(fields: [locationId], references: [id])
+  locationId        Int
+}
+
+model Location {
+  id            Int      @id @default(autoincrement())
+  coordenates   String
+  city          String
+  neighborhood  String
+  address       String?
+}
+
+model NetworkDevice {
+  id                  Int               @id @default(autoincrement())
+  name                String
+  type                NetworkDeviceType
+  description         String?
+  installDate         DateTime          @default(now())
+  maintenanceDate     DateTime?
+  ipAddress           String            @unique
+  macAddress          String            @unique
+  connectivityType    ConnectivityType
+  managementProtocol  ManagementProtocol
+  managementPort      Int
+  enabledRemoteAccess Boolean           @default(false)
+  device              Device            @relation(fields: [deviceId], references: [id])
+  deviceId            Int
+}
+
+model RadioAntenna {
+  id              Int           @id @default(autoincrement())
+  power           Float?
+  antennaGain     Float?
+  height          Float?
+  frequencyRange  String?
+  networkDevice   NetworkDevice @relation(fields: [networkDeviceId], references: [id])
+  networkDeviceId Int
+}
+
+model AccessPoint {
+  id                Int           @id @default(autoincrement())
+  ssid              String
+  frequencyChannel  Int?
+  bandwidth         Float?
+  ptpMode           Boolean       @default(false)
+  password          String?
+  radioAntenna      RadioAntenna  @relation(fields: [radioAntennaId], references: [id])
+  radioAntennaId    Int
+}
+
+model Link {
+  id                  Int           @id @default(autoincrement())
+  name                String
+  description         String?
+  rxThroughput        Float
+  txThroughput        Float
+  rxSignalStrength    Float?
+  txSignalStrength    Float?
+  latency             Float?
+  distance            Float?
+  sourceDevice        AccessPoint   @relation("SourceDevice", fields: [sourceDeviceId], references: [id])
+  sourceDeviceId      Int
+  destinationDevice   NetworkDevice @relation("DestinationDevice", fields: [destinationDeviceId], references: [id])
+  destinationDeviceId Int
+}
+
+model DeviceSoftware {
+  id              Int           @id @default(autoincrement())
+  version         String
+  releaseDate     DateTime
+  lastUpdateDate  DateTime?
+  backupLink      String?
+  networkDevice   NetworkDevice @relation(fields: [networkDeviceId], references: [id])
+  networkDeviceId Int
+}
+
+model Technician {
+  id          Int           @id @default(autoincrement())
+  name        String
+  contactInfo String?
+  logs        MaintenanceLog[]
+}
+
+model DeviceMaintenanceLog {
+  id              Int           @id @default(autoincrement())
+  date            DateTime      @default(now())
+  description     String
+  type            MaintenanceType
+  performedBy     Technician    @relation(fields: [performedById], references: [id])
+  performedById   Int
+  networkDevice   NetworkDevice @relation(fields: [networkDeviceId], references: [id])
+  networkDeviceId Int
+}
+
+model DeviceSecurity {
+  id              Int           @id @default(autoincrement())
+  username        String
+  password        String
+  SNMPPassword    String?
+  networkDevice   NetworkDevice @relation(fields: [networkDeviceId], references: [id])
+  networkDeviceId Int
+}
+
+model DeviceLogs {
+  id              Int           @id @default(autoincrement())
+  timestamp       DateTime      @default(now())
+  logLevel        LogLevel
+  message         String
+  networkDevice   NetworkDevice @relation(fields: [networkDeviceId], references: [id])
+  networkDeviceId Int
+}
+
+model DeviceEnergy {
+  id               Int              @id @default(autoincrement())
+  sourceType       EnergySourceType
+  powerConsumption Float
+  voltage          Float
+  current          Float
+  backUpEnergy     BackupEnergyType
+  networkDevice    NetworkDevice    @relation(fields: [networkDeviceId], references: [id])
+  networkDeviceId  Int
+}
+
+enum DeviceStatus {
+  ONLINE
+  OFFLINE
+  DEGRADED
+  MAINTENANCE
+}
+
+model DeviceMonitoring {
+  id              Int           @id @default(autoincrement())
+  uptime          Int
+  temperature     Float
+  status          DeviceStatus
+  avgLatency      Float
+  packetsLost     Float
+  rxThroughput    Float
+  txThroughput    Float
+  alertsEnabled   Boolean       @default(true)
+  lastMonitoring  DateTime      @default(now())
+  cpuUsage        Float
+  memoryUsage     Float
+  diskUsage       Float
+  networkDevice   NetworkDevice @relation(fields: [networkDeviceId], references: [id])
+  networkDeviceId Int
+}

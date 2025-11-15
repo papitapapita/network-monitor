@@ -18,7 +18,7 @@
   "license": "MIT",
   "dependencies": {
     "dotenv": "^16.4.7",
-    "nodemailer": "^6.10.0",
+    "nodemailer": "^7.0.10",
     "ping": "^0.4.4",
     "winston": "^3.17.0"
   },
@@ -33,6 +33,7 @@
     "eslint-plugin-prettier": "^5.2.3",
     "globals": "^16.0.0",
     "prettier": "^3.5.3",
+    "prisma": "^6.19.0",
     "ts-jest": "^29.2.6",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
