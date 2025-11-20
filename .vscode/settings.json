@@ -1,5 +1,9 @@
 {
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "prettier.printWidth": 70,
-  "editor.formatOnSave": true
+  "editor.formatOnSave": true,
+  "[prisma]": {
+            "editor.defaultFormatter": "Prisma.prisma", // Ensure Prisma is the default formatter for .prisma files
+            "editor.formatOnSave": false // This specifically disables format on save for .prisma files
+        }
 }
