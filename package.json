@@ -21,7 +21,8 @@
     "dotenv": "^16.4.7",
     "nodemailer": "^7.0.10",
     "ping": "^0.4.4",
-    "winston": "^3.17.0"
+    "winston": "^3.17.0",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
