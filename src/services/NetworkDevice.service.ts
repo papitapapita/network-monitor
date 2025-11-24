@@ -15,28 +15,8 @@ import {
   LinkAntennaSchema,
   LinkAntennaDTO
 } from '../validators';
-
-// ==================== Events ====================
-
-export enum NetworkDeviceEventType {
-  CREATED = 'NetworkDeviceCreated',
-  UPDATED = 'NetworkDeviceUpdated',
-  DELETED = 'NetworkDeviceDeleted',
-  TOPOLOGY_CHANGED = 'NetworkDeviceTopologyChanged',
-  RELATIONSHIP_CHANGED = 'DeviceRelationshipChanged'
-}
-
-// ==================== Errors ====================
-
-export class NetworkDeviceError extends Error {
-  constructor(
-    message: string,
-    public code: string
-  ) {
-    super(message);
-    this.name = 'NetworkDeviceError';
-  }
-}
+import { NetworkDeviceError } from '../errors/networkDevice.errors';
+import { NetworkDeviceEventType } from '../events/networkDevice.events';
 
 // ==================== Service ====================
 
@@ -55,25 +35,20 @@ export class NetworkDeviceService {
    * Create a new network device with validation
    */
   async create(data: CreateNetworkDeviceDTO): Promise<NetworkDevice> {
-    // Validate input
     const validated = CreateNetworkDeviceSchema.parse(data);
 
-    // Validate device exists and is valid
     await this.validateDevice(validated.deviceId);
 
-    // Validate device model supports network type
     await this.validateDeviceModelCompatibility(
       validated.deviceId,
       validated.type
     );
 
-    // Check uniqueness constraints
     await this.checkUniquenessConstraints(
       validated.ipAddress,
       validated.macAddress
     );
 
-    // Ensure deviceId is not already linked to another NetworkDevice
     await this.checkDeviceNotLinked(validated.deviceId);
 
     try {

@@ -17,10 +17,122 @@ datasource db {
 enum DeviceType {
   ROUTER
   SWITCH
-  ANTENNA
+  RADIO
+  FIREWALL
+  SERVER
+  MODEM
+  ONT
   OLT
-  ONU
-  OTHER
+  WIRELESS
+  SECURITY
+  EDGE
+}
+
+enum DeviceRole {
+  ROUTING
+  SWITCHING
+  FIREWALL
+  VPN
+}
+
+enum RouterType {
+  CORE_ROUTER
+  EDGE_ROUTER
+  VIRTUAL_ROUTER
+  WIRELESS_ROUTER
+}
+
+enum SwitchType {
+  UNMANAGED_SWITCH
+  MANAGED_SWITCH
+  LAYER2_SWITCH
+  LAYER3_SWITCH
+  POE_SWITCH
+  CORE_SWITCH
+  DISTRIBUTION_SWITCH
+  ACCESS_SWITCH
+}
+
+enum WirelessType {
+  ACCESS_POINT
+  WIRELESS_CONTROLLER
+  WIRELESS_BRIDGE
+  MESH_ACCESS_POINT
+}
+
+enum RadioType {
+  PTP_RADIO
+  PTMP_RADIO
+  SECTOR_ANTENNA
+  BACKHAUL_RADIO
+  MIMO_RADIO
+}
+
+enum SecurityDeviceType {
+  FIREWALL
+  NEXT_GENERATION_FIREWALL
+  UTM
+  IDS
+  IPS
+  VPN
+  NAC
+  AUTHENTICATION_SERVER
+}
+
+enum ServerType {
+  APPLICATION_SERVER
+  DATABASE_SERVER
+  PROXY_SERVER
+  DHCP_SERVER
+  DNS_SERVER
+  LOAD_BALANCER
+  CDN_NODE
+  SYSLOG_SERVER
+}
+
+enum MonitoringHardwareType {
+  NETWORK_MONITORING_PROBE
+  SNMP_PROBE
+  OOB_MANAGEMENT_DEVICE
+  KVM
+  ENVIRONMENTAL_SENSOR
+  REMOTE_PDU
+}
+
+enum PowerSystemType {
+  UPS
+  PDU
+  RECTIFIER
+  INVERTER
+  POE_INJECTOR
+  SOLAR_CHARGE_CONTROLLER
+  BATTERY_BANK
+}
+
+enum PhysicalComponentsType {
+  PATCH_PANEL
+  ODF
+  FDF
+  NETWORK_RACK
+  CABINET
+  GROUNDING_SYSTEM
+  LIGHTNING_ARRESTOR
+  SURGE_PROTECTOR
+  SPLICE_BOX
+  FIBER_PATCH_CORD
+  PIGTAIL
+  ETHERNET_CABLE_REEL
+}
+
+enum ISPDevicesType {
+  OLT
+  BRAS
+  PPPOE_SERVER
+  CGNAT
+  AAA_SERVER
+  BANDWITH_MANAGER
+  TRAFFIC_SHAPER
+  TOWER_CONTROLLER
 }
 
 enum LogLevel {
@@ -33,13 +145,13 @@ enum LogLevel {
 enum NetworkDeviceStatus {
   ONLINE
   OFFLINE
-  DEGRADED
   MAINTENANCE
 }
 
 enum DeviceStatus {
   ACTIVE
   INACTIVE
+  DEGRADED
   MAINTENANCE
   OUT_OF_SERVICE
   DAMAGED
@@ -107,6 +219,16 @@ enum BackupEnergyType {
   OTHER
 }
 
+enum Vendors {
+  MIKROTIK
+  UBIQUITI
+  MIMOSA
+  CISCO
+  ARUBA
+  CAMBIUM
+  OTHER
+}
+
 model Supplier {
   id             Int             @id @default(autoincrement())
   name           String
@@ -119,7 +241,7 @@ model Supplier {
 model DeviceModel {
   idInt           Int        @id @default(autoincrement())
   model           String
-  manufacturer    String
+  manufacturer    Vendors
   type            DeviceType
   operatingSystem String?
   specifications  String?
