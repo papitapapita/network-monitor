@@ -1,4 +1,3 @@
-import { DeviceStatus, DeviceVendor } from '../enums';
 import { CommunicationMethod } from './PollerService.interface';
 import { DeviceCredential } from './CretentialTypes';
 

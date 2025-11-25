@@ -28,13 +28,6 @@ enum DeviceType {
   EDGE
 }
 
-enum DeviceRole {
-  ROUTING
-  SWITCHING
-  FIREWALL
-  VPN
-}
-
 enum RouterType {
   CORE_ROUTER
   EDGE_ROUTER
@@ -53,19 +46,14 @@ enum SwitchType {
   ACCESS_SWITCH
 }
 
-enum WirelessType {
-  ACCESS_POINT
-  WIRELESS_CONTROLLER
-  WIRELESS_BRIDGE
-  MESH_ACCESS_POINT
-}
-
 enum RadioType {
+  ACCESS_POINT
   PTP_RADIO
   PTMP_RADIO
   SECTOR_ANTENNA
   BACKHAUL_RADIO
   MIMO_RADIO
+  STATION
 }
 
 enum SecurityDeviceType {
@@ -171,17 +159,35 @@ enum MaintenanceType {
   EMERGENCY
 }
 
-enum NetworkDeviceType {
-  CORE_ROUTER
-  EDGE_ROUTER
-  DISTRIBUTION_SWITCH
-  ACCESS_SWITCH
-  WIRELESS_ACCESS_POINT
+enum NetworkDeviceRole {
+  ROUTING
+  SWITCHING
+  WIRELESS_ACCESS
+  WIRELESS_CONTROLLER
+  WIRELESS_BRIDGE
+  RADIO_LINK
+  BACKHAUL
   FIREWALL
-  LOAD_BALANCER
-  ACCESS_POINT
-  MODEM
-  OTHER
+  IDS
+  IPS
+  UTM
+  VPN
+  NAC
+  AUTHENTICATION
+  APPLICATION_HOSTING
+  DATABASE_HOSTING
+  PROXY
+  DHCP
+  DNS
+  LOAD_BALANCING
+  CDN
+  LOGGING
+  MONITORING
+  SNMP
+  OOB_MANAGEMENT
+  KVM_ACCESS
+  ENVIRONMENT_MONITORING
+  POWER_MANAGEMENT
 }
 
 enum ConnectivityType {
@@ -211,22 +217,57 @@ enum EnergySourceType {
   OTHER
 }
 
-enum BackupEnergyType {
-  UPS
-  BATTERY_BANK
-  SOLAR_PANEL
-  NONE
-  OTHER
-}
-
 enum Vendors {
   MIKROTIK
   UBIQUITI
   MIMOSA
   CISCO
   ARUBA
+  ARISTA
   CAMBIUM
+  JUNIPER
+  HUAWEI
+  HPE
+  EXTREME_NETWORKS
+  RADWIN
+  CERAGON
+  TP_LINK
   OTHER
+}
+
+enum OperatingSystems {
+  IOS
+  IOS_XE
+  IOS_XR
+  NX_OS
+  JUNOS
+  EOS
+  VRP
+  ARUBAOS
+  COMWARE
+  XOS
+  EXOS
+  ROUTEROS
+  SWITCHOS
+  EDGEOS
+  UNIFI_OS
+  AIROS
+  UFIBER_OS
+  CNMAESTRO_OS
+  EPMP_OS
+  MIMOSAOS
+  RADWIN_OS
+  FIBEAIR_OS
+  PHAROS_OS
+  OMADA_OS
+  FORTIOS
+  PAN_OS
+  SOPHOS_OS
+  GAIA_OS
+  SONICOS
+  FIREWARE_OS
+  PFSENSE_OS
+  OPNSENSE_OS
 }
 
 model Supplier {
@@ -243,7 +284,7 @@ model DeviceModel {
   model           String
   manufacturer    Vendors
   type            DeviceType
-  operatingSystem String?
+  operatingSystem OperatingSystems?
   specifications  String?
   suppliers       Supplier[]
   devices         Device[]
@@ -287,7 +328,7 @@ model Location {
 model NetworkDevice {
   id                    Int                    @id @default(autoincrement())
   name                  String
-  type                  NetworkDeviceType
+  type                  NetworkDeviceRole
   description           String?
   installDate           DateTime               @default(now())
   ipAddress             String                 @unique
@@ -307,18 +348,13 @@ model NetworkDevice {
   deviceMonitoring      DeviceMonitoring?
 }
 
-enum RadioAntennaType {
-  ACCESS_POINT
-  STATION
-}
-
 model RadioAntenna {
   id              Int              @id @default(autoincrement())
   power           Float?
   antennaGain     Float?
   height          Float?
   frequencyRange  String?
-  type            RadioAntennaType
+  type            RadioType
   networkDevice   NetworkDevice    @relation(fields: [networkDeviceId], references: [id])
   networkDeviceId Int              @unique
   accessPoint     AccessPoint?
@@ -405,7 +441,7 @@ model DeviceEnergy {
   powerConsumption Float
   voltage          Float
   current          Float
-  backUpEnergy     BackupEnergyType
+  backUpEnergy     EnergySourceType
   networkDevice    NetworkDevice    @relation(fields: [networkDeviceId], references: [id])
   networkDeviceId  Int              @unique
 }
