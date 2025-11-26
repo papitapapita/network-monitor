@@ -34,7 +34,7 @@ export class Identifier<T> {
     }
 
     if (id instanceof Identifier) {
-      return id.toValue() === this.value;
+      return id.toValue() === this.toValue();
     }
 
     return false;
