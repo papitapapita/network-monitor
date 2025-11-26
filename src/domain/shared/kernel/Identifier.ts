@@ -25,14 +25,19 @@ export class Identifier<T> {
    * @param {Identifier<T>} [id] - The identifier to compare with.
    * @returns {boolean} True if the identifiers are equal; otherwise, false.
    */
-  public equals(id?: Identifier<T>): boolean {
+  public equals(id?: unknown): boolean {
     if (id === null || id === undefined) {
       return false;
     }
     if (!(id instanceof this.constructor)) {
       return false;
     }
-    return id.toValue() === this.value;
+
+    if (id instanceof Identifier) {
+      return id.toValue() === this.value;
+    }
+
+    return false;
   }
 
   /**
