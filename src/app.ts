@@ -1,6 +1,6 @@
-import { checkHost } from './monitor.js';
+import { checkHost } from './application/monitor/monitor.js';
 import 'dotenv/config.js';
-import { analyzeResults } from './notifier.js';
+import { analyzeResults } from './application/notifier/notifier.js';
 
 import dotenv from 'dotenv';
 dotenv.config();

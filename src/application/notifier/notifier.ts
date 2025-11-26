@@ -1,6 +1,6 @@
 import { PingResponse } from 'ping';
 import nodemailer from 'nodemailer';
-import { config } from './config.js';
+import { config } from '../../config/config.js';
 
 const transporter = nodemailer.createTransport({
   host: config.smtpHost,

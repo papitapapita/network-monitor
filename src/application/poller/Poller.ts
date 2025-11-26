@@ -1,8 +1,8 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { EventEmitter } from 'events';
-import { PollResult, PollerOptions } from './data/types';
-import { IAccessPointPoller } from './data/interfaces';
+import { PollResult, PollerOptions } from './shared/types';
+import { IAccessPointPoller } from './shared/interfaces';
 
 const execAsync = promisify(exec);
 

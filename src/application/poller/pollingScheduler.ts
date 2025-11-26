@@ -1,6 +1,6 @@
-import SettingsManager from './services/settings.service';
+import SettingsManager from './application/settings/settings.service';
 import ping from 'ping';
-import { AccessPointConfig } from './data/types/AccessPointConfig';
+import { AccessPointConfig } from './shared/types/AccessPointConfig';
 import EventEmitter from 'events';
 
 interface PollingJob {

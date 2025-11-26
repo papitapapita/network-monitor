@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { AccessPointPoller } from './Poller';
-import { SettingsManager } from './services/settings.service';
+import { SettingsManager } from '../settings/settings.service';
 import {
   PollResult,
   PollerOptions,
@@ -9,7 +9,7 @@ import {
   SchedulerStats,
   GlobalSettings,
   DatabaseData
-} from './data/types';
+} from '../../shared/types';
 
 /**
  * Manages multiple AccessPointPoller instances with dynamic configuration.

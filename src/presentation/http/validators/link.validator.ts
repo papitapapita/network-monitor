@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { RadioAntennaType } from '../generated/prisma/client';
+import { RadioAntennaType } from '../../../generated/prisma/client';
 
 export const LinkAntennaSchema = z.object({
   networkDeviceId: z.number().int().positive(),

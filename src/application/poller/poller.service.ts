@@ -10,7 +10,7 @@ import {
   PollerEventHandlers,
   PollingError,
   CommunicationMethod
-} from '../data/interfaces/PollerService.interface';
+} from '../../shared/interfaces/PollerService.interface';
 
 /**
  * Internal device state for tracking polling

@@ -14,8 +14,8 @@ import {
   ListNetworkDevicesQuery,
   LinkAntennaSchema,
   LinkAntennaDTO
-} from '../validators';
-import { NetworkDeviceError } from '../errors/networkDevice.errors';
+} from '../application/http/validators';
+import { NetworkDeviceError } from '../shared/errors/networkDevice.errors';
 import { NetworkDeviceEventType } from '../events/networkDevice.events';
 
 // ==================== Service ====================

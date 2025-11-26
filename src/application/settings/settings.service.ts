@@ -8,8 +8,8 @@ import {
   DatabaseData,
   AccessPointConfig,
   AccessPointStats
-} from '../data/types';
-import { SettingsService } from '../data/interfaces';
+} from '../../shared/types';
+import { SettingsService } from '../../shared/interfaces';
 
 /**
  * Manages global and per-access-point settings for the ping monitoring system,

@@ -3,7 +3,7 @@ import {
   ConnectivityType,
   ManagementProtocol,
   NetworkDeviceType
-} from '../generated/prisma/client';
+} from '../../../generated/prisma/client';
 
 export const CreateNetworkDeviceSchema = z.object({
   name: z.string().min(1).max(255),

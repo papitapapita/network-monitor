@@ -2,7 +2,7 @@ import { DeviceStatus } from '../data/enums';
 import {
   IPollerServiceWithEvents,
   PollingConfig
-} from '../data/interfaces/PollerService.interface';
+} from '../shared/interfaces/PollerService.interface';
 
 export class PollerService implements IPollerServiceWithEvents {
   private config: PollingConfig | null = null;
