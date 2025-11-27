@@ -5,7 +5,7 @@
  * not by identity.
  */
 interface ValueObjectProps {
-  [index: string]: unknown;
+  [index: string]: any;
 }
 
 /**
@@ -51,6 +51,9 @@ export abstract class ValueObject<T extends ValueObjectProps> {
    */
   public equals(vo?: ValueObject<T>): boolean {
     if (vo === null || vo === undefined) {
+      return false;
+    }
+    if (!(vo instanceof ValueObject)) {
       return false;
     }
     if (vo.props === undefined) {
