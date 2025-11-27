@@ -1,12 +1,4 @@
-/**
- * Represents the shape of the properties allowed for a Value Object.
- *
- * Value Objects hold immutable data and must be compared by their properties,
- * not by identity.
- */
-interface ValueObjectProps {
-  [index: string]: any;
-}
+import { ValueObjectProps } from '../interfaces';
 
 /**
  * Base class for Value Objects used in Domain-Driven Design (DDD).

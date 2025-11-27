@@ -1,2 +1,2 @@
-export * from './IGuardArgument';
-export * from './IGuardResult';
+export * from './IDomainEvent';
+export * from './ValueObjectProps';
