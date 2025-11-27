@@ -17,8 +17,9 @@ export class Result<T> {
   /**
    * Error message in case of failure.
    * Undefined when the result is successful.
+   * @private
    */
-  public error: string | undefined;
+  private _error: string | undefined;
 
   /**
    * Internal value for successful results.
@@ -51,7 +52,7 @@ export class Result<T> {
     }
 
     this.isSuccess = isSuccess;
-    this.error = error;
+    this._error = error;
     this._value = value;
 
     Object.freeze(this);
@@ -80,7 +81,7 @@ export class Result<T> {
    * @returns {string} The stored error message.
    */
   public errorValue(): string {
-    return this.error as string;
+    return this._error as string;
   }
 
   /**
