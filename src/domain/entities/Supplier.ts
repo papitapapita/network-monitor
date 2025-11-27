@@ -1,9 +1,7 @@
-// src/modules/supplier/domain/entities/Supplier.ts
-
-import { Entity } from '@/shared/kernel/Entity';
-import { UniqueEntityID } from '@/shared/kernel/UniqueEntityID';
-import { Guard } from '@/shared/kernel/Guard';
-import { Result } from '@/shared/kernel/Result';
+import { Entity } from '../shared/kernel/Entity';
+import { UniqueEntityID } from '../shared/kernel/UniqueEntityID';
+import { Guard } from '../shared/kernel/Guard';
+import { Result } from '../shared/kernel/Result';
 
 export interface SupplierProps {
   name: string;
