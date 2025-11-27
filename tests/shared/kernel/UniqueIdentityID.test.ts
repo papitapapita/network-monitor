@@ -1,4 +1,4 @@
-import { UniqueEntityID } from '../../../src/domain/shared/kernel/UniqueEntityID';
+import { UniqueEntityID } from '../../../src/domain/shared/kernel';
 
 describe('UniqueEntityID', () => {
   const UUID_REGEX =

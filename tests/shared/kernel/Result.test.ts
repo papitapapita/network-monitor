@@ -1,4 +1,4 @@
-import { Result } from '../../../src/domain/shared/kernel/Result';
+import { Result } from '../../../src/domain/shared/kernel';
 
 describe('Result<T>', () => {
   // ---------------------------

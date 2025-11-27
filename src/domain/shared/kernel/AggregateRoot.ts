@@ -15,7 +15,7 @@ import { IDomainEvent } from '../interfaces';
  *
  * @typeParam T - The shape of the properties stored in the entity.
  */
-export class AggregateRoot<T> extends Entity<T> {
+export abstract class AggregateRoot<T> extends Entity<T> {
   /**
    * Internal collection of domain events raised by this aggregate.
    *
@@ -24,13 +24,13 @@ export class AggregateRoot<T> extends Entity<T> {
   private _domainEvents: IDomainEvent[] = [];
 
   /**
-   * Returns all domain events that the aggregate has raised.
+   * Returns a copy of all domain events that the aggregate has raised.
    *
    * These events are typically handled by an event dispatcher
    * after the aggregate operation completes.
    */
   get domainEvents(): IDomainEvent[] {
-    return this._domainEvents;
+    return [...this._domainEvents];
   }
 
   /**

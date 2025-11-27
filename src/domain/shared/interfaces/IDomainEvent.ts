@@ -1,4 +1,4 @@
-import { UniqueEntityID } from '../kernel/UniqueEntityID';
+import { UniqueEntityID } from '../kernel';
 
 /**
  * Represents a domain event in Domain-Driven Design (DDD).

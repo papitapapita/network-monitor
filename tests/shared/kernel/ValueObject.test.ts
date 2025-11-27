@@ -1,4 +1,4 @@
-import { ValueObject } from '../../../src/domain/shared/kernel/ValueObject';
+import { ValueObject } from '../../../src/domain/shared/kernel/index';
 
 interface FullNameProps {
   first: string;
