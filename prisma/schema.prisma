@@ -271,7 +271,7 @@ enum OperatingSystems {
 }
 
 model Supplier {
-  id             Int             @id @default(autoincrement())
+  id             String             @id @default(uuid())
   name           String
   contactInfo    String?
   location       String?
@@ -280,7 +280,7 @@ model Supplier {
 }
 
 model DeviceModel {
-  idInt           Int        @id @default(autoincrement())
+  id              String        @id @default(uuid())
   model           String
   manufacturer    Vendors
   type            DeviceType
@@ -291,33 +291,33 @@ model DeviceModel {
 }
 
 model PurchaseOrder {
-  id           Int      @id @default(autoincrement())
+  id           String      @id @default(uuid())
   orderNumber  String   @unique
   date         DateTime @default(now())
   observations String?
   totalPrice   Float
   supplier     Supplier @relation(fields: [supplierId], references: [id])
-  supplierId   Int
+  supplierId   String
   devices      Device[]
 }
 
 model Device {
-  id               Int            @id @default(autoincrement())
+  id               String            @id @default(uuid())
   status           DeviceStatus   @default(INACTIVE)
   owner            DeviceOwner    @default(COMPANY)
   serialNumber     String         @unique
   guaranteeEndDate DateTime?
-  deviceModel      DeviceModel    @relation(fields: [deviceModelId], references: [idInt])
-  deviceModelId    Int
+  deviceModel      DeviceModel    @relation(fields: [deviceModelId], references: [id])
+  deviceModelId    String
   purchaseOrders   PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id])
-  purchaseOrderId  Int
+  purchaseOrderId  String
   location         Location?      @relation(fields: [locationId], references: [id])
-  locationId       Int            @unique
+  locationId       String            @unique
   networkDevice    NetworkDevice?
 }
 
 model Location {
-  id           Int     @id @default(autoincrement())
+  id           String     @id @default(uuid())
   coordenates  String
   city         String
   neighborhood String
@@ -326,7 +326,7 @@ model Location {
 }
 
 model NetworkDevice {
-  id                    Int                    @id @default(autoincrement())
+  id                    String                    @id @default(uuid())
   name                  String
   type                  NetworkDeviceRole
   description           String?
@@ -338,7 +338,7 @@ model NetworkDevice {
   managementPort        Int
   enabledRemoteAccess   Boolean                @default(false)
   device                Device                 @relation(fields: [deviceId], references: [id])
-  deviceId              Int                    @unique
+  deviceId              String                    @unique
   radioAntenna          RadioAntenna?
   deviceSoftware        DeviceSoftware?
   deviceMaintenanceLogs DeviceMaintenanceLog[]
@@ -349,32 +349,32 @@ model NetworkDevice {
 }
 
 model RadioAntenna {
-  id              Int              @id @default(autoincrement())
+  id              String              @id @default(uuid())
   power           Float?
   antennaGain     Float?
   height          Float?
   frequencyRange  String?
   type            RadioType
   networkDevice   NetworkDevice    @relation(fields: [networkDeviceId], references: [id])
-  networkDeviceId Int              @unique
+  networkDeviceId String              @unique
   accessPoint     AccessPoint?
   link            Link?
 }
 
 model AccessPoint {
-  id               Int          @id @default(autoincrement())
+  id               String          @id @default(uuid())
   ssid             String
   frequencyChannel Int?
   bandwidth        Float?
   ptpMode          Boolean      @default(false)
   password         String?
   radioAntenna     RadioAntenna @relation(fields: [radioAntennaId], references: [id])
-  radioAntennaId   Int          @unique
+  radioAntennaId   String          @unique
   link             Link?        
 }
 
 model Link {
-  id               Int     @id @default(autoincrement())
+  id               String     @id @default(uuid())
   name             String
   description      String?
   rxThroughput     Float
@@ -384,70 +384,70 @@ model Link {
   latency          Float?
   distance         Float?
   sourceDevice     AccessPoint @relation(fields: [sourceDeviceId], references: [id])
-  sourceDeviceId   Int         @unique
+  sourceDeviceId   String         @unique
   destinationDevice RadioAntenna     @relation(fields: [destinationDeviceId], references: [id])
-  destinationDeviceId Int            @unique
+  destinationDeviceId String            @unique
 }
 
 model DeviceSoftware {
-  id              Int           @id @default(autoincrement())
+  id              String           @id @default(uuid())
   version         String
   releaseDate     DateTime
   lastUpdateDate  DateTime?
   backupLink      String?
   networkDevice   NetworkDevice @relation(fields: [networkDeviceId], references: [id])
-  networkDeviceId Int           @unique
+  networkDeviceId String           @unique
 }
 
 model Technician {
-  id                    Int                    @id @default(autoincrement())
+  id                    String                    @id @default(uuid())
   name                  String
   contactInfo           String?
   deviceMaintenanceLogs DeviceMaintenanceLog[]
 }
 
 model DeviceMaintenanceLog {
-  id              Int             @id @default(autoincrement())
+  id              String             @id @default(uuid())
   date            DateTime        @default(now())
   description     String
   type            MaintenanceType
   performedBy     Technician      @relation(fields: [performedById], references: [id])
-  performedById   Int
+  performedById   String
   networkDevice   NetworkDevice   @relation(fields: [networkDeviceId], references: [id])
-  networkDeviceId Int
+  networkDeviceId String
 }
 
 model DeviceSecurity {
-  id              Int           @id @default(autoincrement())
+  id              String           @id @default(uuid())
   username        String
   password        String
   SNMPPassword    String?
   networkDevice   NetworkDevice @relation(fields: [networkDeviceId], references: [id])
-  networkDeviceId Int           @unique
+  networkDeviceId String           @unique
 }
 
 model DeviceLogs {
-  id              Int           @id @default(autoincrement())
+  id              String           @id @default(uuid())
   timestamp       DateTime      @default(now())
   logLevel        LogLevel
   message         String
   networkDevice   NetworkDevice @relation(fields: [networkDeviceId], references: [id])
-  networkDeviceId Int
+  networkDeviceId String
 }
 
 model DeviceEnergy {
-  id               Int              @id @default(autoincrement())
+  id               String              @id @default(uuid())
   sourceType       EnergySourceType
   powerConsumption Float
   voltage          Float
   current          Float
   backUpEnergy     EnergySourceType
   networkDevice    NetworkDevice    @relation(fields: [networkDeviceId], references: [id])
-  networkDeviceId  Int              @unique
+  networkDeviceId  String              @unique
 }
 
 model DeviceMonitoring {
-  id              Int                 @id @default(autoincrement())
+  id              String                 @id @default(uuid())
   uptime          Int
   temperature     Float
   status          NetworkDeviceStatus
@@ -461,5 +461,5 @@ model DeviceMonitoring {
   memoryUsage     Float
   diskUsage       Float
   networkDevice   NetworkDevice       @relation(fields: [networkDeviceId], references: [id])
-  networkDeviceId Int                 @unique
+  networkDeviceId String                 @unique
 }
