@@ -26,3 +26,5 @@ export interface IDomainEvent {
    */
   getAggregateId(): UniqueEntityID;
 }
+
+export type EventHandler = (event: IDomainEvent) => void;
