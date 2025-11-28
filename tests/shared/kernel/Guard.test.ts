@@ -108,7 +108,7 @@ describe('Guard Utility Tests', () => {
       const result = Guard.againstAtLeast(0, 1, 'name');
       expect(result.succeeded).toBe(false);
       expect(result.message).toBe(
-        'name must be at least 1 character.'
+        'name must be at least 1 characters.'
       );
     });
 
@@ -232,7 +232,7 @@ describe('Guard Utility Tests', () => {
       const result = Guard.isValidEmail('invalid-email', 'email');
       expect(result.succeeded).toBe(false);
       expect(result.message).toBe(
-        'email is not a valid email address.'
+        'email is not a valid email address'
       );
     });
 

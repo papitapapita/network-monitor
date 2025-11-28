@@ -65,7 +65,7 @@ export class Result<T> {
    *
    * @throws {Error} Throws if attempting to retrieve a value from a failure result.
    */
-  public getValue(): T {
+  public get value(): T {
     if (!this.isSuccess) {
       throw new Error(
         "Can't get the value of an error result. Use 'errorValue' instead."
@@ -80,7 +80,7 @@ export class Result<T> {
    *
    * @returns {string} The stored error message.
    */
-  public errorValue(): string {
+  public get error(): string {
     return this._error as string;
   }
 

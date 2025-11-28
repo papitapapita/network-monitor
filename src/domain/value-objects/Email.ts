@@ -83,7 +83,7 @@ export class Email extends ValueObject<EmailProps> {
     const trimmedEmail = email.trim().toLowerCase();
 
     const guardResult = Guard.combine([
-      Guard.againstAtLeast(trimmedEmail.length, 0, 'email'),
+      Guard.againstAtLeast(trimmedEmail.length, 1, 'email'),
       Guard.againstAtMost(trimmedEmail.length, 320, 'email'),
       Guard.isValidEmail(trimmedEmail, 'email')
     ]);

@@ -260,7 +260,7 @@ export class Guard {
     if (!emailRegex.test(email)) {
       return {
         succeeded: false,
-        message: `${argumentName} is not a valid email address.`
+        message: `${argumentName} is not a valid email address`
       };
     }
     return { succeeded: true };

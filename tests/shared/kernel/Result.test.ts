@@ -9,23 +9,23 @@ describe('Result<T>', () => {
     const result = Result.ok<number>(42);
 
     expect(result.isSuccess).toBe(true);
-    expect(result.errorValue()).toBeUndefined();
-    expect(result.getValue()).toBe(42);
+    expect(result.error).toBeUndefined();
+    expect(result.value).toBe(42);
   });
 
   it('should create a successful Result with no value', () => {
     const result = Result.ok();
 
     expect(result.isSuccess).toBe(true);
-    expect(result.errorValue()).toBeUndefined();
-    expect(result.getValue()).toBeUndefined();
+    expect(result.error).toBeUndefined();
+    expect(result.value).toBeUndefined();
   });
 
   it('should create a failure Result with an error message', () => {
     const result = Result.fail<number>('Something went wrong');
 
     expect(result.isSuccess).toBe(false);
-    expect(result.errorValue()).toBe('Something went wrong');
+    expect(result.error).toBe('Something went wrong');
   });
 
   // ---------------------------
@@ -49,21 +49,21 @@ describe('Result<T>', () => {
   });
 
   // ---------------------------
-  // getValue() and errorValue()
+  // value and error
   // ---------------------------
 
-  it('should throw when calling getValue() on a failure result', () => {
+  it('should throw when calling value on a failure result', () => {
     const result = Result.fail('Failed');
 
-    expect(() => result.getValue()).toThrow(
+    expect(() => result.value).toThrow(
       "Can't get the value of an error result. Use 'errorValue' instead."
     );
   });
 
-  it('should return the error message via errorValue()', () => {
+  it('should return the error message via error', () => {
     const result = Result.fail('Bad Request');
 
-    expect(result.errorValue()).toBe('Bad Request');
+    expect(result.error).toBe('Bad Request');
   });
 
   // ---------------------------
@@ -88,7 +88,7 @@ describe('Result<T>', () => {
     const combined = Result.combine([r1, r2, r3]);
 
     expect(combined.isSuccess).toBe(false);
-    expect(combined.errorValue()).toBe('Error at r2');
+    expect(combined.error).toBe('Error at r2');
   });
 
   it('should return a success when all results succeed', () => {
@@ -99,7 +99,7 @@ describe('Result<T>', () => {
     const combined = Result.combine([r1, r2, r3]);
 
     expect(combined.isSuccess).toBe(true);
-    expect(combined.getValue()).toBeUndefined();
+    expect(combined.value).toBeUndefined();
   });
 
   it('should return an empty success result when combining an empty array', () => {
@@ -116,8 +116,8 @@ describe('Result<T>', () => {
     const ok = Result.ok('Hello');
     const fail = Result.fail<string>('Oops');
 
-    expect(ok.getValue()).toBe('Hello');
-    expect(fail.errorValue()).toBe('Oops');
-    expect(() => fail.getValue()).toThrow();
+    expect(ok.value).toBe('Hello');
+    expect(fail.error).toBe('Oops');
+    expect(() => fail.value).toThrow();
   });
 });
