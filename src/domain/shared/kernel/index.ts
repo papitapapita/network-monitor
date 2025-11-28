@@ -4,3 +4,4 @@ export * from './ValueObject';
 export * from './UniqueEntityID';
 export * from './Result';
 export * from './Identifier';
+export * from './DomainEvents';
