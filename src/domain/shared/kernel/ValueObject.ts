@@ -1,4 +1,4 @@
-import { ValueObjectProps } from '../interfaces';
+import { ValueObjectProps } from '../props';
 
 /**
  * Base class for Value Objects used in Domain-Driven Design (DDD).
