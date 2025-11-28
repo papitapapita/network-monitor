@@ -1,18 +1,6 @@
-import { Entity } from '../shared/kernel/Entity';
-import { UniqueEntityID } from '../shared/kernel/UniqueEntityID';
-import { Guard } from '../shared/kernel/Guard';
-import { Result } from '../shared/kernel/Result';
-
-export interface SupplierProps {
-  name: string;
-  contactEmail: string;
-  contactPhone?: string;
-  address?: string;
-  website?: string;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
+import { Entity, UniqueEntityID, Result } from '../shared/kernel';
+import { SupplierProps } from '../shared/props';
+//import { Guard } from '../shared/kernel/Guard';
 
 export class Supplier extends Entity<SupplierProps> {
   private constructor(props: SupplierProps, id?: UniqueEntityID) {
