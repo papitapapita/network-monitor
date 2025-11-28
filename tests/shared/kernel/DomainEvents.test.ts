@@ -49,7 +49,6 @@ describe('DomainEvents', () => {
     const handler = jest.fn();
     DomainEvents.register('FakeDomainEvent', handler);
 
-    // @ts-ignore - access private map for testing
     const handlers =
       DomainEvents['handlersMap'].get('FakeDomainEvent');
 
@@ -67,7 +66,6 @@ describe('DomainEvents', () => {
     DomainEvents.markAggregateForDispatch(aggregate);
     DomainEvents.markAggregateForDispatch(aggregate);
 
-    // @ts-ignore
     const list = DomainEvents['markedAggregates'];
 
     expect(list.length).toBe(1);
@@ -126,7 +124,6 @@ describe('DomainEvents', () => {
     DomainEvents.markAggregateForDispatch(aggregate);
     DomainEvents.dispatchEventsForAggregate(id);
 
-    // @ts-ignore
     const list = DomainEvents['markedAggregates'];
 
     expect(list.length).toBe(0);
