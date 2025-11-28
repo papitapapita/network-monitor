@@ -105,7 +105,7 @@ describe('Guard Utility Tests', () => {
   // ----------------------------------------------------
   describe('againstAtLeast()', () => {
     it('returns failure when numChars < 1', () => {
-      const result = Guard.againstAtLeast(0, 'name');
+      const result = Guard.againstAtLeast(0, 1, 'name');
       expect(result.succeeded).toBe(false);
       expect(result.message).toBe(
         'name must be at least 1 character.'
@@ -113,7 +113,7 @@ describe('Guard Utility Tests', () => {
     });
 
     it('returns success when numChars >= 1', () => {
-      const result = Guard.againstAtLeast(5, 'name');
+      const result = Guard.againstAtLeast(5, 1, 'name');
       expect(result.succeeded).toBe(true);
     });
   });
@@ -123,7 +123,7 @@ describe('Guard Utility Tests', () => {
   // ----------------------------------------------------
   describe('againstAtMost()', () => {
     it('returns failure when numChars > 255', () => {
-      const result = Guard.againstAtMost(256, 'field');
+      const result = Guard.againstAtMost(256, 255, 'field');
       expect(result.succeeded).toBe(false);
       expect(result.message).toBe(
         'field must be at most 255 characters.'
@@ -131,7 +131,7 @@ describe('Guard Utility Tests', () => {
     });
 
     it('returns success when numChars <= 255', () => {
-      const result = Guard.againstAtMost(200, 'field');
+      const result = Guard.againstAtMost(200, 255, 'field');
       expect(result.succeeded).toBe(true);
     });
   });
@@ -220,6 +220,24 @@ describe('Guard Utility Tests', () => {
 
     it('returns success when actualValue > minValue', () => {
       const result = Guard.greaterThan(10, 20, 'score');
+      expect(result.succeeded).toBe(true);
+    });
+  });
+
+  // ----------------------------------------------------
+  // isValidEmail
+  // ----------------------------------------------------
+  describe('isValidEmail()', () => {
+    it('returns failure for invalid email format', () => {
+      const result = Guard.isValidEmail('invalid-email', 'email');
+      expect(result.succeeded).toBe(false);
+      expect(result.message).toBe(
+        'email is not a valid email address.'
+      );
+    });
+
+    it('returns success for valid email format', () => {
+      const result = Guard.isValidEmail('user@example.com', 'email');
       expect(result.succeeded).toBe(true);
     });
   });

@@ -131,12 +131,13 @@ export class Guard {
    */
   public static againstAtLeast(
     numChars: number,
+    min: number,
     argumentName: string
   ): IGuardResult {
-    if (numChars < 1) {
+    if (numChars < min) {
       return {
         succeeded: false,
-        message: `${argumentName} must be at least 1 character.`
+        message: `${argumentName} must be at least ${min} characters.`
       };
     }
     return { succeeded: true };
@@ -151,12 +152,13 @@ export class Guard {
    */
   public static againstAtMost(
     numChars: number,
+    max: number,
     argumentName: string
   ): IGuardResult {
-    if (numChars > 255) {
+    if (numChars > max) {
       return {
         succeeded: false,
-        message: `${argumentName} must be at most 255 characters.`
+        message: `${argumentName} must be at most ${max} characters.`
       };
     }
     return { succeeded: true };
@@ -237,6 +239,28 @@ export class Guard {
       return {
         succeeded: false,
         message: `${argumentName} must be a valid Date.`
+      };
+    }
+    return { succeeded: true };
+  }
+
+  /**
+   * Validates that a string is a well-formed email.
+   *
+   * @param {string} email - Email value to validate.
+   * @param {string} argumentName - Label for messaging.
+   * @returns {IGuardResult} Validation result.
+   */
+  public static isValidEmail(
+    email: string,
+    argumentName: string
+  ): IGuardResult {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
+      return {
+        succeeded: false,
+        message: `${argumentName} is not a valid email address.`
       };
     }
     return { succeeded: true };
