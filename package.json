@@ -19,6 +19,7 @@
   "dependencies": {
     "@prisma/client": "^7.0.0",
     "dotenv": "^16.4.7",
+    "libphonenumber-js": "^1.12.29",
     "nodemailer": "^7.0.10",
     "ping": "^0.4.4",
     "winston": "^3.17.0",
