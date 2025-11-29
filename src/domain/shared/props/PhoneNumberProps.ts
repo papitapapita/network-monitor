@@ -1,3 +1,5 @@
+import { CountryCode } from 'libphonenumber-js';
+
 export interface PhoneNumberProps {
   value: string; // E.164 format
   countryCode: string;
