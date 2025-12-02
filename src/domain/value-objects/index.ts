@@ -1,4 +1,4 @@
 export * from './Email';
 export * from './PhoneNumber';
-/*export * from './Address';
-export * from './WebsiteURL';*/
+export * from './Address';
+/*export * from './WebsiteURL';*/
