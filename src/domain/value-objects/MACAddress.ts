@@ -19,7 +19,6 @@ interface MACAddressProps {
 }
 
 export class MACAddress extends ValueObject<MACAddressProps> {
-
   get value(): string {
     return this.props.value;
   }
@@ -34,8 +33,10 @@ export class MACAddress extends ValueObject<MACAddressProps> {
    */
   public static isValid(mac: string): boolean {
     // Regex for MAC address (supports both : and - separators)
-    const macRegex = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
-    return macRegex.test(mac);
+    const colonMACRegex = /^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$/;
+    const hyphenMACRegex = /^([0-9A-Fa-f]{2}-){5}([0-9A-Fa-f]{2})$/;
+
+    return colonMACRegex.test(mac) || hyphenMACRegex.test(mac);
   }
 
   /**
@@ -79,7 +80,9 @@ export class MACAddress extends ValueObject<MACAddressProps> {
 
     const normalized = this.normalizeMAC(trimmedMac);
 
-    return Result.ok<MACAddress>(new MACAddress({ value: normalized }));
+    return Result.ok<MACAddress>(
+      new MACAddress({ value: normalized })
+    );
   }
 
   /**
