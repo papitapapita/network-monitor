@@ -8,4 +8,5 @@ export * from './NetworkDeviceType';
 export * from './PollingInterval';
 export * from './PollingStatus';
 export * from './RetryPolicy';
+export * from './PollingMetrics';
 /*export * from './WebsiteURL';*/
