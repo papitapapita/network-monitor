@@ -1,5 +1,6 @@
 import { v4 as uuidv4, validate as validateUuid } from 'uuid';
-import { Result } from '@/core/Result';
+
+import { Result } from '../shared/kernel';
 
 /**
  * UUID Value Object
