@@ -120,12 +120,10 @@ describe('Address Value Object', () => {
   });
 
   it('should fail if complement is too long or too short', () => {
-    console.log('Testing complement too short');
     const address = {
       ...validProps,
       complement: ''
     };
-    console.log(address);
     const result = Address.create(address);
 
     expect(result.isSuccess).toBe(false);

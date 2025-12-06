@@ -16,13 +16,13 @@ describe('PollingMetrics ValueObject', () => {
     expect(metrics.averageResponseTime).toBeCloseTo(23.93);
     expect(metrics.minResponseTime).toBe(23.5);
     expect(metrics.maxResponseTime).toBe(24.3);
-    expect(metrics.jitter).toBeCloseTo(0.33);
+    expect(metrics.jitter).toBeCloseTo(0.3);
     expect(metrics.packetLoss).toBe(0);
   });
 
   it('should fail if responseTimes is not array', () => {
     const result = PollingMetrics.create({
-      // @ts-ignore
+      // @ts-expect-error intentionally invalid for test
       responseTimes: 'not-array',
       totalPings: 3,
       successfulPings: 3

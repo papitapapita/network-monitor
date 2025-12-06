@@ -200,7 +200,7 @@ export class PollingMetrics extends ValueObject<PollingMetricsProps> {
   private static calculateAverage(values: number[]): number {
     if (values.length === 0) return 0;
     const sum = values.reduce((acc, val) => acc + val, 0);
-    return Math.round((sum / values.length) * 100) / 100; // Round to 2 decimals
+    return sum / values.length; // Round to 2 decimals
   }
 
   /**

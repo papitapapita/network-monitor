@@ -27,4 +27,12 @@ export interface IDomainEvent {
   getAggregateId(): UniqueEntityID;
 }
 
+/**
+ * Type definition for a domain event handler function.
+ *
+ * An event handler processes a specific domain event
+ * when it is dispatched by the event dispatcher.
+ *
+ * @param event - The domain event to handle.
+ */
 export type EventHandler = (event: IDomainEvent) => void;

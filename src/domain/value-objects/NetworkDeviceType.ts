@@ -6,9 +6,13 @@
  * from the database schema for easier polling configuration.
  *
  * Database Mapping:
- * - Maps to NetworkDevice.type (NetworkDeviceRole) in database
+ * - Maps to NetworkDevice.deviceGroup (DeviceType) in database for high-level categorization
+ * - Maps to NetworkDevice.deviceTypes (NetworkDeviceRole[]) for specific capabilities
  * - Combines RadioType for wireless devices with general device categories
  * - Used to determine default polling intervals and device-specific behavior
+ *
+ * Note: A single network device can have multiple roles/capabilities (deviceTypes array),
+ * but belongs to one primary deviceGroup.
  *
  * @example
  * const deviceType = NetworkDeviceType.ACCESS_POINT;
@@ -17,63 +21,72 @@
 export enum NetworkDeviceType {
   /**
    * Wireless Access Point (from RadioType.ACCESS_POINT)
-   * Database Role: WIRELESS_ACCESS
+   * Database Group: RADIO or WIRELESS
+   * Database Roles: WIRELESS_ACCESS
    * Default polling interval: 30 seconds
    */
   ACCESS_POINT = 'ACCESS_POINT',
 
   /**
    * Client device/station connecting to network (from RadioType.STATION)
-   * Database Role: WIRELESS_ACCESS (as client)
+   * Database Group: RADIO or WIRELESS
+   * Database Roles: WIRELESS_ACCESS (as client)
    * Default polling interval: 300 seconds (5 minutes)
    */
   STATION = 'STATION',
 
   /**
    * Point-to-Point radio link (from RadioType.PTP_RADIO)
-   * Database Role: WIRELESS_BRIDGE or RADIO_LINK
+   * Database Group: RADIO
+   * Database Roles: WIRELESS_BRIDGE, RADIO_LINK
    * Default polling interval: 60 seconds
    */
   PTP_RADIO = 'PTP_RADIO',
 
   /**
    * Point-to-Multipoint radio - base station (from RadioType.PTMP_RADIO)
-   * Database Role: WIRELESS_CONTROLLER or BACKHAUL
+   * Database Group: RADIO
+   * Database Roles: WIRELESS_CONTROLLER, BACKHAUL
    * Default polling interval: 60 seconds
    */
   PTMP_RADIO = 'PTMP_RADIO',
 
   /**
    * Network switch (from DeviceType.SWITCH)
-   * Database Role: SWITCHING
+   * Database Group: SWITCH
+   * Database Roles: SWITCHING
    * Default polling interval: 60 seconds
    */
   SWITCH = 'SWITCH',
 
   /**
    * Network router (from DeviceType.ROUTER)
-   * Database Role: ROUTING
+   * Database Group: ROUTER
+   * Database Roles: ROUTING, VPN, NAT, etc.
    * Default polling interval: 60 seconds
    */
   ROUTER = 'ROUTER',
 
   /**
-   * Firewall device (from DeviceType.FIREWALL)
-   * Database Role: FIREWALL, IDS, IPS, or UTM
+   * Firewall device (from DeviceType.FIREWALL or SECURITY)
+   * Database Group: FIREWALL or SECURITY
+   * Database Roles: FIREWALL, IDS, IPS, UTM
    * Default polling interval: 60 seconds
    */
   FIREWALL = 'FIREWALL',
 
   /**
    * Server device (from DeviceType.SERVER)
-   * Database Role: APPLICATION_HOSTING, DATABASE_HOSTING, DHCP, DNS, etc.
+   * Database Group: SERVER
+   * Database Roles: APPLICATION_HOSTING, DATABASE_HOSTING, DHCP, DNS, PROXY, LOAD_BALANCING, etc.
    * Default polling interval: 120 seconds
    */
   SERVER = 'SERVER',
 
   /**
    * Unknown or unclassified device type
-   * Database Role: Any
+   * Database Group: Any
+   * Database Roles: Any
    * Default polling interval: 60 seconds
    */
   UNKNOWN = 'UNKNOWN'
@@ -136,8 +149,12 @@ export function fromRadioType(radioType: string): NetworkDeviceType {
 /**
  * Maps NetworkDeviceRole from database to domain NetworkDeviceType.
  *
- * @param role - NetworkDeviceRole enum value from database
- * @returns Corresponding NetworkDeviceType
+ * Note: Since a NetworkDevice can have multiple deviceTypes (roles), this function
+ * maps a single role to its corresponding polling type. For devices with multiple roles,
+ * the primary role should be used to determine the polling configuration.
+ *
+ * @param role - NetworkDeviceRole enum value from database (from deviceTypes array)
+ * @returns Corresponding NetworkDeviceType for polling purposes
  */
 export function fromNetworkDeviceRole(role: string): NetworkDeviceType {
   switch (role) {
