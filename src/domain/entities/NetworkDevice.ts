@@ -1,17 +1,20 @@
-import { AggregateRoot } from '../shared/kernel/AggregateRoot';
-import { UniqueEntityID } from '../shared/kernel/UniqueEntityID';
-import { Result } from '../shared/kernel/Result';
-import { Guard } from '../shared/kernel/Guard';
-import { NetworkDeviceId } from './NetworkDeviceId';
-import { PollingConfiguration } from './PollingConfiguration';
-import { PollingResult } from './PollingResult';
+import {
+  AggregateRoot,
+  UniqueEntityID,
+  Result,
+  Guard
+} from '../shared/kernel';
+import {
+  NetworkDeviceId,
+  PollingConfiguration,
+  PollingResult
+} from './';
 import {
   IPAddress,
   MACAddress,
   NetworkDeviceType,
   NetworkDeviceStatus,
-  PollingInterval,
-  getDefaultPollingIntervalForDeviceType
+  PollingInterval
 } from '../value-objects';
 import {
   NetworkDeviceCreatedEvent,
@@ -135,7 +138,10 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
     return this.props.pollingConfiguration;
   }
 
-  private constructor(props: NetworkDeviceProps, id?: UniqueEntityID) {
+  private constructor(
+    props: NetworkDeviceProps,
+    id?: UniqueEntityID
+  ) {
     super(props, id);
   }
 
@@ -156,11 +162,23 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
       Guard.againstNullOrUndefined(props.status, 'status'),
       Guard.againstNullOrUndefined(props.ipAddress, 'ipAddress'),
       Guard.againstNullOrUndefined(props.macAddress, 'macAddress'),
-      Guard.againstNullOrUndefined(props.connectivityType, 'connectivityType'),
-      Guard.againstNullOrUndefined(props.managementProtocol, 'managementProtocol'),
-      Guard.againstNullOrUndefined(props.managementPort, 'managementPort'),
+      Guard.againstNullOrUndefined(
+        props.connectivityType,
+        'connectivityType'
+      ),
+      Guard.againstNullOrUndefined(
+        props.managementProtocol,
+        'managementProtocol'
+      ),
+      Guard.againstNullOrUndefined(
+        props.managementPort,
+        'managementPort'
+      ),
       Guard.againstNullOrUndefined(props.deviceId, 'deviceId'),
-      Guard.againstNullOrUndefined(props.pollingConfiguration, 'pollingConfiguration'),
+      Guard.againstNullOrUndefined(
+        props.pollingConfiguration,
+        'pollingConfiguration'
+      ),
       Guard.isNumber(props.managementPort, 'managementPort'),
       Guard.inRange(props.managementPort, 1, 65535, 'managementPort')
     ]);
@@ -171,11 +189,15 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
 
     // Validate name length
     if (props.name.trim().length === 0) {
-      return Result.fail<NetworkDevice>('Device name cannot be empty');
+      return Result.fail<NetworkDevice>(
+        'Device name cannot be empty'
+      );
     }
 
     if (props.name.length > 255) {
-      return Result.fail<NetworkDevice>('Device name cannot exceed 255 characters');
+      return Result.fail<NetworkDevice>(
+        'Device name cannot exceed 255 characters'
+      );
     }
 
     // Set default dates if not provided
@@ -211,7 +233,10 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
    * @returns Result indicating success or failure
    */
   public updateStatus(newStatus: NetworkDeviceStatus): Result<void> {
-    const guardResult = Guard.againstNullOrUndefined(newStatus, 'status');
+    const guardResult = Guard.againstNullOrUndefined(
+      newStatus,
+      'status'
+    );
     if (!guardResult.succeeded) {
       return Result.fail<void>(guardResult.message!);
     }
@@ -260,7 +285,9 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
     }
 
     if (newName.length > 255) {
-      return Result.fail<void>('Device name cannot exceed 255 characters');
+      return Result.fail<void>(
+        'Device name cannot exceed 255 characters'
+      );
     }
 
     this.props.name = newName;
@@ -277,7 +304,9 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
    */
   public updateDescription(description: string | null): Result<void> {
     if (description !== null && description.length > 1000) {
-      return Result.fail<void>('Description cannot exceed 1000 characters');
+      return Result.fail<void>(
+        'Description cannot exceed 1000 characters'
+      );
     }
 
     this.props.description = description;
@@ -293,7 +322,10 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
    * @returns Result indicating success or failure
    */
   public updateIpAddress(newIpAddress: IPAddress): Result<void> {
-    const guardResult = Guard.againstNullOrUndefined(newIpAddress, 'ipAddress');
+    const guardResult = Guard.againstNullOrUndefined(
+      newIpAddress,
+      'ipAddress'
+    );
     if (!guardResult.succeeded) {
       return Result.fail<void>(guardResult.message!);
     }
@@ -380,8 +412,9 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
    * @returns Result indicating success or failure
    */
   public configurePolling(interval: PollingInterval): Result<void> {
-    const updateResult = this.props.pollingConfiguration.updateInterval(interval);
-    if (updateResult.isFailure) {
+    const updateResult =
+      this.props.pollingConfiguration.updateInterval(interval);
+    if (!updateResult.isSuccess) {
       return updateResult;
     }
 
@@ -396,8 +429,9 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
    * @returns Result indicating success or failure
    */
   public updatePingCount(count: number): Result<void> {
-    const updateResult = this.props.pollingConfiguration.updatePingCount(count);
-    if (updateResult.isFailure) {
+    const updateResult =
+      this.props.pollingConfiguration.updatePingCount(count);
+    if (!updateResult.isSuccess) {
       return updateResult;
     }
 
@@ -410,7 +444,7 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
    */
   public enablePolling(): Result<void> {
     const enableResult = this.props.pollingConfiguration.enable();
-    if (enableResult.isFailure) {
+    if (!enableResult.isSuccess) {
       return enableResult;
     }
 
@@ -423,7 +457,7 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
    */
   public disablePolling(): Result<void> {
     const disableResult = this.props.pollingConfiguration.disable();
-    if (disableResult.isFailure) {
+    if (!disableResult.isSuccess) {
       return disableResult;
     }
 
@@ -449,7 +483,10 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
    * @returns Result indicating success or failure
    */
   public updatePollingState(result: PollingResult): Result<void> {
-    const guardResult = Guard.againstNullOrUndefined(result, 'pollingResult');
+    const guardResult = Guard.againstNullOrUndefined(
+      result,
+      'pollingResult'
+    );
     if (!guardResult.succeeded) {
       return Result.fail<void>(guardResult.message!);
     }
@@ -460,7 +497,7 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
 
     if (oldStatus !== newStatus) {
       const updateStatusResult = this.updateStatus(newStatus);
-      if (updateStatusResult.isFailure) {
+      if (!updateStatusResult.isSuccess) {
         return updateStatusResult;
       }
     }
