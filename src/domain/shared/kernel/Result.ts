@@ -15,6 +15,11 @@ export class Result<T> {
   public isSuccess: boolean;
 
   /**
+   * Indicates whether the operation failed.
+   */
+  public isFailure: boolean;
+
+  /**
    * Error message in case of failure.
    * Undefined when the result is successful.
    * @private
@@ -52,6 +57,7 @@ export class Result<T> {
     }
 
     this.isSuccess = isSuccess;
+    this.isFailure = !isSuccess;
     this._error = error;
     this._value = value;
 
