@@ -75,7 +75,8 @@ export class UUID {
       );
     }
 
-    return Result.ok<UUID>(new UUID(value));
+    // Normalize to lowercase for case-insensitive comparison
+    return Result.ok<UUID>(new UUID(value.toLowerCase()));
   }
 
   /**
