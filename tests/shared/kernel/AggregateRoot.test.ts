@@ -1,6 +1,7 @@
 import {
   AggregateRoot,
   Entity,
+  Result,
   UniqueEntityID
 } from '../../../src/domain/shared/kernel';
 import { IDomainEvent } from '../../../src/domain/shared/interfaces';
@@ -11,9 +12,9 @@ import { IDomainEvent } from '../../../src/domain/shared/interfaces';
 class FakeDomainEvent implements IDomainEvent {
   public dateTimeOccurred: Date = new Date();
 
-  constructor(private readonly id: UniqueEntityID) {}
+  constructor(private readonly id: TestID) {}
 
-  getAggregateId(): UniqueEntityID {
+  getAggregateId(): TestID {
     return this.id;
   }
 }
@@ -25,9 +26,41 @@ interface FakeProps {
   name: string;
 }
 
-class FakeAggregateRoot extends AggregateRoot<FakeProps> {
-  constructor(props: FakeProps, id?: UniqueEntityID) {
+class TestID extends UniqueEntityID {
+  private constructor(id?: string) {
+    super(id);
+  }
+
+  public static create(id?: string): Result<TestID> | TestID {
+    const testID = new TestID(id);
+
+    if (!testID) {
+      return Result.fail<TestID>('Failed to create TestID');
+    }
+
+    return testID;
+  }
+}
+
+class FakeAggregateRoot extends AggregateRoot<FakeProps, TestID> {
+  private constructor(props: FakeProps, id?: TestID) {
+    if (!id) {
+      id = TestID.create() as TestID;
+    }
     super(props, id);
+  }
+
+  public static create(
+    props: FakeProps,
+    id?: TestID
+  ): FakeAggregateRoot {
+    const aggregate = new FakeAggregateRoot(props, id);
+    if (!aggregate) {
+      Result.fail<FakeAggregateRoot>(
+        'Failed to create FakeAggregateRoot'
+      );
+    }
+    return aggregate;
   }
 
   // Expose protected method ONLY for unit testing
@@ -38,20 +71,20 @@ class FakeAggregateRoot extends AggregateRoot<FakeProps> {
 
 describe('AggregateRoot (abstract class)', () => {
   it('should extend Entity', () => {
-    const aggregate = new FakeAggregateRoot({ name: 'Test' });
+    const aggregate = FakeAggregateRoot.create({ name: 'Test' });
 
     expect(aggregate).toBeInstanceOf(Entity);
   });
 
   it('should start with an empty list of domain events', () => {
-    const aggregate = new FakeAggregateRoot({ name: 'Test' });
+    const aggregate = FakeAggregateRoot.create({ name: 'Test' });
 
     expect(aggregate.domainEvents.length).toBe(0);
   });
 
   it('should add domain events using addDomainEvent()', () => {
-    const aggregate = new FakeAggregateRoot({ name: 'Test' });
-    const event = new FakeDomainEvent(new UniqueEntityID());
+    const aggregate = FakeAggregateRoot.create({ name: 'Test' });
+    const event = new FakeDomainEvent(TestID.create() as TestID);
 
     aggregate.publish(event);
 
@@ -60,10 +93,10 @@ describe('AggregateRoot (abstract class)', () => {
   });
 
   it('should preserve the order of domain events', () => {
-    const aggregate = new FakeAggregateRoot({ name: 'Test' });
+    const aggregate = FakeAggregateRoot.create({ name: 'Test' });
 
-    const event1 = new FakeDomainEvent(new UniqueEntityID());
-    const event2 = new FakeDomainEvent(new UniqueEntityID());
+    const event1 = new FakeDomainEvent(TestID.create() as TestID);
+    const event2 = new FakeDomainEvent(TestID.create() as TestID);
 
     aggregate.publish(event1);
     aggregate.publish(event2);
@@ -73,9 +106,9 @@ describe('AggregateRoot (abstract class)', () => {
   });
 
   it('should clear events when clearEvents() is called', () => {
-    const aggregate = new FakeAggregateRoot({ name: 'Test' });
+    const aggregate = FakeAggregateRoot.create({ name: 'Test' });
 
-    const event = new FakeDomainEvent(new UniqueEntityID());
+    const event = new FakeDomainEvent(TestID.create() as TestID);
     aggregate.publish(event);
 
     expect(aggregate.domainEvents.length).toBe(1);
@@ -86,8 +119,8 @@ describe('AggregateRoot (abstract class)', () => {
   });
 
   it('should not allow external mutation of the internal events array', () => {
-    const aggregate = new FakeAggregateRoot({ name: 'Test' });
-    const event = new FakeDomainEvent(new UniqueEntityID());
+    const aggregate = FakeAggregateRoot.create({ name: 'Test' });
+    const event = new FakeDomainEvent(TestID.create() as TestID);
     aggregate.publish(event);
 
     const external = aggregate.domainEvents;
@@ -97,10 +130,10 @@ describe('AggregateRoot (abstract class)', () => {
   });
 
   it('should return a copy of the domain events array instead of the original', () => {
-    const aggregate = new FakeAggregateRoot({ name: 'Test' });
+    const aggregate = FakeAggregateRoot.create({ name: 'Test' });
 
-    const event1 = new FakeDomainEvent(new UniqueEntityID());
-    const event2 = new FakeDomainEvent(new UniqueEntityID());
+    const event1 = new FakeDomainEvent(TestID.create() as TestID);
+    const event2 = new FakeDomainEvent(TestID.create() as TestID);
 
     const external = aggregate.domainEvents;
     aggregate.publish(event1);
