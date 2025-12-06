@@ -20,7 +20,7 @@ import { IDomainEvent, EventHandler } from '../interfaces';
  * 3. After persistence, the service calls `DomainEvents.dispatchEventsForAggregate()`.
  * 4. Registered handlers are executed for each event.
  */
-export class DomainEvents {
+export abstract class DomainEvents {
   /**
    * Internal map storing event handlers by event class name.
    * Key: event class name
@@ -31,7 +31,7 @@ export class DomainEvents {
   /**
    * List of aggregates that have domain events pending dispatch.
    */
-  private static markedAggregates: AggregateRoot<unknown>[] = [];
+  private static markedAggregates: AggregateRoot<any, any>[] = [];
 
   /**
    * Marks the given Aggregate Root so its domain events will be dispatched later.
@@ -41,9 +41,10 @@ export class DomainEvents {
    *
    * @param aggregate - The AggregateRoot instance that contains pending events.
    */
-  public static markAggregateForDispatch<T>(
-    aggregate: AggregateRoot<T>
-  ): void {
+  public static markAggregateForDispatch<
+    T,
+    TID extends UniqueEntityID
+  >(aggregate: AggregateRoot<T, TID>): void {
     const aggregateFound = !!this.findMarkedAggregateByID(
       aggregate.id
     );
@@ -58,9 +59,10 @@ export class DomainEvents {
    *
    * @param aggregate - The AggregateRoot whose events should be dispatched.
    */
-  private static dispatchAggregateEvents<T>(
-    aggregate: AggregateRoot<T>
-  ): void {
+  private static dispatchAggregateEvents<
+    T,
+    TID extends UniqueEntityID
+  >(aggregate: AggregateRoot<T, TID>): void {
     aggregate.domainEvents.forEach((event: IDomainEvent) =>
       this.dispatch(event)
     );
@@ -72,9 +74,10 @@ export class DomainEvents {
    *
    * @param aggregate - The AggregateRoot that should be removed.
    */
-  private static removeAggregateFromMarkedDispatchList<T>(
-    aggregate: AggregateRoot<T>
-  ): void {
+  private static removeAggregateFromMarkedDispatchList<
+    T,
+    TID extends UniqueEntityID
+  >(aggregate: AggregateRoot<T, TID>): void {
     const index = this.markedAggregates.findIndex((a) =>
       a.equals(aggregate)
     );
@@ -84,12 +87,13 @@ export class DomainEvents {
   /**
    * Finds a marked aggregate by its ID.
    *
-   * @param id - The UniqueEntityID of the aggregate.
+   * @param id - The UniqueEntityID instance of the aggregate.
    * @returns The matching AggregateRoot instance, or undefined if not found.
    */
-  private static findMarkedAggregateByID(
-    id: UniqueEntityID
-  ): AggregateRoot<any> | undefined {
+  private static findMarkedAggregateByID<
+    K,
+    KID extends UniqueEntityID
+  >(id: KID): AggregateRoot<K, KID> | undefined {
     return this.markedAggregates.find((aggregate) =>
       aggregate.id.equals(id)
     );
@@ -108,7 +112,9 @@ export class DomainEvents {
    *
    * @param id - The UniqueEntityID of the aggregate.
    */
-  public static dispatchEventsForAggregate(id: UniqueEntityID): void {
+  public static dispatchEventsForAggregate<
+    TID extends UniqueEntityID
+  >(id: TID): void {
     const aggregate = this.findMarkedAggregateByID(id);
 
     if (aggregate) {

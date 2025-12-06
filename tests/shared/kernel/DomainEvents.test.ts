@@ -1,9 +1,26 @@
 import {
   AggregateRoot,
   DomainEvents,
+  Result,
   UniqueEntityID
 } from '../../../src/domain/shared/kernel';
 import { IDomainEvent } from '../../../src/domain/shared/interfaces';
+
+class TestID extends UniqueEntityID {
+  private constructor(id?: string) {
+    super(id);
+  }
+
+  public static create(id?: string): Result<TestID> | TestID {
+    const testID = new TestID(id);
+
+    if (!testID) {
+      return Result.fail<TestID>('Failed to create TestID');
+    }
+
+    return testID;
+  }
+}
 
 // ---------------------------------------------------
 // Fake Domain Event
@@ -11,9 +28,9 @@ import { IDomainEvent } from '../../../src/domain/shared/interfaces';
 class FakeDomainEvent implements IDomainEvent {
   public dateTimeOccurred: Date = new Date();
 
-  constructor(public readonly aggregateId: UniqueEntityID) {}
+  constructor(public readonly aggregateId: TestID) {}
 
-  getAggregateId(): UniqueEntityID {
+  getAggregateId(): TestID {
     return this.aggregateId;
   }
 }
@@ -25,12 +42,27 @@ interface FakeProps {
   name: string;
 }
 
-class FakeAggregateRoot extends AggregateRoot<FakeProps> {
-  constructor(props: FakeProps, id?: UniqueEntityID) {
+class FakeAggregateRoot extends AggregateRoot<FakeProps, TestID> {
+  private constructor(props: FakeProps, id?: TestID) {
+    if (!id) {
+      id = TestID.create() as TestID;
+    }
     super(props, id);
   }
 
-  // expose protected method for testing
+  public static create(
+    props: FakeProps,
+    id?: TestID
+  ): FakeAggregateRoot {
+    const aggregate = new FakeAggregateRoot(props, id);
+    if (!aggregate) {
+      Result.fail<FakeAggregateRoot>(
+        'Failed to create FakeAggregateRoot'
+      );
+    }
+    return aggregate;
+  }
+
   public generateEvent(event: IDomainEvent) {
     this.addDomainEvent(event);
   }
@@ -61,7 +93,7 @@ describe('DomainEvents', () => {
   // markAggregateForDispatch()
   // ---------------------------------------------------
   it('should mark aggregates for event dispatch only once', () => {
-    const aggregate = new FakeAggregateRoot({ name: 'Test' });
+    const aggregate = FakeAggregateRoot.create({ name: 'Test' });
 
     DomainEvents.markAggregateForDispatch(aggregate);
     DomainEvents.markAggregateForDispatch(aggregate);
@@ -79,8 +111,8 @@ describe('DomainEvents', () => {
     const handler = jest.fn();
     DomainEvents.register('FakeDomainEvent', handler);
 
-    const id = new UniqueEntityID();
-    const aggregate = new FakeAggregateRoot(
+    const id = TestID.create() as TestID;
+    const aggregate = FakeAggregateRoot.create(
       { name: 'Aggregate' },
       id
     );
@@ -99,8 +131,8 @@ describe('DomainEvents', () => {
     const handler = jest.fn();
     DomainEvents.register('FakeDomainEvent', handler);
 
-    const id = new UniqueEntityID();
-    const aggregate = new FakeAggregateRoot({ name: 'A' }, id);
+    const id = TestID.create() as TestID;
+    const aggregate = FakeAggregateRoot.create({ name: 'A' }, id);
     const event = new FakeDomainEvent(id);
 
     aggregate.generateEvent(event);
@@ -115,8 +147,8 @@ describe('DomainEvents', () => {
     const handler = jest.fn();
     DomainEvents.register('FakeDomainEvent', handler);
 
-    const id = new UniqueEntityID();
-    const aggregate = new FakeAggregateRoot({ name: 'A' }, id);
+    const id = TestID.create() as TestID;
+    const aggregate = FakeAggregateRoot.create({ name: 'A' }, id);
     const event = new FakeDomainEvent(id);
 
     aggregate.generateEvent(event);
@@ -139,8 +171,8 @@ describe('DomainEvents', () => {
     DomainEvents.register('FakeDomainEvent', handler1);
     DomainEvents.register('FakeDomainEvent', handler2);
 
-    const id = new UniqueEntityID();
-    const aggregate = new FakeAggregateRoot({ name: 'X' }, id);
+    const id = TestID.create() as TestID;
+    const aggregate = FakeAggregateRoot.create({ name: 'X' }, id);
     const event = new FakeDomainEvent(id);
 
     aggregate.generateEvent(event);
@@ -161,8 +193,8 @@ describe('DomainEvents', () => {
   // No handlers registered
   // ---------------------------------------------------
   it('should safely skip dispatching when no handlers exist', () => {
-    const id = new UniqueEntityID();
-    const aggregate = new FakeAggregateRoot({ name: 'Z' }, id);
+    const id = TestID.create() as TestID;
+    const aggregate = FakeAggregateRoot.create({ name: 'Z' }, id);
     const event = new FakeDomainEvent(id);
 
     aggregate.generateEvent(event);
