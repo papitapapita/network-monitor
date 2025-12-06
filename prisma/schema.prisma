@@ -346,6 +346,8 @@ model NetworkDevice {
   deviceLogs            DeviceLogs[]
   deviceEnergy          DeviceEnergy?
   deviceMonitoring      DeviceMonitoring?
+  pollingConfiguration  PollingConfiguration?
+  pollingResults        PollingResult[]
 }
 
 model RadioAntenna {
@@ -462,4 +464,81 @@ model DeviceMonitoring {
   diskUsage       Float
   networkDevice   NetworkDevice       @relation(fields: [networkDeviceId], references: [id])
   networkDeviceId String                 @unique
+}
+
+// ===================================
+// POLLING SYSTEM MODELS (Sprint 1)
+// ===================================
+
+enum PollingStatus {
+  SUCCESS
+  PARTIAL_SUCCESS
+  FAILED
+}
+
+/// Polling configuration for continuous device monitoring.
+/// Defines how often and how many pings should be executed.
+model PollingConfiguration {
+  id                String           @id @default(uuid())
+  networkDeviceId   String           @unique
+  intervalSeconds   Int              // Polling interval (1-86400 seconds)
+  enabled           Boolean          @default(true)
+  pingCount         Int              @default(4) // Number of ICMP pings per poll (1-10)
+  maxRetryAttempts  Int              @default(3) // Max retry attempts on failure
+  retryDelayMs      Int              @default(1000) // Delay between retries in ms
+  lastScheduledAt   DateTime?
+  nextScheduledAt   DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  networkDevice     NetworkDevice    @relation(fields: [networkDeviceId], references: [id], onDelete: Cascade)
+
+  @@index([networkDeviceId])
+  @@index([nextScheduledAt])
+  @@index([enabled, nextScheduledAt])
+}
+
+/// Polling results stored in TimescaleDB hypertable.
+/// Optimized for time-series data with high write throughput.
+/// Partitioned by timestamp for efficient querying.
+model PollingResult {
+  id                  String                @id @default(uuid())
+  networkDeviceId     String
+  timestamp           DateTime              @default(now())
+  status              PollingStatus
+  attemptNumber       Int                   // Attempt number (1-10)
+  deviceStatus        NetworkDeviceStatus
+  errorMessage        String?
+
+  // ICMP Multi-ping Metrics (Sprint 1)
+  responseTimes       Float[]               // Array of individual ping response times
+  averageResponseTime Float?
+  minResponseTime     Float?
+  maxResponseTime     Float?
+  jitter              Float?                // Standard deviation of response times
+  packetsSent         Int?
+  packetsReceived     Int?
+  packetLoss          Float?                // Percentage
+  ttl                 Int?
+
+  // Backwards compatibility
+  responseTimeMs      Float?
+
+  // Future SNMP Metrics (Sprint 2+)
+  uptime              Int?                  // Device uptime in seconds
+  temperature         Float?
+  cpuUsage            Float?
+  memoryUsage         Float?
+  diskUsage           Float?
+  interfaceStats      Json?                 // Interface statistics
+  bandwidth           Json?                 // Bandwidth usage
+  errors              Json?                 // Error counters
+  discards            Json?                 // Discard counters
+
+  networkDevice       NetworkDevice         @relation(fields: [networkDeviceId], references: [id], onDelete: Cascade)
+
+  @@index([networkDeviceId, timestamp(sort: Desc)])
+  @@index([timestamp])
+  @@index([status])
+  @@index([networkDeviceId, status, timestamp])
 }

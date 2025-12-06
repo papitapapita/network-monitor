@@ -91,9 +91,15 @@ export class PollingMetrics extends ValueObject<PollingMetricsProps> {
     successfulPings: number;
   }): Result<PollingMetrics> {
     const guardResult = Guard.combine([
-      Guard.againstNullOrUndefined(props.responseTimes, 'responseTimes'),
+      Guard.againstNullOrUndefined(
+        props.responseTimes,
+        'responseTimes'
+      ),
       Guard.againstNullOrUndefined(props.totalPings, 'totalPings'),
-      Guard.againstNullOrUndefined(props.successfulPings, 'successfulPings'),
+      Guard.againstNullOrUndefined(
+        props.successfulPings,
+        'successfulPings'
+      ),
       Guard.isNumber(props.totalPings, 'totalPings'),
       Guard.isNumber(props.successfulPings, 'successfulPings'),
       Guard.inRange(
@@ -109,7 +115,9 @@ export class PollingMetrics extends ValueObject<PollingMetricsProps> {
     }
 
     if (!Array.isArray(props.responseTimes)) {
-      return Result.fail<PollingMetrics>('responseTimes must be an array');
+      return Result.fail<PollingMetrics>(
+        'responseTimes must be an array'
+      );
     }
 
     if (props.successfulPings > props.totalPings) {
@@ -132,7 +140,10 @@ export class PollingMetrics extends ValueObject<PollingMetricsProps> {
           `Invalid response time at index ${i}: ${responseTime}`
         );
       }
-      if (responseTime < 0 || responseTime > this.MAX_RESPONSE_TIME_MS) {
+      if (
+        responseTime < 0 ||
+        responseTime > this.MAX_RESPONSE_TIME_MS
+      ) {
         return Result.fail<PollingMetrics>(
           `Response time at index ${i} out of range: ${responseTime}ms`
         );
@@ -140,10 +151,14 @@ export class PollingMetrics extends ValueObject<PollingMetricsProps> {
     }
 
     // Calculate statistics
-    const averageResponseTime = this.calculateAverage(props.responseTimes);
+    const averageResponseTime = this.calculateAverage(
+      props.responseTimes
+    );
     const minResponseTime = this.calculateMin(props.responseTimes);
     const maxResponseTime = this.calculateMax(props.responseTimes);
-    const jitter = this.calculateStandardDeviation(props.responseTimes);
+    const jitter = this.calculateStandardDeviation(
+      props.responseTimes
+    );
     const packetLoss = this.calculatePacketLoss(
       props.totalPings,
       props.successfulPings
@@ -169,7 +184,9 @@ export class PollingMetrics extends ValueObject<PollingMetricsProps> {
    * @param totalPings - Number of pings that were attempted
    * @returns PollingMetrics with 100% packet loss
    */
-  public static createForFailedPoll(totalPings: number): Result<PollingMetrics> {
+  public static createForFailedPoll(
+    totalPings: number
+  ): Result<PollingMetrics> {
     return this.create({
       responseTimes: [],
       totalPings,
@@ -206,13 +223,19 @@ export class PollingMetrics extends ValueObject<PollingMetricsProps> {
    * Calculates standard deviation (jitter) of response times.
    * Uses population standard deviation formula.
    */
-  private static calculateStandardDeviation(values: number[]): number {
+  private static calculateStandardDeviation(
+    values: number[]
+  ): number {
     if (values.length === 0) return 0;
     if (values.length === 1) return 0; // No variance with single value
 
-    const avg = this.calculateAverage(values);
-    const squaredDifferences = values.map((val) => Math.pow(val - avg, 2));
-    const variance = squaredDifferences.reduce((acc, val) => acc + val, 0) / values.length;
+    const avg = this.calculateAverage(values); //23.93
+    const squaredDifferences = values.map((val) =>
+      Math.pow(val - avg, 2)
+    );
+    const variance =
+      squaredDifferences.reduce((acc, val) => acc + val, 0) /
+      values.length;
     const stdDev = Math.sqrt(variance);
 
     return Math.round(stdDev * 100) / 100; // Round to 2 decimals
@@ -226,7 +249,8 @@ export class PollingMetrics extends ValueObject<PollingMetricsProps> {
     successfulPings: number
   ): number {
     if (totalPings === 0) return 0;
-    const lossPercentage = ((totalPings - successfulPings) / totalPings) * 100;
+    const lossPercentage =
+      ((totalPings - successfulPings) / totalPings) * 100;
     return Math.round(lossPercentage * 100) / 100; // Round to 2 decimals
   }
 
@@ -291,11 +315,13 @@ export class PollingMetrics extends ValueObject<PollingMetricsProps> {
       return `Failed: ${this.props.totalPings}/${this.props.totalPings} packets lost`;
     }
 
-    return `Avg: ${this.props.averageResponseTime}ms, ` +
-           `Min: ${this.props.minResponseTime}ms, ` +
-           `Max: ${this.props.maxResponseTime}ms, ` +
-           `Jitter: ${this.props.jitter}ms, ` +
-           `Loss: ${this.props.packetLoss}%`;
+    return (
+      `Avg: ${this.props.averageResponseTime}ms, ` +
+      `Min: ${this.props.minResponseTime}ms, ` +
+      `Max: ${this.props.maxResponseTime}ms, ` +
+      `Jitter: ${this.props.jitter}ms, ` +
+      `Loss: ${this.props.packetLoss}%`
+    );
   }
 
   /**
