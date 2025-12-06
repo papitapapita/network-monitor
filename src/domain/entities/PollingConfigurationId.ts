@@ -1,4 +1,4 @@
-import { UniqueEntityID } from '../shared/kernel/UniqueEntityID';
+import { UniqueEntityID, Result } from '../shared/kernel';
 
 /**
  * PollingConfigurationId - Unique identifier for PollingConfiguration entity
@@ -21,24 +21,33 @@ export class PollingConfigurationId extends UniqueEntityID {
   /**
    * Creates a new PollingConfigurationId instance.
    *
-   * @param id - Optional unique identifier value (UUID string or number).
-   *             If not provided, a UUID will be auto-generated.
+   * @param id - Optional UUID string. If not provided, a new UUID v4 will be generated.
+   * @throws {Error} If the provided ID is not a valid UUID
    */
-  constructor(id?: string | number) {
+  constructor(id?: string) {
     super(id);
   }
 
   /**
-   * Creates a PollingConfigurationId from a raw string or number value.
-   * Useful for converting database IDs to domain IDs.
+   * Creates a PollingConfigurationId from a UUID string.
+   * Useful for converting database UUIDs to domain IDs.
    *
-   * @param id - The raw identifier (typically UUID string from database)
+   * @param id - The UUID string (from database or external source)
    * @returns PollingConfigurationId instance
    *
    * @example
    * const configId = PollingConfigurationId.create('550e8400-e29b-41d4-a716-446655440000');
    */
-  public static create(id: string | number): PollingConfigurationId {
-    return new PollingConfigurationId(id);
+  public static create(id: string): Result<PollingConfigurationId> {
+    try {
+      const pollingConfigurationId = new PollingConfigurationId(id);
+      return Result.ok<PollingConfigurationId>(
+        pollingConfigurationId
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<PollingConfigurationId>(errorMessage);
+    }
   }
 }
