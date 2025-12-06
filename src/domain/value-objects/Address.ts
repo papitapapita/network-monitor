@@ -167,7 +167,6 @@ export class Address extends ValueObject<AddressProps> {
     }
 
     if (props.complement !== undefined) {
-      console.log('Validating complement:', props.complement);
       const complementLength = Guard.inRange(
         props.complement.trim().length,
         1,
