@@ -6,3 +6,4 @@ export * from './Result';
 export * from './Identifier';
 export * from './DomainEvents';
 export * from './Guard';
+export * from './UUID';

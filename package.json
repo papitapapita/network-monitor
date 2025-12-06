@@ -22,7 +22,7 @@
     "libphonenumber-js": "^1.12.29",
     "nodemailer": "^7.0.10",
     "ping": "^0.4.4",
-    "uuid": "^13.0.0",
+    "uuid": "^8.3.2",
     "winston": "^3.17.0",
     "zod": "^4.1.13"
   },
