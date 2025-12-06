@@ -1,48 +1,66 @@
 import { NetworkDeviceId } from '../../../src/domain/entities/NetworkDeviceId';
-import { UniqueEntityID } from '../../../src/domain/shared/kernel';
+import {
+  Result,
+  UniqueEntityID
+} from '../../../src/domain/shared/kernel';
+
+class TestID extends UniqueEntityID {
+  private constructor(id?: string) {
+    super(id);
+  }
+
+  public static create(id?: string): Result<TestID> | TestID {
+    const testID = new TestID(id);
+
+    if (!testID) {
+      return Result.fail<TestID>('Failed to create TestID');
+    }
+
+    return testID;
+  }
+}
 
 describe('NetworkDeviceId', () => {
   it('should create a new UUID when no id is provided', () => {
-    const deviceId = new NetworkDeviceId();
-    const value = deviceId.toValue();
+    const deviceId = NetworkDeviceId.create();
+    const value = deviceId.value;
 
-    expect(deviceId).toBeInstanceOf(NetworkDeviceId);
-    expect(typeof value).toBe('string');
-    expect(value.length).toBeGreaterThan(10); // UUID formatting expected
+    expect(value).toBeInstanceOf(NetworkDeviceId);
+    expect(typeof value.toValue()).toBe('string');
+    expect(value.toValue().length).toBeGreaterThan(10); // UUID formatting expected
   });
 
   it('should accept a provided string UUID', () => {
     const rawId = '550e8400-e29b-41d4-a716-446655440000';
-    const deviceId = new NetworkDeviceId(rawId);
+    const deviceId = NetworkDeviceId.create(rawId);
 
-    expect(deviceId.toValue()).toBe(rawId);
+    expect(deviceId.value.toValue()).toBe(rawId);
   });
 
-  it('should accept a numeric ID', () => {
+  it('should not accept a numeric ID', () => {
     const rawId = 12345;
-    const deviceId = new NetworkDeviceId(rawId);
+    const deviceId = NetworkDeviceId.create(
+      rawId as unknown as string
+    );
 
-    expect(deviceId.toValue()).toBe(rawId);
+    expect(deviceId.isFailure).toBe(true);
   });
 
-  it('create() should instantiate correctly', () => {
-    const id = 'device-test-id';
-    const deviceId = NetworkDeviceId.create(id);
+  it('should not be equal with UniqueEntityID (identity comparison)', () => {
+    const idTest = 'c5228bee-15a8-420c-a5ca-39d209f944e5';
+    const idA = NetworkDeviceId.create(idTest).value;
+    const idB = TestID.create(idTest);
 
-    expect(deviceId).toBeInstanceOf(NetworkDeviceId);
-    expect(deviceId.toValue()).toBe(id);
-  });
-
-  it('should be compatible with UniqueEntityID (identity comparison)', () => {
-    const idA = new NetworkDeviceId('id-test');
-    const idB = new UniqueEntityID('id-test');
-
-    expect(idA.equals(idB)).toBe(true);
+    expect(idA.equals(idB)).toBe(false);
   });
 
   it('should not be equal when ID values differ', () => {
-    const idA = new NetworkDeviceId('id-one');
-    const idB = new NetworkDeviceId('id-two');
+    const idA = NetworkDeviceId.create(
+      'c5228bee-15a8-420c-a5ca-39d209f944e5'
+    ).value;
+    const idB = NetworkDeviceId.create(
+      'c5228bee-15a8-420c-a5ca-39d209f944e3'
+    ).value;
 
     expect(idA.equals(idB)).toBe(false);
   });
