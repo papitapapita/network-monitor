@@ -1,5 +1,6 @@
 import { Entity } from './Entity';
 import { IDomainEvent } from '../interfaces';
+import { UniqueEntityID } from '../..';
 
 /**
  * Base class for all Aggregate Roots in Domain-Driven Design (DDD).
@@ -14,8 +15,17 @@ import { IDomainEvent } from '../interfaces';
  * by the aggregate.
  *
  * @typeParam T - The shape of the properties stored in the entity.
+ * @typeParam TID - The type of the unique identifier for the entity, extending {@link UniqueEntityID}.
+ *
+ * @example
+ * ```typescript
+ * class Order extends AggregateRoot<OrderProps, UniqueEntityID> {
+ *   // Order-specific methods and properties
  */
-export abstract class AggregateRoot<T> extends Entity<T> {
+export abstract class AggregateRoot<
+  T,
+  TID extends UniqueEntityID
+> extends Entity<T, TID> {
   /**
    * Internal collection of domain events raised by this aggregate.
    *
