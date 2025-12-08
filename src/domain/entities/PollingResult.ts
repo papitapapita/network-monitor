@@ -1,15 +1,17 @@
-import { AggregateRoot } from '../shared/kernel/AggregateRoot';
-import { UniqueEntityID } from '../shared/kernel/UniqueEntityID';
-import { Result } from '../shared/kernel/Result';
-import { Guard } from '../shared/kernel/Guard';
-import { PollingResultId } from './PollingResultId';
-import { NetworkDeviceId } from './NetworkDeviceId';
+import {
+  AggregateRoot,
+  UniqueEntityID,
+  Result,
+  Guard
+} from '../shared/kernel';
 import {
   PollingStatus,
   PollingMetrics,
   NetworkDeviceStatus,
   RetryPolicy
 } from '../value-objects';
+import { PollingResultId, NetworkDeviceId } from './';
+import { PollingResultProps } from '../shared/props';
 
 /**
  * PollingResult Aggregate Root
@@ -25,23 +27,21 @@ import {
  * - Supports retry logic
  */
 
-export interface PollingResultProps {
-  networkDeviceId: NetworkDeviceId;
-  timestamp: Date;
-  status: PollingStatus;
-  metrics: PollingMetrics | null; // Contains multi-ping statistics
-  attemptNumber: number; // 1-10
-  responseTimeMs: number | null; // For backwards compatibility (= metrics.averageResponseTime)
-  errorMessage: string | null;
-  deviceStatus: NetworkDeviceStatus; // ONLINE/OFFLINE/MAINTENANCE
-}
-
-export class PollingResult extends AggregateRoot<PollingResultProps> {
+export class PollingResult extends AggregateRoot<
+  PollingResultProps,
+  PollingResultId
+> {
   public static readonly MIN_ATTEMPT_NUMBER = 1;
   public static readonly MAX_ATTEMPT_NUMBER = 10;
 
-  get pollingResultId(): PollingResultId {
-    return new PollingResultId(this._id.toValue());
+  private constructor(
+    props: PollingResultProps,
+    id?: PollingResultId
+  ) {
+    if (!id) {
+      id = PollingResultId.create().value;
+    }
+    super(props, id);
   }
 
   get networkDeviceId(): NetworkDeviceId {
@@ -64,20 +64,12 @@ export class PollingResult extends AggregateRoot<PollingResultProps> {
     return this.props.attemptNumber;
   }
 
-  get responseTimeMs(): number | null {
-    return this.props.responseTimeMs;
-  }
-
   get errorMessage(): string | null {
     return this.props.errorMessage;
   }
 
   get deviceStatus(): NetworkDeviceStatus {
     return this.props.deviceStatus;
-  }
-
-  private constructor(props: PollingResultProps, id?: UniqueEntityID) {
-    super(props, id);
   }
 
   /**
@@ -92,11 +84,20 @@ export class PollingResult extends AggregateRoot<PollingResultProps> {
     id?: UniqueEntityID
   ): Result<PollingResult> {
     const guardResult = Guard.combine([
-      Guard.againstNullOrUndefined(props.networkDeviceId, 'networkDeviceId'),
+      Guard.againstNullOrUndefined(
+        props.networkDeviceId,
+        'networkDeviceId'
+      ),
       Guard.againstNullOrUndefined(props.timestamp, 'timestamp'),
       Guard.againstNullOrUndefined(props.status, 'status'),
-      Guard.againstNullOrUndefined(props.deviceStatus, 'deviceStatus'),
-      Guard.againstNullOrUndefined(props.attemptNumber, 'attemptNumber'),
+      Guard.againstNullOrUndefined(
+        props.deviceStatus,
+        'deviceStatus'
+      ),
+      Guard.againstNullOrUndefined(
+        props.attemptNumber,
+        'attemptNumber'
+      ),
       Guard.isNumber(props.attemptNumber, 'attemptNumber'),
       Guard.inRange(
         props.attemptNumber,
@@ -108,13 +109,6 @@ export class PollingResult extends AggregateRoot<PollingResultProps> {
 
     if (!guardResult.succeeded) {
       return Result.fail<PollingResult>(guardResult.message!);
-    }
-
-    // Business rule: If status is SUCCESS, metrics must be present
-    if (props.status === PollingStatus.SUCCESS && !props.metrics) {
-      return Result.fail<PollingResult>(
-        'PollingResult with SUCCESS status must have metrics'
-      );
     }
 
     // Business rule: If status is SUCCESS or PARTIAL_SUCCESS, metrics must be present
@@ -139,16 +133,9 @@ export class PollingResult extends AggregateRoot<PollingResultProps> {
       );
     }
 
-    // For backwards compatibility, set responseTimeMs from metrics if present
-    let responseTimeMs = props.responseTimeMs;
-    if (props.metrics && !responseTimeMs) {
-      responseTimeMs = props.metrics.averageResponseTime;
-    }
-
     const pollingResult = new PollingResult(
       {
         ...props,
-        responseTimeMs,
         attemptNumber: Math.round(props.attemptNumber)
       },
       id
@@ -176,7 +163,6 @@ export class PollingResult extends AggregateRoot<PollingResultProps> {
       status: PollingStatus.SUCCESS,
       metrics: props.metrics,
       attemptNumber: props.attemptNumber,
-      responseTimeMs: props.metrics.averageResponseTime,
       errorMessage: null,
       deviceStatus: props.deviceStatus
     });
@@ -203,7 +189,6 @@ export class PollingResult extends AggregateRoot<PollingResultProps> {
       status: props.status,
       metrics: props.metrics || null,
       attemptNumber: props.attemptNumber,
-      responseTimeMs: props.metrics?.averageResponseTime || null,
       errorMessage: props.errorMessage,
       deviceStatus: props.deviceStatus
     });
@@ -262,7 +247,8 @@ export class PollingResult extends AggregateRoot<PollingResultProps> {
    */
   public toDisplayString(): string {
     if (this.isSuccessful()) {
-      const avgTime = this.props.responseTimeMs?.toFixed(2) || 'N/A';
+      const avgTime =
+        this.props.metrics?.averageResponseTime?.toFixed(2) || 'N/A';
       return `${this.props.status} - ${avgTime}ms avg (attempt ${this.props.attemptNumber})`;
     } else {
       return `${this.props.status} - ${this.props.errorMessage} (attempt ${this.props.attemptNumber})`;
