@@ -7,12 +7,12 @@
  */
 
 // NetworkDevice events
-export { NetworkDeviceCreatedEvent } from './NetworkDeviceCreatedEvent';
-export { NetworkDeviceStatusChangedEvent } from './NetworkDeviceStatusChangedEvent';
+export * from './NetworkDeviceCreatedEvent';
+export * from './NetworkDeviceStatusChangedEvent';
 
 // Polling events
-export { DevicePolledSuccessfullyEvent } from './DevicePolledSuccessfullyEvent';
-export { DevicePollingFailedEvent } from './DevicePollingFailedEvent';
-export { PollingIntervalChangedEvent } from './PollingIntervalChangedEvent';
-export { PingCountChangedEvent } from './PingCountChangedEvent';
-export { PollingConfigurationChangedEvent } from './PollingConfigurationChangedEvent';
+export * from './DevicePolledSuccessfullyEvent';
+export * from './DevicePollingFailedEvent';
+export * from './PollingIntervalChangedEvent';
+export * from './PingCountChangedEvent';
+export * from './PollingConfigurationChangedEvent';

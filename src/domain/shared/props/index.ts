@@ -4,3 +4,4 @@ export * from './EmailProps';
 export * from './PhoneNumberProps';
 export * from './AddressProps';
 export * from './PollingConfigurationProps';
+export * from './PollingResultProps';
