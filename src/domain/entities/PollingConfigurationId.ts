@@ -38,7 +38,7 @@ export class PollingConfigurationId extends UniqueEntityID {
    * @example
    * const configId = PollingConfigurationId.create('550e8400-e29b-41d4-a716-446655440000');
    */
-  public static create(id: string): Result<PollingConfigurationId> {
+  public static create(id?: string): Result<PollingConfigurationId> {
     try {
       const pollingConfigurationId = new PollingConfigurationId(id);
       return Result.ok<PollingConfigurationId>(

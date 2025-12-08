@@ -1,10 +1,13 @@
-import { Entity } from '../shared/kernel/Entity';
-import { UniqueEntityID } from '../shared/kernel/UniqueEntityID';
-import { Result } from '../shared/kernel/Result';
-import { Guard } from '../shared/kernel/Guard';
+import {
+  Entity,
+  UniqueEntityID,
+  Result,
+  Guard
+} from '../shared/kernel';
 import { PollingConfigurationId } from './PollingConfigurationId';
 import { NetworkDeviceId } from './NetworkDeviceId';
 import { PollingInterval, RetryPolicy } from '../value-objects';
+import { PollingConfigurationProps } from '../shared/props';
 
 /**
  * PollingConfiguration Entity
@@ -19,24 +22,22 @@ import { PollingInterval, RetryPolicy } from '../value-objects';
  * - Schedule next poll execution
  * - Define retry behavior
  */
-
-export interface PollingConfigurationProps {
-  networkDeviceId: NetworkDeviceId;
-  interval: PollingInterval;
-  enabled: boolean;
-  retryPolicy: RetryPolicy;
-  pingCount: number; // Number of ICMP pings per poll (1-10)
-  lastScheduledAt: Date | null;
-  nextScheduledAt: Date | null;
-}
-
-export class PollingConfiguration extends Entity<PollingConfigurationProps> {
+export class PollingConfiguration extends Entity<
+  PollingConfigurationProps,
+  PollingConfigurationId
+> {
   public static readonly MIN_PING_COUNT = 1;
   public static readonly MAX_PING_COUNT = 10;
   public static readonly DEFAULT_PING_COUNT = 4;
 
-  get pollingConfigurationId(): PollingConfigurationId {
-    return new PollingConfigurationId(this._id.toValue());
+  private constructor(
+    props: PollingConfigurationProps,
+    id?: PollingConfigurationId
+  ) {
+    if (!id) {
+      id = PollingConfigurationId.create().value;
+    }
+    super(props, id);
   }
 
   get networkDeviceId(): NetworkDeviceId {
@@ -67,10 +68,6 @@ export class PollingConfiguration extends Entity<PollingConfigurationProps> {
     return this.props.nextScheduledAt;
   }
 
-  private constructor(props: PollingConfigurationProps, id?: UniqueEntityID) {
-    super(props, id);
-  }
-
   /**
    * Creates a new PollingConfiguration entity.
    *
@@ -83,7 +80,10 @@ export class PollingConfiguration extends Entity<PollingConfigurationProps> {
     id?: UniqueEntityID
   ): Result<PollingConfiguration> {
     const guardResult = Guard.combine([
-      Guard.againstNullOrUndefined(props.networkDeviceId, 'networkDeviceId'),
+      Guard.againstNullOrUndefined(
+        props.networkDeviceId,
+        'networkDeviceId'
+      ),
       Guard.againstNullOrUndefined(props.interval, 'interval'),
       Guard.againstNullOrUndefined(props.enabled, 'enabled'),
       Guard.againstNullOrUndefined(props.retryPolicy, 'retryPolicy'),
@@ -174,7 +174,10 @@ export class PollingConfiguration extends Entity<PollingConfigurationProps> {
    * @returns Result indicating success or failure
    */
   public updateInterval(newInterval: PollingInterval): Result<void> {
-    const guardResult = Guard.againstNullOrUndefined(newInterval, 'interval');
+    const guardResult = Guard.againstNullOrUndefined(
+      newInterval,
+      'interval'
+    );
     if (!guardResult.succeeded) {
       return Result.fail<void>(guardResult.message!);
     }
@@ -183,7 +186,9 @@ export class PollingConfiguration extends Entity<PollingConfigurationProps> {
 
     // Reschedule next poll if enabled
     if (this.props.enabled && this.props.lastScheduledAt) {
-      const scheduleResult = this.scheduleNext(this.props.lastScheduledAt);
+      const scheduleResult = this.scheduleNext(
+        this.props.lastScheduledAt
+      );
       if (scheduleResult.isFailure) {
         return scheduleResult;
       }
@@ -224,7 +229,9 @@ export class PollingConfiguration extends Entity<PollingConfigurationProps> {
    * @param newRetryPolicy - New retry policy
    * @returns Result indicating success or failure
    */
-  public updateRetryPolicy(newRetryPolicy: RetryPolicy): Result<void> {
+  public updateRetryPolicy(
+    newRetryPolicy: RetryPolicy
+  ): Result<void> {
     const guardResult = Guard.againstNullOrUndefined(
       newRetryPolicy,
       'retryPolicy'
@@ -245,10 +252,15 @@ export class PollingConfiguration extends Entity<PollingConfigurationProps> {
    */
   public scheduleNext(fromTime: Date): Result<void> {
     if (!this.props.enabled) {
-      return Result.fail<void>('Cannot schedule poll - polling is disabled');
+      return Result.fail<void>(
+        'Cannot schedule poll - polling is disabled'
+      );
     }
 
-    const guardResult = Guard.againstNullOrUndefined(fromTime, 'fromTime');
+    const guardResult = Guard.againstNullOrUndefined(
+      fromTime,
+      'fromTime'
+    );
     if (!guardResult.succeeded) {
       return Result.fail<void>(guardResult.message!);
     }
@@ -281,20 +293,6 @@ export class PollingConfiguration extends Entity<PollingConfigurationProps> {
 
     // Can poll if current time is at or past scheduled time
     return currentTime >= this.props.nextScheduledAt;
-  }
-
-  /**
-   * Checks if polling is currently enabled.
-   */
-  public isEnabled(): boolean {
-    return this.props.enabled;
-  }
-
-  /**
-   * Gets the number of pings to perform per poll.
-   */
-  public getPingCount(): number {
-    return this.props.pingCount;
   }
 
   /**
