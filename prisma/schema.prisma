@@ -328,7 +328,8 @@ model Location {
 model NetworkDevice {
   id                    String                    @id @default(uuid())
   name                  String
-  type                  NetworkDeviceRole
+  deviceGroup           DeviceType
+  deviceTypes           NetworkDeviceRole[]
   description           String?
   installDate           DateTime               @default(now())
   ipAddress             String                 @unique
