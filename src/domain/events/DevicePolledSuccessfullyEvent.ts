@@ -1,7 +1,6 @@
-import { IDomainEvent } from '../shared/interfaces/IDomainEvent';
-import { UniqueEntityID } from '../shared/kernel/UniqueEntityID';
-import { NetworkDeviceId } from '../entities/NetworkDeviceId';
-import { PollingResultId } from '../entities/PollingResultId';
+import { IDomainEvent } from '../shared/interfaces';
+import { UniqueEntityID } from '../shared/kernel';
+import { NetworkDeviceId, PollingResultId } from '../entities';
 import { PollingMetrics } from '../value-objects';
 
 /**
