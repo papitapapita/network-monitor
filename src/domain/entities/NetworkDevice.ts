@@ -1,26 +1,21 @@
 import {
   AggregateRoot,
-  UniqueEntityID,
   Result,
-  Guard
-} from '../shared/kernel';
-import {
+  Guard,
   NetworkDeviceId,
   PollingConfiguration,
-  PollingResult
-} from './';
-import {
+  PollingResult,
   IPAddress,
   MACAddress,
   NetworkDeviceType,
   NetworkDeviceStatus,
-  PollingInterval
-} from '../value-objects';
-import {
+  PollingInterval,
   NetworkDeviceCreatedEvent,
-  NetworkDeviceStatusChangedEvent
-} from '../events';
-
+  NetworkDeviceStatusChangedEvent,
+  ConnectivityType,
+  ManagementProtocol,
+  NetworkDeviceProps
+} from '../';
 /**
  * NetworkDevice Aggregate Root
  *
@@ -34,48 +29,15 @@ import {
  * - Track device status and type
  * - Emit domain events for polling and status changes
  */
-
-// Enums from database schema
-export enum ConnectivityType {
-  ETHERNET = 'ETHERNET',
-  FIBER_OPTIC = 'FIBER_OPTIC',
-  WIRELESS = 'WIRELESS',
-  DSL = 'DSL',
-  SATELLITE = 'SATELLITE',
-  OTHER = 'OTHER'
-}
-
-export enum ManagementProtocol {
-  SNMP = 'SNMP',
-  SSH = 'SSH',
-  TELNET = 'TELNET',
-  HTTP = 'HTTP',
-  HTTPS = 'HTTPS',
-  OTHER = 'OTHER'
-}
-
-export interface NetworkDeviceProps {
-  name: string;
-  deviceType: NetworkDeviceType;
-  status: NetworkDeviceStatus;
-  description: string | null;
-  installDate: Date;
-  ipAddress: IPAddress;
-  macAddress: MACAddress;
-  connectivityType: ConnectivityType;
-  managementProtocol: ManagementProtocol;
-  managementPort: number;
-  enabledRemoteAccess: boolean;
-  deviceId: string; // Reference to Device entity
-  pollingConfiguration: PollingConfiguration; // Polling configuration entity
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
-  // Getters for all properties
-  get networkDeviceId(): NetworkDeviceId {
-    return new NetworkDeviceId(this._id.toValue());
+export class NetworkDevice extends AggregateRoot<
+  NetworkDeviceProps,
+  NetworkDeviceId
+> {
+  private constructor(
+    props: NetworkDeviceProps,
+    id: NetworkDeviceId
+  ) {
+    super(props, id);
   }
 
   get name(): string {
@@ -138,13 +100,6 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
     return this.props.pollingConfiguration;
   }
 
-  private constructor(
-    props: NetworkDeviceProps,
-    id?: UniqueEntityID
-  ) {
-    super(props, id);
-  }
-
   /**
    * Creates a new NetworkDevice aggregate.
    *
@@ -154,7 +109,7 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
    */
   public static create(
     props: NetworkDeviceProps,
-    id?: UniqueEntityID
+    id?: NetworkDeviceId
   ): Result<NetworkDevice> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(props.name, 'name'),
@@ -200,6 +155,8 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
       );
     }
 
+    const deviceId = id || NetworkDeviceId.create().value;
+
     // Set default dates if not provided
     const networkDevice = new NetworkDevice(
       {
@@ -208,14 +165,14 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
         createdAt: props.createdAt || new Date(),
         updatedAt: props.updatedAt || new Date()
       },
-      id
+      deviceId
     );
 
     // Emit creation event if this is a new device (no ID provided)
     if (!id) {
       networkDevice.addDomainEvent(
         new NetworkDeviceCreatedEvent(
-          networkDevice.networkDeviceId,
+          networkDevice.id,
           networkDevice.name,
           networkDevice.ipAddress.toString(),
           networkDevice.macAddress.toString()
@@ -253,7 +210,7 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceProps> {
     // Emit status changed event
     this.addDomainEvent(
       new NetworkDeviceStatusChangedEvent(
-        this.networkDeviceId,
+        this.id,
         this.name,
         oldStatus,
         newStatus,

@@ -1,9 +1,4 @@
-import {
-  Entity,
-  UniqueEntityID,
-  Result,
-  Guard
-} from '../shared/kernel';
+import { Entity, Result, Guard } from '../shared/kernel';
 import { PollingConfigurationId } from './PollingConfigurationId';
 import { NetworkDeviceId } from './NetworkDeviceId';
 import { PollingInterval, RetryPolicy } from '../value-objects';
@@ -32,11 +27,8 @@ export class PollingConfiguration extends Entity<
 
   private constructor(
     props: PollingConfigurationProps,
-    id?: PollingConfigurationId
+    id: PollingConfigurationId
   ) {
-    if (!id) {
-      id = PollingConfigurationId.create().value;
-    }
     super(props, id);
   }
 
@@ -77,7 +69,7 @@ export class PollingConfiguration extends Entity<
    */
   public static create(
     props: PollingConfigurationProps,
-    id?: UniqueEntityID
+    id?: PollingConfigurationId
   ): Result<PollingConfiguration> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(
@@ -104,12 +96,15 @@ export class PollingConfiguration extends Entity<
     // pingCount must be an integer
     const roundedPingCount = Math.round(props.pingCount);
 
+    const pollingConfigurationId =
+      id || PollingConfigurationId.create().value;
+
     const pollingConfiguration = new PollingConfiguration(
       {
         ...props,
         pingCount: roundedPingCount
       },
-      id
+      pollingConfigurationId
     );
 
     return Result.ok<PollingConfiguration>(pollingConfiguration);
@@ -124,11 +119,11 @@ export class PollingConfiguration extends Entity<
    */
   public static createDefault(
     networkDeviceId: NetworkDeviceId,
-    interval: PollingInterval
+    interval?: PollingInterval
   ): Result<PollingConfiguration> {
     return this.create({
       networkDeviceId,
-      interval,
+      interval: interval || PollingInterval.create(300).value, // Default 5 minutes
       enabled: true,
       retryPolicy: RetryPolicy.createDefault(),
       pingCount: this.DEFAULT_PING_COUNT,

@@ -1,9 +1,4 @@
-import {
-  AggregateRoot,
-  UniqueEntityID,
-  Result,
-  Guard
-} from '../shared/kernel';
+import { AggregateRoot, Result, Guard } from '../shared/kernel';
 import {
   PollingStatus,
   PollingMetrics,
@@ -36,11 +31,8 @@ export class PollingResult extends AggregateRoot<
 
   private constructor(
     props: PollingResultProps,
-    id?: PollingResultId
+    id: PollingResultId
   ) {
-    if (!id) {
-      id = PollingResultId.create().value;
-    }
     super(props, id);
   }
 
@@ -81,7 +73,7 @@ export class PollingResult extends AggregateRoot<
    */
   public static create(
     props: PollingResultProps,
-    id?: UniqueEntityID
+    id?: PollingResultId
   ): Result<PollingResult> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(
@@ -133,12 +125,14 @@ export class PollingResult extends AggregateRoot<
       );
     }
 
+    const pollingresultId = id || PollingResultId.create().value;
+
     const pollingResult = new PollingResult(
       {
         ...props,
         attemptNumber: Math.round(props.attemptNumber)
       },
-      id
+      pollingresultId
     );
 
     return Result.ok<PollingResult>(pollingResult);

@@ -5,3 +5,4 @@ export * from './PhoneNumberProps';
 export * from './AddressProps';
 export * from './PollingConfigurationProps';
 export * from './PollingResultProps';
+export * from './NetworkDeviceProps';

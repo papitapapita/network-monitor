@@ -23,3 +23,9 @@ export * from './events';
 
 // Repository Interfaces
 export * from './repository';
+
+// Domain Enums
+export * from './shared/enums';
+
+// Shared Props Interfaces
+export * from './shared/props';

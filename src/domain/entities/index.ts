@@ -7,7 +7,7 @@
 
 // NetworkDevice aggregate
 export * from './NetworkDeviceId';
-// export * from './NetworkDevice';
+export * from './NetworkDevice';
 
 // Polling entities
 export * from './PollingConfigurationId';
