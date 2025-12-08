@@ -6,19 +6,11 @@
  */
 
 // NetworkDevice aggregate
-export { NetworkDeviceId } from './NetworkDeviceId';
-export {
-  NetworkDevice,
-  NetworkDeviceProps,
-  ConnectivityType,
-  ManagementProtocol
-} from './NetworkDevice';
+export * from './NetworkDeviceId';
+// export * from './NetworkDevice';
 
 // Polling entities
-export { PollingConfigurationId } from './PollingConfigurationId';
-export {
-  PollingConfiguration,
-  PollingConfigurationProps
-} from './PollingConfiguration';
-export { PollingResultId } from './PollingResultId';
-export { PollingResult, PollingResultProps } from './PollingResult';
+export * from './PollingConfigurationId';
+export * from './PollingConfiguration';
+export * from './PollingResultId';
+export * from './PollingResult';

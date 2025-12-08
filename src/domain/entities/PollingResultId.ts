@@ -1,3 +1,4 @@
+import { Result } from '../shared/kernel';
 import { UniqueEntityID } from '../shared/kernel/UniqueEntityID';
 
 /**
@@ -24,24 +25,32 @@ export class PollingResultId extends UniqueEntityID {
   /**
    * Creates a new PollingResultId instance.
    *
-   * @param id - Optional unique identifier value (UUID string or number).
-   *             If not provided, a UUID will be auto-generated.
+   * @param id - Optional UUID string. If not provided, a new UUID v4 will be generated.
+   * @throws {Error} If the provided ID is not a valid UUID
    */
-  constructor(id?: string | number) {
+  private constructor(id?: string) {
     super(id);
   }
 
   /**
-   * Creates a PollingResultId from a raw string or number value.
-   * Useful for converting database IDs to domain IDs.
+   * Creates a PollingResultId from a UUID string.
+   * Useful for converting database UUIDs to domain IDs.
    *
-   * @param id - The raw identifier (typically UUID string from database)
+   * @param id - The UUID string (from database or external source)
    * @returns PollingResultId instance
+   * @throws {Error} If the provided ID is not a valid UUID
    *
    * @example
    * const resultId = PollingResultId.create('550e8400-e29b-41d4-a716-446655440000');
    */
-  public static create(id: string | number): PollingResultId {
-    return new PollingResultId(id);
+  public static create(id: string): Result<PollingResultId> {
+    try {
+      const pollingResultId = new PollingResultId(id);
+      return Result.ok<PollingResultId>(pollingResultId);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<PollingResultId>(errorMessage);
+    }
   }
 }
