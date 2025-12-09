@@ -46,7 +46,9 @@ describe('PollingResult', () => {
       expect(result.value.metrics).toBe(metrics);
       expect(result.value.attemptNumber).toBe(1);
       expect(result.value.errorMessage).toBeNull();
-      expect(result.value.deviceStatus).toBe(NetworkDeviceStatus.ONLINE);
+      expect(result.value.deviceStatus).toBe(
+        NetworkDeviceStatus.ONLINE
+      );
     });
 
     it('should auto-generate ID when not provided', () => {
@@ -65,7 +67,9 @@ describe('PollingResult', () => {
     });
 
     it('should use provided ID when specified', () => {
-      const customId = PollingResultId.create('550e8400-e29b-41d4-a716-446655440000').value;
+      const customId = PollingResultId.create(
+        '550e8400-e29b-41d4-a716-446655440000'
+      ).value;
       const result = PollingResult.create(
         {
           networkDeviceId,
@@ -349,14 +353,18 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.ONLINE
+        deviceStatus: NetworkDeviceStatus.ONLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       });
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.status).toBe(PollingStatus.SUCCESS);
       expect(result.value.metrics).toBe(metrics);
       expect(result.value.errorMessage).toBeNull();
-      expect(result.value.deviceStatus).toBe(NetworkDeviceStatus.ONLINE);
+      expect(result.value.deviceStatus).toBe(
+        NetworkDeviceStatus.ONLINE
+      );
     });
 
     it('should set errorMessage to null automatically', () => {
@@ -365,7 +373,9 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.ONLINE
+        deviceStatus: NetworkDeviceStatus.ONLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       });
 
       expect(result.value.errorMessage).toBeNull();
@@ -377,7 +387,9 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.ONLINE
+        deviceStatus: NetworkDeviceStatus.ONLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       });
 
       expect(result.value.status).toBe(PollingStatus.SUCCESS);
@@ -392,14 +404,18 @@ describe('PollingResult', () => {
         status: PollingStatus.FAILED,
         errorMessage: 'Host unreachable',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.OFFLINE
+        deviceStatus: NetworkDeviceStatus.OFFLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       });
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.status).toBe(PollingStatus.FAILED);
       expect(result.value.errorMessage).toBe('Host unreachable');
       expect(result.value.metrics).toBeNull();
-      expect(result.value.deviceStatus).toBe(NetworkDeviceStatus.OFFLINE);
+      expect(result.value.deviceStatus).toBe(
+        NetworkDeviceStatus.OFFLINE
+      );
     });
 
     it('should accept TIMEOUT status', () => {
@@ -409,7 +425,9 @@ describe('PollingResult', () => {
         status: PollingStatus.TIMEOUT,
         errorMessage: 'Request timed out',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.OFFLINE
+        deviceStatus: NetworkDeviceStatus.OFFLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       });
 
       expect(result.isSuccess).toBe(true);
@@ -424,6 +442,8 @@ describe('PollingResult', () => {
         errorMessage: 'Partial failure',
         attemptNumber: 1,
         deviceStatus: NetworkDeviceStatus.OFFLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1',
         metrics
       });
 
@@ -438,7 +458,9 @@ describe('PollingResult', () => {
         status: PollingStatus.FAILED,
         errorMessage: 'Host unreachable',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.OFFLINE
+        deviceStatus: NetworkDeviceStatus.OFFLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       });
 
       expect(result.value.metrics).toBeNull();
@@ -452,7 +474,9 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.ONLINE
+        deviceStatus: NetworkDeviceStatus.ONLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       expect(result.isSuccessful()).toBe(true);
@@ -485,7 +509,9 @@ describe('PollingResult', () => {
         status: PollingStatus.FAILED,
         errorMessage: 'Failed',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.OFFLINE
+        deviceStatus: NetworkDeviceStatus.OFFLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       expect(result.isSuccessful()).toBe(false);
@@ -498,7 +524,9 @@ describe('PollingResult', () => {
         status: PollingStatus.TIMEOUT,
         errorMessage: 'Timeout',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.OFFLINE
+        deviceStatus: NetworkDeviceStatus.OFFLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       expect(result.isSuccessful()).toBe(false);
@@ -513,7 +541,9 @@ describe('PollingResult', () => {
         status: PollingStatus.FAILED,
         errorMessage: 'Failed',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.OFFLINE
+        deviceStatus: NetworkDeviceStatus.OFFLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       expect(result.hasFailed()).toBe(true);
@@ -526,7 +556,9 @@ describe('PollingResult', () => {
         status: PollingStatus.TIMEOUT,
         errorMessage: 'Timeout',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.OFFLINE
+        deviceStatus: NetworkDeviceStatus.OFFLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       expect(result.hasFailed()).toBe(true);
@@ -538,7 +570,9 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.ONLINE
+        deviceStatus: NetworkDeviceStatus.ONLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       expect(result.hasFailed()).toBe(false);
@@ -572,7 +606,9 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.ONLINE
+        deviceStatus: NetworkDeviceStatus.ONLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       expect(result.shouldRetry(retryPolicy)).toBe(false);
@@ -585,7 +621,9 @@ describe('PollingResult', () => {
         status: PollingStatus.FAILED,
         errorMessage: 'Failed',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.OFFLINE
+        deviceStatus: NetworkDeviceStatus.OFFLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       const policy = RetryPolicy.create({
@@ -604,7 +642,9 @@ describe('PollingResult', () => {
         status: PollingStatus.FAILED,
         errorMessage: 'Failed',
         attemptNumber: 3,
-        deviceStatus: NetworkDeviceStatus.OFFLINE
+        deviceStatus: NetworkDeviceStatus.OFFLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       const policy = RetryPolicy.create({
@@ -623,7 +663,9 @@ describe('PollingResult', () => {
         status: PollingStatus.FAILED,
         errorMessage: 'Failed',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.OFFLINE
+        deviceStatus: NetworkDeviceStatus.OFFLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       const policy = RetryPolicy.noRetry();
@@ -639,7 +681,9 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.ONLINE
+        deviceStatus: NetworkDeviceStatus.ONLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       expect(result.indicatesOnline()).toBe(true);
@@ -652,7 +696,9 @@ describe('PollingResult', () => {
         status: PollingStatus.FAILED,
         errorMessage: 'Failed',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.OFFLINE
+        deviceStatus: NetworkDeviceStatus.OFFLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       expect(result.indicatesOnline()).toBe(false);
@@ -681,7 +727,9 @@ describe('PollingResult', () => {
         status: PollingStatus.FAILED,
         errorMessage: 'Failed',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.OFFLINE
+        deviceStatus: NetworkDeviceStatus.OFFLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       expect(result.indicatesOffline()).toBe(true);
@@ -693,7 +741,9 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.ONLINE
+        deviceStatus: NetworkDeviceStatus.ONLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       expect(result.indicatesOffline()).toBe(false);
@@ -721,7 +771,9 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.ONLINE
+        deviceStatus: NetworkDeviceStatus.ONLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       const display = result.toDisplayString();
@@ -738,7 +790,9 @@ describe('PollingResult', () => {
         status: PollingStatus.FAILED,
         errorMessage: 'Connection refused',
         attemptNumber: 2,
-        deviceStatus: NetworkDeviceStatus.OFFLINE
+        deviceStatus: NetworkDeviceStatus.OFFLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       const display = result.toDisplayString();
@@ -755,7 +809,9 @@ describe('PollingResult', () => {
         status: PollingStatus.TIMEOUT,
         errorMessage: 'Timeout',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.OFFLINE
+        deviceStatus: NetworkDeviceStatus.OFFLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       // This is a failed result, so it won't show avg time
@@ -771,7 +827,9 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.ONLINE
+        deviceStatus: NetworkDeviceStatus.ONLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       const str = result.toString();
@@ -788,7 +846,9 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.ONLINE
+        deviceStatus: NetworkDeviceStatus.ONLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       const str = result.toString();
@@ -836,13 +896,222 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.ONLINE
+        deviceStatus: NetworkDeviceStatus.ONLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       // Attempt to modify should not be possible (TypeScript protects this)
       // But the object itself should not expose any mutation methods
       expect(typeof (result as any).setStatus).toBe('undefined');
       expect(typeof (result as any).updateMetrics).toBe('undefined');
+    });
+  });
+
+  describe('domain events', () => {
+    describe('DevicePolledSuccessfullyEvent', () => {
+      it('should emit DevicePolledSuccessfullyEvent when creating successful result', () => {
+        const result = PollingResult.createSuccess({
+          networkDeviceId,
+          timestamp,
+          metrics,
+          attemptNumber: 1,
+          deviceStatus: NetworkDeviceStatus.ONLINE,
+          deviceName: 'Router-01',
+          ipAddress: '192.168.1.1'
+        });
+
+        expect(result.isSuccess).toBe(true);
+        const events = result.value.domainEvents;
+        expect(events.length).toBe(1);
+        expect(events[0].constructor.name).toBe(
+          'DevicePolledSuccessfullyEvent'
+        );
+      });
+
+      it('should include wasOffline flag in success event', () => {
+        const result = PollingResult.createSuccess({
+          networkDeviceId,
+          timestamp,
+          metrics,
+          attemptNumber: 1,
+          deviceStatus: NetworkDeviceStatus.ONLINE,
+          deviceName: 'Router-01',
+          ipAddress: '192.168.1.1',
+          wasOffline: true
+        });
+
+        expect(result.isSuccess).toBe(true);
+        const events = result.value.domainEvents;
+        expect(events.length).toBe(1);
+        const event = events[0] as any;
+        expect(event.wasOffline).toBe(true);
+      });
+
+      it('should default wasOffline to false in success event', () => {
+        const result = PollingResult.createSuccess({
+          networkDeviceId,
+          timestamp,
+          metrics,
+          attemptNumber: 1,
+          deviceStatus: NetworkDeviceStatus.ONLINE,
+          deviceName: 'Router-01',
+          ipAddress: '192.168.1.1'
+        });
+
+        expect(result.isSuccess).toBe(true);
+        const event = result.value.domainEvents[0] as any;
+        expect(event.wasOffline).toBe(false);
+      });
+
+      it('should include device information in success event', () => {
+        const result = PollingResult.createSuccess({
+          networkDeviceId,
+          timestamp,
+          metrics,
+          attemptNumber: 1,
+          deviceStatus: NetworkDeviceStatus.ONLINE,
+          deviceName: 'Router-01',
+          ipAddress: '192.168.1.1'
+        });
+
+        const event = result.value.domainEvents[0] as any;
+        expect(event.deviceName).toBe('Router-01');
+        expect(event.ipAddress).toBe('192.168.1.1');
+        expect(event.networkDeviceId).toBe(networkDeviceId);
+        expect(event.metrics).toBe(metrics);
+      });
+    });
+
+    describe('DevicePollingFailedEvent', () => {
+      it('should emit DevicePollingFailedEvent when creating failed result', () => {
+        const result = PollingResult.createFailure({
+          networkDeviceId,
+          timestamp,
+          status: PollingStatus.FAILED,
+          errorMessage: 'Host unreachable',
+          attemptNumber: 1,
+          deviceStatus: NetworkDeviceStatus.OFFLINE,
+          deviceName: 'Router-01',
+          ipAddress: '192.168.1.1'
+        });
+
+        expect(result.isSuccess).toBe(true);
+        const events = result.value.domainEvents;
+        expect(events.length).toBe(1);
+        expect(events[0].constructor.name).toBe(
+          'DevicePollingFailedEvent'
+        );
+      });
+
+      it('should include wasOnline flag in failure event', () => {
+        const result = PollingResult.createFailure({
+          networkDeviceId,
+          timestamp,
+          status: PollingStatus.FAILED,
+          errorMessage: 'Connection lost',
+          attemptNumber: 2,
+          deviceStatus: NetworkDeviceStatus.OFFLINE,
+          deviceName: 'Router-01',
+          ipAddress: '192.168.1.1',
+          wasOnline: true
+        });
+
+        expect(result.isSuccess).toBe(true);
+        const events = result.value.domainEvents;
+        expect(events.length).toBe(1);
+        const event = events[0] as any;
+        expect(event.wasOnline).toBe(true);
+      });
+
+      it('should default wasOnline to false in failure event', () => {
+        const result = PollingResult.createFailure({
+          networkDeviceId,
+          timestamp,
+          status: PollingStatus.FAILED,
+          errorMessage: 'Host unreachable',
+          attemptNumber: 1,
+          deviceStatus: NetworkDeviceStatus.OFFLINE,
+          deviceName: 'Router-01',
+          ipAddress: '192.168.1.1'
+        });
+
+        expect(result.isSuccess).toBe(true);
+        const event = result.value.domainEvents[0] as any;
+        expect(event.wasOnline).toBe(false);
+      });
+
+      it('should include error details in failure event', () => {
+        const result = PollingResult.createFailure({
+          networkDeviceId,
+          timestamp,
+          status: PollingStatus.TIMEOUT,
+          errorMessage: 'Request timed out after 5 seconds',
+          attemptNumber: 3,
+          deviceStatus: NetworkDeviceStatus.OFFLINE,
+          deviceName: 'Router-01',
+          ipAddress: '192.168.1.1'
+        });
+
+        const event = result.value.domainEvents[0] as any;
+        expect(event.deviceName).toBe('Router-01');
+        expect(event.ipAddress).toBe('192.168.1.1');
+        expect(event.networkDeviceId).toBe(networkDeviceId);
+        expect(event.status).toBe(PollingStatus.TIMEOUT);
+        expect(event.errorMessage).toBe(
+          'Request timed out after 5 seconds'
+        );
+        expect(event.attemptNumber).toBe(3);
+      });
+
+      it('should emit event for timeout failures', () => {
+        const result = PollingResult.createFailure({
+          networkDeviceId,
+          timestamp,
+          status: PollingStatus.TIMEOUT,
+          errorMessage: 'Timeout',
+          attemptNumber: 1,
+          deviceStatus: NetworkDeviceStatus.OFFLINE,
+          deviceName: 'Router-01',
+          ipAddress: '192.168.1.1'
+        });
+
+        expect(result.isSuccess).toBe(true);
+        const events = result.value.domainEvents;
+        expect(events.length).toBe(1);
+        const event = events[0] as any;
+        expect(event.status).toBe(PollingStatus.TIMEOUT);
+      });
+    });
+
+    it('should emit event with correct aggregate ID', () => {
+      const result = PollingResult.createSuccess({
+        networkDeviceId,
+        timestamp,
+        metrics,
+        attemptNumber: 1,
+        deviceStatus: NetworkDeviceStatus.ONLINE,
+        ipAddress: '192.168.1.1',
+        deviceName: 'Test-Device'
+      });
+
+      const event = result.value.domainEvents[0] as any;
+      expect(event.getAggregateId()).toBe(result.value.id);
+    });
+
+    it('should include timestamp in emitted events', () => {
+      const result = PollingResult.createSuccess({
+        networkDeviceId,
+        timestamp,
+        metrics,
+        attemptNumber: 1,
+        deviceStatus: NetworkDeviceStatus.ONLINE,
+        deviceName: 'Router-01',
+        ipAddress: '192.168.1.1'
+      });
+
+      const event = result.value.domainEvents[0] as any;
+      expect(event.dateTimeOccurred).toBeInstanceOf(Date);
     });
   });
 });

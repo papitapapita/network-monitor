@@ -7,6 +7,10 @@ import {
 } from '../value-objects';
 import { PollingResultId, NetworkDeviceId } from './';
 import { PollingResultProps } from '../shared/props';
+import {
+  DevicePolledSuccessfullyEvent,
+  DevicePollingFailedEvent
+} from '../events';
 
 /**
  * PollingResult Aggregate Root
@@ -150,8 +154,11 @@ export class PollingResult extends AggregateRoot<
     metrics: PollingMetrics;
     attemptNumber: number;
     deviceStatus: NetworkDeviceStatus;
+    deviceName: string;
+    ipAddress: string;
+    wasOffline?: boolean;
   }): Result<PollingResult> {
-    return this.create({
+    const createResult = this.create({
       networkDeviceId: props.networkDeviceId,
       timestamp: props.timestamp,
       status: PollingStatus.SUCCESS,
@@ -160,6 +167,24 @@ export class PollingResult extends AggregateRoot<
       errorMessage: null,
       deviceStatus: props.deviceStatus
     });
+
+    if (createResult.isSuccess) {
+      const pollingResult = createResult.value;
+
+      // Emit success event
+      pollingResult.addDomainEvent(
+        new DevicePolledSuccessfullyEvent(
+          pollingResult.id,
+          props.networkDeviceId,
+          props.deviceName,
+          props.ipAddress,
+          props.metrics,
+          props.wasOffline || false
+        )
+      );
+    }
+
+    return createResult;
   }
 
   /**
@@ -175,9 +200,12 @@ export class PollingResult extends AggregateRoot<
     errorMessage: string;
     attemptNumber: number;
     deviceStatus: NetworkDeviceStatus;
+    deviceName: string;
+    ipAddress: string;
+    wasOnline?: boolean;
     metrics?: PollingMetrics | null;
   }): Result<PollingResult> {
-    return this.create({
+    const createResult = this.create({
       networkDeviceId: props.networkDeviceId,
       timestamp: props.timestamp,
       status: props.status,
@@ -186,6 +214,26 @@ export class PollingResult extends AggregateRoot<
       errorMessage: props.errorMessage,
       deviceStatus: props.deviceStatus
     });
+
+    if (createResult.isSuccess) {
+      const pollingResult = createResult.value;
+
+      // Emit failure event
+      pollingResult.addDomainEvent(
+        new DevicePollingFailedEvent(
+          pollingResult.id,
+          props.networkDeviceId,
+          props.deviceName,
+          props.ipAddress,
+          props.status,
+          props.errorMessage,
+          props.attemptNumber,
+          props.wasOnline || false
+        )
+      );
+    }
+
+    return createResult;
   }
 
   /**

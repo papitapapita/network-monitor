@@ -12,6 +12,9 @@ import {
   PollingInterval,
   NetworkDeviceCreatedEvent,
   NetworkDeviceStatusChangedEvent,
+  PollingIntervalChangedEvent,
+  PingCountChangedEvent,
+  PollingConfigurationChangedEvent,
   ConnectivityType,
   ManagementProtocol,
   NetworkDeviceProps
@@ -371,8 +374,23 @@ export class NetworkDevice extends AggregateRoot<
   public configurePolling(interval: PollingInterval): Result<void> {
     const updateResult =
       this.props.pollingConfiguration.updateInterval(interval);
-    if (!updateResult.isSuccess) {
-      return updateResult;
+    if (updateResult.isFailure) {
+      return Result.fail<void>(updateResult.error!);
+    }
+
+    const { previousInterval } = updateResult.value;
+
+    // Emit event if interval actually changed
+    if (!previousInterval.equals(interval)) {
+      this.addDomainEvent(
+        new PollingIntervalChangedEvent(
+          this.props.pollingConfiguration.id,
+          this.id,
+          previousInterval,
+          interval,
+          this.name
+        )
+      );
     }
 
     this.props.updatedAt = new Date();
@@ -388,8 +406,23 @@ export class NetworkDevice extends AggregateRoot<
   public updatePingCount(count: number): Result<void> {
     const updateResult =
       this.props.pollingConfiguration.updatePingCount(count);
-    if (!updateResult.isSuccess) {
-      return updateResult;
+    if (updateResult.isFailure) {
+      return Result.fail<void>(updateResult.error!);
+    }
+
+    const { previousPingCount } = updateResult.value;
+
+    // Emit event if ping count actually changed
+    if (previousPingCount !== count) {
+      this.addDomainEvent(
+        new PingCountChangedEvent(
+          this.props.pollingConfiguration.id,
+          this.id,
+          previousPingCount,
+          count,
+          this.name
+        )
+      );
     }
 
     this.props.updatedAt = new Date();
@@ -401,8 +434,22 @@ export class NetworkDevice extends AggregateRoot<
    */
   public enablePolling(): Result<void> {
     const enableResult = this.props.pollingConfiguration.enable();
-    if (!enableResult.isSuccess) {
-      return enableResult;
+    if (enableResult.isFailure) {
+      return Result.fail<void>(enableResult.error!);
+    }
+
+    const { stateChanged } = enableResult.value;
+
+    // Emit event if state actually changed
+    if (stateChanged) {
+      this.addDomainEvent(
+        new PollingConfigurationChangedEvent(
+          this.props.pollingConfiguration.id,
+          this.id,
+          this.name,
+          'Polling enabled'
+        )
+      );
     }
 
     this.props.updatedAt = new Date();
@@ -414,8 +461,22 @@ export class NetworkDevice extends AggregateRoot<
    */
   public disablePolling(): Result<void> {
     const disableResult = this.props.pollingConfiguration.disable();
-    if (!disableResult.isSuccess) {
-      return disableResult;
+    if (disableResult.isFailure) {
+      return Result.fail<void>(disableResult.error!);
+    }
+
+    const { stateChanged } = disableResult.value;
+
+    // Emit event if state actually changed
+    if (stateChanged) {
+      this.addDomainEvent(
+        new PollingConfigurationChangedEvent(
+          this.props.pollingConfiguration.id,
+          this.id,
+          this.name,
+          'Polling disabled'
+        )
+      );
     }
 
     this.props.updatedAt = new Date();

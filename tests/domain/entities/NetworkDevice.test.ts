@@ -804,6 +804,7 @@ describe('NetworkDevice', () => {
 
     beforeEach(() => {
       device = NetworkDevice.create(validProps).value;
+      device.clearEvents();
     });
 
     it('should configure polling interval successfully', () => {
@@ -824,6 +825,25 @@ describe('NetworkDevice', () => {
         oldUpdatedAt.getTime()
       );
     });
+
+    it('should emit PollingIntervalChangedEvent when interval changes', () => {
+      const newInterval = PollingInterval.create(120).value;
+      device.configurePolling(newInterval);
+
+      const events = device.domainEvents;
+      expect(events.length).toBe(1);
+      expect(events[0].constructor.name).toBe(
+        'PollingIntervalChangedEvent'
+      );
+    });
+
+    it('should not emit event when interval is the same', () => {
+      const currentInterval = device.pollingConfiguration.interval;
+      device.configurePolling(currentInterval);
+
+      const events = device.domainEvents;
+      expect(events.length).toBe(0);
+    });
   });
 
   describe('updatePingCount', () => {
@@ -831,6 +851,7 @@ describe('NetworkDevice', () => {
 
     beforeEach(() => {
       device = NetworkDevice.create(validProps).value;
+      device.clearEvents();
     });
 
     it('should update ping count successfully', () => {
@@ -855,6 +876,22 @@ describe('NetworkDevice', () => {
 
       expect(result.isFailure).toBe(true);
     });
+
+    it('should emit PingCountChangedEvent when ping count changes', () => {
+      device.updatePingCount(8);
+
+      const events = device.domainEvents;
+      expect(events.length).toBe(1);
+      expect(events[0].constructor.name).toBe('PingCountChangedEvent');
+    });
+
+    it('should not emit event when ping count is the same', () => {
+      const currentPingCount = device.pollingConfiguration.pingCount;
+      device.updatePingCount(currentPingCount);
+
+      const events = device.domainEvents;
+      expect(events.length).toBe(0);
+    });
   });
 
   describe('enablePolling', () => {
@@ -863,6 +900,7 @@ describe('NetworkDevice', () => {
     beforeEach(() => {
       device = NetworkDevice.create(validProps).value;
       device.disablePolling();
+      device.clearEvents();
     });
 
     it('should enable polling successfully', () => {
@@ -881,6 +919,26 @@ describe('NetworkDevice', () => {
         oldUpdatedAt.getTime()
       );
     });
+
+    it('should emit PollingConfigurationChangedEvent when enabling', () => {
+      device.enablePolling();
+
+      const events = device.domainEvents;
+      expect(events.length).toBe(1);
+      expect(events[0].constructor.name).toBe(
+        'PollingConfigurationChangedEvent'
+      );
+    });
+
+    it('should not emit event when already enabled', () => {
+      device.enablePolling();
+      device.clearEvents();
+
+      device.enablePolling();
+
+      const events = device.domainEvents;
+      expect(events.length).toBe(0);
+    });
   });
 
   describe('disablePolling', () => {
@@ -888,6 +946,7 @@ describe('NetworkDevice', () => {
 
     beforeEach(() => {
       device = NetworkDevice.create(validProps).value;
+      device.clearEvents();
     });
 
     it('should disable polling successfully', () => {
@@ -905,6 +964,26 @@ describe('NetworkDevice', () => {
       expect(device.updatedAt.getTime()).toBeGreaterThanOrEqual(
         oldUpdatedAt.getTime()
       );
+    });
+
+    it('should emit PollingConfigurationChangedEvent when disabling', () => {
+      device.disablePolling();
+
+      const events = device.domainEvents;
+      expect(events.length).toBe(1);
+      expect(events[0].constructor.name).toBe(
+        'PollingConfigurationChangedEvent'
+      );
+    });
+
+    it('should not emit event when already disabled', () => {
+      device.disablePolling();
+      device.clearEvents();
+
+      device.disablePolling();
+
+      const events = device.domainEvents;
+      expect(events.length).toBe(0);
     });
   });
 
@@ -944,7 +1023,9 @@ describe('NetworkDevice', () => {
         timestamp: new Date(),
         metrics: metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.ONLINE
+        deviceStatus: NetworkDeviceStatus.ONLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       const result = device.updatePollingState(pollingResult);
@@ -966,7 +1047,9 @@ describe('NetworkDevice', () => {
         timestamp: new Date(),
         metrics: metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.ONLINE
+        deviceStatus: NetworkDeviceStatus.ONLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       device.updatePollingState(pollingResult);
@@ -994,7 +1077,9 @@ describe('NetworkDevice', () => {
         timestamp: new Date(),
         metrics: metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.ONLINE
+        deviceStatus: NetworkDeviceStatus.ONLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       device.updatePollingState(pollingResult);
@@ -1020,7 +1105,9 @@ describe('NetworkDevice', () => {
         status: PollingStatus.FAILED,
         errorMessage: 'Test failure',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.OFFLINE
+        deviceStatus: NetworkDeviceStatus.OFFLINE,
+        deviceName: 'Test-Device',
+        ipAddress: '192.168.1.1'
       }).value;
 
       const result = device.updatePollingState(pollingResult);

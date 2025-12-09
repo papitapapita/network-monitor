@@ -119,12 +119,10 @@ export class ConfigureDevicePollingUseCase extends UseCase<
     const interval = intervalOrError.getValue();
 
     // 3. Update polling configuration
-    // Note: The actual update methods should be on the NetworkDevice aggregate
-    // For now, we'll update the PollingConfiguration entity directly
-    const pollingConfig = device.pollingConfiguration;
+    // Use NetworkDevice aggregate methods to ensure events are emitted properly
 
     // Update interval
-    const updateIntervalResult = pollingConfig.updateInterval(interval);
+    const updateIntervalResult = device.configurePolling(interval);
     if (updateIntervalResult.isFailure) {
       return this.fail(
         `Failed to update interval: ${updateIntervalResult.error}`
@@ -133,7 +131,7 @@ export class ConfigureDevicePollingUseCase extends UseCase<
 
     // Update ping count if provided
     if (command.pingCount !== undefined) {
-      const updatePingCountResult = pollingConfig.updatePingCount(
+      const updatePingCountResult = device.updatePingCount(
         command.pingCount
       );
       if (updatePingCountResult.isFailure) {
@@ -145,12 +143,12 @@ export class ConfigureDevicePollingUseCase extends UseCase<
 
     // Enable or disable polling
     if (command.enabled) {
-      const enableResult = pollingConfig.enable();
+      const enableResult = device.enablePolling();
       if (enableResult.isFailure) {
         return this.fail(`Failed to enable polling: ${enableResult.error}`);
       }
     } else {
-      const disableResult = pollingConfig.disable();
+      const disableResult = device.disablePolling();
       if (disableResult.isFailure) {
         return this.fail(`Failed to disable polling: ${disableResult.error}`);
       }

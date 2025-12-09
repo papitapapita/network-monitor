@@ -135,30 +135,30 @@ export class PollingConfiguration extends Entity<
   /**
    * Enables polling for this configuration.
    *
-   * @returns Result indicating success or failure
+   * @returns Result indicating success or failure, and whether state changed
    */
-  public enable(): Result<void> {
+  public enable(): Result<{ stateChanged: boolean }> {
     if (this.props.enabled) {
-      return Result.ok<void>();
+      return Result.ok<{ stateChanged: boolean }>({ stateChanged: false });
     }
 
     this.props.enabled = true;
-    return Result.ok<void>();
+    return Result.ok<{ stateChanged: boolean }>({ stateChanged: true });
   }
 
   /**
    * Disables polling for this configuration.
    *
-   * @returns Result indicating success or failure
+   * @returns Result indicating success or failure, and whether state changed
    */
-  public disable(): Result<void> {
+  public disable(): Result<{ stateChanged: boolean }> {
     if (!this.props.enabled) {
-      return Result.ok<void>();
+      return Result.ok<{ stateChanged: boolean }>({ stateChanged: false });
     }
 
     this.props.enabled = false;
     this.props.nextScheduledAt = null; // Clear scheduled time when disabled
-    return Result.ok<void>();
+    return Result.ok<{ stateChanged: boolean }>({ stateChanged: true });
   }
 
   /**
@@ -166,17 +166,18 @@ export class PollingConfiguration extends Entity<
    * This will require rescheduling the next poll.
    *
    * @param newInterval - New polling interval
-   * @returns Result indicating success or failure
+   * @returns Result indicating success or failure, and the previous interval for event emission
    */
-  public updateInterval(newInterval: PollingInterval): Result<void> {
+  public updateInterval(newInterval: PollingInterval): Result<{ previousInterval: PollingInterval }> {
     const guardResult = Guard.againstNullOrUndefined(
       newInterval,
       'interval'
     );
     if (!guardResult.succeeded) {
-      return Result.fail<void>(guardResult.message!);
+      return Result.fail<{ previousInterval: PollingInterval }>(guardResult.message!);
     }
 
+    const previousInterval = this.props.interval;
     this.props.interval = newInterval;
 
     // Reschedule next poll if enabled
@@ -185,20 +186,20 @@ export class PollingConfiguration extends Entity<
         this.props.lastScheduledAt
       );
       if (scheduleResult.isFailure) {
-        return scheduleResult;
+        return Result.fail<{ previousInterval: PollingInterval }>(scheduleResult.error!);
       }
     }
 
-    return Result.ok<void>();
+    return Result.ok<{ previousInterval: PollingInterval }>({ previousInterval });
   }
 
   /**
    * Updates the ping count for multi-ping polling.
    *
    * @param count - New ping count (1-10)
-   * @returns Result indicating success or failure
+   * @returns Result indicating success or failure, and the previous ping count for event emission
    */
-  public updatePingCount(count: number): Result<void> {
+  public updatePingCount(count: number): Result<{ previousPingCount: number }> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(count, 'pingCount'),
       Guard.isNumber(count, 'pingCount'),
@@ -211,11 +212,12 @@ export class PollingConfiguration extends Entity<
     ]);
 
     if (!guardResult.succeeded) {
-      return Result.fail<void>(guardResult.message!);
+      return Result.fail<{ previousPingCount: number }>(guardResult.message!);
     }
 
+    const previousPingCount = this.props.pingCount;
     this.props.pingCount = Math.round(count);
-    return Result.ok<void>();
+    return Result.ok<{ previousPingCount: number }>({ previousPingCount });
   }
 
   /**
