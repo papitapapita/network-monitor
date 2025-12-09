@@ -1,4 +1,4 @@
-import { UniqueEntityID, Result } from '../shared/kernel';
+import { UniqueEntityID, Result } from '../';
 
 /**
  * PollingConfigurationId - Unique identifier for PollingConfiguration entity

@@ -1,8 +1,8 @@
-import { PollingResultId } from '../../../src/domain/entities/PollingResultId';
 import {
   Result,
-  UniqueEntityID
-} from '../../../src/domain/shared/kernel';
+  UniqueEntityID,
+  PollingResultId
+} from '../../../src/domain/';
 
 class TestID extends UniqueEntityID {
   private constructor(id?: string) {
@@ -42,7 +42,9 @@ describe('PollingResultId', () => {
 
     it('should return failure Result when given numeric ID', () => {
       const numericId = 12345;
-      const result = PollingResultId.create(numericId as unknown as string);
+      const result = PollingResultId.create(
+        numericId as unknown as string
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.isSuccess).toBe(false);
@@ -58,7 +60,9 @@ describe('PollingResultId', () => {
     });
 
     it('should return success Result with new UUID when given null', () => {
-      const result = PollingResultId.create(null as unknown as string);
+      const result = PollingResultId.create(
+        null as unknown as string
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value).toBeInstanceOf(PollingResultId);
@@ -66,7 +70,9 @@ describe('PollingResultId', () => {
     });
 
     it('should return success Result with new UUID when given undefined', () => {
-      const result = PollingResultId.create(undefined as unknown as string);
+      const result = PollingResultId.create(
+        undefined as unknown as string
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value).toBeInstanceOf(PollingResultId);
@@ -74,12 +80,18 @@ describe('PollingResultId', () => {
     });
 
     it('should create different IDs when called multiple times without arguments', () => {
-      const result1 = PollingResultId.create(undefined as unknown as string);
-      const result2 = PollingResultId.create(undefined as unknown as string);
+      const result1 = PollingResultId.create(
+        undefined as unknown as string
+      );
+      const result2 = PollingResultId.create(
+        undefined as unknown as string
+      );
 
       expect(result1.isSuccess).toBe(true);
       expect(result2.isSuccess).toBe(true);
-      expect(result1.value.toValue()).not.toBe(result2.value.toValue());
+      expect(result1.value.toValue()).not.toBe(
+        result2.value.toValue()
+      );
     });
   });
 
@@ -93,8 +105,12 @@ describe('PollingResultId', () => {
     });
 
     it('should not be equal when ID values differ', () => {
-      const resultId1 = PollingResultId.create('c5228bee-15a8-420c-a5ca-39d209f944e5').value;
-      const resultId2 = PollingResultId.create('c5228bee-15a8-420c-a5ca-39d209f944e3').value;
+      const resultId1 = PollingResultId.create(
+        'c5228bee-15a8-420c-a5ca-39d209f944e5'
+      ).value;
+      const resultId2 = PollingResultId.create(
+        'c5228bee-15a8-420c-a5ca-39d209f944e3'
+      ).value;
 
       expect(resultId1.equals(resultId2)).toBe(false);
     });
@@ -108,13 +124,17 @@ describe('PollingResultId', () => {
     });
 
     it('should not be equal with null', () => {
-      const resultId = PollingResultId.create('c5228bee-15a8-420c-a5ca-39d209f944e5').value;
+      const resultId = PollingResultId.create(
+        'c5228bee-15a8-420c-a5ca-39d209f944e5'
+      ).value;
 
       expect(resultId.equals(null as any)).toBe(false);
     });
 
     it('should not be equal with undefined', () => {
-      const resultId = PollingResultId.create('c5228bee-15a8-420c-a5ca-39d209f944e5').value;
+      const resultId = PollingResultId.create(
+        'c5228bee-15a8-420c-a5ca-39d209f944e5'
+      ).value;
 
       expect(resultId.equals(undefined as any)).toBe(false);
     });
@@ -130,11 +150,14 @@ describe('PollingResultId', () => {
     });
 
     it('should return a valid UUID format', () => {
-      const resultId = PollingResultId.create(undefined as unknown as string).value;
+      const resultId = PollingResultId.create(
+        undefined as unknown as string
+      ).value;
       const value = resultId.toValue();
 
       // UUID v4 format: 8-4-4-4-12 hexadecimal characters
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       expect(value).toMatch(uuidRegex);
     });
   });
@@ -148,7 +171,9 @@ describe('PollingResultId', () => {
     });
 
     it('should match toValue result', () => {
-      const resultId = PollingResultId.create('550e8400-e29b-41d4-a716-446655440000').value;
+      const resultId = PollingResultId.create(
+        '550e8400-e29b-41d4-a716-446655440000'
+      ).value;
 
       expect(resultId.toString()).toBe(resultId.toValue());
     });
@@ -166,7 +191,9 @@ describe('PollingResultId', () => {
 
     it('should handle creating new ID for new polling result', () => {
       // Simulate creating a new polling result that needs a new ID
-      const result = PollingResultId.create(undefined as unknown as string);
+      const result = PollingResultId.create(
+        undefined as unknown as string
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value).toBeInstanceOf(PollingResultId);
@@ -223,7 +250,9 @@ describe('PollingResultId', () => {
     });
 
     it('should reject boolean as ID', () => {
-      const result = PollingResultId.create(true as unknown as string);
+      const result = PollingResultId.create(
+        true as unknown as string
+      );
 
       expect(result.isFailure).toBe(true);
     });
@@ -250,7 +279,9 @@ describe('PollingResultId', () => {
     });
 
     it('should be instance of PollingResultId', () => {
-      const result = PollingResultId.create('550e8400-e29b-41d4-a716-446655440000');
+      const result = PollingResultId.create(
+        '550e8400-e29b-41d4-a716-446655440000'
+      );
 
       expect(result.value).toBeInstanceOf(PollingResultId);
       expect(result.value).toBeInstanceOf(UniqueEntityID);
@@ -259,7 +290,9 @@ describe('PollingResultId', () => {
 
   describe('Result pattern consistency', () => {
     it('should return Result object with isSuccess property', () => {
-      const result = PollingResultId.create('550e8400-e29b-41d4-a716-446655440000');
+      const result = PollingResultId.create(
+        '550e8400-e29b-41d4-a716-446655440000'
+      );
 
       expect(result).toHaveProperty('isSuccess');
       expect(result).toHaveProperty('isFailure');
@@ -268,7 +301,9 @@ describe('PollingResultId', () => {
     });
 
     it('should have mutually exclusive isSuccess and isFailure', () => {
-      const successResult = PollingResultId.create('550e8400-e29b-41d4-a716-446655440000');
+      const successResult = PollingResultId.create(
+        '550e8400-e29b-41d4-a716-446655440000'
+      );
       expect(successResult.isSuccess).toBe(true);
       expect(successResult.isFailure).toBe(false);
 
@@ -278,7 +313,9 @@ describe('PollingResultId', () => {
     });
 
     it('should provide value property on success', () => {
-      const result = PollingResultId.create('550e8400-e29b-41d4-a716-446655440000');
+      const result = PollingResultId.create(
+        '550e8400-e29b-41d4-a716-446655440000'
+      );
 
       expect(result.value).toBeDefined();
       expect(result.value).toBeInstanceOf(PollingResultId);

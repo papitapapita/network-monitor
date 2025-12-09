@@ -1,7 +1,9 @@
-import { PingCountChangedEvent } from '../../../src/domain/events/PingCountChangedEvent';
-import { NetworkDeviceId } from '../../../src/domain/entities/NetworkDeviceId';
-import { PollingConfigurationId } from '../../../src/domain/entities/PollingConfigurationId';
-import { UniqueEntityID } from '../../../src/domain/shared/kernel';
+import {
+  PingCountChangedEvent,
+  NetworkDeviceId,
+  PollingConfigurationId,
+  UniqueEntityID
+} from '../../../src/domain';
 
 describe('PingCountChangedEvent', () => {
   let aggregateId: PollingConfigurationId;
@@ -11,7 +13,9 @@ describe('PingCountChangedEvent', () => {
   const newPingCount = 8;
 
   beforeEach(() => {
-    aggregateId = PollingConfigurationId.create('550e8400-e29b-41d4-a716-446655440000').value;
+    aggregateId = PollingConfigurationId.create(
+      '550e8400-e29b-41d4-a716-446655440000'
+    ).value;
     networkDeviceId = NetworkDeviceId.create().value;
   });
 
@@ -44,8 +48,12 @@ describe('PingCountChangedEvent', () => {
       const afterCreation = new Date();
 
       expect(event.dateTimeOccurred).toBeInstanceOf(Date);
-      expect(event.dateTimeOccurred.getTime()).toBeGreaterThanOrEqual(beforeCreation.getTime());
-      expect(event.dateTimeOccurred.getTime()).toBeLessThanOrEqual(afterCreation.getTime());
+      expect(event.dateTimeOccurred.getTime()).toBeGreaterThanOrEqual(
+        beforeCreation.getTime()
+      );
+      expect(event.dateTimeOccurred.getTime()).toBeLessThanOrEqual(
+        afterCreation.getTime()
+      );
     });
 
     it('should store aggregateId privately', () => {
@@ -62,7 +70,12 @@ describe('PingCountChangedEvent', () => {
     });
 
     it('should accept different device names', () => {
-      const names = ['Switch-01', 'AP-Main-Floor', 'Firewall-DMZ', 'Core-Router'];
+      const names = [
+        'Switch-01',
+        'AP-Main-Floor',
+        'Firewall-DMZ',
+        'Core-Router'
+      ];
 
       names.forEach((name) => {
         const event = new PingCountChangedEvent(
@@ -517,7 +530,9 @@ describe('PingCountChangedEvent', () => {
       );
 
       expect(event1.deviceName).not.toBe(event2.deviceName);
-      expect(event1.previousPingCount).not.toBe(event2.previousPingCount);
+      expect(event1.previousPingCount).not.toBe(
+        event2.previousPingCount
+      );
       expect(event1.newPingCount).not.toBe(event2.newPingCount);
     });
 

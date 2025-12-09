@@ -1,8 +1,10 @@
-import { PollingResult } from '../entities/PollingResult';
-import { PollingResultId } from '../entities/PollingResultId';
-import { NetworkDeviceId } from '../entities/NetworkDeviceId';
-import { PollingStatus, NetworkDeviceStatus } from '../value-objects';
-import { Result } from '../shared/kernel/Result';
+import {
+  PollingResult,
+  PollingResultId,
+  NetworkDeviceId,
+  PollingStatus,
+  Result
+} from '../';
 
 /**
  * IPollingResultRepository
@@ -26,7 +28,9 @@ export interface IPollingResultRepository {
    * @param id - The polling result ID
    * @returns Result containing the PollingResult or null if not found
    */
-  findById(id: PollingResultId): Promise<Result<PollingResult | null>>;
+  findById(
+    id: PollingResultId
+  ): Promise<Result<PollingResult | null>>;
 
   /**
    * Finds the most recent polling result for a device.

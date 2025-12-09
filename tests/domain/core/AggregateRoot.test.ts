@@ -2,9 +2,9 @@ import {
   AggregateRoot,
   Entity,
   Result,
-  UniqueEntityID
-} from '../../../src/domain/shared/kernel';
-import { IDomainEvent } from '../../../src/domain/shared/interfaces';
+  UniqueEntityID,
+  IDomainEvent
+} from '../../../src/domain';
 
 // ---------------------------
 // Domain Event Fake

@@ -1,8 +1,10 @@
-import { IDomainEvent } from '../shared/interfaces/IDomainEvent';
-import { UniqueEntityID } from '../shared/kernel/UniqueEntityID';
-import { NetworkDeviceId } from '../entities/NetworkDeviceId';
-import { PollingResultId } from '../entities/PollingResultId';
-import { PollingStatus } from '../value-objects';
+import {
+  PollingResultId,
+  IDomainEvent,
+  NetworkDeviceId,
+  UniqueEntityID,
+  PollingStatus
+} from '../';
 
 /**
  * DevicePollingFailedEvent

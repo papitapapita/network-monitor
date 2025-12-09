@@ -1,16 +1,17 @@
-import { AggregateRoot, Result, Guard } from '../shared/kernel';
 import {
   PollingStatus,
   PollingMetrics,
   NetworkDeviceStatus,
-  RetryPolicy
-} from '../value-objects';
-import { PollingResultId, NetworkDeviceId } from './';
-import { PollingResultProps } from '../shared/props';
-import {
+  RetryPolicy,
+  AggregateRoot,
+  Result,
+  Guard,
+  PollingResultId,
+  NetworkDeviceId,
+  PollingResultProps,
   DevicePolledSuccessfullyEvent,
   DevicePollingFailedEvent
-} from '../events';
+} from '../';
 
 /**
  * PollingResult Aggregate Root

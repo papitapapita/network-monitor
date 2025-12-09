@@ -1,13 +1,13 @@
-import { PollingResult } from '../../../src/domain/entities/PollingResult';
-import { PollingResultId } from '../../../src/domain/entities/PollingResultId';
-import { NetworkDeviceId } from '../../../src/domain/entities/NetworkDeviceId';
 import {
+  PollingResult,
+  PollingResultId,
+  NetworkDeviceId,
   PollingStatus,
   PollingMetrics,
   NetworkDeviceStatus,
   RetryPolicy,
   BackoffStrategy
-} from '../../../src/domain/value-objects';
+} from '../../../src/domain';
 
 describe('PollingResult', () => {
   let networkDeviceId: NetworkDeviceId;

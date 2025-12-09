@@ -1,4 +1,4 @@
-import { IPAddress } from '../../../src/domain/value-objects/';
+import { IPAddress } from '../../../src/domain';
 
 describe('IPAddress ValueObject', () => {
   // --- VALID IPv4 ---

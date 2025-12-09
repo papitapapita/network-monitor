@@ -1,7 +1,4 @@
-import {
-  RetryPolicy,
-  BackoffStrategy
-} from '../../../src/domain/value-objects/RetryPolicy';
+import { RetryPolicy, BackoffStrategy } from '../../../src/domain';
 
 describe('RetryPolicy Value Object', () => {
   // -----------------------------------------------------

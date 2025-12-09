@@ -4,7 +4,7 @@ import {
   getDeviceStatusDisplayName,
   getDeviceStatusColor,
   isValidStatusTransition
-} from '../../../src/domain/value-objects';
+} from '../../../src/domain';
 
 describe('NetworkDeviceStatus Enum', () => {
   it('should contain the correct enum values', () => {

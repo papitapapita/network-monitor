@@ -1,6 +1,6 @@
 import { Entity } from './Entity';
-import { IDomainEvent } from '../interfaces';
-import { UniqueEntityID } from '../..';
+import { UniqueEntityID } from './UniqueEntityID';
+import { IDomainEvent } from '../shared/interfaces/IDomainEvent';
 
 /**
  * Base class for all Aggregate Roots in Domain-Driven Design (DDD).

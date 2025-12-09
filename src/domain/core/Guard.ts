@@ -1,4 +1,4 @@
-import { GuardArgumentCollection, IGuardResult } from '../interfaces';
+import { GuardArgumentCollection, IGuardResult } from '../';
 
 /**
  * The Guard class provides a collection of reusable validation helpers.

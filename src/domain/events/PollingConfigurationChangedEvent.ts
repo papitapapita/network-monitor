@@ -1,7 +1,9 @@
-import { IDomainEvent } from '../shared/interfaces/IDomainEvent';
-import { UniqueEntityID } from '../shared/kernel/UniqueEntityID';
-import { PollingConfigurationId } from '../entities/PollingConfigurationId';
-import { NetworkDeviceId } from '../entities/NetworkDeviceId';
+import {
+  IDomainEvent,
+  UniqueEntityID,
+  PollingConfigurationId,
+  NetworkDeviceId
+} from '../';
 
 /**
  * PollingConfigurationChangedEvent
@@ -23,7 +25,9 @@ import { NetworkDeviceId } from '../entities/NetworkDeviceId';
  * - Audit trail updates
  * - Cache invalidation
  */
-export class PollingConfigurationChangedEvent implements IDomainEvent {
+export class PollingConfigurationChangedEvent
+  implements IDomainEvent
+{
   public readonly dateTimeOccurred: Date;
 
   constructor(

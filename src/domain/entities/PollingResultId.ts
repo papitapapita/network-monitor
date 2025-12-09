@@ -1,5 +1,4 @@
-import { Result } from '../shared/kernel';
-import { UniqueEntityID } from '../shared/kernel/UniqueEntityID';
+import { Result, UniqueEntityID } from '../';
 
 /**
  * PollingResultId - Unique identifier for PollingResult aggregate

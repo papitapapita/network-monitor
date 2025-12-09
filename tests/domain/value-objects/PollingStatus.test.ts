@@ -5,7 +5,7 @@ import {
   getPollingStatusColor,
   isDeviceReachable,
   calculatePollingStatus
-} from '../../../src/domain/value-objects/PollingStatus';
+} from '../../../src/domain';
 
 describe('PollingStatus Enum & Utility Functions', () => {
   // -----------------------------------------------------

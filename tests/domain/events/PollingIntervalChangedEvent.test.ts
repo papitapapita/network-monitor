@@ -1,8 +1,10 @@
-import { PollingIntervalChangedEvent } from '../../../src/domain/events/PollingIntervalChangedEvent';
-import { NetworkDeviceId } from '../../../src/domain/entities/NetworkDeviceId';
-import { PollingConfigurationId } from '../../../src/domain/entities/PollingConfigurationId';
-import { PollingInterval } from '../../../src/domain/value-objects';
-import { UniqueEntityID } from '../../../src/domain/shared/kernel';
+import {
+  PollingIntervalChangedEvent,
+  NetworkDeviceId,
+  PollingConfigurationId,
+  PollingInterval,
+  UniqueEntityID
+} from '../../../src/domain';
 
 describe('PollingIntervalChangedEvent', () => {
   let aggregateId: PollingConfigurationId;
@@ -12,7 +14,9 @@ describe('PollingIntervalChangedEvent', () => {
   const deviceName = 'Router-01';
 
   beforeEach(() => {
-    aggregateId = PollingConfigurationId.create('550e8400-e29b-41d4-a716-446655440000').value;
+    aggregateId = PollingConfigurationId.create(
+      '550e8400-e29b-41d4-a716-446655440000'
+    ).value;
     networkDeviceId = NetworkDeviceId.create().value;
     previousInterval = PollingInterval.create(60).value; // 1 minute
     newInterval = PollingInterval.create(120).value; // 2 minutes
@@ -47,8 +51,12 @@ describe('PollingIntervalChangedEvent', () => {
       const afterCreation = new Date();
 
       expect(event.dateTimeOccurred).toBeInstanceOf(Date);
-      expect(event.dateTimeOccurred.getTime()).toBeGreaterThanOrEqual(beforeCreation.getTime());
-      expect(event.dateTimeOccurred.getTime()).toBeLessThanOrEqual(afterCreation.getTime());
+      expect(event.dateTimeOccurred.getTime()).toBeGreaterThanOrEqual(
+        beforeCreation.getTime()
+      );
+      expect(event.dateTimeOccurred.getTime()).toBeLessThanOrEqual(
+        afterCreation.getTime()
+      );
     });
 
     it('should store aggregateId privately', () => {
@@ -65,7 +73,12 @@ describe('PollingIntervalChangedEvent', () => {
     });
 
     it('should accept different device names', () => {
-      const names = ['Switch-01', 'AP-Main-Floor', 'Firewall-DMZ', 'Core-Router'];
+      const names = [
+        'Switch-01',
+        'AP-Main-Floor',
+        'Firewall-DMZ',
+        'Core-Router'
+      ];
 
       names.forEach((name) => {
         const event = new PollingIntervalChangedEvent(
@@ -491,7 +504,9 @@ describe('PollingIntervalChangedEvent', () => {
       );
 
       expect(event1.deviceName).not.toBe(event2.deviceName);
-      expect(event1.previousInterval).not.toBe(event2.previousInterval);
+      expect(event1.previousInterval).not.toBe(
+        event2.previousInterval
+      );
       expect(event1.newInterval).not.toBe(event2.newInterval);
     });
 

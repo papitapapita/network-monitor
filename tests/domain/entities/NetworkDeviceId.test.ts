@@ -1,8 +1,8 @@
-import { NetworkDeviceId } from '../../../src/domain/entities/NetworkDeviceId';
 import {
   Result,
-  UniqueEntityID
-} from '../../../src/domain/shared/kernel';
+  UniqueEntityID,
+  NetworkDeviceId
+} from '../../../src/domain';
 
 class TestID extends UniqueEntityID {
   private constructor(id?: string) {

@@ -1,8 +1,10 @@
-import { IDomainEvent } from '../shared/interfaces/IDomainEvent';
-import { UniqueEntityID } from '../shared/kernel/UniqueEntityID';
-import { PollingConfigurationId } from '../entities/PollingConfigurationId';
-import { NetworkDeviceId } from '../entities/NetworkDeviceId';
-import { PollingInterval } from '../value-objects';
+import {
+  IDomainEvent,
+  UniqueEntityID,
+  PollingConfigurationId,
+  NetworkDeviceId,
+  PollingInterval
+} from '../';
 
 /**
  * PollingIntervalChangedEvent

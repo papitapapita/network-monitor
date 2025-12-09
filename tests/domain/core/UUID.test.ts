@@ -1,4 +1,4 @@
-import { UUID } from '../../../src/domain/shared/kernel';
+import { UUID } from '../../../src/domain';
 import { validate as validateUuid } from 'uuid';
 
 describe('UUID Value Object', () => {

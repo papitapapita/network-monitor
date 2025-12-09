@@ -1,11 +1,11 @@
-import { ValueObject, Guard, Result } from '../shared/kernel';
+import { ValueObject, Guard, Result, PhoneNumberProps } from '../';
 import {
   parsePhoneNumberWithError as parsePhoneNumber,
   isValidPhoneNumber,
   CountryCode,
   PhoneNumber as LibPhoneNumber
 } from 'libphonenumber-js/max';
-import { PhoneNumberProps } from '../shared/props';
+import {} from '../shared/props';
 
 /**
  * Represents a validated, immutable phone number in E.164 format.

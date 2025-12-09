@@ -1,6 +1,8 @@
-import { NetworkDeviceCreatedEvent } from '../../../src/domain/events/NetworkDeviceCreatedEvent';
-import { NetworkDeviceId } from '../../../src/domain/entities/NetworkDeviceId';
-import { UniqueEntityID } from '../../../src/domain/shared/kernel';
+import {
+  NetworkDeviceCreatedEvent,
+  NetworkDeviceId,
+  UniqueEntityID
+} from '../../../src/domain';
 
 describe('NetworkDeviceCreatedEvent', () => {
   let aggregateId: NetworkDeviceId;
@@ -38,8 +40,12 @@ describe('NetworkDeviceCreatedEvent', () => {
       const afterCreation = new Date();
 
       expect(event.dateTimeOccurred).toBeInstanceOf(Date);
-      expect(event.dateTimeOccurred.getTime()).toBeGreaterThanOrEqual(beforeCreation.getTime());
-      expect(event.dateTimeOccurred.getTime()).toBeLessThanOrEqual(afterCreation.getTime());
+      expect(event.dateTimeOccurred.getTime()).toBeGreaterThanOrEqual(
+        beforeCreation.getTime()
+      );
+      expect(event.dateTimeOccurred.getTime()).toBeLessThanOrEqual(
+        afterCreation.getTime()
+      );
     });
 
     it('should store aggregateId privately', () => {
@@ -55,7 +61,12 @@ describe('NetworkDeviceCreatedEvent', () => {
     });
 
     it('should accept different device names', () => {
-      const names = ['Switch-01', 'AP-Main-Floor', 'Firewall-DMZ', 'Core-Router'];
+      const names = [
+        'Switch-01',
+        'AP-Main-Floor',
+        'Firewall-DMZ',
+        'Core-Router'
+      ];
 
       names.forEach((name) => {
         const event = new NetworkDeviceCreatedEvent(
@@ -70,7 +81,12 @@ describe('NetworkDeviceCreatedEvent', () => {
     });
 
     it('should accept different IP addresses', () => {
-      const ips = ['192.168.1.1', '10.0.0.1', '172.16.0.1', '8.8.8.8'];
+      const ips = [
+        '192.168.1.1',
+        '10.0.0.1',
+        '172.16.0.1',
+        '8.8.8.8'
+      ];
 
       ips.forEach((ip) => {
         const event = new NetworkDeviceCreatedEvent(

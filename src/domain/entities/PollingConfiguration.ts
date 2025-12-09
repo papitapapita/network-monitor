@@ -1,8 +1,13 @@
-import { Entity, Result, Guard } from '../shared/kernel';
-import { PollingConfigurationId } from './PollingConfigurationId';
-import { NetworkDeviceId } from './NetworkDeviceId';
-import { PollingInterval, RetryPolicy } from '../value-objects';
-import { PollingConfigurationProps } from '../shared/props';
+import {
+  Entity,
+  Result,
+  Guard,
+  PollingConfigurationId,
+  NetworkDeviceId,
+  PollingInterval,
+  RetryPolicy,
+  PollingConfigurationProps
+} from '../';
 
 /**
  * PollingConfiguration Entity
@@ -139,11 +144,15 @@ export class PollingConfiguration extends Entity<
    */
   public enable(): Result<{ stateChanged: boolean }> {
     if (this.props.enabled) {
-      return Result.ok<{ stateChanged: boolean }>({ stateChanged: false });
+      return Result.ok<{ stateChanged: boolean }>({
+        stateChanged: false
+      });
     }
 
     this.props.enabled = true;
-    return Result.ok<{ stateChanged: boolean }>({ stateChanged: true });
+    return Result.ok<{ stateChanged: boolean }>({
+      stateChanged: true
+    });
   }
 
   /**
@@ -153,12 +162,16 @@ export class PollingConfiguration extends Entity<
    */
   public disable(): Result<{ stateChanged: boolean }> {
     if (!this.props.enabled) {
-      return Result.ok<{ stateChanged: boolean }>({ stateChanged: false });
+      return Result.ok<{ stateChanged: boolean }>({
+        stateChanged: false
+      });
     }
 
     this.props.enabled = false;
     this.props.nextScheduledAt = null; // Clear scheduled time when disabled
-    return Result.ok<{ stateChanged: boolean }>({ stateChanged: true });
+    return Result.ok<{ stateChanged: boolean }>({
+      stateChanged: true
+    });
   }
 
   /**
@@ -168,13 +181,17 @@ export class PollingConfiguration extends Entity<
    * @param newInterval - New polling interval
    * @returns Result indicating success or failure, and the previous interval for event emission
    */
-  public updateInterval(newInterval: PollingInterval): Result<{ previousInterval: PollingInterval }> {
+  public updateInterval(
+    newInterval: PollingInterval
+  ): Result<{ previousInterval: PollingInterval }> {
     const guardResult = Guard.againstNullOrUndefined(
       newInterval,
       'interval'
     );
     if (!guardResult.succeeded) {
-      return Result.fail<{ previousInterval: PollingInterval }>(guardResult.message!);
+      return Result.fail<{ previousInterval: PollingInterval }>(
+        guardResult.message!
+      );
     }
 
     const previousInterval = this.props.interval;
@@ -186,11 +203,15 @@ export class PollingConfiguration extends Entity<
         this.props.lastScheduledAt
       );
       if (scheduleResult.isFailure) {
-        return Result.fail<{ previousInterval: PollingInterval }>(scheduleResult.error!);
+        return Result.fail<{ previousInterval: PollingInterval }>(
+          scheduleResult.error!
+        );
       }
     }
 
-    return Result.ok<{ previousInterval: PollingInterval }>({ previousInterval });
+    return Result.ok<{ previousInterval: PollingInterval }>({
+      previousInterval
+    });
   }
 
   /**
@@ -199,7 +220,9 @@ export class PollingConfiguration extends Entity<
    * @param count - New ping count (1-10)
    * @returns Result indicating success or failure, and the previous ping count for event emission
    */
-  public updatePingCount(count: number): Result<{ previousPingCount: number }> {
+  public updatePingCount(
+    count: number
+  ): Result<{ previousPingCount: number }> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(count, 'pingCount'),
       Guard.isNumber(count, 'pingCount'),
@@ -212,12 +235,16 @@ export class PollingConfiguration extends Entity<
     ]);
 
     if (!guardResult.succeeded) {
-      return Result.fail<{ previousPingCount: number }>(guardResult.message!);
+      return Result.fail<{ previousPingCount: number }>(
+        guardResult.message!
+      );
     }
 
     const previousPingCount = this.props.pingCount;
     this.props.pingCount = Math.round(count);
-    return Result.ok<{ previousPingCount: number }>({ previousPingCount });
+    return Result.ok<{ previousPingCount: number }>({
+      previousPingCount
+    });
   }
 
   /**

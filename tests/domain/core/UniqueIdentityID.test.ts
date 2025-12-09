@@ -1,7 +1,4 @@
-import {
-  Result,
-  UniqueEntityID
-} from '../../../src/domain/shared/kernel';
+import { Result, UniqueEntityID } from '../../../src/domain';
 import { validate as validateUuid } from 'uuid';
 
 // Concrete test implementation since UniqueEntityID is abstract

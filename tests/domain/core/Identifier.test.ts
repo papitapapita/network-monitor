@@ -1,4 +1,4 @@
-import { Identifier } from '../../../src/domain/shared/kernel';
+import { Identifier } from '../../../src/domain';
 
 // Create subclasses for DDD identity comparison tests
 class UserId extends Identifier<string> {}

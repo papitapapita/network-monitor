@@ -1,7 +1,9 @@
-import { IDomainEvent } from '../shared/interfaces/IDomainEvent';
-import { UniqueEntityID } from '../shared/kernel/UniqueEntityID';
-import { NetworkDeviceId } from '../entities/NetworkDeviceId';
-import { NetworkDeviceStatus } from '../value-objects';
+import {
+  IDomainEvent,
+  UniqueEntityID,
+  NetworkDeviceId,
+  NetworkDeviceStatus
+} from '../';
 
 /**
  * NetworkDeviceStatusChangedEvent

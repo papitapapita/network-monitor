@@ -1,8 +1,10 @@
-import { DevicePolledSuccessfullyEvent } from '../../../src/domain/events/DevicePolledSuccessfullyEvent';
-import { NetworkDeviceId } from '../../../src/domain/entities/NetworkDeviceId';
-import { PollingResultId } from '../../../src/domain/entities/PollingResultId';
-import { PollingMetrics } from '../../../src/domain/value-objects';
-import { UniqueEntityID } from '../../../src/domain/shared/kernel';
+import {
+  DevicePolledSuccessfullyEvent,
+  NetworkDeviceId,
+  PollingResultId,
+  PollingMetrics,
+  UniqueEntityID
+} from '../../../src/domain';
 
 describe('DevicePolledSuccessfullyEvent', () => {
   let aggregateId: PollingResultId;
@@ -12,7 +14,9 @@ describe('DevicePolledSuccessfullyEvent', () => {
   const ipAddress = '192.168.1.1';
 
   beforeEach(() => {
-    aggregateId = PollingResultId.create('550e8400-e29b-41d4-a716-446655440000').value;
+    aggregateId = PollingResultId.create(
+      '550e8400-e29b-41d4-a716-446655440000'
+    ).value;
     networkDeviceId = NetworkDeviceId.create().value;
     metrics = PollingMetrics.create({
       responseTimes: [23.5, 24.1, 23.8, 24.3],
@@ -53,8 +57,12 @@ describe('DevicePolledSuccessfullyEvent', () => {
       const afterCreation = new Date();
 
       expect(event.dateTimeOccurred).toBeInstanceOf(Date);
-      expect(event.dateTimeOccurred.getTime()).toBeGreaterThanOrEqual(beforeCreation.getTime());
-      expect(event.dateTimeOccurred.getTime()).toBeLessThanOrEqual(afterCreation.getTime());
+      expect(event.dateTimeOccurred.getTime()).toBeGreaterThanOrEqual(
+        beforeCreation.getTime()
+      );
+      expect(event.dateTimeOccurred.getTime()).toBeLessThanOrEqual(
+        afterCreation.getTime()
+      );
     });
 
     it('should accept wasOffline as true', () => {
@@ -98,7 +106,12 @@ describe('DevicePolledSuccessfullyEvent', () => {
     });
 
     it('should accept different device names', () => {
-      const names = ['Switch-01', 'AP-Main-Floor', 'Firewall-DMZ', 'Core-Router'];
+      const names = [
+        'Switch-01',
+        'AP-Main-Floor',
+        'Firewall-DMZ',
+        'Core-Router'
+      ];
 
       names.forEach((name) => {
         const event = new DevicePolledSuccessfullyEvent(
@@ -115,7 +128,12 @@ describe('DevicePolledSuccessfullyEvent', () => {
     });
 
     it('should accept different IP addresses', () => {
-      const ips = ['192.168.1.1', '10.0.0.1', '172.16.0.1', '8.8.8.8'];
+      const ips = [
+        '192.168.1.1',
+        '10.0.0.1',
+        '172.16.0.1',
+        '8.8.8.8'
+      ];
 
       ips.forEach((ip) => {
         const event = new DevicePolledSuccessfullyEvent(
@@ -260,7 +278,9 @@ describe('DevicePolledSuccessfullyEvent', () => {
         false
       );
 
-      expect(recoveryEvent.isRecovery()).toBe(recoveryEvent.wasOffline);
+      expect(recoveryEvent.isRecovery()).toBe(
+        recoveryEvent.wasOffline
+      );
       expect(normalEvent.isRecovery()).toBe(normalEvent.wasOffline);
     });
   });

@@ -1,11 +1,11 @@
-import { PollingConfiguration } from '../../../src/domain/entities/PollingConfiguration';
-import { PollingConfigurationId } from '../../../src/domain/entities/PollingConfigurationId';
-import { NetworkDeviceId } from '../../../src/domain/entities/NetworkDeviceId';
 import {
   PollingInterval,
+  PollingConfiguration,
+  PollingConfigurationId,
+  NetworkDeviceId,
   RetryPolicy,
   BackoffStrategy
-} from '../../../src/domain/value-objects';
+} from '../../../src/domain';
 
 describe('PollingConfiguration', () => {
   let networkDeviceId: NetworkDeviceId;
@@ -495,9 +495,7 @@ describe('PollingConfiguration', () => {
       config.updateInterval(newInterval);
 
       // Should reschedule with new interval (120 seconds)
-      const expectedNext = new Date(
-        lastScheduled.getTime() + 120000
-      );
+      const expectedNext = new Date(lastScheduled.getTime() + 120000);
       expect(config.nextScheduledAt?.getTime()).toBe(
         expectedNext.getTime()
       );

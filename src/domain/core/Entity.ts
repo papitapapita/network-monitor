@@ -1,4 +1,4 @@
-import { UniqueEntityID } from './';
+import { UniqueEntityID } from './UniqueEntityID';
 
 /**
  * Base class for all domain entities.

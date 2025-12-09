@@ -1,4 +1,4 @@
-import { Email } from '../../../src/domain/value-objects';
+import { Email } from '../../../src/domain';
 
 describe('Email Value Object', () => {
   beforeEach(() => {

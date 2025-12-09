@@ -1,5 +1,4 @@
-import { UniqueEntityID } from '../shared/kernel/UniqueEntityID';
-import { Result } from '../shared/kernel/Result';
+import { UniqueEntityID, Result } from '../';
 
 /**
  * NetworkDeviceId - Unique identifier for NetworkDevice aggregate

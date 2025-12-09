@@ -1,4 +1,4 @@
-import { MACAddress } from '../../../src/domain/value-objects';
+import { MACAddress } from '../../../src/domain';
 
 describe('MACAddress ValueObject', () => {
   const validColonMAC = 'AA:BB:CC:DD:EE:FF';

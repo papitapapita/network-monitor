@@ -1,6 +1,4 @@
-import { ValueObject } from '../shared/kernel/ValueObject';
-import { Result } from '../shared/kernel/Result';
-import { Guard } from '../shared/kernel/Guard';
+import { ValueObject, Result, Guard } from '../';
 
 /**
  * PollingMetrics Value Object

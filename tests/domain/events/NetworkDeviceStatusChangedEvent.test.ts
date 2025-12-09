@@ -1,7 +1,9 @@
-import { NetworkDeviceStatusChangedEvent } from '../../../src/domain/events/NetworkDeviceStatusChangedEvent';
-import { NetworkDeviceId } from '../../../src/domain/entities/NetworkDeviceId';
-import { NetworkDeviceStatus } from '../../../src/domain/value-objects';
-import { UniqueEntityID } from '../../../src/domain/shared/kernel';
+import {
+  NetworkDeviceStatusChangedEvent,
+  NetworkDeviceId,
+  NetworkDeviceStatus,
+  UniqueEntityID
+} from '../../../src/domain';
 
 describe('NetworkDeviceStatusChangedEvent', () => {
   let aggregateId: NetworkDeviceId;
@@ -41,8 +43,12 @@ describe('NetworkDeviceStatusChangedEvent', () => {
       const afterCreation = new Date();
 
       expect(event.dateTimeOccurred).toBeInstanceOf(Date);
-      expect(event.dateTimeOccurred.getTime()).toBeGreaterThanOrEqual(beforeCreation.getTime());
-      expect(event.dateTimeOccurred.getTime()).toBeLessThanOrEqual(afterCreation.getTime());
+      expect(event.dateTimeOccurred.getTime()).toBeGreaterThanOrEqual(
+        beforeCreation.getTime()
+      );
+      expect(event.dateTimeOccurred.getTime()).toBeLessThanOrEqual(
+        afterCreation.getTime()
+      );
     });
 
     it('should store aggregateId privately', () => {
@@ -59,7 +65,12 @@ describe('NetworkDeviceStatusChangedEvent', () => {
     });
 
     it('should accept different device names', () => {
-      const names = ['Switch-01', 'AP-Main-Floor', 'Firewall-DMZ', 'Core-Router'];
+      const names = [
+        'Switch-01',
+        'AP-Main-Floor',
+        'Firewall-DMZ',
+        'Core-Router'
+      ];
 
       names.forEach((name) => {
         const event = new NetworkDeviceStatusChangedEvent(
@@ -75,7 +86,12 @@ describe('NetworkDeviceStatusChangedEvent', () => {
     });
 
     it('should accept different IP addresses', () => {
-      const ips = ['192.168.1.1', '10.0.0.1', '172.16.0.1', '8.8.8.8'];
+      const ips = [
+        '192.168.1.1',
+        '10.0.0.1',
+        '172.16.0.1',
+        '8.8.8.8'
+      ];
 
       ips.forEach((ip) => {
         const event = new NetworkDeviceStatusChangedEvent(

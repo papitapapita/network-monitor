@@ -6,5 +6,5 @@
  * coupling the domain layer to specific infrastructure implementations.
  */
 
-export { INetworkDeviceRepository } from './INetworkDeviceRepository';
-export { IPollingResultRepository } from './IPollingResultRepository';
+export * from './INetworkDeviceRepository';
+export * from './IPollingResultRepository';

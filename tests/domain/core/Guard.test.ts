@@ -1,4 +1,4 @@
-import { Guard } from '../../../src/domain/shared/kernel';
+import { Guard } from '../../../src/domain';
 
 describe('Guard Utility Tests', () => {
   // ----------------------------------------------------

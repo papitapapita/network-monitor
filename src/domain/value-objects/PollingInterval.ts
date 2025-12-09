@@ -1,6 +1,4 @@
-import { ValueObject } from '../shared/kernel/ValueObject';
-import { Result } from '../shared/kernel/Result';
-import { Guard } from '../shared/kernel/Guard';
+import { ValueObject, Result, Guard } from '../';
 
 /**
  * PollingInterval Value Object
@@ -40,7 +38,10 @@ export class PollingInterval extends ValueObject<PollingIntervalProps> {
    */
   public static create(seconds: number): Result<PollingInterval> {
     const guardResult = Guard.combine([
-      Guard.againstNullOrUndefined(seconds, 'polling interval seconds'),
+      Guard.againstNullOrUndefined(
+        seconds,
+        'polling interval seconds'
+      ),
       Guard.isNumber(seconds, 'polling interval seconds'),
       Guard.inRange(
         seconds,
@@ -71,9 +72,14 @@ export class PollingInterval extends ValueObject<PollingIntervalProps> {
    * @example
    * const interval = PollingInterval.fromMinutes(5); // 300 seconds
    */
-  public static fromMinutes(minutes: number): Result<PollingInterval> {
+  public static fromMinutes(
+    minutes: number
+  ): Result<PollingInterval> {
     const guardResult = Guard.combine([
-      Guard.againstNullOrUndefined(minutes, 'polling interval minutes'),
+      Guard.againstNullOrUndefined(
+        minutes,
+        'polling interval minutes'
+      ),
       Guard.isNumber(minutes, 'polling interval minutes')
     ]);
 

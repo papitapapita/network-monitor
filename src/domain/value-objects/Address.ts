@@ -1,5 +1,4 @@
-import { ValueObject, Guard, Result } from '../shared/kernel';
-import { AddressProps } from '../shared/props';
+import { ValueObject, Guard, Result, AddressProps } from '../';
 
 /**
  * Value Object representing a physical address.

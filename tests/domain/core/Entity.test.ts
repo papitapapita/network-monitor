@@ -1,8 +1,8 @@
 import {
-  Entity,
   Result,
-  UniqueEntityID
-} from '../../../src/domain/shared/kernel';
+  UniqueEntityID,
+  Entity
+} from '../../../src/domain/core';
 
 interface TestProps {
   name: string;

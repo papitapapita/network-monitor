@@ -1,7 +1,11 @@
-import { NetworkDevice } from '../entities/NetworkDevice';
-import { NetworkDeviceId } from '../entities/NetworkDeviceId';
-import { IPAddress, MACAddress, NetworkDeviceStatus } from '../value-objects';
-import { Result } from '../shared/kernel/Result';
+import {
+  NetworkDevice,
+  NetworkDeviceId,
+  IPAddress,
+  Result,
+  MACAddress,
+  NetworkDeviceStatus
+} from '../';
 
 /**
  * INetworkDeviceRepository
@@ -20,7 +24,9 @@ export interface INetworkDeviceRepository {
    * @param id - The network device ID
    * @returns Result containing the NetworkDevice or null if not found
    */
-  findById(id: NetworkDeviceId): Promise<Result<NetworkDevice | null>>;
+  findById(
+    id: NetworkDeviceId
+  ): Promise<Result<NetworkDevice | null>>;
 
   /**
    * Finds a network device by its IP address.
@@ -28,7 +34,9 @@ export interface INetworkDeviceRepository {
    * @param ipAddress - The IP address to search for
    * @returns Result containing the NetworkDevice or null if not found
    */
-  findByIpAddress(ipAddress: IPAddress): Promise<Result<NetworkDevice | null>>;
+  findByIpAddress(
+    ipAddress: IPAddress
+  ): Promise<Result<NetworkDevice | null>>;
 
   /**
    * Finds a network device by its MAC address.
@@ -36,7 +44,9 @@ export interface INetworkDeviceRepository {
    * @param macAddress - The MAC address to search for
    * @returns Result containing the NetworkDevice or null if not found
    */
-  findByMacAddress(macAddress: MACAddress): Promise<Result<NetworkDevice | null>>;
+  findByMacAddress(
+    macAddress: MACAddress
+  ): Promise<Result<NetworkDevice | null>>;
 
   /**
    * Finds all network devices with a specific status.
@@ -44,7 +54,9 @@ export interface INetworkDeviceRepository {
    * @param status - The device status to filter by
    * @returns Result containing array of NetworkDevices
    */
-  findByStatus(status: NetworkDeviceStatus): Promise<Result<NetworkDevice[]>>;
+  findByStatus(
+    status: NetworkDeviceStatus
+  ): Promise<Result<NetworkDevice[]>>;
 
   /**
    * Finds all network devices.
@@ -53,7 +65,10 @@ export interface INetworkDeviceRepository {
    * @param offset - Optional offset for pagination
    * @returns Result containing array of NetworkDevices
    */
-  findAll(limit?: number, offset?: number): Promise<Result<NetworkDevice[]>>;
+  findAll(
+    limit?: number,
+    offset?: number
+  ): Promise<Result<NetworkDevice[]>>;
 
   /**
    * Saves a network device (creates or updates).
@@ -93,7 +108,9 @@ export interface INetworkDeviceRepository {
    * @param macAddress - The MAC address
    * @returns Result containing boolean indicating existence
    */
-  existsByMacAddress(macAddress: MACAddress): Promise<Result<boolean>>;
+  existsByMacAddress(
+    macAddress: MACAddress
+  ): Promise<Result<boolean>>;
 
   /**
    * Counts total number of network devices.

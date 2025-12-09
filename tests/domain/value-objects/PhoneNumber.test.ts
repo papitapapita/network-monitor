@@ -1,4 +1,4 @@
-import { PhoneNumber } from '../../../src/domain/value-objects/PhoneNumber';
+import { PhoneNumber } from '../../../src/domain';
 
 // NOTE: Using a working Colombian mobile number as example
 const VALID_CO_MOBILE = '+573001234567';

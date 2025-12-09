@@ -2,9 +2,9 @@ import {
   AggregateRoot,
   DomainEvents,
   Result,
-  UniqueEntityID
-} from '../../../src/domain/shared/kernel';
-import { IDomainEvent } from '../../../src/domain/shared/interfaces';
+  UniqueEntityID,
+  IDomainEvent
+} from '../../../src/domain';
 
 class TestID extends UniqueEntityID {
   private constructor(id?: string) {

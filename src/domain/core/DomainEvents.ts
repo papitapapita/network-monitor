@@ -1,5 +1,6 @@
-import { AggregateRoot, UniqueEntityID } from './';
-import { IDomainEvent, EventHandler } from '../interfaces';
+import { IDomainEvent, EventHandler } from '../';
+import { AggregateRoot } from './AggregateRoot';
+import { UniqueEntityID } from './UniqueEntityID';
 
 /**
  * DomainEvents is a static event dispatcher used in Domain-Driven Design (DDD)

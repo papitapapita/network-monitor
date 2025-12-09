@@ -9,7 +9,9 @@
  */
 
 // Core kernel classes
-export * from './shared/kernel';
+export * from './core';
+
+// Shared interfaces
 export * from './shared/interfaces';
 
 // Value Objects

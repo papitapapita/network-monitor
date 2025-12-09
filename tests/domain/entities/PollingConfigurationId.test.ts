@@ -1,8 +1,8 @@
-import { PollingConfigurationId } from '../../../src/domain/entities/PollingConfigurationId';
 import {
+  PollingConfigurationId,
   Result,
   UniqueEntityID
-} from '../../../src/domain/shared/kernel';
+} from '../../../src/domain';
 
 class TestID extends UniqueEntityID {
   private constructor(id?: string) {
@@ -46,7 +46,10 @@ describe('PollingConfigurationId', () => {
     it('should throw error when provided with numeric ID', () => {
       const numericId = 12345;
 
-      expect(() => new PollingConfigurationId(numericId as unknown as string)).toThrow();
+      expect(
+        () =>
+          new PollingConfigurationId(numericId as unknown as string)
+      ).toThrow();
     });
 
     it('should create a new UUID when provided with empty string', () => {
@@ -86,7 +89,9 @@ describe('PollingConfigurationId', () => {
 
     it('should return failure Result when given numeric ID', () => {
       const numericId = 12345;
-      const result = PollingConfigurationId.create(numericId as unknown as string);
+      const result = PollingConfigurationId.create(
+        numericId as unknown as string
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.isSuccess).toBe(false);
@@ -101,7 +106,9 @@ describe('PollingConfigurationId', () => {
     });
 
     it('should return success Result with new UUID when given null', () => {
-      const result = PollingConfigurationId.create(null as unknown as string);
+      const result = PollingConfigurationId.create(
+        null as unknown as string
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value).toBeInstanceOf(PollingConfigurationId);
@@ -109,7 +116,9 @@ describe('PollingConfigurationId', () => {
     });
 
     it('should return success Result with new UUID when given undefined', () => {
-      const result = PollingConfigurationId.create(undefined as unknown as string);
+      const result = PollingConfigurationId.create(
+        undefined as unknown as string
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value).toBeInstanceOf(PollingConfigurationId);
@@ -127,8 +136,12 @@ describe('PollingConfigurationId', () => {
     });
 
     it('should not be equal when ID values differ', () => {
-      const configId1 = new PollingConfigurationId('c5228bee-15a8-420c-a5ca-39d209f944e5');
-      const configId2 = new PollingConfigurationId('c5228bee-15a8-420c-a5ca-39d209f944e3');
+      const configId1 = new PollingConfigurationId(
+        'c5228bee-15a8-420c-a5ca-39d209f944e5'
+      );
+      const configId2 = new PollingConfigurationId(
+        'c5228bee-15a8-420c-a5ca-39d209f944e3'
+      );
 
       expect(configId1.equals(configId2)).toBe(false);
     });
@@ -168,7 +181,8 @@ describe('PollingConfigurationId', () => {
       const value = configId.toValue();
 
       // UUID v4 format: 8-4-4-4-12 hexadecimal characters
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       expect(value).toMatch(uuidRegex);
     });
   });
@@ -227,13 +241,17 @@ describe('PollingConfigurationId', () => {
     it('should reject UUID with extra whitespace', () => {
       const idWithSpaces = ' 550e8400-e29b-41d4-a716-446655440000 ';
 
-      expect(() => new PollingConfigurationId(idWithSpaces)).toThrow();
+      expect(
+        () => new PollingConfigurationId(idWithSpaces)
+      ).toThrow();
     });
 
     it('should reject UUID with missing hyphens', () => {
       const idWithoutHyphens = '550e8400e29b41d4a716446655440000';
 
-      expect(() => new PollingConfigurationId(idWithoutHyphens)).toThrow();
+      expect(
+        () => new PollingConfigurationId(idWithoutHyphens)
+      ).toThrow();
     });
 
     it('should reject partial UUID', () => {

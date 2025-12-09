@@ -1,5 +1,4 @@
-import { Address } from '../../../src/domain/value-objects';
-import { AddressProps } from '../../../src/domain/shared/props';
+import { Address, AddressProps } from '../../../src/domain';
 
 describe('Address Value Object', () => {
   let validProps: AddressProps;
