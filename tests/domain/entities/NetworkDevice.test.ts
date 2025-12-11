@@ -503,6 +503,34 @@ describe('NetworkDevice', () => {
       expect(result.isSuccess).toBe(true);
       expect(device.name).toBe(longName);
     });
+
+    it('should emit NetworkDeviceUpdatedEvent when name changes', () => {
+      device.clearEvents();
+      const oldName = device.name;
+
+      const result = device.updateName('NewName-01');
+
+      expect(result.isSuccess).toBe(true);
+      const events = device.domainEvents;
+      expect(events.length).toBe(1);
+      expect(events[0].constructor.name).toBe('NetworkDeviceUpdatedEvent');
+
+      const event = events[0] as any;
+      expect(event.changedFields).toEqual(['name']);
+      expect(event.previousValues.name).toBe(oldName);
+      expect(event.newValues.name).toBe('NewName-01');
+    });
+
+    it('should not emit event when name does not change', () => {
+      const currentName = device.name;
+      device.clearEvents();
+
+      const result = device.updateName(currentName);
+
+      expect(result.isSuccess).toBe(true);
+      const events = device.domainEvents;
+      expect(events.length).toBe(0);
+    });
   });
 
   describe('updateDescription', () => {
@@ -550,6 +578,51 @@ describe('NetworkDevice', () => {
 
       expect(result.isSuccess).toBe(true);
       expect(device.description).toBe(longDesc);
+    });
+
+    it('should emit NetworkDeviceUpdatedEvent when description changes', () => {
+      device.clearEvents();
+      const oldDescription = device.description;
+
+      const result = device.updateDescription('New description text');
+
+      expect(result.isSuccess).toBe(true);
+      const events = device.domainEvents;
+      expect(events.length).toBe(1);
+      expect(events[0].constructor.name).toBe('NetworkDeviceUpdatedEvent');
+
+      const event = events[0] as any;
+      expect(event.changedFields).toEqual(['description']);
+      expect(event.previousValues.description).toBe(oldDescription);
+      expect(event.newValues.description).toBe('New description text');
+    });
+
+    it('should emit event when description is set to null', () => {
+      device.clearEvents();
+      const oldDescription = device.description;
+
+      const result = device.updateDescription(null);
+
+      expect(result.isSuccess).toBe(true);
+      const events = device.domainEvents;
+      expect(events.length).toBe(1);
+      expect(events[0].constructor.name).toBe('NetworkDeviceUpdatedEvent');
+
+      const event = events[0] as any;
+      expect(event.changedFields).toEqual(['description']);
+      expect(event.previousValues.description).toBe(oldDescription);
+      expect(event.newValues.description).toBeNull();
+    });
+
+    it('should not emit event when description does not change', () => {
+      const currentDescription = device.description;
+      device.clearEvents();
+
+      const result = device.updateDescription(currentDescription);
+
+      expect(result.isSuccess).toBe(true);
+      const events = device.domainEvents;
+      expect(events.length).toBe(0);
     });
   });
 
@@ -688,6 +761,111 @@ describe('NetworkDevice', () => {
 
       expect(result.isSuccess).toBe(true);
       expect(device.managementPort).toBe(65535);
+    });
+
+    it('should emit NetworkDeviceUpdatedEvent when port changes', () => {
+      device.clearEvents();
+      const oldPort = device.managementPort;
+
+      const result = device.updateManagementConfig({ port: 8080 });
+
+      expect(result.isSuccess).toBe(true);
+      const events = device.domainEvents;
+      expect(events.length).toBe(1);
+      expect(events[0].constructor.name).toBe('NetworkDeviceUpdatedEvent');
+
+      const event = events[0] as any;
+      expect(event.changedFields).toEqual(['managementPort']);
+      expect(event.previousValues.managementPort).toBe(oldPort);
+      expect(event.newValues.managementPort).toBe(8080);
+    });
+
+    it('should emit NetworkDeviceUpdatedEvent when protocol changes', () => {
+      device.clearEvents();
+      const oldProtocol = device.managementProtocol;
+
+      const result = device.updateManagementConfig({
+        protocol: ManagementProtocol.HTTPS
+      });
+
+      expect(result.isSuccess).toBe(true);
+      const events = device.domainEvents;
+      expect(events.length).toBe(1);
+      expect(events[0].constructor.name).toBe('NetworkDeviceUpdatedEvent');
+
+      const event = events[0] as any;
+      expect(event.changedFields).toEqual(['managementProtocol']);
+      expect(event.previousValues.managementProtocol).toBe(oldProtocol);
+      expect(event.newValues.managementProtocol).toBe(
+        ManagementProtocol.HTTPS
+      );
+    });
+
+    it('should emit NetworkDeviceUpdatedEvent when remote access changes', () => {
+      device.clearEvents();
+      const oldRemoteAccess = device.enabledRemoteAccess;
+
+      const result = device.updateManagementConfig({
+        enableRemoteAccess: false
+      });
+
+      expect(result.isSuccess).toBe(true);
+      const events = device.domainEvents;
+      expect(events.length).toBe(1);
+      expect(events[0].constructor.name).toBe('NetworkDeviceUpdatedEvent');
+
+      const event = events[0] as any;
+      expect(event.changedFields).toEqual(['enabledRemoteAccess']);
+      expect(event.previousValues.enabledRemoteAccess).toBe(
+        oldRemoteAccess
+      );
+      expect(event.newValues.enabledRemoteAccess).toBe(false);
+    });
+
+    it('should emit event with multiple changed fields', () => {
+      device.clearEvents();
+      const oldPort = device.managementPort;
+      const oldProtocol = device.managementProtocol;
+      const oldRemoteAccess = device.enabledRemoteAccess;
+
+      const result = device.updateManagementConfig({
+        port: 443,
+        protocol: ManagementProtocol.HTTPS,
+        enableRemoteAccess: false
+      });
+
+      expect(result.isSuccess).toBe(true);
+      const events = device.domainEvents;
+      expect(events.length).toBe(1);
+      expect(events[0].constructor.name).toBe('NetworkDeviceUpdatedEvent');
+
+      const event = events[0] as any;
+      expect(event.changedFields).toEqual([
+        'managementPort',
+        'managementProtocol',
+        'enabledRemoteAccess'
+      ]);
+      expect(event.previousValues.managementPort).toBe(oldPort);
+      expect(event.previousValues.managementProtocol).toBe(oldProtocol);
+      expect(event.previousValues.enabledRemoteAccess).toBe(
+        oldRemoteAccess
+      );
+      expect(event.newValues.managementPort).toBe(443);
+      expect(event.newValues.managementProtocol).toBe(
+        ManagementProtocol.HTTPS
+      );
+      expect(event.newValues.enabledRemoteAccess).toBe(false);
+    });
+
+    it('should not emit event when no fields change', () => {
+      const currentPort = device.managementPort;
+      device.clearEvents();
+
+      const result = device.updateManagementConfig({ port: currentPort });
+
+      expect(result.isSuccess).toBe(true);
+      const events = device.domainEvents;
+      expect(events.length).toBe(0);
     });
   });
 
@@ -1186,6 +1364,61 @@ describe('NetworkDevice', () => {
       expect(device.updatedAt.getTime()).toBeGreaterThanOrEqual(
         initialUpdatedAt.getTime()
       );
+    });
+  });
+
+  describe('markForDeletion', () => {
+    let device: NetworkDevice;
+
+    beforeEach(() => {
+      device = NetworkDevice.create(validProps).value;
+      device.clearEvents();
+    });
+
+    it('should emit NetworkDeviceDeletedEvent', () => {
+      const result = device.markForDeletion();
+
+      expect(result.isSuccess).toBe(true);
+      const events = device.domainEvents;
+      expect(events.length).toBe(1);
+      expect(events[0].constructor.name).toBe('NetworkDeviceDeletedEvent');
+    });
+
+    it('should include device context in deletion event', () => {
+      const result = device.markForDeletion();
+
+      expect(result.isSuccess).toBe(true);
+      const event = device.domainEvents[0] as any;
+      expect(event.aggregateId).toBe(device.id);
+      expect(event.deviceName).toBe(device.name);
+      expect(event.ipAddress).toBe(device.ipAddress.toString());
+      expect(event.macAddress).toBe(device.macAddress.toString());
+    });
+
+    it('should include deletedBy when provided', () => {
+      const result = device.markForDeletion('admin@example.com');
+
+      expect(result.isSuccess).toBe(true);
+      const event = device.domainEvents[0] as any;
+      expect(event.deletedBy).toBe('admin@example.com');
+    });
+
+    it('should allow undefined deletedBy', () => {
+      const result = device.markForDeletion();
+
+      expect(result.isSuccess).toBe(true);
+      const event = device.domainEvents[0] as any;
+      expect(event.deletedBy).toBeUndefined();
+    });
+
+    it('should be callable multiple times and accumulate events', () => {
+      device.markForDeletion('user1');
+      device.markForDeletion('user2');
+
+      const events = device.domainEvents;
+      expect(events.length).toBe(2);
+      expect(events[0].constructor.name).toBe('NetworkDeviceDeletedEvent');
+      expect(events[1].constructor.name).toBe('NetworkDeviceDeletedEvent');
     });
   });
 

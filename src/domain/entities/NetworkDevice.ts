@@ -18,7 +18,8 @@ import {
   ConnectivityType,
   ManagementProtocol,
   NetworkDeviceProps,
-  NetworkDeviceDeletedEvent
+  NetworkDeviceDeletedEvent,
+  NetworkDeviceUpdatedEvent
 } from '../';
 /**
  * NetworkDevice Aggregate Root
@@ -251,8 +252,22 @@ export class NetworkDevice extends AggregateRoot<
       );
     }
 
+    const oldName = this.props.name;
     this.props.name = newName;
     this.props.updatedAt = new Date();
+
+    // Emit update event if name actually changed
+    if (oldName !== newName) {
+      this.addDomainEvent(
+        new NetworkDeviceUpdatedEvent(
+          this.id,
+          this.name,
+          ['name'],
+          { name: oldName },
+          { name: newName }
+        )
+      );
+    }
 
     return Result.ok<void>();
   }
@@ -264,14 +279,33 @@ export class NetworkDevice extends AggregateRoot<
    * @returns Result indicating success or failure
    */
   public updateDescription(description: string | null): Result<void> {
-    if (description !== null && description.length > 1000) {
-      return Result.fail<void>(
-        'Description cannot exceed 1000 characters'
-      );
+    if (description) {
+      const guardResult = Guard.combine([
+        Guard.isString(description, 'description'),
+        Guard.againstAtMost(description!.length, 1000, 'description')
+      ]);
+
+      if (!guardResult.succeeded) {
+        return Result.fail<void>(guardResult.message!);
+      }
     }
 
+    const oldDescription = this.props.description;
     this.props.description = description;
     this.props.updatedAt = new Date();
+
+    // Emit update event if description actually changed
+    if (oldDescription !== description) {
+      this.addDomainEvent(
+        new NetworkDeviceUpdatedEvent(
+          this.id,
+          this.name,
+          ['description'],
+          { description: oldDescription },
+          { description: description }
+        )
+      );
+    }
 
     return Result.ok<void>();
   }
@@ -308,6 +342,10 @@ export class NetworkDevice extends AggregateRoot<
     port?: number;
     enableRemoteAccess?: boolean;
   }): Result<void> {
+    const changedFields: string[] = [];
+    const previousValues: Record<string, any> = {};
+    const newValues: Record<string, any> = {};
+
     if (config.port !== undefined) {
       const portGuard = Guard.combine([
         Guard.isNumber(config.port, 'port'),
@@ -318,18 +356,50 @@ export class NetworkDevice extends AggregateRoot<
         return Result.fail<void>(portGuard.message!);
       }
 
-      this.props.managementPort = config.port;
+      if (this.props.managementPort !== config.port) {
+        changedFields.push('managementPort');
+        previousValues.managementPort = this.props.managementPort;
+        newValues.managementPort = config.port;
+        this.props.managementPort = config.port;
+      }
     }
 
     if (config.protocol !== undefined) {
-      this.props.managementProtocol = config.protocol;
+      if (this.props.managementProtocol !== config.protocol) {
+        changedFields.push('managementProtocol');
+        previousValues.managementProtocol =
+          this.props.managementProtocol;
+        newValues.managementProtocol = config.protocol;
+        this.props.managementProtocol = config.protocol;
+      }
     }
 
     if (config.enableRemoteAccess !== undefined) {
-      this.props.enabledRemoteAccess = config.enableRemoteAccess;
+      if (
+        this.props.enabledRemoteAccess !== config.enableRemoteAccess
+      ) {
+        changedFields.push('enabledRemoteAccess');
+        previousValues.enabledRemoteAccess =
+          this.props.enabledRemoteAccess;
+        newValues.enabledRemoteAccess = config.enableRemoteAccess;
+        this.props.enabledRemoteAccess = config.enableRemoteAccess;
+      }
     }
 
     this.props.updatedAt = new Date();
+
+    // Emit event if anything actually changed
+    if (changedFields.length > 0) {
+      this.addDomainEvent(
+        new NetworkDeviceUpdatedEvent(
+          this.id,
+          this.name,
+          changedFields,
+          previousValues,
+          newValues
+        )
+      );
+    }
 
     return Result.ok<void>();
   }
