@@ -16,3 +16,5 @@ export * from './DevicePollingFailedEvent';
 export * from './PollingIntervalChangedEvent';
 export * from './PingCountChangedEvent';
 export * from './PollingConfigurationChangedEvent';
+export * from './NetworkDeviceUpdatedEvent';
+export * from './NetworkDeviceDeletedEvent';

@@ -17,7 +17,8 @@ import {
   PollingConfigurationChangedEvent,
   ConnectivityType,
   ManagementProtocol,
-  NetworkDeviceProps
+  NetworkDeviceProps,
+  NetworkDeviceDeletedEvent
 } from '../';
 /**
  * NetworkDevice Aggregate Root
@@ -529,5 +530,30 @@ export class NetworkDevice extends AggregateRoot<
    */
   public getPollingConfiguration(): PollingConfiguration {
     return this.props.pollingConfiguration;
+  }
+
+  /**
+   * Marks the device for deletion and emits deletion event.
+   * Call this BEFORE physically deleting from repository.
+   *
+   * This ensures the deletion event is emitted with full device context
+   * before the data is permanently removed.
+   *
+   * @param deletedBy - Optional identifier of who/what requested deletion
+   * @returns Result indicating success or failure
+   */
+  public markForDeletion(deletedBy?: string): Result<void> {
+    // Emit deletion event with current device state
+    this.addDomainEvent(
+      new NetworkDeviceDeletedEvent(
+        this.id,
+        this.name,
+        this.ipAddress.toString(),
+        this.macAddress.toString(),
+        deletedBy
+      )
+    );
+
+    return Result.ok<void>();
   }
 }
