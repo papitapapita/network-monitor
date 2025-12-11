@@ -6,10 +6,6 @@
  * without exposing domain objects.
  */
 
-export { PollingMetricsDTO } from './PollingMetricsDTO';
-export { PollingResultDTO } from './PollingResultDTO';
-export {
-  PollingCycleSummaryDTO,
-  DevicePollingStatusDTO,
-  PollingHistoryDTO
-} from './PollingDTO';
+export * from './PollingMetricsDTO';
+export * from './PollingResultDTO';
+export * from './PollingDTO';
