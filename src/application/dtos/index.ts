@@ -6,6 +6,5 @@
  * without exposing domain objects.
  */
 
-export * from './PollingMetricsDTO';
-export * from './PollingResultDTO';
-export * from './PollingDTO';
+export * from './network-device';
+export * from './polling';
