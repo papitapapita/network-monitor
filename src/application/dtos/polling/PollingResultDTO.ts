@@ -28,14 +28,6 @@ export interface PollingResultDTO {
   status: string;
 
   /**
-   * Average response time in milliseconds.
-   * Null if the poll failed completely.
-   *
-   * For backwards compatibility - same value as metrics.averageResponseTime.
-   */
-  responseTimeMs: number | null;
-
-  /**
    * Detailed metrics from the poll including multi-ping statistics.
    * Null if the poll failed completely.
    */
