@@ -8,15 +8,39 @@ import {
 import {} from '../shared/props';
 
 /**
- * Represents a validated, immutable phone number in E.164 format.
+ * PhoneNumber Value Object
  *
- * This Value Object wraps `libphonenumber-js` to:
- * - Normalize phone numbers
+ * Represents a validated, immutable phone number in E.164 format.
+ * This Value Object wraps `libphonenumber-js` to provide comprehensive phone number handling.
+ *
+ * Features:
+ * - Normalize phone numbers to E.164 format
  * - Validate country-specific formats
  * - Detect number type (MOBILE, FIXED_LINE, etc.)
  * - Provide international/national formatting
  *
- * A PhoneNumber must always be valid and normalized once constructed.
+ * Business Rules:
+ * - Phone number cannot be null, undefined, or empty
+ * - Must be a valid phone number for the specified country
+ * - Automatically normalized to E.164 format (+[country code][number])
+ * - Supports parsing with or without country code
+ * - Default country can be provided for local/national numbers
+ * - Validates against libphonenumber-js rules for each country
+ * - Whitespace is trimmed automatically
+ *
+ * @example
+ * const phoneResult = PhoneNumber.create('3001234567', 'CO');
+ * if (phoneResult.isSuccess) {
+ *   const phone = phoneResult.value;
+ *   console.log(phone.value); // '+573001234567' (E.164)
+ *   console.log(phone.formattedInternational); // '+57 300 1234567'
+ *   console.log(phone.formattedNational); // '300 1234567'
+ *   console.log(phone.isMobile()); // true
+ * }
+ *
+ * @example
+ * const phoneResult2 = PhoneNumber.createFromE164('+14155552671');
+ * // Creates phone number from E.164 format
  */
 export class PhoneNumber extends ValueObject<PhoneNumberProps> {
   private constructor(props: PhoneNumberProps) {
