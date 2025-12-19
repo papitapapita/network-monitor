@@ -1,169 +1,640 @@
-import {
-  NetworkDeviceType,
-  getDefaultPollingInterval,
-  fromRadioType,
-  fromNetworkDeviceRole,
-  isValidNetworkDeviceType,
-  getDeviceTypeDisplayName
-} from '../../../src/domain';
+import { NetworkDeviceType } from '../../../src/domain';
 
-describe('NetworkDeviceType Enum', () => {
-  it('should contain all expected enum values', () => {
-    expect(Object.values(NetworkDeviceType)).toEqual([
-      'ACCESS_POINT',
-      'STATION',
-      'PTP_RADIO',
-      'PTMP_RADIO',
-      'SWITCH',
-      'ROUTER',
-      'FIREWALL',
-      'SERVER',
-      'UNKNOWN'
-    ]);
-  });
-});
+describe('NetworkDeviceType', () => {
+  describe('create', () => {
+    describe('when valid device type', () => {
+      const validTypes = [
+        'ACCESS_POINT',
+        'STATION',
+        'PTP_RADIO',
+        'PTMP_RADIO',
+        'SWITCH',
+        'ROUTER',
+        'FIREWALL',
+        'SERVER',
+        'UNKNOWN'
+      ];
 
-describe('getDefaultPollingInterval()', () => {
-  const expectedIntervals = [
-    { type: NetworkDeviceType.ACCESS_POINT, interval: 30 },
-    { type: NetworkDeviceType.STATION, interval: 300 },
-    { type: NetworkDeviceType.PTP_RADIO, interval: 60 },
-    { type: NetworkDeviceType.PTMP_RADIO, interval: 60 },
-    { type: NetworkDeviceType.SWITCH, interval: 60 },
-    { type: NetworkDeviceType.ROUTER, interval: 60 },
-    { type: NetworkDeviceType.FIREWALL, interval: 60 },
-    { type: NetworkDeviceType.SERVER, interval: 120 },
-    { type: NetworkDeviceType.UNKNOWN, interval: 60 }
-  ];
+      validTypes.forEach((type) => {
+        it(`should create NetworkDeviceType with ${type}`, () => {
+          const result = NetworkDeviceType.create(type);
 
-  expectedIntervals.forEach(({ type, interval }) => {
-    it(`should return ${interval}s for ${type}`, () => {
-      expect(getDefaultPollingInterval(type)).toBe(interval);
+          expect(result.isSuccess).toBe(true);
+          expect(result.value.value).toBe(type);
+        });
+      });
+
+      it('should normalize to uppercase', () => {
+        const result = NetworkDeviceType.create('router');
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.value).toBe('ROUTER');
+      });
+
+      it('should trim whitespace', () => {
+        const result = NetworkDeviceType.create('  SWITCH  ');
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.value).toBe('SWITCH');
+      });
+
+      it('should handle mixed case', () => {
+        const result = NetworkDeviceType.create('AcCeSs_PoInT');
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.value).toBe('ACCESS_POINT');
+      });
+    });
+
+    describe('when invalid device type', () => {
+      it('should fail for null', () => {
+        const result = NetworkDeviceType.create(null as any);
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('device type');
+      });
+
+      it('should fail for undefined', () => {
+        const result = NetworkDeviceType.create(undefined as any);
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('device type');
+      });
+
+      it('should fail for empty string', () => {
+        const result = NetworkDeviceType.create('');
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('cannot be empty');
+      });
+
+      it('should fail for whitespace only', () => {
+        const result = NetworkDeviceType.create('   ');
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('cannot be empty');
+      });
+
+      it('should fail for invalid device type value', () => {
+        const result = NetworkDeviceType.create('INVALID_TYPE');
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('Invalid device type');
+      });
     });
   });
 
-  it('should return 60 for unrecognized type', () => {
-    expect(getDefaultPollingInterval('NOT_REAL' as any)).toBe(60);
-  });
-});
+  describe('convenience factory methods', () => {
+    it('should create ACCESS_POINT with createAccessPoint', () => {
+      const result = NetworkDeviceType.createAccessPoint();
 
-describe('fromRadioType()', () => {
-  it('should map known radio types correctly', () => {
-    expect(fromRadioType('ACCESS_POINT')).toBe(
-      NetworkDeviceType.ACCESS_POINT
-    );
-    expect(fromRadioType('STATION')).toBe(NetworkDeviceType.STATION);
-    expect(fromRadioType('PTP_RADIO')).toBe(
-      NetworkDeviceType.PTP_RADIO
-    );
-    expect(fromRadioType('PTMP_RADIO')).toBe(
-      NetworkDeviceType.PTMP_RADIO
-    );
-  });
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.value).toBe('ACCESS_POINT');
+      expect(result.value.isAccessPoint()).toBe(true);
+    });
 
-  it('should map secondary radio types to PTP_RADIO', () => {
-    expect(fromRadioType('SECTOR_ANTENNA')).toBe(
-      NetworkDeviceType.PTP_RADIO
-    );
-    expect(fromRadioType('BACKHAUL_RADIO')).toBe(
-      NetworkDeviceType.PTP_RADIO
-    );
-    expect(fromRadioType('MIMO_RADIO')).toBe(
-      NetworkDeviceType.PTP_RADIO
-    );
-  });
+    it('should create STATION with createStation', () => {
+      const result = NetworkDeviceType.createStation();
 
-  it('should handle unknown radio types as UNKNOWN', () => {
-    expect(fromRadioType('UNKNOWN_RADIO')).toBe(
-      NetworkDeviceType.UNKNOWN
-    );
-  });
-});
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.value).toBe('STATION');
+      expect(result.value.isStation()).toBe(true);
+    });
 
-describe('fromNetworkDeviceRole()', () => {
-  it('should map switching and routing roles', () => {
-    expect(fromNetworkDeviceRole('ROUTING')).toBe(
-      NetworkDeviceType.ROUTER
-    );
-    expect(fromNetworkDeviceRole('SWITCHING')).toBe(
-      NetworkDeviceType.SWITCH
-    );
-  });
+    it('should create PTP_RADIO with createPtpRadio', () => {
+      const result = NetworkDeviceType.createPtpRadio();
 
-  it('should map wireless roles to PTP_RADIO', () => {
-    expect(fromNetworkDeviceRole('WIRELESS_BRIDGE')).toBe(
-      NetworkDeviceType.PTP_RADIO
-    );
-    expect(fromNetworkDeviceRole('RADIO_LINK')).toBe(
-      NetworkDeviceType.PTP_RADIO
-    );
-    expect(fromNetworkDeviceRole('BACKHAUL')).toBe(
-      NetworkDeviceType.PTP_RADIO
-    );
-  });
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.value).toBe('PTP_RADIO');
+      expect(result.value.isPtpRadio()).toBe(true);
+    });
 
-  it('should map access to ACCESS_POINT', () => {
-    expect(fromNetworkDeviceRole('WIRELESS_ACCESS')).toBe(
-      NetworkDeviceType.ACCESS_POINT
-    );
-  });
+    it('should create PTMP_RADIO with createPtmpRadio', () => {
+      const result = NetworkDeviceType.createPtmpRadio();
 
-  it('should map server-related roles to SERVER', () => {
-    expect(fromNetworkDeviceRole('APPLICATION_HOSTING')).toBe(
-      NetworkDeviceType.SERVER
-    );
-    expect(fromNetworkDeviceRole('DATABASE_HOSTING')).toBe(
-      NetworkDeviceType.SERVER
-    );
-    expect(fromNetworkDeviceRole('DHCP')).toBe(
-      NetworkDeviceType.SERVER
-    );
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.value).toBe('PTMP_RADIO');
+      expect(result.value.isPtmpRadio()).toBe(true);
+    });
+
+    it('should create SWITCH with createSwitch', () => {
+      const result = NetworkDeviceType.createSwitch();
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.value).toBe('SWITCH');
+      expect(result.value.isSwitch()).toBe(true);
+    });
+
+    it('should create ROUTER with createRouter', () => {
+      const result = NetworkDeviceType.createRouter();
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.value).toBe('ROUTER');
+      expect(result.value.isRouter()).toBe(true);
+    });
+
+    it('should create FIREWALL with createFirewall', () => {
+      const result = NetworkDeviceType.createFirewall();
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.value).toBe('FIREWALL');
+      expect(result.value.isFirewall()).toBe(true);
+    });
+
+    it('should create SERVER with createServer', () => {
+      const result = NetworkDeviceType.createServer();
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.value).toBe('SERVER');
+      expect(result.value.isServer()).toBe(true);
+    });
+
+    it('should create UNKNOWN with createUnknown', () => {
+      const result = NetworkDeviceType.createUnknown();
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.value).toBe('UNKNOWN');
+      expect(result.value.isUnknown()).toBe(true);
+    });
   });
 
-  it('should map security appliance roles to FIREWALL', () => {
-    expect(fromNetworkDeviceRole('FIREWALL')).toBe(
-      NetworkDeviceType.FIREWALL
-    );
-    expect(fromNetworkDeviceRole('UTM')).toBe(
-      NetworkDeviceType.FIREWALL
-    );
+  describe('fromRadioType', () => {
+    it('should map ACCESS_POINT radio type', () => {
+      const result = NetworkDeviceType.fromRadioType('ACCESS_POINT');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isAccessPoint()).toBe(true);
+    });
+
+    it('should map STATION radio type', () => {
+      const result = NetworkDeviceType.fromRadioType('STATION');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isStation()).toBe(true);
+    });
+
+    it('should map PTP_RADIO radio type', () => {
+      const result = NetworkDeviceType.fromRadioType('PTP_RADIO');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isPtpRadio()).toBe(true);
+    });
+
+    it('should map PTMP_RADIO radio type', () => {
+      const result = NetworkDeviceType.fromRadioType('PTMP_RADIO');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isPtmpRadio()).toBe(true);
+    });
+
+    it('should map SECTOR_ANTENNA to PTP_RADIO', () => {
+      const result =
+        NetworkDeviceType.fromRadioType('SECTOR_ANTENNA');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isPtpRadio()).toBe(true);
+    });
+
+    it('should map BACKHAUL_RADIO to PTP_RADIO', () => {
+      const result =
+        NetworkDeviceType.fromRadioType('BACKHAUL_RADIO');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isPtpRadio()).toBe(true);
+    });
+
+    it('should map MIMO_RADIO to PTP_RADIO', () => {
+      const result = NetworkDeviceType.fromRadioType('MIMO_RADIO');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isPtpRadio()).toBe(true);
+    });
+
+    it('should handle unknown radio types as UNKNOWN', () => {
+      const result = NetworkDeviceType.fromRadioType('UNKNOWN_RADIO');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isUnknown()).toBe(true);
+    });
+
+    it('should handle null as UNKNOWN', () => {
+      const result = NetworkDeviceType.fromRadioType(null as any);
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isUnknown()).toBe(true);
+    });
+
+    it('should handle case insensitive radio types', () => {
+      const result = NetworkDeviceType.fromRadioType('access_point');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isAccessPoint()).toBe(true);
+    });
   });
 
-  it('should return UNKNOWN for unmapped roles', () => {
-    expect(fromNetworkDeviceRole('COFFEE_MACHINE')).toBe(
-      NetworkDeviceType.UNKNOWN
-    );
-  });
-});
+  describe('fromNetworkDeviceRole', () => {
+    it('should map ROUTING to ROUTER', () => {
+      const result =
+        NetworkDeviceType.fromNetworkDeviceRole('ROUTING');
 
-describe('isValidNetworkDeviceType()', () => {
-  it('should validate known types', () => {
-    expect(isValidNetworkDeviceType('ROUTER')).toBe(true);
-    expect(isValidNetworkDeviceType('ACCESS_POINT')).toBe(true);
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isRouter()).toBe(true);
+    });
+
+    it('should map SWITCHING to SWITCH', () => {
+      const result =
+        NetworkDeviceType.fromNetworkDeviceRole('SWITCHING');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isSwitch()).toBe(true);
+    });
+
+    it('should map WIRELESS_ACCESS to ACCESS_POINT', () => {
+      const result =
+        NetworkDeviceType.fromNetworkDeviceRole('WIRELESS_ACCESS');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isAccessPoint()).toBe(true);
+    });
+
+    it('should map WIRELESS_CONTROLLER to PTP_RADIO', () => {
+      const result = NetworkDeviceType.fromNetworkDeviceRole(
+        'WIRELESS_CONTROLLER'
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isPtpRadio()).toBe(true);
+    });
+
+    it('should map WIRELESS_BRIDGE to PTP_RADIO', () => {
+      const result =
+        NetworkDeviceType.fromNetworkDeviceRole('WIRELESS_BRIDGE');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isPtpRadio()).toBe(true);
+    });
+
+    it('should map RADIO_LINK to PTP_RADIO', () => {
+      const result =
+        NetworkDeviceType.fromNetworkDeviceRole('RADIO_LINK');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isPtpRadio()).toBe(true);
+    });
+
+    it('should map BACKHAUL to PTP_RADIO', () => {
+      const result =
+        NetworkDeviceType.fromNetworkDeviceRole('BACKHAUL');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isPtpRadio()).toBe(true);
+    });
+
+    it('should map FIREWALL to FIREWALL', () => {
+      const result =
+        NetworkDeviceType.fromNetworkDeviceRole('FIREWALL');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isFirewall()).toBe(true);
+    });
+
+    it('should map IDS to FIREWALL', () => {
+      const result = NetworkDeviceType.fromNetworkDeviceRole('IDS');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isFirewall()).toBe(true);
+    });
+
+    it('should map IPS to FIREWALL', () => {
+      const result = NetworkDeviceType.fromNetworkDeviceRole('IPS');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isFirewall()).toBe(true);
+    });
+
+    it('should map UTM to FIREWALL', () => {
+      const result = NetworkDeviceType.fromNetworkDeviceRole('UTM');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isFirewall()).toBe(true);
+    });
+
+    it('should map APPLICATION_HOSTING to SERVER', () => {
+      const result = NetworkDeviceType.fromNetworkDeviceRole(
+        'APPLICATION_HOSTING'
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isServer()).toBe(true);
+    });
+
+    it('should map DATABASE_HOSTING to SERVER', () => {
+      const result = NetworkDeviceType.fromNetworkDeviceRole(
+        'DATABASE_HOSTING'
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isServer()).toBe(true);
+    });
+
+    it('should map PROXY to SERVER', () => {
+      const result = NetworkDeviceType.fromNetworkDeviceRole('PROXY');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isServer()).toBe(true);
+    });
+
+    it('should map DHCP to SERVER', () => {
+      const result = NetworkDeviceType.fromNetworkDeviceRole('DHCP');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isServer()).toBe(true);
+    });
+
+    it('should map DNS to SERVER', () => {
+      const result = NetworkDeviceType.fromNetworkDeviceRole('DNS');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isServer()).toBe(true);
+    });
+
+    it('should map LOAD_BALANCING to SERVER', () => {
+      const result =
+        NetworkDeviceType.fromNetworkDeviceRole('LOAD_BALANCING');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isServer()).toBe(true);
+    });
+
+    it('should handle unknown roles as UNKNOWN', () => {
+      const result =
+        NetworkDeviceType.fromNetworkDeviceRole('COFFEE_MACHINE');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isUnknown()).toBe(true);
+    });
+
+    it('should handle null as UNKNOWN', () => {
+      const result = NetworkDeviceType.fromNetworkDeviceRole(
+        null as any
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isUnknown()).toBe(true);
+    });
+
+    it('should handle case insensitive roles', () => {
+      const result =
+        NetworkDeviceType.fromNetworkDeviceRole('routing');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isRouter()).toBe(true);
+    });
   });
 
-  it('should invalidate unknown types', () => {
-    expect(isValidNetworkDeviceType('PRINTER')).toBe(false);
-    expect(isValidNetworkDeviceType('')).toBe(false);
-  });
-});
+  describe('type checking methods', () => {
+    it('should correctly identify ACCESS_POINT', () => {
+      const type = NetworkDeviceType.createAccessPoint().value;
 
-describe('getDeviceTypeDisplayName()', () => {
-  it('should return human readable names', () => {
-    expect(
-      getDeviceTypeDisplayName(NetworkDeviceType.ACCESS_POINT)
-    ).toBe('Access Point');
-    expect(getDeviceTypeDisplayName(NetworkDeviceType.FIREWALL)).toBe(
-      'Firewall'
-    );
-    expect(getDeviceTypeDisplayName(NetworkDeviceType.SERVER)).toBe(
-      'Server'
-    );
+      expect(type.isAccessPoint()).toBe(true);
+      expect(type.isStation()).toBe(false);
+      expect(type.isPtpRadio()).toBe(false);
+      expect(type.isPtmpRadio()).toBe(false);
+      expect(type.isSwitch()).toBe(false);
+      expect(type.isRouter()).toBe(false);
+      expect(type.isFirewall()).toBe(false);
+      expect(type.isServer()).toBe(false);
+      expect(type.isUnknown()).toBe(false);
+    });
+
+    it('should correctly identify STATION', () => {
+      const type = NetworkDeviceType.createStation().value;
+
+      expect(type.isStation()).toBe(true);
+      expect(type.isAccessPoint()).toBe(false);
+    });
+
+    it('should correctly identify PTP_RADIO', () => {
+      const type = NetworkDeviceType.createPtpRadio().value;
+
+      expect(type.isPtpRadio()).toBe(true);
+      expect(type.isPtmpRadio()).toBe(false);
+    });
+
+    it('should correctly identify PTMP_RADIO', () => {
+      const type = NetworkDeviceType.createPtmpRadio().value;
+
+      expect(type.isPtmpRadio()).toBe(true);
+      expect(type.isPtpRadio()).toBe(false);
+    });
+
+    it('should correctly identify SWITCH', () => {
+      const type = NetworkDeviceType.createSwitch().value;
+
+      expect(type.isSwitch()).toBe(true);
+      expect(type.isRouter()).toBe(false);
+    });
+
+    it('should correctly identify ROUTER', () => {
+      const type = NetworkDeviceType.createRouter().value;
+
+      expect(type.isRouter()).toBe(true);
+      expect(type.isSwitch()).toBe(false);
+    });
+
+    it('should correctly identify FIREWALL', () => {
+      const type = NetworkDeviceType.createFirewall().value;
+
+      expect(type.isFirewall()).toBe(true);
+      expect(type.isServer()).toBe(false);
+    });
+
+    it('should correctly identify SERVER', () => {
+      const type = NetworkDeviceType.createServer().value;
+
+      expect(type.isServer()).toBe(true);
+      expect(type.isFirewall()).toBe(false);
+    });
+
+    it('should correctly identify UNKNOWN', () => {
+      const type = NetworkDeviceType.createUnknown().value;
+
+      expect(type.isUnknown()).toBe(true);
+      expect(type.isAccessPoint()).toBe(false);
+    });
   });
 
-  it('should return "Unknown" for unmapped types', () => {
-    expect(getDeviceTypeDisplayName('NOTHING' as any)).toBe(
-      'Unknown'
-    );
+  describe('getDefaultPollingInterval', () => {
+    it('should return 30 seconds for ACCESS_POINT', () => {
+      const type = NetworkDeviceType.createAccessPoint().value;
+
+      expect(type.getDefaultPollingInterval()).toBe(30);
+    });
+
+    it('should return 300 seconds for STATION', () => {
+      const type = NetworkDeviceType.createStation().value;
+
+      expect(type.getDefaultPollingInterval()).toBe(300);
+    });
+
+    it('should return 60 seconds for PTP_RADIO', () => {
+      const type = NetworkDeviceType.createPtpRadio().value;
+
+      expect(type.getDefaultPollingInterval()).toBe(60);
+    });
+
+    it('should return 60 seconds for PTMP_RADIO', () => {
+      const type = NetworkDeviceType.createPtmpRadio().value;
+
+      expect(type.getDefaultPollingInterval()).toBe(60);
+    });
+
+    it('should return 60 seconds for SWITCH', () => {
+      const type = NetworkDeviceType.createSwitch().value;
+
+      expect(type.getDefaultPollingInterval()).toBe(60);
+    });
+
+    it('should return 60 seconds for ROUTER', () => {
+      const type = NetworkDeviceType.createRouter().value;
+
+      expect(type.getDefaultPollingInterval()).toBe(60);
+    });
+
+    it('should return 60 seconds for FIREWALL', () => {
+      const type = NetworkDeviceType.createFirewall().value;
+
+      expect(type.getDefaultPollingInterval()).toBe(60);
+    });
+
+    it('should return 120 seconds for SERVER', () => {
+      const type = NetworkDeviceType.createServer().value;
+
+      expect(type.getDefaultPollingInterval()).toBe(120);
+    });
+
+    it('should return 60 seconds for UNKNOWN', () => {
+      const type = NetworkDeviceType.createUnknown().value;
+
+      expect(type.getDefaultPollingInterval()).toBe(60);
+    });
+  });
+
+  describe('getDisplayName', () => {
+    it('should return correct display name for ACCESS_POINT', () => {
+      const type = NetworkDeviceType.createAccessPoint().value;
+
+      expect(type.getDisplayName()).toBe('Access Point');
+    });
+
+    it('should return correct display name for STATION', () => {
+      const type = NetworkDeviceType.createStation().value;
+
+      expect(type.getDisplayName()).toBe('Station');
+    });
+
+    it('should return correct display name for PTP_RADIO', () => {
+      const type = NetworkDeviceType.createPtpRadio().value;
+
+      expect(type.getDisplayName()).toBe('PTP Radio');
+    });
+
+    it('should return correct display name for PTMP_RADIO', () => {
+      const type = NetworkDeviceType.createPtmpRadio().value;
+
+      expect(type.getDisplayName()).toBe('PTMP Radio');
+    });
+
+    it('should return correct display name for SWITCH', () => {
+      const type = NetworkDeviceType.createSwitch().value;
+
+      expect(type.getDisplayName()).toBe('Switch');
+    });
+
+    it('should return correct display name for ROUTER', () => {
+      const type = NetworkDeviceType.createRouter().value;
+
+      expect(type.getDisplayName()).toBe('Router');
+    });
+
+    it('should return correct display name for FIREWALL', () => {
+      const type = NetworkDeviceType.createFirewall().value;
+
+      expect(type.getDisplayName()).toBe('Firewall');
+    });
+
+    it('should return correct display name for SERVER', () => {
+      const type = NetworkDeviceType.createServer().value;
+
+      expect(type.getDisplayName()).toBe('Server');
+    });
+
+    it('should return correct display name for UNKNOWN', () => {
+      const type = NetworkDeviceType.createUnknown().value;
+
+      expect(type.getDisplayName()).toBe('Unknown');
+    });
+  });
+
+  describe('equals', () => {
+    it('should return true for same device type values', () => {
+      const type1 = NetworkDeviceType.createRouter().value;
+      const type2 = NetworkDeviceType.createRouter().value;
+
+      expect(type1.equals(type2)).toBe(true);
+    });
+
+    it('should return true for types created with different methods but same value', () => {
+      const type1 = NetworkDeviceType.createRouter().value;
+      const type2 = NetworkDeviceType.create('ROUTER').value;
+
+      expect(type1.equals(type2)).toBe(true);
+    });
+
+    it('should return false for different device type values', () => {
+      const type1 = NetworkDeviceType.createRouter().value;
+      const type2 = NetworkDeviceType.createSwitch().value;
+
+      expect(type1.equals(type2)).toBe(false);
+    });
+
+    it('should return false for null', () => {
+      const type = NetworkDeviceType.createRouter().value;
+
+      expect(type.equals(null as any)).toBe(false);
+    });
+
+    it('should return false for undefined', () => {
+      const type = NetworkDeviceType.createRouter().value;
+
+      expect(type.equals(undefined as any)).toBe(false);
+    });
+  });
+
+  describe('toString', () => {
+    it('should return the string value', () => {
+      const type = NetworkDeviceType.createRouter().value;
+
+      expect(type.toString()).toBe('ROUTER');
+    });
+  });
+
+  describe('immutability', () => {
+    it('should not allow mutation of props', () => {
+      const type = NetworkDeviceType.createRouter().value;
+
+      expect(() => {
+        // @ts-expect-error - Testing immutability
+        type.props.value = 'SWITCH';
+      }).toThrow();
+    });
+
+    it('should not allow reassignment of props reference', () => {
+      const type = NetworkDeviceType.createRouter().value;
+
+      // TypeScript prevents this at compile time
+      // @ts-expect-error - props is readonly
+      type.props = { value: 'SWITCH' };
+    });
   });
 });
