@@ -245,28 +245,6 @@ export class Guard {
   }
 
   /**
-   * Validates that a string is a well-formed email.
-   *
-   * @param {string} email - Email value to validate.
-   * @param {string} argumentName - Label for messaging.
-   * @returns {IGuardResult} Validation result.
-   */
-  public static isValidEmail(
-    email: string,
-    argumentName: string
-  ): IGuardResult {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!emailRegex.test(email)) {
-      return {
-        succeeded: false,
-        message: `${argumentName} is not a valid email address`
-      };
-    }
-    return { succeeded: true };
-  }
-
-  /**
    * Ensures a number is greater than a minimum.
    *
    * @param {number} minValue - Minimum allowed value.
