@@ -1,24 +1,40 @@
 import { ValueObject, Guard, Result, AddressProps } from '../';
 
 /**
- * Value Object representing a physical address.
+ * Address Value Object
  *
+ * Represents a physical address with validation and formatting capabilities.
  * This object encapsulates all required and optional fields for an address
  * and enforces validation rules at creation time through Guard clauses.
  *
- * Mandatory fields:
- * - street
- * - city
- * - province
- * - country
+ * Business Rules:
+ * - Required fields: street, city, province, country (cannot be null/undefined)
+ * - Optional fields: houseNumber, postalCode, complement, neighborhood
+ * - Street length: 3-200 characters
+ * - City length: 2-100 characters
+ * - Province length: 2-100 characters
+ * - Country length: 2-100 characters
+ * - House number length: 1-20 characters (if provided)
+ * - Postal code length: 3-20 characters (if provided)
+ * - Complement length: 1-200 characters (if provided)
+ * - Neighborhood length: 2-100 characters (if provided)
+ * - All fields are trimmed automatically
  *
- * Optional fields:
- * - houseNumber
- * - postalCode
- * - complement
- * - neighborhood
+ * @example
+ * const addressResult = Address.create({
+ *   street: '123 Main Street',
+ *   houseNumber: '456',
+ *   city: 'San Francisco',
+ *   province: 'California',
+ *   country: 'United States',
+ *   postalCode: '94102'
+ * });
  *
- * The object is immutable; all modifications require creating a new instance.
+ * if (addressResult.isSuccess) {
+ *   const address = addressResult.value;
+ *   console.log(address.getFullAddress());
+ *   console.log(address.getShortAddress());
+ * }
  */
 export class Address extends ValueObject<AddressProps> {
   /**
@@ -124,13 +140,18 @@ export class Address extends ValueObject<AddressProps> {
    * @returns A {@link Result} wrapping either a valid Address or an error message.
    */
   public static create(props: AddressProps): Result<Address> {
+    const againstNullResult = Guard.againstNullOrUndefinedBulk([
+      { argument: props.street, argumentName: 'street' },
+      { argument: props.city, argumentName: 'city' },
+      { argument: props.province, argumentName: 'province' },
+      { argument: props.country, argumentName: 'country' }
+    ]);
+
+    if (!againstNullResult.succeeded) {
+      return Result.fail<Address>(againstNullResult.message!);
+    }
+
     const guardResult = Guard.combine([
-      Guard.againstNullOrUndefinedBulk([
-        { argument: props.street, argumentName: 'street' },
-        { argument: props.city, argumentName: 'city' },
-        { argument: props.province, argumentName: 'province' },
-        { argument: props.country, argumentName: 'country' }
-      ]),
       Guard.inRange(props.street.trim().length, 3, 200, 'street'),
       Guard.inRange(props.city.trim().length, 2, 100, 'city'),
       Guard.inRange(props.province.trim().length, 2, 100, 'province'),
@@ -141,9 +162,14 @@ export class Address extends ValueObject<AddressProps> {
       return Result.fail<Address>(guardResult.message!);
     }
 
-    if (props.houseNumber) {
+    const houseNumber = props.houseNumber?.trim() || undefined;
+    const postalCode = props.postalCode?.trim() || undefined;
+    const complement = props.complement?.trim() || undefined;
+    const neighborhood = props.neighborhood?.trim() || undefined;
+
+    if (houseNumber !== undefined) {
       const houseNumberLength = Guard.inRange(
-        props.houseNumber.trim().length,
+        houseNumber.length,
         1,
         20,
         'houseNumber'
@@ -153,9 +179,9 @@ export class Address extends ValueObject<AddressProps> {
       }
     }
 
-    if (props.postalCode) {
+    if (postalCode !== undefined) {
       const postalCodeLength = Guard.inRange(
-        props.postalCode.trim().length,
+        postalCode.length,
         3,
         20,
         'postalCode'
@@ -165,9 +191,9 @@ export class Address extends ValueObject<AddressProps> {
       }
     }
 
-    if (props.complement !== undefined) {
+    if (complement !== undefined) {
       const complementLength = Guard.inRange(
-        props.complement.trim().length,
+        complement.length,
         1,
         200,
         'complement'
@@ -177,9 +203,9 @@ export class Address extends ValueObject<AddressProps> {
       }
     }
 
-    if (props.neighborhood) {
+    if (neighborhood !== undefined) {
       const neighborhoodLength = Guard.inRange(
-        props.neighborhood.trim().length,
+        neighborhood.length,
         2,
         100,
         'neighborhood'
@@ -192,13 +218,13 @@ export class Address extends ValueObject<AddressProps> {
     return Result.ok<Address>(
       new Address({
         street: props.street.trim(),
-        houseNumber: props.houseNumber?.trim(),
+        houseNumber,
         city: props.city.trim(),
         province: props.province.trim(),
         country: props.country.trim(),
-        postalCode: props.postalCode?.trim(),
-        complement: props.complement?.trim(),
-        neighborhood: props.neighborhood?.trim()
+        postalCode: postalCode,
+        complement: complement,
+        neighborhood: neighborhood
       })
     );
   }
