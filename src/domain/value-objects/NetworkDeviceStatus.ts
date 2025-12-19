@@ -1,124 +1,254 @@
+import {
+  ValueObject,
+  Result,
+  Guard,
+  NetworkDeviceStatusProps
+} from '../';
+
 /**
- * NetworkDeviceStatus Enum
+ * NetworkDeviceStatus Value Object
  *
  * Represents the operational status of a network device.
  * Status transitions are managed by the NetworkDevice aggregate.
  *
+ * Business Rules:
+ * - Status must be one of the predefined valid statuses
+ * - Status cannot be null or empty
+ * - Status transitions must be validated by the aggregate
+ *
  * @example
- * const status = NetworkDeviceStatus.ONLINE;
+ * const statusResult = NetworkDeviceStatus.createOnline();
+ * if (statusResult.isSuccess) {
+ *   const status = statusResult.value;
+ *   console.log(status.getDisplayName()); // 'Online'
+ *   console.log(status.isOnline()); // true
+ * }
  */
-
-export enum NetworkDeviceStatus {
+export class NetworkDeviceStatus extends ValueObject<NetworkDeviceStatusProps> {
   /**
-   * Device is online and responding to polls
+   * Status constants for type-safe status values
    */
-  ONLINE = 'ONLINE',
-
-  /**
-   * Device is offline (failed consecutive polls)
-   */
-  OFFLINE = 'OFFLINE',
-
-  /**
-   * Device is in maintenance mode (polling disabled)
-   */
-  MAINTENANCE = 'MAINTENANCE',
+  public static readonly ONLINE = 'ONLINE';
+  public static readonly OFFLINE = 'OFFLINE';
+  public static readonly MAINTENANCE = 'MAINTENANCE';
+  public static readonly UNKNOWN = 'UNKNOWN';
 
   /**
-   * Device status is unknown (newly added, not yet polled)
+   * Valid status values
    */
-  UNKNOWN = 'UNKNOWN'
-}
+  private static readonly VALID_STATUSES = [
+    NetworkDeviceStatus.ONLINE,
+    NetworkDeviceStatus.OFFLINE,
+    NetworkDeviceStatus.MAINTENANCE,
+    NetworkDeviceStatus.UNKNOWN
+  ] as const;
 
-/**
- * Validates if a string is a valid NetworkDeviceStatus.
- *
- * @param value - String value to validate
- * @returns True if valid, false otherwise
- */
-export function isValidNetworkDeviceStatus(value: string): boolean {
-  return Object.values(NetworkDeviceStatus).includes(
-    value as NetworkDeviceStatus
-  );
-}
-
-/**
- * Gets a user-friendly display name for a device status.
- *
- * @param status - The device status enum value
- * @returns Human-readable name
- */
-export function getDeviceStatusDisplayName(
-  status: NetworkDeviceStatus
-): string {
-  switch (status) {
-    case NetworkDeviceStatus.ONLINE:
-      return 'Online';
-    case NetworkDeviceStatus.OFFLINE:
-      return 'Offline';
-    case NetworkDeviceStatus.MAINTENANCE:
-      return 'Maintenance';
-    case NetworkDeviceStatus.UNKNOWN:
-    default:
-      return 'Unknown';
-  }
-}
-
-/**
- * Gets a color code for UI representation of device status.
- *
- * @param status - The device status enum value
- * @returns Color code (for CSS or UI frameworks)
- */
-export function getDeviceStatusColor(status: NetworkDeviceStatus): string {
-  switch (status) {
-    case NetworkDeviceStatus.ONLINE:
-      return 'green';
-    case NetworkDeviceStatus.OFFLINE:
-      return 'red';
-    case NetworkDeviceStatus.MAINTENANCE:
-      return 'yellow';
-    case NetworkDeviceStatus.UNKNOWN:
-    default:
-      return 'gray';
-  }
-}
-
-/**
- * Checks if a status transition is valid.
- *
- * @param from - Current status
- * @param to - Target status
- * @returns True if transition is allowed
- */
-export function isValidStatusTransition(
-  from: NetworkDeviceStatus,
-  to: NetworkDeviceStatus
-): boolean {
-  // UNKNOWN can transition to any status
-  if (from === NetworkDeviceStatus.UNKNOWN) {
-    return true;
+  get value(): string {
+    return this.props.value;
   }
 
-  // MAINTENANCE can transition to any status (when exiting maintenance)
-  if (from === NetworkDeviceStatus.MAINTENANCE) {
-    return true;
+  private constructor(props: NetworkDeviceStatusProps) {
+    super(props);
   }
 
-  // Any status can transition to MAINTENANCE
-  if (to === NetworkDeviceStatus.MAINTENANCE) {
-    return true;
+  /**
+   * Creates a NetworkDeviceStatus from a string value.
+   *
+   * @param status - Status string (ONLINE, OFFLINE, MAINTENANCE, UNKNOWN)
+   * @returns Result containing NetworkDeviceStatus or error message
+   */
+  public static create(status: string): Result<NetworkDeviceStatus> {
+    const guardResult = Guard.combine([
+      Guard.againstNullOrUndefined(status, 'status'),
+      Guard.isString(status, 'status')
+    ]);
+
+    if (!guardResult.succeeded) {
+      return Result.fail<NetworkDeviceStatus>(guardResult.message!);
+    }
+
+    const trimmedStatus = status.trim().toUpperCase();
+
+    if (trimmedStatus.length === 0) {
+      return Result.fail<NetworkDeviceStatus>(
+        'Status cannot be empty'
+      );
+    }
+
+    if (!this.isValid(trimmedStatus)) {
+      return Result.fail<NetworkDeviceStatus>(
+        `Invalid device status: ${status}. Must be one of: ${this.VALID_STATUSES.join(', ')}`
+      );
+    }
+
+    return Result.ok<NetworkDeviceStatus>(
+      new NetworkDeviceStatus({ value: trimmedStatus })
+    );
   }
 
-  // ONLINE <-> OFFLINE transitions are allowed
-  if (
-    (from === NetworkDeviceStatus.ONLINE &&
-      to === NetworkDeviceStatus.OFFLINE) ||
-    (from === NetworkDeviceStatus.OFFLINE && to === NetworkDeviceStatus.ONLINE)
-  ) {
-    return true;
+  /**
+   * Factory method to create an ONLINE status.
+   */
+  public static createOnline(): Result<NetworkDeviceStatus> {
+    return Result.ok<NetworkDeviceStatus>(
+      new NetworkDeviceStatus({ value: this.ONLINE })
+    );
   }
 
-  // All other transitions are not allowed
-  return false;
+  /**
+   * Factory method to create an OFFLINE status.
+   */
+  public static createOffline(): Result<NetworkDeviceStatus> {
+    return Result.ok<NetworkDeviceStatus>(
+      new NetworkDeviceStatus({ value: this.OFFLINE })
+    );
+  }
+
+  /**
+   * Factory method to create a MAINTENANCE status.
+   */
+  public static createMaintenance(): Result<NetworkDeviceStatus> {
+    return Result.ok<NetworkDeviceStatus>(
+      new NetworkDeviceStatus({ value: this.MAINTENANCE })
+    );
+  }
+
+  /**
+   * Factory method to create an UNKNOWN status.
+   */
+  public static createUnknown(): Result<NetworkDeviceStatus> {
+    return Result.ok<NetworkDeviceStatus>(
+      new NetworkDeviceStatus({ value: this.UNKNOWN })
+    );
+  }
+
+  /**
+   * Validates if a string is a valid NetworkDeviceStatus.
+   */
+  private static isValid(value: string): boolean {
+    return this.VALID_STATUSES.includes(
+      value as (typeof this.VALID_STATUSES)[number]
+    );
+  }
+
+  /**
+   * Checks if this status is ONLINE.
+   */
+  public isOnline(): boolean {
+    return this.props.value === NetworkDeviceStatus.ONLINE;
+  }
+
+  /**
+   * Checks if this status is OFFLINE.
+   */
+  public isOffline(): boolean {
+    return this.props.value === NetworkDeviceStatus.OFFLINE;
+  }
+
+  /**
+   * Checks if this status is MAINTENANCE.
+   */
+  public isMaintenance(): boolean {
+    return this.props.value === NetworkDeviceStatus.MAINTENANCE;
+  }
+
+  /**
+   * Checks if this status is UNKNOWN.
+   */
+  public isUnknown(): boolean {
+    return this.props.value === NetworkDeviceStatus.UNKNOWN;
+  }
+
+  /**
+   * Gets a user-friendly display name for this status.
+   *
+   * @returns Human-readable name
+   */
+  public getDisplayName(): string {
+    switch (this.props.value) {
+      case NetworkDeviceStatus.ONLINE:
+        return 'Online';
+      case NetworkDeviceStatus.OFFLINE:
+        return 'Offline';
+      case NetworkDeviceStatus.MAINTENANCE:
+        return 'Maintenance';
+      case NetworkDeviceStatus.UNKNOWN:
+      default:
+        return 'Unknown';
+    }
+  }
+
+  /**
+   * Gets a color code for UI representation of this status.
+   *
+   * @returns Color code (for CSS or UI frameworks)
+   */
+  public getColor(): string {
+    switch (this.props.value) {
+      case NetworkDeviceStatus.ONLINE:
+        return 'green';
+      case NetworkDeviceStatus.OFFLINE:
+        return 'red';
+      case NetworkDeviceStatus.MAINTENANCE:
+        return 'yellow';
+      case NetworkDeviceStatus.UNKNOWN:
+      default:
+        return 'gray';
+    }
+  }
+
+  /**
+   * Checks if a status transition to another status is valid.
+   *
+   * Business rules:
+   * - UNKNOWN can transition to any status
+   * - MAINTENANCE can transition to any status (when exiting maintenance)
+   * - Any status can transition to MAINTENANCE
+   * - ONLINE <-> OFFLINE transitions are allowed
+   * - All other transitions are not allowed
+   *
+   * @param toStatus - Target status to transition to
+   * @returns True if transition is allowed
+   */
+  public canTransitionTo(toStatus: NetworkDeviceStatus): boolean {
+    const from = this.props.value;
+    const to = toStatus.props.value;
+
+    // UNKNOWN can transition to any status
+    if (from === NetworkDeviceStatus.UNKNOWN) {
+      return true;
+    }
+
+    // MAINTENANCE can transition to any status (when exiting maintenance)
+    if (from === NetworkDeviceStatus.MAINTENANCE) {
+      return true;
+    }
+
+    // Any status can transition to MAINTENANCE
+    if (to === NetworkDeviceStatus.MAINTENANCE) {
+      return true;
+    }
+
+    // ONLINE <-> OFFLINE transitions are allowed
+    if (
+      (from === NetworkDeviceStatus.ONLINE &&
+        to === NetworkDeviceStatus.OFFLINE) ||
+      (from === NetworkDeviceStatus.OFFLINE &&
+        to === NetworkDeviceStatus.ONLINE)
+    ) {
+      return true;
+    }
+
+    // All other transitions are not allowed
+    return false;
+  }
+
+  /**
+   * Returns the string representation of the status.
+   */
+  public toString(): string {
+    return this.props.value;
+  }
+
+  // equals() inherited from ValueObject base class
 }
