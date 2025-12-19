@@ -1,4 +1,9 @@
-import { ValueObject, Result, Guard } from '../';
+import {
+  ValueObject,
+  Result,
+  Guard,
+  PollingIntervalProps
+} from '../';
 
 /**
  * PollingInterval Value Object
@@ -8,16 +13,27 @@ import { ValueObject, Result, Guard } from '../';
  *
  * Used to configure how frequently devices should be polled for status updates.
  *
+ * Business Rules:
+ * - Interval cannot be null or undefined
+ * - Must be between 1 second and 86400 seconds (24 hours)
+ * - Must be a valid number
+ * - Automatically rounded to nearest integer
+ * - Minimum interval: 1 second (prevents excessive polling)
+ * - Maximum interval: 24 hours (ensures devices are checked daily)
+ *
  * @example
- * const interval1 = PollingInterval.create(60); // 60 seconds
+ * const interval1 = PollingInterval.create(60);
+ * if (interval1.isSuccess) {
+ *   const interval = interval1.value;
+ *   console.log(interval.seconds); // 60
+ *   console.log(interval.toMilliseconds()); // 60000
+ *   console.log(interval.toDisplayString()); // '1 minute'
+ * }
+ *
+ * @example
  * const interval2 = PollingInterval.fromMinutes(5); // 5 minutes = 300 seconds
  * const interval3 = PollingInterval.fromHours(1); // 1 hour = 3600 seconds
  */
-
-interface PollingIntervalProps {
-  seconds: number;
-}
-
 export class PollingInterval extends ValueObject<PollingIntervalProps> {
   public static readonly MIN_SECONDS = 1;
   public static readonly MAX_SECONDS = 86400; // 24 hours
