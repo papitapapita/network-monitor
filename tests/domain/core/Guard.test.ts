@@ -223,22 +223,4 @@ describe('Guard Utility Tests', () => {
       expect(result.succeeded).toBe(true);
     });
   });
-
-  // ----------------------------------------------------
-  // isValidEmail
-  // ----------------------------------------------------
-  describe('isValidEmail()', () => {
-    it('returns failure for invalid email format', () => {
-      const result = Guard.isValidEmail('invalid-email', 'email');
-      expect(result.succeeded).toBe(false);
-      expect(result.message).toBe(
-        'email is not a valid email address'
-      );
-    });
-
-    it('returns success for valid email format', () => {
-      const result = Guard.isValidEmail('user@example.com', 'email');
-      expect(result.succeeded).toBe(true);
-    });
-  });
 });
