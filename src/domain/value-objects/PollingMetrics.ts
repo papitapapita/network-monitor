@@ -1,4 +1,4 @@
-import { ValueObject, Result, Guard } from '../';
+import { ValueObject, Result, Guard, PollingMetricsProps } from '../';
 
 /**
  * PollingMetrics Value Object
@@ -13,29 +13,32 @@ import { ValueObject, Result, Guard } from '../';
  *
  * This value object is immutable and all statistics are calculated on creation.
  *
+ * Business Rules:
+ * - responseTimes, totalPings, and successfulPings cannot be null or undefined
+ * - responseTimes must be an array
+ * - totalPings must be between 1 and 10
+ * - successfulPings cannot exceed totalPings
+ * - responseTimes array length must equal successfulPings count
+ * - Each response time must be a valid number (not NaN)
+ * - Each response time must be between 0 and 30000ms (30 seconds)
+ * - All statistics are automatically calculated on creation
+ * - Statistics are rounded to 2 decimal places
+ *
  * @example
- * const metrics = PollingMetrics.create({
+ * const metricsResult = PollingMetrics.create({
  *   responseTimes: [23.5, 24.1, 23.8, 24.3],
  *   totalPings: 4,
  *   successfulPings: 4
  * });
  *
- * console.log(metrics.averageResponseTime); // ~23.925
- * console.log(metrics.jitter); // ~0.33
- * console.log(metrics.packetLoss); // 0
+ * if (metricsResult.isSuccess) {
+ *   const metrics = metricsResult.value;
+ *   console.log(metrics.averageResponseTime); // ~23.925
+ *   console.log(metrics.jitter); // ~0.33
+ *   console.log(metrics.packetLoss); // 0
+ *   console.log(metrics.getQualityScore()); // 100
+ * }
  */
-
-interface PollingMetricsProps {
-  responseTimes: number[]; // Response times in milliseconds for successful pings
-  totalPings: number; // Total number of pings attempted
-  successfulPings: number; // Number of successful pings (length of responseTimes)
-  averageResponseTime: number; // Calculated average in ms
-  minResponseTime: number; // Minimum response time in ms
-  maxResponseTime: number; // Maximum response time in ms
-  jitter: number; // Standard deviation of response times
-  packetLoss: number; // Packet loss percentage (0-100)
-}
-
 export class PollingMetrics extends ValueObject<PollingMetricsProps> {
   public static readonly MAX_PING_COUNT = 10;
   public static readonly MIN_PING_COUNT = 1;
