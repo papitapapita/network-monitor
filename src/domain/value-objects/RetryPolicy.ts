@@ -1,4 +1,10 @@
-import { ValueObject, Result, Guard } from '../';
+import {
+  ValueObject,
+  Result,
+  Guard,
+  RetryPolicyProps,
+  BackoffStrategy
+} from '../';
 
 /**
  * RetryPolicy Value Object
@@ -11,37 +17,29 @@ import { ValueObject, Result, Guard } from '../';
  * - LINEAR: Increase delay linearly (delay * attemptNumber)
  * - EXPONENTIAL: Increase delay exponentially (delay * 2^attemptNumber)
  *
+ * Business Rules:
+ * - maxAttempts, baseDelayMs, and backoffStrategy cannot be null or undefined
+ * - maxAttempts must be between 0 and 10
+ * - baseDelayMs must be between 100ms and 60000ms (1 minute)
+ * - backoffStrategy must be a valid BackoffStrategy enum value
+ * - Calculated delay is capped at 300000ms (5 minutes) regardless of backoff
+ * - maxAttempts of 0 means no retries (immediate failure)
+ * - Values are automatically rounded to nearest integer
+ *
  * @example
- * const policy = RetryPolicy.create({
+ * const policyResult = RetryPolicy.create({
  *   maxAttempts: 3,
  *   baseDelayMs: 1000,
  *   backoffStrategy: BackoffStrategy.EXPONENTIAL
  * });
+ *
+ * if (policyResult.isSuccess) {
+ *   const policy = policyResult.value;
+ *   console.log(policy.calculateDelay(1)); // 1000ms
+ *   console.log(policy.calculateDelay(2)); // 2000ms
+ *   console.log(policy.calculateDelay(3)); // 4000ms
+ * }
  */
-
-export enum BackoffStrategy {
-  /**
-   * Use the same delay for all retries
-   */
-  FIXED = 'FIXED',
-
-  /**
-   * Increase delay linearly: baseDelay * attemptNumber
-   */
-  LINEAR = 'LINEAR',
-
-  /**
-   * Increase delay exponentially: baseDelay * 2^attemptNumber
-   */
-  EXPONENTIAL = 'EXPONENTIAL'
-}
-
-interface RetryPolicyProps {
-  maxAttempts: number; // 0-10, where 0 means no retries
-  baseDelayMs: number; // 100-60000ms (100ms to 1 minute)
-  backoffStrategy: BackoffStrategy;
-}
-
 export class RetryPolicy extends ValueObject<RetryPolicyProps> {
   public static readonly MIN_ATTEMPTS = 0;
   public static readonly MAX_ATTEMPTS = 10;
