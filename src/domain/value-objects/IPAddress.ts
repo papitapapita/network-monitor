@@ -1,4 +1,4 @@
-import { ValueObject, Result, Guard } from '../';
+import { ValueObject, Result, Guard, IPAddressProps } from '../';
 
 /**
  * IPAddress Value Object
@@ -6,15 +6,28 @@ import { ValueObject, Result, Guard } from '../';
  * Represents an IPv4 or IPv6 address with validation.
  * Immutable and validated at creation time.
  *
+ * Business Rules:
+ * - Address cannot be null, undefined, or empty
+ * - Must be a valid IPv4 format (xxx.xxx.xxx.xxx where xxx is 0-255)
+ * - OR must be a valid IPv6 format (supports full and compressed notation)
+ * - All octets in IPv4 must be in range 0-255
+ * - IPv6 must follow RFC 4291 addressing architecture
+ *
  * @example
  * const ipv4Result = IPAddress.create('192.168.1.1');
- * const ipv6Result = IPAddress.create('2001:0db8:85a3:0000:0000:8a2e:0370:7334');
+ * if (ipv4Result.isSuccess) {
+ *   const ip = ipv4Result.value;
+ *   console.log(ip.isIPv4()); // true
+ *   console.log(ip.toString()); // '192.168.1.1'
+ * }
+ *
+ * @example
+ * const ipv6Result = IPAddress.create('2001:0db8:85a3::8a2e:0370:7334');
+ * if (ipv6Result.isSuccess) {
+ *   const ip = ipv6Result.value;
+ *   console.log(ip.isIPv6()); // true
+ * }
  */
-
-interface IPAddressProps {
-  value: string;
-}
-
 export class IPAddress extends ValueObject<IPAddressProps> {
   get value(): string {
     return this.props.value;
@@ -26,6 +39,10 @@ export class IPAddress extends ValueObject<IPAddressProps> {
 
   /**
    * Validates if a string is a valid IPv4 address.
+   *
+   * @param ip - IP address string to validate
+   * @returns True if valid IPv4 format, false otherwise
+   *
    * Format: xxx.xxx.xxx.xxx where xxx is 0-255
    */
   public static isValidIPv4(ip: string): boolean {
@@ -48,6 +65,10 @@ export class IPAddress extends ValueObject<IPAddressProps> {
 
   /**
    * Validates if a string is a valid IPv6 address.
+   *
+   * @param ip - IP address string to validate
+   * @returns True if valid IPv6 format, false otherwise
+   *
    * Supports full notation and compressed notation (::)
    */
   public static isValidIPv6(ip: string): boolean {
@@ -94,6 +115,8 @@ export class IPAddress extends ValueObject<IPAddressProps> {
 
   /**
    * Checks if this IP address is IPv4.
+   *
+   * @returns True if this is an IPv4 address, false otherwise
    */
   public isIPv4(): boolean {
     return IPAddress.isValidIPv4(this.props.value);
@@ -101,6 +124,8 @@ export class IPAddress extends ValueObject<IPAddressProps> {
 
   /**
    * Checks if this IP address is IPv6.
+   *
+   * @returns True if this is an IPv6 address, false otherwise
    */
   public isIPv6(): boolean {
     return IPAddress.isValidIPv6(this.props.value);
