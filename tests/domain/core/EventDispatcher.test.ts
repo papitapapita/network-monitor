@@ -1,9 +1,11 @@
 import {
   AggregateRoot,
-  DomainEvents,
+  EventDispatcher,
   Result,
   UniqueEntityID,
-  IDomainEvent
+  IDomainEvent,
+  IHandle,
+  DomainEvent
 } from '../../../src/domain';
 
 class TestID extends UniqueEntityID {
@@ -25,13 +27,45 @@ class TestID extends UniqueEntityID {
 // ---------------------------------------------------
 // Fake Domain Event
 // ---------------------------------------------------
-class FakeDomainEvent implements IDomainEvent {
-  public dateTimeOccurred: Date = new Date();
+interface FakeDomainEventProps {
+  readonly aggregateId: TestID;
+  readonly dateTimeOccurred: Date;
+}
 
-  constructor(public readonly aggregateId: TestID) {}
+class FakeDomainEvent extends DomainEvent<FakeDomainEventProps> {
+  constructor(props: FakeDomainEventProps) {
+    super(props);
+  }
 
   getAggregateId(): TestID {
-    return this.aggregateId;
+    return this.props.aggregateId;
+  }
+
+  get dateTimeOccurred(): Date {
+    return this.props.dateTimeOccurred;
+  }
+}
+
+// ---------------------------------------------------
+// Fake Event Handlers for testing
+// ---------------------------------------------------
+class FakeEventHandler implements IHandle<FakeDomainEvent> {
+  public handledEvents: FakeDomainEvent[] = [];
+
+  handle(event: FakeDomainEvent): void {
+    this.handledEvents.push(event);
+  }
+
+  hasHandled(event: FakeDomainEvent): boolean {
+    return this.handledEvents.includes(event);
+  }
+
+  getCallCount(): number {
+    return this.handledEvents.length;
+  }
+
+  reset(): void {
+    this.handledEvents = [];
   }
 }
 
@@ -68,21 +102,21 @@ class FakeAggregateRoot extends AggregateRoot<FakeProps, TestID> {
   }
 }
 
-describe('DomainEvents', () => {
+describe('EventDispatcher', () => {
   beforeEach(() => {
-    DomainEvents.clearHandlers();
-    DomainEvents.clearMarkedAggregates();
+    EventDispatcher.clearHandlers();
+    EventDispatcher.clearMarkedAggregates();
   });
 
   // ---------------------------------------------------
   // register()
   // ---------------------------------------------------
   it('should register handlers for an event class', () => {
-    const handler = jest.fn();
-    DomainEvents.register('FakeDomainEvent', handler);
+    const handler = new FakeEventHandler();
+    EventDispatcher.register('FakeDomainEvent', handler);
 
     const handlers =
-      DomainEvents['handlersMap'].get('FakeDomainEvent');
+      EventDispatcher['handlersMap'].get('FakeDomainEvent');
 
     expect(handlers).toBeDefined();
     expect(handlers!.length).toBe(1);
@@ -95,10 +129,10 @@ describe('DomainEvents', () => {
   it('should mark aggregates for event dispatch only once', () => {
     const aggregate = FakeAggregateRoot.create({ name: 'Test' });
 
-    DomainEvents.markAggregateForDispatch(aggregate);
-    DomainEvents.markAggregateForDispatch(aggregate);
+    EventDispatcher.markAggregateForDispatch(aggregate);
+    EventDispatcher.markAggregateForDispatch(aggregate);
 
-    const list = DomainEvents['markedAggregates'];
+    const list = EventDispatcher['markedAggregates'];
 
     expect(list.length).toBe(1);
     expect(list[0]).toBe(aggregate);
@@ -108,55 +142,64 @@ describe('DomainEvents', () => {
   // dispatchEventsForAggregate()
   // ---------------------------------------------------
   it('should dispatch events for a marked aggregate', () => {
-    const handler = jest.fn();
-    DomainEvents.register('FakeDomainEvent', handler);
+    const handler = new FakeEventHandler();
+    EventDispatcher.register('FakeDomainEvent', handler);
 
     const id = TestID.create() as TestID;
     const aggregate = FakeAggregateRoot.create(
       { name: 'Aggregate' },
       id
     );
-    const event = new FakeDomainEvent(id);
+    const event = new FakeDomainEvent({
+      aggregateId: id,
+      dateTimeOccurred: new Date()
+    });
 
     aggregate.generateEvent(event);
 
-    DomainEvents.markAggregateForDispatch(aggregate);
-    DomainEvents.dispatchEventsForAggregate(id);
+    EventDispatcher.markAggregateForDispatch(aggregate);
+    EventDispatcher.dispatchEventsForAggregate(id);
 
-    expect(handler).toHaveBeenCalledTimes(1);
-    expect(handler).toHaveBeenCalledWith(event);
+    expect(handler.getCallCount()).toBe(1);
+    expect(handler.hasHandled(event)).toBe(true);
   });
 
   it('should clear events from aggregate after dispatch', () => {
-    const handler = jest.fn();
-    DomainEvents.register('FakeDomainEvent', handler);
+    const handler = new FakeEventHandler();
+    EventDispatcher.register('FakeDomainEvent', handler);
 
     const id = TestID.create() as TestID;
     const aggregate = FakeAggregateRoot.create({ name: 'A' }, id);
-    const event = new FakeDomainEvent(id);
+    const event = new FakeDomainEvent({
+      aggregateId: id,
+      dateTimeOccurred: new Date()
+    });
 
     aggregate.generateEvent(event);
 
-    DomainEvents.markAggregateForDispatch(aggregate);
-    DomainEvents.dispatchEventsForAggregate(id);
+    EventDispatcher.markAggregateForDispatch(aggregate);
+    EventDispatcher.dispatchEventsForAggregate(id);
 
     expect(aggregate.domainEvents.length).toBe(0);
   });
 
   it('should remove aggregate from marked list after dispatch', () => {
-    const handler = jest.fn();
-    DomainEvents.register('FakeDomainEvent', handler);
+    const handler = new FakeEventHandler();
+    EventDispatcher.register('FakeDomainEvent', handler);
 
     const id = TestID.create() as TestID;
     const aggregate = FakeAggregateRoot.create({ name: 'A' }, id);
-    const event = new FakeDomainEvent(id);
+    const event = new FakeDomainEvent({
+      aggregateId: id,
+      dateTimeOccurred: new Date()
+    });
 
     aggregate.generateEvent(event);
 
-    DomainEvents.markAggregateForDispatch(aggregate);
-    DomainEvents.dispatchEventsForAggregate(id);
+    EventDispatcher.markAggregateForDispatch(aggregate);
+    EventDispatcher.dispatchEventsForAggregate(id);
 
-    const list = DomainEvents['markedAggregates'];
+    const list = EventDispatcher['markedAggregates'];
 
     expect(list.length).toBe(0);
   });
@@ -165,28 +208,45 @@ describe('DomainEvents', () => {
   // dispatch() multiple handlers
   // ---------------------------------------------------
   it('should call multiple handlers in order for the same event', () => {
-    const handler1 = jest.fn();
-    const handler2 = jest.fn();
+    const callOrder: number[] = [];
 
-    DomainEvents.register('FakeDomainEvent', handler1);
-    DomainEvents.register('FakeDomainEvent', handler2);
+    class OrderedHandler1 extends FakeEventHandler {
+      handle(event: FakeDomainEvent): void {
+        callOrder.push(1);
+        super.handle(event);
+      }
+    }
+
+    class OrderedHandler2 extends FakeEventHandler {
+      handle(event: FakeDomainEvent): void {
+        callOrder.push(2);
+        super.handle(event);
+      }
+    }
+
+    const handler1 = new OrderedHandler1();
+    const handler2 = new OrderedHandler2();
+
+    EventDispatcher.register('FakeDomainEvent', handler1);
+    EventDispatcher.register('FakeDomainEvent', handler2);
 
     const id = TestID.create() as TestID;
     const aggregate = FakeAggregateRoot.create({ name: 'X' }, id);
-    const event = new FakeDomainEvent(id);
+    const event = new FakeDomainEvent({
+      aggregateId: id,
+      dateTimeOccurred: new Date()
+    });
 
     aggregate.generateEvent(event);
 
-    DomainEvents.markAggregateForDispatch(aggregate);
-    DomainEvents.dispatchEventsForAggregate(id);
+    EventDispatcher.markAggregateForDispatch(aggregate);
+    EventDispatcher.dispatchEventsForAggregate(id);
 
-    expect(handler1).toHaveBeenCalledTimes(1);
-    expect(handler2).toHaveBeenCalledTimes(1);
+    expect(handler1.getCallCount()).toBe(1);
+    expect(handler2.getCallCount()).toBe(1);
 
     // ensure calling order
-    expect(handler1.mock.invocationCallOrder[0]).toBeLessThan(
-      handler2.mock.invocationCallOrder[0]
-    );
+    expect(callOrder).toEqual([1, 2]);
   });
 
   // ---------------------------------------------------
@@ -195,14 +255,17 @@ describe('DomainEvents', () => {
   it('should safely skip dispatching when no handlers exist', () => {
     const id = TestID.create() as TestID;
     const aggregate = FakeAggregateRoot.create({ name: 'Z' }, id);
-    const event = new FakeDomainEvent(id);
+    const event = new FakeDomainEvent({
+      aggregateId: id,
+      dateTimeOccurred: new Date()
+    });
 
     aggregate.generateEvent(event);
 
-    DomainEvents.markAggregateForDispatch(aggregate);
+    EventDispatcher.markAggregateForDispatch(aggregate);
 
     expect(() =>
-      DomainEvents.dispatchEventsForAggregate(id)
+      EventDispatcher.dispatchEventsForAggregate(id)
     ).not.toThrow();
   });
 });

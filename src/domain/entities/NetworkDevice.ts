@@ -408,21 +408,21 @@ export class NetworkDevice extends AggregateRoot<
    * Checks if the device is currently online.
    */
   public isOnline(): boolean {
-    return this.props.status === NetworkDeviceStatus.ONLINE;
+    return this.props.status.isOnline();
   }
 
   /**
    * Checks if the device is currently offline.
    */
   public isOffline(): boolean {
-    return this.props.status === NetworkDeviceStatus.OFFLINE;
+    return this.props.status.isOffline();
   }
 
   /**
    * Checks if the device is in maintenance mode.
    */
   public isInMaintenance(): boolean {
-    return this.props.status === NetworkDeviceStatus.MAINTENANCE;
+    return this.props.status.isMaintenance();
   }
 
   /**

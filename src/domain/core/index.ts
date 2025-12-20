@@ -4,6 +4,7 @@ export * from './ValueObject';
 export * from './UniqueEntityID';
 export * from './Result';
 export * from './Identifier';
-export * from './DomainEvents';
+export * from './DomainEvent';
+export * from './EventDispatcher';
 export * from './Guard';
 export * from './UUID';

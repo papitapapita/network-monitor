@@ -550,7 +550,7 @@ export class CreateNetworkDeviceUseCase {
     await this.networkDeviceRepo.save(networkDevice);
 
     // 4. Emit domain events
-    DomainEvents.dispatchEventsForAggregate(networkDevice.id);
+    EventDispatcher.dispatchEventsForAggregate(networkDevice.id);
 
     // 5. Return DTO
     return Result.ok(NetworkDeviceMapper.toDTO(networkDevice));

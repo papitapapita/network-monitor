@@ -123,16 +123,16 @@ graph LR
 
 ### Pattern Definitions
 
-| Pattern | Definition | When to Use |
-|---------|------------|-------------|
-| **Customer-Supplier** | Downstream context depends on upstream. Upstream has obligations to downstream. | When one context provides data/services another needs |
-| **Conformist** | Downstream conforms to upstream model without negotiation. | When downstream has no influence over upstream |
-| **Shared Kernel** | Two contexts share a subset of the domain model. | When contexts are tightly related and share common concepts |
-| **Partnership** | Two contexts have mutual dependency and evolve together. | When teams must coordinate changes |
-| **Published Language** | Upstream publishes a well-documented, stable API. | When many consumers need integration |
-| **Open Host Service** | Upstream provides a service accessible to many consumers. | When service has multiple clients |
-| **Anti-Corruption Layer (ACL)** | Downstream protects itself from upstream changes via translation layer. | When upstream model is poor or unstable |
-| **Separate Ways** | Contexts have no integration—completely independent. | When integration cost exceeds benefit |
+| Pattern                         | Definition                                                                      | When to Use                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| **Customer-Supplier**           | Downstream context depends on upstream. Upstream has obligations to downstream. | When one context provides data/services another needs       |
+| **Conformist**                  | Downstream conforms to upstream model without negotiation.                      | When downstream has no influence over upstream              |
+| **Shared Kernel**               | Two contexts share a subset of the domain model.                                | When contexts are tightly related and share common concepts |
+| **Partnership**                 | Two contexts have mutual dependency and evolve together.                        | When teams must coordinate changes                          |
+| **Published Language**          | Upstream publishes a well-documented, stable API.                               | When many consumers need integration                        |
+| **Open Host Service**           | Upstream provides a service accessible to many consumers.                       | When service has multiple clients                           |
+| **Anti-Corruption Layer (ACL)** | Downstream protects itself from upstream changes via translation layer.         | When upstream model is poor or unstable                     |
+| **Separate Ways**               | Contexts have no integration—completely independent.                            | When integration cost exceeds benefit                       |
 
 ---
 
@@ -147,6 +147,7 @@ graph LR
 **Integration Pattern**: Reference by ID
 
 **Data Flow**:
+
 ```
 Device Catalog              Inventory
 ┌──────────────┐           ┌──────────────┐
@@ -157,11 +158,13 @@ Device Catalog              Inventory
 ```
 
 **Shared Concepts**:
+
 - `DeviceModelId` - Foreign key reference
 - `Vendor` enum
 - `DeviceType` enum
 
 **Integration Points**:
+
 ```typescript
 // Inventory Context (Downstream)
 class Device {
@@ -174,10 +177,12 @@ class Device {
 ```
 
 **Responsibilities**:
+
 - **Upstream (Device Catalog)**: Maintain stable DeviceModel IDs, notify downstream of discontinued models
 - **Downstream (Inventory)**: Handle missing models gracefully, cache model data
 
 **Evolution Agreement**:
+
 - Device Catalog must not delete models that have associated devices
 - New model attributes are additive only (no breaking changes)
 
@@ -192,6 +197,7 @@ class Device {
 **Integration Pattern**: Reference by ID + Shared Events
 
 **Data Flow**:
+
 ```
 Inventory                    Network Management
 ┌──────────────┐            ┌──────────────────┐
@@ -210,11 +216,13 @@ Inventory                    Network Management
 ```
 
 **Shared Concepts**:
+
 - `DeviceId` - Foreign key reference
 - `DeviceStatus` - Shared enum (but different meaning in each context)
 - `Location` - Physical vs logical location
 
 **Integration Points**:
+
 ```typescript
 // Network Management Context (Downstream)
 class NetworkDevice {
@@ -230,7 +238,7 @@ class DeviceActivatedHandler implements DomainEventHandler {
   handle(event: DeviceActivatedEvent): void {
     // Create corresponding NetworkDevice when physical device activated
     const networkDevice = NetworkDevice.create({
-      deviceId: event.deviceId,
+      deviceId: event.deviceId
       // ...
     });
   }
@@ -238,10 +246,12 @@ class DeviceActivatedHandler implements DomainEventHandler {
 ```
 
 **Responsibilities**:
+
 - **Upstream (Inventory)**: Emit events when device status changes, maintain device-location association
 - **Downstream (Network Management)**: React to device lifecycle events, maintain referential integrity
 
 **Conflict Resolution**:
+
 - If physical device is deactivated in Inventory, Network Management marks NetworkDevice as OFFLINE
 - Physical location (Inventory) is source of truth; Network Management may cache it
 
@@ -256,6 +266,7 @@ class DeviceActivatedHandler implements DomainEventHandler {
 **Integration Pattern**: Reference by ID + Polling Configuration
 
 **Data Flow**:
+
 ```
 Network Management          Monitoring
 ┌──────────────────┐       ┌──────────────────┐
@@ -274,11 +285,13 @@ Network Management          Monitoring
 ```
 
 **Shared Concepts**:
+
 - `NetworkDeviceId` - Primary identifier
 - `ManagementProtocol` - SNMP, SSH, HTTP, etc.
 - `NetworkDeviceStatus` - ONLINE, OFFLINE, MAINTENANCE
 
 **Integration Points**:
+
 ```typescript
 // Monitoring Context (Downstream)
 class PollerService {
@@ -304,10 +317,12 @@ class DeviceOfflineHandler implements DomainEventHandler {
 ```
 
 **Responsibilities**:
+
 - **Upstream (Network Management)**: Provide device configuration, credentials, management protocol
 - **Downstream (Monitoring)**: Poll devices, collect metrics, emit status events
 
 **Data Synchronization**:
+
 - Monitoring polls Network Management every 5 minutes for device list changes
 - Network Management listens to Monitoring events to update device status
 
@@ -322,6 +337,7 @@ class DeviceOfflineHandler implements DomainEventHandler {
 **Integration Pattern**: Domain Events
 
 **Data Flow**:
+
 ```
 Monitoring                  Event Bus              Alerting
 ┌──────────────┐           ┌─────────┐           ┌──────────────┐
@@ -337,6 +353,7 @@ Monitoring                  Event Bus              Alerting
 ```
 
 **Published Events** (from Monitoring):
+
 ```typescript
 interface DeviceOfflineEvent {
   networkDeviceId: string;
@@ -363,17 +380,27 @@ interface DeviceMetricsCollectedEvent {
 ```
 
 **Integration Points**:
+
 ```typescript
 // Monitoring Context (Publisher)
 class PollerService {
-  private emitDeviceOffline(deviceId: string, failures: number): void {
-    const event = new DeviceOfflineEvent(deviceId, new Date(), failures);
-    DomainEvents.publish(event);
+  private emitDeviceOffline(
+    deviceId: string,
+    failures: number
+  ): void {
+    const event = new DeviceOfflineEvent(
+      deviceId,
+      new Date(),
+      failures
+    );
+    EventDispatcher.publish(event);
   }
 }
 
 // Alerting Context (Subscriber)
-class DeviceOfflineEventHandler implements DomainEventHandler<DeviceOfflineEvent> {
+class DeviceOfflineEventHandler
+  implements DomainEventHandler<DeviceOfflineEvent>
+{
   handle(event: DeviceOfflineEvent): void {
     // Evaluate if alert should be created
     const alert = this.alertService.evaluateDeviceOffline(event);
@@ -387,10 +414,12 @@ class DeviceOfflineEventHandler implements DomainEventHandler<DeviceOfflineEvent
 ```
 
 **Responsibilities**:
+
 - **Upstream (Monitoring)**: Emit events when metrics collected or thresholds exceeded
 - **Downstream (Alerting)**: Subscribe to relevant events, evaluate alert rules, trigger notifications
 
 **Decoupling Benefits**:
+
 - Monitoring doesn't know about Alerting
 - New alert types can be added without changing Monitoring
 - Events can be logged, replayed, or consumed by analytics
@@ -406,6 +435,7 @@ class DeviceOfflineEventHandler implements DomainEventHandler<DeviceOfflineEvent
 **Integration Pattern**: External API
 
 **Data Flow**:
+
 ```
 Alerting                    Notification Service
 ┌──────────────┐           ┌──────────────────┐
@@ -421,6 +451,7 @@ Alerting                    Notification Service
 ```
 
 **Shared Concepts** (Published Language):
+
 ```typescript
 interface NotificationRequest {
   recipient: string;
@@ -438,10 +469,14 @@ interface NotificationResponse {
 ```
 
 **Integration Points**:
+
 ```typescript
 // Alerting Context
 class NotificationService {
-  async sendNotification(alert: Alert, channel: NotificationChannel): Promise<void> {
+  async sendNotification(
+    alert: Alert,
+    channel: NotificationChannel
+  ): Promise<void> {
     const request: NotificationRequest = {
       recipient: channel.recipient,
       subject: alert.title,
@@ -457,10 +492,12 @@ class NotificationService {
 ```
 
 **Responsibilities**:
+
 - **Host (Alerting)**: Define notification API, format messages
 - **Client (External Services)**: Deliver notifications via their respective channels
 
 **Anti-Corruption Layer**:
+
 - Alerting context wraps external services to prevent vendor lock-in
 - Easy to swap email providers (Nodemailer → SendGrid → AWS SES)
 
@@ -475,6 +512,7 @@ class NotificationService {
 **Integration Pattern**: Shared Domain Model
 
 **Shared Concepts**:
+
 ```
 Shared Kernel
 ┌────────────────────────┐
@@ -492,6 +530,7 @@ Shared Kernel
 ```
 
 **Shared Domain Model**:
+
 ```typescript
 // Shared between both contexts
 enum DeviceStatus {
@@ -512,6 +551,7 @@ enum MaintenanceType {
 ```
 
 **Integration Points**:
+
 ```typescript
 // Both contexts use the same Device entity
 class Device extends AggregateRoot<DeviceProps> {
@@ -539,11 +579,13 @@ class DeviceMaintenanceLog {
 ```
 
 **Coordination Requirements**:
+
 - Both teams must agree on changes to shared model
 - Breaking changes require coordination
 - Shared code lives in `/src/domain/shared/`
 
 **Shared Kernel Risks**:
+
 - High coupling between contexts
 - Changes require coordination
 - Should be limited to truly shared concepts
@@ -559,6 +601,7 @@ class DeviceMaintenanceLog {
 **Integration Pattern**: Read-Only Access
 
 **Data Flow**:
+
 ```
 User Management             Alerting
 ┌──────────────┐           ┌──────────────┐
@@ -570,6 +613,7 @@ User Management             Alerting
 ```
 
 **Integration Points**:
+
 ```typescript
 // Alerting Context (Downstream - Conformist)
 class NotificationService {
@@ -588,10 +632,12 @@ class NotificationService {
 ```
 
 **Responsibilities**:
+
 - **Upstream (User Management)**: Define user model, provide read-only access
 - **Downstream (Alerting)**: Consume user data as-is, no negotiation
 
 **Why Conformist**:
+
 - Alerting has no influence over User Management model
 - User Management is a generic subdomain (could be replaced with Auth0, Okta)
 - Alerting just needs basic user data (email, preferences)
@@ -607,6 +653,7 @@ All contexts share the **DDD building blocks**:
 **Location**: `/src/domain/shared/kernel/`
 
 **Shared Components**:
+
 ```typescript
 // Shared by all contexts
 export abstract class Entity<T>
@@ -615,10 +662,11 @@ export abstract class AggregateRoot<T>
 export class Result<T>
 export class Guard
 export class UniqueEntityID
-export class DomainEvents
+export class EventDispatcher
 ```
 
 **Why Shared**:
+
 - These are foundational patterns, not business concepts
 - All contexts use the same DDD tactical patterns
 - Changes to kernel are rare and coordinated
@@ -630,6 +678,7 @@ export class DomainEvents
 Some value objects are shared across contexts:
 
 **Shared Value Objects**:
+
 ```typescript
 // Shared across multiple contexts
 export class Email extends ValueObject<EmailProps>
@@ -638,6 +687,7 @@ export class Address extends ValueObject<AddressProps>
 ```
 
 **Context-Specific Value Objects**:
+
 ```typescript
 // Monitoring Context only
 export class PollingInterval extends ValueObject<PollingIntervalProps>
@@ -657,6 +707,7 @@ The **REST API** serves as a published language for external consumers:
 **Location**: `/src/presentation/http/`
 
 **API Contracts** (OpenAPI/Swagger):
+
 ```yaml
 /api/network-devices:
   get:
@@ -671,11 +722,16 @@ The **REST API** serves as a published language for external consumers:
         schema:
           type: object
           properties:
-            data: { type: array, items: { $ref: '#/components/schemas/NetworkDevice' } }
+            data:
+              {
+                type: array,
+                items: { $ref: '#/components/schemas/NetworkDevice' }
+              }
             pagination: { $ref: '#/components/schemas/Pagination' }
 ```
 
 **Why Published Language**:
+
 - Multiple consumers (web dashboard, mobile app, integrations)
 - Stable, versioned API (breaking changes require new version)
 - Well-documented with OpenAPI specification
@@ -686,6 +742,7 @@ The **REST API** serves as a published language for external consumers:
 ### Domain Events (Published Language)
 
 **Event Schema** (JSON):
+
 ```json
 {
   "eventType": "NetworkDeviceOfflineEvent",
@@ -700,6 +757,7 @@ The **REST API** serves as a published language for external consumers:
 ```
 
 **Why Published Language**:
+
 - Events are contracts between contexts
 - Versioned to support schema evolution
 - Consumers can subscribe without knowing publisher internals
@@ -713,6 +771,7 @@ The **REST API** serves as a published language for external consumers:
 **Purpose**: Protect Alerting context from changes to email provider.
 
 **Implementation**:
+
 ```typescript
 // Anti-Corruption Layer
 interface IEmailService {
@@ -755,6 +814,7 @@ class NotificationService {
 ```
 
 **Benefits**:
+
 - Easy to swap email providers
 - Alerting context independent of email service API
 - Can mock email service for testing
@@ -766,6 +826,7 @@ class NotificationService {
 **Purpose**: Protect Monitoring context from SNMP library changes.
 
 **Planned Implementation**:
+
 ```typescript
 // Anti-Corruption Layer
 interface ISNMPClient {
@@ -816,12 +877,14 @@ All contexts currently live in a **single codebase** with **shared database**:
 ```
 
 **Advantages**:
+
 - Simple deployment
 - Easy cross-context queries
 - Single database transaction
 - Lower operational complexity
 
 **Disadvantages**:
+
 - Tight coupling
 - Hard to scale independently
 - Single point of failure
@@ -849,6 +912,7 @@ src/
 ```
 
 **Database**: Still shared, but with **schema-per-context**:
+
 ```sql
 -- Device Catalog schema
 CREATE SCHEMA device_catalog;
@@ -861,6 +925,7 @@ CREATE SCHEMA network_management;
 ```
 
 **Benefits**:
+
 - Clear boundaries
 - Easier to understand
 - Preparation for microservices
@@ -889,11 +954,13 @@ CREATE SCHEMA network_management;
 ```
 
 **Integration Changes**:
+
 - Synchronous → Asynchronous (via message queue)
 - Database joins → API calls or event sourcing
 - Single transaction → Saga pattern
 
 **When to Migrate**:
+
 - Team size > 10 developers
 - Need independent scaling (monitoring needs more resources)
 - Different deployment cadences (monitoring changes frequently)
@@ -925,6 +992,7 @@ CREATE SCHEMA network_management;
 ```
 
 **Benefits**:
+
 - Complete audit trail
 - Time-travel debugging
 - Event replay for analytics
@@ -938,15 +1006,15 @@ The Context Map defines **7 bounded contexts** with **6 relationship patterns**:
 
 ### Relationships
 
-| Upstream Context | Downstream Context | Relationship Type |
-|------------------|-------------------|-------------------|
-| Device Catalog | Inventory | Customer-Supplier |
-| Inventory | Network Management | Customer-Supplier |
-| Network Management | Monitoring | Customer-Supplier |
-| Monitoring | Alerting | Publisher-Subscriber |
-| Alerting | Notification Delivery | Open Host Service |
-| Inventory | Maintenance | Shared Kernel |
-| User Management | Alerting | Conformist |
+| Upstream Context   | Downstream Context    | Relationship Type    |
+| ------------------ | --------------------- | -------------------- |
+| Device Catalog     | Inventory             | Customer-Supplier    |
+| Inventory          | Network Management    | Customer-Supplier    |
+| Network Management | Monitoring            | Customer-Supplier    |
+| Monitoring         | Alerting              | Publisher-Subscriber |
+| Alerting           | Notification Delivery | Open Host Service    |
+| Inventory          | Maintenance           | Shared Kernel        |
+| User Management    | Alerting              | Conformist           |
 
 ### Evolution Path
 

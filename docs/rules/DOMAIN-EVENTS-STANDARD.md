@@ -22,13 +22,13 @@
 
 ### Core Characteristics:
 
-- **Immutable**: Once created, cannot be changed (enforced via readonly + Object.freeze)
+- **Immutable**: Once created, cannot be changed (enforced via DomainEvent<TProps> base class)
 - **Past Tense**: Named after what happened (OrderCreated, not CreateOrder)
 - **Domain Concepts**: Represent domain occurrences, not technical events
 - **Decoupling**: Allow aggregates to communicate without direct references
 - **Eventual Consistency**: Enable cross-aggregate coordination
 - **Audit Trail**: Can be stored for event sourcing or auditing
-- **Props-Based**: Use frozen props object for guaranteed immutability
+- **Props-Based**: Extend DomainEvent<TProps> for guaranteed immutability
 
 ### Why Domain Events?
 
@@ -49,7 +49,7 @@
 | **Handlers**   | Domain/Application layer | External systems        |
 | **Guaranteed** | In-process, synchronous  | Out-of-process, async   |
 | **Schema**     | Can change freely        | Versioned contract      |
-| **Structure**  | Props-based, immutable   | DTO, versioned          |
+| **Structure**  | Extends DomainEvent<T>   | DTO, versioned          |
 
 ---
 
@@ -57,34 +57,41 @@
 
 ### MUST DO:
 
-1. **Represent Domain Occurrence**
+1. **Extend DomainEvent<TProps> Base Class**
+
+   - All events extend `DomainEvent<TProps>`
+   - Base class handles immutability automatically
+   - Props are frozen and type-safe
+   - Common methods (toString, toJSON) provided
+
+2. **Represent Domain Occurrence**
 
    - Capture significant domain state change
-   - Named after domain concept
+   - Named after domain concept in past tense
    - Contains relevant domain data
 
-2. **Be Immutable**
+3. **Be Immutable**
 
-   - All properties readonly
-   - Props object frozen with Object.freeze()
-   - Set at construction time
-   - No setters or mutations
+   - Base class ensures immutability (Object.freeze)
+   - All properties readonly in props interface
+   - No setters or mutations in event class
+   - Set at construction time only
 
-3. **Contain Relevant Data**
+4. **Contain Relevant Data**
 
    - Include data needed by handlers
    - Aggregate ID always included
-   - Timestamp of occurrence
+   - Timestamp of occurrence (dateTimeOccurred)
    - Relevant value objects or IDs (not full aggregates)
 
-4. **Be Self-Descriptive**
+5. **Be Self-Descriptive**
 
    - Event name clearly states what happened
-   - Props describe the change
-   - Just enough information
+   - Props interface describes the data
+   - Just enough information for handlers
 
-5. **Be Serializable**
-   - Can be converted to JSON
+6. **Be Serializable**
+   - Override serializeProps() for custom JSON output
    - Can be persisted (for event store)
    - Can be transmitted (for message bus)
    - Value objects provide serialization methods
@@ -110,7 +117,8 @@
 
 3. **❌ Be Mutable**
 
-   - No setters
+   - Base class prevents mutations
+   - No setters allowed
    - No methods that change state
    - Props are readonly and frozen
 
@@ -153,7 +161,7 @@
 │                    DOMAIN LAYER                             │
 │  ┌────────────────────────────────────────────────────┐     │
 │  │         DOMAIN EVENTS (You are here)               │     │
-│  │  - Immutable props-based objects                   │     │
+│  │  - Extend DomainEvent<TProps>                      │     │
 │  │  - Represent domain occurrences                    │     │
 │  │  - Published by Aggregates                         │     │
 │  │  - Handled by Application/Domain handlers          │     │
@@ -167,7 +175,7 @@
 │  └──────────────────┘                                       │
 │                                                             │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │  DomainEvents (Dispatcher)                          │    │
+│  │  EventDispatcher (Dispatcher)                       │    │
 │  │  - Manages subscriptions                            │    │
 │  │  - Dispatches events to handlers                    │    │
 │  │  - Ensures events dispatched after persistence      │    │
@@ -191,7 +199,7 @@
 3. Aggregate marks itself for dispatch
 4. Use Case saves aggregate to repository
 5. Repository dispatches events AFTER successful save
-6. DomainEvents dispatcher calls all handlers
+6. EventDispatcher dispatcher calls all handlers
 7. Handlers perform side effects
 8. Events cleared from aggregate
 ```
@@ -211,17 +219,9 @@ interface OrderProps {
   totalAmount: Money;
 }
 
-class Order extends AggregateRoot<OrderId> {
-  private constructor(
-    private readonly props: OrderProps,
-    id?: OrderId
-  ) {
-    super(id);
-    Object.freeze(this.props);
-  }
-
-  get customerId(): CustomerId {
-    return this.props.customerId;
+class Order extends AggregateRoot<OrderProps, OrderId> {
+  private constructor(props: OrderProps, id: OrderId) {
+    super(props, id);
   }
 
   get status(): OrderStatus {
@@ -248,7 +248,7 @@ class Order extends AggregateRoot<OrderId> {
         orderId: this.id,
         customerId: this.props.customerId,
         totalAmount: this.props.totalAmount,
-        occurredOn: new Date()
+        dateTimeOccurred: new Date()
       })
     );
 
@@ -273,7 +273,7 @@ class Order extends AggregateRoot<OrderId> {
       new OrderCreatedEvent({
         orderId: order.id,
         customerId: props.customerId,
-        occurredOn: new Date()
+        dateTimeOccurred: new Date()
       })
     );
 
@@ -311,7 +311,7 @@ class OrderRepository {
     await this.prisma.order.upsert({ ... });
 
     // Dispatch events AFTER successful save
-    DomainEvents.dispatchEventsForAggregate(order.id);
+    EventDispatcher.dispatchEventsForAggregate(order.id);
 
     return Result.ok(order);
   }
@@ -342,7 +342,7 @@ class OrderConfirmedHandler implements IHandle<OrderConfirmedEvent> {
 
 ### Lifecycle Phases:
 
-1. **Creation**: Event created in aggregate method with props object
+1. **Creation**: Event created in aggregate method (extends DomainEvent<TProps>)
 2. **Queuing**: Event added to aggregate's event queue
 3. **Persistence**: Aggregate saved to database
 4. **Dispatch**: Events dispatched after successful save
@@ -353,32 +353,52 @@ class OrderConfirmedHandler implements IHandle<OrderConfirmedEvent> {
 
 ## 6. Domain Event Structure Template
 
-### Base Domain Event Interface:
+### DomainEvent<TProps> Base Class:
 
 ```typescript
-import { UniqueEntityID } from '@/shared/domain/UniqueEntityID';
+import { IDomainEvent } from '../shared/interfaces/IDomainEvent';
+import { UniqueEntityID } from './UniqueEntityID';
 
 /**
- * Base interface for all domain events.
- * Events represent something that happened in the domain.
+ * Base class for Domain Events.
+ *
+ * All domain events should extend this class and provide:
+ * - Props interface defining event data
+ * - Implementation of getAggregateId()
+ * - Implementation of dateTimeOccurred getter
  */
-export interface IDomainEvent {
-  /**
-   * When the event occurred.
-   */
-  readonly occurredOn: Date;
+export abstract class DomainEvent<TProps> implements IDomainEvent {
+  protected readonly props: Readonly<TProps>;
 
-  /**
-   * Aggregate ID that published this event.
-   */
-  getAggregateId(): UniqueEntityID;
+  constructor(props: TProps) {
+    this.props = Object.freeze({ ...props }) as Readonly<TProps>;
+  }
+
+  abstract getAggregateId(): UniqueEntityID;
+  abstract get dateTimeOccurred(): Date;
+
+  public toString(): string {
+    return `${this.constructor.name}(aggregateId: ${this.getAggregateId().toString()}, occurred: ${this.dateTimeOccurred.toISOString()})`;
+  }
+
+  public toJSON(): Record<string, any> {
+    return {
+      eventType: this.constructor.name,
+      aggregateId: this.getAggregateId().toString(),
+      dateTimeOccurred: this.dateTimeOccurred.toISOString(),
+      ...this.serializeProps()
+    };
+  }
+
+  protected serializeProps(): Record<string, any> {
+    return {};
+  }
 }
 ```
 
-### Props-Based Domain Event Template:
+### Event Props Interface Template:
 
 ```typescript
-import { IDomainEvent } from '@/shared/domain/events/IDomainEvent';
 import { UniqueEntityID } from '@/shared/domain/UniqueEntityID';
 
 /**
@@ -389,8 +409,15 @@ export interface EventNameEventProps {
   readonly aggregateId: UniqueEntityID;
   readonly property1: ValueObject1;
   readonly property2: ValueObject2;
-  readonly occurredOn: Date;
+  readonly dateTimeOccurred: Date;
 }
+```
+
+### Domain Event Class Template:
+
+````typescript
+import { DomainEvent } from '@/domain/core/DomainEvent';
+import { UniqueEntityID } from '@/shared/domain/UniqueEntityID';
 
 /**
  * [Event Name] - Brief description of what happened.
@@ -415,189 +442,99 @@ export interface EventNameEventProps {
  *   aggregateId,
  *   property1: valueObject1,
  *   property2: valueObject2,
- *   occurredOn: new Date()
+ *   dateTimeOccurred: new Date()
  * });
  * ```
  */
-export class EventNameEvent implements IDomainEvent {
-  private readonly _props: EventNameEventProps;
-
+export class EventNameEvent extends DomainEvent<EventNameEventProps> {
   /**
    * Constructor for EventNameEvent.
-   * All properties are readonly and frozen for immutability.
+   * Props are automatically frozen by the base class.
    *
    * @param props - Event properties
    */
   constructor(props: EventNameEventProps) {
-    this._props = Object.freeze({ ...props });
+    super(props);
   }
 
   /**
    * Gets the aggregate ID that published this event.
    */
   public getAggregateId(): UniqueEntityID {
-    return this._props.aggregateId;
+    return this.props.aggregateId;
   }
 
   /**
    * When the event occurred.
    */
-  get occurredOn(): Date {
-    return this._props.occurredOn;
+  get dateTimeOccurred(): Date {
+    return this.props.dateTimeOccurred;
   }
 
   /**
    * Getter for property1.
    */
   get property1(): ValueObject1 {
-    return this._props.property1;
+    return this.props.property1;
   }
 
   /**
    * Getter for property2.
    */
   get property2(): ValueObject2 {
-    return this._props.property2;
+    return this.props.property2;
   }
 
   /**
-   * String representation for logging.
+   * Custom serialization for this event.
+   * Override to include event-specific properties in JSON.
    */
-  public toString(): string {
-    return `EventNameEvent(aggregateId: ${this._props.aggregateId.toString()}, occurredOn: ${this._props.occurredOn.toISOString()})`;
-  }
-
-  /**
-   * Serializes event to plain object for persistence.
-   */
-  public toJSON(): Record<string, any> {
+  protected serializeProps(): Record<string, any> {
     return {
-      aggregateId: this._props.aggregateId.toString(),
-      property1: this._props.property1.toString(),
-      property2: this._props.property2.toString(),
-      occurredOn: this._props.occurredOn.toISOString()
+      aggregateId: this.props.aggregateId.toString(),
+      property1: this.props.property1.toString(),
+      property2: this.props.property2.toString()
     };
   }
 }
-```
+````
 
-### Simplified Domain Event Template (For Simple Events):
+### Simple Event Template (Minimal Boilerplate):
+
+For simple events with few properties, you can use a minimal pattern:
 
 ```typescript
-/**
- * For simple events without complex value objects,
- * you can use constructor-based approach with readonly.
- */
-export class SimpleEventNameEvent implements IDomainEvent {
-  /**
-   * Constructor with readonly parameters for immutability.
-   */
-  constructor(
-    public readonly aggregateId: UniqueEntityID,
-    public readonly simpleProperty: string,
-    public readonly occurredOn: Date = new Date()
-  ) {
-    // Freeze for absolute immutability
-    Object.freeze(this);
-  }
-
-  public getAggregateId(): UniqueEntityID {
-    return this.aggregateId;
-  }
-
-  public toString(): string {
-    return `SimpleEventNameEvent(aggregateId: ${this.aggregateId.toString()})`;
-  }
+export interface DeviceCreatedEventProps {
+  readonly deviceId: NetworkDeviceId;
+  readonly deviceName: string;
+  readonly ipAddress: string;
+  readonly dateTimeOccurred: Date;
 }
-```
 
-### Event Handler Interface:
+export class DeviceCreatedEvent extends DomainEvent<DeviceCreatedEventProps> {
+  constructor(props: DeviceCreatedEventProps) {
+    super(props);
+  }
 
-```typescript
-import { IDomainEvent } from './IDomainEvent';
+  getAggregateId(): NetworkDeviceId {
+    return this.props.deviceId;
+  }
 
-/**
- * Interface for domain event handlers.
- * Handlers subscribe to specific event types.
- *
- * @template T - Type of event to handle
- */
-export interface IHandle<T extends IDomainEvent> {
-  /**
-   * Handles the domain event.
-   *
-   * @param event - The event to handle
-   */
-  handle(event: T): Promise<void> | void;
-}
-```
+  get dateTimeOccurred(): Date {
+    return this.props.dateTimeOccurred;
+  }
 
-### Event Handler Template:
+  // Expose properties via getters
+  get deviceId(): NetworkDeviceId {
+    return this.props.deviceId;
+  }
 
-```typescript
-import { IHandle } from '@/shared/domain/events/IHandle';
-import { EventNameEvent } from '@/domain/events/EventNameEvent';
+  get deviceName(): string {
+    return this.props.deviceName;
+  }
 
-/**
- * Handler for EventNameEvent.
- *
- * Responsibilities:
- * - [What this handler does]
- * - [Side effects it triggers]
- *
- * Dependencies:
- * - [Repository/Service 1]: For [purpose]
- * - [Repository/Service 2]: For [purpose]
- *
- * Error Handling:
- * - Handlers should be resilient and not throw errors
- * - Log errors but continue processing
- * - Use eventual consistency for recovery
- */
-export class EventNameEventHandler
-  implements IHandle<EventNameEvent>
-{
-  constructor(
-    private readonly repository1: IRepository1,
-    private readonly service1: IService1
-  ) {}
-
-  /**
-   * Handles the EventNameEvent.
-   * Performs side effects and cross-aggregate coordination.
-   */
-  public async handle(event: EventNameEvent): Promise<void> {
-    try {
-      // 1. Load related aggregates/data
-      const relatedAggregateResult =
-        await this.repository1.findById(event.relatedId);
-
-      if (relatedAggregateResult.isFailure) {
-        // Log error but don't fail (eventual consistency)
-        console.error(
-          `Failed to load aggregate: ${relatedAggregateResult.error}`
-        );
-        return;
-      }
-
-      // 2. Perform domain operation
-      const aggregate = relatedAggregateResult.value;
-      const result = aggregate.performOperation(event.property1);
-
-      if (result.isFailure) {
-        console.error(`Operation failed: ${result.error}`);
-        return;
-      }
-
-      // 3. Persist changes
-      await this.repository1.save(aggregate);
-
-      // 4. Trigger additional side effects if needed
-      await this.service1.notify(event.getAggregateId());
-    } catch (error) {
-      // Log error but don't throw (handlers should be resilient)
-      console.error(`Error handling EventNameEvent:`, error);
-    }
+  get ipAddress(): string {
+    return this.props.ipAddress;
   }
 }
 ```
@@ -606,54 +543,58 @@ export class EventNameEventHandler
 
 ## 7. Orthogonality Principles
 
-### 1. Immutability via Props Pattern
+### 1. Immutability via DomainEvent<TProps>
 
-Events use props-based pattern for guaranteed immutability:
+Events extend DomainEvent<TProps> for guaranteed immutability:
 
 ```typescript
-// ✅ GOOD - Props-based immutable event
+// ✅ GOOD - Extends DomainEvent<TProps>
 export interface OrderCreatedEventProps {
   readonly orderId: OrderId;
   readonly customerId: CustomerId;
   readonly totalAmount: Money;
-  readonly occurredOn: Date;
+  readonly dateTimeOccurred: Date;
 }
 
-export class OrderCreatedEvent implements IDomainEvent {
-  private readonly _props: OrderCreatedEventProps;
-
+export class OrderCreatedEvent extends DomainEvent<OrderCreatedEventProps> {
   constructor(props: OrderCreatedEventProps) {
-    this._props = Object.freeze({ ...props });
+    super(props); // Base class freezes props
+  }
+
+  getAggregateId(): OrderId {
+    return this.props.orderId;
+  }
+
+  get dateTimeOccurred(): Date {
+    return this.props.dateTimeOccurred;
   }
 
   get orderId(): OrderId {
-    return this._props.orderId;
+    return this.props.orderId;
   }
 
   get customerId(): CustomerId {
-    return this._props.customerId;
+    return this.props.customerId;
   }
 
   get totalAmount(): Money {
-    return this._props.totalAmount;
-  }
-
-  get occurredOn(): Date {
-    return this._props.occurredOn;
-  }
-
-  public getAggregateId(): OrderId {
-    return this._props.orderId;
+    return this.props.totalAmount;
   }
 }
 
-// ❌ BAD - Mutable event (no props, no freeze)
+// ❌ BAD - Implements interface directly (no immutability guarantee)
 export class OrderCreatedEvent implements IDomainEvent {
   public orderId: OrderId; // Not readonly!
-  public occurredOn: Date;
+  public dateTimeOccurred: Date;
+
+  constructor(orderId: OrderId) {
+    this.orderId = orderId;
+    this.dateTimeOccurred = new Date();
+    // Forgot to freeze!
+  }
 
   setOrderId(id: OrderId): void {
-    // Setter!
+    // Setter! Event is mutable!
     this.orderId = id;
   }
 }
@@ -671,40 +612,49 @@ export interface OrderShippedEventProps {
   readonly carrier: string;
   readonly estimatedDelivery: Date;
   readonly shippingAddress: Address; // Value Object
-  readonly occurredOn: Date;
+  readonly dateTimeOccurred: Date;
 }
 
-export class OrderShippedEvent implements IDomainEvent {
-  private readonly _props: OrderShippedEventProps;
-
+export class OrderShippedEvent extends DomainEvent<OrderShippedEventProps> {
   constructor(props: OrderShippedEventProps) {
-    this._props = Object.freeze({ ...props });
+    super(props);
+  }
+
+  getAggregateId(): OrderId {
+    return this.props.orderId;
+  }
+
+  get dateTimeOccurred(): Date {
+    return this.props.dateTimeOccurred;
   }
 
   get trackingNumber(): string {
-    return this._props.trackingNumber;
+    return this.props.trackingNumber;
   }
 
   get carrier(): string {
-    return this._props.carrier;
+    return this.props.carrier;
   }
 
   get estimatedDelivery(): Date {
-    return this._props.estimatedDelivery;
+    return this.props.estimatedDelivery;
   }
 
   get shippingAddress(): Address {
-    return this._props.shippingAddress;
+    return this.props.shippingAddress;
   }
-  // ... other getters
 }
 
 // ❌ BAD - Incomplete (handlers must query for details)
-export class OrderShippedEvent implements IDomainEvent {
-  constructor(
-    public readonly orderId: OrderId,
-    public readonly occurredOn: Date = new Date()
-  ) {}
+export interface OrderShippedEventProps {
+  readonly orderId: OrderId;
+  readonly dateTimeOccurred: Date;
+}
+
+export class OrderShippedEvent extends DomainEvent<OrderShippedEventProps> {
+  constructor(props: OrderShippedEventProps) {
+    super(props);
+  }
   // Missing tracking number, carrier, etc.
 }
 ```
@@ -715,11 +665,11 @@ Events represent domain concepts, not technical operations:
 
 ```typescript
 // ✅ GOOD - Domain concepts
-export class PaymentReceivedEvent {}
-export class InventoryReservedEvent {}
-export class CustomerUpgradedToGoldTierEvent {}
-export class NetworkDeviceWentOfflineEvent {}
-export class PollingResultRecordedEvent {}
+export class PaymentReceivedEvent extends DomainEvent<PaymentReceivedEventProps> {}
+export class InventoryReservedEvent extends DomainEvent<InventoryReservedEventProps> {}
+export class CustomerUpgradedToGoldTierEvent extends DomainEvent<CustomerUpgradedEventProps> {}
+export class NetworkDeviceWentOfflineEvent extends DomainEvent<DeviceOfflineEventProps> {}
+export class PollingResultRecordedEvent extends DomainEvent<PollingResultEventProps> {}
 
 // ❌ BAD - Technical operations
 export class OrderRecordUpdatedEvent {} // Database operation, not domain
@@ -734,11 +684,11 @@ Events are named after what happened (past tense):
 
 ```typescript
 // ✅ GOOD - Past tense
-export class OrderCreatedEvent {}
-export class PaymentProcessedEvent {}
-export class ItemAddedToCartEvent {}
-export class DeviceStatusChangedEvent {}
-export class AlertTriggeredEvent {}
+export class OrderCreatedEvent extends DomainEvent<OrderCreatedEventProps> {}
+export class PaymentProcessedEvent extends DomainEvent<PaymentProcessedEventProps> {}
+export class ItemAddedToCartEvent extends DomainEvent<ItemAddedEventProps> {}
+export class DeviceStatusChangedEvent extends DomainEvent<DeviceStatusChangedEventProps> {}
+export class AlertTriggeredEvent extends DomainEvent<AlertTriggeredEventProps> {}
 
 // ❌ BAD - Present/imperative
 export class CreateOrderEvent {} // Command, not event
@@ -758,7 +708,38 @@ export interface PaymentReceivedEventProps {
   readonly amount: Money; // Value Object
   readonly paymentMethod: PaymentMethod; // Value Object
   readonly transactionId: TransactionId; // Value Object
-  readonly occurredOn: Date;
+  readonly dateTimeOccurred: Date;
+}
+
+export class PaymentReceivedEvent extends DomainEvent<PaymentReceivedEventProps> {
+  constructor(props: PaymentReceivedEventProps) {
+    super(props);
+  }
+
+  getAggregateId(): OrderId {
+    return this.props.orderId;
+  }
+
+  get dateTimeOccurred(): Date {
+    return this.props.dateTimeOccurred;
+  }
+
+  get amount(): Money {
+    return this.props.amount;
+  }
+
+  get paymentMethod(): PaymentMethod {
+    return this.props.paymentMethod;
+  }
+
+  protected serializeProps(): Record<string, any> {
+    return {
+      orderId: this.props.orderId.toString(),
+      amount: this.props.amount.toJSON(),
+      paymentMethod: this.props.paymentMethod.value,
+      transactionId: this.props.transactionId.toString()
+    };
+  }
 }
 
 // ❌ BAD - Primitives
@@ -767,7 +748,7 @@ export interface PaymentReceivedEventProps {
   readonly amount: number; // Should be Money
   readonly currency: string; // Should be part of Money
   readonly paymentMethod: string; // Should be PaymentMethod
-  readonly occurredOn: Date;
+  readonly dateTimeOccurred: Date;
 }
 ```
 
@@ -784,13 +765,13 @@ export interface PaymentReceivedEventProps {
 
 ```typescript
 // ✅ GOOD - Clear, past tense, domain-focused
-export class OrderConfirmedEvent {}
-export class PaymentRefundedEvent {}
-export class InventoryRestockedEvent {}
-export class CustomerRegisteredEvent {}
-export class PollingResultRecordedEvent {}
-export class DeviceStatusChangedEvent {}
-export class AlertAcknowledgedEvent {}
+export class OrderConfirmedEvent extends DomainEvent<OrderConfirmedEventProps> {}
+export class PaymentRefundedEvent extends DomainEvent<PaymentRefundedEventProps> {}
+export class InventoryRestockedEvent extends DomainEvent<InventoryRestockedEventProps> {}
+export class CustomerRegisteredEvent extends DomainEvent<CustomerRegisteredEventProps> {}
+export class PollingResultRecordedEvent extends DomainEvent<PollingResultEventProps> {}
+export class DeviceStatusChangedEvent extends DomainEvent<DeviceStatusChangedEventProps> {}
+export class AlertAcknowledgedEvent extends DomainEvent<AlertAcknowledgedEventProps> {}
 
 // ❌ BAD - Vague, wrong tense, or technical
 export class OrderEvent {} // Too generic
@@ -828,7 +809,7 @@ export interface OrderCreatedEventProps {
   readonly totalAmount: Money; // ✅ Value Object
   readonly itemCount: number; // ✅ Primitive (when appropriate)
   readonly shippingAddress: Address; // ✅ Value Object
-  readonly occurredOn: Date; // ✅ Timestamp
+  readonly dateTimeOccurred: Date; // ✅ Timestamp
 }
 ```
 
@@ -862,13 +843,9 @@ interface OrderProps {
   totalAmount: Money;
 }
 
-export class Order extends AggregateRoot<OrderId> {
-  private constructor(
-    private readonly props: OrderProps,
-    id?: OrderId
-  ) {
-    super(id);
-    Object.freeze(this.props);
+export class Order extends AggregateRoot<OrderProps, OrderId> {
+  private constructor(props: OrderProps, id: OrderId) {
+    super(props, id);
   }
 
   public confirm(): Result<void> {
@@ -884,7 +861,7 @@ export class Order extends AggregateRoot<OrderId> {
         customerId: this.props.customerId,
         totalAmount: this.props.totalAmount,
         items: [...this.props.items],
-        occurredOn: new Date()
+        dateTimeOccurred: new Date()
       })
     );
 
@@ -960,7 +937,7 @@ export class OrderConfirmedHandler
     await this.readModelRepo.updateOrderStatus(
       event.orderId.toString(),
       'CONFIRMED',
-      event.occurredOn
+      event.dateTimeOccurred
     );
   }
 }
@@ -973,16 +950,29 @@ export class OrderConfirmedHandler
 export interface OrderConfirmedEventProps {
   readonly orderId: OrderId;
   readonly items: OrderItem[];
-  readonly occurredOn: Date;
+  readonly dateTimeOccurred: Date;
 }
 
-export class OrderConfirmedEvent implements IDomainEvent {
-  private readonly _props: OrderConfirmedEventProps;
-
+export class OrderConfirmedEvent extends DomainEvent<OrderConfirmedEventProps> {
   constructor(props: OrderConfirmedEventProps) {
-    this._props = Object.freeze({ ...props });
+    super(props);
   }
-  // ... getters
+
+  getAggregateId(): OrderId {
+    return this.props.orderId;
+  }
+
+  get dateTimeOccurred(): Date {
+    return this.props.dateTimeOccurred;
+  }
+
+  get orderId(): OrderId {
+    return this.props.orderId;
+  }
+
+  get items(): OrderItem[] {
+    return this.props.items;
+  }
 }
 
 // Handler publishes new event
@@ -1011,16 +1001,21 @@ export interface InventoryReservedEventProps {
   readonly inventoryId: InventoryId;
   readonly items: OrderItem[];
   readonly orderId: OrderId;
-  readonly occurredOn: Date;
+  readonly dateTimeOccurred: Date;
 }
 
-export class InventoryReservedEvent implements IDomainEvent {
-  private readonly _props: InventoryReservedEventProps;
-
+export class InventoryReservedEvent extends DomainEvent<InventoryReservedEventProps> {
   constructor(props: InventoryReservedEventProps) {
-    this._props = Object.freeze({ ...props });
+    super(props);
   }
-  // ... getters
+
+  getAggregateId(): InventoryId {
+    return this.props.inventoryId;
+  }
+
+  get dateTimeOccurred(): Date {
+    return this.props.dateTimeOccurred;
+  }
 }
 ```
 
@@ -1070,52 +1065,52 @@ describe('OrderConfirmedEvent', () => {
       currency: 'USD'
     }).value;
     const items = [createMockOrderItem()];
-    const occurredOn = new Date();
+    const dateTimeOccurred = new Date();
 
     const event = new OrderConfirmedEvent({
       orderId,
       customerId,
       totalAmount,
       items,
-      occurredOn
+      dateTimeOccurred
     });
 
     expect(event.orderId).toBe(orderId);
     expect(event.customerId).toBe(customerId);
     expect(event.totalAmount).toBe(totalAmount);
     expect(event.items).toEqual(items);
-    expect(event.occurredOn).toBe(occurredOn);
+    expect(event.dateTimeOccurred).toBe(dateTimeOccurred);
   });
 
-  it('should be immutable', () => {
+  it('should be immutable (props frozen)', () => {
     const event = new OrderConfirmedEvent({
       orderId: OrderId.create().value,
       customerId: CustomerId.create().value,
       totalAmount: Money.create({ amount: 100, currency: 'USD' })
         .value,
       items: [],
-      occurredOn: new Date()
+      dateTimeOccurred: new Date()
+    });
+
+    // Props should be frozen by base class
+    expect(Object.isFrozen((event as any).props)).toBe(true);
+  });
+
+  it('should not allow property mutation', () => {
+    const event = new OrderConfirmedEvent({
+      orderId: OrderId.create().value,
+      customerId: CustomerId.create().value,
+      totalAmount: Money.create({ amount: 100, currency: 'USD' })
+        .value,
+      items: [],
+      dateTimeOccurred: new Date()
     });
 
     // Attempting to modify should fail
     expect(() => {
       // @ts-expect-error - Testing immutability
-      event.orderId = OrderId.create().value;
+      (event as any).props.orderId = OrderId.create().value;
     }).toThrow();
-  });
-
-  it('should freeze props object', () => {
-    const event = new OrderConfirmedEvent({
-      orderId: OrderId.create().value,
-      customerId: CustomerId.create().value,
-      totalAmount: Money.create({ amount: 100, currency: 'USD' })
-        .value,
-      items: [],
-      occurredOn: new Date()
-    });
-
-    // Props should be frozen
-    expect(Object.isFrozen((event as any)._props)).toBe(true);
   });
 
   it('should serialize to JSON', () => {
@@ -1126,14 +1121,31 @@ describe('OrderConfirmedEvent', () => {
       totalAmount: Money.create({ amount: 100, currency: 'USD' })
         .value,
       items: [],
-      occurredOn: new Date()
+      dateTimeOccurred: new Date()
     });
 
     const json = event.toJSON();
 
-    expect(json.orderId).toBe(orderId.toString());
-    expect(json).toHaveProperty('totalAmount');
-    expect(json).toHaveProperty('occurredOn');
+    expect(json.eventType).toBe('OrderConfirmedEvent');
+    expect(json.aggregateId).toBe(orderId.toString());
+    expect(json).toHaveProperty('dateTimeOccurred');
+  });
+
+  it('should have toString method', () => {
+    const event = new OrderConfirmedEvent({
+      orderId: OrderId.create().value,
+      customerId: CustomerId.create().value,
+      totalAmount: Money.create({ amount: 100, currency: 'USD' })
+        .value,
+      items: [],
+      dateTimeOccurred: new Date()
+    });
+
+    const str = event.toString();
+
+    expect(str).toContain('OrderConfirmedEvent');
+    expect(str).toContain('aggregateId');
+    expect(str).toContain('occurred');
   });
 });
 ```
@@ -1201,13 +1213,16 @@ describe('Order Aggregate - Event Publishing', () => {
 ```typescript
 describe('OrderConfirmedHandler', () => {
   let handler: OrderConfirmedHandler;
-  let inventoryRepo: MockInventoryRepository;
-  let emailService: MockEmailService;
+  let mockInventoryRepo: MockInventoryRepository;
+  let mockEmailService: MockEmailService;
 
   beforeEach(() => {
-    inventoryRepo = new MockInventoryRepository();
-    emailService = new MockEmailService();
-    handler = new OrderConfirmedHandler(inventoryRepo, emailService);
+    mockInventoryRepo = new MockInventoryRepository();
+    mockEmailService = new MockEmailService();
+    handler = new OrderConfirmedHandler(
+      mockInventoryRepo,
+      mockEmailService
+    );
   });
 
   it('should reserve inventory when order confirmed', async () => {
@@ -1217,13 +1232,13 @@ describe('OrderConfirmedHandler', () => {
       totalAmount: Money.create({ amount: 100, currency: 'USD' })
         .value,
       items: [createMockOrderItem()],
-      occurredOn: new Date()
+      dateTimeOccurred: new Date()
     });
 
     await handler.handle(event);
 
-    expect(inventoryRepo.saveCalled).toBe(true);
-    expect(inventoryRepo.lastSaved?.isReserved).toBe(true);
+    expect(mockInventoryRepo.saveCalled).toBe(true);
+    expect(mockInventoryRepo.lastSaved?.isReserved).toBe(true);
   });
 
   it('should send confirmation email', async () => {
@@ -1233,26 +1248,28 @@ describe('OrderConfirmedHandler', () => {
       totalAmount: Money.create({ amount: 100, currency: 'USD' })
         .value,
       items: [],
-      occurredOn: new Date()
+      dateTimeOccurred: new Date()
     });
 
     await handler.handle(event);
 
-    expect(emailService.sendCalled).toBe(true);
-    expect(emailService.lastEmail?.subject).toContain('confirmed');
+    expect(mockEmailService.sendCalled).toBe(true);
+    expect(mockEmailService.lastEmail?.subject).toContain(
+      'confirmed'
+    );
   });
 
   it('should handle errors gracefully', async () => {
-    inventoryRepo.throwError = true;
-
     const event = new OrderConfirmedEvent({
       orderId: OrderId.create().value,
       customerId: CustomerId.create().value,
       totalAmount: Money.create({ amount: 100, currency: 'USD' })
         .value,
       items: [],
-      occurredOn: new Date()
+      dateTimeOccurred: new Date()
     });
+
+    mockInventoryRepo.setThrowError(true);
 
     // Should not throw
     await expect(handler.handle(event)).resolves.not.toThrow();
@@ -1264,10 +1281,10 @@ describe('OrderConfirmedHandler', () => {
 
 ## 11. Examples
 
-### Example 1: OrderConfirmedEvent (Props-Based)
+### Example 1: OrderConfirmedEvent
 
 ```typescript
-import { IDomainEvent } from '@/shared/domain/events/IDomainEvent';
+import { DomainEvent } from '@/domain/core/DomainEvent';
 import { OrderId } from '@/domain/aggregates/Order';
 import { CustomerId } from '@/domain/aggregates/Customer';
 import { Money } from '@/domain/value-objects/Money';
@@ -1281,7 +1298,7 @@ export interface OrderConfirmedEventProps {
   readonly customerId: CustomerId;
   readonly totalAmount: Money;
   readonly items: ReadonlyArray<OrderItem>;
-  readonly occurredOn: Date;
+  readonly dateTimeOccurred: Date;
 }
 
 /**
@@ -1303,48 +1320,41 @@ export interface OrderConfirmedEventProps {
  * - All items must be available in inventory
  * - Payment must be authorized
  */
-export class OrderConfirmedEvent implements IDomainEvent {
-  private readonly _props: OrderConfirmedEventProps;
-
+export class OrderConfirmedEvent extends DomainEvent<OrderConfirmedEventProps> {
   constructor(props: OrderConfirmedEventProps) {
-    this._props = Object.freeze({ ...props });
-  }
-
-  get orderId(): OrderId {
-    return this._props.orderId;
-  }
-
-  get customerId(): CustomerId {
-    return this._props.customerId;
-  }
-
-  get totalAmount(): Money {
-    return this._props.totalAmount;
-  }
-
-  get items(): ReadonlyArray<OrderItem> {
-    return this._props.items;
-  }
-
-  get occurredOn(): Date {
-    return this._props.occurredOn;
+    super(props);
   }
 
   public getAggregateId(): OrderId {
-    return this._props.orderId;
+    return this.props.orderId;
   }
 
-  public toString(): string {
-    return `OrderConfirmedEvent(orderId: ${this._props.orderId.toString()}, total: ${this._props.totalAmount.format()}, occurredOn: ${this._props.occurredOn.toISOString()})`;
+  get dateTimeOccurred(): Date {
+    return this.props.dateTimeOccurred;
   }
 
-  public toJSON(): Record<string, any> {
+  get orderId(): OrderId {
+    return this.props.orderId;
+  }
+
+  get customerId(): CustomerId {
+    return this.props.customerId;
+  }
+
+  get totalAmount(): Money {
+    return this.props.totalAmount;
+  }
+
+  get items(): ReadonlyArray<OrderItem> {
+    return this.props.items;
+  }
+
+  protected serializeProps(): Record<string, any> {
     return {
-      orderId: this._props.orderId.toString(),
-      customerId: this._props.customerId.toString(),
-      totalAmount: this._props.totalAmount.toJSON(),
-      items: this._props.items.map((item) => item.toJSON()),
-      occurredOn: this._props.occurredOn.toISOString()
+      orderId: this.props.orderId.toString(),
+      customerId: this.props.customerId.toString(),
+      totalAmount: this.props.totalAmount.toJSON(),
+      items: this.props.items.map((item) => item.toJSON())
     };
   }
 }
@@ -1353,7 +1363,7 @@ export class OrderConfirmedEvent implements IDomainEvent {
 ### Example 2: NetworkDeviceStatusChangedEvent
 
 ```typescript
-import { IDomainEvent } from '@/shared/domain/events/IDomainEvent';
+import { DomainEvent } from '@/domain/core/DomainEvent';
 import { NetworkDeviceId } from '@/domain/aggregates/NetworkDevice';
 import { NetworkDeviceStatus } from '@/domain/value-objects/NetworkDeviceStatus';
 
@@ -1365,7 +1375,7 @@ export interface NetworkDeviceStatusChangedEventProps {
   readonly previousStatus: NetworkDeviceStatus;
   readonly newStatus: NetworkDeviceStatus;
   readonly reason?: string;
-  readonly occurredOn: Date;
+  readonly dateTimeOccurred: Date;
 }
 
 /**
@@ -1388,35 +1398,33 @@ export interface NetworkDeviceStatusChangedEventProps {
  * - UNKNOWN can transition to any status
  * - ONLINE cannot transition directly to UNKNOWN
  */
-export class NetworkDeviceStatusChangedEvent implements IDomainEvent {
-  private readonly _props: NetworkDeviceStatusChangedEventProps;
-
+export class NetworkDeviceStatusChangedEvent extends DomainEvent<NetworkDeviceStatusChangedEventProps> {
   constructor(props: NetworkDeviceStatusChangedEventProps) {
-    this._props = Object.freeze({ ...props });
-  }
-
-  get deviceId(): NetworkDeviceId {
-    return this._props.deviceId;
-  }
-
-  get previousStatus(): NetworkDeviceStatus {
-    return this._props.previousStatus;
-  }
-
-  get newStatus(): NetworkDeviceStatus {
-    return this._props.newStatus;
-  }
-
-  get reason(): string | undefined {
-    return this._props.reason;
-  }
-
-  get occurredOn(): Date {
-    return this._props.occurredOn;
+    super(props);
   }
 
   public getAggregateId(): NetworkDeviceId {
-    return this._props.deviceId;
+    return this.props.deviceId;
+  }
+
+  get dateTimeOccurred(): Date {
+    return this.props.dateTimeOccurred;
+  }
+
+  get deviceId(): NetworkDeviceId {
+    return this.props.deviceId;
+  }
+
+  get previousStatus(): NetworkDeviceStatus {
+    return this.props.previousStatus;
+  }
+
+  get newStatus(): NetworkDeviceStatus {
+    return this.props.newStatus;
+  }
+
+  get reason(): string | undefined {
+    return this.props.reason;
   }
 
   /**
@@ -1424,8 +1432,8 @@ export class NetworkDeviceStatusChangedEvent implements IDomainEvent {
    */
   public get wentOffline(): boolean {
     return (
-      this._props.previousStatus.isOnline() &&
-      this._props.newStatus.isOffline()
+      this.props.previousStatus.isOnline() &&
+      this.props.newStatus.isOffline()
     );
   }
 
@@ -1434,127 +1442,75 @@ export class NetworkDeviceStatusChangedEvent implements IDomainEvent {
    */
   public get cameOnline(): boolean {
     return (
-      this._props.previousStatus.isOffline() &&
-      this._props.newStatus.isOnline()
+      this.props.previousStatus.isOffline() &&
+      this.props.newStatus.isOnline()
     );
   }
 
-  public toString(): string {
-    return `NetworkDeviceStatusChangedEvent(deviceId: ${this._props.deviceId.toString()}, ${this._props.previousStatus.value} -> ${this._props.newStatus.value}, occurredOn: ${this._props.occurredOn.toISOString()})`;
-  }
-
-  public toJSON(): Record<string, any> {
+  protected serializeProps(): Record<string, any> {
     return {
-      deviceId: this._props.deviceId.toString(),
-      previousStatus: this._props.previousStatus.value,
-      newStatus: this._props.newStatus.value,
-      reason: this._props.reason,
-      occurredOn: this._props.occurredOn.toISOString()
+      deviceId: this.props.deviceId.toString(),
+      previousStatus: this.props.previousStatus.value,
+      newStatus: this.props.newStatus.value,
+      reason: this.props.reason
     };
   }
 }
 ```
 
-### Example 3: Event Handler with Multiple Side Effects
+### Example 3: Simple Event with Minimal Boilerplate
 
 ```typescript
-import { IHandle } from '@/shared/domain/events/IHandle';
-import { NetworkDeviceStatusChangedEvent } from '@/domain/events/NetworkDeviceStatusChangedEvent';
-import { IAlertRepository } from '@/domain/repository/IAlertRepository';
-import { INetworkDeviceRepository } from '@/domain/repository/INetworkDeviceRepository';
-import { IEmailService } from '@/application/services/IEmailService';
-import { Alert } from '@/domain/aggregates/Alert';
-import { AlertSeverity } from '@/domain/value-objects/AlertSeverity';
+import { DomainEvent } from '@/domain/core/DomainEvent';
+import { NetworkDeviceId } from '@/domain/aggregates/NetworkDevice';
 
 /**
- * Handler for NetworkDeviceStatusChangedEvent.
- *
- * Responsibilities:
- * - Creates alert when device goes offline
- * - Sends notification email to administrators
- * - Records status change in audit log
- *
- * Dependencies:
- * - IAlertRepository: For persisting alerts
- * - INetworkDeviceRepository: For loading device details
- * - IEmailService: For sending notifications
+ * Props for DeviceCreatedEvent.
  */
-export class DeviceStatusChangeAlertHandler
-  implements IHandle<NetworkDeviceStatusChangedEvent>
-{
-  constructor(
-    private readonly alertRepo: IAlertRepository,
-    private readonly deviceRepo: INetworkDeviceRepository,
-    private readonly emailService: IEmailService
-  ) {}
+export interface DeviceCreatedEventProps {
+  readonly deviceId: NetworkDeviceId;
+  readonly deviceName: string;
+  readonly ipAddress: string;
+  readonly dateTimeOccurred: Date;
+}
 
-  public async handle(
-    event: NetworkDeviceStatusChangedEvent
-  ): Promise<void> {
-    try {
-      // Only alert on offline status
-      if (!event.wentOffline) {
-        return;
-      }
-
-      // Load device details
-      const deviceResult = await this.deviceRepo.findById(
-        event.deviceId
-      );
-
-      if (deviceResult.isFailure) {
-        console.error(
-          `Device not found: ${event.deviceId.toString()}`
-        );
-        return;
-      }
-
-      const device = deviceResult.value;
-
-      // Create alert
-      const alertResult = Alert.create({
-        deviceId: event.deviceId,
-        severity: this.determineSeverity(device),
-        message: `Device ${device.name} went offline`,
-        occurredAt: event.occurredOn
-      });
-
-      if (alertResult.isSuccess) {
-        await this.alertRepo.save(alertResult.value);
-      }
-
-      // Send email notification
-      await this.emailService.send({
-        to: 'admin@example.com',
-        subject: `ALERT: ${device.name} is offline`,
-        body: `Device ${device.name} (${device.ipAddress.value}) went offline at ${event.occurredOn.toISOString()}.`,
-        priority: 'high'
-      });
-
-      console.log(
-        `Alert created for device ${device.name} going offline`
-      );
-    } catch (error) {
-      // Log but don't throw - event handlers should be resilient
-      console.error(
-        'Error handling DeviceStatusChangedEvent:',
-        error
-      );
-    }
+/**
+ * DeviceCreatedEvent - New network device created.
+ *
+ * Published By: NetworkDevice aggregate
+ * Published When: NetworkDevice.create() is called
+ */
+export class DeviceCreatedEvent extends DomainEvent<DeviceCreatedEventProps> {
+  constructor(props: DeviceCreatedEventProps) {
+    super(props);
   }
 
-  /**
-   * Determines alert severity based on device criticality.
-   */
-  private determineSeverity(device: NetworkDevice): AlertSeverity {
-    // Use device priority to determine alert severity
-    if (device.priority.isCritical()) {
-      return AlertSeverity.createCritical().value;
-    } else if (device.priority.isHigh()) {
-      return AlertSeverity.createHigh().value;
-    } else {
-      return AlertSeverity.createMedium().value;
-    }
+  getAggregateId(): NetworkDeviceId {
+    return this.props.deviceId;
+  }
+
+  get dateTimeOccurred(): Date {
+    return this.props.dateTimeOccurred;
+  }
+
+  get deviceId(): NetworkDeviceId {
+    return this.props.deviceId;
+  }
+
+  get deviceName(): string {
+    return this.props.deviceName;
+  }
+
+  get ipAddress(): string {
+    return this.props.ipAddress;
+  }
+
+  protected serializeProps(): Record<string, any> {
+    return {
+      deviceId: this.props.deviceId.toString(),
+      deviceName: this.props.deviceName,
+      ipAddress: this.props.ipAddress
+    };
   }
 }
 ```
@@ -1565,25 +1521,27 @@ export class DeviceStatusChangeAlertHandler
 
 When creating a Domain Event, ensure:
 
+- ✅ Extends `DomainEvent<TProps>` base class
 - ✅ Named with past tense verb + Event suffix
-- ✅ Implements IDomainEvent interface
-- ✅ Uses props-based pattern with interface
+- ✅ Props interface defines all event properties
 - ✅ All props are readonly
-- ✅ Props object is frozen with Object.freeze()
-- ✅ Contains aggregate ID
-- ✅ Contains occurredOn timestamp
+- ✅ Implements `getAggregateId()` method
+- ✅ Implements `dateTimeOccurred` getter
+- ✅ Contains aggregate ID in props
+- ✅ Contains dateTimeOccurred timestamp
 - ✅ Includes all relevant data for handlers
 - ✅ Uses value objects instead of primitives
 - ✅ No business logic (data only)
 - ✅ Represents domain occurrence (not technical operation)
 - ✅ Published by aggregate root
-- ✅ Provides toJSON() for serialization
+- ✅ Overrides `serializeProps()` for custom JSON output
 - ✅ Handlers are registered at startup
 - ✅ Handlers are resilient (catch errors)
 - ✅ Events dispatched AFTER successful persistence
 - ✅ Comprehensive tests for event creation and handling
 - ✅ Tests verify immutability with Object.isFrozen()
+- ✅ Base class ensures props are frozen (no manual freeze needed)
 
 ---
 
-**Remember**: Domain Events enable loose coupling between aggregates and provide a clean way to trigger side effects. Use the props-based pattern for guaranteed immutability, keep events self-contained with value objects, and ensure handlers are resilient!
+**Remember**: Domain Events enable loose coupling between aggregates and provide a clean way to trigger side effects. Use the `DomainEvent<TProps>` base class for guaranteed immutability and consistent structure!

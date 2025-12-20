@@ -26,6 +26,7 @@ describe('ValueObject Base Class', () => {
   it('should throw when trying to mutate properties', () => {
     const vo = new FullName({ first: 'Jane', last: 'Doe' });
 
+    // @ts-expect-error Testing immutability
     expect(() => (vo['props'].first = 'Hacked')).toThrow();
   });
 

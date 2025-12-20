@@ -1,6 +1,7 @@
 # DOMAIN AGGREGATES STANDARD
 
 ## Table of Contents
+
 1. [Purpose of Aggregates in DDD](#1-purpose-of-aggregates-in-ddd)
 2. [Responsibilities of an Aggregate](#2-responsibilities-of-an-aggregate)
 3. [Boundaries of an Aggregate](#3-boundaries-of-an-aggregate)
@@ -32,6 +33,7 @@
 ### Key Concept: Aggregate Root
 
 The **Aggregate Root** is the only entity within the aggregate that:
+
 - External objects can hold references to
 - Can be retrieved from repository
 - Enforces invariants for the entire aggregate
@@ -39,14 +41,14 @@ The **Aggregate Root** is the only entity within the aggregate that:
 
 ### Aggregates vs Entities:
 
-| Aspect | Aggregate | Entity |
-|--------|-----------|--------|
-| **Scope** | Cluster of related objects | Single domain object |
-| **Identity** | Root has identity | Has identity |
-| **Invariants** | Enforces across multiple objects | Enforces own invariants |
-| **Transaction** | Transaction boundary | Part of transaction |
-| **Repository** | Has repository | May or may not have repository |
-| **External Access** | Only root accessible | Depends on aggregate design |
+| Aspect              | Aggregate                        | Entity                         |
+| ------------------- | -------------------------------- | ------------------------------ |
+| **Scope**           | Cluster of related objects       | Single domain object           |
+| **Identity**        | Root has identity                | Has identity                   |
+| **Invariants**      | Enforces across multiple objects | Enforces own invariants        |
+| **Transaction**     | Transaction boundary             | Part of transaction            |
+| **Repository**      | Has repository                   | May or may not have repository |
+| **External Access** | Only root accessible             | Depends on aggregate design    |
 
 ### Why Aggregates?
 
@@ -63,26 +65,31 @@ The **Aggregate Root** is the only entity within the aggregate that:
 ### MUST DO:
 
 1. **Define Consistency Boundary**
+
    - All invariants within aggregate enforced together
    - No partial updates that violate business rules
    - Root validates all state changes
 
 2. **Control Access to Internal Entities**
+
    - External code can only access internal entities through root
    - Root provides methods for operations on children
    - Root decides when to create/modify/delete children
 
 3. **Maintain Aggregate Invariants**
+
    - Cross-entity business rules enforced by root
    - Validate all changes before applying them
    - Ensure aggregate is always in valid state
 
 4. **Publish Domain Events**
+
    - Events for significant state changes
    - Events for cross-aggregate coordination
    - Events for audit/notification purposes
 
 5. **Manage Child Lifecycle**
+
    - Create child entities
    - Modify child entities
    - Remove child entities
@@ -107,22 +114,26 @@ The **Aggregate Root** is the only entity within the aggregate that:
 ### MUST NOT DO:
 
 1. **❌ Span Too Large**
+
    - Large aggregates = performance problems
    - Difficult to maintain consistency
    - Increased lock contention
    - Rule of thumb: Keep aggregates small
 
 2. **❌ Enforce Invariants Across Aggregates**
+
    - Use eventual consistency for cross-aggregate rules
    - Use Domain Events for coordination
    - Use Domain Services for cross-aggregate logic
 
 3. **❌ Hold Direct References to Other Aggregates**
+
    - Reference by ID only
    - Load other aggregates via repository if needed
    - Prevents tight coupling
 
 4. **❌ Modify Multiple Aggregates in One Transaction**
+
    - One transaction = one aggregate instance
    - Use Domain Events for multi-aggregate changes
    - Use Sagas for complex multi-aggregate workflows
@@ -299,7 +310,7 @@ async execute(request: TransferMoneyRequest): Promise<Result<void>> {
 import { Result } from '@/shared/core/Result';
 import { AggregateRoot } from '@/shared/domain/AggregateRoot';
 import { UniqueEntityID } from '@/shared/domain/UniqueEntityID';
-import { DomainEvents } from '@/shared/domain/events/DomainEvents';
+import { EventDispatcher } from '@/shared/domain/events/EventDispatcher';
 import { AggregateCreatedEvent } from './events/AggregateCreatedEvent';
 
 // Aggregate Root ID
@@ -406,7 +417,9 @@ export class AggregateRoot extends AggregateRoot<AggregateRootId> {
   public addChild(child: ChildEntity): Result<void> {
     // Validate the addition maintains aggregate invariants
     if (!this.canAddChild(child)) {
-      return Result.fail<void>('Cannot add child: violates aggregate invariants');
+      return Result.fail<void>(
+        'Cannot add child: violates aggregate invariants'
+      );
     }
 
     // Add child
@@ -425,8 +438,8 @@ export class AggregateRoot extends AggregateRoot<AggregateRootId> {
    * Removes a child entity from the aggregate.
    */
   public removeChild(childId: ChildEntityId): Result<void> {
-    const index = this._childEntities.findIndex(
-      c => c.id.equals(childId)
+    const index = this._childEntities.findIndex((c) =>
+      c.id.equals(childId)
     );
 
     if (index === -1) {
@@ -435,7 +448,9 @@ export class AggregateRoot extends AggregateRoot<AggregateRootId> {
 
     // Validate removal maintains invariants
     if (!this.canRemoveChild(childId)) {
-      return Result.fail<void>('Cannot remove child: violates aggregate invariants');
+      return Result.fail<void>(
+        'Cannot remove child: violates aggregate invariants'
+      );
     }
 
     // Remove child
@@ -468,7 +483,9 @@ export class AggregateRoot extends AggregateRoot<AggregateRootId> {
    * Returns copy to prevent external modification.
    */
   public getChild(childId: ChildEntityId): ChildEntity | null {
-    return this._childEntities.find(c => c.id.equals(childId)) ?? null;
+    return (
+      this._childEntities.find((c) => c.id.equals(childId)) ?? null
+    );
   }
 
   // Getters
@@ -491,14 +508,16 @@ export class AggregateRoot extends AggregateRoot<AggregateRootId> {
 ```typescript
 import { Entity } from './Entity';
 import { DomainEvent } from './events/DomainEvent';
-import { DomainEvents } from './events/DomainEvents';
+import { EventDispatcher } from './events/EventDispatcher';
 import { UniqueEntityID } from './UniqueEntityID';
 
 /**
  * Base class for all aggregate roots.
  * Extends Entity with domain event capabilities.
  */
-export abstract class AggregateRoot<T extends UniqueEntityID> extends Entity<T> {
+export abstract class AggregateRoot<
+  T extends UniqueEntityID
+> extends Entity<T> {
   private _domainEvents: DomainEvent[] = [];
 
   /**
@@ -517,7 +536,7 @@ export abstract class AggregateRoot<T extends UniqueEntityID> extends Entity<T> 
     this._domainEvents.push(domainEvent);
 
     // Mark aggregate as having events
-    DomainEvents.markAggregateForDispatch(this);
+    EventDispatcher.markAggregateForDispatch(this);
   }
 
   /**
@@ -541,20 +560,20 @@ Keep aggregates as small as possible while maintaining consistency:
 ```typescript
 // ✅ GOOD - Small aggregate
 class Order {
-  private _customerId: string;        // Reference by ID
-  private _items: OrderItem[];        // Children
-  private _total: Money;              // Derived value
+  private _customerId: string; // Reference by ID
+  private _items: OrderItem[]; // Children
+  private _total: Money; // Derived value
 
   // Only what needs to change together atomically
 }
 
 // ❌ BAD - Too large
 class Order {
-  private _customer: Customer;        // Full customer aggregate!
+  private _customer: Customer; // Full customer aggregate!
   private _items: OrderItem[];
-  private _shipments: Shipment[];     // Separate aggregate
-  private _invoices: Invoice[];       // Separate aggregate
-  private _payments: Payment[];       // Separate aggregate
+  private _shipments: Shipment[]; // Separate aggregate
+  private _invoices: Invoice[]; // Separate aggregate
+  private _payments: Payment[]; // Separate aggregate
 
   // Too many things changing together = performance issues
 }
@@ -567,7 +586,7 @@ Other aggregates referenced by ID only:
 ```typescript
 // ✅ GOOD - Reference by ID
 class Order {
-  private _customerId: CustomerId;    // ID only
+  private _customerId: CustomerId; // ID only
 
   public getCustomer(): Promise<Customer> {
     // Load if needed via repository
@@ -577,7 +596,7 @@ class Order {
 
 // ❌ BAD - Direct reference
 class Order {
-  private _customer: Customer;        // Full object!
+  private _customer: Customer; // Full object!
 
   // Creates tight coupling, transaction issues
 }
@@ -630,7 +649,9 @@ class Order extends AggregateRoot<OrderId> {
     this._status = OrderStatus.COMPLETED;
 
     // Publish event for other aggregates
-    this.addDomainEvent(new OrderCompletedEvent(this.id, this._items));
+    this.addDomainEvent(
+      new OrderCompletedEvent(this.id, this._items)
+    );
 
     return Result.ok();
   }
@@ -640,7 +661,9 @@ class Order extends AggregateRoot<OrderId> {
 class OrderCompletedHandler {
   async handle(event: OrderCompletedEvent): Promise<void> {
     // Update Inventory aggregate separately
-    const inventory = await this.inventoryRepo.findByProductIds(event.items);
+    const inventory = await this.inventoryRepo.findByProductIds(
+      event.items
+    );
     inventory.reserve(event.items);
     await this.inventoryRepo.save(inventory);
   }
@@ -652,54 +675,57 @@ class OrderCompletedHandler {
 ## 8. Naming Conventions
 
 ### Aggregate Root Names:
+
 - Use **domain-meaningful nouns**
 - Should represent the core concept
 - Often the most important entity in the cluster
 
 ```typescript
 // ✅ GOOD
-class Order { }              // Core concept
-class NetworkDevice { }      // Core concept
-class ShoppingCart { }       // Core concept
+class Order {} // Core concept
+class NetworkDevice {} // Core concept
+class ShoppingCart {} // Core concept
 
 // ❌ BAD
-class OrderAggregate { }     // "Aggregate" suffix unnecessary
-class OrderRoot { }          // "Root" suffix unnecessary
-class OrderData { }          // Not descriptive of domain role
+class OrderAggregate {} // "Aggregate" suffix unnecessary
+class OrderRoot {} // "Root" suffix unnecessary
+class OrderData {} // Not descriptive of domain role
 ```
 
 ### Child Entity Names:
+
 - Related to parent context
 - Describe their role in the aggregate
 
 ```typescript
 class Order {
-  private _items: OrderItem[];         // ✅ Clear relationship
-  private _shipment: OrderShipment;    // ✅ Scoped to Order
+  private _items: OrderItem[]; // ✅ Clear relationship
+  private _shipment: OrderShipment; // ✅ Scoped to Order
 }
 
 class Order {
-  private _items: Item[];              // ❌ Too generic
-  private _products: Product[];        // ❌ Product is likely another aggregate
+  private _items: Item[]; // ❌ Too generic
+  private _products: Product[]; // ❌ Product is likely another aggregate
 }
 ```
 
 ### Event Names:
+
 - Past tense (something happened)
 - Include aggregate name
 - Describe what changed
 
 ```typescript
 // ✅ GOOD
-class OrderCreatedEvent { }
-class OrderCompletedEvent { }
-class OrderCancelledEvent { }
-class ItemAddedToOrderEvent { }
+class OrderCreatedEvent {}
+class OrderCompletedEvent {}
+class OrderCancelledEvent {}
+class ItemAddedToOrderEvent {}
 
 // ❌ BAD
-class CreateOrderEvent { }          // Present tense
-class OrderEvent { }                // Not specific
-class OrderChange { }               // Not clear what happened
+class CreateOrderEvent {} // Present tense
+class OrderEvent {} // Not specific
+class OrderChange {} // Not clear what happened
 ```
 
 ---
@@ -789,7 +815,7 @@ class Order extends AggregateRoot<OrderId> {
     newQuantity: number
   ): Result<void> {
     // Find child
-    const item = this._items.find(i => i.id.equals(itemId));
+    const item = this._items.find((i) => i.id.equals(itemId));
     if (!item) {
       return Result.fail('Item not found');
     }
@@ -820,7 +846,9 @@ class Order extends AggregateRoot<OrderId> {
     newQuantity: number
   ): number {
     return this._items.reduce((sum, item) => {
-      const quantity = item.id.equals(itemId) ? newQuantity : item.quantity;
+      const quantity = item.id.equals(itemId)
+        ? newQuantity
+        : item.quantity;
       return sum + quantity;
     }, 0);
   }
@@ -848,7 +876,7 @@ class Order extends AggregateRoot<OrderId> {
     // Multiple changes happen atomically
     this._status = OrderStatus.COMPLETED;
     this._completedAt = new Date();
-    this._items.forEach(item => item.markAsOrdered());
+    this._items.forEach((item) => item.markAsOrdered());
 
     // All or nothing when saved to DB
     this.touch();
@@ -888,7 +916,9 @@ class Order extends AggregateRoot<OrderId> {
 class UpdateCustomerStatisticsHandler {
   async handle(event: OrderCompletedEvent): Promise<void> {
     // Load different aggregate
-    const customer = await this.customerRepo.findById(event.customerId);
+    const customer = await this.customerRepo.findById(
+      event.customerId
+    );
 
     // Update it
     customer.recordOrderCompleted(event.orderId, event.total);
@@ -902,6 +932,7 @@ class UpdateCustomerStatisticsHandler {
 ### Consistency Rules:
 
 1. **Strong Consistency (Immediate)**:
+
    - Within single aggregate
    - Enforced by aggregate root
    - Validated before saving
@@ -927,7 +958,9 @@ class ShoppingCart {
 class OrderCompletedHandler {
   async handle(event: OrderCompletedEvent): Promise<void> {
     // Updates CustomerStatistics aggregate eventually
-    const stats = await this.statsRepo.findByCustomerId(event.customerId);
+    const stats = await this.statsRepo.findByCustomerId(
+      event.customerId
+    );
     stats.incrementOrderCount();
     await this.statsRepo.save(stats);
   }
@@ -1009,8 +1042,14 @@ describe('Order Aggregate', () => {
       it('should sum all item subtotals correctly', () => {
         const order = Order.create(createValidOrderProps()).value;
 
-        const item1 = createOrderItem(Money.create({ amount: 10, currency: 'USD' }).value, 2);
-        const item2 = createOrderItem(Money.create({ amount: 15, currency: 'USD' }).value, 3);
+        const item1 = createOrderItem(
+          Money.create({ amount: 10, currency: 'USD' }).value,
+          2
+        );
+        const item2 = createOrderItem(
+          Money.create({ amount: 15, currency: 'USD' }).value,
+          3
+        );
 
         order.addItem(item1);
         order.addItem(item2);
@@ -1078,7 +1117,9 @@ describe('Order Aggregate', () => {
       order.confirm();
 
       expect(order.domainEvents).toHaveLength(1);
-      expect(order.domainEvents[0]).toBeInstanceOf(OrderConfirmedEvent);
+      expect(order.domainEvents[0]).toBeInstanceOf(
+        OrderConfirmedEvent
+      );
     });
 
     it('should clear events after dispatch', () => {
@@ -1247,7 +1288,9 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceId> {
     }
 
     if (!props.pollingConfiguration) {
-      return Result.fail<NetworkDevice>('Polling configuration is required');
+      return Result.fail<NetworkDevice>(
+        'Polling configuration is required'
+      );
     }
 
     // Validate aggregate invariants
@@ -1373,7 +1416,8 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceId> {
   public updatePollingInterval(
     newInterval: PollingInterval
   ): Result<void> {
-    const updateResult = this._pollingConfiguration.updateInterval(newInterval);
+    const updateResult =
+      this._pollingConfiguration.updateInterval(newInterval);
     if (updateResult.isFailure) {
       return updateResult;
     }

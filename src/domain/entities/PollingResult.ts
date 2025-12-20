@@ -110,8 +110,7 @@ export class PollingResult extends AggregateRoot<
 
     // Business rule: If status is SUCCESS or PARTIAL_SUCCESS, metrics must be present
     if (
-      (props.status === PollingStatus.SUCCESS ||
-        props.status === PollingStatus.PARTIAL_SUCCESS) &&
+      (props.status.isSuccess() || props.status.isPartialSuccess()) &&
       !props.metrics
     ) {
       return Result.fail<PollingResult>(
@@ -121,8 +120,7 @@ export class PollingResult extends AggregateRoot<
 
     // Business rule: If status is FAILED or TIMEOUT, errorMessage should be present
     if (
-      (props.status === PollingStatus.FAILED ||
-        props.status === PollingStatus.TIMEOUT) &&
+      (props.status.isFailed() || props.status.isTimeout()) &&
       !props.errorMessage
     ) {
       return Result.fail<PollingResult>(
@@ -162,7 +160,7 @@ export class PollingResult extends AggregateRoot<
     const createResult = this.create({
       networkDeviceId: props.networkDeviceId,
       timestamp: props.timestamp,
-      status: PollingStatus.SUCCESS,
+      status: PollingStatus.createSuccess().value,
       metrics: props.metrics,
       attemptNumber: props.attemptNumber,
       errorMessage: null,
@@ -242,8 +240,8 @@ export class PollingResult extends AggregateRoot<
    */
   public isSuccessful(): boolean {
     return (
-      this.props.status === PollingStatus.SUCCESS ||
-      this.props.status === PollingStatus.PARTIAL_SUCCESS
+      this.props.status.isSuccess() ||
+      this.props.status.isPartialSuccess()
     );
   }
 
@@ -252,8 +250,7 @@ export class PollingResult extends AggregateRoot<
    */
   public hasFailed(): boolean {
     return (
-      this.props.status === PollingStatus.FAILED ||
-      this.props.status === PollingStatus.TIMEOUT
+      this.props.status.isFailed() || this.props.status.isTimeout()
     );
   }
 
@@ -275,14 +272,14 @@ export class PollingResult extends AggregateRoot<
    * Checks if this poll indicates the device is online.
    */
   public indicatesOnline(): boolean {
-    return this.props.deviceStatus === NetworkDeviceStatus.ONLINE;
+    return this.props.deviceStatus.isOnline();
   }
 
   /**
    * Checks if this poll indicates the device is offline.
    */
   public indicatesOffline(): boolean {
-    return this.props.deviceStatus === NetworkDeviceStatus.OFFLINE;
+    return this.props.deviceStatus.isOffline();
   }
 
   /**
