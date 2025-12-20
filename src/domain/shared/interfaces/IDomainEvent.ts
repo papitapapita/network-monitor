@@ -19,20 +19,9 @@ export interface IDomainEvent {
   dateTimeOccurred: Date;
 
   /**
-   * Returns the ID of the aggregate that produced the event.
-   *
+   * The ID of the aggregate that produced the event.
    * This allows the event dispatcher to know which object
    * triggered the event.
    */
-  getAggregateId(): UniqueEntityID;
+  aggregateId: UniqueEntityID;
 }
-
-/**
- * Type definition for a domain event handler function.
- *
- * An event handler processes a specific domain event
- * when it is dispatched by the event dispatcher.
- *
- * @param event - The domain event to handle.
- */
-export type EventHandler = (event: IDomainEvent) => void;

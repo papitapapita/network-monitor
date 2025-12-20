@@ -1,5 +1,5 @@
-import { IDomainEvent } from '../shared/interfaces/IDomainEvent';
 import { UniqueEntityID } from './UniqueEntityID';
+import { IDomainEvent } from '../';
 
 /**
  * Base class for Domain Events used in Domain-Driven Design (DDD).
@@ -80,7 +80,7 @@ export abstract class DomainEvent<TProps> implements IDomainEvent {
    *
    * @returns The unique identifier of the aggregate
    */
-  abstract getAggregateId(): UniqueEntityID;
+  abstract get aggregateId(): UniqueEntityID;
 
   /**
    * The exact date and time when the event occurred.
@@ -110,7 +110,7 @@ export abstract class DomainEvent<TProps> implements IDomainEvent {
    * ```
    */
   public toString(): string {
-    return `${this.constructor.name}(aggregateId: ${this.getAggregateId().toString()}, occurred: ${this.dateTimeOccurred.toISOString()})`;
+    return `${this.constructor.name}(aggregateId: ${this.aggregateId.toString()}, occurred: ${this.dateTimeOccurred.toISOString()})`;
   }
 
   /**
@@ -143,7 +143,7 @@ export abstract class DomainEvent<TProps> implements IDomainEvent {
   public toJSON(): Record<string, any> {
     return {
       eventType: this.constructor.name,
-      aggregateId: this.getAggregateId().toString(),
+      aggregateId: this.aggregateId.toString(),
       dateTimeOccurred: this.dateTimeOccurred.toISOString(),
       ...this.serializeProps()
     };

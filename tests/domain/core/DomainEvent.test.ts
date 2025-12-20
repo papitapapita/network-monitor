@@ -30,7 +30,7 @@ class TestEvent extends DomainEvent<TestEventProps> {
     super(props);
   }
 
-  public getAggregateId(): TestID {
+  get aggregateId(): TestID {
     return this.props.aggregateId;
   }
 
@@ -64,7 +64,7 @@ class MinimalTestEvent extends DomainEvent<TestEventProps> {
     super(props);
   }
 
-  public getAggregateId(): UniqueEntityID {
+  get aggregateId(): UniqueEntityID {
     return this.props.aggregateId;
   }
 
@@ -92,7 +92,7 @@ describe('DomainEvent<TProps>', () => {
 
       // Assert
       expect(event).toBeDefined();
-      expect(event.getAggregateId()).toBe(aggregateId);
+      expect(event.aggregateId).toBe(aggregateId);
       expect(event.testProperty).toBe(testProperty);
       expect(event.numericProperty).toBe(numericProperty);
       expect(event.dateTimeOccurred).toBe(dateTimeOccurred);
@@ -216,7 +216,7 @@ describe('DomainEvent<TProps>', () => {
       });
 
       // Act
-      const result = event.getAggregateId();
+      const result = event.aggregateId;
 
       // Assert
       expect(result).toBe(aggregateId);
@@ -233,8 +233,8 @@ describe('DomainEvent<TProps>', () => {
       });
 
       // Act
-      const result1 = event.getAggregateId();
-      const result2 = event.getAggregateId();
+      const result1 = event.aggregateId;
+      const result2 = event.aggregateId;
 
       // Assert
       expect(result1).toBe(result2);
@@ -509,7 +509,7 @@ describe('DomainEvent<TProps>', () => {
       // Act & Assert
       expect(event.testProperty).toBe(testProperty);
       expect(event.numericProperty).toBe(numericProperty);
-      expect(event.getAggregateId()).toBe(aggregateId);
+      expect(event.aggregateId).toBe(aggregateId);
       expect(event.dateTimeOccurred).toBe(dateTimeOccurred);
     });
 
@@ -541,7 +541,7 @@ describe('DomainEvent<TProps>', () => {
           super(props);
         }
 
-        getAggregateId(): UniqueEntityID {
+        get aggregateId(): UniqueEntityID {
           return this.props.id;
         }
 
@@ -558,7 +558,7 @@ describe('DomainEvent<TProps>', () => {
 
       // Assert
       expect(event).toBeDefined();
-      expect(event.getAggregateId()).toBeDefined();
+      expect(event.aggregateId).toBeDefined();
       expect(event.dateTimeOccurred).toBeDefined();
     });
 
@@ -578,7 +578,7 @@ describe('DomainEvent<TProps>', () => {
           super(props);
         }
 
-        getAggregateId(): UniqueEntityID {
+        get aggregateId(): UniqueEntityID {
           return this.props.aggregateId;
         }
 
