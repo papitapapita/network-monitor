@@ -176,12 +176,13 @@ export class NetworkDevice extends AggregateRoot<
     // Emit creation event if this is a new device (no ID provided)
     if (!id) {
       networkDevice.addDomainEvent(
-        new NetworkDeviceCreatedEvent(
-          networkDevice.id,
-          networkDevice.name,
-          networkDevice.ipAddress.toString(),
-          networkDevice.macAddress.toString()
-        )
+        new NetworkDeviceCreatedEvent({
+          aggregateId: networkDevice.id,
+          deviceName: networkDevice.name,
+          ipAddress: networkDevice.ipAddress,
+          macAddress: networkDevice.macAddress,
+          dateTimeOccurred: new Date()
+        })
       );
     }
 
@@ -214,13 +215,14 @@ export class NetworkDevice extends AggregateRoot<
 
     // Emit status changed event
     this.addDomainEvent(
-      new NetworkDeviceStatusChangedEvent(
-        this.id,
-        this.name,
-        oldStatus,
+      new NetworkDeviceStatusChangedEvent({
+        aggregateId: this.id,
+        deviceName: this.name,
+        previousStatus: oldStatus,
+        ipAddress: this.ipAddress,
         newStatus,
-        this.ipAddress.toString()
-      )
+        dateTimeOccurred: new Date()
+      })
     );
 
     return Result.ok<void>();
@@ -259,13 +261,14 @@ export class NetworkDevice extends AggregateRoot<
     // Emit update event if name actually changed
     if (oldName !== newName) {
       this.addDomainEvent(
-        new NetworkDeviceUpdatedEvent(
-          this.id,
-          this.name,
-          ['name'],
-          { name: oldName },
-          { name: newName }
-        )
+        new NetworkDeviceUpdatedEvent({
+          aggregateId: this.id,
+          deviceName: this.name,
+          changedFields: ['name'],
+          previousValues: { name: oldName },
+          newValues: { name: newName },
+          dateTimeOccurred: new Date()
+        })
       );
     }
 
@@ -297,13 +300,14 @@ export class NetworkDevice extends AggregateRoot<
     // Emit update event if description actually changed
     if (oldDescription !== description) {
       this.addDomainEvent(
-        new NetworkDeviceUpdatedEvent(
-          this.id,
-          this.name,
-          ['description'],
-          { description: oldDescription },
-          { description: description }
-        )
+        new NetworkDeviceUpdatedEvent({
+          aggregateId: this.id,
+          deviceName: this.name,
+          changedFields: ['description'],
+          previousValues: { description: oldDescription },
+          newValues: { description: description },
+          dateTimeOccurred: new Date()
+        })
       );
     }
 
@@ -391,13 +395,14 @@ export class NetworkDevice extends AggregateRoot<
     // Emit event if anything actually changed
     if (changedFields.length > 0) {
       this.addDomainEvent(
-        new NetworkDeviceUpdatedEvent(
-          this.id,
-          this.name,
+        new NetworkDeviceUpdatedEvent({
+          aggregateId: this.id,
+          deviceName: this.name,
           changedFields,
           previousValues,
-          newValues
-        )
+          newValues,
+          dateTimeOccurred: new Date()
+        })
       );
     }
 
@@ -454,13 +459,14 @@ export class NetworkDevice extends AggregateRoot<
     // Emit event if interval actually changed
     if (!previousInterval.equals(interval)) {
       this.addDomainEvent(
-        new PollingIntervalChangedEvent(
-          this.props.pollingConfiguration.id,
-          this.id,
+        new PollingIntervalChangedEvent({
+          aggregateId: this.id,
+          pollingConfigurationId: this.props.pollingConfiguration.id,
           previousInterval,
-          interval,
-          this.name
-        )
+          newInterval: interval,
+          deviceName: this.name,
+          dateTimeOccurred: new Date()
+        })
       );
     }
 
@@ -486,13 +492,14 @@ export class NetworkDevice extends AggregateRoot<
     // Emit event if ping count actually changed
     if (previousPingCount !== count) {
       this.addDomainEvent(
-        new PingCountChangedEvent(
-          this.props.pollingConfiguration.id,
-          this.id,
+        new PingCountChangedEvent({
+          aggregateId: this.id,
+          pollingConfigurationId: this.props.pollingConfiguration.id,
           previousPingCount,
-          count,
-          this.name
-        )
+          newPingCount: count,
+          deviceName: this.name,
+          dateTimeOccurred: new Date()
+        })
       );
     }
 
@@ -514,12 +521,13 @@ export class NetworkDevice extends AggregateRoot<
     // Emit event if state actually changed
     if (stateChanged) {
       this.addDomainEvent(
-        new PollingConfigurationChangedEvent(
-          this.props.pollingConfiguration.id,
-          this.id,
-          this.name,
-          'Polling enabled'
-        )
+        new PollingConfigurationChangedEvent({
+          aggregateId: this.id,
+          pollingConfigurationId: this.props.pollingConfiguration.id,
+          deviceName: this.name,
+          changeDescription: 'Polling enabled',
+          dateTimeOccurred: new Date()
+        })
       );
     }
 
@@ -541,12 +549,13 @@ export class NetworkDevice extends AggregateRoot<
     // Emit event if state actually changed
     if (stateChanged) {
       this.addDomainEvent(
-        new PollingConfigurationChangedEvent(
-          this.props.pollingConfiguration.id,
-          this.id,
-          this.name,
-          'Polling disabled'
-        )
+        new PollingConfigurationChangedEvent({
+          aggregateId: this.id,
+          pollingConfigurationId: this.props.pollingConfiguration.id,
+          deviceName: this.name,
+          changeDescription: 'Polling disabled',
+          dateTimeOccurred: new Date()
+        })
       );
     }
 
@@ -615,13 +624,14 @@ export class NetworkDevice extends AggregateRoot<
   public markForDeletion(deletedBy?: string): Result<void> {
     // Emit deletion event with current device state
     this.addDomainEvent(
-      new NetworkDeviceDeletedEvent(
-        this.id,
-        this.name,
-        this.ipAddress.toString(),
-        this.macAddress.toString(),
-        deletedBy
-      )
+      new NetworkDeviceDeletedEvent({
+        aggregateId: this.id,
+        deviceName: this.name,
+        ipAddress: this.ipAddress,
+        macAddress: this.macAddress,
+        deletedBy,
+        dateTimeOccurred: new Date()
+      })
     );
 
     return Result.ok<void>();

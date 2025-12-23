@@ -10,7 +10,8 @@ import {
   NetworkDeviceId,
   PollingResultProps,
   DevicePolledSuccessfullyEvent,
-  DevicePollingFailedEvent
+  DevicePollingFailedEvent,
+  IPAddress
 } from '../';
 
 /**
@@ -154,7 +155,7 @@ export class PollingResult extends AggregateRoot<
     attemptNumber: number;
     deviceStatus: NetworkDeviceStatus;
     deviceName: string;
-    ipAddress: string;
+    ipAddress: IPAddress;
     wasOffline?: boolean;
   }): Result<PollingResult> {
     const createResult = this.create({
@@ -172,14 +173,15 @@ export class PollingResult extends AggregateRoot<
 
       // Emit success event
       pollingResult.addDomainEvent(
-        new DevicePolledSuccessfullyEvent(
-          pollingResult.id,
-          props.networkDeviceId,
-          props.deviceName,
-          props.ipAddress,
-          props.metrics,
-          props.wasOffline || false
-        )
+        new DevicePolledSuccessfullyEvent({
+          aggregateId: pollingResult.id,
+          networkDeviceId: props.networkDeviceId,
+          deviceName: props.deviceName,
+          ipAddress: props.ipAddress,
+          metrics: props.metrics,
+          wasOffline: props.wasOffline || false,
+          dateTimeOccurred: new Date()
+        })
       );
     }
 
@@ -200,7 +202,7 @@ export class PollingResult extends AggregateRoot<
     attemptNumber: number;
     deviceStatus: NetworkDeviceStatus;
     deviceName: string;
-    ipAddress: string;
+    ipAddress: IPAddress;
     wasOnline?: boolean;
     metrics?: PollingMetrics | null;
   }): Result<PollingResult> {
@@ -219,16 +221,17 @@ export class PollingResult extends AggregateRoot<
 
       // Emit failure event
       pollingResult.addDomainEvent(
-        new DevicePollingFailedEvent(
-          pollingResult.id,
-          props.networkDeviceId,
-          props.deviceName,
-          props.ipAddress,
-          props.status,
-          props.errorMessage,
-          props.attemptNumber,
-          props.wasOnline || false
-        )
+        new DevicePollingFailedEvent({
+          aggregateId: pollingResult.id,
+          networkDeviceId: props.networkDeviceId,
+          deviceName: props.deviceName,
+          ipAddress: props.ipAddress,
+          status: props.status,
+          errorMessage: props.errorMessage,
+          attemptNumber: props.attemptNumber,
+          wasOnline: props.wasOnline || false,
+          dateTimeOccurred: new Date()
+        })
       );
     }
 
