@@ -14,7 +14,7 @@ class FakeDomainEvent implements IDomainEvent {
 
   constructor(private readonly id: TestID) {}
 
-  getAggregateId(): TestID {
+  get aggregateId(): TestID {
     return this.id;
   }
 }

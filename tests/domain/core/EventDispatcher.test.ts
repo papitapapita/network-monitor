@@ -37,7 +37,7 @@ class FakeDomainEvent extends DomainEvent<FakeDomainEventProps> {
     super(props);
   }
 
-  getAggregateId(): TestID {
+  get aggregateId(): TestID {
     return this.props.aggregateId;
   }
 
