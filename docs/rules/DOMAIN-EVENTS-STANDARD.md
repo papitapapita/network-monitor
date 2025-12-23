@@ -62,7 +62,7 @@
    - All events extend `DomainEvent<TProps>`
    - Base class handles immutability automatically
    - Props are frozen and type-safe
-   - Common methods (toString, toJSON) provided
+   - Common methods (toString for debugging) provided
 
 2. **Represent Domain Occurrence**
 
@@ -89,12 +89,6 @@
    - Event name clearly states what happened
    - Props interface describes the data
    - Just enough information for handlers
-
-6. **Be Serializable**
-   - Override serializeProps() for custom JSON output
-   - Can be persisted (for event store)
-   - Can be transmitted (for message bus)
-   - Value objects provide serialization methods
 
 ---
 
@@ -364,8 +358,11 @@ import { UniqueEntityID } from './UniqueEntityID';
  *
  * All domain events should extend this class and provide:
  * - Props interface defining event data
- * - Implementation of getAggregateId()
+ * - Implementation of aggregateId getter
  * - Implementation of dateTimeOccurred getter
+ *
+ * Note: Serialization is handled by the Infrastructure layer (DomainEventMapper).
+ * Domain Events remain pure data holders with no serialization logic.
  */
 export abstract class DomainEvent<TProps> implements IDomainEvent {
   protected readonly props: Readonly<TProps>;
@@ -374,24 +371,11 @@ export abstract class DomainEvent<TProps> implements IDomainEvent {
     this.props = Object.freeze({ ...props }) as Readonly<TProps>;
   }
 
-  abstract getAggregateId(): UniqueEntityID;
+  abstract get aggregateId(): UniqueEntityID;
   abstract get dateTimeOccurred(): Date;
 
   public toString(): string {
-    return `${this.constructor.name}(aggregateId: ${this.getAggregateId().toString()}, occurred: ${this.dateTimeOccurred.toISOString()})`;
-  }
-
-  public toJSON(): Record<string, any> {
-    return {
-      eventType: this.constructor.name,
-      aggregateId: this.getAggregateId().toString(),
-      dateTimeOccurred: this.dateTimeOccurred.toISOString(),
-      ...this.serializeProps()
-    };
-  }
-
-  protected serializeProps(): Record<string, any> {
-    return {};
+    return `${this.constructor.name}(aggregateId: ${this.aggregateId.toString()}, occurred: ${this.dateTimeOccurred.toISOString()})`;
   }
 }
 ```
@@ -460,7 +444,7 @@ export class EventNameEvent extends DomainEvent<EventNameEventProps> {
   /**
    * Gets the aggregate ID that published this event.
    */
-  public getAggregateId(): UniqueEntityID {
+  get aggregateId(): UniqueEntityID {
     return this.props.aggregateId;
   }
 
@@ -484,18 +468,6 @@ export class EventNameEvent extends DomainEvent<EventNameEventProps> {
   get property2(): ValueObject2 {
     return this.props.property2;
   }
-
-  /**
-   * Custom serialization for this event.
-   * Override to include event-specific properties in JSON.
-   */
-  protected serializeProps(): Record<string, any> {
-    return {
-      aggregateId: this.props.aggregateId.toString(),
-      property1: this.props.property1.toString(),
-      property2: this.props.property2.toString()
-    };
-  }
 }
 ````
 
@@ -516,7 +488,7 @@ export class DeviceCreatedEvent extends DomainEvent<DeviceCreatedEventProps> {
     super(props);
   }
 
-  getAggregateId(): NetworkDeviceId {
+  get aggregateId(): NetworkDeviceId {
     return this.props.deviceId;
   }
 
@@ -558,10 +530,10 @@ export interface OrderCreatedEventProps {
 
 export class OrderCreatedEvent extends DomainEvent<OrderCreatedEventProps> {
   constructor(props: OrderCreatedEventProps) {
-    super(props); // Base class freezes props
+    super(props); // Base class freezes and makes props readonly
   }
 
-  getAggregateId(): OrderId {
+  get aggregateId(): OrderId {
     return this.props.orderId;
   }
 
@@ -607,12 +579,12 @@ Events contain all relevant data:
 ```typescript
 // ✅ GOOD - Self-contained with all data
 export interface OrderShippedEventProps {
-  readonly orderId: OrderId;
-  readonly trackingNumber: string;
-  readonly carrier: string;
-  readonly estimatedDelivery: Date;
-  readonly shippingAddress: Address; // Value Object
-  readonly dateTimeOccurred: Date;
+  orderId: OrderId;
+  trackingNumber: string;
+  carrier: string;
+  estimatedDelivery: Date;
+  shippingAddress: Address; // Value Object
+  dateTimeOccurred: Date;
 }
 
 export class OrderShippedEvent extends DomainEvent<OrderShippedEventProps> {
@@ -620,7 +592,7 @@ export class OrderShippedEvent extends DomainEvent<OrderShippedEventProps> {
     super(props);
   }
 
-  getAggregateId(): OrderId {
+  get aggregateId(): OrderId {
     return this.props.orderId;
   }
 
@@ -716,7 +688,7 @@ export class PaymentReceivedEvent extends DomainEvent<PaymentReceivedEventProps>
     super(props);
   }
 
-  getAggregateId(): OrderId {
+  get aggregateId(): OrderId {
     return this.props.orderId;
   }
 
@@ -731,24 +703,15 @@ export class PaymentReceivedEvent extends DomainEvent<PaymentReceivedEventProps>
   get paymentMethod(): PaymentMethod {
     return this.props.paymentMethod;
   }
-
-  protected serializeProps(): Record<string, any> {
-    return {
-      orderId: this.props.orderId.toString(),
-      amount: this.props.amount.toJSON(),
-      paymentMethod: this.props.paymentMethod.value,
-      transactionId: this.props.transactionId.toString()
-    };
-  }
 }
 
 // ❌ BAD - Primitives
 export interface PaymentReceivedEventProps {
-  readonly orderId: string; // Should be OrderId
-  readonly amount: number; // Should be Money
-  readonly currency: string; // Should be part of Money
-  readonly paymentMethod: string; // Should be PaymentMethod
-  readonly dateTimeOccurred: Date;
+  orderId: string; // Should be OrderId
+  amount: number; // Should be Money
+  currency: string; // Should be part of Money
+  paymentMethod: string; // Should be PaymentMethod
+  dateTimeOccurred: Date;
 }
 ```
 
@@ -804,12 +767,12 @@ export interface IOrderCreatedEventProps {} // No I prefix
 
 ```typescript
 export interface OrderCreatedEventProps {
-  readonly orderId: OrderId; // ✅ Aggregate ID
-  readonly customerId: CustomerId; // ✅ Related ID
-  readonly totalAmount: Money; // ✅ Value Object
-  readonly itemCount: number; // ✅ Primitive (when appropriate)
-  readonly shippingAddress: Address; // ✅ Value Object
-  readonly dateTimeOccurred: Date; // ✅ Timestamp
+  orderId: OrderId; // ✅ Aggregate ID
+  customerId: CustomerId; // ✅ Related ID
+  totalAmount: Money; // ✅ Value Object
+  itemCount: number; // ✅ Primitive (when appropriate)
+  shippingAddress: Address; // ✅ Value Object
+  dateTimeOccurred: Date; // ✅ Timestamp
 }
 ```
 
@@ -830,228 +793,7 @@ src/domain/events/
 
 ---
 
-## 9. Event Handling Patterns
-
-### Pattern 1: Eventual Consistency Across Aggregates
-
-```typescript
-// Aggregate publishes event (props-based)
-interface OrderProps {
-  customerId: CustomerId;
-  items: OrderItem[];
-  status: OrderStatus;
-  totalAmount: Money;
-}
-
-export class Order extends AggregateRoot<OrderProps, OrderId> {
-  private constructor(props: OrderProps, id: OrderId) {
-    super(props, id);
-  }
-
-  public confirm(): Result<void> {
-    // Update state
-    const newProps = { ...this.props, status: OrderStatus.CONFIRMED };
-    Object.assign(this.props as any, newProps);
-    Object.freeze(this.props);
-
-    // Publish event
-    this.addDomainEvent(
-      new OrderConfirmedEvent({
-        orderId: this.id,
-        customerId: this.props.customerId,
-        totalAmount: this.props.totalAmount,
-        items: [...this.props.items],
-        dateTimeOccurred: new Date()
-      })
-    );
-
-    return Result.ok();
-  }
-}
-
-// Handler updates different aggregate
-export class OrderConfirmedHandler
-  implements IHandle<OrderConfirmedEvent>
-{
-  async handle(event: OrderConfirmedEvent): Promise<void> {
-    // Update Inventory aggregate (different transaction)
-    const inventoryResult = await this.inventoryRepo.findByItems(
-      event.items
-    );
-
-    if (inventoryResult.isSuccess) {
-      const inventory = inventoryResult.value;
-      inventory.reserveItems(event.items);
-      await this.inventoryRepo.save(inventory);
-    }
-  }
-}
-```
-
-### Pattern 2: Side Effects (Notifications, Emails)
-
-```typescript
-export class OrderShippedHandler
-  implements IHandle<OrderShippedEvent>
-{
-  constructor(
-    private readonly emailService: IEmailService,
-    private readonly customerRepo: ICustomerRepository
-  ) {}
-
-  async handle(event: OrderShippedEvent): Promise<void> {
-    // Load customer
-    const customerResult = await this.customerRepo.findById(
-      event.customerId
-    );
-
-    if (customerResult.isFailure) {
-      console.error('Customer not found');
-      return;
-    }
-
-    const customer = customerResult.value;
-
-    // Send notification (side effect)
-    await this.emailService.send({
-      to: customer.email.value,
-      subject: 'Your order has shipped!',
-      body: `Tracking: ${event.trackingNumber}\nCarrier: ${event.carrier}`
-    });
-  }
-}
-```
-
-### Pattern 3: Read Model Updates
-
-```typescript
-export class OrderConfirmedHandler
-  implements IHandle<OrderConfirmedEvent>
-{
-  constructor(
-    private readonly readModelRepo: IOrderReadModelRepository
-  ) {}
-
-  async handle(event: OrderConfirmedEvent): Promise<void> {
-    // Update denormalized read model for queries
-    await this.readModelRepo.updateOrderStatus(
-      event.orderId.toString(),
-      'CONFIRMED',
-      event.dateTimeOccurred
-    );
-  }
-}
-```
-
-### Pattern 4: Event Chaining
-
-```typescript
-// First event
-export interface OrderConfirmedEventProps {
-  readonly orderId: OrderId;
-  readonly items: OrderItem[];
-  readonly dateTimeOccurred: Date;
-}
-
-export class OrderConfirmedEvent extends DomainEvent<OrderConfirmedEventProps> {
-  constructor(props: OrderConfirmedEventProps) {
-    super(props);
-  }
-
-  getAggregateId(): OrderId {
-    return this.props.orderId;
-  }
-
-  get dateTimeOccurred(): Date {
-    return this.props.dateTimeOccurred;
-  }
-
-  get orderId(): OrderId {
-    return this.props.orderId;
-  }
-
-  get items(): OrderItem[] {
-    return this.props.items;
-  }
-}
-
-// Handler publishes new event
-export class OrderConfirmedHandler
-  implements IHandle<OrderConfirmedEvent>
-{
-  async handle(event: OrderConfirmedEvent): Promise<void> {
-    const inventoryResult = await this.inventoryRepo.findByItems(
-      event.items
-    );
-
-    if (inventoryResult.isSuccess) {
-      const inventory = inventoryResult.value;
-      const result = inventory.reserve(event.items);
-
-      if (result.isSuccess) {
-        // This save will trigger InventoryReservedEvent
-        await this.inventoryRepo.save(inventory);
-      }
-    }
-  }
-}
-
-// Second event (triggered by first)
-export interface InventoryReservedEventProps {
-  readonly inventoryId: InventoryId;
-  readonly items: OrderItem[];
-  readonly orderId: OrderId;
-  readonly dateTimeOccurred: Date;
-}
-
-export class InventoryReservedEvent extends DomainEvent<InventoryReservedEventProps> {
-  constructor(props: InventoryReservedEventProps) {
-    super(props);
-  }
-
-  getAggregateId(): InventoryId {
-    return this.props.inventoryId;
-  }
-
-  get dateTimeOccurred(): Date {
-    return this.props.dateTimeOccurred;
-  }
-}
-```
-
-### Pattern 5: Compensating Actions
-
-```typescript
-export class PaymentFailedHandler
-  implements IHandle<PaymentFailedEvent>
-{
-  async handle(event: PaymentFailedEvent): Promise<void> {
-    // Compensate: Cancel order
-    const orderResult = await this.orderRepo.findById(event.orderId);
-
-    if (orderResult.isSuccess) {
-      const order = orderResult.value;
-      order.cancel('Payment failed');
-      await this.orderRepo.save(order);
-    }
-
-    // Compensate: Release inventory
-    const inventoryResult = await this.inventoryRepo.findByOrderId(
-      event.orderId
-    );
-
-    if (inventoryResult.isSuccess) {
-      const inventory = inventoryResult.value;
-      inventory.release(event.items);
-      await this.inventoryRepo.save(inventory);
-    }
-  }
-}
-```
-
----
-
-## 10. Testing Strategy
+## 9. Testing Strategy
 
 ### Testing Event Creation:
 
@@ -1113,25 +855,7 @@ describe('OrderConfirmedEvent', () => {
     }).toThrow();
   });
 
-  it('should serialize to JSON', () => {
-    const orderId = OrderId.create().value;
-    const event = new OrderConfirmedEvent({
-      orderId,
-      customerId: CustomerId.create().value,
-      totalAmount: Money.create({ amount: 100, currency: 'USD' })
-        .value,
-      items: [],
-      dateTimeOccurred: new Date()
-    });
-
-    const json = event.toJSON();
-
-    expect(json.eventType).toBe('OrderConfirmedEvent');
-    expect(json.aggregateId).toBe(orderId.toString());
-    expect(json).toHaveProperty('dateTimeOccurred');
-  });
-
-  it('should have toString method', () => {
+  it('should have toString method for debugging', () => {
     const event = new OrderConfirmedEvent({
       orderId: OrderId.create().value,
       customerId: CustomerId.create().value,
@@ -1325,7 +1049,7 @@ export class OrderConfirmedEvent extends DomainEvent<OrderConfirmedEventProps> {
     super(props);
   }
 
-  public getAggregateId(): OrderId {
+  get aggregateId(): OrderId {
     return this.props.orderId;
   }
 
@@ -1347,15 +1071,6 @@ export class OrderConfirmedEvent extends DomainEvent<OrderConfirmedEventProps> {
 
   get items(): ReadonlyArray<OrderItem> {
     return this.props.items;
-  }
-
-  protected serializeProps(): Record<string, any> {
-    return {
-      orderId: this.props.orderId.toString(),
-      customerId: this.props.customerId.toString(),
-      totalAmount: this.props.totalAmount.toJSON(),
-      items: this.props.items.map((item) => item.toJSON())
-    };
   }
 }
 ```
@@ -1403,7 +1118,7 @@ export class NetworkDeviceStatusChangedEvent extends DomainEvent<NetworkDeviceSt
     super(props);
   }
 
-  public getAggregateId(): NetworkDeviceId {
+  get aggregateId(): NetworkDeviceId {
     return this.props.deviceId;
   }
 
@@ -1446,15 +1161,6 @@ export class NetworkDeviceStatusChangedEvent extends DomainEvent<NetworkDeviceSt
       this.props.newStatus.isOnline()
     );
   }
-
-  protected serializeProps(): Record<string, any> {
-    return {
-      deviceId: this.props.deviceId.toString(),
-      previousStatus: this.props.previousStatus.value,
-      newStatus: this.props.newStatus.value,
-      reason: this.props.reason
-    };
-  }
 }
 ```
 
@@ -1485,7 +1191,7 @@ export class DeviceCreatedEvent extends DomainEvent<DeviceCreatedEventProps> {
     super(props);
   }
 
-  getAggregateId(): NetworkDeviceId {
+  get aggregateId(): NetworkDeviceId {
     return this.props.deviceId;
   }
 
@@ -1504,14 +1210,6 @@ export class DeviceCreatedEvent extends DomainEvent<DeviceCreatedEventProps> {
   get ipAddress(): string {
     return this.props.ipAddress;
   }
-
-  protected serializeProps(): Record<string, any> {
-    return {
-      deviceId: this.props.deviceId.toString(),
-      deviceName: this.props.deviceName,
-      ipAddress: this.props.ipAddress
-    };
-  }
 }
 ```
 
@@ -1525,7 +1223,7 @@ When creating a Domain Event, ensure:
 - ✅ Named with past tense verb + Event suffix
 - ✅ Props interface defines all event properties
 - ✅ All props are readonly
-- ✅ Implements `getAggregateId()` method
+- ✅ Implements `aggregateId` getter
 - ✅ Implements `dateTimeOccurred` getter
 - ✅ Contains aggregate ID in props
 - ✅ Contains dateTimeOccurred timestamp
@@ -1534,14 +1232,20 @@ When creating a Domain Event, ensure:
 - ✅ No business logic (data only)
 - ✅ Represents domain occurrence (not technical operation)
 - ✅ Published by aggregate root
-- ✅ Overrides `serializeProps()` for custom JSON output
 - ✅ Handlers are registered at startup
 - ✅ Handlers are resilient (catch errors)
 - ✅ Events dispatched AFTER successful persistence
 - ✅ Comprehensive tests for event creation and handling
 - ✅ Tests verify immutability with Object.isFrozen()
 - ✅ Base class ensures props are frozen (no manual freeze needed)
+- ✅ Represent domain occurrences, not technical events
+- ✅ No setters or mutations in event class
+- ✅ Set at constructor time only
+- ✅ Aggregate ID always included
+- ✅ Timestamp of occurrence (dateTimeOccurred)
+- ✅ Relevant value objects or IDs (not full aggregates)
+- ✅ Serialization handled by Infrastructure layer (DomainEventMapper)
 
 ---
 
-**Remember**: Domain Events enable loose coupling between aggregates and provide a clean way to trigger side effects. Use the `DomainEvent<TProps>` base class for guaranteed immutability and consistent structure!
+**Remember**: Domain Events enable loose coupling between aggregates and provide a clean way to trigger side effects. Use the `DomainEvent<TProps>` base class for guaranteed immutability and consistent structure! Serialization is the responsibility of the Infrastructure layer to maintain clean separation of concerns.
