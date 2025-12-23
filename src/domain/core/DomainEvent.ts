@@ -15,7 +15,7 @@ import { IDomainEvent } from '../';
  * - All events are immutable (props are frozen)
  * - Consistent structure across all domain events
  * - Type-safe access to event properties
- * - Common utility methods (toString, toJSON)
+ * - Common utility methods (toString for debugging)
  *
  * Events should be named in past tense (e.g., OrderCreated, DeviceWentOffline).
  *
@@ -111,68 +111,5 @@ export abstract class DomainEvent<TProps> implements IDomainEvent {
    */
   public toString(): string {
     return `${this.constructor.name}(aggregateId: ${this.aggregateId.toString()}, occurred: ${this.dateTimeOccurred.toISOString()})`;
-  }
-
-  /**
-   * Serializes the event to a plain object for persistence or transmission.
-   *
-   * Default implementation includes the event type, aggregate ID, and timestamp.
-   * Subclasses should override `serializeProps()` to include event-specific
-   * properties in the JSON output.
-   *
-   * This method is useful for:
-   * - Event sourcing (storing events in an event store)
-   * - Publishing events to a message bus
-   * - Logging event details
-   * - API responses that include event information
-   *
-   * @returns A plain object representation of the event
-   *
-   * @example
-   * ```typescript
-   * {
-   *   eventType: "OrderCreatedEvent",
-   *   aggregateId: "123e4567-e89b-12d3-a456-426614174000",
-   *   dateTimeOccurred: "2024-01-15T10:30:00.000Z",
-   *   orderId: "123e4567-e89b-12d3-a456-426614174000",
-   *   customerId: "987fbc97-4bed-5078-9f07-9141ba07c9f3",
-   *   totalAmount: { amount: 100, currency: "USD" }
-   * }
-   * ```
-   */
-  public toJSON(): Record<string, any> {
-    return {
-      eventType: this.constructor.name,
-      aggregateId: this.aggregateId.toString(),
-      dateTimeOccurred: this.dateTimeOccurred.toISOString(),
-      ...this.serializeProps()
-    };
-  }
-
-  /**
-   * Serializes event-specific properties for JSON output.
-   *
-   * Override this method in subclasses to include the event's
-   * specific properties in the JSON representation.
-   *
-   * This method should convert value objects and entity IDs
-   * to their primitive representations (strings, numbers, etc.).
-   *
-   * @returns An object containing the event's serialized properties
-   *
-   * @example
-   * ```typescript
-   * protected serializeProps(): Record<string, any> {
-   *   return {
-   *     orderId: this.props.orderId.toString(),
-   *     customerId: this.props.customerId.toString(),
-   *     totalAmount: this.props.totalAmount.toJSON(),
-   *     items: this.props.items.map(item => item.toJSON())
-   *   };
-   * }
-   * ```
-   */
-  protected serializeProps(): Record<string, any> {
-    return {};
   }
 }
