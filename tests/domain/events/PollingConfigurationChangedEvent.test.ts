@@ -1,403 +1,212 @@
 import {
   PollingConfigurationChangedEvent,
+  PollingConfigurationChangedEventProps,
   NetworkDeviceId,
-  PollingConfigurationId,
-  UniqueEntityID
+  PollingConfigurationId
 } from '../../../src/domain';
 
 describe('PollingConfigurationChangedEvent', () => {
-  let aggregateId: PollingConfigurationId;
-  let networkDeviceId: NetworkDeviceId;
+  let aggregateId: NetworkDeviceId;
+  let pollingConfigurationId: PollingConfigurationId;
   const deviceName = 'Router-01';
   const changeDescription = 'Retry policy updated to 5 attempts';
+  let dateTimeOccurred: Date;
 
   beforeEach(() => {
-    aggregateId = PollingConfigurationId.create(
-      '550e8400-e29b-41d4-a716-446655440000'
-    ).value;
-    networkDeviceId = NetworkDeviceId.create().value;
+    aggregateId = PollingConfigurationId.create().value;
+    pollingConfigurationId = NetworkDeviceId.create().value;
+    dateTimeOccurred = new Date();
+  });
+
+  const createEventProps = (
+    overrides?: Partial<PollingConfigurationChangedEventProps>
+  ): PollingConfigurationChangedEventProps => ({
+    aggregateId,
+    pollingConfigurationId,
+    deviceName,
+    changeDescription,
+    dateTimeOccurred,
+    ...overrides
   });
 
   describe('constructor', () => {
     it('should create an event with all required properties', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        changeDescription
+        createEventProps()
       );
 
       expect(event).toBeDefined();
-      expect(event.networkDeviceId).toBe(networkDeviceId);
+      expect(event.pollingConfigurationId).toBe(
+        pollingConfigurationId
+      );
       expect(event.deviceName).toBe(deviceName);
       expect(event.changeDescription).toBe(changeDescription);
+      expect(event.dateTimeOccurred).toBe(dateTimeOccurred);
     });
 
-    it('should set dateTimeOccurred to current time', () => {
-      const beforeCreation = new Date();
+    it('should freeze props object automatically', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        changeDescription
+        createEventProps()
       );
-      const afterCreation = new Date();
 
-      expect(event.dateTimeOccurred).toBeInstanceOf(Date);
-      expect(event.dateTimeOccurred.getTime()).toBeGreaterThanOrEqual(
-        beforeCreation.getTime()
-      );
-      expect(event.dateTimeOccurred.getTime()).toBeLessThanOrEqual(
-        afterCreation.getTime()
-      );
+      expect(Object.isFrozen((event as any).props)).toBe(true);
     });
 
-    it('should store aggregateId privately', () => {
+    it('should create a copy of props to prevent external mutation', () => {
+      const props = createEventProps();
+      const event = new PollingConfigurationChangedEvent(props);
+
+      // Modify original props object
+      (props as any).deviceName = 'Modified';
+
+      // Event should not be affected
+      expect(event.deviceName).toBe(deviceName);
+    });
+  });
+
+  describe('immutability', () => {
+    it('should not allow modification of props', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        changeDescription
+        createEventProps()
       );
 
-      // aggregateId should not be directly accessible
-      expect((event as any).aggregateId).toBe(aggregateId);
+      expect(() => {
+        (event as any).props.deviceName = 'Modified';
+      }).toThrow();
     });
 
-    it('should accept different device names', () => {
-      const names = [
-        'Switch-01',
-        'AP-Main-Floor',
-        'Firewall-DMZ',
-        'Core-Router'
-      ];
+    it('should not allow adding new properties to props', () => {
+      const event = new PollingConfigurationChangedEvent(
+        createEventProps()
+      );
 
-      names.forEach((name) => {
-        const event = new PollingConfigurationChangedEvent(
-          aggregateId,
-          networkDeviceId,
-          name,
-          changeDescription
-        );
-
-        expect(event.deviceName).toBe(name);
-      });
+      expect(() => {
+        (event as any).props.newProperty = 'value';
+      }).toThrow();
     });
 
-    it('should accept different change descriptions', () => {
-      const descriptions = [
-        'Retry policy updated',
-        'Polling enabled',
-        'Polling disabled',
-        'Configuration reset to defaults',
-        'Retry policy changed from 3 to 5 attempts'
-      ];
+    it('should not allow deleting properties from props', () => {
+      const event = new PollingConfigurationChangedEvent(
+        createEventProps()
+      );
 
-      descriptions.forEach((description) => {
-        const event = new PollingConfigurationChangedEvent(
-          aggregateId,
-          networkDeviceId,
-          deviceName,
-          description
-        );
-
-        expect(event.changeDescription).toBe(description);
-      });
+      expect(() => {
+        delete (event as any).props.deviceName;
+      }).toThrow();
     });
   });
 
   describe('getAggregateId', () => {
     it('should return the aggregateId', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        changeDescription
+        createEventProps()
       );
 
-      const id = event.getAggregateId();
-
-      expect(id).toBe(aggregateId);
-    });
-
-    it('should return an instance of UniqueEntityID', () => {
-      const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        changeDescription
-      );
-
-      const id = event.getAggregateId();
-
-      expect(id).toBeInstanceOf(UniqueEntityID);
-    });
-
-    it('should return the same ID on multiple calls', () => {
-      const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        changeDescription
-      );
-
-      const id1 = event.getAggregateId();
-      const id2 = event.getAggregateId();
-
-      expect(id1).toBe(id2);
+      expect(event.aggregateId).toBe(aggregateId);
     });
 
     it('should return PollingConfigurationId type', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        changeDescription
+        createEventProps()
       );
 
-      const id = event.getAggregateId();
+      expect(event.aggregateId).toBeInstanceOf(
+        PollingConfigurationId
+      );
+    });
 
-      expect(id).toBeInstanceOf(PollingConfigurationId);
+    it('should return the same ID on multiple calls', () => {
+      const event = new PollingConfigurationChangedEvent(
+        createEventProps()
+      );
+
+      const id1 = event.aggregateId;
+      const id2 = event.aggregateId;
+
+      expect(id1).toBe(id2);
     });
   });
 
-  describe('IDomainEvent interface', () => {
-    it('should implement IDomainEvent interface', () => {
+  describe('dateTimeOccurred', () => {
+    it('should return the provided dateTimeOccurred', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        changeDescription
+        createEventProps()
       );
 
-      expect(event.dateTimeOccurred).toBeDefined();
-      expect(typeof event.getAggregateId).toBe('function');
+      expect(event.dateTimeOccurred).toBe(dateTimeOccurred);
     });
 
-    it('should have dateTimeOccurred as a Date', () => {
+    it('should return a Date instance', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        changeDescription
+        createEventProps()
       );
 
       expect(event.dateTimeOccurred).toBeInstanceOf(Date);
     });
-
-    it('should have dateTimeOccurred as readonly', () => {
-      const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        changeDescription
-      );
-
-      const originalDate = event.dateTimeOccurred;
-
-      // TypeScript prevents this, but we can verify the property exists
-      expect(event.dateTimeOccurred).toBe(originalDate);
-    });
   });
 
-  describe('property immutability', () => {
-    it('should have readonly networkDeviceId', () => {
+  describe('property getters', () => {
+    it('should return pollingConfigurationId', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        changeDescription
+        createEventProps()
       );
 
-      const originalId = event.networkDeviceId;
-
-      // TypeScript prevents reassignment, verify property is accessible
-      expect(event.networkDeviceId).toBe(originalId);
+      expect(event.pollingConfigurationId).toBe(
+        pollingConfigurationId
+      );
+      expect(event.pollingConfigurationId).toBeInstanceOf(
+        NetworkDeviceId
+      );
     });
 
-    it('should have readonly deviceName', () => {
+    it('should return deviceName', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        changeDescription
+        createEventProps()
       );
 
       expect(event.deviceName).toBe(deviceName);
     });
 
-    it('should have readonly changeDescription', () => {
+    it('should return changeDescription', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        changeDescription
+        createEventProps()
       );
 
       expect(event.changeDescription).toBe(changeDescription);
     });
   });
 
-  describe('event scenarios', () => {
-    it('should represent retry policy update', () => {
+  describe('toString', () => {
+    it('should return a formatted string representation', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        'Critical-Router',
-        'Retry policy updated: maxAttempts changed from 3 to 5'
+        createEventProps()
       );
 
-      expect(event.deviceName).toBe('Critical-Router');
-      expect(event.changeDescription).toContain('Retry policy');
-      expect(event.changeDescription).toContain('5');
+      const str = event.toString();
+
+      expect(str).toContain('PollingConfigurationChangedEvent');
+      expect(str).toContain(aggregateId.toString());
+      expect(str).toContain(dateTimeOccurred.toISOString());
     });
 
-    it('should represent enabling polling', () => {
+    it('should return consistent string on multiple calls', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        'Edge-Switch',
-        'Polling enabled for device'
+        createEventProps()
       );
 
-      expect(event.changeDescription).toContain('enabled');
-    });
+      const str1 = event.toString();
+      const str2 = event.toString();
 
-    it('should represent disabling polling', () => {
-      const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        'Maintenance-AP',
-        'Polling disabled for maintenance'
-      );
-
-      expect(event.changeDescription).toContain('disabled');
-      expect(event.changeDescription).toContain('maintenance');
-    });
-
-    it('should represent configuration reset', () => {
-      const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        'Test-Device',
-        'Configuration reset to default values'
-      );
-
-      expect(event.changeDescription).toContain('reset');
-      expect(event.changeDescription).toContain('default');
-    });
-
-    it('should represent multiple configuration changes', () => {
-      const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        'Core-Switch',
-        'Multiple changes: retry policy (3->5), enabled state (false->true)'
-      );
-
-      expect(event.changeDescription).toContain('Multiple changes');
-      expect(event.changeDescription).toContain('retry policy');
-      expect(event.changeDescription).toContain('enabled state');
-    });
-  });
-
-  describe('multiple event instances', () => {
-    it('should create independent event instances', () => {
-      const event1 = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        'Device-1',
-        'Change 1'
-      );
-
-      const event2 = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        'Device-2',
-        'Change 2'
-      );
-
-      expect(event1.deviceName).not.toBe(event2.deviceName);
-      expect(event1.changeDescription).not.toBe(
-        event2.changeDescription
-      );
-    });
-
-    it('should have different timestamps for events created at different times', async () => {
-      const event1 = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        changeDescription
-      );
-
-      // Small delay to ensure different timestamps
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      const event2 = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        changeDescription
-      );
-
-      expect(event2.dateTimeOccurred.getTime()).toBeGreaterThan(
-        event1.dateTimeOccurred.getTime()
-      );
-    });
-  });
-
-  describe('change description content', () => {
-    it('should support detailed change descriptions', () => {
-      const detailedDescription =
-        'Configuration updated: retry policy changed from 3 to 5 attempts, ' +
-        'backoff multiplier changed from 1.5 to 2.0, ' +
-        'max backoff time changed from 60s to 120s';
-
-      const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        detailedDescription
-      );
-
-      expect(event.changeDescription).toContain('retry policy');
-      expect(event.changeDescription).toContain('backoff multiplier');
-      expect(event.changeDescription).toContain('max backoff');
-    });
-
-    it('should support simple change descriptions', () => {
-      const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        'Enabled'
-      );
-
-      expect(event.changeDescription).toBe('Enabled');
-    });
-
-    it('should support structured change descriptions', () => {
-      const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        'Field: retryPolicy.maxAttempts, Old: 3, New: 5'
-      );
-
-      expect(event.changeDescription).toContain('Field:');
-      expect(event.changeDescription).toContain('Old:');
-      expect(event.changeDescription).toContain('New:');
+      expect(str1).toBe(str2);
     });
   });
 
   describe('edge cases', () => {
     it('should handle empty device name', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        '',
-        changeDescription
+        createEventProps({
+          deviceName: ''
+        })
       );
 
       expect(event.deviceName).toBe('');
@@ -405,10 +214,9 @@ describe('PollingConfigurationChangedEvent', () => {
 
     it('should handle empty change description', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        ''
+        createEventProps({
+          changeDescription: ''
+        })
       );
 
       expect(event.changeDescription).toBe('');
@@ -417,10 +225,9 @@ describe('PollingConfigurationChangedEvent', () => {
     it('should handle very long device names', () => {
       const longName = 'A'.repeat(255);
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        longName,
-        changeDescription
+        createEventProps({
+          deviceName: longName
+        })
       );
 
       expect(event.deviceName).toBe(longName);
@@ -430,10 +237,9 @@ describe('PollingConfigurationChangedEvent', () => {
     it('should handle very long change descriptions', () => {
       const longDescription = 'Configuration change: '.repeat(50);
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        longDescription
+        createEventProps({
+          changeDescription: longDescription
+        })
       );
 
       expect(event.changeDescription).toBe(longDescription);
@@ -443,10 +249,9 @@ describe('PollingConfigurationChangedEvent', () => {
     it('should handle special characters in device name', () => {
       const specialName = 'Router-Main_01@Site#1';
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        specialName,
-        changeDescription
+        createEventProps({
+          deviceName: specialName
+        })
       );
 
       expect(event.deviceName).toBe(specialName);
@@ -456,10 +261,9 @@ describe('PollingConfigurationChangedEvent', () => {
       const specialDescription =
         'Config: retry@3->5, backoff#1.5->2.0, max$60->120';
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        specialDescription
+        createEventProps({
+          changeDescription: specialDescription
+        })
       );
 
       expect(event.changeDescription).toBe(specialDescription);
@@ -473,10 +277,9 @@ describe('PollingConfigurationChangedEvent', () => {
         '- Max backoff: 60s -> 120s';
 
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        deviceName,
-        multilineDescription
+        createEventProps({
+          changeDescription: multilineDescription
+        })
       );
 
       expect(event.changeDescription).toContain('\n');
@@ -484,13 +287,119 @@ describe('PollingConfigurationChangedEvent', () => {
     });
   });
 
-  describe('real-world change scenarios', () => {
+  describe('change description content', () => {
+    it('should support detailed change descriptions', () => {
+      const detailedDescription =
+        'Configuration updated: retry policy changed from 3 to 5 attempts, ' +
+        'backoff multiplier changed from 1.5 to 2.0, ' +
+        'max backoff time changed from 60s to 120s';
+
+      const event = new PollingConfigurationChangedEvent(
+        createEventProps({
+          changeDescription: detailedDescription
+        })
+      );
+
+      expect(event.changeDescription).toContain('retry policy');
+      expect(event.changeDescription).toContain('backoff multiplier');
+      expect(event.changeDescription).toContain('max backoff');
+    });
+
+    it('should support simple change descriptions', () => {
+      const event = new PollingConfigurationChangedEvent(
+        createEventProps({
+          changeDescription: 'Enabled'
+        })
+      );
+
+      expect(event.changeDescription).toBe('Enabled');
+    });
+
+    it('should support structured change descriptions', () => {
+      const event = new PollingConfigurationChangedEvent(
+        createEventProps({
+          changeDescription:
+            'Field: retryPolicy.maxAttempts, Old: 3, New: 5'
+        })
+      );
+
+      expect(event.changeDescription).toContain('Field:');
+      expect(event.changeDescription).toContain('Old:');
+      expect(event.changeDescription).toContain('New:');
+    });
+  });
+
+  describe('real-world scenarios', () => {
+    it('should represent retry policy update', () => {
+      const event = new PollingConfigurationChangedEvent(
+        createEventProps({
+          deviceName: 'Critical-Router',
+          changeDescription:
+            'Retry policy updated: maxAttempts changed from 3 to 5'
+        })
+      );
+
+      expect(event.deviceName).toBe('Critical-Router');
+      expect(event.changeDescription).toContain('Retry policy');
+      expect(event.changeDescription).toContain('5');
+    });
+
+    it('should represent enabling polling', () => {
+      const event = new PollingConfigurationChangedEvent(
+        createEventProps({
+          deviceName: 'Edge-Switch',
+          changeDescription: 'Polling enabled for device'
+        })
+      );
+
+      expect(event.changeDescription).toContain('enabled');
+    });
+
+    it('should represent disabling polling', () => {
+      const event = new PollingConfigurationChangedEvent(
+        createEventProps({
+          deviceName: 'Maintenance-AP',
+          changeDescription: 'Polling disabled for maintenance'
+        })
+      );
+
+      expect(event.changeDescription).toContain('disabled');
+      expect(event.changeDescription).toContain('maintenance');
+    });
+
+    it('should represent configuration reset', () => {
+      const event = new PollingConfigurationChangedEvent(
+        createEventProps({
+          deviceName: 'Test-Device',
+          changeDescription: 'Configuration reset to default values'
+        })
+      );
+
+      expect(event.changeDescription).toContain('reset');
+      expect(event.changeDescription).toContain('default');
+    });
+
+    it('should represent multiple configuration changes', () => {
+      const event = new PollingConfigurationChangedEvent(
+        createEventProps({
+          deviceName: 'Core-Switch',
+          changeDescription:
+            'Multiple changes: retry policy (3->5), enabled state (false->true)'
+        })
+      );
+
+      expect(event.changeDescription).toContain('Multiple changes');
+      expect(event.changeDescription).toContain('retry policy');
+      expect(event.changeDescription).toContain('enabled state');
+    });
+
     it('should represent enabling device after maintenance', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        'Maintenance-Router',
-        'Polling re-enabled after scheduled maintenance completion'
+        createEventProps({
+          deviceName: 'Maintenance-Router',
+          changeDescription:
+            'Polling re-enabled after scheduled maintenance completion'
+        })
       );
 
       expect(event.changeDescription).toContain('re-enabled');
@@ -499,10 +408,11 @@ describe('PollingConfigurationChangedEvent', () => {
 
     it('should represent emergency polling suspension', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        'Critical-Switch',
-        'Polling temporarily disabled due to network incident'
+        createEventProps({
+          deviceName: 'Critical-Switch',
+          changeDescription:
+            'Polling temporarily disabled due to network incident'
+        })
       );
 
       expect(event.changeDescription).toContain('disabled');
@@ -511,10 +421,11 @@ describe('PollingConfigurationChangedEvent', () => {
 
     it('should represent optimization changes', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        'Edge-Device',
-        'Retry policy optimized: reduced attempts from 5 to 3 for faster failure detection'
+        createEventProps({
+          deviceName: 'Edge-Device',
+          changeDescription:
+            'Retry policy optimized: reduced attempts from 5 to 3 for faster failure detection'
+        })
       );
 
       expect(event.changeDescription).toContain('optimized');
@@ -523,14 +434,55 @@ describe('PollingConfigurationChangedEvent', () => {
 
     it('should represent bulk configuration update', () => {
       const event = new PollingConfigurationChangedEvent(
-        aggregateId,
-        networkDeviceId,
-        'Standard-AP',
-        'Applied standard configuration template: retry=3, backoff=1.5, maxBackoff=60s'
+        createEventProps({
+          deviceName: 'Standard-AP',
+          changeDescription:
+            'Applied standard configuration template: retry=3, backoff=1.5, maxBackoff=60s'
+        })
       );
 
       expect(event.changeDescription).toContain('template');
       expect(event.changeDescription).toContain('retry=3');
+    });
+  });
+
+  describe('multiple event instances', () => {
+    it('should create independent event instances', () => {
+      const event1 = new PollingConfigurationChangedEvent(
+        createEventProps({
+          deviceName: 'Device-1',
+          changeDescription: 'Change 1'
+        })
+      );
+
+      const event2 = new PollingConfigurationChangedEvent(
+        createEventProps({
+          deviceName: 'Device-2',
+          changeDescription: 'Change 2'
+        })
+      );
+
+      expect(event1.deviceName).not.toBe(event2.deviceName);
+      expect(event1.changeDescription).not.toBe(
+        event2.changeDescription
+      );
+    });
+
+    it('should have different timestamps for events created at different times', () => {
+      const date1 = new Date('2024-01-15T10:00:00Z');
+      const date2 = new Date('2024-01-15T10:00:01Z');
+
+      const event1 = new PollingConfigurationChangedEvent(
+        createEventProps({ dateTimeOccurred: date1 })
+      );
+
+      const event2 = new PollingConfigurationChangedEvent(
+        createEventProps({ dateTimeOccurred: date2 })
+      );
+
+      expect(event2.dateTimeOccurred.getTime()).toBeGreaterThan(
+        event1.dateTimeOccurred.getTime()
+      );
     });
   });
 });
