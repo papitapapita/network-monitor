@@ -1,37 +1,85 @@
 import {
-  IDomainEvent,
-  UniqueEntityID,
+  NetworkDeviceStatusChangedEventProps,
+  DomainEvent,
+  NetworkDeviceStatus,
   NetworkDeviceId,
-  NetworkDeviceStatus
+  IPAddress
 } from '../';
 
 /**
- * NetworkDeviceStatusChangedEvent
+ * NetworkDeviceStatusChangedEvent - Device operational status has changed.
  *
- * Domain event raised when a network device's status changes
- * (e.g., ONLINE → OFFLINE, OFFLINE → ONLINE, etc.).
+ * Published By: NetworkDevice Aggregate
+ * Published When: Device transitions between operational states (ONLINE ↔ OFFLINE ↔ MAINTENANCE ↔ UNKNOWN)
  *
- * This is a critical event that triggers:
- * - Alerting and notifications
- * - Status history logging
- * - Automated recovery procedures
- * - SLA compliance tracking
+ * Handlers:
+ * - AlertService: Triggers critical alerts for ONLINE→OFFLINE transitions
+ * - NotificationService: Sends email/SMS to administrators and on-call teams
+ * - StatusHistoryLogger: Records status timeline for SLA reporting
+ * - IncidentManager: Creates incidents for unexpected outages
+ * - RecoveryOrchestrator: Initiates automated recovery procedures
+ * - SLATracker: Updates uptime metrics and compliance calculations
+ * - DashboardUpdater: Refreshes real-time status displays
+ *
+ * Use Cases:
+ * - Polling detects device has gone offline (no response to pings)
+ * - Device recovers and comes back online after outage
+ * - Admin places device in maintenance mode before scheduled work
+ * - Device exits maintenance mode after work completion
+ * - Device status becomes unknown after repeated polling failures
+ *
+ * Business Rules:
+ * - Status must actually change (previous ≠ new) for event to be published
+ * - ONLINE→OFFLINE transitions trigger high-priority alerts
+ * - MAINTENANCE transitions suppress alerting but track downtime separately
+ * - Status changes update device's lastStatusChange timestamp
+ * - Event includes both previous and new status for context
+ * - Critical transitions (to OFFLINE) may trigger escalation workflows
+ *
+ * @example
+ * ```typescript
+ * const event = new NetworkDeviceStatusChangedEvent({
+ *   aggregateId: NetworkDeviceId.create().value,
+ *   deviceName: 'Core-Router-01',
+ *   previousStatus: NetworkDeviceStatus.create('ONLINE').value,
+ *   newStatus: NetworkDeviceStatus.create('OFFLINE').value,
+ *   ipAddress: '192.168.1.1',
+ *   dateTimeOccurred: new Date()
+ * });
+ *
+ * // Check critical transitions
+ * if (event.isGoingOffline()) {
+ *   // Trigger high-priority alert
+ * }
+ * ```
  */
-export class NetworkDeviceStatusChangedEvent implements IDomainEvent {
-  public readonly dateTimeOccurred: Date;
-
-  constructor(
-    private readonly aggregateId: NetworkDeviceId,
-    public readonly deviceName: string,
-    public readonly previousStatus: NetworkDeviceStatus,
-    public readonly newStatus: NetworkDeviceStatus,
-    public readonly ipAddress: string
-  ) {
-    this.dateTimeOccurred = new Date();
+export class NetworkDeviceStatusChangedEvent extends DomainEvent<NetworkDeviceStatusChangedEventProps> {
+  constructor(props: NetworkDeviceStatusChangedEventProps) {
+    super(props);
   }
 
-  getAggregateId(): UniqueEntityID {
-    return this.aggregateId;
+  get aggregateId(): NetworkDeviceId {
+    return this.props.aggregateId;
+  }
+
+  get dateTimeOccurred(): Date {
+    return this.props.dateTimeOccurred;
+  }
+
+  get deviceName(): string {
+    return this.props.deviceName;
+  }
+
+  get previousStatus(): NetworkDeviceStatus {
+    return this.props.previousStatus;
+  }
+
+  get newStatus(): NetworkDeviceStatus {
+    return this.props.newStatus;
+  }
+
+  get ipAddress(): IPAddress {
+    return this.props.ipAddress;
   }
 
   /**
@@ -39,8 +87,8 @@ export class NetworkDeviceStatusChangedEvent implements IDomainEvent {
    */
   public isGoingOffline(): boolean {
     return (
-      this.previousStatus !== NetworkDeviceStatus.OFFLINE &&
-      this.newStatus === NetworkDeviceStatus.OFFLINE
+      !this.props.previousStatus.isOffline() &&
+      this.props.newStatus.isOffline()
     );
   }
 
@@ -49,8 +97,8 @@ export class NetworkDeviceStatusChangedEvent implements IDomainEvent {
    */
   public isComingOnline(): boolean {
     return (
-      this.previousStatus !== NetworkDeviceStatus.ONLINE &&
-      this.newStatus === NetworkDeviceStatus.ONLINE
+      !this.props.previousStatus.isOnline() &&
+      this.props.newStatus.isOnline()
     );
   }
 
@@ -59,8 +107,8 @@ export class NetworkDeviceStatusChangedEvent implements IDomainEvent {
    */
   public isEnteringMaintenance(): boolean {
     return (
-      this.previousStatus !== NetworkDeviceStatus.MAINTENANCE &&
-      this.newStatus === NetworkDeviceStatus.MAINTENANCE
+      !this.props.previousStatus.isMaintenance() &&
+      this.props.newStatus.isMaintenance()
     );
   }
 
@@ -69,8 +117,8 @@ export class NetworkDeviceStatusChangedEvent implements IDomainEvent {
    */
   public isLeavingMaintenance(): boolean {
     return (
-      this.previousStatus === NetworkDeviceStatus.MAINTENANCE &&
-      this.newStatus !== NetworkDeviceStatus.MAINTENANCE
+      this.props.previousStatus.isMaintenance() &&
+      !this.props.newStatus.isMaintenance()
     );
   }
 }
