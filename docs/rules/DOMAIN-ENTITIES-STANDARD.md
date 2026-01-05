@@ -1,6 +1,7 @@
 # DOMAIN ENTITIES STANDARD
 
 ## Table of Contents
+
 1. [Purpose of Entities in DDD](#1-purpose-of-entities-in-ddd)
 2. [Responsibilities of an Entity](#2-responsibilities-of-an-entity)
 3. [Boundaries of an Entity](#3-boundaries-of-an-entity)
@@ -21,6 +22,7 @@
 **Entities are domain objects that have a unique identity that runs through time and different representations.**
 
 ### Core Characteristics:
+
 - **Identity**: Distinguished by an ID, not by attributes
 - **Mutable**: Can change state over time while maintaining identity
 - **Lifecycle**: Created, modified, persisted, retrieved, and deleted
@@ -29,19 +31,47 @@
 
 ### Entities vs Value Objects:
 
-| Aspect | Entity | Value Object |
-|--------|--------|--------------|
-| **Identity** | Has unique ID | No identity |
-| **Equality** | By ID | By value |
-| **Mutability** | Mutable | Immutable |
-| **Lifecycle** | Persisted over time | Created/discarded |
-| **Example** | User, Order, Device | Email, Money, Address |
+| Aspect         | Entity              | Value Object          |
+| -------------- | ------------------- | --------------------- |
+| **Identity**   | Has unique ID       | No identity           |
+| **Equality**   | By ID               | By value              |
+| **Mutability** | Mutable             | Immutable             |
+| **Lifecycle**  | Persisted over time | Created/discarded     |
+| **Example**    | User, Order, Device | Email, Money, Address |
+
+### Entities vs Aggregate Roots:
+
+**IMPORTANT**: Not all entities are aggregate roots. There are two types of entities:
+
+1. **Aggregate Root Entities**: Entities that define consistency boundaries and own other entities
+2. **Child Entities**: Entities that exist within an aggregate boundary and cannot exist independently
+
+| Aspect                   | Aggregate Root Entity   | Child Entity                      |
+| ------------------------ | ----------------------- | --------------------------------- |
+| **Independence**         | Can exist independently | Belongs to an aggregate           |
+| **Repository**           | Has its own repository  | No repository (accessed via root) |
+| **External References**  | Can be referenced by ID | Only accessible through root      |
+| **Consistency Boundary** | Defines the boundary    | Part of the boundary              |
+| **Owns Children**        | Can own other entities  | Cannot own other entities         |
+| **Example**              | NetworkDevice, Order    | PollingConfiguration, OrderItem   |
+
+**When is an Entity an Aggregate Root?**
+
+An entity becomes an aggregate root when it meets these criteria:
+
+✅ **Has Independent Lifecycle**: Can be created, modified, and deleted independently
+✅ **Owns Other Entities**: Contains child entities that cannot exist without it
+✅ **Defines Consistency Boundary**: Enforces invariants across multiple entities
+✅ **Entry Point for Operations**: All operations on children go through it
+✅ **Referenced by Other Aggregates**: Other aggregates reference it by ID
+
+See [DOMAIN-AGGREGATES-STANDARD.md](./DOMAIN-AGGREGATES-STANDARD.md) for detailed information about aggregate roots.
 
 ### Why Entities?
 
 1. **Model Real-World Concepts**: Things that have identity (users, devices, orders)
 2. **Track Changes Over Time**: History and state transitions matter
-3. **Enforce Business Rules**: Domain logic lives with the data
+3. **Enforce Business Rules**: Domain logic lives within the Entity
 4. **Maintain Invariants**: Entity ensures it's always in a valid state
 5. **Provide Behavior**: Not just data holders - they DO things
 
@@ -52,26 +82,34 @@
 ### MUST DO:
 
 1. **Maintain Unique Identity**
+
    - Every entity has a unique ID (EntityId extends from base ID class)
    - ID never changes during entity lifetime
    - ID used for equality comparison
 
 2. **Enforce Business Invariants**
+
    - Validate all state changes
    - Prevent invalid state transitions
    - Ensure entity is always in a valid state
 
 3. **Encapsulate Business Logic**
+
    - Methods that operate on entity state
    - Business rules specific to this entity
    - State transition logic
 
-4. **Manage Internal Entities (if any)**
-   - Child entities that belong to this entity
-   - Lifecycle management of children
+4. **Manage Internal Entities (if Aggregate Root)**
+
+   - **NOTE**: Only applies to entities that are Aggregate Roots
+   - Child entities that belong to this aggregate
+   - Lifecycle management of children (create, modify, delete)
    - Cascade operations when appropriate
+   - Enforce invariants across all children
+   - Regular (child) entities do NOT own other entities
 
 5. **Validate All Mutations**
+
    - Every state change must be validated
    - Return Result<T> for operations that can fail
    - Provide clear error messages
@@ -88,31 +126,38 @@
 ### MUST NOT DO:
 
 1. **❌ Access Infrastructure Directly**
+
    - No database calls
    - No HTTP requests
    - No file system access
    - No framework dependencies
 
 2. **❌ Coordinate Multiple Aggregates**
+
    - Cross-aggregate operations belong in Use Cases or Domain Services
    - Entities work within their own aggregate boundary
 
 3. **❌ Perform Complex Queries**
+
    - Query logic belongs in Repositories
    - Entities should not contain query methods
 
 4. **❌ Know About Presentation Layer**
+
    - No DTOs
    - No HTTP concepts
    - No UI logic
 
 5. **❌ Handle Cross-Cutting Concerns**
+
    - Logging, caching, transactions belong in outer layers
    - Authentication/authorization handled by application layer
 
 6. **❌ Create Other Aggregates**
-   - Aggregates are created by Use Cases
-   - Entities can create internal entities within same aggregate
+   - Other aggregates are created by Use Cases, not by entities
+   - Aggregate roots CAN create child entities within the same aggregate boundary
+   - Child entities CANNOT create other entities (only aggregate roots can)
+   - Reference other aggregates by ID only, never create them
 
 ---
 
@@ -120,58 +165,59 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                   PRESENTATION LAYER                         │
-│  - Never directly references entities                        │
-│  - Works with DTOs                                           │
+│                   PRESENTATION LAYER                        │
+│  - Never directly references entities                       │
+│  - Works with DTOs                                          │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  APPLICATION LAYER                           │
-│  - Use Cases create and modify Entities                      │
-│  - Use Cases coordinate multiple entities                    │
+│                  APPLICATION LAYER                          │
+│  - Use Cases create and modify Entities                     │
+│  - Use Cases coordinate multiple entities                   │
 │  - Mappers convert Entities ↔ DTOs                          │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    DOMAIN LAYER                              │
+│                    DOMAIN LAYER                             │
 │  ┌────────────────────────────────────────────────────┐     │
-│  │          ENTITIES (You are here)                    │     │
-│  │  - Encapsulate business logic                       │     │
-│  │  - Enforce invariants                               │     │
-│  │  - Contain Value Objects                            │     │
-│  │  - May contain child Entities                       │     │
-│  │  - Validate all state changes                       │     │
+│  │          ENTITIES (You are here)                   │     │
+│  │  - Encapsulate business logic                      │     │
+│  │  - Enforce invariants                              │     │
+│  │  - Contain Value Objects                           │     │
+│  │  - May contain child Entities                      │     │
+│  │  - Validate all state changes                      │     │
 │  └────────────────────────────────────────────────────┘     │
-│         ▲                           ▲                         │
-│         │                           │                         │
+│         ▲                          ▲                        │
+│         │                          │                        │
 │  ┌──────┴───────┐          ┌───────┴──────┐                 │
-│  │ Value Objects│          │  Aggregates  │                  │
-│  │              │          │              │                  │
-│  │ - Entities   │          │ - Aggregate  │                  │
-│  │   contain    │          │   Root is    │                  │
-│  │   VOs        │          │   an Entity  │                  │
-│  └──────────────┘          └──────────────┘                  │
-│                                                               │
+│  │ Value Objects│          │  Aggregates  │                 │
+│  │              │          │              │                 │
+│  │ - Entities   │          │ - Aggregate  │                 │
+│  │   contain    │          │   Root is    │                 │
+│  │   VOs        │          │   an Entity  │                 │
+│  └──────────────┘          └──────────────┘                 │
+│                                                             │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │  Repository Interfaces (contracts)                   │    │
-│  │  - save(entity), findById(id), delete(id)            │    │
+│  │  Repository Interfaces (contracts)                  │    │
+│  │  - save(entity), findById(id), delete(id)           │    │
 │  └─────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
                          ▲
                          │ Implements
 ┌─────────────────────────────────────────────────────────────┐
-│                INFRASTRUCTURE LAYER                          │
-│  - Repository implementations persist entities               │
-│  - Infrastructure mappers convert Entity ↔ DB model          │
-│  - Never modify entity business logic                        │
+│                INFRASTRUCTURE LAYER                         │
+│  - Repository implementations persist entities              │
+│  - Infrastructure mappers convert Entity ↔ DB model         │
+│  - Never modify entity business logic                       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Dependency Rules:
 
 ✅ **Entities CAN depend on:**
+
 - Value Objects (composition)
 - Other Entities (within same aggregate)
 - Domain Events
@@ -179,6 +225,7 @@
 - Shared kernel types
 
 ❌ **Entities CANNOT depend on:**
+
 - Use Cases
 - Repositories (can use interfaces in some patterns)
 - Application Services
@@ -259,77 +306,94 @@ await repository.delete(device.id);
 ### Base Entity (Abstract):
 
 ```typescript
-import { Result } from '@/shared/core/Result';
+import { UniqueEntityID } from './UniqueEntityID';
 
 /**
- * Base class for all entities with identity.
- * Provides common functionality for ID-based equality.
+ * Base class for all domain entities.
  *
- * @template TId - Type of the entity's ID (must extend UniqueEntityID)
+ * Entities are domain objects that have a unique identity (ID) and may have
+ * mutable or immutable properties. Their identity is defined by their
+ * {@link UniqueEntityID}, and equality between entities is determined by
+ * comparing their IDs.
+ *
+ * @template T The shape of the entity's properties.
+ * @template TID The type of the entity's unique identifier, extending {@link UniqueEntityID}.
  */
-export abstract class Entity<TId> {
-  protected readonly _id: TId;
-  protected readonly _createdAt: Date;
-  protected _updatedAt: Date;
+export abstract class Entity<T, TID extends UniqueEntityID> {
+  /**
+   * The unique identifier of the entity.
+   * @protected
+   */
+  protected readonly _id: TID;
 
-  protected constructor(id: TId, createdAt?: Date, updatedAt?: Date) {
+  /**
+   * The internal properties of the entity.
+   * @protected
+   */
+  protected props: T;
+
+  /**
+   * Creates a new entity instance.
+   *
+   * @param {T} props - The properties that define the entity's state.
+   * @param {TID} id - The unique identifier for this entity.
+   */
+  protected constructor(props: T, id: TID) {
     this._id = id;
-    this._createdAt = createdAt ?? new Date();
-    this._updatedAt = updatedAt ?? new Date();
+    this.props = props;
   }
 
   /**
-   * Unique identifier for this entity.
-   * Never changes during entity lifetime.
+   * Gets the unique identifier of the entity.
+   *
+   * @returns {TID} The entity's ID type.
    */
-  public get id(): TId {
+  get id(): TID {
     return this._id;
   }
 
   /**
-   * Timestamp when entity was created.
+   * Compares this entity with another to determine if they are equal.
+   *
+   * Two entities are equal if:
+   * - They are the same reference, or
+   * - They are both entities and their IDs match.
+   *
+   * @param {Entity<T, TID>} [object] - The entity to compare with.
+   * @returns {boolean} True if both represent the same entity, otherwise false.
    */
-  public get createdAt(): Date {
-    return this._createdAt;
-  }
-
-  /**
-   * Timestamp when entity was last modified.
-   */
-  public get updatedAt(): Date {
-    return this._updatedAt;
-  }
-
-  /**
-   * Updates the updatedAt timestamp.
-   * Call this in any method that modifies state.
-   */
-  protected touch(): void {
-    this._updatedAt = new Date();
-  }
-
-  /**
-   * Entities are equal if they have the same ID.
-   * Identity equality, not value equality.
-   */
-  public equals(other: Entity<TId> | null | undefined): boolean {
-    if (other == null) {
+  public equals(object?: Entity<T, TID>): boolean {
+    if (object === null || object === undefined) {
       return false;
     }
 
-    if (!(other instanceof Entity)) {
+    if (this === object) {
+      return true;
+    }
+
+    if (!Entity.isEntity(object)) {
       return false;
     }
 
-    // Compare by ID
-    return this._id.equals(other._id);
+    return this._id.equals(object.id);
+  }
+
+  /**
+   * Type guard that checks whether a given value is an Entity.
+   *
+   * @private
+   * @param {unknown} v - The value to check.
+   * @returns True if the value is an Entity instance.
+   */
+  public static isEntity(v: unknown) {
+    return v instanceof Entity;
   }
 }
 ```
 
 ### Concrete Entity Template:
 
-```typescript
+````typescript
 import { Result } from '@/shared/core/Result';
 import { Entity } from '@/shared/domain/Entity';
 import { UniqueEntityID } from '@/shared/domain/UniqueEntityID';
@@ -350,8 +414,8 @@ interface EntityNameProps {
   property1: ValueObject1;
   property2: ValueObject2;
   // ... more properties
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /**
@@ -378,29 +442,27 @@ interface EntityNameProps {
  * }
  * ```
  */
-export class EntityName extends Entity<EntityNameId> {
-  private _property1: ValueObject1;
-  private _property2: ValueObject2;
-
+export class EntityName extends Entity<
+  EntityNameProps,
+  EntityNameId
+> {
   /**
    * Private constructor enforces factory method usage.
    */
   private constructor(props: EntityNameProps, id: EntityNameId) {
-    super(id, props.createdAt, props.updatedAt);
-    this._property1 = props.property1;
-    this._property2 = props.property2;
+    super(props, id);
   }
 
   /**
    * Factory method for creating EntityName.
    *
-   * @param props - Entity properties
-   * @param id - Optional ID (generated if not provided)
+   * @param props - Entity properties (without createdAt/updatedAt)
+   * @param id - Mandatory ID
    * @returns Result<EntityName> - Success with valid entity or failure with error
    */
   public static create(
-    props: EntityNameProps,
-    id?: EntityNameId
+    props: Omit<EntityNameProps, 'createdAt' | 'updatedAt'>,
+    id: EntityNameId
   ): Result<EntityName> {
     // Validate required properties
     if (!props.property1) {
@@ -417,17 +479,21 @@ export class EntityName extends Entity<EntityNameId> {
       return Result.fail<EntityName>(validationResult.error!);
     }
 
-    // Generate ID if not provided
-    const entityId = id ?? EntityNameId.create().value;
+    // Create full props with timestamps
+    const entityProps: EntityNameProps = {
+      ...props,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
 
-    return Result.ok<EntityName>(new EntityName(props, entityId));
+    return Result.ok<EntityName>(new EntityName(entityProps, id));
   }
 
   /**
    * Validates all business invariants.
    */
   private static validateInvariants(
-    props: EntityNameProps
+    props: Omit<EntityNameProps, 'createdAt' | 'updatedAt'>
   ): Result<void> {
     // Implement business rule validation
     // Example: if (props.property1.value > props.property2.value) return fail
@@ -444,11 +510,9 @@ export class EntityName extends Entity<EntityNameId> {
       return Result.fail<void>('Cannot do something: invalid state');
     }
 
-    // Perform the operation
-    this._property1 = newValue;
-
-    // Update timestamp
-    this.touch();
+    // Perform the operation - update props
+    this.props.property1 = newValue;
+    this.props.updatedAt = new Date();
 
     return Result.ok<void>();
   }
@@ -461,62 +525,82 @@ export class EntityName extends Entity<EntityNameId> {
     return true;
   }
 
-  // Getters (properties are encapsulated)
-  public get property1(): ValueObject1 {
-    return this._property1;
+  // Getters (properties are encapsulated via props)
+  get property1(): ValueObject1 {
+    return this.props.property1;
   }
 
-  public get property2(): ValueObject2 {
-    return this._property2;
+  get property2(): ValueObject2 {
+    return this.props.property2;
+  }
+
+  get createdAt(): Date {
+    return this.props.createdAt;
+  }
+
+  get updatedAt(): Date {
+    return this.props.updatedAt;
   }
 }
-```
+````
 
 ---
 
 ## 7. Orthogonality Principles
 
 ### 1. Single Responsibility
+
 Each entity represents ONE business concept:
 
 ```typescript
 // ✅ GOOD - Single responsibility
 class Order {
   // Only order-related logic
-  public addItem(item: OrderItem): Result<void>
-  public removeItem(itemId: OrderItemId): Result<void>
-  public calculateTotal(): Money
+  public addItem(item: OrderItem): Result<void>;
+  public removeItem(itemId: OrderItemId): Result<void>;
+  public calculateTotal(): Money;
 }
 
 class Customer {
   // Only customer-related logic
-  public updateEmail(email: Email): Result<void>
-  public addAddress(address: Address): Result<void>
+  public updateEmail(email: Email): Result<void>;
+  public addAddress(address: Address): Result<void>;
 }
 
 // ❌ BAD - Mixed responsibilities
 class OrderCustomer {
   // Order logic
-  public addOrderItem(item: OrderItem): Result<void>
+  public addOrderItem(item: OrderItem): Result<void>;
   // Customer logic
-  public updateCustomerEmail(email: Email): Result<void>
+  public updateCustomerEmail(email: Email): Result<void>;
   // Mixing concerns!
 }
 ```
 
 ### 2. Encapsulation
+
 Internal state is private, modified only through methods:
 
 ```typescript
-// ✅ GOOD - Encapsulated
-class BankAccount {
-  private _balance: Money;
+// ✅ GOOD - Encapsulated in props
+interface BankAccountProps {
+  balance: Money;
+}
+
+class BankAccount extends Entity<BankAccountProps, BankAccountId> {
+  private constructor(props: BankAccountProps, id: BankAccountId) {
+    super(props, id);
+  }
+
+  get balance() {
+    return this.props.balance;
+  }
 
   public withdraw(amount: Money): Result<void> {
-    if (this._balance.isLessThan(amount)) {
+    if (this.balance.isLessThan(amount)) {
       return Result.fail('Insufficient funds');
     }
-    this._balance = this._balance.subtract(amount).value;
+    this.balance = this.balance.subtract(amount).value;
     this.touch();
     return Result.ok();
   }
@@ -535,6 +619,7 @@ class BankAccount {
 ```
 
 ### 3. Fail Fast
+
 Invalid operations fail immediately:
 
 ```typescript
@@ -565,6 +650,7 @@ public assignToProject(project: Project): void {
 ## 8. Naming Conventions
 
 ### Entity Class Names:
+
 - Use **nouns** representing domain concepts
 - Use **PascalCase**
 - Use singular form (not plural)
@@ -572,45 +658,46 @@ public assignToProject(project: Project): void {
 
 ```typescript
 // ✅ GOOD
-class NetworkDevice { }
-class PollingConfiguration { }
-class User { }
-class Order { }
+class NetworkDevice {}
+class PollingConfiguration {}
+class User {}
+class Order {}
 
 // ❌ BAD
-class NetworkDevices { } // Plural
-class Device { } // Too generic
-class ND { } // Abbreviated
-class DeviceEntity { } // "Entity" suffix unnecessary
+class NetworkDevices {} // Plural
+class Device {} // Too generic
+class ND {} // Abbreviated
+class DeviceEntity {} // "Entity" suffix unnecessary
 ```
 
 ### ID Class Names:
+
 - Entity name + "Id" suffix
 - Extends UniqueEntityID
 
 ```typescript
 // ✅ GOOD
-class NetworkDeviceId extends UniqueEntityID { }
-class OrderId extends UniqueEntityID { }
+class NetworkDeviceId extends UniqueEntityID {}
+class OrderId extends UniqueEntityID {}
 
 // ❌ BAD
-class DeviceIdentifier { } // Non-standard
-class NetworkDevice_ID { } // Bad casing
+class DeviceIdentifier {} // Non-standard
+class NetworkDevice_ID {} // Bad casing
 ```
 
 ### Property Names:
-- Use **private** with `_` prefix
+
 - Use **camelCase**
 - Be descriptive
 
 ```typescript
-class Order {
-  private _items: OrderItem[];        // ✅
-  private _totalAmount: Money;        // ✅
-  private _shippingAddress: Address;  // ✅
+interface OrderProps {
+  items: OrderItem[]; // ✅
+  totalAmount: Money; // ✅
+  shippingAddress: Address; // ✅
 
-  private items: OrderItem[];         // ❌ Not private
-  private _i: OrderItem[];            // ❌ Not descriptive
+  shipping_address: Address; // ❌ not camelCase
+  _i: OrderItem[]; // ❌ Not descriptive
 }
 ```
 
@@ -619,22 +706,22 @@ class Order {
 ```typescript
 class NetworkDevice {
   // Commands (modify state) - imperative verbs
-  public updateStatus(status: NetworkDeviceStatus): Result<void>
-  public assignToGroup(group: string): Result<void>
-  public enablePolling(): Result<void>
+  public updateStatus(status: NetworkDeviceStatus): Result<void>;
+  public assignToGroup(group: string): Result<void>;
+  public enablePolling(): Result<void>;
 
   // Queries (read state) - is/has/get
-  public isOnline(): boolean
-  public hasActivePolling(): boolean
-  public getLastPollTime(): Date | null
+  public isOnline(): boolean;
+  public hasActivePolling(): boolean;
+  public getLastPollTime(): Date | null;
 
   // Calculations - calculate/compute
-  public calculateUptime(): number
-  public computeAverageResponseTime(): number
+  public calculateUptime(): number;
+  public computeAverageResponseTime(): number;
 
   // Guards (validation) - can/may (often private)
-  private canBePolled(): boolean
-  private mayChangeStatus(newStatus: NetworkDeviceStatus): boolean
+  private canBePolled(): boolean;
+  private mayChangeStatus(newStatus: NetworkDeviceStatus): boolean;
 }
 ```
 
@@ -654,16 +741,16 @@ class Order {
    */
   public addItem(item: OrderItem): Result<void> {
     // Validate operation
-    if (this._status === OrderStatus.COMPLETED) {
+    if (this.status === OrderStatus.COMPLETED) {
       return Result.fail<void>('Cannot add items to completed order');
     }
 
-    if (this._items.length >= 100) {
+    if (this.items.length >= 100) {
       return Result.fail<void>('Order cannot exceed 100 items');
     }
 
     // Perform operation
-    this._items.push(item);
+    this.props.items.push(item);
     this.touch();
 
     return Result.ok<void>();
@@ -688,8 +775,8 @@ class Employee {
     }
 
     // Operation is safe
-    this._role = newRole;
-    this._promotionDate = new Date();
+    this.props.role = newRole;
+    this.props.promotionDate = new Date();
     this.touch();
 
     return Result.ok();
@@ -697,14 +784,13 @@ class Employee {
 
   private canBePromoted(): boolean {
     return (
-      this._performanceRating >= 4.0 &&
-      this._yearsInCurrentRole >= 2
+      this.performanceRating >= 4.0 && this.yearsInCurrentRole >= 2
     );
   }
 
   private hasRequiredExperienceFor(role: Role): boolean {
     const requiredYears = role.requiredYearsOfExperience;
-    return this._totalYearsOfExperience >= requiredYears;
+    return this.totalYearsOfExperience >= requiredYears;
   }
 }
 ```
@@ -722,13 +808,13 @@ public withdraw(amount: Money): Result<void> {
     );
   }
 
-  if (this._balance.isLessThan(amount)) {
+  if (this.balance.isLessThan(amount)) {
     return Result.fail(
       `Insufficient funds. Available: ${this._balance.format()}, Requested: ${amount.format()}`
     );
   }
 
-  if (this._isDormant) {
+  if (this.isDormant) {
     return Result.fail(
       'Account is dormant. Please reactivate before withdrawing'
     );
@@ -739,7 +825,7 @@ public withdraw(amount: Money): Result<void> {
 
 // ❌ BAD - Vague
 public withdraw(amount: Money): Result<void> {
-  if (this._balance.isLessThan(amount)) {
+  if (this.balance.isLessThan(amount)) {
     return Result.fail('Cannot withdraw'); // Why? How much is available?
   }
   // ...
@@ -752,7 +838,9 @@ Validate invariants in factory method AND before state changes:
 
 ```typescript
 class Subscription {
-  public static create(props: SubscriptionProps): Result<Subscription> {
+  public static create(
+    props: SubscriptionProps
+  ): Result<Subscription> {
     // Validate invariants at creation
     const validationResult = this.validateInvariants(props);
     if (validationResult.isFailure) {
@@ -767,22 +855,30 @@ class Subscription {
     const newEndDate = this.calculateNewEndDate(additionalMonths);
 
     if (newEndDate > this.getMaxAllowedEndDate()) {
-      return Result.fail('Extension would exceed maximum subscription length');
+      return Result.fail(
+        'Extension would exceed maximum subscription length'
+      );
     }
 
-    this._endDate = newEndDate;
+    this.endDate = newEndDate;
     this.touch();
 
     return Result.ok();
   }
 
-  private static validateInvariants(props: SubscriptionProps): Result<void> {
+  private static validateInvariants(
+    props: SubscriptionProps
+  ): Result<void> {
     if (props.endDate <= props.startDate) {
       return Result.fail('End date must be after start date');
     }
 
-    const duration = this.calculateDuration(props.startDate, props.endDate);
-    if (duration > 60) { // 60 months max
+    const duration = this.calculateDuration(
+      props.startDate,
+      props.endDate
+    );
+    if (duration > 60) {
+      // 60 months max
       return Result.fail('Subscription cannot exceed 60 months');
     }
 
@@ -848,14 +944,20 @@ console.log(device1.equals(device2));     // false - different IDs
 
 ```typescript
 // Entities: Equal by ID
-const user1 = User.create({ email: "test@example.com" }, userId1).value;
-const user2 = User.create({ email: "test@example.com" }, userId2).value;
+const user1 = User.create(
+  { email: 'test@example.com' },
+  userId1
+).value;
+const user2 = User.create(
+  { email: 'test@example.com' },
+  userId2
+).value;
 
 console.log(user1.equals(user2)); // FALSE - different IDs (different people!)
 
 // Value Objects: Equal by value
-const email1 = Email.create("test@example.com").value;
-const email2 = Email.create("test@example.com").value;
+const email1 = Email.create('test@example.com').value;
+const email2 = Email.create('test@example.com').value;
 
 console.log(email1.equals(email2)); // TRUE - same value (same email!)
 ```
@@ -867,7 +969,10 @@ console.log(email1.equals(email2)); // TRUE - same value (same email!)
 ### Test Structure:
 
 ```typescript
-import { NetworkDevice, NetworkDeviceId } from '@/domain/entities/NetworkDevice';
+import {
+  NetworkDevice,
+  NetworkDeviceId
+} from '@/domain/entities/NetworkDevice';
 import { IPAddress } from '@/domain/value-objects/IPAddress';
 import { MACAddress } from '@/domain/value-objects/MACAddress';
 
@@ -876,7 +981,7 @@ describe('NetworkDevice Entity', () => {
   const createValidProps = () => ({
     name: 'Test-Device',
     ipAddress: IPAddress.create('192.168.1.1').value,
-    macAddress: MACAddress.create('00:11:22:33:44:55').value,
+    macAddress: MACAddress.create('00:11:22:33:44:55').value
     // ... other valid properties
   });
 
@@ -918,7 +1023,10 @@ describe('NetworkDevice Entity', () => {
       });
 
       it('should fail if IP address is missing', () => {
-        const props = { ...createValidProps(), ipAddress: null as any };
+        const props = {
+          ...createValidProps(),
+          ipAddress: null as any
+        };
         const result = NetworkDevice.create(props);
 
         expect(result.isFailure).toBe(true);
@@ -943,7 +1051,9 @@ describe('NetworkDevice Entity', () => {
   describe('updateStatus', () => {
     it('should update status successfully', () => {
       const device = NetworkDevice.create(createValidProps()).value;
-      const result = device.updateStatus(NetworkDeviceStatus.MAINTENANCE);
+      const result = device.updateStatus(
+        NetworkDeviceStatus.MAINTENANCE
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(device.status).toBe(NetworkDeviceStatus.MAINTENANCE);
@@ -975,8 +1085,14 @@ describe('NetworkDevice Entity', () => {
   describe('equals', () => {
     it('should return true for same ID', () => {
       const id = NetworkDeviceId.create().value;
-      const device1 = NetworkDevice.create(createValidProps(), id).value;
-      const device2 = NetworkDevice.create(createValidProps(), id).value;
+      const device1 = NetworkDevice.create(
+        createValidProps(),
+        id
+      ).value;
+      const device2 = NetworkDevice.create(
+        createValidProps(),
+        id
+      ).value;
 
       expect(device1.equals(device2)).toBe(true);
     });
@@ -1029,7 +1145,9 @@ describe('NetworkDevice Entity', () => {
       const device = NetworkDevice.create(createValidProps()).value;
 
       expect(device.createdAt).toBeInstanceOf(Date);
-      expect(device.createdAt.getTime()).toBeLessThanOrEqual(Date.now());
+      expect(device.createdAt.getTime()).toBeLessThanOrEqual(
+        Date.now()
+      );
     });
 
     it('should update updatedAt on modification', () => {
@@ -1039,7 +1157,9 @@ describe('NetworkDevice Entity', () => {
       // Modify entity
       setTimeout(() => {
         device.updateName('New-Name');
-        expect(device.updatedAt.getTime()).toBeGreaterThan(originalUpdatedAt);
+        expect(device.updatedAt.getTime()).toBeGreaterThan(
+          originalUpdatedAt
+        );
       }, 10);
     });
   });
@@ -1049,18 +1169,21 @@ describe('NetworkDevice Entity', () => {
 ### Test Coverage Requirements:
 
 1. **Creation Tests**:
+
    - Valid creation (with and without ID)
    - All validation rules
    - Invariant enforcement
    - Edge cases
 
 2. **Business Logic Tests**:
+
    - All public methods
    - Valid operations
    - Invalid operations (guards)
    - State transitions
 
 3. **Equality Tests**:
+
    - Same ID = equal
    - Different ID = not equal
    - Null/undefined handling
@@ -1097,8 +1220,8 @@ interface PollingConfigurationProps {
   interval: PollingInterval;
   enabled: boolean;
   maxRetries: number;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /**
@@ -1113,28 +1236,26 @@ interface PollingConfigurationProps {
  * - Cannot enable polling with invalid interval
  * - Cannot set retries above 10 (system limit)
  */
-export class PollingConfiguration extends Entity<PollingConfigurationId> {
-  private _interval: PollingInterval;
-  private _enabled: boolean;
-  private _maxRetries: number;
-
+export class PollingConfiguration extends Entity<
+  PollingConfigurationProps,
+  PollingConfigurationId
+> {
   private constructor(
     props: PollingConfigurationProps,
     id: PollingConfigurationId
   ) {
-    super(id, props.createdAt, props.updatedAt);
-    this._interval = props.interval;
-    this._enabled = props.enabled;
-    this._maxRetries = props.maxRetries;
+    super(props, id);
   }
 
   public static create(
-    props: PollingConfigurationProps,
+    props: Omit<PollingConfigurationProps, 'createdAt' | 'updatedAt'>,
     id?: PollingConfigurationId
   ): Result<PollingConfiguration> {
     // Validate interval
     if (!props.interval) {
-      return Result.fail<PollingConfiguration>('Interval is required');
+      return Result.fail<PollingConfiguration>(
+        'Interval is required'
+      );
     }
 
     // Validate max retries
@@ -1146,8 +1267,14 @@ export class PollingConfiguration extends Entity<PollingConfigurationId> {
 
     const configId = id ?? PollingConfigurationId.create().value;
 
+    const configProps: PollingConfigurationProps = {
+      ...props,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
     return Result.ok<PollingConfiguration>(
-      new PollingConfiguration(props, configId)
+      new PollingConfiguration(configProps, configId)
     );
   }
 
@@ -1156,14 +1283,14 @@ export class PollingConfiguration extends Entity<PollingConfigurationId> {
    * Validates that interval is appropriate.
    */
   public enable(): Result<void> {
-    if (this._interval.seconds < 10) {
+    if (this.props.interval.seconds < 10) {
       return Result.fail<void>(
         'Cannot enable polling with interval less than 10 seconds'
       );
     }
 
-    this._enabled = true;
-    this.touch();
+    this.props.enabled = true;
+    this.props.updatedAt = new Date();
 
     return Result.ok<void>();
   }
@@ -1172,8 +1299,8 @@ export class PollingConfiguration extends Entity<PollingConfigurationId> {
    * Disables polling.
    */
   public disable(): void {
-    this._enabled = false;
-    this.touch();
+    this.props.enabled = false;
+    this.props.updatedAt = new Date();
   }
 
   /**
@@ -1181,14 +1308,14 @@ export class PollingConfiguration extends Entity<PollingConfigurationId> {
    * If enabled, validates new interval is acceptable.
    */
   public updateInterval(newInterval: PollingInterval): Result<void> {
-    if (this._enabled && newInterval.seconds < 10) {
+    if (this.props.enabled && newInterval.seconds < 10) {
       return Result.fail<void>(
         'Cannot set interval less than 10 seconds while polling is enabled'
       );
     }
 
-    this._interval = newInterval;
-    this.touch();
+    this.props.interval = newInterval;
+    this.props.updatedAt = new Date();
 
     return Result.ok<void>();
   }
@@ -1198,26 +1325,36 @@ export class PollingConfiguration extends Entity<PollingConfigurationId> {
    */
   public updateMaxRetries(retries: number): Result<void> {
     if (retries < 0 || retries > 10) {
-      return Result.fail<void>('Max retries must be between 0 and 10');
+      return Result.fail<void>(
+        'Max retries must be between 0 and 10'
+      );
     }
 
-    this._maxRetries = retries;
-    this.touch();
+    this.props.maxRetries = retries;
+    this.props.updatedAt = new Date();
 
     return Result.ok<void>();
   }
 
   // Getters
-  public get interval(): PollingInterval {
-    return this._interval;
+  get interval(): PollingInterval {
+    return this.props.interval;
   }
 
-  public get enabled(): boolean {
-    return this._enabled;
+  get enabled(): boolean {
+    return this.props.enabled;
   }
 
-  public get maxRetries(): number {
-    return this._maxRetries;
+  get maxRetries(): number {
+    return this.props.maxRetries;
+  }
+
+  get createdAt(): Date {
+    return this.props.createdAt;
+  }
+
+  get updatedAt(): Date {
+    return this.props.updatedAt;
   }
 }
 ```
@@ -1255,8 +1392,8 @@ interface OrderProps {
   items: OrderItem[];
   shippingAddress: Address;
   status: OrderStatus;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /**
@@ -1273,22 +1410,13 @@ interface OrderProps {
  * - Can only confirm if total > $0
  * - Cannot cancel after SHIPPED
  */
-export class Order extends Entity<OrderId> {
-  private _customerId: string;
-  private _items: OrderItem[];
-  private _shippingAddress: Address;
-  private _status: OrderStatus;
-
+export class Order extends Entity<OrderProps, OrderId> {
   private constructor(props: OrderProps, id: OrderId) {
-    super(id, props.createdAt, props.updatedAt);
-    this._customerId = props.customerId;
-    this._items = props.items;
-    this._shippingAddress = props.shippingAddress;
-    this._status = props.status;
+    super(props, id);
   }
 
   public static create(
-    props: OrderProps,
+    props: Omit<OrderProps, 'createdAt' | 'updatedAt'>,
     id?: OrderId
   ): Result<Order> {
     // Validate customer
@@ -1306,9 +1434,13 @@ export class Order extends Entity<OrderId> {
     }
 
     // Validate all items have same currency
-    const currencies = new Set(props.items.map(item => item.price.currency));
+    const currencies = new Set(
+      props.items.map((item) => item.price.currency)
+    );
     if (currencies.size > 1) {
-      return Result.fail<Order>('All items must have the same currency');
+      return Result.fail<Order>(
+        'All items must have the same currency'
+      );
     }
 
     // Validate shipping address
@@ -1318,7 +1450,13 @@ export class Order extends Entity<OrderId> {
 
     const orderId = id ?? OrderId.create().value;
 
-    return Result.ok<Order>(new Order(props, orderId));
+    const orderProps: OrderProps = {
+      ...props,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    return Result.ok<Order>(new Order(orderProps, orderId));
   }
 
   /**
@@ -1326,19 +1464,19 @@ export class Order extends Entity<OrderId> {
    * Only allowed in PENDING status.
    */
   public addItem(item: OrderItem): Result<void> {
-    if (this._status !== OrderStatus.PENDING) {
+    if (this.props.status !== OrderStatus.PENDING) {
       return Result.fail<void>(
         'Can only add items to pending orders'
       );
     }
 
-    if (this._items.length >= 100) {
+    if (this.props.items.length >= 100) {
       return Result.fail<void>('Order cannot exceed 100 items');
     }
 
     // Check currency matches
-    if (this._items.length > 0) {
-      const existingCurrency = this._items[0].price.currency;
+    if (this.props.items.length > 0) {
+      const existingCurrency = this.props.items[0].price.currency;
       if (item.price.currency !== existingCurrency) {
         return Result.fail<void>(
           `Item currency ${item.price.currency} does not match order currency ${existingCurrency}`
@@ -1346,8 +1484,8 @@ export class Order extends Entity<OrderId> {
       }
     }
 
-    this._items.push(item);
-    this.touch();
+    this.props.items.push(item);
+    this.props.updatedAt = new Date();
 
     return Result.ok<void>();
   }
@@ -1356,26 +1494,28 @@ export class Order extends Entity<OrderId> {
    * Removes an item from the order.
    */
   public removeItem(itemId: OrderItemId): Result<void> {
-    if (this._status !== OrderStatus.PENDING) {
+    if (this.props.status !== OrderStatus.PENDING) {
       return Result.fail<void>(
         'Can only remove items from pending orders'
       );
     }
 
-    const index = this._items.findIndex(item => item.id.equals(itemId));
+    const index = this.props.items.findIndex((item) =>
+      item.id.equals(itemId)
+    );
     if (index === -1) {
       return Result.fail<void>('Item not found in order');
     }
 
-    this._items.splice(index, 1);
+    this.props.items.splice(index, 1);
 
-    if (this._items.length === 0) {
+    if (this.props.items.length === 0) {
       return Result.fail<void>(
         'Cannot remove last item. Delete order instead.'
       );
     }
 
-    this.touch();
+    this.props.updatedAt = new Date();
 
     return Result.ok<void>();
   }
@@ -1385,7 +1525,7 @@ export class Order extends Entity<OrderId> {
    * Transitions from PENDING to CONFIRMED.
    */
   public confirm(): Result<void> {
-    if (this._status !== OrderStatus.PENDING) {
+    if (this.props.status !== OrderStatus.PENDING) {
       return Result.fail<void>(
         'Only pending orders can be confirmed'
       );
@@ -1398,8 +1538,8 @@ export class Order extends Entity<OrderId> {
       );
     }
 
-    this._status = OrderStatus.CONFIRMED;
-    this.touch();
+    this.props.status = OrderStatus.CONFIRMED;
+    this.props.updatedAt = new Date();
 
     return Result.ok<void>();
   }
@@ -1408,14 +1548,14 @@ export class Order extends Entity<OrderId> {
    * Marks order as shipped.
    */
   public ship(): Result<void> {
-    if (this._status !== OrderStatus.CONFIRMED) {
+    if (this.props.status !== OrderStatus.CONFIRMED) {
       return Result.fail<void>(
         'Only confirmed orders can be shipped'
       );
     }
 
-    this._status = OrderStatus.SHIPPED;
-    this.touch();
+    this.props.status = OrderStatus.SHIPPED;
+    this.props.updatedAt = new Date();
 
     return Result.ok<void>();
   }
@@ -1424,14 +1564,14 @@ export class Order extends Entity<OrderId> {
    * Marks order as delivered.
    */
   public deliver(): Result<void> {
-    if (this._status !== OrderStatus.SHIPPED) {
+    if (this.props.status !== OrderStatus.SHIPPED) {
       return Result.fail<void>(
         'Only shipped orders can be delivered'
       );
     }
 
-    this._status = OrderStatus.DELIVERED;
-    this.touch();
+    this.props.status = OrderStatus.DELIVERED;
+    this.props.updatedAt = new Date();
 
     return Result.ok<void>();
   }
@@ -1441,18 +1581,21 @@ export class Order extends Entity<OrderId> {
    * Cannot cancel after shipping.
    */
   public cancel(): Result<void> {
-    if (this._status === OrderStatus.SHIPPED || this._status === OrderStatus.DELIVERED) {
+    if (
+      this.props.status === OrderStatus.SHIPPED ||
+      this.props.status === OrderStatus.DELIVERED
+    ) {
       return Result.fail<void>(
         'Cannot cancel order that has been shipped'
       );
     }
 
-    if (this._status === OrderStatus.CANCELLED) {
+    if (this.props.status === OrderStatus.CANCELLED) {
       return Result.fail<void>('Order is already cancelled');
     }
 
-    this._status = OrderStatus.CANCELLED;
-    this.touch();
+    this.props.status = OrderStatus.CANCELLED;
+    this.props.updatedAt = new Date();
 
     return Result.ok<void>();
   }
@@ -1461,15 +1604,15 @@ export class Order extends Entity<OrderId> {
    * Calculates total order amount.
    */
   public calculateTotal(): Money {
-    if (this._items.length === 0) {
+    if (this.props.items.length === 0) {
       // Return zero in first item's currency or default
       return Money.zero('USD').value;
     }
 
-    let total = this._items[0].calculateSubtotal();
+    let total = this.props.items[0].calculateSubtotal();
 
-    for (let i = 1; i < this._items.length; i++) {
-      const subtotal = this._items[i].calculateSubtotal();
+    for (let i = 1; i < this.props.items.length; i++) {
+      const subtotal = this.props.items[i].calculateSubtotal();
       const addResult = total.add(subtotal);
 
       if (addResult.isFailure) {
@@ -1486,24 +1629,35 @@ export class Order extends Entity<OrderId> {
    * Gets item count.
    */
   public getItemCount(): number {
-    return this._items.reduce((sum, item) => sum + item.quantity, 0);
+    return this.props.items.reduce(
+      (sum, item) => sum + item.quantity,
+      0
+    );
   }
 
   // Getters
-  public get customerId(): string {
-    return this._customerId;
+  get customerId(): string {
+    return this.props.customerId;
   }
 
-  public get items(): readonly OrderItem[] {
-    return this._items; // Return readonly to prevent external modification
+  get items(): readonly OrderItem[] {
+    return this.props.items; // Return readonly to prevent external modification
   }
 
-  public get shippingAddress(): Address {
-    return this._shippingAddress;
+  get shippingAddress(): Address {
+    return this.props.shippingAddress;
   }
 
-  public get status(): OrderStatus {
-    return this._status;
+  get status(): OrderStatus {
+    return this.props.status;
+  }
+
+  get createdAt(): Date {
+    return this.props.createdAt;
+  }
+
+  get updatedAt(): Date {
+    return this.props.updatedAt;
   }
 }
 ```
