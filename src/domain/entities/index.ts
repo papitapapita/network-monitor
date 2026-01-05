@@ -6,11 +6,8 @@
  */
 
 // NetworkDevice aggregate
-export * from './NetworkDeviceId';
-export * from './NetworkDevice';
+export * from '../value-objects/NetworkDeviceId';
 
 // Polling entities
-export * from './PollingConfigurationId';
 export * from './PollingConfiguration';
-export * from './PollingResultId';
-export * from './PollingResult';
+export * from '../aggregates/PollingResult';

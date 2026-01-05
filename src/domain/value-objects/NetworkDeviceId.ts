@@ -1,4 +1,4 @@
-import { UniqueEntityID, Result } from '../';
+import { UniqueEntityID, Result } from '..';
 
 /**
  * NetworkDeviceId - Unique identifier for NetworkDevice aggregate

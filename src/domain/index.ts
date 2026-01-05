@@ -17,8 +17,11 @@ export * from './shared/interfaces';
 // Value Objects
 export * from './value-objects';
 
-// Entities and Aggregates
+// Entities
 export * from './entities';
+
+// Aggregates
+export * from './aggregates';
 
 // Domain Events
 export * from './events';

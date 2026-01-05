@@ -1,17 +1,19 @@
+import { ValueObject } from './ValueObject';
+
 /**
  * Generic Identifier wrapper used in Domain-Driven Design (DDD) to ensure
  * strong typing and identity comparison for entity IDs or value objects.
  *
  * @template T The primitive type of the identifier's internal value (e.g., string, number, UUID).
  */
-export class Identifier<T> {
+export class Identifier<T> extends ValueObject<{ value: T }> {
   /**
    * Creates a new Identifier instance.
    *
    * @param {T} value - The underlying primitive value representing the identifier.
    */
   constructor(private value: T) {
-    this.value = value;
+    super({ value });
   }
 
   /**
