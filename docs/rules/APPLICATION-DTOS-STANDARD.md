@@ -1,6 +1,7 @@
 # APPLICATION DTOS STANDARD
 
 ## Table of Contents
+
 1. [Purpose of DTOs in DDD](#1-purpose-of-dtos-in-ddd)
 2. [Responsibilities of a DTO](#2-responsibilities-of-a-DTO)
 3. [Boundaries of a DTO](#3-boundaries-of-a-dto)
@@ -38,14 +39,14 @@
 
 ### DTOs vs Domain Objects:
 
-| Aspect | DTO | Domain Object |
-|--------|-----|---------------|
-| **Purpose** | Data transfer | Business logic |
-| **Validation** | Format validation | Business rules |
-| **Location** | Application layer | Domain layer |
-| **Structure** | Flat, simple types | Complex, rich objects |
-| **Mutability** | Usually mutable | Often immutable (VOs) |
-| **Logic** | None | Business behavior |
+| Aspect         | DTO                | Domain Object         |
+| -------------- | ------------------ | --------------------- |
+| **Purpose**    | Data transfer      | Business logic        |
+| **Validation** | Format validation  | Business rules        |
+| **Location**   | Application layer  | Domain layer          |
+| **Structure**  | Flat, simple types | Complex, rich objects |
+| **Mutability** | Usually mutable    | Often immutable (VOs) |
+| **Logic**      | None               | Business behavior     |
 
 ---
 
@@ -54,16 +55,19 @@
 ### MUST DO:
 
 1. **Hold Data**
+
    - Properties for data transfer
    - Simple types (string, number, boolean, Date)
    - Nested DTOs if needed
 
 2. **Be Serializable**
+
    - Convert to/from JSON
    - No circular references
    - No methods (except getters/setters)
 
 3. **Define API Contract**
+
    - Clear property types
    - Optional vs required fields
    - Documentation for consumers
@@ -80,23 +84,27 @@
 ### MUST NOT DO:
 
 1. **❌ Contain Business Logic**
+
    - No validation methods
    - No calculations
    - No domain rules
    - Pure data only
 
 2. **❌ Reference Domain Objects**
+
    - No entities
    - No aggregates
    - No value objects
    - Use primitives or nested DTOs
 
 3. **❌ Have Methods**
+
    - No behavior
    - Only data properties
    - Getters/setters acceptable
 
 4. **❌ Know About Domain**
+
    - DTOs don't import domain types
    - Domain imports DTOs for mapping
    - One-way dependency
@@ -208,7 +216,7 @@ export interface NetworkDeviceResponseDTO {
   ipAddress: string;
   macAddress: string;
   status: string;
-  createdAt: string;  // ISO date string
+  createdAt: string; // ISO date string
   updatedAt: string;
 }
 
@@ -229,8 +237,8 @@ DTOs can contain other DTOs:
 export interface OrderResponseDTO {
   id: string;
   customerId: string;
-  items: OrderItemDTO[];        // Nested DTO
-  shipping: ShippingInfoDTO;    // Nested DTO
+  items: OrderItemDTO[]; // Nested DTO
+  shipping: ShippingInfoDTO; // Nested DTO
   total: number;
   status: string;
 }
@@ -297,7 +305,7 @@ export interface SearchDevicesQueryDTO {
 
 ### Request DTO Template:
 
-```typescript
+````typescript
 /**
  * Request DTO for [Operation Name].
  *
@@ -340,11 +348,11 @@ export interface OperationNameRequestDTO {
    */
   field3?: boolean;
 }
-```
+````
 
 ### Response DTO Template:
 
-```typescript
+````typescript
 /**
  * Response DTO for [Entity Name].
  *
@@ -390,7 +398,7 @@ export interface EntityNameResponseDTO {
    */
   updatedAt: string;
 }
-```
+````
 
 ### List Response DTO Template:
 
@@ -483,8 +491,8 @@ export interface OrderResponseDTO {
   id: string;
   customerId: string;
   total: number;
-  items: OrderItemDTO[];  // Array of DTOs
-  shipping: ShippingDTO;  // Nested DTO
+  items: OrderItemDTO[]; // Array of DTOs
+  shipping: ShippingDTO; // Nested DTO
 }
 
 // ❌ BAD - Deep nesting
@@ -501,10 +509,10 @@ export interface OrderResponseDTO {
           state: {
             code: string;
             // Too deep!
-          }
-        }
-      }
-    }
+          };
+        };
+      };
+    };
   };
 }
 ```
@@ -516,18 +524,18 @@ Use primitives for external representation:
 ```typescript
 // ✅ GOOD - Primitives
 export interface DeviceResponseDTO {
-  id: string;              // Not UniqueEntityID
-  ipAddress: string;       // Not IPAddress VO
-  macAddress: string;      // Not MACAddress VO
-  status: string;          // Not enum (for API flexibility)
-  createdAt: string;       // ISO date string
+  id: string; // Not UniqueEntityID
+  ipAddress: string; // Not IPAddress VO
+  macAddress: string; // Not MACAddress VO
+  status: string; // Not enum (for API flexibility)
+  createdAt: string; // ISO date string
 }
 
 // ❌ BAD - Domain types
 export interface DeviceResponseDTO {
-  id: NetworkDeviceId;     // Domain type!
-  ipAddress: IPAddress;    // Value Object!
-  status: NetworkDeviceStatus;  // Enum!
+  id: NetworkDeviceId; // Domain type!
+  ipAddress: IPAddress; // Value Object!
+  status: NetworkDeviceStatus; // Enum!
 }
 ```
 
@@ -568,15 +576,15 @@ Use consistent patterns across DTOs:
 
 ```typescript
 // ✅ GOOD - Consistent patterns
-export interface CreateOrderRequestDTO { }
-export interface UpdateOrderRequestDTO { }
-export interface OrderResponseDTO { }
-export interface OrderListResponseDTO { }
+export interface CreateOrderRequestDTO {}
+export interface UpdateOrderRequestDTO {}
+export interface OrderResponseDTO {}
+export interface OrderListResponseDTO {}
 
-export interface CreateProductRequestDTO { }
-export interface UpdateProductRequestDTO { }
-export interface ProductResponseDTO { }
-export interface ProductListResponseDTO { }
+export interface CreateProductRequestDTO {}
+export interface UpdateProductRequestDTO {}
+export interface ProductResponseDTO {}
+export interface ProductListResponseDTO {}
 ```
 
 ---
@@ -591,22 +599,22 @@ export interface ProductListResponseDTO { }
 
 ```typescript
 // Request DTOs
-export interface CreateNetworkDeviceRequestDTO { }
-export interface UpdateNetworkDeviceRequestDTO { }
-export interface DeleteNetworkDeviceRequestDTO { }
+export interface CreateNetworkDeviceRequestDTO {}
+export interface UpdateNetworkDeviceRequestDTO {}
+export interface DeleteNetworkDeviceRequestDTO {}
 
 // Response DTOs
-export interface NetworkDeviceDTO { }              // or
-export interface NetworkDeviceResponseDTO { }      // more explicit
-export interface NetworkDeviceListDTO { }          // for lists
+export interface NetworkDeviceDTO {} // or
+export interface NetworkDeviceResponseDTO {} // more explicit
+export interface NetworkDeviceListDTO {} // for lists
 
 // Query DTOs
-export interface GetDevicesByStatusQueryDTO { }
-export interface SearchDevicesQueryDTO { }
+export interface GetDevicesByStatusQueryDTO {}
+export interface SearchDevicesQueryDTO {}
 
 // Command DTOs
-export interface ConfirmOrderCommandDTO { }
-export interface CancelOrderCommandDTO { }
+export interface ConfirmOrderCommandDTO {}
+export interface CancelOrderCommandDTO {}
 ```
 
 ### Property Names:
@@ -617,17 +625,17 @@ export interface CancelOrderCommandDTO { }
 
 ```typescript
 export interface OrderDTO {
-  id: string;                // ✅ camelCase
-  orderId: string;           // ✅ if needed for clarity
-  customerId: string;        // ✅ descriptive
-  totalAmount: number;       // ✅ clear
-  createdAt: string;         // ✅ timestamp
+  id: string; // ✅ camelCase
+  orderId: string; // ✅ if needed for clarity
+  customerId: string; // ✅ descriptive
+  totalAmount: number; // ✅ clear
+  createdAt: string; // ✅ timestamp
 
   // ❌ BAD
-  ID: string;                // Wrong case
-  customer_id: string;       // snake_case
-  amt: number;               // Abbreviated
-  created: string;           // Ambiguous
+  ID: string; // Wrong case
+  customer_id: string; // snake_case
+  amt: number; // Abbreviated
+  created: string; // Ambiguous
 }
 ```
 
@@ -709,20 +717,29 @@ import { z } from 'zod';
 // Zod schema for DTO validation
 export const CreateOrderRequestSchema = z.object({
   customerId: z.string().min(1),
-  items: z.array(z.object({
-    productId: z.string(),
-    quantity: z.number().int().positive()
-  })).min(1),
+  items: z
+    .array(
+      z.object({
+        productId: z.string(),
+        quantity: z.number().int().positive()
+      })
+    )
+    .min(1),
   shippingAddress: z.string().min(1)
 });
 
 // Infer TypeScript type from schema
-export type CreateOrderRequestDTO = z.infer<typeof CreateOrderRequestSchema>;
+export type CreateOrderRequestDTO = z.infer<
+  typeof CreateOrderRequestSchema
+>;
 
 // Validate in controller/handler
-const validationResult = CreateOrderRequestSchema.safeParse(requestBody);
+const validationResult =
+  CreateOrderRequestSchema.safeParse(requestBody);
 if (!validationResult.success) {
-  return res.status(400).json({ errors: validationResult.error.errors });
+  return res
+    .status(400)
+    .json({ errors: validationResult.error.errors });
 }
 
 const dto = validationResult.data; // Validated DTO
@@ -762,7 +779,7 @@ describe('CreateNetworkDeviceRequestDTO Validation', () => {
         ipAddress: '192.168.1.1',
         macAddress: '00:11:22:33:44:55',
         deviceType: 'ROUTER',
-        description: 'Main router'  // Optional
+        description: 'Main router' // Optional
       };
 
       const result = validator.validate(dto);
@@ -872,7 +889,7 @@ export interface CreateNetworkDeviceRequestDTO {
   macAddress: string;
   deviceType: string;
   description?: string;
-  pollingInterval?: number;  // Seconds
+  pollingInterval?: number; // Seconds
 }
 
 /**
@@ -911,7 +928,7 @@ export interface NetworkDeviceResponseDTO {
   status: string;
   description: string | null;
   pollingEnabled: boolean;
-  lastPollTime: string | null;  // ISO date string
+  lastPollTime: string | null; // ISO date string
   createdAt: string;
   updatedAt: string;
 
@@ -1034,8 +1051,8 @@ export interface PollingResultResponseDTO {
   deviceName: string;
   deviceIpAddress: string;
   timestamp: string;
-  status: string;         // SUCCESS, PARTIAL_SUCCESS, FAILED, TIMEOUT
-  deviceStatus: string;   // ONLINE, OFFLINE, DEGRADED
+  status: string; // SUCCESS, PARTIAL_SUCCESS, FAILED, TIMEOUT
+  deviceStatus: string; // ONLINE, OFFLINE, DEGRADED
   attemptNumber: number;
   errorMessage: string | null;
 

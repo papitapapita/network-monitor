@@ -1,6 +1,7 @@
 # DOMAIN REPOSITORY INTERFACES STANDARD
 
 ## Table of Contents
+
 1. [Purpose of Repository Interfaces in DDD](#1-purpose-of-repository-interfaces-in-ddd)
 2. [Responsibilities of a Repository Interface](#2-responsibilities-of-a-repository-interface)
 3. [Boundaries of a Repository Interface](#3-boundaries-of-a-repository-interface)
@@ -37,13 +38,13 @@
 
 ### Repository vs DAO (Data Access Object):
 
-| Aspect | Repository | DAO |
-|--------|------------|-----|
-| **Level** | Domain-focused | Data-focused |
-| **Scope** | Aggregate root | Any entity/table |
-| **Operations** | Collection-like | CRUD |
-| **Language** | Ubiquitous language | Database terms |
-| **Location** | Domain (interface) | Infrastructure |
+| Aspect         | Repository          | DAO              |
+| -------------- | ------------------- | ---------------- |
+| **Level**      | Domain-focused      | Data-focused     |
+| **Scope**      | Aggregate root      | Any entity/table |
+| **Operations** | Collection-like     | CRUD             |
+| **Language**   | Ubiquitous language | Database terms   |
+| **Location**   | Domain (interface)  | Infrastructure   |
 
 ---
 
@@ -52,22 +53,26 @@
 ### MUST DO:
 
 1. **Define Persistence Contract**
+
    - Methods for saving aggregates
    - Methods for retrieving aggregates
    - Methods for deleting aggregates
    - Query methods using domain language
 
 2. **Use Domain Types**
+
    - Accept/return Aggregates, Entities, Value Objects
    - Parameters are domain IDs (not strings/numbers)
    - No DTOs or infrastructure types
 
 3. **Return Results**
+
    - Use Result<T> for operations that can fail
    - Provide meaningful error messages
    - No throwing exceptions for business failures
 
 4. **Express Domain Queries**
+
    - Query methods use domain language
    - Filter by domain concepts
    - No SQL or query language in interface
@@ -84,24 +89,28 @@
 ### MUST NOT DO:
 
 1. **❌ Contain Implementation Details**
+
    - No SQL queries
    - No ORM entities
    - No database-specific code
    - Pure contract definition
 
 2. **❌ Know About Infrastructure**
+
    - No database connection details
    - No framework dependencies
    - No caching logic
    - No transaction management (explicit)
 
 3. **❌ Have Business Logic**
+
    - No validation
    - No calculations
    - No state transformations
    - Pure persistence contract
 
 4. **❌ Expose Internal Entities**
+
    - Only aggregate root repositories
    - No repositories for child entities
    - Child entities persisted with aggregate
@@ -194,9 +203,9 @@ interface IOrderRepository {
 
 // ❌ BAD - Database-focused
 interface IOrderRepository {
-  insert(order: Order): Promise<void>;        // Database term
-  selectById(id: string): Promise<Order>;     // SQL term
-  update(order: Order): Promise<void>;        // Split save into insert/update
+  insert(order: Order): Promise<void>; // Database term
+  selectById(id: string): Promise<Order>; // SQL term
+  update(order: Order): Promise<void>; // Split save into insert/update
   deleteFromDatabase(id: string): Promise<void>; // Database detail
 }
 ```
@@ -253,9 +262,9 @@ interface IOrderRepository {
 interface IOrderRepository {
   findByCustomerId(
     customerId: CustomerId,
-    includeDeleted: boolean,     // Database detail
-    eager: boolean,              // ORM detail
-    lockMode: LockMode           // Database detail
+    includeDeleted: boolean, // Database detail
+    eager: boolean, // ORM detail
+    lockMode: LockMode // Database detail
   ): Promise<Order[]>;
 }
 ```
@@ -441,7 +450,9 @@ export interface IProductRepository {
 }
 
 // Example specifications (in domain layer)
-export class ProductsInCategorySpec implements Specification<Product> {
+export class ProductsInCategorySpec
+  implements Specification<Product>
+{
   constructor(private category: Category) {}
 
   isSatisfiedBy(product: Product): boolean {
@@ -512,7 +523,7 @@ interface IProductRepository {
 // ❌ BAD - Query builder exposure
 interface IProductRepository {
   query(
-    builder: QueryBuilder  // Infrastructure detail!
+    builder: QueryBuilder // Infrastructure detail!
   ): Promise<Result<Product[]>>;
 }
 ```
@@ -529,15 +540,15 @@ interface IProductRepository {
 
 ```typescript
 // ✅ GOOD
-interface IOrderRepository { }
-interface INetworkDeviceRepository { }
-interface ICustomerRepository { }
+interface IOrderRepository {}
+interface INetworkDeviceRepository {}
+interface ICustomerRepository {}
 
 // ❌ BAD
-interface OrderRepository { }        // Missing I prefix
-interface OrdersRepository { }       // Plural
-interface OrderRepo { }              // Abbreviated
-interface IOrderDataAccess { }       // Not using "Repository"
+interface OrderRepository {} // Missing I prefix
+interface OrdersRepository {} // Plural
+interface OrderRepo {} // Abbreviated
+interface IOrderDataAccess {} // Not using "Repository"
 ```
 
 ### Method Names:
@@ -904,7 +915,10 @@ describe('PrismaOrderRepository (Integration)', () => {
 
 ```typescript
 import { Result } from '@/shared/core/Result';
-import { NetworkDevice, NetworkDeviceId } from '@/domain/aggregates/NetworkDevice';
+import {
+  NetworkDevice,
+  NetworkDeviceId
+} from '@/domain/aggregates/NetworkDevice';
 import { IPAddress } from '@/domain/value-objects/IPAddress';
 import { MACAddress } from '@/domain/value-objects/MACAddress';
 import { NetworkDeviceStatus } from '@/domain/value-objects/NetworkDeviceStatus';
@@ -938,7 +952,9 @@ export interface INetworkDeviceRepository {
    * @param id - Device ID
    * @returns Result<NetworkDevice | null> - Device, null, or error
    */
-  findById(id: NetworkDeviceId): Promise<Result<NetworkDevice | null>>;
+  findById(
+    id: NetworkDeviceId
+  ): Promise<Result<NetworkDevice | null>>;
 
   /**
    * Finds a device by IP address.
@@ -947,7 +963,9 @@ export interface INetworkDeviceRepository {
    * @param ipAddress - IP address
    * @returns Result<NetworkDevice | null> - Device, null, or error
    */
-  findByIpAddress(ipAddress: IPAddress): Promise<Result<NetworkDevice | null>>;
+  findByIpAddress(
+    ipAddress: IPAddress
+  ): Promise<Result<NetworkDevice | null>>;
 
   /**
    * Finds a device by MAC address.
@@ -1014,7 +1032,9 @@ export interface INetworkDeviceRepository {
    * @param macAddress - MAC address to check
    * @returns Result<boolean> - True if in use
    */
-  existsByMacAddress(macAddress: MACAddress): Promise<Result<boolean>>;
+  existsByMacAddress(
+    macAddress: MACAddress
+  ): Promise<Result<boolean>>;
 
   /**
    * Counts total devices.
@@ -1085,7 +1105,9 @@ export interface IOrderRepository {
 
   // Existence checks
   hasPendingOrders(customerId: CustomerId): Promise<Result<boolean>>;
-  hasOrdersInLast30Days(customerId: CustomerId): Promise<Result<boolean>>;
+  hasOrdersInLast30Days(
+    customerId: CustomerId
+  ): Promise<Result<boolean>>;
 
   // Counts
   countByCustomerId(customerId: CustomerId): Promise<Result<number>>;

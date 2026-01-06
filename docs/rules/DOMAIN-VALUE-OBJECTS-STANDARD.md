@@ -388,7 +388,10 @@ export class PollingInterval extends ValueObject<PollingIntervalProps> {
 
   public static create(seconds: number): Result<PollingInterval> {
     const guardResult = Guard.combine([
-      Guard.againstNullOrUndefined(seconds, 'polling interval seconds'),
+      Guard.againstNullOrUndefined(
+        seconds,
+        'polling interval seconds'
+      ),
       Guard.isNumber(seconds, 'polling interval seconds'),
       Guard.inRange(
         seconds,
@@ -1341,7 +1344,8 @@ export class Money extends ValueObject<MoneyProps> {
       BRL: 'R$'
     };
 
-    const symbol = symbols[this.props.currency] || this.props.currency;
+    const symbol =
+      symbols[this.props.currency] || this.props.currency;
     const formatted = this.props.amount.toLocaleString('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2

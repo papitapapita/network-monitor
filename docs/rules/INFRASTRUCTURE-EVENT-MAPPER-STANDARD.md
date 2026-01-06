@@ -28,6 +28,7 @@ The **DomainEventMapper** (or **EventSerializer**) is an **Infrastructure layer*
 **Domain Events remain pure data holders with ZERO knowledge of serialization.**
 
 The Domain layer must not know:
+
 - How events are stored in the database
 - How events are formatted for message buses
 - What JSON structure external systems expect
@@ -57,6 +58,7 @@ export class OrderCreatedEvent extends DomainEvent<OrderCreatedEventProps> {
 ```
 
 **Problems:**
+
 - Domain layer depends on Infrastructure concerns (JSON format)
 - Changing database schema requires modifying Domain events
 - Cannot have different serialization formats for different consumers
@@ -85,6 +87,7 @@ export class DomainEventMapper {
 ```
 
 **Benefits:**
+
 - Domain layer remains clean and focused on business logic
 - Infrastructure can change format without affecting Domain
 - Different mappers for different consumers (DB, message bus, API)
@@ -98,22 +101,26 @@ export class DomainEventMapper {
 ### MUST DO:
 
 1. **Accept Domain Events**
+
    - Mapper takes any `DomainEvent<T>` instance as input
    - Works with all event types polymorphically
    - No coupling to specific event classes
 
 2. **Extract Properties**
+
    - Uses reflection, property inspection, or mapping strategy
    - Accesses event properties via getters
    - Handles Value Objects correctly
 
 3. **Convert Value Objects**
+
    - Calls `.toString()` on ID value objects (UniqueEntityID, OrderId, etc.)
    - Calls `.getValue()` or `.value` on primitive value objects
    - Calls `.toJSON()` or `.toPlainObject()` on complex value objects (Money, Address)
    - Handles both simple and complex value objects
 
 4. **Return Plain Object**
+
    - Returns `Record<string, any>` or JSON-compatible object
    - All properties are primitive values or plain objects
    - Ready for `JSON.stringify()` or database insertion
@@ -129,11 +136,13 @@ export class DomainEventMapper {
 ### MUST NOT DO:
 
 1. **❌ Modify Domain Events**
+
    - Mapper is read-only
    - Does not mutate event instances
    - Does not add properties to events
 
 2. **❌ Contain Business Logic**
+
    - No validation or business rules
    - Pure transformation only
    - No side effects
@@ -198,7 +207,9 @@ export class DomainEventMapper {
    * Generic mapping for events without specific strategy.
    * Uses reflection to extract properties.
    */
-  private genericMapping(event: DomainEvent<any>): Record<string, any> {
+  private genericMapping(
+    event: DomainEvent<any>
+  ): Record<string, any> {
     const result: Record<string, any> = {
       eventType: event.constructor.name,
       aggregateId: event.aggregateId.toString(),
@@ -210,7 +221,11 @@ export class DomainEventMapper {
     const descriptors = Object.getOwnPropertyDescriptors(proto);
 
     for (const [key, descriptor] of Object.entries(descriptors)) {
-      if (descriptor.get && key !== 'aggregateId' && key !== 'dateTimeOccurred') {
+      if (
+        descriptor.get &&
+        key !== 'aggregateId' &&
+        key !== 'dateTimeOccurred'
+      ) {
         const value = (event as any)[key];
         result[key] = this.mapValue(value);
       }
@@ -229,7 +244,10 @@ export class DomainEventMapper {
     }
 
     // Check for common DDD value object patterns
-    if (typeof value.toString === 'function' && value.constructor.name.includes('Id')) {
+    if (
+      typeof value.toString === 'function' &&
+      value.constructor.name.includes('Id')
+    ) {
       // Entity IDs (UniqueEntityID, OrderId, etc.)
       return value.toString();
     }
@@ -239,7 +257,10 @@ export class DomainEventMapper {
       return value.getValue();
     }
 
-    if (typeof value.value !== 'undefined' && Object.keys(value).length === 1) {
+    if (
+      typeof value.value !== 'undefined' &&
+      Object.keys(value).length === 1
+    ) {
       // Value objects with single 'value' property
       return value.value;
     }
@@ -744,7 +765,10 @@ describe('DomainEventMapper', () => {
 
   it('should serialize Value Objects correctly', () => {
     const orderId = OrderId.create().value;
-    const money = Money.create({ amount: 100, currency: 'USD' }).value;
+    const money = Money.create({
+      amount: 100,
+      currency: 'USD'
+    }).value;
 
     const event = new OrderCreatedEvent({
       aggregateId: orderId,

@@ -1,6 +1,7 @@
 # DOMAIN SERVICES STANDARD
 
 ## Table of Contents
+
 1. [Purpose of Domain Services in DDD](#1-purpose-of-domain-services-in-ddd)
 2. [Responsibilities of a Domain Service](#2-responsibilities-of-a-domain-service)
 3. [Boundaries of a Domain Service](#3-boundaries-of-a-domain-service)
@@ -42,7 +43,10 @@ Use Domain Services when domain logic:
 ```typescript
 // ❌ BAD - Business logic in wrong place
 class Account {
-  public transferMoneyTo(toAccount: Account, amount: Money): Result<void> {
+  public transferMoneyTo(
+    toAccount: Account,
+    amount: Money
+  ): Result<void> {
     // This involves TWO aggregates - doesn't belong in one entity!
     this.withdraw(amount);
     toAccount.deposit(amount);
@@ -76,14 +80,14 @@ class MoneyTransferService {
 
 ### Domain Service vs Use Case:
 
-| Aspect | Domain Service | Use Case |
-|--------|---------------|----------|
-| **Layer** | Domain Layer | Application Layer |
-| **Purpose** | Domain logic | Orchestration |
-| **Dependencies** | Domain objects only | Repositories, services, etc. |
-| **State** | Stateless | Stateless |
-| **Transactions** | No transaction management | Manages transactions |
-| **Infrastructure** | None | Can use infrastructure |
+| Aspect             | Domain Service            | Use Case                     |
+| ------------------ | ------------------------- | ---------------------------- |
+| **Layer**          | Domain Layer              | Application Layer            |
+| **Purpose**        | Domain logic              | Orchestration                |
+| **Dependencies**   | Domain objects only       | Repositories, services, etc. |
+| **State**          | Stateless                 | Stateless                    |
+| **Transactions**   | No transaction management | Manages transactions         |
+| **Infrastructure** | None                      | Can use infrastructure       |
 
 ---
 
@@ -92,21 +96,25 @@ class MoneyTransferService {
 ### MUST DO:
 
 1. **Encapsulate Domain Logic**
+
    - Business rules that span multiple objects
    - Domain calculations and transformations
    - Domain validations across aggregates
 
 2. **Work with Domain Objects**
+
    - Accepts Entities, Value Objects, Aggregates as parameters
    - Returns domain objects or Results
    - No DTOs or infrastructure types
 
 3. **Be Stateless**
+
    - No instance variables (except injected dependencies)
    - Same inputs always produce same outputs
    - No side effects beyond domain logic
 
 4. **Express Domain Concepts**
+
    - Named after domain operations/processes
    - Methods reflect ubiquitous language
    - Clear domain intent
@@ -123,27 +131,32 @@ class MoneyTransferService {
 ### MUST NOT DO:
 
 1. **❌ Access Infrastructure**
+
    - No database access (use repositories via Use Cases)
    - No HTTP calls
    - No file system access
    - No external API calls
 
 2. **❌ Manage Transactions**
+
    - Transaction management belongs in Use Cases
    - Domain Service just performs domain logic
    - Use Cases coordinate transaction scope
 
 3. **❌ Know About DTOs**
+
    - Works with domain objects only
    - No knowledge of presentation layer
    - No knowledge of API contracts
 
 4. **❌ Coordinate Application Workflows**
+
    - Application orchestration belongs in Use Cases
    - Domain Service focuses on domain logic only
    - No repository calls
 
 5. **❌ Persist Data**
+
    - Domain Services don't save to database
    - Return modified domain objects
    - Use Case handles persistence
@@ -201,6 +214,7 @@ class MoneyTransferService {
 ### Dependency Rules:
 
 ✅ **Domain Services CAN depend on:**
+
 - Entities and Aggregates (as parameters)
 - Value Objects (as parameters)
 - Other Domain Services (injected)
@@ -208,6 +222,7 @@ class MoneyTransferService {
 - Result<T> type
 
 ❌ **Domain Services CANNOT depend on:**
+
 - Repositories (repositories are injected into Use Cases, not Domain Services)
 - Use Cases
 - Application Services
@@ -224,7 +239,9 @@ class OrderPricingService {
   constructor(private discountRepo: IDiscountRepository) {}
 
   async calculatePrice(order: Order): Promise<Money> {
-    const discount = await this.discountRepo.findByCustomer(order.customerId);
+    const discount = await this.discountRepo.findByCustomer(
+      order.customerId
+    );
     // ...
   }
 }
@@ -233,7 +250,9 @@ class OrderPricingService {
 class CalculateOrderPriceUseCase {
   async execute(orderId: OrderId): Promise<Result<Money>> {
     const order = await this.orderRepo.findById(orderId);
-    const discount = await this.discountRepo.findByCustomer(order.customerId);
+    const discount = await this.discountRepo.findByCustomer(
+      order.customerId
+    );
 
     // Domain Service works with loaded domain objects
     const price = this.pricingService.calculatePrice(order, discount);
@@ -275,13 +294,17 @@ class ConfirmOrderUseCase {
   constructor(
     private orderRepo: IOrderRepository,
     private pricingService: OrderPricingService, // Domain Service injected
-    private taxService: TaxCalculationService    // Domain Service injected
+    private taxService: TaxCalculationService // Domain Service injected
   ) {}
 
-  async execute(request: ConfirmOrderRequest): Promise<Result<OrderDTO>> {
+  async execute(
+    request: ConfirmOrderRequest
+  ): Promise<Result<OrderDTO>> {
     // 2. Load domain objects
     const order = await this.orderRepo.findById(request.orderId);
-    const customer = await this.customerRepo.findById(order.customerId);
+    const customer = await this.customerRepo.findById(
+      order.customerId
+    );
 
     // 3. Call Domain Service with domain objects
     const price = this.pricingService.calculatePrice(order, customer);
@@ -334,7 +357,7 @@ export interface IDomainServiceName {
 
 ### Domain Service Implementation:
 
-```typescript
+````typescript
 import { Result } from '@/shared/core/Result';
 import { IDomainServiceName } from './IDomainServiceName';
 
@@ -395,7 +418,10 @@ export class DomainServiceName implements IDomainServiceName {
     }
 
     // 2. Validate business rules
-    const validationResult = this.validateBusinessRules(param1, param2);
+    const validationResult = this.validateBusinessRules(
+      param1,
+      param2
+    );
     if (validationResult.isFailure) {
       return Result.fail<ReturnType>(validationResult.error);
     }
@@ -429,7 +455,7 @@ export class DomainServiceName implements IDomainServiceName {
     return result;
   }
 }
-```
+````
 
 ### Async Domain Service (rare):
 
@@ -477,10 +503,10 @@ class TaxCalculationService {
 
 // ❌ BAD - Multiple responsibilities
 class OrderService {
-  public calculatePrice(order: Order): Money { }
-  public calculateTax(order: Order): Money { }
-  public validateOrder(order: Order): boolean { }
-  public sendOrderConfirmation(order: Order): void { }
+  public calculatePrice(order: Order): Money {}
+  public calculateTax(order: Order): Money {}
+  public validateOrder(order: Order): boolean {}
+  public sendOrderConfirmation(order: Order): void {}
   // Too many unrelated concerns!
 }
 ```
@@ -536,12 +562,19 @@ class InventoryAllocationService {
 
 // ❌ BAD - Mixed with infrastructure
 class InventoryAllocationService {
-  public async allocateInventory(order: Order): Promise<Result<AllocationResult>> {
+  public async allocateInventory(
+    order: Order
+  ): Promise<Result<AllocationResult>> {
     // Loading from database - WRONG! This is infrastructure
-    const warehouse = await this.warehouseRepo.findClosest(order.shippingAddress);
+    const warehouse = await this.warehouseRepo.findClosest(
+      order.shippingAddress
+    );
 
     // Sending email - WRONG! This is application concern
-    await this.emailService.send(order.customer.email, 'Allocation complete');
+    await this.emailService.send(
+      order.customer.email,
+      'Allocation complete'
+    );
 
     return Result.ok(allocation);
   }
@@ -560,17 +593,17 @@ class InventoryAllocationService {
 
 ```typescript
 // ✅ GOOD - Clear domain operation
-class OrderPricingService { }
-class TaxCalculationService { }
-class InventoryAllocationService { }
-class ShippingCostCalculationService { }
-class InterestCalculationService { }
+class OrderPricingService {}
+class TaxCalculationService {}
+class InventoryAllocationService {}
+class ShippingCostCalculationService {}
+class InterestCalculationService {}
 
 // ❌ BAD - Vague or too generic
-class OrderService { }           // Too generic
-class Calculator { }             // Not domain-specific
-class Helper { }                 // Meaningless
-class Utils { }                  // Not a domain concept
+class OrderService {} // Too generic
+class Calculator {} // Not domain-specific
+class Helper {} // Meaningless
+class Utils {} // Not a domain concept
 ```
 
 ### Method Names:
@@ -582,14 +615,14 @@ class Utils { }                  // Not a domain concept
 ```typescript
 class OrderPricingService {
   // ✅ GOOD - Clear domain operations
-  public calculatePrice(order: Order, customer: Customer): Money
-  public applyDiscount(price: Money, discount: Discount): Money
-  public calculateShipping(order: Order, address: Address): Money
+  public calculatePrice(order: Order, customer: Customer): Money;
+  public applyDiscount(price: Money, discount: Discount): Money;
+  public calculateShipping(order: Order, address: Address): Money;
 
   // ❌ BAD - Vague or infrastructure-focused
-  public process(order: Order): Money              // Too vague
-  public getPrice(orderId: string): Promise<Money> // Implies database access
-  public doCalculation(data: any): any             // Not domain-specific
+  public process(order: Order): Money; // Too vague
+  public getPrice(orderId: string): Promise<Money>; // Implies database access
+  public doCalculation(data: any): any; // Not domain-specific
 }
 ```
 
@@ -630,7 +663,9 @@ class TaxCalculationService {
     }
 
     if (!address) {
-      return Result.fail<Money>('Address is required for tax calculation');
+      return Result.fail<Money>(
+        'Address is required for tax calculation'
+      );
     }
 
     // Determine tax rate
@@ -773,7 +808,10 @@ describe('OrderPricingService', () => {
 
     describe('when invalid inputs', () => {
       it('should fail if order is null', () => {
-        const result = pricingService.calculatePrice(null as any, createMockCustomer());
+        const result = pricingService.calculatePrice(
+          null as any,
+          createMockCustomer()
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('Order is required');
@@ -781,7 +819,10 @@ describe('OrderPricingService', () => {
 
       it('should fail if customer is null', () => {
         const order = createMockOrder();
-        const result = pricingService.calculatePrice(order, null as any);
+        const result = pricingService.calculatePrice(
+          order,
+          null as any
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('Customer is required');
@@ -809,7 +850,8 @@ describe('OrderPricingService', () => {
       });
 
       it('should not apply discounts to non-discountable items', () => {
-        const order = createMockOrder(/* mix of discountable and non-discountable */);
+        const order =
+          createMockOrder(/* mix of discountable and non-discountable */);
         const customer = createMockCustomer(/* 20% discount */);
 
         const result = pricingService.calculatePrice(order, customer);
@@ -829,8 +871,14 @@ describe('OrderPricingService', () => {
       const order = createMockOrder();
       const customer = createMockCustomer();
 
-      const price = pricingService.calculatePrice(order, customer).value;
-      const tax = taxService.calculateTax(price, customer.address).value;
+      const price = pricingService.calculatePrice(
+        order,
+        customer
+      ).value;
+      const tax = taxService.calculateTax(
+        price,
+        customer.address
+      ).value;
 
       const total = price.add(tax);
 
@@ -973,7 +1021,7 @@ export class OrderPricingService {
     discount: Discount
   ): Money {
     const discountableTotal = order.items
-      .filter(item => item.isDiscountable)
+      .filter((item) => item.isDiscountable)
       .reduce(
         (sum, item) => sum.add(item.calculateSubtotal()).value,
         Money.zero('USD').value
@@ -1024,17 +1072,22 @@ export class PollingSchedulerService {
     }
 
     if (!device.pollingConfiguration.enabled) {
-      return Result.fail<Date>('Polling is not enabled for this device');
+      return Result.fail<Date>(
+        'Polling is not enabled for this device'
+      );
     }
 
     // Check system capacity
-    if (activePollCount >= PollingSchedulerService.MAX_CONCURRENT_POLLS) {
+    if (
+      activePollCount >= PollingSchedulerService.MAX_CONCURRENT_POLLS
+    ) {
       // Defer to avoid overload
       return this.calculateDeferredPollTime(device, currentTime);
     }
 
     // Calculate base interval
-    let intervalSeconds = device.pollingConfiguration.interval.seconds;
+    let intervalSeconds =
+      device.pollingConfiguration.interval.seconds;
 
     // Adjust for priority
     intervalSeconds = this.adjustForPriority(
@@ -1074,7 +1127,7 @@ export class PollingSchedulerService {
   ): number {
     switch (priority) {
       case DevicePriority.CRITICAL:
-        return baseInterval * 0.5;  // Poll twice as often
+        return baseInterval * 0.5; // Poll twice as often
       case DevicePriority.HIGH:
         return baseInterval * 0.75;
       case DevicePriority.NORMAL:
@@ -1151,7 +1204,9 @@ export class TransferMoneyService {
     }
 
     if (!amount || amount.isZero()) {
-      return Result.fail<TransactionId>('Amount must be greater than zero');
+      return Result.fail<TransactionId>(
+        'Amount must be greater than zero'
+      );
     }
 
     // Validate business rules
@@ -1187,8 +1242,18 @@ export class TransferMoneyService {
     }
 
     // Success - record transaction on both accounts
-    fromAccount.recordTransfer(transactionId, toAccount.id, amount, 'DEBIT');
-    toAccount.recordTransfer(transactionId, fromAccount.id, amount, 'CREDIT');
+    fromAccount.recordTransfer(
+      transactionId,
+      toAccount.id,
+      amount,
+      'DEBIT'
+    );
+    toAccount.recordTransfer(
+      transactionId,
+      fromAccount.id,
+      amount,
+      'CREDIT'
+    );
 
     return Result.ok<TransactionId>(transactionId);
   }

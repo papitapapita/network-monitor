@@ -140,7 +140,6 @@ Mappers MUST NOT perform these actions:
  * - Call repositories or external services
  */
 export class EntityNameMapper {
-
   /**
    * Converts a Domain entity to response DTO.
    * Pure data transformation only.
@@ -238,11 +237,13 @@ export class EntityNameMapper {
 #### Required Methods
 
 1. **`toDTO(entity: T): TDTO`**
+
    - Converts domain entity to response DTO
    - Always returns a DTO (never fails)
    - Extracts primitive values from Value Objects
 
 2. **`extractCreateData(dto: CreateDTO): object`**
+
    - Extracts raw data from create DTO
    - Returns plain object with primitives
    - Applies data-level defaults only
@@ -265,6 +266,7 @@ export class EntityNameMapper {
 ### Definition of Orthogonality
 
 Two components are orthogonal when changes to one don't require changes to the other. Mappers must be orthogonal to:
+
 - Domain business logic
 - Use case orchestration
 - Value Object validation rules
@@ -336,6 +338,7 @@ public static extractCreateData(dto: CreateDeviceDTO) {
 ### Stability Under Change
 
 Good mappers remain stable when:
+
 - Domain validation rules change
 - Business workflows evolve
 - Value Object implementations change
@@ -433,24 +436,24 @@ public static toDTO(entity: ComplexEntity): ComplexDTO {
 
 ```typescript
 // ✅ GOOD
-export class NetworkDeviceMapper { }
-export class PollingConfigurationMapper { }
-export class UserMapper { }
+export class NetworkDeviceMapper {}
+export class PollingConfigurationMapper {}
+export class UserMapper {}
 
 // ❌ BAD
-export class DeviceMapperService { }  // Don't add "Service"
-export class MapNetworkDevice { }     // Wrong format
-export class NetworkDeviceDTO { }     // This is a DTO, not a mapper
+export class DeviceMapperService {} // Don't add "Service"
+export class MapNetworkDevice {} // Wrong format
+export class NetworkDeviceDTO {} // This is a DTO, not a mapper
 ```
 
 ### Method Names
 
-| Purpose | Method Name | Returns |
-|---------|-------------|---------|
-| Domain → DTO | `toDTO()` | Single DTO |
-| Domain[] → DTO | `toListDTO()` | List DTO with pagination |
-| CreateDTO → Raw Data | `extractCreateData()` | Plain object |
-| UpdateDTO → Raw Data | `extractUpdateData()` | Plain object |
+| Purpose              | Method Name           | Returns                  |
+| -------------------- | --------------------- | ------------------------ |
+| Domain → DTO         | `toDTO()`             | Single DTO               |
+| Domain[] → DTO       | `toListDTO()`         | List DTO with pagination |
+| CreateDTO → Raw Data | `extractCreateData()` | Plain object             |
+| UpdateDTO → Raw Data | `extractUpdateData()` | Plain object             |
 
 ```typescript
 // ✅ GOOD - Clear, consistent naming
@@ -501,7 +504,7 @@ export class EntityMapper {
 
 // ❌ BAD - Instance methods
 export class EntityMapper {
-  constructor() { }
+  constructor() {}
 
   public toDTO(entity: Entity): EntityDTO {
     // ...

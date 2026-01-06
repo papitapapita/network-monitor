@@ -1,6 +1,7 @@
 # APPLICATION INTERFACES STANDARD
 
 ## Table of Contents
+
 1. [Purpose of Application Interfaces](#1-purpose-of-application-interfaces)
 2. [Responsibilities of Application Interfaces](#2-responsibilities-of-application-interfaces)
 3. [Boundaries of Application Interfaces](#3-boundaries-of-application-interfaces)
@@ -36,13 +37,13 @@
 
 ### Application Interfaces vs Domain Repository Interfaces:
 
-| Aspect | Application Interface | Repository Interface |
-|--------|----------------------|---------------------|
-| **Layer** | Application Layer | Domain Layer |
-| **Purpose** | Application services | Data persistence |
-| **Examples** | IEmailService, IPaymentGateway | IOrderRepository |
-| **Used By** | Use Cases | Use Cases |
-| **Implemented In** | Infrastructure | Infrastructure |
+| Aspect             | Application Interface          | Repository Interface |
+| ------------------ | ------------------------------ | -------------------- |
+| **Layer**          | Application Layer              | Domain Layer         |
+| **Purpose**        | Application services           | Data persistence     |
+| **Examples**       | IEmailService, IPaymentGateway | IOrderRepository     |
+| **Used By**        | Use Cases                      | Use Cases            |
+| **Implemented In** | Infrastructure                 | Infrastructure       |
 
 ---
 
@@ -51,16 +52,19 @@
 ### MUST DO:
 
 1. **Define Service Contract**
+
    - Clear method signatures
    - Input/output types specified
    - Error handling approach defined
 
 2. **Use Appropriate Types**
+
    - DTOs for input/output
    - Domain types where appropriate
    - Result<T> for operations that can fail
 
 3. **Express Business Intent**
+
    - Method names reflect business operations
    - Clear purpose and use case
    - Domain language when applicable
@@ -77,16 +81,19 @@
 ### MUST NOT DO:
 
 1. **❌ Contain Implementation**
+
    - Interfaces are contracts only
    - No method bodies
    - No business logic
 
 2. **❌ Expose Infrastructure Details**
+
    - No HTTP status codes
    - No database connection details
    - No framework-specific types
 
 3. **❌ Have Too Many Methods**
+
    - Keep interfaces focused (ISP - Interface Segregation Principle)
    - Split large interfaces into smaller ones
    - One responsibility per interface
@@ -158,12 +165,18 @@ interface IEmailService {
 
 // SMS
 interface ISMSService {
-  sendSMS(phoneNumber: string, message: string): Promise<Result<void>>;
+  sendSMS(
+    phoneNumber: string,
+    message: string
+  ): Promise<Result<void>>;
 }
 
 // Notifications
 interface INotificationService {
-  notify(userId: string, notification: Notification): Promise<Result<void>>;
+  notify(
+    userId: string,
+    notification: Notification
+  ): Promise<Result<void>>;
 }
 ```
 
@@ -173,9 +186,16 @@ Services for payment processing:
 
 ```typescript
 interface IPaymentGateway {
-  processPayment(payment: PaymentRequest): Promise<Result<PaymentResult>>;
-  refund(transactionId: string, amount: number): Promise<Result<void>>;
-  getPaymentStatus(transactionId: string): Promise<Result<PaymentStatus>>;
+  processPayment(
+    payment: PaymentRequest
+  ): Promise<Result<PaymentResult>>;
+  refund(
+    transactionId: string,
+    amount: number
+  ): Promise<Result<void>>;
+  getPaymentStatus(
+    transactionId: string
+  ): Promise<Result<PaymentStatus>>;
 }
 ```
 
@@ -204,7 +224,10 @@ interface IAuthenticationService {
 }
 
 interface IAuthorizationService {
-  hasPermission(userId: string, permission: string): Promise<Result<boolean>>;
+  hasPermission(
+    userId: string,
+    permission: string
+  ): Promise<Result<boolean>>;
   getRoles(userId: string): Promise<Result<string[]>>;
 }
 ```
@@ -255,7 +278,7 @@ interface ILogger {
 
 ### Basic Service Interface:
 
-```typescript
+````typescript
 import { Result } from '@/shared/core/Result';
 
 /**
@@ -294,7 +317,7 @@ export interface IServiceName {
     param2: Type2
   ): Promise<Result<ReturnType>>;
 }
-```
+````
 
 ### Email Service Interface:
 
@@ -424,7 +447,9 @@ export interface IPaymentGateway {
    * @param payment - Payment request
    * @returns Promise<Result<PaymentResult>> - Payment result or error
    */
-  processPayment(payment: PaymentRequest): Promise<Result<PaymentResult>>;
+  processPayment(
+    payment: PaymentRequest
+  ): Promise<Result<PaymentResult>>;
 
   /**
    * Refunds a payment.
@@ -547,7 +572,10 @@ export interface IFileStorageService {
    * @param expiresIn - Expiration in seconds
    * @returns Promise<Result<string>> - Signed URL or error
    */
-  getSignedUrl(path: string, expiresIn: number): Promise<Result<string>>;
+  getSignedUrl(
+    path: string,
+    expiresIn: number
+  ): Promise<Result<string>>;
 }
 ```
 
@@ -579,7 +607,10 @@ interface IEmailService {
   verify(email: string): Promise<Result<boolean>>;
   renderTemplate(templateId: string, data: object): string;
   getEmailMetrics(): Promise<Result<EmailMetrics>>;
-  manageSubscriptions(userId: string, list: string): Promise<Result<void>>;
+  manageSubscriptions(
+    userId: string,
+    list: string
+  ): Promise<Result<void>>;
   // Too many responsibilities!
 }
 ```
@@ -591,20 +622,26 @@ Each interface should have one clear purpose:
 ```typescript
 // ✅ GOOD - Single responsibility
 interface IPaymentProcessor {
-  processPayment(payment: PaymentRequest): Promise<Result<PaymentResult>>;
+  processPayment(
+    payment: PaymentRequest
+  ): Promise<Result<PaymentResult>>;
   refund(transactionId: string, amount: Money): Promise<Result<void>>;
 }
 
 interface IPaymentReporter {
-  getTransactionHistory(customerId: string): Promise<Result<Transaction[]>>;
+  getTransactionHistory(
+    customerId: string
+  ): Promise<Result<Transaction[]>>;
   generateReport(dateRange: DateRange): Promise<Result<Report>>;
 }
 
 // ❌ BAD - Mixed responsibilities
 interface IPaymentService {
-  processPayment(payment: PaymentRequest): Promise<Result<PaymentResult>>;
-  generateInvoice(orderId: string): Promise<Result<Invoice>>;  // Different concern
-  sendReceiptEmail(email: string): Promise<Result<void>>;      // Different concern
+  processPayment(
+    payment: PaymentRequest
+  ): Promise<Result<PaymentResult>>;
+  generateInvoice(orderId: string): Promise<Result<Invoice>>; // Different concern
+  sendReceiptEmail(email: string): Promise<Result<void>>; // Different concern
 }
 ```
 
@@ -615,12 +652,16 @@ Interfaces should be technology-agnostic:
 ```typescript
 // ✅ GOOD - Technology-agnostic
 interface INotificationService {
-  notify(userId: string, message: Notification): Promise<Result<void>>;
+  notify(
+    userId: string,
+    message: Notification
+  ): Promise<Result<void>>;
 }
 
 // ❌ BAD - Technology-specific
-interface ISNSNotificationService {  // AWS SNS in name!
-  publishToTopic(topicArn: string, message: string): Promise<void>;  // AWS-specific
+interface ISNSNotificationService {
+  // AWS SNS in name!
+  publishToTopic(topicArn: string, message: string): Promise<void>; // AWS-specific
 }
 ```
 
@@ -636,16 +677,16 @@ interface ISNSNotificationService {  // AWS SNS in name!
 
 ```typescript
 // ✅ GOOD
-interface IEmailService { }
-interface IPaymentGateway { }
-interface IFileStorageService { }
-interface ILogger { }
+interface IEmailService {}
+interface IPaymentGateway {}
+interface IFileStorageService {}
+interface ILogger {}
 
 // ❌ BAD
-interface EmailService { }             // Missing I prefix
-interface SendGridService { }          // Technology name
-interface IService { }                 // Too generic
-interface IEmailSenderAndValidator { } // Too long, multiple concerns
+interface EmailService {} // Missing I prefix
+interface SendGridService {} // Technology name
+interface IService {} // Too generic
+interface IEmailSenderAndValidator {} // Too long, multiple concerns
 ```
 
 ### Method Names:
@@ -661,8 +702,8 @@ interface IEmailService {
   verify(emailAddress: string): Promise<Result<boolean>>;
 
   // ❌ BAD - Vague or technical
-  doEmail(data: any): Promise<void>;           // Vague
-  executeEmailOperation(params: object): Promise<any>;  // Vague
+  doEmail(data: any): Promise<void>; // Vague
+  executeEmailOperation(params: object): Promise<any>; // Vague
 }
 ```
 
@@ -675,16 +716,13 @@ interface IPaymentGateway {
     payment: PaymentRequest
   ): Promise<Result<PaymentResult>>;
 
-  refund(
-    transactionId: string,
-    amount: Money
-  ): Promise<Result<void>>;
+  refund(transactionId: string, amount: Money): Promise<Result<void>>;
 }
 
 // ❌ BAD - Unclear parameters
 interface IPaymentGateway {
-  process(data: any): Promise<any>;     // Unclear
-  refund(id: string, amt: number): Promise<void>;  // Abbreviated
+  process(data: any): Promise<any>; // Unclear
+  refund(id: string, amt: number): Promise<void>; // Abbreviated
 }
 ```
 
@@ -861,7 +899,10 @@ export interface INotificationService {
    * @param notification - Notification to send
    * @returns Promise<Result<void>> - Success or error
    */
-  notify(userId: string, notification: Notification): Promise<Result<void>>;
+  notify(
+    userId: string,
+    notification: Notification
+  ): Promise<Result<void>>;
 
   /**
    * Sends a notification to multiple users.
