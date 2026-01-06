@@ -3,17 +3,18 @@
 ## Table of Contents
 
 1. [Purpose of Aggregates in DDD](#1-purpose-of-aggregates-in-ddd)
-2. [Responsibilities of an Aggregate](#2-responsibilities-of-an-aggregate)
-3. [Boundaries of an Aggregate](#3-boundaries-of-an-aggregate)
-4. [Connections with Other Layers](#4-connections-with-other-layers)
-5. [Aggregate Lifetime & Lifecycle](#5-aggregate-lifetime--lifecycle)
-6. [Aggregate Structure Template](#6-aggregate-structure-template)
-7. [Orthogonality Principles](#7-orthogonality-principles)
-8. [Naming Conventions](#8-naming-conventions)
-9. [Error Handling Patterns](#9-error-handling-patterns)
-10. [Transaction and Consistency Boundaries](#10-transaction-and-consistency-boundaries)
-11. [Testing Strategy](#11-testing-strategy)
-12. [Examples](#12-examples)
+2. [When is an Entity an Aggregate Root?](#2-when-is-an-entity-an-aggregate-root)
+3. [Responsibilities of an Aggregate](#3-responsibilities-of-an-aggregate)
+4. [Boundaries of an Aggregate](#4-boundaries-of-an-aggregate)
+5. [Connections with Other Layers](#5-connections-with-other-layers)
+6. [Aggregate Lifetime & Lifecycle](#6-aggregate-lifetime--lifecycle)
+7. [Aggregate Structure Template](#7-aggregate-structure-template)
+8. [Orthogonality Principles](#8-orthogonality-principles)
+9. [Naming Conventions](#9-naming-conventions)
+10. [Error Handling Patterns](#10-error-handling-patterns)
+11. [Transaction and Consistency Boundaries](#11-transaction-and-consistency-boundaries)
+12. [Testing Strategy](#12-testing-strategy)
+13. [Examples](#13-examples)
 
 ---
 
@@ -60,7 +61,256 @@ The **Aggregate Root** is the only entity within the aggregate that:
 
 ---
 
-## 2. Responsibilities of an Aggregate
+## 2. When is an Entity an Aggregate Root?
+
+**Not every entity is an aggregate root. An entity becomes an aggregate root when it needs to own and control other entities.**
+
+### Decision Criteria:
+
+Ask these questions to determine if an entity should be an aggregate root:
+
+#### 1. **Does it have an independent lifecycle?**
+
+```typescript
+// ✅ Aggregate Root - Independent lifecycle
+class NetworkDevice {
+  // Can be created without any other aggregate
+  // Can be deleted independently
+  // Has its own use cases: CreateNetworkDevice, DeleteNetworkDevice, etc.
+}
+
+// ❌ Not Aggregate Root - Dependent lifecycle
+class PollingConfiguration {
+  // Cannot exist without a NetworkDevice
+  // Created when NetworkDevice is created
+  // Deleted when NetworkDevice is deleted
+  // No independent use cases
+}
+```
+
+#### 2. **Do other aggregates need to reference it?**
+
+```typescript
+// ✅ Aggregate Root - Referenced by others
+class NetworkDevice {
+  // PollingResult references NetworkDevice by ID
+  // Alert references NetworkDevice by ID
+  // Other aggregates need to know about this device
+}
+
+// ❌ Not Aggregate Root - Not referenced externally
+class PollingConfiguration {
+  // No other aggregate references PollingConfiguration directly
+  // Only NetworkDevice knows about it
+}
+```
+
+#### 3. **Does it own other entities?**
+
+```typescript
+// ✅ Aggregate Root - Owns children
+class NetworkDevice {
+  private _pollingConfiguration: PollingConfiguration; // Owns this entity
+  private _alertSettings: AlertSettings; // Owns this entity
+
+  // Controls their lifecycle
+  // Enforces invariants across them
+}
+
+// ❌ Not Aggregate Root - Owns nothing
+class PollingConfiguration {
+  // Has no child entities
+  // Only has value objects (PollingInterval, etc.)
+}
+```
+
+#### 4. **Does it enforce invariants across multiple objects?**
+
+```typescript
+// ✅ Aggregate Root - Cross-entity invariants
+class NetworkDevice {
+  public updateStatus(status: NetworkDeviceStatus): Result<void> {
+    // Invariant: If device goes to MAINTENANCE, polling must be disabled
+    if (
+      status === NetworkDeviceStatus.MAINTENANCE &&
+      this._pollingConfiguration.enabled
+    ) {
+      this._pollingConfiguration.disable(); // Enforcing across entities
+    }
+    // ...
+  }
+}
+
+// ❌ Not Aggregate Root - Only self invariants
+class PollingConfiguration {
+  public updateInterval(interval: PollingInterval): Result<void> {
+    // Only validates its own state
+    if (this._enabled && interval.seconds < 10) {
+      return Result.fail('Cannot set interval < 10s while enabled');
+    }
+    // ...
+  }
+}
+```
+
+#### 5. **Does it need its own repository?**
+
+```typescript
+// ✅ Aggregate Root - Has repository
+interface INetworkDeviceRepository {
+  save(device: NetworkDevice): Promise<void>;
+  findById(id: NetworkDeviceId): Promise<NetworkDevice>;
+  // Repository loads entire aggregate including PollingConfiguration
+}
+
+// ❌ Not Aggregate Root - No repository
+// PollingConfiguration has no repository
+// Loaded and saved as part of NetworkDevice
+```
+
+### Decision Tree:
+
+```
+Does the entity have an independent lifecycle?
+│
+├─ NO → Child Entity (not aggregate root)
+│
+└─ YES → Continue...
+    │
+    Does it own other entities?
+    │
+    ├─ NO → Could be aggregate root if:
+    │       - Referenced by other aggregates
+    │       - Has complex business logic
+    │       - Otherwise, might just be a simple entity
+    │
+    └─ YES → Aggregate Root
+```
+
+### Examples from Real Systems:
+
+#### Example 1: E-commerce Domain
+
+```typescript
+// ✅ Aggregate Root
+class Order {
+  private _items: OrderItem[]; // Owns
+  private _payment: Payment; // Owns
+  // Independent lifecycle, owns children, has repository
+}
+
+// ❌ Child Entity
+class OrderItem {
+  // No independent lifecycle
+  // Cannot exist without Order
+  // No repository
+}
+
+// ✅ Aggregate Root (separate from Order)
+class Customer {
+  // Independent lifecycle
+  // Referenced by Order (by ID)
+  // Has own repository
+}
+```
+
+#### Example 2: Network Management Domain
+
+```typescript
+// ✅ Aggregate Root
+class NetworkDevice {
+  private _pollingConfiguration: PollingConfiguration; // Owns
+  // Independent lifecycle, owns children, has repository
+}
+
+// ❌ Child Entity
+class PollingConfiguration {
+  // No independent lifecycle
+  // Part of NetworkDevice aggregate
+}
+
+// ✅ Aggregate Root (separate from NetworkDevice)
+class PollingResult {
+  private _networkDeviceId: NetworkDeviceId; // References by ID
+  // Independent lifecycle
+  // Has own repository
+  // Not owned by NetworkDevice
+}
+```
+
+### Common Mistakes:
+
+#### ❌ Mistake 1: Making everything an aggregate root
+
+```typescript
+// WRONG - PollingConfiguration as aggregate root
+class PollingConfiguration {
+  // Has its own repository
+  // Can be loaded independently
+  // But NO business reason for independence!
+}
+
+// This creates unnecessary complexity:
+// - Two repositories to manage
+// - Complex transaction coordination
+// - Weakened invariant enforcement
+```
+
+#### ❌ Mistake 2: Aggregates that are too large
+
+```typescript
+// WRONG - Customer owns too much
+class Customer {
+  private _orders: Order[]; // Should be separate aggregates!
+  private _addresses: Address[]; // Too many
+  private _paymentMethods: PaymentMethod[]; // Too many
+  private _preferences: CustomerPreferences[]; // Too many
+
+  // Performance nightmare
+  // Lock contention issues
+  // Difficult to maintain
+}
+
+// CORRECT - Customer as small aggregate
+class Customer {
+  private _customerId: CustomerId;
+  private _primaryAddress: Address; // Value object or single entity
+  // Orders are separate aggregates, referenced by ID
+}
+```
+
+#### ✅ Good Practice: Small, focused aggregates
+
+```typescript
+// CORRECT - Small aggregate
+class NetworkDevice {
+  private _pollingConfiguration: PollingConfiguration; // Only what changes together
+
+  // Other related data in separate aggregates:
+  // - PollingResult (separate aggregate)
+  // - DeviceLog (separate aggregate)
+  // - Alert (separate aggregate)
+}
+```
+
+### Summary Checklist:
+
+When deciding if an entity should be an aggregate root, check:
+
+- ✅ Has independent business lifecycle
+- ✅ Needs to be referenced by other aggregates
+- ✅ Owns child entities that cannot exist independently
+- ✅ Enforces invariants across multiple entities/VOs
+- ✅ Needs its own repository
+- ✅ Acts as entry point for all operations on its children
+- ✅ Defines a clear transactional boundary
+
+If most of these are true → **Aggregate Root**
+If most are false → **Child Entity** (part of another aggregate)
+
+---
+
+## 3. Responsibilities of an Aggregate
 
 ### MUST DO:
 
@@ -99,10 +349,496 @@ The **Aggregate Root** is the only entity within the aggregate that:
    - One aggregate instance = one transaction
    - All changes saved or rolled back together
    - No partial saves
+   - Reference Other Aggregates by ID only
+
+### Aggregate Root Behavior Deep Dive:
+
+#### 1. Entry Point Pattern
+
+The aggregate root is the ONLY entry point for modifying the aggregate:
+
+```typescript
+interface OrderProps {
+  customerId: string;
+  items: OrderItem[];
+  status: OrderStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ✅ CORRECT - All operations through root
+class Order extends AggregateRoot<OrderProps, OrderId> {
+  /**
+   * Update item quantity - Root validates and coordinates
+   */
+  public updateItemQuantity(
+    itemId: OrderItemId,
+    quantity: number
+  ): Result<void> {
+    // Find item
+    const item = this.props.items.find((i) => i.id.equals(itemId));
+    if (!item) {
+      return Result.fail('Item not found');
+    }
+
+    // Validate aggregate invariant
+    if (!this.canUpdateQuantity(itemId, quantity)) {
+      return Result.fail(
+        'Cannot update quantity: violates order limits'
+      );
+    }
+
+    // Update through child entity method
+    const updateResult = item.updateQuantity(quantity);
+    if (updateResult.isFailure) {
+      return updateResult;
+    }
+
+    // Root tracks the change
+    this.props.updatedAt = new Date();
+    this.addDomainEvent(
+      new OrderItemQuantityChangedEvent(this.id, itemId, quantity)
+    );
+
+    return Result.ok();
+  }
+
+  private canUpdateQuantity(
+    itemId: OrderItemId,
+    newQuantity: number
+  ): boolean {
+    // Aggregate-level business rule
+    const newTotal = this.calculateTotalQuantityWith(
+      itemId,
+      newQuantity
+    );
+    return newTotal <= 1000; // Business rule: max 1000 items per order
+  }
+}
+
+// ❌ WRONG - External code modifying child directly
+const order = await orderRepository.findById(orderId);
+const item = order.items[0];
+item.updateQuantity(10); // WRONG! Bypasses aggregate root validation!
+```
+
+#### 2. Invariant Enforcement Pattern
+
+The aggregate root enforces invariants that span multiple entities:
+
+```typescript
+interface NetworkDeviceProps {
+  status: NetworkDeviceStatus;
+  pollingConfiguration: PollingConfiguration;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+class NetworkDevice extends AggregateRoot<
+  NetworkDeviceProps,
+  NetworkDeviceId
+> {
+  /**
+   * Invariant: Polling must be disabled when device is in MAINTENANCE
+   */
+  public setMaintenanceMode(): Result<void> {
+    // Coordinate multiple entities to maintain invariant
+    if (this.props.pollingConfiguration.enabled) {
+      // Disable polling before changing status
+      this.props.pollingConfiguration.disable();
+    }
+
+    this.props.status = NetworkDeviceStatus.MAINTENANCE;
+    this.props.updatedAt = new Date();
+
+    this.addDomainEvent(
+      new DeviceEnteredMaintenanceModeEvent(this.id)
+    );
+
+    return Result.ok();
+  }
+
+  /**
+   * Invariant: Only ONLINE devices can have polling enabled
+   */
+  public enablePolling(): Result<void> {
+    if (this.props.status !== NetworkDeviceStatus.ONLINE) {
+      return Result.fail(
+        'Cannot enable polling: device must be online'
+      );
+    }
+
+    const enableResult = this.props.pollingConfiguration.enable();
+    if (enableResult.isFailure) {
+      return enableResult;
+    }
+
+    this.props.updatedAt = new Date();
+    this.addDomainEvent(new PollingEnabledEvent(this.id));
+
+    return Result.ok();
+  }
+}
+```
+
+#### 3. Domain Events Pattern
+
+Aggregates publish domain events for significant state changes:
+
+```typescript
+interface OrderProps {
+  customerId: string;
+  items: OrderItem[];
+  status: OrderStatus;
+  confirmedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+class Order extends AggregateRoot<OrderProps, OrderId> {
+  /**
+   * Confirms the order and publishes event
+   */
+  public confirm(): Result<void> {
+    // Validate business rules
+    if (this.props.status !== OrderStatus.PENDING) {
+      return Result.fail('Only pending orders can be confirmed');
+    }
+
+    if (this.props.items.length === 0) {
+      return Result.fail('Cannot confirm empty order');
+    }
+
+    // Change state
+    const previousStatus = this.props.status;
+    this.props.status = OrderStatus.CONFIRMED;
+    this.props.confirmedAt = new Date();
+    this.props.updatedAt = new Date();
+
+    // Update all items
+    this.props.items.forEach((item) => item.markAsConfirmed());
+
+    // Publish domain event for cross-aggregate coordination
+    this.addDomainEvent(
+      new OrderConfirmedEvent({
+        aggregateId: this.id, // Aggregate root ID
+        orderId: this.id,
+        customerId: this.props.customerId,
+        items: this.props.items.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity
+        })),
+        total: this.calculateTotal(),
+        confirmedAt: this.props.confirmedAt,
+        dateTimeOccurred: new Date()
+      })
+    );
+
+    return Result.ok();
+  }
+}
+
+// Event handler in another bounded context
+class OrderConfirmedHandler {
+  async handle(event: OrderConfirmedEvent): Promise<void> {
+    // Update Inventory aggregate (different aggregate)
+    const inventory = await this.inventoryRepo.findByProductIds(
+      event.items.map((i) => i.productId)
+    );
+
+    for (const item of event.items) {
+      inventory.reserveStock(item.productId, item.quantity);
+    }
+
+    await this.inventoryRepo.save(inventory);
+
+    // Update Customer aggregate (different aggregate)
+    const customer = await this.customerRepo.findById(
+      event.customerId
+    );
+    customer.recordOrderConfirmed(event.orderId);
+    await this.customerRepo.save(customer);
+  }
+}
+```
+
+#### 4. Child Lifecycle Management Pattern
+
+The aggregate root controls the complete lifecycle of child entities:
+
+```typescript
+interface ShoppingCartProps {
+  items: CartItem[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+class ShoppingCart extends AggregateRoot<
+  ShoppingCartProps,
+  ShoppingCartId
+> {
+  /**
+   * Add item - Root creates child entity
+   */
+  public addItem(
+    productId: ProductId,
+    quantity: number,
+    price: Money
+  ): Result<void> {
+    // Check if item already exists
+    const existingItem = this.props.items.find((i) =>
+      i.productId.equals(productId)
+    );
+
+    if (existingItem) {
+      // Update existing item
+      return this.updateItemQuantity(
+        existingItem.id,
+        existingItem.quantity + quantity
+      );
+    }
+
+    // Validate aggregate invariant
+    if (this.props.items.length >= 50) {
+      return Result.fail('Cart cannot exceed 50 different items');
+    }
+
+    // Root creates child entity
+    const itemResult = CartItem.create({
+      productId,
+      quantity,
+      price
+    });
+
+    if (itemResult.isFailure) {
+      return Result.fail(itemResult.error);
+    }
+
+    // Add to collection
+    this.props.items.push(itemResult.value);
+    this.props.updatedAt = new Date();
+
+    this.addDomainEvent(
+      new ItemAddedToCartEvent(this.id, productId, quantity)
+    );
+
+    return Result.ok();
+  }
+
+  /**
+   * Remove item - Root deletes child entity
+   */
+  public removeItem(itemId: CartItemId): Result<void> {
+    const index = this.props.items.findIndex((i) =>
+      i.id.equals(itemId)
+    );
+
+    if (index === -1) {
+      return Result.fail('Item not found in cart');
+    }
+
+    const removedItem = this.props.items[index];
+    this.props.items.splice(index, 1);
+
+    this.props.updatedAt = new Date();
+    this.addDomainEvent(
+      new ItemRemovedFromCartEvent(this.id, removedItem.productId)
+    );
+
+    return Result.ok();
+  }
+
+  /**
+   * Clear cart - Root removes all children
+   */
+  public clear(): Result<void> {
+    if (this.props.items.length === 0) {
+      return Result.ok(); // Already empty
+    }
+
+    this.props.items = [];
+    this.props.updatedAt = new Date();
+
+    this.addDomainEvent(new CartClearedEvent(this.id));
+
+    return Result.ok();
+  }
+}
+```
+
+#### 5. Aggregate Reconstruction Pattern
+
+When loading from persistence, the aggregate must reconstruct its complete state:
+
+```typescript
+interface OrderProps {
+  customerId: string;
+  items: OrderItem[];
+  status: OrderStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+class Order extends AggregateRoot<OrderProps, OrderId> {
+  /**
+   * Factory for creating new orders
+   */
+  public static create(
+    props: Omit<OrderProps, 'createdAt' | 'updatedAt'>
+  ): Result<Order> {
+    // Validation for new orders
+    // ...
+    const orderProps: OrderProps = {
+      ...props,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const order = new Order(orderProps, OrderId.create().value);
+
+    // Publish creation event
+    order.addDomainEvent(new OrderCreatedEvent(order.id));
+
+    return Result.ok(order);
+  }
+
+  /**
+   * Factory for reconstructing from persistence
+   * NOTE: No domain events published - already happened
+   */
+  public static reconstitute(
+    props: OrderProps,
+    id: OrderId
+  ): Result<Order> {
+    // Minimal validation - data already validated
+    // Don't publish events - this is reconstruction, not a new event
+
+    return Result.ok(new Order(props, id));
+  }
+}
+
+// Repository usage
+class OrderRepository implements IOrderRepository {
+  async findById(id: OrderId): Promise<Order> {
+    const data = await this.db.orders.findOne({ id: id.toString() });
+
+    if (!data) {
+      throw new Error('Order not found');
+    }
+
+    // Reconstruct aggregate with all children
+    const orderResult = Order.reconstitute(
+      {
+        customerId: data.customerId,
+        items: data.items.map((itemData) =>
+          OrderItem.reconstitute(
+            itemData,
+            new OrderItemId(itemData.id)
+          )
+        ),
+        status: data.status,
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt
+        // ... all properties
+      },
+      id
+    );
+
+    return orderResult.value;
+  }
+}
+```
+
+#### 6. Transaction Boundary Pattern
+
+Each aggregate instance represents one transaction boundary:
+
+```typescript
+// ✅ CORRECT - One aggregate, one transaction
+class PlaceOrderUseCase {
+  async execute(
+    request: PlaceOrderRequest
+  ): Promise<Result<OrderDTO>> {
+    // 1. Create aggregate
+    const orderResult = Order.create({
+      customerId: request.customerId,
+      items: request.items,
+      shippingAddress: request.shippingAddress
+    });
+
+    if (orderResult.isFailure) {
+      return Result.fail(orderResult.error);
+    }
+
+    const order = orderResult.value;
+
+    // 2. Modify aggregate
+    const confirmResult = order.confirm();
+    if (confirmResult.isFailure) {
+      return Result.fail(confirmResult.error);
+    }
+
+    // 3. Save entire aggregate (one transaction)
+    await this.orderRepository.save(order);
+
+    // 4. Events are dispatched after successful save
+    await this.eventDispatcher.dispatchEventsForAggregate(order);
+
+    return Result.ok(OrderMapper.toDTO(order));
+  }
+}
+
+// ❌ WRONG - Multiple aggregates in one transaction
+class TransferMoneyUseCase {
+  async execute(request: TransferRequest): Promise<Result<void>> {
+    const fromAccount = await this.accountRepo.findById(
+      request.fromAccountId
+    );
+    const toAccount = await this.accountRepo.findById(
+      request.toAccountId
+    );
+
+    // Modifying two aggregates
+    fromAccount.withdraw(request.amount);
+    toAccount.deposit(request.amount);
+
+    // WRONG! Two aggregates = two transactions
+    // If second save fails, first is already committed!
+    await this.accountRepo.save(fromAccount);
+    await this.accountRepo.save(toAccount);
+
+    // Should use eventual consistency + domain events instead
+  }
+}
+
+// ✅ CORRECT - Eventual consistency across aggregates
+class WithdrawMoneyUseCase {
+  async execute(request: WithdrawRequest): Promise<Result<void>> {
+    // Only modify one aggregate
+    const account = await this.accountRepo.findById(
+      request.accountId
+    );
+
+    const withdrawResult = account.withdraw(request.amount);
+    if (withdrawResult.isFailure) {
+      return Result.fail(withdrawResult.error);
+    }
+
+    // Save one aggregate
+    await this.accountRepo.save(account);
+
+    // Event published for other aggregates to react
+    await this.eventDispatcher.dispatchEventsForAggregate(account);
+    // MoneyWithdrawnEvent → processed by other bounded contexts
+
+    return Result.ok();
+  }
+}
+```
 
 ---
 
-## 3. Boundaries of an Aggregate
+## 4. Boundaries of an Aggregate
 
 ### How to Define Aggregate Boundaries:
 
@@ -145,68 +881,68 @@ The **Aggregate Root** is the only entity within the aggregate that:
 
 ---
 
-## 4. Connections with Other Layers
+## 5. Connections with Other Layers
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                  PRESENTATION LAYER                          │
-│  - Never knows about aggregates                              │
-│  - Works with DTOs only                                      │
+│                  PRESENTATION LAYER                         │
+│  - Never knows about aggregates                             │
+│  - Works with DTOs only                                     │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                 APPLICATION LAYER                            │
+│                 APPLICATION LAYER                           │
 │  ┌───────────────────────────────────────────────────┐      │
-│  │  Use Cases                                         │      │
-│  │  - Load aggregate from repository                  │      │
-│  │  - Call aggregate root methods                     │      │
-│  │  - Save aggregate via repository                   │      │
-│  │  - Convert aggregate to DTO via mapper             │      │
+│  │  Use Cases                                        │      │
+│  │  - Load aggregate from repository                 │      │
+│  │  - Call aggregate root methods                    │      │
+│  │  - Save aggregate via repository                  │      │
+│  │  - Convert aggregate to DTO via mapper            │      │
 │  └───────────────────────────────────────────────────┘      │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    DOMAIN LAYER                              │
+│                    DOMAIN LAYER                             │
 │  ┌────────────────────────────────────────────────────┐     │
-│  │         AGGREGATES (You are here)                   │     │
-│  │                                                     │     │
-│  │  ┌──────────────────────────────────────────┐     │     │
+│  │         AGGREGATES (You are here)                  │     │
+│  │                                                    │     │
+│  │  ┌───────────────────────────────────────────┐     │     │
 │  │  │  Aggregate Root (Entity)                  │     │     │
 │  │  │  - Entry point for all operations         │     │     │
 │  │  │  - Enforces aggregate invariants          │     │     │
 │  │  │  - Controls child entities                │     │     │
 │  │  │  - Publishes domain events                │     │     │
-│  │  └────────────┬─────────────────────────────┘     │     │
+│  │  └────────────┬──────────────────────────────┘     │     │
 │  │               │                                    │     │
 │  │               │ contains                           │     │
 │  │               ▼                                    │     │
-│  │  ┌──────────────────────────────────────────┐     │     │
+│  │  ┌───────────────────────────────────────────┐     │     │
 │  │  │  Child Entities                           │     │     │
 │  │  │  - Accessible only through root           │     │     │
 │  │  │  - Part of aggregate boundary             │     │     │
 │  │  │  - No independent repository              │     │     │
-│  │  └──────────────────────────────────────────┘     │     │
+│  │  └───────────────────────────────────────────┘     │     │
 │  │               │                                    │     │
 │  │               │ contains                           │     │
 │  │               ▼                                    │     │
-│  │  ┌──────────────────────────────────────────┐     │     │
+│  │  ┌───────────────────────────────────────────┐     │     │
 │  │  │  Value Objects                            │     │     │
 │  │  │  - Shared across entities in aggregate    │     │     │
 │  │  │  - Immutable descriptive attributes       │     │     │
-│  │  └──────────────────────────────────────────┘     │     │
+│  │  └───────────────────────────────────────────┘     │     │
 │  └────────────────────────────────────────────────────┘     │
-│                                                               │
-│  Repository Interface (for Aggregate Root only)               │
+│                                                             │
+│  Repository Interface (for Aggregate Root only)             │
 └─────────────────────────────────────────────────────────────┘
                          ▲
                          │ implements
 ┌─────────────────────────────────────────────────────────────┐
-│               INFRASTRUCTURE LAYER                           │
-│  - Repository saves entire aggregate                         │
-│  - Loads aggregate with all children                         │
-│  - Transactions span single aggregate                        │
+│               INFRASTRUCTURE LAYER                          │
+│  - Repository saves entire aggregate                        │
+│  - Loads aggregate with all children                        │
+│  - Transactions span single aggregate                       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -214,16 +950,16 @@ The **Aggregate Root** is the only entity within the aggregate that:
 
 ```
 ┌─────────────────┐         Domain Event         ┌─────────────────┐
-│  Aggregate A    │ ────────────────────────────> │  Aggregate B    │
-│  (Root)         │                                │  (Root)         │
-│                 │  Reference by ID only          │                 │
-│  aggregateB_id  │ <───────────────────────────  │  id             │
-└─────────────────┘                                └─────────────────┘
+│  Aggregate A    │ ────────────────────────────>│  Aggregate B    │
+│  (Root)         │                              │  (Root)         │
+│                 │  Reference by ID only        │                 │
+│  aggregateB_id  │ <─────────────────────────── │  id             │
+└─────────────────┘                              └─────────────────┘
 ```
 
 ---
 
-## 5. Aggregate Lifetime & Lifecycle
+## 6. Aggregate Lifetime & Lifecycle
 
 ### Lifecycle Phases:
 
@@ -302,7 +1038,7 @@ async execute(request: TransferMoneyRequest): Promise<Result<void>> {
 
 ---
 
-## 6. Aggregate Structure Template
+## 7. Aggregate Structure Template
 
 ### Aggregate Root Template:
 
@@ -329,8 +1065,8 @@ interface AggregateRootProps {
   property1: ValueObject1;
   property2: ValueObject2;
   childEntities: ChildEntity[];
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /**
@@ -353,19 +1089,15 @@ interface AggregateRootProps {
  * - [Event 1]: When [trigger]
  * - [Event 2]: When [trigger]
  */
-export class AggregateRoot extends AggregateRoot<AggregateRootId> {
-  private _property1: ValueObject1;
-  private _property2: ValueObject2;
-  private _childEntities: ChildEntity[];
-
+export class AggregateRootName extends AggregateRoot<
+  AggregateRootProps,
+  AggregateRootId
+> {
   private constructor(
     props: AggregateRootProps,
     id: AggregateRootId
   ) {
-    super(id, props.createdAt, props.updatedAt);
-    this._property1 = props.property1;
-    this._property2 = props.property2;
-    this._childEntities = props.childEntities;
+    super(props, id);
   }
 
   /**
@@ -373,28 +1105,32 @@ export class AggregateRoot extends AggregateRoot<AggregateRootId> {
    * Publishes creation domain event.
    */
   public static create(
-    props: AggregateRootProps,
-    id?: AggregateRootId
-  ): Result<AggregateRoot> {
+    props: Omit<AggregateRootProps, 'createdAt' | 'updatedAt'>,
+    id: AggregateRootId
+  ): Result<AggregateRootName> {
     // Validate properties
     if (!props.property1) {
-      return Result.fail<AggregateRoot>('Property1 is required');
+      return Result.fail<AggregateRootName>('Property1 is required');
     }
 
     // Validate aggregate-level invariants
     const invariantsResult = this.validateInvariants(props);
     if (invariantsResult.isFailure) {
-      return Result.fail<AggregateRoot>(invariantsResult.error);
+      return Result.fail<AggregateRootName>(invariantsResult.error);
     }
 
-    // Create aggregate
-    const aggregateId = id ?? AggregateRootId.create().value;
-    const aggregate = new AggregateRoot(props, aggregateId);
+    const aggregateProps: AggregateRootProps = {
+      ...props,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const aggregate = new AggregateRootName(aggregateProps, id);
 
     // Publish creation event
     aggregate.addDomainEvent(new AggregateCreatedEvent(aggregate));
 
-    return Result.ok<AggregateRoot>(aggregate);
+    return Result.ok<AggregateRootName>(aggregate);
   }
 
   /**
@@ -402,7 +1138,7 @@ export class AggregateRoot extends AggregateRoot<AggregateRootId> {
    * These are rules that span multiple entities/VOs.
    */
   private static validateInvariants(
-    props: AggregateRootProps
+    props: Omit<AggregateRootProps, 'createdAt' | 'updatedAt'>
   ): Result<void> {
     // Example: Total of child values cannot exceed root limit
     // if (childrenTotal > rootLimit) return fail
@@ -423,10 +1159,8 @@ export class AggregateRoot extends AggregateRoot<AggregateRootId> {
     }
 
     // Add child
-    this._childEntities.push(child);
-
-    // Update timestamp
-    this.touch();
+    this.props.childEntities.push(child);
+    this.props.updatedAt = new Date();
 
     // Optionally publish event
     this.addDomainEvent(new ChildAddedEvent(this, child));
@@ -438,7 +1172,7 @@ export class AggregateRoot extends AggregateRoot<AggregateRootId> {
    * Removes a child entity from the aggregate.
    */
   public removeChild(childId: ChildEntityId): Result<void> {
-    const index = this._childEntities.findIndex((c) =>
+    const index = this.props.childEntities.findIndex((c) =>
       c.id.equals(childId)
     );
 
@@ -454,10 +1188,8 @@ export class AggregateRoot extends AggregateRoot<AggregateRootId> {
     }
 
     // Remove child
-    this._childEntities.splice(index, 1);
-
-    // Update timestamp
-    this.touch();
+    this.props.childEntities.splice(index, 1);
+    this.props.updatedAt = new Date();
 
     return Result.ok<void>();
   }
@@ -484,21 +1216,30 @@ export class AggregateRoot extends AggregateRoot<AggregateRootId> {
    */
   public getChild(childId: ChildEntityId): ChildEntity | null {
     return (
-      this._childEntities.find((c) => c.id.equals(childId)) ?? null
+      this.props.childEntities.find((c) => c.id.equals(childId)) ??
+      null
     );
   }
 
   // Getters
-  public get property1(): ValueObject1 {
-    return this._property1;
+  get property1(): ValueObject1 {
+    return this.props.property1;
   }
 
-  public get property2(): ValueObject2 {
-    return this._property2;
+  get property2(): ValueObject2 {
+    return this.props.property2;
   }
 
-  public get children(): readonly ChildEntity[] {
-    return this._childEntities; // Readonly to prevent external modification
+  get children(): readonly ChildEntity[] {
+    return this.props.childEntities; // Readonly to prevent external modification
+  }
+
+  get createdAt(): Date {
+    return this.props.createdAt;
+  }
+
+  get updatedAt(): Date {
+    return this.props.updatedAt;
   }
 }
 ```
@@ -507,51 +1248,72 @@ export class AggregateRoot extends AggregateRoot<AggregateRootId> {
 
 ```typescript
 import { Entity } from './Entity';
-import { DomainEvent } from './events/DomainEvent';
-import { EventDispatcher } from './events/EventDispatcher';
 import { UniqueEntityID } from './UniqueEntityID';
+import { IDomainEvent } from '../shared/interfaces/IDomainEvent';
 
 /**
- * Base class for all aggregate roots.
- * Extends Entity with domain event capabilities.
+ * Base class for all Aggregate Roots in Domain-Driven Design (DDD).
+ *
+ * An Aggregate Root:
+ * - Is the main **entry point** for modifying an aggregate.
+ * - Enforces business invariants for the entire aggregate.
+ * - Can publish domain events when important business actions occur.
+ *
+ * The AggregateRoot class extends the `Entity` class and adds
+ * the ability to track and manage domain events generated
+ * by the aggregate.
+ *
+ * @typeParam T - The shape of the properties stored in the entity.
+ * @typeParam TID - The type of the unique identifier for the entity, extending {@link UniqueEntityID}.
  */
 export abstract class AggregateRoot<
-  T extends UniqueEntityID
-> extends Entity<T> {
-  private _domainEvents: DomainEvent[] = [];
-
+  T,
+  TID extends UniqueEntityID
+> extends Entity<T, TID> {
   /**
-   * Gets all domain events for this aggregate.
-   */
-  public get domainEvents(): ReadonlyArray<DomainEvent> {
-    return this._domainEvents;
-  }
-
-  /**
-   * Adds a domain event to be dispatched.
+   * Internal collection of domain events raised by this aggregate.
    *
-   * @param domainEvent - The event to add
+   * Events are stored here until a dispatcher processes them.
    */
-  protected addDomainEvent(domainEvent: DomainEvent): void {
-    this._domainEvents.push(domainEvent);
+  private _domainEvents: IDomainEvent[] = [];
 
-    // Mark aggregate as having events
-    EventDispatcher.markAggregateForDispatch(this);
+  /**
+   * Returns a copy of all domain events that the aggregate has raised.
+   *
+   * These events are typically handled by an event dispatcher
+   * after the aggregate operation completes.
+   */
+  get domainEvents(): IDomainEvent[] {
+    return [...this._domainEvents];
   }
 
   /**
-   * Clears all domain events.
-   * Called after events are dispatched.
+   * Registers a new domain event inside the aggregate.
+   *
+   * Use this method whenever something meaningful happens
+   * in the business logic (e.g., "DeviceWentOffline").
+   *
+   * @param domainEvent - The domain event to add.
+   */
+  protected addDomainEvent(domainEvent: IDomainEvent): void {
+    this._domainEvents.push(domainEvent);
+  }
+
+  /**
+   * Clears all stored domain events.
+   *
+   * This is typically called by the event dispatcher AFTER
+   * all events have been published.
    */
   public clearEvents(): void {
-    this._domainEvents = [];
+    this._domainEvents.splice(0, this._domainEvents.length);
   }
 }
 ```
 
 ---
 
-## 7. Orthogonality Principles
+## 8. Orthogonality Principles
 
 ### 1. Small Aggregates
 
@@ -672,7 +1434,7 @@ class OrderCompletedHandler {
 
 ---
 
-## 8. Naming Conventions
+## 9. Naming Conventions
 
 ### Aggregate Root Names:
 
@@ -730,21 +1492,28 @@ class OrderChange {} // Not clear what happened
 
 ---
 
-## 9. Error Handling Patterns
+## 10. Error Handling Patterns
 
 ### Pattern 1: Validate at Boundary
 
 Aggregate root validates all operations:
 
 ```typescript
-class Order extends AggregateRoot<OrderId> {
+interface OrderProps {
+  status: OrderStatus;
+  items: OrderItem[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+class Order extends AggregateRoot<OrderProps, OrderId> {
   public addItem(item: OrderItem): Result<void> {
     // Validate at aggregate boundary
-    if (this._status !== OrderStatus.PENDING) {
+    if (this.props.status !== OrderStatus.PENDING) {
       return Result.fail('Cannot add items to non-pending order');
     }
 
-    if (this._items.length >= 100) {
+    if (this.props.items.length >= 100) {
       return Result.fail('Order cannot exceed 100 items');
     }
 
@@ -753,15 +1522,15 @@ class Order extends AggregateRoot<OrderId> {
       return Result.fail('Adding item would exceed inventory limit');
     }
 
-    this._items.push(item);
-    this.touch();
+    this.props.items.push(item);
+    this.props.updatedAt = new Date();
 
     return Result.ok();
   }
 
   // Aggregate-level invariant check
   private maintainsInventoryLimit(newItem: OrderItem): boolean {
-    const totalQuantity = this._items.reduce(
+    const totalQuantity = this.props.items.reduce(
       (sum, item) => sum + item.quantity,
       newItem.quantity
     );
@@ -775,17 +1544,25 @@ class Order extends AggregateRoot<OrderId> {
 Never throw exceptions for business rule violations:
 
 ```typescript
+interface OrderProps {
+  status: OrderStatus;
+  items: OrderItem[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // ✅ GOOD - Return Result
 public ship(): Result<void> {
-  if (this._status !== OrderStatus.CONFIRMED) {
+  if (this.props.status !== OrderStatus.CONFIRMED) {
     return Result.fail('Only confirmed orders can be shipped');
   }
 
-  if (this._items.length === 0) {
+  if (this.props.items.length === 0) {
     return Result.fail('Cannot ship empty order');
   }
 
-  this._status = OrderStatus.SHIPPED;
+  this.props.status = OrderStatus.SHIPPED;
+  this.props.updatedAt = new Date();
   this.addDomainEvent(new OrderShippedEvent(this.id));
 
   return Result.ok();
@@ -793,7 +1570,7 @@ public ship(): Result<void> {
 
 // ❌ BAD - Throws exception
 public ship(): void {
-  if (this._status !== OrderStatus.CONFIRMED) {
+  if (this.props.status !== OrderStatus.CONFIRMED) {
     throw new Error('Only confirmed orders can be shipped');
   }
   // ...
@@ -805,7 +1582,13 @@ public ship(): void {
 All child modifications go through root for validation:
 
 ```typescript
-class Order extends AggregateRoot<OrderId> {
+interface OrderProps {
+  items: OrderItem[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+class Order extends AggregateRoot<OrderProps, OrderId> {
   /**
    * Updates item quantity.
    * Root validates aggregate invariants.
@@ -815,7 +1598,7 @@ class Order extends AggregateRoot<OrderId> {
     newQuantity: number
   ): Result<void> {
     // Find child
-    const item = this._items.find((i) => i.id.equals(itemId));
+    const item = this.props.items.find((i) => i.id.equals(itemId));
     if (!item) {
       return Result.fail('Item not found');
     }
@@ -836,7 +1619,7 @@ class Order extends AggregateRoot<OrderId> {
       return updateResult;
     }
 
-    this.touch();
+    this.props.updatedAt = new Date();
 
     return Result.ok();
   }
@@ -845,7 +1628,7 @@ class Order extends AggregateRoot<OrderId> {
     itemId: OrderItemId,
     newQuantity: number
   ): number {
-    return this._items.reduce((sum, item) => {
+    return this.props.items.reduce((sum, item) => {
       const quantity = item.id.equals(itemId)
         ? newQuantity
         : item.quantity;
@@ -857,7 +1640,7 @@ class Order extends AggregateRoot<OrderId> {
 
 ---
 
-## 10. Transaction and Consistency Boundaries
+## 11. Transaction and Consistency Boundaries
 
 ### Transactional Consistency (Within Aggregate):
 
@@ -866,20 +1649,28 @@ class Order extends AggregateRoot<OrderId> {
  * All changes within an aggregate are ACID.
  * Either all succeed or all fail.
  */
-class Order extends AggregateRoot<OrderId> {
+interface OrderProps {
+  items: OrderItem[];
+  status: OrderStatus;
+  completedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+class Order extends AggregateRoot<OrderProps, OrderId> {
   public complete(): Result<void> {
     // Validate entire aggregate state
-    if (this._items.length === 0) {
+    if (this.props.items.length === 0) {
       return Result.fail('Cannot complete empty order');
     }
 
     // Multiple changes happen atomically
-    this._status = OrderStatus.COMPLETED;
-    this._completedAt = new Date();
-    this._items.forEach((item) => item.markAsOrdered());
+    this.props.status = OrderStatus.COMPLETED;
+    this.props.completedAt = new Date();
+    this.props.updatedAt = new Date();
+    this.props.items.forEach((item) => item.markAsOrdered());
 
     // All or nothing when saved to DB
-    this.touch();
     this.addDomainEvent(new OrderCompletedEvent(this));
 
     return Result.ok();
@@ -897,15 +1688,27 @@ await orderRepository.save(order);
  * Changes across aggregates are eventually consistent.
  * Use domain events for coordination.
  */
+interface OrderProps {
+  customerId: string;
+  total: Money;
+  status: OrderStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 // 1. Order aggregate publishes event
-class Order extends AggregateRoot<OrderId> {
+class Order extends AggregateRoot<OrderProps, OrderId> {
   public complete(): Result<void> {
-    this._status = OrderStatus.COMPLETED;
+    this.props.status = OrderStatus.COMPLETED;
+    this.props.updatedAt = new Date();
 
     // Event for other aggregates
     this.addDomainEvent(
-      new OrderCompletedEvent(this.id, this._customerId, this._total)
+      new OrderCompletedEvent(
+        this.id,
+        this.props.customerId,
+        this.props.total
+      )
     );
 
     return Result.ok();
@@ -945,11 +1748,22 @@ class UpdateCustomerStatisticsHandler {
    - Eventually converges to correct state
 
 ```typescript
+interface ShoppingCartProps {
+  items: CartItem[];
+  total: Money;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // ✅ GOOD - Immediate consistency within aggregate
-class ShoppingCart {
+class ShoppingCart extends AggregateRoot<
+  ShoppingCartProps,
+  ShoppingCartId
+> {
   public addItem(item: CartItem): Result<void> {
-    this._items.push(item);
-    this._total = this.calculateTotal(); // Immediately consistent
+    this.props.items.push(item);
+    this.props.total = this.calculateTotal(); // Immediately consistent
+    this.props.updatedAt = new Date();
     return Result.ok();
   }
 }
@@ -969,7 +1783,7 @@ class OrderCompletedHandler {
 
 ---
 
-## 11. Testing Strategy
+## 12. Testing Strategy
 
 ### Test Structure for Aggregates:
 
@@ -1192,7 +2006,7 @@ describe('Order Aggregate', () => {
 
 ---
 
-## 12. Examples
+## 13. Examples
 
 ### Example: NetworkDevice Aggregate
 
@@ -1228,8 +2042,8 @@ interface NetworkDeviceProps {
   macAddress: MACAddress;
   status: NetworkDeviceStatus;
   pollingConfiguration: PollingConfiguration;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /**
@@ -1251,27 +2065,19 @@ interface NetworkDeviceProps {
  * - PollingEnabledEvent: When polling is enabled
  * - PollingDisabledEvent: When polling is disabled
  */
-export class NetworkDevice extends AggregateRoot<NetworkDeviceId> {
-  private _name: string;
-  private _ipAddress: IPAddress;
-  private _macAddress: MACAddress;
-  private _status: NetworkDeviceStatus;
-  private _pollingConfiguration: PollingConfiguration;
-
+export class NetworkDevice extends AggregateRoot<
+  NetworkDeviceProps,
+  NetworkDeviceId
+> {
   private constructor(
     props: NetworkDeviceProps,
     id: NetworkDeviceId
   ) {
-    super(id, props.createdAt, props.updatedAt);
-    this._name = props.name;
-    this._ipAddress = props.ipAddress;
-    this._macAddress = props.macAddress;
-    this._status = props.status;
-    this._pollingConfiguration = props.pollingConfiguration;
+    super(props, id);
   }
 
   public static create(
-    props: NetworkDeviceProps,
+    props: Omit<NetworkDeviceProps, 'createdAt' | 'updatedAt'>,
     id?: NetworkDeviceId
   ): Result<NetworkDevice> {
     // Validate required properties
@@ -1301,7 +2107,14 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceId> {
 
     // Create device
     const deviceId = id ?? NetworkDeviceId.create().value;
-    const device = new NetworkDevice(props, deviceId);
+
+    const deviceProps: NetworkDeviceProps = {
+      ...props,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const device = new NetworkDevice(deviceProps, deviceId);
 
     // Publish creation event
     device.addDomainEvent(new NetworkDeviceCreatedEvent(device));
@@ -1313,7 +2126,7 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceId> {
    * Validates aggregate-level invariants.
    */
   private static validateInvariants(
-    props: NetworkDeviceProps
+    props: Omit<NetworkDeviceProps, 'createdAt' | 'updatedAt'>
   ): Result<void> {
     // Invariant: If MAINTENANCE, polling must be disabled
     if (
@@ -1343,31 +2156,31 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceId> {
    * Validates and enforces aggregate invariants.
    */
   public updateStatus(newStatus: NetworkDeviceStatus): Result<void> {
-    if (newStatus === this._status) {
+    if (newStatus === this.props.status) {
       return Result.ok<void>(); // No change
     }
 
     // Validate invariant: If going to MAINTENANCE, disable polling
     if (
       newStatus === NetworkDeviceStatus.MAINTENANCE &&
-      this._pollingConfiguration.enabled
+      this.props.pollingConfiguration.enabled
     ) {
       // Automatically disable polling
-      this._pollingConfiguration.disable();
+      this.props.pollingConfiguration.disable();
     }
 
     // Validate invariant: If going to OFFLINE, disable polling
     if (
       newStatus === NetworkDeviceStatus.OFFLINE &&
-      this._pollingConfiguration.enabled
+      this.props.pollingConfiguration.enabled
     ) {
-      this._pollingConfiguration.disable();
+      this.props.pollingConfiguration.disable();
     }
 
-    const oldStatus = this._status;
-    this._status = newStatus;
+    const oldStatus = this.props.status;
+    this.props.status = newStatus;
+    this.props.updatedAt = new Date();
 
-    this.touch();
     this.addDomainEvent(
       new NetworkDeviceStatusChangedEvent(this, oldStatus, newStatus)
     );
@@ -1380,18 +2193,18 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceId> {
    * Validates aggregate invariants before enabling.
    */
   public enablePolling(): Result<void> {
-    if (this._status !== NetworkDeviceStatus.ONLINE) {
+    if (this.props.status !== NetworkDeviceStatus.ONLINE) {
       return Result.fail<void>(
         'Cannot enable polling for offline or maintenance devices'
       );
     }
 
-    const enableResult = this._pollingConfiguration.enable();
+    const enableResult = this.props.pollingConfiguration.enable();
     if (enableResult.isFailure) {
       return enableResult;
     }
 
-    this.touch();
+    this.props.updatedAt = new Date();
     this.addDomainEvent(new PollingEnabledEvent(this));
 
     return Result.ok<void>();
@@ -1401,9 +2214,9 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceId> {
    * Disables polling for this device.
    */
   public disablePolling(): Result<void> {
-    this._pollingConfiguration.disable();
+    this.props.pollingConfiguration.disable();
 
-    this.touch();
+    this.props.updatedAt = new Date();
     this.addDomainEvent(new PollingDisabledEvent(this));
 
     return Result.ok<void>();
@@ -1417,43 +2230,51 @@ export class NetworkDevice extends AggregateRoot<NetworkDeviceId> {
     newInterval: PollingInterval
   ): Result<void> {
     const updateResult =
-      this._pollingConfiguration.updateInterval(newInterval);
+      this.props.pollingConfiguration.updateInterval(newInterval);
     if (updateResult.isFailure) {
       return updateResult;
     }
 
-    this.touch();
+    this.props.updatedAt = new Date();
 
     return Result.ok<void>();
   }
 
   // Getters
-  public get name(): string {
-    return this._name;
+  get name(): string {
+    return this.props.name;
   }
 
-  public get ipAddress(): IPAddress {
-    return this._ipAddress;
+  get ipAddress(): IPAddress {
+    return this.props.ipAddress;
   }
 
-  public get macAddress(): MACAddress {
-    return this._macAddress;
+  get macAddress(): MACAddress {
+    return this.props.macAddress;
   }
 
-  public get status(): NetworkDeviceStatus {
-    return this._status;
+  get status(): NetworkDeviceStatus {
+    return this.props.status;
   }
 
-  public get pollingConfiguration(): PollingConfiguration {
-    return this._pollingConfiguration;
+  get pollingConfiguration(): PollingConfiguration {
+    return this.props.pollingConfiguration;
   }
 
-  public get isOnline(): boolean {
-    return this._status === NetworkDeviceStatus.ONLINE;
+  get isOnline(): boolean {
+    return this.props.status === NetworkDeviceStatus.ONLINE;
   }
 
-  public get isPollingEnabled(): boolean {
-    return this._pollingConfiguration.enabled;
+  get isPollingEnabled(): boolean {
+    return this.props.pollingConfiguration.enabled;
+  }
+
+  get createdAt(): Date {
+    return this.props.createdAt;
+  }
+
+  get updatedAt(): Date {
+    return this.props.updatedAt;
   }
 }
 ```
