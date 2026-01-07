@@ -11,8 +11,9 @@
 7. [Orthogonality Principles](#7-orthogonality-principles)
 8. [Naming Conventions](#8-naming-conventions)
 9. [Method Patterns](#9-method-patterns)
-10. [Testing Strategy](#10-testing-strategy)
-11. [Examples](#11-examples)
+10. [Error Handling Strategy in Implementations](#10-error-handling-strategy-in-implementations)
+11. [Testing Strategy](#11-testing-strategy)
+12. [Examples](#12-examples)
 
 ---
 
@@ -67,9 +68,31 @@
 
 3. **Return Results**
 
-   - Use Result<T> for operations that can fail
-   - Provide meaningful error messages
-   - No throwing exceptions for business failures
+   Repository methods use a dual error-handling strategy:
+
+   **Business/Domain Failures → Return `Result.fail()`**
+   - Entity not found (when it's expected to exist)
+   - Validation failures (e.g., duplicate IP address)
+   - Business rule violations
+   - Expected error scenarios that are part of normal operation
+   - These are recoverable and should be handled by use cases
+
+   **Infrastructure Catastrophes → Throw Exceptions**
+   - Database connection lost
+   - Network timeouts
+   - ORM crashes
+   - Disk full
+   - Query syntax errors
+   - Authentication failures with database
+   - These are unexpected, system-level failures that should bubble up to global error handlers
+
+   **Key Principles:**
+   - Method signatures always return `Promise<Result<T>>`
+   - Not finding an entity by ID returns `Result.ok(null)` (not an error - valid scenario)
+   - Finding zero results returns `Result.ok([])` (not an error)
+   - Business constraint violations return `Result.fail()` with meaningful message
+   - Infrastructure failures throw exceptions immediately
+   - Never throw exceptions for business logic failures
 
 4. **Express Domain Queries**
 
@@ -116,9 +139,15 @@
    - Child entities persisted with aggregate
 
 5. **❌ Return DTOs**
+
    - Return domain objects only
    - No presentation layer types
    - No database entities
+
+6. **❌ Leaking SQL or Query Language**
+
+   - Should not have methods like `findByRawSql(query: string)`
+   - Use specification pattern or clearly named methods like `findActiveOrders()`
 
 ---
 
@@ -126,26 +155,26 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                  PRESENTATION LAYER                          │
-│  - Never calls repositories directly                         │
-│  - Works through use cases                                   │
+│                  PRESENTATION LAYER                         │
+│  - Never calls repositories directly                        │
+│  - Works through use cases                                  │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                 APPLICATION LAYER                            │
+│                 APPLICATION LAYER                           │
 │  ┌───────────────────────────────────────────────────┐      │
-│  │  Use Cases                                         │      │
-│  │  - Inject repository interfaces                    │      │
-│  │  - Call repository methods                         │      │
-│  │  - Manage transaction scope                        │      │
-│  │  - Handle repository results                       │      │
+│  │  Use Cases                                        │      │
+│  │  - Inject repository interfaces                   │      │
+│  │  - Call repository methods                        │      │
+│  │  - Manage transaction scope                       │      │
+│  │  - Handle repository results                      │      │
 │  └───────────────────────────────────────────────────┘      │
 └────────────────────────┬────────────────────────────────────┘
                          │ depends on (interface)
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    DOMAIN LAYER                              │
+│                    DOMAIN LAYER                             │
 │  ┌────────────────────────────────────────────────────┐     │
 │  │   REPOSITORY INTERFACES (You are here)             │     │
 │  │   - Define persistence contracts                   │     │
@@ -153,23 +182,23 @@
 │  │   - Collection-like metaphor                       │     │
 │  │   - One per aggregate root                         │     │
 │  └────────────────────────────────────────────────────┘     │
-│         ▲                                                     │
-│         │ used by                                            │
-│  ┌──────────────────┐                                        │
-│  │  Aggregate Root  │                                        │
-│  └──────────────────┘                                        │
+│         ▲                                                   │
+│         │ used by                                           │
+│  ┌──────────────────┐                                       │
+│  │  Aggregate Root  │                                       │
+│  └──────────────────┘                                       │
 └─────────────────────────────────────────────────────────────┘
                          ▲
                          │ implements
 ┌─────────────────────────────────────────────────────────────┐
-│               INFRASTRUCTURE LAYER                           │
+│               INFRASTRUCTURE LAYER                          │
 │  ┌───────────────────────────────────────────────────┐      │
-│  │  Repository Implementations                        │      │
-│  │  - Implement interfaces from domain                │      │
-│  │  - Use ORM/database to persist                     │      │
-│  │  - Map between domain and persistence              │      │
-│  │  - Handle transactions                             │      │
-│  │  - Dispatch domain events after save               │      │
+│  │  Repository Implementations                       │      │
+│  │  - Implement interfaces from domain               │      │
+│  │  - Use ORM/database to persist                    │      │
+│  │  - Map between domain and persistence             │      │
+│  │  - Handle transactions                            │      │
+│  │  - Dispatch domain events after save              │      │
 │  └───────────────────────────────────────────────────┘      │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -290,32 +319,39 @@ import { Result } from '@/shared/core/Result';
  * - Implementations must handle domain event dispatch after save
  * - Implementations must load entire aggregate (including children)
  * - Implementations must handle transactions appropriately
+ * - Business errors (duplicates, constraint violations) return Result.fail()
+ * - Infrastructure errors (connection lost, timeouts) throw exceptions
  */
 export interface IAggregateRepository {
   /**
    * Saves an aggregate (create or update).
    * Dispatches domain events after successful save.
+   * Returns Result.fail() for business constraint violations (duplicate keys, etc.).
    *
    * @param aggregate - The aggregate to save
-   * @returns Result<Aggregate> - Saved aggregate or error
+   * @returns Result<Aggregate> - Saved aggregate or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   save(aggregate: Aggregate): Promise<Result<Aggregate>>;
 
   /**
    * Finds an aggregate by its unique identifier.
-   * Returns null if not found.
+   * Returns null if not found (valid scenario, not an error).
    *
    * @param id - Aggregate ID
-   * @returns Result<Aggregate | null> - Found aggregate, null, or error
+   * @returns Result<Aggregate | null> - Found aggregate, null, or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   findById(id: AggregateId): Promise<Result<Aggregate | null>>;
 
   /**
    * Finds all aggregates (with optional pagination).
+   * Returns empty array if none found (valid scenario, not an error).
    *
    * @param limit - Maximum number of results
    * @param offset - Number of results to skip
-   * @returns Result<Aggregate[]> - Array of aggregates or error
+   * @returns Result<Aggregate[]> - Array of aggregates (may be empty) or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   findAll(
     limit?: number,
@@ -324,9 +360,11 @@ export interface IAggregateRepository {
 
   /**
    * Deletes an aggregate by ID.
+   * Not finding the aggregate to delete may be treated as success or error based on business rules.
    *
    * @param id - Aggregate ID
-   * @returns Result<void> - Success or error
+   * @returns Result<void> - Success or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   delete(id: AggregateId): Promise<Result<void>>;
 
@@ -334,14 +372,16 @@ export interface IAggregateRepository {
    * Checks if an aggregate exists with the given ID.
    *
    * @param id - Aggregate ID
-   * @returns Result<boolean> - True if exists, false otherwise, or error
+   * @returns Result<boolean> - True if exists, false otherwise, or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   exists(id: AggregateId): Promise<Result<boolean>>;
 
   /**
    * Counts total number of aggregates.
    *
-   * @returns Result<number> - Count or error
+   * @returns Result<number> - Count or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   count(): Promise<Result<number>>;
 }
@@ -601,18 +641,70 @@ getAllPendingForCustomerTable(id: string)
 /**
  * Saves an aggregate (creates if new, updates if exists).
  * Implementations use ID to determine create vs update.
+ * Returns Result.fail() for business constraint violations (duplicate key, etc.).
+ * Throws exception on infrastructure failures (connection lost, etc.).
  *
  * @param aggregate - Aggregate to save
- * @returns Result<Aggregate> - Saved aggregate or error
+ * @returns Result<Aggregate> - Saved aggregate or business error
+ * @throws InfrastructureException - On catastrophic infrastructure failures
  */
 save(aggregate: Aggregate): Promise<Result<Aggregate>>;
 
 // Usage in Use Case
 const order = Order.create({ ... }).value;
-await orderRepository.save(order);  // Create
+const saveResult = await orderRepository.save(order);  // Create
+
+if (saveResult.isFailure) {
+  // Business error (e.g., duplicate order number)
+  return Result.fail(saveResult.error);
+}
 
 order.confirm();
 await orderRepository.save(order);  // Update (same method!)
+
+// Implementation Example
+class PrismaOrderRepository implements IOrderRepository {
+  async save(order: Order): Promise<Result<Order>> {
+    try {
+      const exists = await this.prisma.order.findUnique({
+        where: { id: order.id.toString() }
+      });
+
+      const orderData = OrderMapper.toPersistence(order);
+
+      if (exists) {
+        // Update existing
+        await this.prisma.order.update({
+          where: { id: order.id.toString() },
+          data: orderData
+        });
+      } else {
+        // Create new
+        await this.prisma.order.create({
+          data: orderData
+        });
+      }
+
+      // Dispatch domain events after successful save
+      await DomainEvents.dispatchEventsForAggregate(order.id);
+
+      return Result.ok(order);
+
+    } catch (error) {
+      // Check if it's a business constraint violation
+      if (error.code === 'P2002') { // Prisma unique constraint violation
+        const field = error.meta?.target?.[0] || 'field';
+        return Result.fail(`${field} already exists`);
+      }
+
+      // Otherwise it's an infrastructure catastrophe - throw
+      throw new InfrastructureException(
+        'Database error while saving order',
+        error
+      );
+    }
+  }
+}
 ```
 
 ### Pattern 2: findById() - Retrieve by ID
@@ -620,27 +712,64 @@ await orderRepository.save(order);  // Update (same method!)
 ```typescript
 /**
  * Finds aggregate by ID.
- * Returns null if not found (NOT an error).
+ * Returns null if not found (NOT an error - valid business scenario).
+ * Throws exception on infrastructure failures (connection lost, etc.).
  *
  * @param id - Aggregate ID
- * @returns Result<Aggregate | null> - Aggregate, null, or error
+ * @returns Result<Aggregate | null> - Aggregate or null on success, Result.fail() for business errors
+ * @throws InfrastructureException - On catastrophic infrastructure failures
  */
 findById(id: AggregateId): Promise<Result<Aggregate | null>>;
 
-// Usage
+// Usage in Use Case
 const result = await orderRepository.findById(orderId);
 
 if (result.isFailure) {
-  // Database error
+  // Business/domain error (e.g., data inconsistency detected)
   return Result.fail(result.error);
 }
 
 if (result.value === null) {
   // Not found (not an error - valid scenario)
+  // Use case decides if this is a failure in this context
   return Result.fail('Order not found');
 }
 
 const order = result.value; // Found!
+
+// Implementation Example
+class PrismaOrderRepository implements IOrderRepository {
+  async findById(id: OrderId): Promise<Result<Order | null>> {
+    try {
+      const orderData = await this.prisma.order.findUnique({
+        where: { id: id.toString() },
+        include: { items: true, shippingAddress: true }
+      });
+
+      // Not found is a valid scenario - return ok(null)
+      if (!orderData) {
+        return Result.ok(null);
+      }
+
+      // Map to domain
+      const orderOrError = OrderMapper.toDomain(orderData);
+      if (orderOrError.isFailure) {
+        // Mapping failed due to invalid data (business error)
+        return Result.fail(`Failed to map order: ${orderOrError.error}`);
+      }
+
+      return Result.ok(orderOrError.value);
+
+    } catch (error) {
+      // Infrastructure catastrophe - connection lost, timeout, etc.
+      // Don't wrap in Result - let it throw to global handler
+      throw new InfrastructureException(
+        'Database error while finding order',
+        error
+      );
+    }
+  }
+}
 ```
 
 ### Pattern 3: findBy...() - Query Methods
@@ -648,23 +777,62 @@ const order = result.value; // Found!
 ```typescript
 /**
  * Queries using domain concepts.
- * Returns empty array if none found (NOT an error).
+ * Returns empty array if none found (NOT an error - valid scenario).
+ * Throws exception on infrastructure failures.
  *
  * @param criteria - Domain criteria
- * @returns Result<Aggregate[]> - Matching aggregates or error
+ * @returns Result<Aggregate[]> - Matching aggregates (may be empty) or business error
+ * @throws InfrastructureException - On catastrophic infrastructure failures
  */
 findByStatus(status: OrderStatus): Promise<Result<Order[]>>;
 findByCustomerId(customerId: CustomerId): Promise<Result<Order[]>>;
 
-// Usage
+// Usage in Use Case
 const result = await orderRepository.findByStatus(OrderStatus.PENDING);
 
 if (result.isFailure) {
-  // Database error
+  // Business error (e.g., data mapping failed)
   return Result.fail(result.error);
 }
 
-const pendingOrders = result.value; // May be empty array
+const pendingOrders = result.value; // May be empty array (valid!)
+
+// Implementation Example
+class PrismaOrderRepository implements IOrderRepository {
+  async findByStatus(status: OrderStatus): Promise<Result<Order[]>> {
+    try {
+      const ordersData = await this.prisma.order.findMany({
+        where: { status: status.value },
+        include: { items: true, shippingAddress: true }
+      });
+
+      // Empty array is valid - not an error
+      if (ordersData.length === 0) {
+        return Result.ok([]);
+      }
+
+      // Map all orders to domain
+      const orders: Order[] = [];
+      for (const orderData of ordersData) {
+        const orderOrError = OrderMapper.toDomain(orderData);
+        if (orderOrError.isFailure) {
+          // Business error - corrupted data in database
+          return Result.fail(`Failed to map order ${orderData.id}: ${orderOrError.error}`);
+        }
+        orders.push(orderOrError.value);
+      }
+
+      return Result.ok(orders);
+
+    } catch (error) {
+      // Infrastructure catastrophe - throw
+      throw new InfrastructureException(
+        'Database error while finding orders by status',
+        error
+      );
+    }
+  }
+}
 ```
 
 ### Pattern 4: exists() - Check Existence
@@ -734,7 +902,197 @@ if (countResult.isSuccess) {
 
 ---
 
-## 10. Testing Strategy
+## 10. Error Handling Strategy in Implementations
+
+### Dual Error-Handling Model
+
+Repository implementations must distinguish between two types of failures:
+
+#### Business/Domain Errors (Return `Result.fail()`)
+
+These are **expected** errors that are part of normal business operations:
+
+```typescript
+// ✅ Business errors - return Result.fail()
+class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
+  async save(device: NetworkDevice): Promise<Result<NetworkDevice>> {
+    try {
+      // ... save logic ...
+
+    } catch (error) {
+      // Unique constraint violation - IP address already exists
+      if (error.code === 'P2002' && error.meta?.target?.includes('ipAddress')) {
+        return Result.fail(`Device with IP ${device.ipAddress} already exists`);
+      }
+
+      // Unique constraint violation - MAC address already exists
+      if (error.code === 'P2002' && error.meta?.target?.includes('macAddress')) {
+        return Result.fail(`Device with MAC ${device.macAddress} already exists`);
+      }
+
+      // Foreign key violation - referenced entity doesn't exist
+      if (error.code === 'P2003') {
+        return Result.fail('Referenced entity does not exist');
+      }
+
+      // Infrastructure error - throw (see below)
+      throw new InfrastructureException('Database error', error);
+    }
+  }
+
+  async findById(id: DeviceId): Promise<Result<NetworkDevice | null>> {
+    try {
+      const data = await this.prisma.device.findUnique({...});
+
+      // Not found - valid scenario
+      if (!data) return Result.ok(null);
+
+      // Map to domain
+      const deviceOrError = NetworkDeviceMapper.toDomain(data);
+      if (deviceOrError.isFailure) {
+        // Data corruption or invalid data - business error
+        return Result.fail(`Invalid device data: ${deviceOrError.error}`);
+      }
+
+      return Result.ok(deviceOrError.value);
+
+    } catch (error) {
+      // Infrastructure catastrophe - throw
+      throw new InfrastructureException('Database error', error);
+    }
+  }
+}
+```
+
+#### Infrastructure Errors (Throw Exceptions)
+
+These are **unexpected** system-level failures:
+
+```typescript
+// ❌ Infrastructure catastrophes - throw exceptions
+class PrismaOrderRepository implements IOrderRepository {
+  async findById(id: OrderId): Promise<Result<Order | null>> {
+    try {
+      const data = await this.prisma.order.findUnique({...});
+      // ... business logic ...
+
+    } catch (error) {
+      // Connection errors
+      if (error.code === 'P1001') {
+        throw new InfrastructureException('Cannot connect to database', error);
+      }
+
+      // Timeout errors
+      if (error.code === 'P1008') {
+        throw new InfrastructureException('Database operation timed out', error);
+      }
+
+      // Authentication errors
+      if (error.code === 'P1000') {
+        throw new InfrastructureException('Database authentication failed', error);
+      }
+
+      // Unknown errors - likely infrastructure issues
+      throw new InfrastructureException(
+        'Unexpected database error while finding order',
+        error
+      );
+    }
+  }
+}
+```
+
+### Error Classification Decision Tree
+
+```
+Is this error expected in normal business operations?
+│
+├─ YES → Return Result.fail()
+│   ├─ Entity not found (when expected to exist)
+│   ├─ Duplicate key violations
+│   ├─ Foreign key violations
+│   ├─ Data validation failures during mapping
+│   └─ Business constraint violations
+│
+└─ NO → Throw Exception
+    ├─ Database connection lost
+    ├─ Network timeout
+    ├─ Authentication failure
+    ├─ Query syntax errors
+    ├─ ORM crashes
+    └─ Unknown/unexpected errors
+```
+
+### Benefits of This Approach
+
+1. **Clear Separation**: Business logic errors vs system failures
+2. **Appropriate Handling**: Use cases handle business errors, global handlers catch infrastructure errors
+3. **Clean Code**: Use cases don't need try-catch for every repository call
+4. **Fail Fast**: Infrastructure issues bubble up immediately
+5. **Type Safety**: Method signatures clearly indicate expected error types
+
+### Example: Use Case Error Handling
+
+```typescript
+class CreateNetworkDeviceUseCase {
+  async execute(request: CreateDeviceRequest): Promise<Result<NetworkDevice>> {
+    // No try-catch needed - infrastructure errors throw to global handler
+
+    // Check for duplicate IP
+    const ipExistsResult = await this.deviceRepo.existsByIpAddress(request.ipAddress);
+    if (ipExistsResult.isFailure) {
+      // Business error from repository
+      return Result.fail(ipExistsResult.error);
+    }
+
+    if (ipExistsResult.value) {
+      // Business rule violation
+      return Result.fail('IP address already in use');
+    }
+
+    // Create device
+    const deviceOrError = NetworkDevice.create(request);
+    if (deviceOrError.isFailure) {
+      return Result.fail(deviceOrError.error);
+    }
+
+    // Save device
+    const saveResult = await this.deviceRepo.save(deviceOrError.value);
+    if (saveResult.isFailure) {
+      // Business error (e.g., race condition - IP taken between check and save)
+      return Result.fail(saveResult.error);
+    }
+
+    return Result.ok(saveResult.value);
+
+    // If database connection fails, exception throws to global error handler
+    // Use case doesn't need to handle "database is down" scenarios
+  }
+}
+```
+
+### Example: Global Error Handler
+
+```typescript
+// In Express.js or similar framework
+app.use((error, req, res, next) => {
+  if (error instanceof InfrastructureException) {
+    logger.error('Infrastructure failure:', error);
+
+    return res.status(503).json({
+      error: 'Service temporarily unavailable',
+      message: 'Please try again later'
+    });
+  }
+
+  // Other error types...
+  next(error);
+});
+```
+
+---
+
+## 11. Testing Strategy
 
 ### Mocking Repositories in Unit Tests:
 
@@ -909,7 +1267,7 @@ describe('PrismaOrderRepository (Integration)', () => {
 
 ---
 
-## 11. Examples
+## 12. Examples
 
 ### Example 1: INetworkDeviceRepository
 
@@ -934,23 +1292,28 @@ import { NetworkDeviceStatus } from '@/domain/value-objects/NetworkDeviceStatus'
  * Implementation Notes:
  * - Must load device WITH polling configuration
  * - Must dispatch domain events after save
- * - Must handle unique constraint violations (IP, MAC)
+ * - Must handle unique constraint violations (IP, MAC) as business errors
+ * - Business errors return Result.fail(), infrastructure errors throw exceptions
  */
 export interface INetworkDeviceRepository {
   /**
    * Saves a network device (create or update).
    * Loads entire aggregate including PollingConfiguration.
+   * Returns Result.fail() if IP or MAC address already exists.
    *
    * @param device - Network device to save
-   * @returns Result<NetworkDevice> - Saved device or error
+   * @returns Result<NetworkDevice> - Saved device or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   save(device: NetworkDevice): Promise<Result<NetworkDevice>>;
 
   /**
    * Finds a device by its unique identifier.
+   * Returns null if not found (valid scenario, not an error).
    *
    * @param id - Device ID
-   * @returns Result<NetworkDevice | null> - Device, null, or error
+   * @returns Result<NetworkDevice | null> - Device, null, or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   findById(
     id: NetworkDeviceId
@@ -959,9 +1322,11 @@ export interface INetworkDeviceRepository {
   /**
    * Finds a device by IP address.
    * IP addresses are unique per device.
+   * Returns null if not found (valid scenario, not an error).
    *
    * @param ipAddress - IP address
-   * @returns Result<NetworkDevice | null> - Device, null, or error
+   * @returns Result<NetworkDevice | null> - Device, null, or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   findByIpAddress(
     ipAddress: IPAddress
@@ -970,9 +1335,11 @@ export interface INetworkDeviceRepository {
   /**
    * Finds a device by MAC address.
    * MAC addresses are unique per device.
+   * Returns null if not found (valid scenario, not an error).
    *
    * @param macAddress - MAC address
-   * @returns Result<NetworkDevice | null> - Device, null, or error
+   * @returns Result<NetworkDevice | null> - Device, null, or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   findByMacAddress(
     macAddress: MACAddress
@@ -980,9 +1347,11 @@ export interface INetworkDeviceRepository {
 
   /**
    * Finds all devices with a specific status.
+   * Returns empty array if none found (valid scenario, not an error).
    *
    * @param status - Device status
-   * @returns Result<NetworkDevice[]> - Devices with status or error
+   * @returns Result<NetworkDevice[]> - Devices with status (may be empty) or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   findByStatus(
     status: NetworkDeviceStatus
@@ -990,10 +1359,12 @@ export interface INetworkDeviceRepository {
 
   /**
    * Finds all devices (with optional pagination).
+   * Returns empty array if none found (valid scenario, not an error).
    *
    * @param limit - Maximum results
    * @param offset - Results to skip
-   * @returns Result<NetworkDevice[]> - Devices or error
+   * @returns Result<NetworkDevice[]> - Devices (may be empty) or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   findAll(
     limit?: number,
@@ -1005,7 +1376,8 @@ export interface INetworkDeviceRepository {
    * Cascade deletes polling configuration and results.
    *
    * @param id - Device ID
-   * @returns Result<void> - Success or error
+   * @returns Result<void> - Success or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   delete(id: NetworkDeviceId): Promise<Result<void>>;
 
@@ -1013,7 +1385,8 @@ export interface INetworkDeviceRepository {
    * Checks if a device exists with the given ID.
    *
    * @param id - Device ID
-   * @returns Result<boolean> - True if exists
+   * @returns Result<boolean> - True if exists, false otherwise, or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   exists(id: NetworkDeviceId): Promise<Result<boolean>>;
 
@@ -1022,15 +1395,18 @@ export interface INetworkDeviceRepository {
    * Used for uniqueness validation.
    *
    * @param ipAddress - IP address to check
-   * @returns Result<boolean> - True if in use
+   * @returns Result<boolean> - True if in use, false otherwise, or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   existsByIpAddress(ipAddress: IPAddress): Promise<Result<boolean>>;
 
   /**
    * Checks if a MAC address is already in use.
+   * Used for uniqueness validation.
    *
    * @param macAddress - MAC address to check
-   * @returns Result<boolean> - True if in use
+   * @returns Result<boolean> - True if in use, false otherwise, or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   existsByMacAddress(
     macAddress: MACAddress
@@ -1039,7 +1415,8 @@ export interface INetworkDeviceRepository {
   /**
    * Counts total devices.
    *
-   * @returns Result<number> - Device count or error
+   * @returns Result<number> - Device count or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   count(): Promise<Result<number>>;
 
@@ -1047,7 +1424,8 @@ export interface INetworkDeviceRepository {
    * Counts devices by status.
    *
    * @param status - Device status
-   * @returns Result<number> - Count or error
+   * @returns Result<number> - Count or business error
+   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   countByStatus(status: NetworkDeviceStatus): Promise<Result<number>>;
 }
@@ -1121,21 +1499,46 @@ export interface IOrderRepository {
 
 When creating a Repository Interface, ensure:
 
+**Interface Design:**
 - ✅ Interface name: I + AggregateName + Repository
 - ✅ Located in domain layer (src/domain/repository/)
 - ✅ One repository per aggregate root
 - ✅ Uses domain types (entities, VOs, IDs) - no primitives
-- ✅ Returns Result<T> for all operations
-- ✅ save() method (not insert/update)
-- ✅ findById() returns T | null
-- ✅ Query methods use domain language
-- ✅ No infrastructure details in interface
-- ✅ No business logic in interface
 - ✅ No DTOs or presentation types
+- ✅ No infrastructure details in interface
 - ✅ Collection-like metaphor
+
+**Method Signatures:**
+- ✅ Returns `Promise<Result<T>>` for all operations
+- ✅ save() method (not insert/update)
+- ✅ findById() returns `Result<T | null>`
+- ✅ Query methods return `Result<T[]>` (empty array is valid)
+- ✅ Query methods use domain language
+- ✅ Includes @throws JSDoc for infrastructure exceptions
+
+**Error Handling Documentation:**
+- ✅ JSDoc documents both Result and thrown exceptions
+- ✅ Clear distinction between business and infrastructure errors
+- ✅ Implementation notes explain error handling strategy
+
+**Implementation Guidance:**
+- ✅ No business logic in interface
 - ✅ Comprehensive documentation
 - ✅ Clear responsibilities noted
+- ✅ Error handling strategy documented
+
+**Error Handling in Implementations:**
+- ✅ Business errors return `Result.fail()`
+  - Entity not found (when expected)
+  - Duplicate key violations
+  - Foreign key violations
+  - Data mapping failures
+- ✅ Infrastructure errors throw exceptions
+  - Database connection lost
+  - Network timeouts
+  - Authentication failures
+  - Unknown/unexpected errors
 
 ---
 
-**Remember**: Repository interfaces define the contract for persistence in domain terms. They live in the domain layer and are implemented in the infrastructure layer, ensuring clean separation of concerns!
+**Remember**: Repository interfaces define the contract for persistence in domain terms. They live in the domain layer and are implemented in the infrastructure layer, ensuring clean separation of concerns! Use the dual error-handling model: `Result.fail()` for business errors, throw exceptions for infrastructure catastrophes.
