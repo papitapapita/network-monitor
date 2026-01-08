@@ -8,6 +8,9 @@
 
 // NetworkDevice events
 export * from './NetworkDeviceCreatedEvent';
+export * from './NetworkDeviceActivatedEvent';
+export * from './NetworkDeviceRestoredEvent';
+export * from './DeviceReplacedEvent';
 export * from './NetworkDeviceStatusChangedEvent';
 
 // Polling events
