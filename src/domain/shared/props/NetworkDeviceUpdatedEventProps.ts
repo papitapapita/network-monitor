@@ -1,4 +1,4 @@
-import { NetworkDeviceId } from '../../entities';
+import { NetworkDeviceId } from '../../';
 
 export interface NetworkDeviceUpdatedEventProps {
   readonly aggregateId: NetworkDeviceId;

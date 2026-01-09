@@ -19,7 +19,11 @@ import {
   ManagementProtocol,
   NetworkDeviceProps,
   NetworkDeviceDeletedEvent,
-  NetworkDeviceUpdatedEvent
+  NetworkDeviceUpdatedEvent,
+  ActivationStatus,
+  NetworkDeviceActivatedEvent,
+  NetworkDeviceRestoredEvent,
+  DeviceReplacedEvent
 } from '../';
 /**
  * NetworkDevice Aggregate Root
@@ -105,8 +109,41 @@ export class NetworkDevice extends AggregateRoot<
     return this.props.pollingConfiguration;
   }
 
+  // REQ-002: Getters for new properties
+  get activationStatus(): ActivationStatus {
+    return this.props.activationStatus;
+  }
+
+  get activatedAt(): Date | null {
+    return this.props.activatedAt;
+  }
+
+  get activatedBy(): string | null {
+    return this.props.activatedBy;
+  }
+
+  get deletedAt(): Date | null {
+    return this.props.deletedAt;
+  }
+
+  get deletedBy(): string | null {
+    return this.props.deletedBy;
+  }
+
+  get replacedByDeviceId(): NetworkDeviceId | null {
+    return this.props.replacedByDeviceId;
+  }
+
+  get replacedAt(): Date | null {
+    return this.props.replacedAt;
+  }
+
   /**
    * Creates a new NetworkDevice aggregate.
+   *
+   * REQ-002: Supports DRAFT and ACTIVE activation states with conditional validation:
+   * - DRAFT: Requires only IP + MAC (for device discovery/enrichment workflow)
+   * - ACTIVE: Requires full device information (IP, MAC, name, deviceType, deviceId)
    *
    * @param props - Network device properties
    * @param id - Optional ID (for reconstitution from database)
@@ -114,77 +151,107 @@ export class NetworkDevice extends AggregateRoot<
    */
   public static create(
     props: NetworkDeviceProps,
-    id?: NetworkDeviceId
+    id: NetworkDeviceId
   ): Result<NetworkDevice> {
-    const guardResult = Guard.combine([
-      Guard.againstNullOrUndefined(props.name, 'name'),
-      Guard.againstNullOrUndefined(props.deviceType, 'deviceType'),
-      Guard.againstNullOrUndefined(props.status, 'status'),
+    // Set default activationStatus if not provided
+    const activationStatus =
+      props.activationStatus || ActivationStatus.DRAFT;
+
+    // Base validation: Always require IP + MAC
+    const baseGuards = [
       Guard.againstNullOrUndefined(props.ipAddress, 'ipAddress'),
-      Guard.againstNullOrUndefined(props.macAddress, 'macAddress'),
-      Guard.againstNullOrUndefined(
-        props.connectivityType,
-        'connectivityType'
-      ),
-      Guard.againstNullOrUndefined(
-        props.managementProtocol,
-        'managementProtocol'
-      ),
-      Guard.againstNullOrUndefined(
-        props.managementPort,
-        'managementPort'
-      ),
-      Guard.againstNullOrUndefined(props.deviceId, 'deviceId'),
-      Guard.againstNullOrUndefined(
-        props.pollingConfiguration,
-        'pollingConfiguration'
-      ),
-      Guard.isNumber(props.managementPort, 'managementPort'),
-      Guard.inRange(props.managementPort, 1, 65535, 'managementPort')
-    ]);
+      Guard.againstNullOrUndefined(props.macAddress, 'macAddress')
+    ];
+
+    // Conditional validation based on activation status
+    let guards = baseGuards;
+
+    if (activationStatus === ActivationStatus.ACTIVE) {
+      // ACTIVE state requires full device information
+      guards = [
+        ...baseGuards,
+        Guard.againstNullOrUndefinedBulk([
+          { argument: props.name, argumentName: 'name' },
+          { argument: props.deviceType, argumentName: 'deviceType' },
+          { argument: props.status, argumentName: 'status' },
+          {
+            argument: props.connectivityType,
+            argumentName: 'connectivityType'
+          },
+          {
+            argument: props.managementProtocol,
+            argumentName: 'managementProtocol'
+          },
+          {
+            argument: props.managementPort,
+            argumentName: 'managementPort'
+          },
+          { argument: props.deviceId, argumentName: 'deviceId' },
+          {
+            argument: props.pollingConfiguration,
+            argumentName: 'pollingConfiguration'
+          },
+          { argument: id, argumentName: 'networkDeviceId' }
+        ]),
+        Guard.isNumber(props.managementPort, 'managementPort'),
+        Guard.inRange(
+          props.managementPort,
+          1,
+          65535,
+          'managementPort'
+        )
+      ];
+
+      // Validate name length for ACTIVE devices
+      if (props.name !== null && props.name !== undefined) {
+        if (props.name.trim().length === 0) {
+          return Result.fail<NetworkDevice>(
+            'Device name cannot be empty'
+          );
+        }
+
+        if (props.name.length > 255) {
+          return Result.fail<NetworkDevice>(
+            'Device name cannot exceed 255 characters'
+          );
+        }
+      }
+    }
+
+    const guardResult = Guard.combine(guards);
 
     if (!guardResult.succeeded) {
       return Result.fail<NetworkDevice>(guardResult.message!);
     }
 
-    // Validate name length
-    if (props.name.trim().length === 0) {
-      return Result.fail<NetworkDevice>(
-        'Device name cannot be empty'
-      );
-    }
-
-    if (props.name.length > 255) {
-      return Result.fail<NetworkDevice>(
-        'Device name cannot exceed 255 characters'
-      );
-    }
-
-    const deviceId = id || NetworkDeviceId.create().value;
-
-    // Set default dates if not provided
+    // Set defaults for new REQ-002 fields
     const networkDevice = new NetworkDevice(
       {
         ...props,
+        activationStatus,
+        deletedAt: props.deletedAt ?? null,
+        deletedBy: props.deletedBy ?? null,
+        activatedAt: props.activatedAt ?? null,
+        activatedBy: props.activatedBy ?? null,
+        replacedByDeviceId: props.replacedByDeviceId ?? null,
+        replacedAt: props.replacedAt ?? null,
         installDate: props.installDate || new Date(),
         createdAt: props.createdAt || new Date(),
         updatedAt: props.updatedAt || new Date()
       },
-      deviceId
+      id
     );
 
-    // Emit creation event if this is a new device (no ID provided)
-    if (!id) {
-      networkDevice.addDomainEvent(
-        new NetworkDeviceCreatedEvent({
-          aggregateId: networkDevice.id,
-          deviceName: networkDevice.name,
-          ipAddress: networkDevice.ipAddress,
-          macAddress: networkDevice.macAddress,
-          dateTimeOccurred: new Date()
-        })
-      );
-    }
+    // Emit creation event if this is a new device
+    networkDevice.addDomainEvent(
+      new NetworkDeviceCreatedEvent({
+        aggregateId: networkDevice.id,
+        deviceName: networkDevice.name,
+        ipAddress: networkDevice.ipAddress,
+        macAddress: networkDevice.macAddress,
+        dateTimeOccurred: new Date()
+      })
+    );
 
     return Result.ok<NetworkDevice>(networkDevice);
   }
@@ -206,7 +273,7 @@ export class NetworkDevice extends AggregateRoot<
 
     const oldStatus = this.props.status;
 
-    if (oldStatus === newStatus) {
+    if (oldStatus.equals(newStatus)) {
       return Result.ok<void>();
     }
 
@@ -347,8 +414,14 @@ export class NetworkDevice extends AggregateRoot<
     enableRemoteAccess?: boolean;
   }): Result<void> {
     const changedFields: string[] = [];
-    const previousValues: Record<string, any> = {};
-    const newValues: Record<string, any> = {};
+    const previousValues: Record<
+      string,
+      ManagementProtocol | number | boolean
+    > = {};
+    const newValues: Record<
+      string,
+      ManagementProtocol | number | boolean
+    > = {};
 
     if (config.port !== undefined) {
       const portGuard = Guard.combine([
@@ -447,7 +520,9 @@ export class NetworkDevice extends AggregateRoot<
    * @param interval - New polling interval
    * @returns Result indicating success or failure
    */
-  public configurePolling(interval: PollingInterval): Result<void> {
+  public configurePollingInterval(
+    interval: PollingInterval
+  ): Result<void> {
     const updateResult =
       this.props.pollingConfiguration.updateInterval(interval);
     if (updateResult.isFailure) {
@@ -604,24 +679,166 @@ export class NetworkDevice extends AggregateRoot<
     return Result.ok<void>();
   }
 
+  // ========== REQ-002: Activation Workflow Methods ==========
+
   /**
-   * Gets the polling configuration for this device.
+   * Activates a DRAFT device, transitioning it to ACTIVE state.
+   *
+   * REQ-002 AC-002.2: Device activation workflow
+   * - Device must be in DRAFT state
+   * - All required fields must be populated
+   * - Emits NetworkDeviceActivatedEvent
+   *
+   * @param activatedBy - User ID who performed the activation
+   * @returns Result indicating success or failure
    */
-  public getPollingConfiguration(): PollingConfiguration {
-    return this.props.pollingConfiguration;
+  public activate(activatedBy: string): Result<void> {
+    // Guard: Check if already active
+    if (this.props.activationStatus === ActivationStatus.ACTIVE) {
+      return Result.fail<void>('Device is already in ACTIVE state');
+    }
+
+    // Guard: Validate activatedBy
+    const guardResult = Guard.combine([
+      Guard.againstNullOrUndefined(activatedBy, 'activatedBy'),
+      Guard.isString(activatedBy, 'activatedBy')
+    ]);
+
+    if (!guardResult.succeeded) {
+      return Result.fail<void>(guardResult.message!);
+    }
+
+    // Guard: Check if device can be activated (all required fields present)
+    const canActivateResult = this.canActivate();
+    if (!canActivateResult.isSuccess) {
+      return canActivateResult;
+    }
+
+    // Perform activation
+    this.props.activationStatus = ActivationStatus.ACTIVE;
+    this.props.activatedAt = new Date();
+    this.props.activatedBy = activatedBy;
+    this.props.updatedAt = new Date();
+
+    // Emit NetworkDeviceActivatedEvent
+    this.addDomainEvent(
+      new NetworkDeviceActivatedEvent({
+        aggregateId: this.id,
+        deviceName: this.props.name,
+        ipAddress: this.props.ipAddress,
+        macAddress: this.props.macAddress,
+        activatedBy,
+        dateTimeOccurred: new Date()
+      })
+    );
+
+    return Result.ok<void>();
   }
 
   /**
-   * Marks the device for deletion and emits deletion event.
-   * Call this BEFORE physically deleting from repository.
+   * Validates whether the device can be activated.
    *
-   * This ensures the deletion event is emitted with full device context
-   * before the data is permanently removed.
+   * Checks that all required fields for ACTIVE state are present:
+   * - name, deviceType, deviceId, status
+   * - connectivityType, managementProtocol, managementPort
+   * - pollingConfiguration
    *
-   * @param deletedBy - Optional identifier of who/what requested deletion
+   * @returns Result indicating whether device can be activated
+   */
+  public canActivate(): Result<void> {
+    const requiredFields: Array<{
+      value: unknown;
+      fieldName: string;
+    }> = [
+      { value: this.props.name, fieldName: 'name' },
+      { value: this.props.deviceType, fieldName: 'deviceType' },
+      { value: this.props.deviceId, fieldName: 'deviceId' },
+      { value: this.props.status, fieldName: 'status' },
+      {
+        value: this.props.connectivityType,
+        fieldName: 'connectivityType'
+      },
+      {
+        value: this.props.managementProtocol,
+        fieldName: 'managementProtocol'
+      },
+      {
+        value: this.props.managementPort,
+        fieldName: 'managementPort'
+      },
+      {
+        value: this.props.pollingConfiguration,
+        fieldName: 'pollingConfiguration'
+      }
+    ];
+
+    const missingFields = requiredFields
+      .filter(
+        (field) => field.value === null || field.value === undefined
+      )
+      .map((field) => field.fieldName);
+
+    if (missingFields.length > 0) {
+      return Result.fail<void>(
+        `Cannot activate device. Missing required fields: ${missingFields.join(', ')}`
+      );
+    }
+
+    // Validate name is not empty
+    if (this.props.name && this.props.name.trim().length === 0) {
+      return Result.fail<void>(
+        'Cannot activate device. Device name cannot be empty'
+      );
+    }
+
+    return Result.ok<void>();
+  }
+
+  /**
+   * Checks if the device is in DRAFT state.
+   *
+   * @returns True if device is in DRAFT state
+   */
+  public isDraft(): boolean {
+    return this.props.activationStatus === ActivationStatus.DRAFT;
+  }
+
+  /**
+   * Checks if the device is in ACTIVE state.
+   *
+   * @returns True if device is in ACTIVE state
+   */
+  public isActive(): boolean {
+    return this.props.activationStatus === ActivationStatus.ACTIVE;
+  }
+
+  // ========== REQ-002: Soft Delete & Restore Methods ==========
+
+  /**
+   * Marks the device for soft deletion.
+   *
+   * REQ-002 AC-002.6: Soft delete with 7-day grace period
+   * - Sets deletedAt and deletedBy fields
+   * - Device remains in database but excluded from normal queries
+   * - Can be restored within 7 days
+   * - Emits NetworkDeviceDeletedEvent
+   *
+   * @param deletedBy - User ID who performed the deletion
    * @returns Result indicating success or failure
    */
   public markForDeletion(deletedBy?: string): Result<void> {
+    // Guard: Check if already deleted
+    if (this.isDeleted()) {
+      return Result.fail<void>(
+        'Device is already marked for deletion'
+      );
+    }
+
+    // Perform soft delete
+    this.props.deletedAt = new Date();
+    this.props.deletedBy = deletedBy || null;
+    this.props.updatedAt = new Date();
+
     // Emit deletion event with current device state
     this.addDomainEvent(
       new NetworkDeviceDeletedEvent({
@@ -635,5 +852,188 @@ export class NetworkDevice extends AggregateRoot<
     );
 
     return Result.ok<void>();
+  }
+
+  /**
+   * Restores a soft-deleted device within the grace period.
+   *
+   * REQ-002 AC-002.7: Restore deleted devices within grace period
+   * - Device must be in soft-deleted state
+   * - Must be within 7-day grace period
+   * - Clears deletedAt and deletedBy fields
+   * - Emits NetworkDeviceRestoredEvent
+   *
+   * @param restoredBy - User ID who performed the restoration
+   * @returns Result indicating success or failure
+   */
+  public restore(restoredBy: string): Result<void> {
+    // Guard: Validate restoredBy
+    const guardResult = Guard.combine([
+      Guard.againstNullOrUndefined(restoredBy, 'restoredBy'),
+      Guard.isString(restoredBy, 'restoredBy')
+    ]);
+
+    if (!guardResult.succeeded) {
+      return Result.fail<void>(guardResult.message!);
+    }
+
+    // Guard: Check if device can be restored
+    const canRestoreResult = this.canRestore();
+    if (canRestoreResult.isFailure) {
+      return canRestoreResult;
+    }
+
+    // Store original deletedAt for event
+    const originalDeletedAt = this.props.deletedAt!;
+
+    // Perform restoration
+    this.props.deletedAt = null;
+    this.props.deletedBy = null;
+    this.props.updatedAt = new Date();
+
+    // Emit NetworkDeviceRestoredEvent
+    this.addDomainEvent(
+      new NetworkDeviceRestoredEvent({
+        aggregateId: this.id,
+        deviceName: this.name,
+        ipAddress: this.ipAddress,
+        restoredBy,
+        deletedAt: originalDeletedAt,
+        dateTimeOccurred: new Date()
+      })
+    );
+
+    return Result.ok<void>();
+  }
+
+  /**
+   * Validates whether the device can be restored.
+   *
+   * Checks:
+   * - Device must be in soft-deleted state (deletedAt is not null)
+   * - Must be within 7-day grace period
+   *
+   * @returns Result indicating whether device can be restored
+   */
+  public canRestore(): Result<void> {
+    if (!this.isDeleted()) {
+      return Result.fail<void>('Device is not in deleted state');
+    }
+
+    if (!this.isWithinGracePeriod()) {
+      return Result.fail<void>(
+        'Restoration grace period has expired (7 days maximum)'
+      );
+    }
+
+    return Result.ok<void>();
+  }
+
+  /**
+   * Checks if the device is in soft-deleted state.
+   *
+   * @returns True if device is marked for deletion (deletedAt is not null)
+   */
+  public isDeleted(): boolean {
+    return this.props.deletedAt !== null;
+  }
+
+  /**
+   * Checks if the device is within the 7-day grace period for restoration.
+   *
+   * @returns True if device is deleted and within 7 days of deletion
+   */
+  public isWithinGracePeriod(): boolean {
+    if (!this.isDeleted()) {
+      return false;
+    }
+
+    const daysSinceDeletion =
+      (Date.now() - this.props.deletedAt!.getTime()) /
+      (1000 * 60 * 60 * 24);
+
+    return daysSinceDeletion <= 7;
+  }
+
+  // ========== REQ-002: Device Replacement Methods ==========
+
+  /**
+   * Marks this device as replaced by a new device.
+   *
+   * REQ-002 AC-002.9: Device replacement workflow
+   * - Old device must be in deleted state
+   * - Links old device to new replacement device
+   * - Emits DeviceReplacedEvent with migration details
+   *
+   * @param newDeviceId - ID of the new replacement device
+   * @param newMacAddress - MAC address of the new device
+   * @param replacedBy - User ID who confirmed the replacement
+   * @param configMigrated - Whether polling/management config was migrated
+   * @param metadataMigrated - Whether name/description/location was migrated
+   * @returns Result indicating success or failure
+   */
+  public markAsReplaced(
+    newDeviceId: NetworkDeviceId,
+    newMacAddress: MACAddress,
+    replacedBy: string,
+    configMigrated: boolean,
+    metadataMigrated: boolean
+  ): Result<void> {
+    // Guard: Device must be deleted
+    if (!this.isDeleted()) {
+      return Result.fail<void>(
+        'Device must be in deleted state to mark as replaced'
+      );
+    }
+
+    // Guard: Check if already replaced
+    if (this.isReplaced()) {
+      return Result.fail<void>(
+        'Device is already marked as replaced'
+      );
+    }
+
+    // Guard: Validate parameters
+    const guardResult = Guard.combine([
+      Guard.againstNullOrUndefined(newDeviceId, 'newDeviceId'),
+      Guard.againstNullOrUndefined(newMacAddress, 'newMacAddress'),
+      Guard.againstNullOrUndefined(replacedBy, 'replacedBy'),
+      Guard.isString(replacedBy, 'replacedBy')
+    ]);
+
+    if (!guardResult.succeeded) {
+      return Result.fail<void>(guardResult.message!);
+    }
+
+    // Perform replacement tracking
+    this.props.replacedByDeviceId = newDeviceId;
+    this.props.replacedAt = new Date();
+    this.props.updatedAt = new Date();
+
+    // Emit DeviceReplacedEvent
+    this.addDomainEvent(
+      new DeviceReplacedEvent({
+        oldDeviceId: this.id,
+        newDeviceId,
+        ipAddress: this.ipAddress,
+        oldMacAddress: this.macAddress,
+        newMacAddress,
+        configMigrated,
+        metadataMigrated,
+        replacedBy,
+        dateTimeOccurred: new Date()
+      })
+    );
+
+    return Result.ok<void>();
+  }
+
+  /**
+   * Checks if the device has been replaced by another device.
+   *
+   * @returns True if device has been marked as replaced
+   */
+  public isReplaced(): boolean {
+    return this.props.replacedByDeviceId !== null;
   }
 }
