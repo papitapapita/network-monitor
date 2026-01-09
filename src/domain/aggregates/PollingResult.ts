@@ -71,31 +71,38 @@ export class PollingResult extends AggregateRoot<
   }
 
   /**
-   * Creates a new PollingResult aggregate.
+   * Reconstitutes a PollingResult aggregate from persistence.
+   *
+   * This method is used to rebuild PollingResult instances from the database
+   * without emitting domain events. For creating new polling results, use
+   * createSuccess() or createFailure() factory methods instead.
    *
    * @param props - Polling result properties
-   * @param id - Optional ID (for reconstitution from database)
+   * @param id - Required ID (must be provided, typically from database)
    * @returns Result containing PollingResult or error message
    */
-  public static create(
+  public static reconstitute(
     props: PollingResultProps,
-    id?: PollingResultId
+    id: PollingResultId
   ): Result<PollingResult> {
     const guardResult = Guard.combine([
-      Guard.againstNullOrUndefined(
-        props.networkDeviceId,
-        'networkDeviceId'
-      ),
-      Guard.againstNullOrUndefined(props.timestamp, 'timestamp'),
-      Guard.againstNullOrUndefined(props.status, 'status'),
-      Guard.againstNullOrUndefined(
-        props.deviceStatus,
-        'deviceStatus'
-      ),
-      Guard.againstNullOrUndefined(
-        props.attemptNumber,
-        'attemptNumber'
-      ),
+      Guard.againstNullOrUndefinedBulk([
+        {
+          argument: props.networkDeviceId,
+          argumentName: 'networkDeviceId'
+        },
+        { argument: props.timestamp, argumentName: 'timestamp' },
+        { argument: props.status, argumentName: 'status' },
+        {
+          argument: props.deviceStatus,
+          argumentName: 'deviceStatus'
+        },
+        {
+          argument: props.attemptNumber,
+          argumentName: 'attemptNumber'
+        },
+        { argument: id, argumentName: 'pollingResultId' }
+      ]),
       Guard.isNumber(props.attemptNumber, 'attemptNumber'),
       Guard.inRange(
         props.attemptNumber,
@@ -129,14 +136,12 @@ export class PollingResult extends AggregateRoot<
       );
     }
 
-    const pollingresultId = id || PollingResultId.create().value;
-
     const pollingResult = new PollingResult(
       {
         ...props,
         attemptNumber: Math.round(props.attemptNumber)
       },
-      pollingresultId
+      id
     );
 
     return Result.ok<PollingResult>(pollingResult);
@@ -158,7 +163,10 @@ export class PollingResult extends AggregateRoot<
     ipAddress: IPAddress;
     wasOffline?: boolean;
   }): Result<PollingResult> {
-    const createResult = this.create({
+    // Generate ID for new polling result
+    const id = PollingResultId.create().value;
+
+    const createResult = this.reconstitute({
       networkDeviceId: props.networkDeviceId,
       timestamp: props.timestamp,
       status: PollingStatus.createSuccess().value,
@@ -166,7 +174,7 @@ export class PollingResult extends AggregateRoot<
       attemptNumber: props.attemptNumber,
       errorMessage: null,
       deviceStatus: props.deviceStatus
-    });
+    }, id);
 
     if (createResult.isSuccess) {
       const pollingResult = createResult.value;
@@ -206,7 +214,10 @@ export class PollingResult extends AggregateRoot<
     wasOnline?: boolean;
     metrics?: PollingMetrics | null;
   }): Result<PollingResult> {
-    const createResult = this.create({
+    // Generate ID for new polling result
+    const id = PollingResultId.create().value;
+
+    const createResult = this.reconstitute({
       networkDeviceId: props.networkDeviceId,
       timestamp: props.timestamp,
       status: props.status,
@@ -214,7 +225,7 @@ export class PollingResult extends AggregateRoot<
       attemptNumber: props.attemptNumber,
       errorMessage: props.errorMessage,
       deviceStatus: props.deviceStatus
-    });
+    }, id);
 
     if (createResult.isSuccess) {
       const pollingResult = createResult.value;

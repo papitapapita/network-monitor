@@ -20,15 +20,18 @@ describe('PollingConfiguration', () => {
 
   describe('create', () => {
     it('should create a valid PollingConfiguration with all required props', () => {
-      const result = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      });
+      const result = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value).toBeInstanceOf(PollingConfiguration);
@@ -40,15 +43,18 @@ describe('PollingConfiguration', () => {
     });
 
     it('should auto-generate ID when not provided', () => {
-      const result = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      });
+      const result = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      );
 
       expect(result.value.id).toBeDefined();
       expect(result.value.id).toBeInstanceOf(PollingConfigurationId);
@@ -73,165 +79,198 @@ describe('PollingConfiguration', () => {
     });
 
     it('should fail when networkDeviceId is null', () => {
-      const result = PollingConfiguration.create({
-        networkDeviceId: null as any,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      });
+      const result = PollingConfiguration.create(
+        {
+          networkDeviceId: null as any,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('networkDeviceId');
     });
 
     it('should fail when interval is null', () => {
-      const result = PollingConfiguration.create({
-        networkDeviceId,
-        interval: null as any,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      });
+      const result = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval: null as any,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('interval');
     });
 
     it('should fail when enabled is null', () => {
-      const result = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: null as any,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      });
+      const result = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: null as any,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('enabled');
     });
 
     it('should fail when retryPolicy is null', () => {
-      const result = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy: null as any,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      });
+      const result = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy: null as any,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('retryPolicy');
     });
 
     it('should fail when pingCount is null', () => {
-      const result = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: null as any,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      });
+      const result = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: null as any,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('pingCount');
     });
 
     it('should fail when pingCount is not a number', () => {
-      const result = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 'invalid' as any,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      });
+      const result = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 'invalid' as any,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('pingCount');
     });
 
     it('should fail when pingCount is below minimum (1)', () => {
-      const result = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 0,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      });
+      const result = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 0,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('pingCount');
     });
 
     it('should fail when pingCount is above maximum (10)', () => {
-      const result = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 11,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      });
+      const result = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 11,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('pingCount');
     });
 
     it('should round pingCount to integer if decimal provided', () => {
-      const result = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4.7,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      });
+      const result = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4.7,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.pingCount).toBe(5);
     });
 
     it('should accept minimum pingCount of 1', () => {
-      const result = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 1,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      });
+      const result = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 1,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.pingCount).toBe(1);
     });
 
     it('should accept maximum pingCount of 10', () => {
-      const result = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 10,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      });
+      const result = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 10,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.pingCount).toBe(10);
@@ -242,6 +281,7 @@ describe('PollingConfiguration', () => {
     it('should create a PollingConfiguration with default values', () => {
       const result = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         interval
       );
 
@@ -259,6 +299,7 @@ describe('PollingConfiguration', () => {
     it('should use default retry policy', () => {
       const result = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         interval
       );
 
@@ -270,15 +311,18 @@ describe('PollingConfiguration', () => {
 
   describe('enable', () => {
     it('should enable a disabled configuration', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: false,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: false,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const result = config.enable();
 
@@ -287,15 +331,18 @@ describe('PollingConfiguration', () => {
     });
 
     it('should return stateChanged=true when enabling disabled configuration', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: false,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: false,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const result = config.enable();
 
@@ -304,15 +351,18 @@ describe('PollingConfiguration', () => {
     });
 
     it('should be idempotent when already enabled', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const result = config.enable();
 
@@ -321,15 +371,18 @@ describe('PollingConfiguration', () => {
     });
 
     it('should return stateChanged=false when already enabled', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const result = config.enable();
 
@@ -340,15 +393,18 @@ describe('PollingConfiguration', () => {
 
   describe('disable', () => {
     it('should disable an enabled configuration', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const result = config.disable();
 
@@ -357,15 +413,18 @@ describe('PollingConfiguration', () => {
     });
 
     it('should return stateChanged=true when disabling enabled configuration', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const result = config.disable();
 
@@ -374,15 +433,18 @@ describe('PollingConfiguration', () => {
     });
 
     it('should clear nextScheduledAt when disabled', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: new Date(),
-        nextScheduledAt: new Date(Date.now() + 60000)
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: new Date(),
+          nextScheduledAt: new Date(Date.now() + 60000)
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       config.disable();
 
@@ -390,15 +452,18 @@ describe('PollingConfiguration', () => {
     });
 
     it('should be idempotent when already disabled', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: false,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: false,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const result = config.disable();
 
@@ -407,15 +472,18 @@ describe('PollingConfiguration', () => {
     });
 
     it('should return stateChanged=false when already disabled', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: false,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: false,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const result = config.disable();
 
@@ -428,6 +496,7 @@ describe('PollingConfiguration', () => {
     it('should update the interval', () => {
       const config = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         interval
       ).value;
 
@@ -442,6 +511,7 @@ describe('PollingConfiguration', () => {
       const originalInterval = PollingInterval.create(60).value;
       const config = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         originalInterval
       ).value;
 
@@ -457,6 +527,7 @@ describe('PollingConfiguration', () => {
       const originalInterval = PollingInterval.create(60).value;
       const config = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         originalInterval
       ).value;
 
@@ -470,6 +541,7 @@ describe('PollingConfiguration', () => {
     it('should fail when newInterval is null', () => {
       const config = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         interval
       ).value;
 
@@ -481,15 +553,18 @@ describe('PollingConfiguration', () => {
 
     it('should reschedule when enabled and has lastScheduledAt', () => {
       const lastScheduled = new Date();
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: lastScheduled,
-        nextScheduledAt: new Date(lastScheduled.getTime() + 60000)
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: lastScheduled,
+          nextScheduledAt: new Date(lastScheduled.getTime() + 60000)
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const newInterval = PollingInterval.create(120).value;
       config.updateInterval(newInterval);
@@ -502,15 +577,18 @@ describe('PollingConfiguration', () => {
     });
 
     it('should not reschedule when disabled', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: false,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: false,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const newInterval = PollingInterval.create(120).value;
       config.updateInterval(newInterval);
@@ -519,15 +597,18 @@ describe('PollingConfiguration', () => {
     });
 
     it('should not reschedule when no lastScheduledAt', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const newInterval = PollingInterval.create(120).value;
       config.updateInterval(newInterval);
@@ -540,6 +621,7 @@ describe('PollingConfiguration', () => {
     it('should update the ping count', () => {
       const config = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         interval
       ).value;
 
@@ -552,6 +634,7 @@ describe('PollingConfiguration', () => {
     it('should return the previous ping count value', () => {
       const config = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         interval
       ).value;
 
@@ -566,6 +649,7 @@ describe('PollingConfiguration', () => {
     it('should return previous ping count even when updating to same value', () => {
       const config = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         interval
       ).value;
 
@@ -579,6 +663,7 @@ describe('PollingConfiguration', () => {
     it('should round decimal values', () => {
       const config = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         interval
       ).value;
 
@@ -590,6 +675,7 @@ describe('PollingConfiguration', () => {
     it('should fail when count is null', () => {
       const config = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         interval
       ).value;
 
@@ -602,6 +688,7 @@ describe('PollingConfiguration', () => {
     it('should fail when count is not a number', () => {
       const config = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         interval
       ).value;
 
@@ -614,6 +701,7 @@ describe('PollingConfiguration', () => {
     it('should fail when count is below minimum', () => {
       const config = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         interval
       ).value;
 
@@ -625,6 +713,7 @@ describe('PollingConfiguration', () => {
     it('should fail when count is above maximum', () => {
       const config = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         interval
       ).value;
 
@@ -636,6 +725,7 @@ describe('PollingConfiguration', () => {
     it('should accept minimum value of 1', () => {
       const config = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         interval
       ).value;
 
@@ -648,6 +738,7 @@ describe('PollingConfiguration', () => {
     it('should accept maximum value of 10', () => {
       const config = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         interval
       ).value;
 
@@ -662,6 +753,7 @@ describe('PollingConfiguration', () => {
     it('should update the retry policy', () => {
       const config = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         interval
       ).value;
 
@@ -680,6 +772,7 @@ describe('PollingConfiguration', () => {
     it('should fail when newRetryPolicy is null', () => {
       const config = PollingConfiguration.createDefault(
         networkDeviceId,
+        PollingConfigurationId.create().value,
         interval
       ).value;
 
@@ -692,15 +785,18 @@ describe('PollingConfiguration', () => {
 
   describe('scheduleNext', () => {
     it('should schedule next poll time based on interval', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval: PollingInterval.create(60).value, // 60 seconds
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval: PollingInterval.create(60).value, // 60 seconds
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const fromTime = new Date('2024-01-01T10:00:00Z');
       const result = config.scheduleNext(fromTime);
@@ -715,15 +811,18 @@ describe('PollingConfiguration', () => {
     });
 
     it('should fail when polling is disabled', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: false,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: false,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const result = config.scheduleNext(new Date());
 
@@ -732,15 +831,18 @@ describe('PollingConfiguration', () => {
     });
 
     it('should fail when fromTime is null', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const result = config.scheduleNext(null as any);
 
@@ -749,15 +851,18 @@ describe('PollingConfiguration', () => {
     });
 
     it('should correctly calculate next time with different intervals', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval: PollingInterval.fromMinutes(5).value, // 300 seconds
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval: PollingInterval.fromMinutes(5).value, // 300 seconds
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const fromTime = new Date('2024-01-01T10:00:00Z');
       config.scheduleNext(fromTime);
@@ -771,44 +876,53 @@ describe('PollingConfiguration', () => {
 
   describe('canPoll', () => {
     it('should return false when disabled', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: false,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: false,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       expect(config.canPoll(new Date())).toBe(false);
     });
 
     it('should return true when enabled and never scheduled', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       expect(config.canPoll(new Date())).toBe(true);
     });
 
     it('should return true when current time is at scheduled time', () => {
       const scheduledTime = new Date('2024-01-01T10:00:00Z');
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: new Date('2024-01-01T09:59:00Z'),
-        nextScheduledAt: scheduledTime
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: new Date('2024-01-01T09:59:00Z'),
+          nextScheduledAt: scheduledTime
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       expect(config.canPoll(scheduledTime)).toBe(true);
     });
@@ -816,15 +930,18 @@ describe('PollingConfiguration', () => {
     it('should return true when current time is past scheduled time', () => {
       const scheduledTime = new Date('2024-01-01T10:00:00Z');
       const currentTime = new Date('2024-01-01T10:01:00Z');
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: new Date('2024-01-01T09:59:00Z'),
-        nextScheduledAt: scheduledTime
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: new Date('2024-01-01T09:59:00Z'),
+          nextScheduledAt: scheduledTime
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       expect(config.canPoll(currentTime)).toBe(true);
     });
@@ -832,15 +949,18 @@ describe('PollingConfiguration', () => {
     it('should return false when current time is before scheduled time', () => {
       const scheduledTime = new Date('2024-01-01T10:00:00Z');
       const currentTime = new Date('2024-01-01T09:59:00Z');
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: new Date('2024-01-01T09:58:00Z'),
-        nextScheduledAt: scheduledTime
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: new Date('2024-01-01T09:58:00Z'),
+          nextScheduledAt: scheduledTime
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       expect(config.canPoll(currentTime)).toBe(false);
     });
@@ -848,15 +968,18 @@ describe('PollingConfiguration', () => {
 
   describe('toDisplayString', () => {
     it('should display enabled status correctly', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval: PollingInterval.create(60).value,
-        enabled: true,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval: PollingInterval.create(60).value,
+          enabled: true,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const display = config.toDisplayString();
 
@@ -866,15 +989,18 @@ describe('PollingConfiguration', () => {
     });
 
     it('should display disabled status correctly', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval: PollingInterval.create(60).value,
-        enabled: false,
-        retryPolicy,
-        pingCount: 4,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval: PollingInterval.create(60).value,
+          enabled: false,
+          retryPolicy,
+          pingCount: 4,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const display = config.toDisplayString();
 
@@ -882,15 +1008,18 @@ describe('PollingConfiguration', () => {
     });
 
     it('should use singular "ping" for count of 1', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval: PollingInterval.create(60).value,
-        enabled: true,
-        retryPolicy,
-        pingCount: 1,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval: PollingInterval.create(60).value,
+          enabled: true,
+          retryPolicy,
+          pingCount: 1,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const display = config.toDisplayString();
 
@@ -899,15 +1028,18 @@ describe('PollingConfiguration', () => {
     });
 
     it('should use plural "pings" for count > 1', () => {
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval: PollingInterval.create(60).value,
-        enabled: true,
-        retryPolicy,
-        pingCount: 5,
-        lastScheduledAt: null,
-        nextScheduledAt: null
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval: PollingInterval.create(60).value,
+          enabled: true,
+          retryPolicy,
+          pingCount: 5,
+          lastScheduledAt: null,
+          nextScheduledAt: null
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       const display = config.toDisplayString();
 
@@ -934,15 +1066,18 @@ describe('PollingConfiguration', () => {
       const lastScheduled = new Date('2024-01-01T09:00:00Z');
       const nextScheduled = new Date('2024-01-01T10:00:00Z');
 
-      const config = PollingConfiguration.create({
-        networkDeviceId,
-        interval,
-        enabled: true,
-        retryPolicy,
-        pingCount: 5,
-        lastScheduledAt: lastScheduled,
-        nextScheduledAt: nextScheduled
-      }).value;
+      const config = PollingConfiguration.create(
+        {
+          networkDeviceId,
+          interval,
+          enabled: true,
+          retryPolicy,
+          pingCount: 5,
+          lastScheduledAt: lastScheduled,
+          nextScheduledAt: nextScheduled
+        },
+        PollingConfigurationId.create().value
+      ).value;
 
       expect(config.networkDeviceId).toBe(networkDeviceId);
       expect(config.interval).toBe(interval);
