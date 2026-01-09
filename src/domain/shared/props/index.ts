@@ -23,3 +23,6 @@ export * from './NetworkDeviceUpdatedEventProps';
 export * from './PingCountChangedEventProps';
 export * from './PollingConfigurationChangedEventProps';
 export * from './PollingIntervalChangedEventProps';
+export * from './NetworkDeviceActivatedEventProps';
+export * from './NetworkDeviceRestoredEventProps';
+export * from './DeviceReplacedEventProps';
