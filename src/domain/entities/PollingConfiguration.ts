@@ -74,9 +74,10 @@ export class PollingConfiguration extends Entity<
    */
   public static create(
     props: PollingConfigurationProps,
-    id?: PollingConfigurationId
+    id: PollingConfigurationId
   ): Result<PollingConfiguration> {
     const guardResult = Guard.combine([
+      Guard.againstNullOrUndefined(id, 'id'),
       Guard.againstNullOrUndefined(
         props.networkDeviceId,
         'networkDeviceId'
@@ -101,15 +102,12 @@ export class PollingConfiguration extends Entity<
     // pingCount must be an integer
     const roundedPingCount = Math.round(props.pingCount);
 
-    const pollingConfigurationId =
-      id || PollingConfigurationId.create().value;
-
     const pollingConfiguration = new PollingConfiguration(
       {
         ...props,
         pingCount: roundedPingCount
       },
-      pollingConfigurationId
+      id
     );
 
     return Result.ok<PollingConfiguration>(pollingConfiguration);
@@ -124,17 +122,21 @@ export class PollingConfiguration extends Entity<
    */
   public static createDefault(
     networkDeviceId: NetworkDeviceId,
+    id: PollingConfigurationId,
     interval?: PollingInterval
   ): Result<PollingConfiguration> {
-    return this.create({
-      networkDeviceId,
-      interval: interval || PollingInterval.create(300).value, // Default 5 minutes
-      enabled: true,
-      retryPolicy: RetryPolicy.createDefault(),
-      pingCount: this.DEFAULT_PING_COUNT,
-      lastScheduledAt: null,
-      nextScheduledAt: null
-    });
+    return this.create(
+      {
+        networkDeviceId,
+        interval: interval || PollingInterval.create(300).value, // Default 5 minutes
+        enabled: true,
+        retryPolicy: RetryPolicy.createDefault(),
+        pingCount: this.DEFAULT_PING_COUNT,
+        lastScheduledAt: null,
+        nextScheduledAt: null
+      },
+      id
+    );
   }
 
   /**
@@ -223,6 +225,27 @@ export class PollingConfiguration extends Entity<
   public updatePingCount(
     count: number
   ): Result<{ previousPingCount: number }> {
+    const guardResult = this.canUpdatePingCount(count);
+
+    if (guardResult.isFailure) {
+      return Result.fail<{ previousPingCount: number }>(
+        guardResult.error
+      );
+    }
+
+    const previousPingCount = this.props.pingCount;
+    this.props.pingCount = Math.round(count);
+    return Result.ok<{ previousPingCount: number }>({
+      previousPingCount
+    });
+  }
+
+  /**
+   * Validates the ping count.
+   * @param count
+   * @returns
+   */
+  private canUpdatePingCount(count: number): Result<void> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(count, 'pingCount'),
       Guard.isNumber(count, 'pingCount'),
@@ -235,16 +258,10 @@ export class PollingConfiguration extends Entity<
     ]);
 
     if (!guardResult.succeeded) {
-      return Result.fail<{ previousPingCount: number }>(
-        guardResult.message!
-      );
+      return Result.fail<void>(guardResult.message!);
     }
 
-    const previousPingCount = this.props.pingCount;
-    this.props.pingCount = Math.round(count);
-    return Result.ok<{ previousPingCount: number }>({
-      previousPingCount
-    });
+    return Result.ok<void>();
   }
 
   /**
