@@ -1,6 +1,5 @@
-import { Result } from '../../domain/shared/kernel/Result';
-import { IUseCase } from '../interfaces/IUseCase';
-import { ILogger } from '../interfaces/ILogger';
+import { Result } from '../../domain';
+import { IUseCase, ILogger } from '../';
 
 /**
  * UseCase Abstract Base Class
@@ -34,7 +33,9 @@ import { ILogger } from '../interfaces/ILogger';
  *   }
  * }
  */
-export abstract class UseCase<Request, Response> implements IUseCase<Request, Response> {
+export abstract class UseCase<Request, Response>
+  implements IUseCase<Request, Response>
+{
   protected readonly logger: ILogger;
   private readonly useCaseName: string;
 
@@ -78,9 +79,12 @@ export abstract class UseCase<Request, Response> implements IUseCase<Request, Re
       // Pre-execution hook
       const beforeResult = await this.beforeExecute(request);
       if (beforeResult && beforeResult.isFailure) {
-        this.logger.warn(`${this.useCaseName} failed in beforeExecute`, {
-          error: beforeResult.error
-        });
+        this.logger.warn(
+          `${this.useCaseName} failed in beforeExecute`,
+          {
+            error: beforeResult.error
+          }
+        );
         return Result.fail<Response>(beforeResult.error);
       }
 
@@ -89,11 +93,17 @@ export abstract class UseCase<Request, Response> implements IUseCase<Request, Re
 
       // Post-execution hook (only if execution succeeded)
       if (result.isSuccess) {
-        const afterResult = await this.afterExecute(request, result.getValue());
+        const afterResult = await this.afterExecute(
+          request,
+          result.value
+        );
         if (afterResult && afterResult.isFailure) {
-          this.logger.warn(`${this.useCaseName} failed in afterExecute`, {
-            error: afterResult.error
-          });
+          this.logger.warn(
+            `${this.useCaseName} failed in afterExecute`,
+            {
+              error: afterResult.error
+            }
+          );
           return Result.fail<Response>(afterResult.error);
         }
       }
@@ -101,10 +111,13 @@ export abstract class UseCase<Request, Response> implements IUseCase<Request, Re
       // Log completion
       const duration = Date.now() - startTime;
       if (result.isSuccess) {
-        this.logger.info(`${this.useCaseName} completed successfully`, {
-          duration: `${duration}ms`,
-          response: this.sanitizeForLogging(result.getValue())
-        });
+        this.logger.info(
+          `${this.useCaseName} completed successfully`,
+          {
+            duration: `${duration}ms`,
+            response: this.sanitizeForLogging(result.value)
+          }
+        );
       } else {
         this.logger.error(`${this.useCaseName} failed`, undefined, {
           duration: `${duration}ms`,
@@ -116,7 +129,8 @@ export abstract class UseCase<Request, Response> implements IUseCase<Request, Re
     } catch (error) {
       // Catch any unexpected errors
       const duration = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
 
       this.logger.error(
         `${this.useCaseName} threw unexpected error`,
@@ -140,7 +154,9 @@ export abstract class UseCase<Request, Response> implements IUseCase<Request, Re
    * @param request - The use case request DTO
    * @returns Result containing response or error
    */
-  protected abstract executeImpl(request: Request): Promise<Result<Response>>;
+  protected abstract executeImpl(
+    request: Request
+  ): Promise<Result<Response>>;
 
   /**
    * Hook executed before the main use case logic.
@@ -149,7 +165,9 @@ export abstract class UseCase<Request, Response> implements IUseCase<Request, Re
    * @param request - The use case request DTO
    * @returns Result indicating success or failure (failure stops execution)
    */
-  protected async beforeExecute(request: Request): Promise<Result<void> | null> {
+  protected async beforeExecute(
+    request: Request
+  ): Promise<Result<void> | null> {
     // Default: no pre-execution logic
     return null;
   }
@@ -179,7 +197,7 @@ export abstract class UseCase<Request, Response> implements IUseCase<Request, Re
    * @param data - The data to sanitize
    * @returns Sanitized data safe for logging
    */
-  protected sanitizeForLogging(data: any): any {
+  protected sanitizeForLogging(data: unknown): unknown {
     if (!data) return data;
 
     // Default: return data as-is
@@ -195,7 +213,10 @@ export abstract class UseCase<Request, Response> implements IUseCase<Request, Re
    * @returns Failed Result
    */
   protected fail<T>(message: string, context?: any): Result<T> {
-    this.logger.debug(`UseCase validation/business rule failed: ${message}`, context);
+    this.logger.debug(
+      `UseCase validation/business rule failed: ${message}`,
+      context
+    );
     return Result.fail<T>(message);
   }
 
