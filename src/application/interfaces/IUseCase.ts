@@ -1,4 +1,4 @@
-import { Result } from '../../domain/shared/kernel/Result';
+import { Result } from '../../domain';
 
 /**
  * IUseCase Interface
