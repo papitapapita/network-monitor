@@ -30,11 +30,11 @@ import { ValueObject, Result, Guard, MACAddressProps } from '../';
  */
 export class MACAddress extends ValueObject<MACAddressProps> {
   get value(): string {
-    return this.props.value;
+    return this._props.value;
   }
 
-  private constructor(props: MACAddressProps) {
-    super(props);
+  private constructor(_props: MACAddressProps) {
+    super(_props);
   }
 
   /**
@@ -105,14 +105,14 @@ export class MACAddress extends ValueObject<MACAddressProps> {
    * @returns MAC address in uppercase colon-separated format
    */
   public normalize(): string {
-    return this.props.value;
+    return this._props.value;
   }
 
   /**
    * Returns the string representation of the MAC address.
    */
   public toString(): string {
-    return this.props.value;
+    return this._props.value;
   }
 
   /**
@@ -121,7 +121,7 @@ export class MACAddress extends ValueObject<MACAddressProps> {
    * @returns MAC address in AA-BB-CC-DD-EE-FF format
    */
   public toHyphenFormat(): string {
-    return this.props.value.replace(/:/g, '-');
+    return this._props.value.replace(/:/g, '-');
   }
 
   /**
@@ -130,6 +130,6 @@ export class MACAddress extends ValueObject<MACAddressProps> {
    * @returns MAC address in compact format (AABBCCDDEEFF)
    */
   public toCompactFormat(): string {
-    return this.props.value.replace(/:/g, '');
+    return this._props.value.replace(/:/g, '');
   }
 }

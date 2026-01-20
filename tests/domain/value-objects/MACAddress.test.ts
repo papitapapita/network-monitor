@@ -361,8 +361,10 @@ describe('MACAddress', () => {
       const mac = MACAddress.create('AA:BB:CC:DD:EE:FF').value;
 
       // TypeScript prevents this at compile time
-      // @ts-expect-error - props is readonly
-      mac.props = { value: '00:11:22:33:44:55' };
+      expect(() => {
+        // @ts-expect-error - props is readonly
+        mac.props = { value: '00:11:22:33:44:55' };
+      }).toThrow();
     });
   });
 });
