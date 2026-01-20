@@ -39,11 +39,11 @@ export class PollingInterval extends ValueObject<PollingIntervalProps> {
   public static readonly MAX_SECONDS = 86400; // 24 hours
 
   get seconds(): number {
-    return this.props.seconds;
+    return this._props.seconds;
   }
 
-  private constructor(props: PollingIntervalProps) {
-    super(props);
+  private constructor(_props: PollingIntervalProps) {
+    super(_props);
   }
 
   /**
@@ -137,7 +137,7 @@ export class PollingInterval extends ValueObject<PollingIntervalProps> {
    * @returns Interval in milliseconds
    */
   public toMilliseconds(): number {
-    return this.props.seconds * 1000;
+    return this._props.seconds * 1000;
   }
 
   /**
@@ -146,7 +146,7 @@ export class PollingInterval extends ValueObject<PollingIntervalProps> {
    * @returns Interval in minutes (rounded to 2 decimal places)
    */
   public toMinutes(): number {
-    return Math.round((this.props.seconds / 60) * 100) / 100;
+    return Math.round((this._props.seconds / 60) * 100) / 100;
   }
 
   /**
@@ -155,7 +155,7 @@ export class PollingInterval extends ValueObject<PollingIntervalProps> {
    * @returns Interval in hours (rounded to 2 decimal places)
    */
   public toHours(): number {
-    return Math.round((this.props.seconds / 3600) * 100) / 100;
+    return Math.round((this._props.seconds / 3600) * 100) / 100;
   }
 
   /**
@@ -164,7 +164,7 @@ export class PollingInterval extends ValueObject<PollingIntervalProps> {
    * @returns String like "60 seconds", "5 minutes", or "1 hour"
    */
   public toDisplayString(): string {
-    const { seconds } = this.props;
+    const { seconds } = this._props;
 
     if (seconds < 60) {
       return `${seconds} second${seconds !== 1 ? 's' : ''}`;
@@ -183,6 +183,6 @@ export class PollingInterval extends ValueObject<PollingIntervalProps> {
    * Returns the numeric value in seconds.
    */
   public toString(): string {
-    return this.props.seconds.toString();
+    return this._props.seconds.toString();
   }
 }

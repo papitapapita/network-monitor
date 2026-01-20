@@ -615,8 +615,10 @@ describe('PollingInterval', () => {
       const interval = PollingInterval.create(60).value;
 
       // TypeScript prevents this at compile time
-      // @ts-expect-error - props is readonly
-      interval.props = { seconds: 120 };
+      expect(() => {
+        // @ts-expect-error - props is readonly
+        interval.props = { seconds: 120 };
+      }).toThrow();
     });
   });
 });
