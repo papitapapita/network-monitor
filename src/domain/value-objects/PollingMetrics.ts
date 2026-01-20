@@ -45,66 +45,66 @@ export class PollingMetrics extends ValueObject<PollingMetricsProps> {
   public static readonly MAX_RESPONSE_TIME_MS = 30000; // 30 seconds
 
   get responseTimes(): readonly number[] {
-    return Object.freeze([...this.props.responseTimes]);
+    return Object.freeze([...this._props.responseTimes]);
   }
 
   get totalPings(): number {
-    return this.props.totalPings;
+    return this._props.totalPings;
   }
 
   get successfulPings(): number {
-    return this.props.successfulPings;
+    return this._props.successfulPings;
   }
 
   get averageResponseTime(): number {
-    return this.props.averageResponseTime;
+    return this._props.averageResponseTime;
   }
 
   get minResponseTime(): number {
-    return this.props.minResponseTime;
+    return this._props.minResponseTime;
   }
 
   get maxResponseTime(): number {
-    return this.props.maxResponseTime;
+    return this._props.maxResponseTime;
   }
 
   get jitter(): number {
-    return this.props.jitter;
+    return this._props.jitter;
   }
 
   get packetLoss(): number {
-    return this.props.packetLoss;
+    return this._props.packetLoss;
   }
 
-  private constructor(props: PollingMetricsProps) {
-    super(props);
+  private constructor(_props: PollingMetricsProps) {
+    super(_props);
   }
 
   /**
    * Creates a new PollingMetrics value object.
    *
-   * @param props - Configuration with response times and ping counts
+   * @param _props - Configuration with response times and ping counts
    * @returns Result containing PollingMetrics or error message
    */
-  public static create(props: {
+  public static create(_props: {
     responseTimes: number[];
     totalPings: number;
     successfulPings: number;
   }): Result<PollingMetrics> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(
-        props.responseTimes,
+        _props.responseTimes,
         'responseTimes'
       ),
-      Guard.againstNullOrUndefined(props.totalPings, 'totalPings'),
+      Guard.againstNullOrUndefined(_props.totalPings, 'totalPings'),
       Guard.againstNullOrUndefined(
-        props.successfulPings,
+        _props.successfulPings,
         'successfulPings'
       ),
-      Guard.isNumber(props.totalPings, 'totalPings'),
-      Guard.isNumber(props.successfulPings, 'successfulPings'),
+      Guard.isNumber(_props.totalPings, 'totalPings'),
+      Guard.isNumber(_props.successfulPings, 'successfulPings'),
       Guard.inRange(
-        props.totalPings,
+        _props.totalPings,
         this.MIN_PING_COUNT,
         this.MAX_PING_COUNT,
         'totalPings'
@@ -115,27 +115,27 @@ export class PollingMetrics extends ValueObject<PollingMetricsProps> {
       return Result.fail<PollingMetrics>(guardResult.message!);
     }
 
-    if (!Array.isArray(props.responseTimes)) {
+    if (!Array.isArray(_props.responseTimes)) {
       return Result.fail<PollingMetrics>(
         'responseTimes must be an array'
       );
     }
 
-    if (props.successfulPings > props.totalPings) {
+    if (_props.successfulPings > _props.totalPings) {
       return Result.fail<PollingMetrics>(
         'successfulPings cannot exceed totalPings'
       );
     }
 
-    if (props.responseTimes.length !== props.successfulPings) {
+    if (_props.responseTimes.length !== _props.successfulPings) {
       return Result.fail<PollingMetrics>(
         'responseTimes array length must equal successfulPings count'
       );
     }
 
     // Validate all response times are valid numbers
-    for (let i = 0; i < props.responseTimes.length; i++) {
-      const responseTime = props.responseTimes[i];
+    for (let i = 0; i < _props.responseTimes.length; i++) {
+      const responseTime = _props.responseTimes[i];
       if (typeof responseTime !== 'number' || isNaN(responseTime)) {
         return Result.fail<PollingMetrics>(
           `Invalid response time at index ${i}: ${responseTime}`
@@ -153,23 +153,23 @@ export class PollingMetrics extends ValueObject<PollingMetricsProps> {
 
     // Calculate statistics
     const averageResponseTime = this.calculateAverage(
-      props.responseTimes
+      _props.responseTimes
     );
-    const minResponseTime = this.calculateMin(props.responseTimes);
-    const maxResponseTime = this.calculateMax(props.responseTimes);
+    const minResponseTime = this.calculateMin(_props.responseTimes);
+    const maxResponseTime = this.calculateMax(_props.responseTimes);
     const jitter = this.calculateStandardDeviation(
-      props.responseTimes
+      _props.responseTimes
     );
     const packetLoss = this.calculatePacketLoss(
-      props.totalPings,
-      props.successfulPings
+      _props.totalPings,
+      _props.successfulPings
     );
 
     return Result.ok<PollingMetrics>(
       new PollingMetrics({
-        responseTimes: [...props.responseTimes], // Clone array for immutability
-        totalPings: props.totalPings,
-        successfulPings: props.successfulPings,
+        responseTimes: [..._props.responseTimes], // Clone array for immutability
+        totalPings: _props.totalPings,
+        successfulPings: _props.successfulPings,
         averageResponseTime,
         minResponseTime,
         maxResponseTime,
@@ -259,21 +259,21 @@ export class PollingMetrics extends ValueObject<PollingMetricsProps> {
    * Checks if all pings were successful (no packet loss).
    */
   public isFullySuccessful(): boolean {
-    return this.props.packetLoss === 0;
+    return this._props.packetLoss === 0;
   }
 
   /**
    * Checks if all pings failed (100% packet loss).
    */
   public isCompleteFailure(): boolean {
-    return this.props.packetLoss === 100;
+    return this._props.packetLoss === 100;
   }
 
   /**
    * Checks if there was partial packet loss.
    */
   public hasPacketLoss(): boolean {
-    return this.props.packetLoss > 0;
+    return this._props.packetLoss > 0;
   }
 
   /**
@@ -283,7 +283,7 @@ export class PollingMetrics extends ValueObject<PollingMetricsProps> {
    * @returns True if jitter exceeds threshold
    */
   public hasHighJitter(thresholdMs: number): boolean {
-    return this.props.jitter > thresholdMs;
+    return this._props.jitter > thresholdMs;
   }
 
   /**
@@ -298,11 +298,14 @@ export class PollingMetrics extends ValueObject<PollingMetricsProps> {
     let score = 100;
 
     // Deduct points for packet loss (up to -50 points)
-    score -= this.props.packetLoss / 2;
+    score -= this._props.packetLoss / 2;
 
     // Deduct points for high jitter (up to -50 points)
     // Consider jitter above 50ms as degrading quality
-    const jitterPenalty = Math.min((this.props.jitter / 50) * 50, 50);
+    const jitterPenalty = Math.min(
+      (this._props.jitter / 50) * 50,
+      50
+    );
     score -= jitterPenalty;
 
     return Math.max(0, Math.round(score));
@@ -313,15 +316,15 @@ export class PollingMetrics extends ValueObject<PollingMetricsProps> {
    */
   public toDisplayString(): string {
     if (this.isCompleteFailure()) {
-      return `Failed: ${this.props.totalPings}/${this.props.totalPings} packets lost`;
+      return `Failed: ${this._props.totalPings}/${this._props.totalPings} packets lost`;
     }
 
     return (
-      `Avg: ${this.props.averageResponseTime}ms, ` +
-      `Min: ${this.props.minResponseTime}ms, ` +
-      `Max: ${this.props.maxResponseTime}ms, ` +
-      `Jitter: ${this.props.jitter}ms, ` +
-      `Loss: ${this.props.packetLoss}%`
+      `Avg: ${this._props.averageResponseTime}ms, ` +
+      `Min: ${this._props.minResponseTime}ms, ` +
+      `Max: ${this._props.maxResponseTime}ms, ` +
+      `Jitter: ${this._props.jitter}ms, ` +
+      `Loss: ${this._props.packetLoss}%`
     );
   }
 
@@ -329,6 +332,6 @@ export class PollingMetrics extends ValueObject<PollingMetricsProps> {
    * Returns a compact summary for logging.
    */
   public toString(): string {
-    return `${this.props.averageResponseTime}ms avg (${this.props.successfulPings}/${this.props.totalPings} pings)`;
+    return `${this._props.averageResponseTime}ms avg (${this._props.successfulPings}/${this._props.totalPings} pings)`;
   }
 }

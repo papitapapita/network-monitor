@@ -889,17 +889,19 @@ describe('PollingMetrics', () => {
       }).value;
 
       // TypeScript prevents this at compile time
-      // @ts-expect-error - props is readonly
-      metrics.props = {
-        responseTimes: [10, 20],
-        totalPings: 5,
-        successfulPings: 5,
-        averageResponseTime: 15,
-        minResponseTime: 10,
-        maxResponseTime: 20,
-        jitter: 5,
-        packetLoss: 0
-      };
+      expect(() => {
+        // @ts-expect-error - props is readonly
+        metrics.props = {
+          responseTimes: [10, 20],
+          totalPings: 5,
+          successfulPings: 5,
+          averageResponseTime: 15,
+          minResponseTime: 10,
+          maxResponseTime: 20,
+          jitter: 5,
+          packetLoss: 0
+        };
+      }).toThrow();
     });
 
     it('should not allow modification of responseTimes array', () => {
