@@ -12,8 +12,12 @@ export class Identifier<T> extends ValueObject<{ value: T }> {
    *
    * @param {T} value - The underlying primitive value representing the identifier.
    */
-  constructor(private value: T) {
-    super({ value });
+  constructor(value: T) {
+    super({ value } as any);
+  }
+
+  get value(): T {
+    return this._props.value;
   }
 
   /**
