@@ -32,8 +32,10 @@ Use Cases (also called Application Services) are the **orchestration layer** of 
 ### Core Principles
 
 - **Single Responsibility**: One use case = one business action
+- **Single Aggregate Modification**: One use case modifies **one aggregate root only**
 - **Orchestration Only**: Coordinate domain objects, don't implement business logic
-- **Transaction Boundary**: Define where transactions begin and end
+- **Transaction Boundary**: Define where transactions begin and end (implementation in infrastructure)
+- **Event-Driven Communication**: Use domain events for cross-aggregate operations
 - **Application Logic**: Handle workflows that don't belong in domain
 - **Presentation Independence**: No knowledge of HTTP, UI, or delivery mechanisms
 
@@ -41,10 +43,9 @@ Use Cases (also called Application Services) are the **orchestration layer** of 
 
 1. **Separate application workflow from domain behavior**
 2. **Provide clear entry points** for business operations
-3. **Coordinate multiple aggregates** when necessary
-4. **Enforce application-level security and authorization**
-5. **Define transaction boundaries** explicitly
-6. **Isolate domain from infrastructure concerns**
+3. **Enforce application-level security and authorization**
+4. **Define transaction boundaries** explicitly
+5. **Isolate domain from infrastructure concerns**
 
 ---
 
@@ -57,7 +58,6 @@ Use Cases (also called Application Services) are the **orchestration layer** of 
 - **Direct application flow** for a single business intention
 - **Coordinate domain objects** (entities, aggregates, domain services)
 - **Control execution order** of domain operations
-- **Manage workflow logic** that spans multiple aggregates
 
 #### Value Object and Entity Creation
 
@@ -141,7 +141,209 @@ Use Cases (also called Application Services) are the **orchestration layer** of 
 
 ---
 
-## 4. Connections with Other Layers
+## 4. Single Aggregate Rule & Event-Driven Design
+
+### ⚠️ CRITICAL RULE: One Aggregate Per Use Case
+
+**A use case must modify ONLY ONE aggregate root per transaction.**
+
+This is a foundational DDD principle that maintains:
+
+- **Aggregate boundaries** and consistency
+- **Transaction scope** clarity
+- **Testability** and maintainability
+- **Clear ownership** of data changes
+
+```typescript
+// ✅ GOOD - Single aggregate modification
+class UpdateNetworkDeviceNameUseCase {
+  async execute(request: UpdateNameRequest) {
+    // Load ONE aggregate
+    const device = await this.repository.findById(request.deviceId);
+
+    // Modify ONE aggregate
+    device.updateName(request.newName);
+
+    // Save ONE aggregate
+    await this.repository.save(device);
+
+    // Domain event emitted automatically by aggregate
+    // Other aggregates will react via event handlers
+  }
+}
+
+// ❌ BAD - Multiple aggregate modifications
+class TransferDeviceOwnershipUseCase {
+  async execute(request: TransferRequest) {
+    const device = await this.deviceRepository.findById(
+      request.deviceId
+    );
+    const oldOwner = await this.userRepository.findById(
+      device.ownerId
+    );
+    const newOwner = await this.userRepository.findById(
+      request.newOwnerId
+    );
+
+    // WRONG: Modifying multiple aggregates in one use case
+    device.transferOwnership(newOwner.id);
+    oldOwner.removeDevice(device.id);
+    newOwner.addDevice(device.id);
+
+    await this.deviceRepository.save(device);
+    await this.userRepository.save(oldOwner); // ❌ NO!
+    await this.userRepository.save(newOwner); // ❌ NO!
+  }
+}
+```
+
+### ✅ Correct Pattern: Event-Driven Cross-Aggregate Operations
+
+When one aggregate change must trigger changes in another aggregate, use **domain events**:
+
+#### Step 1: First aggregate emits event
+
+```typescript
+// NetworkDevice aggregate
+class NetworkDevice extends AggregateRoot {
+  transferOwnership(newOwnerId: UserId): Result<void> {
+    // Update state
+    this.props.ownerId = newOwnerId;
+
+    // Emit domain event
+    this.addDomainEvent(
+      new DeviceOwnershipTransferredEvent({
+        aggregateId: this.id,
+        deviceId: this.id,
+        oldOwnerId: this.props.previousOwnerId,
+        newOwnerId: newOwnerId,
+        dateTimeOccurred: new Date()
+      })
+    );
+
+    return Result.ok();
+  }
+}
+```
+
+#### Step 2: Use case modifies only one aggregate
+
+```typescript
+// Use case modifies ONLY NetworkDevice
+class TransferDeviceOwnershipUseCase {
+  async execute(request: TransferRequest) {
+    // Load device
+    const device = await this.deviceRepository.findById(
+      request.deviceId
+    );
+
+    // Modify device (emits event internally)
+    const result = device.transferOwnership(request.newOwnerId);
+    if (result.isFailure) {
+      return Result.fail(result.error);
+    }
+
+    // Save device (repository dispatches events automatically)
+    await this.repository.save(device);
+
+    // Event handler will update User aggregates
+    return Result.ok();
+  }
+}
+```
+
+#### Step 3: Event handler modifies second aggregate
+
+```typescript
+// Event handler reacts to event
+@DomainEventHandler(DeviceOwnershipTransferredEvent)
+class UpdateUserDeviceListHandler {
+  constructor(private readonly userRepository: IUserRepository) {}
+
+  async handle(
+    event: DeviceOwnershipTransferredEvent
+  ): Promise<void> {
+    // Load old owner
+    const oldOwner = await this.userRepository.findById(
+      event.oldOwnerId
+    );
+    if (oldOwner) {
+      oldOwner.removeDevice(event.deviceId);
+      await this.userRepository.save(oldOwner);
+    }
+
+    // Load new owner
+    const newOwner = await this.userRepository.findById(
+      event.newOwnerId
+    );
+    if (newOwner) {
+      newOwner.addDevice(event.deviceId);
+      await this.userRepository.save(newOwner);
+    }
+  }
+}
+```
+
+### Benefits of Event-Driven Approach
+
+1. **Respects Aggregate Boundaries**
+
+   - Each aggregate is modified in its own transaction
+   - Aggregates remain independent and consistent
+
+2. **Eventual Consistency**
+
+   - Changes propagate asynchronously
+   - System remains responsive and scalable
+
+3. **Loose Coupling**
+
+   - First aggregate doesn't know about second aggregate
+   - Easy to add new reactions to events
+
+4. **Clear Responsibility**
+   - Use case: Modify one aggregate
+   - Event handler: React to domain events
+   - No confusion about transaction scope
+
+### When to Use Event-Driven Pattern
+
+| Scenario                          | Pattern                      |
+| --------------------------------- | ---------------------------- |
+| Update single aggregate           | Direct use case modification |
+| Changes must affect 2+ aggregates | Emit event → Event handler   |
+| Changes can be eventual           | Emit event → Event handler   |
+| Cross-bounded-context changes     | Emit event → Event handler   |
+| Audit log / notification needed   | Emit event → Event handler   |
+
+### Exception: Read-Only Multi-Aggregate Queries
+
+**Query use cases** (read-only) MAY load multiple aggregates:
+
+```typescript
+// ✅ ALLOWED - Read-only query
+class GetDeviceWithOwnerInfoUseCase {
+  async execute(request: GetDeviceRequest) {
+    // Read multiple aggregates
+    const device = await this.deviceRepository.findById(
+      request.deviceId
+    );
+    const owner = await this.userRepository.findById(device.ownerId);
+
+    // Combine into response DTO
+    return {
+      device: DeviceMapper.toDTO(device),
+      owner: UserMapper.toDTO(owner)
+    };
+  }
+}
+```
+
+**Rule**: If you're **modifying**, stick to one aggregate. If you're only **reading**, you can load multiple.
+
+---
+
+## 5. Connections with Other Layers
 
 ### Layer Architecture Diagram
 
@@ -277,7 +479,7 @@ import { SendGridEmailService } from '../../infrastructure/email/SendGridEmailSe
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Use Case Execution                        │
+│                    Use Case Execution                       │
 └─────────────────────────────────────────────────────────────┘
 
 1. beforeExecute() [Optional Pre-validation]
@@ -1045,66 +1247,234 @@ return Result.fail('Error occurred');
 
 ## 10. Transaction Management
 
-### Transaction Boundaries
+### ⚠️ CRITICAL: Transaction Implementation is Infrastructure Concern
 
-**Rule**: Use cases define transaction boundaries.
+**Use cases define transaction boundaries. Infrastructure implements the mechanism.**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Application Layer                        │
+│                                                             │
+│  Use Case defines WHAT needs to be transactional            │
+│  (conceptual boundary)                                      │
+│                                                             │
+│  unitOfWork.runInTransaction(async () => {                  │
+│    await repository.save(aggregate);                        │
+│  });                                                        │
+│                                                             │
+└────────────────────────┬────────────────────────────────────┘
+                         │ Interface
+                         ↓
+┌─────────────────────────────────────────────────────────────┐
+│                  Infrastructure Layer                       │
+│                                                             │
+│  UnitOfWork implements HOW transaction works                │
+│  (Prisma.$transaction, SQL BEGIN/COMMIT, etc.)              │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Pattern 1: Single Aggregate = Implicit Transaction (Most Common)
+
+**99% of use cases modify one aggregate and don't need explicit transactions.**
 
 ```typescript
-// ✅ Pattern 1: Single aggregate = single transaction
-class CreateDeviceUseCase {
-  async execute(request: CreateDeviceRequest) {
-    // Repository handles transaction
+// ✅ BEST PRACTICE - Single aggregate, implicit transaction
+class UpdateNetworkDeviceNameUseCase {
+  constructor(
+    private readonly repository: INetworkDeviceRepository
+  ) {}
+
+  async execute(request: UpdateNameRequest) {
+    // Load aggregate
+    const device = await this.repository.findById(request.deviceId);
+
+    // Modify aggregate
+    device.updateName(request.newName);
+
+    // Save aggregate - Repository handles transaction internally
     await this.repository.save(device);
-    // Transaction commits automatically on success
+
+    // Transaction committed automatically by repository implementation
+  }
+}
+```
+
+**Infrastructure implementation:**
+
+```typescript
+// Infrastructure layer (Prisma example)
+class PrismaNetworkDeviceRepository
+  implements INetworkDeviceRepository
+{
+  async save(device: NetworkDevice): Promise<Result<void>> {
+    // Infrastructure handles transaction
+    return await this.prisma.$transaction(async (tx) => {
+      await tx.networkDevice.upsert({
+        where: { id: device.id.toString() },
+        update: {
+          /* ... */
+        },
+        create: {
+          /* ... */
+        }
+      });
+
+      // Dispatch domain events within transaction
+      await this.eventDispatcher.dispatch(device.domainEvents);
+    });
+  }
+}
+```
+
+### Pattern 2: Multiple Operations = Explicit Transaction (Rare)
+
+**Only when you MUST coordinate multiple repository operations atomically.**
+
+**⚠️ WARNING**: This violates the "one aggregate per use case" rule. Use event-driven approach instead.
+
+```typescript
+// ❌ ANTI-PATTERN - Multiple aggregates in one transaction
+// Use event-driven approach instead!
+class ComplexOperationUseCase {
+  async execute(request: ComplexRequest) {
+    await this.unitOfWork.runInTransaction(async () => {
+      await this.deviceRepository.save(device);
+      await this.auditRepository.save(auditLog); // Should be event handler!
+    });
   }
 }
 
-// ✅ Pattern 2: Multiple operations = explicit transaction
-class TransferDeviceOwnershipUseCase {
-  async execute(request: TransferRequest) {
-    // Begin transaction
-    await this.unitOfWork.begin();
+// ✅ CORRECT - Event-driven approach
+class ComplexOperationUseCase {
+  async execute(request: ComplexRequest) {
+    // Modify only device - emits event
+    device.performOperation();
 
+    // Save device - repository handles transaction
+    await this.repository.save(device);
+
+    // Event handler reacts and creates audit log
+  }
+}
+```
+
+### Unit of Work Interface (Application Layer)
+
+**Define the abstraction, let infrastructure implement:**
+
+```typescript
+// Application layer interface
+export interface IUnitOfWork {
+  /**
+   * Execute operations within a transaction.
+   * Infrastructure decides implementation (Prisma, SQL, etc.)
+   *
+   * @param work - Async function containing transactional operations
+   * @returns Result of the transaction
+   */
+  runInTransaction<T>(work: () => Promise<T>): Promise<T>;
+}
+```
+
+### Unit of Work Implementation (Infrastructure Layer)
+
+```typescript
+// Infrastructure layer - Prisma implementation
+export class PrismaUnitOfWork implements IUnitOfWork {
+  constructor(private readonly prisma: PrismaClient) {}
+
+  async runInTransaction<T>(work: () => Promise<T>): Promise<T> {
+    // Infrastructure decides HOW to implement transaction
+    return await this.prisma.$transaction(async (tx) => {
+      // Inject transaction context into repositories
+      // Execute work within transaction
+      return await work();
+    });
+  }
+}
+
+// Infrastructure layer - SQL implementation (alternative)
+export class SqlUnitOfWork implements IUnitOfWork {
+  constructor(private readonly connection: Connection) {}
+
+  async runInTransaction<T>(work: () => Promise<T>): Promise<T> {
+    await this.connection.query('BEGIN');
     try {
-      // Multiple operations within transaction
-      await this.deviceRepository.save(device);
-      await this.auditRepository.save(auditLog);
-
-      // Commit if all succeed
-      await this.unitOfWork.commit();
+      const result = await work();
+      await this.connection.query('COMMIT');
+      return result;
     } catch (error) {
-      // Rollback on any failure
-      await this.unitOfWork.rollback();
+      await this.connection.query('ROLLBACK');
       throw error;
     }
   }
 }
 ```
 
-### Repository Pattern with Transactions
+### When to Use Explicit Transactions
 
-```typescript
-// Repository handles its own transactions for single operations
-interface INetworkDeviceRepository {
-  save(device: NetworkDevice): Promise<Result<void>>; // Atomic
-  delete(id: NetworkDeviceId): Promise<Result<void>>; // Atomic
-}
-
-// Unit of Work for coordinating multiple repository operations
-interface IUnitOfWork {
-  begin(): Promise<void>;
-  commit(): Promise<void>;
-  rollback(): Promise<void>;
-}
-```
+| Scenario                          | Use Explicit Transaction?         |
+| --------------------------------- | --------------------------------- |
+| Single aggregate modification     | ❌ NO - Repository handles it     |
+| Multiple aggregates (eventual ok) | ❌ NO - Use events                |
+| Read operations only              | ❌ NO - No transaction needed     |
+| Audit log + main operation        | ❌ NO - Use event handler         |
+| Critical atomic operation (rare)  | ✅ YES - But question your design |
 
 ### Transaction Guidelines
 
-1. **Keep transactions short** - Load, modify, save
-2. **Don't hold transactions across user input** or external API calls
-3. **Rollback on any failure** within transaction
-4. **Avoid nested transactions** - use single transaction scope
-5. **Don't catch and suppress** transaction errors
+1. **Default to implicit** - Let repository handle transactions
+2. **Use events for multi-aggregate** - Avoid explicit transactions
+3. **Keep transactions short** - Load, modify, save
+4. **Don't hold transactions across I/O** - External API calls, user input
+5. **Let infrastructure decide HOW** - Application defines WHAT
+6. **Don't nest transactions** - Use single scope
+7. **Don't catch and suppress** transaction errors
+
+### Reconstitute Pattern in Transactions
+
+**When loading from repository, use `reconstitute()` to avoid event emission:**
+
+```typescript
+class UpdateNetworkDeviceUseCase {
+  async execute(request: UpdateRequest) {
+    // Repository uses reconstitute() internally
+    const device = await this.repository.findById(request.deviceId);
+    // ↑ This calls NetworkDevice.reconstitute() - no events emitted
+
+    // Business operation emits events
+    device.updateName(request.newName);
+    // ↑ This emits NetworkDeviceUpdatedEvent
+
+    // Save dispatches events within transaction
+    await this.repository.save(device);
+  }
+}
+```
+
+**Repository implementation:**
+
+````typescript
+class PrismaNetworkDeviceRepository {
+  async findById(id: NetworkDeviceId): Promise<NetworkDevice | null> {
+    const raw = await this.prisma.networkDevice.findUnique({
+      where: { id: id.toString() }
+    });
+
+    if (!raw) return null;
+
+    // Use reconstitute() to rebuild without events
+    return NetworkDevice.reconstitute(
+      {
+        name: raw.name,
+        ipAddress: IPAddress.create(raw.ipAddress).value,
+        // ...
+      },
+      id
+    ).value;
+  }
+}
 
 ---
 
@@ -1199,7 +1569,7 @@ describe('CreateNetworkDeviceUseCase', () => {
     });
   });
 });
-```
+````
 
 ### Testing Guidelines
 
@@ -1544,20 +1914,79 @@ export class UpdateNetworkDeviceUseCase extends UseCase<
 
 **This document is the authoritative standard for all use case implementations in this project.**
 
+### Critical Rules (Never Violate)
+
+1. ⚠️ **ONE AGGREGATE PER USE CASE** - Modify only one aggregate root per transaction
+2. ⚠️ **USE EVENTS FOR MULTI-AGGREGATE** - Cross-aggregate operations via domain events
+3. ⚠️ **TRANSACTION = INFRASTRUCTURE** - Unit of Work implementation lives in infrastructure
+4. ⚠️ **USE RECONSTITUTE() IN REPOSITORIES** - Load from DB without emitting events
+5. ⚠️ **NO DOMAIN LOGIC IN USE CASES** - Orchestrate only, never implement
+
+### Review Checklist
+
 When creating, modifying, or reviewing any use case:
 
-1. **Reference this document** to ensure compliance
-2. **Follow the canonical flow** defined in Section 5
-3. **Use the structure template** from Section 6
-4. **Apply orthogonality principles** from Section 7
-5. **Follow naming conventions** from Section 8
-6. **Handle errors properly** per Section 9
-7. **Test thoroughly** using patterns from Section 11
+- [ ] Modifies **one aggregate only** (or read-only query)
+- [ ] Uses **events** for cross-aggregate communication
+- [ ] **Repository handles transactions** (or explicit `runInTransaction`)
+- [ ] Follows **canonical flow** (Section 5)
+- [ ] Uses **Result pattern** for error handling
+- [ ] Depends on **interfaces**, not implementations
+- [ ] **No shared state** between executions
+- [ ] **Proper naming** (VerbEntityUseCase)
+- [ ] **Unit tested** with mocked dependencies
+
+### Common Anti-Patterns to Avoid
+
+```typescript
+// ❌ WRONG: Multiple aggregates in one use case
+await this.deviceRepository.save(device);
+await this.userRepository.save(user);
+
+// ✅ CORRECT: Single aggregate + event
+device.performAction(); // Emits event
+await this.deviceRepository.save(device);
+// Event handler updates user
+
+// ❌ WRONG: Use case implements business logic
+if (device.lastPingTime.isBefore(Date.now().minus(5, 'minutes'))) {
+  device.status = 'OFFLINE';
+}
+
+// ✅ CORRECT: Domain implements business logic
+device.updateStatusBasedOnPing(lastPingResult);
+
+// ❌ WRONG: Manual transaction management
+await this.unitOfWork.begin();
+try {
+  await this.repository.save(device);
+  await this.unitOfWork.commit();
+} catch (e) {
+  await this.unitOfWork.rollback();
+}
+
+// ✅ CORRECT: Infrastructure handles transaction
+await this.unitOfWork.runInTransaction(async () => {
+  await this.repository.save(device);
+});
+```
+
+### Document Compliance
 
 **Use cases orchestrate domain logic. They do not implement it.**
 
-Any deviation from this standard must be explicitly documented and justified with a compelling architectural reason.
+Any deviation from this standard must be:
+
+1. Explicitly documented in code comments
+2. Justified with compelling architectural reason
+3. Reviewed by team lead
+4. Marked with `// DEVIATION:` comment
 
 ---
 
-**Document Status:** This is a living document. Update as architectural patterns evolve, but maintain the core principle: **Use Cases orchestrate, Domain implements.**
+**Document Status:** This is a living document. Update as architectural patterns evolve, but maintain the core principles:
+
+1. **One aggregate per use case**
+2. **Event-driven cross-aggregate communication**
+3. **Infrastructure implements transactions**
+4. **Use cases orchestrate, Domain implements**

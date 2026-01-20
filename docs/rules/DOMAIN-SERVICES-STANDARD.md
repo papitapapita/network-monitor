@@ -174,40 +174,40 @@ class MoneyTransferService {
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                  PRESENTATION LAYER                          │
-│  - Never calls Domain Services directly                      │
-│  - Calls Use Cases instead                                   │
+│                  PRESENTATION LAYER                         │
+│  - Never calls Domain Services directly                     │
+│  - Calls Use Cases instead                                  │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                 APPLICATION LAYER                            │
+│                 APPLICATION LAYER                           │
 │  ┌───────────────────────────────────────────────────┐      │
-│  │  Use Cases                                         │      │
-│  │  - Load aggregates from repositories               │      │
-│  │  - Call Domain Services with domain objects        │      │
-│  │  - Save results via repositories                   │      │
-│  │  - Manage transactions                             │      │
+│  │  Use Cases                                        │      │
+│  │  - Load aggregates from repositories              │      │
+│  │  - Call Domain Services with domain objects       │      │
+│  │  - Save results via repositories                  │      │
+│  │  - Manage transactions                            │      │
 │  └───────────────────────────────────────────────────┘      │
 └────────────────────────┬────────────────────────────────────┘
                          │ calls
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   DOMAIN LAYER                               │
+│                   DOMAIN LAYER                              │
 │  ┌────────────────────────────────────────────────────┐     │
-│  │      DOMAIN SERVICES (You are here)                 │     │
-│  │  - Pure domain logic                                │     │
-│  │  - Works with Entities, Aggregates, VOs             │     │
-│  │  - Stateless operations                             │     │
-│  │  - No infrastructure dependencies                   │     │
+│  │      DOMAIN SERVICES (You are here)                │     │
+│  │  - Pure domain logic                               │     │
+│  │  - Works with Entities, Aggregates, VOs            │     │
+│  │  - Stateless operations                            │     │
+│  │  - No infrastructure dependencies                  │     │
 │  └────────────────────────────────────────────────────┘     │
-│         │                           │                         │
-│         │ uses                      │ uses                    │
-│         ▼                           ▼                         │
+│         │                           │                       │
+│         │ uses                      │ uses                  │
+│         ▼                           ▼                       │
 │  ┌─────────────┐           ┌──────────────┐                 │
-│  │  Aggregates │           │ Value Objects│                  │
-│  │  & Entities │           │              │                  │
-│  └─────────────┘           └──────────────┘                  │
+│  │  Aggregates │           │ Value Objects│                 │
+│  │  & Entities │           │              │                 │
+│  └─────────────┘           └──────────────┘                 │
 └─────────────────────────────────────────────────────────────┘
 ```
 

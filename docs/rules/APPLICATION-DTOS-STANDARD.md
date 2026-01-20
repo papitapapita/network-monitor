@@ -106,8 +106,6 @@
 4. **❌ Know About Domain**
 
    - DTOs don't import domain types
-   - Domain imports DTOs for mapping
-   - One-way dependency
 
 5. **❌ Expose Internal IDs**
    - Use string IDs externally
@@ -120,54 +118,54 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                 PRESENTATION LAYER (API)                     │
+│                 PRESENTATION LAYER (API)                    │
 │  ┌───────────────────────────────────────────────────┐      │
-│  │  Controllers/Resolvers                             │      │
-│  │  - Receive DTOs from HTTP requests                 │      │
-│  │  - Send DTOs in HTTP responses                     │      │
-│  │  - Validate DTO format (basic)                     │      │
+│  │  Controllers/Resolvers                            │      │
+│  │  - Receive DTOs from HTTP requests                │      │
+│  │  - Send DTOs in HTTP responses                    │      │
+│  │  - Validate DTO format (basic)                    │      │
 │  └───────────────────────────────────────────────────┘      │
-│         │                                   ▲                 │
-│         │ Request DTO                       │ Response DTO    │
-│         ▼                                   │                 │
+│         │                                  ▲                │
+│         │ Request DTO                      │ Response DTO   │
+│         ▼                                  │                │
 └─────────────────────────────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  APPLICATION LAYER                           │
+│                  APPLICATION LAYER                          │
 │  ┌───────────────────────────────────────────────────┐      │
-│  │  DTOs (You are here)                               │      │
-│  │  - Request DTOs (input)                            │      │
-│  │  - Response DTOs (output)                          │      │
-│  │  - Simple data structures                          │      │
-│  │  - Serializable to/from JSON                       │      │
+│  │  DTOs (You are here)                              │      │
+│  │  - Request DTOs (input)                           │      │
+│  │  - Response DTOs (output)                         │      │
+│  │  - Simple data structures                         │      │
+│  │  - Serializable to/from JSON                      │      │
 │  └───────────────────────────────────────────────────┘      │
-│         │                                   ▲                 │
-│         │                                   │                 │
+│         │                                   ▲               │
+│         │                                   │               │
 │  ┌───────────────────────────────────────────────────┐      │
-│  │  Use Cases                                         │      │
-│  │  - Receive Request DTOs                            │      │
-│  │  - Extract data from DTOs                          │      │
-│  │  - Create domain objects                           │      │
-│  │  - Call domain operations                          │      │
-│  │  - Convert results to Response DTOs                │      │
+│  │  Use Cases                                        │      │
+│  │  - Receive Request DTOs                           │      │
+│  │  - Extract data from DTOs through mappers         │      │
+│  │  - Create domain objects                          │      │
+│  │  - Call domain operations                         │      │
+│  │  - Convert results to Response DTOs               │      │
 │  └───────────────────────────────────────────────────┘      │
-│         │                                   ▲                 │
-│         │ Domain objects                    │ Domain objects  │
-│         ▼                                   │                 │
+│         │                                 ▲                 │
+│         │ Domain objects                  │ Domain objects  │
+│         ▼                                 │                 │
 │  ┌───────────────────────────────────────────────────┐      │
-│  │  Mappers                                           │      │
-│  │  - DTO → Domain (extractCreateData, etc.)          │      │
-│  │  - Domain → DTO (toDTO, toListDTO)                 │      │
+│  │  Mappers                                          │      │
+│  │  - DTO → Domain (extractCreateData, etc.)         │      │
+│  │  - Domain → DTO (toDTO, toListDTO)                │      │
 │  └───────────────────────────────────────────────────┘      │
 └─────────────────────────┬───────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                     DOMAIN LAYER                             │
-│  - Entities, Aggregates, Value Objects                       │
-│  - Never knows about DTOs                                    │
-│  - Pure business logic                                       │
+│                     DOMAIN LAYER                            │
+│  - Entities, Aggregates, Value Objects                      │
+│  - Never knows about DTOs                                   │
+│  - Pure business logic                                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
