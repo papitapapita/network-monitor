@@ -181,7 +181,9 @@ describe('IPAddress', () => {
       });
 
       it('should fail for IPv6 with segment exceeding 4 hex digits', () => {
-        const result = IPAddress.create('2001:0db8:85a3a:0000:0000:8a2e:0370:7334');
+        const result = IPAddress.create(
+          '2001:0db8:85a3a:0000:0000:8a2e:0370:7334'
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('Invalid IP address format');
@@ -291,7 +293,9 @@ describe('IPAddress', () => {
   describe('static isValidIPv6', () => {
     it('should return true for valid IPv6', () => {
       expect(
-        IPAddress.isValidIPv6('2001:0db8:85a3:0000:0000:8a2e:0370:7334')
+        IPAddress.isValidIPv6(
+          '2001:0db8:85a3:0000:0000:8a2e:0370:7334'
+        )
       ).toBe(true);
       expect(IPAddress.isValidIPv6('2001:db8::8a2e:370:7334')).toBe(
         true
@@ -388,8 +392,10 @@ describe('IPAddress', () => {
       const ip = IPAddress.create('192.168.1.1').value;
 
       // TypeScript prevents this at compile time
-      // @ts-expect-error - props is readonly
-      ip.props = { value: '10.0.0.1' };
+      expect(() => {
+        // @ts-expect-error - props is readonly
+        ip.props = { value: '10.0.0.1' };
+      }).toThrow();
     });
   });
 });

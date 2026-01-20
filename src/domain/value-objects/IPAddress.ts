@@ -30,11 +30,11 @@ import { ValueObject, Result, Guard, IPAddressProps } from '../';
  */
 export class IPAddress extends ValueObject<IPAddressProps> {
   get value(): string {
-    return this.props.value;
+    return this._props.value;
   }
 
-  private constructor(props: IPAddressProps) {
-    super(props);
+  private constructor(_props: IPAddressProps) {
+    super(_props);
   }
 
   /**
@@ -119,7 +119,7 @@ export class IPAddress extends ValueObject<IPAddressProps> {
    * @returns True if this is an IPv4 address, false otherwise
    */
   public isIPv4(): boolean {
-    return IPAddress.isValidIPv4(this.props.value);
+    return IPAddress.isValidIPv4(this._props.value);
   }
 
   /**
@@ -128,13 +128,13 @@ export class IPAddress extends ValueObject<IPAddressProps> {
    * @returns True if this is an IPv6 address, false otherwise
    */
   public isIPv6(): boolean {
-    return IPAddress.isValidIPv6(this.props.value);
+    return IPAddress.isValidIPv6(this._props.value);
   }
 
   /**
    * Returns the string representation of the IP address.
    */
   public toString(): string {
-    return this.props.value;
+    return this._props.value;
   }
 }
