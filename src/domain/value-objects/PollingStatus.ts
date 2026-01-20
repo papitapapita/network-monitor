@@ -49,11 +49,11 @@ export class PollingStatus extends ValueObject<PollingStatusProps> {
   ] as const;
 
   get value(): string {
-    return this.props.value;
+    return this._props.value;
   }
 
-  private constructor(props: PollingStatusProps) {
-    super(props);
+  private constructor(_props: PollingStatusProps) {
+    super(_props);
   }
 
   /**
@@ -94,37 +94,29 @@ export class PollingStatus extends ValueObject<PollingStatusProps> {
   /**
    * Factory method to create a SUCCESS status.
    */
-  public static createSuccess(): Result<PollingStatus> {
-    return Result.ok<PollingStatus>(
-      new PollingStatus({ value: this.SUCCESS })
-    );
+  public static createSuccess(): PollingStatus {
+    return new PollingStatus({ value: this.SUCCESS });
   }
 
   /**
    * Factory method to create a FAILED status.
    */
-  public static createFailed(): Result<PollingStatus> {
-    return Result.ok<PollingStatus>(
-      new PollingStatus({ value: this.FAILED })
-    );
+  public static createFailed(): PollingStatus {
+    return new PollingStatus({ value: this.FAILED });
   }
 
   /**
    * Factory method to create a TIMEOUT status.
    */
-  public static createTimeout(): Result<PollingStatus> {
-    return Result.ok<PollingStatus>(
-      new PollingStatus({ value: this.TIMEOUT })
-    );
+  public static createTimeout(): PollingStatus {
+    return new PollingStatus({ value: this.TIMEOUT });
   }
 
   /**
    * Factory method to create a PARTIAL_SUCCESS status.
    */
-  public static createPartialSuccess(): Result<PollingStatus> {
-    return Result.ok<PollingStatus>(
-      new PollingStatus({ value: this.PARTIAL_SUCCESS })
-    );
+  public static createPartialSuccess(): PollingStatus {
+    return new PollingStatus({ value: this.PARTIAL_SUCCESS });
   }
 
   /**
@@ -176,14 +168,14 @@ export class PollingStatus extends ValueObject<PollingStatusProps> {
     }
 
     if (successfulPings === 0) {
-      return this.createFailed();
+      return Result.ok(this.createFailed());
     }
 
     if (successfulPings === totalPings) {
-      return this.createSuccess();
+      return Result.ok(this.createSuccess());
     }
 
-    return this.createPartialSuccess();
+    return Result.ok(this.createPartialSuccess());
   }
 
   /**
@@ -197,28 +189,28 @@ export class PollingStatus extends ValueObject<PollingStatusProps> {
    * Checks if this status is SUCCESS.
    */
   public isSuccess(): boolean {
-    return this.props.value === PollingStatus.SUCCESS;
+    return this._props.value === PollingStatus.SUCCESS;
   }
 
   /**
    * Checks if this status is FAILED.
    */
   public isFailed(): boolean {
-    return this.props.value === PollingStatus.FAILED;
+    return this._props.value === PollingStatus.FAILED;
   }
 
   /**
    * Checks if this status is TIMEOUT.
    */
   public isTimeout(): boolean {
-    return this.props.value === PollingStatus.TIMEOUT;
+    return this._props.value === PollingStatus.TIMEOUT;
   }
 
   /**
    * Checks if this status is PARTIAL_SUCCESS.
    */
   public isPartialSuccess(): boolean {
-    return this.props.value === PollingStatus.PARTIAL_SUCCESS;
+    return this._props.value === PollingStatus.PARTIAL_SUCCESS;
   }
 
   /**
@@ -231,8 +223,8 @@ export class PollingStatus extends ValueObject<PollingStatusProps> {
    */
   public isDeviceReachable(): boolean {
     return (
-      this.props.value === PollingStatus.SUCCESS ||
-      this.props.value === PollingStatus.PARTIAL_SUCCESS
+      this._props.value === PollingStatus.SUCCESS ||
+      this._props.value === PollingStatus.PARTIAL_SUCCESS
     );
   }
 
@@ -242,7 +234,7 @@ export class PollingStatus extends ValueObject<PollingStatusProps> {
    * @returns Human-readable name
    */
   public getDisplayName(): string {
-    switch (this.props.value) {
+    switch (this._props.value) {
       case PollingStatus.SUCCESS:
         return 'Success';
       case PollingStatus.FAILED:
@@ -262,7 +254,7 @@ export class PollingStatus extends ValueObject<PollingStatusProps> {
    * @returns Color code (for CSS or UI frameworks)
    */
   public getColor(): string {
-    switch (this.props.value) {
+    switch (this._props.value) {
       case PollingStatus.SUCCESS:
         return 'green';
       case PollingStatus.FAILED:
@@ -280,7 +272,7 @@ export class PollingStatus extends ValueObject<PollingStatusProps> {
    * Returns the string representation of the status.
    */
   public toString(): string {
-    return this.props.value;
+    return this._props.value;
   }
 
   // equals() inherited from ValueObject base class

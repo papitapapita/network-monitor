@@ -103,33 +103,29 @@ describe('PollingStatus', () => {
     it('should create SUCCESS status with createSuccess', () => {
       const result = PollingStatus.createSuccess();
 
-      expect(result.isSuccess).toBe(true);
-      expect(result.value.value).toBe('SUCCESS');
-      expect(result.value.isSuccess()).toBe(true);
+      expect(result.toString()).toBe('SUCCESS');
+      expect(result.isSuccess()).toBe(true);
     });
 
     it('should create FAILED status with createFailed', () => {
       const result = PollingStatus.createFailed();
 
-      expect(result.isSuccess).toBe(true);
-      expect(result.value.value).toBe('FAILED');
-      expect(result.value.isFailed()).toBe(true);
+      expect(result.toString()).toBe('FAILED');
+      expect(result.isFailed()).toBe(true);
     });
 
     it('should create TIMEOUT status with createTimeout', () => {
       const result = PollingStatus.createTimeout();
 
-      expect(result.isSuccess).toBe(true);
-      expect(result.value.value).toBe('TIMEOUT');
-      expect(result.value.isTimeout()).toBe(true);
+      expect(result.toString()).toBe('TIMEOUT');
+      expect(result.isTimeout()).toBe(true);
     });
 
     it('should create PARTIAL_SUCCESS status with createPartialSuccess', () => {
       const result = PollingStatus.createPartialSuccess();
 
-      expect(result.isSuccess).toBe(true);
-      expect(result.value.value).toBe('PARTIAL_SUCCESS');
-      expect(result.value.isPartialSuccess()).toBe(true);
+      expect(result.toString()).toBe('PARTIAL_SUCCESS');
+      expect(result.isPartialSuccess()).toBe(true);
     });
   });
 
@@ -295,7 +291,7 @@ describe('PollingStatus', () => {
 
   describe('status checking methods', () => {
     it('should correctly identify SUCCESS status', () => {
-      const status = PollingStatus.createSuccess().value;
+      const status = PollingStatus.createSuccess();
 
       expect(status.isSuccess()).toBe(true);
       expect(status.isFailed()).toBe(false);
@@ -304,7 +300,7 @@ describe('PollingStatus', () => {
     });
 
     it('should correctly identify FAILED status', () => {
-      const status = PollingStatus.createFailed().value;
+      const status = PollingStatus.createFailed();
 
       expect(status.isSuccess()).toBe(false);
       expect(status.isFailed()).toBe(true);
@@ -313,7 +309,7 @@ describe('PollingStatus', () => {
     });
 
     it('should correctly identify TIMEOUT status', () => {
-      const status = PollingStatus.createTimeout().value;
+      const status = PollingStatus.createTimeout();
 
       expect(status.isSuccess()).toBe(false);
       expect(status.isFailed()).toBe(false);
@@ -322,7 +318,7 @@ describe('PollingStatus', () => {
     });
 
     it('should correctly identify PARTIAL_SUCCESS status', () => {
-      const status = PollingStatus.createPartialSuccess().value;
+      const status = PollingStatus.createPartialSuccess();
 
       expect(status.isSuccess()).toBe(false);
       expect(status.isFailed()).toBe(false);
@@ -333,25 +329,25 @@ describe('PollingStatus', () => {
 
   describe('isDeviceReachable', () => {
     it('should return true for SUCCESS status', () => {
-      const status = PollingStatus.createSuccess().value;
+      const status = PollingStatus.createSuccess();
 
       expect(status.isDeviceReachable()).toBe(true);
     });
 
     it('should return true for PARTIAL_SUCCESS status', () => {
-      const status = PollingStatus.createPartialSuccess().value;
+      const status = PollingStatus.createPartialSuccess();
 
       expect(status.isDeviceReachable()).toBe(true);
     });
 
     it('should return false for FAILED status', () => {
-      const status = PollingStatus.createFailed().value;
+      const status = PollingStatus.createFailed();
 
       expect(status.isDeviceReachable()).toBe(false);
     });
 
     it('should return false for TIMEOUT status', () => {
-      const status = PollingStatus.createTimeout().value;
+      const status = PollingStatus.createTimeout();
 
       expect(status.isDeviceReachable()).toBe(false);
     });
@@ -359,25 +355,25 @@ describe('PollingStatus', () => {
 
   describe('getDisplayName', () => {
     it('should return correct display name for SUCCESS', () => {
-      const status = PollingStatus.createSuccess().value;
+      const status = PollingStatus.createSuccess();
 
       expect(status.getDisplayName()).toBe('Success');
     });
 
     it('should return correct display name for FAILED', () => {
-      const status = PollingStatus.createFailed().value;
+      const status = PollingStatus.createFailed();
 
       expect(status.getDisplayName()).toBe('Failed');
     });
 
     it('should return correct display name for TIMEOUT', () => {
-      const status = PollingStatus.createTimeout().value;
+      const status = PollingStatus.createTimeout();
 
       expect(status.getDisplayName()).toBe('Timeout');
     });
 
     it('should return correct display name for PARTIAL_SUCCESS', () => {
-      const status = PollingStatus.createPartialSuccess().value;
+      const status = PollingStatus.createPartialSuccess();
 
       expect(status.getDisplayName()).toBe('Partial Success');
     });
@@ -385,25 +381,25 @@ describe('PollingStatus', () => {
 
   describe('getColor', () => {
     it('should return green for SUCCESS', () => {
-      const status = PollingStatus.createSuccess().value;
+      const status = PollingStatus.createSuccess();
 
       expect(status.getColor()).toBe('green');
     });
 
     it('should return red for FAILED', () => {
-      const status = PollingStatus.createFailed().value;
+      const status = PollingStatus.createFailed();
 
       expect(status.getColor()).toBe('red');
     });
 
     it('should return orange for TIMEOUT', () => {
-      const status = PollingStatus.createTimeout().value;
+      const status = PollingStatus.createTimeout();
 
       expect(status.getColor()).toBe('orange');
     });
 
     it('should return yellow for PARTIAL_SUCCESS', () => {
-      const status = PollingStatus.createPartialSuccess().value;
+      const status = PollingStatus.createPartialSuccess();
 
       expect(status.getColor()).toBe('yellow');
     });
@@ -411,34 +407,34 @@ describe('PollingStatus', () => {
 
   describe('equals', () => {
     it('should return true for same status values', () => {
-      const status1 = PollingStatus.createSuccess().value;
-      const status2 = PollingStatus.createSuccess().value;
+      const status1 = PollingStatus.createSuccess();
+      const status2 = PollingStatus.createSuccess();
 
       expect(status1.equals(status2)).toBe(true);
     });
 
     it('should return true for status created with different methods but same value', () => {
-      const status1 = PollingStatus.createSuccess().value;
-      const status2 = PollingStatus.create('SUCCESS').value;
+      const status1 = PollingStatus.createSuccess();
+      const status2 = PollingStatus.create('SUCCESS');
 
-      expect(status1.equals(status2)).toBe(true);
+      expect(status1.equals(status2.value)).toBe(true);
     });
 
     it('should return false for different status values', () => {
-      const status1 = PollingStatus.createSuccess().value;
-      const status2 = PollingStatus.createFailed().value;
+      const status1 = PollingStatus.createSuccess();
+      const status2 = PollingStatus.createFailed();
 
       expect(status1.equals(status2)).toBe(false);
     });
 
     it('should return false for null', () => {
-      const status = PollingStatus.createSuccess().value;
+      const status = PollingStatus.createSuccess();
 
       expect(status.equals(null as any)).toBe(false);
     });
 
     it('should return false for undefined', () => {
-      const status = PollingStatus.createSuccess().value;
+      const status = PollingStatus.createSuccess();
 
       expect(status.equals(undefined as any)).toBe(false);
     });
@@ -446,7 +442,7 @@ describe('PollingStatus', () => {
 
   describe('toString', () => {
     it('should return the string value', () => {
-      const status = PollingStatus.createSuccess().value;
+      const status = PollingStatus.createSuccess();
 
       expect(status.toString()).toBe('SUCCESS');
     });
@@ -454,20 +450,22 @@ describe('PollingStatus', () => {
 
   describe('immutability', () => {
     it('should not allow mutation of props', () => {
-      const status = PollingStatus.createSuccess().value;
+      const status = PollingStatus.createSuccess();
 
       expect(() => {
         // @ts-expect-error - Testing immutability
-        status.props.value = 'FAILED';
+        status.props = 'FAILED';
       }).toThrow();
     });
 
     it('should not allow reassignment of props reference', () => {
-      const status = PollingStatus.createSuccess().value;
+      const status = PollingStatus.createSuccess();
 
       // TypeScript prevents this at compile time
-      // @ts-expect-error - props is readonly
-      status.props = { value: 'FAILED' };
+      expect(() => {
+        // @ts-expect-error - props is readonly
+        status.props = { value: 'FAILED' };
+      }).toThrow();
     });
   });
 });
