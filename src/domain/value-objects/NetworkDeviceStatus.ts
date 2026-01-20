@@ -44,11 +44,11 @@ export class NetworkDeviceStatus extends ValueObject<NetworkDeviceStatusProps> {
   ] as const;
 
   get value(): string {
-    return this.props.value;
+    return this._props.value;
   }
 
-  private constructor(props: NetworkDeviceStatusProps) {
-    super(props);
+  private constructor(_props: NetworkDeviceStatusProps) {
+    super(_props);
   }
 
   /**
@@ -89,37 +89,29 @@ export class NetworkDeviceStatus extends ValueObject<NetworkDeviceStatusProps> {
   /**
    * Factory method to create an ONLINE status.
    */
-  public static createOnline(): Result<NetworkDeviceStatus> {
-    return Result.ok<NetworkDeviceStatus>(
-      new NetworkDeviceStatus({ value: this.ONLINE })
-    );
+  public static createOnline(): NetworkDeviceStatus {
+    return new NetworkDeviceStatus({ value: this.ONLINE });
   }
 
   /**
    * Factory method to create an OFFLINE status.
    */
-  public static createOffline(): Result<NetworkDeviceStatus> {
-    return Result.ok<NetworkDeviceStatus>(
-      new NetworkDeviceStatus({ value: this.OFFLINE })
-    );
+  public static createOffline(): NetworkDeviceStatus {
+    return new NetworkDeviceStatus({ value: this.OFFLINE });
   }
 
   /**
    * Factory method to create a MAINTENANCE status.
    */
-  public static createMaintenance(): Result<NetworkDeviceStatus> {
-    return Result.ok<NetworkDeviceStatus>(
-      new NetworkDeviceStatus({ value: this.MAINTENANCE })
-    );
+  public static createMaintenance(): NetworkDeviceStatus {
+    return new NetworkDeviceStatus({ value: this.MAINTENANCE });
   }
 
   /**
    * Factory method to create an UNKNOWN status.
    */
-  public static createUnknown(): Result<NetworkDeviceStatus> {
-    return Result.ok<NetworkDeviceStatus>(
-      new NetworkDeviceStatus({ value: this.UNKNOWN })
-    );
+  public static createUnknown(): NetworkDeviceStatus {
+    return new NetworkDeviceStatus({ value: this.UNKNOWN });
   }
 
   /**
@@ -135,28 +127,28 @@ export class NetworkDeviceStatus extends ValueObject<NetworkDeviceStatusProps> {
    * Checks if this status is ONLINE.
    */
   public isOnline(): boolean {
-    return this.props.value === NetworkDeviceStatus.ONLINE;
+    return this._props.value === NetworkDeviceStatus.ONLINE;
   }
 
   /**
    * Checks if this status is OFFLINE.
    */
   public isOffline(): boolean {
-    return this.props.value === NetworkDeviceStatus.OFFLINE;
+    return this._props.value === NetworkDeviceStatus.OFFLINE;
   }
 
   /**
    * Checks if this status is MAINTENANCE.
    */
   public isMaintenance(): boolean {
-    return this.props.value === NetworkDeviceStatus.MAINTENANCE;
+    return this._props.value === NetworkDeviceStatus.MAINTENANCE;
   }
 
   /**
    * Checks if this status is UNKNOWN.
    */
   public isUnknown(): boolean {
-    return this.props.value === NetworkDeviceStatus.UNKNOWN;
+    return this._props.value === NetworkDeviceStatus.UNKNOWN;
   }
 
   /**
@@ -165,7 +157,7 @@ export class NetworkDeviceStatus extends ValueObject<NetworkDeviceStatusProps> {
    * @returns Human-readable name
    */
   public getDisplayName(): string {
-    switch (this.props.value) {
+    switch (this._props.value) {
       case NetworkDeviceStatus.ONLINE:
         return 'Online';
       case NetworkDeviceStatus.OFFLINE:
@@ -184,7 +176,7 @@ export class NetworkDeviceStatus extends ValueObject<NetworkDeviceStatusProps> {
    * @returns Color code (for CSS or UI frameworks)
    */
   public getColor(): string {
-    switch (this.props.value) {
+    switch (this._props.value) {
       case NetworkDeviceStatus.ONLINE:
         return 'green';
       case NetworkDeviceStatus.OFFLINE:
@@ -211,8 +203,8 @@ export class NetworkDeviceStatus extends ValueObject<NetworkDeviceStatusProps> {
    * @returns True if transition is allowed
    */
   public canTransitionTo(toStatus: NetworkDeviceStatus): boolean {
-    const from = this.props.value;
-    const to = toStatus.props.value;
+    const from = this._props.value;
+    const to = toStatus._props.value;
 
     // UNKNOWN can transition to any status
     if (from === NetworkDeviceStatus.UNKNOWN) {
@@ -247,7 +239,7 @@ export class NetworkDeviceStatus extends ValueObject<NetworkDeviceStatusProps> {
    * Returns the string representation of the status.
    */
   public toString(): string {
-    return this.props.value;
+    return this._props.value;
   }
 
   // equals() inherited from ValueObject base class
