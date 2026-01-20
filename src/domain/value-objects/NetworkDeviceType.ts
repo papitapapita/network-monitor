@@ -63,11 +63,11 @@ export class NetworkDeviceType extends ValueObject<NetworkDeviceTypeProps> {
   ] as const;
 
   get value(): string {
-    return this.props.value;
+    return this._props.value;
   }
 
-  private constructor(props: NetworkDeviceTypeProps) {
-    super(props);
+  private constructor(_props: NetworkDeviceTypeProps) {
+    super(_props);
   }
 
   /**
@@ -120,27 +120,31 @@ export class NetworkDeviceType extends ValueObject<NetworkDeviceTypeProps> {
     ]);
 
     if (!guardResult.succeeded) {
-      return NetworkDeviceType.createUnknown();
+      return Result.fail<NetworkDeviceType>(guardResult.message!);
     }
 
     const upperRadioType = radioType.trim().toUpperCase();
-
+    let deviceType: NetworkDeviceType;
     switch (upperRadioType) {
       case 'ACCESS_POINT':
-        return NetworkDeviceType.createAccessPoint();
+        deviceType = NetworkDeviceType.createAccessPoint();
+        break;
       case 'STATION':
-        return NetworkDeviceType.createStation();
-      case 'PTP_RADIO':
-        return NetworkDeviceType.createPtpRadio();
+        deviceType = NetworkDeviceType.createStation();
+        break;
       case 'PTMP_RADIO':
-        return NetworkDeviceType.createPtmpRadio();
       case 'SECTOR_ANTENNA':
+        deviceType = NetworkDeviceType.createPtmpRadio(); // Treat as PTMP for polling
+        break;
+      case 'PTP_RADIO':
       case 'BACKHAUL_RADIO':
       case 'MIMO_RADIO':
-        return NetworkDeviceType.createPtpRadio(); // Treat as PTP for polling
+        deviceType = NetworkDeviceType.createPtpRadio(); // Treat as PTP for polling
+        break;
       default:
-        return NetworkDeviceType.createUnknown();
+        deviceType = NetworkDeviceType.createUnknown();
     }
+    return Result.ok<NetworkDeviceType>(deviceType);
   }
 
   /**
@@ -162,119 +166,110 @@ export class NetworkDeviceType extends ValueObject<NetworkDeviceTypeProps> {
     ]);
 
     if (!guardResult.succeeded) {
-      return NetworkDeviceType.createUnknown();
+      return Result.fail<NetworkDeviceType>(guardResult.message!);
     }
 
     const upperRole = role.trim().toUpperCase();
 
+    let deviceType: NetworkDeviceType;
     switch (upperRole) {
       case 'ROUTING':
-        return NetworkDeviceType.createRouter();
+        deviceType = NetworkDeviceType.createRouter();
+        break;
       case 'SWITCHING':
-        return NetworkDeviceType.createSwitch();
+        deviceType = NetworkDeviceType.createSwitch();
+        break;
       case 'WIRELESS_ACCESS':
-        return NetworkDeviceType.createAccessPoint();
+        deviceType = NetworkDeviceType.createAccessPoint();
+        break;
       case 'WIRELESS_CONTROLLER':
       case 'WIRELESS_BRIDGE':
       case 'RADIO_LINK':
       case 'BACKHAUL':
-        return NetworkDeviceType.createPtpRadio();
+        deviceType = NetworkDeviceType.createPtpRadio();
+        break;
       case 'FIREWALL':
       case 'IDS':
       case 'IPS':
       case 'UTM':
-        return NetworkDeviceType.createFirewall();
+        deviceType = NetworkDeviceType.createFirewall();
+        break;
       case 'APPLICATION_HOSTING':
       case 'DATABASE_HOSTING':
       case 'PROXY':
       case 'DHCP':
       case 'DNS':
       case 'LOAD_BALANCING':
-        return NetworkDeviceType.createServer();
+        deviceType = NetworkDeviceType.createServer();
+        break;
       default:
-        return NetworkDeviceType.createUnknown();
+        deviceType = NetworkDeviceType.createUnknown();
+        break;
     }
+    return Result.ok<NetworkDeviceType>(deviceType);
   }
 
   /**
    * Factory method to create an ACCESS_POINT device type.
    */
-  public static createAccessPoint(): Result<NetworkDeviceType> {
-    return Result.ok<NetworkDeviceType>(
-      new NetworkDeviceType({ value: this.ACCESS_POINT })
-    );
+  public static createAccessPoint(): NetworkDeviceType {
+    return new NetworkDeviceType({ value: this.ACCESS_POINT });
   }
 
   /**
    * Factory method to create a STATION device type.
    */
-  public static createStation(): Result<NetworkDeviceType> {
-    return Result.ok<NetworkDeviceType>(
-      new NetworkDeviceType({ value: this.STATION })
-    );
+  public static createStation(): NetworkDeviceType {
+    return new NetworkDeviceType({ value: this.STATION });
   }
 
   /**
    * Factory method to create a PTP_RADIO device type.
    */
-  public static createPtpRadio(): Result<NetworkDeviceType> {
-    return Result.ok<NetworkDeviceType>(
-      new NetworkDeviceType({ value: this.PTP_RADIO })
-    );
+  public static createPtpRadio(): NetworkDeviceType {
+    return new NetworkDeviceType({ value: this.PTP_RADIO });
   }
 
   /**
    * Factory method to create a PTMP_RADIO device type.
    */
-  public static createPtmpRadio(): Result<NetworkDeviceType> {
-    return Result.ok<NetworkDeviceType>(
-      new NetworkDeviceType({ value: this.PTMP_RADIO })
-    );
+  public static createPtmpRadio(): NetworkDeviceType {
+    return new NetworkDeviceType({ value: this.PTMP_RADIO });
   }
 
   /**
    * Factory method to create a SWITCH device type.
    */
-  public static createSwitch(): Result<NetworkDeviceType> {
-    return Result.ok<NetworkDeviceType>(
-      new NetworkDeviceType({ value: this.SWITCH })
-    );
+  public static createSwitch(): NetworkDeviceType {
+    return new NetworkDeviceType({ value: this.SWITCH });
   }
 
   /**
    * Factory method to create a ROUTER device type.
    */
-  public static createRouter(): Result<NetworkDeviceType> {
-    return Result.ok<NetworkDeviceType>(
-      new NetworkDeviceType({ value: this.ROUTER })
-    );
+  public static createRouter(): NetworkDeviceType {
+    return new NetworkDeviceType({ value: this.ROUTER });
   }
 
   /**
    * Factory method to create a FIREWALL device type.
    */
-  public static createFirewall(): Result<NetworkDeviceType> {
-    return Result.ok<NetworkDeviceType>(
-      new NetworkDeviceType({ value: this.FIREWALL })
-    );
+  public static createFirewall(): NetworkDeviceType {
+    return new NetworkDeviceType({ value: this.FIREWALL });
   }
 
   /**
    * Factory method to create a SERVER device type.
    */
-  public static createServer(): Result<NetworkDeviceType> {
-    return Result.ok<NetworkDeviceType>(
-      new NetworkDeviceType({ value: this.SERVER })
-    );
+  public static createServer(): NetworkDeviceType {
+    return new NetworkDeviceType({ value: this.SERVER });
   }
 
   /**
    * Factory method to create an UNKNOWN device type.
    */
-  public static createUnknown(): Result<NetworkDeviceType> {
-    return Result.ok<NetworkDeviceType>(
-      new NetworkDeviceType({ value: this.UNKNOWN })
-    );
+  public static createUnknown(): NetworkDeviceType {
+    return new NetworkDeviceType({ value: this.UNKNOWN });
   }
 
   /**
@@ -290,63 +285,63 @@ export class NetworkDeviceType extends ValueObject<NetworkDeviceTypeProps> {
    * Checks if this device type is an ACCESS_POINT.
    */
   public isAccessPoint(): boolean {
-    return this.props.value === NetworkDeviceType.ACCESS_POINT;
+    return this._props.value === NetworkDeviceType.ACCESS_POINT;
   }
 
   /**
    * Checks if this device type is a STATION.
    */
   public isStation(): boolean {
-    return this.props.value === NetworkDeviceType.STATION;
+    return this._props.value === NetworkDeviceType.STATION;
   }
 
   /**
    * Checks if this device type is a PTP_RADIO.
    */
   public isPtpRadio(): boolean {
-    return this.props.value === NetworkDeviceType.PTP_RADIO;
+    return this._props.value === NetworkDeviceType.PTP_RADIO;
   }
 
   /**
    * Checks if this device type is a PTMP_RADIO.
    */
   public isPtmpRadio(): boolean {
-    return this.props.value === NetworkDeviceType.PTMP_RADIO;
+    return this._props.value === NetworkDeviceType.PTMP_RADIO;
   }
 
   /**
    * Checks if this device type is a SWITCH.
    */
   public isSwitch(): boolean {
-    return this.props.value === NetworkDeviceType.SWITCH;
+    return this._props.value === NetworkDeviceType.SWITCH;
   }
 
   /**
    * Checks if this device type is a ROUTER.
    */
   public isRouter(): boolean {
-    return this.props.value === NetworkDeviceType.ROUTER;
+    return this._props.value === NetworkDeviceType.ROUTER;
   }
 
   /**
    * Checks if this device type is a FIREWALL.
    */
   public isFirewall(): boolean {
-    return this.props.value === NetworkDeviceType.FIREWALL;
+    return this._props.value === NetworkDeviceType.FIREWALL;
   }
 
   /**
    * Checks if this device type is a SERVER.
    */
   public isServer(): boolean {
-    return this.props.value === NetworkDeviceType.SERVER;
+    return this._props.value === NetworkDeviceType.SERVER;
   }
 
   /**
    * Checks if this device type is UNKNOWN.
    */
   public isUnknown(): boolean {
-    return this.props.value === NetworkDeviceType.UNKNOWN;
+    return this._props.value === NetworkDeviceType.UNKNOWN;
   }
 
   /**
@@ -363,7 +358,7 @@ export class NetworkDeviceType extends ValueObject<NetworkDeviceTypeProps> {
    * @returns Default polling interval in seconds
    */
   public getDefaultPollingInterval(): number {
-    switch (this.props.value) {
+    switch (this._props.value) {
       case NetworkDeviceType.ACCESS_POINT:
         return 30;
       case NetworkDeviceType.STATION:
@@ -389,7 +384,7 @@ export class NetworkDeviceType extends ValueObject<NetworkDeviceTypeProps> {
    * @returns Human-readable name
    */
   public getDisplayName(): string {
-    switch (this.props.value) {
+    switch (this._props.value) {
       case NetworkDeviceType.ACCESS_POINT:
         return 'Access Point';
       case NetworkDeviceType.STATION:
@@ -416,7 +411,7 @@ export class NetworkDeviceType extends ValueObject<NetworkDeviceTypeProps> {
    * Returns the string representation of the device type.
    */
   public toString(): string {
-    return this.props.value;
+    return this._props.value;
   }
 
   // equals() inherited from ValueObject base class
