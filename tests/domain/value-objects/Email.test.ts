@@ -70,7 +70,9 @@ describe('Email', () => {
         const result = Email.create('user-name@example-domain.com');
 
         expect(result.isSuccess).toBe(true);
-        expect(result.value.value).toBe('user-name@example-domain.com');
+        expect(result.value.value).toBe(
+          'user-name@example-domain.com'
+        );
       });
 
       it('should accept email with underscores', () => {
@@ -303,8 +305,10 @@ describe('Email', () => {
       const email = Email.create('user@example.com').value;
 
       // TypeScript prevents this at compile time
-      // @ts-expect-error - props is readonly
-      email.props = { value: 'hacker@malicious.com' };
+      expect(() => {
+        // @ts-expect-error - props is readonly
+        email.props = { value: 'hacker@malicious.com' };
+      }).toThrow();
     });
   });
 });

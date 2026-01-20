@@ -35,10 +35,10 @@ export class Email extends ValueObject<EmailProps> {
   /**
    * Private constructor to enforce creation through the factory.
    *
-   * @param props - The email properties containing the validated value.
+   * @param _props - The email properties containing the validated value.
    */
-  private constructor(props: EmailProps) {
-    super(props);
+  private constructor(_props: EmailProps) {
+    super(_props);
   }
 
   /**
@@ -51,7 +51,7 @@ export class Email extends ValueObject<EmailProps> {
    * @returns The normalized email string.
    */
   get value(): string {
-    return this.props.value;
+    return this._props.value;
   }
 
   /**
