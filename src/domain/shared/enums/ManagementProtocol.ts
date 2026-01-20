@@ -4,5 +4,6 @@ export enum ManagementProtocol {
   TELNET = 'TELNET',
   HTTP = 'HTTP',
   HTTPS = 'HTTPS',
-  OTHER = 'OTHER'
+  OTHER = 'OTHER',
+  ICMP = 'ICMP'
 }
