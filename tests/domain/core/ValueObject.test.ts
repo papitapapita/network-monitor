@@ -8,36 +8,36 @@ interface FullNameProps {
 // Concrete ValueObject for testing
 class FullName extends ValueObject<FullNameProps> {
   get first() {
-    return this.props.first;
+    return this._props.first;
   }
 
   get last() {
-    return this.props.last;
+    return this._props.last;
   }
 }
 
 describe('ValueObject Base Class', () => {
-  it('should store props as an immutable (frozen) object', () => {
+  it('should store _props as an immutable (frozen) object', () => {
     const vo = new FullName({ first: 'John', last: 'Doe' });
 
-    expect(Object.isFrozen(vo['props'])).toBe(true);
+    expect(Object.isFrozen(vo['_props'])).toBe(true);
   });
 
   it('should throw when trying to mutate properties', () => {
     const vo = new FullName({ first: 'Jane', last: 'Doe' });
 
     // @ts-expect-error Testing immutability
-    expect(() => (vo['props'].first = 'Hacked')).toThrow();
+    expect(() => (vo['_props'].first = 'Hacked')).toThrow();
   });
 
-  it('should consider two value objects with identical props as equal', () => {
+  it('should consider two value objects with identical _props as equal', () => {
     const vo1 = new FullName({ first: 'John', last: 'Doe' });
     const vo2 = new FullName({ first: 'John', last: 'Doe' });
 
     expect(vo1.equals(vo2)).toBe(true);
   });
 
-  it('should return false when props differ', () => {
+  it('should return false when _props differ', () => {
     const vo1 = new FullName({ first: 'John', last: 'Doe' });
     const vo2 = new FullName({ first: 'John', last: 'Smith' });
 
@@ -54,7 +54,7 @@ describe('ValueObject Base Class', () => {
   it('should return false when comparing with an object that is not a ValueObject', () => {
     const vo = new FullName({ first: 'John', last: 'Doe' });
 
-    const fake = { props: { first: 'John', last: 'Doe' } };
+    const fake = { _props: { first: 'John', last: 'Doe' } };
 
     expect(vo.equals(fake as any)).toBe(false);
   });
@@ -71,7 +71,7 @@ describe('ValueObject Base Class', () => {
     expect(vo1.equals(vo2)).toBe(true);
   });
 
-  it('should return false when nested props differ', () => {
+  it('should return false when nested _props differ', () => {
     class Address extends ValueObject<{
       city: string;
       meta: { zip: number };
@@ -81,5 +81,11 @@ describe('ValueObject Base Class', () => {
     const vo2 = new Address({ city: 'NY', meta: { zip: 456 } });
 
     expect(vo1.equals(vo2)).toBe(false);
+  });
+
+  it('should freeze the entire ValueObject instance', () => {
+    const vo = new FullName({ first: 'John', last: 'Doe' });
+
+    expect(Object.isFrozen(vo)).toBe(true);
   });
 });

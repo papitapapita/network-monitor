@@ -13,7 +13,7 @@ export abstract class ValueObject<T extends ValueObjectProps> {
    * Immutable properties that define the Value Object.
    * @protected
    */
-  protected readonly props: Readonly<T>;
+  protected readonly _props: Readonly<T>;
 
   /**
    * Creates a new immutable Value Object.
@@ -23,7 +23,8 @@ export abstract class ValueObject<T extends ValueObjectProps> {
    * @param {T} props - The set of properties representing the value.
    */
   constructor(props: T) {
-    this.props = Object.freeze({ ...props });
+    this._props = Object.freeze({ ...props });
+    Object.freeze(this);
   }
 
   /**
@@ -48,9 +49,9 @@ export abstract class ValueObject<T extends ValueObjectProps> {
     if (!(vo instanceof ValueObject)) {
       return false;
     }
-    if (vo.props === undefined) {
+    if (vo._props === undefined) {
       return false;
     }
-    return JSON.stringify(this.props) === JSON.stringify(vo.props);
+    return JSON.stringify(this._props) === JSON.stringify(vo._props);
   }
 }
