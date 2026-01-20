@@ -366,16 +366,18 @@ describe('PhoneNumber', () => {
       const phone = PhoneNumber.create('3001234567', 'CO').value;
 
       // TypeScript prevents this at compile time
-      // @ts-expect-error - props is readonly
-      phone.props = {
-        value: '+14155552671',
-        countryCode: '1',
-        nationalNumber: '4155552671',
-        formattedInternational: '+1 415-555-2671',
-        formattedNational: '(415) 555-2671',
-        country: 'US',
-        type: 'MOBILE'
-      };
+      expect(() => {
+        // @ts-expect-error - props is readonly
+        phone.props = {
+          value: '+14155552671',
+          countryCode: '1',
+          nationalNumber: '4155552671',
+          formattedInternational: '+1 415-555-2671',
+          formattedNational: '(415) 555-2671',
+          country: 'US',
+          type: 'MOBILE'
+        };
+      }).toThrow();
     });
   });
 });

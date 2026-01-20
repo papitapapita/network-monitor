@@ -43,43 +43,43 @@ import {} from '../shared/props';
  * // Creates phone number from E.164 format
  */
 export class PhoneNumber extends ValueObject<PhoneNumberProps> {
-  private constructor(props: PhoneNumberProps) {
-    super(props);
+  private constructor(_props: PhoneNumberProps) {
+    super(_props);
   }
 
   /** @returns Phone number in E.164 format (e.g. +573001234567) */
   get value(): string {
-    return this.props.value;
+    return this._props.value;
   }
 
   /** @returns The country calling code (e.g. "57", "1", "55") */
   get countryCode(): string {
-    return this.props.countryCode;
+    return this._props.countryCode;
   }
 
   /** @returns The national number portion without country code */
   get nationalNumber(): string {
-    return this.props.nationalNumber;
+    return this._props.nationalNumber;
   }
 
   /** @returns Internationally formatted version (e.g. +57 300 1234567) */
   get formattedInternational(): string {
-    return this.props.formattedInternational;
+    return this._props.formattedInternational;
   }
 
   /** @returns Nationally formatted version for its country */
   get formattedNational(): string {
-    return this.props.formattedNational;
+    return this._props.formattedNational;
   }
 
   /** @returns ISO two-letter country code (e.g., "CO", "US") */
   get country(): CountryCode | undefined {
-    return this.props.country;
+    return this._props.country;
   }
 
   /** @returns Detected phone number type (e.g., MOBILE, FIXED_LINE) */
   get type(): string | undefined {
-    return this.props.type;
+    return this._props.type;
   }
 
   /**
