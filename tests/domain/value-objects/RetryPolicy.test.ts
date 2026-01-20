@@ -13,7 +13,9 @@ describe('RetryPolicy', () => {
         expect(result.isSuccess).toBe(true);
         expect(result.value.maxAttempts).toBe(3);
         expect(result.value.baseDelayMs).toBe(1000);
-        expect(result.value.backoffStrategy).toBe(BackoffStrategy.FIXED);
+        expect(result.value.backoffStrategy).toBe(
+          BackoffStrategy.FIXED
+        );
       });
 
       it('should create RetryPolicy with LINEAR backoff', () => {
@@ -24,7 +26,9 @@ describe('RetryPolicy', () => {
         });
 
         expect(result.isSuccess).toBe(true);
-        expect(result.value.backoffStrategy).toBe(BackoffStrategy.LINEAR);
+        expect(result.value.backoffStrategy).toBe(
+          BackoffStrategy.LINEAR
+        );
       });
 
       it('should create RetryPolicy with EXPONENTIAL backoff', () => {
@@ -307,7 +311,9 @@ describe('RetryPolicy', () => {
 
       expect(policy.maxAttempts).toBe(3);
       expect(policy.baseDelayMs).toBe(1000);
-      expect(policy.backoffStrategy).toBe(BackoffStrategy.EXPONENTIAL);
+      expect(policy.backoffStrategy).toBe(
+        BackoffStrategy.EXPONENTIAL
+      );
     });
 
     it('should create policy that has retries', () => {
@@ -623,7 +629,9 @@ describe('RetryPolicy', () => {
     it('should display EXPONENTIAL backoff correctly', () => {
       const policy = RetryPolicy.createDefault();
 
-      expect(policy.toDisplayString()).toContain('exponential backoff');
+      expect(policy.toDisplayString()).toContain(
+        'exponential backoff'
+      );
     });
 
     it('should display all components for default policy', () => {
@@ -767,12 +775,14 @@ describe('RetryPolicy', () => {
       const policy = RetryPolicy.createDefault();
 
       // TypeScript prevents this at compile time
-      // @ts-expect-error - props is readonly
-      policy.props = {
-        maxAttempts: 5,
-        baseDelayMs: 2000,
-        backoffStrategy: BackoffStrategy.LINEAR
-      };
+      expect(() => {
+        // @ts-expect-error - props is readonly
+        policy.props = {
+          maxAttempts: 5,
+          baseDelayMs: 2000,
+          backoffStrategy: BackoffStrategy.LINEAR
+        };
+      }).toThrow();
     });
   });
 });

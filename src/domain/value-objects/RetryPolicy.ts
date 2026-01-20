@@ -48,49 +48,49 @@ export class RetryPolicy extends ValueObject<RetryPolicyProps> {
   public static readonly MAX_CALCULATED_DELAY_MS = 300000; // 5 minutes
 
   get maxAttempts(): number {
-    return this.props.maxAttempts;
+    return this._props.maxAttempts;
   }
 
   get baseDelayMs(): number {
-    return this.props.baseDelayMs;
+    return this._props.baseDelayMs;
   }
 
   get backoffStrategy(): BackoffStrategy {
-    return this.props.backoffStrategy;
+    return this._props.backoffStrategy;
   }
 
-  private constructor(props: RetryPolicyProps) {
-    super(props);
+  private constructor(_props: RetryPolicyProps) {
+    super(_props);
   }
 
   /**
    * Creates a new RetryPolicy.
    *
-   * @param props - Retry policy configuration
+   * @param _props - Retry policy configuration
    * @returns Result containing RetryPolicy or error message
    */
-  public static create(props: {
+  public static create(_props: {
     maxAttempts: number;
     baseDelayMs: number;
     backoffStrategy: BackoffStrategy;
   }): Result<RetryPolicy> {
     const guardResult = Guard.combine([
-      Guard.againstNullOrUndefined(props.maxAttempts, 'maxAttempts'),
-      Guard.againstNullOrUndefined(props.baseDelayMs, 'baseDelayMs'),
+      Guard.againstNullOrUndefined(_props.maxAttempts, 'maxAttempts'),
+      Guard.againstNullOrUndefined(_props.baseDelayMs, 'baseDelayMs'),
       Guard.againstNullOrUndefined(
-        props.backoffStrategy,
+        _props.backoffStrategy,
         'backoffStrategy'
       ),
-      Guard.isNumber(props.maxAttempts, 'maxAttempts'),
-      Guard.isNumber(props.baseDelayMs, 'baseDelayMs'),
+      Guard.isNumber(_props.maxAttempts, 'maxAttempts'),
+      Guard.isNumber(_props.baseDelayMs, 'baseDelayMs'),
       Guard.inRange(
-        props.maxAttempts,
+        _props.maxAttempts,
         this.MIN_ATTEMPTS,
         this.MAX_ATTEMPTS,
         'maxAttempts'
       ),
       Guard.inRange(
-        props.baseDelayMs,
+        _props.baseDelayMs,
         this.MIN_DELAY_MS,
         this.MAX_DELAY_MS,
         'baseDelayMs'
@@ -102,18 +102,18 @@ export class RetryPolicy extends ValueObject<RetryPolicyProps> {
     }
 
     if (
-      !Object.values(BackoffStrategy).includes(props.backoffStrategy)
+      !Object.values(BackoffStrategy).includes(_props.backoffStrategy)
     ) {
       return Result.fail<RetryPolicy>(
-        `Invalid backoff strategy: ${props.backoffStrategy}`
+        `Invalid backoff strategy: ${_props.backoffStrategy}`
       );
     }
 
     return Result.ok<RetryPolicy>(
       new RetryPolicy({
-        maxAttempts: Math.round(props.maxAttempts),
-        baseDelayMs: Math.round(props.baseDelayMs),
-        backoffStrategy: props.backoffStrategy
+        maxAttempts: Math.round(_props.maxAttempts),
+        baseDelayMs: Math.round(_props.baseDelayMs),
+        backoffStrategy: _props.backoffStrategy
       })
     );
   }
@@ -171,22 +171,22 @@ export class RetryPolicy extends ValueObject<RetryPolicyProps> {
 
     let delay: number;
 
-    switch (this.props.backoffStrategy) {
+    switch (this._props.backoffStrategy) {
       case BackoffStrategy.FIXED:
-        delay = this.props.baseDelayMs;
+        delay = this._props.baseDelayMs;
         break;
 
       case BackoffStrategy.LINEAR:
-        delay = this.props.baseDelayMs * attemptNumber;
+        delay = this._props.baseDelayMs * attemptNumber;
         break;
 
       case BackoffStrategy.EXPONENTIAL:
         delay =
-          this.props.baseDelayMs * Math.pow(2, attemptNumber - 1);
+          this._props.baseDelayMs * Math.pow(2, attemptNumber - 1);
         break;
 
       default:
-        delay = this.props.baseDelayMs;
+        delay = this._props.baseDelayMs;
     }
 
     // Cap the maximum delay to prevent excessive wait times
@@ -199,7 +199,7 @@ export class RetryPolicy extends ValueObject<RetryPolicyProps> {
    * @returns True if maxAttempts > 0
    */
   public hasRetries(): boolean {
-    return this.props.maxAttempts > 0;
+    return this._props.maxAttempts > 0;
   }
 
   /**
@@ -209,22 +209,22 @@ export class RetryPolicy extends ValueObject<RetryPolicyProps> {
    * @returns True if should retry, false if max attempts reached
    */
   public shouldRetry(attemptNumber: number): boolean {
-    return attemptNumber < this.props.maxAttempts;
+    return attemptNumber < this._props.maxAttempts;
   }
 
   /**
    * Returns a human-readable description of the policy.
    */
   public toDisplayString(): string {
-    if (this.props.maxAttempts === 0) {
+    if (this._props.maxAttempts === 0) {
       return 'No retries';
     }
 
-    const attemptsText = `${this.props.maxAttempts} attempt${
-      this.props.maxAttempts !== 1 ? 's' : ''
+    const attemptsText = `${this._props.maxAttempts} attempt${
+      this._props.maxAttempts !== 1 ? 's' : ''
     }`;
-    const delayText = `${this.props.baseDelayMs}ms base delay`;
-    const strategyText = this.props.backoffStrategy.toLowerCase();
+    const delayText = `${this._props.baseDelayMs}ms base delay`;
+    const strategyText = this._props.backoffStrategy.toLowerCase();
 
     return `${attemptsText}, ${delayText}, ${strategyText} backoff`;
   }
