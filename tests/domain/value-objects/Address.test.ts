@@ -884,13 +884,15 @@ describe('Address', () => {
       }).value;
 
       // TypeScript prevents this at compile time
-      // @ts-expect-error - props is readonly
-      address.props = {
-        street: 'New Street',
-        city: 'New City',
-        province: 'New Province',
-        country: 'New Country'
-      };
+      expect(() => {
+        // @ts-expect-error - props is readonly
+        address.props = {
+          street: 'New Street',
+          city: 'New City',
+          province: 'New Province',
+          country: 'New Country'
+        };
+      }).toThrow();
     });
   });
 });

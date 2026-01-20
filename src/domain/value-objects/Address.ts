@@ -46,42 +46,42 @@ export class Address extends ValueObject<AddressProps> {
 
   /** Street name (required). */
   get street(): string {
-    return this.props.street;
+    return this._props.street;
   }
 
   /** House or building number (optional). */
   get houseNumber(): string | undefined {
-    return this.props.houseNumber;
+    return this._props.houseNumber;
   }
 
   /** City or municipality (required). */
   get city(): string {
-    return this.props.city;
+    return this._props.city;
   }
 
   /** State, province, or department (required). */
   get province(): string {
-    return this.props.province;
+    return this._props.province;
   }
 
   /** Country name (required). */
   get country(): string {
-    return this.props.country;
+    return this._props.country;
   }
 
   /** Postal or ZIP code (optional). */
   get postalCode(): string | undefined {
-    return this.props.postalCode;
+    return this._props.postalCode;
   }
 
   /** Additional information (optional), e.g., "Apt 302", "Floor 5". */
   get complement(): string | undefined {
-    return this.props.complement;
+    return this._props.complement;
   }
 
   /** Neighborhood or sector (optional). */
   get neighborhood(): string | undefined {
-    return this.props.neighborhood;
+    return this._props.neighborhood;
   }
 
   /**
