@@ -77,13 +77,6 @@ export interface ActivateNetworkDeviceRequestDTO {
   description?: string | null;
 
   /**
-   * Physical location (optional but recommended)
-   * Max 500 characters
-   * Example: "Building A, Floor 2, Rack 10, Unit 3"
-   */
-  location?: string | null;
-
-  /**
    * Connectivity type (optional, has default)
    * Default: "ETHERNET"
    * Valid values: ETHERNET, FIBER_OPTIC, WIRELESS, DSL, SATELLITE, OTHER
