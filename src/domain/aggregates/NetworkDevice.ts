@@ -403,6 +403,239 @@ export class NetworkDevice extends AggregateRoot<
   }
 
   /**
+   * Updates the device MAC address.
+   *
+   * REQ-002: MAC address can only be changed while device is in DRAFT status.
+   * Once activated, MAC address is immutable (represents physical hardware identity).
+   *
+   * @param newMacAddress - New MAC address
+   * @returns Result indicating success or failure
+   */
+  public updateMacAddress(newMacAddress: MACAddress): Result<void> {
+    // Guard: DRAFT only constraint
+    if (this.props.activationStatus !== ActivationStatus.DRAFT) {
+      return Result.fail<void>(
+        'MAC address can only be changed while device is in DRAFT status'
+      );
+    }
+
+    const guardResult = Guard.againstNullOrUndefined(
+      newMacAddress,
+      'macAddress'
+    );
+    if (!guardResult.succeeded) {
+      return Result.fail<void>(guardResult.message!);
+    }
+
+    const oldMacAddress = this.props.macAddress;
+    this.props.macAddress = newMacAddress;
+    this.props.updatedAt = new Date();
+
+    // Emit update event if MAC actually changed
+    if (!oldMacAddress.equals(newMacAddress)) {
+      this.addDomainEvent(
+        new NetworkDeviceUpdatedEvent({
+          aggregateId: this.id,
+          deviceName: this.name,
+          changedFields: ['macAddress'],
+          previousValues: { macAddress: oldMacAddress.toString() },
+          newValues: { macAddress: newMacAddress.toString() },
+          dateTimeOccurred: new Date()
+        })
+      );
+    }
+
+    return Result.ok<void>();
+  }
+
+  /**
+   * Updates the device type.
+   *
+   * Device type can be changed at any time (e.g., UNKNOWN → ROUTER after
+   * proper identification, or correction of misclassification).
+   *
+   * @param newDeviceType - New device type
+   * @returns Result indicating success or failure
+   */
+  public updateDeviceType(
+    newDeviceType: NetworkDeviceType
+  ): Result<void> {
+    const guardResult = Guard.againstNullOrUndefined(
+      newDeviceType,
+      'deviceType'
+    );
+    if (!guardResult.succeeded) {
+      return Result.fail<void>(guardResult.message!);
+    }
+
+    const oldDeviceType = this.props.deviceType;
+    this.props.deviceType = newDeviceType;
+    this.props.updatedAt = new Date();
+
+    // Emit update event if device type actually changed
+    if (!oldDeviceType.equals(newDeviceType)) {
+      this.addDomainEvent(
+        new NetworkDeviceUpdatedEvent({
+          aggregateId: this.id,
+          deviceName: this.name,
+          changedFields: ['deviceType'],
+          previousValues: { deviceType: oldDeviceType.toString() },
+          newValues: { deviceType: newDeviceType.toString() },
+          dateTimeOccurred: new Date()
+        })
+      );
+    }
+
+    return Result.ok<void>();
+  }
+
+  /**
+   * Updates the connectivity type.
+   *
+   * Connectivity type can be changed at any time (e.g., device upgraded
+   * from Ethernet to Fiber).
+   *
+   * @param newConnectivityType - New connectivity type
+   * @returns Result indicating success or failure
+   */
+  public updateConnectivityType(
+    newConnectivityType: ConnectivityType
+  ): Result<void> {
+    const guardResult = Guard.againstNullOrUndefined(
+      newConnectivityType,
+      'connectivityType'
+    );
+    if (!guardResult.succeeded) {
+      return Result.fail<void>(guardResult.message!);
+    }
+
+    const oldConnectivityType = this.props.connectivityType;
+    this.props.connectivityType = newConnectivityType;
+    this.props.updatedAt = new Date();
+
+    // Emit update event if connectivity type actually changed
+    if (oldConnectivityType !== newConnectivityType) {
+      this.addDomainEvent(
+        new NetworkDeviceUpdatedEvent({
+          aggregateId: this.id,
+          deviceName: this.name,
+          changedFields: ['connectivityType'],
+          previousValues: { connectivityType: oldConnectivityType },
+          newValues: { connectivityType: newConnectivityType },
+          dateTimeOccurred: new Date()
+        })
+      );
+    }
+
+    return Result.ok<void>();
+  }
+
+  /**
+   * Updates the device ID (external/physical identifier).
+   *
+   * REQ-002: Device ID can only be changed while device is in DRAFT status.
+   * Once activated, device ID is immutable.
+   *
+   * @param newDeviceId - New device ID
+   * @returns Result indicating success or failure
+   */
+  public updateDeviceId(newDeviceId: string): Result<void> {
+    // Guard: DRAFT only constraint
+    if (this.props.activationStatus !== ActivationStatus.DRAFT) {
+      return Result.fail<void>(
+        'Device ID can only be changed while device is in DRAFT status'
+      );
+    }
+
+    const guardResult = Guard.combine([
+      Guard.againstNullOrUndefined(newDeviceId, 'deviceId'),
+      Guard.isString(newDeviceId, 'deviceId')
+    ]);
+    if (!guardResult.succeeded) {
+      return Result.fail<void>(guardResult.message!);
+    }
+
+    if (newDeviceId.trim().length === 0) {
+      return Result.fail<void>('Device ID cannot be empty');
+    }
+
+    const oldDeviceId = this.props.deviceId;
+    this.props.deviceId = newDeviceId;
+    this.props.updatedAt = new Date();
+
+    // Emit update event if device ID actually changed
+    if (oldDeviceId !== newDeviceId) {
+      this.addDomainEvent(
+        new NetworkDeviceUpdatedEvent({
+          aggregateId: this.id,
+          deviceName: this.name,
+          changedFields: ['deviceId'],
+          previousValues: { deviceId: oldDeviceId },
+          newValues: { deviceId: newDeviceId },
+          dateTimeOccurred: new Date()
+        })
+      );
+    }
+
+    return Result.ok<void>();
+  }
+
+  /**
+   * Updates the installation date.
+   *
+   * REQ-002: Install date can only be changed while device is in DRAFT status.
+   * Once activated, install date is immutable.
+   *
+   * @param newInstallDate - New installation date
+   * @returns Result indicating success or failure
+   */
+  public updateInstallDate(newInstallDate: Date): Result<void> {
+    // Guard: DRAFT only constraint
+    if (this.props.activationStatus !== ActivationStatus.DRAFT) {
+      return Result.fail<void>(
+        'Install date can only be changed while device is in DRAFT status'
+      );
+    }
+
+    const guardResult = Guard.againstNullOrUndefined(
+      newInstallDate,
+      'installDate'
+    );
+    if (!guardResult.succeeded) {
+      return Result.fail<void>(guardResult.message!);
+    }
+
+    if (
+      !(newInstallDate instanceof Date) ||
+      isNaN(newInstallDate.getTime())
+    ) {
+      return Result.fail<void>('Install date must be a valid date');
+    }
+
+    const oldInstallDate = this.props.installDate;
+    this.props.installDate = newInstallDate;
+    this.props.updatedAt = new Date();
+
+    // Emit update event if install date actually changed
+    if (oldInstallDate.getTime() !== newInstallDate.getTime()) {
+      this.addDomainEvent(
+        new NetworkDeviceUpdatedEvent({
+          aggregateId: this.id,
+          deviceName: this.name,
+          changedFields: ['installDate'],
+          previousValues: {
+            installDate: oldInstallDate.toISOString()
+          },
+          newValues: { installDate: newInstallDate.toISOString() },
+          dateTimeOccurred: new Date()
+        })
+      );
+    }
+
+    return Result.ok<void>();
+  }
+
+  /**
    * Updates management configuration.
    *
    * @param config - Management configuration

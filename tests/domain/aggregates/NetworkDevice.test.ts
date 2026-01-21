@@ -29,8 +29,8 @@ describe('NetworkDevice', () => {
 
     validProps = {
       name: 'Router-01',
-      deviceType: NetworkDeviceType.createRouter().value,
-      status: NetworkDeviceStatus.createUnknown().value,
+      deviceType: NetworkDeviceType.createRouter(),
+      status: NetworkDeviceStatus.createUnknown(),
       description: 'Core router for main office',
       installDate: new Date('2024-01-01'),
       ipAddress: IPAddress.create('192.168.1.1').value,
@@ -358,9 +358,7 @@ describe('NetworkDevice', () => {
 
     it('should return correct deviceType', () => {
       expect(
-        device.deviceType.equals(
-          NetworkDeviceType.createRouter().value
-        )
+        device.deviceType.equals(NetworkDeviceType.createRouter())
       ).toBe(true);
     });
 
@@ -436,7 +434,7 @@ describe('NetworkDevice', () => {
 
     it('should update status successfully', () => {
       const result = device.updateStatus(
-        NetworkDeviceStatus.createOnline().value
+        NetworkDeviceStatus.createOnline()
       );
 
       expect(result.isSuccess).toBe(true);
@@ -446,7 +444,7 @@ describe('NetworkDevice', () => {
     });
 
     it('should emit NetworkDeviceStatusChangedEvent', () => {
-      device.updateStatus(NetworkDeviceStatus.createOnline().value);
+      device.updateStatus(NetworkDeviceStatus.createOnline());
 
       const events = device.domainEvents;
       expect(events.length).toBe(1);
@@ -460,7 +458,7 @@ describe('NetworkDevice', () => {
 
       // Small delay to ensure timestamp changes
       const result = device.updateStatus(
-        NetworkDeviceStatus.createOnline().value
+        NetworkDeviceStatus.createOnline()
       );
 
       expect(result.isSuccess).toBe(true);
@@ -470,10 +468,10 @@ describe('NetworkDevice', () => {
     });
 
     it('should not emit event when status is the same', () => {
-      device.updateStatus(NetworkDeviceStatus.createOnline().value);
+      device.updateStatus(NetworkDeviceStatus.createOnline());
       device.clearEvents();
 
-      device.updateStatus(NetworkDeviceStatus.createOnline().value);
+      device.updateStatus(NetworkDeviceStatus.createOnline());
 
       const events = device.domainEvents;
       expect(events.length).toBe(0);
@@ -487,11 +485,11 @@ describe('NetworkDevice', () => {
     });
 
     it('should handle ONLINE to OFFLINE transition', () => {
-      device.updateStatus(NetworkDeviceStatus.createOnline().value);
+      device.updateStatus(NetworkDeviceStatus.createOnline());
       device.clearEvents();
 
       const result = device.updateStatus(
-        NetworkDeviceStatus.createOffline().value
+        NetworkDeviceStatus.createOffline()
       );
 
       expect(result.isSuccess).toBe(true);
@@ -502,11 +500,11 @@ describe('NetworkDevice', () => {
     });
 
     it('should handle OFFLINE to ONLINE transition', () => {
-      device.updateStatus(NetworkDeviceStatus.createOffline().value);
+      device.updateStatus(NetworkDeviceStatus.createOffline());
       device.clearEvents();
 
       const result = device.updateStatus(
-        NetworkDeviceStatus.createOnline().value
+        NetworkDeviceStatus.createOnline()
       );
 
       expect(result.isSuccess).toBe(true);
@@ -517,7 +515,7 @@ describe('NetworkDevice', () => {
 
     it('should handle MAINTENANCE status', () => {
       const result = device.updateStatus(
-        NetworkDeviceStatus.createMaintenance().value
+        NetworkDeviceStatus.createMaintenance()
       );
 
       expect(result.isSuccess).toBe(true);
@@ -1010,21 +1008,19 @@ describe('NetworkDevice', () => {
     });
 
     it('should return true when status is ONLINE', () => {
-      device.updateStatus(NetworkDeviceStatus.createOnline().value);
+      device.updateStatus(NetworkDeviceStatus.createOnline());
 
       expect(device.isOnline()).toBe(true);
     });
 
     it('should return false when status is OFFLINE', () => {
-      device.updateStatus(NetworkDeviceStatus.createOffline().value);
+      device.updateStatus(NetworkDeviceStatus.createOffline());
 
       expect(device.isOnline()).toBe(false);
     });
 
     it('should return false when status is MAINTENANCE', () => {
-      device.updateStatus(
-        NetworkDeviceStatus.createMaintenance().value
-      );
+      device.updateStatus(NetworkDeviceStatus.createMaintenance());
 
       expect(device.isOnline()).toBe(false);
     });
@@ -1045,21 +1041,19 @@ describe('NetworkDevice', () => {
     });
 
     it('should return true when status is OFFLINE', () => {
-      device.updateStatus(NetworkDeviceStatus.createOffline().value);
+      device.updateStatus(NetworkDeviceStatus.createOffline());
 
       expect(device.isOffline()).toBe(true);
     });
 
     it('should return false when status is ONLINE', () => {
-      device.updateStatus(NetworkDeviceStatus.createOnline().value);
+      device.updateStatus(NetworkDeviceStatus.createOnline());
 
       expect(device.isOffline()).toBe(false);
     });
 
     it('should return false when status is MAINTENANCE', () => {
-      device.updateStatus(
-        NetworkDeviceStatus.createMaintenance().value
-      );
+      device.updateStatus(NetworkDeviceStatus.createMaintenance());
 
       expect(device.isOffline()).toBe(false);
     });
@@ -1080,21 +1074,19 @@ describe('NetworkDevice', () => {
     });
 
     it('should return true when status is MAINTENANCE', () => {
-      device.updateStatus(
-        NetworkDeviceStatus.createMaintenance().value
-      );
+      device.updateStatus(NetworkDeviceStatus.createMaintenance());
 
       expect(device.isInMaintenance()).toBe(true);
     });
 
     it('should return false when status is ONLINE', () => {
-      device.updateStatus(NetworkDeviceStatus.createOnline().value);
+      device.updateStatus(NetworkDeviceStatus.createOnline());
 
       expect(device.isInMaintenance()).toBe(false);
     });
 
     it('should return false when status is OFFLINE', () => {
-      device.updateStatus(NetworkDeviceStatus.createOffline().value);
+      device.updateStatus(NetworkDeviceStatus.createOffline());
 
       expect(device.isInMaintenance()).toBe(false);
     });
@@ -1369,7 +1361,7 @@ describe('NetworkDevice', () => {
         timestamp: new Date(),
         metrics: metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOnline().value,
+        deviceStatus: NetworkDeviceStatus.createOnline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -1395,7 +1387,7 @@ describe('NetworkDevice', () => {
         timestamp: new Date(),
         metrics: metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOnline().value,
+        deviceStatus: NetworkDeviceStatus.createOnline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -1410,7 +1402,7 @@ describe('NetworkDevice', () => {
     });
 
     it('should not emit event when status does not change', () => {
-      device.updateStatus(NetworkDeviceStatus.createOnline().value);
+      device.updateStatus(NetworkDeviceStatus.createOnline());
       device.clearEvents();
 
       const deviceId = NetworkDeviceId.create().value;
@@ -1425,7 +1417,7 @@ describe('NetworkDevice', () => {
         timestamp: new Date(),
         metrics: metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOnline().value,
+        deviceStatus: NetworkDeviceStatus.createOnline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -1450,10 +1442,10 @@ describe('NetworkDevice', () => {
       const pollingResult = PollingResult.createFailure({
         networkDeviceId: deviceId,
         timestamp: new Date(),
-        status: PollingStatus.createFailed().value,
+        status: PollingStatus.createFailed(),
         errorMessage: 'Test failure',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOffline().value,
+        deviceStatus: NetworkDeviceStatus.createOffline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -1493,23 +1485,21 @@ describe('NetworkDevice', () => {
       device.clearEvents();
 
       // Device comes online
-      device.updateStatus(NetworkDeviceStatus.createOnline().value);
+      device.updateStatus(NetworkDeviceStatus.createOnline());
       expect(device.status.toString()).toBe(
         NetworkDeviceStatus.ONLINE
       );
       expect(device.isOnline()).toBe(true);
 
       // Device goes offline
-      device.updateStatus(NetworkDeviceStatus.createOffline().value);
+      device.updateStatus(NetworkDeviceStatus.createOffline());
       expect(device.status.toString()).toBe(
         NetworkDeviceStatus.OFFLINE
       );
       expect(device.isOffline()).toBe(true);
 
       // Device enters maintenance
-      device.updateStatus(
-        NetworkDeviceStatus.createMaintenance().value
-      );
+      device.updateStatus(NetworkDeviceStatus.createMaintenance());
       expect(device.status.toString()).toBe(
         NetworkDeviceStatus.MAINTENANCE
       );
@@ -1647,8 +1637,8 @@ describe('NetworkDevice', () => {
         ...validProps,
         activationStatus: ActivationStatus.DRAFT,
         name: 'Device-001',
-        deviceType: NetworkDeviceType.createRouter().value,
-        status: NetworkDeviceStatus.createUnknown().value,
+        deviceType: NetworkDeviceType.createRouter(),
+        status: NetworkDeviceStatus.createUnknown(),
         connectivityType: ConnectivityType.ETHERNET,
         managementProtocol: ManagementProtocol.SSH,
         managementPort: 22,
@@ -2484,6 +2474,605 @@ describe('NetworkDevice', () => {
     });
   });
 
+  // ========== REQ-002: Property Update Methods Tests ==========
+
+  describe('updateMacAddress', () => {
+    let draftDevice: NetworkDevice;
+    let activeDevice: NetworkDevice;
+
+    beforeEach(() => {
+      const draftProps = {
+        ...validProps,
+        activationStatus: ActivationStatus.DRAFT
+      };
+      draftDevice = NetworkDevice.create(
+        draftProps,
+        NetworkDeviceId.create().value
+      ).value;
+      draftDevice.clearEvents();
+
+      activeDevice = NetworkDevice.create(
+        validProps,
+        NetworkDeviceId.create().value
+      ).value;
+      activeDevice.clearEvents();
+    });
+
+    it('should update MAC address successfully when device is in DRAFT status', () => {
+      const newMac = MACAddress.create('FF:EE:DD:CC:BB:AA').value;
+      const result = draftDevice.updateMacAddress(newMac);
+
+      expect(result.isSuccess).toBe(true);
+      expect(draftDevice.macAddress.toString()).toBe(
+        'FF:EE:DD:CC:BB:AA'
+      );
+    });
+
+    it('should fail when device is in ACTIVE status', () => {
+      const newMac = MACAddress.create('FF:EE:DD:CC:BB:AA').value;
+      const result = activeDevice.updateMacAddress(newMac);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('DRAFT status');
+    });
+
+    it('should update updatedAt timestamp', () => {
+      const oldUpdatedAt = draftDevice.updatedAt;
+      const newMac = MACAddress.create('FF:EE:DD:CC:BB:AA').value;
+
+      const result = draftDevice.updateMacAddress(newMac);
+
+      expect(result.isSuccess).toBe(true);
+      expect(draftDevice.updatedAt.getTime()).toBeGreaterThanOrEqual(
+        oldUpdatedAt.getTime()
+      );
+    });
+
+    it('should fail when MAC address is null', () => {
+      const result = draftDevice.updateMacAddress(null as any);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('macAddress');
+    });
+
+    it('should fail when MAC address is undefined', () => {
+      const result = draftDevice.updateMacAddress(undefined as any);
+
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('should emit NetworkDeviceUpdatedEvent when MAC changes', () => {
+      const oldMac = draftDevice.macAddress.toString();
+      const newMac = MACAddress.create('FF:EE:DD:CC:BB:AA').value;
+
+      const result = draftDevice.updateMacAddress(newMac);
+
+      expect(result.isSuccess).toBe(true);
+      const events = draftDevice.domainEvents;
+      expect(events.length).toBe(1);
+      expect(events[0].constructor.name).toBe(
+        'NetworkDeviceUpdatedEvent'
+      );
+
+      const event = events[0] as any;
+      expect(event.changedFields).toEqual(['macAddress']);
+      expect(event.previousValues.macAddress).toBe(oldMac);
+      expect(event.newValues.macAddress).toBe('FF:EE:DD:CC:BB:AA');
+    });
+
+    it('should not emit event when MAC address does not change', () => {
+      const currentMac = draftDevice.macAddress;
+
+      const result = draftDevice.updateMacAddress(currentMac);
+
+      expect(result.isSuccess).toBe(true);
+      const events = draftDevice.domainEvents;
+      expect(events.length).toBe(0);
+    });
+  });
+
+  describe('updateDeviceType', () => {
+    let device: NetworkDevice;
+
+    beforeEach(() => {
+      device = NetworkDevice.create(
+        validProps,
+        NetworkDeviceId.create().value
+      ).value;
+      device.clearEvents();
+    });
+
+    it('should update device type successfully', () => {
+      const newType = NetworkDeviceType.createSwitch();
+      const result = device.updateDeviceType(newType);
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.deviceType.toString()).toBe(
+        NetworkDeviceType.SWITCH
+      );
+    });
+
+    it('should allow updating device type on ACTIVE device', () => {
+      expect(device.isActive()).toBe(true);
+
+      const newType = NetworkDeviceType.createFirewall();
+      const result = device.updateDeviceType(newType);
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.deviceType.toString()).toBe(
+        NetworkDeviceType.FIREWALL
+      );
+    });
+
+    it('should allow updating device type on DRAFT device', () => {
+      const draftProps = {
+        ...validProps,
+        activationStatus: ActivationStatus.DRAFT
+      };
+      const draftDevice = NetworkDevice.create(
+        draftProps,
+        NetworkDeviceId.create().value
+      ).value;
+      draftDevice.clearEvents();
+
+      const newType = NetworkDeviceType.createAccessPoint();
+      const result = draftDevice.updateDeviceType(newType);
+
+      expect(result.isSuccess).toBe(true);
+      expect(draftDevice.deviceType.toString()).toBe(
+        NetworkDeviceType.ACCESS_POINT
+      );
+    });
+
+    it('should update updatedAt timestamp', () => {
+      const oldUpdatedAt = device.updatedAt;
+      const newType = NetworkDeviceType.createSwitch();
+
+      const result = device.updateDeviceType(newType);
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.updatedAt.getTime()).toBeGreaterThanOrEqual(
+        oldUpdatedAt.getTime()
+      );
+    });
+
+    it('should fail when device type is null', () => {
+      const result = device.updateDeviceType(null as any);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('deviceType');
+    });
+
+    it('should fail when device type is undefined', () => {
+      const result = device.updateDeviceType(undefined as any);
+
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('should emit NetworkDeviceUpdatedEvent when device type changes', () => {
+      const oldType = device.deviceType.toString();
+      const newType = NetworkDeviceType.createSwitch();
+
+      const result = device.updateDeviceType(newType);
+
+      expect(result.isSuccess).toBe(true);
+      const events = device.domainEvents;
+      expect(events.length).toBe(1);
+      expect(events[0].constructor.name).toBe(
+        'NetworkDeviceUpdatedEvent'
+      );
+
+      const event = events[0] as any;
+      expect(event.changedFields).toEqual(['deviceType']);
+      expect(event.previousValues.deviceType).toBe(oldType);
+      expect(event.newValues.deviceType).toBe(
+        NetworkDeviceType.SWITCH
+      );
+    });
+
+    it('should not emit event when device type does not change', () => {
+      const currentType = device.deviceType;
+
+      const result = device.updateDeviceType(currentType);
+
+      expect(result.isSuccess).toBe(true);
+      const events = device.domainEvents;
+      expect(events.length).toBe(0);
+    });
+
+    it('should handle all device type transitions', () => {
+      const deviceTypes = [
+        NetworkDeviceType.createSwitch(),
+        NetworkDeviceType.createAccessPoint(),
+        NetworkDeviceType.createStation(),
+        NetworkDeviceType.createPtpRadio(),
+        NetworkDeviceType.createPtmpRadio(),
+        NetworkDeviceType.createFirewall(),
+        NetworkDeviceType.createServer(),
+        NetworkDeviceType.createUnknown()
+      ];
+
+      for (const newType of deviceTypes) {
+        const result = device.updateDeviceType(newType);
+        expect(result.isSuccess).toBe(true);
+        expect(device.deviceType.equals(newType)).toBe(true);
+      }
+    });
+  });
+
+  describe('updateConnectivityType', () => {
+    let device: NetworkDevice;
+
+    beforeEach(() => {
+      device = NetworkDevice.create(
+        validProps,
+        NetworkDeviceId.create().value
+      ).value;
+      device.clearEvents();
+    });
+
+    it('should update connectivity type successfully', () => {
+      const result = device.updateConnectivityType(
+        ConnectivityType.FIBER_OPTIC
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.connectivityType).toBe(
+        ConnectivityType.FIBER_OPTIC
+      );
+    });
+
+    it('should allow updating connectivity type on ACTIVE device', () => {
+      expect(device.isActive()).toBe(true);
+
+      const result = device.updateConnectivityType(
+        ConnectivityType.WIRELESS
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.connectivityType).toBe(ConnectivityType.WIRELESS);
+    });
+
+    it('should allow updating connectivity type on DRAFT device', () => {
+      const draftProps = {
+        ...validProps,
+        activationStatus: ActivationStatus.DRAFT
+      };
+      const draftDevice = NetworkDevice.create(
+        draftProps,
+        NetworkDeviceId.create().value
+      ).value;
+      draftDevice.clearEvents();
+
+      const result = draftDevice.updateConnectivityType(
+        ConnectivityType.DSL
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(draftDevice.connectivityType).toBe(ConnectivityType.DSL);
+    });
+
+    it('should update updatedAt timestamp', () => {
+      const oldUpdatedAt = device.updatedAt;
+
+      const result = device.updateConnectivityType(
+        ConnectivityType.FIBER_OPTIC
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.updatedAt.getTime()).toBeGreaterThanOrEqual(
+        oldUpdatedAt.getTime()
+      );
+    });
+
+    it('should fail when connectivity type is null', () => {
+      const result = device.updateConnectivityType(null as any);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('connectivityType');
+    });
+
+    it('should fail when connectivity type is undefined', () => {
+      const result = device.updateConnectivityType(undefined as any);
+
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('should emit NetworkDeviceUpdatedEvent when connectivity type changes', () => {
+      const oldType = device.connectivityType;
+
+      const result = device.updateConnectivityType(
+        ConnectivityType.FIBER_OPTIC
+      );
+
+      expect(result.isSuccess).toBe(true);
+      const events = device.domainEvents;
+      expect(events.length).toBe(1);
+      expect(events[0].constructor.name).toBe(
+        'NetworkDeviceUpdatedEvent'
+      );
+
+      const event = events[0] as any;
+      expect(event.changedFields).toEqual(['connectivityType']);
+      expect(event.previousValues.connectivityType).toBe(oldType);
+      expect(event.newValues.connectivityType).toBe(
+        ConnectivityType.FIBER_OPTIC
+      );
+    });
+
+    it('should not emit event when connectivity type does not change', () => {
+      const currentType = device.connectivityType;
+
+      const result = device.updateConnectivityType(currentType);
+
+      expect(result.isSuccess).toBe(true);
+      const events = device.domainEvents;
+      expect(events.length).toBe(0);
+    });
+
+    it('should handle all connectivity type transitions', () => {
+      const connectivityTypes = [
+        ConnectivityType.ETHERNET,
+        ConnectivityType.FIBER_OPTIC,
+        ConnectivityType.WIRELESS,
+        ConnectivityType.DSL,
+        ConnectivityType.SATELLITE,
+        ConnectivityType.OTHER
+      ];
+
+      for (const newType of connectivityTypes) {
+        const result = device.updateConnectivityType(newType);
+        expect(result.isSuccess).toBe(true);
+        expect(device.connectivityType).toBe(newType);
+      }
+    });
+  });
+
+  describe('updateDeviceId', () => {
+    let draftDevice: NetworkDevice;
+    let activeDevice: NetworkDevice;
+
+    beforeEach(() => {
+      const draftProps = {
+        ...validProps,
+        activationStatus: ActivationStatus.DRAFT
+      };
+      draftDevice = NetworkDevice.create(
+        draftProps,
+        NetworkDeviceId.create().value
+      ).value;
+      draftDevice.clearEvents();
+
+      activeDevice = NetworkDevice.create(
+        validProps,
+        NetworkDeviceId.create().value
+      ).value;
+      activeDevice.clearEvents();
+    });
+
+    it('should update device ID successfully when device is in DRAFT status', () => {
+      const result = draftDevice.updateDeviceId('new-device-id-123');
+
+      expect(result.isSuccess).toBe(true);
+      expect(draftDevice.deviceId).toBe('new-device-id-123');
+    });
+
+    it('should fail when device is in ACTIVE status', () => {
+      const result = activeDevice.updateDeviceId('new-device-id-123');
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('DRAFT status');
+    });
+
+    it('should update updatedAt timestamp', () => {
+      const oldUpdatedAt = draftDevice.updatedAt;
+
+      const result = draftDevice.updateDeviceId('new-device-id-123');
+
+      expect(result.isSuccess).toBe(true);
+      expect(draftDevice.updatedAt.getTime()).toBeGreaterThanOrEqual(
+        oldUpdatedAt.getTime()
+      );
+    });
+
+    it('should fail when device ID is null', () => {
+      const result = draftDevice.updateDeviceId(null as any);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('deviceId');
+    });
+
+    it('should fail when device ID is undefined', () => {
+      const result = draftDevice.updateDeviceId(undefined as any);
+
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('should fail when device ID is not a string', () => {
+      const result = draftDevice.updateDeviceId(123 as any);
+
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('should fail when device ID is empty string', () => {
+      const result = draftDevice.updateDeviceId('');
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('empty');
+    });
+
+    it('should fail when device ID is only whitespace', () => {
+      const result = draftDevice.updateDeviceId('   ');
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('empty');
+    });
+
+    it('should emit NetworkDeviceUpdatedEvent when device ID changes', () => {
+      const oldDeviceId = draftDevice.deviceId;
+
+      const result = draftDevice.updateDeviceId('new-device-id-123');
+
+      expect(result.isSuccess).toBe(true);
+      const events = draftDevice.domainEvents;
+      expect(events.length).toBe(1);
+      expect(events[0].constructor.name).toBe(
+        'NetworkDeviceUpdatedEvent'
+      );
+
+      const event = events[0] as any;
+      expect(event.changedFields).toEqual(['deviceId']);
+      expect(event.previousValues.deviceId).toBe(oldDeviceId);
+      expect(event.newValues.deviceId).toBe('new-device-id-123');
+    });
+
+    it('should not emit event when device ID does not change', () => {
+      const currentDeviceId = draftDevice.deviceId;
+
+      const result = draftDevice.updateDeviceId(currentDeviceId);
+
+      expect(result.isSuccess).toBe(true);
+      const events = draftDevice.domainEvents;
+      expect(events.length).toBe(0);
+    });
+  });
+
+  describe('updateInstallDate', () => {
+    let draftDevice: NetworkDevice;
+    let activeDevice: NetworkDevice;
+
+    beforeEach(() => {
+      const draftProps = {
+        ...validProps,
+        activationStatus: ActivationStatus.DRAFT
+      };
+      draftDevice = NetworkDevice.create(
+        draftProps,
+        NetworkDeviceId.create().value
+      ).value;
+      draftDevice.clearEvents();
+
+      activeDevice = NetworkDevice.create(
+        validProps,
+        NetworkDeviceId.create().value
+      ).value;
+      activeDevice.clearEvents();
+    });
+
+    it('should update install date successfully when device is in DRAFT status', () => {
+      const newDate = new Date('2025-06-15');
+      const result = draftDevice.updateInstallDate(newDate);
+
+      expect(result.isSuccess).toBe(true);
+      expect(draftDevice.installDate.getTime()).toBe(
+        newDate.getTime()
+      );
+    });
+
+    it('should fail when device is in ACTIVE status', () => {
+      const newDate = new Date('2025-06-15');
+      const result = activeDevice.updateInstallDate(newDate);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('DRAFT status');
+    });
+
+    it('should update updatedAt timestamp', () => {
+      const oldUpdatedAt = draftDevice.updatedAt;
+      const newDate = new Date('2025-06-15');
+
+      const result = draftDevice.updateInstallDate(newDate);
+
+      expect(result.isSuccess).toBe(true);
+      expect(draftDevice.updatedAt.getTime()).toBeGreaterThanOrEqual(
+        oldUpdatedAt.getTime()
+      );
+    });
+
+    it('should fail when install date is null', () => {
+      const result = draftDevice.updateInstallDate(null as any);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('installDate');
+    });
+
+    it('should fail when install date is undefined', () => {
+      const result = draftDevice.updateInstallDate(undefined as any);
+
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('should fail when install date is not a valid Date', () => {
+      const result = draftDevice.updateInstallDate(
+        'not-a-date' as any
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('valid date');
+    });
+
+    it('should fail when install date is an invalid Date object', () => {
+      const invalidDate = new Date('invalid');
+      const result = draftDevice.updateInstallDate(invalidDate);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('valid date');
+    });
+
+    it('should emit NetworkDeviceUpdatedEvent when install date changes', () => {
+      const oldInstallDate = draftDevice.installDate;
+      const newDate = new Date('2025-06-15');
+
+      const result = draftDevice.updateInstallDate(newDate);
+
+      expect(result.isSuccess).toBe(true);
+      const events = draftDevice.domainEvents;
+      expect(events.length).toBe(1);
+      expect(events[0].constructor.name).toBe(
+        'NetworkDeviceUpdatedEvent'
+      );
+
+      const event = events[0] as any;
+      expect(event.changedFields).toEqual(['installDate']);
+      expect(event.previousValues.installDate).toBe(
+        oldInstallDate.toISOString()
+      );
+      expect(event.newValues.installDate).toBe(newDate.toISOString());
+    });
+
+    it('should not emit event when install date does not change', () => {
+      const currentInstallDate = draftDevice.installDate;
+
+      const result = draftDevice.updateInstallDate(
+        new Date(currentInstallDate.getTime())
+      );
+
+      expect(result.isSuccess).toBe(true);
+      const events = draftDevice.domainEvents;
+      expect(events.length).toBe(0);
+    });
+
+    it('should accept future dates', () => {
+      const futureDate = new Date('2030-01-01');
+      const result = draftDevice.updateInstallDate(futureDate);
+
+      expect(result.isSuccess).toBe(true);
+      expect(draftDevice.installDate.getTime()).toBe(
+        futureDate.getTime()
+      );
+    });
+
+    it('should accept past dates', () => {
+      const pastDate = new Date('2010-01-01');
+      const result = draftDevice.updateInstallDate(pastDate);
+
+      expect(result.isSuccess).toBe(true);
+      expect(draftDevice.installDate.getTime()).toBe(
+        pastDate.getTime()
+      );
+    });
+  });
+
   describe('domain events', () => {
     it('should emit creation event for new device', () => {
       const device = NetworkDevice.create(
@@ -2505,7 +3094,7 @@ describe('NetworkDevice', () => {
       ).value;
       device.clearEvents();
 
-      device.updateStatus(NetworkDeviceStatus.createOnline().value);
+      device.updateStatus(NetworkDeviceStatus.createOnline());
 
       const events = device.domainEvents;
       expect(events.length).toBe(1);
@@ -2521,8 +3110,8 @@ describe('NetworkDevice', () => {
       ).value;
       device.clearEvents();
 
-      device.updateStatus(NetworkDeviceStatus.createOnline().value);
-      device.updateStatus(NetworkDeviceStatus.createOffline().value);
+      device.updateStatus(NetworkDeviceStatus.createOnline());
+      device.updateStatus(NetworkDeviceStatus.createOffline());
 
       const events = device.domainEvents;
       expect(events.length).toBe(2);
