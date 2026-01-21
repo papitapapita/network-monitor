@@ -34,11 +34,11 @@ describe('PollingResult', () => {
         {
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createSuccess().value,
+          status: PollingStatus.createSuccess(),
           metrics,
           attemptNumber: 1,
           errorMessage: null,
-          deviceStatus: NetworkDeviceStatus.createOnline().value
+          deviceStatus: NetworkDeviceStatus.createOnline()
         },
         id
       );
@@ -64,11 +64,11 @@ describe('PollingResult', () => {
         {
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createSuccess().value,
+          status: PollingStatus.createSuccess(),
           metrics,
           attemptNumber: 1,
           errorMessage: null,
-          deviceStatus: NetworkDeviceStatus.createOnline().value
+          deviceStatus: NetworkDeviceStatus.createOnline()
         },
         id
       );
@@ -85,11 +85,11 @@ describe('PollingResult', () => {
         {
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createSuccess().value,
+          status: PollingStatus.createSuccess(),
           metrics,
           attemptNumber: 1,
           errorMessage: null,
-          deviceStatus: NetworkDeviceStatus.createOnline().value
+          deviceStatus: NetworkDeviceStatus.createOnline()
         },
         customId
       );
@@ -103,11 +103,11 @@ describe('PollingResult', () => {
         {
           networkDeviceId: null as any,
           timestamp,
-          status: PollingStatus.createSuccess().value,
+          status: PollingStatus.createSuccess(),
           metrics,
           attemptNumber: 1,
           errorMessage: null,
-          deviceStatus: NetworkDeviceStatus.createOnline().value
+          deviceStatus: NetworkDeviceStatus.createOnline()
         },
         id
       );
@@ -122,11 +122,11 @@ describe('PollingResult', () => {
         {
           networkDeviceId,
           timestamp: null as any,
-          status: PollingStatus.createSuccess().value,
+          status: PollingStatus.createSuccess(),
           metrics,
           attemptNumber: 1,
           errorMessage: null,
-          deviceStatus: NetworkDeviceStatus.createOnline().value
+          deviceStatus: NetworkDeviceStatus.createOnline()
         },
         id
       );
@@ -145,7 +145,7 @@ describe('PollingResult', () => {
           metrics,
           attemptNumber: 1,
           errorMessage: null,
-          deviceStatus: NetworkDeviceStatus.createOnline().value
+          deviceStatus: NetworkDeviceStatus.createOnline()
         },
         id
       );
@@ -160,7 +160,7 @@ describe('PollingResult', () => {
         {
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createSuccess().value,
+          status: PollingStatus.createSuccess(),
           metrics,
           attemptNumber: 1,
           errorMessage: null,
@@ -179,11 +179,11 @@ describe('PollingResult', () => {
         {
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createSuccess().value,
+          status: PollingStatus.createSuccess(),
           metrics,
           attemptNumber: null as any,
           errorMessage: null,
-          deviceStatus: NetworkDeviceStatus.createOnline().value
+          deviceStatus: NetworkDeviceStatus.createOnline()
         },
         id
       );
@@ -198,11 +198,11 @@ describe('PollingResult', () => {
         {
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createSuccess().value,
+          status: PollingStatus.createSuccess(),
           metrics,
           attemptNumber: 'invalid' as any,
           errorMessage: null,
-          deviceStatus: NetworkDeviceStatus.createOnline().value
+          deviceStatus: NetworkDeviceStatus.createOnline()
         },
         id
       );
@@ -217,11 +217,11 @@ describe('PollingResult', () => {
         {
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createSuccess().value,
+          status: PollingStatus.createSuccess(),
           metrics,
           attemptNumber: 0,
           errorMessage: null,
-          deviceStatus: NetworkDeviceStatus.createOnline().value
+          deviceStatus: NetworkDeviceStatus.createOnline()
         },
         id
       );
@@ -236,11 +236,11 @@ describe('PollingResult', () => {
         {
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createSuccess().value,
+          status: PollingStatus.createSuccess(),
           metrics,
           attemptNumber: 11,
           errorMessage: null,
-          deviceStatus: NetworkDeviceStatus.createOnline().value
+          deviceStatus: NetworkDeviceStatus.createOnline()
         },
         id
       );
@@ -255,11 +255,11 @@ describe('PollingResult', () => {
         {
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createSuccess().value,
+          status: PollingStatus.createSuccess(),
           metrics,
           attemptNumber: 2.7,
           errorMessage: null,
-          deviceStatus: NetworkDeviceStatus.createOnline().value
+          deviceStatus: NetworkDeviceStatus.createOnline()
         },
         id
       );
@@ -274,11 +274,11 @@ describe('PollingResult', () => {
         {
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createSuccess().value,
+          status: PollingStatus.createSuccess(),
           metrics,
           attemptNumber: 1,
           errorMessage: null,
-          deviceStatus: NetworkDeviceStatus.createOnline().value
+          deviceStatus: NetworkDeviceStatus.createOnline()
         },
         id
       );
@@ -293,11 +293,11 @@ describe('PollingResult', () => {
         {
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createSuccess().value,
+          status: PollingStatus.createSuccess(),
           metrics,
           attemptNumber: 10,
           errorMessage: null,
-          deviceStatus: NetworkDeviceStatus.createOnline().value
+          deviceStatus: NetworkDeviceStatus.createOnline()
         },
         id
       );
@@ -313,11 +313,11 @@ describe('PollingResult', () => {
           {
             networkDeviceId,
             timestamp,
-            status: PollingStatus.createSuccess().value,
+            status: PollingStatus.createSuccess(),
             metrics: null,
             attemptNumber: 1,
             errorMessage: null,
-            deviceStatus: NetworkDeviceStatus.createOnline().value
+            deviceStatus: NetworkDeviceStatus.createOnline()
           },
           id
         );
@@ -333,11 +333,11 @@ describe('PollingResult', () => {
           {
             networkDeviceId,
             timestamp,
-            status: PollingStatus.createPartialSuccess().value,
+            status: PollingStatus.createPartialSuccess(),
             metrics: null,
             attemptNumber: 1,
             errorMessage: null,
-            deviceStatus: NetworkDeviceStatus.createOnline().value
+            deviceStatus: NetworkDeviceStatus.createOnline()
           },
           id
         );
@@ -353,11 +353,11 @@ describe('PollingResult', () => {
           {
             networkDeviceId,
             timestamp,
-            status: PollingStatus.createFailed().value,
+            status: PollingStatus.createFailed(),
             metrics: null,
             attemptNumber: 1,
             errorMessage: null,
-            deviceStatus: NetworkDeviceStatus.createOffline().value
+            deviceStatus: NetworkDeviceStatus.createOffline()
           },
           id
         );
@@ -373,11 +373,11 @@ describe('PollingResult', () => {
           {
             networkDeviceId,
             timestamp,
-            status: PollingStatus.createTimeout().value,
+            status: PollingStatus.createTimeout(),
             metrics: null,
             attemptNumber: 1,
             errorMessage: null,
-            deviceStatus: NetworkDeviceStatus.createOffline().value
+            deviceStatus: NetworkDeviceStatus.createOffline()
           },
           id
         );
@@ -393,11 +393,11 @@ describe('PollingResult', () => {
           {
             networkDeviceId,
             timestamp,
-            status: PollingStatus.createSuccess().value,
+            status: PollingStatus.createSuccess(),
             metrics,
             attemptNumber: 1,
             errorMessage: null,
-            deviceStatus: NetworkDeviceStatus.createOnline().value
+            deviceStatus: NetworkDeviceStatus.createOnline()
           },
           id
         );
@@ -411,11 +411,11 @@ describe('PollingResult', () => {
           {
             networkDeviceId,
             timestamp,
-            status: PollingStatus.createFailed().value,
+            status: PollingStatus.createFailed(),
             metrics: null,
             attemptNumber: 1,
             errorMessage: 'Connection timeout',
-            deviceStatus: NetworkDeviceStatus.createOffline().value
+            deviceStatus: NetworkDeviceStatus.createOffline()
           },
           id
         );
@@ -432,7 +432,7 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOnline().value,
+        deviceStatus: NetworkDeviceStatus.createOnline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       });
@@ -454,7 +454,7 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOnline().value,
+        deviceStatus: NetworkDeviceStatus.createOnline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       });
@@ -468,7 +468,7 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOnline().value,
+        deviceStatus: NetworkDeviceStatus.createOnline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       });
@@ -484,10 +484,10 @@ describe('PollingResult', () => {
       const result = PollingResult.createFailure({
         networkDeviceId,
         timestamp,
-        status: PollingStatus.createFailed().value,
+        status: PollingStatus.createFailed(),
         errorMessage: 'Host unreachable',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOffline().value,
+        deviceStatus: NetworkDeviceStatus.createOffline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       });
@@ -507,10 +507,10 @@ describe('PollingResult', () => {
       const result = PollingResult.createFailure({
         networkDeviceId,
         timestamp,
-        status: PollingStatus.createTimeout().value,
+        status: PollingStatus.createTimeout(),
         errorMessage: 'Request timed out',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOffline().value,
+        deviceStatus: NetworkDeviceStatus.createOffline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       });
@@ -525,10 +525,10 @@ describe('PollingResult', () => {
       const result = PollingResult.createFailure({
         networkDeviceId,
         timestamp,
-        status: PollingStatus.createFailed().value,
+        status: PollingStatus.createFailed(),
         errorMessage: 'Partial failure',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOffline().value,
+        deviceStatus: NetworkDeviceStatus.createOffline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value,
         metrics
@@ -542,10 +542,10 @@ describe('PollingResult', () => {
       const result = PollingResult.createFailure({
         networkDeviceId,
         timestamp,
-        status: PollingStatus.createFailed().value,
+        status: PollingStatus.createFailed(),
         errorMessage: 'Host unreachable',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOffline().value,
+        deviceStatus: NetworkDeviceStatus.createOffline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       });
@@ -561,7 +561,7 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOnline().value,
+        deviceStatus: NetworkDeviceStatus.createOnline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -581,11 +581,11 @@ describe('PollingResult', () => {
         {
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createPartialSuccess().value,
+          status: PollingStatus.createPartialSuccess(),
           metrics: partialMetrics,
           attemptNumber: 1,
           errorMessage: null,
-          deviceStatus: NetworkDeviceStatus.createOnline().value
+          deviceStatus: NetworkDeviceStatus.createOnline()
         },
         id
       ).value;
@@ -597,10 +597,10 @@ describe('PollingResult', () => {
       const result = PollingResult.createFailure({
         networkDeviceId,
         timestamp,
-        status: PollingStatus.createFailed().value,
+        status: PollingStatus.createFailed(),
         errorMessage: 'Failed',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOffline().value,
+        deviceStatus: NetworkDeviceStatus.createOffline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -612,10 +612,10 @@ describe('PollingResult', () => {
       const result = PollingResult.createFailure({
         networkDeviceId,
         timestamp,
-        status: PollingStatus.createTimeout().value,
+        status: PollingStatus.createTimeout(),
         errorMessage: 'Timeout',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOffline().value,
+        deviceStatus: NetworkDeviceStatus.createOffline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -629,10 +629,10 @@ describe('PollingResult', () => {
       const result = PollingResult.createFailure({
         networkDeviceId,
         timestamp,
-        status: PollingStatus.createFailed().value,
+        status: PollingStatus.createFailed(),
         errorMessage: 'Failed',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOffline().value,
+        deviceStatus: NetworkDeviceStatus.createOffline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -644,10 +644,10 @@ describe('PollingResult', () => {
       const result = PollingResult.createFailure({
         networkDeviceId,
         timestamp,
-        status: PollingStatus.createTimeout().value,
+        status: PollingStatus.createTimeout(),
         errorMessage: 'Timeout',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOffline().value,
+        deviceStatus: NetworkDeviceStatus.createOffline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -661,7 +661,7 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOnline().value,
+        deviceStatus: NetworkDeviceStatus.createOnline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -681,11 +681,11 @@ describe('PollingResult', () => {
         {
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createPartialSuccess().value,
+          status: PollingStatus.createPartialSuccess(),
           metrics: partialMetrics,
           attemptNumber: 1,
           errorMessage: null,
-          deviceStatus: NetworkDeviceStatus.createOnline().value
+          deviceStatus: NetworkDeviceStatus.createOnline()
         },
         id
       ).value;
@@ -701,7 +701,7 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOnline().value,
+        deviceStatus: NetworkDeviceStatus.createOnline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -713,10 +713,10 @@ describe('PollingResult', () => {
       const result = PollingResult.createFailure({
         networkDeviceId,
         timestamp,
-        status: PollingStatus.createFailed().value,
+        status: PollingStatus.createFailed(),
         errorMessage: 'Failed',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOffline().value,
+        deviceStatus: NetworkDeviceStatus.createOffline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -734,10 +734,10 @@ describe('PollingResult', () => {
       const result = PollingResult.createFailure({
         networkDeviceId,
         timestamp,
-        status: PollingStatus.createFailed().value,
+        status: PollingStatus.createFailed(),
         errorMessage: 'Failed',
         attemptNumber: 3,
-        deviceStatus: NetworkDeviceStatus.createOffline().value,
+        deviceStatus: NetworkDeviceStatus.createOffline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -755,10 +755,10 @@ describe('PollingResult', () => {
       const result = PollingResult.createFailure({
         networkDeviceId,
         timestamp,
-        status: PollingStatus.createFailed().value,
+        status: PollingStatus.createFailed(),
         errorMessage: 'Failed',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOffline().value,
+        deviceStatus: NetworkDeviceStatus.createOffline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -776,7 +776,7 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOnline().value,
+        deviceStatus: NetworkDeviceStatus.createOnline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -788,10 +788,10 @@ describe('PollingResult', () => {
       const result = PollingResult.createFailure({
         networkDeviceId,
         timestamp,
-        status: PollingStatus.createFailed().value,
+        status: PollingStatus.createFailed(),
         errorMessage: 'Failed',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOffline().value,
+        deviceStatus: NetworkDeviceStatus.createOffline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -805,11 +805,11 @@ describe('PollingResult', () => {
         {
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createFailed().value,
+          status: PollingStatus.createFailed(),
           metrics: null,
           attemptNumber: 1,
           errorMessage: 'In maintenance',
-          deviceStatus: NetworkDeviceStatus.createMaintenance().value
+          deviceStatus: NetworkDeviceStatus.createMaintenance()
         },
         id
       ).value;
@@ -823,10 +823,10 @@ describe('PollingResult', () => {
       const result = PollingResult.createFailure({
         networkDeviceId,
         timestamp,
-        status: PollingStatus.createFailed().value,
+        status: PollingStatus.createFailed(),
         errorMessage: 'Failed',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOffline().value,
+        deviceStatus: NetworkDeviceStatus.createOffline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -840,7 +840,7 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOnline().value,
+        deviceStatus: NetworkDeviceStatus.createOnline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -854,11 +854,11 @@ describe('PollingResult', () => {
         {
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createFailed().value,
+          status: PollingStatus.createFailed(),
           metrics: null,
           attemptNumber: 1,
           errorMessage: 'In maintenance',
-          deviceStatus: NetworkDeviceStatus.createMaintenance().value
+          deviceStatus: NetworkDeviceStatus.createMaintenance()
         },
         id
       ).value;
@@ -874,7 +874,7 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOnline().value,
+        deviceStatus: NetworkDeviceStatus.createOnline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -890,10 +890,10 @@ describe('PollingResult', () => {
       const result = PollingResult.createFailure({
         networkDeviceId,
         timestamp,
-        status: PollingStatus.createFailed().value,
+        status: PollingStatus.createFailed(),
         errorMessage: 'Connection refused',
         attemptNumber: 2,
-        deviceStatus: NetworkDeviceStatus.createOffline().value,
+        deviceStatus: NetworkDeviceStatus.createOffline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -909,10 +909,10 @@ describe('PollingResult', () => {
       const result = PollingResult.createFailure({
         networkDeviceId,
         timestamp,
-        status: PollingStatus.createTimeout().value,
+        status: PollingStatus.createTimeout(),
         errorMessage: 'Timeout',
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOffline().value,
+        deviceStatus: NetworkDeviceStatus.createOffline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -930,7 +930,7 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOnline().value,
+        deviceStatus: NetworkDeviceStatus.createOnline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -949,7 +949,7 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOnline().value,
+        deviceStatus: NetworkDeviceStatus.createOnline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -977,11 +977,11 @@ describe('PollingResult', () => {
         {
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createSuccess().value,
+          status: PollingStatus.createSuccess(),
           metrics,
           attemptNumber: 3,
           errorMessage: null,
-          deviceStatus: NetworkDeviceStatus.createOnline().value
+          deviceStatus: NetworkDeviceStatus.createOnline()
         },
         id
       ).value;
@@ -1005,7 +1005,7 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOnline().value,
+        deviceStatus: NetworkDeviceStatus.createOnline(),
         deviceName: 'Test-Device',
         ipAddress: IPAddress.create('192.168.1.1').value
       }).value;
@@ -1025,7 +1025,7 @@ describe('PollingResult', () => {
           timestamp,
           metrics,
           attemptNumber: 1,
-          deviceStatus: NetworkDeviceStatus.createOnline().value,
+          deviceStatus: NetworkDeviceStatus.createOnline(),
           deviceName: 'Router-01',
           ipAddress: IPAddress.create('192.168.1.1').value
         });
@@ -1044,7 +1044,7 @@ describe('PollingResult', () => {
           timestamp,
           metrics,
           attemptNumber: 1,
-          deviceStatus: NetworkDeviceStatus.createOnline().value,
+          deviceStatus: NetworkDeviceStatus.createOnline(),
           deviceName: 'Router-01',
           ipAddress: IPAddress.create('192.168.1.1').value,
           wasOffline: true
@@ -1063,7 +1063,7 @@ describe('PollingResult', () => {
           timestamp,
           metrics,
           attemptNumber: 1,
-          deviceStatus: NetworkDeviceStatus.createOnline().value,
+          deviceStatus: NetworkDeviceStatus.createOnline(),
           deviceName: 'Router-01',
           ipAddress: IPAddress.create('192.168.1.1').value
         });
@@ -1079,7 +1079,7 @@ describe('PollingResult', () => {
           timestamp,
           metrics,
           attemptNumber: 1,
-          deviceStatus: NetworkDeviceStatus.createOnline().value,
+          deviceStatus: NetworkDeviceStatus.createOnline(),
           deviceName: 'Router-01',
           ipAddress: IPAddress.create('192.168.1.1').value
         });
@@ -1097,10 +1097,10 @@ describe('PollingResult', () => {
         const result = PollingResult.createFailure({
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createFailed().value,
+          status: PollingStatus.createFailed(),
           errorMessage: 'Host unreachable',
           attemptNumber: 1,
-          deviceStatus: NetworkDeviceStatus.createOffline().value,
+          deviceStatus: NetworkDeviceStatus.createOffline(),
           deviceName: 'Router-01',
           ipAddress: IPAddress.create('192.168.1.1').value
         });
@@ -1117,10 +1117,10 @@ describe('PollingResult', () => {
         const result = PollingResult.createFailure({
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createFailed().value,
+          status: PollingStatus.createFailed(),
           errorMessage: 'Connection lost',
           attemptNumber: 2,
-          deviceStatus: NetworkDeviceStatus.createOffline().value,
+          deviceStatus: NetworkDeviceStatus.createOffline(),
           deviceName: 'Router-01',
           ipAddress: IPAddress.create('192.168.1.1').value,
           wasOnline: true
@@ -1137,10 +1137,10 @@ describe('PollingResult', () => {
         const result = PollingResult.createFailure({
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createFailed().value,
+          status: PollingStatus.createFailed(),
           errorMessage: 'Host unreachable',
           attemptNumber: 1,
-          deviceStatus: NetworkDeviceStatus.createOffline().value,
+          deviceStatus: NetworkDeviceStatus.createOffline(),
           deviceName: 'Router-01',
           ipAddress: IPAddress.create('192.168.1.1').value
         });
@@ -1154,10 +1154,10 @@ describe('PollingResult', () => {
         const result = PollingResult.createFailure({
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createTimeout().value,
+          status: PollingStatus.createTimeout(),
           errorMessage: 'Request timed out after 5 seconds',
           attemptNumber: 3,
-          deviceStatus: NetworkDeviceStatus.createOffline().value,
+          deviceStatus: NetworkDeviceStatus.createOffline(),
           deviceName: 'Router-01',
           ipAddress: IPAddress.create('192.168.1.1').value
         });
@@ -1177,10 +1177,10 @@ describe('PollingResult', () => {
         const result = PollingResult.createFailure({
           networkDeviceId,
           timestamp,
-          status: PollingStatus.createTimeout().value,
+          status: PollingStatus.createTimeout(),
           errorMessage: 'Timeout',
           attemptNumber: 1,
-          deviceStatus: NetworkDeviceStatus.createOffline().value,
+          deviceStatus: NetworkDeviceStatus.createOffline(),
           deviceName: 'Router-01',
           ipAddress: IPAddress.create('192.168.1.1').value
         });
@@ -1199,7 +1199,7 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOnline().value,
+        deviceStatus: NetworkDeviceStatus.createOnline(),
         ipAddress: IPAddress.create('192.168.1.1').value,
         deviceName: 'Test-Device'
       });
@@ -1214,7 +1214,7 @@ describe('PollingResult', () => {
         timestamp,
         metrics,
         attemptNumber: 1,
-        deviceStatus: NetworkDeviceStatus.createOnline().value,
+        deviceStatus: NetworkDeviceStatus.createOnline(),
         deviceName: 'Router-01',
         ipAddress: IPAddress.create('192.168.1.1').value
       });

@@ -166,15 +166,18 @@ export class PollingResult extends AggregateRoot<
     // Generate ID for new polling result
     const id = PollingResultId.create().value;
 
-    const createResult = this.reconstitute({
-      networkDeviceId: props.networkDeviceId,
-      timestamp: props.timestamp,
-      status: PollingStatus.createSuccess().value,
-      metrics: props.metrics,
-      attemptNumber: props.attemptNumber,
-      errorMessage: null,
-      deviceStatus: props.deviceStatus
-    }, id);
+    const createResult = this.reconstitute(
+      {
+        networkDeviceId: props.networkDeviceId,
+        timestamp: props.timestamp,
+        status: PollingStatus.createSuccess(),
+        metrics: props.metrics,
+        attemptNumber: props.attemptNumber,
+        errorMessage: null,
+        deviceStatus: props.deviceStatus
+      },
+      id
+    );
 
     if (createResult.isSuccess) {
       const pollingResult = createResult.value;
@@ -217,15 +220,18 @@ export class PollingResult extends AggregateRoot<
     // Generate ID for new polling result
     const id = PollingResultId.create().value;
 
-    const createResult = this.reconstitute({
-      networkDeviceId: props.networkDeviceId,
-      timestamp: props.timestamp,
-      status: props.status,
-      metrics: props.metrics || null,
-      attemptNumber: props.attemptNumber,
-      errorMessage: props.errorMessage,
-      deviceStatus: props.deviceStatus
-    }, id);
+    const createResult = this.reconstitute(
+      {
+        networkDeviceId: props.networkDeviceId,
+        timestamp: props.timestamp,
+        status: props.status,
+        metrics: props.metrics || null,
+        attemptNumber: props.attemptNumber,
+        errorMessage: props.errorMessage,
+        deviceStatus: props.deviceStatus
+      },
+      id
+    );
 
     if (createResult.isSuccess) {
       const pollingResult = createResult.value;
