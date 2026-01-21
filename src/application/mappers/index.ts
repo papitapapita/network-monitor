@@ -6,3 +6,4 @@
  */
 
 export { PollingMapper } from './PollingMapper';
+export { NetworkDeviceMapper } from './NetworkDeviceMapper';

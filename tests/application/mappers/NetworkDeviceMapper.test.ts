@@ -11,11 +11,15 @@ import {
   PollingConfiguration,
   PollingConfigurationId,
   PollingInterval,
-  RetryPolicy
+  RetryPolicy,
+  ActivationStatus
 } from '../../../src/domain';
 import {
   CreateNetworkDeviceDTO,
-  UpdateNetworkDeviceDTO
+  UpdateNetworkDeviceDTO,
+  ActivateNetworkDeviceRequestDTO,
+  SoftDeleteNetworkDeviceRequestDTO,
+  RestoreNetworkDeviceRequestDTO
 } from '../../../src/application/dtos';
 
 describe('NetworkDeviceMapper', () => {
@@ -54,8 +58,8 @@ describe('NetworkDeviceMapper', () => {
     const deviceResult = NetworkDevice.create(
       {
         name: 'Test Router',
-        deviceType: NetworkDeviceType.ROUTER,
-        status: NetworkDeviceStatus.OFFLINE,
+        deviceType: NetworkDeviceType.createRouter(),
+        status: NetworkDeviceStatus.createOffline(),
         description: 'Test device description',
         ipAddress,
         macAddress,
@@ -67,11 +71,17 @@ describe('NetworkDeviceMapper', () => {
         pollingConfiguration: pollingConfig,
         installDate: new Date('2024-01-01'),
         createdAt: new Date('2024-01-01T10:00:00Z'),
-        updatedAt: new Date('2024-01-01T10:00:00Z')
+        updatedAt: new Date('2024-01-01T10:00:00Z'),
+        activationStatus: ActivationStatus.ACTIVE,
+        activatedAt: null,
+        activatedBy: null,
+        deletedAt: null,
+        deletedBy: null,
+        replacedByDeviceId: null,
+        replacedAt: null
       },
       deviceId
     );
-
     return deviceResult.value;
   };
 
@@ -136,11 +146,19 @@ describe('NetworkDeviceMapper', () => {
       expect(dto.pollingConfiguration.id).toBe(
         device.pollingConfiguration.id.toString()
       );
+      expect(dto.pollingConfiguration.networkDeviceId).toBe(
+        device.id.toString()
+      );
       expect(dto.pollingConfiguration.enabled).toBe(false);
       expect(dto.pollingConfiguration.intervalSeconds).toBe(60);
       expect(dto.pollingConfiguration.pingCount).toBe(4);
-      expect(dto.pollingConfiguration.maxRetryAttempts).toBe(3);
-      expect(dto.pollingConfiguration.retryDelayMs).toBe(1000);
+      expect(dto.pollingConfiguration.retryPolicy).toBeDefined();
+      expect(dto.pollingConfiguration.retryPolicy.maxAttempts).toBe(
+        3
+      );
+      expect(dto.pollingConfiguration.retryPolicy.baseDelayMs).toBe(
+        1000
+      );
     });
 
     it('should handle null description', () => {
@@ -162,7 +180,14 @@ describe('NetworkDeviceMapper', () => {
           pollingConfiguration: device.pollingConfiguration,
           installDate: device.installDate,
           createdAt: device.createdAt,
-          updatedAt: device.updatedAt
+          updatedAt: device.updatedAt,
+          activationStatus: ActivationStatus.ACTIVE,
+          activatedAt: null,
+          activatedBy: null,
+          deletedAt: null,
+          deletedBy: null,
+          replacedByDeviceId: null,
+          replacedAt: null
         },
         device.id
       );
@@ -175,7 +200,7 @@ describe('NetworkDeviceMapper', () => {
       expect(dto.description).toBeNull();
     });
 
-    it('should preserve Date objects', () => {
+    it('should transform Date objects into strings', () => {
       // Arrange
       const device = createMockNetworkDevice();
 
@@ -183,9 +208,9 @@ describe('NetworkDeviceMapper', () => {
       const dto = NetworkDeviceMapper.toDTO(device);
 
       // Assert
-      expect(dto.installDate).toBeInstanceOf(Date);
-      expect(dto.createdAt).toBeInstanceOf(Date);
-      expect(dto.updatedAt).toBeInstanceOf(Date);
+      expect(typeof dto.installDate).toBe('string');
+      expect(typeof dto.createdAt).toBe('string');
+      expect(typeof dto.updatedAt).toBe('string');
     });
 
     it('should preserve primitive fields', () => {
@@ -201,6 +226,222 @@ describe('NetworkDeviceMapper', () => {
       expect(dto.deviceId).toBe('device-uuid-123');
       expect(typeof dto.managementPort).toBe('number');
       expect(typeof dto.enabledRemoteAccess).toBe('boolean');
+    });
+
+    // ========================================
+    // REQ-002: Lifecycle Management Fields
+    // ========================================
+
+    it('should map activationStatus to string', () => {
+      // Arrange
+      const device = createMockNetworkDevice();
+
+      // Act
+      const dto = NetworkDeviceMapper.toDTO(device);
+
+      // Assert
+      expect(dto.activationStatus).toBe('ACTIVE');
+      expect(typeof dto.activationStatus).toBe('string');
+    });
+
+    it('should map DRAFT activationStatus correctly', () => {
+      // Arrange
+      const deviceId = NetworkDeviceId.create().value;
+      const ipAddress = IPAddress.create('192.168.1.1').value;
+      const macAddress = MACAddress.create('AA:BB:CC:DD:EE:FF').value;
+      const pollingConfig = createMockPollingConfiguration(deviceId);
+
+      const deviceResult = NetworkDevice.create(
+        {
+          name: 'Draft Device',
+          deviceType: NetworkDeviceType.createRouter(),
+          status: NetworkDeviceStatus.createOffline(),
+          description: null,
+          ipAddress,
+          macAddress,
+          connectivityType: ConnectivityType.ETHERNET,
+          managementProtocol: ManagementProtocol.SNMP,
+          managementPort: 161,
+          enabledRemoteAccess: false,
+          deviceId: 'device-uuid-draft',
+          pollingConfiguration: pollingConfig,
+          installDate: new Date('2024-01-01'),
+          createdAt: new Date('2024-01-01T10:00:00Z'),
+          updatedAt: new Date('2024-01-01T10:00:00Z'),
+          activationStatus: ActivationStatus.DRAFT,
+          activatedAt: null,
+          activatedBy: null,
+          deletedAt: null,
+          deletedBy: null,
+          replacedByDeviceId: null,
+          replacedAt: null
+        },
+        deviceId
+      );
+      const draftDevice = deviceResult.value;
+
+      // Act
+      const dto = NetworkDeviceMapper.toDTO(draftDevice);
+
+      // Assert
+      expect(dto.activationStatus).toBe('DRAFT');
+      expect(dto.activatedAt).toBeNull();
+      expect(dto.activatedBy).toBeNull();
+    });
+
+    it('should map activation workflow fields when device is activated', () => {
+      // Arrange
+      const deviceId = NetworkDeviceId.create().value;
+      const ipAddress = IPAddress.create('192.168.1.1').value;
+      const macAddress = MACAddress.create('AA:BB:CC:DD:EE:FF').value;
+      const pollingConfig = createMockPollingConfiguration(deviceId);
+      const activatedAt = new Date('2024-01-15T10:30:00Z');
+
+      const deviceResult = NetworkDevice.create(
+        {
+          name: 'Activated Device',
+          deviceType: NetworkDeviceType.createRouter(),
+          status: NetworkDeviceStatus.createOnline(),
+          description: 'Fully activated device',
+          ipAddress,
+          macAddress,
+          connectivityType: ConnectivityType.ETHERNET,
+          managementProtocol: ManagementProtocol.SNMP,
+          managementPort: 161,
+          enabledRemoteAccess: true,
+          deviceId: 'device-uuid-activated',
+          pollingConfiguration: pollingConfig,
+          installDate: new Date('2024-01-01'),
+          createdAt: new Date('2024-01-01T10:00:00Z'),
+          updatedAt: new Date('2024-01-15T10:30:00Z'),
+          activationStatus: ActivationStatus.ACTIVE,
+          activatedAt: activatedAt,
+          activatedBy: 'admin@example.com',
+          deletedAt: null,
+          deletedBy: null,
+          replacedByDeviceId: null,
+          replacedAt: null
+        },
+        deviceId
+      );
+      const activatedDevice = deviceResult.value;
+
+      // Act
+      const dto = NetworkDeviceMapper.toDTO(activatedDevice);
+
+      // Assert
+      expect(dto.activationStatus).toBe('ACTIVE');
+      expect(dto.activatedAt).toBe('2024-01-15T10:30:00.000Z');
+      expect(dto.activatedBy).toBe('admin@example.com');
+    });
+
+    it('should map soft delete fields when device is deleted', () => {
+      // Arrange
+      const deviceId = NetworkDeviceId.create().value;
+      const ipAddress = IPAddress.create('192.168.1.1').value;
+      const macAddress = MACAddress.create('AA:BB:CC:DD:EE:FF').value;
+      const pollingConfig = createMockPollingConfiguration(deviceId);
+      const deletedAt = new Date('2024-01-20T14:00:00Z');
+
+      const deviceResult = NetworkDevice.create(
+        {
+          name: 'Deleted Device',
+          deviceType: NetworkDeviceType.createRouter(),
+          status: NetworkDeviceStatus.createOffline(),
+          description: 'Soft deleted device',
+          ipAddress,
+          macAddress,
+          connectivityType: ConnectivityType.ETHERNET,
+          managementProtocol: ManagementProtocol.SNMP,
+          managementPort: 161,
+          enabledRemoteAccess: false,
+          deviceId: 'device-uuid-deleted',
+          pollingConfiguration: pollingConfig,
+          installDate: new Date('2024-01-01'),
+          createdAt: new Date('2024-01-01T10:00:00Z'),
+          updatedAt: new Date('2024-01-20T14:00:00Z'),
+          activationStatus: ActivationStatus.ACTIVE,
+          activatedAt: new Date('2024-01-05T10:00:00Z'),
+          activatedBy: 'admin@example.com',
+          deletedAt: deletedAt,
+          deletedBy: 'cleanup-service',
+          replacedByDeviceId: null,
+          replacedAt: null
+        },
+        deviceId
+      );
+      const deletedDevice = deviceResult.value;
+
+      // Act
+      const dto = NetworkDeviceMapper.toDTO(deletedDevice);
+
+      // Assert
+      expect(dto.deletedAt).toBe('2024-01-20T14:00:00.000Z');
+      expect(dto.deletedBy).toBe('cleanup-service');
+    });
+
+    it('should map replacement fields when device is replaced', () => {
+      // Arrange
+      const deviceId = NetworkDeviceId.create().value;
+      const replacementDeviceId = NetworkDeviceId.create().value;
+      const ipAddress = IPAddress.create('192.168.1.1').value;
+      const macAddress = MACAddress.create('AA:BB:CC:DD:EE:FF').value;
+      const pollingConfig = createMockPollingConfiguration(deviceId);
+      const replacedAt = new Date('2024-01-25T09:00:00Z');
+
+      const deviceResult = NetworkDevice.create(
+        {
+          name: 'Replaced Device',
+          deviceType: NetworkDeviceType.createRouter(),
+          status: NetworkDeviceStatus.createOffline(),
+          description: 'Device replaced with newer model',
+          ipAddress,
+          macAddress,
+          connectivityType: ConnectivityType.ETHERNET,
+          managementProtocol: ManagementProtocol.SNMP,
+          managementPort: 161,
+          enabledRemoteAccess: false,
+          deviceId: 'device-uuid-replaced',
+          pollingConfiguration: pollingConfig,
+          installDate: new Date('2024-01-01'),
+          createdAt: new Date('2024-01-01T10:00:00Z'),
+          updatedAt: new Date('2024-01-25T09:00:00Z'),
+          activationStatus: ActivationStatus.ACTIVE,
+          activatedAt: new Date('2024-01-05T10:00:00Z'),
+          activatedBy: 'admin@example.com',
+          deletedAt: null,
+          deletedBy: null,
+          replacedByDeviceId: replacementDeviceId,
+          replacedAt: replacedAt
+        },
+        deviceId
+      );
+      const replacedDevice = deviceResult.value;
+
+      // Act
+      const dto = NetworkDeviceMapper.toDTO(replacedDevice);
+
+      // Assert
+      expect(dto.replacedByDeviceId).toBe(
+        replacementDeviceId.toString()
+      );
+      expect(dto.replacedAt).toBe('2024-01-25T09:00:00.000Z');
+    });
+
+    it('should handle null lifecycle fields correctly', () => {
+      // Arrange
+      const device = createMockNetworkDevice();
+
+      // Act
+      const dto = NetworkDeviceMapper.toDTO(device);
+
+      // Assert - Default mock device has null lifecycle fields
+      expect(dto.activatedAt).toBeNull();
+      expect(dto.activatedBy).toBeNull();
+      expect(dto.deletedAt).toBeNull();
+      expect(dto.deletedBy).toBeNull();
+      expect(dto.replacedByDeviceId).toBeNull();
+      expect(dto.replacedAt).toBeNull();
     });
   });
 
@@ -358,7 +599,7 @@ describe('NetworkDeviceMapper', () => {
       expect(data.deviceId).toBe('uuid-device-001');
     });
 
-    it('should apply data-level defaults for optional fields', () => {
+    it('should apply null for optional fields and false for activateImmediately', () => {
       // Arrange
       const dto: CreateNetworkDeviceDTO = {
         name: 'Router-01',
@@ -374,11 +615,13 @@ describe('NetworkDeviceMapper', () => {
       // Assert
       expect(data.description).toBeNull();
       expect(data.location).toBeNull();
-      expect(data.connectivityType).toBe('ETHERNET');
-      expect(data.managementProtocol).toBe('ICMP');
-      expect(data.managementPort).toBe(161);
-      expect(data.enabledRemoteAccess).toBe(false);
-      expect(data.performPingTest).toBe(false);
+      expect(data.connectivityType).toBeNull();
+      expect(data.managementProtocol).toBeNull();
+      expect(data.managementPort).toBeNull();
+      expect(data.enabledRemoteAccess).toBeNull();
+      expect(data.performPingTest).toBeNull();
+      // REQ-002: activateImmediately defaults to false (DRAFT status)
+      expect(data.activateImmediately).toBe(false);
     });
 
     it('should use provided optional values instead of defaults', () => {
@@ -395,7 +638,8 @@ describe('NetworkDeviceMapper', () => {
         managementProtocol: 'SNMP',
         managementPort: 8080,
         enabledRemoteAccess: true,
-        performPingTest: true
+        performPingTest: true,
+        activateImmediately: true // REQ-002: Activate immediately
       };
 
       // Act
@@ -409,6 +653,8 @@ describe('NetworkDeviceMapper', () => {
       expect(data.managementPort).toBe(8080);
       expect(data.enabledRemoteAccess).toBe(true);
       expect(data.performPingTest).toBe(true);
+      // REQ-002: activateImmediately should be extracted when true
+      expect(data.activateImmediately).toBe(true);
     });
 
     it('should return raw primitives (strings, numbers, booleans)', () => {
@@ -420,7 +666,14 @@ describe('NetworkDeviceMapper', () => {
         macAddress: 'FF:EE:DD:CC:BB:AA',
         deviceId: 'uuid-device-001',
         managementPort: 8080,
-        enabledRemoteAccess: true
+        enabledRemoteAccess: true,
+
+        performPingTest: false,
+        description: 'Test device',
+        location: 'HQ',
+        connectivityType: 'ETHERNET',
+        managementProtocol: 'SSH',
+        activateImmediately: false
       };
 
       // Act
@@ -434,6 +687,12 @@ describe('NetworkDeviceMapper', () => {
       expect(typeof data.connectivityType).toBe('string');
       expect(typeof data.managementPort).toBe('number');
       expect(typeof data.enabledRemoteAccess).toBe('boolean');
+      expect(typeof data.performPingTest).toBe('boolean');
+      expect(typeof data.description).toBe('string');
+      expect(typeof data.location).toBe('string');
+      expect(typeof data.connectivityType).toBe('string');
+      expect(typeof data.managementProtocol).toBe('string');
+      expect(typeof data.activateImmediately).toBe('boolean');
     });
 
     it('should handle explicit null values for optional fields', () => {
@@ -563,6 +822,34 @@ describe('NetworkDeviceMapper', () => {
       expect(typeof data.managementProtocol).toBe('string');
     });
 
+    it('should extract location field (REQ-002)', () => {
+      // Arrange
+      const dto: UpdateNetworkDeviceDTO = {
+        location: 'Data Center A, Rack 3'
+      };
+
+      // Act
+      const data = NetworkDeviceMapper.extractUpdateData(dto);
+
+      // Assert
+      expect(data.location).toBe('Data Center A, Rack 3');
+      expect(Object.keys(data)).toHaveLength(1);
+    });
+
+    it('should handle null location to clear field (REQ-002)', () => {
+      // Arrange
+      const dto: UpdateNetworkDeviceDTO = {
+        location: null
+      };
+
+      // Act
+      const data = NetworkDeviceMapper.extractUpdateData(dto);
+
+      // Assert
+      expect(data.location).toBeNull();
+      expect(Object.keys(data)).toHaveLength(1);
+    });
+
     it('should return empty object when no fields provided', () => {
       // Arrange
       const dto: UpdateNetworkDeviceDTO = {};
@@ -620,6 +907,255 @@ describe('NetworkDeviceMapper', () => {
   });
 
   // ========================================
+  // extractActivateData() Tests
+  // ========================================
+
+  describe('extractActivateData', () => {
+    it('should extract all fields from activation DTO', () => {
+      // Arrange
+      const dto: ActivateNetworkDeviceRequestDTO = {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        name: 'Activated Router',
+        deviceType: 'ROUTER',
+        description: 'Now fully configured',
+        connectivityType: 'FIBER_OPTIC',
+        managementProtocol: 'SNMP',
+        managementPort: 161,
+        enabledRemoteAccess: true
+      };
+
+      // Act
+      const data = NetworkDeviceMapper.extractActivateData(dto);
+
+      // Assert
+      expect(data.id).toBe('550e8400-e29b-41d4-a716-446655440000');
+      expect(data.name).toBe('Activated Router');
+      expect(data.deviceType).toBe('ROUTER');
+      expect(data.description).toBe('Now fully configured');
+      expect(data.connectivityType).toBe('FIBER_OPTIC');
+      expect(data.managementProtocol).toBe('SNMP');
+      expect(data.managementPort).toBe(161);
+      expect(data.enabledRemoteAccess).toBe(true);
+    });
+
+    it('should apply null defaults for optional enrichment fields', () => {
+      // Arrange
+      const dto: ActivateNetworkDeviceRequestDTO = {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        name: 'Router-01',
+        deviceType: 'ROUTER'
+      };
+
+      // Act
+      const data = NetworkDeviceMapper.extractActivateData(dto);
+
+      // Assert
+      expect(data.id).toBe('550e8400-e29b-41d4-a716-446655440000');
+      expect(data.name).toBe('Router-01');
+      expect(data.deviceType).toBe('ROUTER');
+      expect(data.description).toBeNull();
+      expect(data.connectivityType).toBeNull();
+      expect(data.managementProtocol).toBeNull();
+      expect(data.managementPort).toBeNull();
+      expect(data.enabledRemoteAccess).toBeNull();
+    });
+
+    it('should preserve explicit null values', () => {
+      // Arrange
+      const dto: ActivateNetworkDeviceRequestDTO = {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        name: 'Router-01',
+        deviceType: 'ROUTER',
+        description: null
+      };
+
+      // Act
+      const data = NetworkDeviceMapper.extractActivateData(dto);
+
+      // Assert
+      expect(data.description).toBeNull();
+    });
+
+    it('should extract all types correctly', () => {
+      // Arrange
+      const dto: ActivateNetworkDeviceRequestDTO = {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        name: 'Router-01',
+        deviceType: 'ROUTER',
+        managementPort: 8080,
+        enabledRemoteAccess: false
+      };
+
+      // Act
+      const data = NetworkDeviceMapper.extractActivateData(dto);
+
+      // Assert
+      expect(typeof data.id).toBe('string');
+      expect(typeof data.name).toBe('string');
+      expect(typeof data.deviceType).toBe('string');
+      expect(typeof data.managementPort).toBe('number');
+      expect(typeof data.enabledRemoteAccess).toBe('boolean');
+    });
+
+    it('should not perform validation on extracted data', () => {
+      // Arrange - Invalid data that mapper should NOT validate
+      const dto: ActivateNetworkDeviceRequestDTO = {
+        id: 'invalid-uuid',
+        name: '', // Empty - should not validate
+        deviceType: 'INVALID_TYPE' // Invalid enum - should not validate
+      };
+
+      // Act - Should not throw
+      const data = NetworkDeviceMapper.extractActivateData(dto);
+
+      // Assert - Mapper extracted raw values without validation
+      expect(data.id).toBe('invalid-uuid');
+      expect(data.name).toBe('');
+      expect(data.deviceType).toBe('INVALID_TYPE');
+    });
+  });
+
+  // ========================================
+  // extractSoftDeleteData() Tests
+  // ========================================
+
+  describe('extractSoftDeleteData', () => {
+    it('should extract device ID and reason from soft delete DTO', () => {
+      // Arrange
+      const dto: SoftDeleteNetworkDeviceRequestDTO = {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        reason: 'Device replaced with newer model'
+      };
+
+      // Act
+      const data = NetworkDeviceMapper.extractSoftDeleteData(dto);
+
+      // Assert
+      expect(data.id).toBe('550e8400-e29b-41d4-a716-446655440000');
+      expect(data.reason).toBe('Device replaced with newer model');
+    });
+
+    it('should apply null default when reason is not provided', () => {
+      // Arrange
+      const dto: SoftDeleteNetworkDeviceRequestDTO = {
+        id: '550e8400-e29b-41d4-a716-446655440000'
+      };
+
+      // Act
+      const data = NetworkDeviceMapper.extractSoftDeleteData(dto);
+
+      // Assert
+      expect(data.id).toBe('550e8400-e29b-41d4-a716-446655440000');
+      expect(data.reason).toBeNull();
+    });
+
+    it('should handle empty string reason', () => {
+      // Arrange
+      const dto: SoftDeleteNetworkDeviceRequestDTO = {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        reason: ''
+      };
+
+      // Act
+      const data = NetworkDeviceMapper.extractSoftDeleteData(dto);
+
+      // Assert
+      expect(data.id).toBe('550e8400-e29b-41d4-a716-446655440000');
+      expect(data.reason).toBe('');
+    });
+
+    it('should handle long reason text without validation', () => {
+      // Arrange - Very long reason (mapper should not validate length)
+      const longReason = 'A'.repeat(1000);
+      const dto: SoftDeleteNetworkDeviceRequestDTO = {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        reason: longReason
+      };
+
+      // Act
+      const data = NetworkDeviceMapper.extractSoftDeleteData(dto);
+
+      // Assert
+      expect(data.reason).toBe(longReason);
+      expect(data.reason?.length).toBe(1000);
+    });
+
+    it('should extract all types correctly', () => {
+      // Arrange
+      const dto: SoftDeleteNetworkDeviceRequestDTO = {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        reason: 'Test reason'
+      };
+
+      // Act
+      const data = NetworkDeviceMapper.extractSoftDeleteData(dto);
+
+      // Assert
+      expect(typeof data.id).toBe('string');
+      expect(typeof data.reason).toBe('string');
+    });
+  });
+
+  // ========================================
+  // extractRestoreData() Tests
+  // ========================================
+
+  describe('extractRestoreData', () => {
+    it('should extract device ID from restore DTO', () => {
+      // Arrange
+      const dto: RestoreNetworkDeviceRequestDTO = {
+        id: '550e8400-e29b-41d4-a716-446655440000'
+      };
+
+      // Act
+      const data = NetworkDeviceMapper.extractRestoreData(dto);
+
+      // Assert
+      expect(data.id).toBe('550e8400-e29b-41d4-a716-446655440000');
+      expect(Object.keys(data)).toHaveLength(1);
+    });
+
+    it('should extract string ID type', () => {
+      // Arrange
+      const dto: RestoreNetworkDeviceRequestDTO = {
+        id: '550e8400-e29b-41d4-a716-446655440000'
+      };
+
+      // Act
+      const data = NetworkDeviceMapper.extractRestoreData(dto);
+
+      // Assert
+      expect(typeof data.id).toBe('string');
+    });
+
+    it('should not perform validation on extracted ID', () => {
+      // Arrange - Invalid UUID that mapper should NOT validate
+      const dto: RestoreNetworkDeviceRequestDTO = {
+        id: 'invalid-uuid-format'
+      };
+
+      // Act - Should not throw
+      const data = NetworkDeviceMapper.extractRestoreData(dto);
+
+      // Assert - Mapper extracted raw value without validation
+      expect(data.id).toBe('invalid-uuid-format');
+    });
+
+    it('should handle empty string ID without validation', () => {
+      // Arrange
+      const dto: RestoreNetworkDeviceRequestDTO = {
+        id: ''
+      };
+
+      // Act
+      const data = NetworkDeviceMapper.extractRestoreData(dto);
+
+      // Assert
+      expect(data.id).toBe('');
+    });
+  });
+
+  // ========================================
   // Mapper Compliance Tests
   // ========================================
 
@@ -645,8 +1181,12 @@ describe('NetworkDeviceMapper', () => {
       // All methods should be accessible without instantiation
       expect(typeof NetworkDeviceMapper.toDTO).toBe('function');
       expect(typeof NetworkDeviceMapper.toListDTO).toBe('function');
-      expect(typeof NetworkDeviceMapper.extractCreateData).toBe('function');
-      expect(typeof NetworkDeviceMapper.extractUpdateData).toBe('function');
+      expect(typeof NetworkDeviceMapper.extractCreateData).toBe(
+        'function'
+      );
+      expect(typeof NetworkDeviceMapper.extractUpdateData).toBe(
+        'function'
+      );
     });
 
     it('should perform pure transformations (deterministic)', () => {

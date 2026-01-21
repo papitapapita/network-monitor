@@ -3,7 +3,10 @@ import {
   NetworkDeviceResponseDTO,
   NetworkDeviceListResponseDTO,
   CreateNetworkDeviceDTO,
-  UpdateNetworkDeviceDTO
+  UpdateNetworkDeviceDTO,
+  ActivateNetworkDeviceRequestDTO,
+  SoftDeleteNetworkDeviceRequestDTO,
+  RestoreNetworkDeviceRequestDTO
 } from '../dtos';
 
 /**
@@ -44,12 +47,9 @@ export class NetworkDeviceMapper {
       // Primitive fields (direct access)
       name: device.name,
       description: device.description,
-      installDate: device.installDate,
+      deviceId: device.deviceId,
       managementPort: device.managementPort,
       enabledRemoteAccess: device.enabledRemoteAccess,
-      deviceId: device.deviceId,
-      createdAt: device.createdAt,
-      updatedAt: device.updatedAt,
 
       // Extract string values from Value Objects
       ipAddress: device.ipAddress.toString(),
@@ -61,18 +61,45 @@ export class NetworkDeviceMapper {
       connectivityType: device.connectivityType.toString(),
       managementProtocol: device.managementProtocol.toString(),
 
+      // REQ-002: Activation workflow fields
+      activationStatus: device.activationStatus.toString(),
+      activatedAt: device.activatedAt?.toISOString() ?? null,
+      activatedBy: device.activatedBy ?? null,
+
+      // REQ-002: Soft delete fields
+      deletedAt: device.deletedAt?.toISOString() ?? null,
+      deletedBy: device.deletedBy ?? null,
+
+      // REQ-002: Device replacement fields
+      replacedByDeviceId:
+        device.replacedByDeviceId?.toString() ?? null,
+      replacedAt: device.replacedAt?.toISOString() ?? null,
+
+      // Timestamps (convert to ISO strings)
+      installDate: device.installDate.toISOString(),
+      createdAt: device.createdAt.toISOString(),
+      updatedAt: device.updatedAt.toISOString(),
+
       // Flatten nested PollingConfiguration aggregate
       pollingConfiguration: {
+        networkDeviceId:
+          device.pollingConfiguration.networkDeviceId.toString(),
         id: device.pollingConfiguration.id.toString(),
         enabled: device.pollingConfiguration.enabled,
         intervalSeconds: device.pollingConfiguration.interval.seconds,
         pingCount: device.pollingConfiguration.pingCount,
-        maxRetryAttempts:
-          device.pollingConfiguration.retryPolicy.maxAttempts,
-        retryDelayMs:
-          device.pollingConfiguration.retryPolicy.baseDelayMs,
-        lastScheduledAt: device.pollingConfiguration.lastScheduledAt,
-        nextScheduledAt: device.pollingConfiguration.nextScheduledAt
+        retryPolicy: {
+          maxAttempts:
+            device.pollingConfiguration.retryPolicy.maxAttempts,
+          baseDelayMs:
+            device.pollingConfiguration.retryPolicy.baseDelayMs
+        },
+        lastScheduledAt:
+          device.pollingConfiguration.lastScheduledAt?.toISOString() ??
+          null,
+        nextScheduledAt:
+          device.pollingConfiguration.nextScheduledAt?.toISOString() ??
+          null
       }
     };
   }
@@ -118,22 +145,36 @@ export class NetworkDeviceMapper {
    */
   public static extractCreateData(dto: CreateNetworkDeviceDTO) {
     return {
-      // Required fields (as-is, no validation)
-      name: dto.name,
-      deviceType: dto.deviceType,
+      // ===================================
+      // REQUIRED FIELDS (Always)
+      // ===================================
       ipAddress: dto.ipAddress,
       macAddress: dto.macAddress,
       deviceId: dto.deviceId,
 
-      // Optional fields with data-level defaults (not business defaults)
+      // ===================================
+      // CONDITIONAL FIELDS (Required for ACTIVE)
+      // ===================================
+      name: dto.name ?? null,
+      deviceType: dto.deviceType ?? null,
+
+      // ===================================
+      // OPTIONAL FIELDS
+      // ===================================
       // These are simple structural defaults that require no domain knowledge
       description: dto.description ?? null,
       location: dto.location ?? null,
-      connectivityType: dto.connectivityType ?? 'ETHERNET',
-      managementProtocol: dto.managementProtocol ?? 'ICMP',
-      managementPort: dto.managementPort ?? 161,
-      enabledRemoteAccess: dto.enabledRemoteAccess ?? false,
-      performPingTest: dto.performPingTest ?? false
+      connectivityType: dto.connectivityType ?? null,
+      managementProtocol: dto.managementProtocol ?? null,
+      managementPort: dto.managementPort ?? null,
+      enabledRemoteAccess: dto.enabledRemoteAccess ?? null,
+      performPingTest: dto.performPingTest ?? null,
+
+      // ===================================
+      // REQ-002: ACTIVATION CONTROL
+      // ===================================
+      // Whether to activate immediately (false = DRAFT, true = ACTIVE)
+      activateImmediately: dto.activateImmediately ?? false
     };
   }
 
@@ -152,14 +193,18 @@ export class NetworkDeviceMapper {
    * @returns Object with only the fields that were provided in DTO
    */
   public static extractUpdateData(dto: UpdateNetworkDeviceDTO) {
-    const updates: any = {};
+    const updates: Partial<CreateNetworkDeviceDTO> = {};
 
     // Only include fields that are explicitly provided in the DTO
     // This enables partial updates
     if (dto.name !== undefined) updates.name = dto.name;
     if (dto.description !== undefined)
       updates.description = dto.description;
-    if (dto.deviceType !== undefined) updates.deviceType = dto.deviceType;
+    if (dto.deviceType !== undefined)
+      updates.deviceType = dto.deviceType;
+    if (dto.location !== undefined)
+      // REQ-002
+      updates.location = dto.location;
     if (dto.connectivityType !== undefined)
       updates.connectivityType = dto.connectivityType;
     if (dto.managementProtocol !== undefined)
@@ -170,5 +215,85 @@ export class NetworkDeviceMapper {
       updates.enabledRemoteAccess = dto.enabledRemoteAccess;
 
     return updates;
+  }
+
+  // ===================================
+  // REQ-002: LIFECYCLE MANAGEMENT METHODS
+  // ===================================
+
+  /**
+   * Extracts data for activating a DRAFT device to ACTIVE.
+   *
+   * Pure data transformation - the use case will:
+   * - Validate device exists and is in DRAFT status
+   * - Validate all required fields are provided
+   * - Map string enums to domain enums
+   * - Call domain's activate() method
+   * - Set activatedAt timestamp and activatedBy from context
+   *
+   * @param dto - Activate device request DTO
+   * @returns Object with raw data for activation
+   */
+  public static extractActivateData(
+    dto: ActivateNetworkDeviceRequestDTO
+  ) {
+    return {
+      // Device ID
+      id: dto.id,
+
+      // Required for activation
+      name: dto.name,
+      deviceType: dto.deviceType,
+
+      // Optional enrichment fields
+      description: dto.description ?? null,
+      connectivityType: dto.connectivityType ?? null,
+      managementProtocol: dto.managementProtocol ?? null,
+      managementPort: dto.managementPort ?? null,
+      enabledRemoteAccess: dto.enabledRemoteAccess ?? null
+    };
+  }
+
+  /**
+   * Extracts data for soft-deleting a device.
+   *
+   * Pure data transformation - the use case will:
+   * - Validate device ID format
+   * - Validate device exists and is not already deleted
+   * - Call domain's softDelete() method
+   * - Set deletedAt timestamp and deletedBy from authentication context
+   *
+   * @param dto - Soft delete request DTO
+   * @returns Object with device ID and optional deletion reason
+   */
+  public static extractSoftDeleteData(
+    dto: SoftDeleteNetworkDeviceRequestDTO
+  ) {
+    return {
+      id: dto.id,
+      reason: dto.reason ?? null
+    };
+  }
+
+  /**
+   * Extracts data for restoring a soft-deleted device.
+   *
+   * Pure data transformation - the use case will:
+   * - Validate device ID format
+   * - Validate device exists and is soft-deleted
+   * - Validate device is within 7-day grace period
+   * - Check for IP/MAC conflicts with active devices
+   * - Call domain's restore() method
+   * - Clear deletedAt and deletedBy fields
+   *
+   * @param dto - Restore request DTO
+   * @returns Object with device ID
+   */
+  public static extractRestoreData(
+    dto: RestoreNetworkDeviceRequestDTO
+  ) {
+    return {
+      id: dto.id
+    };
   }
 }
