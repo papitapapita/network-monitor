@@ -162,11 +162,11 @@ export abstract class UseCase<Request, Response>
    * Hook executed before the main use case logic.
    * Override this to add pre-execution validation, authorization, etc.
    *
-   * @param request - The use case request DTO
+   * @param _request - The use case request DTO
    * @returns Result indicating success or failure (failure stops execution)
    */
   protected async beforeExecute(
-    request: Request
+    _request: Request
   ): Promise<Result<void> | null> {
     // Default: no pre-execution logic
     return null;
@@ -177,13 +177,13 @@ export abstract class UseCase<Request, Response>
    * Override this to add post-execution logic like event publishing,
    * cache invalidation, etc.
    *
-   * @param request - The use case request DTO
-   * @param response - The use case response DTO
+   * @param _request - The use case request DTO
+   * @param _response - The use case response DTO
    * @returns Result indicating success or failure
    */
   protected async afterExecute(
-    request: Request,
-    response: Response
+    _request: Request,
+    _response: Response
   ): Promise<Result<void> | null> {
     // Default: no post-execution logic
     return null;
