@@ -35,8 +35,8 @@ describe('NetworkDevice', () => {
       installDate: new Date('2024-01-01'),
       ipAddress: IPAddress.create('192.168.1.1').value,
       macAddress: MACAddress.create('00:1A:2B:3C:4D:5E').value,
-      connectivityType: ConnectivityType.ETHERNET,
-      managementProtocol: ManagementProtocol.SSH,
+      connectivityType: ConnectivityType.createEthernet(),
+      managementProtocol: ManagementProtocol.createSsh(),
       managementPort: 22,
       enabledRemoteAccess: true,
       deviceId: 'device-001',
@@ -387,11 +387,15 @@ describe('NetworkDevice', () => {
     });
 
     it('should return correct connectivityType', () => {
-      expect(device.connectivityType).toBe(ConnectivityType.ETHERNET);
+      expect(device.connectivityType.toString()).toBe(
+        ConnectivityType.ETHERNET
+      );
     });
 
     it('should return correct managementProtocol', () => {
-      expect(device.managementProtocol).toBe(ManagementProtocol.SSH);
+      expect(device.managementProtocol.toString()).toBe(
+        ManagementProtocol.SSH
+      );
     });
 
     it('should return correct managementPort', () => {
@@ -797,12 +801,12 @@ describe('NetworkDevice', () => {
 
     it('should update management protocol', () => {
       const result = device.updateManagementConfig({
-        protocol: ManagementProtocol.HTTPS
+        protocol: ManagementProtocol.createHttp()
       });
 
       expect(result.isSuccess).toBe(true);
-      expect(device.managementProtocol).toBe(
-        ManagementProtocol.HTTPS
+      expect(device.managementProtocol.toString()).toBe(
+        ManagementProtocol.HTTP
       );
     });
 
@@ -818,14 +822,14 @@ describe('NetworkDevice', () => {
     it('should update multiple fields at once', () => {
       const result = device.updateManagementConfig({
         port: 443,
-        protocol: ManagementProtocol.HTTPS,
+        protocol: ManagementProtocol.createHttp(),
         enableRemoteAccess: true
       });
 
       expect(result.isSuccess).toBe(true);
       expect(device.managementPort).toBe(443);
-      expect(device.managementProtocol).toBe(
-        ManagementProtocol.HTTPS
+      expect(device.managementProtocol.toString()).toBe(
+        ManagementProtocol.HTTP
       );
       expect(device.enabledRemoteAccess).toBe(true);
     });
@@ -901,7 +905,7 @@ describe('NetworkDevice', () => {
       const oldProtocol = device.managementProtocol;
 
       const result = device.updateManagementConfig({
-        protocol: ManagementProtocol.HTTPS
+        protocol: ManagementProtocol.createHttp()
       });
 
       expect(result.isSuccess).toBe(true);
@@ -916,8 +920,8 @@ describe('NetworkDevice', () => {
       expect(event.previousValues.managementProtocol).toBe(
         oldProtocol
       );
-      expect(event.newValues.managementProtocol).toBe(
-        ManagementProtocol.HTTPS
+      expect(event.newValues.managementProtocol.toString()).toBe(
+        ManagementProtocol.HTTP
       );
     });
 
@@ -952,7 +956,7 @@ describe('NetworkDevice', () => {
 
       const result = device.updateManagementConfig({
         port: 443,
-        protocol: ManagementProtocol.HTTPS,
+        protocol: ManagementProtocol.createHttp(),
         enableRemoteAccess: false
       });
 
@@ -977,8 +981,8 @@ describe('NetworkDevice', () => {
         oldRemoteAccess
       );
       expect(event.newValues.managementPort).toBe(443);
-      expect(event.newValues.managementProtocol).toBe(
-        ManagementProtocol.HTTPS
+      expect(event.newValues.managementProtocol.toString()).toBe(
+        ManagementProtocol.HTTP
       );
       expect(event.newValues.enabledRemoteAccess).toBe(false);
     });
@@ -1639,8 +1643,8 @@ describe('NetworkDevice', () => {
         name: 'Device-001',
         deviceType: NetworkDeviceType.createRouter(),
         status: NetworkDeviceStatus.createUnknown(),
-        connectivityType: ConnectivityType.ETHERNET,
-        managementProtocol: ManagementProtocol.SSH,
+        connectivityType: ConnectivityType.createEthernet(),
+        managementProtocol: ManagementProtocol.createSsh(),
         managementPort: 22,
         deviceId: 'device-001',
         pollingConfiguration: PollingConfiguration.createDefault(
@@ -2713,11 +2717,11 @@ describe('NetworkDevice', () => {
 
     it('should update connectivity type successfully', () => {
       const result = device.updateConnectivityType(
-        ConnectivityType.FIBER_OPTIC
+        ConnectivityType.createFiberOptic()
       );
 
       expect(result.isSuccess).toBe(true);
-      expect(device.connectivityType).toBe(
+      expect(device.connectivityType.toString()).toBe(
         ConnectivityType.FIBER_OPTIC
       );
     });
@@ -2726,11 +2730,13 @@ describe('NetworkDevice', () => {
       expect(device.isActive()).toBe(true);
 
       const result = device.updateConnectivityType(
-        ConnectivityType.WIRELESS
+        ConnectivityType.createWireless()
       );
 
       expect(result.isSuccess).toBe(true);
-      expect(device.connectivityType).toBe(ConnectivityType.WIRELESS);
+      expect(device.connectivityType.toString()).toBe(
+        ConnectivityType.WIRELESS
+      );
     });
 
     it('should allow updating connectivity type on DRAFT device', () => {
@@ -2745,18 +2751,20 @@ describe('NetworkDevice', () => {
       draftDevice.clearEvents();
 
       const result = draftDevice.updateConnectivityType(
-        ConnectivityType.DSL
+        ConnectivityType.createDsl()
       );
 
       expect(result.isSuccess).toBe(true);
-      expect(draftDevice.connectivityType).toBe(ConnectivityType.DSL);
+      expect(draftDevice.connectivityType.toString()).toBe(
+        ConnectivityType.DSL
+      );
     });
 
     it('should update updatedAt timestamp', () => {
       const oldUpdatedAt = device.updatedAt;
 
       const result = device.updateConnectivityType(
-        ConnectivityType.FIBER_OPTIC
+        ConnectivityType.createFiberOptic()
       );
 
       expect(result.isSuccess).toBe(true);
@@ -2782,7 +2790,7 @@ describe('NetworkDevice', () => {
       const oldType = device.connectivityType;
 
       const result = device.updateConnectivityType(
-        ConnectivityType.FIBER_OPTIC
+        ConnectivityType.createFiberOptic()
       );
 
       expect(result.isSuccess).toBe(true);
@@ -2795,7 +2803,7 @@ describe('NetworkDevice', () => {
       const event = events[0] as any;
       expect(event.changedFields).toEqual(['connectivityType']);
       expect(event.previousValues.connectivityType).toBe(oldType);
-      expect(event.newValues.connectivityType).toBe(
+      expect(event.newValues.connectivityType.toString()).toBe(
         ConnectivityType.FIBER_OPTIC
       );
     });
@@ -2812,12 +2820,12 @@ describe('NetworkDevice', () => {
 
     it('should handle all connectivity type transitions', () => {
       const connectivityTypes = [
-        ConnectivityType.ETHERNET,
-        ConnectivityType.FIBER_OPTIC,
-        ConnectivityType.WIRELESS,
-        ConnectivityType.DSL,
-        ConnectivityType.SATELLITE,
-        ConnectivityType.OTHER
+        ConnectivityType.createEthernet(),
+        ConnectivityType.createFiberOptic(),
+        ConnectivityType.createWireless(),
+        ConnectivityType.createDsl(),
+        ConnectivityType.createSatellite(),
+        ConnectivityType.createOther()
       ];
 
       for (const newType of connectivityTypes) {
