@@ -14,6 +14,8 @@ export * from './PollingIntervalProps';
 export * from './PollingMetricsProps';
 export * from './PollingStatusProps';
 export * from './RetryPolicyProps';
+export * from './ConnectivityTypeProps';
+export * from './ManagementProtocolProps';
 export * from './DevicePolledSuccessfullyEventProps';
 export * from './DevicePollingFailedEventProps';
 export * from './NetworkDeviceCreatedEventProps';
