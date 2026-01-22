@@ -9,6 +9,8 @@ export * from './PollingInterval';
 export * from './PollingStatus';
 export * from './RetryPolicy';
 export * from './PollingMetrics';
+export * from './ConnectivityType';
 export * from './NetworkDeviceId';
 export * from './PollingConfigurationId';
 export * from './PollingResultId';
+export * from './ManagementProtocol';
