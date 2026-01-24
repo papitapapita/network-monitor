@@ -147,10 +147,10 @@ export class ActivateNetworkDeviceUseCase extends UseCase<
     const deviceType = this.mapDeviceType(data.deviceType);
     const connectivityType = data.connectivityType
       ? this.mapConnectivityType(data.connectivityType)
-      : ConnectivityType.WIRELESS; // Default
+      : ConnectivityType.createWireless(); // Default
     const managementProtocol = data.managementProtocol
       ? this.mapManagementProtocol(data.managementProtocol)
-      : ManagementProtocol.ICMP; // Default
+      : ManagementProtocol.createIcmp(); // Default
 
     // Update name (required)
     const nameResult = device.updateName(data.name);
@@ -286,19 +286,19 @@ export class ActivateNetworkDeviceUseCase extends UseCase<
     const upperType = typeStr.toUpperCase();
     switch (upperType) {
       case 'ETHERNET':
-        return ConnectivityType.ETHERNET;
+        return ConnectivityType.createEthernet();
       case 'FIBER_OPTIC':
       case 'FIBER':
-        return ConnectivityType.FIBER_OPTIC;
+        return ConnectivityType.createFiberOptic();
       case 'WIRELESS':
       case 'WIFI':
-        return ConnectivityType.WIRELESS;
+        return ConnectivityType.createWireless();
       case 'DSL':
-        return ConnectivityType.DSL;
+        return ConnectivityType.createDsl();
       case 'SATELLITE':
-        return ConnectivityType.SATELLITE;
+        return ConnectivityType.createSatellite();
       default:
-        return ConnectivityType.OTHER;
+        return ConnectivityType.createOther();
     }
   }
 
@@ -312,19 +312,19 @@ export class ActivateNetworkDeviceUseCase extends UseCase<
     const upperProtocol = protocolStr.toUpperCase();
     switch (upperProtocol) {
       case 'SNMP':
-        return ManagementProtocol.SNMP;
+        return ManagementProtocol.createSnmp();
       case 'SSH':
-        return ManagementProtocol.SSH;
+        return ManagementProtocol.createSsh();
       case 'TELNET':
-        return ManagementProtocol.TELNET;
+        return ManagementProtocol.createTelnet();
       case 'HTTP':
-        return ManagementProtocol.HTTP;
+        return ManagementProtocol.createHttp();
       case 'HTTPS':
-        return ManagementProtocol.HTTPS;
+        return ManagementProtocol.createHttps();
       case 'ICMP':
-        return ManagementProtocol.ICMP;
+        return ManagementProtocol.createIcmp();
       default:
-        return ManagementProtocol.OTHER;
+        return ManagementProtocol.createOther();
     }
   }
 }
