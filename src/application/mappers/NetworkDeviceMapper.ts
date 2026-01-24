@@ -6,8 +6,9 @@ import {
   UpdateNetworkDeviceDTO,
   ActivateNetworkDeviceRequestDTO,
   SoftDeleteNetworkDeviceRequestDTO,
-  RestoreNetworkDeviceRequestDTO
-} from '../dtos';
+  RestoreNetworkDeviceRequestDTO,
+  ExtractedCreateData
+} from '../';
 
 /**
  * Mapper for pure data structure transformation between DTOs and Domain.
@@ -143,7 +144,9 @@ export class NetworkDeviceMapper {
    * @param dto - Create device DTO from HTTP request
    * @returns Object with raw data ready for use case processing
    */
-  public static extractCreateData(dto: CreateNetworkDeviceDTO) {
+  public static extractCreateData(
+    dto: CreateNetworkDeviceDTO
+  ): ExtractedCreateData {
     return {
       // ===================================
       // REQUIRED FIELDS (Always)
@@ -163,12 +166,12 @@ export class NetworkDeviceMapper {
       // ===================================
       // These are simple structural defaults that require no domain knowledge
       description: dto.description ?? null,
-      location: dto.location ?? null,
       connectivityType: dto.connectivityType ?? null,
       managementProtocol: dto.managementProtocol ?? null,
       managementPort: dto.managementPort ?? null,
       enabledRemoteAccess: dto.enabledRemoteAccess ?? null,
       performPingTest: dto.performPingTest ?? null,
+      installDate: dto.installDate ?? null,
 
       // ===================================
       // REQ-002: ACTIVATION CONTROL
@@ -202,9 +205,6 @@ export class NetworkDeviceMapper {
       updates.description = dto.description;
     if (dto.deviceType !== undefined)
       updates.deviceType = dto.deviceType;
-    if (dto.location !== undefined)
-      // REQ-002
-      updates.location = dto.location;
     if (dto.connectivityType !== undefined)
       updates.connectivityType = dto.connectivityType;
     if (dto.managementProtocol !== undefined)

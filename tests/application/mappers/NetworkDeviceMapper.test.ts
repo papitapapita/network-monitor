@@ -63,8 +63,8 @@ describe('NetworkDeviceMapper', () => {
         description: 'Test device description',
         ipAddress,
         macAddress,
-        connectivityType: ConnectivityType.ETHERNET,
-        managementProtocol: ManagementProtocol.SNMP,
+        connectivityType: ConnectivityType.createEthernet(),
+        managementProtocol: ManagementProtocol.createSnmp(),
         managementPort: 161,
         enabledRemoteAccess: false,
         deviceId: 'device-uuid-123',
@@ -259,8 +259,8 @@ describe('NetworkDeviceMapper', () => {
           description: null,
           ipAddress,
           macAddress,
-          connectivityType: ConnectivityType.ETHERNET,
-          managementProtocol: ManagementProtocol.SNMP,
+          connectivityType: ConnectivityType.createEthernet(),
+          managementProtocol: ManagementProtocol.createSnmp(),
           managementPort: 161,
           enabledRemoteAccess: false,
           deviceId: 'device-uuid-draft',
@@ -305,8 +305,8 @@ describe('NetworkDeviceMapper', () => {
           description: 'Fully activated device',
           ipAddress,
           macAddress,
-          connectivityType: ConnectivityType.ETHERNET,
-          managementProtocol: ManagementProtocol.SNMP,
+          connectivityType: ConnectivityType.createEthernet(),
+          managementProtocol: ManagementProtocol.createSnmp(),
           managementPort: 161,
           enabledRemoteAccess: true,
           deviceId: 'device-uuid-activated',
@@ -351,8 +351,8 @@ describe('NetworkDeviceMapper', () => {
           description: 'Soft deleted device',
           ipAddress,
           macAddress,
-          connectivityType: ConnectivityType.ETHERNET,
-          managementProtocol: ManagementProtocol.SNMP,
+          connectivityType: ConnectivityType.createEthernet(),
+          managementProtocol: ManagementProtocol.createSnmp(),
           managementPort: 161,
           enabledRemoteAccess: false,
           deviceId: 'device-uuid-deleted',
@@ -397,8 +397,8 @@ describe('NetworkDeviceMapper', () => {
           description: 'Device replaced with newer model',
           ipAddress,
           macAddress,
-          connectivityType: ConnectivityType.ETHERNET,
-          managementProtocol: ManagementProtocol.SNMP,
+          connectivityType: ConnectivityType.createEthernet(),
+          managementProtocol: ManagementProtocol.createSnmp(),
           managementPort: 161,
           enabledRemoteAccess: false,
           deviceId: 'device-uuid-replaced',
@@ -614,7 +614,6 @@ describe('NetworkDeviceMapper', () => {
 
       // Assert
       expect(data.description).toBeNull();
-      expect(data.location).toBeNull();
       expect(data.connectivityType).toBeNull();
       expect(data.managementProtocol).toBeNull();
       expect(data.managementPort).toBeNull();
@@ -633,7 +632,6 @@ describe('NetworkDeviceMapper', () => {
         macAddress: 'FF:EE:DD:CC:BB:AA',
         deviceId: 'uuid-device-001',
         description: 'Main router',
-        location: 'Data Center',
         connectivityType: 'WIFI',
         managementProtocol: 'SNMP',
         managementPort: 8080,
@@ -647,7 +645,6 @@ describe('NetworkDeviceMapper', () => {
 
       // Assert
       expect(data.description).toBe('Main router');
-      expect(data.location).toBe('Data Center');
       expect(data.connectivityType).toBe('WIFI');
       expect(data.managementProtocol).toBe('SNMP');
       expect(data.managementPort).toBe(8080);
@@ -670,7 +667,6 @@ describe('NetworkDeviceMapper', () => {
 
         performPingTest: false,
         description: 'Test device',
-        location: 'HQ',
         connectivityType: 'ETHERNET',
         managementProtocol: 'SSH',
         activateImmediately: false
@@ -689,7 +685,6 @@ describe('NetworkDeviceMapper', () => {
       expect(typeof data.enabledRemoteAccess).toBe('boolean');
       expect(typeof data.performPingTest).toBe('boolean');
       expect(typeof data.description).toBe('string');
-      expect(typeof data.location).toBe('string');
       expect(typeof data.connectivityType).toBe('string');
       expect(typeof data.managementProtocol).toBe('string');
       expect(typeof data.activateImmediately).toBe('boolean');
@@ -703,8 +698,7 @@ describe('NetworkDeviceMapper', () => {
         ipAddress: '10.0.0.1',
         macAddress: 'FF:EE:DD:CC:BB:AA',
         deviceId: 'uuid-device-001',
-        description: null,
-        location: null
+        description: null
       };
 
       // Act
@@ -712,7 +706,6 @@ describe('NetworkDeviceMapper', () => {
 
       // Assert
       expect(data.description).toBeNull();
-      expect(data.location).toBeNull();
     });
 
     it('should not perform any validation on extracted data', () => {
@@ -820,34 +813,6 @@ describe('NetworkDeviceMapper', () => {
       // Assert
       expect(data.managementProtocol).toBe('SNMP');
       expect(typeof data.managementProtocol).toBe('string');
-    });
-
-    it('should extract location field (REQ-002)', () => {
-      // Arrange
-      const dto: UpdateNetworkDeviceDTO = {
-        location: 'Data Center A, Rack 3'
-      };
-
-      // Act
-      const data = NetworkDeviceMapper.extractUpdateData(dto);
-
-      // Assert
-      expect(data.location).toBe('Data Center A, Rack 3');
-      expect(Object.keys(data)).toHaveLength(1);
-    });
-
-    it('should handle null location to clear field (REQ-002)', () => {
-      // Arrange
-      const dto: UpdateNetworkDeviceDTO = {
-        location: null
-      };
-
-      // Act
-      const data = NetworkDeviceMapper.extractUpdateData(dto);
-
-      // Assert
-      expect(data.location).toBeNull();
-      expect(Object.keys(data)).toHaveLength(1);
     });
 
     it('should return empty object when no fields provided', () => {
