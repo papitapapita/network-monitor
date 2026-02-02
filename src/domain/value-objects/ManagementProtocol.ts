@@ -146,7 +146,7 @@ export class ManagementProtocol extends ValueObject<ManagementProtocolProps> {
   /**
    * Validates if a string is a valid ManagementProtocol.
    */
-  private static isValid(value: string): boolean {
+  public static isValid(value: string): boolean {
     return this.VALID_PROTOCOLS.includes(
       value as (typeof this.VALID_PROTOCOLS)[number]
     );
@@ -283,6 +283,10 @@ export class ManagementProtocol extends ValueObject<ManagementProtocolProps> {
       default:
         return 'Other';
     }
+  }
+
+  public static validProtocols(): string[] {
+    return [...ManagementProtocol.VALID_PROTOCOLS];
   }
 
   /**

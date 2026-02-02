@@ -365,6 +365,22 @@ describe('ManagementProtocol', () => {
     });
   });
 
+  describe('validProtocols', () => {
+    it('should return all valid management protocol types', () => {
+      const validProtocols = ManagementProtocol.validProtocols();
+
+      expect(validProtocols).toEqual([
+        'SNMP',
+        'SSH',
+        'TELNET',
+        'HTTP',
+        'HTTPS',
+        'ICMP',
+        'OTHER'
+      ]);
+    });
+  });
+
   describe('equals', () => {
     it('should return true for same protocol values', () => {
       const protocol1 = ManagementProtocol.createSsh();
