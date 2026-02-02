@@ -568,6 +568,24 @@ describe('NetworkDeviceType', () => {
     });
   });
 
+  describe('validTypes', () => {
+    it('should return all valid network device types', () => {
+      const validTypes = NetworkDeviceType.validTypes();
+
+      expect(validTypes).toEqual([
+        'ACCESS_POINT',
+        'STATION',
+        'PTP_RADIO',
+        'PTMP_RADIO',
+        'SWITCH',
+        'ROUTER',
+        'FIREWALL',
+        'SERVER',
+        'UNKNOWN'
+      ]);
+    });
+  });
+
   describe('equals', () => {
     it('should return true for same device type values', () => {
       const type1 = NetworkDeviceType.createRouter();

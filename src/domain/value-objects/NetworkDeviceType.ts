@@ -275,7 +275,7 @@ export class NetworkDeviceType extends ValueObject<NetworkDeviceTypeProps> {
   /**
    * Validates if a string is a valid NetworkDeviceType.
    */
-  private static isValid(value: string): boolean {
+  public static isValid(value: string): boolean {
     return this.VALID_TYPES.includes(
       value as (typeof this.VALID_TYPES)[number]
     );
@@ -376,6 +376,10 @@ export class NetworkDeviceType extends ValueObject<NetworkDeviceTypeProps> {
       default:
         return 60;
     }
+  }
+
+  public static validTypes(): string[] {
+    return [...NetworkDeviceType.VALID_TYPES];
   }
 
   /**
