@@ -451,5 +451,17 @@ describe('ConnectivityType', () => {
     it('should have OTHER constant', () => {
       expect(ConnectivityType.OTHER).toBe('OTHER');
     });
+
+    it('should return all connectivity types from validTypes', () => {
+      const allTypes = ConnectivityType.validTypes();
+      expect(allTypes).toEqual([
+        'ETHERNET',
+        'FIBER_OPTIC',
+        'WIRELESS',
+        'DSL',
+        'SATELLITE',
+        'OTHER'
+      ]);
+    });
   });
 });

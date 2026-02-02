@@ -135,7 +135,7 @@ export class ConnectivityType extends ValueObject<ConnectivityTypeProps> {
   /**
    * Validates if a string is a valid ConnectivityType.
    */
-  private static isValid(value: string): boolean {
+  public static isValid(value: string): boolean {
     return this.VALID_TYPES.includes(
       value as (typeof this.VALID_TYPES)[number]
     );
@@ -252,6 +252,10 @@ export class ConnectivityType extends ValueObject<ConnectivityTypeProps> {
       default:
         return 'Unknown';
     }
+  }
+
+  public static validTypes(): string[] {
+    return [...ConnectivityType.VALID_TYPES];
   }
 
   /**
