@@ -1,4 +1,4 @@
-import { Identifier } from '../../../src/domain';
+import { Identifier } from '../../../../src/domain/shared';
 
 // Create subclasses for DDD identity comparison tests
 class UserId extends Identifier<string> {}
@@ -32,10 +32,12 @@ describe('Identifier', () => {
       expect(id1.equals(id2)).toBe(false);
     });
 
-    it('should return false when comparing with null or undefined', () => {
+    it('should fail when comparing with null or undefined', () => {
       const id = new UserId('abc');
 
+      // @ts-expect-error Testing null comparison
       expect(id.equals(null)).toBe(false);
+      // @ts-expect-error Testing undefined comparison
       expect(id.equals(undefined)).toBe(false);
     });
 
