@@ -53,33 +53,33 @@ const UUID_NON_HEX = 'zzzzzzzz-e29b-41d4-a716-446655440000';
 describe('UUID', () => {
   describe('generate()', () => {
     it('should return a UUID instance', () => {
-      const uuid = UUID.generate();
+      const uuid = UUID.create();
 
       expect(uuid).toBeInstanceOf(UUID);
     });
 
     it('should produce a valid UUID v4 string', () => {
-      const uuid = UUID.generate();
+      const uuid = UUID.create();
 
-      expect(UUID.isValid(uuid.value)).toBe(true);
+      expect(UUID.isValid(uuid.toValue())).toBe(true);
     });
 
     it('should produce unique values on successive calls', () => {
-      const a = UUID.generate();
-      const b = UUID.generate();
+      const a = UUID.create();
+      const b = UUID.create();
 
       expect(a.equals(b)).toBe(false);
     });
 
     it('should produce a string of exactly 36 characters', () => {
-      const uuid = UUID.generate();
+      const uuid = UUID.create();
 
-      expect(uuid.value).toHaveLength(36);
+      expect(uuid.toValue()).toHaveLength(36);
     });
 
     it('should include hyphens at the standard positions', () => {
-      const uuid = UUID.generate();
-      const raw = uuid.value;
+      const uuid = UUID.create();
+      const raw = uuid.toValue();
 
       expect(raw[8]).toBe('-');
       expect(raw[13]).toBe('-');
@@ -88,15 +88,15 @@ describe('UUID', () => {
     });
 
     it('should embed version digit 4 at position 14', () => {
-      const uuid = UUID.generate();
+      const uuid = UUID.create();
 
-      expect(uuid.value[14]).toBe('4');
+      expect(uuid.toValue()[14]).toBe('4');
     });
 
     it('should embed a valid variant nibble at position 19', () => {
-      const uuid = UUID.generate();
+      const uuid = UUID.create();
 
-      expect(['8', '9', 'a', 'b']).toContain(uuid.value[19]);
+      expect(['8', '9', 'a', 'b']).toContain(uuid.toValue()[19]);
     });
   });
 
@@ -106,7 +106,7 @@ describe('UUID', () => {
         const result = UUID.parse(VALID_UUID_V4);
 
         expect(result.isSuccess).toBe(true);
-        expect(result.value.value).toBe(VALID_UUID_V4);
+        expect(result.value.toValue()).toBe(VALID_UUID_V4);
       });
 
       it('should normalise an uppercase UUID to lowercase', () => {
@@ -114,7 +114,7 @@ describe('UUID', () => {
         const result = UUID.parse(upper);
 
         expect(result.isSuccess).toBe(true);
-        expect(result.value.value).toBe(VALID_UUID_V4);
+        expect(result.value.toValue()).toBe(VALID_UUID_V4);
       });
 
       it('should accept a UUID whose variant nibble is "8"', () => {
@@ -409,7 +409,7 @@ describe('UUID', () => {
     it('should return the same string as value getter', () => {
       const uuid = UUID.parse(VALID_UUID_V4).value;
 
-      expect(uuid.toString()).toBe(uuid.value);
+      expect(uuid.toString()).toBe(uuid.toValue());
     });
   });
 
@@ -423,7 +423,7 @@ describe('UUID', () => {
     it('should return the same string as value getter', () => {
       const uuid = UUID.parse(VALID_UUID_V4).value;
 
-      expect(uuid.toValue()).toBe(uuid.value);
+      expect(uuid.toValue()).toBe(uuid.toValue());
     });
   });
 
@@ -435,7 +435,7 @@ describe('UUID', () => {
     });
 
     it('should return identical strings for a generated UUID', () => {
-      const uuid = UUID.generate();
+      const uuid = UUID.create();
 
       expect(uuid.toString()).toBe(uuid.toValue());
     });

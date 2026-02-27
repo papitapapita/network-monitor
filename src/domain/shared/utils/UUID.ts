@@ -25,10 +25,6 @@ export class UUID {
     this._value = value;
   }
 
-  get value(): string {
-    return this._value;
-  }
-
   /**
    * Generates a new, cryptographically random UUID v4.
    *
@@ -38,7 +34,7 @@ export class UUID {
    * const id = UUID.generate();
    * console.log(id.value); // "e.g. 550e8400-e29b-41d4-a716-446655440000"
    */
-  public static generate(): UUID {
+  public static create(): UUID {
     return new UUID(crypto.randomUUID());
   }
 
