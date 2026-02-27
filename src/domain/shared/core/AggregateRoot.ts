@@ -1,6 +1,6 @@
 import { Entity } from './Entity';
 import { UniqueEntityID } from './UniqueEntityID';
-import { IDomainEvent } from '../interfaces/IDomainEvent';
+import { IDomainEvent } from '../interfaces';
 
 /**
  * Base class for all Aggregate Roots in Domain-Driven Design (DDD).
@@ -15,30 +15,15 @@ import { IDomainEvent } from '../interfaces/IDomainEvent';
  * by the aggregate.
  *
  * @typeParam T - The shape of the properties stored in the entity.
- * @typeParam TID - The type of the unique identifier for the entity, extending {@link UniqueEntityID}.
- *
- * @example
- * ```typescript
- * class Order extends AggregateRoot<OrderProps, UniqueEntityID> {
- *   // Order-specific methods and properties
+ * @typeParam TID - The type of the unique identifier for the entity, extending {@link UniqueEntityID}
+ * @property {IDomainEvent[]} domainEvents - A list of domain events raised by this aggregate.
  */
 export abstract class AggregateRoot<
   T,
   TID extends UniqueEntityID
 > extends Entity<T, TID> {
-  /**
-   * Internal collection of domain events raised by this aggregate.
-   *
-   * Events are stored here until a dispatcher processes them.
-   */
   private _domainEvents: IDomainEvent[] = [];
 
-  /**
-   * Returns a copy of all domain events that the aggregate has raised.
-   *
-   * These events are typically handled by an event dispatcher
-   * after the aggregate operation completes.
-   */
   get domainEvents(): IDomainEvent[] {
     return [...this._domainEvents];
   }
