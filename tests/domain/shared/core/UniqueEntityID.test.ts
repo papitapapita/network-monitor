@@ -1,8 +1,10 @@
 // Source: src/domain/shared/core/UniqueEntityID.ts
 
-import { UniqueEntityID } from '../../../../src/domain/shared/core/UniqueEntityID';
-import { Result } from '../../../../src/domain/shared/core/Result';
-import { Identifier } from '../../../../src/domain/shared/core/Identifier';
+import {
+  UniqueEntityID,
+  Result,
+  Identifier
+} from '../../../../src/domain/shared/core';
 
 // ---------------------------------------------------------------------------
 // UUID v4 regex — same pattern used internally by UUID.ts
@@ -25,10 +27,13 @@ class TestEntityID extends UniqueEntityID {
   public static create(id?: string): Result<TestEntityID> {
     if (id !== undefined) {
       const parsed = TestEntityID.parseId(id);
-      if (parsed.isFailure) return Result.fail<TestEntityID>(parsed.error);
+      if (parsed.isFailure)
+        return Result.fail<TestEntityID>(parsed.error);
       return Result.ok<TestEntityID>(new TestEntityID(parsed.value));
     }
-    return Result.ok<TestEntityID>(new TestEntityID(TestEntityID.createId()));
+    return Result.ok<TestEntityID>(
+      new TestEntityID(TestEntityID.createId())
+    );
   }
 
   /**
@@ -76,13 +81,15 @@ const VALID_UUID_B = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
 // ---------------------------------------------------------------------------
 function createTestId(id: string): TestEntityID {
   const result = TestEntityID.create(id);
-  if (result.isFailure) throw new Error(`Test setup failed: ${result.error}`);
+  if (result.isFailure)
+    throw new Error(`Test setup failed: ${result.error}`);
   return result.value;
 }
 
 function createAutoId(): TestEntityID {
   const result = TestEntityID.create();
-  if (result.isFailure) throw new Error(`Test setup failed: ${result.error}`);
+  if (result.isFailure)
+    throw new Error(`Test setup failed: ${result.error}`);
   return result.value;
 }
 
@@ -259,13 +266,17 @@ describe('UniqueEntityID', () => {
       const id = createAutoId();
 
       // Identifier.equals accepts Identifier<string>; null is cast to test the guard
-      expect(id.equals(null as unknown as Identifier<string>)).toBe(false);
+      expect(id.equals(null as unknown as Identifier<string>)).toBe(
+        false
+      );
     });
 
     it('should return false when compared against undefined', () => {
       const id = createAutoId();
 
-      expect(id.equals(undefined as unknown as Identifier<string>)).toBe(false);
+      expect(
+        id.equals(undefined as unknown as Identifier<string>)
+      ).toBe(false);
     });
 
     it('should return false when comparing instances of different concrete subclasses even with the same UUID', () => {
@@ -308,9 +319,9 @@ describe('UniqueEntityID', () => {
 
     it('should return true for a UUID v4 with uppercase hex digits', () => {
       // RFC 4122 is case-insensitive — the regex uses the /i flag
-      expect(UniqueEntityID.isValid('550E8400-E29B-41D4-A716-446655440000')).toBe(
-        true
-      );
+      expect(
+        UniqueEntityID.isValid('550E8400-E29B-41D4-A716-446655440000')
+      ).toBe(true);
     });
 
     it('should return false for an empty string', () => {
@@ -326,7 +337,9 @@ describe('UniqueEntityID', () => {
     });
 
     it('should return false for an incomplete UUID', () => {
-      expect(UniqueEntityID.isValid('550e8400-e29b-41d4-a716')).toBe(false);
+      expect(UniqueEntityID.isValid('550e8400-e29b-41d4-a716')).toBe(
+        false
+      );
     });
 
     it('should return false for a UUID with a non-4 version nibble', () => {
@@ -349,14 +362,16 @@ describe('UniqueEntityID', () => {
 
     it('should return false for a UUID with extra segments', () => {
       expect(
-        UniqueEntityID.isValid('550e8400-e29b-41d4-a716-446655440000-extra')
+        UniqueEntityID.isValid(
+          '550e8400-e29b-41d4-a716-446655440000-extra'
+        )
       ).toBe(false);
     });
 
     it('should return false for a UUID missing hyphens', () => {
-      expect(UniqueEntityID.isValid('550e8400e29b41d4a716446655440000')).toBe(
-        false
-      );
+      expect(
+        UniqueEntityID.isValid('550e8400e29b41d4a716446655440000')
+      ).toBe(false);
     });
   });
 
@@ -402,7 +417,9 @@ describe('UniqueEntityID', () => {
     });
 
     it('should return Result.fail for an incomplete UUID', () => {
-      const result = TestEntityID.exposeParseId('550e8400-e29b-41d4-a716');
+      const result = TestEntityID.exposeParseId(
+        '550e8400-e29b-41d4-a716'
+      );
 
       expect(result.isFailure).toBe(true);
     });
