@@ -10,23 +10,14 @@ import { UniqueEntityID } from './UniqueEntityID';
  *
  * @template T The shape of the entity's properties.
  * @template TID The type of the entity's unique identifier, extending {@link UniqueEntityID}.
+ * @property {TID} id - The unique identifier of the entity.
+ * @property {T} props - The properties that define the entity's state.
  */
 export abstract class Entity<T, TID extends UniqueEntityID> {
-  /**
-   * The unique identifier of the entity.
-   * @protected
-   */
   protected readonly _id: TID;
-
-  /**
-   * The internal properties of the entity.
-   * @protected
-   */
   protected props: T;
 
   /**
-   * Creates a new entity instance.
-   *
    * @param {T} props - The properties that define the entity's state.
    * @param {TID} id - The unique identifier for this entity. Must be created by the concrete entity's factory method.
    */
@@ -35,11 +26,6 @@ export abstract class Entity<T, TID extends UniqueEntityID> {
     this.props = props;
   }
 
-  /**
-   * Gets the unique identifier of the entity.
-   *
-   * @returns {TID} The entity's ID type.
-   */
   get id(): TID {
     return this._id;
   }
