@@ -1,5 +1,5 @@
 import { UniqueEntityID } from './UniqueEntityID';
-import { IDomainEvent } from '../../device-inventory';
+import { IDomainEvent } from '../interfaces';
 
 /**
  * Base class for Domain Events used in Domain-Driven Design (DDD).
@@ -20,45 +20,12 @@ import { IDomainEvent } from '../../device-inventory';
  * Events should be named in past tense (e.g., OrderCreated, DeviceWentOffline).
  *
  * @template TProps - The shape of properties this event contains
- *
- * @example
- * ```typescript
- * interface OrderCreatedEventProps {
- *   orderId: OrderId;
- *   customerId: CustomerId;
- *   totalAmount: Money;
- *   dateTimeOccurred: Date;
- * }
- *
- * export class OrderCreatedEvent extends DomainEvent<OrderCreatedEventProps> {
- *   constructor(props: OrderCreatedEventProps) {
- *     super(props);
- *   }
- *
- *   getAggregateId(): OrderId {
- *     return this.props.orderId;
- *   }
- *
- *   get dateTimeOccurred(): Date {
- *     return this.props.dateTimeOccurred;
- *   }
- *
- *   get orderId(): OrderId {
- *     return this.props.orderId;
- *   }
- * }
- * ```
+ * @property {TProps} props - The immutable properties of the event
  */
 export abstract class DomainEvent<TProps> implements IDomainEvent {
-  /**
-   * Immutable properties that define the event.
-   * Protected to allow subclasses to access event data.
-   */
   protected readonly props: Readonly<TProps>;
 
   /**
-   * Creates a new immutable Domain Event.
-   *
    * The provided props object is frozen to prevent any mutation.
    * This ensures events remain immutable after creation, which is
    * critical for event sourcing and reliable event handling.
@@ -103,11 +70,6 @@ export abstract class DomainEvent<TProps> implements IDomainEvent {
    * to provide more detailed information.
    *
    * @returns A human-readable string describing the event
-   *
-   * @example
-   * ```typescript
-   * "OrderCreatedEvent(aggregateId: 123e4567-e89b-12d3-a456-426614174000, occurred: 2024-01-15T10:30:00.000Z)"
-   * ```
    */
   public toString(): string {
     return `${this.constructor.name}(aggregateId: ${this.aggregateId.toString()}, occurred: ${this.dateTimeOccurred.toISOString()})`;
