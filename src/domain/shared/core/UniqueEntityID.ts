@@ -1,51 +1,53 @@
 import { Identifier } from './Identifier';
-import { UUID } from './UUID';
+import { UUID } from '../utils/UUID';
+import { Result } from './Result';
 
 /**
  * Represents a unique identifier for entities using UUID.
  *
  * This class enforces that all entity IDs are valid UUIDs (RFC 4122).
- * It extends the base {@link Identifier} class and uses the {@link UUID} value object
- * to ensure type safety and validation.
+ * It extends the base {@link Identifier} class and uses the {@link UUID} utility
+ * for validation and generation of UUIDs.
  *
  * Features:
- * - Only accepts valid UUID strings (validated by uuid package)
- * - Automatically generates new UUIDs if none provided
+ * - Only accepts valid UUID strings
  * - Type-safe UUID handling
- * - Immutable
- *
- * @example
- * ```typescript
- * // Create with auto-generated UUID
- * const id1 = new UniqueEntityID();
- * console.log(id1.toString()); // "550e8400-e29b-41d4-a716-446655440000"
- *
- * // Create with existing UUID
- * const id2 = new UniqueEntityID("550e8400-e29b-41d4-a716-446655440000");
- *
- * // Invalid UUID throws error
- * const id3 = new UniqueEntityID("invalid"); // Throws error
- * ```
  */
 export abstract class UniqueEntityID extends Identifier<string> {
   /**
    * Creates a new UniqueEntityID instance.
    *
-   * If an ID is not provided, a new UUID v4 will be generated automatically.
-   * If an ID is provided, it must be a valid UUID or an error will be thrown.
-   *
-   * @param {string} [id] - Optional UUID string. If omitted, a new UUID is generated.
+   * @param {string} [id]  UUID string. If omitted, a new UUID is generated.
    * @throws {Error} If the provided ID is not a valid UUID
    */
-  protected constructor(id?: string) {
-    const uuidResult = UUID.create(id);
-
-    if (!uuidResult.isSuccess) {
-      throw new Error(uuidResult.error);
+  protected constructor(id: string) {
+    if (!UUID.isValid(id)) {
+      throw new Error(
+        `[UniqueEntityID] Invariant violation: "${id}" is not a valid UUID v4. ` +
+          `Use generateId() or parseId() in your subclass factory methods.`
+      );
     }
+    super(id);
+  }
 
-    const uuid = uuidResult.value;
-    super(uuid.value);
+  /**
+   * Generates a new UUID string for use as an entity ID.
+   * @returns {string} A new UUID string
+   */
+  protected static createId(): string {
+    return UUID.create().toValue();
+  }
+
+  /**
+   * Parses a UUID string and validates it for use as an entity ID.
+   *
+   * @param {string} id - The UUID string to parse and validate
+   * @returns {Result<string>} A Result containing the valid UUID string or an error message
+   */
+  protected static parseId(id: string): Result<string> {
+    const result = UUID.parse(id);
+    if (result.isFailure) return Result.fail(result.error);
+    return Result.ok(result.value.toValue());
   }
 
   /**
