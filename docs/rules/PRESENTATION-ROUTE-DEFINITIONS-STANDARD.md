@@ -41,14 +41,14 @@
 
 ### Route Definition vs Controller:
 
-| Aspect                | Route Definition             | Controller                    |
-| --------------------- | ---------------------------- | ----------------------------- |
-| **Purpose**           | Wire endpoints               | Handle requests               |
-| **Contents**          | Paths, middleware, bindings  | Business logic coordination   |
-| **Logic**             | NONE (pure configuration)    | Request/response handling     |
-| **Dependencies**      | Controller, middleware       | Use cases, logger             |
-| **Returns**           | Express Router               | void (sends HTTP response)    |
-| **Testing**           | Endpoint configuration tests | Integration/unit tests        |
+| Aspect           | Route Definition             | Controller                  |
+| ---------------- | ---------------------------- | --------------------------- |
+| **Purpose**      | Wire endpoints               | Handle requests             |
+| **Contents**     | Paths, middleware, bindings  | Business logic coordination |
+| **Logic**        | NONE (pure configuration)    | Request/response handling   |
+| **Dependencies** | Controller, middleware       | Use cases, logger           |
+| **Returns**      | Express Router               | void (sends HTTP response)  |
+| **Testing**      | Endpoint configuration tests | Integration/unit tests      |
 
 ---
 
@@ -94,6 +94,36 @@
 6. **Group Related Routes**
    - One route file per resource/aggregate
    - All routes for same base path in one file
+
+7. **Route Grouping/Prefixing (Versioning)**
+   - Routes MUST NOT define their own global prefix (e.g., `/api/v1`)
+   - The main application entry point mounts routers on versioned prefixes
+   - This enables supporting multiple API versions simultaneously as bounded contexts evolve
+   - **Why**: Decouples route definitions from deployment concerns, allowing the same router to be mounted under different versions
+
+   ```typescript
+   // ✅ Good: Route factory has no version prefix
+   export function createNetworkDeviceRoutes(controller: NetworkDeviceController): Router {
+     const router = Router();
+     router.get('/', controller.list);      // Just '/', not '/api/v1/network-devices'
+     router.get('/:id', controller.getById);
+     return router;
+   }
+
+   // ✅ Good: Main app mounts with version prefix
+   // app.ts or main.ts
+   app.use('/api/v1/network-devices', createNetworkDeviceRoutes(v1Controller));
+   app.use('/api/v2/network-devices', createNetworkDeviceRoutes(v2Controller));
+   ```
+
+   ```typescript
+   // ❌ Bad: Route factory defines global prefix
+   export function createNetworkDeviceRoutes(controller: NetworkDeviceController): Router {
+     const router = Router();
+     router.get('/api/v1/network-devices', controller.list);  // ❌ Hardcoded prefix
+     return router;
+   }
+   ```
 
 ---
 
@@ -144,18 +174,18 @@
 
 ```
 ┌──────────────────────────────────────────────────┐
-│          PRESENTATION LAYER                       │
-│                                                    │
+│          PRESENTATION LAYER                      │
+│                                                  │
 │  ┌─────────────────────────────────────────────┐ │
 │  │   Route Definitions                         │ │
 │  │   - Define endpoints                        │ │
 │  │   - Compose middleware                      │ │
 │  │   - Bind controllers                        │ │
 │  └─────────────────────────────────────────────┘ │
-│              ↓                   ↓                 │
-│    ┌─────────────┐    ┌────────────────┐          │
-│    │ Middleware  │    │  Controllers   │          │
-│    └─────────────┘    └────────────────┘          │
+│              ↓                   ↓               │
+│    ┌─────────────┐    ┌────────────────┐         │
+│    │ Middleware  │    │  Controllers   │         │
+│    └─────────────┘    └────────────────┘         │
 └──────────────────────────────────────────────────┘
                           ↓
                  APPLICATION LAYER
@@ -182,7 +212,10 @@ const mapper = new NetworkDeviceMapper();
 const logger = new ConsoleLogger('NetworkDeviceController');
 
 // 2. Create use cases
-const createUseCase = new CreateNetworkDeviceUseCase(repository, mapper);
+const createUseCase = new CreateNetworkDeviceUseCase(
+  repository,
+  mapper
+);
 const listUseCase = new ListNetworkDevicesUseCase(repository, mapper);
 // ... other use cases
 
@@ -230,7 +263,7 @@ app.listen(3000);
 
 ### Basic Route Factory Template
 
-```typescript
+````typescript
 import { Router } from 'express';
 import { [Resource]Controller } from '../controllers/[Resource]Controller';
 import { validateRequest } from '../middleware/validateRequest';
@@ -354,7 +387,7 @@ export function create[Resource]Routes(
 
   return router;
 }
-```
+````
 
 ---
 
@@ -429,11 +462,7 @@ export function createNetworkDeviceRoutes(
    * GET /api/network-devices/stats
    * Get network device statistics
    */
-  router.get(
-    '/stats',
-    authenticate,
-    controller.getStats
-  );
+  router.get('/stats', authenticate, controller.getStats);
 
   // =====================================
   // STANDARD CRUD WITH :id
@@ -549,19 +578,23 @@ export function createNetworkDeviceRoutes(
   const router = Router();
 
   // ❌ BAD: Logic in route definition
-  router.post('/', (req, res, next) => {
-    // ❌ BAD: Validation logic
-    if (!req.body.ipAddress) {
-      return res.status(400).json({ error: 'IP required' });
-    }
+  router.post(
+    '/',
+    (req, res, next) => {
+      // ❌ BAD: Validation logic
+      if (!req.body.ipAddress) {
+        return res.status(400).json({ error: 'IP required' });
+      }
 
-    // ❌ BAD: Business logic
-    if (req.body.ipAddress.startsWith('192.168.')) {
-      req.body.isPrivate = true;
-    }
+      // ❌ BAD: Business logic
+      if (req.body.ipAddress.startsWith('192.168.')) {
+        req.body.isPrivate = true;
+      }
 
-    next();
-  }, controller.create);
+      next();
+    },
+    controller.create
+  );
 
   return router;
 }
@@ -580,9 +613,9 @@ Middleware executes left-to-right. Order is critical.
 ```typescript
 router.post(
   '/',
-  authenticate,        // 1. Check auth first
+  authenticate, // 1. Check auth first
   validateRequest(schema), // 2. Then validate
-  controller.create    // 3. Finally execute
+  controller.create // 3. Finally execute
 );
 ```
 
@@ -592,7 +625,7 @@ router.post(
 router.post(
   '/',
   validateRequest(schema), // ❌ Validates before auth check
-  authenticate,            // ❌ Wastes CPU on invalid requests
+  authenticate, // ❌ Wastes CPU on invalid requests
   controller.create
 );
 ```
@@ -750,13 +783,18 @@ router.post('/', validateRequest(schema), controller.create);
 
 // Controller handles errors
 export class NetworkDeviceController {
-  public create = async (req: Request, res: Response): Promise<void> => {
+  public create = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const result = await this.createUseCase.execute(req.body);
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ success: false, error: result.error });
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
         return;
       }
 
@@ -819,14 +857,16 @@ Express error-handling middleware catches all unhandled errors.
 app.use('/api/network-devices', networkDeviceRoutes);
 
 // Global error handler (MUST be last middleware)
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  logger.error('Unhandled error', err);
+app.use(
+  (err: Error, req: Request, res: Response, next: NextFunction) => {
+    logger.error('Unhandled error', err);
 
-  res.status(500).json({
-    success: false,
-    error: 'Internal server error'
-  });
-});
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+);
 ```
 
 ---
@@ -836,6 +876,7 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 ### Test Structure
 
 Routes should be tested to ensure:
+
 1. Correct paths are registered
 2. Middleware is applied in correct order
 3. Controllers are called with correct parameters
@@ -912,8 +953,10 @@ describe('Network Device Routes', () => {
 
   it('should have validation middleware for POST /', () => {
     const postRoute = router.stack.find(
-      (layer: any) => layer.route && layer.route.path === '/' &&
-      layer.route.methods.post
+      (layer: any) =>
+        layer.route &&
+        layer.route.path === '/' &&
+        layer.route.methods.post
     );
 
     // Should have at least 2 handlers: validation + controller
@@ -963,9 +1006,7 @@ describe('Network Device Routes Integration', () => {
   });
 
   it('should handle GET /api/network-devices', async () => {
-    await request(app)
-      .get('/api/network-devices')
-      .expect(200);
+    await request(app).get('/api/network-devices').expect(200);
   });
 
   it('should handle custom route GET /api/network-devices/by-ip', async () => {
@@ -1100,8 +1141,8 @@ export function createNetworkDeviceRoutes(
    */
   router.post(
     '/',
-    authenticate,                           // Check JWT token
-    authorize(['device:write']),            // Check permissions
+    authenticate, // Check JWT token
+    authorize(['device:write']), // Check permissions
     validateRequest(createNetworkDeviceSchema),
     controller.create
   );

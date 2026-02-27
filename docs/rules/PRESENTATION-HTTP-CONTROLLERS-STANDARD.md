@@ -41,16 +41,16 @@
 
 ### HTTP Controller vs Use Case:
 
-| Aspect                    | HTTP Controller                      | Use Case                           |
-| ------------------------- | ------------------------------------ | ---------------------------------- |
-| **Layer**                 | Presentation                         | Application                        |
-| **Purpose**               | HTTP request/response handling       | Business logic orchestration       |
-| **Dependencies**          | Express, Use Cases, Logger           | Domain, Repositories, Mappers      |
-| **Business Logic**        | NONE (pure coordination)             | ALL business rules                 |
-| **HTTP Knowledge**        | YES (status codes, headers, cookies) | NO (protocol-agnostic)             |
-| **Error Handling**        | HTTP status code mapping             | Result<T> pattern                  |
-| **Testing**               | Integration tests (with HTTP)        | Unit tests (no HTTP)               |
-| **Reusability**           | HTTP-only                            | Reusable across protocols          |
+| Aspect             | HTTP Controller                      | Use Case                      |
+| ------------------ | ------------------------------------ | ----------------------------- |
+| **Layer**          | Presentation                         | Application                   |
+| **Purpose**        | HTTP request/response handling       | Business logic orchestration  |
+| **Dependencies**   | Express, Use Cases, Logger           | Domain, Repositories, Mappers |
+| **Business Logic** | NONE (pure coordination)             | ALL business rules            |
+| **HTTP Knowledge** | YES (status codes, headers, cookies) | NO (protocol-agnostic)        |
+| **Error Handling** | HTTP status code mapping             | Result<T> pattern             |
+| **Testing**        | Integration tests (with HTTP)        | Unit tests (no HTTP)          |
+| **Reusability**    | HTTP-only                            | Reusable across protocols     |
 
 ---
 
@@ -168,8 +168,8 @@
 
 ```
 ┌──────────────────────────────────────────────────┐
-│          PRESENTATION LAYER                       │
-│                                                    │
+│          PRESENTATION LAYER                      │
+│                                                  │
 │  ┌─────────────────────────────────────────────┐ │
 │  │   HTTP Controllers                          │ │
 │  │   - Receive HTTP requests                   │ │
@@ -177,28 +177,28 @@
 │  │   - Invoke use cases                        │ │
 │  │   - Map results to HTTP responses           │ │
 │  └─────────────────────────────────────────────┘ │
-│                       ↓                            │
-└───────────────────────┼────────────────────────────┘
+│                       ↓                          │
+└───────────────────────┼──────────────────────────┘
                         │
                         │ Depends on Use Cases
                         ↓
 ┌──────────────────────────────────────────────────┐
-│          APPLICATION LAYER                        │
-│                                                    │
+│          APPLICATION LAYER                       │
+│                                                  │
 │  ┌─────────────────────────────────────────────┐ │
 │  │   Use Cases                                 │ │
 │  │   - Business logic orchestration            │ │
 │  │   - Return Result<DTO>                      │ │
 │  └─────────────────────────────────────────────┘ │
-│                       ↓                            │
-└───────────────────────┼────────────────────────────┘
+│                       ↓                          │
+└───────────────────────┼──────────────────────────┘
                         │
                         │ Uses Domain
                         ↓
 ┌──────────────────────────────────────────────────┐
-│          DOMAIN LAYER                             │
-│   - Aggregates, Entities, Value Objects           │
-│   - Business rules                                 │
+│          DOMAIN LAYER                            │
+│   - Aggregates, Entities, Value Objects          │
+│   - Business rules                               │
 └──────────────────────────────────────────────────┘
 
 Related Presentation Components:
@@ -216,7 +216,10 @@ Related Presentation Components:
 
 ```typescript
 // 1. Application Startup - Instantiate use cases
-const createUseCase = new CreateNetworkDeviceUseCase(repository, mapper);
+const createUseCase = new CreateNetworkDeviceUseCase(
+  repository,
+  mapper
+);
 const listUseCase = new ListNetworkDevicesUseCase(repository, mapper);
 const logger = new ConsoleLogger('NetworkDeviceController');
 
@@ -262,7 +265,7 @@ controller.getById(req, res);
 
 ### Basic Controller Template
 
-```typescript
+````typescript
 import { Request, Response } from 'express';
 import { IUseCase } from '../../../application/interfaces/IUseCase';
 import { ILogger } from '../../../application/interfaces/ILogger';
@@ -507,7 +510,7 @@ export class [Resource]Controller {
     });
   }
 }
-```
+````
 
 ### Complex Controller Template (with Custom Endpoints)
 
@@ -529,7 +532,10 @@ export class NetworkDeviceController {
    *
    * Custom query endpoint for searching by IP.
    */
-  public getByIp = async (req: Request, res: Response): Promise<void> => {
+  public getByIp = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const result = await this.getByIpUseCase.execute({
         ipAddress: req.query.ip as string
@@ -559,7 +565,10 @@ export class NetworkDeviceController {
    *
    * Custom action endpoint (non-CRUD).
    */
-  public activate = async (req: Request, res: Response): Promise<void> => {
+  public activate = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const result = await this.activateUseCase.execute({
         id: req.params.id
@@ -675,7 +684,9 @@ private getErrorStatusCode(errorMessage: string): number {
 ```typescript
 // ❌ BAD: Use case returning HTTP status codes
 export class CreateNetworkDeviceUseCase {
-  async execute(dto: CreateDTO): Promise<{ statusCode: number; data?: any }> {
+  async execute(
+    dto: CreateDTO
+  ): Promise<{ statusCode: number; data?: any }> {
     if (!ipAddress.isValid()) {
       return { statusCode: 400, data: null }; // ❌ HTTP knowledge in use case
     }
@@ -703,7 +714,10 @@ export class NetworkDeviceController {
   ) {}
 
   // ✅ Arrow function for 'this' binding
-  public create = async (req: Request, res: Response): Promise<void> => {
+  public create = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     // Request-scoped variables only
     const result = await this.createUseCase.execute(req.body);
     // ...
@@ -719,7 +733,10 @@ export class NetworkDeviceController {
   private currentRequest?: Request;
   private requestCount = 0;
 
-  public create = async (req: Request, res: Response): Promise<void> => {
+  public create = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     // ❌ BAD: Modifying instance state during request
     this.currentRequest = req;
     this.requestCount++;
@@ -999,19 +1016,19 @@ private handleUnexpectedError(error: unknown, res: Response): void {
 
 Standard HTTP status codes for REST APIs:
 
-| Status Code | When to Use                                | Example                          |
-| ----------- | ------------------------------------------ | -------------------------------- |
-| **200 OK**  | Successful GET, PUT                        | Device retrieved/updated         |
-| **201**     | Successful POST (resource created)         | Device created                   |
-| **204**     | Successful DELETE (no content)             | Device deleted                   |
-| **400**     | Validation error, invalid input            | Invalid IP format                |
-| **401**     | Authentication required                    | No token provided                |
-| **403**     | Forbidden (authenticated but no access)    | User lacks permission            |
-| **404**     | Resource not found                         | Device with ID not found         |
-| **409**     | Conflict (duplicate, version mismatch)     | IP already exists                |
-| **422**     | Unprocessable entity (semantic error)      | Valid JSON but business rule fails |
-| **500**     | Internal server error (unexpected)         | Database connection failed       |
-| **503**     | Service unavailable (temporary)            | Database is down                 |
+| Status Code | When to Use                             | Example                            |
+| ----------- | --------------------------------------- | ---------------------------------- |
+| **200 OK**  | Successful GET, PUT                     | Device retrieved/updated           |
+| **201**     | Successful POST (resource created)      | Device created                     |
+| **204**     | Successful DELETE (no content)          | Device deleted                     |
+| **400**     | Validation error, invalid input         | Invalid IP format                  |
+| **401**     | Authentication required                 | No token provided                  |
+| **403**     | Forbidden (authenticated but no access) | User lacks permission              |
+| **404**     | Resource not found                      | Device with ID not found           |
+| **409**     | Conflict (duplicate, version mismatch)  | IP already exists                  |
+| **422**     | Unprocessable entity (semantic error)   | Valid JSON but business rule fails |
+| **500**     | Internal server error (unexpected)      | Database connection failed         |
+| **503**     | Service unavailable (temporary)         | Database is down                   |
 
 ---
 
@@ -1225,7 +1242,9 @@ describe('NetworkDeviceController Unit Tests', () => {
 
     // Mock Express req/res
     jsonMock = jest.fn();
-    statusMock = jest.fn().mockReturnValue({ json: jsonMock, send: jest.fn() });
+    statusMock = jest
+      .fn()
+      .mockReturnValue({ json: jsonMock, send: jest.fn() });
 
     mockReq = {
       body: {},
@@ -1261,7 +1280,10 @@ describe('NetworkDeviceController Unit Tests', () => {
       );
 
       // Act
-      await controller.create(mockReq as Request, mockRes as Response);
+      await controller.create(
+        mockReq as Request,
+        mockRes as Response
+      );
 
       // Assert
       expect(mockCreateUseCase.execute).toHaveBeenCalledWith(mockDTO);
@@ -1280,7 +1302,10 @@ describe('NetworkDeviceController Unit Tests', () => {
       );
 
       // Act
-      await controller.create(mockReq as Request, mockRes as Response);
+      await controller.create(
+        mockReq as Request,
+        mockRes as Response
+      );
 
       // Assert
       expect(statusMock).toHaveBeenCalledWith(400);
@@ -1298,7 +1323,10 @@ describe('NetworkDeviceController Unit Tests', () => {
       );
 
       // Act
-      await controller.create(mockReq as Request, mockRes as Response);
+      await controller.create(
+        mockReq as Request,
+        mockRes as Response
+      );
 
       // Assert
       expect(statusMock).toHaveBeenCalledWith(409);
@@ -1312,10 +1340,15 @@ describe('NetworkDeviceController Unit Tests', () => {
       // Arrange
       const error = new Error('Database connection failed');
       mockReq.body = { ipAddress: '192.168.1.1' };
-      (mockCreateUseCase.execute as jest.Mock).mockRejectedValue(error);
+      (mockCreateUseCase.execute as jest.Mock).mockRejectedValue(
+        error
+      );
 
       // Act
-      await controller.create(mockReq as Request, mockRes as Response);
+      await controller.create(
+        mockReq as Request,
+        mockRes as Response
+      );
 
       // Assert
       expect(mockLogger.error).toHaveBeenCalledWith(
@@ -1403,7 +1436,10 @@ export class NetworkDeviceController {
     private readonly logger: ILogger
   ) {}
 
-  public create = async (req: Request, res: Response): Promise<void> => {
+  public create = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const result = await this.createUseCase.execute(req.body);
 
@@ -1425,11 +1461,16 @@ export class NetworkDeviceController {
     }
   };
 
-  public list = async (req: Request, res: Response): Promise<void> => {
+  public list = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const query = {
         limit: req.query.limit ? Number(req.query.limit) : undefined,
-        offset: req.query.offset ? Number(req.query.offset) : undefined,
+        offset: req.query.offset
+          ? Number(req.query.offset)
+          : undefined,
         status: req.query.status as string | undefined,
         deviceType: req.query.deviceType as string | undefined
       };
@@ -1453,7 +1494,10 @@ export class NetworkDeviceController {
     }
   };
 
-  public getById = async (req: Request, res: Response): Promise<void> => {
+  public getById = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const result = await this.getUseCase.execute({
         id: req.params.id
@@ -1477,7 +1521,10 @@ export class NetworkDeviceController {
     }
   };
 
-  public update = async (req: Request, res: Response): Promise<void> => {
+  public update = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const result = await this.updateUseCase.execute({
         id: req.params.id,
@@ -1502,7 +1549,10 @@ export class NetworkDeviceController {
     }
   };
 
-  public delete = async (req: Request, res: Response): Promise<void> => {
+  public delete = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const result = await this.deleteUseCase.execute({
         id: req.params.id
@@ -1584,7 +1634,10 @@ export class NetworkDeviceController {
    * GET /api/network-devices/by-ip?ip=192.168.1.1
    * Custom query endpoint for finding device by IP.
    */
-  public getByIp = async (req: Request, res: Response): Promise<void> => {
+  public getByIp = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const result = await this.getByIpUseCase.execute({
         ipAddress: req.query.ip as string
@@ -1612,7 +1665,10 @@ export class NetworkDeviceController {
    * POST /api/network-devices/:id/activate
    * Custom action endpoint for activating a device.
    */
-  public activate = async (req: Request, res: Response): Promise<void> => {
+  public activate = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const result = await this.activateUseCase.execute({
         id: req.params.id
@@ -1640,7 +1696,10 @@ export class NetworkDeviceController {
    * POST /api/network-devices/:id/deactivate
    * Custom action endpoint for deactivating a device.
    */
-  public deactivate = async (req: Request, res: Response): Promise<void> => {
+  public deactivate = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const result = await this.deactivateUseCase.execute({
         id: req.params.id
@@ -1716,7 +1775,7 @@ Use this checklist to verify your HTTP controller implementation:
 - [ ] Happy path tests (successful operations)
 - [ ] Error path tests (validation, not found, conflict)
 - [ ] Exception tests (unexpected errors, logging)
-- [ ] >80% code coverage
+- [ ] > 80% code coverage
 
 ### Code Quality
 
