@@ -1,4 +1,4 @@
-import { UniqueEntityID, Result } from '..';
+import { UniqueEntityID, Result } from '../core';
 
 /**
  * NetworkDeviceId - Unique identifier for NetworkDevice aggregate
@@ -9,43 +9,15 @@ import { UniqueEntityID, Result } from '..';
  *
  * Only accepts valid UUIDs (RFC 4122) - enforces UUID-only ID management.
  * Prevents accidentally mixing NetworkDevice IDs with other entity IDs.
- *
- * @example
- * // Create with existing UUID (from database)
- * const deviceId = new NetworkDeviceId('550e8400-e29b-41d4-a716-446655440000');
- *
- * // Create new ID (auto-generates UUID v4)
- * const newDeviceId = new NetworkDeviceId();
- *
- * // Get raw UUID value for persistence
- * const idValue = deviceId.toValue(); // "550e8400-e29b-41d4-a716-446655440000"
- *
- * // Invalid UUID throws error
- * const invalidId = new NetworkDeviceId('invalid'); // Throws error
  */
 export class NetworkDeviceId extends UniqueEntityID {
-  /**
-   * Creates a new NetworkDeviceId instance.
-   *
-   * @param id - Optional UUID string. If not provided, a new UUID v4 will be generated.
-   * @throws {Error} If the provided ID is not a valid UUID
-   */
   private constructor(id: string) {
     super(id);
   }
 
   /**
-   * Creates a NetworkDeviceId from a UUID string.
-   * Useful for converting database UUIDs to domain IDs.
-   *
-   * @param id - Optional UUID string (from database or external source)
-   * @returns Result containing NetworkDeviceId instance or error message
-   *
-   * @example
-   * const result = NetworkDeviceId.create('550e8400-e29b-41d4-a716-446655440000');
-   * if (result.isSuccess) {
-   *   const deviceId = result.value;
-   * }
+   * Creates a new NetworkDeviceId with a generated UUID.
+   * @returns NetworkDeviceId instance with a new UUID
    */
   public static create(): NetworkDeviceId {
     return new NetworkDeviceId(UniqueEntityID.createId());
@@ -56,13 +28,7 @@ export class NetworkDeviceId extends UniqueEntityID {
    * Useful for converting database UUIDs to domain IDs.
    *
    * @param id - Optional UUID string (from database or external source)
-   * @returns Result containing NetworkDeviceId instance or error message
-   *
-   * @example
-   * const result = NetworkDeviceId.create('550e8400-e29b-41d4-a716-446655440000');
-   * if (result.isSuccess) {
-   *   const deviceId = result.value;
-   * }
+   * @returns Result containing NetworkDeviceId instance or error message:
    */
   public static parse(id: string): Result<NetworkDeviceId> {
     const result = NetworkDeviceId.parseId(id);
