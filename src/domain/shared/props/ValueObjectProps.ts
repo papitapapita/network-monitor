@@ -5,5 +5,5 @@
  * not by identity.
  */
 export interface ValueObjectProps {
-  [index: string]: any;
+  [index: string]: unknown;
 }

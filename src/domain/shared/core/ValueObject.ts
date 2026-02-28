@@ -1,4 +1,4 @@
-import { ValueObjectProps } from '../../device-inventory';
+import { ValueObjectProps } from '../props';
 
 /**
  * Base class for Value Objects used in Domain-Driven Design (DDD).
@@ -7,19 +7,13 @@ import { ValueObjectProps } from '../../device-inventory';
  * identity and must be compared purely by the equality of their properties.
  *
  * @template T Extends the set of allowed properties for the Value Object.
+ * @property {Readonly<T>} _props - The immutable properties of the Value Object.
  */
 export abstract class ValueObject<T extends ValueObjectProps> {
-  /**
-   * Immutable properties that define the Value Object.
-   * @protected
-   */
   protected readonly _props: Readonly<T>;
 
   /**
    * Creates a new immutable Value Object.
-   *
-   * The provided props object is deeply frozen to prevent any mutation.
-   *
    * @param {T} props - The set of properties representing the value.
    */
   constructor(props: T) {
