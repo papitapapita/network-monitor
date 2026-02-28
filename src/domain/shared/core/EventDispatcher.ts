@@ -1,4 +1,4 @@
-import { IDomainEvent, IHandle } from '../../device-inventory';
+import { IDomainEvent, IHandle } from '../interfaces';
 import { AggregateRoot } from './AggregateRoot';
 import { UniqueEntityID } from './UniqueEntityID';
 
@@ -26,28 +26,13 @@ import { UniqueEntityID } from './UniqueEntityID';
  * - Register handlers at application startup using register()
  * - Each handler is a class instance with a handle() method
  *
- * @example
- * ```typescript
- * // Register a handler at startup
- * const handler = new DeviceStatusChangedHandler(alertRepo, emailService);
- * EventDispatcher.register(
- *   NetworkDeviceStatusChangedEvent.name,
- *   handler
- * );
- * ```
+ * @property handlersMap - Internal map of event class names to handler instances
+ * @property markedAggregates - List of Aggregate Roots with pending events
  */
 export abstract class EventDispatcher {
-  /**
-   * Internal map storing event handlers by event class name.
-   * Key: event class name
-   * Value: array of handler instances listening to that event
-   */
   private static handlersMap: Map<string, IHandle<IDomainEvent>[]> =
     new Map();
 
-  /**
-   * List of aggregates that have domain events pending dispatch.
-   */
   private static markedAggregates: AggregateRoot<any, any>[] = [];
 
   /**
@@ -153,23 +138,6 @@ export abstract class EventDispatcher {
    *
    * @param eventClassName - The name of the event class (use EventClass.name)
    * @param handler - The handler instance that implements IHandle<T>
-   *
-   * @example
-   * ```typescript
-   * // Register a single handler
-   * const alertHandler = new DeviceOfflineAlertHandler(alertRepo);
-   * EventDispatcher.register(
-   *   NetworkDeviceStatusChangedEvent.name,
-   *   alertHandler
-   * );
-   *
-   * // Register multiple handlers for the same event
-   * const emailHandler = new DeviceOfflineEmailHandler(emailService);
-   * EventDispatcher.register(
-   *   NetworkDeviceStatusChangedEvent.name,
-   *   emailHandler
-   * );
-   * ```
    */
   public static register<T extends IDomainEvent>(
     eventClassName: string,
@@ -221,9 +189,6 @@ export abstract class EventDispatcher {
       for (const handler of handlers) {
         try {
           const result = handler.handle(event);
-          // If handle() returns a Promise, we don't await it here
-          // to maintain synchronous dispatch behavior.
-          // Handlers should handle their own async errors.
           if (result instanceof Promise) {
             result.catch((error) => {
               console.error(
@@ -233,7 +198,6 @@ export abstract class EventDispatcher {
             });
           }
         } catch (error) {
-          // Catch synchronous errors to prevent one handler from breaking others
           console.error(
             `Error in handler for ${eventClassName}:`,
             error
