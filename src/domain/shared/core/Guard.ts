@@ -1,7 +1,4 @@
-import {
-  GuardArgumentCollection,
-  IGuardResult
-} from '../../device-inventory';
+import { GuardArgumentCollection, IGuardResult } from '../interfaces';
 
 /**
  * The Guard class provides a collection of reusable validation helpers.
@@ -31,9 +28,11 @@ export class Guard {
   /**
    * Ensures that a value is neither null nor undefined.
    *
-   * @param {any} argument - The value to validate.
+   * @param {T} argument - The value to validate.
    * @param {string} argumentName - The name of the argument for error messages.
    * @returns {IGuardResult} Validation result.
+   *
+   * @template T The type of the argument being validated.
    */
   public static againstNullOrUndefined<T>(
     argument: T,
@@ -170,8 +169,9 @@ export class Guard {
   /**
    * Validates that a value is a string.
    *
-   * @param {any} value - Value to check.
+   * @param {T} value - Value to check.
    * @param {string} argumentName - Input label.
+   * @template T The type of the value being validated.
    * @returns {IGuardResult} Validation result.
    */
   public static isString<T>(
@@ -190,8 +190,9 @@ export class Guard {
   /**
    * Validates that a value is a number and not NaN.
    *
-   * @param {any} value - Value to check.
+   * @param {T} value - Value to check.
    * @param {string} argumentName - Argument label.
+   * @template T The type of the value being validated.
    * @returns {IGuardResult} Validation result.
    */
   public static isNumber<T>(
@@ -210,8 +211,9 @@ export class Guard {
   /**
    * Validates that a value is a boolean.
    *
-   * @param {any} value - Value to check.
+   * @param {T} value - Value to check.
    * @param {string} argumentName - Argument name.
+   * @template T The type of the value being validated.
    * @returns {IGuardResult} Validation result.
    */
   public static isBoolean<T>(
@@ -230,8 +232,9 @@ export class Guard {
   /**
    * Validates that a value is a valid Date instance.
    *
-   * @param {any} value - The value to check.
+   * @param {T} value - The value to check.
    * @param {string} argumentName - The argument identifier.
+   * @template T The type of the value being validated.
    * @returns {IGuardResult} Validation result.
    */
   public static isDate<T>(
