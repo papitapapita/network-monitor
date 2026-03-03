@@ -208,6 +208,12 @@ enum ManagementProtocol {
   OTHER
 }
 
+// REQ-002: Device lifecycle activation status
+enum ActivationStatus {
+  DRAFT  // Device with minimal info (IP+MAC only) - discovery/enrichment phase
+  ACTIVE // Fully configured and operational device
+}
+
 enum EnergySourceType {
   SOLAR
   BATTERY
@@ -340,6 +346,30 @@ model NetworkDevice {
   enabledRemoteAccess   Boolean                @default(false)
   device                Device                 @relation(fields: [deviceId], references: [id])
   deviceId              String                    @unique
+
+  // REQ-002: Activation workflow - Draft/Active states
+  activationStatus      ActivationStatus       @default(DRAFT)
+  activatedAt           DateTime?
+  activatedBy           String?
+
+  // REQ-002: Soft delete with 7-day grace period
+  deletedAt             DateTime?
+  deletedBy             String?
+
+  // REQ-002: Device replacement tracking
+  replacedByDeviceId    String?
+  replacedAt            DateTime?
+
+  // REQ-002: Optimistic locking for concurrent updates (timestamp-based)
+  version               Int                    @default(1)
+
+  // REQ-002: Physical location tracking
+  location              String?                @db.VarChar(500)
+
+  // Timestamps
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
   radioAntenna          RadioAntenna?
   deviceSoftware        DeviceSoftware?
   deviceMaintenanceLogs DeviceMaintenanceLog[]
@@ -349,6 +379,12 @@ model NetworkDevice {
   deviceMonitoring      DeviceMonitoring?
   pollingConfiguration  PollingConfiguration?
   pollingResults        PollingResult[]
+
+  // REQ-002: Performance indexes for optimized queries
+  @@index([deletedAt])
+  @@index([activationStatus])
+  @@index([ipAddress, deletedAt])
+  @@index([macAddress, deletedAt])
 }
 
 model RadioAntenna {
