@@ -1,4 +1,5 @@
-import { ValueObject, Guard, Result, AddressProps } from '..';
+import { ValueObject, Guard, Result } from '../../shared/core';
+import { AddressProps } from '../props';
 
 /**
  * Address Value Object
@@ -20,66 +21,48 @@ import { ValueObject, Guard, Result, AddressProps } from '..';
  * - Neighborhood length: 2-100 characters (if provided)
  * - All fields are trimmed automatically
  *
- * @example
- * const addressResult = Address.create({
- *   street: '123 Main Street',
- *   houseNumber: '456',
- *   city: 'San Francisco',
- *   province: 'California',
- *   country: 'United States',
- *   postalCode: '94102'
- * });
- *
- * if (addressResult.isSuccess) {
- *   const address = addressResult.value;
- *   console.log(address.getFullAddress());
- *   console.log(address.getShortAddress());
- * }
+ * @property street - Street name (required)
+ * @property houseNumber - House number (optional)
+ * @property city - City name (required)
+ * @property province - Province or state (required)
+ * @property country - Country name (required)
+ * @property postalCode - Postal or ZIP code (optional)
+ * @property complement - Additional address info (optional)
+ * @property neighborhood - Neighborhood or sector (optional)
  */
 export class Address extends ValueObject<AddressProps> {
-  /**
-   * Private constructor. Use {@link Address.create} to instantiate.
-   */
   private constructor(props: AddressProps) {
     super(props);
   }
 
-  /** Street name (required). */
   get street(): string {
     return this._props.street;
   }
 
-  /** House or building number (optional). */
   get houseNumber(): string | undefined {
     return this._props.houseNumber;
   }
 
-  /** City or municipality (required). */
   get city(): string {
     return this._props.city;
   }
 
-  /** State, province, or department (required). */
   get province(): string {
     return this._props.province;
   }
 
-  /** Country name (required). */
   get country(): string {
     return this._props.country;
   }
 
-  /** Postal or ZIP code (optional). */
   get postalCode(): string | undefined {
     return this._props.postalCode;
   }
 
-  /** Additional information (optional), e.g., "Apt 302", "Floor 5". */
   get complement(): string | undefined {
     return this._props.complement;
   }
 
-  /** Neighborhood or sector (optional). */
   get neighborhood(): string | undefined {
     return this._props.neighborhood;
   }

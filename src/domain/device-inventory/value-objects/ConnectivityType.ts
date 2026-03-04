@@ -1,9 +1,5 @@
-import {
-  ValueObject,
-  Result,
-  Guard,
-  ConnectivityTypeProps
-} from '..';
+import { ValueObject, Result, Guard } from '../../shared/core';
+import { ConnectivityTypeProps } from '../props';
 
 /**
  * ConnectivityType Value Object

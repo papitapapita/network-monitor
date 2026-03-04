@@ -1,4 +1,5 @@
-import { ValueObject, Result, Guard, EmailProps } from '..';
+import { ValueObject, Result, Guard } from '../../shared/core';
+import { EmailProps } from '../props';
 
 /**
  * Email Value Object

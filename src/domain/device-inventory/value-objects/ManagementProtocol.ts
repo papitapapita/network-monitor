@@ -1,9 +1,5 @@
-import {
-  ValueObject,
-  Result,
-  Guard,
-  ManagementProtocolProps
-} from '..';
+import { ValueObject, Result, Guard } from '../../shared';
+import { ManagementProtocolProps } from '../props';
 
 /**
  * ManagementProtocol Value Object

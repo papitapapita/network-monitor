@@ -1,11 +1,11 @@
-import { ValueObject, Guard, Result, PhoneNumberProps } from '..';
+import { ValueObject, Result, Guard } from '../../shared';
+import { PhoneNumberProps } from '../props';
 import {
   parsePhoneNumberWithError as parsePhoneNumber,
   isValidPhoneNumber,
   CountryCode,
   PhoneNumber as LibPhoneNumber
 } from 'libphonenumber-js/max';
-import {} from '../../shared/props';
 
 /**
  * PhoneNumber Value Object

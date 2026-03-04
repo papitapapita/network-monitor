@@ -1,9 +1,5 @@
-import {
-  ValueObject,
-  Result,
-  Guard,
-  NetworkDeviceStatusProps
-} from '..';
+import { ValueObject, Result, Guard } from '../../shared';
+import { NetworkDeviceStatusProps } from '../props';
 
 /**
  * NetworkDeviceStatus Value Object
