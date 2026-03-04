@@ -1,4 +1,5 @@
-import { ValueObject, Result, Guard, IPAddressProps } from '..';
+import { ValueObject, Result, Guard } from '../../shared';
+import { IPAddressProps } from '../props';
 
 /**
  * IPAddress Value Object
@@ -12,6 +13,7 @@ import { ValueObject, Result, Guard, IPAddressProps } from '..';
  * - OR must be a valid IPv6 format (supports full and compressed notation)
  * - All octets in IPv4 must be in range 0-255
  * - IPv6 must follow RFC 4291 addressing architecture
+ * - IPv6 is normalized to lowercase for consistent equality comparisons
  *
  * @example
  * const ipv4Result = IPAddress.create('192.168.1.1');
@@ -46,21 +48,11 @@ export class IPAddress extends ValueObject<IPAddressProps> {
    * Format: xxx.xxx.xxx.xxx where xxx is 0-255
    */
   public static isValidIPv4(ip: string): boolean {
-    const ipv4Regex = /^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}$/;
-
-    if (!ipv4Regex.test(ip)) {
-      return false;
-    }
-
-    const parts = ip.split('.');
-    if (parts.length !== 4) {
-      return false;
-    }
-
-    return parts.every((part) => {
-      const num = parseInt(part, 10);
-      return num >= 0 && num <= 255;
-    });
+    const octet = '(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)';
+    const ipv4Regex = new RegExp(
+      `^${octet}\\.${octet}\\.${octet}\\.${octet}$`
+    );
+    return ipv4Regex.test(ip);
   }
 
   /**
@@ -77,6 +69,20 @@ export class IPAddress extends ValueObject<IPAddressProps> {
       /^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
 
     return ipv6Regex.test(ip);
+  }
+
+  /**
+   * Reconstitutes an IPAddress from a trusted persistence source, skipping validation.
+   *
+   * Use this when loading from the database where the value was already validated
+   * at creation time. Avoids re-validating data that is known to be correct.
+   *
+   * @param ip - Raw IP address string from persistence (IPv4 or lowercase IPv6)
+   * @returns IPAddress instance
+   */
+  public static reconstitute(ip: string): IPAddress {
+    const version: 4 | 6 = ip.includes(':') ? 6 : 4;
+    return new IPAddress({ value: ip, version });
   }
 
   /**
@@ -102,7 +108,7 @@ export class IPAddress extends ValueObject<IPAddressProps> {
     }
 
     const isIPv4 = this.isValidIPv4(trimmedIp);
-    const isIPv6 = this.isValidIPv6(trimmedIp);
+    const isIPv6 = !isIPv4 && this.isValidIPv6(trimmedIp);
 
     if (!isIPv4 && !isIPv6) {
       return Result.fail<IPAddress>(
@@ -110,7 +116,12 @@ export class IPAddress extends ValueObject<IPAddressProps> {
       );
     }
 
-    return Result.ok<IPAddress>(new IPAddress({ value: trimmedIp }));
+    const version: 4 | 6 = isIPv4 ? 4 : 6;
+    const normalizedIp = isIPv4 ? trimmedIp : trimmedIp.toLowerCase();
+
+    return Result.ok<IPAddress>(
+      new IPAddress({ value: normalizedIp, version })
+    );
   }
 
   /**
@@ -119,7 +130,7 @@ export class IPAddress extends ValueObject<IPAddressProps> {
    * @returns True if this is an IPv4 address, false otherwise
    */
   public isIPv4(): boolean {
-    return IPAddress.isValidIPv4(this._props.value);
+    return this._props.version === 4;
   }
 
   /**
@@ -128,7 +139,7 @@ export class IPAddress extends ValueObject<IPAddressProps> {
    * @returns True if this is an IPv6 address, false otherwise
    */
   public isIPv6(): boolean {
-    return IPAddress.isValidIPv6(this._props.value);
+    return this._props.version === 6;
   }
 
   /**

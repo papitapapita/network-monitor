@@ -1,4 +1,5 @@
-import { ValueObject, Result, Guard, MACAddressProps } from '..';
+import { ValueObject, Result, Guard } from '../../shared';
+import { MACAddressProps } from '../props';
 
 /**
  * MACAddress Value Object
@@ -65,6 +66,19 @@ export class MACAddress extends ValueObject<MACAddressProps> {
   }
 
   /**
+   * Reconstitutes a MACAddress from a trusted persistence source, skipping validation.
+   *
+   * Use this when loading from the database where the value was already validated
+   * and normalized at creation time.
+   *
+   * @param mac - Normalized MAC address string (AA:BB:CC:DD:EE:FF) from persistence
+   * @returns MACAddress instance
+   */
+  public static reconstitute(mac: string): MACAddress {
+    return new MACAddress({ value: mac });
+  }
+
+  /**
    * Creates a new MACAddress value object.
    *
    * @param mac - MAC address string (supports AA:BB:CC:DD:EE:FF or AA-BB-CC-DD-EE-FF)
@@ -97,15 +111,6 @@ export class MACAddress extends ValueObject<MACAddressProps> {
     return Result.ok<MACAddress>(
       new MACAddress({ value: normalized })
     );
-  }
-
-  /**
-   * Returns the normalized MAC address (AA:BB:CC:DD:EE:FF format).
-   *
-   * @returns MAC address in uppercase colon-separated format
-   */
-  public normalize(): string {
-    return this._props.value;
   }
 
   /**

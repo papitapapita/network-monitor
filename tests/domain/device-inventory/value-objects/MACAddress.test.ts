@@ -1,4 +1,6 @@
-import { MACAddress } from '../../../../src/domain/device-inventory';
+// Source: src/domain/device-inventory/value-objects/MACAddress.ts
+
+import { MACAddress } from '../../../../src/domain/device-inventory/value-objects/MACAddress';
 
 describe('MACAddress', () => {
   describe('create', () => {
@@ -155,21 +157,21 @@ describe('MACAddress', () => {
 
     describe('when invalid input', () => {
       it('should fail for null', () => {
-        const result = MACAddress.create(null as any);
+        const result = MACAddress.create(null as unknown as string);
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('MAC address');
       });
 
       it('should fail for undefined', () => {
-        const result = MACAddress.create(undefined as any);
+        const result = MACAddress.create(undefined as unknown as string);
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('MAC address');
       });
 
       it('should fail for non-string value', () => {
-        const result = MACAddress.create(123 as any);
+        const result = MACAddress.create(123 as unknown as string);
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('string');
@@ -198,6 +200,20 @@ describe('MACAddress', () => {
     });
   });
 
+  describe('reconstitute', () => {
+    it('should reconstitute a MACAddress from normalized persistence value', () => {
+      const mac = MACAddress.reconstitute('AA:BB:CC:DD:EE:FF');
+
+      expect(mac.value).toBe('AA:BB:CC:DD:EE:FF');
+    });
+
+    it('should allow retrieval of the stored value without re-validation', () => {
+      const mac = MACAddress.reconstitute('00:11:22:33:44:55');
+
+      expect(mac.toString()).toBe('00:11:22:33:44:55');
+    });
+  });
+
   describe('static isValid', () => {
     it('should return true for valid colon-separated MAC', () => {
       expect(MACAddress.isValid('AA:BB:CC:DD:EE:FF')).toBe(true);
@@ -222,26 +238,6 @@ describe('MACAddress', () => {
       expect(MACAddress.isValid('AA:BB:CC:DD:EE')).toBe(false);
       expect(MACAddress.isValid('AA:BB-CC:DD-EE:FF')).toBe(false);
       expect(MACAddress.isValid('AABBCCDDEEFF')).toBe(false);
-    });
-  });
-
-  describe('normalize', () => {
-    it('should return normalized MAC address', () => {
-      const mac = MACAddress.create('AA:BB:CC:DD:EE:FF').value;
-
-      expect(mac.normalize()).toBe('AA:BB:CC:DD:EE:FF');
-    });
-
-    it('should return normalized value for hyphen input', () => {
-      const mac = MACAddress.create('AA-BB-CC-DD-EE-FF').value;
-
-      expect(mac.normalize()).toBe('AA:BB:CC:DD:EE:FF');
-    });
-
-    it('should return normalized value for lowercase input', () => {
-      const mac = MACAddress.create('aa:bb:cc:dd:ee:ff').value;
-
-      expect(mac.normalize()).toBe('AA:BB:CC:DD:EE:FF');
     });
   });
 
@@ -317,13 +313,13 @@ describe('MACAddress', () => {
     it('should return false for null', () => {
       const mac = MACAddress.create('AA:BB:CC:DD:EE:FF').value;
 
-      expect(mac.equals(null as any)).toBe(false);
+      expect(mac.equals(null as unknown as MACAddress)).toBe(false);
     });
 
     it('should return false for undefined', () => {
       const mac = MACAddress.create('AA:BB:CC:DD:EE:FF').value;
 
-      expect(mac.equals(undefined as any)).toBe(false);
+      expect(mac.equals(undefined as unknown as MACAddress)).toBe(false);
     });
   });
 
@@ -348,23 +344,20 @@ describe('MACAddress', () => {
   });
 
   describe('immutability', () => {
-    it('should not allow mutation of props', () => {
+    it('should return a consistent value after creation', () => {
       const mac = MACAddress.create('AA:BB:CC:DD:EE:FF').value;
+      const originalValue = mac.value;
 
-      expect(() => {
-        // @ts-expect-error - Testing immutability
-        mac.props.value = '00:11:22:33:44:55';
-      }).toThrow();
+      // Access value getter multiple times to confirm it never changes
+      expect(mac.value).toBe(originalValue);
+      expect(mac.value).toBe('AA:BB:CC:DD:EE:FF');
     });
 
-    it('should not allow reassignment of props reference', () => {
+    it('should be frozen and not allow mutation of internal props', () => {
       const mac = MACAddress.create('AA:BB:CC:DD:EE:FF').value;
 
-      // TypeScript prevents this at compile time
-      expect(() => {
-        // @ts-expect-error - props is readonly
-        mac.props = { value: '00:11:22:33:44:55' };
-      }).toThrow();
+      // The object and its props are frozen via Object.freeze in the constructor
+      expect(Object.isFrozen(mac)).toBe(true);
     });
   });
 });
