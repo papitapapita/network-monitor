@@ -1,8 +1,9 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// ============================================================================
+// ISP Watch — V1 Schema
+// ============================================================================
+// 6 tables. No multi-tenancy. Ping-only monitoring.
+// Goal: "I can see what's down and get notified."
+// ============================================================================
 
 generator client {
   provider = "prisma-client"
@@ -11,155 +12,534 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
+
+// ============================================================================
+// DEVICE MODEL (global hardware catalog)
+// ============================================================================
+// ~15-20 rows. Current hardware: Ubiquiti LiteBeam, MikroTik hAP, etc.
+// ============================================================================
 
 enum DeviceType {
-  ROUTER
-  SWITCH
-  RADIO
-  FIREWALL
-  SERVER
-  MODEM
-  ONT
-  OLT
-  WIRELESS
-  SECURITY
+  // TODO - Refine device types based on actual hardware catalog and monitoring needs
+  /*
+  BRIDGE
   EDGE
-}
-
-enum RouterType {
-  CORE_ROUTER
-  EDGE_ROUTER
-  VIRTUAL_ROUTER
-  WIRELESS_ROUTER
-}
-
-enum SwitchType {
-  UNMANAGED_SWITCH
-  MANAGED_SWITCH
-  LAYER2_SWITCH
-  LAYER3_SWITCH
-  POE_SWITCH
-  CORE_SWITCH
-  DISTRIBUTION_SWITCH
-  ACCESS_SWITCH
-}
-
-enum RadioType {
-  ACCESS_POINT
-  PTP_RADIO
-  PTMP_RADIO
-  SECTOR_ANTENNA
-  BACKHAUL_RADIO
-  MIMO_RADIO
-  STATION
-}
-
-enum SecurityDeviceType {
   FIREWALL
-  NEXT_GENERATION_FIREWALL
-  UTM
-  IDS
-  IPS
-  VPN
-  NAC
-  AUTHENTICATION_SERVER
-}
-
-enum ServerType {
-  APPLICATION_SERVER
-  DATABASE_SERVER
-  PROXY_SERVER
-  DHCP_SERVER
-  DNS_SERVER
-  LOAD_BALANCER
-  CDN_NODE
-  SYSLOG_SERVER
-}
-
-enum MonitoringHardwareType {
-  NETWORK_MONITORING_PROBE
-  SNMP_PROBE
-  OOB_MANAGEMENT_DEVICE
-  KVM
-  ENVIRONMENTAL_SENSOR
-  REMOTE_PDU
-}
-
-enum PowerSystemType {
-  UPS
-  PDU
-  RECTIFIER
-  INVERTER
-  POE_INJECTOR
-  SOLAR_CHARGE_CONTROLLER
-  BATTERY_BANK
-}
-
-enum PhysicalComponentsType {
-  PATCH_PANEL
-  ODF
-  FDF
-  NETWORK_RACK
-  CABINET
-  GROUNDING_SYSTEM
-  LIGHTNING_ARRESTOR
-  SURGE_PROTECTOR
-  SPLICE_BOX
-  FIBER_PATCH_CORD
-  PIGTAIL
-  ETHERNET_CABLE_REEL
-}
-
-enum ISPDevicesType {
+  MODEM
   OLT
-  BRAS
-  PPPOE_SERVER
-  CGNAT
-  AAA_SERVER
-  BANDWITH_MANAGER
-  TRAFFIC_SHAPER
-  TOWER_CONTROLLER
+  SECURITY
+  WIRELESS
+  ONT*/
+  ANTENNA
+  OTHER
+  RADIO
+  ROUTER
+  ROUTERBOARD
+  SERVER
+  SWITCH
+
+  @@map("device_type")
 }
 
-enum LogLevel {
-  INFO
+enum Vendors {
+  // TODO - Refine vendor list based on actual hardware catalog and procurement history
+  /*CISCO
+  ARUBA
+  ARISTA
+  CAMBIUM
+  JUNIPER
+  HUAWEI
+  HPE
+  EXTREME_NETWORKS
+  RADWIN
+  CERAGON*/
+  TP_LINK
+  MIKROTIK
+  UBIQUITI
+  MIMOSA
+  TENDA
+  OTHER
+
+  @@map("vendors")
+}
+
+model DeviceModel {
+  id              String        @id @default(uuid()) @db.Uuid
+  manufacturer    Vendors
+  model           String        @db.VarChar(150)
+  deviceType      DeviceType    @map("device_type")
+  //operatingSystem OperatingSystems?
+  //specifications  String?
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+
+  devices         Device[]
+  //suppliers       Supplier[]
+
+  @@unique([manufacturer, model])
+  @@map("device_models")
+}
+
+// ============================================================================
+// LOCATION (infrastructure sites)
+// ============================================================================
+// Towers, nodes, office, warehouse. Not customer premises.
+// ============================================================================
+
+enum LocationType {
+  TOWER
+  NODE
+  DATACENTER
+  POP
+  WAREHOUSE
+  OFFICE
+
+  @@map("location_type")
+}
+
+model Location {
+  id           String       @id @default(uuid()) @db.Uuid
+  name         String       @db.VarChar(150)
+  type         LocationType
+  municipality String?      @db.VarChar(100)
+  neighborhood String?      @db.VarChar(150)
+  address      String?      @db.VarChar(255)
+  latitude     Decimal?     @db.Decimal(10, 7)
+  longitude    Decimal?     @db.Decimal(10, 7)
+  altitude     Decimal?     @db.Decimal(7, 2)
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  devices Device[]
+
+  @@map("locations")
+}
+
+// ============================================================================
+// DEVICE
+// ============================================================================
+// Network devices. The core entity.
+// Network fields (ip_address) nullable for warehouse inventory.
+// ============================================================================
+
+
+enum DeviceStatus {
+  ACTIVE
+  DAMAGED
+  DECOMMISSIONED
+  INVENTORY
+  MAINTENANCE
+
+  @@map("device_status")
+}
+
+enum DeviceCategory {
+  CORE
+  DISTRIBUTION
+  POE
+  ACCESS_POINT
+  CLIENT_CPE
+
+  @@map("device_category")
+}
+
+enum DeviceOwnerType {
+  COMPANY
+  CLIENT
+  //THIRD_PARTY
+
+  @@map("device_owner")
+}
+
+model Device {
+  id            String          @id @default(uuid()) @db.Uuid
+  deviceModelId String          @map("device_model_id") @db.Uuid
+  locationId    String?         @map("location_id") @db.Uuid
+  status        DeviceStatus    @default(INVENTORY)
+  category      DeviceCategory?
+  owner         DeviceOwnerType @default(COMPANY)
+
+  //Identity
+  name             String  @db.VarChar(150)
+  serialNumber     String? @map("serial_number") @db.VarChar(100) 
+  macAddress       String? @map("mac_address") @db.VarChar(17)
+  ipAddress        String? @map("ip_address") @db.VarChar(45)
+  description      String?   @db.Text
+
+  // Lifecycle
+  installedDate DateTime? @map("installed_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Monitoring
+  monitoringEnabled Boolean @default(true) @map("monitoring_enabled")
+
+  // Relations
+  deviceModel           DeviceModel           @relation(fields: [deviceModelId], references: [id])
+  location              Location?             @relation(fields: [locationId], references: [id])
+  pollingConfiguration  PollingConfiguration?
+  deviceState           DeviceState?
+  pingResults           PingResult[]
+  alertEvents           AlertEvent[]
+}
+
+// ============================================================================
+// DEVICE STATE (current status cache — 1:1 with Device)
+// ============================================================================
+// Updated every ping cycle. This is what the dashboard reads.
+// One row per device. Overwritten, not appended.
+// ============================================================================
+
+model DeviceState {
+  id                  String   @id @default(uuid()) @db.Uuid
+  deviceId            String   @unique @map("device_id") @db.Uuid
+  isOnline            Boolean  @default(false) @map("is_online")
+  lastSeen            DateTime? @map("last_seen") @db.Timestamptz
+  lastLatencyMs       Decimal? @map("last_latency_ms") @db.Decimal(8, 2)
+  consecutiveFailures Int      @default(0) @map("consecutive_failures")
+  lastCheckedAt       DateTime? @map("last_checked_at") @db.Timestamptz
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@map("device_states")
+}
+
+// ============================================================================
+// PING RESULT (time-series — append only)
+// ============================================================================
+// One row per ping per device. High volume: 300 devices × 1/min = 432K/day.
+// Retention policy: keep raw data 30 days, then delete.
+// Partition by month if needed later.
+// ============================================================================
+
+model PingResult {
+  id          String   @id @default(uuid()) @db.Uuid
+  deviceId    String   @map("device_id") @db.Uuid
+  isReachable Boolean  @map("is_reachable")
+  latencyMs   Decimal? @map("latency_ms") @db.Decimal(8, 2)
+  checkedAt   DateTime @default(now()) @map("checked_at") @db.Timestamptz
+
+  // Relations
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, checkedAt(sort: Desc)])
+  @@index([checkedAt])
+  @@map("ping_results")
+}
+
+// ============================================================================
+// ALERT EVENT (device went down / recovered)
+// ============================================================================
+// Created when a device crosses the failure threshold.
+// Closed (resolved_at set) when it comes back online.
+// This drives notifications (WhatsApp, email).
+// ============================================================================
+
+enum AlertSeverity {
   WARNING
-  ERROR
   CRITICAL
+
+  @@map("alert_severity")
 }
 
-enum NetworkDeviceStatus {
+model AlertEvent {
+  id          String        @id @default(uuid()) @db.Uuid
+  deviceId    String        @map("device_id") @db.Uuid
+  severity    AlertSeverity @default(CRITICAL)
+  startedAt   DateTime      @default(now()) @map("started_at") @db.Timestamptz
+  resolvedAt  DateTime?     @map("resolved_at") @db.Timestamptz
+  notifiedAt  DateTime?     @map("notified_at") @db.Timestamptz
+  recoveryNotifiedAt DateTime? @map("recovery_notified_at") @db.Timestamptz
+  durationSecs Int?         @map("duration_secs")
+
+  // Relations
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, startedAt(sort: Desc)])
+  @@index([resolvedAt])
+  @@map("alert_events")
+}
+
+// ===================================
+// POLLING SYSTEM MODELS (Sprint 1)
+// ===================================
+
+
+/// Polling configuration for continuous device monitoring.
+/// Defines how often and how many pings should be executed.
+model PollingConfiguration {
+  id                  String    @id @default(uuid()) @db.Uuid
+  deviceId            String    @unique @map("device_id") @db.Uuid
+  pingIntervalSecs    Int       @default(60) @map("interval_seconds") // Polling interval (1-86400 seconds)
+  failuresBeforeDown  Int       @default(3) @map("failures_before_down") // Consecutive failures before marking device as down
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  device  Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@map("polling_configurations")
+}
+
+/*
+model PollingConfiguration {
+  //pingCount         Int       @default(4) @map("ping_count") // Number of ICMP pings per poll (1-10)
+  //maxRetryAttempts  Int       @default(3) @map("max_retry_attempts") // Max retry attempts on failure
+  //retryDelayMs      Int       @default(1000) @map("retry_delay_ms") // Delay between retries in ms
+  //lastScheduledAt   DateTime? @map("last_scheduled_at") @db.Timestamptz
+  //nextScheduledAt   DateTime? @map("next_scheduled_at") @db.Timestamptz
+
+  //@@index([nextScheduledAt])
+}
+*/
+
+/*
+enum DeviceNetworkStatus {
   ONLINE
   OFFLINE
   MAINTENANCE
 }
 
-enum DeviceStatus {
-  ACTIVE
-  INACTIVE
-  DEGRADED
-  MAINTENANCE
-  OUT_OF_SERVICE
-  DAMAGED
+enum PollingStatus {
+  SUCCESS
+  PARTIAL_SUCCESS
+  FAILED
 }
+/// Polling results stored in TimescaleDB hypertable.
+/// Optimized for time-series data with high write throughput.
+/// Partitioned by timestamp for efficient querying.
+model PollingResult {
+  id                  String                @id @default(uuid()) @db.Uuid
+  deviceId            String                @map("device_id") @db.Uuid
+  timestamp           DateTime              @default(now())
+  status              PollingStatus
+  attemptNumber       Int                   @map("attempte_number")// Attempt number (1-10)
+  deviceNetworkStatus DeviceNetworkStatus   @map("device_network_status")
+  errorMessage        String?               @map("error_message") @db.Text
 
-// Possible owners of the device
-enum DeviceOwner {
-  COMPANY
-  CLIENT
-  THIRD_PARTY
-}
+  // ICMP Multi-ping Metrics (Sprint 1)
+  responseTimes       Float[]               // Array of individual ping response times
+  averageResponseTime Float?
+  minResponseTime     Float?
+  maxResponseTime     Float?
+  jitter              Float?                // Standard deviation of response times
+  packetsSent         Int?
+  packetsReceived     Int?
+  packetLoss          Float?                // Percentage
+  ttl                 Int?
 
+  // Future SNMP Metrics (Sprint 2+)
+  uptime              Int?                  // Device uptime in seconds
+  temperature         Float?
+  cpuUsage            Float?
+  memoryUsage         Float?
+  diskUsage           Float?
+  interfaceStats      Json?                 // Interface statistics
+  bandwidth           Json?                 // Bandwidth usage
+  errors              Json?                 // Error counters
+  discards            Json?                 // Discard counters
+
+  device       Device         @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, timestamp(sort: Desc)])
+  @@index([timestamp])
+  @@index([status])
+  @@index([deviceId, status, timestamp])
+}*/
+
+/*
+model Device {
+  //guaranteeEndDate DateTime?
+  //installationNotes      String? @db.Text
+  //purchaseOrders        PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id])
+  //purchaseOrderId       String
+  //deviceTypes           DeviceRole[]
+  //connectivityType      ConnectivityType
+  //managementProtocol    ManagementProtocol
+  //managementPort        Int
+  //enabledRemoteAccess   Boolean                @default(false)
+  /*
+  // REQ-002: Activation workflow - Draft/Active states
+  activationStatus      ActivationStatus       @default(DRAFT)
+  activatedAt           DateTime?
+  activatedBy           String?
+  // REQ-002: Soft delete with 7-day grace period
+  deletedAt             DateTime?
+  deletedBy             String?
+  // REQ-002: Device replacement tracking
+  replacedByDeviceId    String?
+  replacedAt            DateTime?
+  // REQ-002: Optimistic locking for concurrent updates (timestamp-based)
+  version               Int                    @default(1)
+  *//*
+  //radioAntenna          RadioAntenna?
+  //deviceSoftware        DeviceSoftware?
+  //deviceMaintenanceLogs DeviceMaintenanceLog[]
+  //deviceSecurity        DeviceSecurity?
+  //deviceLogs            DeviceLogs[]
+  //deviceEnergy          DeviceEnergy?
+  //deviceMonitoring      DeviceMonitoring?
+  pollingResults        PollingResult[]
+}*/
+
+/*
+// REQ-002: Device lifecycle activation status
+enum ActivationStatus {
+  DRAFT  // Device with minimal info (IP+MAC only) - discovery/enrichment phase
+  ACTIVE // Fully configured and operational device
+}*/
+
+/* TODO - Future models for detailed device types based on actual hardware catalog and monitoring needs (Sprint 2+)
+model RadioAntenna {
+  id              String              @id @default(uuid())
+  power           Float?
+  antennaGain     Float?
+  height          Float?
+  frequencyRange  String?
+  type            RadioType
+  device   Device    @relation(fields: [deviceId], references: [id])
+  deviceId String              @unique
+  accessPoint     AccessPoint?
+  link            Link?
+}*/
+
+/* TODO - Future models for detailed device types based on actual hardware catalog and monitoring needs (Sprint 2+)
+model AccessPoint {
+  id               String          @id @default(uuid())
+  ssid             String
+  frequencyChannel Int?
+  bandwidth        Float?
+  ptpMode          Boolean      @default(false)
+  password         String?
+  radioAntenna     RadioAntenna @relation(fields: [radioAntennaId], references: [id])
+  radioAntennaId   String          @unique
+  link             Link?        
+}*/
+
+/* TODO - Future models for detailed device types based on actual hardware catalog and monitoring needs (Sprint 2+)
+model Link {
+  id               String     @id @default(uuid())
+  name             String
+  description      String?
+  rxThroughput     Float
+  txThroughput     Float
+  rxSignalStrength Float?
+  txSignalStrength Float?
+  latency          Float?
+  distance         Float?
+  sourceDevice     AccessPoint @relation(fields: [sourceDeviceId], references: [id])
+  sourceDeviceId   String         @unique
+  destinationDevice RadioAntenna     @relation(fields: [destinationDeviceId], references: [id])
+  destinationDeviceId String            @unique
+}*/
+
+/* TODO - Future models for detailed device software tracking to keep antennas automatically updated
+model DeviceSoftware {
+  id              String           @id @default(uuid())
+  version         String
+  releaseDate     DateTime
+  lastUpdateDate  DateTime?
+  backupLink      String?
+  device   Device @relation(fields: [deviceId], references: [id])
+  deviceId String           @unique
+} */
+
+/* TODO - Future models to implement technicians
+model Technician {
+  id                    String                    @id @default(uuid())
+  name                  String
+  contactInfo           String?
+  deviceMaintenanceLogs DeviceMaintenanceLog[]
+}*/ 
+
+/* TODO - Future model to implement detailed maintenance logs (maintenance update)
 enum MaintenanceType {
   PREVENTIVE
   CORRECTIVE
   PREDICTIVE
   EMERGENCY
 }
+model DeviceMaintenanceLog {
+  id              String             @id @default(uuid())
+  date            DateTime        @default(now())
+  description     String
+  type            MaintenanceType
+  performedBy     Technician      @relation(fields: [performedById], references: [id])
+  performedById   String
+  device   Device   @relation(fields: [deviceId], references: [id])
+  deviceId String
+}*/
 
-enum NetworkDeviceRole {
+/* TODO - Future model to implement device security details (remote access update)
+model DeviceSecurity {
+  id              String           @id @default(uuid())
+  username        String
+  password        String
+  SNMPPassword    String?
+  device   Device @relation(fields: [deviceId], references: [id])
+  deviceId String           @unique
+}*/
+
+/* TODO - Future model to implement detailed device logs (monitoring update)
+enum LogLevel {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+model DeviceLogs {
+  id              String           @id @default(uuid())
+  timestamp       DateTime      @default(now())
+  logLevel        LogLevel
+  message         String
+  device   Device @relation(fields: [deviceId], references: [id])
+  deviceId String
+}*/
+
+/* TODO - Future model to implement detailed device energy consumption tracking (energy tracking update)
+enum EnergySourceType {
+  SOLAR
+  BATTERY
+  MAINS
+  GENERATOR
+  POE
+  OTHER
+}
+model DeviceEnergy {
+  id               String              @id @default(uuid())
+  sourceType       EnergySourceType
+  powerConsumption Float
+  voltage          Float
+  current          Float
+  backUpEnergy     EnergySourceType
+  device    Device    @relation(fields: [deviceId], references: [id])
+  deviceId  String              @unique
+}*/
+
+/* TODO - Future enums for detailed device types based on actual hardware catalog and monitoring needs
+enum ConnectivityType {
+  ETHERNET
+  FIBER_OPTIC
+  WIRELESS
+  DSL
+  SATELLITE
+  OTHER
+}*/
+
+/* TODO - Future enum for management protocols based on actual hardware catalog and monitoring needs
+enum ManagementProtocol {
+  SNMP
+  SSH
+  TELNET
+  HTTP
+  HTTPS
+  OTHER
+}*/
+
+/* TODO - Future model for detailed device monitoring metrics (Sprint 2+)
+enum DeviceRole {
   ROUTING
   SWITCHING
   WIRELESS_ACCESS
@@ -188,59 +568,153 @@ enum NetworkDeviceRole {
   KVM_ACCESS
   ENVIRONMENT_MONITORING
   POWER_MANAGEMENT
+} */
+
+/*
+TODO - Future model for detailed device monitoring metrics (Sprint 2+)
+model DeviceMonitoring {
+  id              String                 @id @default(uuid())
+  uptime          Int
+  temperature     Float
+  status          DeviceStatus
+  avgLatency      Float
+  packetsLost     Float
+  rxThroughput    Float
+  txThroughput    Float
+  alertsEnabled   Boolean             @default(true)
+  lastMonitoring  DateTime            @default(now())
+  cpuUsage        Float
+  memoryUsage     Float
+  diskUsage       Float
+  device   Device       @relation(fields: [deviceId], references: [id])
+  deviceId String                 @unique
+}*/
+
+/* TODO - Future supplier and purchase order models for procurement tracking (Sprint 2+)
+model Supplier {
+  id             String             @id @default(uuid())
+  name           String
+  contactInfo    String?
+  location       String?
+  deviceModels   DeviceModel[]
+  purchaseOrders PurchaseOrder[]
+}*/
+
+/* TODO - Future purchase order model for procurement tracking (Sprint 2+)
+model PurchaseOrder {
+  id           String      @id @default(uuid())
+  orderNumber  String   @unique
+  date         DateTime @default(now())
+  observations String?
+  totalPrice   Float
+  supplier     Supplier @relation(fields: [supplierId], references: [id])
+  supplierId   String
+  devices      Device[]
+}*/
+
+/* TODO - Future enum for detailed device types based on actual hardware catalog and monitoring needs
+enum RouterType {
+  CORE_ROUTER
+  EDGE_ROUTER
+  VIRTUAL_ROUTER
+  WIRELESS_ROUTER
+}*/
+
+/* TODO - Future enum for detailed device types based on actual hardware catalog and monitoring needs
+enum SwitchType {
+  UNMANAGED_SWITCH
+  MANAGED_SWITCH
+  LAYER2_SWITCH
+  LAYER3_SWITCH
+  POE_SWITCH
+  CORE_SWITCH
+  DISTRIBUTION_SWITCH
+  ACCESS_SWITCH
+}*/
+
+/* TODO - Future enum for detailed device types based on actual hardware catalog and monitoring needs
+enum RadioType {
+  ACCESS_POINT
+  PTP_RADIO
+  PTMP_RADIO
+  SECTOR_ANTENNA
+  BACKHAUL_RADIO
+  MIMO_RADIO
+  STATION
+}*/
+
+/* TODO - Future enum for detailed device types based on actual hardware catalog and monitoring needs
+enum SecurityDeviceType {
+  FIREWALL
+  NEXT_GENERATION_FIREWALL
+  UTM
+  IDS
+  IPS
+  VPN
+  NAC
+  AUTHENTICATION_SERVER
+}*/
+
+/* TODO - Future enum for detailed device types based on actual hardware catalog and monitoring needs
+enum ServerType {
+  APPLICATION_SERVER
+  DATABASE_SERVER
+  PROXY_SERVER
+  DHCP_SERVER
+  DNS_SERVER
+  LOAD_BALANCER
+  CDN_NODE
+  SYSLOG_SERVER
+}*/
+
+/* TODO - Future enum for detailed device types based on actual hardware catalog and monitoring needs
+enum MonitoringHardwareType {
+  NETWORK_MONITORING_PROBE
+  SNMP_PROBE
+  OOB_MANAGEMENT_DEVICE
+  KVM
+  ENVIRONMENTAL_SENSOR
+  REMOTE_PDU
+} */
+
+/* TODO - Future enum for detailed device types based on actual hardware catalog and monitoring needs
+enum PowerSystemType {
+  UPS
+  PDU
+  RECTIFIER
+  INVERTER
+  POE_INJECTOR
+  SOLAR_CHARGE_CONTROLLER
+  BATTERY_BANK
+} 
+
+enum PhysicalComponentsType {
+  PATCH_PANEL
+  ODF
+  FDF
+  NETWORK_RACK
+  CABINET
+  GROUNDING_SYSTEM
+  LIGHTNING_ARRESTOR
+  SURGE_PROTECTOR
+  SPLICE_BOX
+  FIBER_PATCH_CORD
+  PIGTAIL
+  ETHERNET_CABLE_REEL
 }
 
-enum ConnectivityType {
-  ETHERNET
-  FIBER_OPTIC
-  WIRELESS
-  DSL
-  SATELLITE
-  OTHER
-}
+enum ISPDevicesType {
+  OLT
+  BRAS
+  PPPOE_SERVER
+  CGNAT
+  AAA_SERVER
+  BANDWITH_MANAGER
+  TRAFFIC_SHAPER
+  TOWER_CONTROLLER
+}*/
 
-enum ManagementProtocol {
-  SNMP
-  SSH
-  TELNET
-  HTTP
-  HTTPS
-  OTHER
-}
-
-// REQ-002: Device lifecycle activation status
-enum ActivationStatus {
-  DRAFT  // Device with minimal info (IP+MAC only) - discovery/enrichment phase
-  ACTIVE // Fully configured and operational device
-}
-
-enum EnergySourceType {
-  SOLAR
-  BATTERY
-  MAINS
-  GENERATOR
-  POE
-  OTHER
-}
-
-enum Vendors {
-  MIKROTIK
-  UBIQUITI
-  MIMOSA
-  CISCO
-  ARUBA
-  ARISTA
-  CAMBIUM
-  JUNIPER
-  HUAWEI
-  HPE
-  EXTREME_NETWORKS
-  RADWIN
-  CERAGON
-  TP_LINK
-  OTHER
-}
-
+/* TODO - Future enum for operating systems based on actual hardware catalog and monitoring needs
 enum OperatingSystems {
   IOS
   IOS_XE
@@ -274,308 +748,4 @@ enum OperatingSystems {
   FIREWARE_OS
   PFSENSE_OS
   OPNSENSE_OS
-}
-
-model Supplier {
-  id             String             @id @default(uuid())
-  name           String
-  contactInfo    String?
-  location       String?
-  deviceModels   DeviceModel[]
-  purchaseOrders PurchaseOrder[]
-}
-
-model DeviceModel {
-  id              String        @id @default(uuid())
-  model           String
-  manufacturer    Vendors
-  type            DeviceType
-  operatingSystem OperatingSystems?
-  specifications  String?
-  suppliers       Supplier[]
-  devices         Device[]
-}
-
-model PurchaseOrder {
-  id           String      @id @default(uuid())
-  orderNumber  String   @unique
-  date         DateTime @default(now())
-  observations String?
-  totalPrice   Float
-  supplier     Supplier @relation(fields: [supplierId], references: [id])
-  supplierId   String
-  devices      Device[]
-}
-
-model Device {
-  id               String            @id @default(uuid())
-  status           DeviceStatus   @default(INACTIVE)
-  owner            DeviceOwner    @default(COMPANY)
-  serialNumber     String         @unique
-  guaranteeEndDate DateTime?
-  deviceModel      DeviceModel    @relation(fields: [deviceModelId], references: [id])
-  deviceModelId    String
-  purchaseOrders   PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id])
-  purchaseOrderId  String
-  location         Location?      @relation(fields: [locationId], references: [id])
-  locationId       String            @unique
-  networkDevice    NetworkDevice?
-}
-
-model Location {
-  id           String     @id @default(uuid())
-  coordenates  String
-  city         String
-  neighborhood String
-  address      String?
-  device       Device?
-}
-
-model NetworkDevice {
-  id                    String                    @id @default(uuid())
-  name                  String
-  deviceGroup           DeviceType
-  deviceTypes           NetworkDeviceRole[]
-  description           String?
-  installDate           DateTime               @default(now())
-  ipAddress             String                 @unique
-  macAddress            String                 @unique
-  connectivityType      ConnectivityType
-  managementProtocol    ManagementProtocol
-  managementPort        Int
-  enabledRemoteAccess   Boolean                @default(false)
-  device                Device                 @relation(fields: [deviceId], references: [id])
-  deviceId              String                    @unique
-
-  // REQ-002: Activation workflow - Draft/Active states
-  activationStatus      ActivationStatus       @default(DRAFT)
-  activatedAt           DateTime?
-  activatedBy           String?
-
-  // REQ-002: Soft delete with 7-day grace period
-  deletedAt             DateTime?
-  deletedBy             String?
-
-  // REQ-002: Device replacement tracking
-  replacedByDeviceId    String?
-  replacedAt            DateTime?
-
-  // REQ-002: Optimistic locking for concurrent updates (timestamp-based)
-  version               Int                    @default(1)
-
-  // REQ-002: Physical location tracking
-  location              String?                @db.VarChar(500)
-
-  // Timestamps
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-
-  radioAntenna          RadioAntenna?
-  deviceSoftware        DeviceSoftware?
-  deviceMaintenanceLogs DeviceMaintenanceLog[]
-  deviceSecurity        DeviceSecurity?
-  deviceLogs            DeviceLogs[]
-  deviceEnergy          DeviceEnergy?
-  deviceMonitoring      DeviceMonitoring?
-  pollingConfiguration  PollingConfiguration?
-  pollingResults        PollingResult[]
-
-  // REQ-002: Performance indexes for optimized queries
-  @@index([deletedAt])
-  @@index([activationStatus])
-  @@index([ipAddress, deletedAt])
-  @@index([macAddress, deletedAt])
-}
-
-model RadioAntenna {
-  id              String              @id @default(uuid())
-  power           Float?
-  antennaGain     Float?
-  height          Float?
-  frequencyRange  String?
-  type            RadioType
-  networkDevice   NetworkDevice    @relation(fields: [networkDeviceId], references: [id])
-  networkDeviceId String              @unique
-  accessPoint     AccessPoint?
-  link            Link?
-}
-
-model AccessPoint {
-  id               String          @id @default(uuid())
-  ssid             String
-  frequencyChannel Int?
-  bandwidth        Float?
-  ptpMode          Boolean      @default(false)
-  password         String?
-  radioAntenna     RadioAntenna @relation(fields: [radioAntennaId], references: [id])
-  radioAntennaId   String          @unique
-  link             Link?        
-}
-
-model Link {
-  id               String     @id @default(uuid())
-  name             String
-  description      String?
-  rxThroughput     Float
-  txThroughput     Float
-  rxSignalStrength Float?
-  txSignalStrength Float?
-  latency          Float?
-  distance         Float?
-  sourceDevice     AccessPoint @relation(fields: [sourceDeviceId], references: [id])
-  sourceDeviceId   String         @unique
-  destinationDevice RadioAntenna     @relation(fields: [destinationDeviceId], references: [id])
-  destinationDeviceId String            @unique
-}
-
-model DeviceSoftware {
-  id              String           @id @default(uuid())
-  version         String
-  releaseDate     DateTime
-  lastUpdateDate  DateTime?
-  backupLink      String?
-  networkDevice   NetworkDevice @relation(fields: [networkDeviceId], references: [id])
-  networkDeviceId String           @unique
-}
-
-model Technician {
-  id                    String                    @id @default(uuid())
-  name                  String
-  contactInfo           String?
-  deviceMaintenanceLogs DeviceMaintenanceLog[]
-}
-
-model DeviceMaintenanceLog {
-  id              String             @id @default(uuid())
-  date            DateTime        @default(now())
-  description     String
-  type            MaintenanceType
-  performedBy     Technician      @relation(fields: [performedById], references: [id])
-  performedById   String
-  networkDevice   NetworkDevice   @relation(fields: [networkDeviceId], references: [id])
-  networkDeviceId String
-}
-
-model DeviceSecurity {
-  id              String           @id @default(uuid())
-  username        String
-  password        String
-  SNMPPassword    String?
-  networkDevice   NetworkDevice @relation(fields: [networkDeviceId], references: [id])
-  networkDeviceId String           @unique
-}
-
-model DeviceLogs {
-  id              String           @id @default(uuid())
-  timestamp       DateTime      @default(now())
-  logLevel        LogLevel
-  message         String
-  networkDevice   NetworkDevice @relation(fields: [networkDeviceId], references: [id])
-  networkDeviceId String
-}
-
-model DeviceEnergy {
-  id               String              @id @default(uuid())
-  sourceType       EnergySourceType
-  powerConsumption Float
-  voltage          Float
-  current          Float
-  backUpEnergy     EnergySourceType
-  networkDevice    NetworkDevice    @relation(fields: [networkDeviceId], references: [id])
-  networkDeviceId  String              @unique
-}
-
-model DeviceMonitoring {
-  id              String                 @id @default(uuid())
-  uptime          Int
-  temperature     Float
-  status          NetworkDeviceStatus
-  avgLatency      Float
-  packetsLost     Float
-  rxThroughput    Float
-  txThroughput    Float
-  alertsEnabled   Boolean             @default(true)
-  lastMonitoring  DateTime            @default(now())
-  cpuUsage        Float
-  memoryUsage     Float
-  diskUsage       Float
-  networkDevice   NetworkDevice       @relation(fields: [networkDeviceId], references: [id])
-  networkDeviceId String                 @unique
-}
-
-// ===================================
-// POLLING SYSTEM MODELS (Sprint 1)
-// ===================================
-
-enum PollingStatus {
-  SUCCESS
-  PARTIAL_SUCCESS
-  FAILED
-}
-
-/// Polling configuration for continuous device monitoring.
-/// Defines how often and how many pings should be executed.
-model PollingConfiguration {
-  id                String           @id @default(uuid())
-  networkDeviceId   String           @unique
-  intervalSeconds   Int              // Polling interval (1-86400 seconds)
-  enabled           Boolean          @default(true)
-  pingCount         Int              @default(4) // Number of ICMP pings per poll (1-10)
-  maxRetryAttempts  Int              @default(3) // Max retry attempts on failure
-  retryDelayMs      Int              @default(1000) // Delay between retries in ms
-  lastScheduledAt   DateTime?
-  nextScheduledAt   DateTime?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-
-  networkDevice     NetworkDevice    @relation(fields: [networkDeviceId], references: [id], onDelete: Cascade)
-
-  @@index([networkDeviceId])
-  @@index([nextScheduledAt])
-  @@index([enabled, nextScheduledAt])
-}
-
-/// Polling results stored in TimescaleDB hypertable.
-/// Optimized for time-series data with high write throughput.
-/// Partitioned by timestamp for efficient querying.
-model PollingResult {
-  id                  String                @id @default(uuid())
-  networkDeviceId     String
-  timestamp           DateTime              @default(now())
-  status              PollingStatus
-  attemptNumber       Int                   // Attempt number (1-10)
-  deviceStatus        NetworkDeviceStatus
-  errorMessage        String?
-
-  // ICMP Multi-ping Metrics (Sprint 1)
-  responseTimes       Float[]               // Array of individual ping response times
-  averageResponseTime Float?
-  minResponseTime     Float?
-  maxResponseTime     Float?
-  jitter              Float?                // Standard deviation of response times
-  packetsSent         Int?
-  packetsReceived     Int?
-  packetLoss          Float?                // Percentage
-  ttl                 Int?
-
-  // Backwards compatibility
-  responseTimeMs      Float?
-
-  // Future SNMP Metrics (Sprint 2+)
-  uptime              Int?                  // Device uptime in seconds
-  temperature         Float?
-  cpuUsage            Float?
-  memoryUsage         Float?
-  diskUsage           Float?
-  interfaceStats      Json?                 // Interface statistics
-  bandwidth           Json?                 // Bandwidth usage
-  errors              Json?                 // Error counters
-  discards            Json?                 // Discard counters
-
-  networkDevice       NetworkDevice         @relation(fields: [networkDeviceId], references: [id], onDelete: Cascade)
-
-  @@index([networkDeviceId, timestamp(sort: Desc)])
-  @@index([timestamp])
-  @@index([status])
-  @@index([networkDeviceId, status, timestamp])
-}
+}*/
