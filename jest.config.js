@@ -3,7 +3,7 @@ export default {
   preset: 'ts-jest',
   testEnvironment: 'node',
   transform: {
-    '^.+.tsx?$': ['ts-jest', {}]
+    '^.+.tsx?$': ['ts-jest', { tsconfig: 'tsconfig.test.json' }]
   },
   transformIgnorePatterns: [
     '/node_modules/(?!uuid)/' // Allow Jest to transform uuid
