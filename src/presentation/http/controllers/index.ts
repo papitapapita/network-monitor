@@ -1,1 +1,1 @@
-export * from './NetworkDeviceController';
+export * from './LocationController';

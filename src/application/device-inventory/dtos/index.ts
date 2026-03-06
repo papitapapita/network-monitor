@@ -3,3 +3,7 @@ export * from './GetLocationRequestDTO';
 export * from './ListLocationsQueryDTO';
 export * from './LocationListResponseDTO';
 export * from './LocationResponseDTO';
+export * from './CreateDeviceRequestDTO';
+export * from './DeviceResponseDTO';
+export * from './DeviceListResponseDTO';
+export * from './ListDevicesQueryDTO';
