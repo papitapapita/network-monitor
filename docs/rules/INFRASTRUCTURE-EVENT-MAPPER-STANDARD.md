@@ -1,5 +1,10 @@
 # INFRASTRUCTURE EVENT MAPPER STANDARD
 
+> **Implementation Status: Aspirational**
+> This standard describes the target architecture for domain event serialization.
+> No `DomainEventMapper`, `IDomainEventMappingStrategy`, or `ValueObjectSerializer` exists in the codebase yet.
+> When implementation begins, follow this document as the design guide.
+
 ## Table of Contents
 
 1. [Purpose](#1-purpose)
@@ -341,6 +346,8 @@ export class OrderConfirmedEventMapper
 
 ### Pattern 3: Generic Reflection-Based Mapper
 
+> **Warning:** Reflection-based mapping is convenient but fragile in production. Minification and bundling can alter `constructor.name`, breaking ID detection. Duck-typing checks like `typeof value.getValue === 'function'` can match unintended objects. Prefer Pattern 2 (specific strategies) for production events, and reserve Pattern 3 for development tooling or low-stakes logging.
+
 For simple events without complex nested structures:
 
 ```typescript
@@ -430,6 +437,10 @@ export class GenericDomainEventMapper {
 ---
 
 ## 5. Value Object Handling
+
+### Domain / Infrastructure Tension with `toJSON()`
+
+Value objects that implement `toJSON()` introduce a subtle coupling: the domain layer now knows about a serialization format. This is acceptable when `toJSON()` represents the **natural plain-object form of the value** (e.g., `{ amount: 100, currency: "USD" }`) rather than an infrastructure-specific wire format. If the format needs to differ per consumer (database vs. message bus vs. API), move the conversion into a dedicated infrastructure mapper or strategy instead of calling `toJSON()` on the value object.
 
 ### Common DDD Value Object Patterns:
 

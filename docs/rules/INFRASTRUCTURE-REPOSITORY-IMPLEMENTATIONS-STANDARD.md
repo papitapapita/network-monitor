@@ -27,7 +27,7 @@
 - **Implements Domain Interface**: Fulfills contract defined in domain layer repository interface
 - **Infrastructure Concerns**: Handles database access, ORM operations, caching, connection management
 - **Mapper Integration**: Uses infrastructure mappers to convert between domain and persistence models
-- **Error Classification**: Distinguishes between business errors (return `Result.fail()`) and infrastructure errors (throw exceptions)
+- **Unified Error Model**: All errors — business and infrastructure — are returned as `Result.fail()` with descriptive messages
 - **Event Dispatching**: Triggers domain events after successful persistence operations
 - **Transaction Management**: Handles database transactions, rollbacks, and consistency
 
@@ -46,8 +46,8 @@
 | --------------------- | ---------------------------------- | --------------------------------- |
 | **Layer**             | Infrastructure                     | Domain                            |
 | **Purpose**           | How to persist (technical)         | What to persist (business)        |
-| **Dependencies**      | Database, ORM, mappers, events    | Domain types only                 |
-| **Error Handling**    | Throws for infrastructure failures | Returns Result<T> signature       |
+| **Dependencies**      | Database, ORM, mappers, events     | Domain types only                 |
+| **Error Handling**    | Returns `Result.fail()` for ALL errors | Returns `Result<T>` signature  |
 | **Concrete/Abstract** | Concrete implementation            | Abstract interface                |
 | **Knowledge**         | Knows about DB, tables, schemas    | Knows only domain concepts        |
 | **Testing**           | Integration tests (real DB)        | Mocked in unit tests              |
@@ -63,7 +63,7 @@
    - Fulfill all methods defined in the interface
    - Match exact method signatures
    - Honor the contract (input/output types, promises)
-   - Return `Result<T>` for business scenarios
+   - Return `Result<T>` for all scenarios (success and failure)
 
 2. **Handle Persistence Operations**
 
@@ -79,26 +79,26 @@
    - Handle nested relationships and aggregates
    - Preserve domain integrity during mapping
 
-4. **Classify and Handle Errors**
+4. **Return `Result.fail()` for ALL Errors**
 
-   - Return `Result.fail()` for expected business errors (duplicates, constraint violations)
-   - Throw exceptions for unexpected infrastructure errors (connection lost, timeouts)
-   - Provide meaningful error messages for both types
-   - Log infrastructure errors appropriately
+   - Business errors (duplicates, not found, constraint violations): `Result.fail()` with a descriptive business message
+   - Infrastructure errors (connection lost, timeouts): `Result.fail()` with a message prefixed by `"Database error: ..."` so callers can identify the category
+   - Never throw from a repository method — the `UseCase` base class catches all exceptions and converts them to `Result.fail()` anyway, making thrown exceptions unreliable
+   - Provide meaningful, distinguishable error messages for both types
 
 5. **Manage Transactions**
 
    - Ensure atomic operations (all-or-nothing)
    - Support transaction boundaries
    - Handle rollbacks on failures
-   - Support nested transactions if needed
+   - Dispatch domain events AFTER the transaction block completes (never inside the transaction callback)
 
 6. **Dispatch Domain Events**
 
    - Trigger domain events after successful save operations
-   - Use domain event dispatcher
-   - Only dispatch after database commit succeeds
-   - Handle event dispatching failures appropriately
+   - Use `EventDispatcher.dispatchEventsForAggregate()`
+   - Only dispatch after database commit succeeds (after `$transaction` resolves)
+   - If event dispatch fails, log the error but do not fail the operation
 
 7. **Load Complete Aggregates**
 
@@ -141,9 +141,9 @@
 
 4. **❌ Dispatch Domain Events Before Persistence Succeeds**
 
-   - Events only dispatched after database commit
+   - Events only dispatched after `$transaction` resolves
+   - Never dispatch inside a transaction callback
    - Never dispatch on failed saves
-   - Ensure transactional consistency
 
 5. **❌ Perform Cross-Aggregate Operations**
 
@@ -159,16 +159,16 @@
    - Only cache when absolutely necessary
    - Document caching strategy clearly
 
-7. **❌ Log Domain Events**
+7. **❌ Throw Exceptions from Public Methods**
 
-   - Domain events are business concerns
-   - Infrastructure logs technical operations only
-   - Event handlers log business events if needed
+   - All public methods return `Result<T>` — never throw
+   - The `UseCase` base class already catches all unhandled exceptions and converts them to `Result.fail()`, making thrown exceptions from repositories unreliable and inconsistent
+   - Catch all errors internally and return `Result.fail()` with appropriate messages
 
-8. **❌ Return Null for Infrastructure Errors**
-   - Null is only for "not found" (valid business scenario)
-   - Connection failures must throw exceptions
-   - Don't hide infrastructure problems in Result.fail()
+8. **❌ Return `null` for Infrastructure Errors**
+   - `null` (wrapped in `Result.ok(null)`) signals "entity not found" — a valid business scenario
+   - Infrastructure failures must return `Result.fail()` with a descriptive message
+   - Never hide infrastructure problems in a silent `null`
 
 ---
 
@@ -207,9 +207,9 @@
 │  │  - Implement domain interfaces                    │      │
 │  │  - Handle database access (Prisma, TypeORM, etc.) │      │
 │  │  - Use infrastructure mappers                     │      │
-│  │  - Dispatch domain events                         │      │
+│  │  - Dispatch domain events (after commit)          │      │
 │  │  - Manage transactions                            │      │
-│  │  - Handle errors (business vs infrastructure)    │      │
+│  │  - Return Result.fail() for ALL errors            │      │
 │  └───────────────────────┬───────────────────────────┘      │
 │                          │ uses                             │
 │  ┌──────────────────────▼────────────────────────────┐      │
@@ -231,7 +231,7 @@
 - Domain value objects (to work with them)
 - Infrastructure mappers (for conversion)
 - ORM/Database libraries (Prisma, TypeORM, etc.)
-- Domain event dispatcher (infrastructure)
+- `EventDispatcher` (for domain event dispatching)
 - Shared kernel types (Result<T>, Guard, etc.)
 
 ❌ **Repository Implementations CANNOT depend on:**
@@ -272,8 +272,8 @@ const saveResult = await this.deviceRepo.save(device);
 // - Maps domain to persistence
 // - Executes database operation
 // - Maps persistence back to domain
-// - Dispatches events
-// - Returns Result<T> or throws
+// - Dispatches events (after commit)
+// - Returns Result<T> (success or failure)
 ```
 
 ### Lifecycle Characteristics:
@@ -297,11 +297,10 @@ import { Result } from '@/shared/core/Result';
 import { INetworkDeviceRepository } from '@/domain/repositories/INetworkDeviceRepository';
 import {
   NetworkDevice,
-  NetworkDeviceId
+  NetworkDeviceId,
+  EventDispatcher
 } from '@/domain/aggregates/NetworkDevice';
 import { NetworkDeviceMapper } from '@/infrastructure/mappers/NetworkDeviceMapper';
-import { DomainEvents } from '@/domain/events/DomainEvents';
-import { InfrastructureException } from '@/infrastructure/exceptions/InfrastructureException';
 
 /**
  * Prisma implementation of INetworkDeviceRepository.
@@ -311,7 +310,7 @@ import { InfrastructureException } from '@/infrastructure/exceptions/Infrastruct
  * - Map between domain and Prisma models
  * - Handle database transactions
  * - Dispatch domain events after successful saves
- * - Classify errors: business errors return Result.fail(), infrastructure errors throw
+ * - Return Result.fail() for ALL errors (business and infrastructure)
  *
  * Infrastructure Concerns:
  * - Uses Prisma ORM for database access
@@ -323,43 +322,40 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
 
   /**
    * Saves a network device (create or update).
-   * Returns Result.fail() for business constraint violations.
-   * Throws InfrastructureException for database failures.
+   *
+   * Business errors (e.g. duplicate IP) return Result.fail() with a clear message.
+   * Infrastructure errors (e.g. connection failure) return Result.fail() prefixed
+   * with "Database error: ..." so callers can distinguish the category.
    *
    * @param device - Network device aggregate to save
-   * @returns Result<NetworkDevice> - Saved device or business error
-   * @throws InfrastructureException - On catastrophic infrastructure failures
+   * @returns Result<NetworkDevice> - Saved device or error
    */
   public async save(device: NetworkDevice): Promise<Result<NetworkDevice>> {
     try {
-      // Check if device already exists
-      const exists = await this.prisma.networkDevice.findUnique({
-        where: { id: device.id.toString() }
-      });
-
-      // Map domain aggregate to persistence model
       const persistenceData = NetworkDeviceMapper.toPersistence(device);
 
-      if (exists) {
-        // Update existing device
-        await this.prisma.networkDevice.update({
-          where: { id: device.id.toString() },
-          data: persistenceData
+      await this.prisma.$transaction(async (tx) => {
+        const exists = await tx.networkDevice.findUnique({
+          where: { id: device.id.toString() }
         });
-      } else {
-        // Create new device
-        await this.prisma.networkDevice.create({
-          data: persistenceData
-        });
-      }
 
-      // Dispatch domain events AFTER successful database operation
-      await DomainEvents.dispatchEventsForAggregate(device.id);
+        if (exists) {
+          await tx.networkDevice.update({
+            where: { id: device.id.toString() },
+            data: persistenceData
+          });
+        } else {
+          await tx.networkDevice.create({
+            data: persistenceData
+          });
+        }
+      });
+
+      // Dispatch domain events AFTER the transaction resolves (never inside it)
+      EventDispatcher.dispatchEventsForAggregate(device.id);
 
       return Result.ok<NetworkDevice>(device);
     } catch (error: any) {
-      // Classify error type
-
       // Business Error: Unique constraint violation (duplicate IP/MAC)
       if (error.code === 'P2002') {
         const field = error.meta?.target?.[0] || 'field';
@@ -375,56 +371,53 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
         );
       }
 
-      // Infrastructure Error: All other errors
-      throw new InfrastructureException(
-        'Database error while saving network device',
-        error
+      // Infrastructure Error: connection, timeout, unknown — prefix message
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<NetworkDevice>(
+        `Database error saving network device: ${errorMessage}`
       );
     }
   }
 
   /**
    * Finds a device by its unique identifier.
-   * Returns null if not found (valid business scenario).
-   * Throws InfrastructureException for database failures.
+   * Returns Result.ok(null) if not found (valid business scenario).
    *
    * @param id - Device ID
-   * @returns Result<NetworkDevice | null> - Device, null, or business error
-   * @throws InfrastructureException - On catastrophic infrastructure failures
+   * @returns Result<NetworkDevice | null> - Device, null, or error
    */
   public async findById(
     id: NetworkDeviceId
   ): Promise<Result<NetworkDevice | null>> {
     try {
-      // Query database with full aggregate (includes children)
       const deviceData = await this.prisma.networkDevice.findUnique({
         where: { id: id.toString() },
         include: {
-          pollingConfiguration: true // Load child entity
+          pollingConfiguration: true
         }
       });
 
-      // Not found is a valid scenario - return ok(null)
       if (!deviceData) {
         return Result.ok<NetworkDevice | null>(null);
       }
 
-      // Map persistence model to domain aggregate
       const deviceOrError = NetworkDeviceMapper.toDomain(deviceData);
 
       if (deviceOrError.isFailure) {
-        // Business Error: Data mapping failed (corrupted data)
-        return Result.fail<NetworkDevice>(
-          `Failed to map device: ${deviceOrError.error}`
+        // Data integrity error: persisted data could not be reconstructed
+        // This is NOT a business error — it signals corrupted or migrated data
+        return Result.fail<NetworkDevice | null>(
+          `Data integrity error mapping device ${id}: ${deviceOrError.error}`
         );
       }
 
-      return Result.ok<NetworkDevice>(deviceOrError.value);
+      return Result.ok<NetworkDevice | null>(deviceOrError.value);
     } catch (error: any) {
-      // Infrastructure Error: Database connection, timeout, etc.
-      throw new InfrastructureException(
-        'Database error while finding network device',
-        error
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<NetworkDevice | null>(
+        `Database error finding network device: ${errorMessage}`
       );
     }
   }
@@ -436,7 +429,6 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
    * @param limit - Maximum results
    * @param offset - Results to skip
    * @returns Result<NetworkDevice[]> - Devices or error
-   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   public async findAll(
     limit: number = 20,
@@ -454,20 +446,17 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
         }
       });
 
-      // Empty array is valid - not an error
       if (devicesData.length === 0) {
         return Result.ok<NetworkDevice[]>([]);
       }
 
-      // Map all devices to domain
       const devices: NetworkDevice[] = [];
       for (const deviceData of devicesData) {
         const deviceOrError = NetworkDeviceMapper.toDomain(deviceData);
 
         if (deviceOrError.isFailure) {
-          // Business Error: Data corruption
           return Result.fail<NetworkDevice[]>(
-            `Failed to map device ${deviceData.id}: ${deviceOrError.error}`
+            `Data integrity error mapping device ${deviceData.id}: ${deviceOrError.error}`
           );
         }
 
@@ -476,45 +465,37 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
 
       return Result.ok<NetworkDevice[]>(devices);
     } catch (error: any) {
-      // Infrastructure Error
-      throw new InfrastructureException(
-        'Database error while finding all network devices',
-        error
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<NetworkDevice[]>(
+        `Database error listing network devices: ${errorMessage}`
       );
     }
   }
 
   /**
    * Deletes a device by ID.
-   * Cascade deletes related entities (polling configuration).
    *
    * @param id - Device ID
-   * @returns Result<void> - Success or business error
-   * @throws InfrastructureException - On catastrophic infrastructure failures
+   * @returns Result<void> - Success or error
    */
   public async delete(id: NetworkDeviceId): Promise<Result<void>> {
     try {
-      // Check if device exists
-      const exists = await this.prisma.networkDevice.findUnique({
-        where: { id: id.toString() }
-      });
-
-      if (!exists) {
-        // Business decision: Return failure if device doesn't exist
-        return Result.fail<void>('Device not found');
-      }
-
-      // Delete device (cascade deletes children due to DB constraints)
       await this.prisma.networkDevice.delete({
         where: { id: id.toString() }
       });
 
       return Result.ok<void>();
     } catch (error: any) {
-      // Infrastructure Error
-      throw new InfrastructureException(
-        'Database error while deleting network device',
-        error
+      // P2025: Record not found — business error
+      if (error.code === 'P2025') {
+        return Result.fail<void>('Device not found');
+      }
+
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<void>(
+        `Database error deleting network device: ${errorMessage}`
       );
     }
   }
@@ -524,7 +505,6 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
    *
    * @param id - Device ID
    * @returns Result<boolean> - True if exists
-   * @throws InfrastructureException - On catastrophic infrastructure failures
    */
   public async exists(id: NetworkDeviceId): Promise<Result<boolean>> {
     try {
@@ -534,55 +514,10 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
 
       return Result.ok<boolean>(count > 0);
     } catch (error: any) {
-      // Infrastructure Error
-      throw new InfrastructureException(
-        'Database error while checking device existence',
-        error
-      );
-    }
-  }
-
-  /**
-   * Checks if an IP address is already in use.
-   *
-   * @param ipAddress - IP address value object
-   * @returns Result<boolean> - True if in use
-   * @throws InfrastructureException - On catastrophic infrastructure failures
-   */
-  public async existsByIpAddress(
-    ipAddress: IPAddress
-  ): Promise<Result<boolean>> {
-    try {
-      const count = await this.prisma.networkDevice.count({
-        where: { ipAddress: ipAddress.toString() }
-      });
-
-      return Result.ok<boolean>(count > 0);
-    } catch (error: any) {
-      // Infrastructure Error
-      throw new InfrastructureException(
-        'Database error while checking IP address',
-        error
-      );
-    }
-  }
-
-  /**
-   * Counts total devices.
-   *
-   * @returns Result<number> - Device count
-   * @throws InfrastructureException - On catastrophic infrastructure failures
-   */
-  public async count(): Promise<Result<number>> {
-    try {
-      const count = await this.prisma.networkDevice.count();
-
-      return Result.ok<number>(count);
-    } catch (error: any) {
-      // Infrastructure Error
-      throw new InfrastructureException(
-        'Database error while counting devices',
-        error
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<boolean>(
+        `Database error checking device existence: ${errorMessage}`
       );
     }
   }
@@ -595,78 +530,74 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
 export class PrismaOrderRepository implements IOrderRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  /**
-   * Saves an order within a transaction.
-   * If transaction is provided, uses it; otherwise creates new transaction.
-   */
-  public async save(
-    order: Order,
-    transaction?: PrismaTransaction
-  ): Promise<Result<Order>> {
-    const prismaClient = transaction || this.prisma;
-
+  public async save(order: Order): Promise<Result<Order>> {
     try {
       const orderData = OrderMapper.toPersistence(order);
 
-      // Use transaction-aware client
-      const savedOrder = await prismaClient.order.upsert({
-        where: { id: order.id.toString() },
-        update: orderData,
-        create: orderData,
-        include: {
-          items: true,
-          payment: true
+      // Explicit transaction for multiple related operations
+      await this.prisma.$transaction(async (tx) => {
+        await tx.order.upsert({
+          where: { id: order.id.toString() },
+          update: orderData,
+          create: orderData
+        });
+
+        await tx.orderItem.deleteMany({
+          where: { orderId: order.id.toString() }
+        });
+
+        for (const item of order.items) {
+          await tx.orderItem.create({
+            data: OrderItemMapper.toPersistence(item)
+          });
         }
       });
 
-      // Only dispatch events if not in transaction
-      // (Transaction owner will dispatch after commit)
-      if (!transaction) {
-        await DomainEvents.dispatchEventsForAggregate(order.id);
-      }
+      // Events dispatched AFTER $transaction resolves — never inside the callback
+      EventDispatcher.dispatchEventsForAggregate(order.id);
 
-      return Result.ok<Order>(order);
+      return Result.ok(order);
     } catch (error: any) {
-      // Classify errors...
       if (error.code === 'P2002') {
         return Result.fail<Order>('Order number already exists');
       }
 
-      throw new InfrastructureException(
-        'Database error while saving order',
-        error
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<Order>(
+        `Database error saving order: ${errorMessage}`
       );
     }
   }
 
-  /**
-   * Executes multiple operations in a single transaction.
-   */
   public async saveMultiple(orders: Order[]): Promise<Result<void>> {
     try {
       await this.prisma.$transaction(async (tx) => {
         for (const order of orders) {
-          const saveResult = await this.save(order, tx);
-          if (saveResult.isFailure) {
-            throw new Error(saveResult.error); // Rollback transaction
-          }
-        }
-
-        // Dispatch events for all orders after transaction commits
-        for (const order of orders) {
-          await DomainEvents.dispatchEventsForAggregate(order.id);
+          const orderData = OrderMapper.toPersistence(order);
+          await tx.order.upsert({
+            where: { id: order.id.toString() },
+            update: orderData,
+            create: orderData
+          });
         }
       });
 
-      return Result.ok<void>();
-    } catch (error: any) {
-      if (error.message.includes('already exists')) {
-        return Result.fail<void>(error.message);
+      // Dispatch events for all orders AFTER the transaction resolves
+      for (const order of orders) {
+        EventDispatcher.dispatchEventsForAggregate(order.id);
       }
 
-      throw new InfrastructureException(
-        'Database error while saving multiple orders',
-        error
+      return Result.ok<void>();
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        return Result.fail<void>('One or more orders already exist');
+      }
+
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<void>(
+        `Database error saving multiple orders: ${errorMessage}`
       );
     }
   }
@@ -804,7 +735,7 @@ src/repositories/PrismaNetworkDeviceRepository.ts // Wrong directory
 
 ### Method Names:
 
-Follow the interface exactly - no deviation:
+Follow the interface exactly — no deviation:
 
 ```typescript
 // ✅ GOOD - Exact interface implementation
@@ -851,8 +782,8 @@ export class PrismaOrderRepository implements IOrderRepository {
     // Helper query
   }
 
-  private classifyError(error: any): 'business' | 'infrastructure' {
-    // Error classification logic
+  private classifyPrismaError<T>(error: any): Result<T> {
+    // Error message builder
   }
 }
 ```
@@ -861,11 +792,43 @@ export class PrismaOrderRepository implements IOrderRepository {
 
 ## 9. Error Handling Strategy
 
-### Dual Error-Handling Model
+### Unified Result Model
 
-Repository implementations MUST distinguish between two types of failures:
+Repository implementations use a **single error channel**: all errors — whether caused by business rule violations or infrastructure failures — are returned as `Result.fail()`.
 
-#### Business/Domain Errors → Return `Result.fail()`
+**Why not throw for infrastructure errors?**
+
+The `UseCase` base class wraps every `execute()` call in a try/catch and converts any thrown exception to `Result.fail()`. This means:
+
+- A thrown exception from a repository **never reaches the controller** in a distinguishable way
+- Throwing creates two error paths (return + throw) for the same outcome, increasing cognitive load
+- Consistency is impossible if some errors throw and others return
+
+**The rule is simple:** Repository public methods always return `Result<T>`. They never throw.
+
+### How to Distinguish Error Categories
+
+Since both business and infrastructure errors use `Result.fail()`, callers must be able to tell them apart. Use **message prefixes** for infrastructure errors:
+
+```typescript
+// Business error - no prefix, describes the domain violation
+return Result.fail('Device with ipAddress already exists');
+return Result.fail('Device not found');
+return Result.fail('Referenced entity does not exist');
+
+// Infrastructure error - prefixed with "Database error: ..."
+return Result.fail(`Database error saving network device: ${errorMessage}`);
+return Result.fail(`Database error finding network device: ${errorMessage}`);
+```
+
+The controller can then classify errors for HTTP status codes without relying on fragile string matching for business errors:
+
+```typescript
+// Business errors have short, specific messages → 400/404/409
+// Infrastructure errors start with "Database error:" → 500
+```
+
+### Business Errors → `Result.fail()` with domain message
 
 These are **expected** errors that are part of normal business operations:
 
@@ -898,8 +861,12 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
         );
       }
 
-      // Infrastructure error - throw (see below)
-      throw new InfrastructureException('Database error', error);
+      // Fall through to infrastructure handling below
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<NetworkDevice>(
+        `Database error saving network device: ${errorMessage}`
+      );
     }
   }
 }
@@ -907,14 +874,14 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
 
 **Common Prisma Error Codes (Business Errors):**
 
-| Code   | Meaning                      | Action                   |
+| Code   | Meaning                      | Message style            |
 | ------ | ---------------------------- | ------------------------ |
-| P2002  | Unique constraint violation  | Return `Result.fail()`   |
-| P2003  | Foreign key constraint fail  | Return `Result.fail()`   |
-| P2004  | Constraint failed on DB      | Return `Result.fail()`   |
-| P2025  | Record not found (delete)    | Return `Result.fail()`   |
+| P2002  | Unique constraint violation  | `"X already exists"`     |
+| P2003  | Foreign key constraint fail  | `"Referenced X does not exist"` |
+| P2004  | Constraint failed on DB      | `"Data violates constraints"` |
+| P2025  | Record not found (delete)    | `"X not found"`          |
 
-#### Infrastructure Errors → Throw Exceptions
+### Infrastructure Errors → `Result.fail()` with "Database error: ..." prefix
 
 These are **unexpected** system-level failures:
 
@@ -927,34 +894,12 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
       const data = await this.prisma.networkDevice.findUnique({...});
       // ... mapping logic ...
     } catch (error: any) {
-      // ❌ Infrastructure Error: Connection errors
-      if (error.code === 'P1001') {
-        throw new InfrastructureException(
-          'Cannot connect to database server',
-          error
-        );
-      }
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
 
-      // ❌ Infrastructure Error: Timeout
-      if (error.code === 'P1008') {
-        throw new InfrastructureException(
-          'Database operation timed out',
-          error
-        );
-      }
-
-      // ❌ Infrastructure Error: Authentication failed
-      if (error.code === 'P1000') {
-        throw new InfrastructureException(
-          'Database authentication failed',
-          error
-        );
-      }
-
-      // ❌ Infrastructure Error: Unknown/unexpected errors
-      throw new InfrastructureException(
-        'Unexpected database error while finding device',
-        error
+      // All infrastructure failures: connection, timeout, auth — return Result.fail()
+      return Result.fail<NetworkDevice | null>(
+        `Database error finding network device: ${errorMessage}`
       );
     }
   }
@@ -963,28 +908,60 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
 
 **Common Prisma Error Codes (Infrastructure Errors):**
 
-| Code   | Meaning                   | Action                      |
-| ------ | ------------------------- | --------------------------- |
-| P1000  | Authentication failed     | Throw exception             |
-| P1001  | Cannot reach DB server    | Throw exception             |
-| P1002  | DB server unreachable     | Throw exception             |
-| P1008  | Operations timed out      | Throw exception             |
-| P1009  | Database doesn't exist    | Throw exception             |
-| P1010  | Access denied             | Throw exception             |
+| Code   | Meaning                   | Message style                                 |
+| ------ | ------------------------- | --------------------------------------------- |
+| P1000  | Authentication failed     | `"Database error: ..."` |
+| P1001  | Cannot reach DB server    | `"Database error: ..."` |
+| P1002  | DB server unreachable     | `"Database error: ..."` |
+| P1008  | Operations timed out      | `"Database error: ..."` |
+| P1009  | Database doesn't exist    | `"Database error: ..."` |
+| P1010  | Access denied             | `"Database error: ..."` |
+
+### Data Mapping Errors — Data Integrity (Not Business Errors)
+
+When a mapper fails to reconstruct a domain entity from persisted data, this is a **data integrity** error — it means the database contains data that does not conform to current domain rules. This is NOT a business error (user did not violate a rule); it signals corrupted, migrated, or stale data that needs operator attention.
+
+```typescript
+async findById(id: NetworkDeviceId): Promise<Result<NetworkDevice | null>> {
+  try {
+    const data = await this.prisma.networkDevice.findUnique({...});
+
+    if (!data) return Result.ok(null);
+
+    const deviceOrError = NetworkDeviceMapper.toDomain(data);
+
+    if (deviceOrError.isFailure) {
+      // ✅ Data integrity error — NOT a business error
+      // Use a distinct prefix so monitoring can alert on these
+      return Result.fail<NetworkDevice>(
+        `Data integrity error mapping device ${id}: ${deviceOrError.error}`
+      );
+    }
+
+    return Result.ok(deviceOrError.value);
+  } catch (error: any) {
+    const errorMessage =
+      error instanceof Error ? error.message : String(error);
+    return Result.fail<NetworkDevice | null>(
+      `Database error finding device: ${errorMessage}`
+    );
+  }
+}
+```
 
 ### Error Classification Helper:
 
 ```typescript
 export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
   /**
-   * Classifies Prisma errors into business vs infrastructure.
-   * Returns appropriate Result or throws exception.
+   * Converts a Prisma error into a typed Result.fail() message.
+   * Business errors use domain language; infrastructure errors use "Database error:" prefix.
    */
   private handlePrismaError<T>(
     error: any,
     context: string
-  ): Result<T> | never {
-    // Business errors - return Result.fail()
+  ): Result<T> {
+    // Business errors — domain language
     if (error.code === 'P2002') {
       const field = error.meta?.target?.[0] || 'field';
       return Result.fail<T>(`${field} already exists`);
@@ -1002,14 +979,12 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
       return Result.fail<T>('Record not found');
     }
 
-    // Infrastructure errors - throw exception
-    throw new InfrastructureException(
-      `${context}: ${error.message}`,
-      error
-    );
+    // Infrastructure errors — "Database error:" prefix
+    const errorMessage =
+      error instanceof Error ? error.message : String(error);
+    return Result.fail<T>(`Database error ${context}: ${errorMessage}`);
   }
 
-  // Usage
   async save(device: NetworkDevice): Promise<Result<NetworkDevice>> {
     try {
       // ... database operations ...
@@ -1017,39 +992,9 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
     } catch (error: any) {
       return this.handlePrismaError<NetworkDevice>(
         error,
-        'Error saving network device'
+        'saving network device'
       );
     }
-  }
-}
-```
-
-### Data Mapping Errors:
-
-```typescript
-async findById(id: NetworkDeviceId): Promise<Result<NetworkDevice | null>> {
-  try {
-    const data = await this.prisma.networkDevice.findUnique({...});
-
-    if (!data) return Result.ok(null);
-
-    // Map to domain
-    const deviceOrError = NetworkDeviceMapper.toDomain(data);
-
-    if (deviceOrError.isFailure) {
-      // ✅ Business Error: Corrupted data in database
-      return Result.fail<NetworkDevice>(
-        `Failed to map device data: ${deviceOrError.error}`
-      );
-    }
-
-    return Result.ok(deviceOrError.value);
-  } catch (error: any) {
-    // ❌ Infrastructure Error
-    throw new InfrastructureException(
-      'Database error while finding device',
-      error
-    );
   }
 }
 ```
@@ -1060,20 +1005,20 @@ async findById(id: NetworkDeviceId): Promise<Result<NetworkDevice | null>> {
 
 ### Pattern 1: Auto-Transaction (Simple Operations)
 
-Most operations are naturally transactional:
+Most operations are naturally transactional with a single Prisma call:
 
 ```typescript
 export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
   async save(device: NetworkDevice): Promise<Result<NetworkDevice>> {
     try {
-      // Single operation - Prisma handles transaction automatically
       await this.prisma.networkDevice.upsert({
         where: { id: device.id.toString() },
         update: { ...updateData },
         create: { ...createData }
       });
 
-      await DomainEvents.dispatchEventsForAggregate(device.id);
+      // Dispatch AFTER the Prisma call succeeds
+      EventDispatcher.dispatchEventsForAggregate(device.id);
       return Result.ok(device);
     } catch (error: any) {
       return this.handlePrismaError(error, 'saving device');
@@ -1084,7 +1029,7 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
 
 ### Pattern 2: Explicit Transaction (Multiple Operations)
 
-For operations requiring multiple database calls:
+For operations requiring multiple database calls, use `$transaction`. Always dispatch events **after** the `$transaction` call resolves — never inside the callback:
 
 ```typescript
 export class PrismaOrderRepository implements IOrderRepository {
@@ -1092,35 +1037,26 @@ export class PrismaOrderRepository implements IOrderRepository {
     try {
       // Explicit transaction for multiple operations
       await this.prisma.$transaction(async (tx) => {
-        // Save order
         await tx.order.upsert({
           where: { id: order.id.toString() },
           update: { ...orderData },
           create: { ...orderData }
         });
 
-        // Delete existing items
         await tx.orderItem.deleteMany({
           where: { orderId: order.id.toString() }
         });
 
-        // Create new items
         for (const item of order.items) {
           await tx.orderItem.create({
             data: OrderItemMapper.toPersistence(item)
           });
         }
-
-        // Update payment
-        await tx.payment.upsert({
-          where: { orderId: order.id.toString() },
-          update: { ...paymentData },
-          create: { ...paymentData }
-        });
       });
 
-      // Events dispatched AFTER transaction commits
-      await DomainEvents.dispatchEventsForAggregate(order.id);
+      // ✅ Events dispatched AFTER $transaction resolves
+      // Dispatching inside the callback would fire before commit
+      EventDispatcher.dispatchEventsForAggregate(order.id);
 
       return Result.ok(order);
     } catch (error: any) {
@@ -1132,7 +1068,7 @@ export class PrismaOrderRepository implements IOrderRepository {
 
 ### Pattern 3: Transaction Context (Use Case Controls Transaction)
 
-When use case needs to control transaction across multiple repositories:
+When a use case needs to coordinate multiple repositories atomically:
 
 ```typescript
 // Repository accepts optional transaction
@@ -1146,10 +1082,11 @@ export class PrismaOrderRepository implements IOrderRepository {
     try {
       await client.order.upsert({...});
 
-      // Only dispatch events if NOT in a transaction
-      // (caller will dispatch after transaction commits)
+      // Only dispatch events if NOT inside an external transaction.
+      // When tx is provided, the use case controls the transaction boundary
+      // and is responsible for dispatching events after commit.
       if (!tx) {
-        await DomainEvents.dispatchEventsForAggregate(order.id);
+        EventDispatcher.dispatchEventsForAggregate(order.id);
       }
 
       return Result.ok(order);
@@ -1159,27 +1096,26 @@ export class PrismaOrderRepository implements IOrderRepository {
   }
 }
 
-// Use case manages transaction
+// Use case manages the transaction
 export class PlaceOrderUseCase {
   async execute(request: PlaceOrderRequest): Promise<Result<Order>> {
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        // Create order
+      let savedOrder: Order;
+      let savedInventory: Inventory;
+
+      await this.prisma.$transaction(async (tx) => {
         const orderResult = await this.orderRepo.save(order, tx);
         if (orderResult.isFailure) throw new Error(orderResult.error);
+        savedOrder = order;
 
-        // Update inventory
-        const inventoryResult = await this.inventoryRepo.decreaseStock(
-          items,
-          tx
-        );
+        const inventoryResult = await this.inventoryRepo.decreaseStock(items, tx);
         if (inventoryResult.isFailure) throw new Error(inventoryResult.error);
-
-        // Dispatch events after transaction commits
-        await DomainEvents.dispatchEventsForAggregate(order.id);
-
-        return Result.ok(order);
       });
+
+      // Dispatch events for all aggregates AFTER the transaction commits
+      EventDispatcher.dispatchEventsForAggregate(savedOrder!.id);
+
+      return Result.ok(savedOrder!);
     } catch (error: any) {
       return Result.fail(`Failed to place order: ${error.message}`);
     }
@@ -1198,13 +1134,14 @@ export class PlaceOrderUseCase {
    - Most operations = single aggregate = single transaction
    - Cross-aggregate operations need careful consideration
 
-3. **Dispatch Events After Commit**
-   - Never dispatch before transaction completes
-   - Ensures consistency between DB and events
+3. **Dispatch Events AFTER `$transaction` Resolves**
+   - Never dispatch inside the transaction callback
+   - The callback runs BEFORE the commit — events dispatched there may fire on rolled-back data
+   - Dispatch immediately after the `await this.prisma.$transaction(...)` call
 
 4. **Handle Rollbacks Gracefully**
    - Let Prisma handle rollback automatically
-   - Don't dispatch events if transaction fails
+   - Don't dispatch events if the `$transaction` call threw
 
 ---
 
@@ -1212,17 +1149,20 @@ export class PlaceOrderUseCase {
 
 ### When to Dispatch Events
 
-Domain events are dispatched **AFTER** successful database operations:
+Domain events are dispatched **AFTER** the database transaction resolves:
 
 ```typescript
 export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
   async save(device: NetworkDevice): Promise<Result<NetworkDevice>> {
     try {
-      // 1. Perform database operation
-      await this.prisma.networkDevice.upsert({...});
+      // 1. Perform database operation (or transaction)
+      await this.prisma.$transaction(async (tx) => {
+        await tx.networkDevice.upsert({...});
+      });
 
-      // 2. Dispatch events ONLY after successful database commit
-      await DomainEvents.dispatchEventsForAggregate(device.id);
+      // 2. Dispatch events ONLY after transaction resolves
+      //    NOT inside the transaction callback
+      EventDispatcher.dispatchEventsForAggregate(device.id);
 
       return Result.ok(device);
     } catch (error: any) {
@@ -1236,34 +1176,17 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
 ### Event Dispatching Pattern:
 
 ```typescript
-import { DomainEvents } from '@/domain/events/DomainEvents';
+import { EventDispatcher } from '@/domain/events/EventDispatcher';
 
 export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
-  /**
-   * Dispatches domain events for an aggregate.
-   * Called after successful persistence.
-   */
-  private async dispatchEventsForAggregate(
-    aggregateId: NetworkDeviceId
-  ): Promise<void> {
-    try {
-      await DomainEvents.dispatchEventsForAggregate(aggregateId);
-    } catch (error) {
-      // Log event dispatching failures but don't fail the operation
-      // Database operation succeeded, event handlers might retry
-      console.error(
-        `Failed to dispatch events for aggregate ${aggregateId}:`,
-        error
-      );
-    }
-  }
-
   async save(device: NetworkDevice): Promise<Result<NetworkDevice>> {
     try {
-      await this.prisma.networkDevice.upsert({...});
+      await this.prisma.$transaction(async (tx) => {
+        await tx.networkDevice.upsert({...});
+      });
 
-      // Dispatch events
-      await this.dispatchEventsForAggregate(device.id);
+      // Dispatch after successful commit
+      EventDispatcher.dispatchEventsForAggregate(device.id);
 
       return Result.ok(device);
     } catch (error: any) {
@@ -1279,8 +1202,8 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
 export class PrismaOrderRepository implements IOrderRepository {
   /**
    * Save with optional transaction context.
-   * If transaction provided, events are NOT dispatched (caller's responsibility).
-   * If no transaction, events dispatched immediately.
+   * If transaction provided, events are NOT dispatched here (caller's responsibility).
+   * If no transaction, events dispatched immediately after the save.
    */
   async save(
     order: Order,
@@ -1291,9 +1214,9 @@ export class PrismaOrderRepository implements IOrderRepository {
     try {
       await client.order.upsert({...});
 
-      // Only dispatch if NOT in transaction
+      // Only dispatch if NOT in an externally managed transaction
       if (!tx) {
-        await DomainEvents.dispatchEventsForAggregate(order.id);
+        EventDispatcher.dispatchEventsForAggregate(order.id);
       }
 
       return Result.ok(order);
@@ -1303,35 +1226,36 @@ export class PrismaOrderRepository implements IOrderRepository {
   }
 }
 
-// Caller (use case) dispatches after transaction commits
+// Caller dispatches after the transaction commits
 await this.prisma.$transaction(async (tx) => {
   await this.orderRepo.save(order, tx);
   await this.paymentRepo.save(payment, tx);
-
-  // After transaction commits, dispatch events
-  await DomainEvents.dispatchEventsForAggregate(order.id);
-  await DomainEvents.dispatchEventsForAggregate(payment.id);
+  // Do NOT dispatch here — transaction has not committed yet
 });
+
+// Dispatch here, after $transaction resolves
+EventDispatcher.dispatchEventsForAggregate(order.id);
+EventDispatcher.dispatchEventsForAggregate(payment.id);
 ```
 
 ### Event Dispatching Best Practices:
 
 1. **After Database Commit Only**
    - Never dispatch before persistence succeeds
-   - Ensures database and events stay consistent
+   - Never dispatch inside a `$transaction` callback
 
 2. **Transaction-Aware**
-   - Skip dispatching if in transaction
-   - Let transaction owner dispatch after commit
+   - Skip dispatching if an external transaction is in progress
+   - Let the transaction owner dispatch after commit
 
 3. **Handle Failures Gracefully**
-   - Log event dispatch failures
-   - Don't fail the database operation
-   - Consider retry mechanisms
+   - If dispatch fails, log the error
+   - Do not fail the overall operation (persistence already succeeded)
+   - Consider retry mechanisms for critical events
 
 4. **One Aggregate ID at a Time**
    - Dispatch events for single aggregate
-   - Don't mix events from multiple aggregates
+   - Don't mix events from multiple aggregates in one call
 
 ---
 
@@ -1353,7 +1277,6 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
   let repository: PrismaNetworkDeviceRepository;
 
   beforeAll(async () => {
-    // Setup test database connection
     prisma = new PrismaClient({
       datasources: {
         db: {
@@ -1363,18 +1286,14 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
     });
 
     repository = new PrismaNetworkDeviceRepository(prisma);
-
-    // Connect and run migrations
     await prisma.$connect();
   });
 
   afterAll(async () => {
-    // Cleanup and disconnect
     await prisma.$disconnect();
   });
 
   beforeEach(async () => {
-    // Clean database before each test
     await prisma.networkDevice.deleteMany();
     await prisma.pollingConfiguration.deleteMany();
   });
@@ -1382,7 +1301,6 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
   describe('save', () => {
     describe('when creating new device', () => {
       it('should persist device to database', async () => {
-        // Arrange
         const ipAddress = IPAddress.create('192.168.1.100').value;
         const macAddress = MACAddress.create('00:11:22:33:44:55').value;
 
@@ -1396,13 +1314,10 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
         expect(deviceResult.isSuccess).toBe(true);
         const device = deviceResult.value;
 
-        // Act
         const saveResult = await repository.save(device);
 
-        // Assert
         expect(saveResult.isSuccess).toBe(true);
 
-        // Verify in database
         const dbDevice = await prisma.networkDevice.findUnique({
           where: { id: device.id.toString() }
         });
@@ -1410,11 +1325,9 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
         expect(dbDevice).toBeDefined();
         expect(dbDevice?.name).toBe('Test Device');
         expect(dbDevice?.ipAddress).toBe('192.168.1.100');
-        expect(dbDevice?.macAddress).toBe('00:11:22:33:44:55');
       });
 
-      it('should fail with duplicate IP address', async () => {
-        // Arrange - Create first device
+      it('should return Result.fail() with duplicate IP address', async () => {
         const device1 = NetworkDevice.create({
           name: 'Device 1',
           ipAddress: IPAddress.create('192.168.1.100').value,
@@ -1424,7 +1337,6 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
 
         await repository.save(device1);
 
-        // Create second device with same IP
         const device2 = NetworkDevice.create({
           name: 'Device 2',
           ipAddress: IPAddress.create('192.168.1.100').value, // Same IP!
@@ -1432,10 +1344,9 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
           deviceType: 'SWITCH'
         }).value;
 
-        // Act
         const saveResult = await repository.save(device2);
 
-        // Assert - Business error, not exception
+        // Business error returned as Result.fail() — not thrown
         expect(saveResult.isFailure).toBe(true);
         expect(saveResult.error).toContain('already exists');
       });
@@ -1443,7 +1354,6 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
 
     describe('when updating existing device', () => {
       it('should update device in database', async () => {
-        // Arrange - Create device
         const device = NetworkDevice.create({
           name: 'Original Name',
           ipAddress: IPAddress.create('192.168.1.100').value,
@@ -1453,17 +1363,13 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
 
         await repository.save(device);
 
-        // Update device
         const updateResult = device.updateName('Updated Name');
         expect(updateResult.isSuccess).toBe(true);
 
-        // Act - Save updated device
         const saveResult = await repository.save(device);
 
-        // Assert
         expect(saveResult.isSuccess).toBe(true);
 
-        // Verify in database
         const dbDevice = await prisma.networkDevice.findUnique({
           where: { id: device.id.toString() }
         });
@@ -1475,7 +1381,6 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
 
   describe('findById', () => {
     it('should return device if exists', async () => {
-      // Arrange - Create device
       const device = NetworkDevice.create({
         name: 'Test Device',
         ipAddress: IPAddress.create('192.168.1.100').value,
@@ -1485,10 +1390,8 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
 
       await repository.save(device);
 
-      // Act
       const findResult = await repository.findById(device.id);
 
-      // Assert
       expect(findResult.isSuccess).toBe(true);
       expect(findResult.value).not.toBeNull();
       expect(findResult.value?.id.equals(device.id)).toBe(true);
@@ -1496,19 +1399,15 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
     });
 
     it('should return null if device does not exist', async () => {
-      // Arrange
       const nonExistentId = NetworkDeviceId.create();
 
-      // Act
       const findResult = await repository.findById(nonExistentId);
 
-      // Assert
       expect(findResult.isSuccess).toBe(true);
       expect(findResult.value).toBeNull();
     });
 
     it('should load complete aggregate with children', async () => {
-      // Arrange - Create device with polling configuration
       const device = NetworkDevice.create({
         name: 'Test Device',
         ipAddress: IPAddress.create('192.168.1.100').value,
@@ -1516,17 +1415,11 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
         deviceType: 'ROUTER'
       }).value;
 
-      device.configurePolling({
-        enabled: true,
-        interval: 60
-      });
-
+      device.configurePolling({ enabled: true, interval: 60 });
       await repository.save(device);
 
-      // Act
       const findResult = await repository.findById(device.id);
 
-      // Assert
       expect(findResult.isSuccess).toBe(true);
       expect(findResult.value?.pollingConfiguration).toBeDefined();
       expect(findResult.value?.pollingConfiguration.enabled).toBe(true);
@@ -1535,7 +1428,6 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
 
   describe('findAll', () => {
     it('should return all devices', async () => {
-      // Arrange - Create multiple devices
       const device1 = NetworkDevice.create({
         name: 'Device 1',
         ipAddress: IPAddress.create('192.168.1.1').value,
@@ -1553,25 +1445,20 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
       await repository.save(device1);
       await repository.save(device2);
 
-      // Act
       const findResult = await repository.findAll();
 
-      // Assert
       expect(findResult.isSuccess).toBe(true);
       expect(findResult.value).toHaveLength(2);
     });
 
     it('should return empty array if no devices', async () => {
-      // Act
       const findResult = await repository.findAll();
 
-      // Assert
       expect(findResult.isSuccess).toBe(true);
       expect(findResult.value).toEqual([]);
     });
 
     it('should support pagination', async () => {
-      // Arrange - Create 5 devices
       for (let i = 1; i <= 5; i++) {
         const device = NetworkDevice.create({
           name: `Device ${i}`,
@@ -1583,10 +1470,8 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
         await repository.save(device);
       }
 
-      // Act - Get second page (limit=2, offset=2)
       const findResult = await repository.findAll(2, 2);
 
-      // Assert
       expect(findResult.isSuccess).toBe(true);
       expect(findResult.value).toHaveLength(2);
     });
@@ -1594,7 +1479,6 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
 
   describe('delete', () => {
     it('should delete device from database', async () => {
-      // Arrange
       const device = NetworkDevice.create({
         name: 'Test Device',
         ipAddress: IPAddress.create('192.168.1.100').value,
@@ -1604,13 +1488,10 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
 
       await repository.save(device);
 
-      // Act
       const deleteResult = await repository.delete(device.id);
 
-      // Assert
       expect(deleteResult.isSuccess).toBe(true);
 
-      // Verify deletion
       const dbDevice = await prisma.networkDevice.findUnique({
         where: { id: device.id.toString() }
       });
@@ -1618,20 +1499,17 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
       expect(dbDevice).toBeNull();
     });
 
-    it('should fail if device does not exist', async () => {
-      // Arrange
+    it('should return Result.fail() if device does not exist', async () => {
       const nonExistentId = NetworkDeviceId.create();
 
-      // Act
       const deleteResult = await repository.delete(nonExistentId);
 
-      // Assert
+      // Returns Result.fail() — does not throw
       expect(deleteResult.isFailure).toBe(true);
       expect(deleteResult.error).toContain('not found');
     });
 
     it('should cascade delete child entities', async () => {
-      // Arrange - Create device with polling configuration
       const device = NetworkDevice.create({
         name: 'Test Device',
         ipAddress: IPAddress.create('192.168.1.100').value,
@@ -1642,10 +1520,8 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
       device.configurePolling({ enabled: true, interval: 60 });
       await repository.save(device);
 
-      // Act - Delete device
       await repository.delete(device.id);
 
-      // Assert - Polling configuration also deleted
       const dbConfig = await prisma.pollingConfiguration.findUnique({
         where: { deviceId: device.id.toString() }
       });
@@ -1656,7 +1532,6 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
 
   describe('exists', () => {
     it('should return true if device exists', async () => {
-      // Arrange
       const device = NetworkDevice.create({
         name: 'Test Device',
         ipAddress: IPAddress.create('192.168.1.100').value,
@@ -1666,31 +1541,28 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
 
       await repository.save(device);
 
-      // Act
       const existsResult = await repository.exists(device.id);
 
-      // Assert
       expect(existsResult.isSuccess).toBe(true);
       expect(existsResult.value).toBe(true);
     });
 
     it('should return false if device does not exist', async () => {
-      // Arrange
       const nonExistentId = NetworkDeviceId.create();
 
-      // Act
       const existsResult = await repository.exists(nonExistentId);
 
-      // Assert
       expect(existsResult.isSuccess).toBe(true);
       expect(existsResult.value).toBe(false);
     });
   });
 
   describe('error handling', () => {
-    it('should throw InfrastructureException on connection failure', async () => {
-      // Arrange - Disconnect database
-      await prisma.$disconnect();
+    it('should return Result.fail() on database failure', async () => {
+      // Simulate a disconnected client
+      const badRepository = new PrismaNetworkDeviceRepository(
+        new PrismaClient({ datasources: { db: { url: 'postgresql://invalid' } } })
+      );
 
       const device = NetworkDevice.create({
         name: 'Test Device',
@@ -1699,13 +1571,11 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
         deviceType: 'ROUTER'
       }).value;
 
-      // Act & Assert
-      await expect(repository.save(device)).rejects.toThrow(
-        InfrastructureException
-      );
+      // Repository returns Result.fail() — it does NOT throw
+      const saveResult = await badRepository.save(device);
 
-      // Cleanup - Reconnect
-      await prisma.$connect();
+      expect(saveResult.isFailure).toBe(true);
+      expect(saveResult.error).toMatch(/Database error/i);
     });
   });
 });
@@ -1722,10 +1592,10 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
    - Exists
 
 2. **Business Error Scenarios**:
-   - Duplicate key violations
-   - Foreign key violations
-   - Not found scenarios
-   - Constraint violations
+   - Duplicate key violations → `Result.fail()` with domain message
+   - Foreign key violations → `Result.fail()` with domain message
+   - Not found scenarios → `Result.ok(null)` or `Result.fail("X not found")`
+   - Constraint violations → `Result.fail()` with domain message
 
 3. **Aggregate Loading**:
    - Complete aggregate with children
@@ -1733,18 +1603,18 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
    - Lazy vs eager loading
 
 4. **Edge Cases**:
-   - Empty results (valid scenario)
-   - Null returns
+   - Empty results (valid scenario → `Result.ok([])`)
+   - Null returns (`Result.ok(null)`)
    - Pagination boundaries
 
 5. **Transaction Behavior**:
    - Multiple operations succeed together
    - Rollback on failure
-   - Event dispatching after commit
+   - Event dispatching after commit (not inside callback)
 
-6. **Infrastructure Errors** (if testable):
-   - Connection failures
-   - Timeout scenarios
+6. **Infrastructure Errors**:
+   - Connection failures → `Result.fail("Database error: ...")`
+   - Repository never throws — always returns `Result`
 
 ---
 
@@ -1758,8 +1628,7 @@ import { Result } from '@/shared/core/Result';
 import { ICustomerRepository } from '@/domain/repositories/ICustomerRepository';
 import { Customer, CustomerId } from '@/domain/aggregates/Customer';
 import { CustomerMapper } from '@/infrastructure/mappers/CustomerMapper';
-import { DomainEvents } from '@/domain/events/DomainEvents';
-import { InfrastructureException } from '@/infrastructure/exceptions/InfrastructureException';
+import { EventDispatcher } from '@/domain/events/EventDispatcher';
 
 /**
  * Prisma implementation of ICustomerRepository.
@@ -1778,7 +1647,7 @@ export class PrismaCustomerRepository implements ICustomerRepository {
         create: customerData
       });
 
-      await DomainEvents.dispatchEventsForAggregate(customer.id);
+      EventDispatcher.dispatchEventsForAggregate(customer.id);
 
       return Result.ok(customer);
     } catch (error: any) {
@@ -1787,9 +1656,10 @@ export class PrismaCustomerRepository implements ICustomerRepository {
         return Result.fail<Customer>(`Customer ${field} already exists`);
       }
 
-      throw new InfrastructureException(
-        'Database error while saving customer',
-        error
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<Customer>(
+        `Database error saving customer: ${errorMessage}`
       );
     }
   }
@@ -1808,15 +1678,16 @@ export class PrismaCustomerRepository implements ICustomerRepository {
 
       if (customerOrError.isFailure) {
         return Result.fail<Customer>(
-          `Failed to map customer: ${customerOrError.error}`
+          `Data integrity error mapping customer ${id}: ${customerOrError.error}`
         );
       }
 
       return Result.ok(customerOrError.value);
     } catch (error: any) {
-      throw new InfrastructureException(
-        'Database error while finding customer',
-        error
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<Customer | null>(
+        `Database error finding customer: ${errorMessage}`
       );
     }
   }
@@ -1833,9 +1704,10 @@ export class PrismaCustomerRepository implements ICustomerRepository {
         return Result.fail<void>('Customer not found');
       }
 
-      throw new InfrastructureException(
-        'Database error while deleting customer',
-        error
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<void>(
+        `Database error deleting customer: ${errorMessage}`
       );
     }
   }
@@ -1852,9 +1724,10 @@ export class PrismaCustomerRepository implements ICustomerRepository {
 
       return CustomerMapper.toDomain(customerData);
     } catch (error: any) {
-      throw new InfrastructureException(
-        'Database error while finding customer by email',
-        error
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<Customer | null>(
+        `Database error finding customer by email: ${errorMessage}`
       );
     }
   }
@@ -1871,8 +1744,7 @@ import { Order, OrderId } from '@/domain/aggregates/Order';
 import { CustomerId } from '@/domain/aggregates/Customer';
 import { OrderStatus } from '@/domain/value-objects/OrderStatus';
 import { OrderMapper } from '@/infrastructure/mappers/OrderMapper';
-import { DomainEvents } from '@/domain/events/DomainEvents';
-import { InfrastructureException } from '@/infrastructure/exceptions/InfrastructureException';
+import { EventDispatcher } from '@/domain/events/EventDispatcher';
 
 /**
  * Prisma implementation of IOrderRepository.
@@ -1883,11 +1755,9 @@ export class PrismaOrderRepository implements IOrderRepository {
 
   async save(order: Order): Promise<Result<Order>> {
     try {
-      // Use transaction for multiple operations
       await this.prisma.$transaction(async (tx) => {
         const orderData = OrderMapper.toPersistence(order);
 
-        // Upsert order
         await tx.order.upsert({
           where: { id: order.id.toString() },
           update: {
@@ -1898,12 +1768,10 @@ export class PrismaOrderRepository implements IOrderRepository {
           create: orderData
         });
 
-        // Delete existing items
         await tx.orderItem.deleteMany({
           where: { orderId: order.id.toString() }
         });
 
-        // Create new items
         for (const item of orderData.items) {
           await tx.orderItem.create({
             data: {
@@ -1914,7 +1782,8 @@ export class PrismaOrderRepository implements IOrderRepository {
         }
       });
 
-      await DomainEvents.dispatchEventsForAggregate(order.id);
+      // Dispatch AFTER $transaction resolves
+      EventDispatcher.dispatchEventsForAggregate(order.id);
 
       return Result.ok(order);
     } catch (error: any) {
@@ -1922,22 +1791,22 @@ export class PrismaOrderRepository implements IOrderRepository {
         return Result.fail<Order>('Order number already exists');
       }
 
-      throw new InfrastructureException(
-        'Database error while saving order',
-        error
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<Order>(
+        `Database error saving order: ${errorMessage}`
       );
     }
   }
 
   async findById(id: OrderId): Promise<Result<Order | null>> {
     try {
-      // Load complete aggregate with all children
       const orderData = await this.prisma.order.findUnique({
         where: { id: id.toString() },
         include: {
           items: {
             include: {
-              product: true // Include nested data
+              product: true
             }
           },
           shippingAddress: true,
@@ -1951,9 +1820,10 @@ export class PrismaOrderRepository implements IOrderRepository {
 
       return OrderMapper.toDomain(orderData);
     } catch (error: any) {
-      throw new InfrastructureException(
-        'Database error while finding order',
-        error
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<Order | null>(
+        `Database error finding order: ${errorMessage}`
       );
     }
   }
@@ -1965,15 +1835,11 @@ export class PrismaOrderRepository implements IOrderRepository {
       const ordersData = await this.prisma.order.findMany({
         where: { customerId: customerId.toString() },
         include: {
-          items: {
-            include: { product: true }
-          },
+          items: { include: { product: true } },
           shippingAddress: true,
           payment: true
         },
-        orderBy: {
-          createdAt: 'desc'
-        }
+        orderBy: { createdAt: 'desc' }
       });
 
       if (ordersData.length === 0) {
@@ -1986,7 +1852,7 @@ export class PrismaOrderRepository implements IOrderRepository {
 
         if (orderOrError.isFailure) {
           return Result.fail<Order[]>(
-            `Failed to map order ${orderData.id}: ${orderOrError.error}`
+            `Data integrity error mapping order ${orderData.id}: ${orderOrError.error}`
           );
         }
 
@@ -1995,47 +1861,16 @@ export class PrismaOrderRepository implements IOrderRepository {
 
       return Result.ok(orders);
     } catch (error: any) {
-      throw new InfrastructureException(
-        'Database error while finding orders by customer',
-        error
-      );
-    }
-  }
-
-  async findByStatus(status: OrderStatus): Promise<Result<Order[]>> {
-    try {
-      const ordersData = await this.prisma.order.findMany({
-        where: { status: status.value },
-        include: {
-          items: { include: { product: true } },
-          shippingAddress: true,
-          payment: true
-        }
-      });
-
-      const orders: Order[] = [];
-      for (const orderData of ordersData) {
-        const orderOrError = OrderMapper.toDomain(orderData);
-
-        if (orderOrError.isFailure) {
-          return Result.fail<Order[]>(orderOrError.error);
-        }
-
-        orders.push(orderOrError.value);
-      }
-
-      return Result.ok(orders);
-    } catch (error: any) {
-      throw new InfrastructureException(
-        'Database error while finding orders by status',
-        error
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<Order[]>(
+        `Database error finding orders by customer: ${errorMessage}`
       );
     }
   }
 
   async delete(id: OrderId): Promise<Result<void>> {
     try {
-      // Cascade delete handled by database constraints
       await this.prisma.order.delete({
         where: { id: id.toString() }
       });
@@ -2046,16 +1881,17 @@ export class PrismaOrderRepository implements IOrderRepository {
         return Result.fail<void>('Order not found');
       }
 
-      throw new InfrastructureException(
-        'Database error while deleting order',
-        error
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<void>(
+        `Database error deleting order: ${errorMessage}`
       );
     }
   }
 }
 ```
 
-### Example 3: Repository with Transaction Support
+### Example 3: Repository with Transaction Context Support
 
 ```typescript
 import { PrismaClient, Prisma } from '@prisma/client';
@@ -2064,10 +1900,9 @@ import { IInventoryRepository } from '@/domain/repositories/IInventoryRepository
 import { Inventory, InventoryId } from '@/domain/aggregates/Inventory';
 import { ProductId } from '@/domain/aggregates/Product';
 import { InventoryMapper } from '@/infrastructure/mappers/InventoryMapper';
-import { DomainEvents } from '@/domain/events/DomainEvents';
-import { InfrastructureException } from '@/infrastructure/exceptions/InfrastructureException';
+import { EventDispatcher } from '@/domain/events/EventDispatcher';
 
-// Type for Prisma transaction
+// Type for Prisma transaction client
 type PrismaTransaction = Omit<
   PrismaClient,
   '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
@@ -2082,8 +1917,7 @@ export class PrismaInventoryRepository implements IInventoryRepository {
 
   /**
    * Saves inventory with optional transaction context.
-   * If transaction provided, uses it; otherwise creates new transaction.
-   * Events are NOT dispatched if in transaction (caller's responsibility).
+   * If transaction provided, events are NOT dispatched here (caller dispatches after commit).
    */
   async save(
     inventory: Inventory,
@@ -2100,9 +1934,9 @@ export class PrismaInventoryRepository implements IInventoryRepository {
         create: inventoryData
       });
 
-      // Only dispatch events if NOT in transaction
+      // Only dispatch events if NOT inside an externally managed transaction
       if (!tx) {
-        await DomainEvents.dispatchEventsForAggregate(inventory.id);
+        EventDispatcher.dispatchEventsForAggregate(inventory.id);
       }
 
       return Result.ok(inventory);
@@ -2111,17 +1945,14 @@ export class PrismaInventoryRepository implements IInventoryRepository {
         return Result.fail<Inventory>('Product already has inventory');
       }
 
-      throw new InfrastructureException(
-        'Database error while saving inventory',
-        error
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<Inventory>(
+        `Database error saving inventory: ${errorMessage}`
       );
     }
   }
 
-  /**
-   * Decreases stock for multiple products in a transaction.
-   * Use case controls transaction to ensure atomicity with other operations.
-   */
   async decreaseStockBatch(
     items: Array<{ productId: ProductId; quantity: number }>,
     tx?: PrismaTransaction
@@ -2130,7 +1961,6 @@ export class PrismaInventoryRepository implements IInventoryRepository {
 
     try {
       for (const item of items) {
-        // Find inventory
         const inventoryData = await client.inventory.findUnique({
           where: { productId: item.productId.toString() }
         });
@@ -2141,29 +1971,24 @@ export class PrismaInventoryRepository implements IInventoryRepository {
           );
         }
 
-        // Check sufficient stock
         if (inventoryData.quantity < item.quantity) {
           return Result.fail<void>(
             `Insufficient stock for product ${item.productId}`
           );
         }
 
-        // Decrease stock
         await client.inventory.update({
           where: { productId: item.productId.toString() },
-          data: {
-            quantity: {
-              decrement: item.quantity
-            }
-          }
+          data: { quantity: { decrement: item.quantity } }
         });
       }
 
       return Result.ok<void>();
     } catch (error: any) {
-      throw new InfrastructureException(
-        'Database error while decreasing stock',
-        error
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<void>(
+        `Database error decreasing stock: ${errorMessage}`
       );
     }
   }
@@ -2185,30 +2010,10 @@ export class PrismaInventoryRepository implements IInventoryRepository {
 
       return InventoryMapper.toDomain(inventoryData);
     } catch (error: any) {
-      throw new InfrastructureException(
-        'Database error while finding inventory',
-        error
-      );
-    }
-  }
-
-  async findByProductId(
-    productId: ProductId
-  ): Promise<Result<Inventory | null>> {
-    try {
-      const inventoryData = await this.prisma.inventory.findUnique({
-        where: { productId: productId.toString() }
-      });
-
-      if (!inventoryData) {
-        return Result.ok<Inventory | null>(null);
-      }
-
-      return InventoryMapper.toDomain(inventoryData);
-    } catch (error: any) {
-      throw new InfrastructureException(
-        'Database error while finding inventory by product',
-        error
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<Inventory | null>(
+        `Database error finding inventory: ${errorMessage}`
       );
     }
   }
@@ -2234,32 +2039,32 @@ When creating a Repository Implementation, ensure:
 - [ ] Implements all interface methods with exact signatures
 - [ ] Uses infrastructure mappers for domain ↔ persistence conversion
 - [ ] Loads complete aggregates (including children)
-- [ ] Dispatches domain events after successful saves
+- [ ] Dispatches domain events after successful saves (after `$transaction` resolves)
 - [ ] Handles transactions appropriately
 - [ ] Manages database connections properly
 
 **Error Handling:**
 
-- [ ] Returns `Result.fail()` for business errors (P2002, P2003, P2004, P2025)
-- [ ] Throws `InfrastructureException` for infrastructure errors (P1xxx codes)
-- [ ] Provides meaningful error messages for both types
-- [ ] Classifies errors correctly (business vs infrastructure)
-- [ ] Handles data mapping errors as business errors
+- [ ] All public methods return `Result<T>` — never throw
+- [ ] Business errors (P2002, P2003, P2004, P2025) return `Result.fail()` with domain language
+- [ ] Infrastructure errors (connection, timeout, unknown) return `Result.fail("Database error: ...")`
+- [ ] Data mapping failures return `Result.fail("Data integrity error: ...")` — NOT classified as business errors
+- [ ] Error messages are consistent and distinguishable by category prefix
 
 **Domain Events:**
 
-- [ ] Dispatches events ONLY after successful database commit
-- [ ] Skips event dispatching when in transaction (caller dispatches)
-- [ ] Handles event dispatch failures gracefully
-- [ ] Uses `DomainEvents.dispatchEventsForAggregate()`
+- [ ] Dispatches events using `EventDispatcher.dispatchEventsForAggregate()`
+- [ ] Events dispatched AFTER `$transaction` resolves — never inside the transaction callback
+- [ ] Skips dispatching when in an external transaction (caller dispatches)
+- [ ] Handles event dispatch failures gracefully (log, don't fail the operation)
 
 **Transactions:**
 
 - [ ] Uses auto-transactions for single operations
-- [ ] Uses explicit transactions for multiple operations
+- [ ] Uses `$transaction` for multiple related operations
 - [ ] Supports optional transaction context parameter (if needed)
 - [ ] Ensures all-or-nothing atomicity
-- [ ] Events dispatched after transaction commits
+- [ ] Events dispatched after `$transaction` resolves (not inside callback)
 
 **Boundaries:**
 
@@ -2273,10 +2078,11 @@ When creating a Repository Implementation, ensure:
 
 - [ ] Has integration tests with real database
 - [ ] Tests all CRUD operations
-- [ ] Tests business error scenarios
+- [ ] Tests business error scenarios (expect `Result.fail()`, not thrown exceptions)
 - [ ] Tests aggregate loading (complete with children)
 - [ ] Tests pagination and edge cases
-- [ ] Tests transaction behavior (if applicable)
+- [ ] Tests transaction behavior (events dispatched after commit, not inside callback)
+- [ ] Tests infrastructure error scenarios (expect `Result.fail("Database error: ...")`)
 
 **Code Quality:**
 
@@ -2295,4 +2101,4 @@ When creating a Repository Implementation, ensure:
 
 ---
 
-**Remember**: Repository implementations are the bridge between domain and persistence. They translate domain concepts to database operations while maintaining clear boundaries and proper error classification. Keep them focused, consistent, and infrastructure-aware while protecting domain purity!
+**Remember**: Repository implementations are the bridge between domain and persistence. They return `Result<T>` for every outcome — both expected business failures and unexpected infrastructure failures. The distinction is in the error message: domain language for business errors, `"Database error: ..."` prefix for infrastructure errors. This keeps the error channel simple and consistent with the `UseCase` base class, which already catches all unhandled exceptions and converts them to `Result.fail()`.
