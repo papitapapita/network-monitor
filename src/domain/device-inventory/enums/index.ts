@@ -1,2 +1,2 @@
-//export * from './ActivationStatus';
 export * from './LocationType';
+export * from './DeviceOwnerType';

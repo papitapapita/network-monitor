@@ -1,2 +1,2 @@
 export * from './ILocationRepository';
-//export * from './INetworkDeviceRepository';
+export * from './IDeviceRepository';

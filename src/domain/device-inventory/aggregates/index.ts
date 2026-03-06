@@ -1,2 +1,2 @@
 export * from './Location';
-//export * from './NetworkDevice';
+export * from './Device';
