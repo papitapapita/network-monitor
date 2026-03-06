@@ -13,10 +13,10 @@
  */
 
 // Persistence
-export * from './persistance';
+export * from './persistence';
 
 // Mappers
 export * from './mappers';
 
 // Polling
-export * from './polling';
+//export * from './polling';
