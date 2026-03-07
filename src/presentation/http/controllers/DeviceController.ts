@@ -1,10 +1,11 @@
 import { Request, Response } from 'express';
 import { ILogger } from '../../../application/shared/interfaces';
-import { CreateDeviceInput } from '../validation';
+import { CreateDeviceInput, UpdateDeviceInput } from '../validation';
 import {
   CreateDeviceUseCase,
   GetDeviceUseCase,
-  ListDevicesUseCase
+  ListDevicesUseCase,
+  UpdateDeviceUseCase
 } from '../../../application/device-inventory/use-cases';
 
 /**
@@ -22,6 +23,7 @@ import {
  * - POST   /api/devices      - Register a new device
  * - GET    /api/devices      - List devices (paginated, optional filters)
  * - GET    /api/devices/:id  - Get a single device by ID
+ * - PATCH  /api/devices/:id  - Partially update a device
  *
  * Response Codes:
  * - 200 OK          - Successful GET
@@ -35,6 +37,7 @@ export class DeviceController {
     private readonly createUseCase: CreateDeviceUseCase,
     private readonly getUseCase: GetDeviceUseCase,
     private readonly listUseCase: ListDevicesUseCase,
+    private readonly updateUseCase: UpdateDeviceUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -152,6 +155,42 @@ export class DeviceController {
   public getById = async (req: Request, res: Response): Promise<void> => {
     try {
       const result = await this.getUseCase.execute({ id: req.params.id });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res.status(statusCode).json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(200).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  /**
+   * PATCH /api/devices/:id
+   *
+   * Partially updates an existing device. Only supplied fields are changed;
+   * omitted fields are left as-is (PATCH semantics).
+   * Delegates to UpdateDeviceUseCase.
+   *
+   * Params: id (UUID v4, validated by Zod)
+   * Body: UpdateDeviceInput (all fields optional, validated by Zod)
+   * Response: 200 OK with DeviceResponseDTO
+   * Errors:
+   *   400 - Validation failure, invalid enum, duplicate MAC/IP
+   *   404 - Device does not exist
+   *   500 - Unexpected infrastructure error
+   */
+  public update = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const body = req.body as UpdateDeviceInput;
+
+      const result = await this.updateUseCase.execute({
+        id: req.params.id,
+        ...body
+      });
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);

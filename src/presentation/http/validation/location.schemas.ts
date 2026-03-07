@@ -226,6 +226,102 @@ export const getLocationByIdSchema = z.object({
 });
 
 // =====================================
+// UPDATE SCHEMA
+// =====================================
+
+/**
+ * Schema for PATCH /api/locations/:id
+ *
+ * Validates the :id param (UUID v4) and an optional body containing any
+ * subset of updatable location fields. All body fields are optional — omitted
+ * fields are left unchanged (PATCH semantics).
+ *
+ * Coordinate coherence is enforced: latitude and longitude must be provided
+ * together (both present or both absent/null).
+ */
+export const updateLocationSchema = z.object({
+  params: z.object({
+    id: z
+      .string()
+      .regex(UUID_REGEX, 'Invalid location ID (must be a UUID v4)')
+      .describe('Location UUID v4')
+  }),
+
+  body: z
+    .object({
+      name: z
+        .string()
+        .min(1, 'Location name cannot be empty')
+        .max(150, 'Location name cannot exceed 150 characters')
+        .trim()
+        .optional(),
+
+      type: z
+        .enum(LOCATION_TYPES, {
+          error: () => ({
+            message: `Location type must be one of: ${LOCATION_TYPES.join(', ')}`
+          })
+        })
+        .optional(),
+
+      municipality: z
+        .string()
+        .max(100, 'Municipality cannot exceed 100 characters')
+        .trim()
+        .nullable()
+        .optional(),
+
+      neighborhood: z
+        .string()
+        .max(150, 'Neighborhood cannot exceed 150 characters')
+        .trim()
+        .nullable()
+        .optional(),
+
+      address: z
+        .string()
+        .max(255, 'Address cannot exceed 255 characters')
+        .trim()
+        .nullable()
+        .optional(),
+
+      latitude: z
+        .number()
+        .min(-90, 'Latitude must be between -90 and 90')
+        .max(90, 'Latitude must be between -90 and 90')
+        .nullable()
+        .optional(),
+
+      longitude: z
+        .number()
+        .min(-180, 'Longitude must be between -180 and 180')
+        .max(180, 'Longitude must be between -180 and 180')
+        .nullable()
+        .optional(),
+
+      altitude: z
+        .number()
+        .finite('Altitude must be a finite number')
+        .optional()
+    })
+    .refine(
+      (data) => {
+        // Use != null so both null and undefined are treated as "absent".
+        // Setting latitude to a number while clearing longitude (or vice versa)
+        // is semantically invalid even in a PATCH update.
+        const hasLatitude = data.latitude != null;
+        const hasLongitude = data.longitude != null;
+        return hasLatitude === hasLongitude;
+      },
+      {
+        message:
+          'Both latitude and longitude must be provided together, or both omitted',
+        path: ['latitude']
+      }
+    )
+});
+
+// =====================================
 // TYPE EXPORTS
 // =====================================
 
@@ -233,12 +329,8 @@ export const getLocationByIdSchema = z.object({
  * TypeScript types inferred from Zod schemas.
  * Use these types in LocationController for compile-time safety.
  */
-export type CreateLocationInput = z.infer<
-  typeof createLocationSchema
->['body'];
-export type ListLocationsQuery = z.infer<
-  typeof listLocationsSchema
->['query'];
-export type GetLocationByIdParams = z.infer<
-  typeof getLocationByIdSchema
->['params'];
+export type CreateLocationInput = z.infer<typeof createLocationSchema>['body'];
+export type ListLocationsQuery = z.infer<typeof listLocationsSchema>['query'];
+export type GetLocationByIdParams = z.infer<typeof getLocationByIdSchema>['params'];
+export type UpdateLocationInput = z.infer<typeof updateLocationSchema>['body'];
+export type UpdateLocationParams = z.infer<typeof updateLocationSchema>['params'];

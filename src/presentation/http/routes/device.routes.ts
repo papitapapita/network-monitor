@@ -4,7 +4,8 @@ import { validateRequest } from '../middleware/validateRequest';
 import {
   createDeviceSchema,
   listDevicesSchema,
-  getDeviceByIdSchema
+  getDeviceByIdSchema,
+  updateDeviceSchema
 } from '../validation/device.schemas';
 
 /**
@@ -99,6 +100,29 @@ export function createDeviceRoutes(controller: DeviceController): Router {
     '/:id',
     validateRequest(getDeviceByIdSchema),
     controller.getById
+  );
+
+  /**
+   * PATCH /api/devices/:id
+   * Partially update an existing device.
+   *
+   * Params:
+   *   - id (required) Device UUID v4
+   *
+   * Body: Any subset of updatable device fields (all optional):
+   *   - name, status, category, ownerType, locationId, serialNumber,
+   *     macAddress, ipAddress, description, installedDate, monitoringEnabled
+   *
+   * Response: 200 OK with DeviceResponseDTO
+   * Errors:
+   *   400 - Validation failure or business constraint violation (duplicate MAC/IP)
+   *   404 - No device found with the given ID
+   *   500 - Unexpected infrastructure error
+   */
+  router.patch(
+    '/:id',
+    validateRequest(updateDeviceSchema),
+    controller.update
   );
 
   return router;

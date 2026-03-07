@@ -1,10 +1,11 @@
 import { Request, Response } from 'express';
 import { ILogger } from '../../../application/shared/interfaces';
-import { CreateLocationInput } from '../validation';
+import { CreateLocationInput, UpdateLocationInput } from '../validation';
 import {
   CreateLocationUseCase,
   GetLocationUseCase,
-  ListLocationsUseCase
+  ListLocationsUseCase,
+  UpdateLocationUseCase
 } from '../../../application/device-inventory/use-cases';
 
 /**
@@ -22,6 +23,7 @@ import {
  * - POST   /api/locations      - Register a new location
  * - GET    /api/locations      - List locations (paginated, optional type filter)
  * - GET    /api/locations/:id  - Get a single location by ID
+ * - PATCH  /api/locations/:id  - Partially update a location
  *
  * Response Codes:
  * - 200 OK          - Successful GET
@@ -35,6 +37,7 @@ export class LocationController {
     private readonly createUseCase: CreateLocationUseCase,
     private readonly getUseCase: GetLocationUseCase,
     private readonly listUseCase: ListLocationsUseCase,
+    private readonly updateUseCase: UpdateLocationUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -155,6 +158,51 @@ export class LocationController {
     try {
       const result = await this.getUseCase.execute({
         id: req.params.id
+      });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res.status(statusCode).json({
+          success: false,
+          error: result.error
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: result.value
+      });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  /**
+   * PATCH /api/locations/:id
+   *
+   * Partially updates an existing location. Only supplied fields are changed;
+   * omitted fields are left as-is (PATCH semantics).
+   * Delegates to UpdateLocationUseCase.
+   *
+   * Params: id (UUID v4, validated by Zod)
+   * Body: UpdateLocationInput (all fields optional, validated by Zod)
+   * Response: 200 OK with LocationResponseDTO
+   * Errors:
+   *   400 - Validation failure, invalid type, coordinate mismatch
+   *   404 - Location does not exist
+   *   500 - Unexpected infrastructure error
+   */
+  public update = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const body = req.body as UpdateLocationInput;
+
+      const result = await this.updateUseCase.execute({
+        id: req.params.id,
+        ...body
       });
 
       if (result.isFailure) {

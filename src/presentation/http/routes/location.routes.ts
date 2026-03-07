@@ -4,7 +4,8 @@ import { validateRequest } from '../middleware/validateRequest';
 import {
   createLocationSchema,
   listLocationsSchema,
-  getLocationByIdSchema
+  getLocationByIdSchema,
+  updateLocationSchema
 } from '../validation/location.schemas';
 
 /**
@@ -111,6 +112,29 @@ export function createLocationRoutes(
     '/:id',
     validateRequest(getLocationByIdSchema),
     controller.getById
+  );
+
+  /**
+   * PATCH /api/locations/:id
+   * Partially update an existing location.
+   *
+   * Params:
+   *   - id (required) Location UUID v4
+   *
+   * Body: Any subset of updatable location fields (all optional):
+   *   - name, type, municipality, neighborhood, address,
+   *     latitude, longitude, altitude
+   *
+   * Response: 200 OK with LocationResponseDTO
+   * Errors:
+   *   400 - Validation failure (invalid type, unpaired coordinates)
+   *   404 - No location found with the given ID
+   *   500 - Unexpected infrastructure error
+   */
+  router.patch(
+    '/:id',
+    validateRequest(updateLocationSchema),
+    controller.update
   );
 
   return router;
