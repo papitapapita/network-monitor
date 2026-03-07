@@ -1,7 +1,7 @@
 import { Application, Router } from 'express';
 import { DependencyContainer } from '../../../infrastructure/di/container';
-//import { createNetworkDeviceRoutes } from './network-device.routes';
 import { createLocationRoutes } from './location.routes';
+import { createDeviceRoutes } from './device.routes';
 
 /**
  * setupRoutes
@@ -22,23 +22,16 @@ export function setupRoutes(
   // DEVICE-INVENTORY BOUNDED CONTEXT
   // =====================================
 
-  // Network Devices: /api/network-devices
-  /* apiRouter.use(
-    '/network-devices',
-    createNetworkDeviceRoutes(container.networkDeviceController)
-  );*/
-
-  app.use((req, res, next) => {
-    console.log(
-      `Incoming Request before /api/locations setup: ${req.method} ${req.url}`
-    );
-    next();
-  });
-
   // Locations: /api/locations
   apiRouter.use(
     '/locations',
     createLocationRoutes(container.locationController)
+  );
+
+  // Devices: /api/devices
+  apiRouter.use(
+    '/devices',
+    createDeviceRoutes(container.deviceController)
   );
 
   // Mount API router under /api prefix
