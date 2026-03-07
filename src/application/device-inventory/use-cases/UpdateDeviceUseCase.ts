@@ -166,55 +166,6 @@ export class UpdateDeviceUseCase extends UseCase<
 
     const device = findResult.value;
 
-    // Apply status change
-    if (request.status !== undefined) {
-      const statusResult = DeviceStatus.create(request.status);
-      if (statusResult.isFailure) {
-        return this.fail(statusResult.error!);
-      }
-      const changeStatusResult = device.changeStatus(statusResult.value);
-      if (changeStatusResult.isFailure) {
-        return this.fail(changeStatusResult.error!);
-      }
-    }
-
-    // Apply location assignment or unassignment
-    // locationId in the DTO is `string | null | undefined`:
-    //   undefined  → field was not sent; skip
-    //   null       → explicit unassign
-    //   string     → assign to new location
-    if (request.locationId !== undefined) {
-      let newLocationId: LocationId | null = null;
-      if (request.locationId !== null) {
-        const locationIdResult = LocationId.parse(
-          request.locationId.trim()
-        );
-        if (locationIdResult.isFailure) {
-          return this.fail(
-            `Invalid locationId: ${locationIdResult.error}`
-          );
-        }
-        newLocationId = locationIdResult.value;
-      }
-      const assignResult = device.assignLocation(newLocationId);
-      if (assignResult.isFailure) {
-        return this.fail(assignResult.error!);
-      }
-    }
-
-    // Toggle monitoring
-    if (request.monitoringEnabled === true) {
-      const enableResult = device.enableMonitoring();
-      if (enableResult.isFailure) {
-        return this.fail(enableResult.error!);
-      }
-    } else if (request.monitoringEnabled === false) {
-      const disableResult = device.disableMonitoring();
-      if (disableResult.isFailure) {
-        return this.fail(disableResult.error!);
-      }
-    }
-
     // Build updateDetails fields
     // Only populate keys whose corresponding request fields are not undefined.
     const updateFields: Parameters<typeof device.updateDetails>[0] = {};
@@ -328,11 +279,62 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    // Call updateDetails only when there is at least one field to change
+    // Apply detail updates first so that IP/MAC are set before any
+    // status transition is validated by the aggregate.
     if (Object.keys(updateFields).length > 0) {
       const updateResult = device.updateDetails(updateFields);
       if (updateResult.isFailure) {
         return this.fail(updateResult.error!);
+      }
+    }
+
+    // Apply status change (after updateDetails so IP is present if being set
+    // in the same request as an INVENTORY → ACTIVE transition)
+    if (request.status !== undefined) {
+      const statusResult = DeviceStatus.create(request.status);
+      if (statusResult.isFailure) {
+        return this.fail(statusResult.error!);
+      }
+      const changeStatusResult = device.changeStatus(statusResult.value);
+      if (changeStatusResult.isFailure) {
+        return this.fail(changeStatusResult.error!);
+      }
+    }
+
+    // Apply location assignment or unassignment
+    // locationId in the DTO is `string | null | undefined`:
+    //   undefined  → field was not sent; skip
+    //   null       → explicit unassign
+    //   string     → assign to new location
+    if (request.locationId !== undefined) {
+      let newLocationId: LocationId | null = null;
+      if (request.locationId !== null) {
+        const locationIdResult = LocationId.parse(
+          request.locationId.trim()
+        );
+        if (locationIdResult.isFailure) {
+          return this.fail(
+            `Invalid locationId: ${locationIdResult.error}`
+          );
+        }
+        newLocationId = locationIdResult.value;
+      }
+      const assignResult = device.assignLocation(newLocationId);
+      if (assignResult.isFailure) {
+        return this.fail(assignResult.error!);
+      }
+    }
+
+    // Toggle monitoring
+    if (request.monitoringEnabled === true) {
+      const enableResult = device.enableMonitoring();
+      if (enableResult.isFailure) {
+        return this.fail(enableResult.error!);
+      }
+    } else if (request.monitoringEnabled === false) {
+      const disableResult = device.disableMonitoring();
+      if (disableResult.isFailure) {
+        return this.fail(disableResult.error!);
       }
     }
 
