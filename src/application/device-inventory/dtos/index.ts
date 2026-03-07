@@ -8,3 +8,5 @@ export * from './GetDeviceRequestDTO';
 export * from './DeviceResponseDTO';
 export * from './DeviceListResponseDTO';
 export * from './ListDevicesQueryDTO';
+export * from './UpdateDeviceRequestDTO';
+export * from './UpdateLocationRequestDTO';

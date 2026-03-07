@@ -114,7 +114,8 @@
   },
   "include": [
     "src/**/*",
-    "tests/application/device-inventory/use-cases/CreateDeviceUseCase.test.ts"
+    "tests/application/device-inventory/use-cases/CreateDeviceUseCase.test.ts",
+    "tests/infrastructure/persistence/PrismaDeviceRepository.test.ts"
   ],
   "exclude": ["node_modules"]
 }
