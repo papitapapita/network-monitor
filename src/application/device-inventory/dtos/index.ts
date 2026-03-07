@@ -4,6 +4,7 @@ export * from './ListLocationsQueryDTO';
 export * from './LocationListResponseDTO';
 export * from './LocationResponseDTO';
 export * from './CreateDeviceRequestDTO';
+export * from './GetDeviceRequestDTO';
 export * from './DeviceResponseDTO';
 export * from './DeviceListResponseDTO';
 export * from './ListDevicesQueryDTO';
