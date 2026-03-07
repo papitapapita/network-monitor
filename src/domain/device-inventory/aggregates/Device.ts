@@ -14,7 +14,8 @@ import {
   DeviceCreatedEvent,
   DeviceStatusChangedEvent,
   DeviceLocationAssignedEvent,
-  DeviceMonitoringToggledEvent
+  DeviceMonitoringToggledEvent,
+  DeviceDetailsUpdatedEvent
 } from '../events';
 
 /**
@@ -197,6 +198,12 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     if (this.props.status.isDecommissioned()) {
       return Result.fail<void>(
         'A decommissioned device cannot change status'
+      );
+    }
+
+    if (newStatus.isActive() && this.props.ipAddress === null) {
+      return Result.fail<void>(
+        'Cannot activate a device without an IP address assigned'
       );
     }
 
@@ -403,6 +410,24 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     }
 
     this.props.updatedAt = new Date();
+
+    this.addDomainEvent(
+      new DeviceDetailsUpdatedEvent({
+        aggregateId: this.id,
+        deviceName: this.props.name,
+        updatedFields: {
+          name: fields.name !== undefined ? this.props.name : undefined,
+          description: fields.description,
+          category: fields.category,
+          serialNumber: fields.serialNumber,
+          macAddress: fields.macAddress,
+          ipAddress: fields.ipAddress,
+          installedDate: fields.installedDate,
+          ownerType: fields.ownerType,
+        },
+        dateTimeOccurred: new Date()
+      })
+    );
 
     return Result.ok<void>();
   }
