@@ -1,16 +1,24 @@
 import { PrismaClient } from '../../generated/prisma/client.js';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { WinstonLogger } from '../logging/WinstonLogger';
-//import { PrismaNetworkDeviceRepository } from '../persistence/PrismaNetworkDeviceRepository';
-import { PrismaLocationRepository } from '../persistence/PrismaLocationRepository';
-//import { NetworkDeviceController } from '../../presentation/http/controllers/NetworkDeviceController';
-import { LocationController } from '../../presentation/http/controllers/LocationController';
+import {
+  PrismaLocationRepository,
+  PrismaDeviceRepository
+} from '../persistence/';
+import {
+  LocationController,
+  DeviceController
+} from '../../presentation/http/controllers';
 
 // Use Cases
-//import { CreateNetworkDeviceUseCase } from '../../application/device-inventory/use-cases/CreateNetworkDeviceUseCase';
-import { CreateLocationUseCase } from '../../application/device-inventory/use-cases/CreateLocationUseCase';
-import { GetLocationUseCase } from '../../application/device-inventory/use-cases/GetLocationUseCase';
-import { ListLocationsUseCase } from '../../application/device-inventory/use-cases/ListLocationsUseCase';
+import {
+  CreateLocationUseCase,
+  GetLocationUseCase,
+  ListLocationsUseCase,
+  CreateDeviceUseCase,
+  GetDeviceUseCase,
+  ListDevicesUseCase
+} from '../../application/device-inventory/use-cases';
 
 /**
  * DependencyContainer
@@ -21,12 +29,12 @@ import { ListLocationsUseCase } from '../../application/device-inventory/use-cas
 export class DependencyContainer {
   private prisma: PrismaClient;
   private logger: WinstonLogger;
-  // private deviceRepository: PrismaNetworkDeviceRepository;
   private locationRepository: PrismaLocationRepository;
+  private deviceRepository: PrismaDeviceRepository;
 
   // Controllers
-  // public networkDeviceController: NetworkDeviceController;
   public locationController: LocationController;
+  public deviceController: DeviceController;
 
   constructor() {
     // Initialize infrastructure
@@ -43,50 +51,10 @@ export class DependencyContainer {
     this.logger = new WinstonLogger();
 
     // Initialize repositories
-    /*this.deviceRepository = new PrismaNetworkDeviceRepository(
-      this.prisma
-    );*/
     this.locationRepository = new PrismaLocationRepository(
       this.prisma
     );
-
-    // Initialize network device use cases
-    /*const createDeviceUseCase = new CreateNetworkDeviceUseCase(
-      this.deviceRepository,
-      this.logger
-    );
-    /*   const getUseCase = new GetNetworkDeviceUseCase(
-      this.deviceRepository,
-      this.logger
-    );
-    const getByIpUseCase = new GetNetworkDeviceByIpUseCase(
-      this.deviceRepository,
-      this.logger
-    );
-    const updateUseCase = new UpdateNetworkDeviceUseCase(
-      this.deviceRepository,
-      this.logger
-    );
-    const deleteUseCase = new DeleteNetworkDeviceUseCase(
-      this.deviceRepository,
-      this.logger
-    );
-    const listUseCase = new ListNetworkDevicesUseCase(
-      this.deviceRepository,
-      this.logger
-    );
-    const activateUseCase = new ActivateNetworkDeviceUseCase(
-      this.deviceRepository,
-      this.logger
-    );
-    const softDeleteUseCase = new SoftDeleteNetworkDeviceUseCase(
-      this.deviceRepository,
-      this.logger
-    );
-    const restoreUseCase = new RestoreNetworkDeviceUseCase(
-      this.deviceRepository,
-      this.logger
-    );*/
+    this.deviceRepository = new PrismaDeviceRepository(this.prisma);
 
     // Initialize location use cases
     const createLocationUseCase = new CreateLocationUseCase(
@@ -102,24 +70,32 @@ export class DependencyContainer {
       this.logger
     );
 
-    // Initialize controllers
-    /*this.networkDeviceController = new NetworkDeviceController(
-      createDeviceUseCase,
-      /*     getUseCase,
-      getByIpUseCase,
-      updateUseCase,
-      deleteUseCase,
-      listUseCase,
-      activateUseCase,
-      softDeleteUseCase,
-      restoreUseCase,*/
-    //  this.logger
-    //);
+    // Initialize device use cases
+    const createDeviceUseCase = new CreateDeviceUseCase(
+      this.deviceRepository,
+      this.logger
+    );
+    const getDeviceUseCase = new GetDeviceUseCase(
+      this.deviceRepository,
+      this.logger
+    );
+    const listDevicesUseCase = new ListDevicesUseCase(
+      this.deviceRepository,
+      this.logger
+    );
 
+    // Initialize controllers
     this.locationController = new LocationController(
       createLocationUseCase,
       getLocationUseCase,
       listLocationsUseCase,
+      this.logger
+    );
+
+    this.deviceController = new DeviceController(
+      createDeviceUseCase,
+      getDeviceUseCase,
+      listDevicesUseCase,
       this.logger
     );
   }

@@ -1,6 +1,10 @@
 import { PrismaClient } from '../../generated/prisma/client';
 import { Device } from '../../domain/device-inventory/aggregates/Device';
-import { DeviceId, LocationId, DeviceModelId } from '../../domain/shared/ids';
+import {
+  DeviceId,
+  LocationId,
+  DeviceModelId
+} from '../../domain/shared/ids';
 import {
   IPAddress,
   MACAddress,
@@ -57,7 +61,9 @@ export class PrismaDeviceRepository implements IDeviceRepository {
     }
   }
 
-  public async findById(id: DeviceId): Promise<Result<Device | null>> {
+  public async findById(
+    id: DeviceId
+  ): Promise<Result<Device | null>> {
     try {
       const raw = await this.prisma.device.findUnique({
         where: { id: id.toString() }
@@ -145,7 +151,10 @@ export class PrismaDeviceRepository implements IDeviceRepository {
         orderBy: { createdAt: 'desc' }
       });
 
-      return this.mapManyToDomain(rawRecords, 'Database error finding all devices');
+      return this.mapManyToDomain(
+        rawRecords,
+        'Database error finding all devices'
+      );
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -164,7 +173,10 @@ export class PrismaDeviceRepository implements IDeviceRepository {
         orderBy: { createdAt: 'desc' }
       });
 
-      return this.mapManyToDomain(rawRecords, 'Database error finding devices by location');
+      return this.mapManyToDomain(
+        rawRecords,
+        'Database error finding devices by location'
+      );
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -183,7 +195,10 @@ export class PrismaDeviceRepository implements IDeviceRepository {
         orderBy: { createdAt: 'desc' }
       });
 
-      return this.mapManyToDomain(rawRecords, 'Database error finding devices by model');
+      return this.mapManyToDomain(
+        rawRecords,
+        'Database error finding devices by model'
+      );
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -260,7 +275,10 @@ export class PrismaDeviceRepository implements IDeviceRepository {
         orderBy: { createdAt: 'desc' }
       });
 
-      return this.mapManyToDomain(rawRecords, 'Database error finding devices by status');
+      return this.mapManyToDomain(
+        rawRecords,
+        'Database error finding devices by status'
+      );
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -349,9 +367,24 @@ export class PrismaDeviceRepository implements IDeviceRepository {
       if (filters.search !== undefined) {
         where.OR = [
           { name: { contains: filters.search, mode: 'insensitive' } },
-          { macAddress: { contains: filters.search, mode: 'insensitive' } },
-          { ipAddress: { contains: filters.search, mode: 'insensitive' } },
-          { serialNumber: { contains: filters.search, mode: 'insensitive' } }
+          {
+            macAddress: {
+              contains: filters.search,
+              mode: 'insensitive'
+            }
+          },
+          {
+            ipAddress: {
+              contains: filters.search,
+              mode: 'insensitive'
+            }
+          },
+          {
+            serialNumber: {
+              contains: filters.search,
+              mode: 'insensitive'
+            }
+          }
         ];
       }
 
@@ -369,7 +402,10 @@ export class PrismaDeviceRepository implements IDeviceRepository {
         skip: filters.offset
       });
 
-      return this.mapManyToDomain(rawRecords, 'Database error finding devices by filters');
+      return this.mapManyToDomain(
+        rawRecords,
+        'Database error finding devices by filters'
+      );
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
