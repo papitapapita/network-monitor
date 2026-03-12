@@ -10,3 +10,7 @@ export * from './DeviceListResponseDTO';
 export * from './ListDevicesQueryDTO';
 export * from './UpdateDeviceRequestDTO';
 export * from './UpdateLocationRequestDTO';
+export * from './GetDeviceModelRequestDTO';
+export * from './ListDeviceModelsQueryDTO';
+export * from './DeviceModelResponseDTO';
+export * from './DeviceModelListResponseDTO';
