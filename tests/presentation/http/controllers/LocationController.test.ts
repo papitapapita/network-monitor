@@ -5,6 +5,7 @@ import { LocationController } from '../../../../src/presentation/http/controller
 import { CreateLocationUseCase } from '../../../../src/application/device-inventory/use-cases/CreateLocationUseCase';
 import { GetLocationUseCase } from '../../../../src/application/device-inventory/use-cases/GetLocationUseCase';
 import { ListLocationsUseCase } from '../../../../src/application/device-inventory/use-cases/ListLocationsUseCase';
+import { UpdateLocationUseCase } from '../../../../src/application/device-inventory/use-cases/UpdateLocationUseCase';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
@@ -48,6 +49,9 @@ const createMockGetUseCase = () =>
 
 const createMockListUseCase = () =>
   ({ execute: jest.fn() }) as unknown as ListLocationsUseCase;
+
+const createMockUpdateUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as UpdateLocationUseCase;
 
 const createMockLogger = (): jest.Mocked<ILogger> => ({
   info: jest.fn(),
@@ -113,18 +117,21 @@ describe('LocationController', () => {
   let mockCreateUseCase: CreateLocationUseCase;
   let mockGetUseCase: GetLocationUseCase;
   let mockListUseCase: ListLocationsUseCase;
+  let mockUpdateUseCase: UpdateLocationUseCase;
   let mockLogger: jest.Mocked<ILogger>;
 
   beforeEach(() => {
     mockCreateUseCase = createMockCreateUseCase();
     mockGetUseCase = createMockGetUseCase();
     mockListUseCase = createMockListUseCase();
+    mockUpdateUseCase = createMockUpdateUseCase();
     mockLogger = createMockLogger();
 
     controller = new LocationController(
       mockCreateUseCase,
       mockGetUseCase,
       mockListUseCase,
+      mockUpdateUseCase,
       mockLogger
     );
   });
@@ -784,12 +791,275 @@ describe('LocationController', () => {
       );
     });
   });
-});
 
-// ---------------------------------------------------------------------------
-// TODO: Test - LocationController.create: verify that altitude falls through as
-//   undefined (not null) when not supplied in the body
-// TODO: Test - LocationController.list: verify that type: undefined is passed to
-//   the use case when the type query param is absent
-// TODO: Test - LocationController.getById: verify behavior when params is
-//   undefined (defensive guard against missing Express params object)
+  // =========================================================================
+  describe('update (PATCH /api/locations/:id)', () => {
+    // -----------------------------------------------------------------------
+    describe('Happy Path', () => {
+      it('should return 200 with success: true and data on successful update', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: { name: 'Torre Norte Revised' }
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.ok(mockLocationDTO)
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(200);
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: true,
+          data: mockLocationDTO
+        });
+      });
+
+      it('should merge req.params.id into the DTO passed to the use case', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: { name: 'Torre Norte Revised' }
+        });
+        const { res } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.ok(mockLocationDTO)
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(mockUpdateUseCase.execute).toHaveBeenCalledWith(
+          expect.objectContaining({ id: VALID_UUID, name: 'Torre Norte Revised' })
+        );
+      });
+
+      it('should forward all optional body fields to the use case', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: {
+            name: 'DataCenter Sul',
+            type: 'DATACENTER',
+            municipality: 'São Paulo',
+            neighborhood: 'Centro',
+            address: 'Av. Paulista, 1000',
+            latitude: -23.561684,
+            longitude: -46.655981,
+            altitude: 760
+          }
+        });
+        const { res } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.ok(mockLocationDTO)
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(mockUpdateUseCase.execute).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: VALID_UUID,
+            name: 'DataCenter Sul',
+            type: 'DATACENTER',
+            municipality: 'São Paulo',
+            neighborhood: 'Centro',
+            address: 'Av. Paulista, 1000',
+            latitude: -23.561684,
+            longitude: -46.655981,
+            altitude: 760
+          })
+        );
+      });
+
+      it('should forward null coordinates to use case (explicit coordinate clear)', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: { latitude: null, longitude: null }
+        });
+        const { res } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.ok(mockLocationDTO)
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(mockUpdateUseCase.execute).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: VALID_UUID,
+            latitude: null,
+            longitude: null
+          })
+        );
+      });
+
+      it('should accept an empty body (no-op update)', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: {}
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.ok(mockLocationDTO)
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(200);
+        expect(mockUpdateUseCase.execute).toHaveBeenCalledWith(
+          expect.objectContaining({ id: VALID_UUID })
+        );
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 404 Not Found', () => {
+      it('should return 404 when the use case fails with "not found"', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: { name: 'New Name' }
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.fail(`Location not found: ${VALID_UUID}`)
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(404);
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: false,
+          error: `Location not found: ${VALID_UUID}`
+        });
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 400 Bad Request', () => {
+      it('should return 400 when the use case fails with "Invalid" (invalid ID)', async () => {
+        const mockReq = createMockRequest({
+          params: { id: 'bad-id' },
+          body: {}
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.fail('Invalid location ID: bad-id')
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(400);
+      });
+
+      it('should return 400 when the use case fails with "invalid" (lowercase — invalid type)', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: { type: 'UNKNOWN' }
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.fail('invalid location type: "UNKNOWN"')
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(400);
+      });
+
+      it('should return 400 when the use case fails with "must be" (coordinate range)', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: { latitude: 200, longitude: 0 }
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.fail('Latitude must be between -90 and 90')
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(400);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 500 Internal Server Error (use case Result failure)', () => {
+      it('should return 500 when the use case fails with an unrecognised message', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: { name: 'New Name' }
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.fail('Database write timeout')
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(500);
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: false,
+          error: 'Database write timeout'
+        });
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 500 Internal Server Error (unexpected thrown exception)', () => {
+      it('should return 500 and log the error when the use case throws', async () => {
+        const thrownError = new Error('Unexpected DB crash');
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: { name: 'New Name' }
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockRejectedValue(thrownError);
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(500);
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: false,
+          error: 'Internal server error'
+        });
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          'Unexpected error in LocationController',
+          thrownError,
+          { error: 'Unexpected DB crash' }
+        );
+      });
+
+      it('should not leak sensitive error details in the response body', async () => {
+        const sensitiveError = new Error('SELECT * FROM locations; -- injected');
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: {}
+        });
+        const { res, jsonMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockRejectedValue(
+          sensitiveError
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: false,
+          error: 'Internal server error'
+        });
+        expect(jsonMock).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            error: expect.stringContaining('SELECT')
+          })
+        );
+      });
+    });
+  });
+});

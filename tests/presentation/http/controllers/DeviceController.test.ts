@@ -5,6 +5,7 @@ import { DeviceController } from '../../../../src/presentation/http/controllers/
 import { CreateDeviceUseCase } from '../../../../src/application/device-inventory/use-cases/CreateDeviceUseCase';
 import { GetDeviceUseCase } from '../../../../src/application/device-inventory/use-cases/GetDeviceUseCase';
 import { ListDevicesUseCase } from '../../../../src/application/device-inventory/use-cases/ListDevicesUseCase';
+import { UpdateDeviceUseCase } from '../../../../src/application/device-inventory/use-cases/UpdateDeviceUseCase';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
@@ -52,6 +53,9 @@ const createMockGetUseCase = () =>
 
 const createMockListUseCase = () =>
   ({ execute: jest.fn() }) as unknown as ListDevicesUseCase;
+
+const createMockUpdateUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as UpdateDeviceUseCase;
 
 const createMockLogger = (): jest.Mocked<ILogger> => ({
   info: jest.fn(),
@@ -122,18 +126,21 @@ describe('DeviceController', () => {
   let mockCreateUseCase: CreateDeviceUseCase;
   let mockGetUseCase: GetDeviceUseCase;
   let mockListUseCase: ListDevicesUseCase;
+  let mockUpdateUseCase: UpdateDeviceUseCase;
   let mockLogger: jest.Mocked<ILogger>;
 
   beforeEach(() => {
     mockCreateUseCase = createMockCreateUseCase();
     mockGetUseCase = createMockGetUseCase();
     mockListUseCase = createMockListUseCase();
+    mockUpdateUseCase = createMockUpdateUseCase();
     mockLogger = createMockLogger();
 
     controller = new DeviceController(
       mockCreateUseCase,
       mockGetUseCase,
       mockListUseCase,
+      mockUpdateUseCase,
       mockLogger
     );
   });
@@ -924,6 +931,321 @@ describe('DeviceController', () => {
         42,
         { error: '42' }
       );
+    });
+  });
+
+  // =========================================================================
+  describe('update (PATCH /api/devices/:id)', () => {
+    const LOCATION_UUID = 'a1b2c3d4-e5f6-4789-abcd-ef0123456789';
+
+    // -----------------------------------------------------------------------
+    describe('Happy Path', () => {
+      it('should return 200 with success: true and data on successful update', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: { status: 'ACTIVE' }
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.ok(mockDeviceDTO)
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(200);
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: true,
+          data: mockDeviceDTO
+        });
+      });
+
+      it('should merge req.params.id into the DTO passed to the use case', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: { status: 'ACTIVE' }
+        });
+        const { res } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.ok(mockDeviceDTO)
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(mockUpdateUseCase.execute).toHaveBeenCalledWith(
+          expect.objectContaining({ id: VALID_UUID, status: 'ACTIVE' })
+        );
+      });
+
+      it('should forward all optional body fields to the use case', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: {
+            name: 'Core-Router-01-Updated',
+            status: 'MAINTENANCE',
+            category: 'CORE',
+            ownerType: 'COMPANY',
+            locationId: LOCATION_UUID,
+            serialNumber: 'SN-2024-XYZ-001',
+            macAddress: 'AA:BB:CC:DD:EE:FF',
+            ipAddress: '192.168.1.2',
+            description: 'Updated description',
+            installedDate: '2024-06-01T00:00:00.000Z',
+            monitoringEnabled: true
+          }
+        });
+        const { res } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.ok(mockDeviceDTO)
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(mockUpdateUseCase.execute).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: VALID_UUID,
+            name: 'Core-Router-01-Updated',
+            status: 'MAINTENANCE',
+            category: 'CORE',
+            ownerType: 'COMPANY',
+            locationId: LOCATION_UUID,
+            serialNumber: 'SN-2024-XYZ-001',
+            macAddress: 'AA:BB:CC:DD:EE:FF',
+            ipAddress: '192.168.1.2',
+            description: 'Updated description',
+            installedDate: '2024-06-01T00:00:00.000Z',
+            monitoringEnabled: true
+          })
+        );
+      });
+
+      it('should forward null fields to the use case (explicit clear semantics)', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: {
+            locationId: null,
+            macAddress: null,
+            ipAddress: null,
+            serialNumber: null,
+            category: null,
+            description: null
+          }
+        });
+        const { res } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.ok(mockDeviceDTO)
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(mockUpdateUseCase.execute).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: VALID_UUID,
+            locationId: null,
+            macAddress: null,
+            ipAddress: null,
+            serialNumber: null,
+            category: null,
+            description: null
+          })
+        );
+      });
+
+      it('should accept an empty body (no-op update)', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: {}
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.ok(mockDeviceDTO)
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(200);
+        expect(mockUpdateUseCase.execute).toHaveBeenCalledWith(
+          expect.objectContaining({ id: VALID_UUID })
+        );
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 404 Not Found', () => {
+      it('should return 404 when the use case fails with "not found"', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: { status: 'ACTIVE' }
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.fail(`Device not found: ${VALID_UUID}`)
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(404);
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: false,
+          error: `Device not found: ${VALID_UUID}`
+        });
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 400 Bad Request', () => {
+      it('should return 400 when the use case fails with "Invalid" (invalid ID)', async () => {
+        const mockReq = createMockRequest({
+          params: { id: 'bad-id' },
+          body: {}
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.fail('Invalid device ID: bad-id')
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(400);
+      });
+
+      it('should return 400 when the use case fails with "already assigned" (duplicate MAC)', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: { macAddress: 'AA:BB:CC:DD:EE:FF' }
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.fail(
+            'MAC address "AA:BB:CC:DD:EE:FF" is already assigned to another device'
+          )
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(400);
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: false,
+          error:
+            'MAC address "AA:BB:CC:DD:EE:FF" is already assigned to another device'
+        });
+      });
+
+      it('should return 400 when the use case fails with "already assigned" (duplicate IP)', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: { ipAddress: '10.0.0.1' }
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.fail(
+            'IP address "10.0.0.1" is already assigned to another device'
+          )
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(400);
+      });
+
+      it('should return 400 when the use case fails with "must be" (invalid status transition)', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: { status: 'ACTIVE' }
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.fail('Status must be one of: INVENTORY, ACTIVE, MAINTENANCE, DAMAGED, DECOMMISSIONED')
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(400);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 500 Internal Server Error (use case Result failure)', () => {
+      it('should return 500 when the use case fails with an unrecognised message', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: { status: 'ACTIVE' }
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.fail('Database write timeout')
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(500);
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: false,
+          error: 'Database write timeout'
+        });
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 500 Internal Server Error (unexpected thrown exception)', () => {
+      it('should return 500 and log the error when the use case throws', async () => {
+        const thrownError = new Error('Unexpected DB crash');
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: { status: 'ACTIVE' }
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockRejectedValue(thrownError);
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(500);
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: false,
+          error: 'Internal server error'
+        });
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          'Unexpected error in DeviceController',
+          thrownError,
+          { error: 'Unexpected DB crash' }
+        );
+      });
+
+      it('should not leak sensitive error details in the response body', async () => {
+        const sensitiveError = new Error('SELECT * FROM devices; -- injected');
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: {}
+        });
+        const { res, jsonMock } = createMockResponse();
+
+        (mockUpdateUseCase.execute as jest.Mock).mockRejectedValue(
+          sensitiveError
+        );
+
+        await controller.update(mockReq as Request, res as Response);
+
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: false,
+          error: 'Internal server error'
+        });
+        expect(jsonMock).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            error: expect.stringContaining('SELECT')
+          })
+        );
+      });
     });
   });
 });
