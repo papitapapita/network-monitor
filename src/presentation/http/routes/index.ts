@@ -2,6 +2,7 @@ import { Application, Router } from 'express';
 import { DependencyContainer } from '../../../infrastructure/di/container';
 import { createLocationRoutes } from './location.routes';
 import { createDeviceRoutes } from './device.routes';
+import { createDeviceModelRoutes } from './device-model.routes';
 
 /**
  * setupRoutes
@@ -32,6 +33,12 @@ export function setupRoutes(
   apiRouter.use(
     '/devices',
     createDeviceRoutes(container.deviceController)
+  );
+
+  // Device Models: /api/device-models
+  apiRouter.use(
+    '/device-models',
+    createDeviceModelRoutes(container.deviceModelController)
   );
 
   // Mount API router under /api prefix
