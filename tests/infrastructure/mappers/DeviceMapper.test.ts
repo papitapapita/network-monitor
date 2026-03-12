@@ -1,8 +1,8 @@
 // Source: src/infrastructure/mappers/DeviceMapper.ts
 
-import { DeviceMapper } from './DeviceMapper';
-import { Device } from '../../domain/device-inventory/aggregates/Device';
-import { DeviceOwnerType } from '../../domain/device-inventory/enums';
+import { DeviceMapper } from '../../../src/infrastructure/mappers/DeviceMapper';
+import { Device } from '../../../src/domain/device-inventory/aggregates/Device';
+import { DeviceOwnerType } from '../../../src/domain/device-inventory/enums';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -74,7 +74,9 @@ describe('DeviceMapper', () => {
 
         const result = DeviceMapper.toDomain(raw);
 
-        expect(result.value.deviceModelId.toString()).toBe(VALID_UUID_2);
+        expect(result.value.deviceModelId.toString()).toBe(
+          VALID_UUID_2
+        );
       });
 
       it('should map locationId to the correct string value when present', () => {
@@ -83,7 +85,9 @@ describe('DeviceMapper', () => {
         const result = DeviceMapper.toDomain(raw);
 
         expect(result.value.locationId).not.toBeNull();
-        expect(result.value.locationId!.toString()).toBe(VALID_UUID_3);
+        expect(result.value.locationId!.toString()).toBe(
+          VALID_UUID_3
+        );
       });
 
       it('should map name correctly', () => {
@@ -112,12 +116,16 @@ describe('DeviceMapper', () => {
       });
 
       it('should map macAddress correctly when present', () => {
-        const raw = makeRawDevice({ macAddress: 'AA:BB:CC:DD:EE:FF' });
+        const raw = makeRawDevice({
+          macAddress: 'AA:BB:CC:DD:EE:FF'
+        });
 
         const result = DeviceMapper.toDomain(raw);
 
         expect(result.value.macAddress).not.toBeNull();
-        expect(result.value.macAddress!.toString()).toBe('AA:BB:CC:DD:EE:FF');
+        expect(result.value.macAddress!.toString()).toBe(
+          'AA:BB:CC:DD:EE:FF'
+        );
       });
 
       it('should map ipAddress correctly when present', () => {
@@ -126,7 +134,9 @@ describe('DeviceMapper', () => {
         const result = DeviceMapper.toDomain(raw);
 
         expect(result.value.ipAddress).not.toBeNull();
-        expect(result.value.ipAddress!.toString()).toBe('192.168.1.1');
+        expect(result.value.ipAddress!.toString()).toBe(
+          '192.168.1.1'
+        );
       });
 
       it('should map description correctly when present', () => {
@@ -260,7 +270,9 @@ describe('DeviceMapper', () => {
         const result = DeviceMapper.toDomain(raw);
 
         expect(result.value.locationId).not.toBeNull();
-        expect(result.value.locationId!.toString()).toBe(VALID_UUID_3);
+        expect(result.value.locationId!.toString()).toBe(
+          VALID_UUID_3
+        );
       });
 
       it('should map category when present', () => {
@@ -269,7 +281,9 @@ describe('DeviceMapper', () => {
         const result = DeviceMapper.toDomain(raw);
 
         expect(result.value.category).not.toBeNull();
-        expect(result.value.category!.toString()).toBe('DISTRIBUTION');
+        expect(result.value.category!.toString()).toBe(
+          'DISTRIBUTION'
+        );
       });
 
       it('should map serialNumber when present', () => {
@@ -278,16 +292,22 @@ describe('DeviceMapper', () => {
         const result = DeviceMapper.toDomain(raw);
 
         expect(result.value.serialNumber).not.toBeNull();
-        expect(result.value.serialNumber!.toString()).toBe('SN-XYZ-9999');
+        expect(result.value.serialNumber!.toString()).toBe(
+          'SN-XYZ-9999'
+        );
       });
 
       it('should map macAddress when present', () => {
-        const raw = makeRawDevice({ macAddress: '11:22:33:44:55:66' });
+        const raw = makeRawDevice({
+          macAddress: '11:22:33:44:55:66'
+        });
 
         const result = DeviceMapper.toDomain(raw);
 
         expect(result.value.macAddress).not.toBeNull();
-        expect(result.value.macAddress!.toString()).toBe('11:22:33:44:55:66');
+        expect(result.value.macAddress!.toString()).toBe(
+          '11:22:33:44:55:66'
+        );
       });
 
       it('should map ipAddress when present', () => {
@@ -300,11 +320,15 @@ describe('DeviceMapper', () => {
       });
 
       it('should map description when present', () => {
-        const raw = makeRawDevice({ description: 'Core switch for building A' });
+        const raw = makeRawDevice({
+          description: 'Core switch for building A'
+        });
 
         const result = DeviceMapper.toDomain(raw);
 
-        expect(result.value.description).toBe('Core switch for building A');
+        expect(result.value.description).toBe(
+          'Core switch for building A'
+        );
       });
 
       it('should map installedDate when present', () => {
@@ -493,9 +517,7 @@ describe('DeviceMapper', () => {
       function buildDevice(): Device {
         const domainResult = DeviceMapper.toDomain(makeRawDevice());
         if (domainResult.isFailure) {
-          throw new Error(
-            `Test setup failed: ${domainResult.error}`
-          );
+          throw new Error(`Test setup failed: ${domainResult.error}`);
         }
         return domainResult.value;
       }
@@ -545,8 +567,12 @@ describe('DeviceMapper', () => {
 
         const raw = DeviceMapper.toPersistence(device);
 
-        expect(Object.prototype.hasOwnProperty.call(raw, 'owner')).toBe(true);
-        expect(Object.prototype.hasOwnProperty.call(raw, 'ownerType')).toBe(false);
+        expect(
+          Object.prototype.hasOwnProperty.call(raw, 'owner')
+        ).toBe(true);
+        expect(
+          Object.prototype.hasOwnProperty.call(raw, 'ownerType')
+        ).toBe(false);
       });
 
       it('should serialize the owner field as the string value of DeviceOwnerType', () => {
@@ -745,20 +771,28 @@ describe('DeviceMapper', () => {
         const domainResult = DeviceMapper.toDomain(originalRaw);
         expect(domainResult.isSuccess).toBe(true);
 
-        const serialized = DeviceMapper.toPersistence(domainResult.value);
+        const serialized = DeviceMapper.toPersistence(
+          domainResult.value
+        );
 
         expect(serialized.id).toBe(originalRaw.id);
-        expect(serialized.deviceModelId).toBe(originalRaw.deviceModelId);
+        expect(serialized.deviceModelId).toBe(
+          originalRaw.deviceModelId
+        );
         expect(serialized.locationId).toBe(originalRaw.locationId);
         expect(serialized.status).toBe(originalRaw.status);
         expect(serialized.category).toBe(originalRaw.category);
         expect(serialized.owner).toBe(originalRaw.owner);
         expect(serialized.name).toBe(originalRaw.name);
-        expect(serialized.serialNumber).toBe(originalRaw.serialNumber);
+        expect(serialized.serialNumber).toBe(
+          originalRaw.serialNumber
+        );
         expect(serialized.macAddress).toBe(originalRaw.macAddress);
         expect(serialized.ipAddress).toBe(originalRaw.ipAddress);
         expect(serialized.description).toBe(originalRaw.description);
-        expect(serialized.monitoringEnabled).toBe(originalRaw.monitoringEnabled);
+        expect(serialized.monitoringEnabled).toBe(
+          originalRaw.monitoringEnabled
+        );
       });
 
       it('should preserve null nullable fields after a round-trip', () => {
@@ -775,7 +809,9 @@ describe('DeviceMapper', () => {
         const domainResult = DeviceMapper.toDomain(originalRaw);
         expect(domainResult.isSuccess).toBe(true);
 
-        const serialized = DeviceMapper.toPersistence(domainResult.value);
+        const serialized = DeviceMapper.toPersistence(
+          domainResult.value
+        );
 
         expect(serialized.locationId).toBeNull();
         expect(serialized.category).toBeNull();

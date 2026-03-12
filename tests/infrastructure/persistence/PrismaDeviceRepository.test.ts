@@ -26,7 +26,7 @@ import {
 
 // Mock DeviceMapper so that toDomain / toPersistence can be controlled in
 // isolation from the mapper's own logic.
-jest.mock('../mappers/DeviceMapper');
+jest.mock('../../../src/infrastructure/mappers/DeviceMapper');
 
 // ---------------------------------------------------------------------------
 // Typed alias for the mocked DeviceMapper
