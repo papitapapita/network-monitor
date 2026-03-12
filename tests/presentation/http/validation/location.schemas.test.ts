@@ -3,7 +3,8 @@
 import {
   createLocationSchema,
   listLocationsSchema,
-  getLocationByIdSchema
+  getLocationByIdSchema,
+  updateLocationSchema
 } from '../../../../src/presentation/http/validation/location.schemas';
 
 // ---------------------------------------------------------------------------
@@ -721,9 +722,419 @@ describe('getLocationByIdSchema', () => {
 });
 
 // ---------------------------------------------------------------------------
-// TODO: Test - createLocationSchema: verify that municipality/neighborhood/address
-//   are trimmed and that null values are preserved (nullable optional fields)
-// TODO: Test - createLocationSchema: verify exact parsed output shape when all
-//   optional fields are provided (data integrity after parse)
-// TODO: Test - listLocationsSchema: verify that a very large offset (e.g. 999999)
-//   is accepted (no upper bound on offset in the schema)
+
+describe('updateLocationSchema', () => {
+  // -------------------------------------------------------------------------
+  describe('happy path — params', () => {
+    it('should accept a valid UUID v4 in params.id', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: {}
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept a UUID v4 with uppercase hex digits (case-insensitive regex)', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: 'F47AC10B-58CC-4372-A567-0E02B2C3D479' },
+        body: {}
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('happy path — body', () => {
+    it('should accept an empty body (all fields optional)', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: {}
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept a body with only name', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { name: 'Torre Norte Revised' }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept a fully populated body with all updatable fields', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: {
+          name: 'DataCenter Sul',
+          type: 'DATACENTER',
+          municipality: 'São Paulo',
+          neighborhood: 'Centro',
+          address: 'Av. Paulista, 1000',
+          latitude: -23.561684,
+          longitude: -46.655981,
+          altitude: 760
+        }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept when both latitude and longitude are provided', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { latitude: 6.2442, longitude: -75.5812 }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept when both latitude and longitude are null (coordinate clear)', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { latitude: null, longitude: null }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept null for nullable address fields', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: {
+          municipality: null,
+          neighborhood: null,
+          address: null
+        }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept all valid location type values', () => {
+      const validTypes = [
+        'TOWER',
+        'NODE',
+        'DATACENTER',
+        'POP',
+        'WAREHOUSE',
+        'OFFICE'
+      ] as const;
+
+      for (const type of validTypes) {
+        const result = updateLocationSchema.safeParse({
+          params: { id: VALID_UUID },
+          body: { type }
+        });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('should accept latitude and longitude at their exact boundary values', () => {
+      const boundaries = [
+        { latitude: -90, longitude: -180 },
+        { latitude: 90, longitude: 180 },
+        { latitude: 0, longitude: 0 }
+      ];
+
+      for (const { latitude, longitude } of boundaries) {
+        const result = updateLocationSchema.safeParse({
+          params: { id: VALID_UUID },
+          body: { latitude, longitude }
+        });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('should trim whitespace from name', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { name: '  Torre Norte Revised  ' }
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.body.name).toBe('Torre Norte Revised');
+      }
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('params.id validation', () => {
+    it('should fail when id is not a valid UUID v4', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: 'not-a-uuid' },
+        body: {}
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const idError = result.error.issues.find((i) =>
+          i.path.includes('id')
+        );
+        expect(idError).toBeDefined();
+        expect(idError!.message).toMatch(/UUID v4/i);
+      }
+    });
+
+    it('should fail when id is a UUID v1 (version digit is not 4)', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8' },
+        body: {}
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should fail when id is an empty string', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: '' },
+        body: {}
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should fail when params is missing', () => {
+      const result = updateLocationSchema.safeParse({ body: {} });
+
+      expect(result.success).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('coordinate coherence refinement', () => {
+    it('should fail when only latitude is provided (longitude absent)', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { latitude: -23.561684 }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const coordError = result.error.issues.find((i) =>
+          i.path.includes('latitude')
+        );
+        expect(coordError).toBeDefined();
+        expect(coordError!.message).toMatch(/longitude/i);
+      }
+    });
+
+    it('should fail when only longitude is provided (latitude absent)', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { longitude: -46.655981 }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const coordError = result.error.issues.find((i) =>
+          i.path.includes('latitude')
+        );
+        expect(coordError).toBeDefined();
+      }
+    });
+
+    it('should fail when latitude is a number but longitude is null (mismatch)', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { latitude: 10.0, longitude: null }
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should fail when longitude is a number but latitude is null (mismatch)', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { latitude: null, longitude: 10.0 }
+      });
+
+      expect(result.success).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('body field validation', () => {
+    it('should fail when name is an empty string', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { name: '' }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const nameError = result.error.issues.find((i) =>
+          i.path.includes('name')
+        );
+        expect(nameError).toBeDefined();
+      }
+    });
+
+    it('should fail when name exceeds 150 characters', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { name: 'A'.repeat(151) }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const nameError = result.error.issues.find((i) =>
+          i.path.includes('name')
+        );
+        expect(nameError).toBeDefined();
+        expect(nameError!.message).toMatch(/150/);
+      }
+    });
+
+    it('should fail when type is an invalid enum value', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { type: 'INVALID_TYPE' }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const typeError = result.error.issues.find((i) =>
+          i.path.includes('type')
+        );
+        expect(typeError).toBeDefined();
+        expect(typeError!.message).toMatch(/TOWER/);
+      }
+    });
+
+    it('should fail when type is lowercase (enum is case-sensitive)', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { type: 'tower' }
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should fail when municipality exceeds 100 characters', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { municipality: 'M'.repeat(101) }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const err = result.error.issues.find((i) =>
+          i.path.includes('municipality')
+        );
+        expect(err).toBeDefined();
+        expect(err!.message).toMatch(/100/);
+      }
+    });
+
+    it('should fail when neighborhood exceeds 150 characters', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { neighborhood: 'N'.repeat(151) }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const err = result.error.issues.find((i) =>
+          i.path.includes('neighborhood')
+        );
+        expect(err).toBeDefined();
+        expect(err!.message).toMatch(/150/);
+      }
+    });
+
+    it('should fail when address exceeds 255 characters', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { address: 'A'.repeat(256) }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const err = result.error.issues.find((i) =>
+          i.path.includes('address')
+        );
+        expect(err).toBeDefined();
+        expect(err!.message).toMatch(/255/);
+      }
+    });
+
+    it('should fail when latitude is below -90', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { latitude: -90.001, longitude: 0 }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const latError = result.error.issues.find((i) =>
+          i.path.includes('latitude')
+        );
+        expect(latError).toBeDefined();
+        expect(latError!.message).toMatch(/-90/);
+      }
+    });
+
+    it('should fail when latitude exceeds 90', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { latitude: 90.001, longitude: 0 }
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should fail when longitude is below -180', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { latitude: 0, longitude: -180.001 }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const lonError = result.error.issues.find((i) =>
+          i.path.includes('longitude')
+        );
+        expect(lonError).toBeDefined();
+        expect(lonError!.message).toMatch(/-180/);
+      }
+    });
+
+    it('should fail when longitude exceeds 180', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { latitude: 0, longitude: 180.001 }
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should fail when altitude is Infinity', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { latitude: 0, longitude: 0, altitude: Infinity }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const altError = result.error.issues.find((i) =>
+          i.path.includes('altitude')
+        );
+        expect(altError).toBeDefined();
+      }
+    });
+
+    it('should fail when altitude is -Infinity', () => {
+      const result = updateLocationSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { latitude: 0, longitude: 0, altitude: -Infinity }
+      });
+
+      expect(result.success).toBe(false);
+    });
+  });
+});

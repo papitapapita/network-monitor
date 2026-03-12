@@ -3,7 +3,8 @@
 import {
   createDeviceSchema,
   listDevicesSchema,
-  getDeviceByIdSchema
+  getDeviceByIdSchema,
+  updateDeviceSchema
 } from '../../../../src/presentation/http/validation/device.schemas';
 
 // ---------------------------------------------------------------------------
@@ -970,6 +971,418 @@ describe('getDeviceByIdSchema', () => {
 
     it('should fail when params itself is missing', () => {
       const result = getDeviceByIdSchema.safeParse({});
+
+      expect(result.success).toBe(false);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('updateDeviceSchema', () => {
+  // -------------------------------------------------------------------------
+  describe('happy path — params', () => {
+    it('should accept a valid UUID v4 in params.id', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: {}
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept a UUID v4 with uppercase hex digits (case-insensitive regex)', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: 'F47AC10B-58CC-4372-A567-0E02B2C3D479' },
+        body: {}
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('happy path — body', () => {
+    it('should accept an empty body (all fields optional)', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: {}
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept a fully populated body with all updatable fields', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: {
+          name: 'Core-Router-Updated',
+          status: 'ACTIVE',
+          category: 'CORE',
+          ownerType: 'COMPANY',
+          locationId: VALID_UUID,
+          serialNumber: 'SN-UPDATED-001',
+          macAddress: 'AA:BB:CC:DD:EE:FF',
+          ipAddress: '10.0.0.1',
+          description: 'Updated description',
+          installedDate: '2024-06-01T00:00:00.000Z',
+          monitoringEnabled: true
+        }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept null for all nullable optional fields (explicit clear)', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: {
+          category: null,
+          locationId: null,
+          serialNumber: null,
+          macAddress: null,
+          ipAddress: null,
+          description: null,
+          installedDate: null
+        }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept all valid status values', () => {
+      const statuses = [
+        'INVENTORY',
+        'ACTIVE',
+        'MAINTENANCE',
+        'DAMAGED',
+        'DECOMMISSIONED'
+      ] as const;
+
+      for (const status of statuses) {
+        const result = updateDeviceSchema.safeParse({
+          params: { id: VALID_UUID },
+          body: { status }
+        });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('should accept all valid category values', () => {
+      const categories = [
+        'CORE',
+        'DISTRIBUTION',
+        'POE',
+        'ACCESS_POINT',
+        'CLIENT_CPE'
+      ] as const;
+
+      for (const category of categories) {
+        const result = updateDeviceSchema.safeParse({
+          params: { id: VALID_UUID },
+          body: { category }
+        });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('should accept all valid ownerType values', () => {
+      for (const ownerType of ['COMPANY', 'CLIENT'] as const) {
+        const result = updateDeviceSchema.safeParse({
+          params: { id: VALID_UUID },
+          body: { ownerType }
+        });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('should accept macAddress in colon-separated format', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { macAddress: 'AA:BB:CC:DD:EE:FF' }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept macAddress in hyphen-separated format', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { macAddress: 'AA-BB-CC-DD-EE-FF' }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept a valid IPv4 address', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { ipAddress: '192.168.1.1' }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept a valid IPv6 address', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { ipAddress: '2001:0db8:85a3:0000:0000:8a2e:0370:7334' }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should trim whitespace from name', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { name: '  Core-Router-Updated  ' }
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.body.name).toBe('Core-Router-Updated');
+      }
+    });
+
+    it('should accept a valid ISO 8601 installedDate', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { installedDate: '2024-06-01T00:00:00.000Z' }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept monitoringEnabled as false', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { monitoringEnabled: false }
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('params.id validation', () => {
+    it('should fail when id is not a valid UUID v4', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: 'not-a-uuid' },
+        body: {}
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const idError = result.error.issues.find((i) =>
+          i.path.includes('id')
+        );
+        expect(idError).toBeDefined();
+        expect(idError!.message).toMatch(/UUID v4/i);
+      }
+    });
+
+    it('should fail when id is a UUID v1', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8' },
+        body: {}
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should fail when id is an empty string', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: '' },
+        body: {}
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should fail when params is missing', () => {
+      const result = updateDeviceSchema.safeParse({ body: {} });
+
+      expect(result.success).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('body field validation', () => {
+    it('should fail when name is an empty string', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { name: '' }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const nameError = result.error.issues.find((i) =>
+          i.path.includes('name')
+        );
+        expect(nameError).toBeDefined();
+      }
+    });
+
+    it('should fail when name exceeds 150 characters', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { name: 'A'.repeat(151) }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const nameError = result.error.issues.find((i) =>
+          i.path.includes('name')
+        );
+        expect(nameError).toBeDefined();
+        expect(nameError!.message).toMatch(/150/);
+      }
+    });
+
+    it('should fail when status is an invalid enum value', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { status: 'RETIRED' }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const err = result.error.issues.find((i) =>
+          i.path.includes('status')
+        );
+        expect(err).toBeDefined();
+        expect(err!.message).toMatch(/INVENTORY/);
+      }
+    });
+
+    it('should fail when category is an invalid enum value', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { category: 'SWITCH' }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const err = result.error.issues.find((i) =>
+          i.path.includes('category')
+        );
+        expect(err).toBeDefined();
+        expect(err!.message).toMatch(/CORE/);
+      }
+    });
+
+    it('should fail when ownerType is an invalid enum value', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { ownerType: 'UNKNOWN' }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const err = result.error.issues.find((i) =>
+          i.path.includes('ownerType')
+        );
+        expect(err).toBeDefined();
+        expect(err!.message).toMatch(/COMPANY/);
+      }
+    });
+
+    it('should fail when locationId is not a valid UUID v4', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { locationId: 'not-a-uuid' }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const err = result.error.issues.find((i) =>
+          i.path.includes('locationId')
+        );
+        expect(err).toBeDefined();
+        expect(err!.message).toMatch(/UUID v4/i);
+      }
+    });
+
+    it('should fail when serialNumber exceeds 100 characters', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { serialNumber: 'X'.repeat(101) }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const err = result.error.issues.find((i) =>
+          i.path.includes('serialNumber')
+        );
+        expect(err).toBeDefined();
+        expect(err!.message).toMatch(/100/);
+      }
+    });
+
+    it('should fail when macAddress is in an invalid format', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { macAddress: 'AABBCCDDEEFF' }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const err = result.error.issues.find((i) =>
+          i.path.includes('macAddress')
+        );
+        expect(err).toBeDefined();
+        expect(err!.message).toMatch(/AA:BB:CC:DD:EE:FF/);
+      }
+    });
+
+    it('should fail when macAddress mixes colons and hyphens', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { macAddress: 'AA:BB-CC:DD-EE:FF' }
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should fail when ipAddress is not a valid IP', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { ipAddress: 'not-an-ip' }
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should fail when ipAddress has an out-of-range IPv4 octet', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { ipAddress: '192.168.1.999' }
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should fail when installedDate is not a valid ISO 8601 string', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { installedDate: '15/06/2024' }
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const err = result.error.issues.find((i) =>
+          i.path.includes('installedDate')
+        );
+        expect(err).toBeDefined();
+        expect(err!.message).toMatch(/ISO 8601/i);
+      }
+    });
+
+    it('should fail when installedDate is a plain date string without time', () => {
+      const result = updateDeviceSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { installedDate: '2024-06-01' }
+      });
 
       expect(result.success).toBe(false);
     });
