@@ -1,6 +1,15 @@
-import { Result } from '../../shared/core';
-import { DeviceId, LocationId, DeviceModelId } from '../../shared/ids';
-import { IPAddress, MACAddress, DeviceStatus, DeviceCategory } from '../value-objects';
+import { Result } from 'domain/shared/core';
+import { IPAddress } from 'domain/shared';
+import {
+  DeviceId,
+  LocationId,
+  DeviceModelId
+} from '../../shared/ids';
+import {
+  MACAddress,
+  DeviceStatus,
+  DeviceCategory
+} from '../value-objects';
 import { DeviceOwnerType } from '../enums';
 import { Device } from '../aggregates/Device';
 
@@ -153,7 +162,9 @@ export interface IDeviceRepository {
    * @returns Result<boolean> - true if in use
    * @throws InfrastructureException
    */
-  existsByMacAddress(macAddress: MACAddress): Promise<Result<boolean>>;
+  existsByMacAddress(
+    macAddress: MACAddress
+  ): Promise<Result<boolean>>;
 
   /**
    * Checks whether an IP address is already assigned to any device.

@@ -18,6 +18,7 @@ function makeEventProps(
     aggregateId: DeviceId.create(),
     deviceName: DeviceName.create('Core-Router-01').value,
     monitoringEnabled: true,
+    ipAddress: null,
     dateTimeOccurred: new Date('2024-06-01T10:00:00Z'),
     ...overrides
   };

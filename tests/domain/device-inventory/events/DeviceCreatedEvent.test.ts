@@ -21,6 +21,8 @@ function makeEventProps(
     deviceName: DeviceName.create('Core-Router-01').value,
     status: DeviceStatus.createInventory(),
     ownerType: DeviceOwnerType.COMPANY,
+    monitoringEnabled: false,
+    ipAddress: null,
     dateTimeOccurred: new Date('2024-06-01T10:00:00Z'),
     ...overrides
   };

@@ -41,4 +41,12 @@ export class DeviceCreatedEvent extends DomainEvent<DeviceCreatedEventProps> {
   get ownerType(): DeviceOwnerType {
     return this.props.ownerType;
   }
+
+  get monitoringEnabled(): boolean {
+    return this.props.monitoringEnabled;
+  }
+
+  get ipAddress(): string | null {
+    return this.props.ipAddress;
+  }
 }
