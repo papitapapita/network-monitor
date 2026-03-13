@@ -3,6 +3,7 @@ import { DeviceId } from '../../shared/ids';
 import { DeviceCreatedEventProps } from '../props';
 import { DeviceStatus, DeviceName } from '../value-objects';
 import { DeviceOwnerType } from '../enums';
+import { IPAddress } from 'domain/shared';
 
 /**
  * DeviceCreatedEvent - A new physical device has been registered in the system.
@@ -46,7 +47,7 @@ export class DeviceCreatedEvent extends DomainEvent<DeviceCreatedEventProps> {
     return this.props.monitoringEnabled;
   }
 
-  get ipAddress(): string | null {
+  get ipAddress(): IPAddress | null {
     return this.props.ipAddress;
   }
 }

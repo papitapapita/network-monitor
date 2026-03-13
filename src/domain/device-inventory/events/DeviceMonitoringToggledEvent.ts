@@ -1,3 +1,4 @@
+import { IPAddress } from 'domain/shared';
 import { DomainEvent } from '../../shared/core';
 import { DeviceId } from '../../shared/ids';
 import { DeviceMonitoringToggledEventProps } from '../props';
@@ -39,7 +40,7 @@ export class DeviceMonitoringToggledEvent extends DomainEvent<DeviceMonitoringTo
     return this.props.monitoringEnabled;
   }
 
-  get ipAddress(): string | null {
+  get ipAddress(): IPAddress | null {
     return this.props.ipAddress;
   }
 }

@@ -1,6 +1,7 @@
 import { DeviceId } from '../../shared/ids';
 import { DeviceStatus, DeviceName } from '../value-objects';
 import { DeviceOwnerType } from '../enums';
+import { IPAddress } from 'domain/shared';
 
 export interface DeviceCreatedEventProps {
   readonly aggregateId: DeviceId;
@@ -8,6 +9,6 @@ export interface DeviceCreatedEventProps {
   readonly status: DeviceStatus;
   readonly ownerType: DeviceOwnerType;
   readonly monitoringEnabled: boolean;
-  readonly ipAddress: string | null;
+  readonly ipAddress: IPAddress | null;
   readonly dateTimeOccurred: Date;
 }
