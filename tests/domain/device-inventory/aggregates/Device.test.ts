@@ -12,9 +12,10 @@ import {
   DeviceMonitoringToggledEvent,
   DeviceDetailsUpdatedEvent,
   DeviceOwnerType,
-  IPAddress,
-  MACAddress
+  MACAddress,
+  DeviceProps
 } from '../../../../src/domain/device-inventory';
+import { IPAddress } from '../../../../src/domain/shared';
 import {
   DeviceId,
   DeviceModelId,
@@ -25,9 +26,11 @@ import {
 // Fixtures
 // ---------------------------------------------------------------------------
 
+type CreateDeviceProps = Omit<DeviceProps, 'createdAt' | 'updatedAt'>;
+
 function makeProps(
-  overrides: Partial<Parameters<typeof Device.create>[0]> = {}
-): Parameters<typeof Device.create>[0] {
+  overrides: Partial<CreateDeviceProps> = {}
+): CreateDeviceProps {
   return {
     deviceModelId: DeviceModelId.create(),
     name: DeviceName.create('Core-Router-01').value,
@@ -46,9 +49,13 @@ function makeProps(
 }
 
 function makeDevice(
-  overrides: Partial<Parameters<typeof Device.create>[0]> = {}
+  overrides: Partial<CreateDeviceProps> = {}
 ): Device {
-  return Device.create(makeProps(overrides)).value;
+  const result = Device.create(makeProps(overrides));
+  if (result.isFailure) {
+    throw new Error(`makeDevice: ${result.error}`);
+  }
+  return result.value;
 }
 
 // ---------------------------------------------------------------------------

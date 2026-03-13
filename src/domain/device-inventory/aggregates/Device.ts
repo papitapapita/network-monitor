@@ -1,7 +1,7 @@
-import { AggregateRoot, Result, Guard } from '../../shared/core';
-import { DeviceId, LocationId } from '../../shared/ids';
+import { AggregateRoot, Result, Guard } from 'domain/shared/core';
+import { DeviceId, LocationId } from 'domain/shared/ids';
+import { IPAddress } from 'domain/shared';
 import {
-  IPAddress,
   MACAddress,
   DeviceName,
   SerialNumber,
@@ -151,6 +151,8 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
         deviceName: device.name,
         status: device.status,
         ownerType: device.ownerType,
+        monitoringEnabled: device.monitoringEnabled,
+        ipAddress: device.ipAddress ?? null,
         dateTimeOccurred: now
       })
     );
@@ -283,6 +285,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
         aggregateId: this.id,
         deviceName: this.props.name,
         monitoringEnabled: true,
+        ipAddress: this.props.ipAddress ?? null,
         dateTimeOccurred: new Date()
       })
     );
@@ -309,6 +312,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
         aggregateId: this.id,
         deviceName: this.props.name,
         monitoringEnabled: false,
+        ipAddress: this.props.ipAddress ?? null,
         dateTimeOccurred: new Date()
       })
     );
@@ -416,14 +420,15 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
         aggregateId: this.id,
         deviceName: this.props.name,
         updatedFields: {
-          name: fields.name !== undefined ? this.props.name : undefined,
+          name:
+            fields.name !== undefined ? this.props.name : undefined,
           description: fields.description,
           category: fields.category,
           serialNumber: fields.serialNumber,
           macAddress: fields.macAddress,
           ipAddress: fields.ipAddress,
           installedDate: fields.installedDate,
-          ownerType: fields.ownerType,
+          ownerType: fields.ownerType
         },
         dateTimeOccurred: new Date()
       })
