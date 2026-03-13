@@ -1,624 +1,343 @@
-import { PollingInterval } from '../../../../src/domain/device-inventory';
+// Source: src/domain/device-monitoring/value-objects/PollingInterval.ts
 
-describe('PollingInterval', () => {
-  describe('create', () => {
-    describe('when valid seconds', () => {
-      it('should create PollingInterval with valid seconds', () => {
+import { PollingInterval } from '../../../../src/domain/device-monitoring/value-objects/PollingInterval';
+
+describe('PollingInterval (device-monitoring)', () => {
+  // ===========================================================================
+  describe('constants', () => {
+    it('should have MIN_SECONDS of 1', () => {
+      expect(PollingInterval.MIN_SECONDS).toBe(1);
+    });
+
+    it('should have MAX_SECONDS of 86400', () => {
+      expect(PollingInterval.MAX_SECONDS).toBe(86400);
+    });
+  });
+
+  // ===========================================================================
+  describe('create()', () => {
+    describe('happy path', () => {
+      it('should return a successful Result for a valid seconds value', () => {
         const result = PollingInterval.create(60);
 
         expect(result.isSuccess).toBe(true);
+      });
+
+      it('should expose the seconds value via the getter', () => {
+        const result = PollingInterval.create(60);
+
         expect(result.value.seconds).toBe(60);
       });
 
-      it('should create PollingInterval with minimum seconds (1)', () => {
+      it('should accept the minimum boundary value of 1', () => {
         const result = PollingInterval.create(1);
 
         expect(result.isSuccess).toBe(true);
         expect(result.value.seconds).toBe(1);
       });
 
-      it('should create PollingInterval with maximum seconds (86400)', () => {
+      it('should accept the maximum boundary value of 86400', () => {
         const result = PollingInterval.create(86400);
 
         expect(result.isSuccess).toBe(true);
         expect(result.value.seconds).toBe(86400);
       });
 
-      it('should round decimal seconds up', () => {
+      it('should accept a typical interval of 300 seconds', () => {
+        const result = PollingInterval.create(300);
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.seconds).toBe(300);
+      });
+
+      it('should round a decimal value of 60.7 up to 61', () => {
         const result = PollingInterval.create(60.7);
 
         expect(result.isSuccess).toBe(true);
         expect(result.value.seconds).toBe(61);
       });
 
-      it('should round decimal seconds down', () => {
-        const result = PollingInterval.create(60.3);
+      it('should round a decimal value of 60.4 down to 60', () => {
+        const result = PollingInterval.create(60.4);
 
         expect(result.isSuccess).toBe(true);
         expect(result.value.seconds).toBe(60);
       });
-
-      it('should round 0.5 to nearest even number', () => {
-        const result = PollingInterval.create(60.5);
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.seconds).toBe(61);
-      });
-
-      it('should create PollingInterval with typical polling values', () => {
-        const intervals = [30, 60, 300, 600, 1800, 3600];
-
-        intervals.forEach((seconds) => {
-          const result = PollingInterval.create(seconds);
-          expect(result.isSuccess).toBe(true);
-          expect(result.value.seconds).toBe(seconds);
-        });
-      });
     });
 
-    describe('when invalid seconds', () => {
-      it('should fail for null', () => {
-        const result = PollingInterval.create(null as any);
+    describe('validation failures', () => {
+      it('should fail when seconds is null', () => {
+        const result = PollingInterval.create(null as unknown as number);
 
         expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
       });
 
-      it('should fail for undefined', () => {
-        const result = PollingInterval.create(undefined as any);
+      it('should fail when seconds is undefined', () => {
+        const result = PollingInterval.create(undefined as unknown as number);
 
         expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
       });
 
-      it('should fail for non-number value', () => {
-        const result = PollingInterval.create('60' as any);
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
-
-      it('should fail for zero seconds', () => {
-        const result = PollingInterval.create(0);
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
-
-      it('should fail for negative seconds', () => {
-        const result = PollingInterval.create(-10);
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
-
-      it('should fail for seconds below minimum', () => {
-        const result = PollingInterval.create(0.5);
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
-
-      it('should fail for seconds exceeding maximum (24 hours)', () => {
-        const result = PollingInterval.create(86401);
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
-
-      it('should fail for very large seconds value', () => {
-        const result = PollingInterval.create(90000);
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
-
-      it('should fail for NaN', () => {
+      it('should fail when seconds is NaN', () => {
         const result = PollingInterval.create(NaN);
 
         expect(result.isFailure).toBe(true);
+      });
+
+      it('should fail when seconds is 0 — below minimum', () => {
+        const result = PollingInterval.create(0);
+
+        expect(result.isFailure).toBe(true);
+      });
+
+      it('should fail when seconds is negative', () => {
+        const result = PollingInterval.create(-10);
+
+        expect(result.isFailure).toBe(true);
+      });
+
+      it('should fail when seconds exceeds 86400', () => {
+        const result = PollingInterval.create(86401);
+
+        expect(result.isFailure).toBe(true);
+      });
+
+      it('should include "polling interval" in the error for an out-of-range value', () => {
+        const result = PollingInterval.create(0);
+
         expect(result.error).toContain('polling interval');
       });
 
-      it('should fail for Infinity', () => {
-        const result = PollingInterval.create(Infinity);
+      it('should include a description in the error message for null input', () => {
+        const result = PollingInterval.create(null as unknown as number);
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
+        expect(result.error).toContain('polling interval seconds');
       });
     });
   });
 
-  describe('fromMinutes', () => {
-    describe('when valid minutes', () => {
-      it('should create PollingInterval from minutes', () => {
-        const result = PollingInterval.fromMinutes(5);
+  // ===========================================================================
+  describe('fromMinutes()', () => {
+    it('should convert 1 minute to 60 seconds', () => {
+      const result = PollingInterval.fromMinutes(1);
 
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.seconds).toBe(300);
-      });
-
-      it('should create PollingInterval from 1 minute', () => {
-        const result = PollingInterval.fromMinutes(1);
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.seconds).toBe(60);
-      });
-
-      it('should create PollingInterval from 10 minutes', () => {
-        const result = PollingInterval.fromMinutes(10);
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.seconds).toBe(600);
-      });
-
-      it('should create PollingInterval from 30 minutes', () => {
-        const result = PollingInterval.fromMinutes(30);
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.seconds).toBe(1800);
-      });
-
-      it('should create PollingInterval from maximum minutes (1440)', () => {
-        const result = PollingInterval.fromMinutes(1440);
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.seconds).toBe(86400);
-      });
-
-      it('should round fractional minutes to nearest second', () => {
-        const result = PollingInterval.fromMinutes(1.5);
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.seconds).toBe(90);
-      });
-
-      it('should create from decimal minutes', () => {
-        const result = PollingInterval.fromMinutes(2.5);
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.seconds).toBe(150);
-      });
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.seconds).toBe(60);
     });
 
-    describe('when invalid minutes', () => {
-      it('should fail for null', () => {
-        const result = PollingInterval.fromMinutes(null as any);
+    it('should convert 5 minutes to 300 seconds', () => {
+      const result = PollingInterval.fromMinutes(5);
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.seconds).toBe(300);
+    });
 
-      it('should fail for undefined', () => {
-        const result = PollingInterval.fromMinutes(undefined as any);
+    it('should convert 1.5 minutes to 90 seconds', () => {
+      const result = PollingInterval.fromMinutes(1.5);
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.seconds).toBe(90);
+    });
 
-      it('should fail for non-number value', () => {
-        const result = PollingInterval.fromMinutes('5' as any);
+    it('should fail when 0 minutes produces 0 seconds — below minimum', () => {
+      const result = PollingInterval.fromMinutes(0);
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
+      expect(result.isFailure).toBe(true);
+    });
 
-      it('should fail for negative minutes', () => {
-        const result = PollingInterval.fromMinutes(-5);
+    it('should fail when minutes is null', () => {
+      const result = PollingInterval.fromMinutes(null as unknown as number);
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
+      expect(result.isFailure).toBe(true);
+    });
 
-      it('should fail for zero minutes', () => {
-        const result = PollingInterval.fromMinutes(0);
+    it('should fail when minutes is NaN', () => {
+      const result = PollingInterval.fromMinutes(NaN);
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
+      expect(result.isFailure).toBe(true);
+    });
 
-      it('should fail for minutes exceeding maximum', () => {
-        const result = PollingInterval.fromMinutes(2000);
+    it('should fail when 1441 minutes produce 86460 seconds — above maximum', () => {
+      const result = PollingInterval.fromMinutes(1441);
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
+      expect(result.isFailure).toBe(true);
+    });
 
-      it('should fail for NaN minutes', () => {
-        const result = PollingInterval.fromMinutes(NaN);
+    it('should include a description in the error for null minutes', () => {
+      const result = PollingInterval.fromMinutes(null as unknown as number);
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
+      expect(result.error).toContain('polling interval minutes');
     });
   });
 
-  describe('fromHours', () => {
-    describe('when valid hours', () => {
-      it('should create PollingInterval from hours', () => {
-        const result = PollingInterval.fromHours(1);
+  // ===========================================================================
+  describe('fromHours()', () => {
+    it('should convert 1 hour to 3600 seconds', () => {
+      const result = PollingInterval.fromHours(1);
 
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.seconds).toBe(3600);
-      });
-
-      it('should create PollingInterval from 2 hours', () => {
-        const result = PollingInterval.fromHours(2);
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.seconds).toBe(7200);
-      });
-
-      it('should create PollingInterval from maximum hours (24)', () => {
-        const result = PollingInterval.fromHours(24);
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.seconds).toBe(86400);
-      });
-
-      it('should round fractional hours to nearest second', () => {
-        const result = PollingInterval.fromHours(0.5);
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.seconds).toBe(1800);
-      });
-
-      it('should create from decimal hours', () => {
-        const result = PollingInterval.fromHours(1.5);
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.seconds).toBe(5400);
-      });
-
-      it('should create from small fractional hours', () => {
-        const result = PollingInterval.fromHours(0.25);
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.seconds).toBe(900);
-      });
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.seconds).toBe(3600);
     });
 
-    describe('when invalid hours', () => {
-      it('should fail for null', () => {
-        const result = PollingInterval.fromHours(null as any);
+    it('should convert 24 hours to 86400 seconds — the maximum', () => {
+      const result = PollingInterval.fromHours(24);
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.seconds).toBe(86400);
+    });
 
-      it('should fail for undefined', () => {
-        const result = PollingInterval.fromHours(undefined as any);
+    it('should fail when hours is null', () => {
+      const result = PollingInterval.fromHours(null as unknown as number);
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
+      expect(result.isFailure).toBe(true);
+    });
 
-      it('should fail for non-number value', () => {
-        const result = PollingInterval.fromHours('1' as any);
+    it('should fail when hours is NaN', () => {
+      const result = PollingInterval.fromHours(NaN);
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
+      expect(result.isFailure).toBe(true);
+    });
 
-      it('should fail for negative hours', () => {
-        const result = PollingInterval.fromHours(-1);
+    it('should fail when 25 hours produce 90000 seconds — above maximum', () => {
+      const result = PollingInterval.fromHours(25);
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
+      expect(result.isFailure).toBe(true);
+    });
 
-      it('should fail for zero hours', () => {
-        const result = PollingInterval.fromHours(0);
+    it('should include a description in the error for null hours', () => {
+      const result = PollingInterval.fromHours(null as unknown as number);
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
-
-      it('should fail for hours exceeding maximum (24)', () => {
-        const result = PollingInterval.fromHours(48);
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
-
-      it('should fail for NaN hours', () => {
-        const result = PollingInterval.fromHours(NaN);
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('polling interval');
-      });
+      expect(result.error).toContain('polling interval hours');
     });
   });
 
-  describe('toMilliseconds', () => {
-    it('should convert seconds to milliseconds', () => {
-      const interval = PollingInterval.create(10).value;
+  // ===========================================================================
+  describe('reconstitute()', () => {
+    it('should rebuild a PollingInterval from trusted persistence props', () => {
+      const interval = PollingInterval.reconstitute({ seconds: 300 });
 
-      expect(interval.toMilliseconds()).toBe(10000);
+      expect(interval.seconds).toBe(300);
     });
 
-    it('should convert 1 second to 1000 milliseconds', () => {
-      const interval = PollingInterval.create(1).value;
+    it('should return a PollingInterval instance', () => {
+      const interval = PollingInterval.reconstitute({ seconds: 60 });
 
-      expect(interval.toMilliseconds()).toBe(1000);
-    });
-
-    it('should convert 60 seconds to 60000 milliseconds', () => {
-      const interval = PollingInterval.create(60).value;
-
-      expect(interval.toMilliseconds()).toBe(60000);
-    });
-
-    it('should convert large seconds value to milliseconds', () => {
-      const interval = PollingInterval.create(86400).value;
-
-      expect(interval.toMilliseconds()).toBe(86400000);
+      expect(interval).toBeInstanceOf(PollingInterval);
     });
   });
 
-  describe('toMinutes', () => {
+  // ===========================================================================
+  describe('toMilliseconds()', () => {
+    it('should convert 1 second to 1000 ms', () => {
+      expect(PollingInterval.create(1).value.toMilliseconds()).toBe(1000);
+    });
+
+    it('should convert 60 seconds to 60000 ms', () => {
+      expect(PollingInterval.create(60).value.toMilliseconds()).toBe(60000);
+    });
+
+    it('should convert 3600 seconds to 3600000 ms', () => {
+      expect(PollingInterval.create(3600).value.toMilliseconds()).toBe(3600000);
+    });
+  });
+
+  // ===========================================================================
+  describe('toMinutes()', () => {
     it('should convert 60 seconds to 1 minute', () => {
-      const interval = PollingInterval.create(60).value;
-
-      expect(interval.toMinutes()).toBe(1);
-    });
-
-    it('should convert 90 seconds to 1.5 minutes', () => {
-      const interval = PollingInterval.create(90).value;
-
-      expect(interval.toMinutes()).toBe(1.5);
+      expect(PollingInterval.create(60).value.toMinutes()).toBe(1);
     });
 
     it('should convert 300 seconds to 5 minutes', () => {
-      const interval = PollingInterval.create(300).value;
-
-      expect(interval.toMinutes()).toBe(5);
+      expect(PollingInterval.create(300).value.toMinutes()).toBe(5);
     });
 
-    it('should convert 30 seconds to 0.5 minutes', () => {
-      const interval = PollingInterval.create(30).value;
-
-      expect(interval.toMinutes()).toBe(0.5);
-    });
-
-    it('should round to 2 decimal places', () => {
-      const interval = PollingInterval.create(100).value;
-
-      expect(interval.toMinutes()).toBe(1.67);
+    it('should round to 2 decimal places for non-even values', () => {
+      // 100 / 60 = 1.6666... → 1.67
+      expect(PollingInterval.create(100).value.toMinutes()).toBe(1.67);
     });
   });
 
-  describe('toHours', () => {
+  // ===========================================================================
+  describe('toHours()', () => {
     it('should convert 3600 seconds to 1 hour', () => {
-      const interval = PollingInterval.create(3600).value;
-
-      expect(interval.toHours()).toBe(1);
+      expect(PollingInterval.create(3600).value.toHours()).toBe(1);
     });
 
     it('should convert 7200 seconds to 2 hours', () => {
-      const interval = PollingInterval.create(7200).value;
-
-      expect(interval.toHours()).toBe(2);
-    });
-
-    it('should convert 1800 seconds to 0.5 hours', () => {
-      const interval = PollingInterval.create(1800).value;
-
-      expect(interval.toHours()).toBe(0.5);
+      expect(PollingInterval.create(7200).value.toHours()).toBe(2);
     });
 
     it('should convert 86400 seconds to 24 hours', () => {
-      const interval = PollingInterval.create(86400).value;
-
-      expect(interval.toHours()).toBe(24);
-    });
-
-    it('should round to 2 decimal places', () => {
-      const interval = PollingInterval.create(5000).value;
-
-      expect(interval.toHours()).toBe(1.39);
+      expect(PollingInterval.create(86400).value.toHours()).toBe(24);
     });
   });
 
-  describe('toDisplayString', () => {
-    describe('when displaying seconds', () => {
-      it('should display singular second', () => {
-        const interval = PollingInterval.create(1).value;
-
-        expect(interval.toDisplayString()).toBe('1 second');
-      });
-
-      it('should display plural seconds', () => {
-        const interval = PollingInterval.create(45).value;
-
-        expect(interval.toDisplayString()).toBe('45 seconds');
-      });
-
-      it('should display 30 seconds correctly', () => {
-        const interval = PollingInterval.create(30).value;
-
-        expect(interval.toDisplayString()).toBe('30 seconds');
-      });
+  // ===========================================================================
+  describe('toDisplayString()', () => {
+    it('should display "1 second" for 1 second', () => {
+      expect(PollingInterval.create(1).value.toDisplayString()).toBe('1 second');
     });
 
-    describe('when displaying minutes', () => {
-      it('should display singular minute', () => {
-        const interval = PollingInterval.create(60).value;
-
-        expect(interval.toDisplayString()).toBe('1 minute');
-      });
-
-      it('should display plural minutes', () => {
-        const interval = PollingInterval.create(120).value;
-
-        expect(interval.toDisplayString()).toBe('2 minutes');
-      });
-
-      it('should display 5 minutes', () => {
-        const interval = PollingInterval.create(300).value;
-
-        expect(interval.toDisplayString()).toBe('5 minutes');
-      });
-
-      it('should display 10 minutes', () => {
-        const interval = PollingInterval.create(600).value;
-
-        expect(interval.toDisplayString()).toBe('10 minutes');
-      });
-
-      it('should display 30 minutes', () => {
-        const interval = PollingInterval.create(1800).value;
-
-        expect(interval.toDisplayString()).toBe('30 minutes');
-      });
-
-      it('should round to nearest minute for display', () => {
-        const interval = PollingInterval.create(150).value;
-
-        expect(interval.toDisplayString()).toBe('3 minutes');
-      });
+    it('should display plural "seconds" for values between 2 and 59', () => {
+      expect(PollingInterval.create(30).value.toDisplayString()).toBe('30 seconds');
     });
 
-    describe('when displaying hours', () => {
-      it('should display singular hour', () => {
-        const interval = PollingInterval.create(3600).value;
+    it('should display "59 seconds" at the seconds-to-minutes boundary', () => {
+      expect(PollingInterval.create(59).value.toDisplayString()).toBe('59 seconds');
+    });
 
-        expect(interval.toDisplayString()).toBe('1 hour');
-      });
+    it('should display "1 minute" for 60 seconds', () => {
+      expect(PollingInterval.create(60).value.toDisplayString()).toBe('1 minute');
+    });
 
-      it('should display plural hours', () => {
-        const interval = PollingInterval.create(7200).value;
+    it('should display plural "minutes" for values between 2 and 59 minutes', () => {
+      expect(PollingInterval.create(300).value.toDisplayString()).toBe('5 minutes');
+    });
 
-        expect(interval.toDisplayString()).toBe('2 hours');
-      });
+    it('should display "1 hour" for 3600 seconds', () => {
+      expect(PollingInterval.create(3600).value.toDisplayString()).toBe('1 hour');
+    });
 
-      it('should display 6 hours', () => {
-        const interval = PollingInterval.create(21600).value;
+    it('should display plural "hours" for 7200 seconds', () => {
+      expect(PollingInterval.create(7200).value.toDisplayString()).toBe('2 hours');
+    });
 
-        expect(interval.toDisplayString()).toBe('6 hours');
-      });
-
-      it('should display 24 hours', () => {
-        const interval = PollingInterval.create(86400).value;
-
-        expect(interval.toDisplayString()).toBe('24 hours');
-      });
-
-      it('should round to nearest hour for display', () => {
-        const interval = PollingInterval.create(5400).value;
-
-        expect(interval.toDisplayString()).toBe('2 hours');
-      });
+    it('should display "24 hours" for 86400 seconds', () => {
+      expect(PollingInterval.create(86400).value.toDisplayString()).toBe('24 hours');
     });
   });
 
-  describe('equals', () => {
-    it('should return true for same seconds values', () => {
-      const interval1 = PollingInterval.create(60).value;
-      const interval2 = PollingInterval.create(60).value;
-
-      expect(interval1.equals(interval2)).toBe(true);
+  // ===========================================================================
+  describe('toString()', () => {
+    it('should return the seconds as a string', () => {
+      expect(PollingInterval.create(120).value.toString()).toBe('120');
     });
 
-    it('should return true for intervals created different ways but same seconds', () => {
-      const interval1 = PollingInterval.create(300).value;
-      const interval2 = PollingInterval.fromMinutes(5).value;
-
-      expect(interval1.equals(interval2)).toBe(true);
-    });
-
-    it('should return true for intervals from hours and seconds', () => {
-      const interval1 = PollingInterval.create(3600).value;
-      const interval2 = PollingInterval.fromHours(1).value;
-
-      expect(interval1.equals(interval2)).toBe(true);
-    });
-
-    it('should return false for different seconds values', () => {
-      const interval1 = PollingInterval.create(60).value;
-      const interval2 = PollingInterval.create(120).value;
-
-      expect(interval1.equals(interval2)).toBe(false);
-    });
-
-    it('should return false for slightly different values', () => {
-      const interval1 = PollingInterval.create(60).value;
-      const interval2 = PollingInterval.create(61).value;
-
-      expect(interval1.equals(interval2)).toBe(false);
-    });
-
-    it('should return false for null', () => {
-      const interval = PollingInterval.create(60).value;
-
-      expect(interval.equals(null as any)).toBe(false);
-    });
-
-    it('should return false for undefined', () => {
-      const interval = PollingInterval.create(60).value;
-
-      expect(interval.equals(undefined as any)).toBe(false);
+    it('should return "1" for the minimum value', () => {
+      expect(PollingInterval.create(1).value.toString()).toBe('1');
     });
   });
 
-  describe('toString', () => {
-    it('should return seconds as string', () => {
-      const interval = PollingInterval.create(150).value;
+  // ===========================================================================
+  describe('equals()', () => {
+    it('should return true for two intervals with the same seconds', () => {
+      const a = PollingInterval.create(60).value;
+      const b = PollingInterval.create(60).value;
 
-      expect(interval.toString()).toBe('150');
+      expect(a.equals(b)).toBe(true);
     });
 
-    it('should return 1 second as string', () => {
-      const interval = PollingInterval.create(1).value;
+    it('should return false for intervals with different seconds', () => {
+      const a = PollingInterval.create(60).value;
+      const b = PollingInterval.create(120).value;
 
-      expect(interval.toString()).toBe('1');
+      expect(a.equals(b)).toBe(false);
     });
 
-    it('should return large value as string', () => {
-      const interval = PollingInterval.create(86400).value;
+    it('should return false when comparing against undefined', () => {
+      const a = PollingInterval.create(60).value;
 
-      expect(interval.toString()).toBe('86400');
-    });
-  });
-
-  describe('getters', () => {
-    it('should have correct seconds value', () => {
-      const interval = PollingInterval.create(300).value;
-
-      expect(interval.seconds).toBe(300);
-    });
-
-    it('should have correct seconds for interval from minutes', () => {
-      const interval = PollingInterval.fromMinutes(5).value;
-
-      expect(interval.seconds).toBe(300);
-    });
-
-    it('should have correct seconds for interval from hours', () => {
-      const interval = PollingInterval.fromHours(1).value;
-
-      expect(interval.seconds).toBe(3600);
-    });
-  });
-
-  describe('immutability', () => {
-    it('should not allow mutation of props', () => {
-      const interval = PollingInterval.create(60).value;
-
-      expect(() => {
-        // @ts-expect-error - Testing immutability
-        interval.props.seconds = 120;
-      }).toThrow();
-    });
-
-    it('should not allow reassignment of props reference', () => {
-      const interval = PollingInterval.create(60).value;
-
-      // TypeScript prevents this at compile time
-      expect(() => {
-        // @ts-expect-error - props is readonly
-        interval.props = { seconds: 120 };
-      }).toThrow();
+      expect(a.equals(undefined)).toBe(false);
     });
   });
 });

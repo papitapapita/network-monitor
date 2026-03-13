@@ -1,10 +1,5 @@
-import {
-  ValueObject,
-  Result,
-  Guard,
-  PollingIntervalProps
-} from '../../device-inventory';
-
+import { PollingIntervalProps } from '../props';
+import { ValueObject, Result, Guard } from 'domain/shared/core';
 /**
  * PollingInterval Value Object
  *
@@ -37,6 +32,7 @@ import {
 export class PollingInterval extends ValueObject<PollingIntervalProps> {
   public static readonly MIN_SECONDS = 1;
   public static readonly MAX_SECONDS = 86400; // 24 hours
+  public static readonly DEFAULT_SECONDS = 60; // 1 minute
 
   get seconds(): number {
     return this._props.seconds;
@@ -79,6 +75,12 @@ export class PollingInterval extends ValueObject<PollingIntervalProps> {
     );
   }
 
+  public static createDefault(): PollingInterval {
+    return new PollingInterval({
+      seconds: this.DEFAULT_SECONDS // Default to 60 seconds (1 minute)
+    });
+  }
+
   /**
    * Creates a PollingInterval from minutes.
    *
@@ -107,6 +109,11 @@ export class PollingInterval extends ValueObject<PollingIntervalProps> {
     return this.create(seconds);
   }
 
+  public static reconstitute(
+    props: PollingIntervalProps
+  ): PollingInterval {
+    return new PollingInterval(props);
+  }
   /**
    * Creates a PollingInterval from hours.
    *
