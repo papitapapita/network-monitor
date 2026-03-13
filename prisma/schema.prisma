@@ -275,6 +275,8 @@ model AlertEvent {
 model PollingConfiguration {
   id                  String    @id @default(uuid()) @db.Uuid
   deviceId            String    @unique @map("device_id") @db.Uuid
+  ipAddress           String?   @map("ip_address") @db.VarChar(45)
+  enabled             Boolean   @default(true)
   pingIntervalSecs    Int       @default(60) @map("interval_seconds") // Polling interval (1-86400 seconds)
   failuresBeforeDown  Int       @default(3) @map("failures_before_down") // Consecutive failures before marking device as down
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
@@ -282,6 +284,7 @@ model PollingConfiguration {
 
   device  Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
+  @@index([enabled])
   @@map("polling_configurations")
 }
 
