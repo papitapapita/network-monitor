@@ -5,7 +5,7 @@ import {
   DeviceMonitoringToggledEventProps,
   DeviceName
 } from '../../../../src/domain/device-inventory';
-import { DeviceId } from '../../../../src/domain/shared';
+import { DeviceId, IPAddress } from '../../../../src/domain/shared';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -18,7 +18,7 @@ function makeEventProps(
     aggregateId: DeviceId.create(),
     deviceName: DeviceName.create('Core-Router-01').value,
     monitoringEnabled: true,
-    ipAddress: null,
+    ipAddress: IPAddress.create('192.168.0.1').value,
     dateTimeOccurred: new Date('2024-06-01T10:00:00Z'),
     ...overrides
   };
@@ -60,10 +60,14 @@ describe('DeviceMonitoringToggledEvent', () => {
     });
 
     it('should freeze props to prevent external mutation', () => {
-      const event = new DeviceMonitoringToggledEvent(makeEventProps());
+      const event = new DeviceMonitoringToggledEvent(
+        makeEventProps()
+      );
 
       expect(
-        Object.isFrozen((event as unknown as { props: unknown }).props)
+        Object.isFrozen(
+          (event as unknown as { props: unknown }).props
+        )
       ).toBe(true);
     });
 
@@ -71,7 +75,8 @@ describe('DeviceMonitoringToggledEvent', () => {
       const props = makeEventProps({ monitoringEnabled: true });
       const event = new DeviceMonitoringToggledEvent(props);
 
-      (props as { monitoringEnabled: boolean }).monitoringEnabled = false;
+      (props as { monitoringEnabled: boolean }).monitoringEnabled =
+        false;
 
       expect(event.monitoringEnabled).toBe(true);
     });
@@ -80,21 +85,28 @@ describe('DeviceMonitoringToggledEvent', () => {
   // -------------------------------------------------------------------------
   describe('immutability', () => {
     it('should not allow mutation of props after construction', () => {
-      const event = new DeviceMonitoringToggledEvent(makeEventProps());
+      const event = new DeviceMonitoringToggledEvent(
+        makeEventProps()
+      );
 
       expect(() => {
         (
-          event as unknown as { props: { monitoringEnabled: boolean } }
+          event as unknown as {
+            props: { monitoringEnabled: boolean };
+          }
         ).props.monitoringEnabled = false;
       }).toThrow();
     });
 
     it('should not allow adding new properties to props', () => {
-      const event = new DeviceMonitoringToggledEvent(makeEventProps());
+      const event = new DeviceMonitoringToggledEvent(
+        makeEventProps()
+      );
 
       expect(() => {
-        (event as unknown as { props: Record<string, unknown> }).props.extra =
-          'value';
+        (
+          event as unknown as { props: Record<string, unknown> }
+        ).props.extra = 'value';
       }).toThrow();
     });
   });

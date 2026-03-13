@@ -6,6 +6,6 @@ export interface DeviceMonitoringToggledEventProps {
   readonly aggregateId: DeviceId;
   readonly deviceName: DeviceName;
   readonly monitoringEnabled: boolean;
-  readonly ipAddress: IPAddress | null;
+  readonly ipAddress: IPAddress;
   readonly dateTimeOccurred: Date;
 }

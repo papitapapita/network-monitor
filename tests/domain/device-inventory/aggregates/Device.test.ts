@@ -623,13 +623,27 @@ describe('Device', () => {
     describe('happy path', () => {
       it('should return a successful Result', () => {
         const device = makeDevice({ monitoringEnabled: false });
+        device.updateDetails({
+          ipAddress: IPAddress.create('192.168.0.1').value
+        });
         const result = device.enableMonitoring();
 
         expect(result.isSuccess).toBe(true);
       });
 
+      it('should fail when enabling monitoring without an IP Address', () => {
+        const device = makeDevice({ monitoringEnabled: false });
+        const result = device.enableMonitoring();
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('IP address');
+      });
+
       it('should set monitoringEnabled to true', () => {
         const device = makeDevice({ monitoringEnabled: false });
+        device.updateDetails({
+          ipAddress: IPAddress.create('192.168.0.1').value
+        });
         device.enableMonitoring();
 
         expect(device.monitoringEnabled).toBe(true);
@@ -637,6 +651,9 @@ describe('Device', () => {
 
       it('should emit a DeviceMonitoringToggledEvent with monitoringEnabled = true', () => {
         const device = makeDevice({ monitoringEnabled: false });
+        device.updateDetails({
+          ipAddress: IPAddress.create('192.168.0.1').value
+        });
         device.clearEvents();
         device.enableMonitoring();
 
@@ -991,6 +1008,9 @@ describe('Device', () => {
 
     it('should allow new events to accumulate after clearing', () => {
       const device = makeDevice({ monitoringEnabled: false });
+      device.updateDetails({
+        ipAddress: IPAddress.create('192.168.0.1').value
+      });
       device.clearEvents();
 
       device.enableMonitoring();

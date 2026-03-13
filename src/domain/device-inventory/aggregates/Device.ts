@@ -277,6 +277,11 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       return Result.ok<void>();
     }
 
+    if (this.props.ipAddress === null) {
+      return Result.fail<void>(
+        'Cannot enable monitoring for a device without an IP address assigned'
+      );
+    }
     this.props.monitoringEnabled = true;
     this.props.updatedAt = new Date();
 
@@ -285,7 +290,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
         aggregateId: this.id,
         deviceName: this.props.name,
         monitoringEnabled: true,
-        ipAddress: this.props.ipAddress ?? null,
+        ipAddress: this.props.ipAddress as IPAddress,
         dateTimeOccurred: new Date()
       })
     );
@@ -312,7 +317,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
         aggregateId: this.id,
         deviceName: this.props.name,
         monitoringEnabled: false,
-        ipAddress: this.props.ipAddress ?? null,
+        ipAddress: this.props.ipAddress as IPAddress,
         dateTimeOccurred: new Date()
       })
     );

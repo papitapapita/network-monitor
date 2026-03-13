@@ -40,7 +40,7 @@ export class DeviceMonitoringToggledEvent extends DomainEvent<DeviceMonitoringTo
     return this.props.monitoringEnabled;
   }
 
-  get ipAddress(): IPAddress | null {
+  get ipAddress(): IPAddress {
     return this.props.ipAddress;
   }
 }
