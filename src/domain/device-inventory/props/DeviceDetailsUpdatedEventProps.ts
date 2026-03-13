@@ -1,5 +1,10 @@
 import { DeviceId } from '../../shared/ids';
-import { DeviceName, DeviceCategory, MACAddress, IPAddress } from '../value-objects';
+import { IPAddress } from 'domain/shared';
+import {
+  DeviceName,
+  DeviceCategory,
+  MACAddress
+} from '../value-objects';
 import { DeviceOwnerType } from '../enums';
 
 export interface DeviceDetailsUpdatedEventProps {

@@ -1,7 +1,7 @@
 import { DeviceModelId, LocationId } from '../../shared/ids';
+import { IPAddress } from 'domain/shared';
 import {
   DeviceName,
-  IPAddress,
   MACAddress,
   SerialNumber,
   DeviceStatus,
