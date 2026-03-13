@@ -4,7 +4,7 @@ import {
   NetworkDeviceId,
   IPAddress,
   MACAddress
-} from '../../device-inventory';
+} from '../../../../src/domain/device-inventory';
 
 /**
  * NetworkDeviceCreatedEvent - A new network device has been registered in the system.

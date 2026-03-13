@@ -1,4 +1,4 @@
-import { NetworkDevice } from '../../../domain/device-inventory';
+import { NetworkDevice } from '../../../src/domain/device-inventory';
 import {
   NetworkDeviceResponseDTO,
   NetworkDeviceListResponseDTO,

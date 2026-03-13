@@ -2,14 +2,14 @@ import {
   Result,
   NetworkDevice,
   NetworkDeviceId
-} from '../../../domain/device-inventory';
+} from '../../../src/domain/device-inventory';
 import { INetworkDeviceRepository } from '../../../domain/device-inventory/repository/INetworkDeviceRepository';
-import { UseCase } from '../../shared/core/UseCase';
-import { ILogger } from '../../shared/interfaces/ILogger';
+import { UseCase } from '../../../src/application/shared/core/UseCase';
+import { ILogger } from '../../../src/application/shared/interfaces/ILogger';
 import {
   RestoreNetworkDeviceRequestDTO,
   NetworkDeviceResponseDTO
-} from '../../device-inventory/dtos';
+} from '../../../src/application/device-inventory/dtos';
 import { NetworkDeviceMapper } from '../mappers/NetworkDeviceMapper';
 
 /**

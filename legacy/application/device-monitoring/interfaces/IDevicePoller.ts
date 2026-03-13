@@ -1,6 +1,6 @@
-import { Result } from '@/core/Result';
-import { NetworkDevice } from '@/domain/entities';
-import { PollingMetrics } from '@/domain/value-objects';
+import { Result } from '../../../domain/shared/core';
+import { Device } from '../../../domain/device-inventory/aggregates';
+import { PollingMetrics } from '../../../domain/device-monitoring/value-objects';
 
 /**
  * Interface for device polling implementations.
@@ -44,7 +44,7 @@ export interface IDevicePoller {
    * - Should handle partial success (some pings succeed, some fail)
    * - Should timeout based on reasonable defaults (e.g., 5s per ping)
    *
-   * @param device - The NetworkDevice to poll (contains IP, ping count configuration)
+   * @param device - The Device to poll (contains IP, ping count configuration)
    * @returns Result containing PollingMetrics on success, or error message on failure
    *
    * Success cases:
@@ -57,7 +57,7 @@ export interface IDevicePoller {
    * - Invalid device IP: Return Result.fail() with validation error
    * - Timeout: Return Result.fail() with timeout error
    */
-  poll(device: NetworkDevice): Promise<Result<PollingMetrics>>;
+  poll(device: Device): Promise<Result<PollingMetrics>>;
 
   /**
    * Checks if the poller can handle this device type.
@@ -67,10 +67,10 @@ export interface IDevicePoller {
    * - SNMP poller: only devices with SNMP enabled
    * - Custom protocol pollers: specific device types
    *
-   * @param device - The NetworkDevice to check
+   * @param device - The Device to check
    * @returns true if this poller can poll the device, false otherwise
    */
-  canPoll(device: NetworkDevice): boolean;
+  canPoll(device: Device): boolean;
 
   /**
    * Returns the protocol name this poller implements.
