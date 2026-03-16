@@ -1,8 +1,8 @@
-import { ILocationRepository } from '../../../domain/device-inventory/repository/ILocationRepository';
-import { LocationType } from '../../../domain/device-inventory/enums/LocationType';
-import { Coordinates } from '../../../domain/device-inventory/value-objects';
-import { LocationId } from '../../../domain/shared/ids';
-import { Result } from '../../../domain/shared/core/Result';
+import { ILocationRepository } from 'domain/device-inventory/repository/ILocationRepository';
+import { LocationType } from 'domain/device-inventory/enums/LocationType';
+import { Coordinates } from 'domain/device-inventory/value-objects';
+import { LocationId } from 'domain/shared/ids';
+import { Result } from 'domain/shared/core/Result';
 import { UseCase } from '../../shared/core/UseCase';
 import { ILogger } from '../../shared/interfaces/ILogger';
 import { UpdateLocationRequestDTO } from '../dtos/UpdateLocationRequestDTO';
@@ -140,7 +140,9 @@ export class UpdateLocationUseCase extends UseCase<
     // Parse LocationId UUID
     const locationIdResult = LocationId.parse(request.id.trim());
     if (locationIdResult.isFailure) {
-      return this.fail(`Invalid location ID: ${locationIdResult.error}`);
+      return this.fail(
+        `Invalid location ID: ${locationIdResult.error}`
+      );
     }
 
     // Load existing location
@@ -207,7 +209,10 @@ export class UpdateLocationUseCase extends UseCase<
     // Both undefined  → coordinates not included in the request; skip entirely.
     // Both null       → explicit clear (passes null to updateCoordinates).
     // Both non-null   → build Coordinates VO and update.
-    if (request.latitude !== undefined && request.longitude !== undefined) {
+    if (
+      request.latitude !== undefined &&
+      request.longitude !== undefined
+    ) {
       if (request.latitude === null && request.longitude === null) {
         // Explicit clear
         const updateCoordsResult = location.updateCoordinates(null);
@@ -224,7 +229,9 @@ export class UpdateLocationUseCase extends UseCase<
           altitude: request.altitude ?? undefined
         });
         if (coordResult.isFailure) {
-          return this.fail(`Invalid coordinates: ${coordResult.error}`);
+          return this.fail(
+            `Invalid coordinates: ${coordResult.error}`
+          );
         }
         const updateCoordsResult = location.updateCoordinates(
           coordResult.value

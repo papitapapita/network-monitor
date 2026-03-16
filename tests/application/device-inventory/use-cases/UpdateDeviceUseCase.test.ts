@@ -1,5 +1,6 @@
 // Source: src/application/device-inventory/use-cases/UpdateDeviceUseCase.ts
 
+import { IPAddress } from 'domain/shared';
 import { UpdateDeviceUseCase } from '../../../../src/application/device-inventory/use-cases';
 import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository';
 import { ILogger } from '../../../../src/application/shared/interfaces';
@@ -8,8 +9,7 @@ import { Device } from '../../../../src/domain/device-inventory/aggregates';
 import {
   DeviceName,
   DeviceStatus,
-  MACAddress,
-  IPAddress
+  MACAddress
 } from '../../../../src/domain/device-inventory/value-objects';
 import { DeviceOwnerType } from '../../../../src/domain/device-inventory/enums';
 import {

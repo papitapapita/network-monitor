@@ -1,4 +1,4 @@
-import { Result } from '../../../domain/device-inventory';
+import { Result } from 'domain/shared/core';
 
 /**
  * IUseCase Interface

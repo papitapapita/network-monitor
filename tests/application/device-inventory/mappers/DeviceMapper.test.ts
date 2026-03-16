@@ -1,21 +1,20 @@
 // Source: src/application/device-inventory/mappers/DeviceMapper.ts
-
-import { DeviceMapper } from './../../../../src/application/device-inventory/mappers';
-import { Device } from './../../../../src/domain/device-inventory/aggregates';
+import { IPAddress } from 'domain/shared';
+import { DeviceMapper } from 'application/device-inventory/mappers';
+import { Device } from 'domain/device-inventory/aggregates';
 import {
   DeviceName,
   DeviceStatus,
   DeviceCategory,
   MACAddress,
-  IPAddress,
   SerialNumber
-} from './../../../../src/domain/device-inventory/value-objects';
-import { DeviceOwnerType } from './../../../../src/domain/device-inventory/enums';
+} from 'domain/device-inventory/value-objects';
+import { DeviceOwnerType } from 'domain/device-inventory/enums';
 import {
   DeviceId,
   LocationId,
   DeviceModelId
-} from './../../../../src/domain/shared/ids';
+} from 'domain/shared/ids';
 
 // ---------------------------------------------------------------------------
 // Fixtures

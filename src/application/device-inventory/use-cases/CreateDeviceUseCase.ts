@@ -1,19 +1,20 @@
-import { Device } from '../../../domain/device-inventory/aggregates/Device';
-import { IDeviceRepository } from '../../../domain/device-inventory/repository/IDeviceRepository';
-import { DeviceStatus } from '../../../domain/device-inventory/value-objects/DeviceStatus';
-import { DeviceCategory } from '../../../domain/device-inventory/value-objects/DeviceCategory';
-import { DeviceName } from '../../../domain/device-inventory/value-objects/DeviceName';
-import { SerialNumber } from '../../../domain/device-inventory/value-objects/SerialNumber';
-import { MACAddress } from '../../../domain/device-inventory/value-objects/MACAddress';
-import { IPAddress } from '../../../domain/device-inventory/value-objects/IPAddress';
-import { DeviceOwnerType } from '../../../domain/device-inventory/enums/DeviceOwnerType';
-import { DeviceModelId, LocationId } from '../../../domain/shared/ids';
-import { Result } from '../../../domain/shared/core/Result';
-import { UseCase } from '../../shared/core/UseCase';
-import { ILogger } from '../../shared/interfaces/ILogger';
-import { CreateDeviceRequestDTO } from '../dtos/CreateDeviceRequestDTO';
-import { DeviceResponseDTO } from '../dtos/DeviceResponseDTO';
-import { DeviceMapper } from '../mappers/DeviceMapper';
+import { IPAddress } from 'domain/shared';
+import { Device } from 'domain/device-inventory/aggregates';
+import { IDeviceRepository } from 'domain/device-inventory/repository';
+import { DeviceOwnerType } from 'domain/device-inventory/enums';
+import { DeviceModelId, LocationId } from 'domain/shared/ids';
+import { Result } from 'domain/shared/core';
+import { UseCase } from '../../shared/core';
+import { ILogger } from '../../shared/interfaces';
+import { CreateDeviceRequestDTO, DeviceResponseDTO } from '../dtos';
+import { DeviceMapper } from '../mappers';
+import {
+  DeviceStatus,
+  DeviceCategory,
+  SerialNumber,
+  MACAddress,
+  DeviceName
+} from 'domain/device-inventory/value-objects';
 
 /**
  * CreateDeviceUseCase
@@ -84,7 +85,10 @@ export class CreateDeviceUseCase extends UseCase<
   protected async beforeExecute(
     request: CreateDeviceRequestDTO
   ): Promise<Result<void> | null> {
-    if (!request.deviceModelId || request.deviceModelId.trim().length === 0) {
+    if (
+      !request.deviceModelId ||
+      request.deviceModelId.trim().length === 0
+    ) {
       return Result.fail('deviceModelId is required');
     }
 
@@ -96,7 +100,9 @@ export class CreateDeviceUseCase extends UseCase<
       return Result.fail('ownerType is required');
     }
 
-    const validOwnerTypes = Object.values(DeviceOwnerType) as string[];
+    const validOwnerTypes = Object.values(
+      DeviceOwnerType
+    ) as string[];
     if (!validOwnerTypes.includes(request.ownerType.toUpperCase())) {
       return Result.fail(
         `Invalid ownerType: "${request.ownerType}". Must be one of: ${validOwnerTypes.join(', ')}`
@@ -156,7 +162,9 @@ export class CreateDeviceUseCase extends UseCase<
     // Parse optional locationId UUID
     let locationId: LocationId | null = null;
     if (request.locationId) {
-      const locationIdResult = LocationId.parse(request.locationId.trim());
+      const locationIdResult = LocationId.parse(
+        request.locationId.trim()
+      );
       if (locationIdResult.isFailure) {
         return this.fail(
           `Invalid locationId: ${locationIdResult.error}`
@@ -192,7 +200,9 @@ export class CreateDeviceUseCase extends UseCase<
     // Build optional SerialNumber value object
     let serialNumber: SerialNumber | null = null;
     if (request.serialNumber) {
-      const serialNumberResult = SerialNumber.create(request.serialNumber);
+      const serialNumberResult = SerialNumber.create(
+        request.serialNumber
+      );
       if (serialNumberResult.isFailure) {
         return this.fail(serialNumberResult.error!);
       }

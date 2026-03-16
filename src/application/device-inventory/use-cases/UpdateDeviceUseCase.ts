@@ -1,16 +1,17 @@
-import { IDeviceRepository } from '../../../domain/device-inventory/repository/IDeviceRepository';
-import { DeviceStatus } from '../../../domain/device-inventory/value-objects/DeviceStatus';
-import { DeviceCategory } from '../../../domain/device-inventory/value-objects/DeviceCategory';
-import { MACAddress } from '../../../domain/device-inventory/value-objects/MACAddress';
-import { IPAddress } from '../../../domain/device-inventory/value-objects/IPAddress';
-import { DeviceOwnerType } from '../../../domain/device-inventory/enums/DeviceOwnerType';
-import { DeviceId, LocationId } from '../../../domain/shared/ids';
-import { Result } from '../../../domain/shared/core/Result';
-import { UseCase } from '../../shared/core/UseCase';
-import { ILogger } from '../../shared/interfaces/ILogger';
-import { UpdateDeviceRequestDTO } from '../dtos/UpdateDeviceRequestDTO';
-import { DeviceResponseDTO } from '../dtos/DeviceResponseDTO';
-import { DeviceMapper } from '../mappers/DeviceMapper';
+import { IPAddress } from 'domain/shared';
+import { IDeviceRepository } from 'domain/device-inventory/repository';
+import { DeviceOwnerType } from 'domain/device-inventory/enums';
+import { LocationId, DeviceId } from 'domain/shared/ids';
+import { Result } from 'domain/shared/core';
+import { UseCase } from '../../shared/core';
+import { ILogger } from '../../shared/interfaces';
+import { DeviceResponseDTO, UpdateDeviceRequestDTO } from '../dtos';
+import { DeviceMapper } from '../mappers';
+import {
+  DeviceStatus,
+  DeviceCategory,
+  MACAddress
+} from 'domain/device-inventory/value-objects';
 
 /**
  * UpdateDeviceUseCase
@@ -97,8 +98,12 @@ export class UpdateDeviceUseCase extends UseCase<
     }
 
     if (request.ownerType !== undefined) {
-      const validOwnerTypes = Object.values(DeviceOwnerType) as string[];
-      if (!validOwnerTypes.includes(request.ownerType.toUpperCase())) {
+      const validOwnerTypes = Object.values(
+        DeviceOwnerType
+      ) as string[];
+      if (
+        !validOwnerTypes.includes(request.ownerType.toUpperCase())
+      ) {
         return Result.fail(
           `Invalid ownerType: "${request.ownerType}". Must be one of: ${validOwnerTypes.join(', ')}`
         );
@@ -168,7 +173,8 @@ export class UpdateDeviceUseCase extends UseCase<
 
     // Build updateDetails fields
     // Only populate keys whose corresponding request fields are not undefined.
-    const updateFields: Parameters<typeof device.updateDetails>[0] = {};
+    const updateFields: Parameters<typeof device.updateDetails>[0] =
+      {};
 
     if (request.name !== undefined) {
       updateFields.name = request.name;
@@ -201,7 +207,9 @@ export class UpdateDeviceUseCase extends UseCase<
       if (request.category === null) {
         updateFields.category = null;
       } else {
-        const categoryResult = DeviceCategory.create(request.category);
+        const categoryResult = DeviceCategory.create(
+          request.category
+        );
         if (categoryResult.isFailure) {
           return this.fail(categoryResult.error!);
         }
@@ -295,7 +303,9 @@ export class UpdateDeviceUseCase extends UseCase<
       if (statusResult.isFailure) {
         return this.fail(statusResult.error!);
       }
-      const changeStatusResult = device.changeStatus(statusResult.value);
+      const changeStatusResult = device.changeStatus(
+        statusResult.value
+      );
       if (changeStatusResult.isFailure) {
         return this.fail(changeStatusResult.error!);
       }
@@ -341,7 +351,9 @@ export class UpdateDeviceUseCase extends UseCase<
     // Persist — domain events are dispatched by the repository implementation
     const saveResult = await this.deviceRepository.save(device);
     if (saveResult.isFailure) {
-      return this.fail(`Failed to persist device: ${saveResult.error}`);
+      return this.fail(
+        `Failed to persist device: ${saveResult.error}`
+      );
     }
 
     return this.ok(DeviceMapper.toDTO(saveResult.value));
