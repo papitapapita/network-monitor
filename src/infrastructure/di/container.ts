@@ -4,13 +4,26 @@ import { WinstonLogger } from '../logging/WinstonLogger';
 import {
   PrismaLocationRepository,
   PrismaDeviceRepository,
-  PrismaDeviceModelRepository
+  PrismaDeviceModelRepository,
+  PrismaPollingConfigurationRepository,
+  PrismaPingResultRepository,
+  PrismaDeviceStateRepository
 } from '../persistence/';
 import {
   LocationController,
   DeviceController,
-  DeviceModelController
+  DeviceModelController,
+  PollingController
 } from '../../presentation/http/controllers';
+import { PingService } from '../monitoring/ping/PingService';
+import { PollingOrchestrator } from '../monitoring/orchestrator/PollingOrchestrator';
+import { EventDispatcher } from '../../domain/shared/core';
+import { DeviceCreatedEvent } from '../../domain/device-inventory/events/DeviceCreatedEvent';
+import { DeviceMonitoringToggledEvent } from '../../domain/device-inventory/events/DeviceMonitoringToggledEvent';
+import { DeviceDetailsUpdatedEvent } from '../../domain/device-inventory/events/DeviceDetailsUpdatedEvent';
+import { DeviceProvisionedHandler } from '../../application/device-monitoring/event-handlers/DeviceProvisionedHandler';
+import { DeviceMonitoringToggledHandler } from '../../application/device-monitoring/event-handlers/DeviceMonitoringToggledHandler';
+import { DeviceIPAddressChangedHandler } from '../../application/device-monitoring/event-handlers/DeviceIPAddressChangedHandler';
 
 // Use Cases
 import {
@@ -25,6 +38,12 @@ import {
   GetDeviceModelUseCase,
   ListDeviceModelsUseCase
 } from '../../application/device-inventory/use-cases';
+import {
+  ExecutePollingCycleUseCase,
+  ConfigureDevicePollingUseCase,
+  GetDevicePollingStatusUseCase,
+  GetDevicePollingHistoryUseCase
+} from '../../application/device-monitoring/use-cases';
 
 /**
  * DependencyContainer
@@ -38,11 +57,18 @@ export class DependencyContainer {
   private locationRepository: PrismaLocationRepository;
   private deviceRepository: PrismaDeviceRepository;
   private deviceModelRepository: PrismaDeviceModelRepository;
+  private pollingConfigRepository: PrismaPollingConfigurationRepository;
+  private pingResultRepository: PrismaPingResultRepository;
+  private deviceStateRepository: PrismaDeviceStateRepository;
 
   // Controllers
   public locationController: LocationController;
   public deviceController: DeviceController;
   public deviceModelController: DeviceModelController;
+  public pollingController: PollingController;
+
+  // Orchestrator (lifecycle managed by main.ts)
+  public pollingOrchestrator: PollingOrchestrator;
 
   constructor() {
     // Initialize infrastructure
@@ -63,7 +89,17 @@ export class DependencyContainer {
       this.prisma
     );
     this.deviceRepository = new PrismaDeviceRepository(this.prisma);
-    this.deviceModelRepository = new PrismaDeviceModelRepository(this.prisma);
+    this.deviceModelRepository = new PrismaDeviceModelRepository(
+      this.prisma
+    );
+    this.pollingConfigRepository =
+      new PrismaPollingConfigurationRepository(this.prisma);
+    this.pingResultRepository = new PrismaPingResultRepository(
+      this.prisma
+    );
+    this.deviceStateRepository = new PrismaDeviceStateRepository(
+      this.prisma
+    );
 
     // Initialize location use cases
     const createLocationUseCase = new CreateLocationUseCase(
@@ -132,6 +168,59 @@ export class DependencyContainer {
       getDeviceModelUseCase,
       listDeviceModelsUseCase,
       this.logger
+    );
+
+    // Initialize monitoring services
+    const pingService = new PingService();
+
+    const executePollingCycleUseCase = new ExecutePollingCycleUseCase(
+      this.pollingConfigRepository,
+      this.pingResultRepository,
+      this.deviceStateRepository,
+      pingService,
+      this.logger
+    );
+    const configurePollingUseCase = new ConfigureDevicePollingUseCase(
+      this.pollingConfigRepository,
+      this.logger
+    );
+    const getPollingStatusUseCase = new GetDevicePollingStatusUseCase(
+      this.pollingConfigRepository,
+      this.deviceStateRepository,
+      this.pingResultRepository,
+      this.logger
+    );
+    const getPollingHistoryUseCase =
+      new GetDevicePollingHistoryUseCase(
+        this.pingResultRepository,
+        this.logger
+      );
+
+    this.pollingController = new PollingController(
+      executePollingCycleUseCase,
+      getPollingStatusUseCase,
+      getPollingHistoryUseCase,
+      configurePollingUseCase,
+      this.logger
+    );
+
+    this.pollingOrchestrator = new PollingOrchestrator(
+      this.pollingConfigRepository,
+      executePollingCycleUseCase
+    );
+
+    // Register cross-context event handlers
+    EventDispatcher.register(
+      DeviceCreatedEvent.name,
+      new DeviceProvisionedHandler(this.pollingConfigRepository)
+    );
+    EventDispatcher.register(
+      DeviceMonitoringToggledEvent.name,
+      new DeviceMonitoringToggledHandler(this.pollingConfigRepository)
+    );
+    EventDispatcher.register(
+      DeviceDetailsUpdatedEvent.name,
+      new DeviceIPAddressChangedHandler(this.pollingConfigRepository)
     );
   }
 

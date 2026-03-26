@@ -3,50 +3,37 @@ import { PollingMetricsDTO } from './PollingMetricsDTO';
 /**
  * PollingResultDTO
  *
- * Data Transfer Object for a single polling result.
- * Represents the outcome of one polling operation at a specific point in time.
+ * Outcome of a single ping check for a device at a point in time.
+ * Used in PollingHistoryDTO and DevicePollingStatusDTO.
  */
 export interface PollingResultDTO {
   /**
-   * Unique identifier for this polling result.
+   * Unique identifier of the ping result record.
    */
   id: string;
 
   /**
-   * ID of the network device that was polled.
+   * ID of the device that was polled.
    */
-  networkDeviceId: string;
+  deviceId: string;
 
   /**
-   * Timestamp when the poll was executed.
+   * Timestamp when the ping was executed.
    */
   timestamp: Date;
 
   /**
-   * Status of the poll: SUCCESS, FAILED, TIMEOUT, or PARTIAL_SUCCESS.
+   * Outcome of the ping: SUCCESS (device responded) or FAILED (no response).
    */
-  status: string;
+  status: 'SUCCESS' | 'FAILED';
 
   /**
-   * Detailed metrics from the poll including multi-ping statistics.
-   * Null if the poll failed completely.
+   * Latency metrics. Null when the device did not respond.
    */
   metrics: PollingMetricsDTO | null;
 
   /**
-   * Retry attempt number (1-10).
-   * 1 = first attempt, 2 = first retry, etc.
+   * Device reachability status derived from this result and consecutive-failure tracking.
    */
-  attemptNumber: number;
-
-  /**
-   * Error message if the poll failed.
-   * Null if poll was successful.
-   */
-  errorMessage: string | null;
-
-  /**
-   * Device status determined by this poll: ONLINE, OFFLINE, or MAINTENANCE.
-   */
-  deviceStatus: string;
+  deviceStatus: 'ONLINE' | 'OFFLINE' | 'UNKNOWN';
 }

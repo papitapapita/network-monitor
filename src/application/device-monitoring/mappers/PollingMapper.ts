@@ -1,132 +1,206 @@
+import { PollingConfiguration } from 'domain/device-monitoring/entities';
+import { DeviceState } from 'domain/device-monitoring/aggregates';
+import { PingResultRecord } from 'domain/device-monitoring/repository';
 import {
-  PollingResult,
-  PollingMetrics
-} from '../../domain/device-inventory';
-import { PollingResultDTO, PollingMetricsDTO } from '../dtos';
+  DevicePollingStatusDTO,
+  PollingResultDTO,
+  PollingMetricsDTO,
+  SingleDevicePollingResultDTO,
+  PollingHistoryDTO
+} from '../dtos';
 
 /**
- * Mapper for pure data structure transformation between Polling DTOs and Domain.
+ * PollingMapper
+ *
+ * Pure data transformation between device-monitoring domain objects and
+ * application-layer DTOs.
  *
  * Responsibilities (ONLY):
- * - Transform polling domain objects to DTOs
- * - Extract primitive values from Value Objects
- * - Flatten nested structures
- * - Convert domain enums to strings
+ * - Extract primitive values from domain entities and value objects.
+ * - Assemble response DTOs from the combination of domain objects.
+ * - Compute derived fields (nextScheduled, statistics, online status text).
  *
  * Does NOT:
- * - Validate business rules (use case responsibility)
- * - Create value objects (use case responsibility)
- * - Create domain entities (use case responsibility)
- * - Make business decisions (use case responsibility)
- * - Call repositories or external services
- * - Perform any side effects
- *
- * @see APPLICATION-MAPPER-STANDARD.md for complete specification
+ * - Validate business rules (entity/value object responsibility).
+ * - Call repositories or perform side effects.
+ * - Make decisions about whether polling should run.
  */
 export class PollingMapper {
+  // ============================================================================
+  // Status DTO
+  // ============================================================================
+
   /**
-   * Converts PollingMetrics value object to DTO.
-   * Pure data transformation - extracts primitives from value object.
-   *
-   * @param metrics - Domain PollingMetrics value object
-   * @returns PollingMetricsDTO with all metric data
+   * Assembles a DevicePollingStatusDTO from the three domain objects
+   * that back the GET /devices/:id/polling/status endpoint.
    */
-  public static toPollingMetricsDTO(
-    metrics: PollingMetrics
-  ): PollingMetricsDTO {
+  public static toStatusDTO(
+    config: PollingConfiguration,
+    state: DeviceState | null,
+    lastPing: PingResultRecord | null
+  ): DevicePollingStatusDTO {
+    const lastCheckedAt = state?.lastCheckedAt ?? null;
+    const nextScheduled = lastCheckedAt
+      ? new Date(
+          lastCheckedAt.getTime() + config.interval.seconds * 1000
+        )
+      : null;
+
     return {
-      // Multi-ping statistics (extract from value object)
-      responseTimes: [...metrics.responseTimes], // Clone array for immutability
-      averageResponseTime: metrics.averageResponseTime,
-      minResponseTime: metrics.minResponseTime,
-      maxResponseTime: metrics.maxResponseTime,
-      jitter: metrics.jitter,
+      deviceId: config.deviceId.toString(),
+      pollingEnabled: config.enabled,
+      intervalSeconds: config.interval.seconds,
+      failuresBeforeDown: config.failuresBeforeDown.value,
+      lastPolled: lastCheckedAt,
+      nextScheduled,
+      currentStatus: state
+        ? state.isOnline
+          ? 'ONLINE'
+          : 'OFFLINE'
+        : 'UNKNOWN',
+      lastResult: lastPing
+        ? this.toPingResultDTO(
+            lastPing,
+            config.deviceId.toString(),
+            state
+          )
+        : null,
+      consecutiveFailures: state?.consecutiveFailures ?? 0
+    };
+  }
 
-      // Packet statistics (map field names from domain to DTO)
-      packetsSent: metrics.totalPings,
-      packetsReceived: metrics.successfulPings,
-      packetLoss: metrics.packetLoss,
+  // ============================================================================
+  // Execute-cycle result DTO
+  // ============================================================================
 
-      // Other metrics
-      ttl: null // TTL not yet implemented in domain
+  /**
+   * Builds the SingleDevicePollingResultDTO for a skipped polling cycle
+   * (polling disabled and forceExecution is false).
+   */
+  public static toSkippedResultDTO(
+    deviceId: string,
+    timestamp: Date
+  ): SingleDevicePollingResultDTO {
+    return {
+      deviceId: deviceId,
+      status: 'SKIPPED',
+      message: 'Polling is disabled for this device',
+      timestamp,
+      metrics: null,
+      deviceStatus: 'UNKNOWN'
     };
   }
 
   /**
-   * Converts PollingResult aggregate to DTO.
-   * Pure data transformation - extracts primitives and converts enums to strings.
-   *
-   * @param result - Domain PollingResult aggregate
-   * @returns PollingResultDTO with complete polling result data
+   * Builds the SingleDevicePollingResultDTO returned after a manual or
+   * scheduled poll execution.
    */
-  public static toPollingResultDTO(
-    result: PollingResult
+  public static toPollResultDTO(params: {
+    deviceId: string;
+    isReachable: boolean;
+    latencyMs: number | null;
+    isOnline: boolean;
+    consecutiveFailures: number;
+    timestamp: Date;
+  }): SingleDevicePollingResultDTO {
+    const {
+      deviceId,
+      isReachable,
+      latencyMs,
+      isOnline,
+      consecutiveFailures,
+      timestamp
+    } = params;
+
+    return {
+      deviceId: deviceId,
+      status: isReachable ? 'SUCCESS' : 'FAILED',
+      message: isReachable
+        ? `Device responded in ${latencyMs}ms`
+        : `Device did not respond (${consecutiveFailures} consecutive failure(s))`,
+      timestamp,
+      metrics:
+        isReachable && latencyMs !== null
+          ? this.toMetricsDTO(latencyMs)
+          : null,
+      deviceStatus: isOnline ? 'ONLINE' : 'OFFLINE'
+    };
+  }
+
+  // ============================================================================
+  // History DTO
+  // ============================================================================
+
+  /**
+   * Converts a page of PingResultRecords plus aggregate statistics into
+   * the full PollingHistoryDTO for the GET /devices/:id/polling/history endpoint.
+   */
+  public static toHistoryDTO(
+    page: PingResultRecord[],
+    deviceId: string,
+    totalCount: number
+  ): PollingHistoryDTO {
+    const successCount = page.filter((r) => r.isReachable).length;
+    const latencies = page
+      .filter((r) => r.isReachable && r.latencyMs !== null)
+      .map((r) => r.latencyMs as number);
+
+    const successRate =
+      totalCount > 0 ? (successCount / totalCount) * 100 : 0;
+    const averageResponseTime =
+      latencies.length > 0
+        ? latencies.reduce((sum, l) => sum + l, 0) / latencies.length
+        : 0;
+    const minResponseTime =
+      latencies.length > 0 ? Math.min(...latencies) : 0;
+    const maxResponseTime =
+      latencies.length > 0 ? Math.max(...latencies) : 0;
+
+    return {
+      deviceId,
+      results: page.map((r) =>
+        this.toPingResultDTO(r, deviceId, null)
+      ),
+      totalCount,
+      statistics: {
+        successRate,
+        averageResponseTime,
+        minResponseTime,
+        maxResponseTime,
+        uptimePercentage: successRate
+      }
+    };
+  }
+
+  // ============================================================================
+  // Private helpers
+  // ============================================================================
+
+  private static toPingResultDTO(
+    ping: PingResultRecord,
+    deviceId: string,
+    state: DeviceState | null
   ): PollingResultDTO {
     return {
-      // Extract string IDs from Value Objects
-      id: result.id.toString(),
-      networkDeviceId: result.networkDeviceId.toString(),
-
-      // Primitive fields
-      timestamp: result.timestamp,
-      attemptNumber: result.attemptNumber,
-      errorMessage: result.errorMessage,
-
-      // Extract string values from domain enums
-      status: result.status.toString(),
-      deviceStatus: result.deviceStatus.toString(),
-
-      // Nested value object transformation
-      metrics: result.metrics
-        ? this.toPollingMetricsDTO(result.metrics)
-        : null
+      id: ping.id,
+      deviceId,
+      timestamp: ping.checkedAt,
+      status: ping.isReachable ? 'SUCCESS' : 'FAILED',
+      metrics:
+        ping.isReachable && ping.latencyMs !== null
+          ? this.toMetricsDTO(ping.latencyMs)
+          : null,
+      deviceStatus: state
+        ? state.isOnline
+          ? 'ONLINE'
+          : 'OFFLINE'
+        : ping.isReachable
+          ? 'ONLINE'
+          : 'OFFLINE'
     };
   }
 
-  /**
-   * Converts array of PollingResult aggregates to array of DTOs.
-   * Maps each result using toPollingResultDTO.
-   *
-   * @param results - Array of domain PollingResult aggregates
-   * @returns Array of PollingResultDTOs
-   */
-  public static toPollingResultDTOList(
-    results: PollingResult[]
-  ): PollingResultDTO[] {
-    return results.map((result) => this.toPollingResultDTO(result));
-  }
-
-  /**
-   * Extracts poll statistics from PollingMetrics for summary views.
-   * Pure data transformation - flattens value object into plain object.
-   *
-   * This is used for creating summary statistics without full DTO structure.
-   * Returns null if no metrics are available.
-   *
-   * @param metrics - Domain PollingMetrics value object or null
-   * @returns Statistics object or null if no metrics
-   */
-  public static toLastPollStatistics(
-    metrics: PollingMetrics | null
-  ): {
-    responseTimes: number[];
-    average: number;
-    min: number;
-    max: number;
-    jitter: number;
-    packetLoss: number;
-  } | null {
-    if (!metrics) {
-      return null;
-    }
-
-    return {
-      responseTimes: [...metrics.responseTimes], // Clone for immutability
-      average: metrics.averageResponseTime,
-      min: metrics.minResponseTime,
-      max: metrics.maxResponseTime,
-      jitter: metrics.jitter,
-      packetLoss: metrics.packetLoss
-    };
+  private static toMetricsDTO(latencyMs: number): PollingMetricsDTO {
+    return { latencyMs };
   }
 }

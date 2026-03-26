@@ -1,76 +1,56 @@
-import { PollingResultDTO } from '../../dtos/polling/PollingResultDTO';
+import { PollingResultDTO } from './PollingResultDTO';
 
 /**
  * DevicePollingStatusDTO
  *
- * Current polling status and configuration for a device.
+ * Current polling configuration and operational status for a device.
  * Returned by GetDevicePollingStatusUseCase.
  */
 export interface DevicePollingStatusDTO {
   /**
-   * Network device ID.
+   * ID of the device.
    */
   deviceId: string;
 
   /**
-   * Device name.
-   */
-  deviceName: string;
-
-  /**
-   * Whether polling is enabled for this device.
+   * Whether polling is currently enabled for this device.
    */
   pollingEnabled: boolean;
 
   /**
-   * Polling interval in seconds.
+   * How often the device is pinged, in seconds.
    */
   intervalSeconds: number;
 
   /**
-   * Number of pings per poll (1-10).
+   * Number of consecutive ping failures required to mark the device OFFLINE.
    */
-  pingCount: number;
+  failuresBeforeDown: number;
 
   /**
-   * Timestamp of last poll execution.
-   * Null if never polled.
+   * Timestamp of the most recent poll execution. Null if never polled.
    */
   lastPolled: Date | null;
 
   /**
-   * Timestamp when next poll is scheduled.
-   * Null if polling is disabled.
+   * Estimated timestamp for the next scheduled poll.
+   * Computed as lastPolled + intervalSeconds.
+   * Null if polling is disabled or the device has never been polled.
    */
   nextScheduled: Date | null;
 
   /**
-   * Current device status: ONLINE, OFFLINE, or MAINTENANCE.
+   * Current reachability status derived from the latest device state.
    */
-  currentStatus: string;
+  currentStatus: 'ONLINE' | 'OFFLINE' | 'UNKNOWN';
 
   /**
-   * Most recent polling result.
-   * Null if never polled.
+   * Most recent polling result. Null if the device has never been polled.
    */
   lastResult: PollingResultDTO | null;
 
   /**
-   * Number of consecutive poll failures.
-   * Reset to 0 on successful poll.
+   * Number of consecutive poll failures since the last successful ping.
    */
   consecutiveFailures: number;
-
-  /**
-   * Multi-ping statistics from the last poll.
-   * Null if never polled or last poll failed.
-   */
-  lastPollStatistics: {
-    responseTimes: number[];
-    average: number;
-    min: number;
-    max: number;
-    jitter: number;
-    packetLoss: number;
-  } | null;
 }

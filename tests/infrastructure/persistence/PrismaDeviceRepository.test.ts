@@ -1,5 +1,5 @@
 // Source: src/infrastructure/persistence/PrismaDeviceRepository.ts
-
+import { IPAddress } from 'domain/shared';
 import { PrismaDeviceRepository } from '../../../src/infrastructure/persistence/PrismaDeviceRepository';
 import { DeviceMapper } from '../../../src/infrastructure/mappers/DeviceMapper';
 import { Device } from '../../../src/domain/device-inventory/aggregates/Device';
@@ -10,7 +10,6 @@ import {
 } from '../../../src/domain/shared/ids';
 import {
   MACAddress,
-  IPAddress,
   DeviceStatus,
   DeviceCategory
 } from '../../../src/domain/device-inventory/value-objects';

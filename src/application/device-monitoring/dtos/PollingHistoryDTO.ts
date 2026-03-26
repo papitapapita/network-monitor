@@ -3,52 +3,47 @@ import { PollingResultDTO } from './PollingResultDTO';
 /**
  * PollingHistoryDTO
  *
- * Historical polling results for a device with aggregate statistics.
+ * Paginated polling history for a device with aggregate statistics.
  * Returned by GetDevicePollingHistoryUseCase.
  */
 export interface PollingHistoryDTO {
+  deviceId: string;
   /**
-   * Array of polling results within the requested time range.
+   * Page of polling results matching the query filters.
    */
   results: PollingResultDTO[];
 
   /**
-   * Total count of results matching the query (before pagination).
+   * Total number of results matching the filters (before pagination).
    */
   totalCount: number;
 
   /**
-   * Aggregate statistics across all results in the time range.
+   * Aggregate statistics computed across all matching results (not just the page).
    */
   statistics: {
     /**
-     * Success rate percentage (0-100).
+     * Percentage of polls where the device responded (0–100).
      */
     successRate: number;
 
     /**
-     * Average response time in milliseconds.
+     * Mean latency across all successful pings, in milliseconds. 0 if none succeeded.
      */
     averageResponseTime: number;
 
     /**
-     * Minimum response time in milliseconds.
+     * Fastest successful ping, in milliseconds. 0 if none succeeded.
      */
     minResponseTime: number;
 
     /**
-     * Maximum response time in milliseconds.
+     * Slowest successful ping, in milliseconds. 0 if none succeeded.
      */
     maxResponseTime: number;
 
     /**
-     * Average packet loss percentage.
-     */
-    averagePacketLoss: number;
-
-    /**
-     * Uptime percentage (0-100).
-     * Based on ratio of successful to total polls.
+     * Uptime percentage — identical to successRate for V1 single-ping polling.
      */
     uptimePercentage: number;
   };

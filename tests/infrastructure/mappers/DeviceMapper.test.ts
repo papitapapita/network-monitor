@@ -17,7 +17,7 @@ const INSTALLED_DATE = new Date('2023-11-01T00:00:00.000Z');
 
 function makeRawDevice(
   overrides: Record<string, unknown> = {}
-): Record<string, unknown> {
+): Parameters<typeof DeviceMapper.toDomain>[0] {
   return {
     id: VALID_UUID,
     deviceModelId: VALID_UUID_2,
@@ -35,7 +35,7 @@ function makeRawDevice(
     updatedAt: UPDATED_DATE,
     monitoringEnabled: true,
     ...overrides
-  };
+  } as Parameters<typeof DeviceMapper.toDomain>[0];
 }
 
 // ---------------------------------------------------------------------------

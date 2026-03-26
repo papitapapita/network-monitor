@@ -81,7 +81,7 @@ export function createLocationRoutes(
    */
   router.get(
     '/',
-    (req, res, next) => {
+    (req, _res, next) => {
       console.log(
         `Incoming Request before get: ${req.method} ${req.url}`
       );

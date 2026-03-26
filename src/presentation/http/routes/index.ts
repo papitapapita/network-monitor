@@ -3,6 +3,7 @@ import { DependencyContainer } from '../../../infrastructure/di/container';
 import { createLocationRoutes } from './location.routes';
 import { createDeviceRoutes } from './device.routes';
 import { createDeviceModelRoutes } from './device-model.routes';
+import { createPollingRoutes } from './polling.routes';
 
 /**
  * setupRoutes
@@ -39,6 +40,16 @@ export function setupRoutes(
   apiRouter.use(
     '/device-models',
     createDeviceModelRoutes(container.deviceModelController)
+  );
+
+  // =====================================
+  // DEVICE-MONITORING BOUNDED CONTEXT
+  // =====================================
+
+  // Polling: /api/devices/:id/poll, /api/devices/:id/polling/*
+  apiRouter.use(
+    '/devices',
+    createPollingRoutes(container.pollingController)
   );
 
   // Mount API router under /api prefix

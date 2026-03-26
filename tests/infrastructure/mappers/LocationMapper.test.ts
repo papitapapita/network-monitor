@@ -16,7 +16,7 @@ const UPDATED_DATE = new Date('2024-06-15T12:00:00.000Z');
 
 function makeRawLocation(
   overrides: Record<string, unknown> = {}
-): Record<string, unknown> {
+): Parameters<typeof LocationMapper.toDomain>[0] {
   return {
     id: VALID_UUID,
     name: 'Torre Norte',
@@ -30,7 +30,7 @@ function makeRawLocation(
     createdAt: BASE_DATE,
     updatedAt: UPDATED_DATE,
     ...overrides
-  };
+  } as Parameters<typeof LocationMapper.toDomain>[0];
 }
 
 function makeLocationDomain(overrides: {
