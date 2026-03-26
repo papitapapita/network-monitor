@@ -33,7 +33,7 @@ async function bootstrap(): Promise<Server> {
   });
 
   // Health check
-  app.get('/health', (req, res) => {
+  app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
@@ -41,11 +41,14 @@ async function bootstrap(): Promise<Server> {
   const container = await setupDependencies();
   setupRoutes(app, container);
 
+  // Start polling orchestrator
+  container.pollingOrchestrator.start();
+
   // Error handling middleware
   app.use(
     (
       err: Error,
-      req: express.Request,
+      _req: express.Request,
       res: express.Response,
       next: express.NextFunction
     ) => {
@@ -58,7 +61,7 @@ async function bootstrap(): Promise<Server> {
   );
 
   // 404 handler
-  app.use((req, res) => {
+  app.use((_req, res) => {
     res.status(404).json({
       success: false,
       error: 'Not found'
@@ -74,7 +77,9 @@ async function bootstrap(): Promise<Server> {
   // Graceful shutdown
   process.on('SIGTERM', () => {
     logger.info('SIGTERM received, closing server...');
-    server.close(() => {
+    server.close(async () => {
+      await container.pollingOrchestrator.stop();
+      await container.disconnect();
       logger.info('Server closed');
       process.exit(0);
     });

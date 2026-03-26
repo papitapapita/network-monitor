@@ -3,6 +3,35 @@ import { LocationId } from '../../domain/shared/ids';
 import { LocationType } from '../../domain/device-inventory/enums';
 import { Coordinates } from '../../domain/device-inventory/value-objects';
 import { Result } from '../../domain/shared/core';
+import { LocationType as PrismaLocationType } from '../../generated/prisma/client';
+
+type PrismaLocationRecord = {
+  id: string;
+  name: string;
+  type: string;
+  municipality: string | null;
+  neighborhood: string | null;
+  address: string | null;
+  latitude: number | { toNumber(): number } | null;
+  longitude: number | { toNumber(): number } | null;
+  altitude: number | { toNumber(): number } | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type LocationPersistenceData = {
+  id: string;
+  name: string;
+  type: PrismaLocationType;
+  municipality: string | null;
+  neighborhood: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  altitude: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 /**
  * Mapper for converting Location aggregate to/from Prisma model.
@@ -17,17 +46,7 @@ import { Result } from '../../domain/shared/core';
  * - Optional address fields (municipality, neighborhood, address) preserved as-is
  */
 export class LocationMapper {
-  /**
-   * Converts a raw Prisma Location record to the Location domain aggregate.
-   *
-   * Uses Location.reconstitute() to bypass domain event emission and
-   * invariant re-validation — appropriate when hydrating persisted data.
-   *
-   * @param raw - Raw Prisma Location record
-   * @returns Result containing Location aggregate or an error message
-   */
-  public static toDomain(raw: any): Result<Location> {
-    // Parse and validate the LocationId
+  public static toDomain(raw: PrismaLocationRecord): Result<Location> {
     const locationIdResult = LocationId.parse(raw.id);
     if (locationIdResult.isFailure) {
       return Result.fail<Location>(
@@ -35,18 +54,15 @@ export class LocationMapper {
       );
     }
 
-    // Map Prisma LocationType to domain LocationType
     const locationType = this.mapLocationTypeFromPrisma(raw.type);
 
-    // Reconstitute Coordinates value object if latitude and longitude are present.
-    // Prisma stores coordinates as Decimal — convert to number before use.
+    // Prisma stores coordinates as Decimal — normalise to number before use.
     let coordinates: Coordinates | null = null;
     if (raw.latitude != null && raw.longitude != null) {
       coordinates = Coordinates.reconstitute({
         latitude: Number(raw.latitude),
         longitude: Number(raw.longitude),
-        altitude:
-          raw.altitude != null ? Number(raw.altitude) : undefined
+        altitude: raw.altitude != null ? Number(raw.altitude) : undefined
       });
     }
 
@@ -64,14 +80,7 @@ export class LocationMapper {
     return Result.ok<Location>(location);
   }
 
-  /**
-   * Converts a Location domain aggregate to a plain object suitable for
-   * Prisma create or update operations.
-   *
-   * @param location - Location aggregate
-   * @returns Object ready for Prisma create/update operations
-   */
-  public static toPersistence(location: Location): any {
+  public static toPersistence(location: Location): LocationPersistenceData {
     const coordinates = location.coordinates;
 
     return {
@@ -85,7 +94,7 @@ export class LocationMapper {
       longitude: coordinates != null ? coordinates.longitude : null,
       altitude:
         coordinates != null && coordinates.hasAltitude()
-          ? coordinates.altitude
+          ? coordinates.altitude!
           : null,
       createdAt: location.createdAt,
       updatedAt: location.updatedAt
@@ -97,19 +106,10 @@ export class LocationMapper {
   // ============================================================================
 
   /**
-   * Maps a Prisma LocationType string to the domain LocationType enum.
-   *
-   * The Prisma and domain enums are identical in value, so this is a direct
-   * cast guarded by an exhaustive switch for safety.
-   *
-   * Throws on an unrecognised value rather than returning Result.fail() because
-   * an unknown type in the database is a data integrity violation — corrupt
-   * persisted state that the caller cannot meaningfully recover from. Throwing
-   * lets the repository's try/catch surface it as an infrastructure error.
+   * Throws on an unrecognised value — an unknown type in the database is a data
+   * integrity violation that the repository's try/catch will surface as Result.fail.
    */
-  private static mapLocationTypeFromPrisma(
-    prismaType: string
-  ): LocationType {
+  private static mapLocationTypeFromPrisma(prismaType: string): LocationType {
     switch (prismaType) {
       case 'TOWER':
         return LocationType.TOWER;
@@ -130,12 +130,7 @@ export class LocationMapper {
     }
   }
 
-  /**
-   * Maps a domain LocationType enum to the Prisma LocationType string.
-   */
-  private static mapLocationTypeToPrisma(
-    locationType: LocationType
-  ): string {
+  private static mapLocationTypeToPrisma(locationType: LocationType): PrismaLocationType {
     switch (locationType) {
       case LocationType.TOWER:
         return 'TOWER';

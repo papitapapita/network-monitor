@@ -1,19 +1,19 @@
 import { PrismaClient } from '../../generated/prisma/client';
-import { Device } from '../../domain/device-inventory/aggregates/Device';
+import { IPAddress } from 'domain/shared';
+import { Device } from 'domain/device-inventory/aggregates';
 import {
   DeviceId,
   LocationId,
   DeviceModelId
-} from '../../domain/shared/ids';
+} from 'domain/shared/ids';
 import {
-  IPAddress,
   MACAddress,
   DeviceStatus,
   DeviceCategory
-} from '../../domain/device-inventory/value-objects';
-import { DeviceOwnerType } from '../../domain/device-inventory/enums';
-import { Result, EventDispatcher } from '../../domain/shared/core';
-import { IDeviceRepository } from '../../domain/device-inventory/repository';
+} from 'domain/device-inventory/value-objects';
+import { DeviceOwnerType } from 'domain/device-inventory/enums';
+import { Result, EventDispatcher } from 'domain/shared/core';
+import { IDeviceRepository } from 'domain/device-inventory/repository';
 import { DeviceMapper } from '../mappers';
 
 export class PrismaDeviceRepository implements IDeviceRepository {
