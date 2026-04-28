@@ -5,14 +5,17 @@
   "main": "dist/main.js",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/main.js",
     "dev": "tsx --watch src/main.ts",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write src",
-    "start": "node --env-file=src/.env dist/main.js",
+    "start": "node --env-file=.env dist/main.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:integration": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js --runInBand"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "keywords": [],
   "author": "Jonathan O",
@@ -27,7 +30,7 @@
     "dotenv": "^16.4.7",
     "express": "^5.2.1",
     "libphonenumber-js": "^1.12.29",
-    "nodemailer": "^7.0.10",
+    "nodemailer": "^8.0.7",
     "pg": "^8.19.0",
     "ping": "^0.4.4",
     "winston": "^3.17.0",
@@ -40,6 +43,7 @@
     "@types/nodemailer": "^6.4.17",
     "@types/ping": "^0.4.4",
     "@types/supertest": "^7.2.0",
+    "esbuild": "^0.28.0",
     "eslint": "^9.21.0",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-prettier": "^5.2.3",
