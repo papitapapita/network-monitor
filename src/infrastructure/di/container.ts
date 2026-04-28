@@ -200,8 +200,7 @@ export class DependencyContainer {
       executePollingCycleUseCase,
       getPollingStatusUseCase,
       getPollingHistoryUseCase,
-      configurePollingUseCase,
-      this.logger
+      configurePollingUseCase
     );
 
     this.pollingOrchestrator = new PollingOrchestrator(

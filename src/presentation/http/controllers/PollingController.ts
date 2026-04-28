@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { ILogger } from '../../../application/shared/interfaces';
 import { ExecutePollingCycleUseCase } from '../../../application/device-monitoring/use-cases/ExecutePollingCycleUseCase';
 import { GetDevicePollingStatusUseCase } from '../../../application/device-monitoring/use-cases/GetDevicePollingStatusUseCase';
 import { GetDevicePollingHistoryUseCase } from '../../../application/device-monitoring/use-cases/GetDevicePollingHistoryUseCase';
@@ -10,8 +9,7 @@ export class PollingController {
     private readonly executePollingCycleUseCase: ExecutePollingCycleUseCase,
     private readonly getPollingStatusUseCase: GetDevicePollingStatusUseCase,
     private readonly getPollingHistoryUseCase: GetDevicePollingHistoryUseCase,
-    private readonly configurePollingUseCase: ConfigureDevicePollingUseCase,
-    private readonly logger: ILogger
+    private readonly configurePollingUseCase: ConfigureDevicePollingUseCase
   ) {}
 
   /**
@@ -75,7 +73,7 @@ export class PollingController {
       deviceId: req.params.id,
       fromDate: query.fromDate ? new Date(query.fromDate) : undefined,
       toDate: query.toDate ? new Date(query.toDate) : undefined,
-      status: query.status ? query.status.split(',') : undefined,
+      status: query.status ? (query.status.split(',') as ('SUCCESS' | 'FAILED' | 'UNKNOWN')[]) : undefined,
       limit: query.limit ? parseInt(query.limit, 10) : undefined,
       offset: query.offset ? parseInt(query.offset, 10) : undefined
     });

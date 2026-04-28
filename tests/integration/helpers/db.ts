@@ -1,0 +1,113 @@
+import { PrismaClient } from '../../../src/generated/prisma/client';
+
+/**
+ * Removes all rows from tables that integration tests write to.
+ * Deletes Devices first so cascade rules clean up child rows
+ * (device_states, ping_results, polling_configurations, alert_events).
+ */
+export async function cleanDatabase(prisma: PrismaClient): Promise<void> {
+  await prisma.device.deleteMany();
+  await prisma.location.deleteMany();
+}
+
+/**
+ * Upserts the MikroTik RB4011iGS+ device model.
+ * Returns its UUID — use it as `deviceModelId` when creating test devices.
+ */
+export async function seedDeviceModel(prisma: PrismaClient): Promise<string> {
+  const model = await prisma.deviceModel.upsert({
+    where: {
+      manufacturer_model: {
+        manufacturer: 'MIKROTIK',
+        model: 'RB4011iGS+'
+      }
+    },
+    update: {},
+    create: {
+      manufacturer: 'MIKROTIK',
+      model: 'RB4011iGS+',
+      deviceType: 'ROUTERBOARD'
+    }
+  });
+  return model.id;
+}
+
+/**
+ * Upserts a test Tower location.
+ * Returns its UUID — use it as `locationId` when creating test devices.
+ */
+export async function seedLocation(prisma: PrismaClient): Promise<string> {
+  const location = await prisma.location.upsert({
+    where: { id: '00000000-0000-4000-8000-000000000010' },
+    update: {},
+    create: {
+      id: '00000000-0000-4000-8000-000000000010',
+      name: 'Test Tower Location',
+      type: 'TOWER'
+    }
+  });
+  return location.id;
+}
+
+/**
+ * Polls the DB until a PollingConfiguration row appears for the given device.
+ * DeviceProvisionedHandler is fire-and-forget, so the row may not exist immediately.
+ */
+export async function waitForPollingConfig(
+  prisma: PrismaClient,
+  deviceId: string,
+  timeoutMs = 2000
+): Promise<void> {
+  const interval = 100;
+  const maxAttempts = Math.ceil(timeoutMs / interval);
+  for (let i = 0; i < maxAttempts; i++) {
+    const config = await prisma.pollingConfiguration.findFirst({
+      where: { deviceId }
+    });
+    if (config) return;
+    await new Promise((r) => setTimeout(r, interval));
+  }
+  throw new Error(
+    `PollingConfiguration for device ${deviceId} did not appear within ${timeoutMs}ms`
+  );
+}
+
+/**
+ * Creates a device with monitoringEnabled=true and an IP address,
+ * then waits for the DeviceProvisionedHandler to create its PollingConfiguration.
+ * Returns { deviceId, pollingConfigId }.
+ */
+export async function seedMonitoredDevice(
+  prisma: PrismaClient,
+  deviceModelId: string,
+  ipAddress = '192.168.99.1'
+): Promise<{ deviceId: string; pollingConfigId: string }> {
+  const device = await prisma.device.create({
+    data: {
+      name: 'Monitored Test Device',
+      owner: 'COMPANY',
+      status: 'ACTIVE',
+      monitoringEnabled: true,
+      ipAddress,
+      deviceModelId
+    }
+  });
+
+  // Manually create the PollingConfiguration since we're bypassing the event handler
+  // by inserting directly into DB (no EventDispatcher in this path)
+  const pollingConfig = await prisma.pollingConfiguration.create({
+    data: {
+      deviceId: device.id,
+      ipAddress,
+      enabled: true,
+      pingIntervalSecs: 60,
+      failuresBeforeDown: 3
+    }
+  });
+
+  return { deviceId: device.id, pollingConfigId: pollingConfig.id };
+}
+
+/** Known-valid UUIDs that will never exist in the test DB */
+export const GHOST_ID = '00000000-0000-4000-8000-000000000001';
+export const INVALID_ID = 'not-a-uuid';

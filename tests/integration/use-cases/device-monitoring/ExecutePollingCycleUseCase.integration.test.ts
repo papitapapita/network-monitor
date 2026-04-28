@@ -1,0 +1,177 @@
+import { PrismaClient } from '../../../../src/generated/prisma/client';
+import { ExecutePollingCycleUseCase } from 'application/device-monitoring/use-cases/ExecutePollingCycleUseCase';
+import { ConfigureDevicePollingUseCase } from 'application/device-monitoring/use-cases/ConfigureDevicePollingUseCase';
+import { PrismaPollingConfigurationRepository } from 'infrastructure/persistence/PrismaPollingConfigurationRepository';
+import { PrismaPingResultRepository } from 'infrastructure/persistence/PrismaPingResultRepository';
+import { PrismaDeviceStateRepository } from 'infrastructure/persistence/PrismaDeviceStateRepository';
+import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
+import {
+  setupDependencies,
+  DependencyContainer
+} from 'infrastructure/di/container';
+import {
+  cleanDatabase,
+  seedDeviceModel,
+  seedMonitoredDevice
+} from '../../helpers/db';
+import { FakePingService } from '../../helpers/FakePingService';
+
+describe('ExecutePollingCycleUseCase — integration', () => {
+  let container: DependencyContainer;
+  let prisma: PrismaClient;
+  let useCase: ExecutePollingCycleUseCase;
+  let configureUseCase: ConfigureDevicePollingUseCase;
+  let fakePing: FakePingService;
+  let deviceModelId: string;
+  let deviceId: string;
+
+  beforeAll(async () => {
+    container = await setupDependencies();
+    prisma = container.getPrisma();
+    deviceModelId = await seedDeviceModel(prisma);
+
+    const pollingConfigRepo = new PrismaPollingConfigurationRepository(prisma);
+    const pingResultRepo = new PrismaPingResultRepository(prisma);
+    const deviceStateRepo = new PrismaDeviceStateRepository(prisma);
+    const logger = new WinstonLogger();
+
+    fakePing = new FakePingService();
+    useCase = new ExecutePollingCycleUseCase(
+      pollingConfigRepo,
+      pingResultRepo,
+      deviceStateRepo,
+      fakePing,
+      logger
+    );
+    configureUseCase = new ConfigureDevicePollingUseCase(pollingConfigRepo, logger);
+  });
+
+  afterAll(async () => {
+    await container.disconnect();
+  });
+
+  beforeEach(async () => {
+    await cleanDatabase(prisma);
+    const seeded = await seedMonitoredDevice(prisma, deviceModelId);
+    deviceId = seeded.deviceId;
+    fakePing.setResult({ isReachable: true, latencyMs: 10 });
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Happy path
+  // ──────────────────────────────────────────────────────────────
+
+  it('saves a ping result and marks device ONLINE when reachable', async () => {
+    const result = await useCase.execute({ deviceId, forceExecution: true });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.status).toBe('SUCCESS');
+    expect(result.value.deviceStatus).toBe('ONLINE');
+
+    const pingResults = await prisma.pingResult.findMany({ where: { deviceId } });
+    expect(pingResults).toHaveLength(1);
+    expect(pingResults[0].isReachable).toBe(true);
+
+    const state = await prisma.deviceState.findFirst({ where: { deviceId } });
+    expect(state).not.toBeNull();
+    expect(state!.isOnline).toBe(true);
+  });
+
+  it('increments consecutive failures but keeps device ONLINE when below threshold', async () => {
+    // First, establish an ONLINE state with a successful ping
+    await useCase.execute({ deviceId, forceExecution: true });
+
+    // Now fail once — below default threshold of 3, device should stay ONLINE
+    fakePing.setResult({ isReachable: false, latencyMs: null });
+    const result = await useCase.execute({ deviceId, forceExecution: true });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.status).toBe('FAILED');
+
+    const state = await prisma.deviceState.findFirst({ where: { deviceId } });
+    expect(state!.consecutiveFailures).toBe(1);
+    // Device was online before the failure; below threshold → stays online
+    expect(state!.isOnline).toBe(true);
+  });
+
+  it('marks device OFFLINE after consecutive failures >= failuresBeforeDown', async () => {
+    fakePing.setResult({ isReachable: false, latencyMs: null });
+
+    // Default failuresBeforeDown is 3 — run 3 failing cycles
+    for (let i = 0; i < 3; i++) {
+      await useCase.execute({ deviceId, forceExecution: true });
+    }
+
+    const state = await prisma.deviceState.findFirst({ where: { deviceId } });
+    expect(state!.isOnline).toBe(false);
+    expect(state!.consecutiveFailures).toBeGreaterThanOrEqual(3);
+  });
+
+  it('resets failures and marks device ONLINE after recovery', async () => {
+    fakePing.setResult({ isReachable: false, latencyMs: null });
+
+    // Drive it offline first
+    for (let i = 0; i < 3; i++) {
+      await useCase.execute({ deviceId, forceExecution: true });
+    }
+
+    // Now recover
+    fakePing.setResult({ isReachable: true, latencyMs: 5 });
+    const result = await useCase.execute({ deviceId, forceExecution: true });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.deviceStatus).toBe('ONLINE');
+
+    const state = await prisma.deviceState.findFirst({ where: { deviceId } });
+    expect(state!.isOnline).toBe(true);
+    expect(state!.consecutiveFailures).toBe(0);
+  });
+
+  it('skips execution when polling is disabled and forceExecution is false', async () => {
+    await configureUseCase.execute({ deviceId, enabled: false });
+
+    const result = await useCase.execute({ deviceId, forceExecution: false });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.status).toBe('SKIPPED');
+
+    // No ping results should be created
+    const pingResults = await prisma.pingResult.findMany({ where: { deviceId } });
+    expect(pingResults).toHaveLength(0);
+  });
+
+  it('executes even when disabled if forceExecution is true', async () => {
+    await configureUseCase.execute({ deviceId, enabled: false });
+
+    const result = await useCase.execute({ deviceId, forceExecution: true });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.status).toBe('SUCCESS');
+
+    const pingResults = await prisma.pingResult.findMany({ where: { deviceId } });
+    expect(pingResults).toHaveLength(1);
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Failure paths
+  // ──────────────────────────────────────────────────────────────
+
+  it('fails when no polling configuration exists', async () => {
+    // Use a device ID that has no polling config
+    const ghostDeviceId = '00000000-0000-4000-8000-000000000099';
+    const result = await useCase.execute({
+      deviceId: ghostDeviceId,
+      forceExecution: true
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/no polling configuration/i);
+  });
+
+  it('fails when deviceId is empty', async () => {
+    const result = await useCase.execute({ deviceId: '' });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/required/i);
+  });
+});

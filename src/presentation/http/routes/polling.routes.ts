@@ -18,7 +18,9 @@ import {
  * - GET    /api/devices/:id/polling/history   - Ping history
  * - PATCH  /api/devices/:id/polling/config    - Configure polling
  */
-export function createPollingRoutes(controller: PollingController): Router {
+export function createPollingRoutes(
+  controller: PollingController
+): Router {
   const router = Router({ mergeParams: true });
 
   router.post(

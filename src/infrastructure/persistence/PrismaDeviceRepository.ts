@@ -42,6 +42,7 @@ export class PrismaDeviceRepository implements IDeviceRepository {
         }
       });
 
+      EventDispatcher.markAggregateForDispatch(device);
       EventDispatcher.dispatchEventsForAggregate(device.id);
 
       return Result.ok<Device>(device);

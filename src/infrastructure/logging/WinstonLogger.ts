@@ -34,7 +34,7 @@ export class WinstonLogger implements ILogger {
               ({ timestamp, level, message, ...meta }) => {
                 const metaStr =
                   Object.keys(meta).length > 0
-                    ? JSON.stringify(meta)
+                    ? JSON.stringify(meta, null, 2)
                     : '';
                 return `${timestamp} [${level}]: ${message} ${metaStr}`;
               }
