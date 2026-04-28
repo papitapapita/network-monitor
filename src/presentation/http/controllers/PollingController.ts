@@ -73,7 +73,13 @@ export class PollingController {
       deviceId: req.params.id,
       fromDate: query.fromDate ? new Date(query.fromDate) : undefined,
       toDate: query.toDate ? new Date(query.toDate) : undefined,
-      status: query.status ? (query.status.split(',') as ('SUCCESS' | 'FAILED' | 'UNKNOWN')[]) : undefined,
+      status: query.status
+        ? (query.status.split(',') as (
+            | 'SUCCESS'
+            | 'FAILED'
+            | 'UNKNOWN'
+          )[])
+        : undefined,
       limit: query.limit ? parseInt(query.limit, 10) : undefined,
       offset: query.offset ? parseInt(query.offset, 10) : undefined
     });
