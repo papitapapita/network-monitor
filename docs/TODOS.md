@@ -10,6 +10,9 @@ Should the address be immutable once assigned to a device, or can operators upda
 
 Implement a module that saves the backups of the main devices like access points and routers automatically every certain time
 
-
 To Do 6/4/2026
 Make the backend run
+
+Normalize the timestamps for proper logging use a NTPS
+
+- Update the README.md

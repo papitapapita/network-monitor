@@ -1,5 +1,9 @@
-import 'dotenv/config';
+import { config } from 'dotenv';
 import { defineConfig, env } from 'prisma/config';
+
+const envFile =
+  process.env.NODE_ENV === 'production' ? '.env.production' : '.env';
+config({ path: envFile });
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
@@ -10,7 +14,6 @@ export default defineConfig({
   datasource: {
     url: env('DATABASE_URL'),
     // @ts-expect-error directUrl not yet typed in PrismaConfig but supported at runtime
-
-    directUrl: env('DIRECT_URL') // Use direct connection for migrations and CLI operations
+    directUrl: env('DIRECT_URL')
   }
 });
