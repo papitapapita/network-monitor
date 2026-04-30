@@ -1,4 +1,6 @@
 export * from './ConfigureDevicePollingDTO';
+export * from './CreateDevicePollingDTO';
+export * from './PollingConfigurationDTO';
 export * from './DevicePollingStatusDTO';
 export * from './ExecutePollingCycleDTO';
 export * from './GetDevicePollingHistoryDTO';

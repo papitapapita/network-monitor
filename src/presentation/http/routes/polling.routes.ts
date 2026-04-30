@@ -5,7 +5,8 @@ import {
   pollDeviceSchema,
   getPollingStatusSchema,
   getPollingHistorySchema,
-  configurePollingSchema
+  configurePollingSchema,
+  createDevicePollingSchema
 } from '../validation/polling.schemas';
 
 /**
@@ -39,6 +40,12 @@ export function createPollingRoutes(
     '/:id/polling/history',
     validateRequest(getPollingHistorySchema),
     controller.getHistory
+  );
+
+  router.post(
+    '/:id/polling/config',
+    validateRequest(createDevicePollingSchema),
+    controller.create
   );
 
   router.patch(

@@ -120,7 +120,7 @@ describe('PrismaLocationRepository', () => {
       .mockImplementation(() => undefined);
 
     // Default: toPersistence returns well-formed data
-    MockedLocationMapper.toPersistence.mockReturnValue(fakePersistenceData);
+    MockedLocationMapper.toPersistence.mockReturnValue(fakePersistenceData as never);
     // Default: toDomain returns the fakeLocation wrapped in Result.ok
     MockedLocationMapper.toDomain.mockReturnValue(Result.ok(fakeLocation));
   });

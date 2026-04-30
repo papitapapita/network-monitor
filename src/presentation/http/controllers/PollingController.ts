@@ -3,13 +3,15 @@ import { ExecutePollingCycleUseCase } from '../../../application/device-monitori
 import { GetDevicePollingStatusUseCase } from '../../../application/device-monitoring/use-cases/GetDevicePollingStatusUseCase';
 import { GetDevicePollingHistoryUseCase } from '../../../application/device-monitoring/use-cases/GetDevicePollingHistoryUseCase';
 import { ConfigureDevicePollingUseCase } from '../../../application/device-monitoring/use-cases/ConfigureDevicePollingUseCase';
+import { CreateDevicePollingUseCase } from '../../../application/device-monitoring/use-cases/CreateDevicePollingUseCase';
 
 export class PollingController {
   constructor(
     private readonly executePollingCycleUseCase: ExecutePollingCycleUseCase,
     private readonly getPollingStatusUseCase: GetDevicePollingStatusUseCase,
     private readonly getPollingHistoryUseCase: GetDevicePollingHistoryUseCase,
-    private readonly configurePollingUseCase: ConfigureDevicePollingUseCase
+    private readonly configurePollingUseCase: ConfigureDevicePollingUseCase,
+    private readonly createPollingUseCase: CreateDevicePollingUseCase
   ) {}
 
   /**
@@ -90,6 +92,24 @@ export class PollingController {
     }
 
     res.status(200).json(result.value);
+  };
+
+  public create = async (req: Request, res: Response): Promise<void> => {
+    const result = await this.createPollingUseCase.execute({
+      deviceId: req.params.id,
+      ipAddress: req.body?.ipAddress,
+      intervalSeconds: req.body?.intervalSeconds,
+      failuresBeforeDown: req.body?.failuresBeforeDown,
+      enabled: req.body?.enabled
+    });
+
+    if (result.isFailure) {
+      const notFound = result.error.includes('not found');
+      res.status(notFound ? 404 : 400).json({ error: result.error });
+      return;
+    }
+
+    res.status(201).json(result.value);
   };
 
   /**

@@ -124,10 +124,7 @@ export const createDeviceSchema = z.object({
       .nullable()
       .optional(),
 
-    ipAddress: z
-      .union([z.ipv4(), z.ipv6()])
-      .nullable()
-      .optional(),
+    ipAddress: z.union([z.ipv4(), z.ipv6()]).nullable().optional(),
 
     description: z.string().trim().nullable().optional(),
 
@@ -137,7 +134,9 @@ export const createDeviceSchema = z.object({
 
     installedDate: z
       .string()
-      .datetime({ message: 'installedDate must be a valid ISO 8601 date string' })
+      .datetime({
+        message: 'installedDate must be a valid ISO 8601 date string'
+      })
       .nullable()
       .optional(),
 
@@ -160,8 +159,8 @@ export const listDevicesSchema = z.object({
       .string()
       .regex(/^\d+$/, 'limit must be a positive integer')
       .transform(Number)
-      .refine((n) => n > 0 && n <= 100, {
-        message: 'limit must be between 1 and 100'
+      .refine((n) => n > 0 && n <= 300, {
+        message: 'limit must be between 1 and 300'
       })
       .optional(),
 
@@ -169,7 +168,9 @@ export const listDevicesSchema = z.object({
       .string()
       .regex(/^\d+$/, 'offset must be a non-negative integer')
       .transform(Number)
-      .refine((n) => n >= 0, { message: 'offset must be non-negative' })
+      .refine((n) => n >= 0, {
+        message: 'offset must be non-negative'
+      })
       .optional(),
 
     status: z
@@ -208,7 +209,9 @@ export const listDevicesSchema = z.object({
 
     monitoringEnabled: z
       .enum(['true', 'false'], {
-        error: () => ({ message: 'monitoringEnabled must be true or false' })
+        error: () => ({
+          message: 'monitoringEnabled must be true or false'
+        })
       })
       .transform((v) => v === 'true')
       .optional(),
@@ -317,7 +320,9 @@ export const updateDeviceSchema = z.object({
 
     installedDate: z
       .string()
-      .datetime({ message: 'installedDate must be a valid ISO 8601 date string' })
+      .datetime({
+        message: 'installedDate must be a valid ISO 8601 date string'
+      })
       .nullable()
       .optional(),
 
@@ -329,8 +334,18 @@ export const updateDeviceSchema = z.object({
 // TYPE EXPORTS
 // =====================================
 
-export type CreateDeviceInput = z.infer<typeof createDeviceSchema>['body'];
-export type ListDevicesQuery = z.infer<typeof listDevicesSchema>['query'];
-export type GetDeviceByIdParams = z.infer<typeof getDeviceByIdSchema>['params'];
-export type UpdateDeviceInput = z.infer<typeof updateDeviceSchema>['body'];
-export type UpdateDeviceParams = z.infer<typeof updateDeviceSchema>['params'];
+export type CreateDeviceInput = z.infer<
+  typeof createDeviceSchema
+>['body'];
+export type ListDevicesQuery = z.infer<
+  typeof listDevicesSchema
+>['query'];
+export type GetDeviceByIdParams = z.infer<
+  typeof getDeviceByIdSchema
+>['params'];
+export type UpdateDeviceInput = z.infer<
+  typeof updateDeviceSchema
+>['body'];
+export type UpdateDeviceParams = z.infer<
+  typeof updateDeviceSchema
+>['params'];

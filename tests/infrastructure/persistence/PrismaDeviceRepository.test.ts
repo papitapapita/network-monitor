@@ -173,7 +173,7 @@ describe('PrismaDeviceRepository', () => {
 
     // Default happy-path stubs for the mocked mapper
     MockedDeviceMapper.toPersistence.mockReturnValue(
-      fakePersistenceData
+      fakePersistenceData as never
     );
     MockedDeviceMapper.toDomain.mockReturnValue(
       Result.ok(fakeDevice)

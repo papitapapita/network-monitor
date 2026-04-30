@@ -33,6 +33,17 @@ export const configurePollingSchema = z.object({
   )
 });
 
+export const createDevicePollingSchema = z.object({
+  params: z.object({ id: uuidSchema }),
+  body: z.object({
+    ipAddress: z.union([z.string().ipv4(), z.string().ipv6()]).nullable().optional(),
+    intervalSeconds: z.number().int().min(1).max(86400).optional(),
+    failuresBeforeDown: z.number().int().min(1).max(100).optional(),
+    enabled: z.boolean().optional()
+  }).optional()
+});
+
 export type PollDeviceInput = z.infer<typeof pollDeviceSchema>;
 export type ConfigurePollingInput = z.infer<typeof configurePollingSchema>;
 export type GetPollingHistoryInput = z.infer<typeof getPollingHistorySchema>;
+export type CreateDevicePollingInput = z.infer<typeof createDevicePollingSchema>;

@@ -42,7 +42,8 @@ import {
   ExecutePollingCycleUseCase,
   ConfigureDevicePollingUseCase,
   GetDevicePollingStatusUseCase,
-  GetDevicePollingHistoryUseCase
+  GetDevicePollingHistoryUseCase,
+  CreateDevicePollingUseCase
 } from '../../application/device-monitoring/use-cases';
 
 /**
@@ -195,12 +196,18 @@ export class DependencyContainer {
         this.pingResultRepository,
         this.logger
       );
+    const createDevicePollingUseCase = new CreateDevicePollingUseCase(
+      this.pollingConfigRepository,
+      this.deviceRepository,
+      this.logger
+    );
 
     this.pollingController = new PollingController(
       executePollingCycleUseCase,
       getPollingStatusUseCase,
       getPollingHistoryUseCase,
-      configurePollingUseCase
+      configurePollingUseCase,
+      createDevicePollingUseCase
     );
 
     this.pollingOrchestrator = new PollingOrchestrator(
