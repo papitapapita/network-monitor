@@ -6,6 +6,7 @@ import { CreateDeviceUseCase } from '../../../../src/application/device-inventor
 import { GetDeviceUseCase } from '../../../../src/application/device-inventory/use-cases/GetDeviceUseCase';
 import { ListDevicesUseCase } from '../../../../src/application/device-inventory/use-cases/ListDevicesUseCase';
 import { UpdateDeviceUseCase } from '../../../../src/application/device-inventory/use-cases/UpdateDeviceUseCase';
+import { DeleteDeviceUseCase } from '../../../../src/application/device-inventory/use-cases/DeleteDeviceUseCase';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
@@ -56,6 +57,9 @@ const createMockListUseCase = () =>
 
 const createMockUpdateUseCase = () =>
   ({ execute: jest.fn() }) as unknown as UpdateDeviceUseCase;
+
+const createMockDeleteUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as DeleteDeviceUseCase;
 
 const createMockLogger = (): jest.Mocked<ILogger> => ({
   info: jest.fn(),
@@ -127,6 +131,7 @@ describe('DeviceController', () => {
   let mockGetUseCase: GetDeviceUseCase;
   let mockListUseCase: ListDevicesUseCase;
   let mockUpdateUseCase: UpdateDeviceUseCase;
+  let mockDeleteUseCase: DeleteDeviceUseCase;
   let mockLogger: jest.Mocked<ILogger>;
 
   beforeEach(() => {
@@ -134,6 +139,7 @@ describe('DeviceController', () => {
     mockGetUseCase = createMockGetUseCase();
     mockListUseCase = createMockListUseCase();
     mockUpdateUseCase = createMockUpdateUseCase();
+    mockDeleteUseCase = createMockDeleteUseCase();
     mockLogger = createMockLogger();
 
     controller = new DeviceController(
@@ -141,6 +147,7 @@ describe('DeviceController', () => {
       mockGetUseCase,
       mockListUseCase,
       mockUpdateUseCase,
+      mockDeleteUseCase,
       mockLogger
     );
   });

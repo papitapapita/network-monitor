@@ -359,4 +359,66 @@ describe('Device Routes — /api/devices', () => {
       expect(res.status).toBe(400);
     });
   });
+
+  // ─────────────────────────────────────────────────────────────
+  // DELETE /api/devices/:id
+  // ─────────────────────────────────────────────────────────────
+
+  describe('DELETE /api/devices/:id', () => {
+    it('204 — deletes an existing device and returns no body', async () => {
+      const create = await request(app).post('/api/devices').send({
+        deviceModelId,
+        name: 'Switch To Delete',
+        ownerType: 'COMPANY'
+      });
+      const id = create.body.data.id as string;
+
+      const res = await request(app).delete(`/api/devices/${id}`);
+
+      expect(res.status).toBe(204);
+      expect(res.body).toEqual({});
+    });
+
+    it('404 — confirms the device is gone after deletion', async () => {
+      const create = await request(app).post('/api/devices').send({
+        deviceModelId,
+        name: 'Transient Router',
+        ownerType: 'COMPANY'
+      });
+      const id = create.body.data.id as string;
+
+      await request(app).delete(`/api/devices/${id}`);
+
+      const res = await request(app).get(`/api/devices/${id}`);
+      expect(res.status).toBe(404);
+    });
+
+    it('404 — returns not found for an unknown UUID', async () => {
+      const res = await request(app).delete(`/api/devices/${GHOST_ID}`);
+
+      expect(res.status).toBe(404);
+    });
+
+    it('400 — returns bad request for an invalid UUID', async () => {
+      const res = await request(app).delete(`/api/devices/${INVALID_ID}`);
+
+      expect(res.status).toBe(400);
+    });
+
+    it('404 — second DELETE on the same id returns not found', async () => {
+      // After deletion the device no longer exists; a repeat DELETE must not
+      // silently succeed — the use case treats "not found" as a failure mapped to 404.
+      const create = await request(app).post('/api/devices').send({
+        deviceModelId,
+        name: 'Idempotency Test Device',
+        ownerType: 'COMPANY'
+      });
+      const id = create.body.data.id as string;
+
+      await request(app).delete(`/api/devices/${id}`);
+      const secondDelete = await request(app).delete(`/api/devices/${id}`);
+
+      expect(secondDelete.status).toBe(404);
+    });
+  });
 });
