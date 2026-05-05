@@ -35,6 +35,7 @@ import {
   GetDeviceUseCase,
   ListDevicesUseCase,
   UpdateDeviceUseCase,
+  DeleteDeviceUseCase,
   GetDeviceModelUseCase,
   ListDeviceModelsUseCase
 } from '../../application/device-inventory/use-cases';
@@ -137,6 +138,10 @@ export class DependencyContainer {
       this.deviceRepository,
       this.logger
     );
+    const deleteDeviceUseCase = new DeleteDeviceUseCase(
+      this.deviceRepository,
+      this.logger
+    );
 
     // Initialize device model use cases
     const getDeviceModelUseCase = new GetDeviceModelUseCase(
@@ -162,6 +167,7 @@ export class DependencyContainer {
       getDeviceUseCase,
       listDevicesUseCase,
       updateDeviceUseCase,
+      deleteDeviceUseCase,
       this.logger
     );
 

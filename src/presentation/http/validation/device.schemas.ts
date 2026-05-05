@@ -4,9 +4,11 @@ import { z } from 'zod';
  * Zod validation schemas for Device HTTP endpoints.
  *
  * Covered endpoints:
- * - POST /api/devices          (createDeviceSchema)
- * - GET  /api/devices          (listDevicesSchema)
- * - GET  /api/devices/:id      (getDeviceByIdSchema)
+ * - POST   /api/devices        (createDeviceSchema)
+ * - GET    /api/devices        (listDevicesSchema)
+ * - GET    /api/devices/:id    (getDeviceByIdSchema)
+ * - PATCH  /api/devices/:id    (updateDeviceSchema)
+ * - DELETE /api/devices/:id    (deleteDeviceSchema)
  */
 
 // =====================================
@@ -331,6 +333,23 @@ export const updateDeviceSchema = z.object({
 });
 
 // =====================================
+// DELETE SCHEMA
+// =====================================
+
+/**
+ * Schema for DELETE /api/devices/:id
+ *
+ * Validates that :id is a UUID v4. No request body is expected.
+ */
+export const deleteDeviceSchema = z.object({
+  params: z.object({
+    id: z
+      .string()
+      .regex(UUID_REGEX, 'Invalid device ID (must be a UUID v4)')
+  })
+});
+
+// =====================================
 // TYPE EXPORTS
 // =====================================
 
@@ -348,4 +367,7 @@ export type UpdateDeviceInput = z.infer<
 >['body'];
 export type UpdateDeviceParams = z.infer<
   typeof updateDeviceSchema
+>['params'];
+export type DeleteDeviceParams = z.infer<
+  typeof deleteDeviceSchema
 >['params'];

@@ -5,7 +5,8 @@ import {
   createDeviceSchema,
   listDevicesSchema,
   getDeviceByIdSchema,
-  updateDeviceSchema
+  updateDeviceSchema,
+  deleteDeviceSchema
 } from '../validation/device.schemas';
 
 /**
@@ -16,9 +17,11 @@ import {
  * under the appropriate path (e.g., /api/devices).
  *
  * Routes:
- * - POST /                - Register a new device
- * - GET  /                - List devices (paginated, optional filters)
- * - GET  /:id             - Get a device by ID
+ * - POST   /              - Register a new device
+ * - GET    /              - List devices (paginated, optional filters)
+ * - GET    /:id           - Get a device by ID
+ * - PATCH  /:id           - Partially update a device
+ * - DELETE /:id           - Permanently remove a device
  *
  * @param controller - DeviceController instance (injected by DI container)
  * @returns Express router with all device routes
@@ -123,6 +126,25 @@ export function createDeviceRoutes(controller: DeviceController): Router {
     '/:id',
     validateRequest(updateDeviceSchema),
     controller.update
+  );
+
+  /**
+   * DELETE /api/devices/:id
+   * Permanently remove a device from the device-inventory context.
+   *
+   * Params:
+   *   - id (required) Device UUID v4
+   *
+   * Response: 204 No Content
+   * Errors:
+   *   400 - id is not a valid UUID v4
+   *   404 - No device found with the given ID
+   *   500 - Unexpected infrastructure error
+   */
+  router.delete(
+    '/:id',
+    validateRequest(deleteDeviceSchema),
+    controller.delete
   );
 
   return router;

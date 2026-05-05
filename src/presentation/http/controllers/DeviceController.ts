@@ -5,7 +5,8 @@ import {
   CreateDeviceUseCase,
   GetDeviceUseCase,
   ListDevicesUseCase,
-  UpdateDeviceUseCase
+  UpdateDeviceUseCase,
+  DeleteDeviceUseCase
 } from '../../../application/device-inventory/use-cases';
 
 /**
@@ -24,10 +25,12 @@ import {
  * - GET    /api/devices      - List devices (paginated, optional filters)
  * - GET    /api/devices/:id  - Get a single device by ID
  * - PATCH  /api/devices/:id  - Partially update a device
+ * - DELETE /api/devices/:id  - Permanently remove a device
  *
  * Response Codes:
  * - 200 OK          - Successful GET
  * - 201 Created     - Successful POST
+ * - 204 No Content  - Successful DELETE
  * - 400 Bad Request - Validation errors, invalid input
  * - 404 Not Found   - Device does not exist
  * - 500 Internal    - Unexpected errors
@@ -38,6 +41,7 @@ export class DeviceController {
     private readonly getUseCase: GetDeviceUseCase,
     private readonly listUseCase: ListDevicesUseCase,
     private readonly updateUseCase: UpdateDeviceUseCase,
+    private readonly deleteUseCase: DeleteDeviceUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -199,6 +203,35 @@ export class DeviceController {
       }
 
       res.status(200).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  /**
+   * DELETE /api/devices/:id
+   *
+   * Permanently removes a device from the device-inventory context.
+   * Delegates to DeleteDeviceUseCase.
+   *
+   * Params: id (UUID v4, validated by Zod)
+   * Response: 204 No Content
+   * Errors:
+   *   400 - Invalid UUID format
+   *   404 - Device does not exist
+   *   500 - Unexpected infrastructure error
+   */
+  public delete = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const result = await this.deleteUseCase.execute({ id: req.params.id });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res.status(statusCode).json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(204).send();
     } catch (error) {
       this.handleUnexpectedError(error, res);
     }
