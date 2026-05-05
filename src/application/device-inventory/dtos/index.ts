@@ -14,3 +14,4 @@ export * from './GetDeviceModelRequestDTO';
 export * from './ListDeviceModelsQueryDTO';
 export * from './DeviceModelResponseDTO';
 export * from './DeviceModelListResponseDTO';
+export * from './DeleteDeviceRequestDTO';

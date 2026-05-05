@@ -8,3 +8,4 @@ export * from './UpdateDeviceUseCase';
 export * from './UpdateLocationUseCase';
 export * from './GetDeviceModelUseCase';
 export * from './ListDeviceModelsUseCase';
+export * from './DeleteDeviceUseCase';
