@@ -99,15 +99,7 @@ export class SendDeviceDownAlertUseCase extends UseCase<
       alert.markNotified();
     }
 
-    console.log(
-      '[BP4] About to save alert for device:',
-      deviceId.toString()
-    );
     const saveResult = await this.alertRepository.save(alert);
-    console.log(
-      '[BP4] Save result:',
-      saveResult.isSuccess ? 'OK' : saveResult.error
-    );
 
     if (saveResult.isFailure) {
       return this.fail(`Failed to save alert: ${saveResult.error}`);

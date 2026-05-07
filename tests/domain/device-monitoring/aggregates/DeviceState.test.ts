@@ -2,7 +2,6 @@
 
 import { DeviceState } from '../../../../src/domain/device-monitoring/aggregates/DeviceState';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
-import { FailureThreshold } from '../../../../src/domain/device-monitoring/value-objects/FailureThreshold';
 import { DeviceCameOnlineEvent } from '../../../../src/domain/device-monitoring/events/DeviceCameOnlineEvent';
 import { DeviceWentOfflineEvent } from '../../../../src/domain/device-monitoring/events/DeviceWentOfflineEvent';
 import { DeviceStateProps } from '../../../../src/domain/device-monitoring/props/DeviceStateProps';
@@ -17,10 +16,6 @@ const LATER_DATE           = new Date('2024-06-01T11:00:00.000Z');
 
 function makeDeviceId(): DeviceId {
   return DeviceId.parse(VALID_DEVICE_UUID).value;
-}
-
-function makeThreshold(count = 3): FailureThreshold {
-  return FailureThreshold.create(count).value;
 }
 
 /** Build a fully-populated props object, used with reconstitute(). */
@@ -159,7 +154,7 @@ describe('DeviceState', () => {
       it('should set isOnline to true', () => {
         const state = makeState({ isOnline: false, consecutiveFailures: 2 });
 
-        state.applyPingResult(true, 15, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(true, 15, LATER_DATE, false);
 
         expect(state.isOnline).toBe(true);
       });
@@ -167,7 +162,7 @@ describe('DeviceState', () => {
       it('should reset consecutiveFailures to 0', () => {
         const state = makeState({ isOnline: true, consecutiveFailures: 2 });
 
-        state.applyPingResult(true, 15, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(true, 15, LATER_DATE, false);
 
         expect(state.consecutiveFailures).toBe(0);
       });
@@ -175,7 +170,7 @@ describe('DeviceState', () => {
       it('should update lastSeen to the checkedAt timestamp', () => {
         const state = makeState({ lastSeen: FIXED_DATE });
 
-        state.applyPingResult(true, 15, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(true, 15, LATER_DATE, false);
 
         expect(state.lastSeen).toEqual(LATER_DATE);
       });
@@ -183,7 +178,7 @@ describe('DeviceState', () => {
       it('should set lastLatencyMs to the provided latency', () => {
         const state = makeState({ lastLatencyMs: null });
 
-        state.applyPingResult(true, 99, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(true, 99, LATER_DATE, false);
 
         expect(state.lastLatencyMs).toBe(99);
       });
@@ -191,7 +186,7 @@ describe('DeviceState', () => {
       it('should update lastCheckedAt to the checkedAt timestamp', () => {
         const state = makeState({ lastCheckedAt: FIXED_DATE });
 
-        state.applyPingResult(true, 15, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(true, 15, LATER_DATE, false);
 
         expect(state.lastCheckedAt).toEqual(LATER_DATE);
       });
@@ -199,35 +194,34 @@ describe('DeviceState', () => {
       it('should accept null latencyMs on a successful ping', () => {
         const state = makeState({ lastLatencyMs: 20 });
 
-        state.applyPingResult(true, null, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(true, null, LATER_DATE, false);
 
         expect(state.lastLatencyMs).toBeNull();
       });
     });
 
     // -------------------------------------------------------------------------
-    describe('failed ping below the failure threshold', () => {
+    describe('failed ping (isReachable = false)', () => {
+      it('should set isOnline to false immediately, regardless of previous state', () => {
+        const state = makeState({ isOnline: true, consecutiveFailures: 0 });
+
+        state.applyPingResult(false, null, LATER_DATE, false);
+
+        expect(state.isOnline).toBe(false);
+      });
+
       it('should increment consecutiveFailures by 1', () => {
         const state = makeState({ isOnline: true, consecutiveFailures: 1 });
 
-        state.applyPingResult(false, null, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(false, null, LATER_DATE, false);
 
         expect(state.consecutiveFailures).toBe(2);
-      });
-
-      it('should preserve the previous isOnline value (true → still true) when below threshold', () => {
-        const state = makeState({ isOnline: true, consecutiveFailures: 0 });
-
-        // threshold=3, new failures=1 → still below → stay online
-        state.applyPingResult(false, null, makeThreshold(3), LATER_DATE, false);
-
-        expect(state.isOnline).toBe(true);
       });
 
       it('should NOT update lastSeen when ping fails', () => {
         const state = makeState({ isOnline: true, lastSeen: FIXED_DATE });
 
-        state.applyPingResult(false, null, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(false, null, LATER_DATE, false);
 
         expect(state.lastSeen).toEqual(FIXED_DATE);
       });
@@ -235,46 +229,18 @@ describe('DeviceState', () => {
       it('should update lastCheckedAt even on a failed ping', () => {
         const state = makeState({ lastCheckedAt: FIXED_DATE });
 
-        state.applyPingResult(false, null, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(false, null, LATER_DATE, false);
 
         expect(state.lastCheckedAt).toEqual(LATER_DATE);
       });
     });
 
     // -------------------------------------------------------------------------
-    describe('failed ping reaching or exceeding the failure threshold', () => {
-      it('should set isOnline to false when consecutiveFailures reaches the threshold', () => {
-        // threshold=3; starting at 2 failures → 3rd failure hits threshold
-        const state = makeState({ isOnline: true, consecutiveFailures: 2 });
-
-        state.applyPingResult(false, null, makeThreshold(3), LATER_DATE, false);
-
-        expect(state.isOnline).toBe(false);
-      });
-
-      it('should set isOnline to false when threshold is 1 (immediate down)', () => {
-        const state = makeState({ isOnline: true, consecutiveFailures: 0 });
-
-        state.applyPingResult(false, null, makeThreshold(1), LATER_DATE, false);
-
-        expect(state.isOnline).toBe(false);
-      });
-
-      it('should correctly increment consecutiveFailures to the threshold value', () => {
-        const state = makeState({ isOnline: true, consecutiveFailures: 2 });
-
-        state.applyPingResult(false, null, makeThreshold(3), LATER_DATE, false);
-
-        expect(state.consecutiveFailures).toBe(3);
-      });
-    });
-
-    // -------------------------------------------------------------------------
     describe('domain event — online → offline transition', () => {
       it('should raise a DeviceWentOfflineEvent when the device transitions from online to offline', () => {
-        const state = makeState({ isOnline: true, consecutiveFailures: 2 });
+        const state = makeState({ isOnline: true, consecutiveFailures: 0 });
 
-        state.applyPingResult(false, null, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(false, null, LATER_DATE, false);
 
         const events = state.domainEvents;
         expect(events).toHaveLength(1);
@@ -284,25 +250,25 @@ describe('DeviceState', () => {
       it('should attach the correct consecutiveFailures to the DeviceWentOfflineEvent', () => {
         const state = makeState({ isOnline: true, consecutiveFailures: 2 });
 
-        state.applyPingResult(false, null, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(false, null, LATER_DATE, false);
 
         const event = state.domainEvents[0] as DeviceWentOfflineEvent;
         expect(event.consecutiveFailures).toBe(3);
       });
 
       it('should attach the checkedAt timestamp to the DeviceWentOfflineEvent', () => {
-        const state = makeState({ isOnline: true, consecutiveFailures: 2 });
+        const state = makeState({ isOnline: true, consecutiveFailures: 0 });
 
-        state.applyPingResult(false, null, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(false, null, LATER_DATE, false);
 
         const event = state.domainEvents[0] as DeviceWentOfflineEvent;
         expect(event.dateTimeOccurred).toEqual(LATER_DATE);
       });
 
       it('should attach the aggregate id to the DeviceWentOfflineEvent', () => {
-        const state = makeState({ isOnline: true, consecutiveFailures: 2 });
+        const state = makeState({ isOnline: true, consecutiveFailures: 0 });
 
-        state.applyPingResult(false, null, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(false, null, LATER_DATE, false);
 
         const event = state.domainEvents[0] as DeviceWentOfflineEvent;
         expect(event.aggregateId.toString()).toBe(VALID_DEVICE_UUID);
@@ -314,7 +280,7 @@ describe('DeviceState', () => {
       it('should raise a DeviceCameOnlineEvent when the device transitions from offline to online', () => {
         const state = makeState({ isOnline: false, consecutiveFailures: 3 });
 
-        state.applyPingResult(true, 12, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(true, 12, LATER_DATE, false);
 
         const events = state.domainEvents;
         expect(events).toHaveLength(1);
@@ -324,7 +290,7 @@ describe('DeviceState', () => {
       it('should attach the latencyMs to the DeviceCameOnlineEvent', () => {
         const state = makeState({ isOnline: false, consecutiveFailures: 3 });
 
-        state.applyPingResult(true, 55, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(true, 55, LATER_DATE, false);
 
         const event = state.domainEvents[0] as DeviceCameOnlineEvent;
         expect(event.latencyMs).toBe(55);
@@ -333,7 +299,7 @@ describe('DeviceState', () => {
       it('should attach null latencyMs to the DeviceCameOnlineEvent when no latency is reported', () => {
         const state = makeState({ isOnline: false, consecutiveFailures: 3 });
 
-        state.applyPingResult(true, null, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(true, null, LATER_DATE, false);
 
         const event = state.domainEvents[0] as DeviceCameOnlineEvent;
         expect(event.latencyMs).toBeNull();
@@ -342,7 +308,7 @@ describe('DeviceState', () => {
       it('should attach the checkedAt timestamp to the DeviceCameOnlineEvent', () => {
         const state = makeState({ isOnline: false, consecutiveFailures: 3 });
 
-        state.applyPingResult(true, 12, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(true, 12, LATER_DATE, false);
 
         const event = state.domainEvents[0] as DeviceCameOnlineEvent;
         expect(event.dateTimeOccurred).toEqual(LATER_DATE);
@@ -351,7 +317,7 @@ describe('DeviceState', () => {
       it('should attach the aggregate id to the DeviceCameOnlineEvent', () => {
         const state = makeState({ isOnline: false, consecutiveFailures: 3 });
 
-        state.applyPingResult(true, 12, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(true, 12, LATER_DATE, false);
 
         const event = state.domainEvents[0] as DeviceCameOnlineEvent;
         expect(event.aggregateId.toString()).toBe(VALID_DEVICE_UUID);
@@ -363,24 +329,15 @@ describe('DeviceState', () => {
       it('should not raise any event when the device was already online and ping succeeds', () => {
         const state = makeState({ isOnline: true, consecutiveFailures: 0 });
 
-        state.applyPingResult(true, 10, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(true, 10, LATER_DATE, false);
 
         expect(state.domainEvents).toHaveLength(0);
       });
 
-      it('should not raise any event when the device was already offline and ping fails again (below threshold)', () => {
-        // Already offline; another failure keeps it offline with no state change
+      it('should not raise any event when the device was already offline and ping fails again', () => {
         const state = makeState({ isOnline: false, consecutiveFailures: 3 });
 
-        state.applyPingResult(false, null, makeThreshold(3), LATER_DATE, false);
-
-        expect(state.domainEvents).toHaveLength(0);
-      });
-
-      it('should not raise any event when the device was already offline and a further ping still fails (above threshold)', () => {
-        const state = makeState({ isOnline: false, consecutiveFailures: 5 });
-
-        state.applyPingResult(false, null, makeThreshold(3), LATER_DATE, false);
+        state.applyPingResult(false, null, LATER_DATE, false);
 
         expect(state.domainEvents).toHaveLength(0);
       });
@@ -391,31 +348,39 @@ describe('DeviceState', () => {
       it('should NOT raise DeviceCameOnlineEvent on the first poll even when offline→online', () => {
         const state = makeState({ isOnline: false, consecutiveFailures: 0 });
 
-        state.applyPingResult(true, 10, makeThreshold(3), LATER_DATE, true);
+        state.applyPingResult(true, 10, LATER_DATE, true);
 
         expect(state.domainEvents).toHaveLength(0);
       });
 
       it('should NOT raise DeviceWentOfflineEvent on the first poll even when online→offline', () => {
-        const state = makeState({ isOnline: true, consecutiveFailures: 2 });
+        const state = makeState({ isOnline: true, consecutiveFailures: 0 });
 
-        state.applyPingResult(false, null, makeThreshold(3), LATER_DATE, true);
+        state.applyPingResult(false, null, LATER_DATE, true);
 
         expect(state.domainEvents).toHaveLength(0);
       });
 
-      it('should still update isOnline correctly on the first poll', () => {
+      it('should still update isOnline to true on the first poll when reachable', () => {
         const state = makeState({ isOnline: false, consecutiveFailures: 0 });
 
-        state.applyPingResult(true, 10, makeThreshold(3), LATER_DATE, true);
+        state.applyPingResult(true, 10, LATER_DATE, true);
 
         expect(state.isOnline).toBe(true);
+      });
+
+      it('should still update isOnline to false on the first poll when unreachable', () => {
+        const state = makeState({ isOnline: true, consecutiveFailures: 0 });
+
+        state.applyPingResult(false, null, LATER_DATE, true);
+
+        expect(state.isOnline).toBe(false);
       });
 
       it('should still update consecutiveFailures correctly on the first poll', () => {
         const state = makeState({ isOnline: true, consecutiveFailures: 2 });
 
-        state.applyPingResult(false, null, makeThreshold(3), LATER_DATE, true);
+        state.applyPingResult(false, null, LATER_DATE, true);
 
         expect(state.consecutiveFailures).toBe(3);
       });

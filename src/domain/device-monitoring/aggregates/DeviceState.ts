@@ -1,6 +1,5 @@
 import { AggregateRoot } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared';
-import { FailureThreshold } from '../value-objects';
 import { DeviceStateProps } from '../props';
 import {
   DeviceWentOfflineEvent,
@@ -65,12 +64,15 @@ export class DeviceState extends AggregateRoot<
    * Applies the result of a ping. Raises events only on genuine transitions
    * and never on the first poll.
    *
+   * The caller is responsible for retrying within the poll cycle before
+   * calling this method — isReachable here is the definitive result after
+   * all retry attempts have been exhausted.
+   *
    * @param isFirstPoll  True when createInitial() was used (no prior DB row).
    */
   public applyPingResult(
     isReachable: boolean,
     latencyMs: number | null,
-    failureThreshold: FailureThreshold,
     checkedAt: Date,
     isFirstPoll: boolean
   ): void {
@@ -80,11 +82,7 @@ export class DeviceState extends AggregateRoot<
       ? 0
       : this.props.consecutiveFailures + 1;
 
-    const newIsOnline = isReachable
-      ? true
-      : newConsecutiveFailures < failureThreshold.value
-        ? previouslyOnline
-        : false;
+    const newIsOnline = isReachable;
 
     this.props.isOnline = newIsOnline;
     this.props.lastLatencyMs = latencyMs;
@@ -92,19 +90,6 @@ export class DeviceState extends AggregateRoot<
     this.props.lastCheckedAt = checkedAt;
     this.props.updatedAt = checkedAt;
     if (isReachable) this.props.lastSeen = checkedAt;
-
-    console.log(
-      '[BP1] isFirstPoll:',
-      isFirstPoll,
-      'wasOnline:',
-      previouslyOnline,
-      'nowOnline:',
-      newIsOnline,
-      'failures:',
-      newConsecutiveFailures,
-      'events queued:',
-      this.domainEvents.length
-    );
 
     if (!isFirstPoll) {
       if (!previouslyOnline && newIsOnline) {

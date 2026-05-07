@@ -41,7 +41,8 @@ describe('ExecutePollingCycleUseCase — integration', () => {
       pingResultRepo,
       deviceStateRepo,
       fakePing,
-      logger
+      logger,
+      0 // no delay between retries in tests
     );
     configureUseCase = new ConfigureDevicePollingUseCase(pollingConfigRepo, logger);
   });
@@ -77,43 +78,27 @@ describe('ExecutePollingCycleUseCase — integration', () => {
     expect(state!.isOnline).toBe(true);
   });
 
-  it('increments consecutive failures but keeps device ONLINE when below threshold', async () => {
+  it('marks device OFFLINE in a single poll after all retries (failuresBeforeDown) fail', async () => {
     // First, establish an ONLINE state with a successful ping
     await useCase.execute({ deviceId, forceExecution: true });
 
-    // Now fail once — below default threshold of 3, device should stay ONLINE
+    // One poll with all retries failing immediately marks the device offline
     fakePing.setResult({ isReachable: false, latencyMs: null });
     const result = await useCase.execute({ deviceId, forceExecution: true });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.status).toBe('FAILED');
-
-    const state = await prisma.deviceState.findFirst({ where: { deviceId } });
-    expect(state!.consecutiveFailures).toBe(1);
-    // Device was online before the failure; below threshold → stays online
-    expect(state!.isOnline).toBe(true);
-  });
-
-  it('marks device OFFLINE after consecutive failures >= failuresBeforeDown', async () => {
-    fakePing.setResult({ isReachable: false, latencyMs: null });
-
-    // Default failuresBeforeDown is 3 — run 3 failing cycles
-    for (let i = 0; i < 3; i++) {
-      await useCase.execute({ deviceId, forceExecution: true });
-    }
+    expect(result.value.deviceStatus).toBe('OFFLINE');
 
     const state = await prisma.deviceState.findFirst({ where: { deviceId } });
     expect(state!.isOnline).toBe(false);
-    expect(state!.consecutiveFailures).toBeGreaterThanOrEqual(3);
+    expect(state!.consecutiveFailures).toBe(1);
   });
 
   it('resets failures and marks device ONLINE after recovery', async () => {
+    // Drive it offline with one failing poll (retries exhausted within the poll)
     fakePing.setResult({ isReachable: false, latencyMs: null });
-
-    // Drive it offline first
-    for (let i = 0; i < 3; i++) {
-      await useCase.execute({ deviceId, forceExecution: true });
-    }
+    await useCase.execute({ deviceId, forceExecution: true });
 
     // Now recover
     fakePing.setResult({ isReachable: true, latencyMs: 5 });

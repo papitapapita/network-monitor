@@ -24,7 +24,8 @@ export class ExecutePollingCycleUseCase extends UseCase<
     private readonly pingResultRepo: IPingResultRepository,
     private readonly deviceStateRepo: IDeviceStateRepository,
     private readonly pingService: IPingService,
-    logger: ILogger
+    logger: ILogger,
+    private readonly retryDelayMs: number = 1_000
   ) {
     super(logger, 'ExecutePollingCycleUseCase');
   }
@@ -79,15 +80,25 @@ export class ExecutePollingCycleUseCase extends UseCase<
       );
     }
 
-    // 4. Execute ping
-    const pingResult = await this.pingService.ping(
-      config.ipAddress.value
-    );
-    if (pingResult.isFailure) {
-      return this.fail(`Ping execution error: ${pingResult.error}`);
-    }
+    // 4. Execute ping with intra-cycle retries (failuresBeforeDown = max attempts)
+    const maxAttempts = config.failuresBeforeDown.value;
+    let isReachable = false;
+    let latencyMs: number | null = null;
 
-    const { isReachable, latencyMs } = pingResult.value;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      if (attempt > 0) {
+        await new Promise(resolve => setTimeout(resolve, this.retryDelayMs));
+      }
+      const pingResult = await this.pingService.ping(config.ipAddress.value);
+      if (pingResult.isFailure) {
+        return this.fail(`Ping execution error: ${pingResult.error}`);
+      }
+      if (pingResult.value.isReachable) {
+        isReachable = true;
+        latencyMs = pingResult.value.latencyMs;
+        break;
+      }
+    }
 
     // 5. Persist ping result
     await this.pingResultRepo.save({
@@ -112,13 +123,7 @@ export class ExecutePollingCycleUseCase extends UseCase<
       : stateResult.value!;
 
     // 7. Apply ping result — transition logic and events are here
-    deviceState.applyPingResult(
-      isReachable,
-      latencyMs,
-      config.failuresBeforeDown,
-      now,
-      isFirstPoll
-    );
+    deviceState.applyPingResult(isReachable, latencyMs, now, isFirstPoll);
 
     // 8. Persist (repository dispatches events)
     await this.deviceStateRepo.save(deviceState);

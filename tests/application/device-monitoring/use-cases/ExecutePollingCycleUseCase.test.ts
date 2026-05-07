@@ -140,7 +140,8 @@ describe('ExecutePollingCycleUseCase', () => {
       pingResultRepo,
       deviceStateRepo,
       pingService,
-      logger
+      logger,
+      0 // no delay between retries in tests
     );
   });
 
@@ -383,7 +384,7 @@ describe('ExecutePollingCycleUseCase', () => {
 
   // ===========================================================================
   describe('executeImpl — failed ping result', () => {
-    it('should return FAILED status when device is unreachable', async () => {
+    it('should return FAILED status when all retries are unreachable', async () => {
       configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
       pingService.ping.mockResolvedValue(
         Result.ok({ isReachable: false, latencyMs: null })
@@ -400,7 +401,7 @@ describe('ExecutePollingCycleUseCase', () => {
       expect(result.value.status).toBe('FAILED');
     });
 
-    it('should return null metrics when device is unreachable', async () => {
+    it('should return null metrics when all retries are unreachable', async () => {
       configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
       pingService.ping.mockResolvedValue(
         Result.ok({ isReachable: false, latencyMs: null })
@@ -416,11 +417,12 @@ describe('ExecutePollingCycleUseCase', () => {
       expect(result.value.metrics).toBeNull();
     });
 
-    it('should increment consecutiveFailures when ping fails', async () => {
+    it('should increment consecutiveFailures when all ping retries fail', async () => {
       configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig({ thresholdCount: 3 })));
-      pingService.ping.mockResolvedValue(
-        Result.ok({ isReachable: false, latencyMs: null })
-      );
+      pingService.ping
+        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }))
+        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }))
+        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }));
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
       deviceStateRepo.findByDeviceId.mockResolvedValue(
         Result.ok(makeDeviceState({ consecutiveFailures: 1 }))
@@ -435,55 +437,58 @@ describe('ExecutePollingCycleUseCase', () => {
       expect(savedState.consecutiveFailures).toBe(2);
     });
 
-    it('should mark device OFFLINE when consecutiveFailures reaches the threshold', async () => {
-      // threshold = 3, previous failures = 2, so this failure (3rd) crosses it
+    it('should mark device OFFLINE after all retries fail (threshold = ping attempts)', async () => {
       configRepo.findByDeviceId.mockResolvedValue(
         Result.ok(makeConfig({ thresholdCount: 3 }))
       );
-      pingService.ping.mockResolvedValue(
-        Result.ok({ isReachable: false, latencyMs: null })
-      );
-      pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
-      deviceStateRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeDeviceState({ isOnline: true, consecutiveFailures: 2 }))
-      );
-      deviceStateRepo.save.mockResolvedValue(
-        Result.ok(makeDeviceState({ isOnline: false, consecutiveFailures: 3 }))
-      );
-
-      const result = await useCase.execute(makeRequest());
-
-      expect(result.value.deviceStatus).toBe('OFFLINE');
-    });
-
-    it('should keep device status from previous state when failures are below threshold', async () => {
-      // threshold = 3, previous failures = 0, after failure = 1 — still below threshold
-      configRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeConfig({ thresholdCount: 3 }))
-      );
-      pingService.ping.mockResolvedValue(
-        Result.ok({ isReachable: false, latencyMs: null })
-      );
+      pingService.ping
+        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }))
+        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }))
+        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }));
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
       deviceStateRepo.findByDeviceId.mockResolvedValue(
         Result.ok(makeDeviceState({ isOnline: true, consecutiveFailures: 0 }))
       );
       deviceStateRepo.save.mockResolvedValue(
-        Result.ok(makeDeviceState({ isOnline: true, consecutiveFailures: 1 }))
+        Result.ok(makeDeviceState({ isOnline: false, consecutiveFailures: 1 }))
+      );
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.value.deviceStatus).toBe('OFFLINE');
+      expect(pingService.ping).toHaveBeenCalledTimes(3);
+    });
+
+    it('should stop retrying after the first successful ping and use that latency', async () => {
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig({ thresholdCount: 3 }))
+      );
+      pingService.ping
+        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }))
+        .mockResolvedValueOnce(Result.ok({ isReachable: true, latencyMs: 22 }));
+      pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeDeviceState({ isOnline: false, consecutiveFailures: 1 }))
+      );
+      deviceStateRepo.save.mockResolvedValue(
+        Result.ok(makeDeviceState({ isOnline: true, consecutiveFailures: 0 }))
       );
 
       const result = await useCase.execute(makeRequest());
 
       expect(result.value.deviceStatus).toBe('ONLINE');
+      expect(result.value.metrics!.latencyMs).toBe(22);
+      expect(pingService.ping).toHaveBeenCalledTimes(2);
     });
 
     it('should treat no existing device state as 0 previous failures', async () => {
       configRepo.findByDeviceId.mockResolvedValue(
         Result.ok(makeConfig({ thresholdCount: 3 }))
       );
-      pingService.ping.mockResolvedValue(
-        Result.ok({ isReachable: false, latencyMs: null })
-      );
+      pingService.ping
+        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }))
+        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }))
+        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }));
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
       deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
       deviceStateRepo.save.mockResolvedValue(
