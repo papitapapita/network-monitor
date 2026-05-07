@@ -4,6 +4,7 @@ import { createLocationRoutes } from './location.routes';
 import { createDeviceRoutes } from './device.routes';
 import { createDeviceModelRoutes } from './device-model.routes';
 import { createPollingRoutes } from './polling.routes';
+import { createAlertRoutes } from './alert.routes';
 
 /**
  * setupRoutes
@@ -51,6 +52,13 @@ export function setupRoutes(
     '/devices',
     createPollingRoutes(container.pollingController)
   );
+
+  // =====================================
+  // NOTIFICATIONS BOUNDED CONTEXT
+  // =====================================
+
+  // Alerts: /api/alerts
+  apiRouter.use('/alerts', createAlertRoutes(container.alertController));
 
   // Mount API router under /api prefix
   app.use('/api', apiRouter);

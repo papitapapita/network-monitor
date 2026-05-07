@@ -182,7 +182,12 @@ export abstract class EventDispatcher {
    */
   private static dispatch(event: IDomainEvent): void {
     const eventClassName: string = event.constructor.name;
-
+    console.log(
+      '[BP2] Dispatching:',
+      eventClassName,
+      '| Handlers map keys:',
+      [...this.handlersMap.keys()]
+    );
     if (this.handlersMap.has(eventClassName)) {
       const handlers: IHandle<IDomainEvent>[] =
         this.handlersMap.get(eventClassName)!;

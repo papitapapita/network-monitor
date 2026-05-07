@@ -9,21 +9,31 @@ import {
   PrismaPingResultRepository,
   PrismaDeviceStateRepository
 } from '../persistence/';
+import { PrismaAlertRepository } from '../persistence/PrismaAlertRepository';
 import {
   LocationController,
   DeviceController,
   DeviceModelController,
   PollingController
 } from '../../presentation/http/controllers';
+import { AlertController } from '../../presentation/http/controllers/AlertController';
 import { PingService } from '../monitoring/ping/PingService';
 import { PollingOrchestrator } from '../monitoring/orchestrator/PollingOrchestrator';
+import { TelegramNotificationService } from '../notifications/TelegramNotificationService';
 import { EventDispatcher } from '../../domain/shared/core';
 import { DeviceCreatedEvent } from '../../domain/device-inventory/events/DeviceCreatedEvent';
 import { DeviceMonitoringToggledEvent } from '../../domain/device-inventory/events/DeviceMonitoringToggledEvent';
 import { DeviceDetailsUpdatedEvent } from '../../domain/device-inventory/events/DeviceDetailsUpdatedEvent';
+import { DeviceWentOfflineEvent } from '../../domain/device-monitoring/events/DeviceWentOfflineEvent';
+import { DeviceCameOnlineEvent } from '../../domain/device-monitoring/events/DeviceCameOnlineEvent';
 import { DeviceProvisionedHandler } from '../../application/device-monitoring/event-handlers/DeviceProvisionedHandler';
 import { DeviceMonitoringToggledHandler } from '../../application/device-monitoring/event-handlers/DeviceMonitoringToggledHandler';
 import { DeviceIPAddressChangedHandler } from '../../application/device-monitoring/event-handlers/DeviceIPAddressChangedHandler';
+import { SendDeviceDownAlertUseCase } from '../../application/notifications/use-cases/SendDeviceDownAlertUseCase';
+import { SendDeviceRecoveryAlertUseCase } from '../../application/notifications/use-cases/SendDeviceRecoveryAlertUseCase';
+import { ListAlertsUseCase } from '../../application/notifications/use-cases/ListAlertsUseCase';
+import { DeviceWentOfflineNotificationHandler } from '../../application/notifications/event-handlers/DeviceWentOfflineNotificationHandler';
+import { DeviceCameOnlineNotificationHandler } from '../../application/notifications/event-handlers/DeviceCameOnlineNotificationHandler';
 
 // Use Cases
 import {
@@ -62,12 +72,14 @@ export class DependencyContainer {
   private pollingConfigRepository: PrismaPollingConfigurationRepository;
   private pingResultRepository: PrismaPingResultRepository;
   private deviceStateRepository: PrismaDeviceStateRepository;
+  private alertRepository: PrismaAlertRepository;
 
   // Controllers
   public locationController: LocationController;
   public deviceController: DeviceController;
   public deviceModelController: DeviceModelController;
   public pollingController: PollingController;
+  public alertController: AlertController;
 
   // Orchestrator (lifecycle managed by main.ts)
   public pollingOrchestrator: PollingOrchestrator;
@@ -81,7 +93,7 @@ export class DependencyContainer {
       adapter,
       log:
         process.env.NODE_ENV === 'development'
-          ? ['query', 'error', 'warn']
+          ? ['error', 'warn']
           : ['error']
     });
     this.logger = new WinstonLogger();
@@ -102,6 +114,7 @@ export class DependencyContainer {
     this.deviceStateRepository = new PrismaDeviceStateRepository(
       this.prisma
     );
+    this.alertRepository = new PrismaAlertRepository(this.prisma);
 
     // Initialize location use cases
     const createLocationUseCase = new CreateLocationUseCase(
@@ -218,7 +231,39 @@ export class DependencyContainer {
 
     this.pollingOrchestrator = new PollingOrchestrator(
       this.pollingConfigRepository,
-      executePollingCycleUseCase
+      executePollingCycleUseCase,
+      { maxConcurrentPolls: 50 }
+    );
+
+    // Initialize notification service (fail-fast if env vars missing)
+    const telegramNotificationService =
+      new TelegramNotificationService();
+
+    // Initialize notification use cases
+    const sendDeviceDownAlertUseCase = new SendDeviceDownAlertUseCase(
+      this.alertRepository,
+      this.deviceRepository,
+      this.pollingConfigRepository,
+      telegramNotificationService,
+      this.logger
+    );
+    const sendDeviceRecoveryAlertUseCase =
+      new SendDeviceRecoveryAlertUseCase(
+        this.alertRepository,
+        this.deviceRepository,
+        this.pollingConfigRepository,
+        telegramNotificationService,
+        this.logger
+      );
+    const listAlertsUseCase = new ListAlertsUseCase(
+      this.alertRepository,
+      this.logger
+    );
+
+    // Initialize alert controller
+    this.alertController = new AlertController(
+      listAlertsUseCase,
+      this.logger
     );
 
     // Register cross-context event handlers
@@ -233,6 +278,18 @@ export class DependencyContainer {
     EventDispatcher.register(
       DeviceDetailsUpdatedEvent.name,
       new DeviceIPAddressChangedHandler(this.pollingConfigRepository)
+    );
+    EventDispatcher.register(
+      DeviceWentOfflineEvent.name,
+      new DeviceWentOfflineNotificationHandler(
+        sendDeviceDownAlertUseCase
+      )
+    );
+    EventDispatcher.register(
+      DeviceCameOnlineEvent.name,
+      new DeviceCameOnlineNotificationHandler(
+        sendDeviceRecoveryAlertUseCase
+      )
     );
   }
 

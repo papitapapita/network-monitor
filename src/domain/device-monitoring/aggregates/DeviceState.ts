@@ -93,6 +93,19 @@ export class DeviceState extends AggregateRoot<
     this.props.updatedAt = checkedAt;
     if (isReachable) this.props.lastSeen = checkedAt;
 
+    console.log(
+      '[BP1] isFirstPoll:',
+      isFirstPoll,
+      'wasOnline:',
+      previouslyOnline,
+      'nowOnline:',
+      newIsOnline,
+      'failures:',
+      newConsecutiveFailures,
+      'events queued:',
+      this.domainEvents.length
+    );
+
     if (!isFirstPoll) {
       if (!previouslyOnline && newIsOnline) {
         this.addDomainEvent(

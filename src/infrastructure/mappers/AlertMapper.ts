@@ -1,0 +1,68 @@
+import { AlertId, DeviceId } from 'domain/shared/ids';
+import { Alert } from 'domain/notifications/aggregates';
+import { AlertSeverity } from 'domain/notifications/enums';
+
+type PrismaAlertRecord = {
+  id: string;
+  deviceId: string;
+  severity: string;
+  startedAt: Date;
+  resolvedAt: Date | null;
+  notifiedAt: Date | null;
+  recoveryNotifiedAt: Date | null;
+  durationSecs: number | null;
+};
+
+export class AlertMapper {
+  public static toDomain(raw: PrismaAlertRecord): Alert {
+    const alertIdResult = AlertId.parse(raw.id);
+    if (alertIdResult.isFailure) {
+      throw new Error(
+        `Data integrity violation: invalid alertId "${raw.id}" in alert_events`
+      );
+    }
+
+    const deviceIdResult = DeviceId.parse(raw.deviceId);
+    if (deviceIdResult.isFailure) {
+      throw new Error(
+        `Data integrity violation: invalid deviceId "${raw.deviceId}" in alert_events`
+      );
+    }
+
+    return Alert.reconstitute(alertIdResult.value, {
+      deviceId: deviceIdResult.value,
+      severity: AlertMapper.mapSeverity(raw.severity),
+      startedAt: raw.startedAt,
+      resolvedAt: raw.resolvedAt,
+      notifiedAt: raw.notifiedAt,
+      recoveryNotifiedAt: raw.recoveryNotifiedAt,
+      durationSecs: raw.durationSecs
+    });
+  }
+
+  public static toPersistence(alert: Alert) {
+    return {
+      id: alert.alertId.toString(),
+      deviceId: alert.deviceId.toString(),
+      severity: alert.severity as string,
+      startedAt: alert.startedAt,
+      resolvedAt: alert.resolvedAt,
+      notifiedAt: alert.notifiedAt,
+      recoveryNotifiedAt: alert.recoveryNotifiedAt,
+      durationSecs: alert.durationSecs
+    };
+  }
+
+  private static mapSeverity(raw: string): AlertSeverity {
+    switch (raw) {
+      case 'WARNING':
+        return AlertSeverity.WARNING;
+      case 'CRITICAL':
+        return AlertSeverity.CRITICAL;
+      default:
+        throw new Error(
+          `Data integrity violation: unknown AlertSeverity "${raw}"`
+        );
+    }
+  }
+}

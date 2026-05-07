@@ -1,4 +1,5 @@
 import { PrismaClient } from '../../../src/generated/prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 /**
  * Removes all rows from tables that integration tests write to.
@@ -111,3 +112,16 @@ export async function seedMonitoredDevice(
 /** Known-valid UUIDs that will never exist in the test DB */
 export const GHOST_ID = '00000000-0000-4000-8000-000000000001';
 export const INVALID_ID = 'not-a-uuid';
+
+/**
+ * Creates a standalone PrismaClient backed by DATABASE_URL.
+ * Use this in tests that cannot call setupDependencies() (e.g. because the
+ * full DI container requires third-party env vars like TELEGRAM credentials).
+ * Call prisma.$disconnect() in afterAll.
+ */
+export function createTestPrisma(): PrismaClient {
+  const adapter = new PrismaPg({
+    connectionString: process.env.DATABASE_URL
+  });
+  return new PrismaClient({ adapter });
+}
