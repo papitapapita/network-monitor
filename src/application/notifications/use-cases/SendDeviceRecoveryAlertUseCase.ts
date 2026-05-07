@@ -67,7 +67,7 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
     const ipAddress = await this.resolveIpAddress(deviceId);
 
     const message = {
-      title: '🟢 Device Back Online',
+      title: '🟢 Dispositivo de vuelta en línea',
       body: this.formatRecoveryMessage({
         deviceName,
         ipAddress,
@@ -142,24 +142,22 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
   }): string {
     const e = (text: string) => this.escapeMd(text);
     const ip = params.ipAddress ? e(params.ipAddress) : 'N/A';
-    const ts = e(
-      params.occurredAt.toISOString().replace('T', ' ').split('.')[0]
-    );
+    const ts = e(this.formatLocalTime(params.occurredAt));
     const latency =
       params.latencyMs !== null ? `${params.latencyMs}ms` : 'N/A';
     const duration = this.formatDuration(params.durationSecs);
 
     return [
-      '🟢 *DEVICE BACK ONLINE*',
+      '🟢 *DISPOSITIVO DE VUELTA EN LÍNEA*',
       '',
-      `📛 *Device:* ${e(params.deviceName)}`,
-      `🌐 *IP Address:* ${ip}`,
-      `✅ *Severity:* CRITICAL`,
-      `⚡ *Latency:* ${e(latency)}`,
-      `⏱️ *Downtime:* ${e(duration)}`,
-      `🕐 *Recovered At:* ${ts} UTC`,
+      `📛 *Dispositivo:* ${e(params.deviceName)}`,
+      `🌐 *Dirección IP:* ${ip}`,
+      `✅ *Severidad:* CRÍTICA`,
+      `⚡ *Latencia:* ${e(latency)}`,
+      `⏱️ *Tiempo fuera de línea:* ${e(duration)}`,
+      `🕐 *Recuperado a las:* ${ts}`,
       '',
-      `🆔 Alert: \`${e(params.alertId)}\``
+      `🆔 Alerta: \`${e(params.alertId)}\``
     ].join('\n');
   }
 
@@ -173,6 +171,15 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
     if (m > 0) parts.push(`${m}m`);
     parts.push(`${s}s`);
     return parts.join(' ');
+  }
+
+  private formatLocalTime(date: Date): string {
+    return date.toLocaleString('es-CO', {
+      timeZone: 'America/Bogota',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false
+    });
   }
 
   private escapeMd(text: string): string {

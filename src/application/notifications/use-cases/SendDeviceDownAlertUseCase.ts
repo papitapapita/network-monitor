@@ -69,7 +69,7 @@ export class SendDeviceDownAlertUseCase extends UseCase<
     const ipAddress = await this.resolveIpAddress(deviceId);
 
     const message = {
-      title: '🔴 Device Offline',
+      title: '🔴 Dispositivo fuera de línea',
       body: this.formatDownMessage({
         deviceName,
         ipAddress,
@@ -146,21 +146,28 @@ export class SendDeviceDownAlertUseCase extends UseCase<
   }): string {
     const e = (text: string) => this.escapeMd(text);
     const ip = params.ipAddress ? e(params.ipAddress) : 'N/A';
-    const ts = e(
-      params.occurredAt.toISOString().replace('T', ' ').split('.')[0]
-    );
+    const ts = e(this.formatLocalTime(params.occurredAt));
 
     return [
-      '🔴 *DEVICE OFFLINE*',
+      '🔴 *DISPOSITIVO FUERA DE LÍNEA*',
       '',
-      `📛 *Device:* ${e(params.deviceName)}`,
-      `🌐 *IP Address:* ${ip}`,
-      `⚠️ *Severity:* CRITICAL`,
-      `❌ *Consecutive Failures:* ${params.consecutiveFailures}`,
-      `🕐 *Offline Since:* ${ts} UTC`,
+      `📛 *Dispositivo:* ${e(params.deviceName)}`,
+      `🌐 *Dirección IP:* ${ip}`,
+      `⚠️ *Severidad:* CRÍTICA`,
+      `❌ *Fallos Consecutivos:* ${params.consecutiveFailures}`,
+      `🕐 *Sin conexión desde:* ${ts}`,
       '',
-      `🆔 Alert: \`${e(params.alertId)}\``
+      `🆔 Alerta: \`${e(params.alertId)}\``
     ].join('\n');
+  }
+
+  private formatLocalTime(date: Date): string {
+    return date.toLocaleString('es-CO', {
+      timeZone: 'America/Bogota',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false
+    });
   }
 
   private escapeMd(text: string): string {
