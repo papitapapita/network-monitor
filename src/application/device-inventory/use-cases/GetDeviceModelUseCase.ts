@@ -4,10 +4,7 @@ import { Result } from '../../../domain/shared/core';
 import { UseCase } from '../../shared/core';
 import { ILogger } from '../../shared/interfaces';
 import { DeviceModelMapper } from '../mappers';
-import {
-  GetDeviceModelRequestDTO,
-  DeviceModelResponseDTO
-} from '../dtos';
+import { GetDeviceModelRequestDTO, DeviceModelResponseDTO } from '../dtos';
 
 export class GetDeviceModelUseCase extends UseCase<
   GetDeviceModelRequestDTO,
@@ -39,22 +36,17 @@ export class GetDeviceModelUseCase extends UseCase<
       );
     }
 
-    const findResult = await this.deviceModelRepository.findById(
-      idResult.value
-    );
-
+    const findResult = await this.deviceModelRepository.findById(idResult.value);
     if (findResult.isFailure) {
       return this.fail<DeviceModelResponseDTO>(findResult.error!);
     }
 
-    const record = findResult.value;
-
-    if (record === null) {
+    if (findResult.value === null) {
       return this.fail<DeviceModelResponseDTO>(
         `Device model not found: ${request.id}`
       );
     }
 
-    return this.ok(DeviceModelMapper.toDTO(record));
+    return this.ok(DeviceModelMapper.toDTO(findResult.value));
   }
 }

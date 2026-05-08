@@ -3,6 +3,7 @@ import { DependencyContainer } from '../../../infrastructure/di/container';
 import { createLocationRoutes } from './location.routes';
 import { createDeviceRoutes } from './device.routes';
 import { createDeviceModelRoutes } from './device-model.routes';
+import { createVendorRoutes } from './vendor.routes';
 import { createPollingRoutes } from './polling.routes';
 import { createAlertRoutes } from './alert.routes';
 
@@ -41,6 +42,12 @@ export function setupRoutes(
   apiRouter.use(
     '/device-models',
     createDeviceModelRoutes(container.deviceModelController)
+  );
+
+  // Vendors: /api/vendors
+  apiRouter.use(
+    '/vendors',
+    createVendorRoutes(container.vendorController)
   );
 
   // =====================================

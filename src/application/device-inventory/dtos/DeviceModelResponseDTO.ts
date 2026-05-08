@@ -1,6 +1,8 @@
 export interface DeviceModelResponseDTO {
   id: string;
-  manufacturer: string;
+  vendorId: string;
+  vendorName: string;
+  vendorSlug: string;
   model: string;
   deviceType: string;
   createdAt: string;

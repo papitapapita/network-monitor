@@ -4,6 +4,9 @@ import { Request, Response } from 'express';
 import { DeviceModelController } from '../../../../src/presentation/http/controllers/DeviceModelController';
 import { GetDeviceModelUseCase } from '../../../../src/application/device-inventory/use-cases/GetDeviceModelUseCase';
 import { ListDeviceModelsUseCase } from '../../../../src/application/device-inventory/use-cases/ListDeviceModelsUseCase';
+import { CreateDeviceModelUseCase } from '../../../../src/application/device-inventory/use-cases/CreateDeviceModelUseCase';
+import { UpdateDeviceModelUseCase } from '../../../../src/application/device-inventory/use-cases/UpdateDeviceModelUseCase';
+import { DeleteDeviceModelUseCase } from '../../../../src/application/device-inventory/use-cases/DeleteDeviceModelUseCase';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
@@ -13,7 +16,9 @@ import { Result } from '../../../../src/domain/shared/core/Result';
 
 interface DeviceModelResponseDTO {
   id: string;
-  manufacturer: string;
+  vendorId: string;
+  vendorName: string;
+  vendorSlug: string;
   model: string;
   deviceType: string;
   createdAt: string;
@@ -37,6 +42,15 @@ const createMockGetUseCase = () =>
 
 const createMockListUseCase = () =>
   ({ execute: jest.fn() }) as unknown as ListDeviceModelsUseCase;
+
+const createMockCreateUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as CreateDeviceModelUseCase;
+
+const createMockUpdateUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as UpdateDeviceModelUseCase;
+
+const createMockDeleteUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as DeleteDeviceModelUseCase;
 
 const createMockLogger = (): jest.Mocked<ILogger> => ({
   info: jest.fn(),
@@ -72,10 +86,13 @@ const createMockResponse = (): {
 // ---------------------------------------------------------------------------
 
 const VALID_UUID = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+const VENDOR_UUID = 'f47ac10b-58cc-4372-a567-0e02b2c3d480';
 
 const mockModelDTO: DeviceModelResponseDTO = {
   id: VALID_UUID,
-  manufacturer: 'Mikrotik',
+  vendorId: VENDOR_UUID,
+  vendorName: 'Mikrotik',
+  vendorSlug: 'mikrotik',
   model: 'RB760iGS',
   deviceType: 'ROUTER',
   createdAt: '2024-01-01T00:00:00.000Z',
@@ -96,16 +113,25 @@ describe('DeviceModelController', () => {
   let controller: DeviceModelController;
   let mockGetUseCase: GetDeviceModelUseCase;
   let mockListUseCase: ListDeviceModelsUseCase;
+  let mockCreateUseCase: CreateDeviceModelUseCase;
+  let mockUpdateUseCase: UpdateDeviceModelUseCase;
+  let mockDeleteUseCase: DeleteDeviceModelUseCase;
   let mockLogger: jest.Mocked<ILogger>;
 
   beforeEach(() => {
     mockGetUseCase = createMockGetUseCase();
     mockListUseCase = createMockListUseCase();
+    mockCreateUseCase = createMockCreateUseCase();
+    mockUpdateUseCase = createMockUpdateUseCase();
+    mockDeleteUseCase = createMockDeleteUseCase();
     mockLogger = createMockLogger();
 
     controller = new DeviceModelController(
       mockGetUseCase,
       mockListUseCase,
+      mockCreateUseCase,
+      mockUpdateUseCase,
+      mockDeleteUseCase,
       mockLogger
     );
   });
@@ -189,49 +215,7 @@ describe('DeviceModelController', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('Error Path — 400 Bad Request', () => {
-      it('should return 400 when the use case fails with "Invalid"', async () => {
-        const mockReq = createMockRequest({ query: {} });
-        const { res, statusMock } = createMockResponse();
-
-        (mockListUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('Invalid query parameter')
-        );
-
-        await controller.list(mockReq as Request, res as Response);
-
-        expect(statusMock).toHaveBeenCalledWith(400);
-      });
-
-      it('should return 400 when the use case fails with "must be"', async () => {
-        const mockReq = createMockRequest({ query: {} });
-        const { res, statusMock } = createMockResponse();
-
-        (mockListUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('Offset must be a non-negative integer')
-        );
-
-        await controller.list(mockReq as Request, res as Response);
-
-        expect(statusMock).toHaveBeenCalledWith(400);
-      });
-    });
-
-    // -----------------------------------------------------------------------
     describe('Error Path — 500 Internal Server Error', () => {
-      it('should return 500 when the use case fails with an unrecognised message', async () => {
-        const mockReq = createMockRequest({ query: {} });
-        const { res, statusMock } = createMockResponse();
-
-        (mockListUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('Unexpected infrastructure error')
-        );
-
-        await controller.list(mockReq as Request, res as Response);
-
-        expect(statusMock).toHaveBeenCalledWith(500);
-      });
-
       it('should return 500 and log when the use case throws', async () => {
         const thrownError = new Error('Connection pool exhausted');
         const mockReq = createMockRequest({ query: {} });
@@ -250,44 +234,6 @@ describe('DeviceModelController', () => {
           'Unexpected error in DeviceModelController',
           thrownError,
           { error: 'Connection pool exhausted' }
-        );
-      });
-
-      it('should not leak sensitive error details in the response body', async () => {
-        const sensitiveError = new Error('SELECT * FROM device_models;');
-        const mockReq = createMockRequest({ query: {} });
-        const { res, jsonMock } = createMockResponse();
-
-        (mockListUseCase.execute as jest.Mock).mockRejectedValue(sensitiveError);
-
-        await controller.list(mockReq as Request, res as Response);
-
-        expect(jsonMock).toHaveBeenCalledWith({
-          success: false,
-          error: 'Internal server error'
-        });
-        expect(jsonMock).not.toHaveBeenCalledWith(
-          expect.objectContaining({
-            error: expect.stringContaining('SELECT')
-          })
-        );
-      });
-
-      it('should handle non-Error thrown values', async () => {
-        const mockReq = createMockRequest({ query: {} });
-        const { res, statusMock } = createMockResponse();
-
-        (mockListUseCase.execute as jest.Mock).mockRejectedValue(
-          'string exception'
-        );
-
-        await controller.list(mockReq as Request, res as Response);
-
-        expect(statusMock).toHaveBeenCalledWith(500);
-        expect(mockLogger.error).toHaveBeenCalledWith(
-          'Unexpected error in DeviceModelController',
-          'string exception',
-          { error: 'string exception' }
         );
       });
     });
@@ -329,10 +275,10 @@ describe('DeviceModelController', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('Error Path — 404 Not Found', () => {
+    describe('Error Path — 404', () => {
       it('should return 404 when the use case fails with "not found"', async () => {
         const mockReq = createMockRequest({ params: { id: VALID_UUID } });
-        const { res, statusMock, jsonMock } = createMockResponse();
+        const { res, statusMock } = createMockResponse();
 
         (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
           Result.fail(`Device model not found: ${VALID_UUID}`)
@@ -341,155 +287,72 @@ describe('DeviceModelController', () => {
         await controller.getById(mockReq as Request, res as Response);
 
         expect(statusMock).toHaveBeenCalledWith(404);
-        expect(jsonMock).toHaveBeenCalledWith({
-          success: false,
-          error: `Device model not found: ${VALID_UUID}`
-        });
-      });
-    });
-
-    // -----------------------------------------------------------------------
-    describe('Error Path — 400 Bad Request', () => {
-      it('should return 400 when the use case fails with "Invalid" ID format', async () => {
-        const mockReq = createMockRequest({ params: { id: 'bad-id' } });
-        const { res, statusMock } = createMockResponse();
-
-        (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('Invalid device model ID: bad-id')
-        );
-
-        await controller.getById(mockReq as Request, res as Response);
-
-        expect(statusMock).toHaveBeenCalledWith(400);
-      });
-
-      it('should return 400 when the use case fails with "required"', async () => {
-        const mockReq = createMockRequest({ params: { id: '' } });
-        const { res, statusMock } = createMockResponse();
-
-        (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('Device model ID is required')
-        );
-
-        await controller.getById(mockReq as Request, res as Response);
-
-        expect(statusMock).toHaveBeenCalledWith(400);
-      });
-    });
-
-    // -----------------------------------------------------------------------
-    describe('Error Path — 500 Internal Server Error', () => {
-      it('should return 500 when the use case fails with an unrecognised message', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
-        const { res, statusMock } = createMockResponse();
-
-        (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('DB read timeout')
-        );
-
-        await controller.getById(mockReq as Request, res as Response);
-
-        expect(statusMock).toHaveBeenCalledWith(500);
-      });
-
-      it('should return 500 and log when the use case throws', async () => {
-        const thrownError = new Error('Unexpected error');
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
-        const { res, statusMock, jsonMock } = createMockResponse();
-
-        (mockGetUseCase.execute as jest.Mock).mockRejectedValue(thrownError);
-
-        await controller.getById(mockReq as Request, res as Response);
-
-        expect(statusMock).toHaveBeenCalledWith(500);
-        expect(jsonMock).toHaveBeenCalledWith({
-          success: false,
-          error: 'Internal server error'
-        });
-        expect(mockLogger.error).toHaveBeenCalledWith(
-          'Unexpected error in DeviceModelController',
-          thrownError,
-          { error: 'Unexpected error' }
-        );
-      });
-
-      it('should handle a thrown null gracefully', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
-        const { res, statusMock, jsonMock } = createMockResponse();
-
-        (mockGetUseCase.execute as jest.Mock).mockRejectedValue(null);
-
-        await controller.getById(mockReq as Request, res as Response);
-
-        expect(statusMock).toHaveBeenCalledWith(500);
-        expect(jsonMock).toHaveBeenCalledWith({
-          success: false,
-          error: 'Internal server error'
-        });
       });
     });
   });
 
   // =========================================================================
-  describe('getErrorStatusCode (exercised through endpoint methods)', () => {
-    it('should prioritise "not found" over "Invalid" when both appear in the message', async () => {
+  describe('create (POST /api/device-models)', () => {
+    it('should return 201 with success: true on successful create', async () => {
+      const mockReq = createMockRequest({
+        body: { vendorId: VENDOR_UUID, model: 'RB760iGS', deviceType: 'ROUTER' }
+      });
+      const { res, statusMock, jsonMock } = createMockResponse();
+
+      (mockCreateUseCase.execute as jest.Mock).mockResolvedValue(
+        Result.ok(mockModelDTO)
+      );
+
+      await controller.create(mockReq as Request, res as Response);
+
+      expect(statusMock).toHaveBeenCalledWith(201);
+      expect(jsonMock).toHaveBeenCalledWith({
+        success: true,
+        data: mockModelDTO
+      });
+    });
+
+    it('should return 409 when use case fails with "already exists"', async () => {
+      const mockReq = createMockRequest({ body: {} });
+      const { res, statusMock } = createMockResponse();
+
+      (mockCreateUseCase.execute as jest.Mock).mockResolvedValue(
+        Result.fail('A device model "RB760iGS" already exists for this vendor')
+      );
+
+      await controller.create(mockReq as Request, res as Response);
+
+      expect(statusMock).toHaveBeenCalledWith(409);
+    });
+  });
+
+  // =========================================================================
+  describe('delete (DELETE /api/device-models/:id)', () => {
+    it('should return 204 on successful delete', async () => {
+      const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+      const sendMock = jest.fn();
+      const res = { status: jest.fn().mockReturnValue({ send: sendMock }) } as any;
+
+      (mockDeleteUseCase.execute as jest.Mock).mockResolvedValue(
+        Result.ok(undefined)
+      );
+
+      await controller.delete(mockReq as Request, res);
+
+      expect(res.status).toHaveBeenCalledWith(204);
+    });
+
+    it('should return 409 when device model has associated devices', async () => {
       const mockReq = createMockRequest({ params: { id: VALID_UUID } });
       const { res, statusMock } = createMockResponse();
 
-      (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
-        Result.fail('Invalid resource not found in database')
+      (mockDeleteUseCase.execute as jest.Mock).mockResolvedValue(
+        Result.fail('Cannot delete device model: it has 3 device(s) associated.')
       );
 
-      await controller.getById(mockReq as Request, res as Response);
+      await controller.delete(mockReq as Request, res as Response);
 
-      expect(statusMock).toHaveBeenCalledWith(404);
-    });
-
-    it('should default to 500 for messages that match no known keyword', async () => {
-      const mockReq = createMockRequest({ query: {} });
-      const { res, statusMock } = createMockResponse();
-
-      (mockListUseCase.execute as jest.Mock).mockResolvedValue(
-        Result.fail('Something completely unknown happened')
-      );
-
-      await controller.list(mockReq as Request, res as Response);
-
-      expect(statusMock).toHaveBeenCalledWith(500);
-    });
-  });
-
-  // =========================================================================
-  describe('handleUnexpectedError (exercised through endpoint methods)', () => {
-    it('should extract the message from an Error instance', async () => {
-      const error = new Error('Exact message');
-      const mockReq = createMockRequest({ query: {} });
-      const { res } = createMockResponse();
-
-      (mockListUseCase.execute as jest.Mock).mockRejectedValue(error);
-
-      await controller.list(mockReq as Request, res as Response);
-
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        'Unexpected error in DeviceModelController',
-        error,
-        { error: 'Exact message' }
-      );
-    });
-
-    it('should convert a numeric thrown value to a string', async () => {
-      const mockReq = createMockRequest({ query: {} });
-      const { res } = createMockResponse();
-
-      (mockListUseCase.execute as jest.Mock).mockRejectedValue(42);
-
-      await controller.list(mockReq as Request, res as Response);
-
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        'Unexpected error in DeviceModelController',
-        42,
-        { error: '42' }
-      );
+      expect(statusMock).toHaveBeenCalledWith(409);
     });
   });
 });

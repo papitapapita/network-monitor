@@ -12,20 +12,30 @@ export async function cleanDatabase(prisma: PrismaClient): Promise<void> {
 }
 
 /**
- * Upserts the MikroTik RB4011iGS+ device model.
- * Returns its UUID — use it as `deviceModelId` when creating test devices.
+ * Upserts the MikroTik vendor and RB4011iGS+ device model.
+ * Returns the device model UUID — use it as `deviceModelId` when creating test devices.
  */
 export async function seedDeviceModel(prisma: PrismaClient): Promise<string> {
+  const vendor = await prisma.vendor.upsert({
+    where: { slug: 'mikrotik' },
+    update: {},
+    create: {
+      name: 'MikroTik',
+      slug: 'mikrotik',
+      description: null
+    }
+  });
+
   const model = await prisma.deviceModel.upsert({
     where: {
-      manufacturer_model: {
-        manufacturer: 'MIKROTIK',
+      vendorId_model: {
+        vendorId: vendor.id,
         model: 'RB4011iGS+'
       }
     },
     update: {},
     create: {
-      manufacturer: 'MIKROTIK',
+      vendorId: vendor.id,
       model: 'RB4011iGS+',
       deviceType: 'ROUTERBOARD'
     }
@@ -107,6 +117,36 @@ export async function seedMonitoredDevice(
   });
 
   return { deviceId: device.id, pollingConfigId: pollingConfig.id };
+}
+
+/**
+ * Cleans all catalog and device data in FK-safe order.
+ * Use in tests that create vendors or device models.
+ */
+export async function cleanCatalog(prisma: PrismaClient): Promise<void> {
+  await prisma.device.deleteMany();
+  await prisma.deviceModel.deleteMany();
+  await prisma.vendor.deleteMany();
+  await prisma.location.deleteMany();
+}
+
+/**
+ * Upserts a test vendor. Returns its UUID.
+ */
+export async function seedVendor(
+  prisma: PrismaClient,
+  overrides: { name?: string; slug?: string; description?: string | null } = {}
+): Promise<string> {
+  const vendor = await prisma.vendor.upsert({
+    where: { slug: overrides.slug ?? 'test-vendor' },
+    update: {},
+    create: {
+      name: overrides.name ?? 'Test Vendor',
+      slug: overrides.slug ?? 'test-vendor',
+      description: overrides.description ?? null
+    }
+  });
+  return vendor.id;
 }
 
 /** Known-valid UUIDs that will never exist in the test DB */

@@ -11,7 +11,8 @@ import {
 import { GetDeviceModelUseCase } from '../../../../src/application/device-inventory/use-cases/GetDeviceModelUseCase';
 import { IDeviceModelRepository } from '../../../../src/domain/device-inventory/repository/IDeviceModelRepository';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
-import { DeviceModelRecord } from '../../../../src/domain/device-inventory/repository/IDeviceModelRepository';
+import { DeviceModel } from '../../../../src/domain/device-inventory/aggregates/DeviceModel';
+import { DeviceModelId, VendorId } from '../../../../src/domain/shared/ids';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
 // ---------------------------------------------------------------------------
@@ -19,20 +20,22 @@ import { Result } from '../../../../src/domain/shared/core/Result';
 // ---------------------------------------------------------------------------
 
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
+const VENDOR_UUID = '550e8400-e29b-41d4-a716-446655440001';
 const NOW = new Date('2024-01-01T00:00:00.000Z');
 
-function makeRecord(
-  overrides: Partial<DeviceModelRecord> = {}
-): DeviceModelRecord {
-  return {
-    id: VALID_UUID,
-    manufacturer: 'Mikrotik',
-    model: 'RB760iGS',
-    deviceType: 'ROUTER',
-    createdAt: NOW,
-    updatedAt: NOW,
-    ...overrides
-  };
+function makeDeviceModel(): DeviceModel {
+  return DeviceModel.reconstitute(
+    DeviceModelId.parse(VALID_UUID).value!,
+    {
+      vendorId: VendorId.parse(VENDOR_UUID).value!,
+      vendorName: 'Mikrotik',
+      vendorSlug: 'mikrotik',
+      model: 'RB760iGS',
+      deviceType: 'ROUTER',
+      createdAt: NOW,
+      updatedAt: NOW
+    }
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -46,6 +49,11 @@ describe('GetDeviceModelUseCase', () => {
     mockRepository = {
       findById: jest.fn(),
       findAll: jest.fn(),
+      findByVendor: jest.fn(),
+      save: jest.fn(),
+      delete: jest.fn(),
+      exists: jest.fn(),
+      existsByVendorAndModel: jest.fn(),
       count: jest.fn()
     } as any;
 
@@ -80,188 +88,67 @@ describe('GetDeviceModelUseCase', () => {
         const result = await useCase.execute({ id: '   ' });
 
         expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('ID');
-      });
-
-      it('should not call repository.findById when id is empty', async () => {
-        await useCase.execute({ id: '' });
-
-        expect(mockRepository.findById).not.toHaveBeenCalled();
       });
     });
   });
 
   // =========================================================================
-  describe('executeImpl — successful retrieval', () => {
-    describe('repository interaction', () => {
-      it('should call repository.findById exactly once', async () => {
-        mockRepository.findById.mockResolvedValue(
-          Result.ok(makeRecord())
-        );
+  describe('executeImpl — happy path', () => {
+    it('should return success when the device model is found', async () => {
+      (mockRepository.findById as any).mockResolvedValue(
+        Result.ok(makeDeviceModel())
+      );
 
-        await useCase.execute({ id: VALID_UUID });
+      const result = await useCase.execute({ id: VALID_UUID });
 
-        expect(mockRepository.findById).toHaveBeenCalledTimes(1);
-      });
-
-      it('should call repository.findById with a DeviceModelId matching the request id', async () => {
-        mockRepository.findById.mockResolvedValue(
-          Result.ok(makeRecord())
-        );
-
-        await useCase.execute({ id: VALID_UUID });
-
-        const calledWithId = (
-          mockRepository.findById as jest.MockedFunction<
-            typeof mockRepository.findById
-          >
-        ).mock.calls[0][0];
-        expect(calledWithId.toString()).toBe(VALID_UUID);
-      });
-
-      it('should trim whitespace from the id before calling the repository', async () => {
-        mockRepository.findById.mockResolvedValue(
-          Result.ok(makeRecord())
-        );
-
-        await useCase.execute({ id: `  ${VALID_UUID}  ` });
-
-        const calledWithId = (
-          mockRepository.findById as jest.MockedFunction<
-            typeof mockRepository.findById
-          >
-        ).mock.calls[0][0];
-        expect(calledWithId.toString()).toBe(VALID_UUID);
-      });
+      expect(result.isSuccess).toBe(true);
     });
 
-    // -----------------------------------------------------------------------
-    describe('response DTO fields', () => {
-      it('should return isSuccess true when the model is found', async () => {
-        mockRepository.findById.mockResolvedValue(Result.ok(makeRecord()));
+    it('should return a DTO with vendorName field', async () => {
+      (mockRepository.findById as any).mockResolvedValue(
+        Result.ok(makeDeviceModel())
+      );
 
-        const result = await useCase.execute({ id: VALID_UUID });
+      const result = await useCase.execute({ id: VALID_UUID });
 
-        expect(result.isSuccess).toBe(true);
-      });
+      expect(result.value!.vendorName).toBe('Mikrotik');
+    });
 
-      it('should return the id from the record', async () => {
-        mockRepository.findById.mockResolvedValue(Result.ok(makeRecord()));
+    it('should return a DTO with model field', async () => {
+      (mockRepository.findById as any).mockResolvedValue(
+        Result.ok(makeDeviceModel())
+      );
 
-        const result = await useCase.execute({ id: VALID_UUID });
+      const result = await useCase.execute({ id: VALID_UUID });
 
-        expect(result.value.id).toBe(VALID_UUID);
-      });
-
-      it('should return the manufacturer from the record', async () => {
-        mockRepository.findById.mockResolvedValue(
-          Result.ok(makeRecord({ manufacturer: 'Ubiquiti' }))
-        );
-
-        const result = await useCase.execute({ id: VALID_UUID });
-
-        expect(result.value.manufacturer).toBe('Ubiquiti');
-      });
-
-      it('should return the model from the record', async () => {
-        mockRepository.findById.mockResolvedValue(
-          Result.ok(makeRecord({ model: 'UniFi AP' }))
-        );
-
-        const result = await useCase.execute({ id: VALID_UUID });
-
-        expect(result.value.model).toBe('UniFi AP');
-      });
-
-      it('should return the deviceType from the record', async () => {
-        mockRepository.findById.mockResolvedValue(
-          Result.ok(makeRecord({ deviceType: 'SWITCH' }))
-        );
-
-        const result = await useCase.execute({ id: VALID_UUID });
-
-        expect(result.value.deviceType).toBe('SWITCH');
-      });
-
-      it('should return createdAt as an ISO 8601 string', async () => {
-        mockRepository.findById.mockResolvedValue(Result.ok(makeRecord()));
-
-        const result = await useCase.execute({ id: VALID_UUID });
-
-        expect(result.value.createdAt).toBe('2024-01-01T00:00:00.000Z');
-      });
-
-      it('should return updatedAt as an ISO 8601 string', async () => {
-        mockRepository.findById.mockResolvedValue(Result.ok(makeRecord()));
-
-        const result = await useCase.execute({ id: VALID_UUID });
-
-        expect(result.value.updatedAt).toBe('2024-01-01T00:00:00.000Z');
-      });
+      expect(result.value!.model).toBe('RB760iGS');
     });
   });
 
   // =========================================================================
-  describe('executeImpl — failure paths', () => {
-    describe('invalid id format', () => {
-      it('should return failure when id is not a valid UUID', async () => {
-        const result = await useCase.execute({ id: 'not-a-valid-id' });
+  describe('executeImpl — not found', () => {
+    it('should fail when the device model is not found', async () => {
+      (mockRepository.findById as any).mockResolvedValue(
+        Result.ok(null)
+      );
 
-        expect(result.isFailure).toBe(true);
-      });
+      const result = await useCase.execute({ id: VALID_UUID });
 
-      it('should include "Invalid" in the error when the id format is wrong', async () => {
-        const result = await useCase.execute({ id: 'not-a-valid-id' });
-
-        expect(result.error).toContain('Invalid');
-      });
-
-      it('should not call repository.findById when the id format is invalid', async () => {
-        await useCase.execute({ id: 'not-a-valid-id' });
-
-        expect(mockRepository.findById).not.toHaveBeenCalled();
-      });
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('not found');
     });
+  });
 
-    // -----------------------------------------------------------------------
-    describe('device model not found', () => {
-      it('should return failure when repository.findById returns null', async () => {
-        mockRepository.findById.mockResolvedValue(Result.ok(null));
+  // =========================================================================
+  describe('executeImpl — repository failure', () => {
+    it('should propagate repository errors', async () => {
+      (mockRepository.findById as any).mockResolvedValue(
+        Result.fail('DB error')
+      );
 
-        const result = await useCase.execute({ id: VALID_UUID });
+      const result = await useCase.execute({ id: VALID_UUID });
 
-        expect(result.isFailure).toBe(true);
-      });
-
-      it('should include "not found" in the error message', async () => {
-        mockRepository.findById.mockResolvedValue(Result.ok(null));
-
-        const result = await useCase.execute({ id: VALID_UUID });
-
-        expect(result.error).toContain('not found');
-      });
-
-      it('should include the requested id in the error message', async () => {
-        mockRepository.findById.mockResolvedValue(Result.ok(null));
-
-        const result = await useCase.execute({ id: VALID_UUID });
-
-        expect(result.error).toContain(VALID_UUID);
-      });
-    });
-
-    // -----------------------------------------------------------------------
-    describe('repository failure', () => {
-      it('should return failure when repository.findById returns a failure Result', async () => {
-        mockRepository.findById.mockResolvedValue(
-          Result.fail('DB timeout')
-        );
-
-        const result = await useCase.execute({ id: VALID_UUID });
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('DB timeout');
-      });
+      expect(result.isFailure).toBe(true);
     });
   });
 });

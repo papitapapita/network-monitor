@@ -2,7 +2,9 @@
 
 import {
   listDeviceModelsSchema,
-  getDeviceModelByIdSchema
+  getDeviceModelByIdSchema,
+  createDeviceModelSchema,
+  updateDeviceModelSchema
 } from '../../../../src/presentation/http/validation/device-model.schemas';
 
 // ---------------------------------------------------------------------------
@@ -255,6 +257,217 @@ describe('getDeviceModelByIdSchema', () => {
     it('should reject when id param is missing', () => {
       const result = getDeviceModelByIdSchema.safeParse({
         params: {}
+      });
+
+      expect(result.success).toBe(false);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('createDeviceModelSchema', () => {
+  // -------------------------------------------------------------------------
+  describe('happy path', () => {
+    it('should accept a valid body with vendorId, model, and deviceType', () => {
+      const result = createDeviceModelSchema.safeParse({
+        body: { vendorId: VALID_UUID, model: 'RB760iGS', deviceType: 'ROUTER' }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept deviceType ANTENNA', () => {
+      const result = createDeviceModelSchema.safeParse({
+        body: { vendorId: VALID_UUID, model: 'AM-9M13', deviceType: 'ANTENNA' }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept deviceType OTHER', () => {
+      const result = createDeviceModelSchema.safeParse({
+        body: { vendorId: VALID_UUID, model: 'SomeModel', deviceType: 'OTHER' }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept deviceType RADIO', () => {
+      const result = createDeviceModelSchema.safeParse({
+        body: { vendorId: VALID_UUID, model: 'LHG 5', deviceType: 'RADIO' }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept deviceType ROUTERBOARD', () => {
+      const result = createDeviceModelSchema.safeParse({
+        body: { vendorId: VALID_UUID, model: 'RB951G-2HnD', deviceType: 'ROUTERBOARD' }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept deviceType SERVER', () => {
+      const result = createDeviceModelSchema.safeParse({
+        body: { vendorId: VALID_UUID, model: 'PowerEdge R740', deviceType: 'SERVER' }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept deviceType SWITCH', () => {
+      const result = createDeviceModelSchema.safeParse({
+        body: { vendorId: VALID_UUID, model: 'CRS326', deviceType: 'SWITCH' }
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('validation errors — vendorId', () => {
+    it('should reject when vendorId is missing', () => {
+      const result = createDeviceModelSchema.safeParse({
+        body: { model: 'RB760iGS', deviceType: 'ROUTER' }
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject when vendorId is not a UUID', () => {
+      const result = createDeviceModelSchema.safeParse({
+        body: { vendorId: 'not-a-uuid', model: 'RB760iGS', deviceType: 'ROUTER' }
+      });
+
+      expect(result.success).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('validation errors — model', () => {
+    it('should reject when model is an empty string', () => {
+      const result = createDeviceModelSchema.safeParse({
+        body: { vendorId: VALID_UUID, model: '', deviceType: 'ROUTER' }
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject when model exceeds 150 characters', () => {
+      const result = createDeviceModelSchema.safeParse({
+        body: { vendorId: VALID_UUID, model: 'M'.repeat(151), deviceType: 'ROUTER' }
+      });
+
+      expect(result.success).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('validation errors — deviceType', () => {
+    it('should reject when deviceType is missing', () => {
+      const result = createDeviceModelSchema.safeParse({
+        body: { vendorId: VALID_UUID, model: 'RB760iGS' }
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject when deviceType is an unrecognised value', () => {
+      const result = createDeviceModelSchema.safeParse({
+        body: { vendorId: VALID_UUID, model: 'RB760iGS', deviceType: 'INVALID' }
+      });
+
+      expect(result.success).toBe(false);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('updateDeviceModelSchema', () => {
+  // -------------------------------------------------------------------------
+  describe('happy path', () => {
+    it('should accept a body with only model', () => {
+      const result = updateDeviceModelSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { model: 'RB4011iGS+RM' }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept a body with only deviceType', () => {
+      const result = updateDeviceModelSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { deviceType: 'SWITCH' }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept a body with only vendorId', () => {
+      const result = updateDeviceModelSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { vendorId: VALID_UUID }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept a body with all three fields', () => {
+      const result = updateDeviceModelSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { vendorId: VALID_UUID, model: 'CRS326', deviceType: 'SWITCH' }
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('validation errors — empty body', () => {
+    it('should reject when no fields are provided (refine fails)', () => {
+      const result = updateDeviceModelSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: {}
+      });
+
+      expect(result.success).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('validation errors — invalid id param', () => {
+    it('should reject when the id param is not a valid UUID', () => {
+      const result = updateDeviceModelSchema.safeParse({
+        params: { id: 'not-a-uuid' },
+        body: { model: 'RB760iGS' }
+      });
+
+      expect(result.success).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('validation errors — invalid vendorId in body', () => {
+    it('should reject when vendorId in body is not a valid UUID', () => {
+      const result = updateDeviceModelSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { vendorId: 'bad-vendor-id' }
+      });
+
+      expect(result.success).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('validation errors — invalid deviceType in body', () => {
+    it('should reject when deviceType is an unrecognised value', () => {
+      const result = updateDeviceModelSchema.safeParse({
+        params: { id: VALID_UUID },
+        body: { deviceType: 'INVALID' }
       });
 
       expect(result.success).toBe(false);

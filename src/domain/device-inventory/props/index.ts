@@ -13,3 +13,5 @@ export * from './DeviceStatusChangedEventProps';
 export * from './DeviceLocationAssignedEventProps';
 export * from './DeviceMonitoringToggledEventProps';
 export * from './DeviceDetailsUpdatedEventProps';
+export * from './VendorProps';
+export * from './DeviceModelProps';

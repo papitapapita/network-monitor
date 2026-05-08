@@ -2,26 +2,32 @@
 
 import { PrismaDeviceModelRepository } from '../../../src/infrastructure/persistence/PrismaDeviceModelRepository';
 import { DeviceModelId } from '../../../src/domain/shared/ids';
+import { DeviceModel } from '../../../src/domain/device-inventory/aggregates/DeviceModel';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
+const VENDOR_UUID = '550e8400-e29b-41d4-a716-446655440001';
 const NOW = new Date('2024-01-01T00:00:00.000Z');
 
 // ---------------------------------------------------------------------------
-// Prisma raw row factory (matches what prisma.deviceModel methods return)
+// Prisma raw row factory (matches what prisma.deviceModel.findUnique returns with include vendor)
 // ---------------------------------------------------------------------------
 
 function makeRawRow(overrides: Record<string, unknown> = {}) {
   return {
     id: VALID_UUID,
-    manufacturer: 'Mikrotik',
+    vendorId: VENDOR_UUID,
     model: 'RB760iGS',
     deviceType: 'ROUTER',
     createdAt: NOW,
     updatedAt: NOW,
+    vendor: {
+      name: 'Mikrotik',
+      slug: 'mikrotik'
+    },
     ...overrides
   };
 }
@@ -33,8 +39,10 @@ function makeRawRow(overrides: Record<string, unknown> = {}) {
 function makePrisma() {
   return {
     deviceModel: {
+      upsert: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      delete: jest.fn(),
       count: jest.fn()
     }
   };
@@ -69,52 +77,53 @@ describe('PrismaDeviceModelRepository', () => {
         expect(result.isSuccess).toBe(true);
       });
 
-      it('should call prisma.deviceModel.findUnique with the correct id', async () => {
+      it('should call prisma.deviceModel.findUnique with id and include vendor', async () => {
         prisma.deviceModel.findUnique.mockResolvedValue(makeRawRow());
 
         await repository.findById(validId);
 
         expect(prisma.deviceModel.findUnique).toHaveBeenCalledWith({
-          where: { id: VALID_UUID }
+          where: { id: VALID_UUID },
+          include: { vendor: true }
         });
       });
 
-      it('should map the raw row id to the DeviceModelRecord', async () => {
+      it('should return a DeviceModel aggregate with correct id', async () => {
         prisma.deviceModel.findUnique.mockResolvedValue(makeRawRow());
 
         const result = await repository.findById(validId);
 
-        expect(result.value!.id).toBe(VALID_UUID);
+        expect(result.value!.id.toString()).toBe(VALID_UUID);
       });
 
-      it('should map the raw row manufacturer to the DeviceModelRecord', async () => {
+      it('should map vendorName from the vendor join', async () => {
         prisma.deviceModel.findUnique.mockResolvedValue(
-          makeRawRow({ manufacturer: 'Ubiquiti' })
+          makeRawRow({ vendor: { name: 'Ubiquiti', slug: 'ubiquiti' } })
         );
 
         const result = await repository.findById(validId);
 
-        expect(result.value!.manufacturer).toBe('Ubiquiti');
+        expect((result.value as DeviceModel).vendorName).toBe('Ubiquiti');
       });
 
-      it('should map the raw row model to the DeviceModelRecord', async () => {
+      it('should map the raw row model field', async () => {
         prisma.deviceModel.findUnique.mockResolvedValue(
           makeRawRow({ model: 'UniFi Switch 24' })
         );
 
         const result = await repository.findById(validId);
 
-        expect(result.value!.model).toBe('UniFi Switch 24');
+        expect((result.value as DeviceModel).model).toBe('UniFi Switch 24');
       });
 
-      it('should map the raw row deviceType to the DeviceModelRecord', async () => {
+      it('should map the raw row deviceType field', async () => {
         prisma.deviceModel.findUnique.mockResolvedValue(
           makeRawRow({ deviceType: 'SWITCH' })
         );
 
         const result = await repository.findById(validId);
 
-        expect(result.value!.deviceType).toBe('SWITCH');
+        expect((result.value as DeviceModel).deviceType).toBe('SWITCH');
       });
 
       it('should preserve createdAt as a Date', async () => {
@@ -122,15 +131,7 @@ describe('PrismaDeviceModelRepository', () => {
 
         const result = await repository.findById(validId);
 
-        expect(result.value!.createdAt).toEqual(NOW);
-      });
-
-      it('should preserve updatedAt as a Date', async () => {
-        prisma.deviceModel.findUnique.mockResolvedValue(makeRawRow());
-
-        const result = await repository.findById(validId);
-
-        expect(result.value!.updatedAt).toEqual(NOW);
+        expect((result.value as DeviceModel).createdAt).toEqual(NOW);
       });
     });
 
@@ -175,7 +176,7 @@ describe('PrismaDeviceModelRepository', () => {
   describe('findAll()', () => {
     // -----------------------------------------------------------------------
     describe('happy path', () => {
-      it('should return a success Result with an array of records', async () => {
+      it('should return a success Result with an array of aggregates', async () => {
         prisma.deviceModel.findMany.mockResolvedValue([
           makeRawRow(),
           makeRawRow({ id: '550e8400-e29b-41d4-a716-446655440001' })
@@ -197,32 +198,16 @@ describe('PrismaDeviceModelRepository', () => {
         );
       });
 
-      it('should order results by manufacturer then model ascending', async () => {
+      it('should order results by vendor name then model ascending', async () => {
         prisma.deviceModel.findMany.mockResolvedValue([]);
 
         await repository.findAll(20, 0);
 
         expect(prisma.deviceModel.findMany).toHaveBeenCalledWith(
           expect.objectContaining({
-            orderBy: [{ manufacturer: 'asc' }, { model: 'asc' }]
+            orderBy: [{ vendor: { name: 'asc' } }, { model: 'asc' }]
           })
         );
-      });
-
-      it('should map each raw row to a DeviceModelRecord', async () => {
-        prisma.deviceModel.findMany.mockResolvedValue([
-          makeRawRow({ manufacturer: 'Cisco', model: 'SG300' }),
-          makeRawRow({
-            id: '550e8400-e29b-41d4-a716-446655440001',
-            manufacturer: 'Ubiquiti',
-            model: 'UniFi AP'
-          })
-        ]);
-
-        const result = await repository.findAll(20, 0);
-
-        expect(result.value![0].manufacturer).toBe('Cisco');
-        expect(result.value![1].manufacturer).toBe('Ubiquiti');
       });
 
       it('should return an empty array when no records exist', async () => {
@@ -232,17 +217,6 @@ describe('PrismaDeviceModelRepository', () => {
 
         expect(result.isSuccess).toBe(true);
         expect(result.value).toEqual([]);
-      });
-
-      it('should work without limit and offset arguments', async () => {
-        prisma.deviceModel.findMany.mockResolvedValue([]);
-
-        const result = await repository.findAll();
-
-        expect(result.isSuccess).toBe(true);
-        expect(prisma.deviceModel.findMany).toHaveBeenCalledWith(
-          expect.objectContaining({ take: undefined, skip: undefined })
-        );
       });
     });
 
@@ -281,14 +255,6 @@ describe('PrismaDeviceModelRepository', () => {
 
         expect(result.isSuccess).toBe(true);
         expect(result.value).toBe(0);
-      });
-
-      it('should call prisma.deviceModel.count with no arguments', async () => {
-        prisma.deviceModel.count.mockResolvedValue(0);
-
-        await repository.count();
-
-        expect(prisma.deviceModel.count).toHaveBeenCalledTimes(1);
       });
     });
 

@@ -48,7 +48,7 @@ describe('ListDeviceModelsUseCase — integration', () => {
     expect(result.value.offset).toBeDefined();
     expect(result.value.hasMore).toBeDefined();
 
-    const mikrotik = result.value.deviceModels.find((m) => m.manufacturer === 'MIKROTIK');
+    const mikrotik = result.value.deviceModels.find((m) => m.vendorName === 'MikroTik');
     expect(mikrotik).toBeDefined();
     expect(mikrotik!.model).toBe('RB4011iGS+');
   });

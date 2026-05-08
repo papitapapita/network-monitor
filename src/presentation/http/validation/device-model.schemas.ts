@@ -3,6 +3,16 @@ import { z } from 'zod';
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const VALID_DEVICE_TYPES = [
+  'ANTENNA',
+  'OTHER',
+  'RADIO',
+  'ROUTER',
+  'ROUTERBOARD',
+  'SERVER',
+  'SWITCH'
+] as const;
+
 export const listDeviceModelsSchema = z.object({
   query: z.object({
     limit: z
@@ -26,6 +36,71 @@ export const listDeviceModelsSchema = z.object({
 });
 
 export const getDeviceModelByIdSchema = z.object({
+  params: z.object({
+    id: z
+      .string()
+      .regex(UUID_REGEX, 'Invalid device model ID (must be a UUID v4)')
+  })
+});
+
+export const createDeviceModelSchema = z.object({
+  body: z.object({
+    vendorId: z
+      .string()
+      .regex(UUID_REGEX, 'Invalid vendor ID (must be a UUID v4)'),
+
+    model: z
+      .string()
+      .trim()
+      .min(1, 'Model name cannot be empty')
+      .max(150, 'Model name cannot exceed 150 characters'),
+
+    deviceType: z.enum(VALID_DEVICE_TYPES, {
+      error: () => ({
+        message: `deviceType must be one of: ${VALID_DEVICE_TYPES.join(', ')}`
+      })
+    })
+  })
+});
+
+export const updateDeviceModelSchema = z.object({
+  params: z.object({
+    id: z
+      .string()
+      .regex(UUID_REGEX, 'Invalid device model ID (must be a UUID v4)')
+  }),
+  body: z
+    .object({
+      vendorId: z
+        .string()
+        .regex(UUID_REGEX, 'Invalid vendor ID (must be a UUID v4)')
+        .optional(),
+
+      model: z
+        .string()
+        .trim()
+        .min(1, 'Model name cannot be empty')
+        .max(150, 'Model name cannot exceed 150 characters')
+        .optional(),
+
+      deviceType: z
+        .enum(VALID_DEVICE_TYPES, {
+          error: () => ({
+            message: `deviceType must be one of: ${VALID_DEVICE_TYPES.join(', ')}`
+          })
+        })
+        .optional()
+    })
+    .refine(
+      (body) =>
+        body.vendorId !== undefined ||
+        body.model !== undefined ||
+        body.deviceType !== undefined,
+      { message: 'At least one field must be provided for update' }
+    )
+});
+
+export const deleteDeviceModelSchema = z.object({
   params: z.object({
     id: z
       .string()

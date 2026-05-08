@@ -47,7 +47,7 @@ describe('GetDeviceModelUseCase — integration', () => {
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.id).toBe(deviceModelId);
-    expect(result.value.manufacturer).toBe('MIKROTIK');
+    expect(result.value.vendorName).toBe('MikroTik');
     expect(result.value.model).toBe('RB4011iGS+');
     expect(result.value.deviceType).toBeDefined();
   });

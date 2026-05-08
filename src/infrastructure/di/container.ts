@@ -5,6 +5,7 @@ import {
   PrismaLocationRepository,
   PrismaDeviceRepository,
   PrismaDeviceModelRepository,
+  PrismaVendorRepository,
   PrismaPollingConfigurationRepository,
   PrismaPingResultRepository,
   PrismaDeviceStateRepository
@@ -14,6 +15,7 @@ import {
   LocationController,
   DeviceController,
   DeviceModelController,
+  VendorController,
   PollingController
 } from '../../presentation/http/controllers';
 import { AlertController } from '../../presentation/http/controllers/AlertController';
@@ -47,7 +49,15 @@ import {
   UpdateDeviceUseCase,
   DeleteDeviceUseCase,
   GetDeviceModelUseCase,
-  ListDeviceModelsUseCase
+  ListDeviceModelsUseCase,
+  CreateVendorUseCase,
+  GetVendorUseCase,
+  ListVendorsUseCase,
+  UpdateVendorUseCase,
+  DeleteVendorUseCase,
+  CreateDeviceModelUseCase,
+  UpdateDeviceModelUseCase,
+  DeleteDeviceModelUseCase
 } from '../../application/device-inventory/use-cases';
 import {
   ExecutePollingCycleUseCase,
@@ -69,6 +79,7 @@ export class DependencyContainer {
   private locationRepository: PrismaLocationRepository;
   private deviceRepository: PrismaDeviceRepository;
   private deviceModelRepository: PrismaDeviceModelRepository;
+  private vendorRepository: PrismaVendorRepository;
   private pollingConfigRepository: PrismaPollingConfigurationRepository;
   private pingResultRepository: PrismaPingResultRepository;
   private deviceStateRepository: PrismaDeviceStateRepository;
@@ -78,6 +89,7 @@ export class DependencyContainer {
   public locationController: LocationController;
   public deviceController: DeviceController;
   public deviceModelController: DeviceModelController;
+  public vendorController: VendorController;
   public pollingController: PollingController;
   public alertController: AlertController;
 
@@ -106,6 +118,7 @@ export class DependencyContainer {
     this.deviceModelRepository = new PrismaDeviceModelRepository(
       this.prisma
     );
+    this.vendorRepository = new PrismaVendorRepository(this.prisma);
     this.pollingConfigRepository =
       new PrismaPollingConfigurationRepository(this.prisma);
     this.pingResultRepository = new PrismaPingResultRepository(
@@ -165,6 +178,44 @@ export class DependencyContainer {
       this.deviceModelRepository,
       this.logger
     );
+    const createDeviceModelUseCase = new CreateDeviceModelUseCase(
+      this.deviceModelRepository,
+      this.vendorRepository,
+      this.logger
+    );
+    const updateDeviceModelUseCase = new UpdateDeviceModelUseCase(
+      this.deviceModelRepository,
+      this.vendorRepository,
+      this.logger
+    );
+    const deleteDeviceModelUseCase = new DeleteDeviceModelUseCase(
+      this.deviceModelRepository,
+      this.deviceRepository,
+      this.logger
+    );
+
+    // Initialize vendor use cases
+    const createVendorUseCase = new CreateVendorUseCase(
+      this.vendorRepository,
+      this.logger
+    );
+    const getVendorUseCase = new GetVendorUseCase(
+      this.vendorRepository,
+      this.logger
+    );
+    const listVendorsUseCase = new ListVendorsUseCase(
+      this.vendorRepository,
+      this.logger
+    );
+    const updateVendorUseCase = new UpdateVendorUseCase(
+      this.vendorRepository,
+      this.logger
+    );
+    const deleteVendorUseCase = new DeleteVendorUseCase(
+      this.vendorRepository,
+      this.deviceModelRepository,
+      this.logger
+    );
 
     // Initialize controllers
     this.locationController = new LocationController(
@@ -187,6 +238,18 @@ export class DependencyContainer {
     this.deviceModelController = new DeviceModelController(
       getDeviceModelUseCase,
       listDeviceModelsUseCase,
+      createDeviceModelUseCase,
+      updateDeviceModelUseCase,
+      deleteDeviceModelUseCase,
+      this.logger
+    );
+
+    this.vendorController = new VendorController(
+      createVendorUseCase,
+      getVendorUseCase,
+      listVendorsUseCase,
+      updateVendorUseCase,
+      deleteVendorUseCase,
       this.logger
     );
 

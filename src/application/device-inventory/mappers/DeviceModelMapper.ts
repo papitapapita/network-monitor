@@ -1,33 +1,30 @@
-import { DeviceModelRecord } from '../../../domain/device-inventory/repository';
-import {
-  DeviceModelResponseDTO,
-  DeviceModelListResponseDTO
-} from '../dtos';
+import { DeviceModel } from '../../../domain/device-inventory/aggregates';
+import { DeviceModelResponseDTO, DeviceModelListResponseDTO } from '../dtos';
 
 export class DeviceModelMapper {
-  public static toDTO(
-    record: DeviceModelRecord
-  ): DeviceModelResponseDTO {
+  public static toDTO(deviceModel: DeviceModel): DeviceModelResponseDTO {
     return {
-      id: record.id,
-      manufacturer: record.manufacturer,
-      model: record.model,
-      deviceType: record.deviceType,
-      createdAt: record.createdAt.toISOString(),
-      updatedAt: record.updatedAt.toISOString()
+      id: deviceModel.id.toString(),
+      vendorId: deviceModel.vendorId.toString(),
+      vendorName: deviceModel.vendorName,
+      vendorSlug: deviceModel.vendorSlug,
+      model: deviceModel.model,
+      deviceType: deviceModel.deviceType,
+      createdAt: deviceModel.createdAt.toISOString(),
+      updatedAt: deviceModel.updatedAt.toISOString()
     };
   }
 
   public static toListDTO(
-    records: DeviceModelRecord[],
+    deviceModels: DeviceModel[],
     total: number,
     limit: number = 20,
     offset: number = 0
   ): DeviceModelListResponseDTO {
     return {
-      deviceModels: records.map((r) => this.toDTO(r)),
+      deviceModels: deviceModels.map((m) => this.toDTO(m)),
       total,
-      hasMore: offset + records.length < total,
+      hasMore: offset + deviceModels.length < total,
       limit,
       offset
     };

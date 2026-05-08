@@ -2,15 +2,37 @@ import { Request, Response } from 'express';
 import { ILogger } from '../../../application/shared/interfaces';
 import {
   GetDeviceModelUseCase,
-  ListDeviceModelsUseCase
+  ListDeviceModelsUseCase,
+  CreateDeviceModelUseCase,
+  UpdateDeviceModelUseCase,
+  DeleteDeviceModelUseCase
 } from '../../../application/device-inventory/use-cases';
 
 export class DeviceModelController {
   constructor(
     private readonly getUseCase: GetDeviceModelUseCase,
     private readonly listUseCase: ListDeviceModelsUseCase,
+    private readonly createUseCase: CreateDeviceModelUseCase,
+    private readonly updateUseCase: UpdateDeviceModelUseCase,
+    private readonly deleteUseCase: DeleteDeviceModelUseCase,
     private readonly logger: ILogger
   ) {}
+
+  public create = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const result = await this.createUseCase.execute(req.body);
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res.status(statusCode).json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(201).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
 
   public list = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -47,16 +69,62 @@ export class DeviceModelController {
     }
   };
 
+  public update = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const result = await this.updateUseCase.execute({
+        id: req.params.id,
+        ...req.body
+      });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res.status(statusCode).json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(200).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public delete = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const result = await this.deleteUseCase.execute({ id: req.params.id });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res.status(statusCode).json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
   private getErrorStatusCode(errorMessage: string): number {
-    if (errorMessage.includes('not found')) {
+    if (
+      errorMessage.includes('not found') ||
+      errorMessage.includes('Not found')
+    ) {
       return 404;
+    }
+
+    if (
+      errorMessage.includes('already exists') ||
+      errorMessage.includes('Cannot delete')
+    ) {
+      return 409;
     }
 
     if (
       errorMessage.includes('Invalid') ||
       errorMessage.includes('invalid') ||
       errorMessage.includes('required') ||
-      errorMessage.includes('must be')
+      errorMessage.includes('must be') ||
+      errorMessage.includes('cannot be')
     ) {
       return 400;
     }
