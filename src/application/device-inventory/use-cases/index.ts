@@ -17,3 +17,4 @@ export * from './DeleteVendorUseCase';
 export * from './CreateDeviceModelUseCase';
 export * from './UpdateDeviceModelUseCase';
 export * from './DeleteDeviceModelUseCase';
+export * from './ScanNetworkSegmentUseCase';

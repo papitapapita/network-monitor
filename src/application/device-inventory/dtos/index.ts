@@ -25,3 +25,5 @@ export * from './VendorListResponseDTO';
 export * from './CreateDeviceModelRequestDTO';
 export * from './UpdateDeviceModelRequestDTO';
 export * from './DeleteDeviceModelRequestDTO';
+export * from './ScanNetworkSegmentRequestDTO';
+export * from './ScanNetworkSegmentResponseDTO';

@@ -6,6 +6,7 @@ import { createDeviceModelRoutes } from './device-model.routes';
 import { createVendorRoutes } from './vendor.routes';
 import { createPollingRoutes } from './polling.routes';
 import { createAlertRoutes } from './alert.routes';
+import { createScanRoutes } from './scan.routes';
 
 /**
  * setupRoutes
@@ -66,6 +67,16 @@ export function setupRoutes(
 
   // Alerts: /api/alerts
   apiRouter.use('/alerts', createAlertRoutes(container.alertController));
+
+  // =====================================
+  // NETWORK DISCOVERY
+  // =====================================
+
+  // Network scan: /api/network/scan
+  apiRouter.use(
+    '/network/scan',
+    createScanRoutes(container.scanController)
+  );
 
   // Mount API router under /api prefix
   app.use('/api', apiRouter);

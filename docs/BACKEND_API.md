@@ -648,6 +648,40 @@ offset?:   number  // ≥0, default 0
 
 ---
 
+## Network Scan `/api/network/scan`
+
+### `POST /api/network/scan` — Scan a network segment
+**Status:** 200 | 400 | 404 | 500
+
+```ts
+// Request body
+{
+  segment: string   // required — IPv4 CIDR block, e.g. "192.168.1.0/24"; max range /22
+}
+
+// Response
+{
+  success: true,
+  data: {
+    segment: string            // the CIDR block that was scanned
+    scannedCount: number       // total IP addresses probed
+    responsiveCount: number    // hosts that replied to ICMP ping
+    discoveredHosts: Array<{
+      ipAddress: string
+      latencyMs: number
+      macAddress: string | null     // null when ARP resolution failed
+      manufacturer: string | null   // null when MAC is unknown
+    }>
+  }
+}
+```
+
+> Probes every host in the CIDR range via ICMP ping and returns all responsive hosts with their latency, MAC address, and manufacturer (where resolvable).  
+> Returns 400 if the segment is invalid or the range exceeds /22 (1 024 usable hosts).  
+> Returns 500 on unexpected infrastructure errors.
+
+---
+
 ## Other
 
 ### `GET /health`

@@ -19,7 +19,10 @@ import {
   PollingController
 } from '../../presentation/http/controllers';
 import { AlertController } from '../../presentation/http/controllers/AlertController';
+import { ScanController } from '../../presentation/http/controllers/ScanController';
 import { PingService } from '../monitoring/ping/PingService';
+import { ArpService } from '../monitoring/network-scanner/ArpService';
+import { NetworkScannerService } from '../monitoring/network-scanner/NetworkScannerService';
 import { PollingOrchestrator } from '../monitoring/orchestrator/PollingOrchestrator';
 import { TelegramNotificationService } from '../notifications/TelegramNotificationService';
 import { EventDispatcher } from '../../domain/shared/core';
@@ -57,7 +60,8 @@ import {
   DeleteVendorUseCase,
   CreateDeviceModelUseCase,
   UpdateDeviceModelUseCase,
-  DeleteDeviceModelUseCase
+  DeleteDeviceModelUseCase,
+  ScanNetworkSegmentUseCase
 } from '../../application/device-inventory/use-cases';
 import {
   ExecutePollingCycleUseCase,
@@ -92,6 +96,7 @@ export class DependencyContainer {
   public vendorController: VendorController;
   public pollingController: PollingController;
   public alertController: AlertController;
+  public scanController: ScanController;
 
   // Orchestrator (lifecycle managed by main.ts)
   public pollingOrchestrator: PollingOrchestrator;
@@ -255,6 +260,21 @@ export class DependencyContainer {
 
     // Initialize monitoring services
     const pingService = new PingService();
+
+    // Initialize network discovery services
+    const arpService = new ArpService();
+    const networkScannerService = new NetworkScannerService(
+      pingService,
+      arpService
+    );
+    const scanNetworkSegmentUseCase = new ScanNetworkSegmentUseCase(
+      networkScannerService,
+      this.logger
+    );
+    this.scanController = new ScanController(
+      scanNetworkSegmentUseCase,
+      this.logger
+    );
 
     const executePollingCycleUseCase = new ExecutePollingCycleUseCase(
       this.pollingConfigRepository,

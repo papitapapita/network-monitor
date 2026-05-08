@@ -3,3 +3,4 @@ export * from './DeviceController';
 export * from './DeviceModelController';
 export * from './VendorController';
 export * from './PollingController';
+export * from './ScanController';
