@@ -39,7 +39,7 @@ export class DeviceCreatedEvent extends DomainEvent<DeviceCreatedEventProps> {
     return this.props.status;
   }
 
-  get ownerType(): DeviceOwnerType {
+  get ownerType(): DeviceOwnerType | null {
     return this.props.ownerType;
   }
 

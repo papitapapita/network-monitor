@@ -144,7 +144,7 @@ model Device {
   locationId    String?         @map("location_id") @db.Uuid
   status        DeviceStatus    @default(INVENTORY)
   category      DeviceCategory?
-  owner         DeviceOwnerType @default(COMPANY)
+  owner         DeviceOwnerType?
 
   //Identity
   name             String  @db.VarChar(150)

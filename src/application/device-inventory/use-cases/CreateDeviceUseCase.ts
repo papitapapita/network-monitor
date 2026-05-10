@@ -22,14 +22,14 @@ import {
  * Business Intent: Register a new physical device asset in the inventory system.
  *
  * Flow:
- * 1. beforeExecute: Validate required fields and enum membership for ownerType,
+ * 1. beforeExecute: Validate enum membership for ownerType (when provided),
  *    status, and category. Prevents corrupted aggregates from reaching the domain.
  * 2. executeImpl: Parse IDs, build value objects, enforce MAC/IP uniqueness,
  *    delegate aggregate construction to Device.create(), persist via
  *    IDeviceRepository, and return a DeviceResponseDTO.
  *
  * Business Rules:
- * - deviceModelId, name, and ownerType are required.
+ * - deviceModelId and name are required.
  * - status defaults to INVENTORY when omitted.
  * - monitoringEnabled defaults to false when omitted.
  * - MAC address must be unique across all devices (enforced before save).
@@ -76,8 +76,8 @@ export class CreateDeviceUseCase extends UseCase<
    *
    * Checks performed here (not in executeImpl) because they are
    * boundary-level rejections that do not require domain object creation:
-   * - Required field presence (deviceModelId, name, ownerType)
-   * - Enum membership for ownerType, status, and category
+   * - Required field presence (deviceModelId, name)
+   * - Enum membership for ownerType (when provided), status, and category
    *
    * The domain's own Guard clauses (inside Device.create) provide a second
    * layer of defence; both layers are intentional (defence-in-depth).
@@ -96,17 +96,13 @@ export class CreateDeviceUseCase extends UseCase<
       return Result.fail('Device name is required');
     }
 
-    if (!request.ownerType) {
-      return Result.fail('ownerType is required');
-    }
-
-    const validOwnerTypes = Object.values(
-      DeviceOwnerType
-    ) as string[];
-    if (!validOwnerTypes.includes(request.ownerType.toUpperCase())) {
-      return Result.fail(
-        `Invalid ownerType: "${request.ownerType}". Must be one of: ${validOwnerTypes.join(', ')}`
-      );
+    if (request.ownerType) {
+      const validOwnerTypes = Object.values(DeviceOwnerType) as string[];
+      if (!validOwnerTypes.includes(request.ownerType.toUpperCase())) {
+        return Result.fail(
+          `Invalid ownerType: "${request.ownerType}". Must be one of: ${validOwnerTypes.join(', ')}`
+        );
+      }
     }
 
     if (request.status) {
@@ -274,7 +270,9 @@ export class CreateDeviceUseCase extends UseCase<
       name: nameResult.value,
       status: statusResult.value,
       category,
-      ownerType: request.ownerType.toUpperCase() as DeviceOwnerType,
+      ownerType: request.ownerType
+        ? (request.ownerType.toUpperCase() as DeviceOwnerType)
+        : null,
       serialNumber,
       macAddress,
       ipAddress,

@@ -24,7 +24,7 @@ type PrismaDeviceRecord = {
   id: string;
   deviceModelId: string;
   locationId: string | null;
-  owner: string;
+  owner: string | null;
   status: string;
   category: string | null;
   name: string;
@@ -42,7 +42,7 @@ type DevicePersistenceData = {
   id: string;
   deviceModelId: string;
   locationId: string | null;
-  owner: PrismaDeviceOwnerType;
+  owner: PrismaDeviceOwnerType | null;
   status: PrismaDeviceStatus;
   category: PrismaDeviceCategory | null;
   name: string;
@@ -85,7 +85,8 @@ export class DeviceMapper {
       locationId = locationIdResult.value;
     }
 
-    const ownerType = this.mapOwnerTypeFromPrisma(raw.owner);
+    const ownerType =
+      raw.owner != null ? this.mapOwnerTypeFromPrisma(raw.owner) : null;
 
     const device = Device.reconstitute(deviceIdResult.value, {
       deviceModelId: deviceModelIdResult.value,
@@ -127,7 +128,7 @@ export class DeviceMapper {
       status: device.status.toString() as PrismaDeviceStatus,
       category: (device.category?.toString() ??
         null) as PrismaDeviceCategory | null,
-      owner: device.ownerType.toString() as PrismaDeviceOwnerType,
+      owner: (device.ownerType?.toString() ?? null) as PrismaDeviceOwnerType | null,
       name: device.name.toString(),
       serialNumber: device.serialNumber?.toString() ?? null,
       macAddress: device.macAddress?.toString() ?? null,

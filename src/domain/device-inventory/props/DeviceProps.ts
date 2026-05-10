@@ -17,7 +17,7 @@ export interface DeviceProps {
   // Classification
   status: DeviceStatus;
   category: DeviceCategory | null;
-  ownerType: DeviceOwnerType;
+  ownerType: DeviceOwnerType | null;
 
   // Identity
   name: DeviceName;

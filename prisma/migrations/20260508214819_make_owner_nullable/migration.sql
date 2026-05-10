@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "devices" ALTER COLUMN "owner" DROP NOT NULL,
+ALTER COLUMN "owner" DROP DEFAULT;

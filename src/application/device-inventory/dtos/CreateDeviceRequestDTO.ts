@@ -7,7 +7,7 @@
  * Validation Rules:
  * - deviceModelId: Required, valid UUID — references the device model/catalogue entry.
  * - name: Required, 1–150 characters.
- * - ownerType: Required, one of: COMPANY, CLIENT.
+ * - ownerType: Optional, one of: COMPANY, CLIENT.
  * - status: Optional, one of: INVENTORY, ACTIVE, MAINTENANCE, DAMAGED, DECOMMISSIONED.
  *           Defaults to INVENTORY when omitted.
  * - category: Optional, one of: CORE, DISTRIBUTION, POE, ACCESS_POINT, CLIENT_CPE.
@@ -65,9 +65,9 @@ export interface CreateDeviceRequestDTO {
 
   /**
    * Indicates who owns this device.
-   * Required. Valid values: COMPANY, CLIENT.
+   * Optional. Valid values: COMPANY, CLIENT.
    */
-  ownerType: string;
+  ownerType?: string;
 
   // ===================================
   // OPTIONAL CLASSIFICATION

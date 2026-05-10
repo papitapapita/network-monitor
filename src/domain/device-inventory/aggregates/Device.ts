@@ -58,7 +58,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     return this.props.category;
   }
 
-  get ownerType(): DeviceOwnerType {
+  get ownerType(): DeviceOwnerType | null {
     return this.props.ownerType;
   }
 
@@ -118,8 +118,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
         'deviceModelId'
       ),
       Guard.againstNullOrUndefined(props.name, 'name'),
-      Guard.againstNullOrUndefined(props.status, 'status'),
-      Guard.againstNullOrUndefined(props.ownerType, 'ownerType')
+      Guard.againstNullOrUndefined(props.status, 'status')
     ]);
 
     if (!guardResult.succeeded) {
@@ -133,6 +132,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       {
         ...props,
         locationId: props.locationId ?? null,
+        ownerType: props.ownerType ?? null,
         category: props.category ?? null,
         serialNumber: props.serialNumber ?? null,
         macAddress: props.macAddress ?? null,

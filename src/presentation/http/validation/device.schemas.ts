@@ -50,7 +50,7 @@ const SORT_BY_VALUES = [
 /**
  * Schema for POST /api/devices
  *
- * Validates required fields (deviceModelId, name, ownerType) and
+ * Validates required fields (deviceModelId, name) and
  * all optional fields according to CreateDeviceRequestDTO rules.
  */
 export const createDeviceSchema = z.object({
@@ -69,11 +69,13 @@ export const createDeviceSchema = z.object({
       .max(150, 'Device name cannot exceed 150 characters')
       .trim(),
 
-    ownerType: z.enum(DEVICE_OWNER_TYPES, {
-      error: () => ({
-        message: `ownerType must be one of: ${DEVICE_OWNER_TYPES.join(', ')}`
+    ownerType: z
+      .enum(DEVICE_OWNER_TYPES, {
+        error: () => ({
+          message: `ownerType must be one of: ${DEVICE_OWNER_TYPES.join(', ')}`
+        })
       })
-    }),
+      .optional(),
 
     // ===================================
     // OPTIONAL CLASSIFICATION

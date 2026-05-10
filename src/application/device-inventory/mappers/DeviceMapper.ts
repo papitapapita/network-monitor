@@ -46,8 +46,7 @@ export class DeviceMapper {
       // Extract string value from DeviceCategory value object, or null
       category: device.category ? device.category.toString() : null,
 
-      // DeviceOwnerType is already a plain string enum
-      ownerType: device.ownerType,
+      ownerType: device.ownerType ?? null,
 
       // Extract string value from DeviceName value object
       name: device.name.toString(),

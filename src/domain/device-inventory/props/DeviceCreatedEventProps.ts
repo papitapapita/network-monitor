@@ -7,7 +7,7 @@ export interface DeviceCreatedEventProps {
   readonly aggregateId: DeviceId;
   readonly deviceName: DeviceName;
   readonly status: DeviceStatus;
-  readonly ownerType: DeviceOwnerType;
+  readonly ownerType: DeviceOwnerType | null;
   readonly monitoringEnabled: boolean;
   readonly ipAddress: IPAddress | null;
   readonly dateTimeOccurred: Date;

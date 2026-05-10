@@ -64,9 +64,9 @@ export interface DeviceResponseDTO {
 
   /**
    * Device ownership.
-   * Values: COMPANY, CLIENT
+   * Values: COMPANY, CLIENT. Null when not set.
    */
-  ownerType: string;
+  ownerType: string | null;
 
   // ===================================
   // ASSIGNMENT
