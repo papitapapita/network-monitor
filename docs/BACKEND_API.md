@@ -29,8 +29,8 @@ All API responses are wrapped:
 
 ```ts
 type LocationType   = 'TOWER' | 'NODE' | 'DATACENTER' | 'POP' | 'WAREHOUSE' | 'OFFICE'
-type DeviceStatus   = 'ACTIVE' | 'DAMAGED' | 'DECOMMISSIONED' | 'INVENTORY' | 'MAINTENANCE'
-type DeviceCategory = 'CORE' | 'DISTRIBUTION' | 'POE' | 'ACCESS_POINT' | 'CLIENT_CPE'
+type DeviceStatus   = 'ACTIVE' | 'DAMAGED' | 'INVENTORY'
+type DeviceCategory = 'CPE' | 'AP' | 'ROUTERBOARD' | 'SMART_SWITCH' | 'SMART_SWITCH_POE' | 'OTHER'
 type DeviceOwner    = 'COMPANY' | 'CLIENT'
 type DeviceType     = 'ANTENNA' | 'OTHER' | 'RADIO' | 'ROUTER' | 'ROUTERBOARD' | 'SERVER' | 'SWITCH'
 type PollingStatus      = 'SUCCESS' | 'FAILED' | 'SKIPPED'
@@ -210,7 +210,14 @@ type?:   LocationType
   installedDate?: string | null // ISO 8601
   monitoringEnabled?: boolean  // default: false
 }
+```
 
+**Business rules:**
+- `INVENTORY` / `DAMAGED` status → at least one of `serialNumber` or `macAddress` required
+- `ACTIVE` status → `ipAddress` required
+- Any `category` set → `ipAddress` required
+
+```ts
 // Response
 { success: true, data: DeviceDTO }
 ```

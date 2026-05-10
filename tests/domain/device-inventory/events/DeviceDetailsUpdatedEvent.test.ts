@@ -93,7 +93,7 @@ describe('DeviceDetailsUpdatedEvent', () => {
 
     it('should accept props where every optional field is present simultaneously', () => {
       const updatedName = makeDeviceName('Full-Device');
-      const category = DeviceCategory.createCore();
+      const category = DeviceCategory.createCpe();
       const mac = MACAddress.create('AA:BB:CC:DD:EE:FF').value;
       const ip = IPAddress.create('10.0.0.1').value;
       const installedDate = new Date('2023-01-01T00:00:00Z');
@@ -347,13 +347,13 @@ describe('DeviceDetailsUpdatedEvent', () => {
     // -- category field ------------------------------------------------------
     describe('category field', () => {
       it('should carry the updated DeviceCategory when provided', () => {
-        const category = DeviceCategory.createDistribution();
+        const category = DeviceCategory.createAp();
         const event = new DeviceDetailsUpdatedEvent(
           makeEventProps({ updatedFields: { category } })
         );
 
         expect(event.updatedFields.category).toBe(category);
-        expect(event.updatedFields.category?.value).toBe('DISTRIBUTION');
+        expect(event.updatedFields.category?.value).toBe('AP');
       });
 
       it('should carry null when category is explicitly cleared', () => {
@@ -374,11 +374,12 @@ describe('DeviceDetailsUpdatedEvent', () => {
 
       it('should accept every valid category variant', () => {
         const categories = [
-          DeviceCategory.createCore(),
-          DeviceCategory.createDistribution(),
-          DeviceCategory.createPoe(),
-          DeviceCategory.createAccessPoint(),
-          DeviceCategory.createClientCpe()
+          DeviceCategory.createCpe(),
+          DeviceCategory.createAp(),
+          DeviceCategory.createRouterboard(),
+          DeviceCategory.createSmartSwitch(),
+          DeviceCategory.createSmartSwitchPoe(),
+          DeviceCategory.createOther()
         ];
 
         for (const category of categories) {
@@ -567,7 +568,7 @@ describe('DeviceDetailsUpdatedEvent', () => {
       });
 
       it('should handle updating description and category simultaneously', () => {
-        const category = DeviceCategory.createAccessPoint();
+        const category = DeviceCategory.createAp();
         const event = new DeviceDetailsUpdatedEvent(
           makeEventProps({
             updatedFields: {
@@ -623,7 +624,7 @@ describe('DeviceDetailsUpdatedEvent', () => {
 
       it('should handle updating all fields at once', () => {
         const updatedName = makeDeviceName('Full-Update-Device');
-        const category = DeviceCategory.createPoe();
+        const category = DeviceCategory.createSmartSwitchPoe();
         const mac = MACAddress.create('FF:EE:DD:CC:BB:AA').value;
         const ip = IPAddress.create('10.10.10.10').value;
         const installedDate = new Date('2021-07-04T12:00:00Z');
@@ -775,11 +776,11 @@ describe('DeviceDetailsUpdatedEvent', () => {
     it('should represent reclassifying a device category', () => {
       const event = new DeviceDetailsUpdatedEvent(
         makeEventProps({
-          updatedFields: { category: DeviceCategory.createClientCpe() }
+          updatedFields: { category: DeviceCategory.createCpe() }
         })
       );
 
-      expect(event.updatedFields.category?.isClientCpe()).toBe(true);
+      expect(event.updatedFields.category?.isCpe()).toBe(true);
     });
 
     it('should represent ownership transfer from COMPANY to CLIENT', () => {

@@ -252,10 +252,10 @@ describe('UpdateDeviceUseCase', () => {
       expect(result.value!.status).toBe('ACTIVE');
     });
 
-    it('should fail when trying to change status of a decommissioned device', async () => {
+    it('should fail when trying to change status to ACTIVE without an IP address', async () => {
       repo.findById.mockResolvedValue(
         Result.ok(
-          makePersistedDevice({ status: DeviceStatus.DECOMMISSIONED })
+          makePersistedDevice({ status: DeviceStatus.INVENTORY, ipAddress: null })
         )
       );
 
@@ -264,7 +264,7 @@ describe('UpdateDeviceUseCase', () => {
       );
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('decommissioned');
+      expect(result.error).toContain('IP address');
     });
 
     it('should not call changeStatus when status is undefined', async () => {
@@ -612,10 +612,10 @@ describe('UpdateDeviceUseCase', () => {
 
     it('should return the updated status in the DTO when status was changed', async () => {
       const result = await useCase.execute(
-        makeRequest({ status: 'MAINTENANCE' })
+        makeRequest({ status: 'DAMAGED' })
       );
 
-      expect(result.value!.status).toBe('MAINTENANCE');
+      expect(result.value!.status).toBe('DAMAGED');
     });
 
     it('should return the updated ownerType (uppercase) when ownerType was changed', async () => {
@@ -629,11 +629,11 @@ describe('UpdateDeviceUseCase', () => {
 
     it('should return the updated category in the DTO when category was changed', async () => {
       const result = await useCase.execute(
-        makeRequest({ category: 'CORE' })
+        makeRequest({ category: 'CPE' })
       );
 
       expect(result.isSuccess).toBe(true);
-      expect(result.value!.category).toBe('CORE');
+      expect(result.value!.category).toBe('CPE');
     });
 
     it('should return null category in the DTO when category is cleared', async () => {

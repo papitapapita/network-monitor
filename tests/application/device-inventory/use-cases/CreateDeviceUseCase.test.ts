@@ -52,7 +52,11 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
   };
 }
 
-/** Minimal valid request DTO — satisfies all required fields. */
+/**
+ * Minimal valid request DTO — satisfies all required fields.
+ * Includes a serialNumber so the INVENTORY-status invariant
+ * (INVENTORY/DAMAGED must have serial or MAC) is met by default.
+ */
 function makeMinimalRequest(
   overrides: Partial<CreateDeviceRequestDTO> = {}
 ): CreateDeviceRequestDTO {
@@ -60,6 +64,7 @@ function makeMinimalRequest(
     deviceModelId: VALID_DEVICE_MODEL_ID,
     name: 'Core-Router-01',
     ownerType: 'COMPANY',
+    serialNumber: 'SN-DEFAULT-001',
     ...overrides
   };
 }
@@ -449,7 +454,10 @@ describe('CreateDeviceUseCase', () => {
   describe('executeImpl — happy path: full request', () => {
     it('should return a DTO with the correct status when provided', async () => {
       const result = await useCase.execute(
-        makeMinimalRequest({ status: 'ACTIVE' })
+        makeMinimalRequest({
+          status: 'ACTIVE',
+          ipAddress: '192.168.1.1'
+        })
       );
 
       expect(result.value!.status).toBe('ACTIVE');
@@ -457,10 +465,13 @@ describe('CreateDeviceUseCase', () => {
 
     it('should return a DTO with the correct category when provided', async () => {
       const result = await useCase.execute(
-        makeMinimalRequest({ category: 'CORE' })
+        makeMinimalRequest({
+          category: 'CPE',
+          ipAddress: '192.168.1.1'
+        })
       );
 
-      expect(result.value!.category).toBe('CORE');
+      expect(result.value!.category).toBe('CPE');
     });
 
     it('should return a DTO with the correct ownerType', async () => {

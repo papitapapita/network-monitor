@@ -21,17 +21,16 @@ const UUID_REGEX =
 const DEVICE_STATUSES = [
   'INVENTORY',
   'ACTIVE',
-  'MAINTENANCE',
-  'DAMAGED',
-  'DECOMMISSIONED'
+  'DAMAGED'
 ] as const;
 
 const DEVICE_CATEGORIES = [
-  'CORE',
-  'DISTRIBUTION',
-  'POE',
-  'ACCESS_POINT',
-  'CLIENT_CPE'
+  'CPE',
+  'AP',
+  'ROUTERBOARD',
+  'SMART_SWITCH',
+  'SMART_SWITCH_POE',
+  'OTHER'
 ] as const;
 
 const DEVICE_OWNER_TYPES = ['COMPANY', 'CLIENT'] as const;

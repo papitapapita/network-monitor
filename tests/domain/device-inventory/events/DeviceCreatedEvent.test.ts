@@ -201,9 +201,7 @@ describe('DeviceCreatedEvent', () => {
       const statuses = [
         DeviceStatus.createActive(),
         DeviceStatus.createInventory(),
-        DeviceStatus.createMaintenance(),
-        DeviceStatus.createDamaged(),
-        DeviceStatus.createDecommissioned()
+        DeviceStatus.createDamaged()
       ];
 
       for (const status of statuses) {

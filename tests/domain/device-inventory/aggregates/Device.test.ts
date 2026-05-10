@@ -28,6 +28,10 @@ import {
 
 type CreateDeviceProps = Omit<DeviceProps, 'createdAt' | 'updatedAt'>;
 
+/**
+ * Default base props: INVENTORY status with a serialNumber so the
+ * "INVENTORY/DAMAGED must have serial or MAC" invariant is satisfied.
+ */
 function makeProps(
   overrides: Partial<CreateDeviceProps> = {}
 ): CreateDeviceProps {
@@ -38,7 +42,7 @@ function makeProps(
     ownerType: DeviceOwnerType.COMPANY,
     locationId: null,
     category: null,
-    serialNumber: null,
+    serialNumber: SerialNumber.create('SN-DEFAULT').value,
     macAddress: null,
     ipAddress: null,
     description: null,
@@ -92,7 +96,8 @@ describe('Device', () => {
 
       it('should expose the provided status', () => {
         const device = makeDevice({
-          status: DeviceStatus.createActive()
+          status: DeviceStatus.createActive(),
+          ipAddress: IPAddress.create('192.168.1.1').value
         });
 
         expect(device.status.isActive()).toBe(true);
@@ -107,11 +112,20 @@ describe('Device', () => {
       });
 
       it('should default optional fields to null when not provided', () => {
-        const device = makeDevice();
+        // Use INVENTORY + serialNumber so invariant is satisfied, no category/ip
+        const device = makeDevice({
+          status: DeviceStatus.createInventory(),
+          serialNumber: SerialNumber.create('SN-001').value,
+          macAddress: null,
+          ipAddress: null,
+          locationId: null,
+          category: null,
+          description: null,
+          installedDate: null
+        });
 
         expect(device.locationId).toBeNull();
         expect(device.category).toBeNull();
-        expect(device.serialNumber).toBeNull();
         expect(device.macAddress).toBeNull();
         expect(device.ipAddress).toBeNull();
         expect(device.description).toBeNull();
@@ -119,7 +133,11 @@ describe('Device', () => {
       });
 
       it('should set monitoringEnabled to the provided value', () => {
-        const device = makeDevice({ monitoringEnabled: true });
+        const device = makeDevice({
+          monitoringEnabled: true,
+          ipAddress: IPAddress.create('10.0.0.1').value,
+          status: DeviceStatus.createActive()
+        });
 
         expect(device.monitoringEnabled).toBe(true);
       });
@@ -152,7 +170,7 @@ describe('Device', () => {
     describe('when given all optional props', () => {
       it('should expose all optional props', () => {
         const locationId = LocationId.create();
-        const category = DeviceCategory.createCore();
+        const category = DeviceCategory.createCpe();
         const serialNumber = SerialNumber.create('SN-001').value;
         const macAddress = MACAddress.create(
           '00:1A:2B:3C:4D:5E'
@@ -232,14 +250,122 @@ describe('Device', () => {
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('status');
       });
+    });
 
-      it('should fail when ownerType is null', () => {
+    // -----------------------------------------------------------------------
+    describe('INVENTORY / DAMAGED status invariant', () => {
+      it('should fail when INVENTORY status has neither serialNumber nor macAddress', () => {
         const result = Device.create(
-          makeProps({ ownerType: null as unknown as DeviceOwnerType })
+          makeProps({
+            status: DeviceStatus.createInventory(),
+            serialNumber: null,
+            macAddress: null
+          })
         );
 
         expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('ownerType');
+        expect(result.error).toContain('serial number or MAC address');
+      });
+
+      it('should fail when DAMAGED status has neither serialNumber nor macAddress', () => {
+        const result = Device.create(
+          makeProps({
+            status: DeviceStatus.createDamaged(),
+            serialNumber: null,
+            macAddress: null
+          })
+        );
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('serial number or MAC address');
+      });
+
+      it('should succeed when INVENTORY status has a serialNumber', () => {
+        const result = Device.create(
+          makeProps({
+            status: DeviceStatus.createInventory(),
+            serialNumber: SerialNumber.create('SN-001').value,
+            macAddress: null
+          })
+        );
+
+        expect(result.isSuccess).toBe(true);
+      });
+
+      it('should succeed when INVENTORY status has a macAddress', () => {
+        const result = Device.create(
+          makeProps({
+            status: DeviceStatus.createInventory(),
+            serialNumber: null,
+            macAddress: MACAddress.create('AA:BB:CC:DD:EE:FF').value
+          })
+        );
+
+        expect(result.isSuccess).toBe(true);
+      });
+
+      it('should succeed when DAMAGED status has both serialNumber and macAddress', () => {
+        const result = Device.create(
+          makeProps({
+            status: DeviceStatus.createDamaged(),
+            serialNumber: SerialNumber.create('SN-002').value,
+            macAddress: MACAddress.create('AA:BB:CC:DD:EE:FF').value
+          })
+        );
+
+        expect(result.isSuccess).toBe(true);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('ACTIVE status invariant', () => {
+      it('should fail when ACTIVE status has no ipAddress', () => {
+        const result = Device.create(
+          makeProps({
+            status: DeviceStatus.createActive(),
+            ipAddress: null
+          })
+        );
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('IP address');
+      });
+
+      it('should succeed when ACTIVE status has an ipAddress', () => {
+        const result = Device.create(
+          makeProps({
+            status: DeviceStatus.createActive(),
+            ipAddress: IPAddress.create('10.0.0.1').value
+          })
+        );
+
+        expect(result.isSuccess).toBe(true);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('category invariant', () => {
+      it('should fail when a category is set but ipAddress is absent', () => {
+        const result = Device.create(
+          makeProps({
+            category: DeviceCategory.createCpe(),
+            ipAddress: null
+          })
+        );
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('IP address');
+      });
+
+      it('should succeed when a category is set and ipAddress is provided', () => {
+        const result = Device.create(
+          makeProps({
+            category: DeviceCategory.createAp(),
+            ipAddress: IPAddress.create('192.168.1.1').value
+          })
+        );
+
+        expect(result.isSuccess).toBe(true);
       });
     });
 
@@ -279,7 +405,8 @@ describe('Device', () => {
 
       it('should emit a DeviceCreatedEvent with the correct status', () => {
         const device = makeDevice({
-          status: DeviceStatus.createActive()
+          status: DeviceStatus.createActive(),
+          ipAddress: IPAddress.create('10.0.0.1').value
         });
         const event = device.domainEvents[0] as DeviceCreatedEvent;
 
@@ -341,14 +468,15 @@ describe('Device', () => {
     it('should expose all props it was given', () => {
       const id = DeviceId.create();
       const locationId = LocationId.create();
-      const category = DeviceCategory.createDistribution();
+      const category = DeviceCategory.createRouterboard();
       const serialNumber = SerialNumber.create('SN-PERSIST').value;
       const now = new Date('2023-01-01T00:00:00Z');
 
+      // reconstitute bypasses validation — status can be any value
       const device = Device.reconstitute(id, {
         ...makeProps({
           name: DeviceName.create('Legacy-AP').value,
-          status: DeviceStatus.createMaintenance(),
+          status: DeviceStatus.createDamaged(),
           ownerType: DeviceOwnerType.CLIENT,
           locationId,
           category,
@@ -361,7 +489,7 @@ describe('Device', () => {
       });
 
       expect(device.name.value).toBe('Legacy-AP');
-      expect(device.status.isInMaintenance()).toBe(true);
+      expect(device.status.isDamaged()).toBe(true);
       expect(device.ownerType).toBe(DeviceOwnerType.CLIENT);
       expect(device.locationId).toBe(locationId);
       expect(device.category).toBe(category);
@@ -392,7 +520,9 @@ describe('Device', () => {
 
       it('should fail when transitioning to ACTIVE without an IP Address', () => {
         const device = makeDevice({
-          status: DeviceStatus.createInventory()
+          status: DeviceStatus.createInventory(),
+          serialNumber: SerialNumber.create('SN-001').value,
+          ipAddress: null
         });
         device.clearEvents();
         const result = device.changeStatus(
@@ -401,7 +531,7 @@ describe('Device', () => {
         expect(result.isSuccess).toBe(false);
       });
 
-      it('should update the status', () => {
+      it('should update the status when transitioning INVENTORY to DAMAGED', () => {
         const device = makeDevice({
           status: DeviceStatus.createInventory()
         });
@@ -412,10 +542,11 @@ describe('Device', () => {
 
       it('should emit a DeviceStatusChangedEvent', () => {
         const device = makeDevice({
-          status: DeviceStatus.createInventory()
+          status: DeviceStatus.createInventory(),
+          ipAddress: IPAddress.create('10.0.0.1').value
         });
         device.clearEvents();
-        device.changeStatus(DeviceStatus.createMaintenance());
+        device.changeStatus(DeviceStatus.createActive());
 
         expect(device.domainEvents.length).toBe(1);
         expect(device.domainEvents[0]).toBeInstanceOf(
@@ -425,22 +556,25 @@ describe('Device', () => {
 
       it('should emit a DeviceStatusChangedEvent with correct previous and new status', () => {
         const device = makeDevice({
-          status: DeviceStatus.createInventory()
+          status: DeviceStatus.createInventory(),
+          ipAddress: IPAddress.create('10.0.0.1').value
         });
         device.clearEvents();
-        device.changeStatus(DeviceStatus.createDecommissioned());
+        device.changeStatus(DeviceStatus.createActive());
 
         const event = device
           .domainEvents[0] as DeviceStatusChangedEvent;
 
         expect(event.previousStatus.isInInventory()).toBe(true);
-        expect(event.newStatus.isDecommissioned()).toBe(true);
+        expect(event.newStatus.isActive()).toBe(true);
       });
 
       it('should update updatedAt timestamp', () => {
-        const device = makeDevice();
+        const device = makeDevice({
+          serialNumber: SerialNumber.create('SN-001').value
+        });
         const before = new Date();
-        device.changeStatus(DeviceStatus.createActive());
+        device.changeStatus(DeviceStatus.createDamaged());
         const after = new Date();
 
         expect(device.updatedAt.getTime()).toBeGreaterThanOrEqual(
@@ -469,36 +603,64 @@ describe('Device', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('DECOMMISSIONED terminal state', () => {
-      it('should fail when attempting to change status of a decommissioned device', () => {
-        const device = makeDevice({
-          status: DeviceStatus.createDecommissioned()
+    describe('INVENTORY / DAMAGED transition invariant', () => {
+      it('should fail when transitioning to INVENTORY without a serial number or MAC address', () => {
+        const device = Device.reconstitute(DeviceId.create(), {
+          ...makeProps({
+            status: DeviceStatus.createActive(),
+            ipAddress: IPAddress.create('10.0.0.1').value,
+            serialNumber: null,
+            macAddress: null
+          }),
+          createdAt: new Date(),
+          updatedAt: new Date()
         });
+
         const result = device.changeStatus(
-          DeviceStatus.createActive()
+          DeviceStatus.createInventory()
         );
 
         expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('decommissioned');
+        expect(result.error).toContain('serial number or MAC address');
       });
 
-      it('should not emit an event on failure', () => {
-        const device = makeDevice({
-          status: DeviceStatus.createDecommissioned()
+      it('should fail when transitioning to DAMAGED without a serial number or MAC address', () => {
+        const device = Device.reconstitute(DeviceId.create(), {
+          ...makeProps({
+            status: DeviceStatus.createActive(),
+            ipAddress: IPAddress.create('10.0.0.1').value,
+            serialNumber: null,
+            macAddress: null
+          }),
+          createdAt: new Date(),
+          updatedAt: new Date()
         });
-        device.clearEvents();
-        device.changeStatus(DeviceStatus.createActive());
 
-        expect(device.domainEvents.length).toBe(0);
+        const result = device.changeStatus(
+          DeviceStatus.createDamaged()
+        );
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('serial number or MAC address');
       });
 
-      it('should not change status on failure', () => {
-        const device = makeDevice({
-          status: DeviceStatus.createDecommissioned()
+      it('should succeed transitioning to INVENTORY when a MAC address exists', () => {
+        const device = Device.reconstitute(DeviceId.create(), {
+          ...makeProps({
+            status: DeviceStatus.createActive(),
+            ipAddress: IPAddress.create('10.0.0.1').value,
+            serialNumber: null,
+            macAddress: MACAddress.create('AA:BB:CC:DD:EE:FF').value
+          }),
+          createdAt: new Date(),
+          updatedAt: new Date()
         });
-        device.changeStatus(DeviceStatus.createActive());
 
-        expect(device.status.isDecommissioned()).toBe(true);
+        const result = device.changeStatus(
+          DeviceStatus.createInventory()
+        );
+
+        expect(result.isSuccess).toBe(true);
       });
     });
 
@@ -632,7 +794,10 @@ describe('Device', () => {
       });
 
       it('should fail when enabling monitoring without an IP Address', () => {
-        const device = makeDevice({ monitoringEnabled: false });
+        const device = makeDevice({
+          monitoringEnabled: false,
+          ipAddress: null
+        });
         const result = device.enableMonitoring();
 
         expect(result.isFailure).toBe(true);
@@ -667,6 +832,9 @@ describe('Device', () => {
 
       it('should update updatedAt timestamp', () => {
         const device = makeDevice({ monitoringEnabled: false });
+        device.updateDetails({
+          ipAddress: IPAddress.create('192.168.0.1').value
+        });
         const before = new Date();
         device.enableMonitoring();
         const after = new Date();
@@ -683,7 +851,11 @@ describe('Device', () => {
     // -----------------------------------------------------------------------
     describe('no-op when already enabled', () => {
       it('should return a successful Result without emitting an event', () => {
-        const device = makeDevice({ monitoringEnabled: true });
+        const device = makeDevice({
+          monitoringEnabled: true,
+          ipAddress: IPAddress.create('10.0.0.1').value,
+          status: DeviceStatus.createActive()
+        });
         device.clearEvents();
         const result = device.enableMonitoring();
 
@@ -697,21 +869,33 @@ describe('Device', () => {
   describe('disableMonitoring()', () => {
     describe('happy path', () => {
       it('should return a successful Result', () => {
-        const device = makeDevice({ monitoringEnabled: true });
+        const device = makeDevice({
+          monitoringEnabled: true,
+          ipAddress: IPAddress.create('10.0.0.1').value,
+          status: DeviceStatus.createActive()
+        });
         const result = device.disableMonitoring();
 
         expect(result.isSuccess).toBe(true);
       });
 
       it('should set monitoringEnabled to false', () => {
-        const device = makeDevice({ monitoringEnabled: true });
+        const device = makeDevice({
+          monitoringEnabled: true,
+          ipAddress: IPAddress.create('10.0.0.1').value,
+          status: DeviceStatus.createActive()
+        });
         device.disableMonitoring();
 
         expect(device.monitoringEnabled).toBe(false);
       });
 
       it('should emit a DeviceMonitoringToggledEvent with monitoringEnabled = false', () => {
-        const device = makeDevice({ monitoringEnabled: true });
+        const device = makeDevice({
+          monitoringEnabled: true,
+          ipAddress: IPAddress.create('10.0.0.1').value,
+          status: DeviceStatus.createActive()
+        });
         device.clearEvents();
         device.disableMonitoring();
 
@@ -724,7 +908,11 @@ describe('Device', () => {
       });
 
       it('should update updatedAt timestamp', () => {
-        const device = makeDevice({ monitoringEnabled: true });
+        const device = makeDevice({
+          monitoringEnabled: true,
+          ipAddress: IPAddress.create('10.0.0.1').value,
+          status: DeviceStatus.createActive()
+        });
         const before = new Date();
         device.disableMonitoring();
         const after = new Date();
@@ -818,15 +1006,16 @@ describe('Device', () => {
       it('should update the category', () => {
         const device = makeDevice();
         device.updateDetails({
-          category: DeviceCategory.createCore()
+          category: DeviceCategory.createCpe()
         });
 
-        expect(device.category!.isCore()).toBe(true);
+        expect(device.category!.isCpe()).toBe(true);
       });
 
       it('should set category to null when explicitly null', () => {
         const device = makeDevice({
-          category: DeviceCategory.createCore()
+          category: DeviceCategory.createAp(),
+          ipAddress: IPAddress.create('10.0.0.1').value
         });
         device.updateDetails({ category: null });
 
@@ -923,36 +1112,21 @@ describe('Device', () => {
 
   // =========================================================================
   describe('query methods', () => {
-    it('isDecommissioned() should return true when status is DECOMMISSIONED', () => {
-      const device = makeDevice({
-        status: DeviceStatus.createDecommissioned()
-      });
-
-      expect(device.isDecommissioned()).toBe(true);
-    });
-
-    it('isDecommissioned() should return false otherwise', () => {
-      const device = makeDevice({
-        status: DeviceStatus.createActive()
-      });
-
-      expect(device.isDecommissioned()).toBe(false);
-    });
-
-    it('isInMaintenance() should return true when status is MAINTENANCE', () => {
-      const device = makeDevice({
-        status: DeviceStatus.createMaintenance()
-      });
-
-      expect(device.isInMaintenance()).toBe(true);
-    });
-
     it('isActive() should return true when status is ACTIVE', () => {
       const device = makeDevice({
-        status: DeviceStatus.createActive()
+        status: DeviceStatus.createActive(),
+        ipAddress: IPAddress.create('10.0.0.1').value
       });
 
       expect(device.isActive()).toBe(true);
+    });
+
+    it('isActive() should return false when status is not ACTIVE', () => {
+      const device = makeDevice({
+        status: DeviceStatus.createInventory()
+      });
+
+      expect(device.isActive()).toBe(false);
     });
 
     it('isInInventory() should return true when status is INVENTORY', () => {
@@ -961,6 +1135,15 @@ describe('Device', () => {
       });
 
       expect(device.isInInventory()).toBe(true);
+    });
+
+    it('isInInventory() should return false when status is not INVENTORY', () => {
+      const device = makeDevice({
+        status: DeviceStatus.createActive(),
+        ipAddress: IPAddress.create('10.0.0.1').value
+      });
+
+      expect(device.isInInventory()).toBe(false);
     });
 
     it('hasLocation() should return false when locationId is null', () => {
@@ -976,7 +1159,11 @@ describe('Device', () => {
     });
 
     it('isMonitored() should reflect the monitoringEnabled flag', () => {
-      const enabled = makeDevice({ monitoringEnabled: true });
+      const enabled = makeDevice({
+        monitoringEnabled: true,
+        ipAddress: IPAddress.create('10.0.0.1').value,
+        status: DeviceStatus.createActive()
+      });
       const disabled = makeDevice({ monitoringEnabled: false });
 
       expect(enabled.isMonitored()).toBe(true);
@@ -1028,7 +1215,7 @@ describe('Device', () => {
         status: DeviceStatus.createActive(),
         ownerType: DeviceOwnerType.COMPANY,
         locationId: LocationId.create(),
-        category: DeviceCategory.createDistribution(),
+        category: DeviceCategory.createSmartSwitch(),
         serialNumber: SerialNumber.create('SN-DIST-2024-001').value,
         macAddress: MACAddress.create('AA:BB:CC:DD:EE:FF').value,
         ipAddress: IPAddress.create('10.0.1.1').value,
@@ -1042,7 +1229,7 @@ describe('Device', () => {
       expect(device.isActive()).toBe(true);
       expect(device.isMonitored()).toBe(true);
       expect(device.hasLocation()).toBe(true);
-      expect(device.category!.isDistribution()).toBe(true);
+      expect(device.category!.isSmartSwitch()).toBe(true);
     });
 
     it('should allow sequential state changes and accumulate matching events', () => {
@@ -1074,19 +1261,51 @@ describe('Device', () => {
       );
     });
 
-    it('should prevent further status transitions after decommissioning', () => {
+    it('should represent an ACTIVE device that can transition back to INVENTORY when it has a serial number', () => {
       const device = makeDevice({
-        status: DeviceStatus.createActive()
+        status: DeviceStatus.createActive(),
+        ipAddress: IPAddress.create('10.0.0.1').value,
+        serialNumber: SerialNumber.create('SN-001').value
       });
 
-      device.changeStatus(DeviceStatus.createDecommissioned());
+      const result = device.changeStatus(
+        DeviceStatus.createInventory()
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.isInInventory()).toBe(true);
+    });
+
+    it('should fail transitioning ACTIVE to INVENTORY when no serial or MAC is set', () => {
+      const device = Device.reconstitute(DeviceId.create(), {
+        ...makeProps({
+          status: DeviceStatus.createActive(),
+          ipAddress: IPAddress.create('10.0.0.1').value,
+          serialNumber: null,
+          macAddress: null
+        }),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
 
       const result = device.changeStatus(
         DeviceStatus.createInventory()
       );
 
       expect(result.isFailure).toBe(true);
-      expect(device.isDecommissioned()).toBe(true);
+      expect(result.error).toContain('serial number or MAC address');
+    });
+
+    it('should fail creating an ACTIVE device without an IP address', () => {
+      const result = Device.create(
+        makeProps({
+          status: DeviceStatus.createActive(),
+          ipAddress: null
+        })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('IP address');
     });
   });
 });

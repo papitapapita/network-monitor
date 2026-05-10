@@ -39,7 +39,7 @@ import {
  *
  * Business Rules:
  * - id is required.
- * - A decommissioned device cannot change its status (terminal state, enforced by domain).
+ * - Transitioning to ACTIVE requires an IP address (enforced by domain).
  * - MAC address must be unique — only fails if the MAC is held by a *different* device.
  * - IP address must be unique — only fails if the IP is held by a *different* device.
  * - Passing null for locationId, macAddress, ipAddress, serialNumber, category,

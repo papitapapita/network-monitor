@@ -940,7 +940,7 @@ describe('PrismaDeviceRepository', () => {
     });
 
     it('should return an empty array when no devices match the status', async () => {
-      const status = DeviceStatus.createDecommissioned();
+      const status = DeviceStatus.createDamaged();
       prisma.device.findMany.mockResolvedValue([]);
 
       const result = await repository.findByStatus(status);
@@ -1098,14 +1098,14 @@ describe('PrismaDeviceRepository', () => {
       });
 
       it('should build where with category string when provided', async () => {
-        const category = DeviceCategory.createCore();
+        const category = DeviceCategory.createCpe();
         prisma.device.findMany.mockResolvedValue([]);
 
         await repository.findByFilters({ category });
 
         const call = prisma.device.findMany.mock
           .calls[0][0] as Record<string, unknown>;
-        expect(call.where).toEqual({ category: 'CORE' });
+        expect(call.where).toEqual({ category: 'CPE' });
       });
 
       it('should combine multiple filters in a single where object', async () => {

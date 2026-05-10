@@ -7,10 +7,9 @@
  * Validation Rules:
  * - id: Required, valid UUID — the device to update.
  * - name: Optional, 1–150 characters.
- * - status: Optional, one of: INVENTORY, ACTIVE, MAINTENANCE, DAMAGED, DECOMMISSIONED.
- *           Decommissioned devices cannot change status (terminal state).
- * - category: Optional, one of: CORE, DISTRIBUTION, POE, ACCESS_POINT, CLIENT_CPE.
- *             Pass null to clear the current category.
+ * - status: Optional, one of: INVENTORY, ACTIVE, DAMAGED.
+ * - category: Optional, one of: CPE, AP, ROUTERBOARD, SMART_SWITCH, SMART_SWITCH_POE, OTHER.
+ *             Pass null to clear the current category. When set, device must have an IP address.
  * - ownerType: Optional, one of: COMPANY, CLIENT.
  * - locationId: Optional, valid UUID to assign the device to a location.
  *               Pass null to unassign the device from its current location.
@@ -46,9 +45,9 @@
  * ```json
  * {
  *   "id": "550e8400-e29b-41d4-a716-446655440000",
- *   "name": "Core-Router-01-Updated",
- *   "status": "MAINTENANCE",
- *   "category": "CORE",
+ *   "name": "Router-01-Updated",
+ *   "status": "ACTIVE",
+ *   "category": "ROUTERBOARD",
  *   "ownerType": "COMPANY",
  *   "locationId": "550e8400-e29b-41d4-a716-446655440001",
  *   "serialNumber": "SN-2024-XYZ-001",
@@ -93,15 +92,14 @@ export interface UpdateDeviceRequestDTO {
 
   /**
    * Operational lifecycle status.
-   * Optional. Valid values: INVENTORY, ACTIVE, MAINTENANCE, DAMAGED, DECOMMISSIONED.
-   * Note: A decommissioned device cannot transition to any other status.
+   * Optional. Valid values: INVENTORY, ACTIVE, DAMAGED.
    */
   status?: string;
 
   /**
    * Network role / hardware category of the device.
-   * Optional. Valid values: CORE, DISTRIBUTION, POE, ACCESS_POINT, CLIENT_CPE.
-   * Pass null to clear the current category.
+   * Optional. Valid values: CPE, AP, ROUTERBOARD, SMART_SWITCH, SMART_SWITCH_POE, OTHER.
+   * Pass null to clear the current category. When set, device must have an IP address.
    */
   category?: string | null;
 

@@ -125,6 +125,29 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       return Result.fail<Device>(guardResult.message!);
     }
 
+    // INVENTORY and DAMAGED devices must be identifiable by serial or MAC
+    if (props.status.isInInventory() || props.status.isDamaged()) {
+      if (!props.serialNumber && !props.macAddress) {
+        return Result.fail<Device>(
+          `A device with status ${props.status.toString()} must have at least a serial number or MAC address`
+        );
+      }
+    }
+
+    // ACTIVE devices must have an IP address
+    if (props.status.isActive() && !props.ipAddress) {
+      return Result.fail<Device>(
+        'Cannot create an ACTIVE device without an IP address'
+      );
+    }
+
+    // A categorised device must have an IP address
+    if (props.category && !props.ipAddress) {
+      return Result.fail<Device>(
+        'A device with a category must have an IP address assigned'
+      );
+    }
+
     const id = DeviceId.create();
     const now = new Date();
 
@@ -197,15 +220,19 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       return Result.fail<void>(guardResult.message!);
     }
 
-    if (this.props.status.isDecommissioned()) {
-      return Result.fail<void>(
-        'A decommissioned device cannot change status'
-      );
-    }
-
     if (newStatus.isActive() && this.props.ipAddress === null) {
       return Result.fail<void>(
         'Cannot activate a device without an IP address assigned'
+      );
+    }
+
+    if (
+      (newStatus.isInInventory() || newStatus.isDamaged()) &&
+      !this.props.serialNumber &&
+      !this.props.macAddress
+    ) {
+      return Result.fail<void>(
+        `Cannot transition to ${newStatus.toString()} without a serial number or MAC address`
       );
     }
 
@@ -445,14 +472,6 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
   // ============================================================================
   // Query Methods
   // ============================================================================
-
-  public isDecommissioned(): boolean {
-    return this.props.status.isDecommissioned();
-  }
-
-  public isInMaintenance(): boolean {
-    return this.props.status.isInMaintenance();
-  }
 
   public isActive(): boolean {
     return this.props.status.isActive();

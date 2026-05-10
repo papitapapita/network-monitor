@@ -10,7 +10,6 @@ import { DeviceStatusProps } from '../props';
  * Business Rules:
  * - Status must be one of the predefined valid statuses
  * - Status cannot be null or empty
- * - DECOMMISSIONED is a terminal state — the aggregate enforces no further transitions
  *
  * @example
  * const result = DeviceStatus.create('ACTIVE');
@@ -21,16 +20,12 @@ import { DeviceStatusProps } from '../props';
 export class DeviceStatus extends ValueObject<DeviceStatusProps> {
   public static readonly ACTIVE = 'ACTIVE';
   public static readonly DAMAGED = 'DAMAGED';
-  public static readonly DECOMMISSIONED = 'DECOMMISSIONED';
   public static readonly INVENTORY = 'INVENTORY';
-  public static readonly MAINTENANCE = 'MAINTENANCE';
 
   private static readonly VALID_STATUSES = [
     DeviceStatus.ACTIVE,
     DeviceStatus.DAMAGED,
-    DeviceStatus.DECOMMISSIONED,
-    DeviceStatus.INVENTORY,
-    DeviceStatus.MAINTENANCE
+    DeviceStatus.INVENTORY
   ] as const;
 
   get value(): string {
@@ -78,16 +73,8 @@ export class DeviceStatus extends ValueObject<DeviceStatusProps> {
     return new DeviceStatus({ value: DeviceStatus.DAMAGED });
   }
 
-  public static createDecommissioned(): DeviceStatus {
-    return new DeviceStatus({ value: DeviceStatus.DECOMMISSIONED });
-  }
-
   public static createInventory(): DeviceStatus {
     return new DeviceStatus({ value: DeviceStatus.INVENTORY });
-  }
-
-  public static createMaintenance(): DeviceStatus {
-    return new DeviceStatus({ value: DeviceStatus.MAINTENANCE });
   }
 
   private static isValid(value: string): boolean {
@@ -104,16 +91,8 @@ export class DeviceStatus extends ValueObject<DeviceStatusProps> {
     return this._props.value === DeviceStatus.DAMAGED;
   }
 
-  public isDecommissioned(): boolean {
-    return this._props.value === DeviceStatus.DECOMMISSIONED;
-  }
-
   public isInInventory(): boolean {
     return this._props.value === DeviceStatus.INVENTORY;
-  }
-
-  public isInMaintenance(): boolean {
-    return this._props.value === DeviceStatus.MAINTENANCE;
   }
 
   public getDisplayName(): string {
@@ -122,12 +101,8 @@ export class DeviceStatus extends ValueObject<DeviceStatusProps> {
         return 'Active';
       case DeviceStatus.DAMAGED:
         return 'Damaged';
-      case DeviceStatus.DECOMMISSIONED:
-        return 'Decommissioned';
       case DeviceStatus.INVENTORY:
         return 'Inventory';
-      case DeviceStatus.MAINTENANCE:
-        return 'Maintenance';
       default:
         return this._props.value;
     }

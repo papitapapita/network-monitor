@@ -10,26 +10,29 @@ import { DeviceCategoryProps } from '../props';
  * Business Rules:
  * - Category must be one of the predefined valid categories
  * - Category cannot be null or empty
+ * - When a category is assigned, the device must have an IP address (enforced by the aggregate)
  *
  * @example
- * const result = DeviceCategory.create('CORE');
+ * const result = DeviceCategory.create('AP');
  * if (result.isSuccess) {
- *   console.log(result.value.getDisplayName()); // 'Core'
+ *   console.log(result.value.getDisplayName()); // 'Access Point'
  * }
  */
 export class DeviceCategory extends ValueObject<DeviceCategoryProps> {
-  public static readonly CORE = 'CORE';
-  public static readonly DISTRIBUTION = 'DISTRIBUTION';
-  public static readonly POE = 'POE';
-  public static readonly ACCESS_POINT = 'ACCESS_POINT';
-  public static readonly CLIENT_CPE = 'CLIENT_CPE';
+  public static readonly CPE = 'CPE';
+  public static readonly AP = 'AP';
+  public static readonly ROUTERBOARD = 'ROUTERBOARD';
+  public static readonly SMART_SWITCH = 'SMART_SWITCH';
+  public static readonly SMART_SWITCH_POE = 'SMART_SWITCH_POE';
+  public static readonly OTHER = 'OTHER';
 
   private static readonly VALID_CATEGORIES = [
-    DeviceCategory.CORE,
-    DeviceCategory.DISTRIBUTION,
-    DeviceCategory.POE,
-    DeviceCategory.ACCESS_POINT,
-    DeviceCategory.CLIENT_CPE
+    DeviceCategory.CPE,
+    DeviceCategory.AP,
+    DeviceCategory.ROUTERBOARD,
+    DeviceCategory.SMART_SWITCH,
+    DeviceCategory.SMART_SWITCH_POE,
+    DeviceCategory.OTHER
   ] as const;
 
   get value(): string {
@@ -69,24 +72,28 @@ export class DeviceCategory extends ValueObject<DeviceCategoryProps> {
     return new DeviceCategory({ value: category });
   }
 
-  public static createCore(): DeviceCategory {
-    return new DeviceCategory({ value: DeviceCategory.CORE });
+  public static createCpe(): DeviceCategory {
+    return new DeviceCategory({ value: DeviceCategory.CPE });
   }
 
-  public static createDistribution(): DeviceCategory {
-    return new DeviceCategory({ value: DeviceCategory.DISTRIBUTION });
+  public static createAp(): DeviceCategory {
+    return new DeviceCategory({ value: DeviceCategory.AP });
   }
 
-  public static createPoe(): DeviceCategory {
-    return new DeviceCategory({ value: DeviceCategory.POE });
+  public static createRouterboard(): DeviceCategory {
+    return new DeviceCategory({ value: DeviceCategory.ROUTERBOARD });
   }
 
-  public static createAccessPoint(): DeviceCategory {
-    return new DeviceCategory({ value: DeviceCategory.ACCESS_POINT });
+  public static createSmartSwitch(): DeviceCategory {
+    return new DeviceCategory({ value: DeviceCategory.SMART_SWITCH });
   }
 
-  public static createClientCpe(): DeviceCategory {
-    return new DeviceCategory({ value: DeviceCategory.CLIENT_CPE });
+  public static createSmartSwitchPoe(): DeviceCategory {
+    return new DeviceCategory({ value: DeviceCategory.SMART_SWITCH_POE });
+  }
+
+  public static createOther(): DeviceCategory {
+    return new DeviceCategory({ value: DeviceCategory.OTHER });
   }
 
   private static isValid(value: string): boolean {
@@ -95,38 +102,44 @@ export class DeviceCategory extends ValueObject<DeviceCategoryProps> {
     );
   }
 
-  public isCore(): boolean {
-    return this._props.value === DeviceCategory.CORE;
+  public isCpe(): boolean {
+    return this._props.value === DeviceCategory.CPE;
   }
 
-  public isDistribution(): boolean {
-    return this._props.value === DeviceCategory.DISTRIBUTION;
+  public isAp(): boolean {
+    return this._props.value === DeviceCategory.AP;
   }
 
-  public isPoe(): boolean {
-    return this._props.value === DeviceCategory.POE;
+  public isRouterboard(): boolean {
+    return this._props.value === DeviceCategory.ROUTERBOARD;
   }
 
-  public isAccessPoint(): boolean {
-    return this._props.value === DeviceCategory.ACCESS_POINT;
+  public isSmartSwitch(): boolean {
+    return this._props.value === DeviceCategory.SMART_SWITCH;
   }
 
-  public isClientCpe(): boolean {
-    return this._props.value === DeviceCategory.CLIENT_CPE;
+  public isSmartSwitchPoe(): boolean {
+    return this._props.value === DeviceCategory.SMART_SWITCH_POE;
+  }
+
+  public isOther(): boolean {
+    return this._props.value === DeviceCategory.OTHER;
   }
 
   public getDisplayName(): string {
     switch (this._props.value) {
-      case DeviceCategory.CORE:
-        return 'Core';
-      case DeviceCategory.DISTRIBUTION:
-        return 'Distribution';
-      case DeviceCategory.POE:
-        return 'PoE';
-      case DeviceCategory.ACCESS_POINT:
+      case DeviceCategory.CPE:
+        return 'CPE';
+      case DeviceCategory.AP:
         return 'Access Point';
-      case DeviceCategory.CLIENT_CPE:
-        return 'Client CPE';
+      case DeviceCategory.ROUTERBOARD:
+        return 'Routerboard';
+      case DeviceCategory.SMART_SWITCH:
+        return 'Smart Switch';
+      case DeviceCategory.SMART_SWITCH_POE:
+        return 'Smart Switch PoE';
+      case DeviceCategory.OTHER:
+        return 'Other';
       default:
         return this._props.value;
     }

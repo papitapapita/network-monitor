@@ -135,13 +135,13 @@ describe('DeviceStatusChangedEvent', () => {
   // -------------------------------------------------------------------------
   describe('previousStatus getter', () => {
     it('should return the previous DeviceStatus provided', () => {
-      const previous = DeviceStatus.createMaintenance();
+      const previous = DeviceStatus.createDamaged();
       const event = new DeviceStatusChangedEvent(
         makeEventProps({ previousStatus: previous })
       );
 
       expect(event.previousStatus).toBe(previous);
-      expect(event.previousStatus.isInMaintenance()).toBe(true);
+      expect(event.previousStatus.isDamaged()).toBe(true);
     });
 
     it('should return the same reference on repeated reads', () => {
@@ -179,10 +179,10 @@ describe('DeviceStatusChangedEvent', () => {
         [DeviceStatus, DeviceStatus]
       > = [
         [DeviceStatus.createInventory(), DeviceStatus.createActive()],
-        [DeviceStatus.createActive(), DeviceStatus.createMaintenance()],
-        [DeviceStatus.createMaintenance(), DeviceStatus.createActive()],
         [DeviceStatus.createActive(), DeviceStatus.createDamaged()],
-        [DeviceStatus.createDamaged(), DeviceStatus.createDecommissioned()]
+        [DeviceStatus.createDamaged(), DeviceStatus.createInventory()],
+        [DeviceStatus.createInventory(), DeviceStatus.createDamaged()],
+        [DeviceStatus.createDamaged(), DeviceStatus.createActive()]
       ];
 
       for (const [prev, next] of transitions) {

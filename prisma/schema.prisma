@@ -113,19 +113,18 @@ model Location {
 enum DeviceStatus {
   ACTIVE
   DAMAGED
-  DECOMMISSIONED
   INVENTORY
-  MAINTENANCE
 
   @@map("device_status")
 }
 
 enum DeviceCategory {
-  CORE
-  DISTRIBUTION
-  POE
-  ACCESS_POINT
-  CLIENT_CPE
+  CPE
+  AP
+  ROUTERBOARD
+  SMART_SWITCH
+  SMART_SWITCH_POE
+  OTHER
 
   @@map("device_category")
 }

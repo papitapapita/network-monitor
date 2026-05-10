@@ -54,13 +54,13 @@ export interface ListDevicesQueryDTO {
 
   /**
    * Filter by operational status.
-   * Optional. Valid values: INVENTORY, ACTIVE, MAINTENANCE, DAMAGED, DECOMMISSIONED.
+   * Optional. Valid values: INVENTORY, ACTIVE, DAMAGED.
    */
   status?: string;
 
   /**
    * Filter by device category.
-   * Optional. Valid values: CORE, DISTRIBUTION, POE, ACCESS_POINT, CLIENT_CPE.
+   * Optional. Valid values: CPE, AP, ROUTERBOARD, SMART_SWITCH, SMART_SWITCH_POE, OTHER.
    */
   category?: string;
 

@@ -20,25 +20,11 @@ describe('DeviceStatus', () => {
         expect(result.value.value).toBe('DAMAGED');
       });
 
-      it('should succeed for DECOMMISSIONED', () => {
-        const result = DeviceStatus.create('DECOMMISSIONED');
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.value).toBe('DECOMMISSIONED');
-      });
-
       it('should succeed for INVENTORY', () => {
         const result = DeviceStatus.create('INVENTORY');
 
         expect(result.isSuccess).toBe(true);
         expect(result.value.value).toBe('INVENTORY');
-      });
-
-      it('should succeed for MAINTENANCE', () => {
-        const result = DeviceStatus.create('MAINTENANCE');
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.value).toBe('MAINTENANCE');
       });
 
       it('should normalise lowercase input to uppercase', () => {
@@ -113,15 +99,27 @@ describe('DeviceStatus', () => {
         expect(result.error).toContain('UNKNOWN_STATUS');
       });
 
+      it('should fail for removed DECOMMISSIONED status', () => {
+        const result = DeviceStatus.create('DECOMMISSIONED');
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('Invalid device status');
+      });
+
+      it('should fail for removed MAINTENANCE status', () => {
+        const result = DeviceStatus.create('MAINTENANCE');
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('Invalid device status');
+      });
+
       it('should list all valid statuses in the error message', () => {
         const result = DeviceStatus.create('INVALID');
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('ACTIVE');
         expect(result.error).toContain('DAMAGED');
-        expect(result.error).toContain('DECOMMISSIONED');
         expect(result.error).toContain('INVENTORY');
-        expect(result.error).toContain('MAINTENANCE');
       });
     });
   });
@@ -136,16 +134,8 @@ describe('DeviceStatus', () => {
       expect(DeviceStatus.createDamaged().value).toBe('DAMAGED');
     });
 
-    it('createDecommissioned() should return a DECOMMISSIONED status', () => {
-      expect(DeviceStatus.createDecommissioned().value).toBe('DECOMMISSIONED');
-    });
-
     it('createInventory() should return an INVENTORY status', () => {
       expect(DeviceStatus.createInventory().value).toBe('INVENTORY');
-    });
-
-    it('createMaintenance() should return a MAINTENANCE status', () => {
-      expect(DeviceStatus.createMaintenance().value).toBe('MAINTENANCE');
     });
   });
 
@@ -175,19 +165,9 @@ describe('DeviceStatus', () => {
       expect(DeviceStatus.createActive().isDamaged()).toBe(false);
     });
 
-    it('isDecommissioned() should return true only for DECOMMISSIONED', () => {
-      expect(DeviceStatus.createDecommissioned().isDecommissioned()).toBe(true);
-      expect(DeviceStatus.createActive().isDecommissioned()).toBe(false);
-    });
-
     it('isInInventory() should return true only for INVENTORY', () => {
       expect(DeviceStatus.createInventory().isInInventory()).toBe(true);
       expect(DeviceStatus.createActive().isInInventory()).toBe(false);
-    });
-
-    it('isInMaintenance() should return true only for MAINTENANCE', () => {
-      expect(DeviceStatus.createMaintenance().isInMaintenance()).toBe(true);
-      expect(DeviceStatus.createActive().isInMaintenance()).toBe(false);
     });
   });
 
@@ -201,16 +181,8 @@ describe('DeviceStatus', () => {
       expect(DeviceStatus.createDamaged().getDisplayName()).toBe('Damaged');
     });
 
-    it('should return "Decommissioned" for DECOMMISSIONED', () => {
-      expect(DeviceStatus.createDecommissioned().getDisplayName()).toBe('Decommissioned');
-    });
-
     it('should return "Inventory" for INVENTORY', () => {
       expect(DeviceStatus.createInventory().getDisplayName()).toBe('Inventory');
-    });
-
-    it('should return "Maintenance" for MAINTENANCE', () => {
-      expect(DeviceStatus.createMaintenance().getDisplayName()).toBe('Maintenance');
     });
   });
 
