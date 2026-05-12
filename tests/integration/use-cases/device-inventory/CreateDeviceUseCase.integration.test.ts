@@ -54,7 +54,8 @@ describe('CreateDeviceUseCase — integration', () => {
     const result = await useCase.execute({
       deviceModelId,
       name: 'Core Router',
-      ownerType: 'COMPANY'
+      ownerType: 'COMPANY',
+      serialNumber: 'SN-001'
     });
 
     expect(result.isSuccess).toBe(true);
@@ -71,7 +72,7 @@ describe('CreateDeviceUseCase — integration', () => {
       name: 'Access Point SP',
       ownerType: 'CLIENT',
       status: 'ACTIVE',
-      category: 'ACCESS_POINT',
+      category: 'AP',
       serialNumber: 'SN-99001',
       macAddress: 'AA:BB:CC:DD:EE:FF',
       ipAddress: '10.0.0.1',
@@ -82,7 +83,7 @@ describe('CreateDeviceUseCase — integration', () => {
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.status).toBe('ACTIVE');
-    expect(result.value.category).toBe('ACCESS_POINT');
+    expect(result.value.category).toBe('AP');
     expect(result.value.serialNumber).toBe('SN-99001');
     expect(result.value.macAddress).toBe('AA:BB:CC:DD:EE:FF');
     expect(result.value.ipAddress).toBe('10.0.0.1');
@@ -94,6 +95,7 @@ describe('CreateDeviceUseCase — integration', () => {
       deviceModelId,
       name: 'Monitored Switch',
       ownerType: 'COMPANY',
+      serialNumber: 'SN-001',
       ipAddress: '192.168.1.1',
       monitoringEnabled: true
     });
@@ -190,6 +192,7 @@ describe('CreateDeviceUseCase — integration', () => {
       deviceModelId,
       name: 'First Device',
       ownerType: 'COMPANY',
+      serialNumber: 'SN-FIRST-01',
       ipAddress: ip
     });
 
@@ -197,6 +200,7 @@ describe('CreateDeviceUseCase — integration', () => {
       deviceModelId,
       name: 'Second Device',
       ownerType: 'COMPANY',
+      serialNumber: 'SN-SECOND-01',
       ipAddress: ip
     });
 

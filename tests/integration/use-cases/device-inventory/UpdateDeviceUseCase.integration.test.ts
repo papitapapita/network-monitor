@@ -50,6 +50,7 @@ describe('UpdateDeviceUseCase — integration', () => {
       deviceModelId,
       name: 'Test Device',
       ownerType: 'COMPANY',
+      serialNumber: 'SN-TEST-001',
       ...overrides
     });
     expect(result.isSuccess).toBe(true);

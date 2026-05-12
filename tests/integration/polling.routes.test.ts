@@ -38,6 +38,7 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
       deviceModelId,
       name: 'Monitored Router',
       ownerType: 'COMPANY',
+      serialNumber: 'SN-001',
       ipAddress: '127.0.0.1',
       monitoringEnabled: true
     });

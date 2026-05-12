@@ -125,13 +125,13 @@ describe('CreateDeviceUseCase', () => {
       expect(result.error).toContain('Device name is required');
     });
 
-    it('should fail when ownerType is missing', async () => {
+    it('should succeed and set ownerType to null when ownerType is empty', async () => {
       const request = makeMinimalRequest({ ownerType: '' });
 
       const result = await useCase.execute(request);
 
-      expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('ownerType is required');
+      expect(result.isSuccess).toBe(true);
+      expect(result.value!.ownerType).toBeNull();
     });
 
     it('should fail when ownerType is not a valid enum value', async () => {

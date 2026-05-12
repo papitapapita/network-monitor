@@ -52,12 +52,14 @@ describe('ListDevicesUseCase — integration', () => {
     await createUseCase.execute({
       deviceModelId,
       name: 'Router A',
-      ownerType: 'COMPANY'
+      ownerType: 'COMPANY',
+      serialNumber: 'SN-A-001'
     });
     await createUseCase.execute({
       deviceModelId,
       name: 'Router B',
-      ownerType: 'COMPANY'
+      ownerType: 'COMPANY',
+      serialNumber: 'SN-B-001'
     });
 
     const result = await listUseCase.execute({ limit: 20, offset: 0 });
@@ -75,7 +77,8 @@ describe('ListDevicesUseCase — integration', () => {
       await createUseCase.execute({
         deviceModelId,
         name: `Device ${i}`,
-        ownerType: 'COMPANY'
+        ownerType: 'COMPANY',
+        serialNumber: `SN-${i.toString().padStart(3, '0')}`
       });
     }
 
@@ -103,12 +106,14 @@ describe('ListDevicesUseCase — integration', () => {
       deviceModelId,
       name: 'Active Device',
       ownerType: 'COMPANY',
-      status: 'ACTIVE'
+      status: 'ACTIVE',
+      ipAddress: '10.0.0.1'
     });
     await createUseCase.execute({
       deviceModelId,
       name: 'Inventory Device',
-      ownerType: 'COMPANY'
+      ownerType: 'COMPANY',
+      serialNumber: 'SN-INV-01'
       // defaults to INVENTORY
     });
 
@@ -124,16 +129,20 @@ describe('ListDevicesUseCase — integration', () => {
       deviceModelId,
       name: 'Core Switch',
       ownerType: 'COMPANY',
-      category: 'CORE'
+      status: 'ACTIVE',
+      category: 'ROUTERBOARD',
+      ipAddress: '10.0.0.1'
     });
     await createUseCase.execute({
       deviceModelId,
       name: 'Access Point',
       ownerType: 'COMPANY',
-      category: 'ACCESS_POINT'
+      status: 'ACTIVE',
+      category: 'AP',
+      ipAddress: '10.0.0.2'
     });
 
-    const result = await listUseCase.execute({ category: 'CORE' });
+    const result = await listUseCase.execute({ category: 'ROUTERBOARD' });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.devices).toHaveLength(1);
@@ -144,12 +153,14 @@ describe('ListDevicesUseCase — integration', () => {
     await createUseCase.execute({
       deviceModelId,
       name: 'Company Device',
-      ownerType: 'COMPANY'
+      ownerType: 'COMPANY',
+      serialNumber: 'SN-CO-001'
     });
     await createUseCase.execute({
       deviceModelId,
       name: 'Client Device',
-      ownerType: 'CLIENT'
+      ownerType: 'CLIENT',
+      serialNumber: 'SN-CL-001'
     });
 
     const result = await listUseCase.execute({ owner: 'CLIENT' });
@@ -163,12 +174,14 @@ describe('ListDevicesUseCase — integration', () => {
     await createUseCase.execute({
       deviceModelId,
       name: 'MikroTik Core',
-      ownerType: 'COMPANY'
+      ownerType: 'COMPANY',
+      serialNumber: 'SN-MK-001'
     });
     await createUseCase.execute({
       deviceModelId,
       name: 'Ubiquiti AP',
-      ownerType: 'COMPANY'
+      ownerType: 'COMPANY',
+      serialNumber: 'SN-UB-001'
     });
 
     const result = await listUseCase.execute({ search: 'MikroTik' });

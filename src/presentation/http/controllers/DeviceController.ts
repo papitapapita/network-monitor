@@ -252,8 +252,11 @@ export class DeviceController {
       errorMessage.includes('required') ||
       errorMessage.includes('cannot be empty') ||
       errorMessage.includes('must be') ||
+      errorMessage.includes('must have') ||
       errorMessage.includes('must not exceed') ||
-      errorMessage.includes('already assigned')
+      errorMessage.includes('already assigned') ||
+      errorMessage.includes('Cannot ') ||
+      errorMessage.includes('Failed to persist')
     ) {
       return 400;
     }

@@ -1,5 +1,6 @@
 // Source: src/application/device-inventory/use-cases/ListDevicesUseCase.ts
 
+import { IPAddress } from 'domain/shared';
 import { ListDevicesUseCase } from './../../../../src/application/device-inventory/use-cases';
 import { IDeviceRepository } from './../../../../src/domain/device-inventory/repository/IDeviceRepository';
 import { ILogger } from '../../../../src/application/shared/interfaces';
@@ -68,6 +69,7 @@ function makeDevice(): Device {
   const modelIdResult = DeviceModelId.parse(VALID_DEVICE_MODEL_UUID);
   const nameResult = DeviceName.create('Test Device');
   const statusResult = DeviceStatus.create('ACTIVE');
+  const ipAddressResult = IPAddress.create('192.168.1.100');
 
   const deviceResult = Device.create({
     deviceModelId: modelIdResult.value!,
@@ -78,7 +80,7 @@ function makeDevice(): Device {
     ownerType: DeviceOwnerType.COMPANY,
     serialNumber: null,
     macAddress: null,
-    ipAddress: null,
+    ipAddress: ipAddressResult.value!,
     description: null,
     installedDate: null,
     monitoringEnabled: false
@@ -247,11 +249,11 @@ describe('ListDevicesUseCase', () => {
     });
 
     it('should pass a DeviceCategory value object for the category filter', async () => {
-      await useCase.execute({ category: 'CORE' });
+      await useCase.execute({ category: 'CPE' });
 
       const filters = repo.findByFilters.mock.calls[0][0];
       expect(filters.category).toBeInstanceOf(DeviceCategory);
-      expect(filters.category!.toString()).toBe('CORE');
+      expect(filters.category!.toString()).toBe('CPE');
     });
 
     it('should pass a DeviceOwnerType string for the owner filter', async () => {
@@ -394,7 +396,7 @@ describe('ListDevicesUseCase', () => {
       repo.findByFilters.mockResolvedValue(Result.ok([]));
 
       const result = await useCase.execute({
-        status: 'DECOMMISSIONED'
+        status: 'INVENTORY'
       });
 
       expect(result.isSuccess).toBe(true);
@@ -466,7 +468,7 @@ describe('ListDevicesUseCase', () => {
     });
 
     it('should accept lowercase category values', async () => {
-      const result = await useCase.execute({ category: 'core' });
+      const result = await useCase.execute({ category: 'cpe' });
 
       expect(result.isSuccess).toBe(true);
     });

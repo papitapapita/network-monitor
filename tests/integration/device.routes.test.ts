@@ -39,7 +39,8 @@ describe('Device Routes — /api/devices', () => {
       const res = await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Core Router SP01',
-        ownerType: 'COMPANY'
+        ownerType: 'COMPANY',
+        serialNumber: 'SN-001'
       });
 
       expect(res.status).toBe(201);
@@ -57,7 +58,7 @@ describe('Device Routes — /api/devices', () => {
         name: 'Access Point Floor 3',
         ownerType: 'CLIENT',
         status: 'ACTIVE',
-        category: 'ACCESS_POINT',
+        category: 'AP',
         serialNumber: 'SN-00123',
         macAddress: 'AA:BB:CC:DD:EE:FF',
         ipAddress: '192.168.1.100',
@@ -70,7 +71,7 @@ describe('Device Routes — /api/devices', () => {
       expect(res.body.data).toMatchObject({
         name: 'Access Point Floor 3',
         status: 'ACTIVE',
-        category: 'ACCESS_POINT',
+        category: 'AP',
         serialNumber: 'SN-00123',
         macAddress: 'AA:BB:CC:DD:EE:FF',
         ipAddress: '192.168.1.100',
@@ -153,12 +154,14 @@ describe('Device Routes — /api/devices', () => {
       await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Router A',
-        ownerType: 'COMPANY'
+        ownerType: 'COMPANY',
+        serialNumber: 'SN-A-001'
       });
       await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Router B',
-        ownerType: 'COMPANY'
+        ownerType: 'COMPANY',
+        serialNumber: 'SN-B-001'
       });
 
       const res = await request(app).get('/api/devices');
@@ -172,13 +175,15 @@ describe('Device Routes — /api/devices', () => {
         deviceModelId,
         name: 'Active Router',
         ownerType: 'COMPANY',
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        ipAddress: '10.0.0.1'
       });
       await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Inventory Router',
         ownerType: 'COMPANY',
-        status: 'INVENTORY'
+        status: 'INVENTORY',
+        serialNumber: 'SN-INV-001'
       });
 
       const res = await request(app).get('/api/devices?status=ACTIVE');
@@ -192,12 +197,14 @@ describe('Device Routes — /api/devices', () => {
       await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Company Device',
-        ownerType: 'COMPANY'
+        ownerType: 'COMPANY',
+        serialNumber: 'SN-CO-001'
       });
       await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Client Device',
-        ownerType: 'CLIENT'
+        ownerType: 'CLIENT',
+        serialNumber: 'SN-CL-001'
       });
 
       const res = await request(app).get('/api/devices?owner=CLIENT');
@@ -212,7 +219,8 @@ describe('Device Routes — /api/devices', () => {
         await request(app).post('/api/devices').send({
           deviceModelId,
           name: `Device ${i}`,
-          ownerType: 'COMPANY'
+          ownerType: 'COMPANY',
+          serialNumber: `SN-${i.toString().padStart(3, '0')}`
         });
       }
 
@@ -232,12 +240,14 @@ describe('Device Routes — /api/devices', () => {
       await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Core Router',
-        ownerType: 'COMPANY'
+        ownerType: 'COMPANY',
+        serialNumber: 'SN-CR-001'
       });
       await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Access Point',
-        ownerType: 'COMPANY'
+        ownerType: 'COMPANY',
+        serialNumber: 'SN-AP-001'
       });
 
       const res = await request(app).get('/api/devices?search=Core');
@@ -257,7 +267,8 @@ describe('Device Routes — /api/devices', () => {
       const create = await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Switch Floor 1',
-        ownerType: 'COMPANY'
+        ownerType: 'COMPANY',
+        serialNumber: 'SN-SW-001'
       });
       const id = create.body.data.id as string;
 
@@ -290,24 +301,26 @@ describe('Device Routes — /api/devices', () => {
       const create = await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Old Name',
-        ownerType: 'COMPANY'
+        ownerType: 'COMPANY',
+        serialNumber: 'SN-OLD-001'
       });
       const id = create.body.data.id as string;
 
       const res = await request(app)
         .patch(`/api/devices/${id}`)
-        .send({ name: 'New Name', status: 'MAINTENANCE' });
+        .send({ name: 'New Name', status: 'DAMAGED' });
 
       expect(res.status).toBe(200);
       expect(res.body.data.name).toBe('New Name');
-      expect(res.body.data.status).toBe('MAINTENANCE');
+      expect(res.body.data.status).toBe('DAMAGED');
     });
 
     it('200 — sets IP address', async () => {
       const create = await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Router',
-        ownerType: 'COMPANY'
+        ownerType: 'COMPANY',
+        serialNumber: 'SN-RT-001'
       });
       const id = create.body.data.id as string;
 
@@ -348,7 +361,8 @@ describe('Device Routes — /api/devices', () => {
       const create = await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Router',
-        ownerType: 'COMPANY'
+        ownerType: 'COMPANY',
+        serialNumber: 'SN-RT-002'
       });
       const id = create.body.data.id as string;
 
@@ -369,7 +383,8 @@ describe('Device Routes — /api/devices', () => {
       const create = await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Switch To Delete',
-        ownerType: 'COMPANY'
+        ownerType: 'COMPANY',
+        serialNumber: 'SN-DEL-001'
       });
       const id = create.body.data.id as string;
 
@@ -383,7 +398,8 @@ describe('Device Routes — /api/devices', () => {
       const create = await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Transient Router',
-        ownerType: 'COMPANY'
+        ownerType: 'COMPANY',
+        serialNumber: 'SN-TR-001'
       });
       const id = create.body.data.id as string;
 
@@ -411,7 +427,8 @@ describe('Device Routes — /api/devices', () => {
       const create = await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Idempotency Test Device',
-        ownerType: 'COMPANY'
+        ownerType: 'COMPANY',
+        serialNumber: 'SN-IDE-001'
       });
       const id = create.body.data.id as string;
 
