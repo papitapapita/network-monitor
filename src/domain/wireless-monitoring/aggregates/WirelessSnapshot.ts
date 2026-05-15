@@ -1,0 +1,56 @@
+import { AggregateRoot } from 'domain/shared/core';
+import { DeviceId } from 'domain/shared';
+import { WirelessSnapshotProps } from '../props/WirelessSnapshotProps';
+import { SnapshotId } from 'domain/shared/ids';
+import { WirelessMetrics } from '../value-objects/WirelessMetrics';
+import { WirelessClientEntry } from '../value-objects/WirelessClientEntry';
+import { WirelessAlert } from '../value-objects/WirelessAlert';
+import { WirelessSnapshotCreatedEvent } from '../events/WirelessSnapshotCreated';
+import { WirelessAlertTriggeredEvent } from '../events/WirelessAlertTriggered';
+
+export class WirelessSnapshot extends AggregateRoot<WirelessSnapshotProps, SnapshotId> {
+  private constructor(props: WirelessSnapshotProps, id: SnapshotId) {
+    super(props, id);
+  }
+
+  get snapshotId(): SnapshotId                            { return this.id; }
+  get deviceId(): DeviceId                                { return this.props.deviceId; }
+  get deviceType(): 'CPE' | 'ACCESS_POINT'               { return this.props.deviceType; }
+  get collectedAt(): Date                                 { return this.props.collectedAt; }
+  get collectionMethod(): 'snmp' | 'http_api' | 'mixed'  { return this.props.collectionMethod; }
+  get metrics(): WirelessMetrics                          { return this.props.metrics; }
+  get clients(): WirelessClientEntry[]                    { return [...this.props.clients]; }
+  get alerts(): WirelessAlert[]                           { return [...this.props.alerts]; }
+
+  public static create(props: WirelessSnapshotProps, id?: SnapshotId): WirelessSnapshot {
+    const snapshotId = id ?? SnapshotId.create();
+    const snapshot = new WirelessSnapshot(props, snapshotId);
+
+    snapshot.addDomainEvent(
+      new WirelessSnapshotCreatedEvent({
+        aggregateId: snapshotId,
+        deviceId: props.deviceId,
+        deviceType: props.deviceType,
+        collectedAt: props.collectedAt,
+        dateTimeOccurred: new Date()
+      })
+    );
+
+    if (props.alerts.length > 0) {
+      snapshot.addDomainEvent(
+        new WirelessAlertTriggeredEvent({
+          aggregateId: snapshotId,
+          deviceId: props.deviceId,
+          alerts: props.alerts,
+          dateTimeOccurred: new Date()
+        })
+      );
+    }
+
+    return snapshot;
+  }
+
+  public static reconstitute(props: WirelessSnapshotProps, id: SnapshotId): WirelessSnapshot {
+    return new WirelessSnapshot(props, id);
+  }
+}
