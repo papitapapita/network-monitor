@@ -4,3 +4,6 @@ export * from './DeviceModelId';
 export * from './VendorId';
 export * from './PollingConfigurationId';
 export * from './AlertId';
+export * from './SnapshotId';
+export * from './WirelessPollingConfigId';
+export * from './WirelessAlertRecordId';
