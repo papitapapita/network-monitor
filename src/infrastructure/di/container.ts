@@ -20,6 +20,27 @@ import {
 } from '../../presentation/http/controllers';
 import { AlertController } from '../../presentation/http/controllers/AlertController';
 import { ScanController } from '../../presentation/http/controllers/ScanController';
+import { WirelessController } from '../../presentation/http/controllers/WirelessController';
+import {
+  PrismaWirelessSnapshotRepository,
+  PrismaWirelessAlertRecordRepository,
+  PrismaWirelessPollingConfigRepository,
+  PrismaDeviceCredentialsRepository,
+  SNMPCollector,
+  UbiquitiHttpCollector,
+  WirelessCounterStore,
+  WirelessPollingOrchestrator
+} from '../wireless-monitoring';
+import { WirelessAlertEvaluator } from '../../application/wireless-monitoring/services/WirelessAlertEvaluator';
+import {
+  PollWirelessDeviceUseCase,
+  GetWirelessDeviceStatusUseCase,
+  GetWirelessDeviceHistoryUseCase,
+  GetWirelessClientsUseCase,
+  GetActiveWirelessAlertsUseCase,
+  GetWirelessAlertHistoryUseCase,
+  TriggerWirelessPollUseCase
+} from '../../application/wireless-monitoring/use-cases';
 import { PingService } from '../monitoring/ping/PingService';
 import { ArpService } from '../monitoring/network-scanner/ArpService';
 import { NetworkScannerService } from '../monitoring/network-scanner/NetworkScannerService';
@@ -89,6 +110,12 @@ export class DependencyContainer {
   private deviceStateRepository: PrismaDeviceStateRepository;
   private alertRepository: PrismaAlertRepository;
 
+  // Wireless repositories
+  private wirelessSnapshotRepository: PrismaWirelessSnapshotRepository;
+  private wirelessAlertRecordRepository: PrismaWirelessAlertRecordRepository;
+  private wirelessPollingConfigRepository: PrismaWirelessPollingConfigRepository;
+  private deviceCredentialsRepository: PrismaDeviceCredentialsRepository;
+
   // Controllers
   public locationController: LocationController;
   public deviceController: DeviceController;
@@ -97,9 +124,11 @@ export class DependencyContainer {
   public pollingController: PollingController;
   public alertController: AlertController;
   public scanController: ScanController;
+  public wirelessController: WirelessController;
 
-  // Orchestrator (lifecycle managed by main.ts)
+  // Orchestrators (lifecycle managed by main.ts)
   public pollingOrchestrator: PollingOrchestrator;
+  public wirelessPollingOrchestrator: WirelessPollingOrchestrator;
 
   constructor() {
     // Initialize infrastructure
@@ -346,6 +375,73 @@ export class DependencyContainer {
     // Initialize alert controller
     this.alertController = new AlertController(
       listAlertsUseCase,
+      this.logger
+    );
+
+    // =====================================
+    // WIRELESS-MONITORING BOUNDED CONTEXT
+    // =====================================
+
+    this.wirelessSnapshotRepository = new PrismaWirelessSnapshotRepository(this.prisma);
+    this.wirelessAlertRecordRepository = new PrismaWirelessAlertRecordRepository(this.prisma);
+    this.wirelessPollingConfigRepository = new PrismaWirelessPollingConfigRepository(this.prisma);
+    this.deviceCredentialsRepository = new PrismaDeviceCredentialsRepository(this.prisma);
+
+    const snmpCollector = new SNMPCollector();
+    const httpCollector = new UbiquitiHttpCollector();
+    const counterStore = new WirelessCounterStore();
+    const alertEvaluator = new WirelessAlertEvaluator();
+
+    const pollWirelessDeviceUseCase = new PollWirelessDeviceUseCase(
+      this.wirelessPollingConfigRepository,
+      this.wirelessSnapshotRepository,
+      this.wirelessAlertRecordRepository,
+      this.deviceCredentialsRepository,
+      snmpCollector,
+      httpCollector,
+      counterStore,
+      alertEvaluator,
+      this.logger
+    );
+    const getWirelessDeviceStatusUseCase = new GetWirelessDeviceStatusUseCase(
+      this.wirelessSnapshotRepository,
+      this.wirelessAlertRecordRepository,
+      this.logger
+    );
+    const getWirelessDeviceHistoryUseCase = new GetWirelessDeviceHistoryUseCase(
+      this.wirelessSnapshotRepository,
+      this.logger
+    );
+    const getWirelessClientsUseCase = new GetWirelessClientsUseCase(
+      this.wirelessSnapshotRepository,
+      this.logger
+    );
+    const getActiveWirelessAlertsUseCase = new GetActiveWirelessAlertsUseCase(
+      this.wirelessAlertRecordRepository,
+      this.logger
+    );
+    const getWirelessAlertHistoryUseCase = new GetWirelessAlertHistoryUseCase(
+      this.wirelessAlertRecordRepository,
+      this.logger
+    );
+    const triggerWirelessPollUseCase = new TriggerWirelessPollUseCase(
+      pollWirelessDeviceUseCase,
+      this.logger
+    );
+
+    this.wirelessController = new WirelessController(
+      getWirelessDeviceStatusUseCase,
+      getWirelessDeviceHistoryUseCase,
+      getWirelessClientsUseCase,
+      getActiveWirelessAlertsUseCase,
+      getWirelessAlertHistoryUseCase,
+      triggerWirelessPollUseCase
+    );
+
+    this.wirelessPollingOrchestrator = new WirelessPollingOrchestrator(
+      this.wirelessPollingConfigRepository,
+      pollWirelessDeviceUseCase,
+      { maxConcurrentPolls: 50 },
       this.logger
     );
 

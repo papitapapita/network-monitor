@@ -161,12 +161,16 @@ model Device {
   monitoringEnabled Boolean @default(true) @map("monitoring_enabled")
 
   // Relations
-  deviceModel           DeviceModel           @relation(fields: [deviceModelId], references: [id])
-  location              Location?             @relation(fields: [locationId], references: [id])
-  pollingConfiguration  PollingConfiguration?
-  deviceState           DeviceState?
-  pingResults           PingResult[]
-  alertEvents           AlertEvent[]
+  deviceModel                  DeviceModel                   @relation(fields: [deviceModelId], references: [id])
+  location                     Location?                     @relation(fields: [locationId], references: [id])
+  pollingConfiguration         PollingConfiguration?
+  deviceState                  DeviceState?
+  pingResults                  PingResult[]
+  alertEvents                  AlertEvent[]
+  deviceCredentials            DeviceCredentials?
+  wirelessSnapshots            WirelessSnapshot[]
+  wirelessAlertRecords         WirelessAlertRecord[]
+  wirelessPollingConfiguration WirelessPollingConfiguration?
 
   @@map("devices")
 }
@@ -271,6 +275,123 @@ model PollingConfiguration {
 
   @@index([enabled])
   @@map("polling_configurations")
+}
+
+// ============================================================================
+// WIRELESS MONITORING MODELS
+// ============================================================================
+
+enum WirelessAlertSeverity {
+  WARNING
+  CRITICAL
+
+  @@map("wireless_alert_severity")
+}
+
+model DeviceCredentials {
+  id              String   @id @default(uuid()) @db.Uuid
+  deviceId        String   @unique @map("device_id") @db.Uuid
+  snmpVersion     Int      @default(3) @map("snmp_version")
+  snmpCommunity   String?  @map("snmp_community") @db.VarChar(500)
+  snmpV3AuthUser  String?  @map("snmp_v3_auth_user") @db.VarChar(500)
+  snmpV3AuthProto String?  @map("snmp_v3_auth_proto") @db.VarChar(20)
+  snmpV3AuthKey   String?  @map("snmp_v3_auth_key") @db.VarChar(500)
+  snmpV3PrivProto String?  @map("snmp_v3_priv_proto") @db.VarChar(20)
+  snmpV3PrivKey   String?  @map("snmp_v3_priv_key") @db.VarChar(500)
+  httpUsername    String?  @map("http_username") @db.VarChar(500)
+  httpPassword    String?  @map("http_password") @db.VarChar(500)
+  snmpPort        Int      @default(161) @map("snmp_port")
+  httpPort        Int      @default(80) @map("http_port")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@map("device_credentials")
+}
+
+model WirelessSnapshot {
+  id                String   @id @default(uuid()) @db.Uuid
+  deviceId          String   @map("device_id") @db.Uuid
+  deviceType        String   @map("device_type") @db.VarChar(20)
+  collectedAt       DateTime @map("collected_at") @db.Timestamptz
+  collectionMethod  String   @map("collection_method") @db.VarChar(20)
+  signalRxDbm       Int?     @map("signal_rx_dbm")
+  signalTxDbm       Int?     @map("signal_tx_dbm")
+  noiseFloorDbm     Int?     @map("noise_floor_dbm")
+  snrDb             Int?     @map("snr_db")
+  ccqPercent        Int?     @map("ccq_percent")
+  txRateMbps        Decimal? @map("tx_rate_mbps") @db.Decimal(10, 2)
+  rxRateMbps        Decimal? @map("rx_rate_mbps") @db.Decimal(10, 2)
+  frequencyMhz      Int?     @map("frequency_mhz")
+  channelWidthMhz   Int?     @map("channel_width_mhz")
+  txPowerDbm        Int?     @map("tx_power_dbm")
+  throughputTxBps   BigInt?  @map("throughput_tx_bps")
+  throughputRxBps   BigInt?  @map("throughput_rx_bps")
+  throughputTxPps   BigInt?  @map("throughput_tx_pps")
+  throughputRxPps   BigInt?  @map("throughput_rx_pps")
+  lanStatus         String?  @map("lan_status") @db.VarChar(10)
+  lanSpeedMbps      Int?     @map("lan_speed_mbps")
+  lanDuplex         String?  @map("lan_duplex") @db.VarChar(10)
+  uptimeSeconds     BigInt?  @map("uptime_seconds")
+  cpuLoadPercent    Int?     @map("cpu_load_percent")
+  memoryUsedPercent Int?     @map("memory_used_percent")
+  firmwareVersion   String?  @map("firmware_version") @db.VarChar(100)
+  deviceName        String?  @map("device_name") @db.VarChar(150)
+  remoteApMac       String?  @map("remote_ap_mac") @db.VarChar(17)
+  remoteApName      String?  @map("remote_ap_name") @db.VarChar(150)
+  distanceM         Int?     @map("distance_m")
+  latencyMs         Int?     @map("latency_ms")
+  clientsConnected  Int?     @map("clients_connected")
+  clientsProvisioned Int?    @map("clients_provisioned")
+  clientsJson       Json?    @map("clients_json")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, collectedAt(sort: Desc)])
+  @@index([collectedAt])
+  @@map("wireless_snapshots")
+}
+
+model WirelessAlertRecord {
+  id          String                @id @default(uuid()) @db.Uuid
+  deviceId    String                @map("device_id") @db.Uuid
+  metric      String                @db.VarChar(50)
+  severity    WirelessAlertSeverity
+  threshold   Decimal               @db.Decimal(12, 4)
+  triggeredAt DateTime              @map("triggered_at") @db.Timestamptz
+  clearedAt   DateTime?             @map("cleared_at") @db.Timestamptz
+  isActive    Boolean               @default(true) @map("is_active")
+  lastValue   Decimal               @map("last_value") @db.Decimal(12, 4)
+  message     String                @db.Text
+  createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime              @updatedAt @map("updated_at") @db.Timestamptz
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, metric, isActive])
+  @@index([isActive, triggeredAt(sort: Desc)])
+  @@map("wireless_alert_records")
+}
+
+model WirelessPollingConfiguration {
+  id                      String    @id @default(uuid()) @db.Uuid
+  deviceId                String    @unique @map("device_id") @db.Uuid
+  ipAddress               String?   @map("ip_address") @db.VarChar(45)
+  enabled                 Boolean   @default(true)
+  intervalSecs            Int       @default(3600) @map("interval_secs")
+  deviceType              String    @map("device_type") @db.VarChar(20)
+  linkCapacityBps         BigInt?   @map("link_capacity_bps")
+  clientsProvisionedLimit Int?      @map("clients_provisioned_limit")
+  lastPolledAt            DateTime? @map("last_polled_at") @db.Timestamptz
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@map("wireless_polling_configurations")
 }
 
 /*

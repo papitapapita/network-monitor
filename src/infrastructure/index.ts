@@ -18,5 +18,8 @@ export * from './persistence';
 // Mappers
 export * from './mappers';
 
+// Wireless Monitoring
+export * from './wireless-monitoring';
+
 // Polling
 //export * from './polling';
