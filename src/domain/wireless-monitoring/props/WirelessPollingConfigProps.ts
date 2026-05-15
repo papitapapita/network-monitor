@@ -6,7 +6,7 @@ export interface WirelessPollingConfigProps {
   ipAddress: IPAddress | null;
   enabled: boolean;
   intervalSecs: number;
-  deviceType: 'CPE' | 'ACCESS_POINT';
+  readonly deviceType: 'CPE' | 'ACCESS_POINT';
   linkCapacityBps: number | null;
   clientsProvisionedLimit: number | null;
   lastPolledAt: Date | null;

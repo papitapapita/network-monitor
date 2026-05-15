@@ -7,3 +7,4 @@ export * from './WirelessPollingConfigProps';
 export * from './WirelessSnapshotCreatedEventProps';
 export * from './WirelessAlertTriggeredEventProps';
 export * from './WirelessAlertClearedEventProps';
+export * from './WirelessPollingConfigToggledEventProps';
