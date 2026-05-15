@@ -1,25 +1,29 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared';
-import { IWirelessSnapshotRepository } from 'domain/wireless-monitoring';
+import {
+  IWirelessSnapshotRepository,
+  IWirelessAlertRecordRepository
+} from 'domain/wireless-monitoring';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
-import { GetWirelessClientsRequestDTO } from '../dtos/GetWirelessClientsRequestDTO';
-import { WirelessClientListResponseDTO } from '../dtos/WirelessClientListResponseDTO';
+import { GetWirelessStatusRequestDTO } from '../dtos/GetWirelessStatusRequestDTO';
+import { WirelessStatusResponseDTO } from '../dtos/WirelessStatusResponseDTO';
 import { WirelessSnapshotMapper } from '../mappers/WirelessSnapshotMapper';
 
-export class GetWirelessClientsUseCase extends UseCase<
-  GetWirelessClientsRequestDTO,
-  WirelessClientListResponseDTO
+export class GetWirelessDeviceStatusUseCase extends UseCase<
+  GetWirelessStatusRequestDTO,
+  WirelessStatusResponseDTO
 > {
   constructor(
     private readonly snapshotRepo: IWirelessSnapshotRepository,
+    private readonly alertRecordRepo: IWirelessAlertRecordRepository,
     logger: ILogger
   ) {
-    super(logger, 'GetWirelessClientsUseCase');
+    super(logger, 'GetWirelessDeviceStatusUseCase');
   }
 
   protected async beforeExecute(
-    request: GetWirelessClientsRequestDTO
+    request: GetWirelessStatusRequestDTO
   ): Promise<Result<void> | null> {
     if (!request.deviceId?.trim()) {
       return Result.fail('Device ID is required');
@@ -28,8 +32,8 @@ export class GetWirelessClientsUseCase extends UseCase<
   }
 
   protected async executeImpl(
-    request: GetWirelessClientsRequestDTO
-  ): Promise<Result<WirelessClientListResponseDTO>> {
+    request: GetWirelessStatusRequestDTO
+  ): Promise<Result<WirelessStatusResponseDTO>> {
     const deviceIdResult = DeviceId.parse(request.deviceId);
     if (deviceIdResult.isFailure) {
       return this.fail(`Invalid device ID: ${deviceIdResult.error}`);
@@ -48,12 +52,14 @@ export class GetWirelessClientsUseCase extends UseCase<
       return this.fail('No wireless data found for device');
     }
 
-    if (snapshot.deviceType === 'CPE') {
-      return this.fail(
-        'NOT_AP: This device is a CPE and does not have a client list'
-      );
-    }
+    const activeAlertsResult =
+      await this.alertRecordRepo.findAllActiveByDevice(deviceId);
+    const activeAlerts = activeAlertsResult.isSuccess
+      ? activeAlertsResult.value
+      : [];
 
-    return this.ok(WirelessSnapshotMapper.toClientListDTO(snapshot));
+    return this.ok(
+      WirelessSnapshotMapper.toStatusDTO(snapshot, activeAlerts)
+    );
   }
 }
