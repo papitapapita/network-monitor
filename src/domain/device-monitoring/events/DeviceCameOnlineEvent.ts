@@ -8,7 +8,13 @@ interface DeviceCameOnlineEventProps {
 }
 
 export class DeviceCameOnlineEvent extends DomainEvent<DeviceCameOnlineEventProps> {
-  get aggregateId(): DeviceId    { return this.props.aggregateId; }
-  get dateTimeOccurred(): Date   { return this.props.dateTimeOccurred; }
-  get latencyMs(): number | null { return this.props.latencyMs; }
+  get aggregateId(): DeviceId {
+    return this.props.aggregateId;
+  }
+  get dateTimeOccurred(): Date {
+    return this.props.dateTimeOccurred;
+  }
+  get latencyMs(): number | null {
+    return this.props.latencyMs;
+  }
 }

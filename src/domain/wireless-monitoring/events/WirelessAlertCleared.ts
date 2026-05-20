@@ -3,20 +3,7 @@ import { DeviceId } from 'domain/shared';
 import { WirelessAlertRecordId } from 'domain/shared/ids';
 import { WirelessAlertClearedEventProps } from '../props';
 
-/**
- * WirelessAlertClearedEvent - A wireless metric alert has returned to a healthy state and been cleared.
- *
- * Published By: WirelessAlertRecord aggregate
- * Published When: WirelessAlertRecord.clear() is called successfully
- *
- * Handlers:
- * - WirelessAlertClearedHandler: Marks the alert record as resolved and notifies operators
- */
 export class WirelessAlertClearedEvent extends DomainEvent<WirelessAlertClearedEventProps> {
-  constructor(props: WirelessAlertClearedEventProps) {
-    super(props);
-  }
-
   get aggregateId(): WirelessAlertRecordId {
     return this.props.aggregateId;
   }
