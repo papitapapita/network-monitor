@@ -1,22 +1,6 @@
 import { ValueObject, Result, Guard } from '../../shared';
 import { DeviceStatusProps } from '../props';
 
-/**
- * DeviceStatus Value Object
- *
- * Represents the operational lifecycle status of a physical device asset.
- * Immutable and self-validating at creation time.
- *
- * Business Rules:
- * - Status must be one of the predefined valid statuses
- * - Status cannot be null or empty
- *
- * @example
- * const result = DeviceStatus.create('ACTIVE');
- * if (result.isSuccess) {
- *   console.log(result.value.isActive()); // true
- * }
- */
 export class DeviceStatus extends ValueObject<DeviceStatusProps> {
   public static readonly ACTIVE = 'ACTIVE';
   public static readonly DAMAGED = 'DAMAGED';
@@ -49,7 +33,9 @@ export class DeviceStatus extends ValueObject<DeviceStatusProps> {
     const trimmed = status.trim().toUpperCase();
 
     if (trimmed.length === 0) {
-      return Result.fail<DeviceStatus>('Device status cannot be empty');
+      return Result.fail<DeviceStatus>(
+        'Device status cannot be empty'
+      );
     }
 
     if (!DeviceStatus.isValid(trimmed)) {
@@ -58,7 +44,9 @@ export class DeviceStatus extends ValueObject<DeviceStatusProps> {
       );
     }
 
-    return Result.ok<DeviceStatus>(new DeviceStatus({ value: trimmed }));
+    return Result.ok<DeviceStatus>(
+      new DeviceStatus({ value: trimmed })
+    );
   }
 
   public static reconstitute(status: string): DeviceStatus {

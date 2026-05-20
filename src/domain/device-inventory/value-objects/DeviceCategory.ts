@@ -1,25 +1,9 @@
 import { ValueObject, Result, Guard } from '../../shared';
 import { DeviceCategoryProps } from '../props';
 
-/**
- * DeviceCategory Value Object
- *
- * Represents the network role / hardware category of a physical device asset.
- * Immutable and self-validating at creation time.
- *
- * Business Rules:
- * - Category must be one of the predefined valid categories
- * - Category cannot be null or empty
- * - When a category is assigned, the device must have an IP address (enforced by the aggregate)
- *
- * @example
- * const result = DeviceCategory.create('AP');
- * if (result.isSuccess) {
- *   console.log(result.value.getDisplayName()); // 'Access Point'
- * }
- */
 export class DeviceCategory extends ValueObject<DeviceCategoryProps> {
   public static readonly CPE = 'CPE';
+  public static readonly WIRELESS_CPE = 'WIRELESS_CPE';
   public static readonly AP = 'AP';
   public static readonly ROUTERBOARD = 'ROUTERBOARD';
   public static readonly SMART_SWITCH = 'SMART_SWITCH';
@@ -28,6 +12,7 @@ export class DeviceCategory extends ValueObject<DeviceCategoryProps> {
 
   private static readonly VALID_CATEGORIES = [
     DeviceCategory.CPE,
+    DeviceCategory.WIRELESS_CPE,
     DeviceCategory.AP,
     DeviceCategory.ROUTERBOARD,
     DeviceCategory.SMART_SWITCH,
@@ -56,7 +41,9 @@ export class DeviceCategory extends ValueObject<DeviceCategoryProps> {
     const trimmed = category.trim().toUpperCase();
 
     if (trimmed.length === 0) {
-      return Result.fail<DeviceCategory>('Device category cannot be empty');
+      return Result.fail<DeviceCategory>(
+        'Device category cannot be empty'
+      );
     }
 
     if (!DeviceCategory.isValid(trimmed)) {
@@ -65,7 +52,9 @@ export class DeviceCategory extends ValueObject<DeviceCategoryProps> {
       );
     }
 
-    return Result.ok<DeviceCategory>(new DeviceCategory({ value: trimmed }));
+    return Result.ok<DeviceCategory>(
+      new DeviceCategory({ value: trimmed })
+    );
   }
 
   public static reconstitute(category: string): DeviceCategory {
@@ -74,6 +63,10 @@ export class DeviceCategory extends ValueObject<DeviceCategoryProps> {
 
   public static createCpe(): DeviceCategory {
     return new DeviceCategory({ value: DeviceCategory.CPE });
+  }
+
+  public static createWirelessCpe(): DeviceCategory {
+    return new DeviceCategory({ value: DeviceCategory.WIRELESS_CPE });
   }
 
   public static createAp(): DeviceCategory {
@@ -89,7 +82,9 @@ export class DeviceCategory extends ValueObject<DeviceCategoryProps> {
   }
 
   public static createSmartSwitchPoe(): DeviceCategory {
-    return new DeviceCategory({ value: DeviceCategory.SMART_SWITCH_POE });
+    return new DeviceCategory({
+      value: DeviceCategory.SMART_SWITCH_POE
+    });
   }
 
   public static createOther(): DeviceCategory {
@@ -104,6 +99,10 @@ export class DeviceCategory extends ValueObject<DeviceCategoryProps> {
 
   public isCpe(): boolean {
     return this._props.value === DeviceCategory.CPE;
+  }
+
+  public isWirelessCpe(): boolean {
+    return this._props.value === DeviceCategory.WIRELESS_CPE;
   }
 
   public isAp(): boolean {
@@ -130,6 +129,8 @@ export class DeviceCategory extends ValueObject<DeviceCategoryProps> {
     switch (this._props.value) {
       case DeviceCategory.CPE:
         return 'CPE';
+      case DeviceCategory.WIRELESS_CPE:
+        return 'Wireless CPE';
       case DeviceCategory.AP:
         return 'Access Point';
       case DeviceCategory.ROUTERBOARD:
