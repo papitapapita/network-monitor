@@ -4,13 +4,14 @@ export default {
   testEnvironment: 'node',
   extensionsToTreatAsEsm: ['.ts'],
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', { tsconfig: 'tsconfig.json', useESM: true }]
+    '^.+\\.tsx?$': [
+      'ts-jest',
+      { tsconfig: 'tsconfig.json', useESM: true }
+    ]
   },
   testMatch: ['<rootDir>/tests/integration/**/*.test.ts'],
   testPathIgnorePatterns: ['/node_modules/', '/dist/'],
-  transformIgnorePatterns: [
-    '/node_modules/(?!uuid)/'
-  ],
+  transformIgnorePatterns: ['/node_modules/(?!uuid)/'],
   moduleNameMapper: {
     '^domain/(.*)$': '<rootDir>/src/domain/$1',
     '^application/(.*)$': '<rootDir>/src/application/$1',
