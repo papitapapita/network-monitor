@@ -13,6 +13,7 @@ type PrismaPollingConfigurationRecord = {
   enabled: boolean;
   pingIntervalSecs: number;
   failuresBeforeDown: number;
+  lastPolledAt: Date | null;
 };
 
 /**
@@ -54,16 +55,21 @@ export class PollingConfigurationMapper {
       );
     }
 
-    return PollingConfiguration.reconstitute(
-      {
-        deviceId: deviceIdResult.value,
-        ipAddress: raw.ipAddress !== null ? IPAddress.reconstitute(raw.ipAddress) : null,
-        interval: PollingInterval.reconstitute({ seconds: raw.pingIntervalSecs }),
-        failuresBeforeDown: FailureThreshold.reconstitute({ count: raw.failuresBeforeDown }),
-        enabled: raw.enabled
-      },
-      configIdResult.value
-    );
+    return PollingConfiguration.reconstitute(configIdResult.value, {
+      deviceId: deviceIdResult.value,
+      ipAddress:
+        raw.ipAddress !== null
+          ? IPAddress.reconstitute(raw.ipAddress)
+          : null,
+      interval: PollingInterval.reconstitute({
+        seconds: raw.pingIntervalSecs
+      }),
+      failuresBeforeDown: FailureThreshold.reconstitute({
+        count: raw.failuresBeforeDown
+      }),
+      enabled: raw.enabled,
+      lastPolledAt: raw.lastPolledAt
+    });
   }
 
   /**
@@ -77,6 +83,7 @@ export class PollingConfigurationMapper {
     enabled: boolean;
     pingIntervalSecs: number;
     failuresBeforeDown: number;
+    lastPolledAt: Date | null;
   } {
     return {
       id: entity.id.toString(),
@@ -84,7 +91,8 @@ export class PollingConfigurationMapper {
       ipAddress: entity.ipAddress?.toString() ?? null,
       enabled: entity.enabled,
       pingIntervalSecs: entity.interval.seconds,
-      failuresBeforeDown: entity.failuresBeforeDown.value
+      failuresBeforeDown: entity.failuresBeforeDown.value,
+      lastPolledAt: entity.lastPolledAt
     };
   }
 }

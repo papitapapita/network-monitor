@@ -28,7 +28,7 @@ export class WirelessPollingConfig extends AggregateRoot<
   get intervalSecs(): number {
     return this.props.intervalSecs;
   }
-  get deviceType(): 'CPE' | 'ACCESS_POINT' {
+  get deviceType(): 'STATION' | 'ACCESS_POINT' {
     return this.props.deviceType;
   }
   get linkCapacityBps(): number | null {
@@ -47,7 +47,7 @@ export class WirelessPollingConfig extends AggregateRoot<
   ): Result<WirelessPollingConfig> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(props.deviceId, 'deviceId'),
-      Guard.againstNullOrUndefined(props.deviceType, 'deviceType'),
+      Guard.againstNullOrUndefined(props.deviceType, 'deviceType')
     ]);
     if (!guardResult.succeeded) {
       return Result.fail(guardResult.message!);
@@ -59,15 +59,7 @@ export class WirelessPollingConfig extends AggregateRoot<
     return Result.ok(new WirelessPollingConfig(props, configId));
   }
 
-  /**
-   * Reconstitutes a WirelessPollingConfig from a trusted persistence source,
-   * bypassing validation. Use only in repository mappers when loading data
-   * that was already validated at creation time.
-   *
-   * @param id - The persisted WirelessPollingConfigId
-   * @param props - Full config properties from persistence
-   * @returns WirelessPollingConfig instance
-   */
+  // bypasses validation — for repository use only
   public static reconstitute(
     id: WirelessPollingConfigId,
     props: WirelessPollingConfigProps
@@ -79,7 +71,8 @@ export class WirelessPollingConfig extends AggregateRoot<
     if (!this.props.enabled) return false;
     if (this.props.lastPolledAt === null) return true;
     return (
-      this.props.lastPolledAt.getTime() + this.props.intervalSecs * 1000 <=
+      this.props.lastPolledAt.getTime() +
+        this.props.intervalSecs * 1000 <=
       now.getTime()
     );
   }
@@ -99,7 +92,7 @@ export class WirelessPollingConfig extends AggregateRoot<
         aggregateId: this.id,
         deviceId: this.props.deviceId,
         enabled: true,
-        dateTimeOccurred: new Date(),
+        dateTimeOccurred: new Date()
       })
     );
     return Result.ok();
@@ -115,7 +108,7 @@ export class WirelessPollingConfig extends AggregateRoot<
         aggregateId: this.id,
         deviceId: this.props.deviceId,
         enabled: false,
-        dateTimeOccurred: new Date(),
+        dateTimeOccurred: new Date()
       })
     );
     return Result.ok();
@@ -123,6 +116,28 @@ export class WirelessPollingConfig extends AggregateRoot<
 
   public updateIpAddress(ip: IPAddress | null): Result<void> {
     this.props.ipAddress = ip;
+    return Result.ok();
+  }
+
+  public updateIntervalSecs(intervalSecs: number): Result<void> {
+    if (intervalSecs <= 0) {
+      return Result.fail('intervalSecs must be greater than 0');
+    }
+    this.props.intervalSecs = intervalSecs;
+    return Result.ok();
+  }
+
+  public updateLinkCapacityBps(
+    linkCapacityBps: number | null
+  ): Result<void> {
+    this.props.linkCapacityBps = linkCapacityBps;
+    return Result.ok();
+  }
+
+  public updateClientsProvisionedLimit(
+    limit: number | null
+  ): Result<void> {
+    this.props.clientsProvisionedLimit = limit;
     return Result.ok();
   }
 }

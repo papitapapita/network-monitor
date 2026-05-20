@@ -10,7 +10,7 @@ import { ISNMPCollector, SNMPCollectionResult } from '../../../../src/applicatio
 import { IUbiquitiHttpCollector, HttpCollectionResult } from '../../../../src/application/wireless-monitoring/interfaces/IUbiquitiHttpCollector';
 import { IWirelessCounterStore } from '../../../../src/application/wireless-monitoring/interfaces/IWirelessCounterStore';
 import { IWirelessAlertEvaluator } from '../../../../src/application/wireless-monitoring/interfaces/IWirelessAlertEvaluator';
-import { WirelessPollingConfig } from '../../../../src/domain/wireless-monitoring/entities/WirelessPollingConfig';
+import { WirelessPollingConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessPollingConfig';
 import { WirelessPollingConfigId } from '../../../../src/domain/shared/ids/WirelessPollingConfigId';
 import { WirelessAlertRecord } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
@@ -53,7 +53,7 @@ function makeDeviceId(): DeviceId {
 
 function makePollingConfig(overrides: {
   enabled?: boolean;
-  deviceType?: 'CPE' | 'ACCESS_POINT';
+  deviceType?: 'STATION' | 'ACCESS_POINT';
   linkCapacityBps?: number | null;
   clientsProvisionedLimit?: number | null;
   ipAddress?: IPAddress | null;
@@ -66,7 +66,7 @@ function makePollingConfig(overrides: {
       ipAddress: overrides.ipAddress !== undefined ? overrides.ipAddress : ipResult.value,
       enabled: overrides.enabled !== undefined ? overrides.enabled : true,
       intervalSecs: 60,
-      deviceType: overrides.deviceType ?? 'CPE',
+      deviceType: overrides.deviceType ?? 'STATION',
       linkCapacityBps: overrides.linkCapacityBps !== undefined ? overrides.linkCapacityBps : null,
       clientsProvisionedLimit: overrides.clientsProvisionedLimit !== undefined ? overrides.clientsProvisionedLimit : null,
       lastPolledAt: null,
@@ -189,7 +189,6 @@ function makeMocks() {
 
   const credentialsRepo: jest.Mocked<IDeviceCredentialsRepository> = {
     findByDeviceId: jest.fn(),
-    save: jest.fn(),
   };
 
   const snmpCollector: jest.Mocked<ISNMPCollector> = {
@@ -247,12 +246,12 @@ function configureHappyPath(
     snmpFails?: boolean;
     httpFails?: boolean;
     enabled?: boolean;
-    deviceType?: 'CPE' | 'ACCESS_POINT';
+    deviceType?: 'STATION' | 'ACCESS_POINT';
   } = {}
 ): void {
   const config = makePollingConfig({
     enabled: options.enabled !== undefined ? options.enabled : true,
-    deviceType: options.deviceType ?? 'CPE',
+    deviceType: options.deviceType ?? 'STATION',
   });
 
   mocks.wirelessPollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
@@ -672,7 +671,7 @@ describe('PollWirelessDeviceUseCase', () => {
     });
 
     it('should NOT call httpCollector.collectClients for CPE device type', async () => {
-      configureHappyPath(mocks, { deviceType: 'CPE' });
+      configureHappyPath(mocks, { deviceType: 'STATION' });
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 

@@ -1,6 +1,4 @@
-// Source: src/domain/wireless-monitoring/entities/WirelessPollingConfig.ts
-
-import { WirelessPollingConfig } from '../../../../src/domain/wireless-monitoring/entities/WirelessPollingConfig';
+import { WirelessPollingConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessPollingConfig';
 import { WirelessPollingConfigToggledEvent } from '../../../../src/domain/wireless-monitoring/events/WirelessPollingConfigToggled';
 import { WirelessPollingConfigProps } from '../../../../src/domain/wireless-monitoring/props/WirelessPollingConfigProps';
 import { WirelessPollingConfigId } from '../../../../src/domain/shared/ids';
@@ -19,7 +17,7 @@ function makeProps(
     ipAddress: null,
     enabled: true,
     intervalSecs: 60,
-    deviceType: 'CPE',
+    deviceType: 'STATION',
     linkCapacityBps: null,
     clientsProvisionedLimit: null,
     lastPolledAt: null,
@@ -140,7 +138,7 @@ describe('WirelessPollingConfig', () => {
       it('should fail when deviceType is null', () => {
         const result = WirelessPollingConfig.create(
           makeProps({
-            deviceType: null as unknown as 'CPE' | 'ACCESS_POINT',
+            deviceType: null as unknown as 'STATION' | 'ACCESS_POINT',
           })
         );
 
@@ -151,7 +149,7 @@ describe('WirelessPollingConfig', () => {
       it('should fail when deviceType is undefined', () => {
         const result = WirelessPollingConfig.create(
           makeProps({
-            deviceType: undefined as unknown as 'CPE' | 'ACCESS_POINT',
+            deviceType: undefined as unknown as 'STATION' | 'ACCESS_POINT',
           })
         );
 
