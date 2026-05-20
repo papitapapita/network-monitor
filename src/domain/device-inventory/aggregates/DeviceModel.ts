@@ -6,14 +6,13 @@ import {
   DeviceModelUpdatedEvent
 } from '../events';
 
-export class DeviceModel extends AggregateRoot<DeviceModelProps, DeviceModelId> {
+export class DeviceModel extends AggregateRoot<
+  DeviceModelProps,
+  DeviceModelId
+> {
   private constructor(props: DeviceModelProps, id: DeviceModelId) {
     super(props, id);
   }
-
-  // ============================================================================
-  // Getters
-  // ============================================================================
 
   get vendorId(): VendorId {
     return this.props.vendorId;
@@ -42,10 +41,6 @@ export class DeviceModel extends AggregateRoot<DeviceModelProps, DeviceModelId> 
   get updatedAt(): Date {
     return this.props.updatedAt;
   }
-
-  // ============================================================================
-  // Factory Methods
-  // ============================================================================
 
   public static create(
     props: Omit<DeviceModelProps, 'createdAt' | 'updatedAt'>
@@ -82,10 +77,6 @@ export class DeviceModel extends AggregateRoot<DeviceModelProps, DeviceModelId> 
     return new DeviceModel(props, id);
   }
 
-  // ============================================================================
-  // Command Methods
-  // ============================================================================
-
   public updateModel(newModel: string): Result<void> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(newModel, 'model'),
@@ -100,7 +91,9 @@ export class DeviceModel extends AggregateRoot<DeviceModelProps, DeviceModelId> 
       return Result.fail<void>('Model name cannot be empty');
     }
     if (trimmed.length > 150) {
-      return Result.fail<void>('Model name cannot exceed 150 characters');
+      return Result.fail<void>(
+        'Model name cannot exceed 150 characters'
+      );
     }
 
     if (this.props.model === trimmed) return Result.ok<void>();
@@ -121,12 +114,16 @@ export class DeviceModel extends AggregateRoot<DeviceModelProps, DeviceModelId> 
   }
 
   public updateDeviceType(newDeviceType: string): Result<void> {
-    const guardResult = Guard.againstNullOrUndefined(newDeviceType, 'deviceType');
+    const guardResult = Guard.againstNullOrUndefined(
+      newDeviceType,
+      'deviceType'
+    );
     if (!guardResult.succeeded) {
       return Result.fail<void>(guardResult.message!);
     }
 
-    if (this.props.deviceType === newDeviceType) return Result.ok<void>();
+    if (this.props.deviceType === newDeviceType)
+      return Result.ok<void>();
 
     this.props.deviceType = newDeviceType;
     this.props.updatedAt = new Date();
@@ -174,10 +171,6 @@ export class DeviceModel extends AggregateRoot<DeviceModelProps, DeviceModelId> 
     return Result.ok<void>();
   }
 
-  // ============================================================================
-  // Private Helpers
-  // ============================================================================
-
   private static validate(
     props: Omit<DeviceModelProps, 'createdAt' | 'updatedAt'>
   ): Result<void> {
@@ -198,7 +191,9 @@ export class DeviceModel extends AggregateRoot<DeviceModelProps, DeviceModelId> 
       return Result.fail<void>('Model name cannot be empty');
     }
     if (model.length > 150) {
-      return Result.fail<void>('Model name cannot exceed 150 characters');
+      return Result.fail<void>(
+        'Model name cannot exceed 150 characters'
+      );
     }
 
     return Result.ok<void>();

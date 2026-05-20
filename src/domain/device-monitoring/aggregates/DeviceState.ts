@@ -33,10 +33,7 @@ export class DeviceState extends AggregateRoot<
     return this.props.lastCheckedAt;
   }
 
-  /**
-   * Called when no previous state row exists (device's first-ever poll).
-   * No events are raised — unknown→online is not a recoverable transition.
-   */
+  // no events raised — unknown→online is not a recoverable transition
   public static createInitial(deviceId: DeviceId): DeviceState {
     return new DeviceState(
       {
@@ -52,24 +49,16 @@ export class DeviceState extends AggregateRoot<
     );
   }
 
-  /** Used by repository only. Bypasses all validation. */
+  // bypasses validation — for repository use only
   public static reconstitute(
-    props: DeviceStateProps,
-    deviceId: DeviceId
+    id: DeviceId,
+    props: DeviceStateProps
   ): DeviceState {
-    return new DeviceState(props, deviceId);
+    return new DeviceState(props, id);
   }
 
-  /**
-   * Applies the result of a ping. Raises events only on genuine transitions
-   * and never on the first poll.
-   *
-   * The caller is responsible for retrying within the poll cycle before
-   * calling this method — isReachable here is the definitive result after
-   * all retry attempts have been exhausted.
-   *
-   * @param isFirstPoll  True when createInitial() was used (no prior DB row).
-   */
+  // raises events only on genuine transitions, never on the first poll
+  // caller retries before calling this — isReachable is the definitive post-retry result
   public applyPingResult(
     isReachable: boolean,
     latencyMs: number | null,

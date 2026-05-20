@@ -162,9 +162,10 @@ export class WirelessSnapshotPrismaMapper {
     }
 
     return WirelessSnapshot.reconstitute(
+      snapshotId.value,
       {
         deviceId: deviceId.value,
-        deviceType: raw.deviceType as 'CPE' | 'ACCESS_POINT',
+        deviceType: raw.deviceType as 'STATION' | 'ACCESS_POINT',
         collectedAt: raw.collectedAt,
         collectionMethod: raw.collectionMethod as
           | 'snmp'
@@ -173,8 +174,7 @@ export class WirelessSnapshotPrismaMapper {
         metrics,
         clients,
         alerts: []
-      },
-      snapshotId.value
+      }
     );
   }
 

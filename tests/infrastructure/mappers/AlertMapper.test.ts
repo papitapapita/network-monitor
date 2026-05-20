@@ -28,7 +28,6 @@ type RawAlertRecord = {
   resolvedAt: Date | null;
   notifiedAt: Date | null;
   recoveryNotifiedAt: Date | null;
-  durationSecs: number | null;
 };
 
 function makeRawAlertRecord(
@@ -42,7 +41,6 @@ function makeRawAlertRecord(
     resolvedAt: null,
     notifiedAt: null,
     recoveryNotifiedAt: null,
-    durationSecs: null,
     ...overrides
   };
 }
@@ -67,7 +65,7 @@ describe('AlertMapper', () => {
 
         const alert = AlertMapper.toDomain(raw);
 
-        expect(alert.alertId.toString()).toBe(VALID_UUID_1);
+        expect(alert.id.toString()).toBe(VALID_UUID_1);
       });
 
       it('should map deviceId to the correct string value', () => {
@@ -118,8 +116,8 @@ describe('AlertMapper', () => {
         expect(alert.recoveryNotifiedAt).toBeNull();
       });
 
-      it('should map durationSecs as null when raw.durationSecs is null', () => {
-        const raw = makeRawAlertRecord({ durationSecs: null });
+      it('should compute durationSecs as null when resolvedAt is null', () => {
+        const raw = makeRawAlertRecord({ resolvedAt: null });
 
         const alert = AlertMapper.toDomain(raw);
 
@@ -141,10 +139,7 @@ describe('AlertMapper', () => {
     // -----------------------------------------------------------------------
     describe('happy path — all nullable fields populated', () => {
       it('should map resolvedAt when present', () => {
-        const raw = makeRawAlertRecord({
-          resolvedAt: RESOLVED_AT,
-          durationSecs: 300
-        });
+        const raw = makeRawAlertRecord({ resolvedAt: RESOLVED_AT });
 
         const alert = AlertMapper.toDomain(raw);
 
@@ -162,8 +157,7 @@ describe('AlertMapper', () => {
       it('should map recoveryNotifiedAt when present', () => {
         const raw = makeRawAlertRecord({
           resolvedAt: RESOLVED_AT,
-          recoveryNotifiedAt: RECOVERY_NOTIFIED_AT,
-          durationSecs: 300
+          recoveryNotifiedAt: RECOVERY_NOTIFIED_AT
         });
 
         const alert = AlertMapper.toDomain(raw);
@@ -171,11 +165,8 @@ describe('AlertMapper', () => {
         expect(alert.recoveryNotifiedAt).toEqual(RECOVERY_NOTIFIED_AT);
       });
 
-      it('should map durationSecs when present', () => {
-        const raw = makeRawAlertRecord({
-          resolvedAt: RESOLVED_AT,
-          durationSecs: 300
-        });
+      it('should compute durationSecs from startedAt and resolvedAt', () => {
+        const raw = makeRawAlertRecord({ resolvedAt: RESOLVED_AT });
 
         const alert = AlertMapper.toDomain(raw);
 
@@ -285,8 +276,7 @@ describe('AlertMapper', () => {
         makeRawAlertRecord({
           resolvedAt: RESOLVED_AT,
           notifiedAt: NOTIFIED_AT,
-          recoveryNotifiedAt: RECOVERY_NOTIFIED_AT,
-          durationSecs: 300
+          recoveryNotifiedAt: RECOVERY_NOTIFIED_AT
         })
       );
     }
@@ -352,13 +342,6 @@ describe('AlertMapper', () => {
         expect(raw.recoveryNotifiedAt).toEqual(RECOVERY_NOTIFIED_AT);
       });
 
-      it('should serialize durationSecs when present', () => {
-        const alert = buildFullyPopulatedAlert();
-
-        const raw = AlertMapper.toPersistence(alert);
-
-        expect(raw.durationSecs).toBe(300);
-      });
     });
 
     // -----------------------------------------------------------------------
@@ -385,14 +368,6 @@ describe('AlertMapper', () => {
         const raw = AlertMapper.toPersistence(alert);
 
         expect(raw.recoveryNotifiedAt).toBeNull();
-      });
-
-      it('should serialize durationSecs as null', () => {
-        const alert = buildNullableNullAlert();
-
-        const raw = AlertMapper.toPersistence(alert);
-
-        expect(raw.durationSecs).toBeNull();
       });
 
       it('resolvedAt null value should be strictly null, not undefined', () => {
@@ -456,15 +431,13 @@ describe('AlertMapper', () => {
         expect(serialized.resolvedAt).toBeNull();
         expect(serialized.notifiedAt).toBeNull();
         expect(serialized.recoveryNotifiedAt).toBeNull();
-        expect(serialized.durationSecs).toBeNull();
       });
 
       it('should reproduce all nullable fields when populated after a round-trip', () => {
         const originalRaw = makeRawAlertRecord({
           resolvedAt: RESOLVED_AT,
           notifiedAt: NOTIFIED_AT,
-          recoveryNotifiedAt: RECOVERY_NOTIFIED_AT,
-          durationSecs: 300
+          recoveryNotifiedAt: RECOVERY_NOTIFIED_AT
         });
 
         const serialized = AlertMapper.toPersistence(
@@ -476,7 +449,6 @@ describe('AlertMapper', () => {
         expect(serialized.recoveryNotifiedAt).toEqual(
           originalRaw.recoveryNotifiedAt
         );
-        expect(serialized.durationSecs).toBe(originalRaw.durationSecs);
       });
     });
   });

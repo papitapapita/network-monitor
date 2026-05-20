@@ -25,6 +25,7 @@ const buildDomainRecord = (): WirelessAlertRecord => {
   const id = WirelessAlertRecordId.parse(RECORD_UUID).value;
 
   return WirelessAlertRecord.reconstitute(
+    id,
     {
       deviceId,
       metric: 'signalRxDbm',
@@ -35,8 +36,7 @@ const buildDomainRecord = (): WirelessAlertRecord => {
       isActive: true,
       lastValue: -75,
       message: 'Signal below threshold',
-    },
-    id
+    }
   );
 };
 

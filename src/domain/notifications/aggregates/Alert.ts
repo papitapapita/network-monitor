@@ -8,10 +8,6 @@ export class Alert extends AggregateRoot<AlertProps, AlertId> {
     super(props, id);
   }
 
-  get alertId(): AlertId {
-    return this._id;
-  }
-
   get deviceId(): DeviceId {
     return this.props.deviceId;
   }
@@ -37,7 +33,10 @@ export class Alert extends AggregateRoot<AlertProps, AlertId> {
   }
 
   get durationSecs(): number | null {
-    return this.props.durationSecs;
+    if (!this.props.resolvedAt) return null;
+    return Math.floor(
+      (this.props.resolvedAt.getTime() - this.props.startedAt.getTime()) / 1000
+    );
   }
 
   get isOpen(): boolean {
@@ -61,8 +60,7 @@ export class Alert extends AggregateRoot<AlertProps, AlertId> {
         startedAt: new Date(),
         resolvedAt: null,
         notifiedAt: null,
-        recoveryNotifiedAt: null,
-        durationSecs: null
+        recoveryNotifiedAt: null
       },
       id
     );
@@ -87,9 +85,6 @@ export class Alert extends AggregateRoot<AlertProps, AlertId> {
       return Result.fail('Alert already resolved');
     }
     this.props.resolvedAt = resolvedAt;
-    this.props.durationSecs = Math.floor(
-      (resolvedAt.getTime() - this.props.startedAt.getTime()) / 1000
-    );
     return Result.ok<void>();
   }
 

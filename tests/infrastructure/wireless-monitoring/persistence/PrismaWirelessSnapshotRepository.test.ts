@@ -36,15 +36,15 @@ const buildDomainSnapshot = (): WirelessSnapshot => {
   });
 
   return WirelessSnapshot.reconstitute(
-    { deviceId, deviceType: 'CPE', collectedAt: new Date('2024-01-01T12:00:00Z'), collectionMethod: 'snmp', metrics, clients: [], alerts: [] },
-    snapshotId
+    snapshotId,
+    { deviceId, deviceType: 'STATION', collectedAt: new Date('2024-01-01T12:00:00Z'), collectionMethod: 'snmp', metrics, clients: [], alerts: [] }
   );
 };
 
 const makePrismaRow = () => ({
   id: SNAPSHOT_UUID,
   deviceId: DEVICE_UUID,
-  deviceType: 'CPE',
+  deviceType: 'STATION',
   collectedAt: new Date('2024-01-01T12:00:00Z'),
   collectionMethod: 'snmp',
   signalRxDbm: -65,

@@ -7,7 +7,10 @@ import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import { INotificationService } from '../interfaces';
 import { AlertMapper } from '../mappers/AlertMapper';
-import { AlertResponseDTO, SendDeviceRecoveryAlertDTO } from '../dtos';
+import {
+  AlertResponseDTO,
+  SendDeviceRecoveryAlertDTO
+} from '../dtos';
 
 export class SendDeviceRecoveryAlertUseCase extends UseCase<
   SendDeviceRecoveryAlertDTO,
@@ -55,7 +58,9 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
         'No open alert found for recovered device — skipping recovery notification',
         { deviceId: deviceId.toString() }
       );
-      return this.fail('No open alert found for device — recovery skipped');
+      return this.fail(
+        'No open alert found for device — recovery skipped'
+      );
     }
 
     const resolveResult = openAlert.resolve(request.occurredAt);
@@ -74,14 +79,14 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
         latencyMs: request.latencyMs,
         occurredAt: request.occurredAt,
         durationSecs: openAlert.durationSecs,
-        alertId: openAlert.alertId.toString()
+        alertId: openAlert.id.toString()
       }),
       metadata: {
         deviceId: deviceId.toString(),
         deviceName,
         ipAddress,
         severity: openAlert.severity,
-        alertId: openAlert.alertId.toString(),
+        alertId: openAlert.id.toString(),
         timestamp: request.occurredAt.toISOString(),
         latencyMs: request.latencyMs,
         durationSecs: openAlert.durationSecs
@@ -107,7 +112,9 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
     return this.ok(AlertMapper.toDTO(saveResult.value));
   }
 
-  private async resolveDeviceName(deviceId: DeviceId): Promise<string> {
+  private async resolveDeviceName(
+    deviceId: DeviceId
+  ): Promise<string> {
     try {
       const result = await this.deviceRepository.findById(deviceId);
       if (result.isSuccess && result.value) {
@@ -119,7 +126,9 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
     return 'Unknown Device';
   }
 
-  private async resolveIpAddress(deviceId: DeviceId): Promise<string | null> {
+  private async resolveIpAddress(
+    deviceId: DeviceId
+  ): Promise<string | null> {
     try {
       const result =
         await this.pollingConfigRepository.findByDeviceId(deviceId);
@@ -176,8 +185,12 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
   private formatLocalTime(date: Date): string {
     return date.toLocaleString('es-CO', {
       timeZone: 'America/Bogota',
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
       hour12: false
     });
   }

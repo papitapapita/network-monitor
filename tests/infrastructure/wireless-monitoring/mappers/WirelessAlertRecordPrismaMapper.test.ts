@@ -37,6 +37,7 @@ const buildDomainRecord = (): WirelessAlertRecord => {
   const id = WirelessAlertRecordId.parse(RECORD_UUID).value;
 
   return WirelessAlertRecord.reconstitute(
+    id,
     {
       deviceId,
       metric: 'signalRxDbm',
@@ -47,8 +48,7 @@ const buildDomainRecord = (): WirelessAlertRecord => {
       isActive: true,
       lastValue: -75,
       message: 'Signal below threshold',
-    },
-    id
+    }
   );
 };
 
@@ -141,6 +141,7 @@ describe('WirelessAlertRecordPrismaMapper', () => {
       const clearedDate = new Date('2024-01-01T11:00:00Z');
 
       const record = WirelessAlertRecord.reconstitute(
+        id,
         {
           deviceId,
           metric: 'signalRxDbm',
@@ -151,8 +152,7 @@ describe('WirelessAlertRecordPrismaMapper', () => {
           isActive: false,
           lastValue: -80,
           message: 'Critical signal',
-        },
-        id
+        }
       );
 
       const data = WirelessAlertRecordPrismaMapper.toPersistence(record);

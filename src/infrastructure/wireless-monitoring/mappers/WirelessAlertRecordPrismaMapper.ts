@@ -54,7 +54,7 @@ export class WirelessAlertRecordPrismaMapper {
       message: raw.message
     };
 
-    return WirelessAlertRecord.reconstitute(props, id.value);
+    return WirelessAlertRecord.reconstitute(id.value, props);
   }
 
   static toPersistence(record: WirelessAlertRecord): PersistenceData {

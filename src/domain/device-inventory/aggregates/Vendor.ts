@@ -10,10 +10,6 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
     super(props, id);
   }
 
-  // ============================================================================
-  // Getters
-  // ============================================================================
-
   get name(): string {
     return this.props.name;
   }
@@ -33,10 +29,6 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
   get updatedAt(): Date {
     return this.props.updatedAt;
   }
-
-  // ============================================================================
-  // Factory Methods
-  // ============================================================================
 
   public static create(
     props: Omit<VendorProps, 'createdAt' | 'updatedAt'>
@@ -71,13 +63,12 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
     return Result.ok<Vendor>(vendor);
   }
 
-  public static reconstitute(id: VendorId, props: VendorProps): Vendor {
+  public static reconstitute(
+    id: VendorId,
+    props: VendorProps
+  ): Vendor {
     return new Vendor(props, id);
   }
-
-  // ============================================================================
-  // Command Methods
-  // ============================================================================
 
   public updateName(newName: string): Result<void> {
     const guardResult = Guard.combine([
@@ -93,12 +84,13 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
       return Result.fail<void>('Vendor name cannot be empty');
     }
     if (trimmed.length > 100) {
-      return Result.fail<void>('Vendor name cannot exceed 100 characters');
+      return Result.fail<void>(
+        'Vendor name cannot exceed 100 characters'
+      );
     }
 
     if (this.props.name === trimmed) return Result.ok<void>();
 
-    const old = this.props.name;
     this.props.name = trimmed;
     this.props.updatedAt = new Date();
 
@@ -111,7 +103,6 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
       })
     );
 
-    void old;
     return Result.ok<void>();
   }
 
@@ -129,7 +120,9 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
       return Result.fail<void>('Vendor slug cannot be empty');
     }
     if (trimmed.length > 100) {
-      return Result.fail<void>('Vendor slug cannot exceed 100 characters');
+      return Result.fail<void>(
+        'Vendor slug cannot exceed 100 characters'
+      );
     }
     if (!SLUG_REGEX.test(trimmed)) {
       return Result.fail<void>(
@@ -154,15 +147,17 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
     return Result.ok<void>();
   }
 
-  public updateDescription(newDescription: string | null): Result<void> {
-    if (
-      newDescription !== null &&
-      newDescription.length > 500
-    ) {
-      return Result.fail<void>('Vendor description cannot exceed 500 characters');
+  public updateDescription(
+    newDescription: string | null
+  ): Result<void> {
+    if (newDescription !== null && newDescription.length > 500) {
+      return Result.fail<void>(
+        'Vendor description cannot exceed 500 characters'
+      );
     }
 
-    if (this.props.description === newDescription) return Result.ok<void>();
+    if (this.props.description === newDescription)
+      return Result.ok<void>();
 
     this.props.description = newDescription;
     this.props.updatedAt = new Date();
@@ -178,10 +173,6 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
 
     return Result.ok<void>();
   }
-
-  // ============================================================================
-  // Private Helpers
-  // ============================================================================
 
   private static validate(
     props: Omit<VendorProps, 'createdAt' | 'updatedAt'>
@@ -202,7 +193,9 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
       return Result.fail<void>('Vendor name cannot be empty');
     }
     if (name.length > 100) {
-      return Result.fail<void>('Vendor name cannot exceed 100 characters');
+      return Result.fail<void>(
+        'Vendor name cannot exceed 100 characters'
+      );
     }
 
     const slug = props.slug.trim();
@@ -210,7 +203,9 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
       return Result.fail<void>('Vendor slug cannot be empty');
     }
     if (slug.length > 100) {
-      return Result.fail<void>('Vendor slug cannot exceed 100 characters');
+      return Result.fail<void>(
+        'Vendor slug cannot exceed 100 characters'
+      );
     }
     if (!SLUG_REGEX.test(slug)) {
       return Result.fail<void>(
@@ -218,11 +213,10 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
       );
     }
 
-    if (
-      props.description != null &&
-      props.description.length > 500
-    ) {
-      return Result.fail<void>('Vendor description cannot exceed 500 characters');
+    if (props.description != null && props.description.length > 500) {
+      return Result.fail<void>(
+        'Vendor description cannot exceed 500 characters'
+      );
     }
 
     return Result.ok<void>();

@@ -16,10 +16,6 @@ export class Location extends AggregateRoot<
     super(props, id);
   }
 
-  // ============================================================================
-  // Getters
-  // ============================================================================
-
   get name(): string {
     return this.props.name;
   }
@@ -51,10 +47,6 @@ export class Location extends AggregateRoot<
   get updatedAt(): Date {
     return this.props.updatedAt;
   }
-
-  // ============================================================================
-  // Factory Methods
-  // ============================================================================
 
   public static create(props: LocationProps): Result<Location> {
     const validationResult = Location.validate(props);
@@ -96,10 +88,6 @@ export class Location extends AggregateRoot<
   ): Location {
     return new Location(props, id);
   }
-
-  // ============================================================================
-  // Command Methods
-  // ============================================================================
 
   public updateName(newName: string): Result<void> {
     const guardResult = Guard.combine([
@@ -280,10 +268,6 @@ export class Location extends AggregateRoot<
       this.props.coordinates !== undefined
     );
   }
-
-  // ============================================================================
-  // Private Helpers
-  // ============================================================================
 
   private static validate(props: LocationProps): Result<void> {
     const guardResult = Guard.combine([

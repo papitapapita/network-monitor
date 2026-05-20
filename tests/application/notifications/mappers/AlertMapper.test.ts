@@ -37,8 +37,7 @@ function makeOpenAlert(): Alert {
     startedAt:          STARTED_AT,
     resolvedAt:         null,
     notifiedAt:         null,
-    recoveryNotifiedAt: null,
-    durationSecs:       null
+    recoveryNotifiedAt: null
   });
 }
 
@@ -49,8 +48,7 @@ function makeResolvedAlert(): Alert {
     startedAt:          STARTED_AT,
     resolvedAt:         RESOLVED_AT,
     notifiedAt:         NOTIFIED_AT,
-    recoveryNotifiedAt: RECOVERY_NOTIFIED_AT,
-    durationSecs:       100
+    recoveryNotifiedAt: RECOVERY_NOTIFIED_AT
   });
 }
 

@@ -16,7 +16,7 @@ type PrismaWirelessSnapshot = Parameters<typeof WirelessSnapshotPrismaMapper.toD
 const makeMinimalPrismaRow = (): PrismaWirelessSnapshot => ({
   id: SNAPSHOT_UUID,
   deviceId: DEVICE_UUID,
-  deviceType: 'CPE',
+  deviceType: 'STATION',
   collectedAt: new Date('2024-01-01T12:00:00Z'),
   collectionMethod: 'snmp',
   signalRxDbm: null,
@@ -102,7 +102,7 @@ const makeFullPrismaRow = (): PrismaWirelessSnapshot => ({
 });
 
 const buildDomainSnapshot = (overrides: Partial<{
-  deviceType: 'CPE' | 'ACCESS_POINT';
+  deviceType: 'STATION' | 'ACCESS_POINT';
   collectionMethod: 'snmp' | 'http_api' | 'mixed';
 }> = {}): WirelessSnapshot => {
   const deviceId = DeviceId.parse(DEVICE_UUID).value;
@@ -139,16 +139,16 @@ const buildDomainSnapshot = (overrides: Partial<{
   });
 
   return WirelessSnapshot.reconstitute(
+    snapshotId,
     {
       deviceId,
-      deviceType: overrides.deviceType ?? 'CPE',
+      deviceType: overrides.deviceType ?? 'STATION',
       collectedAt: new Date('2024-06-15T08:30:00Z'),
       collectionMethod: overrides.collectionMethod ?? 'snmp',
       metrics,
       clients: [],
       alerts: [],
-    },
-    snapshotId
+    }
   );
 };
 
@@ -248,7 +248,7 @@ describe('WirelessSnapshotPrismaMapper', () => {
 
       expect(data.id).toBe(SNAPSHOT_UUID);
       expect(data.deviceId).toBe(DEVICE_UUID);
-      expect(data.deviceType).toBe('CPE');
+      expect(data.deviceType).toBe('STATION');
       expect(data.collectionMethod).toBe('snmp');
     });
 
@@ -286,8 +286,8 @@ describe('WirelessSnapshotPrismaMapper', () => {
       });
 
       const snapshot = WirelessSnapshot.reconstitute(
-        { deviceId, deviceType: 'CPE', collectedAt: new Date(), collectionMethod: 'snmp', metrics, clients: [], alerts: [] },
-        snapshotId
+        snapshotId,
+        { deviceId, deviceType: 'STATION', collectedAt: new Date(), collectionMethod: 'snmp', metrics, clients: [], alerts: [] }
       );
 
       const data = WirelessSnapshotPrismaMapper.toPersistence(snapshot);
@@ -334,8 +334,8 @@ describe('WirelessSnapshotPrismaMapper', () => {
       });
 
       const snapshot = WirelessSnapshot.reconstitute(
-        { deviceId, deviceType: 'CPE', collectedAt: new Date(), collectionMethod: 'snmp', metrics, clients: [client], alerts: [] },
-        snapshotId
+        snapshotId,
+        { deviceId, deviceType: 'STATION', collectedAt: new Date(), collectionMethod: 'snmp', metrics, clients: [client], alerts: [] }
       );
 
       const data = WirelessSnapshotPrismaMapper.toPersistence(snapshot);

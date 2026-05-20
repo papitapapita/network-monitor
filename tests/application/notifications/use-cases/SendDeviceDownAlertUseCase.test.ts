@@ -105,7 +105,6 @@ function makeOpenAlert(): Alert {
     resolvedAt:         null,
     notifiedAt:         null,
     recoveryNotifiedAt: null,
-    durationSecs:       null
   });
 }
 
