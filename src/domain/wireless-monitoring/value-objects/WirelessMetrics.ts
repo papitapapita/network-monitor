@@ -116,11 +116,6 @@ export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
     return null;
   }
 
-  /**
-   * Returns combined TX+RX utilization as a percentage of the given capacity.
-   * Returns null when throughput data is unavailable.
-   * @throws never — returns null on missing data; caller must guard against capacityBps <= 0.
-   */
   public getLinkUtilizationPercent(
     capacityBps: number
   ): number | null {
@@ -262,5 +257,9 @@ export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
     props: WirelessMetricsProps
   ): WirelessMetrics {
     return new WirelessMetrics(props);
+  }
+
+  public toString(): string {
+    return `signal=${this._props.signalRxDbm ?? 'n/a'}dBm ccq=${this._props.ccqPercent ?? 'n/a'}%`;
   }
 }

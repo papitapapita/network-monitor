@@ -75,4 +75,8 @@ export class WirelessAlert extends ValueObject<WirelessAlertProps> {
   ): WirelessAlert {
     return new WirelessAlert(props);
   }
+
+  public toString(): string {
+    return `[${this._props.severity}] ${this._props.metric}: ${this._props.message}`;
+  }
 }

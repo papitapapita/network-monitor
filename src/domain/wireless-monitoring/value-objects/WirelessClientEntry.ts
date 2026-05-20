@@ -119,4 +119,8 @@ export class WirelessClientEntry extends ValueObject<WirelessClientEntryProps> {
   ): WirelessClientEntry {
     return new WirelessClientEntry(props);
   }
+
+  public toString(): string {
+    return this._props.macAddress;
+  }
 }
