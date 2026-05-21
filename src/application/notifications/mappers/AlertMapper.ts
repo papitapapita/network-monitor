@@ -2,7 +2,7 @@ import { Alert } from 'domain/notifications/aggregates';
 import { AlertResponseDTO, AlertListResponseDTO } from '../dtos';
 
 export class AlertMapper {
-  static toDTO(alert: Alert): AlertResponseDTO {
+  public static toDTO(alert: Alert): AlertResponseDTO {
     return {
       id: alert.id.toString(),
       deviceId: alert.deviceId.toString(),
@@ -22,7 +22,7 @@ export class AlertMapper {
     };
   }
 
-  static toListDTO(
+  public static toListDTO(
     alerts: Alert[],
     total: number,
     limit: number,

@@ -1,25 +1,10 @@
-import { WirelessPollingConfig } from 'domain/wireless-monitoring';
-import { WirelessConfigResponseDTO } from '../dtos/WirelessConfigResponseDTO';
+import { WirelessPollingConfig } from 'domain/wireless-monitoring/aggregates';
+import { WirelessConfigResponseDTO } from '../dtos';
+import { CreateWirelessConfigRequestDTO } from '../use-cases/CreateWirelessConfigUseCase';
+import { UpdateWirelessConfigRequestDTO } from '../use-cases/UpdateWirelessConfigUseCase';
 
-/**
- * WirelessPollingConfigMapper
- *
- * Responsible for transforming WirelessPollingConfig domain entities into
- * application-layer DTOs. Contains no business logic — structural mapping only.
- *
- * Mapping direction: Domain → DTO (read-only, outbound).
- */
 export class WirelessPollingConfigMapper {
-  /**
-   * Maps a WirelessPollingConfig entity to its response DTO.
-   *
-   * Converts domain identifiers and value objects to primitives,
-   * and serialises the lastPolledAt date to ISO 8601.
-   *
-   * @param config - The WirelessPollingConfig entity to map
-   * @returns WirelessConfigResponseDTO ready for presentation
-   */
-  static toDTO(
+  public static toDTO(
     config: WirelessPollingConfig
   ): WirelessConfigResponseDTO {
     return {
@@ -33,5 +18,32 @@ export class WirelessPollingConfigMapper {
       clientsProvisionedLimit: config.clientsProvisionedLimit,
       lastPolledAt: config.lastPolledAt?.toISOString() ?? null
     };
+  }
+
+  public static extractCreateData(dto: CreateWirelessConfigRequestDTO) {
+    return {
+      deviceId: dto.deviceId,
+      deviceType: dto.deviceType,
+      ipAddress: dto.ipAddress ?? null,
+      intervalSecs: dto.intervalSecs ?? null,
+      enabled: dto.enabled ?? null,
+      linkCapacityBps: dto.linkCapacityBps ?? null,
+      clientsProvisionedLimit: dto.clientsProvisionedLimit ?? null
+    };
+  }
+
+  public static extractUpdateData(dto: UpdateWirelessConfigRequestDTO) {
+    const updates: Record<string, unknown> = {};
+
+    if (dto.ipAddress !== undefined) updates.ipAddress = dto.ipAddress;
+    if (dto.intervalSecs !== undefined)
+      updates.intervalSecs = dto.intervalSecs;
+    if (dto.enabled !== undefined) updates.enabled = dto.enabled;
+    if (dto.linkCapacityBps !== undefined)
+      updates.linkCapacityBps = dto.linkCapacityBps;
+    if (dto.clientsProvisionedLimit !== undefined)
+      updates.clientsProvisionedLimit = dto.clientsProvisionedLimit;
+
+    return updates;
   }
 }

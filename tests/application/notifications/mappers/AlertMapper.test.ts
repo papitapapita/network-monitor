@@ -289,4 +289,20 @@ describe('AlertMapper', () => {
       expect(dto.hasMore).toBe(false);
     });
   });
+
+  // ===========================================================================
+  describe('mapper compliance', () => {
+    it('should expose toDTO as a static method', () => {
+      expect(typeof AlertMapper.toDTO).toBe('function');
+    });
+
+    it('should expose toListDTO as a static method', () => {
+      expect(typeof AlertMapper.toListDTO).toBe('function');
+    });
+
+    it('should produce identical output on repeated calls with the same alert (deterministic)', () => {
+      const alert = makeOpenAlert();
+      expect(AlertMapper.toDTO(alert)).toEqual(AlertMapper.toDTO(alert));
+    });
+  });
 });

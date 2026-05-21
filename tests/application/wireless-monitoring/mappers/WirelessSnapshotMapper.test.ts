@@ -887,4 +887,186 @@ describe('WirelessSnapshotMapper', () => {
       });
     });
   });
+
+  // ===========================================================================
+  describe('toClientListDTO()', () => {
+    it('should map deviceId to a string', () => {
+      const snapshot = makeSnapshot();
+
+      const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+      expect(dto.deviceId).toBe(DEVICE_UUID);
+    });
+
+    it('should map collectedAt to an ISO string', () => {
+      const snapshot = makeSnapshot();
+
+      const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+      expect(dto.collectedAt).toBe(COLLECTED_AT.toISOString());
+    });
+
+    it('should return an empty clients array when snapshot has no clients', () => {
+      const snapshot = makeSnapshot({ clients: [] });
+
+      const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+      expect(dto.clients).toHaveLength(0);
+    });
+
+    describe('single client — all 11 fields', () => {
+      it('should map macAddress correctly', () => {
+        const client   = makeClient({ macAddress: 'AA:BB:CC:DD:EE:FF' });
+        const snapshot = makeSnapshot({ clients: [client] });
+
+        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+        expect(dto.clients[0].macAddress).toBe('AA:BB:CC:DD:EE:FF');
+      });
+
+      it('should map signalRxDbm correctly', () => {
+        const client   = makeClient({ signalRxDbm: -68 });
+        const snapshot = makeSnapshot({ clients: [client] });
+
+        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+        expect(dto.clients[0].signalRxDbm).toBe(-68);
+      });
+
+      it('should map signalTxDbm correctly', () => {
+        const client   = makeClient({ signalTxDbm: -65 });
+        const snapshot = makeSnapshot({ clients: [client] });
+
+        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+        expect(dto.clients[0].signalTxDbm).toBe(-65);
+      });
+
+      it('should map snrDb correctly', () => {
+        const client   = makeClient({ snrDb: 22 });
+        const snapshot = makeSnapshot({ clients: [client] });
+
+        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+        expect(dto.clients[0].snrDb).toBe(22);
+      });
+
+      it('should map txRateMbps correctly', () => {
+        const client   = makeClient({ txRateMbps: 54 });
+        const snapshot = makeSnapshot({ clients: [client] });
+
+        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+        expect(dto.clients[0].txRateMbps).toBe(54);
+      });
+
+      it('should map rxRateMbps correctly', () => {
+        const client   = makeClient({ rxRateMbps: 48 });
+        const snapshot = makeSnapshot({ clients: [client] });
+
+        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+        expect(dto.clients[0].rxRateMbps).toBe(48);
+      });
+
+      it('should map throughputTxBps correctly', () => {
+        const client   = makeClient({ throughputTxBps: 5000000 });
+        const snapshot = makeSnapshot({ clients: [client] });
+
+        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+        expect(dto.clients[0].throughputTxBps).toBe(5000000);
+      });
+
+      it('should map throughputRxBps correctly', () => {
+        const client   = makeClient({ throughputRxBps: 4000000 });
+        const snapshot = makeSnapshot({ clients: [client] });
+
+        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+        expect(dto.clients[0].throughputRxBps).toBe(4000000);
+      });
+
+      it('should map ccqPercent correctly', () => {
+        const client   = makeClient({ ccqPercent: 90 });
+        const snapshot = makeSnapshot({ clients: [client] });
+
+        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+        expect(dto.clients[0].ccqPercent).toBe(90);
+      });
+
+      it('should map uptimeSeconds correctly', () => {
+        const client   = makeClient({ uptimeSeconds: 3600 });
+        const snapshot = makeSnapshot({ clients: [client] });
+
+        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+        expect(dto.clients[0].uptimeSeconds).toBe(3600);
+      });
+
+      it('should map ipAddress correctly when present', () => {
+        const client   = makeClient({ ipAddress: '192.168.1.10' });
+        const snapshot = makeSnapshot({ clients: [client] });
+
+        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+        expect(dto.clients[0].ipAddress).toBe('192.168.1.10');
+      });
+    });
+
+    describe('null fields pass through as strictly null', () => {
+      it('should pass signalRxDbm as strictly null', () => {
+        const client   = makeClient({ signalRxDbm: null });
+        const snapshot = makeSnapshot({ clients: [client] });
+
+        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+        expect(dto.clients[0].signalRxDbm).toStrictEqual(null);
+      });
+
+      it('should pass ipAddress as strictly null', () => {
+        const client   = makeClient({ ipAddress: null });
+        const snapshot = makeSnapshot({ clients: [client] });
+
+        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+        expect(dto.clients[0].ipAddress).toStrictEqual(null);
+      });
+    });
+
+    it('should preserve count and ordering for multiple clients', () => {
+      const client1  = makeClient({ macAddress: 'AA:BB:CC:DD:EE:01' });
+      const client2  = makeClient({ macAddress: 'AA:BB:CC:DD:EE:02' });
+      const client3  = makeClient({ macAddress: 'AA:BB:CC:DD:EE:03' });
+      const snapshot = makeSnapshot({ clients: [client1, client2, client3] });
+
+      const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+      expect(dto.clients).toHaveLength(3);
+      expect(dto.clients[0].macAddress).toBe('AA:BB:CC:DD:EE:01');
+      expect(dto.clients[1].macAddress).toBe('AA:BB:CC:DD:EE:02');
+      expect(dto.clients[2].macAddress).toBe('AA:BB:CC:DD:EE:03');
+    });
+
+    it('should produce identical output on repeated calls with the same snapshot (pure)', () => {
+      const client   = makeClient();
+      const snapshot = makeSnapshot({ clients: [client] });
+
+      expect(WirelessSnapshotMapper.toClientListDTO(snapshot)).toEqual(
+        WirelessSnapshotMapper.toClientListDTO(snapshot)
+      );
+    });
+  });
+
+  // ===========================================================================
+  describe('mapper compliance', () => {
+    it('should expose toStatusDTO as a static method', () => {
+      expect(typeof WirelessSnapshotMapper.toStatusDTO).toBe('function');
+    });
+
+    it('should expose toClientListDTO as a static method', () => {
+      expect(typeof WirelessSnapshotMapper.toClientListDTO).toBe('function');
+    });
+  });
 });

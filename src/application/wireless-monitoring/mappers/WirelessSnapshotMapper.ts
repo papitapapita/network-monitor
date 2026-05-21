@@ -1,14 +1,14 @@
 import {
   WirelessSnapshot,
   WirelessAlertRecord
-} from 'domain/wireless-monitoring';
+} from 'domain/wireless-monitoring/aggregates';
 import {
   WirelessStatusResponseDTO,
-  WirelessMetricsDTO
-} from '../dtos/WirelessStatusResponseDTO';
-import { WirelessAlertResponseDTO } from '../dtos/WirelessAlertResponseDTO';
-import { WirelessClientDTO } from '../dtos/WirelessClientDTO';
-import { WirelessClientListResponseDTO } from '../dtos/WirelessClientListResponseDTO';
+  WirelessMetricsDTO,
+  WirelessAlertResponseDTO,
+  WirelessClientDTO,
+  WirelessClientListResponseDTO
+} from '../dtos';
 
 export class WirelessSnapshotMapper {
   public static toStatusDTO(
@@ -89,10 +89,6 @@ export class WirelessSnapshotMapper {
     };
   }
 
-  /**
-   * Maps a snapshot's client list to a WirelessClientListResponseDTO.
-   * Centralises all structural DTO transformation for client data.
-   */
   public static toClientListDTO(
     snapshot: WirelessSnapshot
   ): WirelessClientListResponseDTO {
