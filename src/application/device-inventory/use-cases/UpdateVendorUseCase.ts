@@ -34,7 +34,9 @@ export class UpdateVendorUseCase extends UseCase<
       return this.fail(`Invalid vendor ID: ${idResult.error}`);
     }
 
-    const findResult = await this.vendorRepository.findById(idResult.value);
+    const findResult = await this.vendorRepository.findById(
+      idResult.value
+    );
     if (findResult.isFailure) {
       return this.fail(findResult.error!);
     }
@@ -46,7 +48,8 @@ export class UpdateVendorUseCase extends UseCase<
 
     if (request.slug !== undefined) {
       const newSlug = request.slug.trim();
-      const existingResult = await this.vendorRepository.findBySlug(newSlug);
+      const existingResult =
+        await this.vendorRepository.findBySlug(newSlug);
       if (existingResult.isFailure) {
         return this.fail(existingResult.error!);
       }
@@ -54,7 +57,9 @@ export class UpdateVendorUseCase extends UseCase<
         existingResult.value !== null &&
         !existingResult.value.id.equals(vendor.id)
       ) {
-        return this.fail(`A vendor with slug "${newSlug}" already exists`);
+        return this.fail(
+          `A vendor with slug "${newSlug}" already exists`
+        );
       }
 
       const slugResult = vendor.updateSlug(newSlug);
@@ -71,7 +76,9 @@ export class UpdateVendorUseCase extends UseCase<
     }
 
     if (request.description !== undefined) {
-      const descResult = vendor.updateDescription(request.description ?? null);
+      const descResult = vendor.updateDescription(
+        request.description ?? null
+      );
       if (descResult.isFailure) {
         return this.fail(descResult.error!);
       }
@@ -79,7 +86,9 @@ export class UpdateVendorUseCase extends UseCase<
 
     const saveResult = await this.vendorRepository.save(vendor);
     if (saveResult.isFailure) {
-      return this.fail(`Failed to persist vendor: ${saveResult.error}`);
+      return this.fail(
+        `Failed to persist vendor: ${saveResult.error}`
+      );
     }
 
     return this.ok(VendorMapper.toDTO(saveResult.value));

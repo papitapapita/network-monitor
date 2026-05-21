@@ -2,7 +2,10 @@ import { IDeviceRepository } from '../../../domain/device-inventory/repository/I
 import { DeviceStatus } from '../../../domain/device-inventory/value-objects/DeviceStatus';
 import { DeviceCategory } from '../../../domain/device-inventory/value-objects/DeviceCategory';
 import { DeviceOwnerType } from '../../../domain/device-inventory/enums/DeviceOwnerType';
-import { DeviceModelId, LocationId } from '../../../domain/shared/ids';
+import {
+  DeviceModelId,
+  LocationId
+} from '../../../domain/shared/ids';
 import { Result } from '../../../domain/shared/core/Result';
 import { UseCase } from '../../shared/core/UseCase';
 import { ILogger } from '../../shared/interfaces/ILogger';
@@ -130,7 +133,10 @@ export class ListDevicesUseCase extends UseCase<
     limit: number,
     offset: number
   ): Promise<Result<DeviceListResponseDTO>> {
-    const devicesResult = await this.deviceRepository.findAll(limit, offset);
+    const devicesResult = await this.deviceRepository.findAll(
+      limit,
+      offset
+    );
     if (devicesResult.isFailure) {
       return this.fail<DeviceListResponseDTO>(devicesResult.error!);
     }
@@ -179,7 +185,9 @@ export class ListDevicesUseCase extends UseCase<
     if (request.category) {
       const categoryResult = DeviceCategory.create(request.category);
       if (categoryResult.isFailure) {
-        return this.fail<DeviceListResponseDTO>(categoryResult.error!);
+        return this.fail<DeviceListResponseDTO>(
+          categoryResult.error!
+        );
       }
       categoryFilter = categoryResult.value;
     }
@@ -187,7 +195,9 @@ export class ListDevicesUseCase extends UseCase<
     // Validate and build DeviceOwnerType filter
     let ownerFilter: DeviceOwnerType | undefined;
     if (request.owner) {
-      const validOwnerTypes = Object.values(DeviceOwnerType) as string[];
+      const validOwnerTypes = Object.values(
+        DeviceOwnerType
+      ) as string[];
       const upperOwner = request.owner.toUpperCase();
       if (!validOwnerTypes.includes(upperOwner)) {
         return this.fail<DeviceListResponseDTO>(
@@ -212,7 +222,9 @@ export class ListDevicesUseCase extends UseCase<
     // Validate and build DeviceModelId filter
     let deviceModelIdFilter: DeviceModelId | undefined;
     if (request.deviceModelId) {
-      const deviceModelIdResult = DeviceModelId.parse(request.deviceModelId);
+      const deviceModelIdResult = DeviceModelId.parse(
+        request.deviceModelId
+      );
       if (deviceModelIdResult.isFailure) {
         return this.fail<DeviceListResponseDTO>(
           `Invalid deviceModelId: ${deviceModelIdResult.error}`
@@ -244,7 +256,12 @@ export class ListDevicesUseCase extends UseCase<
     const paginatedDevices = allDevices.slice(offset, offset + limit);
 
     return this.ok<DeviceListResponseDTO>(
-      DeviceMapper.toListDTO(paginatedDevices, allDevices.length, limit, offset)
+      DeviceMapper.toListDTO(
+        paginatedDevices,
+        allDevices.length,
+        limit,
+        offset
+      )
     );
   }
 }

@@ -4,7 +4,10 @@ import { Result } from '../../../domain/shared/core';
 import { UseCase } from '../../shared/core';
 import { ILogger } from '../../shared/interfaces';
 import { DeviceModelMapper } from '../mappers';
-import { GetDeviceModelRequestDTO, DeviceModelResponseDTO } from '../dtos';
+import {
+  GetDeviceModelRequestDTO,
+  DeviceModelResponseDTO
+} from '../dtos';
 
 export class GetDeviceModelUseCase extends UseCase<
   GetDeviceModelRequestDTO,
@@ -36,7 +39,9 @@ export class GetDeviceModelUseCase extends UseCase<
       );
     }
 
-    const findResult = await this.deviceModelRepository.findById(idResult.value);
+    const findResult = await this.deviceModelRepository.findById(
+      idResult.value
+    );
     if (findResult.isFailure) {
       return this.fail<DeviceModelResponseDTO>(findResult.error!);
     }

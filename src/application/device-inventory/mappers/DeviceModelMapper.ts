@@ -1,8 +1,13 @@
 import { DeviceModel } from '../../../domain/device-inventory/aggregates';
-import { DeviceModelResponseDTO, DeviceModelListResponseDTO } from '../dtos';
+import {
+  DeviceModelResponseDTO,
+  DeviceModelListResponseDTO
+} from '../dtos';
 
 export class DeviceModelMapper {
-  public static toDTO(deviceModel: DeviceModel): DeviceModelResponseDTO {
+  public static toDTO(
+    deviceModel: DeviceModel
+  ): DeviceModelResponseDTO {
     return {
       id: deviceModel.id.toString(),
       vendorId: deviceModel.vendorId.toString(),

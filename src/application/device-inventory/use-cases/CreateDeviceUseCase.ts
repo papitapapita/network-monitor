@@ -49,7 +49,7 @@ import {
  *   name: 'Core-Router-01',
  *   ownerType: 'COMPANY',
  *   status: 'ACTIVE',
- *   category: 'CORE',
+ *   category: 'WIRELESS_CPE',
  *   macAddress: 'AA:BB:CC:DD:EE:FF',
  *   ipAddress: '192.168.1.1',
  *   monitoringEnabled: true
@@ -97,8 +97,12 @@ export class CreateDeviceUseCase extends UseCase<
     }
 
     if (request.ownerType) {
-      const validOwnerTypes = Object.values(DeviceOwnerType) as string[];
-      if (!validOwnerTypes.includes(request.ownerType.toUpperCase())) {
+      const validOwnerTypes = Object.values(
+        DeviceOwnerType
+      ) as string[];
+      if (
+        !validOwnerTypes.includes(request.ownerType.toUpperCase())
+      ) {
         return Result.fail(
           `Invalid ownerType: "${request.ownerType}". Must be one of: ${validOwnerTypes.join(', ')}`
         );

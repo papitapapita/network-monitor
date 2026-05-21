@@ -54,9 +54,13 @@ export class CreateVendorUseCase extends UseCase<
       return this.fail(vendorResult.error!);
     }
 
-    const saveResult = await this.vendorRepository.save(vendorResult.value);
+    const saveResult = await this.vendorRepository.save(
+      vendorResult.value
+    );
     if (saveResult.isFailure) {
-      return this.fail(`Failed to persist vendor: ${saveResult.error}`);
+      return this.fail(
+        `Failed to persist vendor: ${saveResult.error}`
+      );
     }
 
     return this.ok(VendorMapper.toDTO(saveResult.value));

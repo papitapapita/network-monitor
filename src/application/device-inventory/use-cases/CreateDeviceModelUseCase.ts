@@ -34,7 +34,10 @@ export class CreateDeviceModelUseCase extends UseCase<
     if (!request.model || request.model.trim().length === 0) {
       return Result.fail('Model name is required');
     }
-    if (!request.deviceType || request.deviceType.trim().length === 0) {
+    if (
+      !request.deviceType ||
+      request.deviceType.trim().length === 0
+    ) {
       return Result.fail('Device type is required');
     }
     return null;
@@ -61,10 +64,11 @@ export class CreateDeviceModelUseCase extends UseCase<
     const vendor = vendorResult.value;
     const modelTrimmed = request.model.trim();
 
-    const existsResult = await this.deviceModelRepository.existsByVendorAndModel(
-      vendorIdResult.value,
-      modelTrimmed
-    );
+    const existsResult =
+      await this.deviceModelRepository.existsByVendorAndModel(
+        vendorIdResult.value,
+        modelTrimmed
+      );
     if (existsResult.isFailure) {
       return this.fail(existsResult.error!);
     }
@@ -90,7 +94,9 @@ export class CreateDeviceModelUseCase extends UseCase<
       deviceModelResult.value
     );
     if (saveResult.isFailure) {
-      return this.fail(`Failed to persist device model: ${saveResult.error}`);
+      return this.fail(
+        `Failed to persist device model: ${saveResult.error}`
+      );
     }
 
     return this.ok(DeviceModelMapper.toDTO(saveResult.value));

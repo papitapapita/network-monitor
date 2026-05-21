@@ -10,7 +10,7 @@
  * - ownerType: Optional, one of: COMPANY, CLIENT.
  * - status: Optional, one of: INVENTORY, ACTIVE, DAMAGED.
  *           Defaults to INVENTORY when omitted.
- * - category: Optional, one of: CPE, AP, ROUTERBOARD, SMART_SWITCH, SMART_SWITCH_POE, OTHER.
+ * - category: Optional, one of: CPE, WIRELESS_CPE, AP, ROUTERBOARD, SMART_SWITCH, SMART_SWITCH_POE, OTHER.
  * - locationId: Optional, valid UUID — assigns the device to a location.
  * - serialNumber: Optional, max 100 characters.
  * - macAddress: Optional, format AA:BB:CC:DD:EE:FF or AA-BB-CC-DD-EE-FF. Must be unique.
@@ -82,7 +82,9 @@ export interface CreateDeviceRequestDTO {
 
   /**
    * Network role / hardware category of the device.
-   * Optional. Valid values: CPE, AP, ROUTERBOARD, SMART_SWITCH, SMART_SWITCH_POE, OTHER.
+   * Optional. Valid values: CPE, WIRELESS_CPE, AP, ROUTERBOARD, SMART_SWITCH, SMART_SWITCH_POE, OTHER.
+   * Use WIRELESS_CPE for wireless radios/antennas at customer premises (Ubiquiti, Mimosa, etc.).
+   * Use CPE for wired customer routers. Only WIRELESS_CPE and AP can have wireless polling configs.
    * When set, the device must have an IP address.
    */
   category?: string | null;

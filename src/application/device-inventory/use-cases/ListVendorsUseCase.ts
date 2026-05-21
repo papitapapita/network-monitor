@@ -28,7 +28,10 @@ export class ListVendorsUseCase extends UseCase<
     );
     const offset = request.offset ?? 0;
 
-    const vendorsResult = await this.vendorRepository.findAll(limit, offset);
+    const vendorsResult = await this.vendorRepository.findAll(
+      limit,
+      offset
+    );
     if (vendorsResult.isFailure) {
       return this.fail(vendorsResult.error!);
     }
@@ -39,7 +42,12 @@ export class ListVendorsUseCase extends UseCase<
     }
 
     return this.ok(
-      VendorMapper.toListDTO(vendorsResult.value, countResult.value, limit, offset)
+      VendorMapper.toListDTO(
+        vendorsResult.value,
+        countResult.value,
+        limit,
+        offset
+      )
     );
   }
 }

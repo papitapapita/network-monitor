@@ -34,7 +34,9 @@ export class GetVendorUseCase extends UseCase<
       return this.fail(`Invalid vendor ID: ${idResult.error}`);
     }
 
-    const findResult = await this.vendorRepository.findById(idResult.value);
+    const findResult = await this.vendorRepository.findById(
+      idResult.value
+    );
     if (findResult.isFailure) {
       return this.fail(findResult.error!);
     }

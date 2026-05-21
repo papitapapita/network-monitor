@@ -140,9 +140,7 @@ export class CreateLocationUseCase extends UseCase<
         altitude: request.altitude ?? undefined
       });
       if (coordResult.isFailure) {
-        return this.fail(
-          `Invalid coordinates: ${coordResult.error}`
-        );
+        return this.fail(`Invalid coordinates: ${coordResult.error}`);
       }
       coordinates = coordResult.value;
     }

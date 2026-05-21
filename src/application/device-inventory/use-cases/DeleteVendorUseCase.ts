@@ -1,11 +1,17 @@
 import { VendorId } from '../../../domain/shared/ids';
-import { IVendorRepository, IDeviceModelRepository } from '../../../domain/device-inventory/repository';
+import {
+  IVendorRepository,
+  IDeviceModelRepository
+} from '../../../domain/device-inventory/repository';
 import { Result } from '../../../domain/shared/core';
 import { UseCase } from '../../shared/core';
 import { ILogger } from '../../shared/interfaces';
 import { DeleteVendorRequestDTO } from '../dtos';
 
-export class DeleteVendorUseCase extends UseCase<DeleteVendorRequestDTO, void> {
+export class DeleteVendorUseCase extends UseCase<
+  DeleteVendorRequestDTO,
+  void
+> {
   constructor(
     private readonly vendorRepository: IVendorRepository,
     private readonly deviceModelRepository: IDeviceModelRepository,
@@ -42,7 +48,8 @@ export class DeleteVendorUseCase extends UseCase<DeleteVendorRequestDTO, void> {
     }
 
     // Guard: cannot delete a vendor that has associated device models
-    const modelsResult = await this.deviceModelRepository.findByVendor(vendorId);
+    const modelsResult =
+      await this.deviceModelRepository.findByVendor(vendorId);
     if (modelsResult.isFailure) {
       return this.fail(modelsResult.error!);
     }

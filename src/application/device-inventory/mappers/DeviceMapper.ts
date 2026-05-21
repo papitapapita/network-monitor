@@ -38,7 +38,9 @@ export class DeviceMapper {
       deviceModelId: device.deviceModelId.toString(),
 
       // Extract string ID from LocationId value object, or null
-      locationId: device.locationId ? device.locationId.toString() : null,
+      locationId: device.locationId
+        ? device.locationId.toString()
+        : null,
 
       // Extract string value from DeviceStatus value object
       status: device.status.toString(),
@@ -57,10 +59,14 @@ export class DeviceMapper {
         : null,
 
       // Extract normalized string from MACAddress value object, or null
-      macAddress: device.macAddress ? device.macAddress.toString() : null,
+      macAddress: device.macAddress
+        ? device.macAddress.toString()
+        : null,
 
       // Extract string from IPAddress value object, or null
-      ipAddress: device.ipAddress ? device.ipAddress.toString() : null,
+      ipAddress: device.ipAddress
+        ? device.ipAddress.toString()
+        : null,
 
       // Primitive field (direct access)
       description: device.description,

@@ -41,7 +41,9 @@ export class UpdateDeviceModelUseCase extends UseCase<
       return this.fail(`Invalid device model ID: ${idResult.error}`);
     }
 
-    const findResult = await this.deviceModelRepository.findById(idResult.value);
+    const findResult = await this.deviceModelRepository.findById(
+      idResult.value
+    );
     if (findResult.isFailure) {
       return this.fail(findResult.error!);
     }
@@ -54,7 +56,9 @@ export class UpdateDeviceModelUseCase extends UseCase<
     if (request.vendorId !== undefined) {
       const vendorIdResult = VendorId.parse(request.vendorId.trim());
       if (vendorIdResult.isFailure) {
-        return this.fail(`Invalid vendor ID: ${vendorIdResult.error}`);
+        return this.fail(
+          `Invalid vendor ID: ${vendorIdResult.error}`
+        );
       }
 
       const vendorResult = await this.vendorRepository.findById(
@@ -85,15 +89,20 @@ export class UpdateDeviceModelUseCase extends UseCase<
     }
 
     if (request.deviceType !== undefined) {
-      const typeResult = deviceModel.updateDeviceType(request.deviceType);
+      const typeResult = deviceModel.updateDeviceType(
+        request.deviceType
+      );
       if (typeResult.isFailure) {
         return this.fail(typeResult.error!);
       }
     }
 
-    const saveResult = await this.deviceModelRepository.save(deviceModel);
+    const saveResult =
+      await this.deviceModelRepository.save(deviceModel);
     if (saveResult.isFailure) {
-      return this.fail(`Failed to persist device model: ${saveResult.error}`);
+      return this.fail(
+        `Failed to persist device model: ${saveResult.error}`
+      );
     }
 
     return this.ok(DeviceModelMapper.toDTO(saveResult.value));
