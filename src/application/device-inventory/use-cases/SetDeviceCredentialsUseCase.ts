@@ -1,15 +1,17 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared';
 import { IDeviceRepository } from 'domain/device-inventory/repository';
-import { UseCase } from '../../shared/core';
-import { ILogger } from '../../shared/interfaces';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
 import {
   IDeviceCredentialsRepository,
   DeviceCredentials
-} from '../interfaces/IDeviceCredentialsRepository';
-import { SetDeviceCredentialsRequestDTO } from '../dtos/SetDeviceCredentialsRequestDTO';
-import { DeviceCredentialsResponseDTO } from '../dtos/DeviceCredentialsResponseDTO';
-import { maskCredentials } from '../mappers/DeviceCredentialsMapper';
+} from '../interfaces';
+import {
+  SetDeviceCredentialsRequestDTO,
+  DeviceCredentialsResponseDTO
+} from '../dtos';
+import { DeviceCredentialsMapper } from '../mappers';
 
 export class SetDeviceCredentialsUseCase extends UseCase<
   SetDeviceCredentialsRequestDTO,
@@ -125,7 +127,7 @@ export class SetDeviceCredentialsUseCase extends UseCase<
     }
 
     return this.ok(
-      maskCredentials(request.deviceId.trim(), credentials)
+      DeviceCredentialsMapper.toDTO(request.deviceId.trim(), credentials)
     );
   }
 

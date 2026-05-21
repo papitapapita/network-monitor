@@ -1,11 +1,11 @@
 import {
   IDeviceModelRepository,
   IVendorRepository
-} from '../../../domain/device-inventory/repository';
-import { DeviceModelId, VendorId } from '../../../domain/shared/ids';
-import { Result } from '../../../domain/shared/core';
-import { UseCase } from '../../shared/core';
-import { ILogger } from '../../shared/interfaces';
+} from 'domain/device-inventory/repository';
+import { DeviceModelId, VendorId } from 'domain/shared/ids';
+import { Result } from 'domain/shared/core';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
 import { DeviceModelMapper } from '../mappers';
 import {
   UpdateDeviceModelRequestDTO,
@@ -52,9 +52,10 @@ export class UpdateDeviceModelUseCase extends UseCase<
     }
 
     const deviceModel = findResult.value;
+    const data = DeviceModelMapper.extractUpdateData(request);
 
-    if (request.vendorId !== undefined) {
-      const vendorIdResult = VendorId.parse(request.vendorId.trim());
+    if (data.vendorId !== undefined) {
+      const vendorIdResult = VendorId.parse(data.vendorId.trim());
       if (vendorIdResult.isFailure) {
         return this.fail(
           `Invalid vendor ID: ${vendorIdResult.error}`
@@ -68,7 +69,7 @@ export class UpdateDeviceModelUseCase extends UseCase<
         return this.fail(vendorResult.error!);
       }
       if (vendorResult.value === null) {
-        return this.fail(`Vendor not found: ${request.vendorId}`);
+        return this.fail(`Vendor not found: ${data.vendorId}`);
       }
 
       const updateResult = deviceModel.updateVendor(
@@ -81,17 +82,15 @@ export class UpdateDeviceModelUseCase extends UseCase<
       }
     }
 
-    if (request.model !== undefined) {
-      const modelResult = deviceModel.updateModel(request.model);
+    if (data.model !== undefined) {
+      const modelResult = deviceModel.updateModel(data.model);
       if (modelResult.isFailure) {
         return this.fail(modelResult.error!);
       }
     }
 
-    if (request.deviceType !== undefined) {
-      const typeResult = deviceModel.updateDeviceType(
-        request.deviceType
-      );
+    if (data.deviceType !== undefined) {
+      const typeResult = deviceModel.updateDeviceType(data.deviceType);
       if (typeResult.isFailure) {
         return this.fail(typeResult.error!);
       }

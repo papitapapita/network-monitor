@@ -1,11 +1,10 @@
-import { DeviceId } from '../../../domain/shared/ids';
-import { IDeviceRepository } from '../../../domain/device-inventory/repository/IDeviceRepository';
-import { Result } from '../../../domain/shared/core/Result';
-import { UseCase } from '../../shared/core/UseCase';
-import { ILogger } from '../../shared/interfaces/ILogger';
-import { GetDeviceRequestDTO } from '../dtos/GetDeviceRequestDTO';
-import { DeviceResponseDTO } from '../dtos/DeviceResponseDTO';
-import { DeviceMapper } from '../mappers/DeviceMapper';
+import { DeviceId } from 'domain/shared/ids';
+import { IDeviceRepository } from 'domain/device-inventory/repository';
+import { Result } from 'domain/shared/core';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
+import { GetDeviceRequestDTO, DeviceResponseDTO } from '../dtos';
+import { DeviceMapper } from '../mappers';
 
 /**
  * GetDeviceUseCase

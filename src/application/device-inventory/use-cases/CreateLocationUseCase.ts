@@ -1,13 +1,15 @@
-import { Location } from '../../../domain/device-inventory/aggregates/Location';
-import { ILocationRepository } from '../../../domain/device-inventory/repository/ILocationRepository';
-import { LocationType } from '../../../domain/device-inventory/enums/LocationType';
-import { Coordinates } from '../../../domain/device-inventory/value-objects';
-import { Result } from '../../../domain/shared/core/Result';
-import { UseCase } from '../../shared/core/UseCase';
-import { ILogger } from '../../shared/interfaces/ILogger';
-import { CreateLocationRequestDTO } from '../dtos/CreateLocationRequestDTO';
-import { LocationResponseDTO } from '../dtos/LocationResponseDTO';
-import { LocationMapper } from '../mappers/LocationMapper';
+import { Location } from 'domain/device-inventory/aggregates';
+import { ILocationRepository } from 'domain/device-inventory/repository';
+import { LocationType } from 'domain/device-inventory/enums';
+import { Coordinates } from 'domain/device-inventory/value-objects';
+import { Result } from 'domain/shared/core';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
+import { LocationMapper } from '../mappers';
+import {
+  CreateLocationRequestDTO,
+  LocationResponseDTO
+} from '../dtos';
 
 /**
  * CreateLocationUseCase
@@ -128,16 +130,16 @@ export class CreateLocationUseCase extends UseCase<
   protected async executeImpl(
     request: CreateLocationRequestDTO
   ): Promise<Result<LocationResponseDTO>> {
-    // Map string to domain enum (application-layer orchestration)
-    const locationType = request.type.toUpperCase() as LocationType;
+    const data = LocationMapper.extractCreateData(request);
 
-    // Build Coordinates value object when coordinates are supplied
+    const locationType = data.type.toUpperCase() as LocationType;
+
     let coordinates: Coordinates | null = null;
-    if (request.latitude != null && request.longitude != null) {
+    if (data.latitude !== null && data.longitude !== null) {
       const coordResult = Coordinates.create({
-        latitude: request.latitude,
-        longitude: request.longitude,
-        altitude: request.altitude ?? undefined
+        latitude: data.latitude,
+        longitude: data.longitude,
+        altitude: data.altitude ?? undefined
       });
       if (coordResult.isFailure) {
         return this.fail(`Invalid coordinates: ${coordResult.error}`);
@@ -147,13 +149,12 @@ export class CreateLocationUseCase extends UseCase<
 
     const now = new Date();
 
-    // Delegate aggregate creation to the domain — no business logic here
     const locationResult = Location.create({
-      name: request.name.trim(),
+      name: data.name.trim(),
       type: locationType,
-      municipality: request.municipality ?? null,
-      neighborhood: request.neighborhood ?? null,
-      address: request.address ?? null,
+      municipality: data.municipality,
+      neighborhood: data.neighborhood,
+      address: data.address,
       coordinates,
       createdAt: now,
       updatedAt: now

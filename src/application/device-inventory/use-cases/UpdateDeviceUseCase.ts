@@ -1,16 +1,15 @@
-import { IPAddress } from 'domain/shared';
+import { IPAddress, MACAddress } from 'domain/shared';
 import { IDeviceRepository } from 'domain/device-inventory/repository';
 import { DeviceOwnerType } from 'domain/device-inventory/enums';
 import { LocationId, DeviceId } from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
-import { UseCase } from '../../shared/core';
-import { ILogger } from '../../shared/interfaces';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
 import { DeviceResponseDTO, UpdateDeviceRequestDTO } from '../dtos';
 import { DeviceMapper } from '../mappers';
 import {
   DeviceStatus,
-  DeviceCategory,
-  MACAddress
+  DeviceCategory
 } from 'domain/device-inventory/value-objects';
 
 /**
@@ -170,46 +169,43 @@ export class UpdateDeviceUseCase extends UseCase<
     }
 
     const device = findResult.value;
+    const data = DeviceMapper.extractUpdateData(request);
 
-    // Build updateDetails fields
-    // Only populate keys whose corresponding request fields are not undefined.
     const updateFields: Parameters<typeof device.updateDetails>[0] =
       {};
 
-    if (request.name !== undefined) {
-      updateFields.name = request.name;
+    if (data.name !== undefined) {
+      updateFields.name = data.name;
     }
 
-    if (request.description !== undefined) {
-      updateFields.description = request.description;
+    if (data.description !== undefined) {
+      updateFields.description = data.description;
     }
 
-    if (request.ownerType !== undefined) {
+    if (data.ownerType !== undefined) {
       updateFields.ownerType =
-        request.ownerType.toUpperCase() as DeviceOwnerType;
+        data.ownerType.toUpperCase() as DeviceOwnerType;
     }
 
-    if (request.installedDate !== undefined) {
-      if (request.installedDate === null) {
+    if (data.installedDate !== undefined) {
+      if (data.installedDate === null) {
         updateFields.installedDate = null;
       } else {
-        const parsed = new Date(request.installedDate);
+        const parsed = new Date(data.installedDate);
         if (isNaN(parsed.getTime())) {
           return this.fail(
-            `Invalid installedDate: "${request.installedDate}". Must be a valid ISO 8601 date string.`
+            `Invalid installedDate: "${data.installedDate}". Must be a valid ISO 8601 date string.`
           );
         }
         updateFields.installedDate = parsed;
       }
     }
 
-    if (request.category !== undefined) {
-      if (request.category === null) {
+    if (data.category !== undefined) {
+      if (data.category === null) {
         updateFields.category = null;
       } else {
-        const categoryResult = DeviceCategory.create(
-          request.category
-        );
+        const categoryResult = DeviceCategory.create(data.category);
         if (categoryResult.isFailure) {
           return this.fail(categoryResult.error!);
         }
@@ -217,24 +213,20 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    if (request.serialNumber !== undefined) {
-      // Pass raw string (including null) — the aggregate's updateDetails
-      // handles SerialNumber construction internally for non-null values.
-      updateFields.serialNumber = request.serialNumber;
+    if (data.serialNumber !== undefined) {
+      updateFields.serialNumber = data.serialNumber;
     }
 
-    // Build MACAddress and check uniqueness (skip if unchanged on this device)
-    if (request.macAddress !== undefined) {
-      if (request.macAddress === null) {
+    if (data.macAddress !== undefined) {
+      if (data.macAddress === null) {
         updateFields.macAddress = null;
       } else {
-        const macResult = MACAddress.create(request.macAddress);
+        const macResult = MACAddress.create(data.macAddress);
         if (macResult.isFailure) {
           return this.fail(macResult.error!);
         }
         const newMac = macResult.value;
 
-        // Only enforce uniqueness when the MAC differs from the device's current value
         const currentMac = device.macAddress?.value ?? null;
         if (currentMac !== newMac.value) {
           const macExistsResult =
@@ -246,7 +238,7 @@ export class UpdateDeviceUseCase extends UseCase<
           }
           if (macExistsResult.value) {
             return this.fail(
-              `MAC address "${request.macAddress}" is already assigned to another device`
+              `MAC address "${data.macAddress}" is already assigned to another device`
             );
           }
         }
@@ -255,18 +247,16 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    // Build IPAddress and check uniqueness (skip if unchanged on this device)
-    if (request.ipAddress !== undefined) {
-      if (request.ipAddress === null) {
+    if (data.ipAddress !== undefined) {
+      if (data.ipAddress === null) {
         updateFields.ipAddress = null;
       } else {
-        const ipResult = IPAddress.create(request.ipAddress);
+        const ipResult = IPAddress.create(data.ipAddress);
         if (ipResult.isFailure) {
           return this.fail(ipResult.error!);
         }
         const newIp = ipResult.value;
 
-        // Only enforce uniqueness when the IP differs from the device's current value
         const currentIp = device.ipAddress?.value ?? null;
         if (currentIp !== newIp.value) {
           const ipExistsResult =
@@ -278,7 +268,7 @@ export class UpdateDeviceUseCase extends UseCase<
           }
           if (ipExistsResult.value) {
             return this.fail(
-              `IP address "${request.ipAddress}" is already assigned to another device`
+              `IP address "${data.ipAddress}" is already assigned to another device`
             );
           }
         }
@@ -296,10 +286,10 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    // Apply status change (after updateDetails so IP is present if being set
-    // in the same request as an INVENTORY → ACTIVE transition)
-    if (request.status !== undefined) {
-      const statusResult = DeviceStatus.create(request.status);
+    // Apply status change after updateDetails so IP is present if both are
+    // sent together in an INVENTORY → ACTIVE transition.
+    if (data.status !== undefined) {
+      const statusResult = DeviceStatus.create(data.status);
       if (statusResult.isFailure) {
         return this.fail(statusResult.error!);
       }
@@ -311,16 +301,11 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    // Apply location assignment or unassignment
-    // locationId in the DTO is `string | null | undefined`:
-    //   undefined  → field was not sent; skip
-    //   null       → explicit unassign
-    //   string     → assign to new location
-    if (request.locationId !== undefined) {
+    if (data.locationId !== undefined) {
       let newLocationId: LocationId | null = null;
-      if (request.locationId !== null) {
+      if (data.locationId !== null) {
         const locationIdResult = LocationId.parse(
-          request.locationId.trim()
+          data.locationId.trim()
         );
         if (locationIdResult.isFailure) {
           return this.fail(
@@ -335,13 +320,12 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    // Toggle monitoring
-    if (request.monitoringEnabled === true) {
+    if (data.monitoringEnabled === true) {
       const enableResult = device.enableMonitoring();
       if (enableResult.isFailure) {
         return this.fail(enableResult.error!);
       }
-    } else if (request.monitoringEnabled === false) {
+    } else if (data.monitoringEnabled === false) {
       const disableResult = device.disableMonitoring();
       if (disableResult.isFailure) {
         return this.fail(disableResult.error!);

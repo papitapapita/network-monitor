@@ -1,5 +1,5 @@
 import { Result } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
+import { DeviceId } from 'domain/shared/ids';
 
 export interface DeviceCredentials {
   snmpVersion: 1 | 2 | 3;

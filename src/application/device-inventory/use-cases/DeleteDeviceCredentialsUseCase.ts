@@ -1,8 +1,8 @@
 import { Result } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
-import { UseCase } from '../../shared/core';
-import { ILogger } from '../../shared/interfaces';
-import { IDeviceCredentialsRepository } from '../interfaces/IDeviceCredentialsRepository';
+import { DeviceId } from 'domain/shared/ids';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
+import { IDeviceCredentialsRepository } from '../interfaces';
 
 interface DeleteDeviceCredentialsRequestDTO {
   deviceId: string;

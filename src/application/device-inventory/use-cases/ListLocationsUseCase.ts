@@ -1,11 +1,13 @@
-import { ILocationRepository } from '../../../domain/device-inventory/repository/ILocationRepository';
-import { LocationType } from '../../../domain/device-inventory/enums/LocationType';
-import { Result } from '../../../domain/shared/core/Result';
-import { UseCase } from '../../shared/core/UseCase';
-import { ILogger } from '../../shared/interfaces/ILogger';
-import { ListLocationsQueryDTO } from '../dtos/ListLocationsQueryDTO';
-import { LocationListResponseDTO } from '../dtos/LocationListResponseDTO';
-import { LocationMapper } from '../mappers/LocationMapper';
+import { ILocationRepository } from 'domain/device-inventory/repository';
+import { LocationType } from 'domain/device-inventory/enums';
+import { Result } from 'domain/shared/core';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
+import {
+  ListLocationsQueryDTO,
+  LocationListResponseDTO
+} from '../dtos';
+import { LocationMapper } from '../mappers';
 
 /**
  * ListLocationsUseCase

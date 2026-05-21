@@ -1,8 +1,8 @@
-import { VendorId } from '../../../domain/shared/ids';
-import { IVendorRepository } from '../../../domain/device-inventory/repository';
-import { Result } from '../../../domain/shared/core';
-import { UseCase } from '../../shared/core';
-import { ILogger } from '../../shared/interfaces';
+import { VendorId } from 'domain/shared/ids';
+import { IVendorRepository } from 'domain/device-inventory/repository';
+import { Result } from 'domain/shared/core';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
 import { VendorMapper } from '../mappers';
 import { UpdateVendorRequestDTO, VendorResponseDTO } from '../dtos';
 
@@ -45,9 +45,10 @@ export class UpdateVendorUseCase extends UseCase<
     }
 
     const vendor = findResult.value;
+    const data = VendorMapper.extractUpdateData(request);
 
-    if (request.slug !== undefined) {
-      const newSlug = request.slug.trim();
+    if (data.slug !== undefined) {
+      const newSlug = data.slug.trim();
       const existingResult =
         await this.vendorRepository.findBySlug(newSlug);
       if (existingResult.isFailure) {
@@ -68,17 +69,15 @@ export class UpdateVendorUseCase extends UseCase<
       }
     }
 
-    if (request.name !== undefined) {
-      const nameResult = vendor.updateName(request.name);
+    if (data.name !== undefined) {
+      const nameResult = vendor.updateName(data.name);
       if (nameResult.isFailure) {
         return this.fail(nameResult.error!);
       }
     }
 
-    if (request.description !== undefined) {
-      const descResult = vendor.updateDescription(
-        request.description ?? null
-      );
+    if (data.description !== undefined) {
+      const descResult = vendor.updateDescription(data.description);
       if (descResult.isFailure) {
         return this.fail(descResult.error!);
       }

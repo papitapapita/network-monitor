@@ -1,13 +1,15 @@
-import { ILocationRepository } from 'domain/device-inventory/repository/ILocationRepository';
-import { LocationType } from 'domain/device-inventory/enums/LocationType';
+import { ILocationRepository } from 'domain/device-inventory/repository';
+import { LocationType } from 'domain/device-inventory/enums';
 import { Coordinates } from 'domain/device-inventory/value-objects';
 import { LocationId } from 'domain/shared/ids';
-import { Result } from 'domain/shared/core/Result';
-import { UseCase } from '../../shared/core/UseCase';
-import { ILogger } from '../../shared/interfaces/ILogger';
-import { UpdateLocationRequestDTO } from '../dtos/UpdateLocationRequestDTO';
-import { LocationResponseDTO } from '../dtos/LocationResponseDTO';
-import { LocationMapper } from '../mappers/LocationMapper';
+import { Result } from 'domain/shared/core';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
+import {
+  UpdateLocationRequestDTO,
+  LocationResponseDTO
+} from '../dtos';
+import { LocationMapper } from '../mappers';
 
 /**
  * UpdateLocationUseCase
@@ -157,29 +159,27 @@ export class UpdateLocationUseCase extends UseCase<
     }
 
     const location = findResult.value;
+    const data = LocationMapper.extractUpdateData(request);
 
-    // Apply name change
-    if (request.name !== undefined) {
-      const updateNameResult = location.updateName(request.name);
+    if (data.name !== undefined) {
+      const updateNameResult = location.updateName(data.name);
       if (updateNameResult.isFailure) {
         return this.fail(updateNameResult.error!);
       }
     }
 
-    // Apply type change — map string to domain enum (application-layer orchestration)
-    if (request.type !== undefined) {
-      const locationType = request.type.toUpperCase() as LocationType;
+    if (data.type !== undefined) {
+      const locationType = data.type.toUpperCase() as LocationType;
       const updateTypeResult = location.updateType(locationType);
       if (updateTypeResult.isFailure) {
         return this.fail(updateTypeResult.error!);
       }
     }
 
-    // Apply address field changes when at least one address field is present
     const hasAddressField =
-      request.municipality !== undefined ||
-      request.neighborhood !== undefined ||
-      request.address !== undefined;
+      data.municipality !== undefined ||
+      data.neighborhood !== undefined ||
+      data.address !== undefined;
 
     if (hasAddressField) {
       const addressFields: {
@@ -187,15 +187,14 @@ export class UpdateLocationUseCase extends UseCase<
         neighborhood?: string | null;
         address?: string | null;
       } = {};
-
-      if (request.municipality !== undefined) {
-        addressFields.municipality = request.municipality;
+      if (data.municipality !== undefined) {
+        addressFields.municipality = data.municipality;
       }
-      if (request.neighborhood !== undefined) {
-        addressFields.neighborhood = request.neighborhood;
+      if (data.neighborhood !== undefined) {
+        addressFields.neighborhood = data.neighborhood;
       }
-      if (request.address !== undefined) {
-        addressFields.address = request.address;
+      if (data.address !== undefined) {
+        addressFields.address = data.address;
       }
 
       const updateAddressResult =
@@ -205,28 +204,19 @@ export class UpdateLocationUseCase extends UseCase<
       }
     }
 
-    // Apply coordinate change when both latitude and longitude are provided.
-    // Both undefined  → coordinates not included in the request; skip entirely.
-    // Both null       → explicit clear (passes null to updateCoordinates).
-    // Both non-null   → build Coordinates VO and update.
-    if (
-      request.latitude !== undefined &&
-      request.longitude !== undefined
-    ) {
-      if (request.latitude === null && request.longitude === null) {
-        // Explicit clear
+    // Both undefined → not sent, skip. Both null → explicit clear.
+    // Both non-null → build VO. Mixed null/non-null rejected in beforeExecute.
+    if (data.latitude !== undefined && data.longitude !== undefined) {
+      if (data.latitude === null && data.longitude === null) {
         const updateCoordsResult = location.updateCoordinates(null);
         if (updateCoordsResult.isFailure) {
           return this.fail(updateCoordsResult.error!);
         }
-      } else if (
-        request.latitude !== null &&
-        request.longitude !== null
-      ) {
+      } else if (data.latitude !== null && data.longitude !== null) {
         const coordResult = Coordinates.create({
-          latitude: request.latitude,
-          longitude: request.longitude,
-          altitude: request.altitude ?? undefined
+          latitude: data.latitude,
+          longitude: data.longitude,
+          altitude: data.altitude ?? undefined
         });
         if (coordResult.isFailure) {
           return this.fail(
@@ -240,7 +230,6 @@ export class UpdateLocationUseCase extends UseCase<
           return this.fail(updateCoordsResult.error!);
         }
       }
-      // Mixed null/non-null is rejected in beforeExecute; no else branch needed.
     }
 
     // Persist — domain events are dispatched by the repository implementation

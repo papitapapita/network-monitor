@@ -1,17 +1,15 @@
-import { IDeviceRepository } from '../../../domain/device-inventory/repository/IDeviceRepository';
-import { DeviceStatus } from '../../../domain/device-inventory/value-objects/DeviceStatus';
-import { DeviceCategory } from '../../../domain/device-inventory/value-objects/DeviceCategory';
-import { DeviceOwnerType } from '../../../domain/device-inventory/enums/DeviceOwnerType';
+import { IDeviceRepository } from 'domain/device-inventory/repository';
 import {
-  DeviceModelId,
-  LocationId
-} from '../../../domain/shared/ids';
-import { Result } from '../../../domain/shared/core/Result';
-import { UseCase } from '../../shared/core/UseCase';
-import { ILogger } from '../../shared/interfaces/ILogger';
-import { ListDevicesQueryDTO } from '../dtos/ListDevicesQueryDTO';
-import { DeviceListResponseDTO } from '../dtos/DeviceListResponseDTO';
-import { DeviceMapper } from '../mappers/DeviceMapper';
+  DeviceStatus,
+  DeviceCategory
+} from 'domain/device-inventory/value-objects';
+import { DeviceOwnerType } from 'domain/device-inventory/enums';
+import { DeviceModelId, LocationId } from 'domain/shared/ids';
+import { Result } from 'domain/shared/core';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
+import { ListDevicesQueryDTO, DeviceListResponseDTO } from '../dtos';
+import { DeviceMapper } from '../mappers';
 
 /**
  * ListDevicesUseCase

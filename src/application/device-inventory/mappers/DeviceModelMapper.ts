@@ -1,7 +1,9 @@
-import { DeviceModel } from '../../../domain/device-inventory/aggregates';
+import { DeviceModel } from 'domain/device-inventory';
 import {
   DeviceModelResponseDTO,
-  DeviceModelListResponseDTO
+  DeviceModelListResponseDTO,
+  CreateDeviceModelRequestDTO,
+  UpdateDeviceModelRequestDTO
 } from '../dtos';
 
 export class DeviceModelMapper {
@@ -33,5 +35,25 @@ export class DeviceModelMapper {
       limit,
       offset
     };
+  }
+
+  public static extractCreateData(dto: CreateDeviceModelRequestDTO) {
+    return {
+      vendorId: dto.vendorId,
+      model: dto.model,
+      deviceType: dto.deviceType
+    };
+  }
+
+  public static extractUpdateData(dto: UpdateDeviceModelRequestDTO) {
+    const updates: {
+      vendorId?: string;
+      model?: string;
+      deviceType?: string;
+    } = {};
+    if (dto.vendorId !== undefined) updates.vendorId = dto.vendorId;
+    if (dto.model !== undefined) updates.model = dto.model;
+    if (dto.deviceType !== undefined) updates.deviceType = dto.deviceType;
+    return updates;
   }
 }

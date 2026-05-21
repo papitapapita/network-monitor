@@ -1,11 +1,11 @@
-import { VendorId } from '../../../domain/shared/ids';
+import { VendorId } from 'domain/shared/ids';
 import {
   IVendorRepository,
   IDeviceModelRepository
-} from '../../../domain/device-inventory/repository';
-import { Result } from '../../../domain/shared/core';
-import { UseCase } from '../../shared/core';
-import { ILogger } from '../../shared/interfaces';
+} from 'domain/device-inventory/repository';
+import { Result } from 'domain/shared/core';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
 import { DeleteVendorRequestDTO } from '../dtos';
 
 export class DeleteVendorUseCase extends UseCase<

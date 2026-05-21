@@ -1,18 +1,17 @@
-import { IPAddress } from 'domain/shared';
+import { IPAddress, MACAddress } from 'domain/shared/value-objects';
+import { DeviceModelId, LocationId } from 'domain/shared/ids';
+import { Result } from 'domain/shared/core';
 import { Device } from 'domain/device-inventory/aggregates';
 import { IDeviceRepository } from 'domain/device-inventory/repository';
 import { DeviceOwnerType } from 'domain/device-inventory/enums';
-import { DeviceModelId, LocationId } from 'domain/shared/ids';
-import { Result } from 'domain/shared/core';
-import { UseCase } from '../../shared/core';
-import { ILogger } from '../../shared/interfaces';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
 import { CreateDeviceRequestDTO, DeviceResponseDTO } from '../dtos';
 import { DeviceMapper } from '../mappers';
 import {
   DeviceStatus,
   DeviceCategory,
   SerialNumber,
-  MACAddress,
   DeviceName
 } from 'domain/device-inventory/value-objects';
 
@@ -149,9 +148,10 @@ export class CreateDeviceUseCase extends UseCase<
   protected async executeImpl(
     request: CreateDeviceRequestDTO
   ): Promise<Result<DeviceResponseDTO>> {
-    // Parse deviceModelId UUID
+    const data = DeviceMapper.extractCreateData(request);
+
     const deviceModelIdResult = DeviceModelId.parse(
-      request.deviceModelId.trim()
+      data.deviceModelId.trim()
     );
     if (deviceModelIdResult.isFailure) {
       return this.fail(
@@ -159,12 +159,9 @@ export class CreateDeviceUseCase extends UseCase<
       );
     }
 
-    // Parse optional locationId UUID
     let locationId: LocationId | null = null;
-    if (request.locationId) {
-      const locationIdResult = LocationId.parse(
-        request.locationId.trim()
-      );
+    if (data.locationId) {
+      const locationIdResult = LocationId.parse(data.locationId.trim());
       if (locationIdResult.isFailure) {
         return this.fail(
           `Invalid locationId: ${locationIdResult.error}`
@@ -173,46 +170,39 @@ export class CreateDeviceUseCase extends UseCase<
       locationId = locationIdResult.value;
     }
 
-    // Build DeviceName value object
-    const nameResult = DeviceName.create(request.name);
+    const nameResult = DeviceName.create(data.name);
     if (nameResult.isFailure) {
       return this.fail(nameResult.error!);
     }
 
-    // Build DeviceStatus value object — defaults to INVENTORY
     const statusResult = DeviceStatus.create(
-      request.status ?? DeviceStatus.INVENTORY
+      data.status ?? DeviceStatus.INVENTORY
     );
     if (statusResult.isFailure) {
       return this.fail(statusResult.error!);
     }
 
-    // Build optional DeviceCategory value object
     let category: DeviceCategory | null = null;
-    if (request.category) {
-      const categoryResult = DeviceCategory.create(request.category);
+    if (data.category) {
+      const categoryResult = DeviceCategory.create(data.category);
       if (categoryResult.isFailure) {
         return this.fail(categoryResult.error!);
       }
       category = categoryResult.value;
     }
 
-    // Build optional SerialNumber value object
     let serialNumber: SerialNumber | null = null;
-    if (request.serialNumber) {
-      const serialNumberResult = SerialNumber.create(
-        request.serialNumber
-      );
+    if (data.serialNumber) {
+      const serialNumberResult = SerialNumber.create(data.serialNumber);
       if (serialNumberResult.isFailure) {
         return this.fail(serialNumberResult.error!);
       }
       serialNumber = serialNumberResult.value;
     }
 
-    // Build optional MACAddress and enforce uniqueness
     let macAddress: MACAddress | null = null;
-    if (request.macAddress) {
-      const macResult = MACAddress.create(request.macAddress);
+    if (data.macAddress) {
+      const macResult = MACAddress.create(data.macAddress);
       if (macResult.isFailure) {
         return this.fail(macResult.error!);
       }
@@ -227,15 +217,14 @@ export class CreateDeviceUseCase extends UseCase<
       }
       if (macExistsResult.value) {
         return this.fail(
-          `MAC address "${request.macAddress}" is already assigned to another device`
+          `MAC address "${data.macAddress}" is already assigned to another device`
         );
       }
     }
 
-    // Build optional IPAddress and enforce uniqueness
     let ipAddress: IPAddress | null = null;
-    if (request.ipAddress) {
-      const ipResult = IPAddress.create(request.ipAddress);
+    if (data.ipAddress) {
+      const ipResult = IPAddress.create(data.ipAddress);
       if (ipResult.isFailure) {
         return this.fail(ipResult.error!);
       }
@@ -250,39 +239,37 @@ export class CreateDeviceUseCase extends UseCase<
       }
       if (ipExistsResult.value) {
         return this.fail(
-          `IP address "${request.ipAddress}" is already assigned to another device`
+          `IP address "${data.ipAddress}" is already assigned to another device`
         );
       }
     }
 
-    // Parse optional installedDate from ISO 8601 string
     let installedDate: Date | null = null;
-    if (request.installedDate) {
-      const parsed = new Date(request.installedDate);
+    if (data.installedDate) {
+      const parsed = new Date(data.installedDate);
       if (isNaN(parsed.getTime())) {
         return this.fail(
-          `Invalid installedDate: "${request.installedDate}". Must be a valid ISO 8601 date string.`
+          `Invalid installedDate: "${data.installedDate}". Must be a valid ISO 8601 date string.`
         );
       }
       installedDate = parsed;
     }
 
-    // Delegate aggregate construction to the domain — no business logic here
     const deviceResult = Device.create({
       deviceModelId: deviceModelIdResult.value,
       locationId,
       name: nameResult.value,
       status: statusResult.value,
       category,
-      ownerType: request.ownerType
-        ? (request.ownerType.toUpperCase() as DeviceOwnerType)
+      ownerType: data.ownerType
+        ? (data.ownerType.toUpperCase() as DeviceOwnerType)
         : null,
       serialNumber,
       macAddress,
       ipAddress,
-      description: request.description ?? null,
+      description: data.description,
       installedDate,
-      monitoringEnabled: request.monitoringEnabled ?? false
+      monitoringEnabled: data.monitoringEnabled
     });
 
     if (deviceResult.isFailure) {

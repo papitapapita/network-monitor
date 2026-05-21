@@ -1,6 +1,6 @@
 import { Result } from 'domain/shared/core';
-import { UseCase } from '../../shared/core';
-import { ILogger } from '../../shared/interfaces';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
 import {
   ScanNetworkSegmentRequestDTO,
   ScanNetworkSegmentResponseDTO

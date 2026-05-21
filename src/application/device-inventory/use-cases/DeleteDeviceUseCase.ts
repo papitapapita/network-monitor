@@ -1,8 +1,8 @@
-import { DeviceId } from '../../../domain/shared/ids';
-import { IDeviceRepository } from '../../../domain/device-inventory/repository/IDeviceRepository';
-import { Result } from '../../../domain/shared/core/Result';
-import { UseCase } from '../../shared/core/UseCase';
-import { ILogger } from '../../shared/interfaces/ILogger';
+import { DeviceId } from 'domain/shared/ids';
+import { IDeviceRepository } from 'domain/device-inventory/repository';
+import { Result } from 'domain/shared/core';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
 import { DeleteDeviceRequestDTO } from '../dtos/DeleteDeviceRequestDTO';
 
 /**

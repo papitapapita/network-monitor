@@ -1,8 +1,8 @@
-import { VendorId } from '../../../domain/shared/ids';
-import { IVendorRepository } from '../../../domain/device-inventory/repository';
-import { Result } from '../../../domain/shared/core';
-import { UseCase } from '../../shared/core';
-import { ILogger } from '../../shared/interfaces';
+import { VendorId } from 'domain/shared/ids';
+import { IVendorRepository } from 'domain/device-inventory/repository';
+import { Result } from 'domain/shared/core';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
 import { VendorMapper } from '../mappers';
 import { GetVendorRequestDTO, VendorResponseDTO } from '../dtos';
 

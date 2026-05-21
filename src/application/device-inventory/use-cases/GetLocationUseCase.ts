@@ -1,11 +1,10 @@
-import { LocationId } from '../../../domain/shared/ids';
-import { ILocationRepository } from '../../../domain/device-inventory/repository/ILocationRepository';
-import { Result } from '../../../domain/shared/core/Result';
-import { UseCase } from '../../shared/core/UseCase';
-import { ILogger } from '../../shared/interfaces/ILogger';
-import { GetLocationRequestDTO } from '../dtos/GetLocationRequestDTO';
-import { LocationResponseDTO } from '../dtos/LocationResponseDTO';
-import { LocationMapper } from '../mappers/LocationMapper';
+import { LocationId } from 'domain/shared/ids';
+import { ILocationRepository } from 'domain/device-inventory/repository';
+import { Result } from 'domain/shared/core';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
+import { GetLocationRequestDTO, LocationResponseDTO } from '../dtos';
+import { LocationMapper } from '../mappers';
 
 /**
  * GetLocationUseCase
