@@ -34,7 +34,11 @@ export function createScanRoutes(controller: ScanController): Router {
    *   404 - Referenced DeviceModel does not exist
    *   500 - Unexpected infrastructure error
    */
-  router.post('/', validateRequest(scanNetworkSegmentSchema), controller.scan);
+  router.post(
+    '/',
+    validateRequest(scanNetworkSegmentSchema),
+    controller.scan
+  );
 
   return router;
 }

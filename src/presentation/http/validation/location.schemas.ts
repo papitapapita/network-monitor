@@ -36,7 +36,8 @@ const LOCATION_TYPES = [
   'DATACENTER',
   'POP',
   'WAREHOUSE',
-  'OFFICE'
+  'OFFICE',
+  'OTHER'
 ] as const;
 
 // =====================================
@@ -329,8 +330,18 @@ export const updateLocationSchema = z.object({
  * TypeScript types inferred from Zod schemas.
  * Use these types in LocationController for compile-time safety.
  */
-export type CreateLocationInput = z.infer<typeof createLocationSchema>['body'];
-export type ListLocationsQuery = z.infer<typeof listLocationsSchema>['query'];
-export type GetLocationByIdParams = z.infer<typeof getLocationByIdSchema>['params'];
-export type UpdateLocationInput = z.infer<typeof updateLocationSchema>['body'];
-export type UpdateLocationParams = z.infer<typeof updateLocationSchema>['params'];
+export type CreateLocationInput = z.infer<
+  typeof createLocationSchema
+>['body'];
+export type ListLocationsQuery = z.infer<
+  typeof listLocationsSchema
+>['query'];
+export type GetLocationByIdParams = z.infer<
+  typeof getLocationByIdSchema
+>['params'];
+export type UpdateLocationInput = z.infer<
+  typeof updateLocationSchema
+>['body'];
+export type UpdateLocationParams = z.infer<
+  typeof updateLocationSchema
+>['params'];

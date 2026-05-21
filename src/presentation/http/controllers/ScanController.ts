@@ -46,7 +46,10 @@ export class ScanController {
    *   404 - Referenced DeviceModel does not exist
    *   500 - Unexpected infrastructure error
    */
-  public scan = async (req: Request, res: Response): Promise<void> => {
+  public scan = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const body = req.body as ScanNetworkSegmentInput;
 
@@ -56,7 +59,9 @@ export class ScanController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ success: false, error: result.error });
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
         return;
       }
 
@@ -96,10 +101,16 @@ export class ScanController {
     const errorMessage =
       error instanceof Error ? error.message : String(error);
 
-    this.logger.error('Unexpected error in ScanController', error as Error, {
-      error: errorMessage
-    });
+    this.logger.error(
+      'Unexpected error in ScanController',
+      error as Error,
+      {
+        error: errorMessage
+      }
+    );
 
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    res
+      .status(500)
+      .json({ success: false, error: 'Internal server error' });
   }
 }

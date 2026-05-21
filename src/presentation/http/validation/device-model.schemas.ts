@@ -39,7 +39,10 @@ export const getDeviceModelByIdSchema = z.object({
   params: z.object({
     id: z
       .string()
-      .regex(UUID_REGEX, 'Invalid device model ID (must be a UUID v4)')
+      .regex(
+        UUID_REGEX,
+        'Invalid device model ID (must be a UUID v4)'
+      )
   })
 });
 
@@ -67,7 +70,10 @@ export const updateDeviceModelSchema = z.object({
   params: z.object({
     id: z
       .string()
-      .regex(UUID_REGEX, 'Invalid device model ID (must be a UUID v4)')
+      .regex(
+        UUID_REGEX,
+        'Invalid device model ID (must be a UUID v4)'
+      )
   }),
   body: z
     .object({
@@ -104,7 +110,10 @@ export const deleteDeviceModelSchema = z.object({
   params: z.object({
     id: z
       .string()
-      .regex(UUID_REGEX, 'Invalid device model ID (must be a UUID v4)')
+      .regex(
+        UUID_REGEX,
+        'Invalid device model ID (must be a UUID v4)'
+      )
   })
 });
 

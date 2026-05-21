@@ -7,6 +7,8 @@ import { createVendorRoutes } from './vendor.routes';
 import { createPollingRoutes } from './polling.routes';
 import { createAlertRoutes } from './alert.routes';
 import { createScanRoutes } from './scan.routes';
+import { createWirelessRoutes } from './wireless.routes';
+import { createCredentialsRoutes } from './credentials.routes';
 
 /**
  * setupRoutes
@@ -39,6 +41,12 @@ export function setupRoutes(
     createDeviceRoutes(container.deviceController)
   );
 
+  // Device credentials: /api/devices/:id/credentials
+  apiRouter.use(
+    '/devices',
+    createCredentialsRoutes(container.credentialsController)
+  );
+
   // Device Models: /api/device-models
   apiRouter.use(
     '/device-models',
@@ -66,7 +74,20 @@ export function setupRoutes(
   // =====================================
 
   // Alerts: /api/alerts
-  apiRouter.use('/alerts', createAlertRoutes(container.alertController));
+  apiRouter.use(
+    '/alerts',
+    createAlertRoutes(container.alertController)
+  );
+
+  // =====================================
+  // WIRELESS-MONITORING BOUNDED CONTEXT
+  // =====================================
+
+  // Wireless: /api/devices/:id/wireless/*, /api/wireless/*
+  apiRouter.use(
+    '/',
+    createWirelessRoutes(container.wirelessController)
+  );
 
   // =====================================
   // NETWORK DISCOVERY
@@ -81,3 +102,6 @@ export function setupRoutes(
   // Mount API router under /api prefix
   app.use('/api', apiRouter);
 }
+
+export { createWirelessRoutes };
+export { createCredentialsRoutes };

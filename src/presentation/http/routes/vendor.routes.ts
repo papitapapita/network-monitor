@@ -9,12 +9,22 @@ import {
   listVendorsSchema
 } from '../validation';
 
-export function createVendorRoutes(controller: VendorController): Router {
+export function createVendorRoutes(
+  controller: VendorController
+): Router {
   const router = Router();
 
-  router.post('/', validateRequest(createVendorSchema), controller.create);
+  router.post(
+    '/',
+    validateRequest(createVendorSchema),
+    controller.create
+  );
 
-  router.get('/', validateRequest(listVendorsSchema), controller.list);
+  router.get(
+    '/',
+    validateRequest(listVendorsSchema),
+    controller.list
+  );
 
   router.get(
     '/:id',

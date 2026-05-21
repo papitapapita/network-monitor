@@ -18,13 +18,18 @@ export class VendorController {
     private readonly logger: ILogger
   ) {}
 
-  public create = async (req: Request, res: Response): Promise<void> => {
+  public create = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const result = await this.createUseCase.execute(req.body);
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ success: false, error: result.error });
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
         return;
       }
 
@@ -34,16 +39,23 @@ export class VendorController {
     }
   };
 
-  public list = async (req: Request, res: Response): Promise<void> => {
+  public list = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const result = await this.listUseCase.execute({
         limit: req.query.limit ? Number(req.query.limit) : undefined,
-        offset: req.query.offset ? Number(req.query.offset) : undefined
+        offset: req.query.offset
+          ? Number(req.query.offset)
+          : undefined
       });
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ success: false, error: result.error });
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
         return;
       }
 
@@ -53,13 +65,20 @@ export class VendorController {
     }
   };
 
-  public getById = async (req: Request, res: Response): Promise<void> => {
+  public getById = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
-      const result = await this.getUseCase.execute({ id: req.params.id });
+      const result = await this.getUseCase.execute({
+        id: req.params.id
+      });
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ success: false, error: result.error });
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
         return;
       }
 
@@ -69,7 +88,10 @@ export class VendorController {
     }
   };
 
-  public update = async (req: Request, res: Response): Promise<void> => {
+  public update = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const result = await this.updateUseCase.execute({
         id: req.params.id,
@@ -78,7 +100,9 @@ export class VendorController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ success: false, error: result.error });
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
         return;
       }
 
@@ -88,13 +112,20 @@ export class VendorController {
     }
   };
 
-  public delete = async (req: Request, res: Response): Promise<void> => {
+  public delete = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
-      const result = await this.deleteUseCase.execute({ id: req.params.id });
+      const result = await this.deleteUseCase.execute({
+        id: req.params.id
+      });
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ success: false, error: result.error });
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
         return;
       }
 
@@ -136,10 +167,16 @@ export class VendorController {
     const errorMessage =
       error instanceof Error ? error.message : String(error);
 
-    this.logger.error('Unexpected error in VendorController', error as Error, {
-      error: errorMessage
-    });
+    this.logger.error(
+      'Unexpected error in VendorController',
+      error as Error,
+      {
+        error: errorMessage
+      }
+    );
 
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    res
+      .status(500)
+      .json({ success: false, error: 'Internal server error' });
   }
 }

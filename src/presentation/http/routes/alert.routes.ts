@@ -3,7 +3,9 @@ import { AlertController } from '../controllers/AlertController';
 import { validateRequest } from '../middleware/validateRequest';
 import { listAlertsSchema } from '../validation/alert.schemas';
 
-export function createAlertRoutes(controller: AlertController): Router {
+export function createAlertRoutes(
+  controller: AlertController
+): Router {
   const router = Router();
 
   // GET /api/alerts

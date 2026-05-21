@@ -61,7 +61,10 @@ export class DeviceController {
    *   400 - Validation failure or business rule violation (duplicate MAC/IP)
    *   500 - Unexpected infrastructure error
    */
-  public create = async (req: Request, res: Response): Promise<void> => {
+  public create = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const body = req.body as CreateDeviceInput;
 
@@ -82,7 +85,9 @@ export class DeviceController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ success: false, error: result.error });
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
         return;
       }
 
@@ -105,7 +110,10 @@ export class DeviceController {
    *   400 - Invalid filter or pagination values
    *   500 - Unexpected infrastructure error
    */
-  public list = async (req: Request, res: Response): Promise<void> => {
+  public list = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const q = req.query as Record<string, string | undefined>;
 
@@ -133,7 +141,9 @@ export class DeviceController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ success: false, error: result.error });
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
         return;
       }
 
@@ -156,13 +166,20 @@ export class DeviceController {
    *   404 - Device does not exist
    *   500 - Unexpected infrastructure error
    */
-  public getById = async (req: Request, res: Response): Promise<void> => {
+  public getById = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
-      const result = await this.getUseCase.execute({ id: req.params.id });
+      const result = await this.getUseCase.execute({
+        id: req.params.id
+      });
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ success: false, error: result.error });
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
         return;
       }
 
@@ -187,7 +204,10 @@ export class DeviceController {
    *   404 - Device does not exist
    *   500 - Unexpected infrastructure error
    */
-  public update = async (req: Request, res: Response): Promise<void> => {
+  public update = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const body = req.body as UpdateDeviceInput;
 
@@ -198,7 +218,9 @@ export class DeviceController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ success: false, error: result.error });
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
         return;
       }
 
@@ -221,13 +243,20 @@ export class DeviceController {
    *   404 - Device does not exist
    *   500 - Unexpected infrastructure error
    */
-  public delete = async (req: Request, res: Response): Promise<void> => {
+  public delete = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
-      const result = await this.deleteUseCase.execute({ id: req.params.id });
+      const result = await this.deleteUseCase.execute({
+        id: req.params.id
+      });
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ success: false, error: result.error });
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
         return;
       }
 
@@ -268,10 +297,16 @@ export class DeviceController {
     const errorMessage =
       error instanceof Error ? error.message : String(error);
 
-    this.logger.error('Unexpected error in DeviceController', error as Error, {
-      error: errorMessage
-    });
+    this.logger.error(
+      'Unexpected error in DeviceController',
+      error as Error,
+      {
+        error: errorMessage
+      }
+    );
 
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    res
+      .status(500)
+      .json({ success: false, error: 'Internal server error' });
   }
 }

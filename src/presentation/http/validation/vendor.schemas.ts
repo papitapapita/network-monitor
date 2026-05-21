@@ -33,7 +33,9 @@ export const createVendorSchema = z.object({
 
 export const updateVendorSchema = z.object({
   params: z.object({
-    id: z.string().regex(UUID_REGEX, 'Invalid vendor ID (must be a UUID v4)')
+    id: z
+      .string()
+      .regex(UUID_REGEX, 'Invalid vendor ID (must be a UUID v4)')
   }),
   body: z
     .object({
@@ -72,13 +74,17 @@ export const updateVendorSchema = z.object({
 
 export const getVendorByIdSchema = z.object({
   params: z.object({
-    id: z.string().regex(UUID_REGEX, 'Invalid vendor ID (must be a UUID v4)')
+    id: z
+      .string()
+      .regex(UUID_REGEX, 'Invalid vendor ID (must be a UUID v4)')
   })
 });
 
 export const deleteVendorSchema = z.object({
   params: z.object({
-    id: z.string().regex(UUID_REGEX, 'Invalid vendor ID (must be a UUID v4)')
+    id: z
+      .string()
+      .regex(UUID_REGEX, 'Invalid vendor ID (must be a UUID v4)')
   })
 });
 

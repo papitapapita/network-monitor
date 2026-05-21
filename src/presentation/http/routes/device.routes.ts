@@ -26,7 +26,9 @@ import {
  * @param controller - DeviceController instance (injected by DI container)
  * @returns Express router with all device routes
  */
-export function createDeviceRoutes(controller: DeviceController): Router {
+export function createDeviceRoutes(
+  controller: DeviceController
+): Router {
   const router = Router();
 
   // =====================================
@@ -56,7 +58,11 @@ export function createDeviceRoutes(controller: DeviceController): Router {
    *   400 - Validation failure or business constraint violation
    *   500 - Unexpected infrastructure error
    */
-  router.post('/', validateRequest(createDeviceSchema), controller.create);
+  router.post(
+    '/',
+    validateRequest(createDeviceSchema),
+    controller.create
+  );
 
   /**
    * GET /api/devices
@@ -80,7 +86,11 @@ export function createDeviceRoutes(controller: DeviceController): Router {
    *   400 - Invalid query parameters
    *   500 - Unexpected infrastructure error
    */
-  router.get('/', validateRequest(listDevicesSchema), controller.list);
+  router.get(
+    '/',
+    validateRequest(listDevicesSchema),
+    controller.list
+  );
 
   // =====================================
   // ITEM ENDPOINTS (parameterised — must come after static paths)

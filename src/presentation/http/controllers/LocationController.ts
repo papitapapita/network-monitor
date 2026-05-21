@@ -1,6 +1,9 @@
 import { Request, Response } from 'express';
 import { ILogger } from '../../../application/shared/interfaces';
-import { CreateLocationInput, UpdateLocationInput } from '../validation';
+import {
+  CreateLocationInput,
+  UpdateLocationInput
+} from '../validation';
 import {
   CreateLocationUseCase,
   GetLocationUseCase,
