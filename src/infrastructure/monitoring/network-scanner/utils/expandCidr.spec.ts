@@ -47,42 +47,60 @@ describe('expandCidr', () => {
 
   describe('capacity guard', () => {
     it('should throw "CIDR range too large" for a /21 (2046 usable hosts > 1024 limit)', () => {
-      expect(() => expandCidr('10.0.0.0/21')).toThrow('CIDR range too large');
+      expect(() => expandCidr('10.0.0.0/21')).toThrow(
+        'CIDR range too large'
+      );
     });
 
     it('should throw "CIDR range too large" for /0 even though the prefix is syntactically valid', () => {
       // /0 produces ~4 billion addresses which far exceeds the 1024-host limit
-      expect(() => expandCidr('0.0.0.0/0')).toThrow('CIDR range too large');
+      expect(() => expandCidr('0.0.0.0/0')).toThrow(
+        'CIDR range too large'
+      );
     });
   });
 
   describe('validation errors — malformed input', () => {
     it('should throw containing "missing prefix length" when no slash is present', () => {
-      expect(() => expandCidr('192.168.1.0')).toThrow('missing prefix length');
+      expect(() => expandCidr('192.168.1.0')).toThrow(
+        'missing prefix length'
+      );
     });
 
     it('should throw containing "not an integer in range 0-32" for prefix 33', () => {
-      expect(() => expandCidr('192.168.1.0/33')).toThrow('not an integer in range 0-32');
+      expect(() => expandCidr('192.168.1.0/33')).toThrow(
+        'not an integer in range 0-32'
+      );
     });
 
     it('should throw containing "not an integer in range 0-32" for a negative prefix', () => {
-      expect(() => expandCidr('192.168.1.0/-1')).toThrow('not an integer in range 0-32');
+      expect(() => expandCidr('192.168.1.0/-1')).toThrow(
+        'not an integer in range 0-32'
+      );
     });
 
     it('should throw containing "not an integer in range 0-32" for a non-numeric prefix', () => {
-      expect(() => expandCidr('192.168.1.0/abc')).toThrow('not an integer in range 0-32');
+      expect(() => expandCidr('192.168.1.0/abc')).toThrow(
+        'not an integer in range 0-32'
+      );
     });
 
     it('should throw containing "does not have exactly 4 octets" when the IP has only 3 octets', () => {
-      expect(() => expandCidr('192.168.1/24')).toThrow('does not have exactly 4 octets');
+      expect(() => expandCidr('192.168.1/24')).toThrow(
+        'does not have exactly 4 octets'
+      );
     });
 
     it('should throw containing "does not have exactly 4 octets" when the IP has 5 octets', () => {
-      expect(() => expandCidr('192.168.1.1.1/24')).toThrow('does not have exactly 4 octets');
+      expect(() => expandCidr('192.168.1.1.1/24')).toThrow(
+        'does not have exactly 4 octets'
+      );
     });
 
     it('should throw containing \'octet 4 "256"\' when the fourth octet is out of range', () => {
-      expect(() => expandCidr('192.168.1.256/24')).toThrow('octet 4 "256"');
+      expect(() => expandCidr('192.168.1.256/24')).toThrow(
+        'octet 4 "256"'
+      );
     });
 
     it('should throw containing "octet 4" when the fourth octet is an empty string', () => {
@@ -96,19 +114,30 @@ describe('expandCidr', () => {
 
       // Spot-check: first address must be numerically less than the last
       const toNum = (ip: string): number => {
-        const [a, b, c, d] = ip.split('.').map(Number) as [number, number, number, number];
-        return (a << 24 | b << 16 | c << 8 | d) >>> 0;
+        const [a, b, c, d] = ip.split('.').map(Number) as [
+          number,
+          number,
+          number,
+          number
+        ];
+        return ((a << 24) | (b << 16) | (c << 8) | d) >>> 0;
       };
 
-      expect(toNum(result[0]!)).toBeLessThan(toNum(result[result.length - 1]!));
+      expect(toNum(result[0]!)).toBeLessThan(
+        toNum(result[result.length - 1]!)
+      );
     });
 
     it('should return hosts in ascending order for a /24', () => {
       const result = expandCidr('10.10.10.0/24');
 
       for (let i = 0; i < result.length - 1; i++) {
-        const current = result[i]!.split('.').map(Number).reduce((acc, v) => acc * 256 + v, 0);
-        const next = result[i + 1]!.split('.').map(Number).reduce((acc, v) => acc * 256 + v, 0);
+        const current = result[i]!.split('.')
+          .map(Number)
+          .reduce((acc, v) => acc * 256 + v, 0);
+        const next = result[i + 1]!.split('.')
+          .map(Number)
+          .reduce((acc, v) => acc * 256 + v, 0);
         expect(current).toBeLessThan(next);
       }
     });

@@ -63,10 +63,11 @@ export class PrismaPollingConfigurationRepository
           enabled: boolean;
           interval_seconds: number;
           failures_before_down: number;
+          last_polled_at: Date | null;
         }>
       >`
         SELECT pc.id, pc.device_id, pc.ip_address, pc.enabled,
-               pc.interval_seconds, pc.failures_before_down
+               pc.interval_seconds, pc.failures_before_down, pc.last_polled_at
         FROM polling_configurations pc
         LEFT JOIN device_states ds ON ds.device_id = pc.device_id
         WHERE pc.enabled = true
@@ -84,7 +85,8 @@ export class PrismaPollingConfigurationRepository
           ipAddress: r.ip_address,
           enabled: r.enabled,
           pingIntervalSecs: r.interval_seconds,
-          failuresBeforeDown: r.failures_before_down
+          failuresBeforeDown: r.failures_before_down,
+          lastPolledAt: r.last_polled_at
         })
       );
 
@@ -108,7 +110,8 @@ export class PrismaPollingConfigurationRepository
           ipAddress: data.ipAddress,
           enabled: data.enabled,
           pingIntervalSecs: data.pingIntervalSecs,
-          failuresBeforeDown: data.failuresBeforeDown
+          failuresBeforeDown: data.failuresBeforeDown,
+          lastPolledAt: data.lastPolledAt
         },
         create: {
           id: data.id,
@@ -116,7 +119,8 @@ export class PrismaPollingConfigurationRepository
           ipAddress: data.ipAddress,
           enabled: data.enabled,
           pingIntervalSecs: data.pingIntervalSecs,
-          failuresBeforeDown: data.failuresBeforeDown
+          failuresBeforeDown: data.failuresBeforeDown,
+          lastPolledAt: data.lastPolledAt
         }
       });
 

@@ -46,7 +46,9 @@ type LocationPersistenceData = {
  * - Optional address fields (municipality, neighborhood, address) preserved as-is
  */
 export class LocationMapper {
-  public static toDomain(raw: PrismaLocationRecord): Result<Location> {
+  public static toDomain(
+    raw: PrismaLocationRecord
+  ): Result<Location> {
     const locationIdResult = LocationId.parse(raw.id);
     if (locationIdResult.isFailure) {
       return Result.fail<Location>(
@@ -62,7 +64,8 @@ export class LocationMapper {
       coordinates = Coordinates.reconstitute({
         latitude: Number(raw.latitude),
         longitude: Number(raw.longitude),
-        altitude: raw.altitude != null ? Number(raw.altitude) : undefined
+        altitude:
+          raw.altitude != null ? Number(raw.altitude) : undefined
       });
     }
 
@@ -80,7 +83,9 @@ export class LocationMapper {
     return Result.ok<Location>(location);
   }
 
-  public static toPersistence(location: Location): LocationPersistenceData {
+  public static toPersistence(
+    location: Location
+  ): LocationPersistenceData {
     const coordinates = location.coordinates;
 
     return {
@@ -109,7 +114,9 @@ export class LocationMapper {
    * Throws on an unrecognised value — an unknown type in the database is a data
    * integrity violation that the repository's try/catch will surface as Result.fail.
    */
-  private static mapLocationTypeFromPrisma(prismaType: string): LocationType {
+  private static mapLocationTypeFromPrisma(
+    prismaType: string
+  ): LocationType {
     switch (prismaType) {
       case 'TOWER':
         return LocationType.TOWER;
@@ -130,7 +137,9 @@ export class LocationMapper {
     }
   }
 
-  private static mapLocationTypeToPrisma(locationType: LocationType): PrismaLocationType {
+  private static mapLocationTypeToPrisma(
+    locationType: LocationType
+  ): PrismaLocationType {
     switch (locationType) {
       case LocationType.TOWER:
         return 'TOWER';

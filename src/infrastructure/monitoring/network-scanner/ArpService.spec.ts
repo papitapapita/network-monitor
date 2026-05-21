@@ -8,7 +8,9 @@ jest.mock('@network-utils/arp-lookup', () => ({
 import arp from '@network-utils/arp-lookup';
 import { ArpService } from './ArpService';
 
-const mockArpToMAC = arp.toMAC as jest.MockedFunction<typeof arp.toMAC>;
+const mockArpToMAC = arp.toMAC as jest.MockedFunction<
+  typeof arp.toMAC
+>;
 
 describe('ArpService', () => {
   let service: ArpService;
@@ -36,7 +38,9 @@ describe('ArpService', () => {
     });
 
     it('should return null and swallow the error when arp.toMAC rejects', async () => {
-      mockArpToMAC.mockRejectedValue(new Error('ARP table read failed'));
+      mockArpToMAC.mockRejectedValue(
+        new Error('ARP table read failed')
+      );
 
       const result = await service.toMAC('192.168.1.1');
 

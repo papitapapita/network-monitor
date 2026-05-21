@@ -28,7 +28,9 @@ export class ArpService implements IArpService {
   // Parses /proc/net/arp to find the MAC for the given IP.
   // Each data line: IP | HW type | Flags | HW address | Mask | Device
   // Only entries with Flags & 0x2 (ATF_COM) are fully resolved.
-  private async fromProcNetArp(ipAddress: string): Promise<string | null> {
+  private async fromProcNetArp(
+    ipAddress: string
+  ): Promise<string | null> {
     const raw = await readFile('/proc/net/arp', 'utf8');
     for (const line of raw.split('\n').slice(1)) {
       const cols = line.trim().split(/\s+/);

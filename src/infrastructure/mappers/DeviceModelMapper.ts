@@ -25,7 +25,9 @@ type DeviceModelPersistenceData = {
 };
 
 export class DeviceModelMapper {
-  public static toDomain(raw: PrismaDeviceModelRecord): Result<DeviceModel> {
+  public static toDomain(
+    raw: PrismaDeviceModelRecord
+  ): Result<DeviceModel> {
     const idResult = DeviceModelId.parse(raw.id);
     if (idResult.isFailure) {
       return Result.fail<DeviceModel>(

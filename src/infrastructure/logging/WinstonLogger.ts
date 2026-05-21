@@ -80,13 +80,15 @@ export class WinstonLogger implements ILogger {
     this.logger.error(message, {
       ...this.context,
       ...context,
-      error: error
+      ...(error
         ? {
-            message: error.message,
-            stack: error.stack,
-            name: error.name
+            error: {
+              message: error.message,
+              stack: error.stack,
+              name: error.name
+            }
           }
-        : undefined
+        : {})
     });
   }
 
@@ -99,13 +101,15 @@ export class WinstonLogger implements ILogger {
       ...this.context,
       ...context,
       level: 'fatal',
-      error: error
+      ...(error
         ? {
-            message: error.message,
-            stack: error.stack,
-            name: error.name
+            error: {
+              message: error.message,
+              stack: error.stack,
+              name: error.name
+            }
           }
-        : undefined
+        : {})
     });
   }
 

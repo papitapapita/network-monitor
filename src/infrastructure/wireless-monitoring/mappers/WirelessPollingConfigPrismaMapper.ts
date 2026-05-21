@@ -52,7 +52,7 @@ export class WirelessPollingConfigPrismaMapper {
       ipAddress,
       enabled: raw.enabled,
       intervalSecs: raw.intervalSecs,
-      deviceType: raw.deviceType as 'CPE' | 'ACCESS_POINT',
+      deviceType: raw.deviceType as 'STATION' | 'ACCESS_POINT',
       linkCapacityBps:
         raw.linkCapacityBps !== null
           ? Number(raw.linkCapacityBps)

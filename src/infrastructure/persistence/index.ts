@@ -5,3 +5,4 @@ export * from './PrismaVendorRepository';
 export * from './PrismaPollingConfigurationRepository';
 export * from './PrismaPingResultRepository';
 export * from './PrismaDeviceStateRepository';
+export * from './PrismaDeviceCredentialsRepository';

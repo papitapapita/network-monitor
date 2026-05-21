@@ -4,11 +4,16 @@ jest.mock('mac-oui-lookup', () => jest.fn());
 
 import getVendor from 'mac-oui-lookup';
 import { Result } from 'domain/shared/core';
-import { IPingService, PingResponse } from 'application/device-monitoring/interfaces';
+import {
+  IPingService,
+  PingResponse
+} from 'application/device-monitoring/interfaces';
 import { IArpService } from 'application/device-inventory/interfaces';
 import { NetworkScannerService } from './NetworkScannerService';
 
-const mockGetVendor = getVendor as jest.MockedFunction<typeof getVendor>;
+const mockGetVendor = getVendor as jest.MockedFunction<
+  typeof getVendor
+>;
 
 const createMockPingService = (): jest.Mocked<IPingService> => ({
   ping: jest.fn()
@@ -18,7 +23,9 @@ const createMockArpService = (): jest.Mocked<IArpService> => ({
   toMAC: jest.fn()
 });
 
-const reachable = (latencyMs: number | null = 5): Result<PingResponse> =>
+const reachable = (
+  latencyMs: number | null = 5
+): Result<PingResponse> =>
   Result.ok({ isReachable: true, latencyMs });
 
 const unreachable = (): Result<PingResponse> =>
@@ -56,8 +63,8 @@ describe('NetworkScannerService', () => {
     it('should include only the reachable hosts when some are reachable and some are not', async () => {
       // /30 expands to two hosts: 10.0.0.1 and 10.0.0.2
       pingService.ping
-        .mockResolvedValueOnce(reachable(3))   // 10.0.0.1 — reachable
-        .mockResolvedValueOnce(unreachable());  // 10.0.0.2 — not reachable
+        .mockResolvedValueOnce(reachable(3)) // 10.0.0.1 — reachable
+        .mockResolvedValueOnce(unreachable()); // 10.0.0.2 — not reachable
 
       arpService.toMAC.mockResolvedValue(null);
       mockGetVendor.mockReturnValue(null);
@@ -129,17 +136,24 @@ describe('NetworkScannerService', () => {
       const result = await service.scan('10.0.0.0/30', 1);
 
       expect(result).toHaveLength(2);
-      expect(result.map((h) => h.ipAddress)).toEqual(['10.0.0.1', '10.0.0.2']);
+      expect(result.map((h) => h.ipAddress)).toEqual([
+        '10.0.0.1',
+        '10.0.0.2'
+      ]);
     });
   });
 
   describe('scan — invalid CIDR propagation', () => {
     it('should propagate the error thrown by expandCidr when the CIDR is invalid', async () => {
-      await expect(service.scan('not-a-cidr')).rejects.toThrow('missing prefix length');
+      await expect(service.scan('not-a-cidr')).rejects.toThrow(
+        'missing prefix length'
+      );
     });
 
     it('should propagate the error thrown by expandCidr when the CIDR range is too large', async () => {
-      await expect(service.scan('10.0.0.0/21')).rejects.toThrow('CIDR range too large');
+      await expect(service.scan('10.0.0.0/21')).rejects.toThrow(
+        'CIDR range too large'
+      );
     });
   });
 });

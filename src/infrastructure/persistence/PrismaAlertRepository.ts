@@ -17,8 +17,7 @@ export class PrismaAlertRepository implements IAlertRepository {
         update: {
           resolvedAt: data.resolvedAt,
           notifiedAt: data.notifiedAt,
-          recoveryNotifiedAt: data.recoveryNotifiedAt,
-          durationSecs: data.durationSecs
+          recoveryNotifiedAt: data.recoveryNotifiedAt
         },
         create: data
       });
@@ -39,7 +38,9 @@ export class PrismaAlertRepository implements IAlertRepository {
 
       return Result.ok(AlertMapper.toDomain(record));
     } catch (error) {
-      return Result.fail(`findById failed: ${(error as Error).message}`);
+      return Result.fail(
+        `findById failed: ${(error as Error).message}`
+      );
     }
   }
 
@@ -93,7 +94,9 @@ export class PrismaAlertRepository implements IAlertRepository {
 
       return Result.ok(records.map(AlertMapper.toDomain));
     } catch (error) {
-      return Result.fail(`findAll failed: ${(error as Error).message}`);
+      return Result.fail(
+        `findAll failed: ${(error as Error).message}`
+      );
     }
   }
 }

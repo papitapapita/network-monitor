@@ -36,7 +36,11 @@ export function expandCidr(cidr: string): string[] {
 
   const prefixLen = Number(prefixStr);
 
-  if (!Number.isInteger(prefixLen) || prefixLen < 0 || prefixLen > 32) {
+  if (
+    !Number.isInteger(prefixLen) ||
+    prefixLen < 0 ||
+    prefixLen > 32
+  ) {
     throw new Error(
       `Invalid CIDR prefix: "${prefixStr}" is not an integer in range 0-32`
     );
@@ -52,7 +56,12 @@ export function expandCidr(cidr: string): string[] {
 
   const octetNumbers = octets.map((octet, index) => {
     const num = Number(octet);
-    if (!Number.isInteger(num) || num < 0 || num > 255 || octet.trim() === '') {
+    if (
+      !Number.isInteger(num) ||
+      num < 0 ||
+      num > 255 ||
+      octet.trim() === ''
+    ) {
       throw new Error(
         `Invalid CIDR IP address: octet ${index + 1} "${octet}" is not an integer in range 0-255`
       );
@@ -65,11 +74,11 @@ export function expandCidr(cidr: string): string[] {
   // Build the 32-bit integer for the base IP using bitwise arithmetic.
   // The result of bitwise OR on signed 32-bit integers may be negative in JS
   // due to two's-complement representation; >>> 0 coerces to unsigned 32-bit.
-  const ipNum = (((a << 24) | (b << 16) | (c << 8) | d) >>> 0);
+  const ipNum = ((a << 24) | (b << 16) | (c << 8) | d) >>> 0;
 
   // A prefix of 0 means the mask is all zeros; left-shifting 32 positions is
   // undefined behaviour in JS (it wraps), so we special-case it to 0.
-  const mask = (prefixLen === 0 ? 0 : (~0 << (32 - prefixLen))) >>> 0;
+  const mask = (prefixLen === 0 ? 0 : ~0 << (32 - prefixLen)) >>> 0;
 
   const network = (ipNum & mask) >>> 0;
   const broadcast = (network | (~mask >>> 0)) >>> 0;

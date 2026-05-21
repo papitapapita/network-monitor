@@ -1,7 +1,8 @@
 import getVendorImport from 'mac-oui-lookup';
 // mac-oui-lookup ships as CJS with a .default re-export; normalise at import time.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getVendor: (mac: string) => string | null = (getVendorImport as any).default ?? getVendorImport;
+const getVendor: (mac: string) => string | null =
+  (getVendorImport as any).default ?? getVendorImport;
 import { IPingService } from 'application/device-monitoring/interfaces';
 import {
   INetworkScannerService,
@@ -76,7 +77,12 @@ export class NetworkScannerService implements INetworkScannerService {
           const manufacturer =
             macAddress !== null ? getVendor(macAddress) : null;
 
-          return { ipAddress: ip, macAddress, manufacturer, latencyMs };
+          return {
+            ipAddress: ip,
+            macAddress,
+            manufacturer,
+            latencyMs
+          };
         })
       );
 
