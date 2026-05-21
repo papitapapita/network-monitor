@@ -1,5 +1,11 @@
-import { WirelessMetrics, WirelessAlertRecord } from 'domain/wireless-monitoring';
-import { AlertDecision, EvaluationContext } from '../services/WirelessAlertEvaluator';
+import {
+  WirelessMetrics,
+  WirelessAlertRecord
+} from 'domain/wireless-monitoring';
+import {
+  AlertDecision,
+  EvaluationContext
+} from '../services/WirelessAlertEvaluator';
 
 /**
  * Application-layer abstraction for the wireless alert evaluation service.

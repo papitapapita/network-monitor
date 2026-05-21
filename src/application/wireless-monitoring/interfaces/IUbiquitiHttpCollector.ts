@@ -40,6 +40,12 @@ export interface HttpCollectionResult {
 }
 
 export interface IUbiquitiHttpCollector {
-  collect(ipAddress: string, credentials: HttpCredentials): Promise<Result<HttpCollectionResult>>;
-  collectClients(ipAddress: string, credentials: HttpCredentials): Promise<Result<HttpClientEntry[]>>;
+  collect(
+    ipAddress: string,
+    credentials: HttpCredentials
+  ): Promise<Result<HttpCollectionResult>>;
+  collectClients(
+    ipAddress: string,
+    credentials: HttpCredentials
+  ): Promise<Result<HttpClientEntry[]>>;
 }

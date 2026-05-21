@@ -34,6 +34,8 @@ export class PollWirelessDeviceUseCase
   >
   implements IWirelessPollOrchestrator
 {
+  private readonly activePolls = new Set<string>();
+
   constructor(
     private readonly wirelessPollingConfigRepo: IWirelessPollingConfigRepository,
     private readonly snapshotRepo: IWirelessSnapshotRepository,
@@ -65,8 +67,34 @@ export class PollWirelessDeviceUseCase
       return this.fail(`Invalid device ID: ${deviceIdResult.error}`);
     }
     const deviceId = deviceIdResult.value;
+    const deviceIdStr = deviceId.toString();
     const now = new Date();
 
+    if (this.activePolls.has(deviceIdStr)) {
+      return this.ok({
+        deviceId: request.deviceId,
+        collectedAt: now.toISOString(),
+        metricsCollected: false,
+        alertsTriggered: 0,
+        alertsCleared: 0,
+        collectionMethod: 'snmp',
+        skipped: true
+      });
+    }
+
+    this.activePolls.add(deviceIdStr);
+    try {
+      return await this.poll(deviceId, now, request);
+    } finally {
+      this.activePolls.delete(deviceIdStr);
+    }
+  }
+
+  private async poll(
+    deviceId: DeviceId,
+    now: Date,
+    request: PollWirelessDeviceRequestDTO
+  ): Promise<Result<PollWirelessDeviceResponseDTO>> {
     const configResult =
       await this.wirelessPollingConfigRepo.findByDeviceId(deviceId);
     if (configResult.isFailure) {
@@ -153,6 +181,14 @@ export class PollWirelessDeviceUseCase
     } else if (isHttpOk) {
       collectionMethod = 'http_api';
     } else {
+      this.logger.warn('SNMP collector failed', {
+        deviceId: ipAddress,
+        error: snmpResult.error
+      });
+      this.logger.warn('HTTP collector failed', {
+        deviceId: ipAddress,
+        error: httpResult.error
+      });
       return this.fail(
         'Failed to collect metrics: both SNMP and HTTP collectors failed'
       );

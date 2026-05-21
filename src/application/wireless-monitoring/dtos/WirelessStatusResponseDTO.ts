@@ -34,7 +34,7 @@ export interface WirelessMetricsDTO {
 
 export interface WirelessStatusResponseDTO {
   deviceId: string;
-  deviceType: 'CPE' | 'ACCESS_POINT';
+  deviceType: 'STATION' | 'ACCESS_POINT';
   collectedAt: string;
   collectionMethod: 'snmp' | 'http_api' | 'mixed';
   metrics: WirelessMetricsDTO;

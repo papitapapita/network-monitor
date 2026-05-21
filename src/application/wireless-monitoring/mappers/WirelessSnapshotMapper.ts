@@ -1,4 +1,7 @@
-import { WirelessSnapshot, WirelessAlertRecord } from 'domain/wireless-monitoring';
+import {
+  WirelessSnapshot,
+  WirelessAlertRecord
+} from 'domain/wireless-monitoring';
 import {
   WirelessStatusResponseDTO,
   WirelessMetricsDTO
@@ -93,24 +96,26 @@ export class WirelessSnapshotMapper {
   public static toClientListDTO(
     snapshot: WirelessSnapshot
   ): WirelessClientListResponseDTO {
-    const clients: WirelessClientDTO[] = snapshot.clients.map((c) => ({
-      macAddress: c.macAddress,
-      signalRxDbm: c.signalRxDbm,
-      signalTxDbm: c.signalTxDbm,
-      snrDb: c.snrDb,
-      txRateMbps: c.txRateMbps,
-      rxRateMbps: c.rxRateMbps,
-      throughputTxBps: c.throughputTxBps,
-      throughputRxBps: c.throughputRxBps,
-      ccqPercent: c.ccqPercent,
-      uptimeSeconds: c.uptimeSeconds,
-      ipAddress: c.ipAddress,
-    }));
+    const clients: WirelessClientDTO[] = snapshot.clients.map(
+      (c) => ({
+        macAddress: c.macAddress,
+        signalRxDbm: c.signalRxDbm,
+        signalTxDbm: c.signalTxDbm,
+        snrDb: c.snrDb,
+        txRateMbps: c.txRateMbps,
+        rxRateMbps: c.rxRateMbps,
+        throughputTxBps: c.throughputTxBps,
+        throughputRxBps: c.throughputRxBps,
+        ccqPercent: c.ccqPercent,
+        uptimeSeconds: c.uptimeSeconds,
+        ipAddress: c.ipAddress
+      })
+    );
 
     return {
       deviceId: snapshot.deviceId.toString(),
       collectedAt: snapshot.collectedAt.toISOString(),
-      clients,
+      clients
     };
   }
 }

@@ -48,7 +48,7 @@ export class GetWirelessClientsUseCase extends UseCase<
       return this.fail('No wireless data found for device');
     }
 
-    if (snapshot.deviceType === 'CPE') {
+    if (snapshot.deviceType === 'STATION') {
       return this.fail(
         'NOT_AP: This device is a CPE and does not have a client list'
       );

@@ -14,7 +14,10 @@ export interface CounterDelta {
 }
 
 export interface IWirelessCounterStore {
-  computeDelta(deviceId: string, current: CounterSnapshot): CounterDelta;
+  computeDelta(
+    deviceId: string,
+    current: CounterSnapshot
+  ): CounterDelta;
   store(deviceId: string, snapshot: CounterSnapshot): void;
   clear(deviceId: string): void;
 }

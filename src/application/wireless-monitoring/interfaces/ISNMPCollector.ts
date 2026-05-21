@@ -1,7 +1,7 @@
 import { Result } from 'domain/shared/core';
 
 export interface SNMPCredentials {
-  version: 2 | 3;
+  version: 1 | 2 | 3;
   community?: string;
   authUser?: string;
   authProtocol?: 'MD5' | 'SHA';
@@ -43,5 +43,8 @@ export interface SNMPCollectionResult {
 }
 
 export interface ISNMPCollector {
-  collect(ipAddress: string, credentials: SNMPCredentials): Promise<Result<SNMPCollectionResult>>;
+  collect(
+    ipAddress: string,
+    credentials: SNMPCredentials
+  ): Promise<Result<SNMPCollectionResult>>;
 }

@@ -11,5 +11,7 @@ import { PollWirelessDeviceResponseDTO } from '../dtos/PollWirelessDeviceRespons
  * implementation of this interface.
  */
 export interface IWirelessPollOrchestrator {
-  execute(request: PollWirelessDeviceRequestDTO): Promise<Result<PollWirelessDeviceResponseDTO>>;
+  execute(
+    request: PollWirelessDeviceRequestDTO
+  ): Promise<Result<PollWirelessDeviceResponseDTO>>;
 }
