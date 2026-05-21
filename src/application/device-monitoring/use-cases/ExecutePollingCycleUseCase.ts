@@ -87,9 +87,13 @@ export class ExecutePollingCycleUseCase extends UseCase<
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       if (attempt > 0) {
-        await new Promise(resolve => setTimeout(resolve, this.retryDelayMs));
+        await new Promise((resolve) =>
+          setTimeout(resolve, this.retryDelayMs)
+        );
       }
-      const pingResult = await this.pingService.ping(config.ipAddress.value);
+      const pingResult = await this.pingService.ping(
+        config.ipAddress.value
+      );
       if (pingResult.isFailure) {
         return this.fail(`Ping execution error: ${pingResult.error}`);
       }
@@ -123,10 +127,19 @@ export class ExecutePollingCycleUseCase extends UseCase<
       : stateResult.value!;
 
     // 7. Apply ping result — transition logic and events are here
-    deviceState.applyPingResult(isReachable, latencyMs, now, isFirstPoll);
+    deviceState.applyPingResult(
+      isReachable,
+      latencyMs,
+      now,
+      isFirstPoll
+    );
 
     // 8. Persist (repository dispatches events)
     await this.deviceStateRepo.save(deviceState);
+
+    // 9. Record when this config was last polled
+    config.markPolled(now);
+    await this.pollingConfigRepo.save(config);
 
     return this.ok(
       PollingMapper.toPollResultDTO({
