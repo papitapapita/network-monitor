@@ -53,7 +53,6 @@ function makeAlert(): Alert {
     resolvedAt:         null,
     notifiedAt:         null,
     recoveryNotifiedAt: null,
-    durationSecs:       null
   });
 }
 

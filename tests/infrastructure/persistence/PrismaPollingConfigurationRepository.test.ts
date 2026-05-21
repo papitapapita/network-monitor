@@ -56,14 +56,14 @@ function makeFakePrismaRow(id = VALID_CONFIG_UUID) {
 
 function makeFakeDomainEntity(): PollingConfiguration {
   return PollingConfiguration.reconstitute(
+    PollingConfigurationId.parse(VALID_CONFIG_UUID).value,
     {
       deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
       ipAddress: IPAddress.reconstitute(TEST_IP),
       interval: PollingInterval.reconstitute({ seconds: 60 }),
       failuresBeforeDown: FailureThreshold.reconstitute({ count: 3 }),
       enabled: true
-    },
-    PollingConfigurationId.parse(VALID_CONFIG_UUID).value
+    }
   );
 }
 
@@ -74,7 +74,8 @@ function makeFakePersistenceData() {
     ipAddress: TEST_IP,
     enabled: true,
     pingIntervalSecs: 60,
-    failuresBeforeDown: 3
+    failuresBeforeDown: 3,
+    lastPolledAt: null
   };
 }
 

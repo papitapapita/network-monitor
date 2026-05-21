@@ -59,8 +59,7 @@ function makeRawAlertRecord(
     startedAt: new Date('2024-01-01T00:00:00.000Z'),
     resolvedAt: null,
     notifiedAt: null,
-    recoveryNotifiedAt: null,
-    durationSecs: null
+    recoveryNotifiedAt: null
   };
 }
 
@@ -76,8 +75,7 @@ function makeFakePersistenceData(id = VALID_UUID_1): Record<string, unknown> {
     startedAt: new Date('2024-01-01T00:00:00.000Z'),
     resolvedAt: null,
     notifiedAt: null,
-    recoveryNotifiedAt: null,
-    durationSecs: null
+    recoveryNotifiedAt: null
   };
 }
 
@@ -94,8 +92,7 @@ function makeFakeAlert(id = VALID_UUID_1): Alert {
     startedAt: new Date('2024-01-01T00:00:00.000Z'),
     resolvedAt: null,
     notifiedAt: null,
-    recoveryNotifiedAt: null,
-    durationSecs: null
+    recoveryNotifiedAt: null
   });
 }
 
@@ -150,7 +147,7 @@ describe('PrismaAlertRepository', () => {
         );
       });
 
-      it('should include only resolvedAt, notifiedAt, recoveryNotifiedAt, durationSecs in the update clause', async () => {
+      it('should include only resolvedAt, notifiedAt, recoveryNotifiedAt in the update clause', async () => {
         prisma.alertEvent.upsert.mockResolvedValue(fakePersistenceData);
 
         await repository.save(fakeAlert);
@@ -163,8 +160,7 @@ describe('PrismaAlertRepository', () => {
         expect(call.update).toEqual({
           resolvedAt: fakePersistenceData.resolvedAt,
           notifiedAt: fakePersistenceData.notifiedAt,
-          recoveryNotifiedAt: fakePersistenceData.recoveryNotifiedAt,
-          durationSecs: fakePersistenceData.durationSecs
+          recoveryNotifiedAt: fakePersistenceData.recoveryNotifiedAt
         });
       });
 

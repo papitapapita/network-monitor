@@ -120,7 +120,7 @@ function makeNullMetrics(): WirelessMetrics {
 function makeSnapshot(
   overrides: Partial<{
     deviceId:         ReturnType<typeof DeviceId.parse>['value'];
-    deviceType:       'CPE' | 'ACCESS_POINT';
+    deviceType:       'STATION' | 'ACCESS_POINT';
     collectedAt:      Date;
     collectionMethod: 'snmp' | 'http_api' | 'mixed';
     metrics:          WirelessMetrics;
@@ -132,17 +132,17 @@ function makeSnapshot(
   const deviceId = DeviceId.parse(DEVICE_UUID).value!;
 
   return WirelessSnapshot.reconstitute(
+    id,
     {
       deviceId,
-      deviceType:       'CPE',
+      deviceType:       'STATION',
       collectedAt:      COLLECTED_AT,
       collectionMethod: 'snmp',
       metrics:          makeMetrics(),
       clients:          [],
       alerts:           [],
       ...overrides,
-    },
-    id
+    }
   );
 }
 
@@ -194,6 +194,7 @@ function makeAlertRecord(
   const deviceId = DeviceId.parse(DEVICE_UUID).value!;
 
   return WirelessAlertRecord.reconstitute(
+    id,
     {
       deviceId,
       metric:      'signalRxDbm',
@@ -205,8 +206,7 @@ function makeAlertRecord(
       clearedAt:   null,
       isActive:    true,
       ...overrides,
-    },
-    id
+    }
   );
 }
 
@@ -225,11 +225,11 @@ describe('WirelessSnapshotMapper', () => {
       });
 
       it('should pass deviceType CPE through unchanged', () => {
-        const snapshot = makeSnapshot({ deviceType: 'CPE' });
+        const snapshot = makeSnapshot({ deviceType: 'STATION' });
 
         const dto = WirelessSnapshotMapper.toStatusDTO(snapshot, []);
 
-        expect(dto.deviceType).toBe('CPE');
+        expect(dto.deviceType).toBe('STATION');
       });
 
       it('should pass deviceType ACCESS_POINT through unchanged', () => {

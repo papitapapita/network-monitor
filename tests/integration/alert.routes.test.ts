@@ -79,8 +79,7 @@ describe('Alert Routes — GET /api/alerts', () => {
         deviceId,
         severity: 'CRITICAL',
         startedAt,
-        resolvedAt,
-        durationSecs: 1800
+        resolvedAt
       }
     });
 

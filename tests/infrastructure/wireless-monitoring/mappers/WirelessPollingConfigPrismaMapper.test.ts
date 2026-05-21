@@ -17,7 +17,7 @@ const makeFullRow = (): PrismaWirelessPollingConfiguration => ({
   ipAddress: '192.168.1.100',
   enabled: true,
   intervalSecs: 60,
-  deviceType: 'CPE',
+  deviceType: 'STATION',
   linkCapacityBps: 100_000_000n,
   clientsProvisionedLimit: 10,
   lastPolledAt: new Date('2024-01-01T12:00:00Z'),
@@ -45,7 +45,7 @@ const buildDomainConfig = (): WirelessPollingConfig => {
     ipAddress,
     enabled: true,
     intervalSecs: 60,
-    deviceType: 'CPE',
+    deviceType: 'STATION',
     linkCapacityBps: 100_000_000,
     clientsProvisionedLimit: 10,
     lastPolledAt: new Date('2024-01-01T12:00:00Z'),
@@ -62,7 +62,7 @@ describe('WirelessPollingConfigPrismaMapper', () => {
       expect(config.ipAddress?.value).toBe('192.168.1.100');
       expect(config.enabled).toBe(true);
       expect(config.intervalSecs).toBe(60);
-      expect(config.deviceType).toBe('CPE');
+      expect(config.deviceType).toBe('STATION');
       expect(config.linkCapacityBps).toBe(100_000_000);
       expect(config.clientsProvisionedLimit).toBe(10);
       expect(config.lastPolledAt).toEqual(new Date('2024-01-01T12:00:00Z'));
@@ -131,7 +131,7 @@ describe('WirelessPollingConfigPrismaMapper', () => {
       expect(data.ipAddress).toBe('192.168.1.100');
       expect(data.enabled).toBe(true);
       expect(data.intervalSecs).toBe(60);
-      expect(data.deviceType).toBe('CPE');
+      expect(data.deviceType).toBe('STATION');
       expect(data.linkCapacityBps).toBe(100_000_000n);
       expect(data.clientsProvisionedLimit).toBe(10);
       expect(data.lastPolledAt).toEqual(new Date('2024-01-01T12:00:00Z'));

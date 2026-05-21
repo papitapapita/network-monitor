@@ -53,16 +53,16 @@ function makeSnapshot(snapshotUuid: string, collectedAt: Date): WirelessSnapshot
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const snapshotId = SnapshotId.parse(snapshotUuid).value;
   return WirelessSnapshot.reconstitute(
+    snapshotId,
     {
       deviceId,
-      deviceType: 'CPE',
+      deviceType: 'STATION',
       collectedAt,
       collectionMethod: 'snmp',
       metrics: makeNullMetrics(),
       clients: [],
       alerts: [],
-    },
-    snapshotId
+    }
   );
 }
 

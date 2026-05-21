@@ -64,16 +64,13 @@ function makePollingConfig(overrides: {
     ipAddress = ipResult.value;
   }
 
-  return PollingConfiguration.reconstitute(
-    {
-      deviceId,
-      ipAddress,
-      interval: interval.value,
-      failuresBeforeDown: threshold.value,
-      enabled: overrides.enabled ?? true
-    },
-    configId.value
-  );
+  return PollingConfiguration.reconstitute(configId.value, {
+    deviceId,
+    ipAddress,
+    interval: interval.value,
+    failuresBeforeDown: threshold.value,
+    enabled: overrides.enabled ?? true
+  });
 }
 
 function makeDeviceState(overrides: {
@@ -85,6 +82,7 @@ function makeDeviceState(overrides: {
 } = {}): DeviceState {
   const deviceId = makeDeviceId();
   return DeviceState.reconstitute(
+    deviceId,
     {
       deviceId,
       isOnline: overrides.isOnline ?? true,
@@ -95,8 +93,7 @@ function makeDeviceState(overrides: {
         ? overrides.lastCheckedAt
         : FIXED_LAST_CHECKED,
       updatedAt: FIXED_LAST_CHECKED
-    },
-    deviceId
+    }
   );
 }
 

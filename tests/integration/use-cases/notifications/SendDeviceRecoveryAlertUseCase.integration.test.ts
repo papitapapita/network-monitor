@@ -91,7 +91,6 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
     const row = await prisma.alertEvent.findFirst({ where: { deviceId } });
     expect(row!.resolvedAt).not.toBeNull();
     expect(row!.recoveryNotifiedAt).not.toBeNull();
-    expect(row!.durationSecs).toBe(300);
   });
 
   it('sends recovery notification with correct metadata', async () => {

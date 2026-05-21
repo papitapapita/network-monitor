@@ -23,6 +23,7 @@ type RawRecord = {
   enabled: boolean;
   pingIntervalSecs: number;
   failuresBeforeDown: number;
+  lastPolledAt: Date | null;
 };
 
 function makeRawRecord(overrides: Partial<RawRecord> = {}): RawRecord {
@@ -33,6 +34,7 @@ function makeRawRecord(overrides: Partial<RawRecord> = {}): RawRecord {
     enabled: true,
     pingIntervalSecs: 60,
     failuresBeforeDown: 3,
+    lastPolledAt: null,
     ...overrides
   };
 }
@@ -47,6 +49,7 @@ function makeEntity(
 ): PollingConfiguration {
   const rawIp = overrides.ipAddress !== undefined ? overrides.ipAddress : TEST_IP;
   return PollingConfiguration.reconstitute(
+    PollingConfigurationId.parse(VALID_ID).value,
     {
       deviceId: DeviceId.parse(VALID_DEVICE_ID).value,
       ipAddress: rawIp !== null ? IPAddress.reconstitute(rawIp) : null,
@@ -57,8 +60,7 @@ function makeEntity(
         count: overrides.thresholdCount ?? 3
       }),
       enabled: overrides.enabled !== undefined ? overrides.enabled : true
-    },
-    PollingConfigurationId.parse(VALID_ID).value
+    }
   );
 }
 

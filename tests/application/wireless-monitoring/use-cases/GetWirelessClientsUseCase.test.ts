@@ -48,12 +48,13 @@ function makeNullMetrics(): WirelessMetrics {
 }
 
 function makeSnapshot(
-  deviceType: 'CPE' | 'ACCESS_POINT',
+  deviceType: 'STATION' | 'ACCESS_POINT',
   clients: WirelessClientEntry[] = []
 ): WirelessSnapshot {
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const snapshotId = SnapshotId.parse(SNAPSHOT_UUID).value;
   return WirelessSnapshot.reconstitute(
+    snapshotId,
     {
       deviceId,
       deviceType,
@@ -62,8 +63,7 @@ function makeSnapshot(
       metrics: makeNullMetrics(),
       clients,
       alerts: [],
-    },
-    snapshotId
+    }
   );
 }
 
@@ -163,7 +163,7 @@ describe('GetWirelessClientsUseCase', () => {
   // ===========================================================================
   describe('executeImpl — CPE device type rejection', () => {
     it('should fail when the device is a CPE', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot('CPE')));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot('STATION')));
 
       const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
@@ -171,7 +171,7 @@ describe('GetWirelessClientsUseCase', () => {
     });
 
     it('should include NOT_AP in the error message when device is a CPE', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot('CPE')));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot('STATION')));
 
       const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 

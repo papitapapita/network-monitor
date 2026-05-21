@@ -52,22 +52,20 @@ const makeVarbind = (oid: string, value: unknown): SnmpVarbind =>
 const makeFullVarbinds = (): SnmpVarbind[] => [
   makeVarbind('1.3.6.1.2.1.1.1.0', Buffer.from('AirOS v8.7.1 XW')),
   makeVarbind('1.3.6.1.2.1.1.5.0', Buffer.from('ubnt-cpe-1')),
-  makeVarbind('1.3.6.1.2.1.1.3.0', 360000),             // 3600 seconds uptime (hundredths)
-  makeVarbind('1.3.6.1.2.1.2.2.1.8.2', 1),              // ifOperStatus UP
-  makeVarbind('1.3.6.1.2.1.2.2.1.5.2', 100_000_000),    // 100 Mbps
-  makeVarbind('1.3.6.1.2.1.31.1.1.1.6.2', '1000000'),   // ifHCInOctets
-  makeVarbind('1.3.6.1.2.1.31.1.1.1.10.2', '2000000'),  // ifHCOutOctets
-  makeVarbind('1.3.6.1.2.1.31.1.1.1.7.2', 100),         // ifInUcastPkts
-  makeVarbind('1.3.6.1.2.1.31.1.1.1.11.2', 200),        // ifOutUcastPkts
-  makeVarbind('1.3.6.1.4.1.41112.1.4.5.1.5', -65),      // ubntWlStatSignal
-  makeVarbind('1.3.6.1.4.1.41112.1.4.5.1.4', -65),      // ubntWlStatRssi
-  makeVarbind('1.3.6.1.4.1.41112.1.4.5.1.6', -95),      // ubntWlStatNoiseFloor
-  makeVarbind('1.3.6.1.4.1.41112.1.4.5.1.15', 98),      // ubntWlStatCcq
-  makeVarbind('1.3.6.1.4.1.41112.1.4.5.1.8', 54000),    // ubntWlStatTxRate (54 Mbps in kbps)
-  makeVarbind('1.3.6.1.4.1.41112.1.4.5.1.9', 48000),    // ubntWlStatRxRate (48 Mbps in kbps)
-  makeVarbind('1.3.6.1.4.1.41112.1.4.5.1.3', 5180),     // ubntWlStatFreq
-  makeVarbind('1.3.6.1.4.1.41112.1.4.5.1.11', 23),      // ubntWlStatTxPower
-  makeVarbind('1.3.6.1.4.1.41112.1.4.7.1', 3),          // ubntStaCount
+  makeVarbind('1.3.6.1.2.1.1.3.0', 360000),
+  makeVarbind('1.3.6.1.2.1.2.2.1.8.2', 1),
+  makeVarbind('1.3.6.1.2.1.2.2.1.5.2', 100_000_000),
+  makeVarbind('1.3.6.1.2.1.31.1.1.1.6.2', '1000000'),
+  makeVarbind('1.3.6.1.2.1.31.1.1.1.10.2', '2000000'),
+  makeVarbind('1.3.6.1.2.1.31.1.1.1.7.2', 100),
+  makeVarbind('1.3.6.1.2.1.31.1.1.1.11.2', 200),
+  makeVarbind('1.3.6.1.4.1.41112.1.4.1.1.4.1', 5180),
+  makeVarbind('1.3.6.1.4.1.41112.1.4.5.1.5.1', -65),       // signalRxDbm
+  makeVarbind('1.3.6.1.4.1.41112.1.4.5.1.8.1', -95),       // noiseFloorDbm
+  makeVarbind('1.3.6.1.4.1.41112.1.4.5.1.7.1', 980),       // CCQ raw → 98%
+  makeVarbind('1.3.6.1.4.1.41112.1.4.5.1.9.1', 54_000_000),  // TxRate bps → 54 Mbps
+  makeVarbind('1.3.6.1.4.1.41112.1.4.5.1.10.1', 48_000_000), // RxRate bps → 48 Mbps
+  makeVarbind('1.3.6.1.4.1.41112.1.4.8.3.0', 3),
 ];
 
 const resolveWith = (varbinds: SnmpVarbind[]) => {
@@ -105,10 +103,10 @@ describe('SNMPCollector', () => {
       expect(data.signalRxDbm).toBe(-65);
       expect(data.noiseFloorDbm).toBe(-95);
       expect(data.ccqPercent).toBe(98);
-      expect(data.txRateMbps).toBe(54);  // 54000 / 1000
-      expect(data.rxRateMbps).toBe(48);  // 48000 / 1000
+      expect(data.txRateMbps).toBe(54);  // 54_000_000 / 1_000_000
+      expect(data.rxRateMbps).toBe(48);  // 48_000_000 / 1_000_000
       expect(data.frequencyMhz).toBe(5180);
-      expect(data.txPowerDbm).toBe(23);
+      expect(data.txPowerDbm).toBeNull();
       expect(data.clientsConnected).toBe(3);
     });
 
@@ -175,14 +173,14 @@ describe('SNMPCollector', () => {
       expect(result.value.uptimeSeconds).toBe(3600); // 360000 / 100
     });
 
-    it('should return null for signalTxDbm, snrDb, channelWidthMhz, lanDuplex, cpuLoadPercent, memoryUsedPercent, remoteApMac, remoteApName, distanceM, latencyMs', async () => {
+    it('should return null for signalTxDbm, txPowerDbm, channelWidthMhz, lanDuplex, cpuLoadPercent, memoryUsedPercent, remoteApMac, remoteApName, distanceM, latencyMs', async () => {
       resolveWith(makeFullVarbinds());
 
       const result = await collector.collect('192.168.1.1', credentialsV2);
       const d = result.value;
 
       expect(d.signalTxDbm).toBeNull();
-      expect(d.snrDb).toBeNull();
+      expect(d.txPowerDbm).toBeNull();
       expect(d.channelWidthMhz).toBeNull();
       expect(d.lanDuplex).toBeNull();
       expect(d.cpuLoadPercent).toBeNull();
@@ -287,7 +285,7 @@ describe('SNMPCollector', () => {
 
     it('should treat varbinds flagged as errors by isVarbindError as absent (return null)', async () => {
       (snmp.isVarbindError as jest.Mock).mockReturnValueOnce(true);
-      const varbinds = [makeVarbind('1.3.6.1.4.1.41112.1.4.5.1.5', -65)];
+      const varbinds = [makeVarbind('1.3.6.1.4.1.41112.1.4.5.1.5.1', -65)];
       resolveWith(varbinds);
 
       const result = await collector.collect('192.168.1.1', credentialsV2);
@@ -297,7 +295,7 @@ describe('SNMPCollector', () => {
 
     it('should return null txRateMbps when the raw tx-rate OID value is null', async () => {
       const varbinds = makeFullVarbinds().map(v =>
-        v.oid === '1.3.6.1.4.1.41112.1.4.5.1.8' ? makeVarbind(v.oid, null) : v
+        v.oid === '1.3.6.1.4.1.41112.1.4.5.1.9.1' ? makeVarbind(v.oid, null) : v
       );
       resolveWith(varbinds);
 

@@ -44,7 +44,7 @@ function makeSnapshotCreatedProps(
   return {
     aggregateId: SnapshotId.create(),
     deviceId: DeviceId.create(),
-    deviceType: 'CPE',
+    deviceType: 'STATION',
     collectedAt: FIXED_COLLECTED,
     dateTimeOccurred: FIXED_OCCURRED,
     ...overrides,
@@ -87,7 +87,7 @@ describe('WirelessSnapshotCreatedEvent', () => {
 
       expect(event.aggregateId).toBe(props.aggregateId);
       expect(event.deviceId).toBe(props.deviceId);
-      expect(event.deviceType).toBe('CPE');
+      expect(event.deviceType).toBe('STATION');
       expect(event.collectedAt).toBe(FIXED_COLLECTED);
       expect(event.dateTimeOccurred).toBe(FIXED_OCCURRED);
     });
@@ -102,12 +102,12 @@ describe('WirelessSnapshotCreatedEvent', () => {
 
     it('should isolate event state from external mutation of the original props object', () => {
       const aggregateId = SnapshotId.create();
-      const props = makeSnapshotCreatedProps({ aggregateId, deviceType: 'CPE' });
+      const props = makeSnapshotCreatedProps({ aggregateId, deviceType: 'STATION' });
       const event = new WirelessSnapshotCreatedEvent(props);
 
       (props as { deviceType: string }).deviceType = 'ACCESS_POINT';
 
-      expect(event.deviceType).toBe('CPE');
+      expect(event.deviceType).toBe('STATION');
     });
   });
 
@@ -132,10 +132,10 @@ describe('WirelessSnapshotCreatedEvent', () => {
   describe('deviceType getter', () => {
     it('should return CPE when constructed with CPE', () => {
       const event = new WirelessSnapshotCreatedEvent(
-        makeSnapshotCreatedProps({ deviceType: 'CPE' })
+        makeSnapshotCreatedProps({ deviceType: 'STATION' })
       );
 
-      expect(event.deviceType).toBe('CPE');
+      expect(event.deviceType).toBe('STATION');
     });
 
     it('should return ACCESS_POINT when constructed with ACCESS_POINT', () => {

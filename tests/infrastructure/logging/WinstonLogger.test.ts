@@ -295,13 +295,13 @@ describe('WinstonLogger', () => {
       );
     });
 
-    it('should set error to undefined when no Error argument is given', () => {
+    it('should not include an error key when no Error argument is given', () => {
       const logger = makeLogger();
       logger.error('write failed');
 
       expect(mockError).toHaveBeenCalledWith(
         'write failed',
-        expect.objectContaining({ error: undefined })
+        expect.not.objectContaining({ error: expect.anything() })
       );
     });
 
@@ -385,13 +385,13 @@ describe('WinstonLogger', () => {
       );
     });
 
-    it('should set error to undefined when no Error argument is given', () => {
+    it('should not include an error key when no Error argument is given', () => {
       const logger = makeLogger();
       logger.fatal('process terminated');
 
       expect(mockError).toHaveBeenCalledWith(
         'process terminated',
-        expect.objectContaining({ error: undefined })
+        expect.not.objectContaining({ error: expect.anything() })
       );
     });
 

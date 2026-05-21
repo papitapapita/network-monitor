@@ -28,6 +28,7 @@ function makeAlertRecord(
   const deviceId = DeviceId.parse(DEVICE_UUID).value!;
 
   return WirelessAlertRecord.reconstitute(
+    id,
     {
       deviceId,
       metric:      'signalRxDbm',
@@ -39,8 +40,7 @@ function makeAlertRecord(
       clearedAt:   null,
       isActive:    true,
       ...overrides,
-    },
-    id
+    }
   );
 }
 

@@ -51,10 +51,11 @@ function makeNullMetrics(): WirelessMetrics {
   });
 }
 
-function makeSnapshot(deviceType: 'CPE' | 'ACCESS_POINT' = 'CPE'): WirelessSnapshot {
+function makeSnapshot(deviceType: 'STATION' | 'ACCESS_POINT' = 'STATION'): WirelessSnapshot {
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const snapshotId = SnapshotId.parse(SNAPSHOT_UUID).value;
   return WirelessSnapshot.reconstitute(
+    snapshotId,
     {
       deviceId,
       deviceType,
@@ -63,8 +64,7 @@ function makeSnapshot(deviceType: 'CPE' | 'ACCESS_POINT' = 'CPE'): WirelessSnaps
       metrics: makeNullMetrics(),
       clients: [],
       alerts: [],
-    },
-    snapshotId
+    }
   );
 }
 
@@ -72,6 +72,7 @@ function makeAlertRecord(): WirelessAlertRecord {
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const alertId = WirelessAlertRecordId.parse(ALERT_UUID).value;
   return WirelessAlertRecord.reconstitute(
+    alertId,
     {
       deviceId,
       metric: 'signal_rx_dbm',
@@ -82,8 +83,7 @@ function makeAlertRecord(): WirelessAlertRecord {
       triggeredAt: new Date('2024-01-01T00:00:00.000Z'),
       clearedAt: null,
       isActive: true,
-    },
-    alertId
+    }
   );
 }
 
