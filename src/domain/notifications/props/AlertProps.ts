@@ -8,5 +8,4 @@ export interface AlertProps {
   resolvedAt: Date | null;
   notifiedAt: Date | null;
   recoveryNotifiedAt: Date | null;
-  durationSecs: number | null;
 }

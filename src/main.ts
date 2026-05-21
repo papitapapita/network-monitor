@@ -41,8 +41,9 @@ async function bootstrap(): Promise<Server> {
   const container = await setupDependencies();
   setupRoutes(app, container);
 
-  // Start polling orchestrator
+  // Start polling orchestrators
   container.pollingOrchestrator.start();
+  container.wirelessPollingOrchestrator.start();
 
   // Error handling middleware
   app.use(
@@ -74,6 +75,7 @@ async function bootstrap(): Promise<Server> {
     logger.info('SIGTERM received, closing server...');
     server.close(async () => {
       await container.pollingOrchestrator.stop();
+      await container.wirelessPollingOrchestrator.stop();
       await container.disconnect();
       logger.info('Server closed');
       process.exit(0);

@@ -5,7 +5,7 @@ import { WirelessAlert } from '../value-objects/WirelessAlert';
 
 export interface WirelessSnapshotProps {
   deviceId: DeviceId;
-  deviceType: 'CPE' | 'ACCESS_POINT';
+  deviceType: 'STATION' | 'ACCESS_POINT';
   collectedAt: Date;
   collectionMethod: 'snmp' | 'http_api' | 'mixed';
   metrics: WirelessMetrics;
