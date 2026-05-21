@@ -26,7 +26,10 @@ export class DeviceWentOfflineNotificationHandler
     } catch (error) {
       console.error(
         '[DeviceWentOfflineNotificationHandler] Unexpected error',
-        { error: error instanceof Error ? error.message : String(error) }
+        {
+          error:
+            error instanceof Error ? error.message : String(error)
+        }
       );
     }
   }
