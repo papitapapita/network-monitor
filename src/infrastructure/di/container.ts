@@ -1,4 +1,4 @@
-import { PrismaClient } from '../../generated/prisma/client';
+import { PrismaClient } from 'generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { WinstonLogger } from '../logging/WinstonLogger';
 import {
@@ -8,19 +8,21 @@ import {
   PrismaVendorRepository,
   PrismaPollingConfigurationRepository,
   PrismaPingResultRepository,
-  PrismaDeviceStateRepository
+  PrismaDeviceStateRepository,
+  PrismaAlertRepository,
+  PrismaDeviceCredentialsRepository
 } from '../persistence/';
-import { PrismaAlertRepository } from '../persistence/PrismaAlertRepository';
 import {
   LocationController,
   DeviceController,
   DeviceModelController,
   VendorController,
-  PollingController
-} from '../../presentation/http/controllers';
-import { AlertController } from '../../presentation/http/controllers/AlertController';
-import { ScanController } from '../../presentation/http/controllers/ScanController';
-import { WirelessController } from '../../presentation/http/controllers/WirelessController';
+  PollingController,
+  AlertController,
+  ScanController,
+  WirelessController,
+  CredentialsController
+} from 'presentation/http/controllers';
 import {
   PrismaWirelessSnapshotRepository,
   PrismaWirelessAlertRecordRepository,
@@ -30,8 +32,7 @@ import {
   WirelessCounterStore,
   WirelessPollingOrchestrator
 } from '../wireless-monitoring';
-import { PrismaDeviceCredentialsRepository } from '../persistence/PrismaDeviceCredentialsRepository';
-import { WirelessAlertEvaluator } from '../../application/wireless-monitoring/services/WirelessAlertEvaluator';
+import { WirelessAlertEvaluator } from 'domain/wireless-monitoring';
 import {
   PollWirelessDeviceUseCase,
   GetWirelessDeviceStatusUseCase,
@@ -44,13 +45,12 @@ import {
   GetWirelessConfigUseCase,
   UpdateWirelessConfigUseCase,
   DeleteWirelessConfigUseCase
-} from '../../application/wireless-monitoring/use-cases';
+} from 'application/wireless-monitoring/use-cases';
 import {
   SetDeviceCredentialsUseCase,
   GetDeviceCredentialsUseCase,
   DeleteDeviceCredentialsUseCase
-} from '../../application/device-inventory/use-cases';
-import { CredentialsController } from '../../presentation/http/controllers/CredentialsController';
+} from 'application/device-inventory/use-cases';
 import { PingService } from '../monitoring/ping/PingService';
 import { ArpService } from '../monitoring/network-scanner/ArpService';
 import { NetworkScannerService } from '../monitoring/network-scanner/NetworkScannerService';
@@ -535,13 +535,15 @@ export class DependencyContainer {
     EventDispatcher.register(
       DeviceWentOfflineEvent.name,
       new DeviceWentOfflineNotificationHandler(
-        sendDeviceDownAlertUseCase
+        sendDeviceDownAlertUseCase,
+        this.logger
       )
     );
     EventDispatcher.register(
       DeviceCameOnlineEvent.name,
       new DeviceCameOnlineNotificationHandler(
-        sendDeviceRecoveryAlertUseCase
+        sendDeviceRecoveryAlertUseCase,
+        this.logger
       )
     );
   }

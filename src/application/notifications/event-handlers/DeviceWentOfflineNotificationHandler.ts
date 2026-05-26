@@ -1,12 +1,14 @@
 import { IHandle } from 'domain/shared/interfaces';
 import { DeviceWentOfflineEvent } from 'domain/device-monitoring/events';
-import { SendDeviceDownAlertUseCase } from '../use-cases/SendDeviceDownAlertUseCase';
+import { ILogger } from 'application/shared/interfaces';
+import { SendDeviceDownAlertUseCase } from '../use-cases';
 
 export class DeviceWentOfflineNotificationHandler
   implements IHandle<DeviceWentOfflineEvent>
 {
   constructor(
-    private readonly sendDeviceDownAlertUseCase: SendDeviceDownAlertUseCase
+    private readonly sendDeviceDownAlertUseCase: SendDeviceDownAlertUseCase,
+    private readonly logger: ILogger
   ) {}
 
   async handle(event: DeviceWentOfflineEvent): Promise<void> {
@@ -18,18 +20,16 @@ export class DeviceWentOfflineNotificationHandler
       });
 
       if (result.isFailure) {
-        console.error(
-          '[DeviceWentOfflineNotificationHandler] Use case failed',
+        this.logger.error(
+          'DeviceWentOfflineNotificationHandler: use case failed',
+          undefined,
           { error: result.error }
         );
       }
     } catch (error) {
-      console.error(
-        '[DeviceWentOfflineNotificationHandler] Unexpected error',
-        {
-          error:
-            error instanceof Error ? error.message : String(error)
-        }
+      this.logger.error(
+        'DeviceWentOfflineNotificationHandler: unexpected error',
+        error instanceof Error ? error : new Error(String(error))
       );
     }
   }

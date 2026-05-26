@@ -8,7 +8,7 @@ import { IPollingConfigurationRepository } from 'domain/device-monitoring/reposi
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import { INotificationService } from '../interfaces';
-import { AlertMapper } from '../mappers/AlertMapper';
+import { AlertMapper } from '../mappers';
 import { AlertResponseDTO, SendDeviceDownAlertDTO } from '../dtos';
 
 export class SendDeviceDownAlertUseCase extends UseCase<
