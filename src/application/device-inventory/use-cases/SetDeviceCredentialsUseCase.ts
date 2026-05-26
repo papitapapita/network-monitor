@@ -4,8 +4,7 @@ import { IDeviceRepository } from 'domain/device-inventory/repository';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import {
-  IDeviceCredentialsRepository,
-  DeviceCredentials
+  IDeviceCredentialsRepository
 } from '../interfaces';
 import {
   SetDeviceCredentialsRequestDTO,
@@ -102,19 +101,7 @@ export class SetDeviceCredentialsUseCase extends UseCase<
       return this.fail('Device not found');
     }
 
-    const credentials: DeviceCredentials = {
-      snmpVersion: request.snmpVersion,
-      snmpCommunity: request.snmpCommunity ?? null,
-      snmpV3AuthUser: request.snmpV3AuthUser ?? null,
-      snmpV3AuthProto: request.snmpV3AuthProto ?? null,
-      snmpV3AuthKey: request.snmpV3AuthKey ?? null,
-      snmpV3PrivProto: request.snmpV3PrivProto ?? null,
-      snmpV3PrivKey: request.snmpV3PrivKey ?? null,
-      httpUsername: request.httpUsername ?? null,
-      httpPassword: request.httpPassword ?? null,
-      snmpPort: request.snmpPort ?? 161,
-      httpPort: request.httpPort ?? 80
-    };
+    const credentials = DeviceCredentialsMapper.extractCreateData(request);
 
     const saveResult = await this.credentialsRepo.save(
       deviceId,

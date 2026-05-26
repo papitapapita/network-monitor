@@ -6,34 +6,6 @@ import { ILogger } from 'application/shared/interfaces';
 import { GetLocationRequestDTO, LocationResponseDTO } from '../dtos';
 import { LocationMapper } from '../mappers';
 
-/**
- * GetLocationUseCase
- *
- * Business Intent: Retrieve a single location by its unique identifier.
- *
- * Flow:
- * 1. beforeExecute: Validate that id is non-empty.
- * 2. executeImpl: Reconstruct LocationId, query the repository,
- *    and return a LocationResponseDTO or a not-found failure.
- *
- * Business Rules:
- * - id is required and must be non-empty.
- * - Returns a failure Result (not an exception) when the location is not found,
- *   so the presentation layer can map it to HTTP 404.
- *
- * Dependencies:
- * - ILocationRepository: Read-only access to the Location aggregate store.
- * - ILogger: Structured logging via the base UseCase template.
- *
- * @example
- * ```typescript
- * const useCase = new GetLocationUseCase(locationRepository, logger);
- * const result = await useCase.execute({ id: '01HZ1234ABCD' });
- * if (result.isFailure) {
- *   // 'Location not found' → HTTP 404
- * }
- * ```
- */
 export class GetLocationUseCase extends UseCase<
   GetLocationRequestDTO,
   LocationResponseDTO
@@ -45,10 +17,6 @@ export class GetLocationUseCase extends UseCase<
     super(logger, 'GetLocationUseCase');
   }
 
-  // ============================================================================
-  // Pre-execution validation
-  // ============================================================================
-
   protected async beforeExecute(
     request: GetLocationRequestDTO
   ): Promise<Result<void> | null> {
@@ -56,17 +24,12 @@ export class GetLocationUseCase extends UseCase<
       return Result.fail('Location ID is required');
     }
 
-    return null; // Validation passed
+    return null;
   }
-
-  // ============================================================================
-  // Main execution
-  // ============================================================================
 
   protected async executeImpl(
     request: GetLocationRequestDTO
   ): Promise<Result<LocationResponseDTO>> {
-    // Parse the raw string into a validated LocationId value object
     const locationIdResult = LocationId.parse(request.id.trim());
     if (locationIdResult.isFailure) {
       return this.fail<LocationResponseDTO>(

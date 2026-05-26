@@ -12,55 +12,6 @@ import {
   DeviceCategory
 } from 'domain/device-inventory/value-objects';
 
-/**
- * UpdateDeviceUseCase
- *
- * Business Intent: Apply a partial update (PATCH semantics) to an existing physical
- * device asset in the inventory. Only fields that are explicitly provided in the
- * request are changed; all omitted fields are left unchanged.
- *
- * Flow:
- * 1. beforeExecute: Validate the id is non-empty and that any provided enum fields
- *    (ownerType, status, category) contain a recognised value. This prevents
- *    corrupted domain calls before any I/O takes place.
- * 2. executeImpl:
- *    a. Parse DeviceId and look up the device — return failure if not found.
- *    b. Apply status change via device.changeStatus() when status is provided.
- *    c. Apply location assignment/unassignment via device.assignLocation() when
- *       locationId is provided (null means unassign).
- *    d. Toggle monitoring via device.enableMonitoring() / device.disableMonitoring()
- *       when monitoringEnabled is provided.
- *    e. Build the updateDetails fields object and enforce MAC/IP uniqueness against
- *       the repository (skipping the check when the address is already held by
- *       this device — same-device change does not violate uniqueness).
- *    f. Call device.updateDetails() when any updatable detail field is present.
- *    g. Persist via IDeviceRepository and return a DeviceResponseDTO.
- *
- * Business Rules:
- * - id is required.
- * - Transitioning to ACTIVE requires an IP address (enforced by domain).
- * - MAC address must be unique — only fails if the MAC is held by a *different* device.
- * - IP address must be unique — only fails if the IP is held by a *different* device.
- * - Passing null for locationId, macAddress, ipAddress, serialNumber, category,
- *   description, or installedDate explicitly clears those fields.
- * - Domain events (DeviceStatusChangedEvent, DeviceLocationAssignedEvent, etc.)
- *   are dispatched by the repository after the aggregate is persisted.
- *
- * Dependencies:
- * - IDeviceRepository: Load, persist, and check uniqueness for the Device aggregate.
- * - ILogger: Structured logging via the base UseCase template.
- *
- * @example
- * ```typescript
- * const useCase = new UpdateDeviceUseCase(deviceRepository, logger);
- * const result = await useCase.execute({
- *   id: '550e8400-e29b-41d4-a716-446655440000',
- *   status: 'ACTIVE',
- *   locationId: '550e8400-e29b-41d4-a716-446655440001',
- *   monitoringEnabled: true
- * });
- * ```
- */
 export class UpdateDeviceUseCase extends UseCase<
   UpdateDeviceRequestDTO,
   DeviceResponseDTO
@@ -72,23 +23,6 @@ export class UpdateDeviceUseCase extends UseCase<
     super(logger, 'UpdateDeviceUseCase');
   }
 
-  // ============================================================================
-  // Pre-execution validation
-  // ============================================================================
-
-  /**
-   * Validates the inbound DTO before any domain or I/O work begins.
-   *
-   * Checks performed here (not in executeImpl) because they are
-   * boundary-level rejections that do not require loading the aggregate:
-   * - id presence (required)
-   * - ownerType enum membership (when provided)
-   * - status validity via DeviceStatus.create() (when provided)
-   * - category validity via DeviceCategory.create() (when provided)
-   *
-   * The domain's own Guard clauses inside command methods provide a second
-   * layer of defence; both layers are intentional (defence-in-depth).
-   */
   protected async beforeExecute(
     request: UpdateDeviceRequestDTO
   ): Promise<Result<void> | null> {
@@ -123,41 +57,17 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    return null; // Validation passed
+    return null;
   }
 
-  // ============================================================================
-  // Main execution
-  // ============================================================================
-
-  /**
-   * Orchestrates the device update.
-   *
-   * Steps:
-   * 1. Parse DeviceId from request.id.
-   * 2. Load the device from the repository — return failure if not found.
-   * 3. Apply status change when provided.
-   * 4. Apply location assignment (or unassignment) when locationId is provided.
-   * 5. Toggle monitoring when monitoringEnabled is provided.
-   * 6. Build MACAddress and IPAddress value objects, enforcing uniqueness while
-   *    excluding the current device's own addresses from the conflict check.
-   * 7. Build the updateDetails fields and call device.updateDetails() when any
-   *    detail field is present.
-   * 8. Persist the updated aggregate and return a DeviceResponseDTO.
-   *
-   * No domain logic lives here — all invariants are enforced inside the
-   * Device aggregate and its value objects.
-   */
   protected async executeImpl(
     request: UpdateDeviceRequestDTO
   ): Promise<Result<DeviceResponseDTO>> {
-    // Parse DeviceId UUID
     const deviceIdResult = DeviceId.parse(request.id.trim());
     if (deviceIdResult.isFailure) {
       return this.fail(`Invalid device ID: ${deviceIdResult.error}`);
     }
 
-    // Load existing device
     const findResult = await this.deviceRepository.findById(
       deviceIdResult.value
     );
@@ -277,8 +187,9 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    // Apply detail updates first so that IP/MAC are set before any
-    // status transition is validated by the aggregate.
+    // updateDetails must run before changeStatus so that an IP set in the same
+    // request is already present on the aggregate when the status transition
+    // (e.g. INVENTORY → ACTIVE) is validated by the domain.
     if (Object.keys(updateFields).length > 0) {
       const updateResult = device.updateDetails(updateFields);
       if (updateResult.isFailure) {
@@ -286,8 +197,6 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    // Apply status change after updateDetails so IP is present if both are
-    // sent together in an INVENTORY → ACTIVE transition.
     if (data.status !== undefined) {
       const statusResult = DeviceStatus.create(data.status);
       if (statusResult.isFailure) {
@@ -332,7 +241,6 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    // Persist — domain events are dispatched by the repository implementation
     const saveResult = await this.deviceRepository.save(device);
     if (saveResult.isFailure) {
       return this.fail(
