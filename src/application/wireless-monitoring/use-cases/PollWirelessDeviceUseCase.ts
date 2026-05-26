@@ -8,7 +8,9 @@ import {
   WirelessMetrics,
   WirelessClientEntry,
   WirelessAlert,
-  WirelessSnapshot
+  WirelessSnapshot,
+  IWirelessAlertEvaluator,
+  EvaluationContext
 } from 'domain/wireless-monitoring';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
@@ -20,12 +22,12 @@ import {
   IWirelessCounterStore,
   CounterSnapshot,
   IDeviceCredentialsRepository,
-  IWirelessAlertEvaluator,
   IWirelessPollOrchestrator
 } from '../interfaces';
-import { EvaluationContext } from '../services/WirelessAlertEvaluator';
-import { PollWirelessDeviceRequestDTO } from '../dtos/PollWirelessDeviceRequestDTO';
-import { PollWirelessDeviceResponseDTO } from '../dtos/PollWirelessDeviceResponseDTO';
+import {
+  PollWirelessDeviceRequestDTO,
+  PollWirelessDeviceResponseDTO
+} from '../dtos';
 
 export class PollWirelessDeviceUseCase
   extends UseCase<

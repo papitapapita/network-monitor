@@ -1,7 +1,9 @@
 import { WirelessPollingConfig } from 'domain/wireless-monitoring/aggregates';
 import { WirelessConfigResponseDTO } from '../dtos';
-import { CreateWirelessConfigRequestDTO } from '../use-cases/CreateWirelessConfigUseCase';
-import { UpdateWirelessConfigRequestDTO } from '../use-cases/UpdateWirelessConfigUseCase';
+import {
+  CreateWirelessConfigRequestDTO,
+  UpdateWirelessConfigRequestDTO
+} from '../use-cases/';
 
 export class WirelessPollingConfigMapper {
   public static toDTO(
@@ -20,7 +22,9 @@ export class WirelessPollingConfigMapper {
     };
   }
 
-  public static extractCreateData(dto: CreateWirelessConfigRequestDTO) {
+  public static extractCreateData(
+    dto: CreateWirelessConfigRequestDTO
+  ) {
     return {
       deviceId: dto.deviceId,
       deviceType: dto.deviceType,
@@ -32,8 +36,20 @@ export class WirelessPollingConfigMapper {
     };
   }
 
-  public static extractUpdateData(dto: UpdateWirelessConfigRequestDTO) {
-    const updates: Record<string, unknown> = {};
+  public static extractUpdateData(dto: UpdateWirelessConfigRequestDTO): {
+    ipAddress?: string | null;
+    intervalSecs?: number;
+    enabled?: boolean;
+    linkCapacityBps?: number | null;
+    clientsProvisionedLimit?: number | null;
+  } {
+    const updates: {
+      ipAddress?: string | null;
+      intervalSecs?: number;
+      enabled?: boolean;
+      linkCapacityBps?: number | null;
+      clientsProvisionedLimit?: number | null;
+    } = {};
 
     if (dto.ipAddress !== undefined) updates.ipAddress = dto.ipAddress;
     if (dto.intervalSecs !== undefined)

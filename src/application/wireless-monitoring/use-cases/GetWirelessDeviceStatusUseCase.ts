@@ -1,14 +1,16 @@
 import { Result } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
+import { DeviceId } from 'domain/shared/ids';
 import {
   IWirelessSnapshotRepository,
   IWirelessAlertRecordRepository
 } from 'domain/wireless-monitoring';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
-import { GetWirelessStatusRequestDTO } from '../dtos/GetWirelessStatusRequestDTO';
-import { WirelessStatusResponseDTO } from '../dtos/WirelessStatusResponseDTO';
-import { WirelessSnapshotMapper } from '../mappers/WirelessSnapshotMapper';
+import {
+  GetWirelessStatusRequestDTO,
+  WirelessStatusResponseDTO
+} from '../dtos';
+import { WirelessSnapshotMapper } from '../mappers';
 
 export class GetWirelessDeviceStatusUseCase extends UseCase<
   GetWirelessStatusRequestDTO,

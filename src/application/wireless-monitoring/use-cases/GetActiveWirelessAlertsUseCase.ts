@@ -1,11 +1,13 @@
 import { Result } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
-import { IWirelessAlertRecordRepository } from 'domain/wireless-monitoring';
+import { DeviceId } from 'domain/shared/ids';
+import { IWirelessAlertRecordRepository } from 'domain/wireless-monitoring/repository';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
-import { GetActiveAlertsRequestDTO } from '../dtos/GetActiveAlertsRequestDTO';
-import { WirelessAlertResponseDTO } from '../dtos/WirelessAlertResponseDTO';
-import { WirelessAlertMapper } from '../mappers/WirelessAlertMapper';
+import {
+  GetActiveAlertsRequestDTO,
+  WirelessAlertResponseDTO
+} from '../dtos';
+import { WirelessAlertMapper } from '../mappers';
 
 export class GetActiveWirelessAlertsUseCase extends UseCase<
   GetActiveAlertsRequestDTO,

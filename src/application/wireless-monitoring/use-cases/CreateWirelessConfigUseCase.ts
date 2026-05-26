@@ -1,66 +1,24 @@
 import { Result } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
-import { IPAddress } from 'domain/shared';
+import { DeviceId } from 'domain/shared/ids';
+import { IPAddress } from 'domain/shared/value-objects';
 import { IDeviceRepository } from 'domain/device-inventory/repository';
-import {
-  IWirelessPollingConfigRepository,
-  WirelessPollingConfig
-} from 'domain/wireless-monitoring';
+import { WirelessPollingConfig } from 'domain/wireless-monitoring/aggregates';
+import { IWirelessPollingConfigRepository } from 'domain/wireless-monitoring/repository';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
-import { WirelessConfigResponseDTO } from '../dtos/WirelessConfigResponseDTO';
-import { WirelessPollingConfigMapper } from '../mappers/WirelessPollingConfigMapper';
+import { WirelessConfigResponseDTO } from '../dtos';
+import { WirelessPollingConfigMapper } from '../mappers';
 
-/**
- * Request DTO for creating a wireless polling configuration.
- *
- * Used By: CreateWirelessConfigUseCase
- * API Endpoint: POST /api/wireless/configs
- */
 export interface CreateWirelessConfigRequestDTO {
-  /** ID of the device to attach this config to — required */
   deviceId: string;
-
-  /** Device type determining the polling strategy — required */
   deviceType: 'STATION' | 'ACCESS_POINT';
-
-  /** IP address to use for polling — null or omitted means not yet configured */
   ipAddress?: string | null;
-
-  /** Polling interval in seconds — defaults to 3600 */
   intervalSecs?: number;
-
-  /** Whether polling should start enabled — defaults to true */
   enabled?: boolean;
-
-  /** Link capacity in bits per second — null if unknown */
   linkCapacityBps?: number | null;
-
-  /** Maximum number of provisioned clients — null if not tracked */
   clientsProvisionedLimit?: number | null;
 }
 
-/**
- * CreateWirelessConfigUseCase
- *
- * Business Intent: Register a wireless polling configuration for an existing device.
- *
- * Flow:
- * 1. beforeExecute — Validate required fields (deviceId, deviceType)
- * 2. executeImpl   — Parse IDs, verify device existence, check no duplicate config,
- *                    build the WirelessPollingConfig entity, persist and return DTO
- *
- * Business Rules:
- * - The referenced device must already exist
- * - Each device may have at most one polling configuration
- * - intervalSecs defaults to 3600 when not provided
- * - enabled defaults to true when not provided
- *
- * Dependencies:
- * - IDeviceRepository: Check that the device exists
- * - IWirelessPollingConfigRepository: Persist and query polling configs
- * - ILogger: Structured logging via the UseCase base class
- */
 export class CreateWirelessConfigUseCase extends UseCase<
   CreateWirelessConfigRequestDTO,
   WirelessConfigResponseDTO
@@ -88,14 +46,14 @@ export class CreateWirelessConfigUseCase extends UseCase<
   protected async executeImpl(
     request: CreateWirelessConfigRequestDTO
   ): Promise<Result<WirelessConfigResponseDTO>> {
-    // 1. Parse DeviceId
-    const deviceIdResult = DeviceId.parse(request.deviceId);
+    const data = WirelessPollingConfigMapper.extractCreateData(request);
+
+    const deviceIdResult = DeviceId.parse(data.deviceId);
     if (deviceIdResult.isFailure) {
       return this.fail(`Invalid device ID: ${deviceIdResult.error}`);
     }
     const deviceId = deviceIdResult.value;
 
-    // 2. Load device and verify it exists and is wireless-capable
     const deviceResult = await this.deviceRepo.findById(deviceId);
     if (deviceResult.isFailure) {
       return this.fail(deviceResult.error);
@@ -109,7 +67,6 @@ export class CreateWirelessConfigUseCase extends UseCase<
       );
     }
 
-    // 3. Ensure no duplicate config exists for this device
     const existingResult =
       await this.configRepo.findByDeviceId(deviceId);
     if (existingResult.isFailure) {
@@ -121,26 +78,23 @@ export class CreateWirelessConfigUseCase extends UseCase<
       );
     }
 
-    // 4. Parse IP address when provided and non-null
     let ipAddress = null;
-    if (request.ipAddress != null) {
-      const ipResult = IPAddress.create(request.ipAddress);
+    if (data.ipAddress != null) {
+      const ipResult = IPAddress.create(data.ipAddress);
       if (ipResult.isFailure) {
         return this.fail(`Invalid IP address: ${ipResult.error}`);
       }
       ipAddress = ipResult.value;
     }
 
-    // 5. Build and validate the domain entity
     const configResult = WirelessPollingConfig.create({
       deviceId,
       ipAddress,
-      enabled: request.enabled ?? true,
-      intervalSecs: request.intervalSecs ?? 3600,
-      deviceType: request.deviceType,
-      linkCapacityBps: request.linkCapacityBps ?? null,
-      clientsProvisionedLimit:
-        request.clientsProvisionedLimit ?? null,
+      enabled: data.enabled ?? true,
+      intervalSecs: data.intervalSecs ?? 3600,
+      deviceType: data.deviceType,
+      linkCapacityBps: data.linkCapacityBps ?? null,
+      clientsProvisionedLimit: data.clientsProvisionedLimit ?? null,
       lastPolledAt: null
     });
     if (configResult.isFailure) {
@@ -148,15 +102,11 @@ export class CreateWirelessConfigUseCase extends UseCase<
     }
     const config = configResult.value;
 
-    // 6. Persist
     const saveResult = await this.configRepo.save(config);
     if (saveResult.isFailure) {
       return this.fail(saveResult.error);
     }
 
-    // 7. Return response DTO
-    return this.ok(
-      WirelessPollingConfigMapper.toDTO(saveResult.value)
-    );
+    return this.ok(WirelessPollingConfigMapper.toDTO(saveResult.value));
   }
 }
