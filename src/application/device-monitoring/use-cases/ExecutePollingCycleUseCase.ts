@@ -50,7 +50,6 @@ export class ExecutePollingCycleUseCase extends UseCase<
     const { forceExecution = false } = request;
     const now = new Date();
 
-    // 1. Load polling configuration
     const configResult =
       await this.pollingConfigRepo.findByDeviceId(deviceId);
     if (configResult.isFailure) {
@@ -66,21 +65,20 @@ export class ExecutePollingCycleUseCase extends UseCase<
       );
     }
 
-    // 2. Skip if disabled (unless forced)
     if (!forceExecution && !config.enabled) {
       return this.ok(
         PollingMapper.toSkippedResultDTO(deviceId.toString(), now)
       );
     }
 
-    // 3. Ensure IP address is present
     if (!config.ipAddress) {
       return this.fail(
         `Device ${deviceId} has no IP address configured for polling`
       );
     }
 
-    // 4. Execute ping with intra-cycle retries (failuresBeforeDown = max attempts)
+    // failuresBeforeDown doubles as the intra-cycle attempt budget: the device
+    // is only considered unreachable after all attempts fail within one cycle.
     const maxAttempts = config.failuresBeforeDown.value;
     let isReachable = false;
     let latencyMs: number | null = null;
@@ -104,7 +102,6 @@ export class ExecutePollingCycleUseCase extends UseCase<
       }
     }
 
-    // 5. Persist ping result
     await this.pingResultRepo.save({
       deviceId,
       isReachable,
@@ -112,7 +109,6 @@ export class ExecutePollingCycleUseCase extends UseCase<
       checkedAt: now
     });
 
-    // 6. Load or create DeviceState
     const stateResult =
       await this.deviceStateRepo.findByDeviceId(deviceId);
     if (stateResult.isFailure) {
@@ -126,7 +122,6 @@ export class ExecutePollingCycleUseCase extends UseCase<
       ? DeviceState.createInitial(deviceId)
       : stateResult.value!;
 
-    // 7. Apply ping result — transition logic and events are here
     deviceState.applyPingResult(
       isReachable,
       latencyMs,
@@ -134,10 +129,10 @@ export class ExecutePollingCycleUseCase extends UseCase<
       isFirstPoll
     );
 
-    // 8. Persist (repository dispatches events)
+    // DeviceState save first: its repository dispatches domain events
+    // (online/offline transitions). Config save is housekeeping only.
     await this.deviceStateRepo.save(deviceState);
 
-    // 9. Record when this config was last polled
     config.markPolled(now);
     await this.pollingConfigRepo.save(config);
 

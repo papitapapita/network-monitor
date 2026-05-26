@@ -14,6 +14,7 @@ import {
   CreateDevicePollingDTO,
   PollingConfigurationDTO
 } from '../dtos';
+import { PollingMapper } from '../mappers';
 
 export class CreateDevicePollingUseCase extends UseCase<
   CreateDevicePollingDTO,
@@ -131,7 +132,7 @@ export class CreateDevicePollingUseCase extends UseCase<
       return this.fail(`Failed to save config: ${saveResult.error}`);
     }
 
-    return this.ok(this.toDTO(saveResult.value));
+    return this.ok(PollingMapper.toDTO(saveResult.value));
   }
 
   private async updateConfig(
@@ -168,7 +169,7 @@ export class CreateDevicePollingUseCase extends UseCase<
       }
     }
 
-    // 'ipAddress' key present in the DTO (including null) means update
+    // `'ipAddress' in request` distinguishes explicit null (clear) from omitted (skip)
     if ('ipAddress' in request) {
       let ipAddress: IPAddress | null = null;
       if (request.ipAddress != null) {
@@ -194,20 +195,7 @@ export class CreateDevicePollingUseCase extends UseCase<
       return this.fail(`Failed to save config: ${saveResult.error}`);
     }
 
-    return this.ok(this.toDTO(saveResult.value));
-  }
-
-  private toDTO(
-    config: PollingConfiguration
-  ): PollingConfigurationDTO {
-    return {
-      id: config.id.toString(),
-      deviceId: config.deviceId.toString(),
-      ipAddress: config.ipAddress?.value ?? null,
-      intervalSeconds: config.interval.seconds,
-      failuresBeforeDown: config.failuresBeforeDown.value,
-      enabled: config.enabled
-    };
+    return this.ok(PollingMapper.toDTO(saveResult.value));
   }
 
   protected sanitizeForLogging(data: unknown): unknown {
