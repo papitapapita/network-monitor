@@ -1,4 +1,4 @@
-import { Result } from '../../../domain/shared';
+import { Result } from 'domain/shared';
 import { IUseCase, ILogger } from '../interfaces';
 
 /**

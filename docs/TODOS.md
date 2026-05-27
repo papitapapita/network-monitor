@@ -88,6 +88,16 @@ _Main user-facing features still missing._
   - Prerequisite: confirm Device-to-Device is enough (no separate AccessPoint/RadioAntenna entity needed)
   - Unlocks: link-health dashboard, link-level alerting
 
+- [ ] **Network topology & notification suppression** — prevent alert storms when an upstream device fails
+  - Topology is a strict parent-pointer tree: `RouterBoard → Backhaul → Distribution Switch → Hex PoE → Antenna → Clients/Nodes`
+  - `NetworkTopology` aggregate in `domain/device-inventory`; stores edges as `Map<DeviceId, DeviceId>` (child → upstream parent)
+  - `TopologyRootCauseService` domain service: given an offline device, walk up the tree through enabled edges and return the topmost offline ancestor
+  - Suppression rule: if `parent(X)` is already offline → suppress notification for X; otherwise X is the root cause → notify
+  - Suppression cascades naturally: one upstream failure silences all descendants in a single hop check per device
+  - `DeviceWentOfflineNotificationHandler` consults `TopologyRootCauseService` before dispatching
+  - RouterBoard is the topology root (ISPs are upstream providers, not managed devices)
+  - Prerequisite: device activation workflow (only `ACTIVE` devices participate in topology)
+
 ---
 
 ## Priority 4 — Asset & Inventory

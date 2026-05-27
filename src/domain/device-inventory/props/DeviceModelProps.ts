@@ -1,4 +1,4 @@
-import { VendorId } from '../../shared/ids';
+import { VendorId } from 'domain/shared/ids';
 
 export interface DeviceModelProps {
   vendorId: VendorId;

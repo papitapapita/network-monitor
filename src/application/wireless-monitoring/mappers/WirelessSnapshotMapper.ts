@@ -5,10 +5,10 @@ import {
 import {
   WirelessStatusResponseDTO,
   WirelessMetricsDTO,
-  WirelessAlertResponseDTO,
   WirelessClientDTO,
   WirelessClientListResponseDTO
 } from '../dtos';
+import { WirelessAlertMapper } from './WirelessAlertMapper';
 
 export class WirelessSnapshotMapper {
   public static toStatusDTO(
@@ -47,71 +47,52 @@ export class WirelessSnapshotMapper {
       clientsProvisioned: m.clientsProvisioned
     };
 
-    const activeAlerts: WirelessAlertResponseDTO[] = alerts.map(
-      (a) => ({
-        id: a.id.toString(),
-        deviceId: a.deviceId.toString(),
-        metric: a.metric,
-        severity: a.severity,
-        threshold: a.threshold,
-        lastValue: a.lastValue,
-        message: a.message,
-        triggeredAt: a.triggeredAt.toISOString(),
-        clearedAt: a.clearedAt?.toISOString() ?? null,
-        isActive: a.isActive
-      })
-    );
-
-    const clients: WirelessClientDTO[] = snapshot.clients.map(
-      (c) => ({
-        macAddress: c.macAddress,
-        signalRxDbm: c.signalRxDbm,
-        signalTxDbm: c.signalTxDbm,
-        snrDb: c.snrDb,
-        txRateMbps: c.txRateMbps,
-        rxRateMbps: c.rxRateMbps,
-        throughputTxBps: c.throughputTxBps,
-        throughputRxBps: c.throughputRxBps,
-        ccqPercent: c.ccqPercent,
-        uptimeSeconds: c.uptimeSeconds,
-        ipAddress: c.ipAddress
-      })
-    );
-
     return {
       deviceId: snapshot.deviceId.toString(),
       deviceType: snapshot.deviceType,
       collectedAt: snapshot.collectedAt.toISOString(),
       collectionMethod: snapshot.collectionMethod,
       metrics,
-      activeAlerts,
-      clients
+      activeAlerts: alerts.map((a) => WirelessAlertMapper.toDTO(a)),
+      clients: snapshot.clients.map((c) => this.toClientDTO(c))
     };
   }
 
   public static toClientListDTO(
     snapshot: WirelessSnapshot
   ): WirelessClientListResponseDTO {
-    const clients: WirelessClientDTO[] = snapshot.clients.map(
-      (c) => ({
-        macAddress: c.macAddress,
-        signalRxDbm: c.signalRxDbm,
-        signalTxDbm: c.signalTxDbm,
-        snrDb: c.snrDb,
-        txRateMbps: c.txRateMbps,
-        rxRateMbps: c.rxRateMbps,
-        throughputTxBps: c.throughputTxBps,
-        throughputRxBps: c.throughputRxBps,
-        ccqPercent: c.ccqPercent,
-        uptimeSeconds: c.uptimeSeconds,
-        ipAddress: c.ipAddress
-      })
-    );
-
     return {
       deviceId: snapshot.deviceId.toString(),
       collectedAt: snapshot.collectedAt.toISOString(),
-      clients
+      clients: snapshot.clients.map((c) => this.toClientDTO(c))
+    };
+  }
+
+  private static toClientDTO(c: {
+    macAddress: string;
+    signalRxDbm: number | null;
+    signalTxDbm: number | null;
+    snrDb: number | null;
+    txRateMbps: number | null;
+    rxRateMbps: number | null;
+    throughputTxBps: number | null;
+    throughputRxBps: number | null;
+    ccqPercent: number | null;
+    uptimeSeconds: number | null;
+    ipAddress: string | null;
+  }): WirelessClientDTO {
+    return {
+      macAddress: c.macAddress,
+      signalRxDbm: c.signalRxDbm,
+      signalTxDbm: c.signalTxDbm,
+      snrDb: c.snrDb,
+      txRateMbps: c.txRateMbps,
+      rxRateMbps: c.rxRateMbps,
+      throughputTxBps: c.throughputTxBps,
+      throughputRxBps: c.throughputRxBps,
+      ccqPercent: c.ccqPercent,
+      uptimeSeconds: c.uptimeSeconds,
+      ipAddress: c.ipAddress
     };
   }
 }

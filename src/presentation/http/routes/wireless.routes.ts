@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { WirelessController } from '../controllers/WirelessController';
-import { validateRequest } from '../middleware/validateRequest';
+import { WirelessController } from '../controllers';
+import { validateRequest } from '../middleware';
 import {
   getWirelessStatusSchema,
   getWirelessHistorySchema,
@@ -14,7 +14,7 @@ import {
   getWirelessConfigSchema,
   updateWirelessConfigSchema,
   deleteWirelessConfigSchema
-} from '../validation/wireless.schemas';
+} from '../validation';
 
 /**
  * Creates Express routes for wireless monitoring endpoints.

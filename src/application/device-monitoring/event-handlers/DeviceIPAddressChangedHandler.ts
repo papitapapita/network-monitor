@@ -2,17 +2,6 @@ import { IHandle } from 'domain/shared/interfaces';
 import { DeviceDetailsUpdatedEvent } from 'domain/device-inventory/events';
 import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
 
-/**
- * DeviceIPAddressChangedHandler
- *
- * Listens to DeviceDetailsUpdatedEvent from the device-inventory context.
- * When the IP address field is part of the update, syncs the new value
- * into the device's PollingConfiguration so polling targets the correct host.
- *
- * No-op when:
- * - ipAddress was not part of the update (undefined in updatedFields)
- * - no PollingConfiguration exists for the device (monitoring not enabled)
- */
 export class DeviceIPAddressChangedHandler
   implements IHandle<DeviceDetailsUpdatedEvent>
 {
@@ -20,7 +9,7 @@ export class DeviceIPAddressChangedHandler
     private readonly pollingConfigRepo: IPollingConfigurationRepository
   ) {}
 
-  async handle(event: DeviceDetailsUpdatedEvent): Promise<void> {
+  public async handle(event: DeviceDetailsUpdatedEvent): Promise<void> {
     if (!('ipAddress' in event.updatedFields)) {
       return;
     }

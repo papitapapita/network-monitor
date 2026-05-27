@@ -1,6 +1,6 @@
-import { IWirelessPollingConfigRepository } from 'domain/wireless-monitoring';
+import { IWirelessPollingConfigRepository } from 'domain/wireless-monitoring/repository';
 import { PollWirelessDeviceUseCase } from 'application/wireless-monitoring/use-cases';
-import { ILogger } from 'application/shared/interfaces/ILogger';
+import { ILogger } from 'application/shared/interfaces';
 
 interface OrchestratorConfig {
   checkIntervalMs?: number;

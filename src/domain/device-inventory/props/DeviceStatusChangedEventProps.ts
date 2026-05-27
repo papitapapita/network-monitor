@@ -1,4 +1,4 @@
-import { DeviceId } from '../../shared/ids';
+import { DeviceId } from 'domain/shared/ids';
 import { DeviceStatus, DeviceName } from '../value-objects';
 
 export interface DeviceStatusChangedEventProps {

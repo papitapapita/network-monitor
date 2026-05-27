@@ -1,6 +1,6 @@
 import { PrismaClient } from 'generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { WinstonLogger } from '../logging/WinstonLogger';
+import { WinstonLogger } from '../logging';
 import {
   PrismaLocationRepository,
   PrismaDeviceRepository,
@@ -32,7 +32,7 @@ import {
   WirelessCounterStore,
   WirelessPollingOrchestrator
 } from '../wireless-monitoring';
-import { WirelessAlertEvaluator } from 'domain/wireless-monitoring';
+import { WirelessAlertEvaluator } from 'domain/wireless-monitoring/services';
 import {
   PollWirelessDeviceUseCase,
   GetWirelessDeviceStatusUseCase,
@@ -51,25 +51,37 @@ import {
   GetDeviceCredentialsUseCase,
   DeleteDeviceCredentialsUseCase
 } from 'application/device-inventory/use-cases';
-import { PingService } from '../monitoring/ping/PingService';
-import { ArpService } from '../monitoring/network-scanner/ArpService';
-import { NetworkScannerService } from '../monitoring/network-scanner/NetworkScannerService';
-import { PollingOrchestrator } from '../monitoring/orchestrator/PollingOrchestrator';
-import { TelegramNotificationService } from '../notifications/TelegramNotificationService';
-import { EventDispatcher } from '../../domain/shared/core';
-import { DeviceCreatedEvent } from '../../domain/device-inventory/events/DeviceCreatedEvent';
-import { DeviceMonitoringToggledEvent } from '../../domain/device-inventory/events/DeviceMonitoringToggledEvent';
-import { DeviceDetailsUpdatedEvent } from '../../domain/device-inventory/events/DeviceDetailsUpdatedEvent';
-import { DeviceWentOfflineEvent } from '../../domain/device-monitoring/events/DeviceWentOfflineEvent';
-import { DeviceCameOnlineEvent } from '../../domain/device-monitoring/events/DeviceCameOnlineEvent';
-import { DeviceProvisionedHandler } from '../../application/device-monitoring/event-handlers/DeviceProvisionedHandler';
-import { DeviceMonitoringToggledHandler } from '../../application/device-monitoring/event-handlers/DeviceMonitoringToggledHandler';
-import { DeviceIPAddressChangedHandler } from '../../application/device-monitoring/event-handlers/DeviceIPAddressChangedHandler';
-import { SendDeviceDownAlertUseCase } from '../../application/notifications/use-cases/SendDeviceDownAlertUseCase';
-import { SendDeviceRecoveryAlertUseCase } from '../../application/notifications/use-cases/SendDeviceRecoveryAlertUseCase';
-import { ListAlertsUseCase } from '../../application/notifications/use-cases/ListAlertsUseCase';
-import { DeviceWentOfflineNotificationHandler } from '../../application/notifications/event-handlers/DeviceWentOfflineNotificationHandler';
-import { DeviceCameOnlineNotificationHandler } from '../../application/notifications/event-handlers/DeviceCameOnlineNotificationHandler';
+import { PingService } from '../monitoring/ping';
+import {
+  ArpService,
+  NetworkScannerService
+} from '../monitoring/network-scanner';
+import { PollingOrchestrator } from '../monitoring/orchestrator';
+import { TelegramNotificationService } from '../notifications';
+import { EventDispatcher } from 'domain/shared/core';
+import {
+  DeviceCreatedEvent,
+  DeviceMonitoringToggledEvent,
+  DeviceDetailsUpdatedEvent
+} from 'domain/device-inventory/events';
+import {
+  DeviceWentOfflineEvent,
+  DeviceCameOnlineEvent
+} from 'domain/device-monitoring/events';
+import {
+  DeviceProvisionedHandler,
+  DeviceMonitoringToggledHandler,
+  DeviceIPAddressChangedHandler
+} from 'application/device-monitoring/event-handlers';
+import {
+  SendDeviceDownAlertUseCase,
+  SendDeviceRecoveryAlertUseCase,
+  ListAlertsUseCase
+} from 'application/notifications/use-cases';
+import {
+  DeviceWentOfflineNotificationHandler,
+  DeviceCameOnlineNotificationHandler
+} from 'application/notifications/event-handlers';
 
 // Use Cases
 import {

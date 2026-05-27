@@ -1,4 +1,4 @@
-import { ValueObject, Result, Guard } from '../../shared';
+import { ValueObject, Result, Guard } from 'domain/shared';
 import { DeviceNameProps } from '../props';
 
 export class DeviceName extends ValueObject<DeviceNameProps> {

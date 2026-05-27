@@ -1,9 +1,9 @@
 import { WirelessPollingConfig } from 'domain/wireless-monitoring/aggregates';
-import { WirelessConfigResponseDTO } from '../dtos';
 import {
   CreateWirelessConfigRequestDTO,
-  UpdateWirelessConfigRequestDTO
-} from '../use-cases/';
+  UpdateWirelessConfigRequestDTO,
+  WirelessConfigResponseDTO
+} from '../dtos';
 
 export class WirelessPollingConfigMapper {
   public static toDTO(

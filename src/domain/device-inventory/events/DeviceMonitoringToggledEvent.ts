@@ -1,6 +1,6 @@
-import { IPAddress } from 'domain/shared';
-import { DomainEvent } from '../../shared/core';
-import { DeviceId } from '../../shared/ids';
+import { IPAddress } from 'domain/shared/value-objects';
+import { DomainEvent } from 'domain/shared/core';
+import { DeviceId } from 'domain/shared/ids';
 import { DeviceMonitoringToggledEventProps } from '../props';
 import { DeviceName } from '../value-objects';
 

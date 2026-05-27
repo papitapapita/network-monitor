@@ -1,9 +1,9 @@
 import { AggregateRoot, Result, Guard } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 import { IPAddress } from 'domain/shared/value-objects';
-import { WirelessPollingConfigProps } from '../props/WirelessPollingConfigProps';
+import { WirelessPollingConfigProps } from '../props';
 import { WirelessPollingConfigId } from 'domain/shared/ids';
-import { WirelessPollingConfigToggledEvent } from '../events/WirelessPollingConfigToggled';
+import { WirelessPollingConfigToggledEvent } from '../events';
 
 export class WirelessPollingConfig extends AggregateRoot<
   WirelessPollingConfigProps,

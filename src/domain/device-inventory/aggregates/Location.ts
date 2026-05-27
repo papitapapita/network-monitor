@@ -1,5 +1,5 @@
-import { AggregateRoot, Result, Guard } from '../../shared/core';
-import { LocationId } from '../../shared/ids';
+import { AggregateRoot, Result, Guard } from 'domain/shared/core';
+import { LocationId } from 'domain/shared/ids';
 import { LocationType } from '../enums';
 import { Coordinates } from '../value-objects';
 import { LocationProps } from '../props';
@@ -90,41 +90,17 @@ export class Location extends AggregateRoot<
   }
 
   public updateName(newName: string): Result<void> {
-    const guardResult = Guard.combine([
-      Guard.againstNullOrUndefined(newName, 'name'),
-      Guard.isString(newName, 'name')
-    ]);
-
-    if (!guardResult.succeeded) {
-      return Result.fail<void>(guardResult.message!);
-    }
-
-    if (newName.trim().length === 0) {
-      return Result.fail<void>('Location name cannot be empty');
-    }
-
-    if (newName.length > 150) {
-      return Result.fail<void>(
-        'Location name cannot exceed 150 characters'
-      );
+    const nameResult = Location.validateName(newName);
+    if (nameResult.isFailure) {
+      return Result.fail<void>(nameResult.error);
     }
 
     const oldName = this.props.name;
     if (oldName === newName) return Result.ok<void>();
 
     this.props.name = newName;
-    this.props.updatedAt = new Date();
-
-    this.addDomainEvent(
-      new LocationUpdatedEvent({
-        aggregateId: this.id,
-        locationName: newName,
-        changedFields: ['name'],
-        previousValues: { name: oldName },
-        newValues: { name: newName },
-        dateTimeOccurred: new Date()
-      })
-    );
+    this.touch();
+    this.emitUpdate(['name'], { name: oldName }, { name: newName });
 
     return Result.ok<void>();
   }
@@ -139,18 +115,8 @@ export class Location extends AggregateRoot<
     if (oldType === newType) return Result.ok<void>();
 
     this.props.type = newType;
-    this.props.updatedAt = new Date();
-
-    this.addDomainEvent(
-      new LocationUpdatedEvent({
-        aggregateId: this.id,
-        locationName: this.props.name,
-        changedFields: ['type'],
-        previousValues: { type: oldType },
-        newValues: { type: newType },
-        dateTimeOccurred: new Date()
-      })
-    );
+    this.touch();
+    this.emitUpdate(['type'], { type: oldType }, { type: newType });
 
     return Result.ok<void>();
   }
@@ -160,26 +126,9 @@ export class Location extends AggregateRoot<
     neighborhood?: string | null;
     address?: string | null;
   }): Result<void> {
-    if (
-      fields.municipality != null &&
-      fields.municipality.length > 100
-    ) {
-      return Result.fail<void>(
-        'Municipality cannot exceed 100 characters'
-      );
-    }
-    if (
-      fields.neighborhood != null &&
-      fields.neighborhood.length > 150
-    ) {
-      return Result.fail<void>(
-        'Neighborhood cannot exceed 150 characters'
-      );
-    }
-    if (fields.address != null && fields.address.length > 255) {
-      return Result.fail<void>(
-        'Address cannot exceed 255 characters'
-      );
+    const lengthResult = Location.validateAddressLengths(fields);
+    if (lengthResult.isFailure) {
+      return Result.fail<void>(lengthResult.error);
     }
 
     const changedFields: string[] = [];
@@ -218,18 +167,8 @@ export class Location extends AggregateRoot<
 
     if (changedFields.length === 0) return Result.ok<void>();
 
-    this.props.updatedAt = new Date();
-
-    this.addDomainEvent(
-      new LocationUpdatedEvent({
-        aggregateId: this.id,
-        locationName: this.props.name,
-        changedFields,
-        previousValues,
-        newValues,
-        dateTimeOccurred: new Date()
-      })
-    );
+    this.touch();
+    this.emitUpdate(changedFields, previousValues, newValues);
 
     return Result.ok<void>();
   }
@@ -246,74 +185,109 @@ export class Location extends AggregateRoot<
     if (previousStr === newStr) return Result.ok<void>();
 
     this.props.coordinates = coordinates;
-    this.props.updatedAt = new Date();
-
-    this.addDomainEvent(
-      new LocationUpdatedEvent({
-        aggregateId: this.id,
-        locationName: this.props.name,
-        changedFields: ['coordinates'],
-        previousValues: { coordinates: previousStr },
-        newValues: { coordinates: newStr },
-        dateTimeOccurred: new Date()
-      })
+    this.touch();
+    this.emitUpdate(
+      ['coordinates'],
+      { coordinates: previousStr },
+      { coordinates: newStr }
     );
 
     return Result.ok<void>();
   }
 
   public hasCoordinates(): boolean {
-    return (
-      this.props.coordinates !== null &&
-      this.props.coordinates !== undefined
+    return this.props.coordinates != null;
+  }
+
+  private touch(): void {
+    this.props.updatedAt = new Date();
+  }
+
+  private emitUpdate(
+    changedFields: string[],
+    previousValues: Record<string, unknown>,
+    newValues: Record<string, unknown>
+  ): void {
+    this.addDomainEvent(
+      new LocationUpdatedEvent({
+        aggregateId: this.id,
+        locationName: this.props.name,
+        changedFields,
+        previousValues,
+        newValues,
+        dateTimeOccurred: new Date()
+      })
     );
   }
 
-  private static validate(props: LocationProps): Result<void> {
+  private static validateName(name: string): Result<void> {
     const guardResult = Guard.combine([
-      Guard.againstNullOrUndefined(props.name, 'name'),
-      Guard.againstNullOrUndefined(props.type, 'type'),
-      Guard.isString(props.name, 'name')
+      Guard.againstNullOrUndefined(name, 'name'),
+      Guard.isString(name, 'name')
     ]);
 
     if (!guardResult.succeeded) {
       return Result.fail<void>(guardResult.message!);
     }
 
-    if (props.name.trim().length === 0) {
+    if (name.trim().length === 0) {
       return Result.fail<void>('Location name cannot be empty');
     }
 
-    if (props.name.length > 150) {
+    if (name.length > 150) {
       return Result.fail<void>(
         'Location name cannot exceed 150 characters'
       );
     }
 
+    return Result.ok<void>();
+  }
+
+  private static validateAddressLengths(fields: {
+    municipality?: string | null;
+    neighborhood?: string | null;
+    address?: string | null;
+  }): Result<void> {
     if (
-      props.municipality != null &&
-      props.municipality.length > 100
+      fields.municipality != null &&
+      fields.municipality.length > 100
     ) {
       return Result.fail<void>(
         'Municipality cannot exceed 100 characters'
       );
     }
-
     if (
-      props.neighborhood != null &&
-      props.neighborhood.length > 150
+      fields.neighborhood != null &&
+      fields.neighborhood.length > 150
     ) {
       return Result.fail<void>(
         'Neighborhood cannot exceed 150 characters'
       );
     }
-
-    if (props.address != null && props.address.length > 255) {
+    if (fields.address != null && fields.address.length > 255) {
       return Result.fail<void>(
         'Address cannot exceed 255 characters'
       );
     }
 
     return Result.ok<void>();
+  }
+
+  private static validate(props: LocationProps): Result<void> {
+    const guardResult = Guard.againstNullOrUndefined(
+      props.type,
+      'type'
+    );
+
+    if (!guardResult.succeeded) {
+      return Result.fail<void>(guardResult.message!);
+    }
+
+    const nameResult = Location.validateName(props.name);
+    if (nameResult.isFailure) {
+      return nameResult;
+    }
+
+    return Location.validateAddressLengths(props);
   }
 }

@@ -6,3 +6,4 @@ export * from './PollingController';
 export * from './ScanController';
 export * from './WirelessController';
 export * from './CredentialsController';
+export * from './AlertController';

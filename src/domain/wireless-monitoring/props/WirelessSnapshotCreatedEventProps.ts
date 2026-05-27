@@ -1,5 +1,4 @@
-import { SnapshotId } from 'domain/shared/ids';
-import { DeviceId } from 'domain/shared';
+import { SnapshotId, DeviceId } from 'domain/shared/ids';
 
 export interface WirelessSnapshotCreatedEventProps {
   readonly aggregateId: SnapshotId;

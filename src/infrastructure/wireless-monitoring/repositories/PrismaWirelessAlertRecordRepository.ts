@@ -1,12 +1,9 @@
-import { PrismaClient } from '../../../generated/prisma/client';
+import { PrismaClient } from 'generated/prisma/client';
 import { Result, EventDispatcher } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
-import { WirelessAlertRecordId } from 'domain/shared/ids';
-import {
-  IWirelessAlertRecordRepository,
-  WirelessAlertRecord
-} from 'domain/wireless-monitoring';
-import { WirelessAlertRecordPrismaMapper } from '../mappers/WirelessAlertRecordPrismaMapper';
+import { WirelessAlertRecordId, DeviceId } from 'domain/shared/ids';
+import { IWirelessAlertRecordRepository } from 'domain/wireless-monitoring/repository';
+import { WirelessAlertRecord } from 'domain/wireless-monitoring/aggregates';
+import { WirelessAlertRecordPrismaMapper } from '../mappers';
 
 export class PrismaWirelessAlertRecordRepository
   implements IWirelessAlertRecordRepository

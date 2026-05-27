@@ -6,7 +6,7 @@ jest.mock('@network-utils/arp-lookup', () => ({
 }));
 
 import arp from '@network-utils/arp-lookup';
-import { ArpService } from './ArpService';
+import { ArpService } from '../../../../src/infrastructure/monitoring/network-scanner/ArpService';
 
 const mockArpToMAC = arp.toMAC as jest.MockedFunction<
   typeof arp.toMAC

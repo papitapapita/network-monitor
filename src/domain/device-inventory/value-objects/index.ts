@@ -1,4 +1,3 @@
-export * from './MACAddress';
 export * from './Coordinates';
 export * from './DeviceName';
 export * from './SerialNumber';

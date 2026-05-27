@@ -1,7 +1,5 @@
-import {
-  WirelessPollingConfig,
-  WirelessPollingConfigProps
-} from 'domain/wireless-monitoring';
+import { WirelessPollingConfig } from 'domain/wireless-monitoring/aggregates';
+import { WirelessPollingConfigProps } from 'domain/wireless-monitoring/props';
 import { DeviceId } from 'domain/shared';
 import { WirelessPollingConfigId } from 'domain/shared/ids';
 import { IPAddress } from 'domain/shared/value-objects';

@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
-import { ILogger } from '../../../application/shared/interfaces';
-import { SetDeviceCredentialsUseCase } from '../../../application/device-inventory/use-cases/SetDeviceCredentialsUseCase';
-import { GetDeviceCredentialsUseCase } from '../../../application/device-inventory/use-cases/GetDeviceCredentialsUseCase';
-import { DeleteDeviceCredentialsUseCase } from '../../../application/device-inventory/use-cases/DeleteDeviceCredentialsUseCase';
+import { ILogger } from 'application/shared/interfaces';
+import {
+  SetDeviceCredentialsUseCase,
+  GetDeviceCredentialsUseCase,
+  DeleteDeviceCredentialsUseCase
+} from 'application/device-inventory/use-cases';
 
 export class CredentialsController {
   constructor(

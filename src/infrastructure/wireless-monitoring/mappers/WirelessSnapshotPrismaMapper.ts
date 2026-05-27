@@ -1,11 +1,10 @@
+import { WirelessSnapshot } from 'domain/wireless-monitoring/aggregates';
+import { WirelessMetricsProps } from 'domain/wireless-monitoring/props';
 import {
-  WirelessSnapshot,
   WirelessMetrics,
-  WirelessClientEntry,
-  WirelessMetricsProps
-} from 'domain/wireless-monitoring';
-import { DeviceId } from 'domain/shared';
-import { SnapshotId } from 'domain/shared/ids';
+  WirelessClientEntry
+} from 'domain/wireless-monitoring/value-objects';
+import { SnapshotId, DeviceId } from 'domain/shared/ids';
 
 type PrismaWirelessSnapshot = {
   id: string;
@@ -161,21 +160,18 @@ export class WirelessSnapshotPrismaMapper {
       }
     }
 
-    return WirelessSnapshot.reconstitute(
-      snapshotId.value,
-      {
-        deviceId: deviceId.value,
-        deviceType: raw.deviceType as 'STATION' | 'ACCESS_POINT',
-        collectedAt: raw.collectedAt,
-        collectionMethod: raw.collectionMethod as
-          | 'snmp'
-          | 'http_api'
-          | 'mixed',
-        metrics,
-        clients,
-        alerts: []
-      }
-    );
+    return WirelessSnapshot.reconstitute(snapshotId.value, {
+      deviceId: deviceId.value,
+      deviceType: raw.deviceType as 'STATION' | 'ACCESS_POINT',
+      collectedAt: raw.collectedAt,
+      collectionMethod: raw.collectionMethod as
+        | 'snmp'
+        | 'http_api'
+        | 'mixed',
+      metrics,
+      clients,
+      alerts: []
+    });
   }
 
   static toPersistence(snapshot: WirelessSnapshot): PersistenceData {

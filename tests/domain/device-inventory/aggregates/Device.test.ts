@@ -12,10 +12,9 @@ import {
   DeviceMonitoringToggledEvent,
   DeviceDetailsUpdatedEvent,
   DeviceOwnerType,
-  MACAddress,
   DeviceProps
 } from '../../../../src/domain/device-inventory';
-import { IPAddress } from '../../../../src/domain/shared';
+import { IPAddress, MACAddress } from '../../../../src/domain/shared';
 import {
   DeviceId,
   DeviceModelId,

@@ -1,6 +1,6 @@
 import { ValueObject, Result, Guard } from 'domain/shared/core';
-import { isValidMacAddress } from 'domain/shared/utils/macAddress';
-import { WirelessMetricsProps } from '../props/WirelessMetricsProps';
+import { MACAddress } from 'domain/shared/value-objects';
+import { WirelessMetricsProps } from '../props';
 
 export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
   private constructor(props: WirelessMetricsProps) {
@@ -242,15 +242,18 @@ export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
       }
     }
 
+    let normalizedRemoteApMac: string | null = props.remoteApMac;
     if (props.remoteApMac !== null) {
-      if (!isValidMacAddress(props.remoteApMac)) {
-        return Result.fail<WirelessMetrics>(
-          `remoteApMac has invalid MAC address format: ${props.remoteApMac}`
-        );
+      const macResult = MACAddress.create(props.remoteApMac);
+      if (macResult.isFailure) {
+        return Result.fail<WirelessMetrics>(macResult.error!);
       }
+      normalizedRemoteApMac = macResult.value.value;
     }
 
-    return Result.ok<WirelessMetrics>(new WirelessMetrics(props));
+    return Result.ok<WirelessMetrics>(
+      new WirelessMetrics({ ...props, remoteApMac: normalizedRemoteApMac })
+    );
   }
 
   public static reconstitute(

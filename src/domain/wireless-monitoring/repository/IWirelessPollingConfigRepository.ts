@@ -1,6 +1,6 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId, WirelessPollingConfigId } from 'domain/shared/ids';
-import { WirelessPollingConfig } from '../aggregates/WirelessPollingConfig';
+import { WirelessPollingConfig } from '../aggregates';
 
 export interface IWirelessPollingConfigRepository {
   save(

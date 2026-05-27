@@ -1,5 +1,5 @@
-import { PrismaClient } from '../../generated/prisma/client';
-import { IPAddress } from 'domain/shared';
+import { PrismaClient } from 'generated/prisma/client';
+import { IPAddress, MACAddress } from 'domain/shared';
 import { Device } from 'domain/device-inventory/aggregates';
 import {
   DeviceId,
@@ -7,7 +7,6 @@ import {
   DeviceModelId
 } from 'domain/shared/ids';
 import {
-  MACAddress,
   DeviceStatus,
   DeviceCategory
 } from 'domain/device-inventory/value-objects';

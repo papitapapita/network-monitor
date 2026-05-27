@@ -1,7 +1,7 @@
 import { Location } from '../aggregates';
-import { LocationId } from '../../shared/ids';
+import { LocationId } from 'domain/shared/ids';
 import { LocationType } from '../enums';
-import { Result } from '../../shared/core';
+import { Result } from 'domain/shared/core';
 
 export interface ILocationRepository {
   save(location: Location): Promise<Result<Location>>;

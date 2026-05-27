@@ -1,6 +1,6 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId, WirelessAlertRecordId } from 'domain/shared/ids';
-import { WirelessAlertRecord } from '../aggregates/WirelessAlertRecord';
+import { WirelessAlertRecord } from '../aggregates';
 
 export interface IWirelessAlertRecordRepository {
   save(

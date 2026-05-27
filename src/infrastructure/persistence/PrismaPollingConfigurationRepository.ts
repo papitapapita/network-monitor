@@ -1,12 +1,9 @@
-import { PrismaClient } from '../../generated/prisma/client';
-import { Result } from '../../domain/shared/core';
-import {
-  DeviceId,
-  PollingConfigurationId
-} from '../../domain/shared/ids';
-import { PollingConfiguration } from '../../domain/device-monitoring/entities/PollingConfiguration';
-import { IPollingConfigurationRepository } from '../../domain/device-monitoring/repository/IPollingConfigurationRepository';
-import { PollingConfigurationMapper } from '../mappers/PollingConfigurationMapper';
+import { PrismaClient } from 'generated/prisma/client';
+import { Result } from 'domain/shared/core';
+import { DeviceId, PollingConfigurationId } from 'domain/shared/ids';
+import { PollingConfiguration } from 'domain/device-monitoring/entities';
+import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
+import { PollingConfigurationMapper } from '../mappers';
 
 export class PrismaPollingConfigurationRepository
   implements IPollingConfigurationRepository

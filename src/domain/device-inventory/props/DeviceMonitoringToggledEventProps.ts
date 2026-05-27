@@ -1,5 +1,5 @@
 import { IPAddress } from 'domain/shared';
-import { DeviceId } from '../../shared/ids';
+import { DeviceId } from 'domain/shared/ids';
 import { DeviceName } from '../value-objects';
 
 export interface DeviceMonitoringToggledEventProps {

@@ -3,7 +3,7 @@ import { Result } from 'domain/shared/core';
 import { AlertId, DeviceId } from 'domain/shared/ids';
 import { IAlertRepository } from 'domain/notifications/repository';
 import { Alert } from 'domain/notifications/aggregates';
-import { AlertMapper } from '../mappers/AlertMapper';
+import { AlertMapper } from '../mappers';
 
 export class PrismaAlertRepository implements IAlertRepository {
   constructor(private readonly prisma: PrismaClient) {}

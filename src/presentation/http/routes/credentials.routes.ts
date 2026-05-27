@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { CredentialsController } from '../controllers/CredentialsController';
+import { CredentialsController } from '../controllers';
 
 /**
  * Device credentials routes — mounted under /api/devices

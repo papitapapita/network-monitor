@@ -118,7 +118,7 @@ describe('WirelessClientEntry', () => {
         const result = WirelessClientEntry.create(makeMinimalProps({ macAddress: 'not-a-mac' }));
 
         expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('macAddress');
+        expect(result.error).toContain('MAC address');
       });
 
       it('should fail when macAddress has too few segments', () => {

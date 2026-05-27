@@ -1,9 +1,9 @@
-import { Location } from '../../domain/device-inventory/aggregates/';
-import { LocationId } from '../../domain/shared/ids';
-import { LocationType } from '../../domain/device-inventory/enums';
-import { Coordinates } from '../../domain/device-inventory/value-objects';
-import { Result } from '../../domain/shared/core';
-import { LocationType as PrismaLocationType } from '../../generated/prisma/client';
+import { Location } from 'domain/device-inventory/aggregates/';
+import { LocationId } from 'domain/shared/ids';
+import { LocationType } from 'domain/device-inventory/enums';
+import { Coordinates } from 'domain/device-inventory/value-objects';
+import { Result } from 'domain/shared/core';
+import { LocationType as PrismaLocationType } from 'generated/prisma/client';
 
 type PrismaLocationRecord = {
   id: string;

@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { DeviceController } from '../controllers/DeviceController';
-import { validateRequest } from '../middleware/validateRequest';
+import { DeviceController } from '../controllers';
+import { validateRequest } from '../middleware';
 import {
   createDeviceSchema,
   listDevicesSchema,

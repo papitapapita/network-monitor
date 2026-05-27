@@ -1,5 +1,5 @@
-import { AggregateRoot, Result, Guard } from '../../shared/core';
-import { DeviceModelId, VendorId } from '../../shared/ids';
+import { AggregateRoot, Result, Guard } from 'domain/shared/core';
+import { DeviceModelId, VendorId } from 'domain/shared/ids';
 import { DeviceModelProps } from '../props';
 import {
   DeviceModelCreatedEvent,

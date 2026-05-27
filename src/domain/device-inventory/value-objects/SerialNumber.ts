@@ -1,4 +1,4 @@
-import { ValueObject, Result, Guard } from '../../shared';
+import { ValueObject, Result, Guard } from 'domain/shared';
 import { SerialNumberProps } from '../props';
 
 export class SerialNumber extends ValueObject<SerialNumberProps> {

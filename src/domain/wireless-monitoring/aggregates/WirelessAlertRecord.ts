@@ -1,8 +1,7 @@
 import { AggregateRoot, Result } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
-import { WirelessAlertRecordProps } from '../props/WirelessAlertRecordProps';
-import { WirelessAlertRecordId } from 'domain/shared/ids';
-import { WirelessAlertClearedEvent } from '../events/WirelessAlertCleared';
+import { DeviceId, WirelessAlertRecordId } from 'domain/shared/ids';
+import { WirelessAlertRecordProps } from '../props';
+import { WirelessAlertClearedEvent } from '../events';
 
 export class WirelessAlertRecord extends AggregateRoot<
   WirelessAlertRecordProps,

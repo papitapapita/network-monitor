@@ -1,11 +1,11 @@
-import { PrismaClient } from '../../generated/prisma/client';
+import { PrismaClient } from 'generated/prisma/client';
 import { Result } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
+import { DeviceId } from 'domain/shared/ids';
 import {
   IDeviceCredentialsRepository,
   DeviceCredentials
-} from 'application/device-inventory/interfaces/IDeviceCredentialsRepository';
-import { CredentialsEncryption } from '../wireless-monitoring/crypto/CredentialsEncryption';
+} from 'application/device-inventory/interfaces';
+import { CredentialsEncryption } from '../wireless-monitoring/crypto';
 
 export class PrismaDeviceCredentialsRepository
   implements IDeviceCredentialsRepository

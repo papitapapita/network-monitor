@@ -1,9 +1,9 @@
-import { PrismaClient } from '../../generated/prisma/client';
-import { Location } from '../../domain/device-inventory/aggregates';
-import { LocationId } from '../../domain/shared/ids';
-import { LocationType } from '../../domain/device-inventory/enums';
-import { Result, EventDispatcher } from '../../domain/shared/core';
-import { ILocationRepository } from '../../domain/device-inventory/repository';
+import { PrismaClient } from 'generated/prisma/client';
+import { Location } from 'domain/device-inventory/aggregates';
+import { LocationId } from 'domain/shared/ids';
+import { LocationType } from 'domain/device-inventory/enums';
+import { Result, EventDispatcher } from 'domain/shared/core';
+import { ILocationRepository } from 'domain/device-inventory/repository';
 import { LocationMapper } from '../mappers';
 
 /**

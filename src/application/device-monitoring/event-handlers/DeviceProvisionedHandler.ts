@@ -8,13 +8,6 @@ import {
 import { PollingConfiguration } from 'domain/device-monitoring/entities';
 import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
 
-/**
- * DeviceProvisionedHandler
- *
- * Listens to DeviceCreatedEvent from the device-inventory context.
- * When a new device is created with monitoring enabled and an IP address,
- * creates a default PollingConfiguration entity in the monitoring context.
- */
 export class DeviceProvisionedHandler
   implements IHandle<DeviceCreatedEvent>
 {
@@ -22,7 +15,7 @@ export class DeviceProvisionedHandler
     private readonly pollingConfigRepo: IPollingConfigurationRepository
   ) {}
 
-  async handle(event: DeviceCreatedEvent): Promise<void> {
+  public async handle(event: DeviceCreatedEvent): Promise<void> {
     if (!event.monitoringEnabled || !event.ipAddress) {
       return;
     }

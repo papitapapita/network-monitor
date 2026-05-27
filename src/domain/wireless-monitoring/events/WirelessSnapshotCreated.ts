@@ -1,6 +1,5 @@
 import { DomainEvent } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
-import { SnapshotId } from 'domain/shared/ids';
+import { SnapshotId, DeviceId } from 'domain/shared/ids';
 import { WirelessSnapshotCreatedEventProps } from '../props';
 
 export class WirelessSnapshotCreatedEvent extends DomainEvent<WirelessSnapshotCreatedEventProps> {

@@ -1,7 +1,6 @@
 import { DomainEvent } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
-import { SnapshotId } from 'domain/shared/ids';
-import { WirelessAlert } from '../value-objects/WirelessAlert';
+import { DeviceId, SnapshotId } from 'domain/shared/ids';
+import { WirelessAlert } from '../value-objects';
 import { WirelessAlertTriggeredEventProps } from '../props';
 
 export class WirelessAlertTriggeredEvent extends DomainEvent<WirelessAlertTriggeredEventProps> {

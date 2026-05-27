@@ -1,5 +1,5 @@
 import { DomainEvent } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
+import { DeviceId } from 'domain/shared/ids';
 
 interface DeviceCameOnlineEventProps {
   readonly aggregateId: DeviceId;

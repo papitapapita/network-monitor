@@ -1,5 +1,5 @@
-import { DomainEvent } from '../../shared/core';
-import { VendorId } from '../../shared/ids';
+import { DomainEvent } from 'domain/shared/core';
+import { VendorId } from 'domain/shared/ids';
 
 interface VendorCreatedEventProps {
   aggregateId: VendorId;

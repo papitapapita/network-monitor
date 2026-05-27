@@ -1,5 +1,5 @@
-import { DomainEvent } from '../../shared/core';
-import { LocationId } from '../../shared/ids';
+import { DomainEvent } from 'domain/shared/core';
+import { LocationId } from 'domain/shared/ids';
 import { LocationCreatedEventProps } from '../props';
 import { LocationType } from '../enums';
 

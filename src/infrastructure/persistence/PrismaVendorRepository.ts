@@ -1,8 +1,8 @@
-import { PrismaClient } from '../../generated/prisma/client';
-import { Vendor } from '../../domain/device-inventory/aggregates';
-import { VendorId } from '../../domain/shared/ids';
-import { Result, EventDispatcher } from '../../domain/shared/core';
-import { IVendorRepository } from '../../domain/device-inventory/repository';
+import { PrismaClient } from 'generated/prisma/client';
+import { Vendor } from 'domain/device-inventory/aggregates';
+import { VendorId } from 'domain/shared/ids';
+import { Result, EventDispatcher } from 'domain/shared/core';
+import { IVendorRepository } from 'domain/device-inventory/repository';
 import { VendorMapper } from '../mappers';
 
 export class PrismaVendorRepository implements IVendorRepository {

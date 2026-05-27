@@ -1,9 +1,9 @@
-import { ValueObject, Result, Guard } from '../../shared';
+import { ValueObject, Result, Guard } from '../core';
+import { MACAddressProps } from '../props';
 import {
   isValidMacAddress,
   normalizeMacAddress
-} from '../../shared/utils/macAddress';
-import { MACAddressProps } from '../props';
+} from '../utils/macAddress';
 
 export class MACAddress extends ValueObject<MACAddressProps> {
   get value(): string {

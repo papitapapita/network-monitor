@@ -1,5 +1,5 @@
-import { LocationId } from '../../shared/ids/LocationId';
-import { LocationType } from '../enums/LocationType';
+import { LocationId } from 'domain/shared/ids/LocationId';
+import { LocationType } from '../enums';
 
 export interface LocationCreatedEventProps {
   readonly aggregateId: LocationId;

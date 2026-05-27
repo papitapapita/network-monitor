@@ -1,4 +1,4 @@
-import { LocationId } from '../../shared/ids/LocationId';
+import { LocationId } from 'domain/shared/ids';
 
 export interface LocationUpdatedEventProps {
   readonly aggregateId: LocationId;

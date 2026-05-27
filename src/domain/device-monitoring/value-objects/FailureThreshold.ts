@@ -1,4 +1,4 @@
-import { ValueObject, Result, Guard } from '../../shared/core';
+import { ValueObject, Result, Guard } from 'domain/shared/core';
 import { FailureThresholdProps } from '../props/FailureThresholdProps';
 
 export class FailureThreshold extends ValueObject<FailureThresholdProps> {

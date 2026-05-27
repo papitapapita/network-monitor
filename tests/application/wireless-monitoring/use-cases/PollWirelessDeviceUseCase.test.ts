@@ -1,7 +1,7 @@
 // Source: src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts
 
 import { PollWirelessDeviceUseCase } from '../../../../src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase';
-import { AlertDecision } from '../../../../src/application/wireless-monitoring/services/WirelessAlertEvaluator';
+import { AlertDecision, IWirelessAlertEvaluator } from '../../../../src/domain/wireless-monitoring/services/IWirelessAlertEvaluator';
 import { IWirelessPollingConfigRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessPollingConfigRepository';
 import { IWirelessSnapshotRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessSnapshotRepository';
 import { IWirelessAlertRecordRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessAlertRecordRepository';
@@ -9,7 +9,6 @@ import { IDeviceCredentialsRepository, DecryptedCredentials } from '../../../../
 import { ISNMPCollector, SNMPCollectionResult } from '../../../../src/application/wireless-monitoring/interfaces/ISNMPCollector';
 import { IUbiquitiHttpCollector, HttpCollectionResult } from '../../../../src/application/wireless-monitoring/interfaces/IUbiquitiHttpCollector';
 import { IWirelessCounterStore } from '../../../../src/application/wireless-monitoring/interfaces/IWirelessCounterStore';
-import { IWirelessAlertEvaluator } from '../../../../src/application/wireless-monitoring/interfaces/IWirelessAlertEvaluator';
 import { WirelessPollingConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessPollingConfig';
 import { WirelessPollingConfigId } from '../../../../src/domain/shared/ids/WirelessPollingConfigId';
 import { WirelessAlertRecord } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';

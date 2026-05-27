@@ -4,7 +4,7 @@ import { PollingConfiguration } from 'domain/device-monitoring/entities';
 import {
   PollingInterval,
   FailureThreshold
-} from 'domain/device-monitoring/value-objects/';
+} from 'domain/device-monitoring/value-objects';
 
 type PrismaPollingConfigurationRecord = {
   id: string;

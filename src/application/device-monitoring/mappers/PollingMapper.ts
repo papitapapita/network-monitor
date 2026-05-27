@@ -60,8 +60,7 @@ export class PollingMapper {
     lastPing: PingResultRecord | null
   ): DevicePollingStatusDTO {
     const lastCheckedAt = state?.lastCheckedAt ?? null;
-    // nextScheduled is a projection: last poll time + configured interval.
-    // Null when the device has never been polled (no baseline to project from).
+    // nextScheduled: last poll time + interval; null when never polled (no baseline).
     const nextScheduled = lastCheckedAt
       ? new Date(
           lastCheckedAt.getTime() + config.interval.seconds * 1000
@@ -188,8 +187,7 @@ export class PollingMapper {
         ping.isReachable && ping.latencyMs !== null
           ? this.toMetricsDTO(ping.latencyMs)
           : null,
-      // When no live state is available, fall back to the ping result itself
-      // as the best available indicator of device status at that moment.
+      // No live state: use ping reachability as the best available status indicator.
       deviceStatus: state
         ? state.isOnline
           ? 'ONLINE'

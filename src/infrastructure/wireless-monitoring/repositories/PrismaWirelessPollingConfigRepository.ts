@@ -1,12 +1,12 @@
-import { PrismaClient, WirelessDeviceType } from '../../../generated/prisma/client';
-import { Result } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
-import { WirelessPollingConfigId } from 'domain/shared/ids';
 import {
-  IWirelessPollingConfigRepository,
-  WirelessPollingConfig
-} from 'domain/wireless-monitoring';
-import { WirelessPollingConfigPrismaMapper } from '../mappers/WirelessPollingConfigPrismaMapper';
+  PrismaClient,
+  WirelessDeviceType
+} from 'generated/prisma/client';
+import { Result } from 'domain/shared/core';
+import { DeviceId, WirelessPollingConfigId } from 'domain/shared/ids';
+import { IWirelessPollingConfigRepository } from 'domain/wireless-monitoring/repository';
+import { WirelessPollingConfig } from 'domain/wireless-monitoring/aggregates';
+import { WirelessPollingConfigPrismaMapper } from '../mappers/';
 
 type RawPollingConfig = {
   id: string;

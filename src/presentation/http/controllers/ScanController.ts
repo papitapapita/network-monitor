@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
-import { ILogger } from '../../../application/shared/interfaces';
+import { ILogger } from 'application/shared/interfaces';
 import { ScanNetworkSegmentInput } from '../validation/scan.schemas';
-import { ScanNetworkSegmentUseCase } from '../../../application/device-inventory/use-cases';
+import { ScanNetworkSegmentUseCase } from 'application/device-inventory/use-cases';
 
 /**
  * ScanController

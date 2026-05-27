@@ -1,5 +1,5 @@
-import { DeviceModelId, VendorId } from '../../shared/ids';
-import { Result } from '../../shared/core';
+import { DeviceModelId, VendorId } from 'domain/shared/ids';
+import { Result } from 'domain/shared/core';
 import { DeviceModel } from '../aggregates';
 
 export interface IDeviceModelRepository {

@@ -9,7 +9,7 @@ import {
   PingResponse
 } from 'application/device-monitoring/interfaces';
 import { IArpService } from 'application/device-inventory/interfaces';
-import { NetworkScannerService } from './NetworkScannerService';
+import { NetworkScannerService } from '../../../../src/infrastructure/monitoring/network-scanner/NetworkScannerService';
 
 const mockGetVendor = getVendor as jest.MockedFunction<
   typeof getVendor

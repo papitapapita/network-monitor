@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { ScanController } from '../controllers/ScanController';
-import { validateRequest } from '../middleware/validateRequest';
-import { scanNetworkSegmentSchema } from '../validation/scan.schemas';
+import { ScanController } from '../controllers';
+import { validateRequest } from '../middleware';
+import { scanNetworkSegmentSchema } from '../validation';
 
 /**
  * Creates Express router for network scan endpoints.

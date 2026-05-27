@@ -1,6 +1,8 @@
 import { Result } from 'domain/shared/core';
-import { PollWirelessDeviceRequestDTO } from '../dtos/PollWirelessDeviceRequestDTO';
-import { PollWirelessDeviceResponseDTO } from '../dtos/PollWirelessDeviceResponseDTO';
+import {
+  PollWirelessDeviceRequestDTO,
+  PollWirelessDeviceResponseDTO
+} from '../dtos';
 
 /**
  * Application-layer abstraction for executing a wireless device poll.

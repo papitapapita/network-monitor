@@ -1,13 +1,13 @@
-import { PrismaClient, Prisma } from '../../generated/prisma/client';
-import { Result } from '../../domain/shared/core';
-import { DeviceId } from '../../domain/shared';
+import { PrismaClient, Prisma } from 'generated/prisma/client';
+import { Result } from 'domain/shared/core';
+import { DeviceId } from 'domain/shared/ids';
 import {
   IPingResultRepository,
   PingResultRecord,
   PingResultFilters,
   PingResultPage,
   CreatePingResultInput
-} from '../../domain/device-monitoring/repository/IPingResultRepository';
+} from 'domain/device-monitoring/repository';
 
 export class PrismaPingResultRepository
   implements IPingResultRepository

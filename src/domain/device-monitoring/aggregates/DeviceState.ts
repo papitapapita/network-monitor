@@ -1,5 +1,5 @@
 import { AggregateRoot } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
+import { DeviceId } from 'domain/shared/ids';
 import { DeviceStateProps } from '../props';
 import {
   DeviceWentOfflineEvent,

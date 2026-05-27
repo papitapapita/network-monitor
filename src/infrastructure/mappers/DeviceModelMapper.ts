@@ -1,6 +1,6 @@
-import { DeviceModel } from '../../domain/device-inventory/aggregates';
-import { DeviceModelId, VendorId } from '../../domain/shared/ids';
-import { Result } from '../../domain/shared/core';
+import { DeviceModel } from 'domain/device-inventory/aggregates';
+import { DeviceModelId, VendorId } from 'domain/shared/ids';
+import { Result } from 'domain/shared/core';
 
 type PrismaDeviceModelRecord = {
   id: string;

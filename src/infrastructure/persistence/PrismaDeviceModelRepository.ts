@@ -1,8 +1,8 @@
-import { PrismaClient } from '../../generated/prisma/client';
-import { DeviceModel } from '../../domain/device-inventory/aggregates';
-import { DeviceModelId, VendorId } from '../../domain/shared/ids';
-import { Result, EventDispatcher } from '../../domain/shared/core';
-import { IDeviceModelRepository } from '../../domain/device-inventory/repository';
+import { PrismaClient } from 'generated/prisma/client';
+import { DeviceModel } from 'domain/device-inventory/aggregates';
+import { DeviceModelId, VendorId } from 'domain/shared/ids';
+import { Result, EventDispatcher } from 'domain/shared/core';
+import { IDeviceModelRepository } from 'domain/device-inventory/repository';
 import { DeviceModelMapper } from '../mappers';
 
 export class PrismaDeviceModelRepository

@@ -9,13 +9,6 @@ import { PollingConfiguration } from 'domain/device-monitoring/entities';
 import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
 import { IPAddress } from 'domain/shared';
 
-/**
- * DeviceMonitoringToggledHandler
- *
- * Listens to DeviceMonitoringToggledEvent from the device-inventory context.
- * When monitoring is enabled: creates or re-enables the PollingConfiguration entity.
- * When monitoring is disabled: calls entity.disable() and persists.
- */
 export class DeviceMonitoringToggledHandler
   implements IHandle<DeviceMonitoringToggledEvent>
 {
@@ -23,7 +16,7 @@ export class DeviceMonitoringToggledHandler
     private readonly pollingConfigRepo: IPollingConfigurationRepository
   ) {}
 
-  async handle(event: DeviceMonitoringToggledEvent): Promise<void> {
+  public async handle(event: DeviceMonitoringToggledEvent): Promise<void> {
     const deviceId = event.aggregateId;
 
     try {

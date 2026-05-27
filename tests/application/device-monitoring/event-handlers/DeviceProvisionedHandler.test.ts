@@ -1,5 +1,3 @@
-// Source: src/application/device-monitoring/event-handlers/DeviceProvisionedHandler.ts
-
 import { DeviceProvisionedHandler } from '../../../../src/application/device-monitoring/event-handlers/DeviceProvisionedHandler';
 import { IPollingConfigurationRepository } from '../../../../src/domain/device-monitoring/repository/IPollingConfigurationRepository';
 import { DeviceCreatedEvent } from '../../../../src/domain/device-inventory/events/DeviceCreatedEvent';
@@ -15,17 +13,9 @@ import { DeviceOwnerType } from '../../../../src/domain/device-inventory/enums/D
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { DeviceCreatedEventProps } from '../../../../src/domain/device-inventory/props/DeviceCreatedEventProps';
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
 const VALID_CONFIG_UUID = '550e8400-e29b-41d4-a716-446655440002';
 const DEVICE_IP = '10.0.0.1';
-
-// ---------------------------------------------------------------------------
-// Stub factories
-// ---------------------------------------------------------------------------
 
 function makeRepo(): jest.Mocked<IPollingConfigurationRepository> {
   return {
@@ -73,8 +63,6 @@ function makeEvent(
   });
 }
 
-// ---------------------------------------------------------------------------
-
 describe('DeviceProvisionedHandler', () => {
   let repo: jest.Mocked<IPollingConfigurationRepository>;
   let handler: DeviceProvisionedHandler;
@@ -88,7 +76,6 @@ describe('DeviceProvisionedHandler', () => {
     jest.clearAllMocks();
   });
 
-  // ===========================================================================
   describe('handle — no-op guard conditions', () => {
     it('should return without calling the repository when monitoringEnabled is false', async () => {
       const event = makeEvent({ monitoringEnabled: false });
@@ -129,7 +116,6 @@ describe('DeviceProvisionedHandler', () => {
     });
   });
 
-  // ===========================================================================
   describe('handle — happy path: monitoring enabled with an IP address', () => {
     it('should call save exactly once', async () => {
       repo.save.mockResolvedValue(Result.ok(makeConfig()));
@@ -207,7 +193,6 @@ describe('DeviceProvisionedHandler', () => {
     });
   });
 
-  // ===========================================================================
   describe('handle — PollingConfiguration.create failure', () => {
     it('should not call save when PollingConfiguration.create returns a failure', async () => {
       const consoleSpy = jest
@@ -284,7 +269,6 @@ describe('DeviceProvisionedHandler', () => {
     });
   });
 
-  // ===========================================================================
   describe('handle — error resilience', () => {
     it('should not throw when save rejects unexpectedly', async () => {
       repo.save.mockRejectedValue(new Error('DB connection lost'));
@@ -356,7 +340,6 @@ describe('DeviceProvisionedHandler', () => {
     });
   });
 
-  // ===========================================================================
   describe('handle — correct event data extraction', () => {
     it('should use the aggregateId from the event as the saved config deviceId', async () => {
       const alternateUuid = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';

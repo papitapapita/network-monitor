@@ -1,4 +1,4 @@
-import { DeviceId } from 'domain/shared';
+import { DeviceId } from 'domain/shared/ids';
 
 export interface WirelessAlertRecordProps {
   readonly deviceId: DeviceId;

@@ -1,6 +1,5 @@
 import { DomainEvent } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
-import { WirelessPollingConfigId } from 'domain/shared/ids';
+import { WirelessPollingConfigId, DeviceId } from 'domain/shared/ids';
 import { WirelessPollingConfigToggledEventProps } from '../props';
 
 export class WirelessPollingConfigToggledEvent extends DomainEvent<WirelessPollingConfigToggledEventProps> {

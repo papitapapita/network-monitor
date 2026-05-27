@@ -1,8 +1,11 @@
 import { AggregateRoot, Result, Guard } from 'domain/shared/core';
-import { DeviceId, DeviceModelId, LocationId } from 'domain/shared/ids';
-import { IPAddress } from 'domain/shared';
 import {
-  MACAddress,
+  DeviceId,
+  DeviceModelId,
+  LocationId
+} from 'domain/shared/ids';
+import { IPAddress, MACAddress } from 'domain/shared/value-objects';
+import {
   DeviceName,
   SerialNumber,
   DeviceStatus,
@@ -96,12 +99,14 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     }
 
     // INVENTORY and DAMAGED devices must be identifiable by serial or MAC
-    if (props.status.isInInventory() || props.status.isDamaged()) {
-      if (!props.serialNumber && !props.macAddress) {
-        return Result.fail<Device>(
-          `A device with status ${props.status.toString()} must have at least a serial number or MAC address`
-        );
-      }
+    if (
+      Device.requiresIdentifier(props.status) &&
+      !props.serialNumber &&
+      !props.macAddress
+    ) {
+      return Result.fail<Device>(
+        `A device with status ${props.status.toString()} must have at least a serial number or MAC address`
+      );
     }
 
     // ACTIVE devices must have an IP address
@@ -187,7 +192,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     }
 
     if (
-      (newStatus.isInInventory() || newStatus.isDamaged()) &&
+      Device.requiresIdentifier(newStatus) &&
       !this.props.serialNumber &&
       !this.props.macAddress
     ) {
@@ -202,7 +207,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
 
     const previousStatus = this.props.status;
     this.props.status = newStatus;
-    this.props.updatedAt = new Date();
+    this.touch();
 
     this.addDomainEvent(
       new DeviceStatusChangedEvent({
@@ -231,7 +236,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     }
 
     this.props.locationId = locationId;
-    this.props.updatedAt = new Date();
+    this.touch();
 
     this.addDomainEvent(
       new DeviceLocationAssignedEvent({
@@ -256,20 +261,8 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
         'Cannot enable monitoring for a device without an IP address assigned'
       );
     }
-    this.props.monitoringEnabled = true;
-    this.props.updatedAt = new Date();
 
-    this.addDomainEvent(
-      new DeviceMonitoringToggledEvent({
-        aggregateId: this.id,
-        deviceName: this.props.name,
-        monitoringEnabled: true,
-        ipAddress: this.props.ipAddress as IPAddress,
-        dateTimeOccurred: new Date()
-      })
-    );
-
-    return Result.ok<void>();
+    return this.setMonitoring(true);
   }
 
   public disableMonitoring(): Result<void> {
@@ -277,23 +270,9 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       return Result.ok<void>();
     }
 
-    this.props.monitoringEnabled = false;
-    this.props.updatedAt = new Date();
-
-    this.addDomainEvent(
-      new DeviceMonitoringToggledEvent({
-        aggregateId: this.id,
-        deviceName: this.props.name,
-        monitoringEnabled: false,
-        ipAddress: this.props.ipAddress as IPAddress,
-        dateTimeOccurred: new Date()
-      })
-    );
-
-    return Result.ok<void>();
+    return this.setMonitoring(false);
   }
 
-  // only explicitly provided (non-undefined) fields are changed
   public updateDetails(fields: {
     name?: string;
     description?: string | null;
@@ -313,18 +292,6 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     }
 
     if (fields.description !== undefined) {
-      if (
-        fields.description !== null &&
-        fields.description.length > 0
-      ) {
-        const guardResult = Guard.isString(
-          fields.description,
-          'description'
-        );
-        if (!guardResult.succeeded) {
-          return Result.fail<void>(guardResult.message!);
-        }
-      }
       this.props.description = fields.description;
     }
 
@@ -379,7 +346,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       this.props.ownerType = fields.ownerType;
     }
 
-    this.props.updatedAt = new Date();
+    this.touch();
 
     this.addDomainEvent(
       new DeviceDetailsUpdatedEvent({
@@ -417,5 +384,30 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
 
   public isMonitored(): boolean {
     return this.props.monitoringEnabled;
+  }
+
+  private touch(): void {
+    this.props.updatedAt = new Date();
+  }
+
+  private setMonitoring(enabled: boolean): Result<void> {
+    this.props.monitoringEnabled = enabled;
+    this.touch();
+
+    this.addDomainEvent(
+      new DeviceMonitoringToggledEvent({
+        aggregateId: this.id,
+        deviceName: this.props.name,
+        monitoringEnabled: enabled,
+        ipAddress: this.props.ipAddress as IPAddress,
+        dateTimeOccurred: new Date()
+      })
+    );
+
+    return Result.ok<void>();
+  }
+
+  private static requiresIdentifier(status: DeviceStatus): boolean {
+    return status.isInInventory() || status.isDamaged();
   }
 }

@@ -1,22 +1,12 @@
+import { WirelessMetrics } from '../value-objects';
+import { WirelessAlertRecord } from '../aggregates';
 import {
-  WirelessMetrics,
-  WirelessAlertRecord
-} from 'domain/wireless-monitoring';
+  AlertDecision,
+  EvaluationContext,
+  IWirelessAlertEvaluator
+} from './IWirelessAlertEvaluator';
 
-export interface AlertDecision {
-  metric: string;
-  action: 'OPEN' | 'CLEAR' | 'NONE';
-  severity: 'WARNING' | 'CRITICAL';
-  currentValue: number;
-  threshold: number;
-  message: string;
-}
-
-export interface EvaluationContext {
-  deviceName: string;
-  linkCapacityBps: number | null;
-  clientsProvisionedLimit: number | null;
-}
+export type { AlertDecision, EvaluationContext };
 
 interface ThresholdDef {
   metric: string;
@@ -151,11 +141,9 @@ export const WIRELESS_THRESHOLDS: ThresholdDef[] = [
   }
 ];
 
-// The interface is declared in the interfaces barrel to avoid a circular import.
-// WirelessAlertEvaluator satisfies IWirelessAlertEvaluator structurally (TypeScript
-// duck-typing), so no explicit `implements` clause is needed here. The DI
-// container registers this class under the IWirelessAlertEvaluator token.
-export class WirelessAlertEvaluator {
+export class WirelessAlertEvaluator
+  implements IWirelessAlertEvaluator
+{
   evaluate(
     metrics: WirelessMetrics,
     activeAlerts: Map<string, WirelessAlertRecord>,

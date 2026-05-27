@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { ILogger } from '../../../application/shared/interfaces';
-import { ListAlertsUseCase } from '../../../application/notifications/use-cases';
+import { ILogger } from 'application/shared/interfaces';
+import { ListAlertsUseCase } from 'application/notifications/use-cases';
 
 export class AlertController {
   constructor(

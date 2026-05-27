@@ -1,4 +1,4 @@
-import { ValueObject, Result, Guard } from '../../shared/core';
+import { ValueObject, Result, Guard } from 'domain/shared/core';
 import { CoordinatesProps } from '../props';
 
 // WGS-84 decimal degrees. Lat and lon are always paired — one without the

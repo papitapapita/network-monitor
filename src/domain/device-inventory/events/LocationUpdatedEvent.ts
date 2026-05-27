@@ -1,5 +1,5 @@
-import { DomainEvent } from '../../shared/core';
-import { LocationId } from '../../shared/ids';
+import { DomainEvent } from 'domain/shared/core';
+import { LocationId } from 'domain/shared/ids';
 import { LocationUpdatedEventProps } from '../props';
 
 export class LocationUpdatedEvent extends DomainEvent<LocationUpdatedEventProps> {

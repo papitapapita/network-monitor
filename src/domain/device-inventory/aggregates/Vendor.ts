@@ -1,5 +1,5 @@
-import { AggregateRoot, Result, Guard } from '../../shared/core';
-import { VendorId } from '../../shared/ids';
+import { AggregateRoot, Result, Guard } from 'domain/shared/core';
+import { VendorId } from 'domain/shared/ids';
 import { VendorProps } from '../props';
 import { VendorCreatedEvent, VendorUpdatedEvent } from '../events';
 

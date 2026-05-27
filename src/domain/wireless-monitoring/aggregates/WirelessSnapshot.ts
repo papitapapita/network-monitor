@@ -1,12 +1,15 @@
 import { AggregateRoot } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
-import { WirelessSnapshotProps } from '../props/WirelessSnapshotProps';
-import { SnapshotId } from 'domain/shared/ids';
-import { WirelessMetrics } from '../value-objects/WirelessMetrics';
-import { WirelessClientEntry } from '../value-objects/WirelessClientEntry';
-import { WirelessAlert } from '../value-objects/WirelessAlert';
-import { WirelessSnapshotCreatedEvent } from '../events/WirelessSnapshotCreated';
-import { WirelessAlertTriggeredEvent } from '../events/WirelessAlertTriggered';
+import { DeviceId, SnapshotId } from 'domain/shared/ids';
+import { WirelessSnapshotProps } from '../props';
+import {
+  WirelessMetrics,
+  WirelessClientEntry,
+  WirelessAlert
+} from '../value-objects';
+import {
+  WirelessSnapshotCreatedEvent,
+  WirelessAlertTriggeredEvent
+} from '../events';
 
 export class WirelessSnapshot extends AggregateRoot<
   WirelessSnapshotProps,

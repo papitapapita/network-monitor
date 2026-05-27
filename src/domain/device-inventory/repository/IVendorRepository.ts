@@ -1,5 +1,5 @@
-import { VendorId } from '../../shared/ids';
-import { Result } from '../../shared/core';
+import { VendorId } from 'domain/shared/ids';
+import { Result } from 'domain/shared/core';
 import { Vendor } from '../aggregates';
 
 export interface IVendorRepository {

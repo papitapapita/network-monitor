@@ -1,4 +1,4 @@
-import { DeviceId } from 'domain/shared';
+import { DeviceId } from 'domain/shared/ids';
 import { IPAddress } from 'domain/shared/value-objects';
 
 export interface WirelessPollingConfigProps {

@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { AlertController } from '../controllers/AlertController';
-import { validateRequest } from '../middleware/validateRequest';
-import { listAlertsSchema } from '../validation/alert.schemas';
+import { AlertController } from '../controllers';
+import { validateRequest } from '../middleware';
+import { listAlertsSchema } from '../validation';
 
 export function createAlertRoutes(
   controller: AlertController

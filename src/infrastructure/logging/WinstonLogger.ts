@@ -3,7 +3,7 @@ import {
   ILogger,
   LogLevel,
   LogContext
-} from '../../application/shared/interfaces/ILogger';
+} from 'application/shared/interfaces';
 
 /**
  * WinstonLogger

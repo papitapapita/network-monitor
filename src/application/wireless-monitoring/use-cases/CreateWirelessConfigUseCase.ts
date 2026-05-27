@@ -6,18 +6,11 @@ import { WirelessPollingConfig } from 'domain/wireless-monitoring/aggregates';
 import { IWirelessPollingConfigRepository } from 'domain/wireless-monitoring/repository';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
-import { WirelessConfigResponseDTO } from '../dtos';
+import {
+  CreateWirelessConfigRequestDTO,
+  WirelessConfigResponseDTO
+} from '../dtos';
 import { WirelessPollingConfigMapper } from '../mappers';
-
-export interface CreateWirelessConfigRequestDTO {
-  deviceId: string;
-  deviceType: 'STATION' | 'ACCESS_POINT';
-  ipAddress?: string | null;
-  intervalSecs?: number;
-  enabled?: boolean;
-  linkCapacityBps?: number | null;
-  clientsProvisionedLimit?: number | null;
-}
 
 export class CreateWirelessConfigUseCase extends UseCase<
   CreateWirelessConfigRequestDTO,

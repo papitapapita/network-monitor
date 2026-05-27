@@ -1,15 +1,11 @@
 import { Result } from 'domain/shared/core';
-import { IPAddress } from 'domain/shared';
+import { IPAddress, MACAddress } from 'domain/shared';
 import {
   DeviceId,
   LocationId,
   DeviceModelId
 } from '../../shared/ids';
-import {
-  MACAddress,
-  DeviceStatus,
-  DeviceCategory
-} from '../value-objects';
+import { DeviceStatus, DeviceCategory } from '../value-objects';
 import { DeviceOwnerType } from '../enums';
 import { Device } from '../aggregates/Device';
 

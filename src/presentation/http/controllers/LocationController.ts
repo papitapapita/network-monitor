@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { ILogger } from '../../../application/shared/interfaces';
+import { ILogger } from 'application/shared/interfaces';
 import {
   CreateLocationInput,
   UpdateLocationInput
@@ -9,7 +9,7 @@ import {
   GetLocationUseCase,
   ListLocationsUseCase,
   UpdateLocationUseCase
-} from '../../../application/device-inventory/use-cases';
+} from 'application/device-inventory/use-cases';
 
 /**
  * LocationController

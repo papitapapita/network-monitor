@@ -1,4 +1,4 @@
-import { DeviceId } from 'domain/shared';
+import { DeviceId } from 'domain/shared/ids';
 import { DeviceState } from 'domain/device-monitoring/aggregates';
 import { DeviceStateProps } from 'domain/device-monitoring/props';
 

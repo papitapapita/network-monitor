@@ -1,10 +1,12 @@
 import { Request, Response } from 'express';
-import { ILogger } from '../../../application/shared/interfaces';
-import { ExecutePollingCycleUseCase } from '../../../application/device-monitoring/use-cases/ExecutePollingCycleUseCase';
-import { GetDevicePollingStatusUseCase } from '../../../application/device-monitoring/use-cases/GetDevicePollingStatusUseCase';
-import { GetDevicePollingHistoryUseCase } from '../../../application/device-monitoring/use-cases/GetDevicePollingHistoryUseCase';
-import { ConfigureDevicePollingUseCase } from '../../../application/device-monitoring/use-cases/ConfigureDevicePollingUseCase';
-import { CreateDevicePollingUseCase } from '../../../application/device-monitoring/use-cases/CreateDevicePollingUseCase';
+import { ILogger } from 'application/shared/interfaces';
+import {
+  ExecutePollingCycleUseCase,
+  GetDevicePollingStatusUseCase,
+  GetDevicePollingHistoryUseCase,
+  ConfigureDevicePollingUseCase,
+  CreateDevicePollingUseCase
+} from 'application/device-monitoring/use-cases';
 
 export class PollingController {
   constructor(

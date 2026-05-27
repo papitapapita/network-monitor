@@ -321,7 +321,7 @@ describe('WirelessMetrics', () => {
     it('should expose remoteApMac', () => {
       const metrics = WirelessMetrics.create(makeFullProps({ remoteApMac: 'aa:bb:cc:dd:ee:ff' })).value;
 
-      expect(metrics.remoteApMac).toBe('aa:bb:cc:dd:ee:ff');
+      expect(metrics.remoteApMac).toBe('AA:BB:CC:DD:EE:FF');
     });
 
     it('should expose remoteApName', () => {

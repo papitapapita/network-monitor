@@ -1,6 +1,6 @@
-import { Vendor } from '../../domain/device-inventory/aggregates';
-import { VendorId } from '../../domain/shared/ids';
-import { Result } from '../../domain/shared/core';
+import { Vendor } from 'domain/device-inventory/aggregates';
+import { VendorId } from 'domain/shared/ids';
+import { Result } from 'domain/shared/core';
 
 type PrismaVendorRecord = {
   id: string;

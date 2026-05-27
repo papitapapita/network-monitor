@@ -1,5 +1,5 @@
 import { Result } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
+import { DeviceId } from 'domain/shared/ids';
 
 /**
  * Read-only view of device credentials used by wireless polling.

@@ -1,5 +1,5 @@
 import { DeviceId, PollingConfigurationId } from 'domain/shared';
-import { Result } from '../../shared/core';
+import { Result } from 'domain/shared/core';
 import { PollingConfiguration } from '../entities';
 
 export interface IPollingConfigurationRepository {

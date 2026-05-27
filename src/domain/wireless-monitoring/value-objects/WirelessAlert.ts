@@ -1,5 +1,5 @@
 import { ValueObject, Result, Guard } from 'domain/shared/core';
-import { WirelessAlertProps } from '../props/WirelessAlertProps';
+import { WirelessAlertProps } from '../props';
 
 export class WirelessAlert extends ValueObject<WirelessAlertProps> {
   private constructor(props: WirelessAlertProps) {

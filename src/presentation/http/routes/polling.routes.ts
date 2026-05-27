@@ -1,13 +1,13 @@
 import { Router } from 'express';
-import { PollingController } from '../controllers/PollingController';
-import { validateRequest } from '../middleware/validateRequest';
+import { PollingController } from '../controllers';
+import { validateRequest } from '../middleware';
 import {
   pollDeviceSchema,
   getPollingStatusSchema,
   getPollingHistorySchema,
   configurePollingSchema,
   createDevicePollingSchema
-} from '../validation/polling.schemas';
+} from '../validation';
 
 /**
  * Creates Express routes for polling endpoints.

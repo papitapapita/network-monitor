@@ -1,6 +1,4 @@
-// Source: src/application/wireless-monitoring/services/WirelessAlertEvaluator.ts
-
-import { WirelessAlertEvaluator, EvaluationContext } from '../../../../src/application/wireless-monitoring/services/WirelessAlertEvaluator';
+import { WirelessAlertEvaluator, EvaluationContext } from '../../../../src/domain/wireless-monitoring/services/WirelessAlertEvaluator';
 import { WirelessMetrics } from '../../../../src/domain/wireless-monitoring/value-objects/WirelessMetrics';
 import { WirelessAlertRecord } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
 import { WirelessMetricsProps } from '../../../../src/domain/wireless-monitoring/props/WirelessMetricsProps';

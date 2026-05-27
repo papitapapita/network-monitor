@@ -1,5 +1,5 @@
-import { DomainEvent } from '../../shared/core';
-import { DeviceId } from '../../shared/ids';
+import { DomainEvent } from 'domain/shared/core';
+import { DeviceId } from 'domain/shared/ids';
 import { DeviceStatusChangedEventProps } from '../props';
 import { DeviceStatus, DeviceName } from '../value-objects';
 

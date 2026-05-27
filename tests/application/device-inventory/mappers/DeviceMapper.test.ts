@@ -1,12 +1,11 @@
 // Source: src/application/device-inventory/mappers/DeviceMapper.ts
-import { IPAddress } from 'domain/shared';
+import { IPAddress, MACAddress } from 'domain/shared';
 import { DeviceMapper } from 'application/device-inventory/mappers';
 import { Device } from 'domain/device-inventory/aggregates';
 import {
   DeviceName,
   DeviceStatus,
   DeviceCategory,
-  MACAddress,
   SerialNumber
 } from 'domain/device-inventory/value-objects';
 import { DeviceOwnerType } from 'domain/device-inventory/enums';

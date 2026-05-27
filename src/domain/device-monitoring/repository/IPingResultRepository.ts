@@ -1,5 +1,5 @@
 import { DeviceId } from 'domain/shared';
-import { Result } from '../../shared/core';
+import { Result } from 'domain/shared/core';
 
 export interface PingResultRecord {
   id: string;

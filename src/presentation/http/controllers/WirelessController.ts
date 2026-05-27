@@ -1,15 +1,17 @@
 import { Request, Response } from 'express';
-import { ILogger } from '../../../application/shared/interfaces';
-import { GetWirelessDeviceStatusUseCase } from '../../../application/wireless-monitoring/use-cases/GetWirelessDeviceStatusUseCase';
-import { GetWirelessDeviceHistoryUseCase } from '../../../application/wireless-monitoring/use-cases/GetWirelessDeviceHistoryUseCase';
-import { GetWirelessClientsUseCase } from '../../../application/wireless-monitoring/use-cases/GetWirelessClientsUseCase';
-import { GetActiveWirelessAlertsUseCase } from '../../../application/wireless-monitoring/use-cases/GetActiveWirelessAlertsUseCase';
-import { GetWirelessAlertHistoryUseCase } from '../../../application/wireless-monitoring/use-cases/GetWirelessAlertHistoryUseCase';
-import { TriggerWirelessPollUseCase } from '../../../application/wireless-monitoring/use-cases/TriggerWirelessPollUseCase';
-import { CreateWirelessConfigUseCase } from '../../../application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase';
-import { GetWirelessConfigUseCase } from '../../../application/wireless-monitoring/use-cases/GetWirelessConfigUseCase';
-import { UpdateWirelessConfigUseCase } from '../../../application/wireless-monitoring/use-cases/UpdateWirelessConfigUseCase';
-import { DeleteWirelessConfigUseCase } from '../../../application/wireless-monitoring/use-cases/DeleteWirelessConfigUseCase';
+import { ILogger } from 'application/shared/interfaces';
+import {
+  GetWirelessDeviceStatusUseCase,
+  GetWirelessDeviceHistoryUseCase,
+  GetWirelessClientsUseCase,
+  GetActiveWirelessAlertsUseCase,
+  GetWirelessAlertHistoryUseCase,
+  TriggerWirelessPollUseCase,
+  CreateWirelessConfigUseCase,
+  GetWirelessConfigUseCase,
+  UpdateWirelessConfigUseCase,
+  DeleteWirelessConfigUseCase
+} from 'application/wireless-monitoring/use-cases';
 
 export class WirelessController {
   constructor(

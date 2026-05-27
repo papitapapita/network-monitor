@@ -1,12 +1,9 @@
-import { PrismaClient } from '../../../generated/prisma/client';
+import { PrismaClient } from 'generated/prisma/client';
 import { Result, EventDispatcher } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
-import { SnapshotId } from 'domain/shared/ids';
-import {
-  IWirelessSnapshotRepository,
-  WirelessSnapshot
-} from 'domain/wireless-monitoring';
-import { WirelessSnapshotPrismaMapper } from '../mappers/WirelessSnapshotPrismaMapper';
+import { DeviceId, SnapshotId } from 'domain/shared/ids';
+import { IWirelessSnapshotRepository } from 'domain/wireless-monitoring/repository';
+import { WirelessSnapshot } from 'domain/wireless-monitoring/aggregates';
+import { WirelessSnapshotPrismaMapper } from '../mappers/';
 
 export class PrismaWirelessSnapshotRepository
   implements IWirelessSnapshotRepository

@@ -1,6 +1,5 @@
-import { SnapshotId } from 'domain/shared/ids';
-import { DeviceId } from 'domain/shared';
-import { WirelessAlert } from '../value-objects/WirelessAlert';
+import { SnapshotId, DeviceId } from 'domain/shared/ids';
+import { WirelessAlert } from '../value-objects';
 
 export interface WirelessAlertTriggeredEventProps {
   readonly aggregateId: SnapshotId;

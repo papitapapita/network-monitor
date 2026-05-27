@@ -1,5 +1,5 @@
-import { DomainEvent } from '../../shared/core';
-import { DeviceModelId } from '../../shared/ids';
+import { DomainEvent } from 'domain/shared/core';
+import { DeviceModelId } from 'domain/shared/ids';
 
 interface DeviceModelCreatedEventProps {
   aggregateId: DeviceModelId;

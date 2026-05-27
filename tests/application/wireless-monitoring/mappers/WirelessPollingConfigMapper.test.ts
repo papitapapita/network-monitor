@@ -4,8 +4,10 @@ import { WirelessPollingConfig } from 'domain/wireless-monitoring/aggregates';
 import { WirelessPollingConfigId, DeviceId } from 'domain/shared/ids';
 import { IPAddress } from 'domain/shared/value-objects';
 import { WirelessPollingConfigMapper } from 'application/wireless-monitoring/mappers';
-import { CreateWirelessConfigRequestDTO } from 'application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase';
-import { UpdateWirelessConfigRequestDTO } from 'application/wireless-monitoring/use-cases/UpdateWirelessConfigUseCase';
+import {
+  CreateWirelessConfigRequestDTO,
+  UpdateWirelessConfigRequestDTO
+} from 'application/wireless-monitoring/dtos';
 
 // ---------------------------------------------------------------------------
 // Constants

@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import { LocationController } from '../controllers/LocationController';
-import { validateRequest } from '../middleware/validateRequest';
+import { LocationController } from '../controllers';
+import { validateRequest } from '../middleware';
 import {
   createLocationSchema,
   listLocationsSchema,
   getLocationByIdSchema,
   updateLocationSchema
-} from '../validation/location.schemas';
+} from '../validation';
 
 /**
  * Creates Express router for Location endpoints.

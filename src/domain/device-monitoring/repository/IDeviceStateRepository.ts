@@ -1,6 +1,6 @@
-import { DeviceId } from 'domain/shared';
-import { Result } from '../../shared/core';
-import { DeviceState } from '../aggregates/DeviceState';
+import { DeviceId } from 'domain/shared/ids';
+import { Result } from 'domain/shared/core';
+import { DeviceState } from '../aggregates';
 
 export interface IDeviceStateRepository {
   findByDeviceId(

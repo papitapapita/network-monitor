@@ -1,9 +1,6 @@
 import { ValueObject, Result, Guard } from 'domain/shared/core';
-import {
-  isValidMacAddress,
-  normalizeMacAddress
-} from 'domain/shared/utils/macAddress';
-import { WirelessClientEntryProps } from '../props/WirelessClientEntryProps';
+import { MACAddress } from 'domain/shared/value-objects';
+import { WirelessClientEntryProps } from '../props';
 
 export class WirelessClientEntry extends ValueObject<WirelessClientEntryProps> {
   private constructor(props: WirelessClientEntryProps) {
@@ -55,18 +52,9 @@ export class WirelessClientEntry extends ValueObject<WirelessClientEntryProps> {
       return Result.fail<WirelessClientEntry>(nullCheck.message!);
     }
 
-    const macGuards = Guard.combine([
-      Guard.againstNullOrUndefined(props.macAddress, 'macAddress'),
-      Guard.isString(props.macAddress, 'macAddress')
-    ]);
-    if (!macGuards.succeeded) {
-      return Result.fail<WirelessClientEntry>(macGuards.message!);
-    }
-
-    if (!isValidMacAddress(props.macAddress)) {
-      return Result.fail<WirelessClientEntry>(
-        `macAddress has invalid MAC address format: ${props.macAddress}. Must be AA:BB:CC:DD:EE:FF or AA-BB-CC-DD-EE-FF.`
-      );
+    const macResult = MACAddress.create(props.macAddress);
+    if (macResult.isFailure) {
+      return Result.fail<WirelessClientEntry>(macResult.error!);
     }
 
     if (props.ccqPercent !== null) {
@@ -107,10 +95,11 @@ export class WirelessClientEntry extends ValueObject<WirelessClientEntryProps> {
         return Result.fail<WirelessClientEntry>(ipGuards.message!);
     }
 
-    const normalizedMac = normalizeMacAddress(props.macAddress);
-
     return Result.ok<WirelessClientEntry>(
-      new WirelessClientEntry({ ...props, macAddress: normalizedMac })
+      new WirelessClientEntry({
+        ...props,
+        macAddress: macResult.value.value
+      })
     );
   }
 

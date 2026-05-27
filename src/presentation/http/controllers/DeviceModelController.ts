@@ -1,12 +1,12 @@
 import { Request, Response } from 'express';
-import { ILogger } from '../../../application/shared/interfaces';
+import { ILogger } from 'application/shared/interfaces';
 import {
   GetDeviceModelUseCase,
   ListDeviceModelsUseCase,
   CreateDeviceModelUseCase,
   UpdateDeviceModelUseCase,
   DeleteDeviceModelUseCase
-} from '../../../application/device-inventory/use-cases';
+} from 'application/device-inventory/use-cases';
 
 export class DeviceModelController {
   constructor(

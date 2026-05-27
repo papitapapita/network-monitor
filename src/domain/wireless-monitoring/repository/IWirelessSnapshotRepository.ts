@@ -1,6 +1,6 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId, SnapshotId } from 'domain/shared/ids';
-import { WirelessSnapshot } from '../aggregates/WirelessSnapshot';
+import { WirelessSnapshot } from '../aggregates';
 
 // append-only: update and delete are intentionally absent
 export interface IWirelessSnapshotRepository {

@@ -1,6 +1,6 @@
 // Source: src/domain/device-inventory/value-objects/MACAddress.ts
 
-import { MACAddress } from '../../../../src/domain/device-inventory/value-objects/MACAddress';
+import { MACAddress } from '../../../../src/domain/shared/value-objects/MACAddress';
 
 describe('MACAddress', () => {
   describe('create', () => {

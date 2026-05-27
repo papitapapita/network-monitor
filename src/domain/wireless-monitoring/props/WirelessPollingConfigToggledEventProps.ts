@@ -1,5 +1,4 @@
-import { WirelessPollingConfigId } from 'domain/shared/ids';
-import { DeviceId } from 'domain/shared';
+import { WirelessPollingConfigId, DeviceId } from 'domain/shared/ids';
 
 export interface WirelessPollingConfigToggledEventProps {
   readonly aggregateId: WirelessPollingConfigId;
