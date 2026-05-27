@@ -1,6 +1,4 @@
-// Source: src/infrastructure/wireless-monitoring/crypto/CredentialsEncryption.ts
-
-import { CredentialsEncryption } from '../../../../src/infrastructure/wireless-monitoring/crypto/CredentialsEncryption';
+import { CredentialsEncryption } from '../../../src/infrastructure/crypto/CredentialsEncryption';
 
 // A valid 32-byte key expressed as 64 hex characters
 const VALID_KEY_HEX = 'a'.repeat(64);

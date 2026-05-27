@@ -5,7 +5,7 @@ import {
   IDeviceCredentialsRepository,
   DeviceCredentials
 } from 'application/device-inventory/interfaces';
-import { CredentialsEncryption } from '../wireless-monitoring/crypto';
+import { CredentialsEncryption } from '../crypto';
 
 export class PrismaDeviceCredentialsRepository
   implements IDeviceCredentialsRepository

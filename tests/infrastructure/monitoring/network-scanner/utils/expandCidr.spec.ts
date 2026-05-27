@@ -1,6 +1,6 @@
 // Source: src/infrastructure/monitoring/network-scanner/utils/expandCidr.ts
 
-import { expandCidr } from './expandCidr';
+import { expandCidr } from '../../../../../src/infrastructure/monitoring/network-scanner/utils/expandCidr';
 
 describe('expandCidr', () => {
   describe('valid CIDR ranges — correct host list output', () => {
@@ -134,10 +134,10 @@ describe('expandCidr', () => {
       for (let i = 0; i < result.length - 1; i++) {
         const current = result[i]!.split('.')
           .map(Number)
-          .reduce((acc, v) => acc * 256 + v, 0);
+          .reduce((acc: number, v: number) => acc * 256 + v, 0);
         const next = result[i + 1]!.split('.')
           .map(Number)
-          .reduce((acc, v) => acc * 256 + v, 0);
+          .reduce((acc: number, v: number) => acc * 256 + v, 0);
         expect(current).toBeLessThan(next);
       }
     });

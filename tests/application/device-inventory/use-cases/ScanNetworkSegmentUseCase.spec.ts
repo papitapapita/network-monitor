@@ -1,11 +1,11 @@
 // Source: src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.ts
 
-import { ILogger } from '../../shared/interfaces';
+import { ILogger } from '../../../../src/application/shared/interfaces';
 import {
   INetworkScannerService,
   DiscoveredHost
-} from '../interfaces';
-import { ScanNetworkSegmentUseCase } from './ScanNetworkSegmentUseCase';
+} from '../../../../src/application/device-inventory/interfaces';
+import { ScanNetworkSegmentUseCase } from '../../../../src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase';
 
 const createMockLogger = (): ILogger => ({
   info: jest.fn(),

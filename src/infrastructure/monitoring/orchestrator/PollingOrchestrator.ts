@@ -1,5 +1,6 @@
 import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
 import { ExecutePollingCycleUseCase } from 'application/device-monitoring/use-cases';
+import { ILogger } from 'application/shared/interfaces';
 
 interface OrchestratorConfig {
   checkIntervalMs?: number;
@@ -16,7 +17,8 @@ export class PollingOrchestrator {
   constructor(
     private readonly pollingConfigRepo: IPollingConfigurationRepository,
     private readonly executePollingCycleUseCase: ExecutePollingCycleUseCase,
-    config: OrchestratorConfig = {}
+    config: OrchestratorConfig = {},
+    private readonly logger: ILogger
   ) {
     this.checkIntervalMs = config.checkIntervalMs ?? 10_000;
     this.maxConcurrentPolls = config.maxConcurrentPolls ?? 10;
@@ -26,7 +28,7 @@ export class PollingOrchestrator {
     if (this.isRunning) return;
 
     this.isRunning = true;
-    console.info('[PollingOrchestrator] Started', {
+    this.logger.info('[PollingOrchestrator] Started', {
       checkIntervalMs: this.checkIntervalMs,
       maxConcurrentPolls: this.maxConcurrentPolls
     });
@@ -57,7 +59,7 @@ export class PollingOrchestrator {
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
 
-    console.info('[PollingOrchestrator] Stopped');
+    this.logger.info('[PollingOrchestrator] Stopped');
   }
 
   isActive(): boolean {
@@ -72,9 +74,9 @@ export class PollingOrchestrator {
         new Date()
       );
       if (dueResult.isFailure) {
-        console.error(
+        this.logger.error(
           '[PollingOrchestrator] Failed to get due devices',
-          dueResult.error
+          new Error(dueResult.error)
         );
         return;
       }
@@ -93,9 +95,9 @@ export class PollingOrchestrator {
         )
       );
     } catch (error) {
-      console.error(
+      this.logger.error(
         '[PollingOrchestrator] Unexpected error in pollDevices',
-        error
+        error as Error
       );
     }
   }
@@ -108,10 +110,11 @@ export class PollingOrchestrator {
         forceExecution: false
       });
     } catch (error) {
-      console.error('[PollingOrchestrator] Poll failed for device', {
-        deviceId,
-        error
-      });
+      this.logger.error(
+        '[PollingOrchestrator] Poll failed for device',
+        error as Error,
+        { deviceId }
+      );
     } finally {
       this.activePolls.delete(deviceId);
     }

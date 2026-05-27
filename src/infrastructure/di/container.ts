@@ -368,7 +368,8 @@ export class DependencyContainer {
     this.pollingOrchestrator = new PollingOrchestrator(
       this.pollingConfigRepository,
       executePollingCycleUseCase,
-      { maxConcurrentPolls: 50 }
+      { maxConcurrentPolls: 50 },
+      this.logger
     );
 
     // Initialize notification service (fail-fast if env vars missing)

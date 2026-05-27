@@ -10,7 +10,7 @@ import { DeviceCredentials } from 'application/device-inventory/interfaces/IDevi
 import type { PrismaClient } from '../../../../src/generated/prisma/client';
 
 // Jest.mock must be hoisted before imports.
-jest.mock('../../../../src/infrastructure/wireless-monitoring/crypto/CredentialsEncryption', () => ({
+jest.mock('../../../../src/infrastructure/crypto/CredentialsEncryption', () => ({
   CredentialsEncryption: {
     encrypt: jest.fn((plaintext: string) => `enc:${plaintext}`),
     decrypt: jest.fn((ciphertext: string) => ciphertext.replace(/^enc:/, '')),
@@ -18,7 +18,7 @@ jest.mock('../../../../src/infrastructure/wireless-monitoring/crypto/Credentials
 }));
 
 // Import the mocked module AFTER jest.mock so we can access the mock functions
-import { CredentialsEncryption } from '../../../../src/infrastructure/wireless-monitoring/crypto/CredentialsEncryption';
+import { CredentialsEncryption } from '../../../../src/infrastructure/crypto/CredentialsEncryption';
 
 const DEVICE_UUID = 'f149790a-58f0-479a-8534-b0b01e9942bb';
 
