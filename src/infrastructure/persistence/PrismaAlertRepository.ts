@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from 'generated/prisma/client';
 import { Result } from 'domain/shared/core';
 import { AlertId, DeviceId } from 'domain/shared/ids';
 import { IAlertRepository } from 'domain/notifications/repository';
@@ -19,12 +19,13 @@ export class PrismaAlertRepository implements IAlertRepository {
           notifiedAt: data.notifiedAt,
           recoveryNotifiedAt: data.recoveryNotifiedAt
         },
-        create: data
+        // Prisma's generated type expects enum literal for severity — string cast required
+        create: { ...data, severity: data.severity as 'WARNING' | 'CRITICAL' }
       });
 
       return Result.ok(alert);
     } catch (error) {
-      return Result.fail(`save failed: ${(error as Error).message}`);
+      return Result.fail(`Database error saving alert: ${(error as Error).message}`);
     }
   }
 
@@ -39,7 +40,7 @@ export class PrismaAlertRepository implements IAlertRepository {
       return Result.ok(AlertMapper.toDomain(record));
     } catch (error) {
       return Result.fail(
-        `findById failed: ${(error as Error).message}`
+        `Database error finding alert: ${(error as Error).message}`
       );
     }
   }
@@ -58,7 +59,7 @@ export class PrismaAlertRepository implements IAlertRepository {
       return Result.ok(AlertMapper.toDomain(record));
     } catch (error) {
       return Result.fail(
-        `findOpenByDeviceId failed: ${(error as Error).message}`
+        `Database error finding open alert: ${(error as Error).message}`
       );
     }
   }
@@ -79,7 +80,7 @@ export class PrismaAlertRepository implements IAlertRepository {
       return Result.ok(records.map(AlertMapper.toDomain));
     } catch (error) {
       return Result.fail(
-        `findAllByDeviceId failed: ${(error as Error).message}`
+        `Database error finding alerts by device: ${(error as Error).message}`
       );
     }
   }
@@ -95,7 +96,7 @@ export class PrismaAlertRepository implements IAlertRepository {
       return Result.ok(records.map(AlertMapper.toDomain));
     } catch (error) {
       return Result.fail(
-        `findAll failed: ${(error as Error).message}`
+        `Database error finding all alerts: ${(error as Error).message}`
       );
     }
   }

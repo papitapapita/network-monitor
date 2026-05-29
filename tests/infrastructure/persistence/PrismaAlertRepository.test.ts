@@ -218,7 +218,7 @@ describe('PrismaAlertRepository', () => {
 
         const result = await repository.save(fakeAlert);
 
-        expect(result.error).toContain('save failed:');
+        expect(result.error).toContain('Database error saving alert');
       });
 
       it('should include the original error message in the failure', async () => {
@@ -316,7 +316,7 @@ describe('PrismaAlertRepository', () => {
         const alertId = AlertId.parse(VALID_UUID_1).value;
         const result = await repository.findById(alertId);
 
-        expect(result.error).toContain('findById failed:');
+        expect(result.error).toContain('Database error finding alert');
       });
 
       it('should include the original error message in the failure', async () => {
@@ -412,7 +412,7 @@ describe('PrismaAlertRepository', () => {
         const deviceId = DeviceId.parse(VALID_UUID_2).value;
         const result = await repository.findOpenByDeviceId(deviceId);
 
-        expect(result.error).toContain('findOpenByDeviceId failed:');
+        expect(result.error).toContain('Database error finding open alert');
       });
 
       it('should include the original error message in the failure', async () => {
@@ -557,7 +557,7 @@ describe('PrismaAlertRepository', () => {
         const deviceId = DeviceId.parse(VALID_UUID_2).value;
         const result = await repository.findAllByDeviceId(deviceId);
 
-        expect(result.error).toContain('findAllByDeviceId failed:');
+        expect(result.error).toContain('Database error finding alerts by device');
       });
 
       it('should include the original error message in the failure', async () => {
@@ -680,7 +680,7 @@ describe('PrismaAlertRepository', () => {
 
         const result = await repository.findAll();
 
-        expect(result.error).toContain('findAll failed:');
+        expect(result.error).toContain('Database error finding all alerts');
       });
 
       it('should include the original error message in the failure', async () => {

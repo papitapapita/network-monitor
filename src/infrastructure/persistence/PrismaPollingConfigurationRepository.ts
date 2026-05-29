@@ -24,7 +24,7 @@ export class PrismaPollingConfigurationRepository
       return Result.ok(PollingConfigurationMapper.toDomain(record));
     } catch (error) {
       return Result.fail(
-        `findById failed: ${(error as Error).message}`
+        `Database error finding polling config: ${(error as Error).message}`
       );
     }
   }
@@ -43,7 +43,7 @@ export class PrismaPollingConfigurationRepository
       return Result.ok(PollingConfigurationMapper.toDomain(record));
     } catch (error) {
       return Result.fail(
-        `findByDeviceId failed: ${(error as Error).message}`
+        `Database error finding polling config: ${(error as Error).message}`
       );
     }
   }
@@ -90,7 +90,7 @@ export class PrismaPollingConfigurationRepository
       return Result.ok(entities);
     } catch (error) {
       return Result.fail(
-        `findAllDue failed: ${(error as Error).message}`
+        `Database error finding due polling configs: ${(error as Error).message}`
       );
     }
   }
@@ -123,7 +123,7 @@ export class PrismaPollingConfigurationRepository
 
       return Result.ok(entity);
     } catch (error) {
-      return Result.fail(`save failed: ${(error as Error).message}`);
+      return Result.fail(`Database error saving polling config: ${(error as Error).message}`);
     }
   }
 
@@ -135,7 +135,7 @@ export class PrismaPollingConfigurationRepository
       return Result.ok(undefined);
     } catch (error) {
       return Result.fail(
-        `delete failed: ${(error as Error).message}`
+        `Database error deleting polling config: ${(error as Error).message}`
       );
     }
   }

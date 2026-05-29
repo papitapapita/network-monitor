@@ -64,6 +64,7 @@ export class PrismaWirelessAlertRecordRepository
         }
       });
       if (!raw) return Result.ok(null);
+      // Prisma return type is broader than the mapper's narrowed type — cast required
       return Result.ok(
         WirelessAlertRecordPrismaMapper.toDomain(
           raw as Parameters<

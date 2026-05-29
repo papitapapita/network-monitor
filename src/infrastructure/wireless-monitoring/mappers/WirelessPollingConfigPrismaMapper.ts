@@ -39,11 +39,9 @@ export class WirelessPollingConfigPrismaMapper {
     if (id.isFailure)
       throw new Error(`Invalid config ID: ${id.error}`);
 
-    let ipAddress: IPAddress | null = null;
-    if (raw.ipAddress) {
-      const ipResult = IPAddress.create(raw.ipAddress);
-      ipAddress = ipResult.isSuccess ? ipResult.value : null;
-    }
+    const ipAddress: IPAddress | null = raw.ipAddress
+      ? IPAddress.reconstitute(raw.ipAddress)
+      : null;
 
     const props: WirelessPollingConfigProps = {
       deviceId: deviceId.value,

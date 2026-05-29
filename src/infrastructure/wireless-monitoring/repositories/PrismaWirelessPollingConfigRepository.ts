@@ -73,6 +73,7 @@ export class PrismaWirelessPollingConfigRepository
           where: { id: id.toString() }
         });
       if (!raw) return Result.ok(null);
+      // Prisma return type is broader than the mapper's narrowed type — cast required
       return Result.ok(
         WirelessPollingConfigPrismaMapper.toDomain(
           raw as Parameters<

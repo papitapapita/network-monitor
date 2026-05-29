@@ -16,28 +16,7 @@ type PrismaPollingConfigurationRecord = {
   lastPolledAt: Date | null;
 };
 
-/**
- * Mapper for transforming between the Prisma PollingConfiguration record and
- * the PollingConfiguration domain entity.
- *
- * Responsibilities (ONLY):
- * - Reconstruct domain Value Objects (PollingInterval, FailureThreshold, IDs)
- *   from raw persistence values.
- * - Extract primitive values from the entity for persistence writes.
- *
- * Does NOT:
- * - Validate business rules (entity/value object responsibility).
- * - Build DTOs (application mapper responsibility).
- * - Call repositories or perform side effects.
- */
 export class PollingConfigurationMapper {
-  /**
-   * Converts a raw Prisma record to a PollingConfiguration domain entity.
-   * Uses reconstitute() — bypasses validation since the data is trusted persistence.
-   *
-   * Throws if any persisted value cannot be mapped to a domain object,
-   * which would indicate a data integrity violation.
-   */
   public static toDomain(
     raw: PrismaPollingConfigurationRecord
   ): PollingConfiguration {
@@ -72,10 +51,6 @@ export class PollingConfigurationMapper {
     });
   }
 
-  /**
-   * Extracts the persistence-ready fields from a PollingConfiguration entity.
-   * Used for both INSERT (create) and UPDATE operations.
-   */
   public static toPersistence(entity: PollingConfiguration): {
     id: string;
     deviceId: string;

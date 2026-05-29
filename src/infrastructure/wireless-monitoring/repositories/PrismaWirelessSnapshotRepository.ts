@@ -41,6 +41,7 @@ export class PrismaWirelessSnapshotRepository
         where: { id: id.toString() }
       });
       if (!raw) return Result.ok(null);
+      // Prisma return type is broader than the mapper's narrowed type — cast required
       return Result.ok(
         WirelessSnapshotPrismaMapper.toDomain(
           raw as Parameters<

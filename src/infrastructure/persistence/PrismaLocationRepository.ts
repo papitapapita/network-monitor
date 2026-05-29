@@ -6,40 +6,9 @@ import { Result, EventDispatcher } from 'domain/shared/core';
 import { ILocationRepository } from 'domain/device-inventory/repository';
 import { LocationMapper } from '../mappers';
 
-/**
- * Prisma implementation of ILocationRepository.
- *
- * Handles persistence of Location aggregates using Prisma ORM.
- * Implements all CRUD and query operations defined by the domain interface.
- *
- * Key Features:
- * - Upsert-based save (create or update in a single operation)
- * - Event dispatching after successful commits
- * - Error wrapping: Prisma errors are translated into Result.fail() at the
- *   repository boundary — infrastructure exceptions never bubble upward
- * - Type-filtered queries via findByType
- *
- * @example
- * ```typescript
- * const repository = new PrismaLocationRepository(prisma);
- *
- * // Create location
- * const result = await repository.save(location);
- *
- * // Find by ID
- * const found = await repository.findById(locationId);
- *
- * // List with pagination
- * const all = await repository.findAll(20, 0);
- * ```
- */
 export class PrismaLocationRepository implements ILocationRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  /**
-   * Saves a Location aggregate (creates or updates).
-   * Dispatches domain events AFTER successful commit.
-   */
   public async save(location: Location): Promise<Result<Location>> {
     try {
       const data = LocationMapper.toPersistence(location);
@@ -61,6 +30,7 @@ export class PrismaLocationRepository implements ILocationRepository {
       });
 
       // Dispatch domain events AFTER successful commit
+      EventDispatcher.markAggregateForDispatch(location);
       EventDispatcher.dispatchEventsForAggregate(location.id);
 
       return Result.ok<Location>(location);
@@ -68,7 +38,6 @@ export class PrismaLocationRepository implements ILocationRepository {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      // Handle Prisma unique constraint violations
       if (errorMessage.includes('P2002')) {
         return Result.fail<Location>(
           'A location with these unique values already exists'
@@ -81,9 +50,6 @@ export class PrismaLocationRepository implements ILocationRepository {
     }
   }
 
-  /**
-   * Finds a Location by its unique identifier.
-   */
   public async findById(
     id: LocationId
   ): Promise<Result<Location | null>> {
@@ -113,10 +79,6 @@ export class PrismaLocationRepository implements ILocationRepository {
     }
   }
 
-  /**
-   * Finds all Locations with optional pagination.
-   * Results are ordered by name ascending for stable, predictable output.
-   */
   public async findAll(
     limit?: number,
     offset?: number
@@ -149,14 +111,11 @@ export class PrismaLocationRepository implements ILocationRepository {
     }
   }
 
-  /**
-   * Finds all Locations that match a given LocationType.
-   * Results are ordered by name ascending.
-   */
   public async findByType(
     type: LocationType
   ): Promise<Result<Location[]>> {
     try {
+      // Prisma's generated type expects enum literal, not string — string cast required
       const rawRecords = await this.prisma.location.findMany({
         where: { type: type as any },
         orderBy: { name: 'asc' }
@@ -183,10 +142,6 @@ export class PrismaLocationRepository implements ILocationRepository {
     }
   }
 
-  /**
-   * Deletes a Location by its unique identifier.
-   * Hard delete — Location has no soft-delete semantics in the domain model.
-   */
   public async delete(id: LocationId): Promise<Result<void>> {
     try {
       await this.prisma.location.delete({
@@ -198,7 +153,6 @@ export class PrismaLocationRepository implements ILocationRepository {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      // Handle record not found
       if (errorMessage.includes('P2025')) {
         return Result.fail<void>('Location not found');
       }
@@ -209,9 +163,6 @@ export class PrismaLocationRepository implements ILocationRepository {
     }
   }
 
-  /**
-   * Checks whether a Location with the given ID exists.
-   */
   public async exists(id: LocationId): Promise<Result<boolean>> {
     try {
       const count = await this.prisma.location.count({
@@ -228,9 +179,6 @@ export class PrismaLocationRepository implements ILocationRepository {
     }
   }
 
-  /**
-   * Counts the total number of Locations in the store.
-   */
   public async count(): Promise<Result<number>> {
     try {
       const count = await this.prisma.location.count();

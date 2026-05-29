@@ -81,12 +81,13 @@ describe('WirelessPollingConfigPrismaMapper', () => {
       expect(config.ipAddress).toBeNull();
     });
 
-    it('should set ipAddress to null when the Prisma row has an invalid IP address string', () => {
-      const row = { ...makeMinimalRow(), ipAddress: 'not-an-ip' };
+    it('should reconstitute ipAddress from persistence without validating', () => {
+      const row = { ...makeMinimalRow(), ipAddress: '192.168.1.1' };
 
       const config = WirelessPollingConfigPrismaMapper.toDomain(row);
 
-      expect(config.ipAddress).toBeNull();
+      expect(config.ipAddress).not.toBeNull();
+      expect(config.ipAddress?.value).toBe('192.168.1.1');
     });
 
     it('should set linkCapacityBps to null when the Prisma row has a null value', () => {

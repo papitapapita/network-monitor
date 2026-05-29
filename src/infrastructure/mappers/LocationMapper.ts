@@ -33,18 +33,6 @@ type LocationPersistenceData = {
   updatedAt: Date;
 };
 
-/**
- * Mapper for converting Location aggregate to/from Prisma model.
- *
- * Handles bidirectional conversion between:
- * - Domain aggregate (Location)
- * - Persistence model (Prisma Location)
- *
- * Key mappings:
- * - latitude / longitude / altitude (Prisma Decimal?) → Coordinates value object (nullable)
- * - type (Prisma LocationType enum) → domain LocationType enum (1-to-1, no translation needed)
- * - Optional address fields (municipality, neighborhood, address) preserved as-is
- */
 export class LocationMapper {
   public static toDomain(
     raw: PrismaLocationRecord
@@ -106,14 +94,7 @@ export class LocationMapper {
     };
   }
 
-  // ============================================================================
-  // Private Helpers
-  // ============================================================================
-
-  /**
-   * Throws on an unrecognised value — an unknown type in the database is a data
-   * integrity violation that the repository's try/catch will surface as Result.fail.
-   */
+  // throws on unrecognised value — the repo's try/catch surfaces it as Result.fail
   private static mapLocationTypeFromPrisma(
     prismaType: string
   ): LocationType {

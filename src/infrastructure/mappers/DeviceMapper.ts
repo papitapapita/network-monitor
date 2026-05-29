@@ -143,10 +143,6 @@ export class DeviceMapper {
     };
   }
 
-  // ============================================================================
-  // Private Helpers
-  // ============================================================================
-
   private static mapOwnerTypeFromPrisma(
     owner: string
   ): DeviceOwnerType {

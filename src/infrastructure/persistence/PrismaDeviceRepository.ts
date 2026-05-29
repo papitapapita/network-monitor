@@ -270,6 +270,7 @@ export class PrismaDeviceRepository implements IDeviceRepository {
     status: DeviceStatus
   ): Promise<Result<Device[]>> {
     try {
+      // Prisma's generated type expects enum literal, not string — string cast required
       const rawRecords = await this.prisma.device.findMany({
         where: { status: status.toString() as any },
         orderBy: { createdAt: 'desc' }
