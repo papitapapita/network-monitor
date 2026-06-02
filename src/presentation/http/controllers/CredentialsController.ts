@@ -14,11 +14,7 @@ export class CredentialsController {
     private readonly logger: ILogger
   ) {}
 
-  /**
-   * PUT /api/devices/:id/credentials
-   * Create or fully replace the credentials for a device.
-   * Requires authentication — protect this route with auth middleware before deploying.
-   */
+  // Requires authentication — protect this route with auth middleware before deploying.
   public set = async (req: Request, res: Response): Promise<void> => {
     try {
       const result = await this.setCredentials.execute({
@@ -28,22 +24,18 @@ export class CredentialsController {
 
       if (result.isFailure) {
         res
-          .status(this.errorStatus(result.error!))
+          .status(this.getErrorStatusCode(result.error!))
           .json({ error: result.error });
         return;
       }
 
       res.status(200).json(result.value);
     } catch (error) {
-      this.handleUnexpected(error, res);
+      this.handleUnexpectedError(error, res);
     }
   };
 
-  /**
-   * GET /api/devices/:id/credentials
-   * Retrieve the stored credentials for a device with sensitive fields masked.
-   * Requires authentication — protect this route with auth middleware before deploying.
-   */
+  // Requires authentication — protect this route with auth middleware before deploying.
   public get = async (req: Request, res: Response): Promise<void> => {
     try {
       const result = await this.getCredentials.execute({
@@ -52,22 +44,18 @@ export class CredentialsController {
 
       if (result.isFailure) {
         res
-          .status(this.errorStatus(result.error!))
+          .status(this.getErrorStatusCode(result.error!))
           .json({ error: result.error });
         return;
       }
 
       res.status(200).json(result.value);
     } catch (error) {
-      this.handleUnexpected(error, res);
+      this.handleUnexpectedError(error, res);
     }
   };
 
-  /**
-   * DELETE /api/devices/:id/credentials
-   * Remove the stored credentials for a device.
-   * Requires authentication — protect this route with auth middleware before deploying.
-   */
+  // Requires authentication — protect this route with auth middleware before deploying.
   public delete = async (
     req: Request,
     res: Response
@@ -79,18 +67,18 @@ export class CredentialsController {
 
       if (result.isFailure) {
         res
-          .status(this.errorStatus(result.error!))
+          .status(this.getErrorStatusCode(result.error!))
           .json({ error: result.error });
         return;
       }
 
       res.status(204).send();
     } catch (error) {
-      this.handleUnexpected(error, res);
+      this.handleUnexpectedError(error, res);
     }
   };
 
-  private errorStatus(message: string): number {
+  private getErrorStatusCode(message: string): number {
     if (
       message.includes('not found') ||
       message.includes('No credentials configured')
@@ -107,11 +95,16 @@ export class CredentialsController {
     return 500;
   }
 
-  private handleUnexpected(error: unknown, res: Response): void {
+  private handleUnexpectedError(error: unknown, res: Response): void {
+    const errorMessage =
+      error instanceof Error ? error.message : String(error);
     this.logger.error(
-      'Unexpected error in CredentialsController',
-      error instanceof Error ? error : new Error(String(error))
+      `Unexpected error in ${this.constructor.name}`,
+      error as Error,
+      { error: errorMessage }
     );
-    res.status(500).json({ error: 'Internal server error' });
+    res
+      .status(500)
+      .json({ error: 'Internal server error' });
   }
 }

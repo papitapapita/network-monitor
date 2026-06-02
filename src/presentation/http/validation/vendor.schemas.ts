@@ -109,3 +109,22 @@ export const listVendorsSchema = z.object({
       .optional()
   })
 });
+
+export type CreateVendorInput = z.infer<
+  typeof createVendorSchema
+>['body'];
+export type UpdateVendorInput = z.infer<
+  typeof updateVendorSchema
+>['body'];
+export type UpdateVendorParams = z.infer<
+  typeof updateVendorSchema
+>['params'];
+export type GetVendorByIdParams = z.infer<
+  typeof getVendorByIdSchema
+>['params'];
+export type DeleteVendorParams = z.infer<
+  typeof deleteVendorSchema
+>['params'];
+export type ListVendorsQuery = z.infer<
+  typeof listVendorsSchema
+>['query'];

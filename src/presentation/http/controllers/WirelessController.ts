@@ -28,10 +28,6 @@ export class WirelessController {
     private readonly logger: ILogger
   ) {}
 
-  /**
-   * GET /api/devices/:id/wireless/status
-   * Get the latest wireless status snapshot for an AP device.
-   */
   public getStatus = async (
     req: Request,
     res: Response
@@ -44,7 +40,9 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ error: result.error });
+        res
+          .status(statusCode)
+          .json({ error: result.error });
         return;
       }
 
@@ -54,10 +52,6 @@ export class WirelessController {
     }
   };
 
-  /**
-   * GET /api/devices/:id/wireless/history
-   * Get historical wireless snapshots for a device within a time range.
-   */
   public getHistory = async (
     req: Request,
     res: Response
@@ -74,7 +68,9 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ error: result.error });
+        res
+          .status(statusCode)
+          .json({ error: result.error });
         return;
       }
 
@@ -84,10 +80,6 @@ export class WirelessController {
     }
   };
 
-  /**
-   * GET /api/devices/:id/wireless/clients
-   * Get the current client list for an AP device.
-   */
   public getClients = async (
     req: Request,
     res: Response
@@ -99,7 +91,9 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ error: result.error });
+        res
+          .status(statusCode)
+          .json({ error: result.error });
         return;
       }
 
@@ -109,10 +103,6 @@ export class WirelessController {
     }
   };
 
-  /**
-   * GET /api/devices/:id/wireless/alerts
-   * Get active wireless alerts for a specific device.
-   */
   public getDeviceActiveAlerts = async (
     req: Request,
     res: Response
@@ -125,7 +115,9 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ error: result.error });
+        res
+          .status(statusCode)
+          .json({ error: result.error });
         return;
       }
 
@@ -135,10 +127,6 @@ export class WirelessController {
     }
   };
 
-  /**
-   * GET /api/devices/:id/wireless/alerts/history
-   * Get historical wireless alerts for a specific device.
-   */
   public getDeviceAlertHistory = async (
     req: Request,
     res: Response
@@ -156,7 +144,9 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ error: result.error });
+        res
+          .status(statusCode)
+          .json({ error: result.error });
         return;
       }
 
@@ -166,10 +156,7 @@ export class WirelessController {
     }
   };
 
-  /**
-   * POST /api/devices/:id/wireless/poll
-   * Trigger an immediate wireless poll for a device.
-   */
+  // 202 Accepted — poll is dispatched asynchronously; result not yet available.
   public triggerPoll = async (
     req: Request,
     res: Response
@@ -181,7 +168,9 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ error: result.error });
+        res
+          .status(statusCode)
+          .json({ error: result.error });
         return;
       }
 
@@ -191,10 +180,6 @@ export class WirelessController {
     }
   };
 
-  /**
-   * GET /api/wireless/alerts
-   * Get all active wireless alerts, optionally filtered by device.
-   */
   public getAllActiveAlerts = async (
     req: Request,
     res: Response
@@ -209,7 +194,9 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ error: result.error });
+        res
+          .status(statusCode)
+          .json({ error: result.error });
         return;
       }
 
@@ -219,10 +206,6 @@ export class WirelessController {
     }
   };
 
-  /**
-   * GET /api/wireless/alerts/history
-   * Get wireless alert history, optionally filtered by device and time range.
-   */
   public getAllAlertHistory = async (
     req: Request,
     res: Response
@@ -240,7 +223,9 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ error: result.error });
+        res
+          .status(statusCode)
+          .json({ error: result.error });
         return;
       }
 
@@ -250,10 +235,6 @@ export class WirelessController {
     }
   };
 
-  /**
-   * POST /api/devices/:id/wireless/config
-   * Create a wireless polling configuration for a device.
-   */
   public createConfig = async (
     req: Request,
     res: Response
@@ -266,7 +247,9 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ error: result.error });
+        res
+          .status(statusCode)
+          .json({ error: result.error });
         return;
       }
 
@@ -276,10 +259,6 @@ export class WirelessController {
     }
   };
 
-  /**
-   * GET /api/devices/:id/wireless/config
-   * Get the wireless polling configuration for a device.
-   */
   public getConfig = async (
     req: Request,
     res: Response
@@ -291,7 +270,9 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ error: result.error });
+        res
+          .status(statusCode)
+          .json({ error: result.error });
         return;
       }
 
@@ -301,10 +282,6 @@ export class WirelessController {
     }
   };
 
-  /**
-   * PATCH /api/devices/:id/wireless/config
-   * Update the wireless polling configuration for a device.
-   */
   public updateConfig = async (
     req: Request,
     res: Response
@@ -317,7 +294,9 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ error: result.error });
+        res
+          .status(statusCode)
+          .json({ error: result.error });
         return;
       }
 
@@ -327,10 +306,6 @@ export class WirelessController {
     }
   };
 
-  /**
-   * DELETE /api/devices/:id/wireless/config
-   * Delete the wireless polling configuration for a device.
-   */
   public deleteConfig = async (
     req: Request,
     res: Response
@@ -342,7 +317,9 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ error: result.error });
+        res
+          .status(statusCode)
+          .json({ error: result.error });
         return;
       }
 
@@ -351,10 +328,6 @@ export class WirelessController {
       this.handleUnexpectedError(error, res);
     }
   };
-
-  // =====================================
-  // PRIVATE HELPERS
-  // =====================================
 
   private getErrorStatusCode(errorMessage: string): number {
     if (
@@ -395,11 +368,13 @@ export class WirelessController {
       error instanceof Error ? error.message : String(error);
 
     this.logger.error(
-      'Unexpected error in WirelessController',
+      `Unexpected error in ${this.constructor.name}`,
       error as Error,
       { error: errorMessage }
     );
 
-    res.status(500).json({ error: 'Internal server error' });
+    res
+      .status(500)
+      .json({ error: 'Internal server error' });
   }
 }

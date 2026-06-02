@@ -18,10 +18,6 @@ export class PollingController {
     private readonly logger: ILogger
   ) {}
 
-  /**
-   * POST /api/devices/:id/poll
-   * Trigger an immediate manual poll for a device.
-   */
   public poll = async (
     req: Request,
     res: Response
@@ -34,7 +30,9 @@ export class PollingController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ error: result.error });
+        res
+          .status(statusCode)
+          .json({ error: result.error });
         return;
       }
 
@@ -44,10 +42,6 @@ export class PollingController {
     }
   };
 
-  /**
-   * GET /api/devices/:id/polling/status
-   * Get current polling status and device state.
-   */
   public getStatus = async (
     req: Request,
     res: Response
@@ -59,7 +53,9 @@ export class PollingController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ error: result.error });
+        res
+          .status(statusCode)
+          .json({ error: result.error });
         return;
       }
 
@@ -69,10 +65,6 @@ export class PollingController {
     }
   };
 
-  /**
-   * GET /api/devices/:id/polling/history
-   * Get historical ping results for a device.
-   */
   public getHistory = async (
     req: Request,
     res: Response
@@ -99,7 +91,9 @@ export class PollingController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ error: result.error });
+        res
+          .status(statusCode)
+          .json({ error: result.error });
         return;
       }
 
@@ -124,7 +118,9 @@ export class PollingController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ error: result.error });
+        res
+          .status(statusCode)
+          .json({ error: result.error });
         return;
       }
 
@@ -134,10 +130,6 @@ export class PollingController {
     }
   };
 
-  /**
-   * PATCH /api/devices/:id/polling/config
-   * Update polling configuration (interval, failuresBeforeDown, enabled).
-   */
   public configure = async (
     req: Request,
     res: Response
@@ -152,7 +144,9 @@ export class PollingController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res.status(statusCode).json({ error: result.error });
+        res
+          .status(statusCode)
+          .json({ error: result.error });
         return;
       }
 
@@ -161,10 +155,6 @@ export class PollingController {
       this.handleUnexpectedError(error, res);
     }
   };
-
-  // =====================================
-  // PRIVATE HELPERS
-  // =====================================
 
   private getErrorStatusCode(errorMessage: string): number {
     if (
@@ -197,6 +187,8 @@ export class PollingController {
       { error: errorMessage }
     );
 
-    res.status(500).json({ error: 'Internal server error' });
+    res
+      .status(500)
+      .json({ error: 'Internal server error' });
   }
 }

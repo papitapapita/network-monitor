@@ -99,9 +99,5 @@ export function setupRoutes(
     createScanRoutes(container.scanController)
   );
 
-  // Mount API router under /api prefix
   app.use('/api', apiRouter);
 }
-
-export { createWirelessRoutes };
-export { createCredentialsRoutes };

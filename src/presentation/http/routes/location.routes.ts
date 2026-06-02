@@ -81,12 +81,6 @@ export function createLocationRoutes(
    */
   router.get(
     '/',
-    (req, _res, next) => {
-      console.log(
-        `Incoming Request before get: ${req.method} ${req.url}`
-      );
-      next();
-    },
     validateRequest(listLocationsSchema),
     controller.list
   );

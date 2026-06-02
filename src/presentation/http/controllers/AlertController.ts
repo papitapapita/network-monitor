@@ -55,7 +55,7 @@ export class AlertController {
       error instanceof Error ? error.message : String(error);
 
     this.logger.error(
-      'Unexpected error in AlertController',
+      `Unexpected error in ${this.constructor.name}`,
       error as Error,
       {
         error: errorMessage

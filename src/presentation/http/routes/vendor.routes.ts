@@ -9,6 +9,12 @@ import {
   listVendorsSchema
 } from '../validation';
 
+/**
+ * Creates Express router for Vendor endpoints.
+ *
+ * @param controller - VendorController instance (injected by DI container)
+ * @returns Express router with all vendor routes
+ */
 export function createVendorRoutes(
   controller: VendorController
 ): Router {

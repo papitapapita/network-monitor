@@ -3,7 +3,7 @@ import { z } from 'zod';
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const VALID_DEVICE_TYPES = [
+const DEVICE_TYPES = [
   'ANTENNA',
   'OTHER',
   'RADIO',
@@ -58,9 +58,9 @@ export const createDeviceModelSchema = z.object({
       .min(1, 'Model name cannot be empty')
       .max(150, 'Model name cannot exceed 150 characters'),
 
-    deviceType: z.enum(VALID_DEVICE_TYPES, {
+    deviceType: z.enum(DEVICE_TYPES, {
       error: () => ({
-        message: `deviceType must be one of: ${VALID_DEVICE_TYPES.join(', ')}`
+        message: `deviceType must be one of: ${DEVICE_TYPES.join(', ')}`
       })
     })
   })
@@ -90,9 +90,9 @@ export const updateDeviceModelSchema = z.object({
         .optional(),
 
       deviceType: z
-        .enum(VALID_DEVICE_TYPES, {
+        .enum(DEVICE_TYPES, {
           error: () => ({
-            message: `deviceType must be one of: ${VALID_DEVICE_TYPES.join(', ')}`
+            message: `deviceType must be one of: ${DEVICE_TYPES.join(', ')}`
           })
         })
         .optional()
@@ -117,9 +117,21 @@ export const deleteDeviceModelSchema = z.object({
   })
 });
 
+export type CreateDeviceModelInput = z.infer<
+  typeof createDeviceModelSchema
+>['body'];
+export type UpdateDeviceModelInput = z.infer<
+  typeof updateDeviceModelSchema
+>['body'];
+export type UpdateDeviceModelParams = z.infer<
+  typeof updateDeviceModelSchema
+>['params'];
 export type ListDeviceModelsQuery = z.infer<
   typeof listDeviceModelsSchema
 >['query'];
 export type GetDeviceModelByIdParams = z.infer<
   typeof getDeviceModelByIdSchema
+>['params'];
+export type DeleteDeviceModelParams = z.infer<
+  typeof deleteDeviceModelSchema
 >['params'];

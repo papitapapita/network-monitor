@@ -9,6 +9,12 @@ import {
   deleteDeviceModelSchema
 } from '../validation';
 
+/**
+ * Creates Express router for DeviceModel endpoints.
+ *
+ * @param controller - DeviceModelController instance (injected by DI container)
+ * @returns Express router with all device-model routes
+ */
 export function createDeviceModelRoutes(
   controller: DeviceModelController
 ): Router {

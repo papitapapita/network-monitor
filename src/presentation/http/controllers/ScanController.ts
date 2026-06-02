@@ -3,49 +3,12 @@ import { ILogger } from 'application/shared/interfaces';
 import { ScanNetworkSegmentInput } from '../validation/scan.schemas';
 import { ScanNetworkSegmentUseCase } from 'application/device-inventory/use-cases';
 
-/**
- * ScanController
- *
- * HTTP controller for network segment scan operations within the
- * device-inventory Bounded Context.
- *
- * Responsibilities:
- * - Translate validated HTTP requests into application-layer DTO calls.
- * - Map use case Results to HTTP status codes and response bodies.
- * - Contain NO business logic — all invariants live in the use case and domain.
- *
- * Endpoints handled:
- * - POST /api/network/scan  - Probe a CIDR segment and auto-register new hosts
- *
- * Response Codes:
- * - 200 OK          - Scan completed (operation result, not a new resource)
- * - 400 Bad Request - Validation errors, invalid segment, unknown model ID
- * - 404 Not Found   - Referenced DeviceModel does not exist
- * - 500 Internal    - Unexpected errors
- */
 export class ScanController {
   constructor(
     private readonly scanUseCase: ScanNetworkSegmentUseCase,
     private readonly logger: ILogger
   ) {}
 
-  // =====================================
-  // ENDPOINT HANDLERS
-  // =====================================
-
-  /**
-   * POST /api/network/scan
-   *
-   * Initiates a network segment scan and auto-registers discovered hosts.
-   * Delegates to ScanNetworkSegmentUseCase.
-   *
-   * Body: ScanNetworkSegmentInput (validated by Zod before reaching here)
-   * Response: 200 OK with ScanNetworkSegmentResponseDTO
-   * Errors:
-   *   400 - Invalid input or business constraint violation
-   *   404 - Referenced DeviceModel does not exist
-   *   500 - Unexpected infrastructure error
-   */
   public scan = async (
     req: Request,
     res: Response
@@ -70,10 +33,6 @@ export class ScanController {
       this.handleUnexpectedError(error, res);
     }
   };
-
-  // =====================================
-  // PRIVATE HELPERS
-  // =====================================
 
   private getErrorStatusCode(errorMessage: string): number {
     if (errorMessage.includes('not found')) {

@@ -14,7 +14,7 @@
 | API prefix | `/api` |
 | Content-Type | `application/json` |
 
-All API responses are wrapped:
+Most API responses are wrapped:
 ```ts
 // Success
 { success: true, data: T }
@@ -22,6 +22,9 @@ All API responses are wrapped:
 // Error
 { success: false, error: string }
 ```
+
+> **Exceptions:** Credentials, Polling, and Wireless endpoints return **raw data** — no `{ success, data }` wrapper.  
+> Their error responses use `{ error: string }` (no `success` field).
 
 ---
 
@@ -569,6 +572,9 @@ offset?: number  // ≥0, default 0
 
 ## Polling `/api/devices/:id/polling/*`
 
+> **Response envelope:** Polling endpoints return **raw data** — no `{ success, data }` wrapper.  
+> Error: `{ error: string }`.
+
 ### `POST /api/devices/:id/poll` — Trigger Manual Poll
 **Status:** 200 | 404
 
@@ -577,15 +583,12 @@ offset?: number  // ≥0, default 0
 
 // Response
 {
-  success: true,
-  data: {
-    deviceId: string
-    status: PollingStatus
-    message: string
-    timestamp: string           // ISO 8601
-    metrics: { latencyMs: number } | null
-    deviceStatus: DeviceOnlineStatus
-  }
+  deviceId: string
+  status: PollingStatus
+  message: string
+  timestamp: string           // ISO 8601
+  metrics: { latencyMs: number } | null
+  deviceStatus: DeviceOnlineStatus
 }
 ```
 
@@ -597,25 +600,22 @@ offset?: number  // ≥0, default 0
 ```ts
 // Response
 {
-  success: true,
-  data: {
+  deviceId: string
+  pollingEnabled: boolean
+  intervalSeconds: number
+  failuresBeforeDown: number
+  lastPolled: string | null          // ISO 8601
+  nextScheduled: string | null       // lastPolled + intervalSeconds
+  currentStatus: DeviceOnlineStatus
+  consecutiveFailures: number
+  lastResult: {
+    id: string
     deviceId: string
-    pollingEnabled: boolean
-    intervalSeconds: number
-    failuresBeforeDown: number
-    lastPolled: string | null          // ISO 8601
-    nextScheduled: string | null       // lastPolled + intervalSeconds
-    currentStatus: DeviceOnlineStatus
-    consecutiveFailures: number
-    lastResult: {
-      id: string
-      deviceId: string
-      timestamp: string
-      status: 'SUCCESS' | 'FAILED'
-      metrics: { latencyMs: number } | null
-      deviceStatus: DeviceOnlineStatus
-    } | null
-  }
+    timestamp: string
+    status: 'SUCCESS' | 'FAILED'
+    metrics: { latencyMs: number } | null
+    deviceStatus: DeviceOnlineStatus
+  } | null
 }
 ```
 
@@ -634,25 +634,22 @@ offset?:   number   // ≥0
 
 // Response
 {
-  success: true,
-  data: {
+  deviceId: string
+  results: Array<{
+    id: string
     deviceId: string
-    results: Array<{
-      id: string
-      deviceId: string
-      timestamp: string
-      status: 'SUCCESS' | 'FAILED'
-      metrics: { latencyMs: number } | null
-      deviceStatus: DeviceOnlineStatus
-    }>
-    totalCount: number
-    statistics: {
-      successRate: number        // 0–100 %
-      averageResponseTime: number // ms
-      minResponseTime: number
-      maxResponseTime: number
-      uptimePercentage: number   // 0–100 %
-    }
+    timestamp: string
+    status: 'SUCCESS' | 'FAILED'
+    metrics: { latencyMs: number } | null
+    deviceStatus: DeviceOnlineStatus
+  }>
+  totalCount: number
+  statistics: {
+    successRate: number        // 0–100 %
+    averageResponseTime: number // ms
+    minResponseTime: number
+    maxResponseTime: number
+    uptimePercentage: number   // 0–100 %
   }
 }
 ```
@@ -673,15 +670,12 @@ offset?:   number   // ≥0
 
 // Response
 {
-  success: true,
-  data: {
-    id: string               // UUID
-    deviceId: string         // UUID
-    ipAddress: string | null
-    intervalSeconds: number
-    failuresBeforeDown: number
-    enabled: boolean
-  }
+  id: string               // UUID
+  deviceId: string         // UUID
+  ipAddress: string | null
+  intervalSeconds: number
+  failuresBeforeDown: number
+  enabled: boolean
 }
 ```
 
@@ -1111,4 +1105,4 @@ WirelessAlertDTO[]
 | 409 | Conflict — resource already exists or cannot be deleted (e.g. vendor has models, model has devices) |
 | 500 | Unexpected server error |
 
-Error body: `{ success: false, error: string }`
+Error body: `{ success: false, error: string }` (standard endpoints) / `{ error: string }` (credentials, polling, wireless)
