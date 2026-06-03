@@ -139,22 +139,59 @@ export class WirelessSnapshotPrismaMapper {
     const clients: WirelessClientEntry[] = [];
     if (raw.clientsJson && Array.isArray(raw.clientsJson)) {
       for (const c of raw.clientsJson as Record<string, unknown>[]) {
+        const txBytes = c['txBytesTotal'];
+        const rxBytes = c['rxBytesTotal'];
         clients.push(
           WirelessClientEntry.reconstitute({
             macAddress: String(c['macAddress'] ?? ''),
+            ipAddress: (c['ipAddress'] as string | null) ?? null,
             signalRxDbm: (c['signalRxDbm'] as number | null) ?? null,
-            signalTxDbm: (c['signalTxDbm'] as number | null) ?? null,
-            snrDb: (c['snrDb'] as number | null) ?? null,
-            txRateMbps: (c['txRateMbps'] as number | null) ?? null,
-            rxRateMbps: (c['rxRateMbps'] as number | null) ?? null,
-            throughputTxBps:
-              (c['throughputTxBps'] as number | null) ?? null,
-            throughputRxBps:
-              (c['throughputRxBps'] as number | null) ?? null,
-            ccqPercent: (c['ccqPercent'] as number | null) ?? null,
-            uptimeSeconds:
-              (c['uptimeSeconds'] as number | null) ?? null,
-            ipAddress: (c['ipAddress'] as string | null) ?? null
+            noiseFloorDbm: (c['noiseFloorDbm'] as number | null) ?? null,
+            distanceM: (c['distanceM'] as number | null) ?? null,
+            uptimeSeconds: (c['uptimeSeconds'] as number | null) ?? null,
+            txLatencyMs: (c['txLatencyMs'] as number | null) ?? null,
+            dlLinkScore: (c['dlLinkScore'] as number | null) ?? null,
+            ulLinkScore: (c['ulLinkScore'] as number | null) ?? null,
+            dlCapacityKbps:
+              (c['dlCapacityKbps'] as number | null) ?? null,
+            ulCapacityKbps:
+              (c['ulCapacityKbps'] as number | null) ?? null,
+            dlCinr: (c['dlCinr'] as number | null) ?? null,
+            ulCinr: (c['ulCinr'] as number | null) ?? null,
+            txBytesTotal:
+              txBytes !== null && txBytes !== undefined
+                ? BigInt(String(txBytes))
+                : null,
+            rxBytesTotal:
+              rxBytes !== null && rxBytes !== undefined
+                ? BigInt(String(rxBytes))
+                : null,
+            txPps: (c['txPps'] as number | null) ?? null,
+            rxPps: (c['rxPps'] as number | null) ?? null,
+            remoteHostname:
+              (c['remoteHostname'] as string | null) ?? null,
+            remotePlatform:
+              (c['remotePlatform'] as string | null) ?? null,
+            remoteVersion:
+              (c['remoteVersion'] as string | null) ?? null,
+            remoteCpuLoad:
+              (c['remoteCpuLoad'] as number | null) ?? null,
+            remoteTotalRam:
+              (c['remoteTotalRam'] as number | null) ?? null,
+            remoteFreeRam:
+              (c['remoteFreeRam'] as number | null) ?? null,
+            remoteSignal: (c['remoteSignal'] as number | null) ?? null,
+            remoteNoiseFloor:
+              (c['remoteNoiseFloor'] as number | null) ?? null,
+            remoteTxPower:
+              (c['remoteTxPower'] as number | null) ?? null,
+            remoteTxThroughputKbps:
+              (c['remoteTxThroughputKbps'] as number | null) ?? null,
+            remoteRxThroughputKbps:
+              (c['remoteRxThroughputKbps'] as number | null) ?? null,
+            remoteIpAddresses: Array.isArray(c['remoteIpAddresses'])
+              ? (c['remoteIpAddresses'] as string[])
+              : []
           })
         );
       }
@@ -178,16 +215,36 @@ export class WirelessSnapshotPrismaMapper {
     const m = snapshot.metrics;
     const clientsJson = snapshot.clients.map((c) => ({
       macAddress: c.macAddress,
+      ipAddress: c.ipAddress,
       signalRxDbm: c.signalRxDbm,
-      signalTxDbm: c.signalTxDbm,
-      snrDb: c.snrDb,
-      txRateMbps: c.txRateMbps,
-      rxRateMbps: c.rxRateMbps,
-      throughputTxBps: c.throughputTxBps,
-      throughputRxBps: c.throughputRxBps,
-      ccqPercent: c.ccqPercent,
+      noiseFloorDbm: c.noiseFloorDbm,
+      distanceM: c.distanceM,
       uptimeSeconds: c.uptimeSeconds,
-      ipAddress: c.ipAddress
+      txLatencyMs: c.txLatencyMs,
+      dlLinkScore: c.dlLinkScore,
+      ulLinkScore: c.ulLinkScore,
+      dlCapacityKbps: c.dlCapacityKbps,
+      ulCapacityKbps: c.ulCapacityKbps,
+      dlCinr: c.dlCinr,
+      ulCinr: c.ulCinr,
+      txBytesTotal:
+        c.txBytesTotal !== null ? c.txBytesTotal.toString() : null,
+      rxBytesTotal:
+        c.rxBytesTotal !== null ? c.rxBytesTotal.toString() : null,
+      txPps: c.txPps,
+      rxPps: c.rxPps,
+      remoteHostname: c.remoteHostname,
+      remotePlatform: c.remotePlatform,
+      remoteVersion: c.remoteVersion,
+      remoteCpuLoad: c.remoteCpuLoad,
+      remoteTotalRam: c.remoteTotalRam,
+      remoteFreeRam: c.remoteFreeRam,
+      remoteSignal: c.remoteSignal,
+      remoteNoiseFloor: c.remoteNoiseFloor,
+      remoteTxPower: c.remoteTxPower,
+      remoteTxThroughputKbps: c.remoteTxThroughputKbps,
+      remoteRxThroughputKbps: c.remoteRxThroughputKbps,
+      remoteIpAddresses: c.remoteIpAddresses
     }));
 
     return {

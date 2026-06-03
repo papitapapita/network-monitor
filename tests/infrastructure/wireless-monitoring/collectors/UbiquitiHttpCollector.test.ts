@@ -1,319 +1,390 @@
 // Source: src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts
 
 import { UbiquitiHttpCollector } from '../../../../src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector';
-import { HttpCredentials } from 'application/wireless-monitoring/interfaces';
+import { AirOsHttpClient } from '../../../../src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient';
+import { HttpCredentials } from '../../../../src/application/wireless-monitoring/interfaces/IUbiquitiHttpCollector';
+import { Result } from '../../../../src/domain/shared/core/Result';
 
-// NOTE: UbiquitiHttpCollector uses the global `fetch` API internally.
-// We replace it with a jest.fn() on the global object so no real HTTP calls are made.
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
 
 const credentials: HttpCredentials = {
   username: 'ubnt',
   password: 'ubnt',
-  port: 80,
-  useHttps: false,
+  port: 443
 };
 
-const makeOkResponse = (body: unknown): Response => ({
-  ok: true,
-  status: 200,
-  json: () => Promise.resolve(body),
-} as unknown as Response);
-
-const makeErrorResponse = (status: number): Response => ({
-  ok: false,
-  status,
-  json: () => Promise.resolve({}),
-} as unknown as Response);
-
-const fullStatusBody = {
+const staStatusBody = {
+  host: {
+    hostname: 'cpe-01',
+    fwversion: 'WA.v8.7.5',
+    uptime: 86400,
+    cpuload: 25,
+    totalram: 131072,
+    freeram: 65536
+  },
   wireless: {
-    signal: -65,
-    rssi: -65,
-    noisef: -95,
-    txrate: 54000,
-    rxrate: 48000,
-    ccq: 980,
+    essid: 'ISP-5G',
+    mode: 'sta-ptmp',
     frequency: 5180,
-    txpower: 23,
+    chanbw: 40,
+    noisef: -95,
+    txpower: 20,
     distance: 1500,
-    apmac: 'AA:BB:CC:DD:EE:FF',
-    apname: 'tower-ap-1',
+    throughput: { tx: 5000, rx: 3000 },
+    sta: [
+      {
+        mac: 'AA:BB:CC:DD:EE:FF',
+        signal: -65,
+        noisefloor: -95,
+        distance: 1500,
+        uptime: 3600,
+        tx_latency: 4,
+        dl_linkscore: 90,
+        ul_linkscore: 85,
+        airmax: {
+          downlink_capacity: 50000,
+          uplink_capacity: 20000,
+          rx: { cinr: 22 },
+          tx: { cinr: 18 }
+        },
+        stats: { tx_bytes: 1000000, rx_bytes: 500000, tx_pps: 100, rx_pps: 50 },
+        remote: {
+          hostname: 'tower-ap',
+          platform: 'Rocket 5AC Lite',
+          version: 'WA.v8.7.5',
+          cpuload: 40,
+          totalram: 262144,
+          freeram: 131072,
+          signal: -68,
+          noisefloor: -96,
+          tx_power: 23,
+          tx_throughput: 3000,
+          rx_throughput: 5000,
+          ipaddr: ['10.0.0.1']
+        },
+        lastip: '10.0.1.50'
+      }
+    ]
   },
   interfaces: [
-    { ifname: 'eth0', status: 'UP', speed: 100 },
-  ],
-  host: {
-    uptime: 3600,
-    fwversion: 'XW.v8.7.1',
-    hostname: 'ubnt-cpe-1',
-  },
+    {
+      ifname: 'eth0',
+      status: { speed: 100, plugged: true, tx_bytes: 2000000, rx_bytes: 1000000 }
+    },
+    {
+      ifname: 'ath0',
+      status: { tx_bytes: 3000000, rx_bytes: 1500000 }
+    }
+  ]
 };
 
+const apStatusBody = {
+  host: {
+    hostname: 'ap-tower',
+    fwversion: 'WA.v8.7.5',
+    uptime: 172800,
+    cpuload: 50,
+    totalram: 262144,
+    freeram: 65536
+  },
+  wireless: {
+    essid: 'ISP-5G',
+    mode: 'ap-ptmp',
+    frequency: 5180,
+    chanbw: 20,
+    noisef: -93,
+    txpower: 25,
+    distance: 0,
+    count: 3,
+    throughput: { tx: 15000, rx: 8000 },
+    sta: [
+      {
+        mac: 'AA:BB:CC:DD:EE:01',
+        signal: -70,
+        noisefloor: -95,
+        distance: 1000,
+        uptime: 7200,
+        tx_latency: 5,
+        dl_linkscore: 85,
+        ul_linkscore: 80,
+        airmax: { downlink_capacity: 30000, uplink_capacity: 10000, rx: { cinr: 18 }, tx: { cinr: 15 } },
+        stats: { tx_bytes: 500000, rx_bytes: 250000, tx_pps: 80, rx_pps: 40 },
+        remote: {
+          hostname: 'cpe-a',
+          platform: 'LiteBeam 5AC',
+          version: 'WA.v8.7.4',
+          cpuload: 20,
+          totalram: 131072,
+          freeram: 98304,
+          signal: -72,
+          noisefloor: -96,
+          tx_power: 20,
+          tx_throughput: 8000,
+          rx_throughput: 15000,
+          ipaddr: ['10.0.1.10']
+        },
+        lastip: '10.0.1.10'
+      }
+    ]
+  },
+  interfaces: [
+    {
+      ifname: 'eth0',
+      status: { speed: 1000, plugged: true, tx_bytes: 5000000, rx_bytes: 2000000 }
+    }
+  ]
+};
+
+// ---------------------------------------------------------------------------
+// Mock AirOsHttpClient
+// ---------------------------------------------------------------------------
+
+function makeClient(body: unknown): jest.Mocked<AirOsHttpClient> {
+  return {
+    fetchStatus: jest.fn().mockResolvedValue(Result.ok(body))
+  } as unknown as jest.Mocked<AirOsHttpClient>;
+}
+
+function makeFailingClient(error: string): jest.Mocked<AirOsHttpClient> {
+  return {
+    fetchStatus: jest.fn().mockResolvedValue(Result.fail(error))
+  } as unknown as jest.Mocked<AirOsHttpClient>;
+}
+
+// ---------------------------------------------------------------------------
+
 describe('UbiquitiHttpCollector', () => {
-  let collector: UbiquitiHttpCollector;
-  let mockFetch: jest.Mock;
 
-  beforeEach(() => {
-    jest.clearAllMocks();
-    collector = new UbiquitiHttpCollector();
-    mockFetch = jest.fn();
-    global.fetch = mockFetch;
-  });
+  // ===========================================================================
+  describe('collect — STATION mode', () => {
+    it('should return success with parsed device fields', async () => {
+      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
 
-  afterEach(() => {
-    // Restore the original fetch (typically undefined in Node test env)
-    delete (global as Record<string, unknown>).fetch;
-  });
-
-  describe('collect — happy path', () => {
-    it('should return a successful Result with all parsed fields from a full status response', async () => {
-      mockFetch.mockResolvedValue(makeOkResponse(fullStatusBody));
-
-      const result = await collector.collect('192.168.1.1', credentials);
+      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
 
       expect(result.isSuccess).toBe(true);
-      const data = result.value;
-      expect(data.signalRxDbm).toBe(-65);
-      expect(data.noiseFloorDbm).toBe(-95);
-      expect(data.txRateMbps).toBe(54);   // 54000 / 1000
-      expect(data.rxRateMbps).toBe(48);   // 48000 / 1000
-      expect(data.ccqPercent).toBe(98);   // 980 / 10
-      expect(data.frequencyMhz).toBe(5180);
-      expect(data.txPowerDbm).toBe(23);
-      expect(data.distanceM).toBe(1500);
-      expect(data.uptimeSeconds).toBe(3600);
-      expect(data.firmwareVersion).toBe('XW.v8.7.1');
-      expect(data.deviceName).toBe('ubnt-cpe-1');
-      expect(data.remoteApMac).toBe('AA:BB:CC:DD:EE:FF');
-      expect(data.remoteApName).toBe('tower-ap-1');
-      expect(data.lanStatus).toBe('UP');
-      expect(data.lanSpeedMbps).toBe(100);
+      const d = result.value;
+      expect(d.deviceName).toBe('cpe-01');
+      expect(d.firmwareVersion).toBe('WA.v8.7.5');
+      expect(d.uptimeSeconds).toBe(86400);
+      expect(d.cpuLoadPercent).toBe(25);
+      expect(d.memoryUsedPercent).toBeCloseTo(50);
     });
 
-    it('should use HTTPS scheme when credentials.useHttps is true', async () => {
-      mockFetch.mockResolvedValue(makeOkResponse(fullStatusBody));
-      const httpsCredentials: HttpCredentials = { ...credentials, useHttps: true, port: 443 };
+    it('should parse wireless radio fields', async () => {
+      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
 
-      await collector.collect('192.168.1.1', httpsCredentials);
+      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
 
-      const calledUrl = mockFetch.mock.calls[0][0] as string;
-      expect(calledUrl).toMatch(/^https:/);
+      const d = result.value;
+      expect(d.essid).toBe('ISP-5G');
+      expect(d.mode).toBe('sta-ptmp');
+      expect(d.frequencyMhz).toBe(5180);
+      expect(d.channelWidthMhz).toBe(40);
+      expect(d.noiseFloorDbm).toBe(-95);
+      expect(d.txPowerDbm).toBe(20);
     });
 
-    it('should use HTTP scheme when credentials.useHttps is false', async () => {
-      mockFetch.mockResolvedValue(makeOkResponse(fullStatusBody));
+    it('should convert throughput from kbps to bps', async () => {
+      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
 
-      await collector.collect('192.168.1.1', credentials);
+      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
 
-      const calledUrl = mockFetch.mock.calls[0][0] as string;
-      expect(calledUrl).toMatch(/^http:/);
+      expect(result.value.throughputTxBps).toBe(5_000_000);
+      expect(result.value.throughputRxBps).toBe(3_000_000);
     });
 
-    it('should call /status.cgi endpoint for collect', async () => {
-      mockFetch.mockResolvedValue(makeOkResponse(fullStatusBody));
+    it('should extract signalRxDbm from sta[0].signal in STA mode', async () => {
+      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
 
-      await collector.collect('192.168.1.1', credentials);
+      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
 
-      const calledUrl = mockFetch.mock.calls[0][0] as string;
-      expect(calledUrl).toContain('/status.cgi');
+      expect(result.value.signalRxDbm).toBe(-65);
     });
 
-    it('should include a Basic Authorization header with base64-encoded credentials', async () => {
-      mockFetch.mockResolvedValue(makeOkResponse(fullStatusBody));
+    it('should extract latencyMs from sta[0].tx_latency in STA mode', async () => {
+      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
 
-      await collector.collect('192.168.1.1', credentials);
+      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
 
-      const options = mockFetch.mock.calls[0][1] as RequestInit;
-      const headers = options.headers as Record<string, string>;
-      const expectedToken = Buffer.from('ubnt:ubnt').toString('base64');
-      expect(headers['Authorization']).toBe(`Basic ${expectedToken}`);
+      expect(result.value.latencyMs).toBe(4);
     });
 
-    it('should report lanStatus as DOWN when the LAN interface status field is "down" (case-insensitive)', async () => {
-      const body = {
-        ...fullStatusBody,
-        interfaces: [{ ifname: 'eth0', status: 'down', speed: 100 }],
-      };
-      mockFetch.mockResolvedValue(makeOkResponse(body));
+    it('should extract remoteApMac and remoteApName from sta[0] in STA mode', async () => {
+      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
 
-      const result = await collector.collect('192.168.1.1', credentials);
+      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+
+      expect(result.value.remoteApMac).toBe('AA:BB:CC:DD:EE:FF');
+      expect(result.value.remoteApName).toBe('tower-ap');
+    });
+
+    it('should return empty clients array in STA mode', async () => {
+      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
+
+      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+
+      expect(result.value.clients).toEqual([]);
+    });
+
+    it('should set clientsConnected to null in STA mode', async () => {
+      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
+
+      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+
+      expect(result.value.clientsConnected).toBeNull();
+    });
+
+    it('should parse LAN status from eth0.status.plugged', async () => {
+      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
+
+      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+
+      expect(result.value.lanStatus).toBe('UP');
+      expect(result.value.lanSpeedMbps).toBe(100);
+    });
+
+    it('should report lanStatus as DOWN when plugged is false', async () => {
+      const body = JSON.parse(JSON.stringify(staStatusBody));
+      body.interfaces[0].status.plugged = false;
+      const collector = new UbiquitiHttpCollector(makeClient(body));
+
+      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
 
       expect(result.value.lanStatus).toBe('DOWN');
     });
+  });
 
-    it('should report lanStatus as null when the LAN interface status is an unrecognised string', async () => {
-      const body = {
-        ...fullStatusBody,
-        interfaces: [{ ifname: 'eth0', status: 'UNKNOWN', speed: 100 }],
-      };
-      mockFetch.mockResolvedValue(makeOkResponse(body));
+  // ===========================================================================
+  describe('collect — ACCESS_POINT mode', () => {
+    it('should return clientsConnected from wireless.count', async () => {
+      const collector = new UbiquitiHttpCollector(makeClient(apStatusBody));
 
-      const result = await collector.collect('192.168.1.1', credentials);
+      const result = await collector.collect('192.168.1.1', credentials, 'ACCESS_POINT');
 
-      expect(result.value.lanStatus).toBeNull();
+      expect(result.value.clientsConnected).toBe(3);
     });
 
-    it('should fall back to rssi when signal is absent from the wireless object', async () => {
-      const body = {
-        ...fullStatusBody,
-        wireless: { ...fullStatusBody.wireless, signal: undefined, rssi: -70 },
-      };
-      mockFetch.mockResolvedValue(makeOkResponse(body));
+    it('should populate clients array from wireless.sta', async () => {
+      const collector = new UbiquitiHttpCollector(makeClient(apStatusBody));
 
-      const result = await collector.collect('192.168.1.1', credentials);
+      const result = await collector.collect('192.168.1.1', credentials, 'ACCESS_POINT');
 
-      expect(result.value.signalRxDbm).toBe(-70);
+      expect(result.value.clients).toHaveLength(1);
+      const c = result.value.clients[0]!;
+      expect(c.macAddress).toBe('AA:BB:CC:DD:EE:01');
+      expect(c.signalRxDbm).toBe(-70);
+      expect(c.distanceM).toBe(1000);
+      expect(c.uptimeSeconds).toBe(7200);
     });
 
-    it('should return null txRateMbps when txrate is absent from the wireless object', async () => {
-      const body = {
-        ...fullStatusBody,
-        wireless: { ...fullStatusBody.wireless, txrate: undefined },
-      };
-      mockFetch.mockResolvedValue(makeOkResponse(body));
+    it('should parse all client detail fields', async () => {
+      const collector = new UbiquitiHttpCollector(makeClient(apStatusBody));
 
-      const result = await collector.collect('192.168.1.1', credentials);
+      const result = await collector.collect('192.168.1.1', credentials, 'ACCESS_POINT');
 
-      expect(result.value.txRateMbps).toBeNull();
+      const c = result.value.clients[0]!;
+      expect(c.txLatencyMs).toBe(5);
+      expect(c.dlLinkScore).toBe(85);
+      expect(c.ulLinkScore).toBe(80);
+      expect(c.dlCapacityKbps).toBe(30000);
+      expect(c.ulCapacityKbps).toBe(10000);
+      expect(c.dlCinr).toBe(18);
+      expect(c.ulCinr).toBe(15);
+      expect(c.txBytesTotal).toBe(BigInt(500000));
+      expect(c.rxBytesTotal).toBe(BigInt(250000));
+      expect(c.txPps).toBe(80);
+      expect(c.rxPps).toBe(40);
     });
 
-    it('should return null ccqPercent when ccq is absent', async () => {
-      const body = {
-        ...fullStatusBody,
-        wireless: { ...fullStatusBody.wireless, ccq: undefined },
-      };
-      mockFetch.mockResolvedValue(makeOkResponse(body));
+    it('should parse remote device fields on each client', async () => {
+      const collector = new UbiquitiHttpCollector(makeClient(apStatusBody));
 
-      const result = await collector.collect('192.168.1.1', credentials);
+      const result = await collector.collect('192.168.1.1', credentials, 'ACCESS_POINT');
+
+      const c = result.value.clients[0]!;
+      expect(c.remoteHostname).toBe('cpe-a');
+      expect(c.remotePlatform).toBe('LiteBeam 5AC');
+      expect(c.remoteVersion).toBe('WA.v8.7.4');
+      expect(c.remoteCpuLoad).toBe(20);
+      expect(c.remoteSignal).toBe(-72);
+      expect(c.remoteTxThroughputKbps).toBe(8000);
+      expect(c.remoteIpAddresses).toEqual(['10.0.1.10']);
+    });
+
+    it('should set signalRxDbm to null in AP mode (no aggregate signal)', async () => {
+      const collector = new UbiquitiHttpCollector(makeClient(apStatusBody));
+
+      const result = await collector.collect('192.168.1.1', credentials, 'ACCESS_POINT');
+
+      expect(result.value.signalRxDbm).toBeNull();
+    });
+  });
+
+  // ===========================================================================
+  describe('collect — field edge cases', () => {
+    it('should return null channelWidthMhz when chanbw is 0', async () => {
+      const body = JSON.parse(JSON.stringify(staStatusBody));
+      body.wireless.chanbw = 0;
+      const collector = new UbiquitiHttpCollector(makeClient(body));
+
+      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+
+      expect(result.value.channelWidthMhz).toBeNull();
+    });
+
+    it('should return null memoryUsedPercent when totalram is 0', async () => {
+      const body = JSON.parse(JSON.stringify(staStatusBody));
+      body.host.totalram = 0;
+      const collector = new UbiquitiHttpCollector(makeClient(body));
+
+      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+
+      expect(result.value.memoryUsedPercent).toBeNull();
+    });
+
+    it('should return null ccqPercent when ccq field is absent', async () => {
+      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
+
+      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
 
       expect(result.value.ccqPercent).toBeNull();
     });
 
-    it('should always return latencyMs as null (not collected via HTTP)', async () => {
-      mockFetch.mockResolvedValue(makeOkResponse(fullStatusBody));
+    it('should return null mode when wireless.mode is unrecognised', async () => {
+      const body = JSON.parse(JSON.stringify(staStatusBody));
+      body.wireless.mode = 'unknown-mode';
+      const collector = new UbiquitiHttpCollector(makeClient(body));
 
-      const result = await collector.collect('192.168.1.1', credentials);
+      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
 
-      expect(result.value.latencyMs).toBeNull();
+      expect(result.value.mode).toBeNull();
+    });
+
+    it('should return null lanStatus when eth0 interface is missing', async () => {
+      const body = JSON.parse(JSON.stringify(staStatusBody));
+      body.interfaces = [];
+      const collector = new UbiquitiHttpCollector(makeClient(body));
+
+      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+
+      expect(result.value.lanStatus).toBeNull();
     });
   });
 
-  describe('collect — non-200 response', () => {
-    it('should return a failed Result when the response status is 401', async () => {
-      mockFetch.mockResolvedValue(makeErrorResponse(401));
+  // ===========================================================================
+  describe('collect — AirOsHttpClient failure', () => {
+    it('should return a failed Result when AirOsHttpClient fails', async () => {
+      const collector = new UbiquitiHttpCollector(
+        makeFailingClient('HTTPS_TIMEOUT')
+      );
 
-      const result = await collector.collect('192.168.1.1', credentials);
-
-      expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('401');
-    });
-
-    it('should return a failed Result when the response status is 500', async () => {
-      mockFetch.mockResolvedValue(makeErrorResponse(500));
-
-      const result = await collector.collect('192.168.1.1', credentials);
+      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('500');
-    });
-  });
-
-  describe('collect — network failure', () => {
-    it('should return a failed Result when fetch throws a network error', async () => {
-      mockFetch.mockRejectedValue(new Error('ECONNREFUSED'));
-
-      const result = await collector.collect('192.168.1.1', credentials);
-
-      expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('HTTP collection failed');
-      expect(result.error).toContain('ECONNREFUSED');
-    });
-
-    it('should return a failed Result when the AbortController aborts the request (timeout)', async () => {
-      mockFetch.mockRejectedValue(new DOMException('The operation was aborted.', 'AbortError'));
-
-      const result = await collector.collect('192.168.1.1', credentials);
-
-      expect(result.isFailure).toBe(true);
-    });
-  });
-
-  describe('collectClients — happy path', () => {
-    it('should call /sta.cgi endpoint', async () => {
-      mockFetch.mockResolvedValue(makeOkResponse([]));
-
-      await collector.collectClients('192.168.1.1', credentials);
-
-      const calledUrl = mockFetch.mock.calls[0][0] as string;
-      expect(calledUrl).toContain('/sta.cgi');
-    });
-
-    it('should return an empty array when the response is an empty JSON array', async () => {
-      mockFetch.mockResolvedValue(makeOkResponse([]));
-
-      const result = await collector.collectClients('192.168.1.1', credentials);
-
-      expect(result.isSuccess).toBe(true);
-      expect(result.value).toEqual([]);
-    });
-
-    it('should parse all client entry fields correctly', async () => {
-      const clientsData = [
-        {
-          mac: 'AA:BB:CC:DD:EE:01',
-          signal: -70,
-          remote_signal: -72,
-          txrate: 54000,
-          rxrate: 48000,
-          ccq: 960,
-          uptime: 1200,
-          ip: '192.168.200.10',
-        },
-      ];
-      mockFetch.mockResolvedValue(makeOkResponse(clientsData));
-
-      const result = await collector.collectClients('192.168.1.1', credentials);
-
-      expect(result.isSuccess).toBe(true);
-      expect(result.value).toHaveLength(1);
-      const client = result.value[0]!;
-      expect(client.macAddress).toBe('AA:BB:CC:DD:EE:01');
-      expect(client.signalRxDbm).toBe(-70);
-      expect(client.signalTxDbm).toBe(-72);
-      expect(client.txRateMbps).toBe(54);
-      expect(client.rxRateMbps).toBe(48);
-      expect(client.ccqPercent).toBe(96); // 960 / 10
-      expect(client.uptimeSeconds).toBe(1200);
-      expect(client.ipAddress).toBe('192.168.200.10');
-    });
-
-    it('should return an empty array when the response body is not an array', async () => {
-      mockFetch.mockResolvedValue(makeOkResponse({ unexpected: 'object' }));
-
-      const result = await collector.collectClients('192.168.1.1', credentials);
-
-      expect(result.isSuccess).toBe(true);
-      expect(result.value).toEqual([]);
-    });
-  });
-
-  describe('collectClients — failure paths', () => {
-    it('should return a failed Result when the response status is not 200', async () => {
-      mockFetch.mockResolvedValue(makeErrorResponse(403));
-
-      const result = await collector.collectClients('192.168.1.1', credentials);
-
-      expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('403');
-    });
-
-    it('should return a failed Result when fetch throws a network error', async () => {
-      mockFetch.mockRejectedValue(new Error('ETIMEDOUT'));
-
-      const result = await collector.collectClients('192.168.1.1', credentials);
-
-      expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('HTTP clients collection failed');
+      expect(result.error).toBe('HTTPS_TIMEOUT');
     });
   });
 });

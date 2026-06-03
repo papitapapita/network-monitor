@@ -74,6 +74,7 @@ export class PollingOrchestrator {
         new Date()
       );
       if (dueResult.isFailure) {
+        if (dueResult.error.includes('57P03')) return;
         this.logger.error(
           '[PollingOrchestrator] Failed to get due devices',
           new Error(dueResult.error)

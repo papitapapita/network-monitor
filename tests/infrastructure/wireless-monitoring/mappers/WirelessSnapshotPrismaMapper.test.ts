@@ -321,21 +321,39 @@ describe('WirelessSnapshotPrismaMapper', () => {
 
       const client = WirelessClientEntry.reconstitute({
         macAddress: 'AA:BB:CC:DD:EE:01',
-        signalRxDbm: -70,
-        signalTxDbm: null,
-        snrDb: null,
-        txRateMbps: 54,
-        rxRateMbps: null,
-        throughputTxBps: null,
-        throughputRxBps: null,
-        ccqPercent: null,
-        uptimeSeconds: 1200,
         ipAddress: '192.168.200.10',
+        signalRxDbm: -70,
+        noiseFloorDbm: -95,
+        distanceM: 1000,
+        uptimeSeconds: 1200,
+        txLatencyMs: null,
+        dlLinkScore: 85,
+        ulLinkScore: null,
+        dlCapacityKbps: null,
+        ulCapacityKbps: null,
+        dlCinr: null,
+        ulCinr: null,
+        txBytesTotal: BigInt(500000),
+        rxBytesTotal: null,
+        txPps: null,
+        rxPps: null,
+        remoteHostname: 'tower-ap',
+        remotePlatform: null,
+        remoteVersion: null,
+        remoteCpuLoad: null,
+        remoteTotalRam: null,
+        remoteFreeRam: null,
+        remoteSignal: null,
+        remoteNoiseFloor: null,
+        remoteTxPower: null,
+        remoteTxThroughputKbps: null,
+        remoteRxThroughputKbps: null,
+        remoteIpAddresses: ['10.0.0.1'],
       });
 
       const snapshot = WirelessSnapshot.reconstitute(
         snapshotId,
-        { deviceId, deviceType: 'STATION', collectedAt: new Date(), collectionMethod: 'snmp', metrics, clients: [client], alerts: [] }
+        { deviceId, deviceType: 'STATION', collectedAt: new Date(), collectionMethod: 'http_api', metrics, clients: [client], alerts: [] }
       );
 
       const data = WirelessSnapshotPrismaMapper.toPersistence(snapshot);
@@ -344,7 +362,7 @@ describe('WirelessSnapshotPrismaMapper', () => {
       const persisted = (data.clientsJson as Record<string, unknown>[])[0]!;
       expect(persisted['macAddress']).toBe('AA:BB:CC:DD:EE:01');
       expect(persisted['signalRxDbm']).toBe(-70);
-      expect(persisted['txRateMbps']).toBe(54);
+      expect(persisted['txBytesTotal']).toBe('500000');
     });
   });
 

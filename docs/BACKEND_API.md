@@ -346,7 +346,7 @@ Fully replaces the stored credentials for the device (upsert).
 ```ts
 // Request body
 {
-  snmpVersion: 1 | 2 | 3         // required; use 1 for legacy devices (e.g. AirOS 8)
+  snmpVersion: 1 | 2 | 3         // required
 
   // SNMP v1/v2 fields
   snmpCommunity?: string | null  // required when snmpVersion = 1 or 2
@@ -845,16 +845,35 @@ interface WirelessAlertDTO {
 
 interface WirelessClientDTO {
   macAddress: string
-  signalRxDbm: number | null
-  signalTxDbm: number | null
-  snrDb: number | null
-  txRateMbps: number | null
-  rxRateMbps: number | null
-  throughputTxBps: number | null
-  throughputRxBps: number | null
-  ccqPercent: number | null
-  uptimeSeconds: number | null
-  ipAddress: string | null
+  ipAddress: string | null           // last known IP (sta[].lastip)
+  signalRxDbm: number | null         // signal AP receives from this client (dBm)
+  noiseFloorDbm: number | null       // client-side noise floor (dBm)
+  distanceM: number | null           // distance to AP (m)
+  uptimeSeconds: number | null       // association uptime (s)
+  txLatencyMs: number | null         // TX latency (ms)
+  dlLinkScore: number | null         // downlink link score 0–100
+  ulLinkScore: number | null         // uplink link score 0–100
+  dlCapacityKbps: number | null      // airMAX downlink capacity (kbps)
+  ulCapacityKbps: number | null      // airMAX uplink capacity (kbps)
+  dlCinr: number | null              // downlink CINR (dB)
+  ulCinr: number | null              // uplink CINR (dB)
+  txBytesTotal: string | null        // cumulative TX bytes since association (serialised bigint)
+  rxBytesTotal: string | null        // cumulative RX bytes since association (serialised bigint)
+  txPps: number | null               // current TX packets/s
+  rxPps: number | null               // current RX packets/s
+  // Remote CPE info (from sta[].remote — AP-side view of the CPE)
+  remoteHostname: string | null
+  remotePlatform: string | null      // CPE model string
+  remoteVersion: string | null       // CPE firmware version
+  remoteCpuLoad: number | null       // CPE CPU load %
+  remoteTotalRam: number | null      // CPE total RAM (bytes)
+  remoteFreeRam: number | null       // CPE free RAM (bytes)
+  remoteSignal: number | null        // signal CPE receives from AP (dBm)
+  remoteNoiseFloor: number | null    // CPE noise floor (dBm)
+  remoteTxPower: number | null       // CPE TX power (dBm)
+  remoteTxThroughputKbps: number | null
+  remoteRxThroughputKbps: number | null
+  remoteIpAddresses: string[]        // CPE IP addresses
 }
 ```
 
@@ -867,7 +886,7 @@ interface WirelessClientDTO {
 // Request body
 {
   deviceType: 'STATION' | 'ACCESS_POINT'   // required
-  ipAddress?: string | null             // IPv4 or IPv6; used for SNMP polling
+  ipAddress?: string | null             // IPv4 or IPv6; used for HTTP API polling
   intervalSecs?: number                 // 60–86400; default 3600
   enabled?: boolean                     // default true
   linkCapacityBps?: number | null       // link capacity for throughput alerts

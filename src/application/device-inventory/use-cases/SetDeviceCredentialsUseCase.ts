@@ -31,37 +31,52 @@ export class SetDeviceCredentialsUseCase extends UseCase<
       return Result.fail('deviceId is required');
     }
 
-    if (
-      request.snmpVersion !== 1 &&
-      request.snmpVersion !== 2 &&
-      request.snmpVersion !== 3
-    ) {
-      return Result.fail('snmpVersion must be 1, 2, or 3');
-    }
+    const hasHttp = !!(
+      request.httpUsername?.trim() && request.httpPassword?.trim()
+    );
+    const hasSnmpVersion = request.snmpVersion !== undefined;
 
-    if (
-      (request.snmpVersion === 1 || request.snmpVersion === 2) &&
-      !request.snmpCommunity?.trim()
-    ) {
+    if (!hasHttp && !hasSnmpVersion) {
       return Result.fail(
-        'snmpCommunity is required for SNMPv1 and SNMPv2'
+        'Provide either HTTP credentials (httpUsername + httpPassword) or SNMP credentials (snmpVersion + ...)'
       );
     }
 
-    if (request.snmpVersion === 3) {
-      if (!request.snmpV3AuthUser?.trim()) {
-        return Result.fail('snmpV3AuthUser is required for SNMPv3');
+    if (hasSnmpVersion) {
+      if (
+        request.snmpVersion !== 1 &&
+        request.snmpVersion !== 2 &&
+        request.snmpVersion !== 3
+      ) {
+        return Result.fail('snmpVersion must be 1, 2, or 3');
       }
-      if (!request.snmpV3AuthProto) {
-        return Result.fail('snmpV3AuthProto is required for SNMPv3');
-      }
-      if (!request.snmpV3AuthKey?.trim()) {
-        return Result.fail('snmpV3AuthKey is required for SNMPv3');
-      }
-      if (request.snmpV3PrivProto && !request.snmpV3PrivKey?.trim()) {
+
+      if (
+        (request.snmpVersion === 1 || request.snmpVersion === 2) &&
+        !request.snmpCommunity?.trim()
+      ) {
         return Result.fail(
-          'snmpV3PrivKey is required when snmpV3PrivProto is set'
+          'snmpCommunity is required for SNMPv1 and SNMPv2'
         );
+      }
+
+      if (request.snmpVersion === 3) {
+        if (!request.snmpV3AuthUser?.trim()) {
+          return Result.fail('snmpV3AuthUser is required for SNMPv3');
+        }
+        if (!request.snmpV3AuthProto) {
+          return Result.fail(
+            'snmpV3AuthProto is required for SNMPv3'
+          );
+        }
+        if (!request.snmpV3AuthKey?.trim()) {
+          return Result.fail('snmpV3AuthKey is required for SNMPv3');
+        }
+        if (request.snmpV3PrivProto && !request.snmpV3PrivKey?.trim()) {
+          return Result.fail(
+            'snmpV3PrivKey is required when snmpV3PrivProto is set'
+          );
+        }
       }
     }
 

@@ -9,6 +9,7 @@ import {
   WirelessClientListResponseDTO
 } from '../dtos';
 import { WirelessAlertMapper } from './WirelessAlertMapper';
+import { WirelessClientEntry } from 'domain/wireless-monitoring/value-objects';
 
 export class WirelessSnapshotMapper {
   public static toStatusDTO(
@@ -68,31 +69,39 @@ export class WirelessSnapshotMapper {
     };
   }
 
-  private static toClientDTO(c: {
-    macAddress: string;
-    signalRxDbm: number | null;
-    signalTxDbm: number | null;
-    snrDb: number | null;
-    txRateMbps: number | null;
-    rxRateMbps: number | null;
-    throughputTxBps: number | null;
-    throughputRxBps: number | null;
-    ccqPercent: number | null;
-    uptimeSeconds: number | null;
-    ipAddress: string | null;
-  }): WirelessClientDTO {
+  private static toClientDTO(c: WirelessClientEntry): WirelessClientDTO {
     return {
       macAddress: c.macAddress,
+      ipAddress: c.ipAddress,
       signalRxDbm: c.signalRxDbm,
-      signalTxDbm: c.signalTxDbm,
-      snrDb: c.snrDb,
-      txRateMbps: c.txRateMbps,
-      rxRateMbps: c.rxRateMbps,
-      throughputTxBps: c.throughputTxBps,
-      throughputRxBps: c.throughputRxBps,
-      ccqPercent: c.ccqPercent,
+      noiseFloorDbm: c.noiseFloorDbm,
+      distanceM: c.distanceM,
       uptimeSeconds: c.uptimeSeconds,
-      ipAddress: c.ipAddress
+      txLatencyMs: c.txLatencyMs,
+      dlLinkScore: c.dlLinkScore,
+      ulLinkScore: c.ulLinkScore,
+      dlCapacityKbps: c.dlCapacityKbps,
+      ulCapacityKbps: c.ulCapacityKbps,
+      dlCinr: c.dlCinr,
+      ulCinr: c.ulCinr,
+      txBytesTotal:
+        c.txBytesTotal !== null ? c.txBytesTotal.toString() : null,
+      rxBytesTotal:
+        c.rxBytesTotal !== null ? c.rxBytesTotal.toString() : null,
+      txPps: c.txPps,
+      rxPps: c.rxPps,
+      remoteHostname: c.remoteHostname,
+      remotePlatform: c.remotePlatform,
+      remoteVersion: c.remoteVersion,
+      remoteCpuLoad: c.remoteCpuLoad,
+      remoteTotalRam: c.remoteTotalRam,
+      remoteFreeRam: c.remoteFreeRam,
+      remoteSignal: c.remoteSignal,
+      remoteNoiseFloor: c.remoteNoiseFloor,
+      remoteTxPower: c.remoteTxPower,
+      remoteTxThroughputKbps: c.remoteTxThroughputKbps,
+      remoteRxThroughputKbps: c.remoteRxThroughputKbps,
+      remoteIpAddresses: c.remoteIpAddresses
     };
   }
 }

@@ -148,31 +148,51 @@ function makeSnapshot(
 
 function makeClient(
   overrides: Partial<{
-    macAddress:      string;
-    signalRxDbm:     number | null;
-    signalTxDbm:     number | null;
-    snrDb:           number | null;
-    txRateMbps:      number | null;
-    rxRateMbps:      number | null;
-    throughputTxBps: number | null;
-    throughputRxBps: number | null;
-    ccqPercent:      number | null;
-    uptimeSeconds:   number | null;
-    ipAddress:       string | null;
+    macAddress:               string;
+    ipAddress:                string | null;
+    signalRxDbm:              number | null;
+    noiseFloorDbm:            number | null;
+    distanceM:                number | null;
+    uptimeSeconds:            number | null;
+    txLatencyMs:              number | null;
+    dlLinkScore:              number | null;
+    ulLinkScore:              number | null;
+    txBytesTotal:             bigint | null;
+    rxBytesTotal:             bigint | null;
+    remoteHostname:           string | null;
+    remoteIpAddresses:        string[];
   }> = {}
 ): WirelessClientEntry {
   return WirelessClientEntry.reconstitute({
-    macAddress:      'AA:BB:CC:DD:EE:FF',
-    signalRxDbm:     -68,
-    signalTxDbm:     -65,
-    snrDb:           22,
-    txRateMbps:      54,
-    rxRateMbps:      48,
-    throughputTxBps: 5000000,
-    throughputRxBps: 4000000,
-    ccqPercent:      90,
-    uptimeSeconds:   3600,
-    ipAddress:       '192.168.1.10',
+    macAddress:               'AA:BB:CC:DD:EE:FF',
+    ipAddress:                '192.168.1.10',
+    signalRxDbm:              -68,
+    noiseFloorDbm:            -95,
+    distanceM:                1000,
+    uptimeSeconds:            3600,
+    txLatencyMs:              5,
+    dlLinkScore:              90,
+    ulLinkScore:              85,
+    dlCapacityKbps:           50000,
+    ulCapacityKbps:           20000,
+    dlCinr:                   22,
+    ulCinr:                   18,
+    txBytesTotal:             BigInt(5000000),
+    rxBytesTotal:             BigInt(4000000),
+    txPps:                    100,
+    rxPps:                    50,
+    remoteHostname:           'tower-ap',
+    remotePlatform:           'Rocket 5AC Lite',
+    remoteVersion:            'WA.v8.7.5',
+    remoteCpuLoad:            40,
+    remoteTotalRam:           262144,
+    remoteFreeRam:            131072,
+    remoteSignal:             -68,
+    remoteNoiseFloor:         -96,
+    remoteTxPower:            23,
+    remoteTxThroughputKbps:   5000,
+    remoteRxThroughputKbps:   3000,
+    remoteIpAddresses:        ['10.0.0.1'],
     ...overrides,
   });
 }
@@ -748,67 +768,40 @@ describe('WirelessSnapshotMapper', () => {
         expect(dto.clients[0].signalRxDbm).toBe(-68);
       });
 
-      it('should map one client signalTxDbm correctly', () => {
-        const client   = makeClient({ signalTxDbm: -65 });
+      it('should map one client noiseFloorDbm correctly', () => {
+        const client   = makeClient({ noiseFloorDbm: -95 });
         const snapshot = makeSnapshot({ clients: [client] });
 
         const dto = WirelessSnapshotMapper.toStatusDTO(snapshot, []);
 
-        expect(dto.clients[0].signalTxDbm).toBe(-65);
+        expect(dto.clients[0].noiseFloorDbm).toBe(-95);
       });
 
-      it('should map one client snrDb correctly', () => {
-        const client   = makeClient({ snrDb: 22 });
+      it('should map one client dlLinkScore correctly', () => {
+        const client   = makeClient({ dlLinkScore: 90 });
         const snapshot = makeSnapshot({ clients: [client] });
 
         const dto = WirelessSnapshotMapper.toStatusDTO(snapshot, []);
 
-        expect(dto.clients[0].snrDb).toBe(22);
+        expect(dto.clients[0].dlLinkScore).toBe(90);
       });
 
-      it('should map one client txRateMbps correctly', () => {
-        const client   = makeClient({ txRateMbps: 54 });
+      it('should serialize one client txBytesTotal as a string', () => {
+        const client   = makeClient({ txBytesTotal: BigInt(5000000) });
         const snapshot = makeSnapshot({ clients: [client] });
 
         const dto = WirelessSnapshotMapper.toStatusDTO(snapshot, []);
 
-        expect(dto.clients[0].txRateMbps).toBe(54);
+        expect(dto.clients[0].txBytesTotal).toBe('5000000');
       });
 
-      it('should map one client rxRateMbps correctly', () => {
-        const client   = makeClient({ rxRateMbps: 48 });
+      it('should map one client remoteHostname correctly', () => {
+        const client   = makeClient({ remoteHostname: 'tower-ap' });
         const snapshot = makeSnapshot({ clients: [client] });
 
         const dto = WirelessSnapshotMapper.toStatusDTO(snapshot, []);
 
-        expect(dto.clients[0].rxRateMbps).toBe(48);
-      });
-
-      it('should map one client throughputTxBps correctly', () => {
-        const client   = makeClient({ throughputTxBps: 5000000 });
-        const snapshot = makeSnapshot({ clients: [client] });
-
-        const dto = WirelessSnapshotMapper.toStatusDTO(snapshot, []);
-
-        expect(dto.clients[0].throughputTxBps).toBe(5000000);
-      });
-
-      it('should map one client throughputRxBps correctly', () => {
-        const client   = makeClient({ throughputRxBps: 4000000 });
-        const snapshot = makeSnapshot({ clients: [client] });
-
-        const dto = WirelessSnapshotMapper.toStatusDTO(snapshot, []);
-
-        expect(dto.clients[0].throughputRxBps).toBe(4000000);
-      });
-
-      it('should map one client ccqPercent correctly', () => {
-        const client   = makeClient({ ccqPercent: 90 });
-        const snapshot = makeSnapshot({ clients: [client] });
-
-        const dto = WirelessSnapshotMapper.toStatusDTO(snapshot, []);
-
-        expect(dto.clients[0].ccqPercent).toBe(90);
+        expect(dto.clients[0].remoteHostname).toBe('tower-ap');
       });
 
       it('should map one client uptimeSeconds correctly', () => {
@@ -847,22 +840,22 @@ describe('WirelessSnapshotMapper', () => {
         expect(dto.clients[0].signalRxDbm).toStrictEqual(null);
       });
 
-      it('should map one client throughputTxBps as strictly null when not set', () => {
-        const client   = makeClient({ throughputTxBps: null });
+      it('should map one client txBytesTotal as string when set', () => {
+        const client   = makeClient({ txBytesTotal: BigInt(5000000) });
         const snapshot = makeSnapshot({ clients: [client] });
 
         const dto = WirelessSnapshotMapper.toStatusDTO(snapshot, []);
 
-        expect(dto.clients[0].throughputTxBps).toStrictEqual(null);
+        expect(dto.clients[0].txBytesTotal).toBe('5000000');
       });
 
-      it('should map one client throughputRxBps as strictly null when not set', () => {
-        const client   = makeClient({ throughputRxBps: null });
+      it('should map one client txBytesTotal as strictly null when not set', () => {
+        const client   = makeClient({ txBytesTotal: null });
         const snapshot = makeSnapshot({ clients: [client] });
 
         const dto = WirelessSnapshotMapper.toStatusDTO(snapshot, []);
 
-        expect(dto.clients[0].throughputRxBps).toStrictEqual(null);
+        expect(dto.clients[0].txBytesTotal).toStrictEqual(null);
       });
 
       it('should map multiple clients and preserve their count', () => {
@@ -914,7 +907,7 @@ describe('WirelessSnapshotMapper', () => {
       expect(dto.clients).toHaveLength(0);
     });
 
-    describe('single client — all 11 fields', () => {
+    describe('single client — key fields', () => {
       it('should map macAddress correctly', () => {
         const client   = makeClient({ macAddress: 'AA:BB:CC:DD:EE:FF' });
         const snapshot = makeSnapshot({ clients: [client] });
@@ -933,69 +926,6 @@ describe('WirelessSnapshotMapper', () => {
         expect(dto.clients[0].signalRxDbm).toBe(-68);
       });
 
-      it('should map signalTxDbm correctly', () => {
-        const client   = makeClient({ signalTxDbm: -65 });
-        const snapshot = makeSnapshot({ clients: [client] });
-
-        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
-
-        expect(dto.clients[0].signalTxDbm).toBe(-65);
-      });
-
-      it('should map snrDb correctly', () => {
-        const client   = makeClient({ snrDb: 22 });
-        const snapshot = makeSnapshot({ clients: [client] });
-
-        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
-
-        expect(dto.clients[0].snrDb).toBe(22);
-      });
-
-      it('should map txRateMbps correctly', () => {
-        const client   = makeClient({ txRateMbps: 54 });
-        const snapshot = makeSnapshot({ clients: [client] });
-
-        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
-
-        expect(dto.clients[0].txRateMbps).toBe(54);
-      });
-
-      it('should map rxRateMbps correctly', () => {
-        const client   = makeClient({ rxRateMbps: 48 });
-        const snapshot = makeSnapshot({ clients: [client] });
-
-        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
-
-        expect(dto.clients[0].rxRateMbps).toBe(48);
-      });
-
-      it('should map throughputTxBps correctly', () => {
-        const client   = makeClient({ throughputTxBps: 5000000 });
-        const snapshot = makeSnapshot({ clients: [client] });
-
-        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
-
-        expect(dto.clients[0].throughputTxBps).toBe(5000000);
-      });
-
-      it('should map throughputRxBps correctly', () => {
-        const client   = makeClient({ throughputRxBps: 4000000 });
-        const snapshot = makeSnapshot({ clients: [client] });
-
-        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
-
-        expect(dto.clients[0].throughputRxBps).toBe(4000000);
-      });
-
-      it('should map ccqPercent correctly', () => {
-        const client   = makeClient({ ccqPercent: 90 });
-        const snapshot = makeSnapshot({ clients: [client] });
-
-        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
-
-        expect(dto.clients[0].ccqPercent).toBe(90);
-      });
-
       it('should map uptimeSeconds correctly', () => {
         const client   = makeClient({ uptimeSeconds: 3600 });
         const snapshot = makeSnapshot({ clients: [client] });
@@ -1012,6 +942,33 @@ describe('WirelessSnapshotMapper', () => {
         const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
 
         expect(dto.clients[0].ipAddress).toBe('192.168.1.10');
+      });
+
+      it('should serialize txBytesTotal as a string', () => {
+        const client   = makeClient({ txBytesTotal: BigInt('9007199254740993') });
+        const snapshot = makeSnapshot({ clients: [client] });
+
+        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+        expect(dto.clients[0].txBytesTotal).toBe('9007199254740993');
+      });
+
+      it('should map remoteHostname correctly', () => {
+        const client   = makeClient({ remoteHostname: 'tower-ap' });
+        const snapshot = makeSnapshot({ clients: [client] });
+
+        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+        expect(dto.clients[0].remoteHostname).toBe('tower-ap');
+      });
+
+      it('should map remoteIpAddresses as an array', () => {
+        const client   = makeClient({ remoteIpAddresses: ['10.0.0.1'] });
+        const snapshot = makeSnapshot({ clients: [client] });
+
+        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+        expect(dto.clients[0].remoteIpAddresses).toEqual(['10.0.0.1']);
       });
     });
 
@@ -1032,6 +989,15 @@ describe('WirelessSnapshotMapper', () => {
         const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
 
         expect(dto.clients[0].ipAddress).toStrictEqual(null);
+      });
+
+      it('should pass txBytesTotal as strictly null', () => {
+        const client   = makeClient({ txBytesTotal: null });
+        const snapshot = makeSnapshot({ clients: [client] });
+
+        const dto = WirelessSnapshotMapper.toClientListDTO(snapshot);
+
+        expect(dto.clients[0].txBytesTotal).toStrictEqual(null);
       });
     });
 

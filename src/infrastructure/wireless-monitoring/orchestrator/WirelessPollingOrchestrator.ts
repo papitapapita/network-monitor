@@ -72,6 +72,7 @@ export class WirelessPollingOrchestrator {
       const dueResult =
         await this.wirelessPollingConfigRepo.findAllDue(new Date());
       if (dueResult.isFailure) {
+        if (dueResult.error.includes('57P03')) return;
         this.logger.warn(
           '[WirelessPollingOrchestrator] Failed to get due devices',
           {

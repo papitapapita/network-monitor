@@ -37,7 +37,7 @@ export class DeviceCredentialsMapper {
 
   public static extractCreateData(dto: SetDeviceCredentialsRequestDTO) {
     return {
-      snmpVersion: dto.snmpVersion,
+      snmpVersion: dto.snmpVersion ?? 1,
       snmpCommunity: dto.snmpCommunity ?? null,
       snmpV3AuthUser: dto.snmpV3AuthUser ?? null,
       snmpV3AuthProto: dto.snmpV3AuthProto ?? null,
@@ -47,7 +47,7 @@ export class DeviceCredentialsMapper {
       snmpPort: dto.snmpPort ?? 161,
       httpUsername: dto.httpUsername ?? null,
       httpPassword: dto.httpPassword ?? null,
-      httpPort: dto.httpPort ?? 80
+      httpPort: dto.httpPort ?? 443
     };
   }
 }

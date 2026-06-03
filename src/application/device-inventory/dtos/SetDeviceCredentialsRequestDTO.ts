@@ -2,8 +2,7 @@
 // stored credentials. Sensitive fields are encrypted at rest (AES-256-GCM).
 export interface SetDeviceCredentialsRequestDTO {
   deviceId: string;
-  // Use version 1 for legacy devices (e.g. AirOS 8 which does not support v3).
-  snmpVersion: 1 | 2 | 3;
+  snmpVersion?: 1 | 2 | 3;
   snmpCommunity?: string | null;
   snmpV3AuthUser?: string | null;
   snmpV3AuthProto?: 'MD5' | 'SHA' | null;

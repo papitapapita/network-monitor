@@ -27,9 +27,8 @@ import {
   PrismaWirelessSnapshotRepository,
   PrismaWirelessAlertRecordRepository,
   PrismaWirelessPollingConfigRepository,
-  SNMPCollector,
+  AirOsHttpClient,
   UbiquitiHttpCollector,
-  WirelessCounterStore,
   WirelessPollingOrchestrator
 } from '../wireless-monitoring';
 import { WirelessAlertEvaluator } from 'domain/wireless-monitoring/services';
@@ -416,9 +415,8 @@ export class DependencyContainer {
     this.deviceCredentialsRepository =
       new PrismaDeviceCredentialsRepository(this.prisma);
 
-    const snmpCollector = new SNMPCollector();
-    const httpCollector = new UbiquitiHttpCollector();
-    const counterStore = new WirelessCounterStore();
+    const airOsHttpClient = new AirOsHttpClient(10_000, this.logger);
+    const httpCollector = new UbiquitiHttpCollector(airOsHttpClient);
     const alertEvaluator = new WirelessAlertEvaluator();
 
     const pollWirelessDeviceUseCase = new PollWirelessDeviceUseCase(
@@ -426,9 +424,7 @@ export class DependencyContainer {
       this.wirelessSnapshotRepository,
       this.wirelessAlertRecordRepository,
       this.deviceCredentialsRepository,
-      snmpCollector,
       httpCollector,
-      counterStore,
       alertEvaluator,
       this.logger
     );
