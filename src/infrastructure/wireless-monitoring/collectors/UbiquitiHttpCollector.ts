@@ -67,11 +67,21 @@ export class UbiquitiHttpCollector implements IUbiquitiHttpCollector {
 
     const remote0 =
       isStaMode && sta0 ? obj(sta0, 'remote') : null;
+    const airmax0 =
+      isStaMode && sta0 ? obj(sta0, 'airmax') : null;
+
+    const rawRemoteIps =
+      isStaMode && remote0 ? remote0['ipaddr'] : null;
+    const remoteApIp =
+      Array.isArray(rawRemoteIps) && rawRemoteIps.length > 0
+        ? String(rawRemoteIps[0])
+        : null;
 
     return {
       deviceName: str(host, 'hostname'),
       firmwareVersion: str(host, 'fwversion'),
       uptimeSeconds: num(host, 'uptime'),
+      deviceTimeEpoch: num(host, 'time'),
       cpuLoadPercent: num(host, 'cpuload'),
       memoryUsedPercent,
       essid: str(wireless, 'essid'),
@@ -90,10 +100,14 @@ export class UbiquitiHttpCollector implements IUbiquitiHttpCollector {
       ccqPercent:
         ccqRaw !== null && ccqRaw > 0 ? ccqRaw / 10 : null,
       signalRxDbm: isStaMode && sta0 ? num(sta0, 'signal') : null,
+      signalTxDbm: isStaMode && remote0 ? num(remote0, 'signal') : null,
       latencyMs: isStaMode && sta0 ? num(sta0, 'tx_latency') : null,
       remoteApMac: isStaMode && sta0 ? str(sta0, 'mac') : null,
       remoteApName:
         isStaMode && remote0 ? str(remote0, 'hostname') : null,
+      remoteApIp,
+      capacityRxKbps: airmax0 ? num(airmax0, 'downlink_capacity') : null,
+      capacityTxKbps: airmax0 ? num(airmax0, 'uplink_capacity') : null,
       lanStatus,
       lanSpeedMbps,
       clients:

@@ -43,8 +43,13 @@ const makeMinimalPrismaRow = (): PrismaWirelessSnapshot => ({
   deviceName: null,
   remoteApMac: null,
   remoteApName: null,
+  remoteApIp: null,
+  remoteApDeviceId: null,
   distanceM: null,
   latencyMs: null,
+  capacityTxKbps: null,
+  capacityRxKbps: null,
+  deviceTimeEpoch: null,
   clientsConnected: null,
   clientsProvisioned: null,
   clientsJson: null,
@@ -80,8 +85,13 @@ const makeFullPrismaRow = (): PrismaWirelessSnapshot => ({
   deviceName: 'ubnt-ap-1',
   remoteApMac: 'AA:BB:CC:DD:EE:FF',
   remoteApName: 'tower-ap',
+  remoteApIp: '10.0.0.1',
+  remoteApDeviceId: null,
   distanceM: 1500,
   latencyMs: 5,
+  capacityTxKbps: 20000,
+  capacityRxKbps: 40000,
+  deviceTimeEpoch: 1718440200n,
   clientsConnected: 3,
   clientsProvisioned: 10,
   clientsJson: [
@@ -132,8 +142,12 @@ const buildDomainSnapshot = (overrides: Partial<{
     deviceName: 'ubnt-ap-1',
     remoteApMac: 'AA:BB:CC:DD:EE:FF',
     remoteApName: 'tower-ap',
+    remoteApIp: null,
     distanceM: null,
     latencyMs: null,
+    capacityTxKbps: null,
+    capacityRxKbps: null,
+    deviceTimeEpoch: null,
     clientsConnected: 3,
     clientsProvisioned: null,
   });
@@ -148,6 +162,7 @@ const buildDomainSnapshot = (overrides: Partial<{
       metrics,
       clients: [],
       alerts: [],
+      remoteApDeviceId: null,
     }
   );
 };
@@ -281,13 +296,14 @@ describe('WirelessSnapshotPrismaMapper', () => {
         throughputRxBps: null, throughputTxPps: null, throughputRxPps: null,
         lanStatus: null, lanSpeedMbps: null, lanDuplex: null, uptimeSeconds: null,
         cpuLoadPercent: null, memoryUsedPercent: null, firmwareVersion: null,
-        deviceName: null, remoteApMac: null, remoteApName: null,
-        distanceM: null, latencyMs: null, clientsConnected: null, clientsProvisioned: null,
+        deviceName: null, remoteApMac: null, remoteApName: null, remoteApIp: null,
+        distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
+        deviceTimeEpoch: null, clientsConnected: null, clientsProvisioned: null,
       });
 
       const snapshot = WirelessSnapshot.reconstitute(
         snapshotId,
-        { deviceId, deviceType: 'STATION', collectedAt: new Date(), collectionMethod: 'snmp', metrics, clients: [], alerts: [] }
+        { deviceId, deviceType: 'STATION', collectedAt: new Date(), collectionMethod: 'snmp', metrics, clients: [], alerts: [], remoteApDeviceId: null }
       );
 
       const data = WirelessSnapshotPrismaMapper.toPersistence(snapshot);
@@ -315,8 +331,9 @@ describe('WirelessSnapshotPrismaMapper', () => {
         throughputRxBps: null, throughputTxPps: null, throughputRxPps: null,
         lanStatus: null, lanSpeedMbps: null, lanDuplex: null, uptimeSeconds: null,
         cpuLoadPercent: null, memoryUsedPercent: null, firmwareVersion: null,
-        deviceName: null, remoteApMac: null, remoteApName: null,
-        distanceM: null, latencyMs: null, clientsConnected: null, clientsProvisioned: null,
+        deviceName: null, remoteApMac: null, remoteApName: null, remoteApIp: null,
+        distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
+        deviceTimeEpoch: null, clientsConnected: null, clientsProvisioned: null,
       });
 
       const client = WirelessClientEntry.reconstitute({
@@ -353,7 +370,7 @@ describe('WirelessSnapshotPrismaMapper', () => {
 
       const snapshot = WirelessSnapshot.reconstitute(
         snapshotId,
-        { deviceId, deviceType: 'STATION', collectedAt: new Date(), collectionMethod: 'http_api', metrics, clients: [client], alerts: [] }
+        { deviceId, deviceType: 'STATION', collectedAt: new Date(), collectionMethod: 'http_api', metrics, clients: [client], alerts: [], remoteApDeviceId: null }
       );
 
       const data = WirelessSnapshotPrismaMapper.toPersistence(snapshot);

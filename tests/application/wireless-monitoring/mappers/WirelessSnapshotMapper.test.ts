@@ -76,8 +76,12 @@ function makeMetrics(
     deviceName:        'CPE-001',
     remoteApMac:       'AA:BB:CC:DD:EE:FF',
     remoteApName:      'AP-001',
+    remoteApIp:        null,
     distanceM:         500,
     latencyMs:         2,
+    capacityTxKbps:    null,
+    capacityRxKbps:    null,
+    deviceTimeEpoch:   null,
     clientsConnected:  5,
     clientsProvisioned: 10,
     ...overrides,
@@ -110,8 +114,12 @@ function makeNullMetrics(): WirelessMetrics {
     deviceName:        null,
     remoteApMac:       null,
     remoteApName:      null,
+    remoteApIp:        null,
     distanceM:         null,
     latencyMs:         null,
+    capacityTxKbps:    null,
+    capacityRxKbps:    null,
+    deviceTimeEpoch:   null,
     clientsConnected:  null,
     clientsProvisioned: null,
   });
@@ -141,6 +149,7 @@ function makeSnapshot(
       metrics:          makeMetrics(),
       clients:          [],
       alerts:           [],
+      remoteApDeviceId: null,
       ...overrides,
     }
   );

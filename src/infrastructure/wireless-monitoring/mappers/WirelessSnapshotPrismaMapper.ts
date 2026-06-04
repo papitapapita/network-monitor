@@ -36,8 +36,13 @@ type PrismaWirelessSnapshot = {
   deviceName: string | null;
   remoteApMac: string | null;
   remoteApName: string | null;
+  remoteApIp: string | null;
+  remoteApDeviceId: string | null;
   distanceM: number | null;
   latencyMs: number | null;
+  capacityTxKbps: number | null;
+  capacityRxKbps: number | null;
+  deviceTimeEpoch: bigint | null;
   clientsConnected: number | null;
   clientsProvisioned: number | null;
   clientsJson: unknown;
@@ -73,8 +78,13 @@ type PersistenceData = {
   deviceName: string | null;
   remoteApMac: string | null;
   remoteApName: string | null;
+  remoteApIp: string | null;
+  remoteApDeviceId: string | null;
   distanceM: number | null;
   latencyMs: number | null;
+  capacityTxKbps: number | null;
+  capacityRxKbps: number | null;
+  deviceTimeEpoch: bigint | null;
   clientsConnected: number | null;
   clientsProvisioned: number | null;
   clientsJson: unknown;
@@ -128,8 +138,13 @@ export class WirelessSnapshotPrismaMapper {
       deviceName: raw.deviceName,
       remoteApMac: raw.remoteApMac,
       remoteApName: raw.remoteApName,
+      remoteApIp: raw.remoteApIp,
       distanceM: raw.distanceM,
       latencyMs: raw.latencyMs,
+      capacityTxKbps: raw.capacityTxKbps,
+      capacityRxKbps: raw.capacityRxKbps,
+      deviceTimeEpoch:
+        raw.deviceTimeEpoch !== null ? Number(raw.deviceTimeEpoch) : null,
       clientsConnected: raw.clientsConnected,
       clientsProvisioned: raw.clientsProvisioned
     };
@@ -197,6 +212,12 @@ export class WirelessSnapshotPrismaMapper {
       }
     }
 
+    let remoteApDeviceId = null;
+    if (raw.remoteApDeviceId) {
+      const apId = DeviceId.parse(raw.remoteApDeviceId);
+      if (apId.isSuccess) remoteApDeviceId = apId.value;
+    }
+
     return WirelessSnapshot.reconstitute(snapshotId.value, {
       deviceId: deviceId.value,
       deviceType: raw.deviceType as 'STATION' | 'ACCESS_POINT',
@@ -207,7 +228,8 @@ export class WirelessSnapshotPrismaMapper {
         | 'mixed',
       metrics,
       clients,
-      alerts: []
+      alerts: [],
+      remoteApDeviceId
     });
   }
 
@@ -282,8 +304,16 @@ export class WirelessSnapshotPrismaMapper {
       deviceName: m.deviceName,
       remoteApMac: m.remoteApMac,
       remoteApName: m.remoteApName,
+      remoteApIp: m.remoteApIp,
+      remoteApDeviceId: snapshot.remoteApDeviceId
+        ? snapshot.remoteApDeviceId.toString()
+        : null,
       distanceM: m.distanceM,
       latencyMs: m.latencyMs,
+      capacityTxKbps: m.capacityTxKbps,
+      capacityRxKbps: m.capacityRxKbps,
+      deviceTimeEpoch:
+        m.deviceTimeEpoch !== null ? BigInt(m.deviceTimeEpoch) : null,
       clientsConnected: m.clientsConnected,
       clientsProvisioned: m.clientsProvisioned,
       clientsJson: clientsJson.length > 0 ? clientsJson : null

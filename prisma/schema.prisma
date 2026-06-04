@@ -350,8 +350,13 @@ model WirelessSnapshot {
   deviceName        String?  @map("device_name") @db.VarChar(150)
   remoteApMac       String?  @map("remote_ap_mac") @db.VarChar(17)
   remoteApName      String?  @map("remote_ap_name") @db.VarChar(150)
+  remoteApIp        String?  @map("remote_ap_ip") @db.VarChar(45)
+  remoteApDeviceId  String?  @map("remote_ap_device_id") @db.Uuid
   distanceM         Int?     @map("distance_m")
   latencyMs         Int?     @map("latency_ms")
+  capacityTxKbps    Int?     @map("capacity_tx_kbps")
+  capacityRxKbps    Int?     @map("capacity_rx_kbps")
+  deviceTimeEpoch   BigInt?  @map("device_time_epoch")
   clientsConnected  Int?     @map("clients_connected")
   clientsProvisioned Int?    @map("clients_provisioned")
   clientsJson       Json?    @map("clients_json")

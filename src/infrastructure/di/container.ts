@@ -31,6 +31,7 @@ import {
   UbiquitiHttpCollector,
   WirelessPollingOrchestrator
 } from '../wireless-monitoring';
+import { WirelessDeviceRepositoryAdapter } from '../wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter';
 import { WirelessAlertEvaluator } from 'domain/wireless-monitoring/services';
 import {
   PollWirelessDeviceUseCase,
@@ -418,6 +419,9 @@ export class DependencyContainer {
     const airOsHttpClient = new AirOsHttpClient(10_000, this.logger);
     const httpCollector = new UbiquitiHttpCollector(airOsHttpClient);
     const alertEvaluator = new WirelessAlertEvaluator();
+    const wirelessDeviceRepo = new WirelessDeviceRepositoryAdapter(
+      this.deviceRepository
+    );
 
     const pollWirelessDeviceUseCase = new PollWirelessDeviceUseCase(
       this.wirelessPollingConfigRepository,
@@ -426,6 +430,7 @@ export class DependencyContainer {
       this.deviceCredentialsRepository,
       httpCollector,
       alertEvaluator,
+      wirelessDeviceRepo,
       this.logger
     );
     const getWirelessDeviceStatusUseCase =

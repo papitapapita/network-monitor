@@ -43,6 +43,9 @@ export class WirelessSnapshot extends AggregateRoot<
   get alerts(): WirelessAlert[] {
     return [...this.props.alerts];
   }
+  get remoteApDeviceId(): DeviceId | null {
+    return this.props.remoteApDeviceId;
+  }
 
   // no creation invariants — props are validated upstream by the collector pipeline
   public static create(

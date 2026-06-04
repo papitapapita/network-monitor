@@ -25,6 +25,10 @@ export interface WirelessMetricsProps {
   deviceName: string | null;
   remoteApMac: string | null;
   remoteApName: string | null;
+  remoteApIp: string | null;
   distanceM: number | null;
   latencyMs: number | null;
+  capacityTxKbps: number | null;
+  capacityRxKbps: number | null;
+  deviceTimeEpoch: number | null;
 }

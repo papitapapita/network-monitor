@@ -23,7 +23,9 @@ function makeNullProps(): WirelessMetricsProps {
     uptimeSeconds: null, cpuLoadPercent: null, memoryUsedPercent: null,
     clientsConnected: null, clientsProvisioned: null, throughputTxPps: null,
     throughputRxPps: null, firmwareVersion: null, deviceName: null,
-    remoteApMac: null, remoteApName: null, distanceM: null, latencyMs: null,
+    remoteApMac: null, remoteApName: null, remoteApIp: null,
+    distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
+    deviceTimeEpoch: null,
   };
 }
 

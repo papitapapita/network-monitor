@@ -33,6 +33,16 @@ _These block or constrain everything else. Do in order._
 ## Priority 2 — Core Product
 _Main user-facing features still missing._
 
+- [ ] **Live throughput view** — real-time bandwidth consumption per device/link for support and capacity planning
+  - Surface `throughputTxBps` / `throughputRxBps` from `WirelessSnapshot` via SSE or a polling endpoint
+  - Show as % of `linkCapacityBps` (already stored on `WirelessPollingConfiguration`) for utilisation context
+  - Useful for confirming a customer is actually saturating their plan in real time
+
+- [ ] **Clear wireless device alerts** — allow operators to manually clear (acknowledge) active wireless alerts
+  - New use case: `ClearWirelessAlertUseCase` — finds alert by ID, calls `WirelessAlertRecord.clear(now)`
+  - Endpoint: `DELETE /wireless/:deviceId/alerts/:alertId` or `POST /wireless/:deviceId/alerts/:alertId/clear`
+  - Guards: alert must belong to the device; only active alerts can be cleared
+
 - [ ] **Real-time alerts via SSE** — push alerts to the browser without manual reload
   - `GET /alerts/stream` endpoint; keep a `clients` Set; push to all connected clients on alert fire
   - Frontend: `new EventSource('/alerts/stream')` — reconnects automatically

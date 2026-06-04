@@ -7,6 +7,7 @@ import { IWirelessSnapshotRepository } from '../../../../src/domain/wireless-mon
 import { IWirelessAlertRecordRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessAlertRecordRepository';
 import { IDeviceCredentialsRepository, DecryptedCredentials } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceCredentialsRepository';
 import { IUbiquitiHttpCollector, HttpCollectionResult } from '../../../../src/application/wireless-monitoring/interfaces/IUbiquitiHttpCollector';
+import { IDeviceRepository } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceRepository';
 import { WirelessPollingConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessPollingConfig';
 import { WirelessPollingConfigId } from '../../../../src/domain/shared/ids/WirelessPollingConfigId';
 import { WirelessAlertRecord } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
@@ -92,6 +93,7 @@ function makeHttpResult(overrides: Partial<HttpCollectionResult> = {}): HttpColl
     deviceName: 'CPE-001',
     firmwareVersion: 'WA.v8.7.5',
     uptimeSeconds: 86400,
+    deviceTimeEpoch: null,
     cpuLoadPercent: 30,
     memoryUsedPercent: 50,
     essid: 'ISP-Network',
@@ -106,9 +108,13 @@ function makeHttpResult(overrides: Partial<HttpCollectionResult> = {}): HttpColl
     clientsConnected: null,
     ccqPercent: null,
     signalRxDbm: -65,
+    signalTxDbm: null,
     latencyMs: 4,
     remoteApMac: 'AA:BB:CC:DD:EE:FF',
     remoteApName: 'AP-Roof',
+    remoteApIp: null,
+    capacityTxKbps: null,
+    capacityRxKbps: null,
     lanStatus: 'UP',
     lanSpeedMbps: 1000,
     clients: [],
@@ -159,6 +165,10 @@ function makeMocks() {
     evaluate: jest.fn()
   };
 
+  const deviceRepo: jest.Mocked<IDeviceRepository> = {
+    findIdByMacAddress: jest.fn().mockResolvedValue(Result.ok(null))
+  };
+
   const logger = makeLogger();
 
   return {
@@ -168,6 +178,7 @@ function makeMocks() {
     credentialsRepo,
     httpCollector,
     alertEvaluator,
+    deviceRepo,
     logger
   };
 }
@@ -180,6 +191,7 @@ function makeUseCase(mocks: ReturnType<typeof makeMocks>): PollWirelessDeviceUse
     mocks.credentialsRepo,
     mocks.httpCollector,
     mocks.alertEvaluator,
+    mocks.deviceRepo,
     mocks.logger
   );
 }

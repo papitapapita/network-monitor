@@ -18,6 +18,7 @@ import {
   IUbiquitiHttpCollector,
   HttpCredentials,
   IDeviceCredentialsRepository,
+  IDeviceRepository,
   IWirelessPollOrchestrator
 } from '../interfaces';
 import {
@@ -41,6 +42,7 @@ export class PollWirelessDeviceUseCase
     private readonly credentialsRepo: IDeviceCredentialsRepository,
     private readonly httpCollector: IUbiquitiHttpCollector,
     private readonly alertEvaluator: IWirelessAlertEvaluator,
+    private readonly deviceRepo: IDeviceRepository,
     logger: ILogger
   ) {
     super(logger, 'PollWirelessDeviceUseCase');
@@ -187,9 +189,17 @@ export class PollWirelessDeviceUseCase
       clientsProvisionedLimit: config.clientsProvisionedLimit
     };
 
+    let remoteApDeviceId = null;
+    if (http.remoteApMac) {
+      const apLookup = await this.deviceRepo.findIdByMacAddress(
+        http.remoteApMac
+      );
+      if (apLookup.isSuccess) remoteApDeviceId = apLookup.value;
+    }
+
     const metricsResult = WirelessMetrics.create({
       signalRxDbm: http.signalRxDbm,
-      signalTxDbm: null,
+      signalTxDbm: http.signalTxDbm,
       noiseFloorDbm: http.noiseFloorDbm,
       snrDb,
       ccqPercent: http.ccqPercent,
@@ -214,8 +224,12 @@ export class PollWirelessDeviceUseCase
       deviceName: http.deviceName,
       remoteApMac: http.remoteApMac,
       remoteApName: http.remoteApName,
+      remoteApIp: http.remoteApIp,
       distanceM: http.distanceM,
-      latencyMs: http.latencyMs
+      latencyMs: http.latencyMs,
+      capacityTxKbps: http.capacityTxKbps,
+      capacityRxKbps: http.capacityRxKbps,
+      deviceTimeEpoch: http.deviceTimeEpoch
     });
     if (metricsResult.isFailure) {
       return this.fail(
@@ -340,7 +354,8 @@ export class PollWirelessDeviceUseCase
       collectionMethod: 'http_api',
       metrics,
       clients,
-      alerts: embeddedAlerts
+      alerts: embeddedAlerts,
+      remoteApDeviceId
     });
 
     const snapshotSaveResult = await this.snapshotRepo.save(snapshot);

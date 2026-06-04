@@ -85,11 +85,23 @@ export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
   get remoteApName(): string | null {
     return this._props.remoteApName;
   }
+  get remoteApIp(): string | null {
+    return this._props.remoteApIp;
+  }
   get distanceM(): number | null {
     return this._props.distanceM;
   }
   get latencyMs(): number | null {
     return this._props.latencyMs;
+  }
+  get capacityTxKbps(): number | null {
+    return this._props.capacityTxKbps;
+  }
+  get capacityRxKbps(): number | null {
+    return this._props.capacityRxKbps;
+  }
+  get deviceTimeEpoch(): number | null {
+    return this._props.deviceTimeEpoch;
   }
 
   public isSignalDegraded(): boolean {

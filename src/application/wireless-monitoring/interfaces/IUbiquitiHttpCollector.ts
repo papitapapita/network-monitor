@@ -42,6 +42,7 @@ export interface HttpCollectionResult {
   deviceName: string | null;
   firmwareVersion: string | null;
   uptimeSeconds: number | null;
+  deviceTimeEpoch: number | null;
   cpuLoadPercent: number | null;
   memoryUsedPercent: number | null;
   essid: string | null;
@@ -56,9 +57,13 @@ export interface HttpCollectionResult {
   clientsConnected: number | null;
   ccqPercent: number | null;
   signalRxDbm: number | null;
+  signalTxDbm: number | null;
   latencyMs: number | null;
   remoteApMac: string | null;
   remoteApName: string | null;
+  remoteApIp: string | null;
+  capacityTxKbps: number | null;
+  capacityRxKbps: number | null;
   lanStatus: 'UP' | 'DOWN' | null;
   lanSpeedMbps: number | null;
   clients: HttpClientEntry[];

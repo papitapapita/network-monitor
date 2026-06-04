@@ -13,4 +13,5 @@ export interface WirelessSnapshotProps {
   metrics: WirelessMetrics;
   clients: WirelessClientEntry[];
   alerts: WirelessAlert[];
+  remoteApDeviceId: DeviceId | null;
 }

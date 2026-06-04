@@ -35,8 +35,12 @@ function makeNullProps(): WirelessMetricsProps {
     deviceName: null,
     remoteApMac: null,
     remoteApName: null,
+    remoteApIp: null,
     distanceM: null,
     latencyMs: null,
+    capacityTxKbps: null,
+    capacityRxKbps: null,
+    deviceTimeEpoch: null,
   };
 }
 
@@ -68,8 +72,12 @@ function makeFullProps(overrides: Partial<WirelessMetricsProps> = {}): WirelessM
     deviceName: 'CPE-001',
     remoteApMac: 'aa:bb:cc:dd:ee:ff',
     remoteApName: 'AP-Roof',
+    remoteApIp: null,
     distanceM: 1500,
     latencyMs: 4,
+    capacityTxKbps: null,
+    capacityRxKbps: null,
+    deviceTimeEpoch: null,
     ...overrides,
   };
 }

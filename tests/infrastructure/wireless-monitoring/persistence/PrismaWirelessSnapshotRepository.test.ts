@@ -31,13 +31,14 @@ const buildDomainSnapshot = (): WirelessSnapshot => {
     throughputRxBps: null, throughputTxPps: null, throughputRxPps: null,
     lanStatus: 'UP', lanSpeedMbps: 100, lanDuplex: null, uptimeSeconds: 3600,
     cpuLoadPercent: null, memoryUsedPercent: null, firmwareVersion: 'XW.v8.7.1',
-    deviceName: 'ubnt-cpe', remoteApMac: null, remoteApName: null,
-    distanceM: null, latencyMs: null, clientsConnected: 2, clientsProvisioned: null,
+    deviceName: 'ubnt-cpe', remoteApMac: null, remoteApName: null, remoteApIp: null,
+    distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
+    deviceTimeEpoch: null, clientsConnected: 2, clientsProvisioned: null,
   });
 
   return WirelessSnapshot.reconstitute(
     snapshotId,
-    { deviceId, deviceType: 'STATION', collectedAt: new Date('2024-01-01T12:00:00Z'), collectionMethod: 'snmp', metrics, clients: [], alerts: [] }
+    { deviceId, deviceType: 'STATION', collectedAt: new Date('2024-01-01T12:00:00Z'), collectionMethod: 'snmp', metrics, clients: [], alerts: [], remoteApDeviceId: null }
   );
 };
 
@@ -71,8 +72,13 @@ const makePrismaRow = () => ({
   deviceName: 'ubnt-cpe',
   remoteApMac: null,
   remoteApName: null,
+  remoteApIp: null,
+  remoteApDeviceId: null,
   distanceM: null,
   latencyMs: null,
+  capacityTxKbps: null,
+  capacityRxKbps: null,
+  deviceTimeEpoch: null,
   clientsConnected: 2,
   clientsProvisioned: null,
   clientsJson: null,

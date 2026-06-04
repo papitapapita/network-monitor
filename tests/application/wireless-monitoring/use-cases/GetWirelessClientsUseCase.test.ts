@@ -42,8 +42,9 @@ function makeNullMetrics(): WirelessMetrics {
     throughputRxBps: null, throughputTxPps: null, throughputRxPps: null,
     lanStatus: null, lanSpeedMbps: null, lanDuplex: null, uptimeSeconds: null,
     cpuLoadPercent: null, memoryUsedPercent: null, firmwareVersion: null,
-    deviceName: null, remoteApMac: null, remoteApName: null, distanceM: null,
-    latencyMs: null, clientsConnected: null, clientsProvisioned: null,
+    deviceName: null, remoteApMac: null, remoteApName: null, remoteApIp: null,
+    distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
+    deviceTimeEpoch: null, clientsConnected: null, clientsProvisioned: null,
   });
 }
 
@@ -63,6 +64,7 @@ function makeSnapshot(
       metrics: makeNullMetrics(),
       clients,
       alerts: [],
+      remoteApDeviceId: null,
     }
   );
 }
