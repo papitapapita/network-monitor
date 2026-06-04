@@ -1,9 +1,9 @@
 import { DomainEvent } from 'domain/shared/core';
-import { WirelessPollingConfigId, DeviceId } from 'domain/shared/ids';
-import { WirelessPollingConfigToggledEventProps } from '../props';
+import { WirelessDeviceConfigId, DeviceId } from 'domain/shared/ids';
+import { WirelessDeviceConfigToggledEventProps } from '../props';
 
-export class WirelessPollingConfigToggledEvent extends DomainEvent<WirelessPollingConfigToggledEventProps> {
-  get aggregateId(): WirelessPollingConfigId {
+export class WirelessDeviceConfigToggledEvent extends DomainEvent<WirelessDeviceConfigToggledEventProps> {
+  get aggregateId(): WirelessDeviceConfigId {
     return this.props.aggregateId;
   }
 

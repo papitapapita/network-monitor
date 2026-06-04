@@ -1,10 +1,10 @@
-import { WirelessPollingConfig } from 'domain/wireless-monitoring/aggregates';
-import { WirelessPollingConfigProps } from 'domain/wireless-monitoring/props';
+import { WirelessDeviceConfig } from 'domain/wireless-monitoring/aggregates';
+import { WirelessDeviceConfigProps } from 'domain/wireless-monitoring/props';
 import { DeviceId } from 'domain/shared';
-import { WirelessPollingConfigId } from 'domain/shared/ids';
-import { IPAddress } from 'domain/shared/value-objects';
+import { WirelessDeviceConfigId } from 'domain/shared/ids';
+import { IPAddress, PollingInterval } from 'domain/shared/value-objects';
 
-type PrismaWirelessPollingConfiguration = {
+type PrismaWirelessDeviceConfigRow = {
   id: string;
   deviceId: string;
   ipAddress: string | null;
@@ -28,14 +28,14 @@ type PersistenceData = {
   lastPolledAt: Date | null;
 };
 
-export class WirelessPollingConfigPrismaMapper {
+export class WirelessDeviceConfigPrismaMapper {
   static toDomain(
-    raw: PrismaWirelessPollingConfiguration
-  ): WirelessPollingConfig {
+    raw: PrismaWirelessDeviceConfigRow
+  ): WirelessDeviceConfig {
     const deviceId = DeviceId.parse(raw.deviceId);
     if (deviceId.isFailure)
       throw new Error(`Invalid device ID: ${deviceId.error}`);
-    const id = WirelessPollingConfigId.parse(raw.id);
+    const id = WirelessDeviceConfigId.parse(raw.id);
     if (id.isFailure)
       throw new Error(`Invalid config ID: ${id.error}`);
 
@@ -43,11 +43,11 @@ export class WirelessPollingConfigPrismaMapper {
       ? IPAddress.reconstitute(raw.ipAddress)
       : null;
 
-    const props: WirelessPollingConfigProps = {
+    const props: WirelessDeviceConfigProps = {
       deviceId: deviceId.value,
       ipAddress,
       enabled: raw.enabled,
-      intervalSecs: raw.intervalSecs,
+      pollingInterval: PollingInterval.reconstitute(raw.intervalSecs),
       deviceType: raw.deviceType as 'STATION' | 'ACCESS_POINT',
       linkCapacityBps:
         raw.linkCapacityBps !== null
@@ -57,18 +57,18 @@ export class WirelessPollingConfigPrismaMapper {
       lastPolledAt: raw.lastPolledAt
     };
 
-    return WirelessPollingConfig.reconstitute(id.value, props);
+    return WirelessDeviceConfig.reconstitute(id.value, props);
   }
 
   static toPersistence(
-    config: WirelessPollingConfig
+    config: WirelessDeviceConfig
   ): PersistenceData {
     return {
       id: config.id.toString(),
       deviceId: config.deviceId.toString(),
       ipAddress: config.ipAddress?.value ?? null,
       enabled: config.enabled,
-      intervalSecs: config.intervalSecs,
+      intervalSecs: config.pollingInterval.seconds,
       deviceType: config.deviceType,
       linkCapacityBps:
         config.linkCapacityBps !== null

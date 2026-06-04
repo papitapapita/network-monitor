@@ -1,10 +1,10 @@
-// Source: src/infrastructure/wireless-monitoring/repositories/PrismaWirelessPollingConfigRepository.ts
+// Source: src/infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository.ts
 
-import { PrismaWirelessPollingConfigRepository } from '../../../../src/infrastructure/wireless-monitoring/repositories/PrismaWirelessPollingConfigRepository';
-import { WirelessPollingConfig } from 'domain/wireless-monitoring';
+import { PrismaWirelessDeviceConfigRepository } from '../../../../src/infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository';
+import { WirelessDeviceConfig } from 'domain/wireless-monitoring';
 import { DeviceId } from 'domain/shared';
-import { WirelessPollingConfigId } from 'domain/shared/ids';
-import { IPAddress } from 'domain/shared/value-objects';
+import { WirelessDeviceConfigId } from 'domain/shared/ids';
+import { IPAddress, PollingInterval } from 'domain/shared/value-objects';
 import type { PrismaClient } from '../../../../src/generated/prisma/client';
 
 const DEVICE_UUID = 'f149790a-58f0-479a-8534-b0b01e9942bb';
@@ -21,16 +21,16 @@ const createMockPrisma = () => ({
   $queryRaw: jest.fn(),
 });
 
-const buildDomainConfig = (): WirelessPollingConfig => {
+const buildDomainConfig = (): WirelessDeviceConfig => {
   const deviceId = DeviceId.parse(DEVICE_UUID).value;
-  const id = WirelessPollingConfigId.parse(CONFIG_UUID).value;
+  const id = WirelessDeviceConfigId.parse(CONFIG_UUID).value;
   const ipAddress = IPAddress.create('192.168.1.100').value;
 
-  return WirelessPollingConfig.reconstitute(id, {
+  return WirelessDeviceConfig.reconstitute(id, {
     deviceId,
     ipAddress,
     enabled: true,
-    intervalSecs: 60,
+    pollingInterval: PollingInterval.reconstitute(60),
     deviceType: 'STATION',
     linkCapacityBps: 100_000_000,
     clientsProvisionedLimit: 10,
@@ -63,14 +63,14 @@ const makeRawRow = () => ({
   last_polled_at: new Date('2024-01-01T11:00:00Z'),
 });
 
-describe('PrismaWirelessPollingConfigRepository', () => {
+describe('PrismaWirelessDeviceConfigRepository', () => {
   let prismaMock: ReturnType<typeof createMockPrisma>;
-  let repository: PrismaWirelessPollingConfigRepository;
+  let repository: PrismaWirelessDeviceConfigRepository;
 
   beforeEach(() => {
     jest.clearAllMocks();
     prismaMock = createMockPrisma();
-    repository = new PrismaWirelessPollingConfigRepository(prismaMock as unknown as PrismaClient);
+    repository = new PrismaWirelessDeviceConfigRepository(prismaMock as unknown as PrismaClient);
   });
 
   describe('save', () => {
@@ -116,7 +116,7 @@ describe('PrismaWirelessPollingConfigRepository', () => {
   describe('findById', () => {
     it('should return the domain entity when the record is found', async () => {
       prismaMock.wirelessPollingConfiguration.findUnique.mockResolvedValue(makePrismaRow());
-      const id = WirelessPollingConfigId.parse(CONFIG_UUID).value;
+      const id = WirelessDeviceConfigId.parse(CONFIG_UUID).value;
 
       const result = await repository.findById(id);
 
@@ -127,7 +127,7 @@ describe('PrismaWirelessPollingConfigRepository', () => {
 
     it('should call findUnique with the string id', async () => {
       prismaMock.wirelessPollingConfiguration.findUnique.mockResolvedValue(null);
-      const id = WirelessPollingConfigId.parse(CONFIG_UUID).value;
+      const id = WirelessDeviceConfigId.parse(CONFIG_UUID).value;
 
       await repository.findById(id);
 
@@ -138,7 +138,7 @@ describe('PrismaWirelessPollingConfigRepository', () => {
 
     it('should return Result.ok(null) when no record is found', async () => {
       prismaMock.wirelessPollingConfiguration.findUnique.mockResolvedValue(null);
-      const id = WirelessPollingConfigId.parse(CONFIG_UUID).value;
+      const id = WirelessDeviceConfigId.parse(CONFIG_UUID).value;
 
       const result = await repository.findById(id);
 
@@ -148,7 +148,7 @@ describe('PrismaWirelessPollingConfigRepository', () => {
 
     it('should return a failed Result when prisma throws', async () => {
       prismaMock.wirelessPollingConfiguration.findUnique.mockRejectedValue(new Error('timeout'));
-      const id = WirelessPollingConfigId.parse(CONFIG_UUID).value;
+      const id = WirelessDeviceConfigId.parse(CONFIG_UUID).value;
 
       const result = await repository.findById(id);
 
@@ -160,7 +160,7 @@ describe('PrismaWirelessPollingConfigRepository', () => {
   describe('exists', () => {
     it('should return true when count is greater than 0', async () => {
       prismaMock.wirelessPollingConfiguration.count.mockResolvedValue(1);
-      const id = WirelessPollingConfigId.parse(CONFIG_UUID).value;
+      const id = WirelessDeviceConfigId.parse(CONFIG_UUID).value;
 
       const result = await repository.exists(id);
 
@@ -170,7 +170,7 @@ describe('PrismaWirelessPollingConfigRepository', () => {
 
     it('should return false when count is 0', async () => {
       prismaMock.wirelessPollingConfiguration.count.mockResolvedValue(0);
-      const id = WirelessPollingConfigId.parse(CONFIG_UUID).value;
+      const id = WirelessDeviceConfigId.parse(CONFIG_UUID).value;
 
       const result = await repository.exists(id);
 
@@ -180,7 +180,7 @@ describe('PrismaWirelessPollingConfigRepository', () => {
 
     it('should return a failed Result when prisma throws', async () => {
       prismaMock.wirelessPollingConfiguration.count.mockRejectedValue(new Error('DB down'));
-      const id = WirelessPollingConfigId.parse(CONFIG_UUID).value;
+      const id = WirelessDeviceConfigId.parse(CONFIG_UUID).value;
 
       const result = await repository.exists(id);
 
@@ -263,7 +263,7 @@ describe('PrismaWirelessPollingConfigRepository', () => {
 
       expect(result.isSuccess).toBe(true);
       const config = result.value[0]!;
-      expect(config.intervalSecs).toBe(60);
+      expect(config.pollingInterval.seconds).toBe(60);
       expect(config.ipAddress?.value).toBe('192.168.1.100');
     });
 

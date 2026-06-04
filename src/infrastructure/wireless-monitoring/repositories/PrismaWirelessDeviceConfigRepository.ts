@@ -3,10 +3,10 @@ import {
   WirelessDeviceType
 } from 'generated/prisma/client';
 import { Result } from 'domain/shared/core';
-import { DeviceId, WirelessPollingConfigId } from 'domain/shared/ids';
-import { IWirelessPollingConfigRepository } from 'domain/wireless-monitoring/repository';
-import { WirelessPollingConfig } from 'domain/wireless-monitoring/aggregates';
-import { WirelessPollingConfigPrismaMapper } from '../mappers/';
+import { DeviceId, WirelessDeviceConfigId } from 'domain/shared/ids';
+import { IWirelessDeviceConfigRepository } from 'domain/wireless-monitoring/repository';
+import { WirelessDeviceConfig } from 'domain/wireless-monitoring/aggregates';
+import { WirelessDeviceConfigPrismaMapper } from '../mappers/';
 
 type RawPollingConfig = {
   id: string;
@@ -20,17 +20,17 @@ type RawPollingConfig = {
   last_polled_at: Date | null;
 };
 
-export class PrismaWirelessPollingConfigRepository
-  implements IWirelessPollingConfigRepository
+export class PrismaWirelessDeviceConfigRepository
+  implements IWirelessDeviceConfigRepository
 {
   constructor(private readonly prisma: PrismaClient) {}
 
   async save(
-    config: WirelessPollingConfig
-  ): Promise<Result<WirelessPollingConfig>> {
+    config: WirelessDeviceConfig
+  ): Promise<Result<WirelessDeviceConfig>> {
     try {
       const data =
-        WirelessPollingConfigPrismaMapper.toPersistence(config);
+        WirelessDeviceConfigPrismaMapper.toPersistence(config);
 
       await this.prisma.wirelessPollingConfiguration.upsert({
         where: { deviceId: data.deviceId },
@@ -65,8 +65,8 @@ export class PrismaWirelessPollingConfigRepository
   }
 
   async findById(
-    id: WirelessPollingConfigId
-  ): Promise<Result<WirelessPollingConfig | null>> {
+    id: WirelessDeviceConfigId
+  ): Promise<Result<WirelessDeviceConfig | null>> {
     try {
       const raw =
         await this.prisma.wirelessPollingConfiguration.findUnique({
@@ -75,9 +75,9 @@ export class PrismaWirelessPollingConfigRepository
       if (!raw) return Result.ok(null);
       // Prisma return type is broader than the mapper's narrowed type — cast required
       return Result.ok(
-        WirelessPollingConfigPrismaMapper.toDomain(
+        WirelessDeviceConfigPrismaMapper.toDomain(
           raw as Parameters<
-            typeof WirelessPollingConfigPrismaMapper.toDomain
+            typeof WirelessDeviceConfigPrismaMapper.toDomain
           >[0]
         )
       );
@@ -89,7 +89,7 @@ export class PrismaWirelessPollingConfigRepository
   }
 
   async exists(
-    id: WirelessPollingConfigId
+    id: WirelessDeviceConfigId
   ): Promise<Result<boolean>> {
     try {
       const count =
@@ -106,7 +106,7 @@ export class PrismaWirelessPollingConfigRepository
 
   async findByDeviceId(
     deviceId: DeviceId
-  ): Promise<Result<WirelessPollingConfig | null>> {
+  ): Promise<Result<WirelessDeviceConfig | null>> {
     try {
       const raw =
         await this.prisma.wirelessPollingConfiguration.findFirst({
@@ -114,9 +114,9 @@ export class PrismaWirelessPollingConfigRepository
         });
       if (!raw) return Result.ok(null);
       return Result.ok(
-        WirelessPollingConfigPrismaMapper.toDomain(
+        WirelessDeviceConfigPrismaMapper.toDomain(
           raw as Parameters<
-            typeof WirelessPollingConfigPrismaMapper.toDomain
+            typeof WirelessDeviceConfigPrismaMapper.toDomain
           >[0]
         )
       );
@@ -129,7 +129,7 @@ export class PrismaWirelessPollingConfigRepository
 
   async findAllDue(
     now: Date
-  ): Promise<Result<WirelessPollingConfig[]>> {
+  ): Promise<Result<WirelessDeviceConfig[]>> {
     try {
       const records = await this.prisma.$queryRaw<RawPollingConfig[]>`
         SELECT
@@ -152,7 +152,7 @@ export class PrismaWirelessPollingConfigRepository
       `;
 
       const configs = records.map((r) =>
-        WirelessPollingConfigPrismaMapper.toDomain({
+        WirelessDeviceConfigPrismaMapper.toDomain({
           id: r.id,
           deviceId: r.device_id,
           ipAddress: r.ip_address,

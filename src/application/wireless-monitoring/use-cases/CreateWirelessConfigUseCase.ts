@@ -1,16 +1,16 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
-import { IPAddress } from 'domain/shared/value-objects';
+import { IPAddress, PollingInterval } from 'domain/shared/value-objects';
 import { IDeviceRepository } from 'domain/device-inventory/repository';
-import { WirelessPollingConfig } from 'domain/wireless-monitoring/aggregates';
-import { IWirelessPollingConfigRepository } from 'domain/wireless-monitoring/repository';
+import { WirelessDeviceConfig } from 'domain/wireless-monitoring/aggregates';
+import { IWirelessDeviceConfigRepository } from 'domain/wireless-monitoring/repository';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import {
   CreateWirelessConfigRequestDTO,
   WirelessConfigResponseDTO
 } from '../dtos';
-import { WirelessPollingConfigMapper } from '../mappers';
+import { WirelessDeviceConfigMapper } from '../mappers';
 
 export class CreateWirelessConfigUseCase extends UseCase<
   CreateWirelessConfigRequestDTO,
@@ -18,7 +18,7 @@ export class CreateWirelessConfigUseCase extends UseCase<
 > {
   constructor(
     private readonly deviceRepo: IDeviceRepository,
-    private readonly configRepo: IWirelessPollingConfigRepository,
+    private readonly configRepo: IWirelessDeviceConfigRepository,
     logger: ILogger
   ) {
     super(logger, 'CreateWirelessConfigUseCase');
@@ -39,7 +39,7 @@ export class CreateWirelessConfigUseCase extends UseCase<
   protected async executeImpl(
     request: CreateWirelessConfigRequestDTO
   ): Promise<Result<WirelessConfigResponseDTO>> {
-    const data = WirelessPollingConfigMapper.extractCreateData(request);
+    const data = WirelessDeviceConfigMapper.extractCreateData(request);
 
     const deviceIdResult = DeviceId.parse(data.deviceId);
     if (deviceIdResult.isFailure) {
@@ -80,11 +80,16 @@ export class CreateWirelessConfigUseCase extends UseCase<
       ipAddress = ipResult.value;
     }
 
-    const configResult = WirelessPollingConfig.create({
+    const intervalResult = PollingInterval.create(data.intervalSecs ?? 3600);
+    if (intervalResult.isFailure) {
+      return this.fail(`Invalid polling interval: ${intervalResult.error}`);
+    }
+
+    const configResult = WirelessDeviceConfig.create({
       deviceId,
       ipAddress,
       enabled: data.enabled ?? true,
-      intervalSecs: data.intervalSecs ?? 3600,
+      pollingInterval: intervalResult.value,
       deviceType: data.deviceType,
       linkCapacityBps: data.linkCapacityBps ?? null,
       clientsProvisionedLimit: data.clientsProvisionedLimit ?? null,
@@ -100,6 +105,6 @@ export class CreateWirelessConfigUseCase extends UseCase<
       return this.fail(saveResult.error);
     }
 
-    return this.ok(WirelessPollingConfigMapper.toDTO(saveResult.value));
+    return this.ok(WirelessDeviceConfigMapper.toDTO(saveResult.value));
   }
 }

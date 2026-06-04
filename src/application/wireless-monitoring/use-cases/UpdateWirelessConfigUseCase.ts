@@ -1,21 +1,21 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
-import { IPAddress } from 'domain/shared/value-objects';
-import { IWirelessPollingConfigRepository } from 'domain/wireless-monitoring/repository';
+import { IPAddress, PollingInterval } from 'domain/shared/value-objects';
+import { IWirelessDeviceConfigRepository } from 'domain/wireless-monitoring/repository';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import {
   UpdateWirelessConfigRequestDTO,
   WirelessConfigResponseDTO
 } from '../dtos';
-import { WirelessPollingConfigMapper } from '../mappers';
+import { WirelessDeviceConfigMapper } from '../mappers';
 
 export class UpdateWirelessConfigUseCase extends UseCase<
   UpdateWirelessConfigRequestDTO,
   WirelessConfigResponseDTO
 > {
   constructor(
-    private readonly configRepo: IWirelessPollingConfigRepository,
+    private readonly configRepo: IWirelessDeviceConfigRepository,
     logger: ILogger
   ) {
     super(logger, 'UpdateWirelessConfigUseCase');
@@ -49,7 +49,7 @@ export class UpdateWirelessConfigUseCase extends UseCase<
       return this.fail('Wireless config not found for device');
     }
 
-    const updates = WirelessPollingConfigMapper.extractUpdateData(request);
+    const updates = WirelessDeviceConfigMapper.extractUpdateData(request);
 
     if (updates.ipAddress !== undefined) {
       if (updates.ipAddress === null) {
@@ -71,10 +71,11 @@ export class UpdateWirelessConfigUseCase extends UseCase<
     }
 
     if (updates.intervalSecs !== undefined) {
-      const result = config.updateIntervalSecs(updates.intervalSecs);
-      if (result.isFailure) {
-        return this.fail(result.error);
+      const intervalResult = PollingInterval.create(updates.intervalSecs);
+      if (intervalResult.isFailure) {
+        return this.fail(`Invalid polling interval: ${intervalResult.error}`);
       }
+      config.updatePollingInterval(intervalResult.value);
     }
     if (updates.linkCapacityBps !== undefined) {
       config.updateLinkCapacityBps(updates.linkCapacityBps);
@@ -90,6 +91,6 @@ export class UpdateWirelessConfigUseCase extends UseCase<
       return this.fail(saveResult.error);
     }
 
-    return this.ok(WirelessPollingConfigMapper.toDTO(saveResult.value));
+    return this.ok(WirelessDeviceConfigMapper.toDTO(saveResult.value));
   }
 }

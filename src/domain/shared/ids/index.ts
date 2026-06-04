@@ -5,5 +5,5 @@ export * from './VendorId';
 export * from './PollingConfigurationId';
 export * from './AlertId';
 export * from './SnapshotId';
-export * from './WirelessPollingConfigId';
+export * from './WirelessDeviceConfigId';
 export * from './WirelessAlertRecordId';

@@ -1,10 +1,10 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
-import { IWirelessPollingConfigRepository } from 'domain/wireless-monitoring/repository';
+import { IWirelessDeviceConfigRepository } from 'domain/wireless-monitoring/repository';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import { WirelessConfigResponseDTO } from '../dtos';
-import { WirelessPollingConfigMapper } from '../mappers';
+import { WirelessDeviceConfigMapper } from '../mappers';
 
 export interface GetWirelessConfigRequestDTO {
   deviceId: string;
@@ -15,7 +15,7 @@ export class GetWirelessConfigUseCase extends UseCase<
   WirelessConfigResponseDTO
 > {
   constructor(
-    private readonly configRepo: IWirelessPollingConfigRepository,
+    private readonly configRepo: IWirelessDeviceConfigRepository,
     logger: ILogger
   ) {
     super(logger, 'GetWirelessConfigUseCase');
@@ -49,6 +49,6 @@ export class GetWirelessConfigUseCase extends UseCase<
       return this.fail('Wireless config not found for device');
     }
 
-    return this.ok(WirelessPollingConfigMapper.toDTO(config));
+    return this.ok(WirelessDeviceConfigMapper.toDTO(config));
   }
 }

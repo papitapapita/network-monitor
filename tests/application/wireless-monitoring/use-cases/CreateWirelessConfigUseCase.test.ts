@@ -2,12 +2,12 @@
 
 import { CreateWirelessConfigUseCase } from '../../../../src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase';
 import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository/IDeviceRepository';
-import { IWirelessPollingConfigRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessPollingConfigRepository';
+import { IWirelessDeviceConfigRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessDeviceConfigRepository';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { Device } from '../../../../src/domain/device-inventory/aggregates/Device';
-import { WirelessPollingConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessPollingConfig';
-import { WirelessPollingConfigId } from '../../../../src/domain/shared/ids/WirelessPollingConfigId';
+import { WirelessDeviceConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig';
+import { WirelessDeviceConfigId } from '../../../../src/domain/shared/ids/WirelessDeviceConfigId';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { DeviceModelId } from '../../../../src/domain/shared/ids/DeviceModelId';
 import { DeviceName } from '../../../../src/domain/device-inventory/value-objects/DeviceName';
@@ -15,6 +15,7 @@ import { DeviceStatus } from '../../../../src/domain/device-inventory/value-obje
 import { DeviceCategory } from '../../../../src/domain/device-inventory/value-objects/DeviceCategory';
 import { DeviceOwnerType } from '../../../../src/domain/device-inventory/enums/DeviceOwnerType';
 import { IPAddress } from '../../../../src/domain/shared/value-objects/IPAddress';
+import { PollingInterval } from '../../../../src/domain/shared/value-objects/PollingInterval';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -65,16 +66,16 @@ function makeDevice(wirelessCapable = true): Device {
   });
 }
 
-function makeConfig(): WirelessPollingConfig {
+function makeConfig(): WirelessDeviceConfig {
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const ipAddress = IPAddress.create('192.168.1.1').value;
-  return WirelessPollingConfig.reconstitute(
-    WirelessPollingConfigId.parse(CONFIG_UUID).value,
+  return WirelessDeviceConfig.reconstitute(
+    WirelessDeviceConfigId.parse(CONFIG_UUID).value,
     {
       deviceId,
       ipAddress,
       enabled: true,
-      intervalSecs: 3600,
+      pollingInterval: PollingInterval.reconstitute(3600),
       deviceType: 'STATION',
       linkCapacityBps: null,
       clientsProvisionedLimit: null,
@@ -102,7 +103,7 @@ function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
   };
 }
 
-function makeConfigRepo(): jest.Mocked<IWirelessPollingConfigRepository> {
+function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
   return {
     save: jest.fn(),
     findById: jest.fn(),
@@ -117,7 +118,7 @@ function makeConfigRepo(): jest.Mocked<IWirelessPollingConfigRepository> {
 
 describe('CreateWirelessConfigUseCase', () => {
   let deviceRepo: jest.Mocked<IDeviceRepository>;
-  let configRepo: jest.Mocked<IWirelessPollingConfigRepository>;
+  let configRepo: jest.Mocked<IWirelessDeviceConfigRepository>;
   let logger: jest.Mocked<ILogger>;
   let useCase: CreateWirelessConfigUseCase;
 

@@ -1,22 +1,22 @@
-import { WirelessPollingConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessPollingConfig';
-import { WirelessPollingConfigToggledEvent } from '../../../../src/domain/wireless-monitoring/events/WirelessPollingConfigToggled';
-import { WirelessPollingConfigProps } from '../../../../src/domain/wireless-monitoring/props/WirelessPollingConfigProps';
-import { WirelessPollingConfigId } from '../../../../src/domain/shared/ids';
+import { WirelessDeviceConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig';
+import { WirelessDeviceConfigToggledEvent } from '../../../../src/domain/wireless-monitoring/events/WirelessDeviceConfigToggled';
+import { WirelessDeviceConfigProps } from '../../../../src/domain/wireless-monitoring/props/WirelessDeviceConfigProps';
+import { WirelessDeviceConfigId } from '../../../../src/domain/shared/ids';
 import { DeviceId } from '../../../../src/domain/shared/ids';
-import { IPAddress } from '../../../../src/domain/shared/value-objects';
+import { IPAddress, PollingInterval } from '../../../../src/domain/shared/value-objects';
 
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
 
 function makeProps(
-  overrides: Partial<WirelessPollingConfigProps> = {}
-): WirelessPollingConfigProps {
+  overrides: Partial<WirelessDeviceConfigProps> = {}
+): WirelessDeviceConfigProps {
   return {
     deviceId: DeviceId.create(),
     ipAddress: null,
     enabled: true,
-    intervalSecs: 60,
+    pollingInterval: PollingInterval.reconstitute(60),
     deviceType: 'STATION',
     linkCapacityBps: null,
     clientsProvisionedLimit: null,
@@ -26,9 +26,9 @@ function makeProps(
 }
 
 function makeConfig(
-  overrides: Partial<WirelessPollingConfigProps> = {}
-): WirelessPollingConfig {
-  const result = WirelessPollingConfig.create(makeProps(overrides));
+  overrides: Partial<WirelessDeviceConfigProps> = {}
+): WirelessDeviceConfig {
+  const result = WirelessDeviceConfig.create(makeProps(overrides));
   if (result.isFailure) {
     throw new Error(`makeConfig: ${result.error}`);
   }
@@ -36,33 +36,33 @@ function makeConfig(
 }
 
 // ---------------------------------------------------------------------------
-describe('WirelessPollingConfig', () => {
+describe('WirelessDeviceConfig', () => {
   // =========================================================================
   describe('create()', () => {
     describe('when given valid minimal props', () => {
       it('should return a successful Result', () => {
-        const result = WirelessPollingConfig.create(makeProps());
+        const result = WirelessDeviceConfig.create(makeProps());
 
         expect(result.isSuccess).toBe(true);
         expect(result.isFailure).toBe(false);
       });
 
-      it('should return a WirelessPollingConfig instance', () => {
-        const result = WirelessPollingConfig.create(makeProps());
+      it('should return a WirelessDeviceConfig instance', () => {
+        const result = WirelessDeviceConfig.create(makeProps());
 
-        expect(result.value).toBeInstanceOf(WirelessPollingConfig);
+        expect(result.value).toBeInstanceOf(WirelessDeviceConfig);
       });
 
-      it('should auto-generate a WirelessPollingConfigId when none is provided', () => {
+      it('should auto-generate a WirelessDeviceConfigId when none is provided', () => {
         const config = makeConfig();
 
-        expect(config.id).toBeInstanceOf(WirelessPollingConfigId);
+        expect(config.id).toBeInstanceOf(WirelessDeviceConfigId);
         expect(config.id.toValue().length).toBeGreaterThan(0);
       });
 
       it('should use the explicitly provided id', () => {
-        const id = WirelessPollingConfigId.create();
-        const result = WirelessPollingConfig.create(makeProps(), id);
+        const id = WirelessDeviceConfigId.create();
+        const result = WirelessDeviceConfig.create(makeProps(), id);
 
         expect(result.isSuccess).toBe(true);
         expect(result.value.id).toBe(id);
@@ -88,10 +88,11 @@ describe('WirelessPollingConfig', () => {
         expect(config.deviceType).toBe('ACCESS_POINT');
       });
 
-      it('should expose the provided intervalSecs', () => {
-        const config = makeConfig({ intervalSecs: 120 });
+      it('should expose the provided polling interval', () => {
+        const pollingInterval = PollingInterval.reconstitute(120);
+        const config = makeConfig({ pollingInterval });
 
-        expect(config.intervalSecs).toBe(120);
+        expect(config.pollingInterval.seconds).toBe(120);
       });
 
       it('should default optional fields to null when not provided', () => {
@@ -118,7 +119,7 @@ describe('WirelessPollingConfig', () => {
     // -----------------------------------------------------------------------
     describe('required field validation', () => {
       it('should fail when deviceId is null', () => {
-        const result = WirelessPollingConfig.create(
+        const result = WirelessDeviceConfig.create(
           makeProps({ deviceId: null as unknown as DeviceId })
         );
 
@@ -127,7 +128,7 @@ describe('WirelessPollingConfig', () => {
       });
 
       it('should fail when deviceId is undefined', () => {
-        const result = WirelessPollingConfig.create(
+        const result = WirelessDeviceConfig.create(
           makeProps({ deviceId: undefined as unknown as DeviceId })
         );
 
@@ -136,7 +137,7 @@ describe('WirelessPollingConfig', () => {
       });
 
       it('should fail when deviceType is null', () => {
-        const result = WirelessPollingConfig.create(
+        const result = WirelessDeviceConfig.create(
           makeProps({
             deviceType: null as unknown as 'STATION' | 'ACCESS_POINT',
           })
@@ -147,7 +148,7 @@ describe('WirelessPollingConfig', () => {
       });
 
       it('should fail when deviceType is undefined', () => {
-        const result = WirelessPollingConfig.create(
+        const result = WirelessDeviceConfig.create(
           makeProps({
             deviceType: undefined as unknown as 'STATION' | 'ACCESS_POINT',
           })
@@ -156,92 +157,67 @@ describe('WirelessPollingConfig', () => {
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('deviceType');
       });
-    });
 
-    // -----------------------------------------------------------------------
-    describe('intervalSecs validation', () => {
-      it('should fail when intervalSecs is 0', () => {
-        const result = WirelessPollingConfig.create(
-          makeProps({ intervalSecs: 0 })
+      it('should fail when pollingInterval is null', () => {
+        const result = WirelessDeviceConfig.create(
+          makeProps({
+            pollingInterval: null as unknown as PollingInterval,
+          })
         );
 
         expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('intervalSecs must be greater than 0');
-      });
-
-      it('should fail when intervalSecs is negative', () => {
-        const result = WirelessPollingConfig.create(
-          makeProps({ intervalSecs: -1 })
-        );
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('intervalSecs must be greater than 0');
-      });
-
-      it('should succeed when intervalSecs is 1', () => {
-        const result = WirelessPollingConfig.create(
-          makeProps({ intervalSecs: 1 })
-        );
-
-        expect(result.isSuccess).toBe(true);
-      });
-
-      it('should succeed when intervalSecs is a large positive value', () => {
-        const result = WirelessPollingConfig.create(
-          makeProps({ intervalSecs: 86400 })
-        );
-
-        expect(result.isSuccess).toBe(true);
+        expect(result.error).toContain('pollingInterval');
       });
     });
   });
 
   // =========================================================================
   describe('reconstitute()', () => {
-    it('should return a WirelessPollingConfig instance', () => {
-      const id = WirelessPollingConfigId.create();
-      const config = WirelessPollingConfig.reconstitute(id, makeProps());
+    it('should return a WirelessDeviceConfig instance', () => {
+      const id = WirelessDeviceConfigId.create();
+      const config = WirelessDeviceConfig.reconstitute(id, makeProps());
 
-      expect(config).toBeInstanceOf(WirelessPollingConfig);
+      expect(config).toBeInstanceOf(WirelessDeviceConfig);
     });
 
     it('should use the provided id', () => {
-      const id = WirelessPollingConfigId.create();
-      const config = WirelessPollingConfig.reconstitute(id, makeProps());
+      const id = WirelessDeviceConfigId.create();
+      const config = WirelessDeviceConfig.reconstitute(id, makeProps());
 
       expect(config.id).toBe(id);
     });
 
-    it('should bypass validation and allow intervalSecs of 0', () => {
-      const id = WirelessPollingConfigId.create();
-      // create() would reject intervalSecs = 0, but reconstitute bypasses guards
-      const config = WirelessPollingConfig.reconstitute(
+    it('should bypass validation and allow a zero-second interval', () => {
+      const id = WirelessDeviceConfigId.create();
+      // create() would reject pollingInterval: null, but reconstitute bypasses guards
+      const config = WirelessDeviceConfig.reconstitute(
         id,
-        makeProps({ intervalSecs: 0 })
+        makeProps({ pollingInterval: PollingInterval.reconstitute(0) })
       );
 
-      expect(config).toBeInstanceOf(WirelessPollingConfig);
-      expect(config.intervalSecs).toBe(0);
+      expect(config).toBeInstanceOf(WirelessDeviceConfig);
+      expect(config.pollingInterval.seconds).toBe(0);
     });
 
     it('should emit no domain events', () => {
-      const id = WirelessPollingConfigId.create();
-      const config = WirelessPollingConfig.reconstitute(id, makeProps());
+      const id = WirelessDeviceConfigId.create();
+      const config = WirelessDeviceConfig.reconstitute(id, makeProps());
 
       expect(config.domainEvents.length).toBe(0);
     });
 
     it('should expose all props it was given', () => {
-      const id = WirelessPollingConfigId.create();
+      const id = WirelessDeviceConfigId.create();
       const deviceId = DeviceId.create();
       const ipAddress = IPAddress.create('10.0.0.1').value;
+      const pollingInterval = PollingInterval.reconstitute(30);
       const lastPolledAt = new Date('2025-01-01T00:00:00Z');
 
-      const config = WirelessPollingConfig.reconstitute(id, {
+      const config = WirelessDeviceConfig.reconstitute(id, {
         deviceId,
         ipAddress,
         enabled: false,
-        intervalSecs: 30,
+        pollingInterval,
         deviceType: 'ACCESS_POINT',
         linkCapacityBps: 1_000_000,
         clientsProvisionedLimit: 50,
@@ -251,7 +227,7 @@ describe('WirelessPollingConfig', () => {
       expect(config.deviceId).toBe(deviceId);
       expect(config.ipAddress).toBe(ipAddress);
       expect(config.enabled).toBe(false);
-      expect(config.intervalSecs).toBe(30);
+      expect(config.pollingInterval.seconds).toBe(30);
       expect(config.deviceType).toBe('ACCESS_POINT');
       expect(config.linkCapacityBps).toBe(1_000_000);
       expect(config.clientsProvisionedLimit).toBe(50);
@@ -289,19 +265,19 @@ describe('WirelessPollingConfig', () => {
         const lastPolledAt = new Date('2025-01-01T00:00:50Z');
         const config = makeConfig({
           enabled: true,
-          intervalSecs: 60,
+          pollingInterval: PollingInterval.reconstitute(60),
           lastPolledAt,
         });
 
         expect(config.isDue(now)).toBe(false);
       });
 
-      it('should return true when exactly at the boundary (lastPolledAt + intervalSecs === now)', () => {
+      it('should return true when exactly at the boundary (lastPolledAt + interval === now)', () => {
         const base = new Date('2025-01-01T00:00:00Z');
         const now = new Date(base.getTime() + 60_000); // exactly 60 s later
         const config = makeConfig({
           enabled: true,
-          intervalSecs: 60,
+          pollingInterval: PollingInterval.reconstitute(60),
           lastPolledAt: base,
         });
 
@@ -313,7 +289,7 @@ describe('WirelessPollingConfig', () => {
         const now = new Date(base.getTime() + 120_000); // 120 s after, interval = 60
         const config = makeConfig({
           enabled: true,
-          intervalSecs: 60,
+          pollingInterval: PollingInterval.reconstitute(60),
           lastPolledAt: base,
         });
 
@@ -325,7 +301,7 @@ describe('WirelessPollingConfig', () => {
         const now = new Date(base.getTime() + 59_999); // 1 ms short of due
         const config = makeConfig({
           enabled: true,
-          intervalSecs: 60,
+          pollingInterval: PollingInterval.reconstitute(60),
           lastPolledAt: base,
         });
 
@@ -415,12 +391,12 @@ describe('WirelessPollingConfig', () => {
         expect(config.domainEvents.length).toBe(1);
       });
 
-      it('should emit a WirelessPollingConfigToggledEvent', () => {
+      it('should emit a WirelessDeviceConfigToggledEvent', () => {
         const config = makeConfig({ enabled: false });
         config.enable();
 
         expect(config.domainEvents[0]).toBeInstanceOf(
-          WirelessPollingConfigToggledEvent
+          WirelessDeviceConfigToggledEvent
         );
       });
 
@@ -428,7 +404,7 @@ describe('WirelessPollingConfig', () => {
         const config = makeConfig({ enabled: false });
         config.enable();
 
-        const event = config.domainEvents[0] as WirelessPollingConfigToggledEvent;
+        const event = config.domainEvents[0] as WirelessDeviceConfigToggledEvent;
 
         expect(event.enabled).toBe(true);
       });
@@ -437,7 +413,7 @@ describe('WirelessPollingConfig', () => {
         const config = makeConfig({ enabled: false });
         config.enable();
 
-        const event = config.domainEvents[0] as WirelessPollingConfigToggledEvent;
+        const event = config.domainEvents[0] as WirelessDeviceConfigToggledEvent;
 
         expect(event.aggregateId.toString()).toBe(config.id.toString());
       });
@@ -447,7 +423,7 @@ describe('WirelessPollingConfig', () => {
         const config = makeConfig({ enabled: false, deviceId });
         config.enable();
 
-        const event = config.domainEvents[0] as WirelessPollingConfigToggledEvent;
+        const event = config.domainEvents[0] as WirelessDeviceConfigToggledEvent;
 
         expect(event.deviceId.toString()).toBe(deviceId.toString());
       });
@@ -458,7 +434,7 @@ describe('WirelessPollingConfig', () => {
         config.enable();
         const after = new Date();
 
-        const event = config.domainEvents[0] as WirelessPollingConfigToggledEvent;
+        const event = config.domainEvents[0] as WirelessDeviceConfigToggledEvent;
 
         expect(event.dateTimeOccurred.getTime()).toBeGreaterThanOrEqual(
           before.getTime()
@@ -517,12 +493,12 @@ describe('WirelessPollingConfig', () => {
         expect(config.domainEvents.length).toBe(1);
       });
 
-      it('should emit a WirelessPollingConfigToggledEvent', () => {
+      it('should emit a WirelessDeviceConfigToggledEvent', () => {
         const config = makeConfig({ enabled: true });
         config.disable();
 
         expect(config.domainEvents[0]).toBeInstanceOf(
-          WirelessPollingConfigToggledEvent
+          WirelessDeviceConfigToggledEvent
         );
       });
 
@@ -530,7 +506,7 @@ describe('WirelessPollingConfig', () => {
         const config = makeConfig({ enabled: true });
         config.disable();
 
-        const event = config.domainEvents[0] as WirelessPollingConfigToggledEvent;
+        const event = config.domainEvents[0] as WirelessDeviceConfigToggledEvent;
 
         expect(event.enabled).toBe(false);
       });
@@ -539,7 +515,7 @@ describe('WirelessPollingConfig', () => {
         const config = makeConfig({ enabled: true });
         config.disable();
 
-        const event = config.domainEvents[0] as WirelessPollingConfigToggledEvent;
+        const event = config.domainEvents[0] as WirelessDeviceConfigToggledEvent;
 
         expect(event.aggregateId.toString()).toBe(config.id.toString());
       });
@@ -549,7 +525,7 @@ describe('WirelessPollingConfig', () => {
         const config = makeConfig({ enabled: true, deviceId });
         config.disable();
 
-        const event = config.domainEvents[0] as WirelessPollingConfigToggledEvent;
+        const event = config.domainEvents[0] as WirelessDeviceConfigToggledEvent;
 
         expect(event.deviceId.toString()).toBe(deviceId.toString());
       });
@@ -560,7 +536,7 @@ describe('WirelessPollingConfig', () => {
         config.disable();
         const after = new Date();
 
-        const event = config.domainEvents[0] as WirelessPollingConfigToggledEvent;
+        const event = config.domainEvents[0] as WirelessDeviceConfigToggledEvent;
 
         expect(event.dateTimeOccurred.getTime()).toBeGreaterThanOrEqual(
           before.getTime()
@@ -612,9 +588,9 @@ describe('WirelessPollingConfig', () => {
   // =========================================================================
   describe('equals()', () => {
     it('should return true for two configs sharing the same id', () => {
-      const id = WirelessPollingConfigId.create();
-      const a = WirelessPollingConfig.reconstitute(id, makeProps());
-      const b = WirelessPollingConfig.reconstitute(id, makeProps());
+      const id = WirelessDeviceConfigId.create();
+      const a = WirelessDeviceConfig.reconstitute(id, makeProps());
+      const b = WirelessDeviceConfig.reconstitute(id, makeProps());
 
       expect(a.equals(b)).toBe(true);
     });
@@ -661,7 +637,7 @@ describe('WirelessPollingConfig', () => {
 
       expect(config.domainEvents.length).toBe(1);
       expect(config.domainEvents[0]).toBeInstanceOf(
-        WirelessPollingConfigToggledEvent
+        WirelessDeviceConfigToggledEvent
       );
     });
   });

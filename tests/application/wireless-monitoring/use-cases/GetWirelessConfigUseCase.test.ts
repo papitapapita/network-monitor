@@ -1,13 +1,14 @@
 // Source: src/application/wireless-monitoring/use-cases/GetWirelessConfigUseCase.ts
 
 import { GetWirelessConfigUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetWirelessConfigUseCase';
-import { IWirelessPollingConfigRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessPollingConfigRepository';
+import { IWirelessDeviceConfigRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessDeviceConfigRepository';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
-import { WirelessPollingConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessPollingConfig';
-import { WirelessPollingConfigId } from '../../../../src/domain/shared/ids/WirelessPollingConfigId';
+import { WirelessDeviceConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig';
+import { WirelessDeviceConfigId } from '../../../../src/domain/shared/ids/WirelessDeviceConfigId';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { IPAddress } from '../../../../src/domain/shared/value-objects/IPAddress';
+import { PollingInterval } from '../../../../src/domain/shared/value-objects/PollingInterval';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -34,19 +35,19 @@ function makeLogger(): jest.Mocked<ILogger> {
   return child;
 }
 
-function makeConfig(overrides: { ipAddress?: string | null } = {}): WirelessPollingConfig {
+function makeConfig(overrides: { ipAddress?: string | null } = {}): WirelessDeviceConfig {
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const ipAddress =
     overrides.ipAddress != null
       ? IPAddress.create(overrides.ipAddress).value
       : null;
-  return WirelessPollingConfig.reconstitute(
-    WirelessPollingConfigId.parse(CONFIG_UUID).value,
+  return WirelessDeviceConfig.reconstitute(
+    WirelessDeviceConfigId.parse(CONFIG_UUID).value,
     {
       deviceId,
       ipAddress,
       enabled: true,
-      intervalSecs: 3600,
+      pollingInterval: PollingInterval.reconstitute(3600),
       deviceType: 'STATION',
       linkCapacityBps: null,
       clientsProvisionedLimit: null,
@@ -55,7 +56,7 @@ function makeConfig(overrides: { ipAddress?: string | null } = {}): WirelessPoll
   );
 }
 
-function makeConfigRepo(): jest.Mocked<IWirelessPollingConfigRepository> {
+function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
   return {
     save: jest.fn(),
     findById: jest.fn(),
@@ -69,7 +70,7 @@ function makeConfigRepo(): jest.Mocked<IWirelessPollingConfigRepository> {
 // ---------------------------------------------------------------------------
 
 describe('GetWirelessConfigUseCase', () => {
-  let configRepo: jest.Mocked<IWirelessPollingConfigRepository>;
+  let configRepo: jest.Mocked<IWirelessDeviceConfigRepository>;
   let logger: jest.Mocked<ILogger>;
   let useCase: GetWirelessConfigUseCase;
 

@@ -26,7 +26,7 @@ import {
 import {
   PrismaWirelessSnapshotRepository,
   PrismaWirelessAlertRecordRepository,
-  PrismaWirelessPollingConfigRepository,
+  PrismaWirelessDeviceConfigRepository,
   AirOsHttpClient,
   UbiquitiHttpCollector,
   WirelessPollingOrchestrator
@@ -135,7 +135,7 @@ export class DependencyContainer {
   // Wireless repositories
   private wirelessSnapshotRepository: PrismaWirelessSnapshotRepository;
   private wirelessAlertRecordRepository: PrismaWirelessAlertRecordRepository;
-  private wirelessPollingConfigRepository: PrismaWirelessPollingConfigRepository;
+  private wirelessDeviceConfigRepository: PrismaWirelessDeviceConfigRepository;
   private deviceCredentialsRepository: PrismaDeviceCredentialsRepository;
 
   // Controllers
@@ -411,8 +411,8 @@ export class DependencyContainer {
       new PrismaWirelessSnapshotRepository(this.prisma);
     this.wirelessAlertRecordRepository =
       new PrismaWirelessAlertRecordRepository(this.prisma);
-    this.wirelessPollingConfigRepository =
-      new PrismaWirelessPollingConfigRepository(this.prisma);
+    this.wirelessDeviceConfigRepository =
+      new PrismaWirelessDeviceConfigRepository(this.prisma);
     this.deviceCredentialsRepository =
       new PrismaDeviceCredentialsRepository(this.prisma);
 
@@ -424,7 +424,7 @@ export class DependencyContainer {
     );
 
     const pollWirelessDeviceUseCase = new PollWirelessDeviceUseCase(
-      this.wirelessPollingConfigRepository,
+      this.wirelessDeviceConfigRepository,
       this.wirelessSnapshotRepository,
       this.wirelessAlertRecordRepository,
       this.deviceCredentialsRepository,
@@ -465,21 +465,21 @@ export class DependencyContainer {
     const createWirelessConfigUseCase =
       new CreateWirelessConfigUseCase(
         this.deviceRepository,
-        this.wirelessPollingConfigRepository,
+        this.wirelessDeviceConfigRepository,
         this.logger
       );
     const getWirelessConfigUseCase = new GetWirelessConfigUseCase(
-      this.wirelessPollingConfigRepository,
+      this.wirelessDeviceConfigRepository,
       this.logger
     );
     const updateWirelessConfigUseCase =
       new UpdateWirelessConfigUseCase(
-        this.wirelessPollingConfigRepository,
+        this.wirelessDeviceConfigRepository,
         this.logger
       );
     const deleteWirelessConfigUseCase =
       new DeleteWirelessConfigUseCase(
-        this.wirelessPollingConfigRepository,
+        this.wirelessDeviceConfigRepository,
         this.logger
       );
 
@@ -527,7 +527,7 @@ export class DependencyContainer {
 
     this.wirelessPollingOrchestrator =
       new WirelessPollingOrchestrator(
-        this.wirelessPollingConfigRepository,
+        this.wirelessDeviceConfigRepository,
         pollWirelessDeviceUseCase,
         { maxConcurrentPolls: 50 },
         this.logger

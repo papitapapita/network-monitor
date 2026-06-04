@@ -1,4 +1,4 @@
-import { IWirelessPollingConfigRepository } from 'domain/wireless-monitoring/repository';
+import { IWirelessDeviceConfigRepository } from 'domain/wireless-monitoring/repository';
 import { PollWirelessDeviceUseCase } from 'application/wireless-monitoring/use-cases';
 import { ILogger } from 'application/shared/interfaces';
 
@@ -15,7 +15,7 @@ export class WirelessPollingOrchestrator {
   private activePolls = new Set<string>();
 
   constructor(
-    private readonly wirelessPollingConfigRepo: IWirelessPollingConfigRepository,
+    private readonly wirelessDeviceConfigRepo: IWirelessDeviceConfigRepository,
     private readonly pollWirelessDeviceUseCase: PollWirelessDeviceUseCase,
     config: OrchestratorConfig = {},
     private readonly logger: ILogger
@@ -70,7 +70,7 @@ export class WirelessPollingOrchestrator {
 
     try {
       const dueResult =
-        await this.wirelessPollingConfigRepo.findAllDue(new Date());
+        await this.wirelessDeviceConfigRepo.findAllDue(new Date());
       if (dueResult.isFailure) {
         if (dueResult.error.includes('57P03')) return;
         this.logger.warn(

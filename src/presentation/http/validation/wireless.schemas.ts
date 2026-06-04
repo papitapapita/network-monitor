@@ -63,7 +63,7 @@ export const createWirelessConfigSchema = z.object({
     ipAddress: z
       .union([z.string().ipv4(), z.string().ipv6(), z.null()])
       .optional(),
-    intervalSecs: z.number().int().min(60).max(86400).optional(),
+    intervalSecs: z.number().int().min(30).max(86400).optional(),
     enabled: z.boolean().optional(),
     linkCapacityBps: z
       .number()
@@ -91,7 +91,7 @@ export const updateWirelessConfigSchema = z.object({
       ipAddress: z
         .union([z.string().ipv4(), z.string().ipv6(), z.null()])
         .optional(),
-      intervalSecs: z.number().int().min(60).max(86400).optional(),
+      intervalSecs: z.number().int().min(30).max(86400).optional(),
       enabled: z.boolean().optional(),
       linkCapacityBps: z
         .number()

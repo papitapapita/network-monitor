@@ -1,20 +1,20 @@
-import { WirelessPollingConfig } from 'domain/wireless-monitoring/aggregates';
+import { WirelessDeviceConfig } from 'domain/wireless-monitoring/aggregates';
 import {
   CreateWirelessConfigRequestDTO,
   UpdateWirelessConfigRequestDTO,
   WirelessConfigResponseDTO
 } from '../dtos';
 
-export class WirelessPollingConfigMapper {
+export class WirelessDeviceConfigMapper {
   public static toDTO(
-    config: WirelessPollingConfig
+    config: WirelessDeviceConfig
   ): WirelessConfigResponseDTO {
     return {
       id: config.id.toString(),
       deviceId: config.deviceId.toString(),
       ipAddress: config.ipAddress?.value ?? null,
       enabled: config.enabled,
-      intervalSecs: config.intervalSecs,
+      intervalSecs: config.pollingInterval.seconds,
       deviceType: config.deviceType,
       linkCapacityBps: config.linkCapacityBps,
       clientsProvisionedLimit: config.clientsProvisionedLimit,

@@ -1,6 +1,6 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
-import { IWirelessPollingConfigRepository } from 'domain/wireless-monitoring/repository';
+import { IWirelessDeviceConfigRepository } from 'domain/wireless-monitoring/repository';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 
@@ -13,7 +13,7 @@ export class DeleteWirelessConfigUseCase extends UseCase<
   void
 > {
   constructor(
-    private readonly configRepo: IWirelessPollingConfigRepository,
+    private readonly configRepo: IWirelessDeviceConfigRepository,
     logger: ILogger
   ) {
     super(logger, 'DeleteWirelessConfigUseCase');

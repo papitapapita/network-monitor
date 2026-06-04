@@ -1,17 +1,17 @@
 import { AggregateRoot, Result, Guard } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
-import { IPAddress } from 'domain/shared/value-objects';
-import { WirelessPollingConfigProps } from '../props';
-import { WirelessPollingConfigId } from 'domain/shared/ids';
-import { WirelessPollingConfigToggledEvent } from '../events';
+import { IPAddress, PollingInterval } from 'domain/shared/value-objects';
+import { WirelessDeviceConfigProps } from '../props';
+import { WirelessDeviceConfigId } from 'domain/shared/ids';
+import { WirelessDeviceConfigToggledEvent } from '../events';
 
-export class WirelessPollingConfig extends AggregateRoot<
-  WirelessPollingConfigProps,
-  WirelessPollingConfigId
+export class WirelessDeviceConfig extends AggregateRoot<
+  WirelessDeviceConfigProps,
+  WirelessDeviceConfigId
 > {
   private constructor(
-    props: WirelessPollingConfigProps,
-    id: WirelessPollingConfigId
+    props: WirelessDeviceConfigProps,
+    id: WirelessDeviceConfigId
   ) {
     super(props, id);
   }
@@ -25,8 +25,8 @@ export class WirelessPollingConfig extends AggregateRoot<
   get enabled(): boolean {
     return this.props.enabled;
   }
-  get intervalSecs(): number {
-    return this.props.intervalSecs;
+  get pollingInterval(): PollingInterval {
+    return this.props.pollingInterval;
   }
   get deviceType(): 'STATION' | 'ACCESS_POINT' {
     return this.props.deviceType;
@@ -42,29 +42,26 @@ export class WirelessPollingConfig extends AggregateRoot<
   }
 
   public static create(
-    props: WirelessPollingConfigProps,
-    id?: WirelessPollingConfigId
-  ): Result<WirelessPollingConfig> {
+    props: WirelessDeviceConfigProps,
+    id?: WirelessDeviceConfigId
+  ): Result<WirelessDeviceConfig> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(props.deviceId, 'deviceId'),
-      Guard.againstNullOrUndefined(props.deviceType, 'deviceType')
+      Guard.againstNullOrUndefined(props.deviceType, 'deviceType'),
+      Guard.againstNullOrUndefined(props.pollingInterval, 'pollingInterval')
     ]);
     if (!guardResult.succeeded) {
       return Result.fail(guardResult.message!);
     }
-    if (props.intervalSecs <= 0) {
-      return Result.fail('intervalSecs must be greater than 0');
-    }
-    const configId = id ?? WirelessPollingConfigId.create();
-    return Result.ok(new WirelessPollingConfig(props, configId));
+    const configId = id ?? WirelessDeviceConfigId.create();
+    return Result.ok(new WirelessDeviceConfig(props, configId));
   }
 
-  // bypasses validation — for repository use only
   public static reconstitute(
-    id: WirelessPollingConfigId,
-    props: WirelessPollingConfigProps
-  ): WirelessPollingConfig {
-    return new WirelessPollingConfig(props, id);
+    id: WirelessDeviceConfigId,
+    props: WirelessDeviceConfigProps
+  ): WirelessDeviceConfig {
+    return new WirelessDeviceConfig(props, id);
   }
 
   public isDue(now: Date): boolean {
@@ -72,7 +69,7 @@ export class WirelessPollingConfig extends AggregateRoot<
     if (this.props.lastPolledAt === null) return true;
     return (
       this.props.lastPolledAt.getTime() +
-        this.props.intervalSecs * 1000 <=
+        this.props.pollingInterval.seconds * 1000 <=
       now.getTime()
     );
   }
@@ -88,7 +85,7 @@ export class WirelessPollingConfig extends AggregateRoot<
     }
     this.props.enabled = true;
     this.addDomainEvent(
-      new WirelessPollingConfigToggledEvent({
+      new WirelessDeviceConfigToggledEvent({
         aggregateId: this.id,
         deviceId: this.props.deviceId,
         enabled: true,
@@ -104,7 +101,7 @@ export class WirelessPollingConfig extends AggregateRoot<
     }
     this.props.enabled = false;
     this.addDomainEvent(
-      new WirelessPollingConfigToggledEvent({
+      new WirelessDeviceConfigToggledEvent({
         aggregateId: this.id,
         deviceId: this.props.deviceId,
         enabled: false,
@@ -119,11 +116,8 @@ export class WirelessPollingConfig extends AggregateRoot<
     return Result.ok();
   }
 
-  public updateIntervalSecs(intervalSecs: number): Result<void> {
-    if (intervalSecs <= 0) {
-      return Result.fail('intervalSecs must be greater than 0');
-    }
-    this.props.intervalSecs = intervalSecs;
+  public updatePollingInterval(interval: PollingInterval): Result<void> {
+    this.props.pollingInterval = interval;
     return Result.ok();
   }
 

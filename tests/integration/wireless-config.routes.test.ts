@@ -182,7 +182,7 @@ describe('Wireless Config Routes — /api/devices/:id/wireless/config', () => {
       expect(res.status).toBe(400);
     });
 
-    it('400 — returns 400 when intervalSecs is below the minimum of 60', async () => {
+    it('400 — returns 400 when intervalSecs is below the minimum of 30', async () => {
       const res = await request(app)
         .post(`/api/devices/${plainDeviceId}/wireless/config`)
         .send({ deviceType: 'STATION', intervalSecs: 10 });
@@ -294,7 +294,7 @@ describe('Wireless Config Routes — /api/devices/:id/wireless/config', () => {
       expect(res.status).toBe(400);
     });
 
-    it('400 — returns 400 when intervalSecs is below the minimum of 60', async () => {
+    it('400 — returns 400 when intervalSecs is below the minimum of 30', async () => {
       const res = await request(app)
         .patch(`/api/devices/${configuredDeviceId}/wireless/config`)
         .send({ intervalSecs: 10 });

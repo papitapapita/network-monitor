@@ -2,17 +2,18 @@
 
 import { PollWirelessDeviceUseCase } from '../../../../src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase';
 import { AlertDecision, IWirelessAlertEvaluator } from '../../../../src/domain/wireless-monitoring/services/IWirelessAlertEvaluator';
-import { IWirelessPollingConfigRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessPollingConfigRepository';
+import { IWirelessDeviceConfigRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessDeviceConfigRepository';
 import { IWirelessSnapshotRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessSnapshotRepository';
 import { IWirelessAlertRecordRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessAlertRecordRepository';
 import { IDeviceCredentialsRepository, DecryptedCredentials } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceCredentialsRepository';
 import { IUbiquitiHttpCollector, HttpCollectionResult } from '../../../../src/application/wireless-monitoring/interfaces/IUbiquitiHttpCollector';
 import { IDeviceRepository } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceRepository';
-import { WirelessPollingConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessPollingConfig';
-import { WirelessPollingConfigId } from '../../../../src/domain/shared/ids/WirelessPollingConfigId';
+import { WirelessDeviceConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig';
+import { WirelessDeviceConfigId } from '../../../../src/domain/shared/ids/WirelessDeviceConfigId';
 import { WirelessAlertRecord } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { IPAddress } from '../../../../src/domain/shared/value-objects/IPAddress';
+import { PollingInterval } from '../../../../src/domain/shared/value-objects/PollingInterval';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 
@@ -55,15 +56,15 @@ function makePollingConfig(overrides: {
   linkCapacityBps?: number | null;
   clientsProvisionedLimit?: number | null;
   ipAddress?: IPAddress | null;
-} = {}): WirelessPollingConfig {
+} = {}): WirelessDeviceConfig {
   const ipResult = IPAddress.create(VALID_IP);
-  return WirelessPollingConfig.reconstitute(
-    WirelessPollingConfigId.create(),
+  return WirelessDeviceConfig.reconstitute(
+    WirelessDeviceConfigId.create(),
     {
       deviceId: makeDeviceId(),
       ipAddress: overrides.ipAddress !== undefined ? overrides.ipAddress : ipResult.value,
       enabled: overrides.enabled !== undefined ? overrides.enabled : true,
-      intervalSecs: 60,
+      pollingInterval: PollingInterval.reconstitute(60),
       deviceType: overrides.deviceType ?? 'STATION',
       linkCapacityBps: overrides.linkCapacityBps !== undefined ? overrides.linkCapacityBps : null,
       clientsProvisionedLimit: overrides.clientsProvisionedLimit !== undefined ? overrides.clientsProvisionedLimit : null,
@@ -127,7 +128,7 @@ function makeHttpResult(overrides: Partial<HttpCollectionResult> = {}): HttpColl
 // ---------------------------------------------------------------------------
 
 function makeMocks() {
-  const wirelessPollingConfigRepo: jest.Mocked<IWirelessPollingConfigRepository> = {
+  const wirelessDeviceConfigRepo: jest.Mocked<IWirelessDeviceConfigRepository> = {
     findByDeviceId: jest.fn(),
     save: jest.fn(),
     findAllDue: jest.fn(),
@@ -172,7 +173,7 @@ function makeMocks() {
   const logger = makeLogger();
 
   return {
-    wirelessPollingConfigRepo,
+    wirelessDeviceConfigRepo,
     snapshotRepo,
     alertRecordRepo,
     credentialsRepo,
@@ -185,7 +186,7 @@ function makeMocks() {
 
 function makeUseCase(mocks: ReturnType<typeof makeMocks>): PollWirelessDeviceUseCase {
   return new PollWirelessDeviceUseCase(
-    mocks.wirelessPollingConfigRepo,
+    mocks.wirelessDeviceConfigRepo,
     mocks.snapshotRepo,
     mocks.alertRecordRepo,
     mocks.credentialsRepo,
@@ -209,8 +210,8 @@ function configureHappyPath(
     deviceType: options.deviceType ?? 'STATION'
   });
 
-  mocks.wirelessPollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
-  mocks.wirelessPollingConfigRepo.save.mockResolvedValue(Result.ok(config));
+  mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+  mocks.wirelessDeviceConfigRepo.save.mockResolvedValue(Result.ok(config));
   mocks.credentialsRepo.findByDeviceId.mockResolvedValue(Result.ok(makeCredentials()));
 
   mocks.httpCollector.collect.mockResolvedValue(
@@ -266,7 +267,7 @@ describe('PollWirelessDeviceUseCase', () => {
     it('should NOT call any repository when beforeExecute fails', async () => {
       await useCase.execute({ deviceId: '' });
 
-      expect(mocks.wirelessPollingConfigRepo.findByDeviceId).not.toHaveBeenCalled();
+      expect(mocks.wirelessDeviceConfigRepo.findByDeviceId).not.toHaveBeenCalled();
     });
   });
 
@@ -279,17 +280,17 @@ describe('PollWirelessDeviceUseCase', () => {
       expect(result.error).toContain('Invalid device ID');
     });
 
-    it('should NOT call wirelessPollingConfigRepo when deviceId is not a valid UUID', async () => {
+    it('should NOT call wirelessDeviceConfigRepo when deviceId is not a valid UUID', async () => {
       await useCase.execute({ deviceId: 'bad-id' });
 
-      expect(mocks.wirelessPollingConfigRepo.findByDeviceId).not.toHaveBeenCalled();
+      expect(mocks.wirelessDeviceConfigRepo.findByDeviceId).not.toHaveBeenCalled();
     });
   });
 
   // ===========================================================================
   describe('executeImpl — polling config loading', () => {
     it('should fail when config repository returns a failure', async () => {
-      mocks.wirelessPollingConfigRepo.findByDeviceId.mockResolvedValue(
+      mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
         Result.fail('DB connection error')
       );
 
@@ -300,7 +301,7 @@ describe('PollWirelessDeviceUseCase', () => {
     });
 
     it('should fail when no config exists for the device', async () => {
-      mocks.wirelessPollingConfigRepo.findByDeviceId.mockResolvedValue(
+      mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
         Result.ok(null)
       );
 
@@ -311,7 +312,7 @@ describe('PollWirelessDeviceUseCase', () => {
     });
 
     it('should NOT call credentialsRepo when config is not found', async () => {
-      mocks.wirelessPollingConfigRepo.findByDeviceId.mockResolvedValue(
+      mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
         Result.ok(null)
       );
 
@@ -325,7 +326,7 @@ describe('PollWirelessDeviceUseCase', () => {
   describe('executeImpl — disabled polling (skip logic)', () => {
     it('should return ok with skipped=true when config is disabled and forceExecution is absent', async () => {
       const config = makePollingConfig({ enabled: false });
-      mocks.wirelessPollingConfigRepo.findByDeviceId.mockResolvedValue(
+      mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
         Result.ok(config)
       );
 
@@ -337,7 +338,7 @@ describe('PollWirelessDeviceUseCase', () => {
 
     it('should return ok with skipped=true when forceExecution is explicitly false', async () => {
       const config = makePollingConfig({ enabled: false });
-      mocks.wirelessPollingConfigRepo.findByDeviceId.mockResolvedValue(
+      mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
         Result.ok(config)
       );
 
@@ -352,7 +353,7 @@ describe('PollWirelessDeviceUseCase', () => {
 
     it('should set metricsCollected to false in the skipped result', async () => {
       const config = makePollingConfig({ enabled: false });
-      mocks.wirelessPollingConfigRepo.findByDeviceId.mockResolvedValue(
+      mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
         Result.ok(config)
       );
 
@@ -363,7 +364,7 @@ describe('PollWirelessDeviceUseCase', () => {
 
     it('should NOT call snapshotRepo.save when skipped', async () => {
       const config = makePollingConfig({ enabled: false });
-      mocks.wirelessPollingConfigRepo.findByDeviceId.mockResolvedValue(
+      mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
         Result.ok(config)
       );
 
@@ -390,7 +391,7 @@ describe('PollWirelessDeviceUseCase', () => {
   describe('executeImpl — credentials loading', () => {
     it('should fail when credentials repository returns a failure', async () => {
       const config = makePollingConfig();
-      mocks.wirelessPollingConfigRepo.findByDeviceId.mockResolvedValue(
+      mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
         Result.ok(config)
       );
       mocks.credentialsRepo.findByDeviceId.mockResolvedValue(
@@ -405,7 +406,7 @@ describe('PollWirelessDeviceUseCase', () => {
 
     it('should fail when no credentials exist for the device', async () => {
       const config = makePollingConfig();
-      mocks.wirelessPollingConfigRepo.findByDeviceId.mockResolvedValue(
+      mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
         Result.ok(config)
       );
       mocks.credentialsRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
@@ -421,7 +422,7 @@ describe('PollWirelessDeviceUseCase', () => {
   describe('executeImpl — IP address requirement', () => {
     it('should fail when no IP address is configured on the polling config', async () => {
       const config = makePollingConfig({ ipAddress: null });
-      mocks.wirelessPollingConfigRepo.findByDeviceId.mockResolvedValue(
+      mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
         Result.ok(config)
       );
       mocks.credentialsRepo.findByDeviceId.mockResolvedValue(
@@ -688,12 +689,12 @@ describe('PollWirelessDeviceUseCase', () => {
       expect(mocks.snapshotRepo.save).toHaveBeenCalledTimes(1);
     });
 
-    it('should call wirelessPollingConfigRepo.save once to update lastPolledAt', async () => {
+    it('should call wirelessDeviceConfigRepo.save once to update lastPolledAt', async () => {
       configureHappyPath(mocks);
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      expect(mocks.wirelessPollingConfigRepo.save).toHaveBeenCalledTimes(1);
+      expect(mocks.wirelessDeviceConfigRepo.save).toHaveBeenCalledTimes(1);
     });
 
     it('should log an error but still succeed when snapshotRepo.save fails', async () => {
@@ -708,7 +709,7 @@ describe('PollWirelessDeviceUseCase', () => {
 
     it('should log an error but still succeed when pollingConfigRepo.save fails', async () => {
       configureHappyPath(mocks);
-      mocks.wirelessPollingConfigRepo.save.mockResolvedValue(
+      mocks.wirelessDeviceConfigRepo.save.mockResolvedValue(
         Result.fail('Concurrent modification')
       );
 

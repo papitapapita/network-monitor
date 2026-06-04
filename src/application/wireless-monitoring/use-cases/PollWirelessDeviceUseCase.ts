@@ -1,7 +1,7 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared';
 import {
-  IWirelessPollingConfigRepository,
+  IWirelessDeviceConfigRepository,
   IWirelessSnapshotRepository,
   IWirelessAlertRecordRepository,
   WirelessAlertRecord,
@@ -36,7 +36,7 @@ export class PollWirelessDeviceUseCase
   private readonly activePolls = new Set<string>();
 
   constructor(
-    private readonly wirelessPollingConfigRepo: IWirelessPollingConfigRepository,
+    private readonly wirelessDeviceConfigRepo: IWirelessDeviceConfigRepository,
     private readonly snapshotRepo: IWirelessSnapshotRepository,
     private readonly alertRecordRepo: IWirelessAlertRecordRepository,
     private readonly credentialsRepo: IDeviceCredentialsRepository,
@@ -94,7 +94,7 @@ export class PollWirelessDeviceUseCase
     request: PollWirelessDeviceRequestDTO
   ): Promise<Result<PollWirelessDeviceResponseDTO>> {
     const configResult =
-      await this.wirelessPollingConfigRepo.findByDeviceId(deviceId);
+      await this.wirelessDeviceConfigRepo.findByDeviceId(deviceId);
     if (configResult.isFailure) {
       return this.fail(
         `Failed to load wireless polling config: ${configResult.error}`
@@ -372,7 +372,7 @@ export class PollWirelessDeviceUseCase
 
     config.markPolled(now);
     const configSaveResult =
-      await this.wirelessPollingConfigRepo.save(config);
+      await this.wirelessDeviceConfigRepo.save(config);
     if (configSaveResult.isFailure) {
       this.logger.error(
         'Failed to update polling config lastPolledAt',
