@@ -961,6 +961,30 @@ class WithdrawMoneyUseCase {
 
 ## 6. Aggregate Lifetime & Lifecycle
 
+### `create` vs `reconstitute` — ID ownership
+
+`create` always generates its own ID internally. It never accepts an `id` parameter. The caller has no business supplying an identity for a brand-new aggregate — the aggregate owns that responsibility.
+
+`reconstitute` always receives an `id` from the caller (the repository), because it is rehydrating an object whose identity already exists in persistence.
+
+```typescript
+// ✅ CORRECT
+public static create(props: OrderProps): Result<Order> {
+  // ...
+  return Result.ok(new Order(props, OrderId.create())); // ID generated here
+}
+
+public static reconstitute(id: OrderId, props: OrderProps): Order {
+  return new Order(props, id); // ID comes from persistence
+}
+
+// ❌ WRONG — optional id leaks repository concerns into the factory
+public static create(props: OrderProps, id?: OrderId): Result<Order> {
+  const orderId = id ?? OrderId.create(); // ambiguous ownership
+  // ...
+}
+```
+
 ### Lifecycle Phases:
 
 ```typescript

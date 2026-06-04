@@ -53,19 +53,11 @@ describe('WirelessDeviceConfig', () => {
         expect(result.value).toBeInstanceOf(WirelessDeviceConfig);
       });
 
-      it('should auto-generate a WirelessDeviceConfigId when none is provided', () => {
+      it('should auto-generate a WirelessDeviceConfigId', () => {
         const config = makeConfig();
 
         expect(config.id).toBeInstanceOf(WirelessDeviceConfigId);
         expect(config.id.toValue().length).toBeGreaterThan(0);
-      });
-
-      it('should use the explicitly provided id', () => {
-        const id = WirelessDeviceConfigId.create();
-        const result = WirelessDeviceConfig.create(makeProps(), id);
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.id).toBe(id);
       });
 
       it('should generate unique IDs for each created config', () => {
@@ -167,6 +159,26 @@ describe('WirelessDeviceConfig', () => {
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('pollingInterval');
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('wireless-specific polling interval minimum', () => {
+      it('should fail when pollingInterval is below 30 seconds', () => {
+        const result = WirelessDeviceConfig.create(
+          makeProps({ pollingInterval: PollingInterval.reconstitute(29) })
+        );
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('30');
+      });
+
+      it('should succeed when pollingInterval is exactly 30 seconds', () => {
+        const result = WirelessDeviceConfig.create(
+          makeProps({ pollingInterval: PollingInterval.reconstitute(30) })
+        );
+
+        expect(result.isSuccess).toBe(true);
       });
     });
   });
@@ -545,6 +557,53 @@ describe('WirelessDeviceConfig', () => {
           after.getTime()
         );
       });
+    });
+  });
+
+  // =========================================================================
+  describe('updatePollingInterval(interval)', () => {
+    it('should return a successful Result for a valid interval', () => {
+      const config = makeConfig();
+      const result = config.updatePollingInterval(PollingInterval.reconstitute(120));
+
+      expect(result.isSuccess).toBe(true);
+    });
+
+    it('should update the pollingInterval to the new value', () => {
+      const config = makeConfig({ pollingInterval: PollingInterval.reconstitute(60) });
+      config.updatePollingInterval(PollingInterval.reconstitute(120));
+
+      expect(config.pollingInterval.seconds).toBe(120);
+    });
+
+    it('should fail when the new interval is below 30 seconds', () => {
+      const config = makeConfig();
+      const result = config.updatePollingInterval(PollingInterval.reconstitute(29));
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('30');
+    });
+
+    it('should not mutate the interval when validation fails', () => {
+      const config = makeConfig({ pollingInterval: PollingInterval.reconstitute(60) });
+      config.updatePollingInterval(PollingInterval.reconstitute(29));
+
+      expect(config.pollingInterval.seconds).toBe(60);
+    });
+
+    it('should succeed when the interval is exactly 30 seconds', () => {
+      const config = makeConfig();
+      const result = config.updatePollingInterval(PollingInterval.reconstitute(30));
+
+      expect(result.isSuccess).toBe(true);
+      expect(config.pollingInterval.seconds).toBe(30);
+    });
+
+    it('should emit no domain events', () => {
+      const config = makeConfig();
+      config.updatePollingInterval(PollingInterval.reconstitute(90));
+
+      expect(config.domainEvents.length).toBe(0);
     });
   });
 

@@ -1,9 +1,14 @@
 import { AggregateRoot, Result, Guard } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
-import { IPAddress, PollingInterval } from 'domain/shared/value-objects';
+import {
+  IPAddress,
+  PollingInterval
+} from 'domain/shared/value-objects';
 import { WirelessDeviceConfigProps } from '../props';
 import { WirelessDeviceConfigId } from 'domain/shared/ids';
 import { WirelessDeviceConfigToggledEvent } from '../events';
+
+const MIN_POLLING_SECONDS = 30;
 
 export class WirelessDeviceConfig extends AggregateRoot<
   WirelessDeviceConfigProps,
@@ -42,8 +47,7 @@ export class WirelessDeviceConfig extends AggregateRoot<
   }
 
   public static create(
-    props: WirelessDeviceConfigProps,
-    id?: WirelessDeviceConfigId
+    props: WirelessDeviceConfigProps
   ): Result<WirelessDeviceConfig> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(props.deviceId, 'deviceId'),
@@ -53,8 +57,14 @@ export class WirelessDeviceConfig extends AggregateRoot<
     if (!guardResult.succeeded) {
       return Result.fail(guardResult.message!);
     }
-    const configId = id ?? WirelessDeviceConfigId.create();
-    return Result.ok(new WirelessDeviceConfig(props, configId));
+    if (props.pollingInterval.seconds < MIN_POLLING_SECONDS) {
+      return Result.fail(
+        `Wireless polling interval must be at least ${MIN_POLLING_SECONDS} seconds`
+      );
+    }
+    return Result.ok(
+      new WirelessDeviceConfig(props, WirelessDeviceConfigId.create())
+    );
   }
 
   public static reconstitute(
@@ -116,7 +126,14 @@ export class WirelessDeviceConfig extends AggregateRoot<
     return Result.ok();
   }
 
-  public updatePollingInterval(interval: PollingInterval): Result<void> {
+  public updatePollingInterval(
+    interval: PollingInterval
+  ): Result<void> {
+    if (interval.seconds < MIN_POLLING_SECONDS) {
+      return Result.fail(
+        `Wireless polling interval must be at least ${MIN_POLLING_SECONDS} seconds`
+      );
+    }
     this.props.pollingInterval = interval;
     return Result.ok();
   }
