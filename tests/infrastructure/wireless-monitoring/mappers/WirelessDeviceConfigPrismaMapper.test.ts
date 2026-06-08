@@ -21,6 +21,8 @@ const makeFullRow = (): PrismaWirelessDeviceConfigRow => ({
   linkCapacityBps: 100_000_000n,
   clientsProvisionedLimit: 10,
   lastPolledAt: new Date('2024-01-01T12:00:00Z'),
+  targetFirmwareVersion: 'v8.7.11',
+  maxLinkDistanceM: 5000,
 });
 
 const makeMinimalRow = (): PrismaWirelessDeviceConfigRow => ({
@@ -33,6 +35,8 @@ const makeMinimalRow = (): PrismaWirelessDeviceConfigRow => ({
   linkCapacityBps: null,
   clientsProvisionedLimit: null,
   lastPolledAt: null,
+  targetFirmwareVersion: null,
+  maxLinkDistanceM: null,
 });
 
 const buildDomainConfig = (): WirelessDeviceConfig => {
@@ -49,6 +53,8 @@ const buildDomainConfig = (): WirelessDeviceConfig => {
     linkCapacityBps: 100_000_000,
     clientsProvisionedLimit: 10,
     lastPolledAt: new Date('2024-01-01T12:00:00Z'),
+    targetFirmwareVersion: null,
+    maxLinkDistanceM: null,
   });
 };
 
@@ -159,6 +165,8 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
         linkCapacityBps: null,
         clientsProvisionedLimit: null,
         lastPolledAt: null,
+        targetFirmwareVersion: null,
+        maxLinkDistanceM: null,
       });
 
       const data = WirelessDeviceConfigPrismaMapper.toPersistence(config);

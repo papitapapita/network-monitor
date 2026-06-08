@@ -76,6 +76,17 @@ export const createWirelessConfigSchema = z.object({
       .int()
       .positive()
       .nullable()
+      .optional(),
+    targetFirmwareVersion: z
+      .string()
+      .max(50)
+      .nullable()
+      .optional(),
+    maxLinkDistanceM: z
+      .number()
+      .int()
+      .positive()
+      .nullable()
       .optional()
   })
 });
@@ -100,6 +111,17 @@ export const updateWirelessConfigSchema = z.object({
         .nullable()
         .optional(),
       clientsProvisionedLimit: z
+        .number()
+        .int()
+        .positive()
+        .nullable()
+        .optional(),
+      targetFirmwareVersion: z
+        .string()
+        .max(50)
+        .nullable()
+        .optional(),
+      maxLinkDistanceM: z
         .number()
         .int()
         .positive()

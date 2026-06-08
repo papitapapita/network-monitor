@@ -18,6 +18,8 @@ type RawPollingConfig = {
   link_capacity_bps: bigint | null;
   clients_provisioned_limit: number | null;
   last_polled_at: Date | null;
+  target_firmware_version: string | null;
+  max_link_distance_m: number | null;
 };
 
 export class PrismaWirelessDeviceConfigRepository
@@ -41,7 +43,9 @@ export class PrismaWirelessDeviceConfigRepository
           deviceType: data.deviceType as WirelessDeviceType,
           linkCapacityBps: data.linkCapacityBps,
           clientsProvisionedLimit: data.clientsProvisionedLimit,
-          lastPolledAt: data.lastPolledAt
+          lastPolledAt: data.lastPolledAt,
+          targetFirmwareVersion: data.targetFirmwareVersion,
+          maxLinkDistanceM: data.maxLinkDistanceM
         },
         create: {
           id: data.id,
@@ -52,7 +56,9 @@ export class PrismaWirelessDeviceConfigRepository
           deviceType: data.deviceType as WirelessDeviceType,
           linkCapacityBps: data.linkCapacityBps,
           clientsProvisionedLimit: data.clientsProvisionedLimit,
-          lastPolledAt: data.lastPolledAt
+          lastPolledAt: data.lastPolledAt,
+          targetFirmwareVersion: data.targetFirmwareVersion,
+          maxLinkDistanceM: data.maxLinkDistanceM
         }
       });
 
@@ -141,7 +147,9 @@ export class PrismaWirelessDeviceConfigRepository
           device_type,
           link_capacity_bps,
           clients_provisioned_limit,
-          last_polled_at
+          last_polled_at,
+          target_firmware_version,
+          max_link_distance_m
         FROM wireless_polling_configurations
         WHERE enabled = true
           AND ip_address IS NOT NULL
@@ -161,7 +169,9 @@ export class PrismaWirelessDeviceConfigRepository
           deviceType: r.device_type,
           linkCapacityBps: r.link_capacity_bps,
           clientsProvisionedLimit: r.clients_provisioned_limit,
-          lastPolledAt: r.last_polled_at
+          lastPolledAt: r.last_polled_at,
+          targetFirmwareVersion: r.target_firmware_version,
+          maxLinkDistanceM: r.max_link_distance_m
         })
       );
 

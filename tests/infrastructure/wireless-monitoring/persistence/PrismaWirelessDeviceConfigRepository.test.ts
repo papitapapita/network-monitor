@@ -35,6 +35,8 @@ const buildDomainConfig = (): WirelessDeviceConfig => {
     linkCapacityBps: 100_000_000,
     clientsProvisionedLimit: 10,
     lastPolledAt: new Date('2024-01-01T12:00:00Z'),
+    targetFirmwareVersion: null,
+    maxLinkDistanceM: null,
   });
 };
 
@@ -48,6 +50,8 @@ const makePrismaRow = () => ({
   linkCapacityBps: 100_000_000n,
   clientsProvisionedLimit: 10,
   lastPolledAt: new Date('2024-01-01T12:00:00Z'),
+  targetFirmwareVersion: null,
+  maxLinkDistanceM: null,
 });
 
 // Shape returned by the raw $queryRaw (snake_case column names)
@@ -61,6 +65,8 @@ const makeRawRow = () => ({
   link_capacity_bps: 100_000_000n,
   clients_provisioned_limit: 10,
   last_polled_at: new Date('2024-01-01T11:00:00Z'),
+  target_firmware_version: null,
+  max_link_distance_m: null,
 });
 
 describe('PrismaWirelessDeviceConfigRepository', () => {

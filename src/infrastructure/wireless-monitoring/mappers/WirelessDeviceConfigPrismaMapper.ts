@@ -14,6 +14,8 @@ type PrismaWirelessDeviceConfigRow = {
   linkCapacityBps: bigint | null;
   clientsProvisionedLimit: number | null;
   lastPolledAt: Date | null;
+  targetFirmwareVersion: string | null;
+  maxLinkDistanceM: number | null;
 };
 
 type PersistenceData = {
@@ -26,6 +28,8 @@ type PersistenceData = {
   linkCapacityBps: bigint | null;
   clientsProvisionedLimit: number | null;
   lastPolledAt: Date | null;
+  targetFirmwareVersion: string | null;
+  maxLinkDistanceM: number | null;
 };
 
 export class WirelessDeviceConfigPrismaMapper {
@@ -54,7 +58,9 @@ export class WirelessDeviceConfigPrismaMapper {
           ? Number(raw.linkCapacityBps)
           : null,
       clientsProvisionedLimit: raw.clientsProvisionedLimit,
-      lastPolledAt: raw.lastPolledAt
+      lastPolledAt: raw.lastPolledAt,
+      targetFirmwareVersion: raw.targetFirmwareVersion,
+      maxLinkDistanceM: raw.maxLinkDistanceM
     };
 
     return WirelessDeviceConfig.reconstitute(id.value, props);
@@ -75,7 +81,9 @@ export class WirelessDeviceConfigPrismaMapper {
           ? BigInt(config.linkCapacityBps)
           : null,
       clientsProvisionedLimit: config.clientsProvisionedLimit,
-      lastPolledAt: config.lastPolledAt
+      lastPolledAt: config.lastPolledAt,
+      targetFirmwareVersion: config.targetFirmwareVersion,
+      maxLinkDistanceM: config.maxLinkDistanceM
     };
   }
 }

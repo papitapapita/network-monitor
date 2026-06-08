@@ -52,6 +52,8 @@ function makeConfig(overrides: { ipAddress?: string | null } = {}): WirelessDevi
       linkCapacityBps: null,
       clientsProvisionedLimit: null,
       lastPolledAt: null,
+      targetFirmwareVersion: null,
+      maxLinkDistanceM: null
     }
   );
 }

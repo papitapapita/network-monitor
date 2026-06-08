@@ -57,6 +57,8 @@ function makeConfig(overrides: {
           ? overrides.clientsProvisionedLimit
           : null,
       lastPolledAt: null,
+      targetFirmwareVersion: null,
+      maxLinkDistanceM: null
     }
   );
 }

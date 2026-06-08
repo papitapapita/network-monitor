@@ -13,4 +13,6 @@ export interface WirelessDeviceConfigProps {
   linkCapacityBps: number | null;
   clientsProvisionedLimit: number | null;
   lastPolledAt: Date | null;
+  targetFirmwareVersion: string | null;
+  maxLinkDistanceM: number | null;
 }

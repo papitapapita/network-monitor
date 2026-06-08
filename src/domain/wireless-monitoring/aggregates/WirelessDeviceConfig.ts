@@ -45,6 +45,12 @@ export class WirelessDeviceConfig extends AggregateRoot<
   get lastPolledAt(): Date | null {
     return this.props.lastPolledAt;
   }
+  get targetFirmwareVersion(): string | null {
+    return this.props.targetFirmwareVersion;
+  }
+  get maxLinkDistanceM(): number | null {
+    return this.props.maxLinkDistanceM;
+  }
 
   public static create(
     props: WirelessDeviceConfigProps
@@ -61,6 +67,9 @@ export class WirelessDeviceConfig extends AggregateRoot<
       return Result.fail(
         `Wireless polling interval must be at least ${MIN_POLLING_SECONDS} seconds`
       );
+    }
+    if (props.maxLinkDistanceM !== null && props.maxLinkDistanceM < 0) {
+      return Result.fail('maxLinkDistanceM must be a positive number');
     }
     return Result.ok(
       new WirelessDeviceConfig(props, WirelessDeviceConfigId.create())
@@ -149,6 +158,23 @@ export class WirelessDeviceConfig extends AggregateRoot<
     limit: number | null
   ): Result<void> {
     this.props.clientsProvisionedLimit = limit;
+    return Result.ok();
+  }
+
+  public updateTargetFirmwareVersion(
+    version: string | null
+  ): Result<void> {
+    this.props.targetFirmwareVersion = version;
+    return Result.ok();
+  }
+
+  public updateMaxLinkDistanceM(
+    distance: number | null
+  ): Result<void> {
+    if (distance !== null && distance < 0) {
+      return Result.fail('maxLinkDistanceM must be a positive number');
+    }
+    this.props.maxLinkDistanceM = distance;
     return Result.ok();
   }
 }

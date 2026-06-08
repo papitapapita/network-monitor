@@ -886,11 +886,13 @@ interface WirelessClientDTO {
 // Request body
 {
   deviceType: 'STATION' | 'ACCESS_POINT'   // required
-  ipAddress?: string | null             // IPv4 or IPv6; used for HTTP API polling
-  intervalSecs?: number                 // 30–86400; default 3600
-  enabled?: boolean                     // default true
-  linkCapacityBps?: number | null       // link capacity for throughput alerts
-  clientsProvisionedLimit?: number | null // AP only — max expected clients
+  ipAddress?: string | null                // IPv4 or IPv6; used for HTTP API polling
+  intervalSecs?: number                    // 30–86400; default 3600
+  enabled?: boolean                        // default true
+  linkCapacityBps?: number | null          // link capacity for channel-width alerts
+  clientsProvisionedLimit?: number | null  // AP only — max expected clients
+  targetFirmwareVersion?: string | null    // expected firmware; triggers mismatch alert when set
+  maxLinkDistanceM?: number | null         // distance ceiling in metres; triggers alert when exceeded
 }
 
 // Response
@@ -903,6 +905,8 @@ interface WirelessClientDTO {
   deviceType: 'STATION' | 'ACCESS_POINT'
   linkCapacityBps: number | null
   clientsProvisionedLimit: number | null
+  targetFirmwareVersion: string | null
+  maxLinkDistanceM: number | null
   lastPolledAt: string | null   // ISO 8601 — null until first poll
 }
 ```
@@ -930,10 +934,12 @@ interface WirelessClientDTO {
 // Request body (at least one field required)
 {
   ipAddress?: string | null
-  intervalSecs?: number       // 30–86400
+  intervalSecs?: number                   // 30–86400
   enabled?: boolean
   linkCapacityBps?: number | null
   clientsProvisionedLimit?: number | null
+  targetFirmwareVersion?: string | null
+  maxLinkDistanceM?: number | null
 }
 
 // Response — same shape as POST 201 above

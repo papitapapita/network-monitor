@@ -32,6 +32,8 @@ function makeConfig(
     linkCapacityBps:         number | null;
     clientsProvisionedLimit: number | null;
     lastPolledAt:            Date | null;
+    targetFirmwareVersion:   string | null;
+    maxLinkDistanceM:        number | null;
   }> = {}
 ): WirelessDeviceConfig {
   const id       = overrides.id       ?? WirelessDeviceConfigId.parse(CONFIG_UUID).value!;
@@ -45,7 +47,9 @@ function makeConfig(
     deviceType:              overrides.deviceType              ?? 'STATION',
     linkCapacityBps:         overrides.linkCapacityBps         ?? null,
     clientsProvisionedLimit: overrides.clientsProvisionedLimit ?? null,
-    lastPolledAt:            overrides.lastPolledAt            ?? null
+    lastPolledAt:            overrides.lastPolledAt            ?? null,
+    targetFirmwareVersion:   overrides.targetFirmwareVersion   ?? null,
+    maxLinkDistanceM:        overrides.maxLinkDistanceM        ?? null
   });
 }
 

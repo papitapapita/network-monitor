@@ -7,4 +7,6 @@ export interface UpdateWirelessConfigRequestDTO {
   // null = clear, number = set, undefined = skip
   linkCapacityBps?: number | null;
   clientsProvisionedLimit?: number | null;
+  targetFirmwareVersion?: string | null;
+  maxLinkDistanceM?: number | null;
 }

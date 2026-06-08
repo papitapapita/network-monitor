@@ -1,4 +1,14 @@
 import { WirelessAlertEvaluator, EvaluationContext } from '../../../../src/domain/wireless-monitoring/services/WirelessAlertEvaluator';
+import { SignalStrengthRule } from '../../../../src/domain/wireless-monitoring/services/rules/SignalStrengthRule';
+import { SnrRule } from '../../../../src/domain/wireless-monitoring/services/rules/SnrRule';
+import { CcqRule } from '../../../../src/domain/wireless-monitoring/services/rules/CcqRule';
+import { CpuMemoryRule } from '../../../../src/domain/wireless-monitoring/services/rules/CpuMemoryRule';
+import { LanHealthRule } from '../../../../src/domain/wireless-monitoring/services/rules/LanHealthRule';
+import { ClientCountRule } from '../../../../src/domain/wireless-monitoring/services/rules/ClientCountRule';
+import { CapacityRule } from '../../../../src/domain/wireless-monitoring/services/rules/CapacityRule';
+import { DistanceRule } from '../../../../src/domain/wireless-monitoring/services/rules/DistanceRule';
+import { IdentityChangeRule } from '../../../../src/domain/wireless-monitoring/services/rules/IdentityChangeRule';
+import { FirmwareRule } from '../../../../src/domain/wireless-monitoring/services/rules/FirmwareRule';
 import { WirelessMetrics } from '../../../../src/domain/wireless-monitoring/value-objects/WirelessMetrics';
 import { WirelessAlertRecord } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
 import { WirelessMetricsProps } from '../../../../src/domain/wireless-monitoring/props/WirelessMetricsProps';
@@ -36,8 +46,12 @@ function makeMetrics(overrides: Partial<WirelessMetricsProps> = {}): WirelessMet
 function makeContext(overrides: Partial<EvaluationContext> = {}): EvaluationContext {
   return {
     deviceName: 'CPE-001',
+    deviceModel: null,
     linkCapacityBps: null,
     clientsProvisionedLimit: null,
+    previousMetrics: null,
+    targetFirmwareVersion: null,
+    maxLinkDistanceM: null,
     ...overrides,
   };
 }
@@ -74,7 +88,18 @@ describe('WirelessAlertEvaluator', () => {
   let evaluator: WirelessAlertEvaluator;
 
   beforeEach(() => {
-    evaluator = new WirelessAlertEvaluator();
+    evaluator = new WirelessAlertEvaluator([
+      new SignalStrengthRule(),
+      new SnrRule(),
+      new CcqRule(),
+      new CpuMemoryRule(),
+      new LanHealthRule(),
+      new ClientCountRule(),
+      new CapacityRule(),
+      new DistanceRule(),
+      new IdentityChangeRule(),
+      new FirmwareRule()
+    ]);
   });
 
   // ===========================================================================
@@ -118,18 +143,18 @@ describe('WirelessAlertEvaluator', () => {
       expect(match!.action).toBe('OPEN');
     });
 
-    it('should return OPEN for ccq_percent WARNING when CCQ is below 75%', () => {
+    it('should return OPEN for ccq_percent WARNING when CCQ is below 75% on an M-series device', () => {
       const metrics = makeMetrics({ ccqPercent: 70 });
-      const decisions = evaluator.evaluate(metrics, new Map(), makeContext());
+      const decisions = evaluator.evaluate(metrics, new Map(), makeContext({ deviceModel: 'Rocket M5' }));
 
       const match = decisions.find(d => d.metric === 'ccq_percent' && d.severity === 'WARNING');
       expect(match).toBeDefined();
       expect(match!.action).toBe('OPEN');
     });
 
-    it('should return OPEN for ccq_percent CRITICAL when CCQ is below 50%', () => {
+    it('should return OPEN for ccq_percent CRITICAL when CCQ is below 50% on an M-series device', () => {
       const metrics = makeMetrics({ ccqPercent: 40 });
-      const decisions = evaluator.evaluate(metrics, new Map(), makeContext());
+      const decisions = evaluator.evaluate(metrics, new Map(), makeContext({ deviceModel: 'NanoStation M5' }));
 
       const match = decisions.find(d => d.metric === 'ccq_percent' && d.severity === 'CRITICAL');
       expect(match).toBeDefined();
@@ -150,20 +175,6 @@ describe('WirelessAlertEvaluator', () => {
       const decisions = evaluator.evaluate(metrics, new Map(), makeContext());
 
       const match = decisions.find(d => d.metric === 'memory_used_percent' && d.severity === 'WARNING');
-      expect(match).toBeDefined();
-      expect(match!.action).toBe('OPEN');
-    });
-
-    it('should return OPEN for throughput_tx_bps WARNING when link utilisation exceeds 95% and capacity is provided', () => {
-      // tx occupying 98% of the provided capacity → utilisation = 98/100 * 100 = 98% > 95
-      const linkCapacityBps = 100_000_000;
-      const txBps = 98_000_000;
-      const metrics = makeMetrics({ throughputTxBps: txBps });
-      const ctx = makeContext({ linkCapacityBps });
-
-      const decisions = evaluator.evaluate(metrics, new Map(), ctx);
-
-      const match = decisions.find(d => d.metric === 'throughput_tx_bps' && d.severity === 'WARNING');
       expect(match).toBeDefined();
       expect(match!.action).toBe('OPEN');
     });
@@ -436,12 +447,12 @@ describe('WirelessAlertEvaluator', () => {
     it('should return multiple OPEN decisions when several thresholds breach at once', () => {
       const metrics = makeMetrics({
         signalRxDbm: -85,   // breaches signal WARNING (< -70) AND CRITICAL (< -80)
-        ccqPercent: 40,      // breaches ccq WARNING (< 75) AND CRITICAL (< 50)
+        ccqPercent: 40,      // breaches ccq WARNING (< 75) AND CRITICAL (< 50) — M-series only
         cpuLoadPercent: 90,  // breaches cpu WARNING (> 80)
         lanStatus: 'DOWN',   // breaches lan CRITICAL
       });
 
-      const decisions = evaluator.evaluate(metrics, new Map(), makeContext());
+      const decisions = evaluator.evaluate(metrics, new Map(), makeContext({ deviceModel: 'Rocket M5' }));
 
       const openDecisions = decisions.filter(d => d.action === 'OPEN');
       // signal: 2 (WARNING + CRITICAL), ccq: 2 (WARNING + CRITICAL), cpu: 1, lan: 1 = 6

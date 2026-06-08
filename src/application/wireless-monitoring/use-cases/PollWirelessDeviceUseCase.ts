@@ -183,10 +183,21 @@ export class PollWirelessDeviceUseCase
       activeAlertsList.map((a) => [`${a.metric}:${a.severity}`, a])
     );
 
+    const latestSnapshotResult =
+      await this.snapshotRepo.findLatestByDevice(deviceId);
+    const previousMetrics =
+      latestSnapshotResult.isSuccess
+        ? latestSnapshotResult.value?.metrics ?? null
+        : null;
+
     const ctx: EvaluationContext = {
       deviceName: http.deviceName ?? 'Equipo desconocido',
+      deviceModel: http.deviceModel,
       linkCapacityBps: config.linkCapacityBps,
-      clientsProvisionedLimit: config.clientsProvisionedLimit
+      clientsProvisionedLimit: config.clientsProvisionedLimit,
+      previousMetrics,
+      targetFirmwareVersion: config.targetFirmwareVersion,
+      maxLinkDistanceM: config.maxLinkDistanceM
     };
 
     let remoteApDeviceId = null;

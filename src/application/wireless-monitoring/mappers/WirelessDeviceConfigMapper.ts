@@ -18,7 +18,9 @@ export class WirelessDeviceConfigMapper {
       deviceType: config.deviceType,
       linkCapacityBps: config.linkCapacityBps,
       clientsProvisionedLimit: config.clientsProvisionedLimit,
-      lastPolledAt: config.lastPolledAt?.toISOString() ?? null
+      lastPolledAt: config.lastPolledAt?.toISOString() ?? null,
+      targetFirmwareVersion: config.targetFirmwareVersion,
+      maxLinkDistanceM: config.maxLinkDistanceM
     };
   }
 
@@ -32,7 +34,9 @@ export class WirelessDeviceConfigMapper {
       intervalSecs: dto.intervalSecs ?? null,
       enabled: dto.enabled ?? null,
       linkCapacityBps: dto.linkCapacityBps ?? null,
-      clientsProvisionedLimit: dto.clientsProvisionedLimit ?? null
+      clientsProvisionedLimit: dto.clientsProvisionedLimit ?? null,
+      targetFirmwareVersion: dto.targetFirmwareVersion ?? null,
+      maxLinkDistanceM: dto.maxLinkDistanceM ?? null
     };
   }
 
@@ -42,6 +46,8 @@ export class WirelessDeviceConfigMapper {
     enabled?: boolean;
     linkCapacityBps?: number | null;
     clientsProvisionedLimit?: number | null;
+    targetFirmwareVersion?: string | null;
+    maxLinkDistanceM?: number | null;
   } {
     const updates: {
       ipAddress?: string | null;
@@ -49,6 +55,8 @@ export class WirelessDeviceConfigMapper {
       enabled?: boolean;
       linkCapacityBps?: number | null;
       clientsProvisionedLimit?: number | null;
+      targetFirmwareVersion?: string | null;
+      maxLinkDistanceM?: number | null;
     } = {};
 
     if (dto.ipAddress !== undefined) updates.ipAddress = dto.ipAddress;
@@ -59,6 +67,10 @@ export class WirelessDeviceConfigMapper {
       updates.linkCapacityBps = dto.linkCapacityBps;
     if (dto.clientsProvisionedLimit !== undefined)
       updates.clientsProvisionedLimit = dto.clientsProvisionedLimit;
+    if (dto.targetFirmwareVersion !== undefined)
+      updates.targetFirmwareVersion = dto.targetFirmwareVersion;
+    if (dto.maxLinkDistanceM !== undefined)
+      updates.maxLinkDistanceM = dto.maxLinkDistanceM;
 
     return updates;
   }

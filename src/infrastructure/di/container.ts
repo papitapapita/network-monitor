@@ -33,6 +33,16 @@ import {
 } from '../wireless-monitoring';
 import { WirelessDeviceRepositoryAdapter } from '../wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter';
 import { WirelessAlertEvaluator } from 'domain/wireless-monitoring/services';
+import { SignalStrengthRule } from 'domain/wireless-monitoring/services/rules/SignalStrengthRule';
+import { SnrRule } from 'domain/wireless-monitoring/services/rules/SnrRule';
+import { CcqRule } from 'domain/wireless-monitoring/services/rules/CcqRule';
+import { CpuMemoryRule } from 'domain/wireless-monitoring/services/rules/CpuMemoryRule';
+import { LanHealthRule } from 'domain/wireless-monitoring/services/rules/LanHealthRule';
+import { ClientCountRule } from 'domain/wireless-monitoring/services/rules/ClientCountRule';
+import { CapacityRule } from 'domain/wireless-monitoring/services/rules/CapacityRule';
+import { DistanceRule } from 'domain/wireless-monitoring/services/rules/DistanceRule';
+import { IdentityChangeRule } from 'domain/wireless-monitoring/services/rules/IdentityChangeRule';
+import { FirmwareRule } from 'domain/wireless-monitoring/services/rules/FirmwareRule';
 import {
   PollWirelessDeviceUseCase,
   GetWirelessDeviceStatusUseCase,
@@ -418,7 +428,18 @@ export class DependencyContainer {
 
     const airOsHttpClient = new AirOsHttpClient(10_000, this.logger);
     const httpCollector = new UbiquitiHttpCollector(airOsHttpClient);
-    const alertEvaluator = new WirelessAlertEvaluator();
+    const alertEvaluator = new WirelessAlertEvaluator([
+      new SignalStrengthRule(),
+      new SnrRule(),
+      new CcqRule(),
+      new CpuMemoryRule(),
+      new LanHealthRule(),
+      new ClientCountRule(),
+      new CapacityRule(),
+      new DistanceRule(),
+      new IdentityChangeRule(),
+      new FirmwareRule()
+    ]);
     const wirelessDeviceRepo = new WirelessDeviceRepositoryAdapter(
       this.deviceRepository
     );

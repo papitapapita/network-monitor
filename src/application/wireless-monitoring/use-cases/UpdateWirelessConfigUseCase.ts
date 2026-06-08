@@ -85,6 +85,13 @@ export class UpdateWirelessConfigUseCase extends UseCase<
         updates.clientsProvisionedLimit
       );
     }
+    if (updates.targetFirmwareVersion !== undefined) {
+      config.updateTargetFirmwareVersion(updates.targetFirmwareVersion);
+    }
+    if (updates.maxLinkDistanceM !== undefined) {
+      const result = config.updateMaxLinkDistanceM(updates.maxLinkDistanceM);
+      if (result.isFailure) return this.fail(result.error);
+    }
 
     const saveResult = await this.configRepo.save(config);
     if (saveResult.isFailure) {

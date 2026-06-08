@@ -47,6 +47,8 @@ function makeConfig(): WirelessDeviceConfig {
       linkCapacityBps: null,
       clientsProvisionedLimit: null,
       lastPolledAt: null,
+      targetFirmwareVersion: null,
+      maxLinkDistanceM: null
     }
   );
 }

@@ -8,4 +8,6 @@ export interface WirelessConfigResponseDTO {
   linkCapacityBps: number | null;
   clientsProvisionedLimit: number | null;
   lastPolledAt: string | null;
+  targetFirmwareVersion: string | null;
+  maxLinkDistanceM: number | null;
 }

@@ -403,6 +403,8 @@ model WirelessPollingConfiguration {
   linkCapacityBps         BigInt?   @map("link_capacity_bps")
   clientsProvisionedLimit Int?      @map("clients_provisioned_limit")
   lastPolledAt            DateTime? @map("last_polled_at") @db.Timestamptz
+  targetFirmwareVersion   String?   @map("target_firmware_version") @db.VarChar(50)
+  maxLinkDistanceM        Int?      @map("max_link_distance_m")
   createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 

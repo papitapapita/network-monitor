@@ -21,6 +21,8 @@ function makeProps(
     linkCapacityBps: null,
     clientsProvisionedLimit: null,
     lastPolledAt: null,
+    targetFirmwareVersion: null,
+    maxLinkDistanceM: null,
     ...overrides,
   };
 }
@@ -234,6 +236,8 @@ describe('WirelessDeviceConfig', () => {
         linkCapacityBps: 1_000_000,
         clientsProvisionedLimit: 50,
         lastPolledAt,
+        targetFirmwareVersion: null,
+        maxLinkDistanceM: null
       });
 
       expect(config.deviceId).toBe(deviceId);

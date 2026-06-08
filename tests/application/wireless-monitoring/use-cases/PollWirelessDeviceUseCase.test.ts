@@ -68,7 +68,9 @@ function makePollingConfig(overrides: {
       deviceType: overrides.deviceType ?? 'STATION',
       linkCapacityBps: overrides.linkCapacityBps !== undefined ? overrides.linkCapacityBps : null,
       clientsProvisionedLimit: overrides.clientsProvisionedLimit !== undefined ? overrides.clientsProvisionedLimit : null,
-      lastPolledAt: null
+      lastPolledAt: null,
+      targetFirmwareVersion: null,
+      maxLinkDistanceM: null
     }
   );
 }
@@ -223,6 +225,7 @@ function configureHappyPath(
   );
 
   mocks.alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([]));
+  mocks.snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(null));
   mocks.alertEvaluator.evaluate.mockReturnValue([]);
   mocks.snapshotRepo.save.mockImplementation((snapshot) =>
     Promise.resolve(Result.ok(snapshot))
