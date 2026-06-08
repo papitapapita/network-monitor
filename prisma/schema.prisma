@@ -360,6 +360,9 @@ model WirelessSnapshot {
   clientsConnected  Int?     @map("clients_connected")
   clientsProvisioned Int?    @map("clients_provisioned")
   clientsJson       Json?    @map("clients_json")
+  macAddress        String?  @map("mac_address") @db.VarChar(17)
+  deviceModel       String?  @map("device_model") @db.VarChar(100)
+  ssid              String?  @map("ssid") @db.VarChar(64)
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)

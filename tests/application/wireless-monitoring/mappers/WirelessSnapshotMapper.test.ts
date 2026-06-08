@@ -84,6 +84,9 @@ function makeMetrics(
     deviceTimeEpoch:   null,
     clientsConnected:  5,
     clientsProvisioned: 10,
+    macAddress: null,
+    deviceModel: null,
+    ssid: null,
     ...overrides,
   });
 }
@@ -122,6 +125,9 @@ function makeNullMetrics(): WirelessMetrics {
     deviceTimeEpoch:   null,
     clientsConnected:  null,
     clientsProvisioned: null,
+    macAddress: null,
+    deviceModel: null,
+    ssid: null,
   });
 }
 
@@ -202,6 +208,8 @@ function makeClient(
     remoteTxThroughputKbps:   5000,
     remoteRxThroughputKbps:   3000,
     remoteIpAddresses:        ['10.0.0.1'],
+    dlAirtimePercent:         null,
+    ulAirtimePercent:         null,
     ...overrides,
   });
 }

@@ -36,6 +36,8 @@ export interface HttpClientEntry {
   remoteTxThroughputKbps: number | null;
   remoteRxThroughputKbps: number | null;
   remoteIpAddresses: string[];
+  dlAirtimePercent: number | null;
+  ulAirtimePercent: number | null;
 }
 
 export interface HttpCollectionResult {
@@ -66,6 +68,8 @@ export interface HttpCollectionResult {
   capacityRxKbps: number | null;
   lanStatus: 'UP' | 'DOWN' | null;
   lanSpeedMbps: number | null;
+  macAddress: string | null;
+  deviceModel: string | null;
   clients: HttpClientEntry[];
 }
 

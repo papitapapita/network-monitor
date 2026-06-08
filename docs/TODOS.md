@@ -98,15 +98,22 @@ _Main user-facing features still missing._
   - Prerequisite: confirm Device-to-Device is enough (no separate AccessPoint/RadioAntenna entity needed)
   - Unlocks: link-health dashboard, link-level alerting
 
+- [ ] **Notification severity tiers by device type** — emit higher-severity alerts for infrastructure devices to reduce noise from downstream disconnections
+  - When an AP goes down every station under it appears offline; suppress those station-level notifications and escalate the AP alert instead
+  - Severity map (highest → lowest): Provider link down → Backhaul down → PoE switch down → AP/Antenna down → Station/client disconnected
+  - `NotificationSeverity` enum: `CRITICAL` (backhaul / provider), `HIGH` (AP / antenna), `MEDIUM` (PoE switch), `LOW` (station / client)
+  - `DeviceWentOfflineNotificationHandler`: resolve severity from device role/type before dispatching; downstream station alerts are demoted or suppressed when the parent AP alert is already active
+  - Prerequisite: device activation workflow; network topology (to know which stations belong to which AP)
+
 - [ ] **Network topology & notification suppression** — prevent alert storms when an upstream device fails
-  - Topology is a strict parent-pointer tree: `RouterBoard → Backhaul → Distribution Switch → Hex PoE → Antenna → Clients/Nodes`
+  - Topology is a strict parent-pointer tree: `Provider → RouterBoard → Backhaul → Distribution Switch → Hex PoE → Antenna → Clients/Nodes`
   - `NetworkTopology` aggregate in `domain/device-inventory`; stores edges as `Map<DeviceId, DeviceId>` (child → upstream parent)
-  - `TopologyRootCauseService` domain service: given an offline device, walk up the tree through enabled edges and return the topmost offline ancestor
-  - Suppression rule: if `parent(X)` is already offline → suppress notification for X; otherwise X is the root cause → notify
+  - `TopologyRootCauseService` domain service: given an offline device, walk up the cascade chain (AP → PoE switch → backhaul → provider) and return the topmost offline ancestor
+  - Suppression rule: if any ancestor in the chain is already offline → suppress notification for the descendant; otherwise the device is the root cause → notify
+  - Cascade check order per `DeviceWentOfflineNotificationHandler`: (1) is the AP offline? (2) is the PoE switch offline? (3) is the backhaul offline? (4) is the provider link down? — first match wins as root cause
   - Suppression cascades naturally: one upstream failure silences all descendants in a single hop check per device
-  - `DeviceWentOfflineNotificationHandler` consults `TopologyRootCauseService` before dispatching
-  - RouterBoard is the topology root (ISPs are upstream providers, not managed devices)
-  - Prerequisite: device activation workflow (only `ACTIVE` devices participate in topology)
+  - RouterBoard is the topology root (ISPs / provider links are upstream of it but modelled as provider-type devices, not managed infrastructure)
+  - Prerequisite: device activation workflow (only `ACTIVE` devices participate in topology); notification severity tiers (above)
 
 ---
 

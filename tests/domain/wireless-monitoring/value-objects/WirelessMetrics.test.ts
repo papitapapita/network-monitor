@@ -41,6 +41,9 @@ function makeNullProps(): WirelessMetricsProps {
     capacityTxKbps: null,
     capacityRxKbps: null,
     deviceTimeEpoch: null,
+    macAddress: null,
+    deviceModel: null,
+    ssid: null,
   };
 }
 
@@ -78,6 +81,9 @@ function makeFullProps(overrides: Partial<WirelessMetricsProps> = {}): WirelessM
     capacityTxKbps: null,
     capacityRxKbps: null,
     deviceTimeEpoch: null,
+    macAddress: 'AA:BB:CC:DD:EE:FF',
+    deviceModel: 'Rocket 5AC',
+    ssid: 'MyNetwork',
     ...overrides,
   };
 }
@@ -141,6 +147,25 @@ describe('WirelessMetrics', () => {
       const result = WirelessMetrics.create(makeFullProps({ remoteApMac: 'not-a-mac' }));
 
       expect(result.isFailure).toBe(true);
+    });
+
+    it('should fail when macAddress is not a valid MAC address', () => {
+      const result = WirelessMetrics.create(makeFullProps({ macAddress: 'not-a-mac' }));
+
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('should normalize macAddress to uppercase colon-separated form', () => {
+      const result = WirelessMetrics.create(makeFullProps({ macAddress: 'aa:bb:cc:dd:ee:ff' }));
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.macAddress).toBe('AA:BB:CC:DD:EE:FF');
+    });
+
+    it('should succeed when macAddress is null', () => {
+      const result = WirelessMetrics.create(makeFullProps({ macAddress: null }));
+
+      expect(result.isSuccess).toBe(true);
     });
 
     it('should succeed when all nullable fields are null', () => {
@@ -361,6 +386,89 @@ describe('WirelessMetrics', () => {
       expect(metrics.remoteApName).toBeNull();
       expect(metrics.distanceM).toBeNull();
       expect(metrics.latencyMs).toBeNull();
+    });
+  });
+
+  // ===========================================================================
+  describe('getters — macAddress, deviceModel, ssid', () => {
+    it('should expose macAddress (normalized)', () => {
+      const metrics = WirelessMetrics.create(makeFullProps({ macAddress: 'aa:bb:cc:dd:ee:ff' })).value;
+
+      expect(metrics.macAddress).toBe('AA:BB:CC:DD:EE:FF');
+    });
+
+    it('should expose deviceModel', () => {
+      const metrics = WirelessMetrics.create(makeFullProps({ deviceModel: 'Rocket 5AC' })).value;
+
+      expect(metrics.deviceModel).toBe('Rocket 5AC');
+    });
+
+    it('should expose ssid', () => {
+      const metrics = WirelessMetrics.create(makeFullProps({ ssid: 'MyNetwork' })).value;
+
+      expect(metrics.ssid).toBe('MyNetwork');
+    });
+
+    it('should return null for macAddress, deviceModel, ssid when not set', () => {
+      const metrics = WirelessMetrics.create(makeNullProps()).value;
+
+      expect(metrics.macAddress).toBeNull();
+      expect(metrics.deviceModel).toBeNull();
+      expect(metrics.ssid).toBeNull();
+    });
+  });
+
+  // ===========================================================================
+  describe('getSignalDelta()', () => {
+    it('should return signalTxDbm - signalRxDbm when both are present', () => {
+      const metrics = WirelessMetrics.create(makeFullProps({
+        signalTxDbm: -60,
+        signalRxDbm: -65,
+      })).value;
+
+      expect(metrics.getSignalDelta()).toBe(5);
+    });
+
+    it('should return a negative delta when TX signal is weaker than RX', () => {
+      const metrics = WirelessMetrics.create(makeFullProps({
+        signalTxDbm: -75,
+        signalRxDbm: -65,
+      })).value;
+
+      expect(metrics.getSignalDelta()).toBe(-10);
+    });
+
+    it('should return 0 when TX and RX signals are equal', () => {
+      const metrics = WirelessMetrics.create(makeFullProps({
+        signalTxDbm: -70,
+        signalRxDbm: -70,
+      })).value;
+
+      expect(metrics.getSignalDelta()).toBe(0);
+    });
+
+    it('should return null when signalTxDbm is null', () => {
+      const metrics = WirelessMetrics.create(makeFullProps({
+        signalTxDbm: null,
+        signalRxDbm: -65,
+      })).value;
+
+      expect(metrics.getSignalDelta()).toBeNull();
+    });
+
+    it('should return null when signalRxDbm is null', () => {
+      const metrics = WirelessMetrics.create(makeFullProps({
+        signalTxDbm: -60,
+        signalRxDbm: null,
+      })).value;
+
+      expect(metrics.getSignalDelta()).toBeNull();
+    });
+
+    it('should return null when both signals are null', () => {
+      const metrics = WirelessMetrics.create(makeNullProps()).value;
+
+      expect(metrics.getSignalDelta()).toBeNull();
     });
   });
 

@@ -40,6 +40,8 @@ function makeMinimalProps(
     remoteTxThroughputKbps: null,
     remoteRxThroughputKbps: null,
     remoteIpAddresses: [],
+    dlAirtimePercent: null,
+    ulAirtimePercent: null,
     ...overrides
   };
 }
@@ -77,6 +79,8 @@ function makeFullProps(
     remoteTxThroughputKbps: 5000,
     remoteRxThroughputKbps: 3000,
     remoteIpAddresses: ['10.0.0.1'],
+    dlAirtimePercent: 35,
+    ulAirtimePercent: 20,
     ...overrides
   };
 }
@@ -259,6 +263,64 @@ describe('WirelessClientEntry', () => {
       });
     });
 
+    describe('when airtime fields are out of range', () => {
+      it('should fail when dlAirtimePercent is negative', () => {
+        const result = WirelessClientEntry.create(
+          makeFullProps({ dlAirtimePercent: -1 })
+        );
+
+        expect(result.isFailure).toBe(true);
+      });
+
+      it('should fail when dlAirtimePercent exceeds 100', () => {
+        const result = WirelessClientEntry.create(
+          makeFullProps({ dlAirtimePercent: 101 })
+        );
+
+        expect(result.isFailure).toBe(true);
+      });
+
+      it('should fail when ulAirtimePercent is negative', () => {
+        const result = WirelessClientEntry.create(
+          makeFullProps({ ulAirtimePercent: -1 })
+        );
+
+        expect(result.isFailure).toBe(true);
+      });
+
+      it('should fail when ulAirtimePercent exceeds 100', () => {
+        const result = WirelessClientEntry.create(
+          makeFullProps({ ulAirtimePercent: 101 })
+        );
+
+        expect(result.isFailure).toBe(true);
+      });
+
+      it('should accept dlAirtimePercent at the lower boundary (0)', () => {
+        const result = WirelessClientEntry.create(
+          makeFullProps({ dlAirtimePercent: 0 })
+        );
+
+        expect(result.isSuccess).toBe(true);
+      });
+
+      it('should accept ulAirtimePercent at the upper boundary (100)', () => {
+        const result = WirelessClientEntry.create(
+          makeFullProps({ ulAirtimePercent: 100 })
+        );
+
+        expect(result.isSuccess).toBe(true);
+      });
+
+      it('should succeed when both airtime fields are null', () => {
+        const result = WirelessClientEntry.create(
+          makeMinimalProps({ dlAirtimePercent: null, ulAirtimePercent: null })
+        );
+
+        expect(result.isSuccess).toBe(true);
+      });
+    });
+
     describe('when props object itself is null or undefined', () => {
       it('should fail when props is null', () => {
         const result = WirelessClientEntry.create(
@@ -394,6 +456,81 @@ describe('WirelessClientEntry', () => {
       expect(entry.rxBytesTotal).toBeNull();
       expect(entry.remoteHostname).toBeNull();
       expect(entry.remoteIpAddresses).toEqual([]);
+    });
+  });
+
+  // ===========================================================================
+  describe('getters — dlAirtimePercent, ulAirtimePercent', () => {
+    it('should expose dlAirtimePercent', () => {
+      const entry = WirelessClientEntry.create(
+        makeFullProps({ dlAirtimePercent: 35 })
+      ).value;
+
+      expect(entry.dlAirtimePercent).toBe(35);
+    });
+
+    it('should expose ulAirtimePercent', () => {
+      const entry = WirelessClientEntry.create(
+        makeFullProps({ ulAirtimePercent: 20 })
+      ).value;
+
+      expect(entry.ulAirtimePercent).toBe(20);
+    });
+
+    it('should return null for both airtime getters when not set', () => {
+      const entry = WirelessClientEntry.create(makeMinimalProps()).value;
+
+      expect(entry.dlAirtimePercent).toBeNull();
+      expect(entry.ulAirtimePercent).toBeNull();
+    });
+  });
+
+  // ===========================================================================
+  describe('getSnr()', () => {
+    it('should return signalRxDbm - noiseFloorDbm when both are present', () => {
+      const entry = WirelessClientEntry.create(
+        makeFullProps({ signalRxDbm: -65, noiseFloorDbm: -95 })
+      ).value;
+
+      expect(entry.getSnr()).toBe(30);
+    });
+
+    it('should return 0 when signal equals noise floor', () => {
+      const entry = WirelessClientEntry.create(
+        makeFullProps({ signalRxDbm: -90, noiseFloorDbm: -90 })
+      ).value;
+
+      expect(entry.getSnr()).toBe(0);
+    });
+
+    it('should return a negative value when signal is above noise floor (edge case)', () => {
+      const entry = WirelessClientEntry.create(
+        makeFullProps({ signalRxDbm: -88, noiseFloorDbm: -85 })
+      ).value;
+
+      expect(entry.getSnr()).toBe(-3);
+    });
+
+    it('should return null when signalRxDbm is null', () => {
+      const entry = WirelessClientEntry.create(
+        makeFullProps({ signalRxDbm: null, noiseFloorDbm: -95 })
+      ).value;
+
+      expect(entry.getSnr()).toBeNull();
+    });
+
+    it('should return null when noiseFloorDbm is null', () => {
+      const entry = WirelessClientEntry.create(
+        makeFullProps({ signalRxDbm: -65, noiseFloorDbm: null })
+      ).value;
+
+      expect(entry.getSnr()).toBeNull();
+    });
+
+    it('should return null when both are null', () => {
+      const entry = WirelessClientEntry.create(makeMinimalProps()).value;
+
+      expect(entry.getSnr()).toBeNull();
     });
   });
 

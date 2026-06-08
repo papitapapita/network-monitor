@@ -30,6 +30,9 @@ export interface WirelessMetricsDTO {
   latencyMs: number | null;
   clientsConnected: number | null;
   clientsProvisioned: number | null;
+  macAddress: string | null;
+  deviceModel: string | null;
+  ssid: string | null;
 }
 
 export interface WirelessStatusResponseDTO {

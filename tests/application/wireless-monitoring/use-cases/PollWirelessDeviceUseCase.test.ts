@@ -118,6 +118,8 @@ function makeHttpResult(overrides: Partial<HttpCollectionResult> = {}): HttpColl
     capacityRxKbps: null,
     lanStatus: 'UP',
     lanSpeedMbps: 1000,
+    macAddress: null,
+    deviceModel: null,
     clients: [],
     ...overrides
   };

@@ -53,6 +53,9 @@ const makeMinimalPrismaRow = (): PrismaWirelessSnapshot => ({
   clientsConnected: null,
   clientsProvisioned: null,
   clientsJson: null,
+  macAddress: null,
+  deviceModel: null,
+  ssid: null,
 });
 
 const makeFullPrismaRow = (): PrismaWirelessSnapshot => ({
@@ -94,6 +97,9 @@ const makeFullPrismaRow = (): PrismaWirelessSnapshot => ({
   deviceTimeEpoch: 1718440200n,
   clientsConnected: 3,
   clientsProvisioned: 10,
+  macAddress: 'AA:BB:CC:DD:EE:FF',
+  deviceModel: 'Rocket 5AC',
+  ssid: 'TestNet',
   clientsJson: [
     {
       macAddress: 'AA:BB:CC:DD:EE:01',
@@ -150,6 +156,9 @@ const buildDomainSnapshot = (overrides: Partial<{
     deviceTimeEpoch: null,
     clientsConnected: 3,
     clientsProvisioned: null,
+    macAddress: null,
+    deviceModel: null,
+    ssid: null,
   });
 
   return WirelessSnapshot.reconstitute(
@@ -299,6 +308,7 @@ describe('WirelessSnapshotPrismaMapper', () => {
         deviceName: null, remoteApMac: null, remoteApName: null, remoteApIp: null,
         distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
         deviceTimeEpoch: null, clientsConnected: null, clientsProvisioned: null,
+        macAddress: null, deviceModel: null, ssid: null,
       });
 
       const snapshot = WirelessSnapshot.reconstitute(
@@ -334,6 +344,7 @@ describe('WirelessSnapshotPrismaMapper', () => {
         deviceName: null, remoteApMac: null, remoteApName: null, remoteApIp: null,
         distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
         deviceTimeEpoch: null, clientsConnected: null, clientsProvisioned: null,
+        macAddress: null, deviceModel: null, ssid: null,
       });
 
       const client = WirelessClientEntry.reconstitute({
@@ -366,6 +377,8 @@ describe('WirelessSnapshotPrismaMapper', () => {
         remoteTxThroughputKbps: null,
         remoteRxThroughputKbps: null,
         remoteIpAddresses: ['10.0.0.1'],
+        dlAirtimePercent: null,
+        ulAirtimePercent: null,
       });
 
       const snapshot = WirelessSnapshot.reconstitute(

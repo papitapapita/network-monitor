@@ -46,6 +46,9 @@ type PrismaWirelessSnapshot = {
   clientsConnected: number | null;
   clientsProvisioned: number | null;
   clientsJson: unknown;
+  macAddress: string | null;
+  deviceModel: string | null;
+  ssid: string | null;
 };
 
 type PersistenceData = {
@@ -88,6 +91,9 @@ type PersistenceData = {
   clientsConnected: number | null;
   clientsProvisioned: number | null;
   clientsJson: unknown;
+  macAddress: string | null;
+  deviceModel: string | null;
+  ssid: string | null;
 };
 
 export class WirelessSnapshotPrismaMapper {
@@ -146,7 +152,10 @@ export class WirelessSnapshotPrismaMapper {
       deviceTimeEpoch:
         raw.deviceTimeEpoch !== null ? Number(raw.deviceTimeEpoch) : null,
       clientsConnected: raw.clientsConnected,
-      clientsProvisioned: raw.clientsProvisioned
+      clientsProvisioned: raw.clientsProvisioned,
+      macAddress: raw.macAddress,
+      deviceModel: raw.deviceModel,
+      ssid: raw.ssid
     };
 
     const metrics = WirelessMetrics.reconstitute(metricsProps);
@@ -206,7 +215,11 @@ export class WirelessSnapshotPrismaMapper {
               (c['remoteRxThroughputKbps'] as number | null) ?? null,
             remoteIpAddresses: Array.isArray(c['remoteIpAddresses'])
               ? (c['remoteIpAddresses'] as string[])
-              : []
+              : [],
+            dlAirtimePercent:
+              (c['dlAirtimePercent'] as number | null) ?? null,
+            ulAirtimePercent:
+              (c['ulAirtimePercent'] as number | null) ?? null
           })
         );
       }
@@ -266,7 +279,9 @@ export class WirelessSnapshotPrismaMapper {
       remoteTxPower: c.remoteTxPower,
       remoteTxThroughputKbps: c.remoteTxThroughputKbps,
       remoteRxThroughputKbps: c.remoteRxThroughputKbps,
-      remoteIpAddresses: c.remoteIpAddresses
+      remoteIpAddresses: c.remoteIpAddresses,
+      dlAirtimePercent: c.dlAirtimePercent,
+      ulAirtimePercent: c.ulAirtimePercent
     }));
 
     return {
@@ -316,7 +331,10 @@ export class WirelessSnapshotPrismaMapper {
         m.deviceTimeEpoch !== null ? BigInt(m.deviceTimeEpoch) : null,
       clientsConnected: m.clientsConnected,
       clientsProvisioned: m.clientsProvisioned,
-      clientsJson: clientsJson.length > 0 ? clientsJson : null
+      clientsJson: clientsJson.length > 0 ? clientsJson : null,
+      macAddress: m.macAddress,
+      deviceModel: m.deviceModel,
+      ssid: m.ssid
     };
   }
 }

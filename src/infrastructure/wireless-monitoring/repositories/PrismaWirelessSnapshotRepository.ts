@@ -44,7 +44,7 @@ export class PrismaWirelessSnapshotRepository
       // Prisma return type is broader than the mapper's narrowed type — cast required
       return Result.ok(
         WirelessSnapshotPrismaMapper.toDomain(
-          raw as Parameters<
+          raw as unknown as Parameters<
             typeof WirelessSnapshotPrismaMapper.toDomain
           >[0]
         )
@@ -67,7 +67,7 @@ export class PrismaWirelessSnapshotRepository
       if (!raw) return Result.ok(null);
       return Result.ok(
         WirelessSnapshotPrismaMapper.toDomain(
-          raw as Parameters<
+          raw as unknown as Parameters<
             typeof WirelessSnapshotPrismaMapper.toDomain
           >[0]
         )
@@ -95,7 +95,7 @@ export class PrismaWirelessSnapshotRepository
       return Result.ok(
         raws.map((r) =>
           WirelessSnapshotPrismaMapper.toDomain(
-            r as Parameters<
+            r as unknown as Parameters<
               typeof WirelessSnapshotPrismaMapper.toDomain
             >[0]
           )

@@ -103,6 +103,15 @@ export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
   get deviceTimeEpoch(): number | null {
     return this._props.deviceTimeEpoch;
   }
+  get macAddress(): string | null {
+    return this._props.macAddress;
+  }
+  get deviceModel(): string | null {
+    return this._props.deviceModel;
+  }
+  get ssid(): string | null {
+    return this._props.ssid;
+  }
 
   public isSignalDegraded(): boolean {
     return (
@@ -124,6 +133,16 @@ export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
       this._props.noiseFloorDbm !== null
     ) {
       return this._props.signalRxDbm - this._props.noiseFloorDbm;
+    }
+    return null;
+  }
+
+  public getSignalDelta(): number | null {
+    if (
+      this._props.signalTxDbm !== null &&
+      this._props.signalRxDbm !== null
+    ) {
+      return this._props.signalTxDbm - this._props.signalRxDbm;
     }
     return null;
   }
@@ -263,8 +282,21 @@ export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
       normalizedRemoteApMac = macResult.value.value;
     }
 
+    let normalizedMacAddress: string | null = props.macAddress;
+    if (props.macAddress !== null) {
+      const macResult = MACAddress.create(props.macAddress);
+      if (macResult.isFailure) {
+        return Result.fail<WirelessMetrics>(macResult.error!);
+      }
+      normalizedMacAddress = macResult.value.value;
+    }
+
     return Result.ok<WirelessMetrics>(
-      new WirelessMetrics({ ...props, remoteApMac: normalizedRemoteApMac })
+      new WirelessMetrics({
+        ...props,
+        remoteApMac: normalizedRemoteApMac,
+        macAddress: normalizedMacAddress
+      })
     );
   }
 

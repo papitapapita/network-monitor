@@ -45,6 +45,7 @@ function makeNullMetrics(): WirelessMetrics {
     deviceName: null, remoteApMac: null, remoteApName: null, remoteApIp: null,
     distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
     deviceTimeEpoch: null, clientsConnected: null, clientsProvisioned: null,
+    macAddress: null, deviceModel: null, ssid: null,
   });
 }
 
@@ -100,6 +101,8 @@ function makeClient(macAddress: string): WirelessClientEntry {
     remoteTxThroughputKbps: null,
     remoteRxThroughputKbps: null,
     remoteIpAddresses: [],
+    dlAirtimePercent: null,
+    ulAirtimePercent: null,
   });
 }
 

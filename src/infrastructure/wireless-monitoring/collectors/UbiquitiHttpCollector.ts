@@ -85,6 +85,8 @@ export class UbiquitiHttpCollector implements IUbiquitiHttpCollector {
       cpuLoadPercent: num(host, 'cpuload'),
       memoryUsedPercent,
       essid: str(wireless, 'essid'),
+      macAddress: str(wireless, 'mac'),
+      deviceModel: str(host, 'platform'),
       mode: parseMode(str(wireless, 'mode')),
       frequencyMhz: num(wireless, 'frequency'),
       channelWidthMhz: chanbw !== null && chanbw > 0 ? chanbw : null,
@@ -228,6 +230,8 @@ function parseClientEntry(
     remoteTxPower: num(remote, 'tx_power'),
     remoteTxThroughputKbps: num(remote, 'tx_throughput'),
     remoteRxThroughputKbps: num(remote, 'rx_throughput'),
-    remoteIpAddresses
+    remoteIpAddresses,
+    dlAirtimePercent: num(airmaxRx, 'airtime'),
+    ulAirtimePercent: num(airmaxTx, 'airtime')
   };
 }

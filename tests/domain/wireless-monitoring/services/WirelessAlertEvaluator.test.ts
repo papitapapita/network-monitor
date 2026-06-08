@@ -25,7 +25,7 @@ function makeNullProps(): WirelessMetricsProps {
     throughputRxPps: null, firmwareVersion: null, deviceName: null,
     remoteApMac: null, remoteApName: null, remoteApIp: null,
     distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
-    deviceTimeEpoch: null,
+    deviceTimeEpoch: null, macAddress: null, deviceModel: null, ssid: null,
   };
 }
 

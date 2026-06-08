@@ -34,6 +34,7 @@ const buildDomainSnapshot = (): WirelessSnapshot => {
     deviceName: 'ubnt-cpe', remoteApMac: null, remoteApName: null, remoteApIp: null,
     distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
     deviceTimeEpoch: null, clientsConnected: 2, clientsProvisioned: null,
+    macAddress: null, deviceModel: null, ssid: null,
   });
 
   return WirelessSnapshot.reconstitute(
@@ -82,6 +83,9 @@ const makePrismaRow = () => ({
   clientsConnected: 2,
   clientsProvisioned: null,
   clientsJson: null,
+  macAddress: null,
+  deviceModel: null,
+  ssid: null,
 });
 
 describe('PrismaWirelessSnapshotRepository', () => {

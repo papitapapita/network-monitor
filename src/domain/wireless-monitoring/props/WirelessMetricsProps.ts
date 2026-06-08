@@ -31,4 +31,7 @@ export interface WirelessMetricsProps {
   capacityTxKbps: number | null;
   capacityRxKbps: number | null;
   deviceTimeEpoch: number | null;
+  macAddress: string | null;
+  deviceModel: string | null;
+  ssid: string | null;
 }

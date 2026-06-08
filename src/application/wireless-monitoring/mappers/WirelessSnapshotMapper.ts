@@ -45,7 +45,10 @@ export class WirelessSnapshotMapper {
       distanceM: m.distanceM,
       latencyMs: m.latencyMs,
       clientsConnected: m.clientsConnected,
-      clientsProvisioned: m.clientsProvisioned
+      clientsProvisioned: m.clientsProvisioned,
+      macAddress: m.macAddress,
+      deviceModel: m.deviceModel,
+      ssid: m.ssid
     };
 
     return {
@@ -101,7 +104,9 @@ export class WirelessSnapshotMapper {
       remoteTxPower: c.remoteTxPower,
       remoteTxThroughputKbps: c.remoteTxThroughputKbps,
       remoteRxThroughputKbps: c.remoteRxThroughputKbps,
-      remoteIpAddresses: c.remoteIpAddresses
+      remoteIpAddresses: c.remoteIpAddresses,
+      dlAirtimePercent: c.dlAirtimePercent,
+      ulAirtimePercent: c.ulAirtimePercent
     };
   }
 }

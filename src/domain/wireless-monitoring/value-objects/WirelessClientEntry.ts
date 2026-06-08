@@ -94,6 +94,22 @@ export class WirelessClientEntry extends ValueObject<WirelessClientEntryProps> {
   get remoteIpAddresses(): string[] {
     return this._props.remoteIpAddresses;
   }
+  get dlAirtimePercent(): number | null {
+    return this._props.dlAirtimePercent;
+  }
+  get ulAirtimePercent(): number | null {
+    return this._props.ulAirtimePercent;
+  }
+
+  public getSnr(): number | null {
+    if (
+      this._props.signalRxDbm !== null &&
+      this._props.noiseFloorDbm !== null
+    ) {
+      return this._props.signalRxDbm - this._props.noiseFloorDbm;
+    }
+    return null;
+  }
 
   public static create(
     props: WirelessClientEntryProps
@@ -142,6 +158,28 @@ export class WirelessClientEntry extends ValueObject<WirelessClientEntryProps> {
       ]);
       if (!ipGuards.succeeded)
         return Result.fail<WirelessClientEntry>(ipGuards.message!);
+    }
+
+    if (props.dlAirtimePercent !== null) {
+      const guard = Guard.inRange(
+        props.dlAirtimePercent,
+        0,
+        100,
+        'dlAirtimePercent'
+      );
+      if (!guard.succeeded)
+        return Result.fail<WirelessClientEntry>(guard.message!);
+    }
+
+    if (props.ulAirtimePercent !== null) {
+      const guard = Guard.inRange(
+        props.ulAirtimePercent,
+        0,
+        100,
+        'ulAirtimePercent'
+      );
+      if (!guard.succeeded)
+        return Result.fail<WirelessClientEntry>(guard.message!);
     }
 
     return Result.ok<WirelessClientEntry>(

@@ -229,7 +229,10 @@ export class PollWirelessDeviceUseCase
       latencyMs: http.latencyMs,
       capacityTxKbps: http.capacityTxKbps,
       capacityRxKbps: http.capacityRxKbps,
-      deviceTimeEpoch: http.deviceTimeEpoch
+      deviceTimeEpoch: http.deviceTimeEpoch,
+      macAddress: http.macAddress,
+      deviceModel: http.deviceModel,
+      ssid: http.essid
     });
     if (metricsResult.isFailure) {
       return this.fail(
@@ -329,7 +332,9 @@ export class PollWirelessDeviceUseCase
                 remoteTxPower: c.remoteTxPower,
                 remoteTxThroughputKbps: c.remoteTxThroughputKbps,
                 remoteRxThroughputKbps: c.remoteRxThroughputKbps,
-                remoteIpAddresses: c.remoteIpAddresses
+                remoteIpAddresses: c.remoteIpAddresses,
+                dlAirtimePercent: c.dlAirtimePercent,
+                ulAirtimePercent: c.ulAirtimePercent
               })
             )
             .filter((r) => r.isSuccess)

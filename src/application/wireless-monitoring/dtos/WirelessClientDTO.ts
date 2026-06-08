@@ -28,4 +28,6 @@ export interface WirelessClientDTO {
   remoteTxThroughputKbps: number | null;
   remoteRxThroughputKbps: number | null;
   remoteIpAddresses: string[];
+  dlAirtimePercent: number | null;
+  ulAirtimePercent: number | null;
 }

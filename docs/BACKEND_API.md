@@ -887,7 +887,7 @@ interface WirelessClientDTO {
 {
   deviceType: 'STATION' | 'ACCESS_POINT'   // required
   ipAddress?: string | null             // IPv4 or IPv6; used for HTTP API polling
-  intervalSecs?: number                 // 60–86400; default 3600
+  intervalSecs?: number                 // 30–86400; default 3600
   enabled?: boolean                     // default true
   linkCapacityBps?: number | null       // link capacity for throughput alerts
   clientsProvisionedLimit?: number | null // AP only — max expected clients
@@ -930,7 +930,7 @@ interface WirelessClientDTO {
 // Request body (at least one field required)
 {
   ipAddress?: string | null
-  intervalSecs?: number       // 60–86400
+  intervalSecs?: number       // 30–86400
   enabled?: boolean
   linkCapacityBps?: number | null
   clientsProvisionedLimit?: number | null
@@ -1048,7 +1048,7 @@ WirelessAlertDTO[]
 ```ts
 // No request body
 
-// Response
+// Response (202)
 {
   deviceId: string
   collectedAt: string         // ISO 8601
