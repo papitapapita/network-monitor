@@ -39,7 +39,8 @@ function makeConfig(overrides: {
   enabled?: boolean;
   ipAddress?: IPAddress | null;
   pollingInterval?: PollingInterval;
-  linkCapacityBps?: number | null;
+  deviceType?: 'STATION' | 'ACCESS_POINT';
+  linkCapacityKbps?: number | null;
   clientsProvisionedLimit?: number | null;
 } = {}): WirelessDeviceConfig {
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
@@ -50,15 +51,13 @@ function makeConfig(overrides: {
       ipAddress: overrides.ipAddress !== undefined ? overrides.ipAddress : null,
       enabled: overrides.enabled !== undefined ? overrides.enabled : true,
       pollingInterval: overrides.pollingInterval ?? PollingInterval.reconstitute(3600),
-      deviceType: 'STATION',
-      linkCapacityBps: overrides.linkCapacityBps !== undefined ? overrides.linkCapacityBps : null,
+      deviceType: overrides.deviceType ?? 'STATION',
+      linkCapacityKbps: overrides.linkCapacityKbps !== undefined ? overrides.linkCapacityKbps : null,
       clientsProvisionedLimit:
         overrides.clientsProvisionedLimit !== undefined
           ? overrides.clientsProvisionedLimit
           : null,
       lastPolledAt: null,
-      targetFirmwareVersion: null,
-      maxLinkDistanceM: null
     }
   );
 }
@@ -326,49 +325,49 @@ describe('UpdateWirelessConfigUseCase', () => {
   });
 
   // ===========================================================================
-  describe('executeImpl — linkCapacityBps update', () => {
+  describe('executeImpl — linkCapacityKbps update', () => {
     beforeEach(() => {
       configRepo.save.mockImplementation((c) => Promise.resolve(Result.ok(c)));
     });
 
-    it('should update linkCapacityBps when a value is provided', async () => {
+    it('should update linkCapacityKbps when a value is provided', async () => {
       configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        linkCapacityBps: 50_000_000,
+        linkCapacityKbps: 50_000_000,
       });
 
       expect(result.isSuccess).toBe(true);
-      expect(result.value.linkCapacityBps).toBe(50_000_000);
+      expect(result.value.linkCapacityKbps).toBe(50_000_000);
     });
 
-    it('should clear linkCapacityBps when null is provided', async () => {
+    it('should clear linkCapacityKbps when null is provided', async () => {
       configRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeConfig({ linkCapacityBps: 50_000_000 }))
+        Result.ok(makeConfig({ linkCapacityKbps: 50_000_000 }))
       );
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        linkCapacityBps: null,
+        linkCapacityKbps: null,
       });
 
       expect(result.isSuccess).toBe(true);
-      expect(result.value.linkCapacityBps).toBeNull();
+      expect(result.value.linkCapacityKbps).toBeNull();
     });
 
-    it('should NOT update linkCapacityBps when undefined (skip)', async () => {
+    it('should NOT update linkCapacityKbps when undefined (skip)', async () => {
       configRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeConfig({ linkCapacityBps: 50_000_000 }))
+        Result.ok(makeConfig({ linkCapacityKbps: 50_000_000 }))
       );
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        // linkCapacityBps intentionally omitted
+        // linkCapacityKbps intentionally omitted
       });
 
       expect(result.isSuccess).toBe(true);
-      expect(result.value.linkCapacityBps).toBe(50_000_000);
+      expect(result.value.linkCapacityKbps).toBe(50_000_000);
     });
   });
 
@@ -379,7 +378,9 @@ describe('UpdateWirelessConfigUseCase', () => {
     });
 
     it('should update clientsProvisionedLimit when a value is provided', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig({ deviceType: 'ACCESS_POINT' }))
+      );
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
@@ -392,7 +393,7 @@ describe('UpdateWirelessConfigUseCase', () => {
 
     it('should clear clientsProvisionedLimit when null is provided', async () => {
       configRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeConfig({ clientsProvisionedLimit: 20 }))
+        Result.ok(makeConfig({ deviceType: 'ACCESS_POINT', clientsProvisionedLimit: 20 }))
       );
 
       const result = await useCase.execute({
@@ -406,7 +407,7 @@ describe('UpdateWirelessConfigUseCase', () => {
 
     it('should NOT update clientsProvisionedLimit when undefined (skip)', async () => {
       configRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeConfig({ clientsProvisionedLimit: 20 }))
+        Result.ok(makeConfig({ deviceType: 'ACCESS_POINT', clientsProvisionedLimit: 20 }))
       );
 
       const result = await useCase.execute({

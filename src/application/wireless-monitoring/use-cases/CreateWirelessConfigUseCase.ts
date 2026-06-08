@@ -91,11 +91,9 @@ export class CreateWirelessConfigUseCase extends UseCase<
       enabled: data.enabled ?? true,
       pollingInterval: intervalResult.value,
       deviceType: data.deviceType,
-      linkCapacityBps: data.linkCapacityBps ?? null,
+      linkCapacityKbps: data.linkCapacityKbps ?? null,
       clientsProvisionedLimit: data.clientsProvisionedLimit ?? null,
-      lastPolledAt: null,
-      targetFirmwareVersion: data.targetFirmwareVersion ?? null,
-      maxLinkDistanceM: data.maxLinkDistanceM ?? null
+      lastPolledAt: null
     });
     if (configResult.isFailure) {
       return this.fail(configResult.error);

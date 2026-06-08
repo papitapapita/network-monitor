@@ -29,11 +29,9 @@ function makeConfig(
     enabled:                 boolean;
     pollingInterval:         PollingInterval;
     deviceType:              'STATION' | 'ACCESS_POINT';
-    linkCapacityBps:         number | null;
+    linkCapacityKbps:         number | null;
     clientsProvisionedLimit: number | null;
     lastPolledAt:            Date | null;
-    targetFirmwareVersion:   string | null;
-    maxLinkDistanceM:        number | null;
   }> = {}
 ): WirelessDeviceConfig {
   const id       = overrides.id       ?? WirelessDeviceConfigId.parse(CONFIG_UUID).value!;
@@ -45,11 +43,9 @@ function makeConfig(
     enabled:                 overrides.enabled                 ?? true,
     pollingInterval:         overrides.pollingInterval         ?? PollingInterval.reconstitute(60),
     deviceType:              overrides.deviceType              ?? 'STATION',
-    linkCapacityBps:         overrides.linkCapacityBps         ?? null,
+    linkCapacityKbps:         overrides.linkCapacityKbps         ?? null,
     clientsProvisionedLimit: overrides.clientsProvisionedLimit ?? null,
-    lastPolledAt:            overrides.lastPolledAt            ?? null,
-    targetFirmwareVersion:   overrides.targetFirmwareVersion   ?? null,
-    maxLinkDistanceM:        overrides.maxLinkDistanceM        ?? null
+    lastPolledAt:            overrides.lastPolledAt            ?? null
   });
 }
 
@@ -131,20 +127,20 @@ describe('WirelessDeviceConfigMapper', () => {
       expect(dto.deviceType).toBe('ACCESS_POINT');
     });
 
-    it('should pass linkCapacityBps number through unchanged', () => {
-      const config = makeConfig({ linkCapacityBps: 100000000 });
+    it('should pass linkCapacityKbps number through unchanged', () => {
+      const config = makeConfig({ linkCapacityKbps: 100000000 });
 
       const dto = WirelessDeviceConfigMapper.toDTO(config);
 
-      expect(dto.linkCapacityBps).toBe(100000000);
+      expect(dto.linkCapacityKbps).toBe(100000000);
     });
 
-    it('should pass linkCapacityBps null through unchanged', () => {
-      const config = makeConfig({ linkCapacityBps: null });
+    it('should pass linkCapacityKbps null through unchanged', () => {
+      const config = makeConfig({ linkCapacityKbps: null });
 
       const dto = WirelessDeviceConfigMapper.toDTO(config);
 
-      expect(dto.linkCapacityBps).toBeNull();
+      expect(dto.linkCapacityKbps).toBeNull();
     });
 
     it('should pass clientsProvisionedLimit number through unchanged', () => {
@@ -276,28 +272,28 @@ describe('WirelessDeviceConfigMapper', () => {
       expect(result.enabled).toBeNull();
     });
 
-    it('should pass linkCapacityBps through when provided', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION', linkCapacityBps: 50000000 };
+    it('should pass linkCapacityKbps through when provided', () => {
+      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION', linkCapacityKbps: 50000000 };
 
       const result = WirelessDeviceConfigMapper.extractCreateData(dto);
 
-      expect(result.linkCapacityBps).toBe(50000000);
+      expect(result.linkCapacityKbps).toBe(50000000);
     });
 
-    it('should default linkCapacityBps to null when omitted', () => {
+    it('should default linkCapacityKbps to null when omitted', () => {
       const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION' };
 
       const result = WirelessDeviceConfigMapper.extractCreateData(dto);
 
-      expect(result.linkCapacityBps).toBeNull();
+      expect(result.linkCapacityKbps).toBeNull();
     });
 
-    it('should pass linkCapacityBps as null when explicitly null', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION', linkCapacityBps: null };
+    it('should pass linkCapacityKbps as null when explicitly null', () => {
+      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION', linkCapacityKbps: null };
 
       const result = WirelessDeviceConfigMapper.extractCreateData(dto);
 
-      expect(result.linkCapacityBps).toBeNull();
+      expect(result.linkCapacityKbps).toBeNull();
     });
 
     it('should pass clientsProvisionedLimit through when provided', () => {
@@ -391,28 +387,28 @@ describe('WirelessDeviceConfigMapper', () => {
       expect('enabled' in result).toBe(false);
     });
 
-    it('should include linkCapacityBps when provided as a number', () => {
-      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, linkCapacityBps: 75000000 };
+    it('should include linkCapacityKbps when provided as a number', () => {
+      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, linkCapacityKbps: 75000000 };
 
       const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
 
-      expect(result.linkCapacityBps).toBe(75000000);
+      expect(result.linkCapacityKbps).toBe(75000000);
     });
 
-    it('should include linkCapacityBps when explicitly null', () => {
-      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, linkCapacityBps: null };
+    it('should include linkCapacityKbps when explicitly null', () => {
+      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, linkCapacityKbps: null };
 
       const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
 
-      expect(result.linkCapacityBps).toBeNull();
+      expect(result.linkCapacityKbps).toBeNull();
     });
 
-    it('should not include linkCapacityBps key when omitted', () => {
+    it('should not include linkCapacityKbps key when omitted', () => {
       const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
 
       const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
 
-      expect('linkCapacityBps' in result).toBe(false);
+      expect('linkCapacityKbps' in result).toBe(false);
     });
 
     it('should include clientsProvisionedLimit when provided as a number', () => {
@@ -445,7 +441,7 @@ describe('WirelessDeviceConfigMapper', () => {
         ipAddress:               '10.0.0.1',
         intervalSecs:            180,
         enabled:                 false,
-        linkCapacityBps:         25000000,
+        linkCapacityKbps:         25000000,
         clientsProvisionedLimit: 10
       };
 
@@ -455,7 +451,7 @@ describe('WirelessDeviceConfigMapper', () => {
         ipAddress:               '10.0.0.1',
         intervalSecs:            180,
         enabled:                 false,
-        linkCapacityBps:         25000000,
+        linkCapacityKbps:         25000000,
         clientsProvisionedLimit: 10
       });
     });

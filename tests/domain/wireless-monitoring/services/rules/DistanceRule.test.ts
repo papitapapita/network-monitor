@@ -32,11 +32,9 @@ function makeContext(overrides: Partial<EvaluationContext> = {}): EvaluationCont
   return {
     deviceName: 'CPE-001',
     deviceModel: null,
-    linkCapacityBps: null,
+    linkCapacityKbps: null,
     clientsProvisionedLimit: null,
     previousMetrics: null,
-    targetFirmwareVersion: null,
-    maxLinkDistanceM: null,
     ...overrides,
   };
 }
@@ -61,66 +59,87 @@ describe('DistanceRule', () => {
   });
 
   describe('distance_m', () => {
-    it('should return [] when maxLinkDistanceM is null in context, even if distanceM is large', () => {
-      const metrics = makeMetrics({ distanceM: 99_999 });
-      const result = rule.evaluate(metrics, makeContext({ maxLinkDistanceM: null }), new Map());
-      expect(result).toHaveLength(0);
-    });
-
     it('should return [] when distanceM is null', () => {
-      const metrics = makeMetrics({ distanceM: null });
-      const result = rule.evaluate(metrics, makeContext({ maxLinkDistanceM: 5_000 }), new Map());
-      expect(result).toHaveLength(0);
+      const metrics = makeMetrics({ distanceM: null, channelWidthMhz: 20 });
+      expect(rule.evaluate(metrics, makeContext(), new Map())).toHaveLength(0);
     });
 
-    it('should emit OPEN WARNING when distanceM exceeds maxLinkDistanceM and no active alert', () => {
-      const metrics = makeMetrics({ distanceM: 6_000 });
-      const result = rule.evaluate(metrics, makeContext({ maxLinkDistanceM: 5_000 }), new Map());
+    it('should return [] when channelWidthMhz is null', () => {
+      const metrics = makeMetrics({ distanceM: 99_999, channelWidthMhz: null });
+      expect(rule.evaluate(metrics, makeContext(), new Map())).toHaveLength(0);
+    });
+
+    it('should return [] when channelWidthMhz is not in the lookup table (e.g. 160 MHz)', () => {
+      const metrics = makeMetrics({ distanceM: 99_999, channelWidthMhz: 160 });
+      expect(rule.evaluate(metrics, makeContext(), new Map())).toHaveLength(0);
+    });
+
+    it('should emit OPEN WARNING when distanceM exceeds the 20 MHz ceiling (15 km)', () => {
+      const metrics = makeMetrics({ distanceM: 16_000, channelWidthMhz: 20 });
+      const result = rule.evaluate(metrics, makeContext(), new Map());
       const decision = result.find(d => d.metric === 'distance_m');
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('OPEN');
       expect(decision!.severity).toBe('WARNING');
-      expect(decision!.currentValue).toBe(6_000);
+      expect(decision!.currentValue).toBe(16_000);
+      expect(decision!.threshold).toBe(15_000);
+    });
+
+    it('should emit OPEN WARNING when distanceM exceeds the 40 MHz ceiling (10 km)', () => {
+      const metrics = makeMetrics({ distanceM: 11_000, channelWidthMhz: 40 });
+      const result = rule.evaluate(metrics, makeContext(), new Map());
+      const decision = result.find(d => d.metric === 'distance_m');
+      expect(decision).toBeDefined();
+      expect(decision!.action).toBe('OPEN');
+      expect(decision!.threshold).toBe(10_000);
+    });
+
+    it('should emit OPEN WARNING when distanceM exceeds the 80 MHz ceiling (5 km)', () => {
+      const metrics = makeMetrics({ distanceM: 6_000, channelWidthMhz: 80 });
+      const result = rule.evaluate(metrics, makeContext(), new Map());
+      const decision = result.find(d => d.metric === 'distance_m');
+      expect(decision).toBeDefined();
+      expect(decision!.action).toBe('OPEN');
       expect(decision!.threshold).toBe(5_000);
     });
 
-    it('should emit CLEAR WARNING when distanceM is at or below maxLinkDistanceM and active alert exists', () => {
-      const metrics = makeMetrics({ distanceM: 5_000 });
+    it('should include the channel width in the OPEN message', () => {
+      const metrics = makeMetrics({ distanceM: 6_000, channelWidthMhz: 80 });
+      const result = rule.evaluate(metrics, makeContext(), new Map());
+      const decision = result.find(d => d.metric === 'distance_m' && d.action === 'OPEN');
+      expect(decision!.message).toContain('80 MHz');
+    });
+
+    it('should emit CLEAR when distanceM recovers below the ceiling and alert is active', () => {
+      const metrics = makeMetrics({ distanceM: 4_000, channelWidthMhz: 80 });
       const alerts = activeMap(['distance_m', 'WARNING']);
-      const result = rule.evaluate(metrics, makeContext({ maxLinkDistanceM: 5_000 }), alerts);
+      const result = rule.evaluate(metrics, makeContext(), alerts);
       const decision = result.find(d => d.metric === 'distance_m');
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('CLEAR');
-      expect(decision!.currentValue).toBe(5_000);
+      expect(decision!.currentValue).toBe(4_000);
+      expect(decision!.threshold).toBe(5_000);
     });
 
-    it('should emit CLEAR WARNING when distanceM is below maxLinkDistanceM and active alert exists', () => {
-      const metrics = makeMetrics({ distanceM: 4_000 });
+    it('should emit CLEAR when distanceM is exactly at the ceiling and alert is active', () => {
+      const metrics = makeMetrics({ distanceM: 5_000, channelWidthMhz: 80 });
       const alerts = activeMap(['distance_m', 'WARNING']);
-      const result = rule.evaluate(metrics, makeContext({ maxLinkDistanceM: 5_000 }), alerts);
+      const result = rule.evaluate(metrics, makeContext(), alerts);
       const decision = result.find(d => d.metric === 'distance_m');
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('CLEAR');
     });
 
-    it('should not emit OPEN when WARNING alert is already active and distance still exceeds max', () => {
-      const metrics = makeMetrics({ distanceM: 8_000 });
+    it('should not emit OPEN when alert is already active and distance still exceeds ceiling', () => {
+      const metrics = makeMetrics({ distanceM: 8_000, channelWidthMhz: 80 });
       const alerts = activeMap(['distance_m', 'WARNING']);
-      const result = rule.evaluate(metrics, makeContext({ maxLinkDistanceM: 5_000 }), alerts);
-      const opens = result.filter(d => d.metric === 'distance_m' && d.action === 'OPEN');
+      const opens = rule.evaluate(metrics, makeContext(), alerts).filter(d => d.action === 'OPEN');
       expect(opens).toHaveLength(0);
     });
 
-    it('should not emit any decision when distance is exactly at max and no active alert', () => {
-      const metrics = makeMetrics({ distanceM: 5_000 });
-      const result = rule.evaluate(metrics, makeContext({ maxLinkDistanceM: 5_000 }), new Map());
-      expect(result).toHaveLength(0);
-    });
-
-    it('should not emit any decision when distance is well within max and no active alert', () => {
-      const metrics = makeMetrics({ distanceM: 1_000 });
-      const result = rule.evaluate(metrics, makeContext({ maxLinkDistanceM: 5_000 }), new Map());
-      expect(result).toHaveLength(0);
+    it('should not emit any decision when distance is within ceiling and no active alert', () => {
+      const metrics = makeMetrics({ distanceM: 3_000, channelWidthMhz: 80 });
+      expect(rule.evaluate(metrics, makeContext(), new Map())).toHaveLength(0);
     });
   });
 });

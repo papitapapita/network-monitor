@@ -32,11 +32,9 @@ const buildDomainConfig = (): WirelessDeviceConfig => {
     enabled: true,
     pollingInterval: PollingInterval.reconstitute(60),
     deviceType: 'STATION',
-    linkCapacityBps: 100_000_000,
+    linkCapacityKbps: 100_000_000,
     clientsProvisionedLimit: 10,
     lastPolledAt: new Date('2024-01-01T12:00:00Z'),
-    targetFirmwareVersion: null,
-    maxLinkDistanceM: null,
   });
 };
 
@@ -47,11 +45,9 @@ const makePrismaRow = () => ({
   enabled: true,
   intervalSecs: 60,
   deviceType: 'STATION',
-  linkCapacityBps: 100_000_000n,
+  linkCapacityKbps: 100_000_000n,
   clientsProvisionedLimit: 10,
   lastPolledAt: new Date('2024-01-01T12:00:00Z'),
-  targetFirmwareVersion: null,
-  maxLinkDistanceM: null,
 });
 
 // Shape returned by the raw $queryRaw (snake_case column names)

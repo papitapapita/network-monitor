@@ -32,11 +32,9 @@ function makeContext(overrides: Partial<EvaluationContext> = {}): EvaluationCont
   return {
     deviceName: 'CPE-001',
     deviceModel: null,
-    linkCapacityBps: null,
+    linkCapacityKbps: null,
     clientsProvisionedLimit: null,
     previousMetrics: null,
-    targetFirmwareVersion: null,
-    maxLinkDistanceM: null,
     ...overrides,
   };
 }

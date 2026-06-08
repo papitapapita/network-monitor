@@ -47,11 +47,9 @@ function makeContext(overrides: Partial<EvaluationContext> = {}): EvaluationCont
   return {
     deviceName: 'CPE-001',
     deviceModel: null,
-    linkCapacityBps: null,
+    linkCapacityKbps: null,
     clientsProvisionedLimit: null,
     previousMetrics: null,
-    targetFirmwareVersion: null,
-    maxLinkDistanceM: null,
     ...overrides,
   };
 }
@@ -357,9 +355,9 @@ describe('WirelessAlertEvaluator', () => {
   // ===========================================================================
   describe('evaluate() — context-dependent thresholds', () => {
 
-    it('should produce no throughput_tx_bps decision when linkCapacityBps is null', () => {
+    it('should produce no throughput_tx_bps decision when linkCapacityKbps is null', () => {
       const metrics = makeMetrics({ throughputTxBps: 99_000_000 });
-      const ctx = makeContext({ linkCapacityBps: null });
+      const ctx = makeContext({ linkCapacityKbps: null });
 
       const decisions = evaluator.evaluate(metrics, new Map(), ctx);
 

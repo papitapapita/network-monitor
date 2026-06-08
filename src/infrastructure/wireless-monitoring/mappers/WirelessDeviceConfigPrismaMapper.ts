@@ -11,11 +11,9 @@ type PrismaWirelessDeviceConfigRow = {
   enabled: boolean;
   intervalSecs: number;
   deviceType: string;
-  linkCapacityBps: bigint | null;
+  linkCapacityKbps: bigint | null;
   clientsProvisionedLimit: number | null;
   lastPolledAt: Date | null;
-  targetFirmwareVersion: string | null;
-  maxLinkDistanceM: number | null;
 };
 
 type PersistenceData = {
@@ -25,11 +23,9 @@ type PersistenceData = {
   enabled: boolean;
   intervalSecs: number;
   deviceType: string;
-  linkCapacityBps: bigint | null;
+  linkCapacityKbps: bigint | null;
   clientsProvisionedLimit: number | null;
   lastPolledAt: Date | null;
-  targetFirmwareVersion: string | null;
-  maxLinkDistanceM: number | null;
 };
 
 export class WirelessDeviceConfigPrismaMapper {
@@ -53,14 +49,12 @@ export class WirelessDeviceConfigPrismaMapper {
       enabled: raw.enabled,
       pollingInterval: PollingInterval.reconstitute(raw.intervalSecs),
       deviceType: raw.deviceType as 'STATION' | 'ACCESS_POINT',
-      linkCapacityBps:
-        raw.linkCapacityBps !== null
-          ? Number(raw.linkCapacityBps)
+      linkCapacityKbps:
+        raw.linkCapacityKbps !== null
+          ? Number(raw.linkCapacityKbps)
           : null,
       clientsProvisionedLimit: raw.clientsProvisionedLimit,
-      lastPolledAt: raw.lastPolledAt,
-      targetFirmwareVersion: raw.targetFirmwareVersion,
-      maxLinkDistanceM: raw.maxLinkDistanceM
+      lastPolledAt: raw.lastPolledAt
     };
 
     return WirelessDeviceConfig.reconstitute(id.value, props);
@@ -76,14 +70,12 @@ export class WirelessDeviceConfigPrismaMapper {
       enabled: config.enabled,
       intervalSecs: config.pollingInterval.seconds,
       deviceType: config.deviceType,
-      linkCapacityBps:
-        config.linkCapacityBps !== null
-          ? BigInt(config.linkCapacityBps)
+      linkCapacityKbps:
+        config.linkCapacityKbps !== null
+          ? BigInt(config.linkCapacityKbps)
           : null,
       clientsProvisionedLimit: config.clientsProvisionedLimit,
-      lastPolledAt: config.lastPolledAt,
-      targetFirmwareVersion: config.targetFirmwareVersion,
-      maxLinkDistanceM: config.maxLinkDistanceM
+      lastPolledAt: config.lastPolledAt
     };
   }
 }

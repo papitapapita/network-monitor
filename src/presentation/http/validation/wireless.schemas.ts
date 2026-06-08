@@ -58,37 +58,46 @@ export const getAllAlertHistorySchema = z.object({
 
 export const createWirelessConfigSchema = z.object({
   params: z.object({ id: uuidSchema }),
-  body: z.object({
-    deviceType: z.enum(['STATION', 'ACCESS_POINT']),
-    ipAddress: z
-      .union([z.string().ipv4(), z.string().ipv6(), z.null()])
-      .optional(),
-    intervalSecs: z.number().int().min(30).max(86400).optional(),
-    enabled: z.boolean().optional(),
-    linkCapacityBps: z
-      .number()
-      .int()
-      .positive()
-      .nullable()
-      .optional(),
-    clientsProvisionedLimit: z
-      .number()
-      .int()
-      .positive()
-      .nullable()
-      .optional(),
-    targetFirmwareVersion: z
-      .string()
-      .max(50)
-      .nullable()
-      .optional(),
-    maxLinkDistanceM: z
-      .number()
-      .int()
-      .positive()
-      .nullable()
-      .optional()
-  })
+  body: z
+    .object({
+      deviceType: z.enum(['STATION', 'ACCESS_POINT']),
+      ipAddress: z
+        .union([z.string().ipv4(), z.string().ipv6(), z.null()])
+        .optional(),
+      intervalSecs: z.number().int().min(30).max(86400).optional(),
+      enabled: z.boolean().optional(),
+      linkCapacityKbps: z
+        .number()
+        .int()
+        .positive()
+        .nullable()
+        .optional(),
+      clientsProvisionedLimit: z
+        .number()
+        .int()
+        .positive()
+        .nullable()
+        .optional()
+    })
+    .superRefine((data, ctx) => {
+      if (data.deviceType === 'ACCESS_POINT' && data.linkCapacityKbps != null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'linkCapacityKbps can only be set for STATION devices',
+          path: ['linkCapacityKbps']
+        });
+      }
+      if (
+        data.deviceType === 'STATION' &&
+        data.clientsProvisionedLimit != null
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'clientsProvisionedLimit can only be set for ACCESS_POINT devices',
+          path: ['clientsProvisionedLimit']
+        });
+      }
+    })
 });
 
 export const getWirelessConfigSchema = z.object({
@@ -104,24 +113,13 @@ export const updateWirelessConfigSchema = z.object({
         .optional(),
       intervalSecs: z.number().int().min(30).max(86400).optional(),
       enabled: z.boolean().optional(),
-      linkCapacityBps: z
+      linkCapacityKbps: z
         .number()
         .int()
         .positive()
         .nullable()
         .optional(),
       clientsProvisionedLimit: z
-        .number()
-        .int()
-        .positive()
-        .nullable()
-        .optional(),
-      targetFirmwareVersion: z
-        .string()
-        .max(50)
-        .nullable()
-        .optional(),
-      maxLinkDistanceM: z
         .number()
         .int()
         .positive()

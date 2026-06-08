@@ -77,22 +77,16 @@ export class UpdateWirelessConfigUseCase extends UseCase<
       }
       config.updatePollingInterval(intervalResult.value);
     }
-    if (updates.linkCapacityBps !== undefined) {
-      config.updateLinkCapacityBps(updates.linkCapacityBps);
+    if (updates.linkCapacityKbps !== undefined) {
+      const r = config.updateLinkCapacityBps(updates.linkCapacityKbps);
+      if (r.isFailure) return this.fail(r.error);
     }
     if (updates.clientsProvisionedLimit !== undefined) {
-      config.updateClientsProvisionedLimit(
+      const r = config.updateClientsProvisionedLimit(
         updates.clientsProvisionedLimit
       );
+      if (r.isFailure) return this.fail(r.error);
     }
-    if (updates.targetFirmwareVersion !== undefined) {
-      config.updateTargetFirmwareVersion(updates.targetFirmwareVersion);
-    }
-    if (updates.maxLinkDistanceM !== undefined) {
-      const result = config.updateMaxLinkDistanceM(updates.maxLinkDistanceM);
-      if (result.isFailure) return this.fail(result.error);
-    }
-
     const saveResult = await this.configRepo.save(config);
     if (saveResult.isFailure) {
       return this.fail(saveResult.error);

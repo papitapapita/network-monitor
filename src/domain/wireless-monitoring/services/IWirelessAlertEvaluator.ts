@@ -13,11 +13,9 @@ export interface AlertDecision {
 export interface EvaluationContext {
   deviceName: string;
   deviceModel: string | null;
-  linkCapacityBps: number | null;
+  linkCapacityKbps: number | null;
   clientsProvisionedLimit: number | null;
   previousMetrics: WirelessMetrics | null;
-  targetFirmwareVersion: string | null;
-  maxLinkDistanceM: number | null;
 }
 
 export interface IWirelessAlertEvaluator {

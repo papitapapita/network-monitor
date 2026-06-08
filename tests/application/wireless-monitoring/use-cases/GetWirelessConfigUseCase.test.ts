@@ -49,11 +49,9 @@ function makeConfig(overrides: { ipAddress?: string | null } = {}): WirelessDevi
       enabled: true,
       pollingInterval: PollingInterval.reconstitute(3600),
       deviceType: 'STATION',
-      linkCapacityBps: null,
+      linkCapacityKbps: null,
       clientsProvisionedLimit: null,
       lastPolledAt: null,
-      targetFirmwareVersion: null,
-      maxLinkDistanceM: null
     }
   );
 }

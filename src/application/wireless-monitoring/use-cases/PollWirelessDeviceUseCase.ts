@@ -193,11 +193,9 @@ export class PollWirelessDeviceUseCase
     const ctx: EvaluationContext = {
       deviceName: http.deviceName ?? 'Equipo desconocido',
       deviceModel: http.deviceModel,
-      linkCapacityBps: config.linkCapacityBps,
+      linkCapacityKbps: config.linkCapacityKbps,
       clientsProvisionedLimit: config.clientsProvisionedLimit,
-      previousMetrics,
-      targetFirmwareVersion: config.targetFirmwareVersion,
-      maxLinkDistanceM: config.maxLinkDistanceM
+      previousMetrics
     };
 
     let remoteApDeviceId = null;

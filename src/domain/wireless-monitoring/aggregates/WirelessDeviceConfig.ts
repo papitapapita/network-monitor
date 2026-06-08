@@ -36,20 +36,14 @@ export class WirelessDeviceConfig extends AggregateRoot<
   get deviceType(): 'STATION' | 'ACCESS_POINT' {
     return this.props.deviceType;
   }
-  get linkCapacityBps(): number | null {
-    return this.props.linkCapacityBps;
+  get linkCapacityKbps(): number | null {
+    return this.props.linkCapacityKbps;
   }
   get clientsProvisionedLimit(): number | null {
     return this.props.clientsProvisionedLimit;
   }
   get lastPolledAt(): Date | null {
     return this.props.lastPolledAt;
-  }
-  get targetFirmwareVersion(): string | null {
-    return this.props.targetFirmwareVersion;
-  }
-  get maxLinkDistanceM(): number | null {
-    return this.props.maxLinkDistanceM;
   }
 
   public static create(
@@ -58,7 +52,10 @@ export class WirelessDeviceConfig extends AggregateRoot<
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(props.deviceId, 'deviceId'),
       Guard.againstNullOrUndefined(props.deviceType, 'deviceType'),
-      Guard.againstNullOrUndefined(props.pollingInterval, 'pollingInterval')
+      Guard.againstNullOrUndefined(
+        props.pollingInterval,
+        'pollingInterval'
+      )
     ]);
     if (!guardResult.succeeded) {
       return Result.fail(guardResult.message!);
@@ -68,8 +65,21 @@ export class WirelessDeviceConfig extends AggregateRoot<
         `Wireless polling interval must be at least ${MIN_POLLING_SECONDS} seconds`
       );
     }
-    if (props.maxLinkDistanceM !== null && props.maxLinkDistanceM < 0) {
-      return Result.fail('maxLinkDistanceM must be a positive number');
+    if (
+      props.linkCapacityKbps !== null &&
+      props.deviceType !== 'STATION'
+    ) {
+      return Result.fail(
+        'linkCapacityKbps can only be set for STATION devices'
+      );
+    }
+    if (
+      props.clientsProvisionedLimit !== null &&
+      props.deviceType !== 'ACCESS_POINT'
+    ) {
+      return Result.fail(
+        'clientsProvisionedLimit can only be set for ACCESS_POINT devices'
+      );
     }
     return Result.ok(
       new WirelessDeviceConfig(props, WirelessDeviceConfigId.create())
@@ -81,16 +91,6 @@ export class WirelessDeviceConfig extends AggregateRoot<
     props: WirelessDeviceConfigProps
   ): WirelessDeviceConfig {
     return new WirelessDeviceConfig(props, id);
-  }
-
-  public isDue(now: Date): boolean {
-    if (!this.props.enabled) return false;
-    if (this.props.lastPolledAt === null) return true;
-    return (
-      this.props.lastPolledAt.getTime() +
-        this.props.pollingInterval.seconds * 1000 <=
-      now.getTime()
-    );
   }
 
   public markPolled(at: Date): Result<void> {
@@ -148,33 +148,29 @@ export class WirelessDeviceConfig extends AggregateRoot<
   }
 
   public updateLinkCapacityBps(
-    linkCapacityBps: number | null
+    linkCapacityKbps: number | null
   ): Result<void> {
-    this.props.linkCapacityBps = linkCapacityBps;
+    if (
+      linkCapacityKbps !== null &&
+      this.props.deviceType !== 'STATION'
+    ) {
+      return Result.fail(
+        'linkCapacityKbps can only be set for STATION devices'
+      );
+    }
+    this.props.linkCapacityKbps = linkCapacityKbps;
     return Result.ok();
   }
 
   public updateClientsProvisionedLimit(
     limit: number | null
   ): Result<void> {
-    this.props.clientsProvisionedLimit = limit;
-    return Result.ok();
-  }
-
-  public updateTargetFirmwareVersion(
-    version: string | null
-  ): Result<void> {
-    this.props.targetFirmwareVersion = version;
-    return Result.ok();
-  }
-
-  public updateMaxLinkDistanceM(
-    distance: number | null
-  ): Result<void> {
-    if (distance !== null && distance < 0) {
-      return Result.fail('maxLinkDistanceM must be a positive number');
+    if (limit !== null && this.props.deviceType !== 'ACCESS_POINT') {
+      return Result.fail(
+        'clientsProvisionedLimit can only be set for ACCESS_POINT devices'
+      );
     }
-    this.props.maxLinkDistanceM = distance;
+    this.props.clientsProvisionedLimit = limit;
     return Result.ok();
   }
 }

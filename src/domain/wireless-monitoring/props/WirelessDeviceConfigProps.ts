@@ -10,9 +10,7 @@ export interface WirelessDeviceConfigProps {
   enabled: boolean;
   pollingInterval: PollingInterval;
   readonly deviceType: 'STATION' | 'ACCESS_POINT';
-  linkCapacityBps: number | null;
+  linkCapacityKbps: number | null;
   clientsProvisionedLimit: number | null;
   lastPolledAt: Date | null;
-  targetFirmwareVersion: string | null;
-  maxLinkDistanceM: number | null;
 }

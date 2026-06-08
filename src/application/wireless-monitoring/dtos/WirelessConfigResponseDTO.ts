@@ -5,9 +5,7 @@ export interface WirelessConfigResponseDTO {
   enabled: boolean;
   intervalSecs: number;
   deviceType: 'STATION' | 'ACCESS_POINT';
-  linkCapacityBps: number | null;
+  linkCapacityKbps: number | null;
   clientsProvisionedLimit: number | null;
   lastPolledAt: string | null;
-  targetFirmwareVersion: string | null;
-  maxLinkDistanceM: number | null;
 }

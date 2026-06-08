@@ -43,6 +43,7 @@ import { CapacityRule } from 'domain/wireless-monitoring/services/rules/Capacity
 import { DistanceRule } from 'domain/wireless-monitoring/services/rules/DistanceRule';
 import { IdentityChangeRule } from 'domain/wireless-monitoring/services/rules/IdentityChangeRule';
 import { FirmwareRule } from 'domain/wireless-monitoring/services/rules/FirmwareRule';
+import { ThroughputSaturationRule } from 'domain/wireless-monitoring/services/rules/ThroughputSaturationRule';
 import {
   PollWirelessDeviceUseCase,
   GetWirelessDeviceStatusUseCase,
@@ -438,7 +439,8 @@ export class DependencyContainer {
       new CapacityRule(),
       new DistanceRule(),
       new IdentityChangeRule(),
-      new FirmwareRule()
+      new FirmwareRule(),
+      new ThroughputSaturationRule()
     ]);
     const wirelessDeviceRepo = new WirelessDeviceRepositoryAdapter(
       this.deviceRepository

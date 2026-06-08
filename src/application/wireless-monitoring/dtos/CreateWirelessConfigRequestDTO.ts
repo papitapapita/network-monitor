@@ -4,8 +4,6 @@ export interface CreateWirelessConfigRequestDTO {
   ipAddress?: string | null;
   intervalSecs?: number;
   enabled?: boolean;
-  linkCapacityBps?: number | null;
+  linkCapacityKbps?: number | null;
   clientsProvisionedLimit?: number | null;
-  targetFirmwareVersion?: string | null;
-  maxLinkDistanceM?: number | null;
 }

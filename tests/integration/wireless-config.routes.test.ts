@@ -142,7 +142,7 @@ describe('Wireless Config Routes — /api/devices/:id/wireless/config', () => {
           ipAddress: '192.168.10.1',
           intervalSecs: 120,
           enabled: false,
-          linkCapacityBps: 100000000,
+          linkCapacityKbps: 100000000,
           clientsProvisionedLimit: 50
         });
 
@@ -152,7 +152,7 @@ describe('Wireless Config Routes — /api/devices/:id/wireless/config', () => {
       expect(res.body.ipAddress).toBe('192.168.10.1');
       expect(res.body.intervalSecs).toBe(120);
       expect(res.body.enabled).toBe(false);
-      expect(res.body.linkCapacityBps).toBe(100000000);
+      expect(res.body.linkCapacityKbps).toBe(100000000);
       expect(res.body.clientsProvisionedLimit).toBe(50);
     });
 

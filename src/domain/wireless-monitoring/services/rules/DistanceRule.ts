@@ -3,42 +3,50 @@ import { WirelessAlertRecord } from '../../aggregates';
 import { AlertDecision, EvaluationContext } from '../IWirelessAlertEvaluator';
 import { IAlertRule } from './IAlertRule';
 
+const CHANNEL_WIDTH_MAX_DISTANCE_M: Record<number, number> = {
+  20: 15_000,
+  40: 10_000,
+  80: 5_000,
+};
+
 export class DistanceRule implements IAlertRule {
   evaluate(
     metrics: WirelessMetrics,
     context: EvaluationContext,
     activeAlerts: Map<string, WirelessAlertRecord>
   ): AlertDecision[] {
-    if (context.maxLinkDistanceM === null) return [];
-
     const distanceM = metrics.distanceM;
-    if (distanceM === null) return [];
+    const channelWidthMhz = metrics.channelWidthMhz;
+
+    if (distanceM === null || channelWidthMhz === null) return [];
+
+    const maxDistanceM = CHANNEL_WIDTH_MAX_DISTANCE_M[channelWidthMhz];
+    if (maxDistanceM === undefined) return [];
 
     const key = 'distance_m:WARNING';
     const active = activeAlerts.get(key);
-    const max = context.maxLinkDistanceM;
 
-    if (!active && distanceM > max) {
+    if (!active && distanceM > maxDistanceM) {
       return [
         {
           metric: 'distance_m',
           action: 'OPEN',
           severity: 'WARNING',
           currentValue: distanceM,
-          threshold: max,
-          message: `Distancia de enlace excesiva en ${context.deviceName}: ${distanceM} m (máximo: ${max} m)`
+          threshold: maxDistanceM,
+          message: `Distancia de enlace excesiva en ${context.deviceName}: ${distanceM} m (máximo recomendado para ${channelWidthMhz} MHz: ${maxDistanceM / 1000} km)`
         }
       ];
     }
 
-    if (active && distanceM <= max) {
+    if (active && distanceM <= maxDistanceM) {
       return [
         {
           metric: 'distance_m',
           action: 'CLEAR',
           severity: 'WARNING',
           currentValue: distanceM,
-          threshold: max,
+          threshold: maxDistanceM,
           message: `Distancia de enlace normalizada en ${context.deviceName}: ${distanceM} m`
         }
       ];

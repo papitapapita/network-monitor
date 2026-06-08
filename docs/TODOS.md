@@ -93,6 +93,12 @@ _Main user-facing features still missing._
   - Requires `DeviceCredentials` to exist for the device
   - Requires `DeviceInterface` entities with `snmpIndex` for per-interface counters
 
+- [ ] **Throughput cap alerting** — alert when a device is consuming more bandwidth than its provisioned link capacity
+  - Source throughput from Mikrotik (RouterOS API) for all managed devices, not just wireless
+  - Compare `throughputTxBps + throughputRxBps` against a per-device `linkCapacityBps` limit stored on the device (Device Inventory BC, not Wireless Monitoring)
+  - Prerequisite: multi-vendor polling (Mikrotik collector); `linkCapacityBps` belongs on the Device aggregate or a `DeviceLink` entity, not on `WirelessDeviceConfig`
+  - When built, migrate the existing wireless channel-utilization alert (`linkCapacityBps` on `WirelessDeviceConfig`) into this module so all throughput cap logic lives in one place
+
 - [ ] **Link model** — represent RF links between two radios
   - Fields: `name`, `description`, `rxThroughput`, `txThroughput`, `rxSignalStrength`, `txSignalStrength`, `latency`, `distance`, source device, destination device
   - Prerequisite: confirm Device-to-Device is enough (no separate AccessPoint/RadioAntenna entity needed)

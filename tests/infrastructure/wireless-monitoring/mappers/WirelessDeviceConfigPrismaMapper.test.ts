@@ -18,11 +18,9 @@ const makeFullRow = (): PrismaWirelessDeviceConfigRow => ({
   enabled: true,
   intervalSecs: 60,
   deviceType: 'STATION',
-  linkCapacityBps: 100_000_000n,
+  linkCapacityKbps: 100_000_000n,
   clientsProvisionedLimit: 10,
   lastPolledAt: new Date('2024-01-01T12:00:00Z'),
-  targetFirmwareVersion: 'v8.7.11',
-  maxLinkDistanceM: 5000,
 });
 
 const makeMinimalRow = (): PrismaWirelessDeviceConfigRow => ({
@@ -32,11 +30,9 @@ const makeMinimalRow = (): PrismaWirelessDeviceConfigRow => ({
   enabled: false,
   intervalSecs: 30,
   deviceType: 'ACCESS_POINT',
-  linkCapacityBps: null,
+  linkCapacityKbps: null,
   clientsProvisionedLimit: null,
   lastPolledAt: null,
-  targetFirmwareVersion: null,
-  maxLinkDistanceM: null,
 });
 
 const buildDomainConfig = (): WirelessDeviceConfig => {
@@ -50,11 +46,9 @@ const buildDomainConfig = (): WirelessDeviceConfig => {
     enabled: true,
     pollingInterval: PollingInterval.reconstitute(60),
     deviceType: 'STATION',
-    linkCapacityBps: 100_000_000,
+    linkCapacityKbps: 100_000_000,
     clientsProvisionedLimit: 10,
     lastPolledAt: new Date('2024-01-01T12:00:00Z'),
-    targetFirmwareVersion: null,
-    maxLinkDistanceM: null,
   });
 };
 
@@ -69,16 +63,16 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
       expect(config.enabled).toBe(true);
       expect(config.pollingInterval.seconds).toBe(60);
       expect(config.deviceType).toBe('STATION');
-      expect(config.linkCapacityBps).toBe(100_000_000);
+      expect(config.linkCapacityKbps).toBe(100_000_000);
       expect(config.clientsProvisionedLimit).toBe(10);
       expect(config.lastPolledAt).toEqual(new Date('2024-01-01T12:00:00Z'));
     });
 
-    it('should convert BigInt linkCapacityBps to a number', () => {
+    it('should convert BigInt linkCapacityKbps to a number', () => {
       const config = WirelessDeviceConfigPrismaMapper.toDomain(makeFullRow());
 
-      expect(typeof config.linkCapacityBps).toBe('number');
-      expect(config.linkCapacityBps).toBe(100_000_000);
+      expect(typeof config.linkCapacityKbps).toBe('number');
+      expect(config.linkCapacityKbps).toBe(100_000_000);
     });
 
     it('should set ipAddress to null when the Prisma row has a null ipAddress', () => {
@@ -96,10 +90,10 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
       expect(config.ipAddress?.value).toBe('192.168.1.1');
     });
 
-    it('should set linkCapacityBps to null when the Prisma row has a null value', () => {
+    it('should set linkCapacityKbps to null when the Prisma row has a null value', () => {
       const config = WirelessDeviceConfigPrismaMapper.toDomain(makeMinimalRow());
 
-      expect(config.linkCapacityBps).toBeNull();
+      expect(config.linkCapacityKbps).toBeNull();
     });
 
     it('should set lastPolledAt to null when the Prisma row has a null value', () => {
@@ -139,17 +133,17 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
       expect(data.enabled).toBe(true);
       expect(data.intervalSecs).toBe(60);
       expect(data.deviceType).toBe('STATION');
-      expect(data.linkCapacityBps).toBe(100_000_000n);
+      expect(data.linkCapacityKbps).toBe(100_000_000n);
       expect(data.clientsProvisionedLimit).toBe(10);
       expect(data.lastPolledAt).toEqual(new Date('2024-01-01T12:00:00Z'));
     });
 
-    it('should convert number linkCapacityBps to BigInt for persistence', () => {
+    it('should convert number linkCapacityKbps to BigInt for persistence', () => {
       const config = buildDomainConfig();
 
       const data = WirelessDeviceConfigPrismaMapper.toPersistence(config);
 
-      expect(typeof data.linkCapacityBps).toBe('bigint');
+      expect(typeof data.linkCapacityKbps).toBe('bigint');
     });
 
     it('should set ipAddress to null when the domain entity has no IP address', () => {
@@ -162,17 +156,15 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
         enabled: false,
         pollingInterval: PollingInterval.reconstitute(30),
         deviceType: 'ACCESS_POINT',
-        linkCapacityBps: null,
+        linkCapacityKbps: null,
         clientsProvisionedLimit: null,
         lastPolledAt: null,
-        targetFirmwareVersion: null,
-        maxLinkDistanceM: null,
       });
 
       const data = WirelessDeviceConfigPrismaMapper.toPersistence(config);
 
       expect(data.ipAddress).toBeNull();
-      expect(data.linkCapacityBps).toBeNull();
+      expect(data.linkCapacityKbps).toBeNull();
       expect(data.lastPolledAt).toBeNull();
     });
   });
@@ -189,7 +181,7 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
       expect(back.enabled).toBe(row.enabled);
       expect(back.intervalSecs).toBe(row.intervalSecs);
       expect(back.deviceType).toBe(row.deviceType);
-      expect(back.linkCapacityBps).toBe(row.linkCapacityBps);
+      expect(back.linkCapacityKbps).toBe(row.linkCapacityKbps);
       expect(back.clientsProvisionedLimit).toBe(row.clientsProvisionedLimit);
     });
 
@@ -199,7 +191,7 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
       const back = WirelessDeviceConfigPrismaMapper.toPersistence(config);
 
       expect(back.ipAddress).toBeNull();
-      expect(back.linkCapacityBps).toBeNull();
+      expect(back.linkCapacityKbps).toBeNull();
       expect(back.lastPolledAt).toBeNull();
       expect(back.clientsProvisionedLimit).toBeNull();
     });

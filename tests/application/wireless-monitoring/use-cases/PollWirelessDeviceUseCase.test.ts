@@ -53,7 +53,7 @@ function makeDeviceId(): DeviceId {
 function makePollingConfig(overrides: {
   enabled?: boolean;
   deviceType?: 'STATION' | 'ACCESS_POINT';
-  linkCapacityBps?: number | null;
+  linkCapacityKbps?: number | null;
   clientsProvisionedLimit?: number | null;
   ipAddress?: IPAddress | null;
 } = {}): WirelessDeviceConfig {
@@ -66,11 +66,9 @@ function makePollingConfig(overrides: {
       enabled: overrides.enabled !== undefined ? overrides.enabled : true,
       pollingInterval: PollingInterval.reconstitute(60),
       deviceType: overrides.deviceType ?? 'STATION',
-      linkCapacityBps: overrides.linkCapacityBps !== undefined ? overrides.linkCapacityBps : null,
+      linkCapacityKbps: overrides.linkCapacityKbps !== undefined ? overrides.linkCapacityKbps : null,
       clientsProvisionedLimit: overrides.clientsProvisionedLimit !== undefined ? overrides.clientsProvisionedLimit : null,
       lastPolledAt: null,
-      targetFirmwareVersion: null,
-      maxLinkDistanceM: null
     }
   );
 }

@@ -15,11 +15,9 @@ type RawPollingConfig = {
   enabled: boolean;
   interval_secs: number;
   device_type: string;
-  link_capacity_bps: bigint | null;
+  link_capacity_kbps: bigint | null;
   clients_provisioned_limit: number | null;
   last_polled_at: Date | null;
-  target_firmware_version: string | null;
-  max_link_distance_m: number | null;
 };
 
 export class PrismaWirelessDeviceConfigRepository
@@ -41,11 +39,9 @@ export class PrismaWirelessDeviceConfigRepository
           enabled: data.enabled,
           intervalSecs: data.intervalSecs,
           deviceType: data.deviceType as WirelessDeviceType,
-          linkCapacityBps: data.linkCapacityBps,
+          linkCapacityKbps: data.linkCapacityKbps,
           clientsProvisionedLimit: data.clientsProvisionedLimit,
-          lastPolledAt: data.lastPolledAt,
-          targetFirmwareVersion: data.targetFirmwareVersion,
-          maxLinkDistanceM: data.maxLinkDistanceM
+          lastPolledAt: data.lastPolledAt
         },
         create: {
           id: data.id,
@@ -54,11 +50,9 @@ export class PrismaWirelessDeviceConfigRepository
           enabled: data.enabled,
           intervalSecs: data.intervalSecs,
           deviceType: data.deviceType as WirelessDeviceType,
-          linkCapacityBps: data.linkCapacityBps,
+          linkCapacityKbps: data.linkCapacityKbps,
           clientsProvisionedLimit: data.clientsProvisionedLimit,
-          lastPolledAt: data.lastPolledAt,
-          targetFirmwareVersion: data.targetFirmwareVersion,
-          maxLinkDistanceM: data.maxLinkDistanceM
+          lastPolledAt: data.lastPolledAt
         }
       });
 
@@ -145,11 +139,9 @@ export class PrismaWirelessDeviceConfigRepository
           enabled,
           interval_secs,
           device_type,
-          link_capacity_bps,
+          link_capacity_kbps,
           clients_provisioned_limit,
-          last_polled_at,
-          target_firmware_version,
-          max_link_distance_m
+          last_polled_at
         FROM wireless_polling_configurations
         WHERE enabled = true
           AND ip_address IS NOT NULL
@@ -167,11 +159,9 @@ export class PrismaWirelessDeviceConfigRepository
           enabled: r.enabled,
           intervalSecs: r.interval_secs,
           deviceType: r.device_type,
-          linkCapacityBps: r.link_capacity_bps,
+          linkCapacityKbps: r.link_capacity_kbps,
           clientsProvisionedLimit: r.clients_provisioned_limit,
-          lastPolledAt: r.last_polled_at,
-          targetFirmwareVersion: r.target_firmware_version,
-          maxLinkDistanceM: r.max_link_distance_m
+          lastPolledAt: r.last_polled_at
         })
       );
 
