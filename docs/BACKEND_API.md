@@ -28,6 +28,67 @@ Most API responses are wrapped:
 
 ---
 
+## Authentication
+
+All endpoints except `POST /api/auth/login` require a valid JWT in the `Authorization` header:
+
+```
+Authorization: Bearer <token>
+```
+
+Missing or invalid tokens return `401`. Insufficient role returns `403`.
+
+### Roles
+
+| Role | Allowed operations |
+|------|--------------------|
+| `ADMIN` | read, create, update, delete, activate, bulk-import |
+| `OPERATOR` | read, create, update, activate, bulk-import |
+| `VIEWER` | read only |
+
+### Rate limits (per IP)
+
+| Operation type | Limit |
+|----------------|-------|
+| Read (`GET`) | 100 / min |
+| Write (`POST`, `PATCH`, `PUT`) | 20 / min |
+| Delete (`DELETE`) | 10 / min |
+| Bulk import | 5 / hr |
+
+---
+
+## Auth `/api/auth`
+
+### `POST /api/auth/login` — Login
+**Status:** 200 | 400 | 401  
+**Auth required:** No
+
+```ts
+// Request body
+{
+  email: string     // required
+  password: string  // required
+}
+
+// Response 200
+{
+  success: true,
+  data: {
+    token: string   // JWT — include as Bearer token on all subsequent requests
+    user: {
+      id: string    // UUID
+      email: string
+      role: 'ADMIN' | 'OPERATOR' | 'VIEWER'
+    }
+  }
+}
+```
+
+> Returns `401` for both wrong password and unknown email (identical error message — no credential enumeration).  
+> Token expires after 24 hours; obtain a new one by logging in again.
+
+---
+
 ## Enums
 
 ```ts
@@ -1124,8 +1185,11 @@ WirelessAlertDTO[]
 | Code | Meaning |
 |------|---------|
 | 400 | Validation error or business rule violation (e.g. duplicate MAC/IP) |
+| 401 | Missing, expired, or invalid JWT |
+| 403 | Valid token but insufficient role for this operation |
 | 404 | Resource not found |
 | 409 | Conflict — resource already exists or cannot be deleted (e.g. vendor has models, model has devices) |
+| 429 | Rate limit exceeded |
 | 500 | Unexpected server error |
 
 Error body: `{ success: false, error: string }` (standard endpoints) / `{ error: string }` (credentials, polling, wireless)
