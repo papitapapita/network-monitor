@@ -12,11 +12,11 @@ const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
 function makeNullProps(): WirelessMetricsProps {
   return {
     signalRxDbm: null, signalTxDbm: null, noiseFloorDbm: null, snrDb: null,
-    ccqPercent: null, txRateMbps: null, rxRateMbps: null, frequencyMhz: null,
-    channelWidthMhz: null, txPowerDbm: null, throughputTxBps: null,
+    ccqPercent: null, frequencyMhz: null,
+    channelWidthMhz: null, throughputTxBps: null,
     throughputRxBps: null, lanStatus: null, lanSpeedMbps: null, lanDuplex: null,
     uptimeSeconds: null, cpuLoadPercent: null, memoryUsedPercent: null,
-    clientsConnected: null, clientsProvisioned: null, throughputTxPps: null,
+    clientsConnected: null, throughputTxPps: null,
     throughputRxPps: null, firmwareVersion: null, deviceName: null,
     remoteApMac: null, remoteApName: null, remoteApIp: null,
     distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
@@ -35,6 +35,7 @@ function makeContext(overrides: Partial<EvaluationContext> = {}): EvaluationCont
     linkCapacityKbps: null,
     clientsProvisionedLimit: null,
     previousMetrics: null,
+    collectedAt: new Date(),
     ...overrides,
   };
 }
@@ -240,14 +241,77 @@ describe('IdentityChangeRule', () => {
     });
   });
 
+  describe('remote_ap_mac_changed', () => {
+    it('should return [] when current remoteApMac is null', () => {
+      const prev = makeMetrics({ remoteApMac: 'aa:bb:cc:dd:ee:ff' });
+      const metrics = makeMetrics({ remoteApMac: null });
+      const result = rule.evaluate(metrics, makeContext({ previousMetrics: prev }), new Map());
+      const decisions = result.filter(d => d.metric === 'remote_ap_mac_changed');
+      expect(decisions).toHaveLength(0);
+    });
+
+    it('should return [] when previous remoteApMac is null', () => {
+      const prev = makeMetrics({ remoteApMac: null });
+      const metrics = makeMetrics({ remoteApMac: 'aa:bb:cc:dd:ee:ff' });
+      const result = rule.evaluate(metrics, makeContext({ previousMetrics: prev }), new Map());
+      const decisions = result.filter(d => d.metric === 'remote_ap_mac_changed');
+      expect(decisions).toHaveLength(0);
+    });
+
+    it('should emit OPEN WARNING when remoteApMac changes and no active alert', () => {
+      const prev = makeMetrics({ remoteApMac: 'aa:bb:cc:dd:ee:ff' });
+      const metrics = makeMetrics({ remoteApMac: 'aa:bb:cc:dd:ee:11' });
+      const result = rule.evaluate(metrics, makeContext({ previousMetrics: prev }), new Map());
+      const decision = result.find(d => d.metric === 'remote_ap_mac_changed');
+      expect(decision).toBeDefined();
+      expect(decision!.action).toBe('OPEN');
+      expect(decision!.severity).toBe('WARNING');
+    });
+
+    it('should include the old and new MAC values in the OPEN message', () => {
+      const prev = makeMetrics({ remoteApMac: 'aa:bb:cc:dd:ee:ff' });
+      const metrics = makeMetrics({ remoteApMac: 'aa:bb:cc:dd:ee:11' });
+      const result = rule.evaluate(metrics, makeContext({ previousMetrics: prev }), new Map());
+      const decision = result.find(d => d.metric === 'remote_ap_mac_changed' && d.action === 'OPEN');
+      expect(decision).toBeDefined();
+      expect(decision!.message).toContain('→');
+    });
+
+    it('should emit CLEAR WARNING when remoteApMac matches previous and active alert exists', () => {
+      const prev = makeMetrics({ remoteApMac: 'aa:bb:cc:dd:ee:ff' });
+      const metrics = makeMetrics({ remoteApMac: 'aa:bb:cc:dd:ee:ff' });
+      const alerts = activeMap(['remote_ap_mac_changed', 'WARNING']);
+      const result = rule.evaluate(metrics, makeContext({ previousMetrics: prev }), alerts);
+      const decision = result.find(d => d.metric === 'remote_ap_mac_changed');
+      expect(decision).toBeDefined();
+      expect(decision!.action).toBe('CLEAR');
+    });
+
+    it('should not emit OPEN when remote_ap_mac_changed alert is already active', () => {
+      const prev = makeMetrics({ remoteApMac: 'aa:bb:cc:dd:ee:ff' });
+      const metrics = makeMetrics({ remoteApMac: 'aa:bb:cc:dd:ee:11' });
+      const alerts = activeMap(['remote_ap_mac_changed', 'WARNING']);
+      const result = rule.evaluate(metrics, makeContext({ previousMetrics: prev }), alerts);
+      const opens = result.filter(d => d.metric === 'remote_ap_mac_changed' && d.action === 'OPEN');
+      expect(opens).toHaveLength(0);
+    });
+  });
+
   describe('multi-field independence', () => {
     it('should fire OPEN for each field that changes independently', () => {
-      const prev = makeMetrics({ ssid: 'Net-A', macAddress: '00:11:22:33:44:55', deviceModel: 'Rocket M5' });
-      const metrics = makeMetrics({ ssid: 'Net-B', macAddress: '00:11:22:33:44:66', deviceModel: 'NanoStation M2' });
+      const prev = makeMetrics({
+        ssid: 'Net-A', macAddress: '00:11:22:33:44:55',
+        deviceModel: 'Rocket M5', remoteApMac: 'aa:bb:cc:dd:ee:ff'
+      });
+      const metrics = makeMetrics({
+        ssid: 'Net-B', macAddress: '00:11:22:33:44:66',
+        deviceModel: 'NanoStation M2', remoteApMac: 'aa:bb:cc:dd:ee:11'
+      });
       const result = rule.evaluate(metrics, makeContext({ previousMetrics: prev }), new Map());
       expect(result.filter(d => d.action === 'OPEN' && d.metric === 'ssid_changed')).toHaveLength(1);
       expect(result.filter(d => d.action === 'OPEN' && d.metric === 'mac_address_changed')).toHaveLength(1);
       expect(result.filter(d => d.action === 'OPEN' && d.metric === 'device_model_changed')).toHaveLength(1);
+      expect(result.filter(d => d.action === 'OPEN' && d.metric === 'remote_ap_mac_changed')).toHaveLength(1);
     });
   });
 });

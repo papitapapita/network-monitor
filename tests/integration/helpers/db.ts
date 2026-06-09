@@ -9,6 +9,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 export async function cleanDatabase(prisma: PrismaClient): Promise<void> {
   await prisma.device.deleteMany();
   await prisma.location.deleteMany();
+  await prisma.user.deleteMany();
 }
 
 /**

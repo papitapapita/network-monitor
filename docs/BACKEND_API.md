@@ -833,7 +833,7 @@ interface WirelessStatusDTO {
 interface WirelessAlertDTO {
   id: string                // UUID
   deviceId: string          // UUID
-  metric: string            // e.g. "signal_rx_dbm"
+  metric: string            // e.g. "signal_rx_dbm", "clock_drift_s", "firmware_version_changed"
   severity: WirelessAlertSeverity
   threshold: number
   lastValue: number
@@ -887,7 +887,7 @@ interface WirelessClientDTO {
 {
   deviceType: 'STATION' | 'ACCESS_POINT'   // required
   ipAddress?: string | null                // IPv4 or IPv6; used for HTTP API polling
-  intervalSecs?: number                    // 30–86400; default 3600
+  intervalSecs?: number                    // 60–86400; default 3600
   enabled?: boolean                        // default true
   linkCapacityKbps?: number | null          // STATION only — provisioned uplink capacity (bps)
   clientsProvisionedLimit?: number | null  // ACCESS_POINT only — max expected clients
@@ -934,7 +934,7 @@ interface WirelessClientDTO {
 // Request body (at least one field required)
 {
   ipAddress?: string | null
-  intervalSecs?: number                   // 30–86400
+  intervalSecs?: number                   // 60–86400
   enabled?: boolean
   linkCapacityKbps?: number | null         // STATION only — returns 400 if device is ACCESS_POINT
   clientsProvisionedLimit?: number | null // ACCESS_POINT only — returns 400 if device is STATION

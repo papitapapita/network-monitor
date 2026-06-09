@@ -17,11 +17,8 @@ type PrismaWirelessSnapshot = {
   noiseFloorDbm: number | null;
   snrDb: number | null;
   ccqPercent: number | null;
-  txRateMbps: { toNumber(): number } | null;
-  rxRateMbps: { toNumber(): number } | null;
   frequencyMhz: number | null;
   channelWidthMhz: number | null;
-  txPowerDbm: number | null;
   throughputTxBps: bigint | null;
   throughputRxBps: bigint | null;
   throughputTxPps: bigint | null;
@@ -44,7 +41,6 @@ type PrismaWirelessSnapshot = {
   capacityRxKbps: number | null;
   deviceTimeEpoch: bigint | null;
   clientsConnected: number | null;
-  clientsProvisioned: number | null;
   clientsJson: unknown;
   macAddress: string | null;
   deviceModel: string | null;
@@ -62,11 +58,8 @@ type PersistenceData = {
   noiseFloorDbm: number | null;
   snrDb: number | null;
   ccqPercent: number | null;
-  txRateMbps: number | null;
-  rxRateMbps: number | null;
   frequencyMhz: number | null;
   channelWidthMhz: number | null;
-  txPowerDbm: number | null;
   throughputTxBps: bigint | null;
   throughputRxBps: bigint | null;
   throughputTxPps: bigint | null;
@@ -89,7 +82,6 @@ type PersistenceData = {
   capacityRxKbps: number | null;
   deviceTimeEpoch: bigint | null;
   clientsConnected: number | null;
-  clientsProvisioned: number | null;
   clientsJson: unknown;
   macAddress: string | null;
   deviceModel: string | null;
@@ -112,11 +104,8 @@ export class WirelessSnapshotPrismaMapper {
       noiseFloorDbm: raw.noiseFloorDbm,
       snrDb: raw.snrDb,
       ccqPercent: raw.ccqPercent,
-      txRateMbps: raw.txRateMbps ? raw.txRateMbps.toNumber() : null,
-      rxRateMbps: raw.rxRateMbps ? raw.rxRateMbps.toNumber() : null,
       frequencyMhz: raw.frequencyMhz,
       channelWidthMhz: raw.channelWidthMhz,
-      txPowerDbm: raw.txPowerDbm,
       throughputTxBps:
         raw.throughputTxBps !== null
           ? Number(raw.throughputTxBps)
@@ -152,7 +141,6 @@ export class WirelessSnapshotPrismaMapper {
       deviceTimeEpoch:
         raw.deviceTimeEpoch !== null ? Number(raw.deviceTimeEpoch) : null,
       clientsConnected: raw.clientsConnected,
-      clientsProvisioned: raw.clientsProvisioned,
       macAddress: raw.macAddress,
       deviceModel: raw.deviceModel,
       ssid: raw.ssid
@@ -295,11 +283,8 @@ export class WirelessSnapshotPrismaMapper {
       noiseFloorDbm: m.noiseFloorDbm,
       snrDb: m.snrDb,
       ccqPercent: m.ccqPercent,
-      txRateMbps: m.txRateMbps,
-      rxRateMbps: m.rxRateMbps,
       frequencyMhz: m.frequencyMhz,
       channelWidthMhz: m.channelWidthMhz,
-      txPowerDbm: m.txPowerDbm,
       throughputTxBps:
         m.throughputTxBps !== null ? BigInt(m.throughputTxBps) : null,
       throughputRxBps:
@@ -330,7 +315,6 @@ export class WirelessSnapshotPrismaMapper {
       deviceTimeEpoch:
         m.deviceTimeEpoch !== null ? BigInt(m.deviceTimeEpoch) : null,
       clientsConnected: m.clientsConnected,
-      clientsProvisioned: m.clientsProvisioned,
       clientsJson: clientsJson.length > 0 ? clientsJson : null,
       macAddress: m.macAddress,
       deviceModel: m.deviceModel,

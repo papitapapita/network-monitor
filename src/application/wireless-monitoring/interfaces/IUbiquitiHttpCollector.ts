@@ -52,7 +52,6 @@ export interface HttpCollectionResult {
   frequencyMhz: number | null;
   channelWidthMhz: number | null;
   noiseFloorDbm: number | null;
-  txPowerDbm: number | null;
   throughputTxBps: number | null;
   throughputRxBps: number | null;
   distanceM: number | null;

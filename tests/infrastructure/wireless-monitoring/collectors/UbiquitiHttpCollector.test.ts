@@ -184,7 +184,6 @@ describe('UbiquitiHttpCollector', () => {
       expect(d.frequencyMhz).toBe(5180);
       expect(d.channelWidthMhz).toBe(40);
       expect(d.noiseFloorDbm).toBe(-95);
-      expect(d.txPowerDbm).toBe(20);
     });
 
     it('should convert throughput from kbps to bps', async () => {

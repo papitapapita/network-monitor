@@ -26,15 +26,14 @@ const buildDomainSnapshot = (): WirelessSnapshot => {
   const snapshotId = SnapshotId.parse(SNAPSHOT_UUID).value;
   const metrics = WirelessMetrics.reconstitute({
     signalRxDbm: -65, signalTxDbm: null, noiseFloorDbm: -95, snrDb: null,
-    ccqPercent: 98, txRateMbps: 54, rxRateMbps: 48, frequencyMhz: 5180,
-    channelWidthMhz: null, txPowerDbm: 23, throughputTxBps: null,
-    throughputRxBps: null, throughputTxPps: null, throughputRxPps: null,
-    lanStatus: 'UP', lanSpeedMbps: 100, lanDuplex: null, uptimeSeconds: 3600,
-    cpuLoadPercent: null, memoryUsedPercent: null, firmwareVersion: 'XW.v8.7.1',
-    deviceName: 'ubnt-cpe', remoteApMac: null, remoteApName: null, remoteApIp: null,
-    distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
-    deviceTimeEpoch: null, clientsConnected: 2, clientsProvisioned: null,
-    macAddress: null, deviceModel: null, ssid: null,
+    ccqPercent: 98, frequencyMhz: 5180, channelWidthMhz: null,
+    throughputTxBps: null, throughputRxBps: null, throughputTxPps: null,
+    throughputRxPps: null, lanStatus: 'UP', lanSpeedMbps: 100, lanDuplex: null,
+    uptimeSeconds: 3600, cpuLoadPercent: null, memoryUsedPercent: null,
+    firmwareVersion: 'XW.v8.7.1', deviceName: 'ubnt-cpe', remoteApMac: null,
+    remoteApName: null, remoteApIp: null, distanceM: null, latencyMs: null,
+    capacityTxKbps: null, capacityRxKbps: null, deviceTimeEpoch: null,
+    clientsConnected: 2, macAddress: null, deviceModel: null, ssid: null,
   });
 
   return WirelessSnapshot.reconstitute(
@@ -54,11 +53,8 @@ const makePrismaRow = () => ({
   noiseFloorDbm: -95,
   snrDb: null,
   ccqPercent: 98,
-  txRateMbps: { toNumber: () => 54 },
-  rxRateMbps: { toNumber: () => 48 },
   frequencyMhz: 5180,
   channelWidthMhz: null,
-  txPowerDbm: 23,
   throughputTxBps: null,
   throughputRxBps: null,
   throughputTxPps: null,
@@ -81,7 +77,6 @@ const makePrismaRow = () => ({
   capacityRxKbps: null,
   deviceTimeEpoch: null,
   clientsConnected: 2,
-  clientsProvisioned: null,
   clientsJson: null,
   macAddress: null,
   deviceModel: null,

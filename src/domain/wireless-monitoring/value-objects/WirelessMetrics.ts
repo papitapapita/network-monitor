@@ -22,20 +22,11 @@ export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
   get ccqPercent(): number | null {
     return this._props.ccqPercent;
   }
-  get txRateMbps(): number | null {
-    return this._props.txRateMbps;
-  }
-  get rxRateMbps(): number | null {
-    return this._props.rxRateMbps;
-  }
   get frequencyMhz(): number | null {
     return this._props.frequencyMhz;
   }
   get channelWidthMhz(): number | null {
     return this._props.channelWidthMhz;
-  }
-  get txPowerDbm(): number | null {
-    return this._props.txPowerDbm;
   }
   get throughputTxBps(): number | null {
     return this._props.throughputTxBps;
@@ -63,9 +54,6 @@ export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
   }
   get clientsConnected(): number | null {
     return this._props.clientsConnected;
-  }
-  get clientsProvisioned(): number | null {
-    return this._props.clientsProvisioned;
   }
   get throughputTxPps(): number | null {
     return this._props.throughputTxPps;
@@ -227,12 +215,6 @@ export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
         props.noiseFloorDbm,
         'noiseFloorDbm'
       );
-      if (!guard.succeeded)
-        return Result.fail<WirelessMetrics>(guard.message!);
-    }
-
-    if (props.txPowerDbm !== null) {
-      const guard = Guard.isNumber(props.txPowerDbm, 'txPowerDbm');
       if (!guard.succeeded)
         return Result.fail<WirelessMetrics>(guard.message!);
     }

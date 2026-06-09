@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { CredentialsController } from '../controllers';
+import { authorize, createRateLimiter } from '../middleware';
 
 /**
  * Device credentials routes — mounted under /api/devices
@@ -17,11 +18,9 @@ export function createCredentialsRoutes(
 ): Router {
   const router = Router({ mergeParams: true });
 
-  // TODO: router.use(requireAuth); — add JWT/session auth middleware here
-
-  router.put('/:id/credentials', controller.set);
-  router.get('/:id/credentials', controller.get);
-  router.delete('/:id/credentials', controller.delete);
+  router.put('/:id/credentials', authorize('update'), createRateLimiter('write'), controller.set);
+  router.get('/:id/credentials', authorize('read'), createRateLimiter('read'), controller.get);
+  router.delete('/:id/credentials', authorize('delete'), createRateLimiter('delete'), controller.delete);
 
   return router;
 }

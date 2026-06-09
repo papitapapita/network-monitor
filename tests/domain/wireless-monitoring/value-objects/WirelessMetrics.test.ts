@@ -14,11 +14,8 @@ function makeNullProps(): WirelessMetricsProps {
     noiseFloorDbm: null,
     snrDb: null,
     ccqPercent: null,
-    txRateMbps: null,
-    rxRateMbps: null,
     frequencyMhz: null,
     channelWidthMhz: null,
-    txPowerDbm: null,
     throughputTxBps: null,
     throughputRxBps: null,
     lanStatus: null,
@@ -28,7 +25,6 @@ function makeNullProps(): WirelessMetricsProps {
     cpuLoadPercent: null,
     memoryUsedPercent: null,
     clientsConnected: null,
-    clientsProvisioned: null,
     throughputTxPps: null,
     throughputRxPps: null,
     firmwareVersion: null,
@@ -54,11 +50,8 @@ function makeFullProps(overrides: Partial<WirelessMetricsProps> = {}): WirelessM
     noiseFloorDbm: -90,
     snrDb: 25,
     ccqPercent: 95,
-    txRateMbps: 300,
-    rxRateMbps: 300,
     frequencyMhz: 5180,
     channelWidthMhz: 40,
-    txPowerDbm: 20,
     throughputTxBps: 5_000_000,
     throughputRxBps: 3_000_000,
     lanStatus: 'UP',
@@ -68,7 +61,6 @@ function makeFullProps(overrides: Partial<WirelessMetricsProps> = {}): WirelessM
     cpuLoadPercent: 30,
     memoryUsedPercent: 50,
     clientsConnected: 5,
-    clientsProvisioned: 20,
     throughputTxPps: 1200,
     throughputRxPps: 900,
     firmwareVersion: 'WA.v8.7.11',
@@ -219,18 +211,6 @@ describe('WirelessMetrics', () => {
       expect(metrics.ccqPercent).toBe(95);
     });
 
-    it('should expose txRateMbps', () => {
-      const metrics = WirelessMetrics.create(makeFullProps({ txRateMbps: 300 })).value;
-
-      expect(metrics.txRateMbps).toBe(300);
-    });
-
-    it('should expose rxRateMbps', () => {
-      const metrics = WirelessMetrics.create(makeFullProps({ rxRateMbps: 150 })).value;
-
-      expect(metrics.rxRateMbps).toBe(150);
-    });
-
     it('should expose frequencyMhz', () => {
       const metrics = WirelessMetrics.create(makeFullProps({ frequencyMhz: 5180 })).value;
 
@@ -241,12 +221,6 @@ describe('WirelessMetrics', () => {
       const metrics = WirelessMetrics.create(makeFullProps({ channelWidthMhz: 40 })).value;
 
       expect(metrics.channelWidthMhz).toBe(40);
-    });
-
-    it('should expose txPowerDbm', () => {
-      const metrics = WirelessMetrics.create(makeFullProps({ txPowerDbm: 20 })).value;
-
-      expect(metrics.txPowerDbm).toBe(20);
     });
 
     it('should expose throughputTxBps', () => {
@@ -307,12 +281,6 @@ describe('WirelessMetrics', () => {
       const metrics = WirelessMetrics.create(makeFullProps({ clientsConnected: 5 })).value;
 
       expect(metrics.clientsConnected).toBe(5);
-    });
-
-    it('should expose clientsProvisioned', () => {
-      const metrics = WirelessMetrics.create(makeFullProps({ clientsProvisioned: 20 })).value;
-
-      expect(metrics.clientsProvisioned).toBe(20);
     });
 
     it('should return null for any getter when the field is null', () => {

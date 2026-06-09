@@ -16,6 +16,7 @@ export interface EvaluationContext {
   linkCapacityKbps: number | null;
   clientsProvisionedLimit: number | null;
   previousMetrics: WirelessMetrics | null;
+  collectedAt: Date;
 }
 
 export interface IWirelessAlertEvaluator {

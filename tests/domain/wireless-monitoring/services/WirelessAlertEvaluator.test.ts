@@ -27,11 +27,11 @@ function makeDeviceId(): DeviceId {
 function makeNullProps(): WirelessMetricsProps {
   return {
     signalRxDbm: null, signalTxDbm: null, noiseFloorDbm: null, snrDb: null,
-    ccqPercent: null, txRateMbps: null, rxRateMbps: null, frequencyMhz: null,
-    channelWidthMhz: null, txPowerDbm: null, throughputTxBps: null,
+    ccqPercent: null, frequencyMhz: null,
+    channelWidthMhz: null, throughputTxBps: null,
     throughputRxBps: null, lanStatus: null, lanSpeedMbps: null, lanDuplex: null,
     uptimeSeconds: null, cpuLoadPercent: null, memoryUsedPercent: null,
-    clientsConnected: null, clientsProvisioned: null, throughputTxPps: null,
+    clientsConnected: null, throughputTxPps: null,
     throughputRxPps: null, firmwareVersion: null, deviceName: null,
     remoteApMac: null, remoteApName: null, remoteApIp: null,
     distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
@@ -50,6 +50,7 @@ function makeContext(overrides: Partial<EvaluationContext> = {}): EvaluationCont
     linkCapacityKbps: null,
     clientsProvisionedLimit: null,
     previousMetrics: null,
+    collectedAt: new Date(),
     ...overrides,
   };
 }

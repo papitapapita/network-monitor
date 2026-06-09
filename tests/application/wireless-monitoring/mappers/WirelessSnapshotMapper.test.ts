@@ -26,11 +26,8 @@ function makeMetrics(
     noiseFloorDbm:     number | null;
     snrDb:             number | null;
     ccqPercent:        number | null;
-    txRateMbps:        number | null;
-    rxRateMbps:        number | null;
     frequencyMhz:      number | null;
     channelWidthMhz:   number | null;
-    txPowerDbm:        number | null;
     throughputTxBps:   number | null;
     throughputRxBps:   number | null;
     throughputTxPps:   number | null;
@@ -48,7 +45,6 @@ function makeMetrics(
     distanceM:         number | null;
     latencyMs:         number | null;
     clientsConnected:  number | null;
-    clientsProvisioned: number | null;
   }> = {}
 ): WirelessMetrics {
   return WirelessMetrics.reconstitute({
@@ -57,11 +53,8 @@ function makeMetrics(
     noiseFloorDbm:     -90,
     snrDb:             25,
     ccqPercent:        95,
-    txRateMbps:        100,
-    rxRateMbps:        80,
     frequencyMhz:      5180,
     channelWidthMhz:   40,
-    txPowerDbm:        23,
     throughputTxBps:   10000000,
     throughputRxBps:   8000000,
     throughputTxPps:   1000,
@@ -83,7 +76,6 @@ function makeMetrics(
     capacityRxKbps:    null,
     deviceTimeEpoch:   null,
     clientsConnected:  5,
-    clientsProvisioned: 10,
     macAddress: null,
     deviceModel: null,
     ssid: null,
@@ -98,11 +90,8 @@ function makeNullMetrics(): WirelessMetrics {
     noiseFloorDbm:     null,
     snrDb:             null,
     ccqPercent:        null,
-    txRateMbps:        null,
-    rxRateMbps:        null,
     frequencyMhz:      null,
     channelWidthMhz:   null,
-    txPowerDbm:        null,
     throughputTxBps:   null,
     throughputRxBps:   null,
     throughputTxPps:   null,
@@ -124,7 +113,6 @@ function makeNullMetrics(): WirelessMetrics {
     capacityRxKbps:    null,
     deviceTimeEpoch:   null,
     clientsConnected:  null,
-    clientsProvisioned: null,
     macAddress: null,
     deviceModel: null,
     ssid: null,
@@ -362,22 +350,6 @@ describe('WirelessSnapshotMapper', () => {
         expect(dto.metrics.ccqPercent).toBe(95);
       });
 
-      it('should map txRateMbps from the metrics value object', () => {
-        const snapshot = makeSnapshot({ metrics: makeMetrics({ txRateMbps: 100 }) });
-
-        const dto = WirelessSnapshotMapper.toStatusDTO(snapshot, []);
-
-        expect(dto.metrics.txRateMbps).toBe(100);
-      });
-
-      it('should map rxRateMbps from the metrics value object', () => {
-        const snapshot = makeSnapshot({ metrics: makeMetrics({ rxRateMbps: 80 }) });
-
-        const dto = WirelessSnapshotMapper.toStatusDTO(snapshot, []);
-
-        expect(dto.metrics.rxRateMbps).toBe(80);
-      });
-
       it('should map frequencyMhz from the metrics value object', () => {
         const snapshot = makeSnapshot({ metrics: makeMetrics({ frequencyMhz: 5180 }) });
 
@@ -392,14 +364,6 @@ describe('WirelessSnapshotMapper', () => {
         const dto = WirelessSnapshotMapper.toStatusDTO(snapshot, []);
 
         expect(dto.metrics.channelWidthMhz).toBe(40);
-      });
-
-      it('should map txPowerDbm from the metrics value object', () => {
-        const snapshot = makeSnapshot({ metrics: makeMetrics({ txPowerDbm: 23 }) });
-
-        const dto = WirelessSnapshotMapper.toStatusDTO(snapshot, []);
-
-        expect(dto.metrics.txPowerDbm).toBe(23);
       });
 
       it('should map throughputTxBps from the metrics value object', () => {
@@ -554,13 +518,6 @@ describe('WirelessSnapshotMapper', () => {
         expect(dto.metrics.clientsConnected).toBe(5);
       });
 
-      it('should map clientsProvisioned from the metrics value object', () => {
-        const snapshot = makeSnapshot({ metrics: makeMetrics({ clientsProvisioned: 10 }) });
-
-        const dto = WirelessSnapshotMapper.toStatusDTO(snapshot, []);
-
-        expect(dto.metrics.clientsProvisioned).toBe(10);
-      });
     });
 
     // =========================================================================

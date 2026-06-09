@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { DeviceController } from '../controllers';
-import { validateRequest } from '../middleware';
+import { validateRequest, authorize, createRateLimiter } from '../middleware';
 import {
   createDeviceSchema,
   listDevicesSchema,
@@ -60,6 +60,8 @@ export function createDeviceRoutes(
    */
   router.post(
     '/',
+    authorize('create'),
+    createRateLimiter('write'),
     validateRequest(createDeviceSchema),
     controller.create
   );
@@ -88,6 +90,8 @@ export function createDeviceRoutes(
    */
   router.get(
     '/',
+    authorize('read'),
+    createRateLimiter('read'),
     validateRequest(listDevicesSchema),
     controller.list
   );
@@ -111,6 +115,8 @@ export function createDeviceRoutes(
    */
   router.get(
     '/:id',
+    authorize('read'),
+    createRateLimiter('read'),
     validateRequest(getDeviceByIdSchema),
     controller.getById
   );
@@ -134,6 +140,8 @@ export function createDeviceRoutes(
    */
   router.patch(
     '/:id',
+    authorize('update'),
+    createRateLimiter('write'),
     validateRequest(updateDeviceSchema),
     controller.update
   );
@@ -153,6 +161,8 @@ export function createDeviceRoutes(
    */
   router.delete(
     '/:id',
+    authorize('delete'),
+    createRateLimiter('delete'),
     validateRequest(deleteDeviceSchema),
     controller.delete
   );

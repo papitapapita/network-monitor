@@ -7,3 +7,4 @@ export * from './AlertId';
 export * from './SnapshotId';
 export * from './WirelessDeviceConfigId';
 export * from './WirelessAlertRecordId';
+export * from './UserId';

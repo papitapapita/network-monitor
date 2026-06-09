@@ -8,7 +8,7 @@ import { WirelessDeviceConfigProps } from '../props';
 import { WirelessDeviceConfigId } from 'domain/shared/ids';
 import { WirelessDeviceConfigToggledEvent } from '../events';
 
-const MIN_POLLING_SECONDS = 30;
+const MIN_POLLING_SECONDS = 60;
 
 export class WirelessDeviceConfig extends AggregateRoot<
   WirelessDeviceConfigProps,

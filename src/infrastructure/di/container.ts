@@ -1,6 +1,12 @@
 import { PrismaClient } from 'generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { WinstonLogger } from '../logging';
+import { JwtTokenService } from '../identity/services/JwtTokenService';
+import { BcryptPasswordService } from '../identity/services/BcryptPasswordService';
+import { PrismaUserRepository } from '../identity/repositories/PrismaUserRepository';
+import { LoginUseCase } from 'application/identity/use-cases/LoginUseCase';
+import { AuthController } from 'presentation/http/controllers/AuthController';
+import { ITokenService } from 'application/identity/interfaces/ITokenService';
 import {
   PrismaLocationRepository,
   PrismaDeviceRepository,
@@ -44,6 +50,8 @@ import { DistanceRule } from 'domain/wireless-monitoring/services/rules/Distance
 import { IdentityChangeRule } from 'domain/wireless-monitoring/services/rules/IdentityChangeRule';
 import { FirmwareRule } from 'domain/wireless-monitoring/services/rules/FirmwareRule';
 import { ThroughputSaturationRule } from 'domain/wireless-monitoring/services/rules/ThroughputSaturationRule';
+import { ClockSyncRule } from 'domain/wireless-monitoring/services/rules/ClockSyncRule';
+import { LatencyRule } from 'domain/wireless-monitoring/services/rules/LatencyRule';
 import {
   PollWirelessDeviceUseCase,
   GetWirelessDeviceStatusUseCase,
@@ -149,6 +157,10 @@ export class DependencyContainer {
   private wirelessDeviceConfigRepository: PrismaWirelessDeviceConfigRepository;
   private deviceCredentialsRepository: PrismaDeviceCredentialsRepository;
 
+  // Identity
+  public tokenService: ITokenService;
+  public authController: AuthController;
+
   // Controllers
   public locationController: LocationController;
   public deviceController: DeviceController;
@@ -196,6 +208,23 @@ export class DependencyContainer {
       this.prisma
     );
     this.alertRepository = new PrismaAlertRepository(this.prisma);
+
+    // =====================================
+    // IDENTITY BOUNDED CONTEXT
+    // =====================================
+
+    const jwtTokenService = new JwtTokenService();
+    const bcryptPasswordService = new BcryptPasswordService();
+    const userRepository = new PrismaUserRepository(this.prisma);
+    const loginUseCase = new LoginUseCase(
+      userRepository,
+      bcryptPasswordService,
+      jwtTokenService,
+      this.logger
+    );
+
+    this.tokenService = jwtTokenService;
+    this.authController = new AuthController(loginUseCase, this.logger);
 
     // Initialize location use cases
     const createLocationUseCase = new CreateLocationUseCase(
@@ -440,7 +469,9 @@ export class DependencyContainer {
       new DistanceRule(),
       new IdentityChangeRule(),
       new FirmwareRule(),
-      new ThroughputSaturationRule()
+      new ThroughputSaturationRule(),
+      new ClockSyncRule(),
+      new LatencyRule()
     ]);
     const wirelessDeviceRepo = new WirelessDeviceRepositoryAdapter(
       this.deviceRepository

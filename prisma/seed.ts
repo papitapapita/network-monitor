@@ -12,6 +12,7 @@
 // ============================================================================
 
 import 'dotenv/config';
+import bcrypt from 'bcrypt';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { WinstonLogger } from '../src/infrastructure/logging/WinstonLogger';
@@ -192,6 +193,26 @@ async function seedCredentials(
 // ── main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
+  // ==========================================================================
+  // 0. Admin user
+  // ==========================================================================
+  console.log('Seeding admin user...');
+  const adminEmail =
+    process.env.SEED_ADMIN_EMAIL ?? 'admin@example.com';
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'changeme';
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email: adminEmail }
+  });
+  if (!existingAdmin) {
+    const passwordHash = await bcrypt.hash(adminPassword, 10);
+    await prisma.user.create({
+      data: { email: adminEmail, passwordHash, role: 'ADMIN' }
+    });
+    console.log(`  Created admin: ${adminEmail}`);
+  } else {
+    console.log(`  Admin already exists: ${adminEmail}`);
+  }
+
   // ==========================================================================
   // 1. Vendors
   // ==========================================================================

@@ -5,9 +5,6 @@ import { WirelessSnapshot, WirelessMetrics, WirelessClientEntry } from 'domain/w
 import { DeviceId } from 'domain/shared';
 import { SnapshotId } from 'domain/shared/ids';
 
-// Prisma returns Decimal types with a toNumber() method; simulate that here.
-const decimal = (value: number): { toNumber(): number } => ({ toNumber: () => value });
-
 const DEVICE_UUID   = 'f149790a-58f0-479a-8534-b0b01e9942bb';
 const SNAPSHOT_UUID = 'd39d887e-e307-484c-b4c4-bdcb55572201';
 
@@ -24,11 +21,8 @@ const makeMinimalPrismaRow = (): PrismaWirelessSnapshot => ({
   noiseFloorDbm: null,
   snrDb: null,
   ccqPercent: null,
-  txRateMbps: null,
-  rxRateMbps: null,
   frequencyMhz: null,
   channelWidthMhz: null,
-  txPowerDbm: null,
   throughputTxBps: null,
   throughputRxBps: null,
   throughputTxPps: null,
@@ -51,7 +45,6 @@ const makeMinimalPrismaRow = (): PrismaWirelessSnapshot => ({
   capacityRxKbps: null,
   deviceTimeEpoch: null,
   clientsConnected: null,
-  clientsProvisioned: null,
   clientsJson: null,
   macAddress: null,
   deviceModel: null,
@@ -69,11 +62,8 @@ const makeFullPrismaRow = (): PrismaWirelessSnapshot => ({
   noiseFloorDbm: -95,
   snrDb: 30,
   ccqPercent: 98,
-  txRateMbps: decimal(54),
-  rxRateMbps: decimal(48),
   frequencyMhz: 5180,
   channelWidthMhz: 40,
-  txPowerDbm: 23,
   throughputTxBps: 1_000_000n,
   throughputRxBps: 500_000n,
   throughputTxPps: 1000n,
@@ -96,7 +86,6 @@ const makeFullPrismaRow = (): PrismaWirelessSnapshot => ({
   capacityRxKbps: 40000,
   deviceTimeEpoch: 1718440200n,
   clientsConnected: 3,
-  clientsProvisioned: 10,
   macAddress: 'AA:BB:CC:DD:EE:FF',
   deviceModel: 'Rocket 5AC',
   ssid: 'TestNet',
@@ -106,8 +95,6 @@ const makeFullPrismaRow = (): PrismaWirelessSnapshot => ({
       signalRxDbm: -70,
       signalTxDbm: -72,
       snrDb: null,
-      txRateMbps: 54,
-      rxRateMbps: 48,
       throughputTxBps: null,
       throughputRxBps: null,
       ccqPercent: 96,
@@ -129,11 +116,8 @@ const buildDomainSnapshot = (overrides: Partial<{
     noiseFloorDbm: -95,
     snrDb: null,
     ccqPercent: 98,
-    txRateMbps: 54,
-    rxRateMbps: 48,
     frequencyMhz: 5180,
     channelWidthMhz: null,
-    txPowerDbm: 23,
     throughputTxBps: 1_000_000,
     throughputRxBps: 500_000,
     throughputTxPps: 1000,
@@ -155,7 +139,6 @@ const buildDomainSnapshot = (overrides: Partial<{
     capacityRxKbps: null,
     deviceTimeEpoch: null,
     clientsConnected: 3,
-    clientsProvisioned: null,
     macAddress: null,
     deviceModel: null,
     ssid: null,
@@ -190,15 +173,6 @@ describe('WirelessSnapshotPrismaMapper', () => {
       expect(snapshot.collectedAt).toEqual(new Date('2024-06-15T08:30:00Z'));
     });
 
-    it('should call toNumber() on Decimal fields for txRateMbps and rxRateMbps', () => {
-      const row = makeFullPrismaRow();
-
-      const snapshot = WirelessSnapshotPrismaMapper.toDomain(row);
-
-      expect(snapshot.metrics.txRateMbps).toBe(54);
-      expect(snapshot.metrics.rxRateMbps).toBe(48);
-    });
-
     it('should convert BigInt throughput fields to numbers', () => {
       const row = makeFullPrismaRow();
 
@@ -225,8 +199,6 @@ describe('WirelessSnapshotPrismaMapper', () => {
       const m = snapshot.metrics;
 
       expect(m.signalRxDbm).toBeNull();
-      expect(m.txRateMbps).toBeNull();
-      expect(m.rxRateMbps).toBeNull();
       expect(m.throughputTxBps).toBeNull();
       expect(m.throughputRxBps).toBeNull();
       expect(m.uptimeSeconds).toBeNull();
@@ -300,14 +272,14 @@ describe('WirelessSnapshotPrismaMapper', () => {
       const snapshotId = SnapshotId.parse(SNAPSHOT_UUID).value;
       const metrics = WirelessMetrics.reconstitute({
         signalRxDbm: null, signalTxDbm: null, noiseFloorDbm: null, snrDb: null,
-        ccqPercent: null, txRateMbps: null, rxRateMbps: null, frequencyMhz: null,
-        channelWidthMhz: null, txPowerDbm: null, throughputTxBps: null,
+        ccqPercent: null, frequencyMhz: null,
+        channelWidthMhz: null, throughputTxBps: null,
         throughputRxBps: null, throughputTxPps: null, throughputRxPps: null,
         lanStatus: null, lanSpeedMbps: null, lanDuplex: null, uptimeSeconds: null,
         cpuLoadPercent: null, memoryUsedPercent: null, firmwareVersion: null,
         deviceName: null, remoteApMac: null, remoteApName: null, remoteApIp: null,
         distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
-        deviceTimeEpoch: null, clientsConnected: null, clientsProvisioned: null,
+        deviceTimeEpoch: null, clientsConnected: null,
         macAddress: null, deviceModel: null, ssid: null,
       });
 
@@ -336,14 +308,14 @@ describe('WirelessSnapshotPrismaMapper', () => {
       const snapshotId = SnapshotId.parse(SNAPSHOT_UUID).value;
       const metrics = WirelessMetrics.reconstitute({
         signalRxDbm: null, signalTxDbm: null, noiseFloorDbm: null, snrDb: null,
-        ccqPercent: null, txRateMbps: null, rxRateMbps: null, frequencyMhz: null,
-        channelWidthMhz: null, txPowerDbm: null, throughputTxBps: null,
+        ccqPercent: null, frequencyMhz: null,
+        channelWidthMhz: null, throughputTxBps: null,
         throughputRxBps: null, throughputTxPps: null, throughputRxPps: null,
         lanStatus: null, lanSpeedMbps: null, lanDuplex: null, uptimeSeconds: null,
         cpuLoadPercent: null, memoryUsedPercent: null, firmwareVersion: null,
         deviceName: null, remoteApMac: null, remoteApName: null, remoteApIp: null,
         distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
-        deviceTimeEpoch: null, clientsConnected: null, clientsProvisioned: null,
+        deviceTimeEpoch: null, clientsConnected: null,
         macAddress: null, deviceModel: null, ssid: null,
       });
 
@@ -416,8 +388,6 @@ describe('WirelessSnapshotPrismaMapper', () => {
       expect(back.signalRxDbm).toBe(row.signalRxDbm);
       expect(back.noiseFloorDbm).toBe(row.noiseFloorDbm);
       expect(back.ccqPercent).toBe(row.ccqPercent);
-      expect(back.txRateMbps).toBe(row.txRateMbps!.toNumber());
-      expect(back.rxRateMbps).toBe(row.rxRateMbps!.toNumber());
     });
 
     it('should preserve BigInt fields as BigInts through a round-trip', () => {

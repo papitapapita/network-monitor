@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { ScanController } from '../controllers';
-import { validateRequest } from '../middleware';
+import { validateRequest, authorize, createRateLimiter } from '../middleware';
 import { scanNetworkSegmentSchema } from '../validation';
 
 /**
@@ -36,6 +36,8 @@ export function createScanRoutes(controller: ScanController): Router {
    */
   router.post(
     '/',
+    authorize('create'),
+    createRateLimiter('write'),
     validateRequest(scanNetworkSegmentSchema),
     controller.scan
   );

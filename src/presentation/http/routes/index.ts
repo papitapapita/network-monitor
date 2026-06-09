@@ -9,6 +9,11 @@ import { createAlertRoutes } from './alert.routes';
 import { createScanRoutes } from './scan.routes';
 import { createWirelessRoutes } from './wireless.routes';
 import { createCredentialsRoutes } from './credentials.routes';
+import { createAuthRoutes } from './auth.routes';
+import {
+  createAuditLogMiddleware,
+  createAuthenticateMiddleware
+} from '../middleware';
 
 /**
  * setupRoutes
@@ -24,6 +29,21 @@ export function setupRoutes(
   container: DependencyContainer
 ): void {
   const apiRouter = Router();
+
+  // =====================================
+  // IDENTITY — public (no auth required)
+  // =====================================
+
+  apiRouter.use('/auth', createAuthRoutes(container.authController));
+
+  // =====================================
+  // GLOBAL MIDDLEWARE — all routes below require a valid JWT
+  // =====================================
+
+  apiRouter.use(
+    createAuditLogMiddleware(container.getLogger()),
+    createAuthenticateMiddleware(container.tokenService)
+  );
 
   // =====================================
   // DEVICE-INVENTORY BOUNDED CONTEXT

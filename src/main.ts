@@ -1,5 +1,6 @@
 import express, { Application } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { Server } from 'http';
 import { setupRoutes } from './presentation/http/routes';
 import { setupDependencies } from './infrastructure/di/container';
@@ -9,17 +10,21 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const PORT = process.env.PORT || 3000;
-const CORS_ORIGIN =
-  process.env.CORS_ORIGIN || 'http://localhost:3001';
+const ALLOWED_ORIGINS = (
+  process.env.ALLOWED_ORIGINS || 'http://localhost:3001'
+)
+  .split(',')
+  .map((o) => o.trim());
 
 async function bootstrap(): Promise<Server> {
   const app: Application = express();
   const logger = new WinstonLogger();
 
   // Middleware
+  app.use(helmet());
   app.use(
     cors({
-      origin: CORS_ORIGIN,
+      origin: ALLOWED_ORIGINS,
       credentials: true
     })
   );
@@ -67,7 +72,7 @@ async function bootstrap(): Promise<Server> {
   // Start server
   const server = app.listen(PORT, () => {
     logger.info(`Server running on http://localhost:${PORT}`);
-    logger.info(`CORS enabled for: ${CORS_ORIGIN}`);
+    logger.info(`CORS enabled for: ${ALLOWED_ORIGINS.join(', ')}`);
   });
 
   // Graceful shutdown

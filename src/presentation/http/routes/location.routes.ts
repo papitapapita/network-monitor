@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { LocationController } from '../controllers';
-import { validateRequest } from '../middleware';
+import { validateRequest, authorize, createRateLimiter } from '../middleware';
 import {
   createLocationSchema,
   listLocationsSchema,
@@ -60,6 +60,8 @@ export function createLocationRoutes(
    */
   router.post(
     '/',
+    authorize('create'),
+    createRateLimiter('write'),
     validateRequest(createLocationSchema),
     controller.create
   );
@@ -81,6 +83,8 @@ export function createLocationRoutes(
    */
   router.get(
     '/',
+    authorize('read'),
+    createRateLimiter('read'),
     validateRequest(listLocationsSchema),
     controller.list
   );
@@ -104,6 +108,8 @@ export function createLocationRoutes(
    */
   router.get(
     '/:id',
+    authorize('read'),
+    createRateLimiter('read'),
     validateRequest(getLocationByIdSchema),
     controller.getById
   );
@@ -127,6 +133,8 @@ export function createLocationRoutes(
    */
   router.patch(
     '/:id',
+    authorize('update'),
+    createRateLimiter('write'),
     validateRequest(updateLocationSchema),
     controller.update
   );

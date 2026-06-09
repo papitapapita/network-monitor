@@ -195,7 +195,8 @@ export class PollWirelessDeviceUseCase
       deviceModel: http.deviceModel,
       linkCapacityKbps: config.linkCapacityKbps,
       clientsProvisionedLimit: config.clientsProvisionedLimit,
-      previousMetrics
+      previousMetrics,
+      collectedAt: now
     };
 
     let remoteApDeviceId = null;
@@ -212,11 +213,8 @@ export class PollWirelessDeviceUseCase
       noiseFloorDbm: http.noiseFloorDbm,
       snrDb,
       ccqPercent: http.ccqPercent,
-      txRateMbps: null,
-      rxRateMbps: null,
       frequencyMhz: http.frequencyMhz,
       channelWidthMhz: http.channelWidthMhz,
-      txPowerDbm: http.txPowerDbm,
       throughputTxBps: http.throughputTxBps,
       throughputRxBps: http.throughputRxBps,
       throughputTxPps: null,
@@ -228,7 +226,6 @@ export class PollWirelessDeviceUseCase
       cpuLoadPercent: http.cpuLoadPercent,
       memoryUsedPercent: http.memoryUsedPercent,
       clientsConnected: http.clientsConnected,
-      clientsProvisioned: config.clientsProvisionedLimit,
       firmwareVersion: http.firmwareVersion,
       deviceName: http.deviceName,
       remoteApMac: http.remoteApMac,

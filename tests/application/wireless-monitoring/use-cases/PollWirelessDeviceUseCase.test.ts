@@ -102,7 +102,6 @@ function makeHttpResult(overrides: Partial<HttpCollectionResult> = {}): HttpColl
     frequencyMhz: 5180,
     channelWidthMhz: 40,
     noiseFloorDbm: -90,
-    txPowerDbm: 20,
     throughputTxBps: 5_000_000,
     throughputRxBps: 3_000_000,
     distanceM: 1500,

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { WirelessController } from '../controllers';
-import { validateRequest } from '../middleware';
+import { validateRequest, authorize, createRateLimiter } from '../middleware';
 import {
   getWirelessStatusSchema,
   getWirelessHistorySchema,
@@ -42,42 +42,56 @@ export function createWirelessRoutes(
   // Device-scoped wireless routes
   router.post(
     '/devices/:id/wireless/config',
+    authorize('create'),
+    createRateLimiter('write'),
     validateRequest(createWirelessConfigSchema),
     controller.createConfig
   );
 
   router.get(
     '/devices/:id/wireless/config',
+    authorize('read'),
+    createRateLimiter('read'),
     validateRequest(getWirelessConfigSchema),
     controller.getConfig
   );
 
   router.patch(
     '/devices/:id/wireless/config',
+    authorize('update'),
+    createRateLimiter('write'),
     validateRequest(updateWirelessConfigSchema),
     controller.updateConfig
   );
 
   router.delete(
     '/devices/:id/wireless/config',
+    authorize('delete'),
+    createRateLimiter('delete'),
     validateRequest(deleteWirelessConfigSchema),
     controller.deleteConfig
   );
 
   router.get(
     '/devices/:id/wireless/status',
+    authorize('read'),
+    createRateLimiter('read'),
     validateRequest(getWirelessStatusSchema),
     controller.getStatus
   );
 
   router.get(
     '/devices/:id/wireless/history',
+    authorize('read'),
+    createRateLimiter('read'),
     validateRequest(getWirelessHistorySchema),
     controller.getHistory
   );
 
   router.get(
     '/devices/:id/wireless/clients',
+    authorize('read'),
+    createRateLimiter('read'),
     validateRequest(getWirelessClientsSchema),
     controller.getClients
   );
@@ -85,18 +99,24 @@ export function createWirelessRoutes(
   // Static path before parameterized segment — alerts/history before alerts
   router.get(
     '/devices/:id/wireless/alerts/history',
+    authorize('read'),
+    createRateLimiter('read'),
     validateRequest(getDeviceWirelessAlertHistorySchema),
     controller.getDeviceAlertHistory
   );
 
   router.get(
     '/devices/:id/wireless/alerts',
+    authorize('read'),
+    createRateLimiter('read'),
     validateRequest(getDeviceWirelessAlertsSchema),
     controller.getDeviceActiveAlerts
   );
 
   router.post(
     '/devices/:id/wireless/poll',
+    authorize('create'),
+    createRateLimiter('write'),
     validateRequest(triggerWirelessPollSchema),
     controller.triggerPoll
   );
@@ -104,12 +124,16 @@ export function createWirelessRoutes(
   // Global wireless routes (not device-scoped)
   router.get(
     '/wireless/alerts/history',
+    authorize('read'),
+    createRateLimiter('read'),
     validateRequest(getAllAlertHistorySchema),
     controller.getAllAlertHistory
   );
 
   router.get(
     '/wireless/alerts',
+    authorize('read'),
+    createRateLimiter('read'),
     validateRequest(getAllActiveAlertsSchema),
     controller.getAllActiveAlerts
   );

@@ -41,14 +41,14 @@ function makeLogger(): jest.Mocked<ILogger> {
 function makeNullMetrics(): WirelessMetrics {
   return WirelessMetrics.reconstitute({
     signalRxDbm: null, signalTxDbm: null, noiseFloorDbm: null, snrDb: null,
-    ccqPercent: null, txRateMbps: null, rxRateMbps: null, frequencyMhz: null,
-    channelWidthMhz: null, txPowerDbm: null, throughputTxBps: null,
+    ccqPercent: null, frequencyMhz: null,
+    channelWidthMhz: null, throughputTxBps: null,
     throughputRxBps: null, throughputTxPps: null, throughputRxPps: null,
     lanStatus: null, lanSpeedMbps: null, lanDuplex: null, uptimeSeconds: null,
     cpuLoadPercent: null, memoryUsedPercent: null, firmwareVersion: null,
     deviceName: null, remoteApMac: null, remoteApName: null, remoteApIp: null,
     distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
-    deviceTimeEpoch: null, clientsConnected: null, clientsProvisioned: null,
+    deviceTimeEpoch: null, clientsConnected: null,
     macAddress: null, deviceModel: null, ssid: null,
   });
 }

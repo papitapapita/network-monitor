@@ -24,6 +24,11 @@ const FIELDS: ChangeField[] = [
     metricKey: 'device_model_changed',
     getValue: (m) => m.deviceModel,
     label: 'Modelo de equipo'
+  },
+  {
+    metricKey: 'remote_ap_mac_changed',
+    getValue: (m) => m.remoteApMac,
+    label: 'MAC del AP remoto'
   }
 ];
 

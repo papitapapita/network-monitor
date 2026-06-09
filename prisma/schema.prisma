@@ -16,6 +16,27 @@ datasource db {
 }
 
 // ============================================================================
+// IDENTITY (users and roles)
+// ============================================================================
+
+enum UserRole {
+  ADMIN
+  OPERATOR
+  VIEWER
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  role         UserRole
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("users")
+}
+
+// ============================================================================
 // VENDOR (hardware manufacturers)
 // ============================================================================
 // Managed via API. slug is URL-safe lowercase for programmatic use (e.g. SNMP).
@@ -331,11 +352,8 @@ model WirelessSnapshot {
   noiseFloorDbm     Int?     @map("noise_floor_dbm")
   snrDb             Int?     @map("snr_db")
   ccqPercent        Int?     @map("ccq_percent")
-  txRateMbps        Decimal? @map("tx_rate_mbps") @db.Decimal(10, 2)
-  rxRateMbps        Decimal? @map("rx_rate_mbps") @db.Decimal(10, 2)
   frequencyMhz      Int?     @map("frequency_mhz")
   channelWidthMhz   Int?     @map("channel_width_mhz")
-  txPowerDbm        Int?     @map("tx_power_dbm")
   throughputTxBps   BigInt?  @map("throughput_tx_bps")
   throughputRxBps   BigInt?  @map("throughput_rx_bps")
   throughputTxPps   BigInt?  @map("throughput_tx_pps")
@@ -358,7 +376,6 @@ model WirelessSnapshot {
   capacityRxKbps    Int?     @map("capacity_rx_kbps")
   deviceTimeEpoch   BigInt?  @map("device_time_epoch")
   clientsConnected  Int?     @map("clients_connected")
-  clientsProvisioned Int?    @map("clients_provisioned")
   clientsJson       Json?    @map("clients_json")
   macAddress        String?  @map("mac_address") @db.VarChar(17)
   deviceModel       String?  @map("device_model") @db.VarChar(100)

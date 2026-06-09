@@ -91,7 +91,6 @@ export class UbiquitiHttpCollector implements IUbiquitiHttpCollector {
       frequencyMhz: num(wireless, 'frequency'),
       channelWidthMhz: chanbw !== null && chanbw > 0 ? chanbw : null,
       noiseFloorDbm: num(wireless, 'noisef'),
-      txPowerDbm: num(wireless, 'txpower'),
       throughputTxBps:
         txThroughputRaw !== null ? txThroughputRaw * 1000 : null,
       throughputRxBps:
