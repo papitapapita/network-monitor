@@ -18,6 +18,7 @@ const createMockPrisma = () => ({
     findUnique: jest.fn(),
     findFirst: jest.fn(),
     findMany: jest.fn(),
+    deleteMany: jest.fn(),
   },
 });
 
@@ -299,6 +300,82 @@ describe('PrismaWirelessSnapshotRepository', () => {
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Database error finding wireless history');
+    });
+  });
+
+  describe('deleteOlderThan()', () => {
+    const CUTOFF_DATE = new Date('2024-01-01T00:00:00.000Z');
+
+    // -----------------------------------------------------------------------
+    describe('happy path', () => {
+      it('should call prisma.wirelessSnapshot.deleteMany with a lt filter on collectedAt', async () => {
+        prismaMock.wirelessSnapshot.deleteMany.mockResolvedValue({ count: 15 });
+
+        await repository.deleteOlderThan(CUTOFF_DATE);
+
+        expect(prismaMock.wirelessSnapshot.deleteMany).toHaveBeenCalledWith({
+          where: { collectedAt: { lt: CUTOFF_DATE } },
+        });
+      });
+
+      it('should return Result.ok with the number of deleted snapshots', async () => {
+        prismaMock.wirelessSnapshot.deleteMany.mockResolvedValue({ count: 15 });
+
+        const result = await repository.deleteOlderThan(CUTOFF_DATE);
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBe(15);
+      });
+
+      it('should return Result.ok(0) when no snapshots are older than the cutoff', async () => {
+        prismaMock.wirelessSnapshot.deleteMany.mockResolvedValue({ count: 0 });
+
+        const result = await repository.deleteOlderThan(CUTOFF_DATE);
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBe(0);
+      });
+
+      it('should call deleteMany exactly once', async () => {
+        prismaMock.wirelessSnapshot.deleteMany.mockResolvedValue({ count: 5 });
+
+        await repository.deleteOlderThan(CUTOFF_DATE);
+
+        expect(prismaMock.wirelessSnapshot.deleteMany).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('failure path', () => {
+      it('should return a failed Result when Prisma throws', async () => {
+        prismaMock.wirelessSnapshot.deleteMany.mockRejectedValue(
+          new Error('table locked')
+        );
+
+        const result = await repository.deleteOlderThan(CUTOFF_DATE);
+
+        expect(result.isFailure).toBe(true);
+      });
+
+      it('should prefix the error message with "deleteOlderThan failed:"', async () => {
+        prismaMock.wirelessSnapshot.deleteMany.mockRejectedValue(
+          new Error('I/O error')
+        );
+
+        const result = await repository.deleteOlderThan(CUTOFF_DATE);
+
+        expect(result.error).toContain('deleteOlderThan failed');
+      });
+
+      it('should include the original error message in the failure', async () => {
+        prismaMock.wirelessSnapshot.deleteMany.mockRejectedValue(
+          new Error('table locked')
+        );
+
+        const result = await repository.deleteOlderThan(CUTOFF_DATE);
+
+        expect(result.error).toContain('table locked');
+      });
     });
   });
 });

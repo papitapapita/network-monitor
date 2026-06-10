@@ -190,4 +190,18 @@ export class PrismaWirelessAlertRecordRepository
       );
     }
   }
+
+  async deleteClearedOlderThan(cutoff: Date): Promise<Result<number>> {
+    try {
+      const { count } =
+        await this.prisma.wirelessAlertRecord.deleteMany({
+          where: { isActive: false, clearedAt: { lt: cutoff } }
+        });
+      return Result.ok(count);
+    } catch (error) {
+      return Result.fail(
+        `deleteClearedOlderThan failed: ${(error as Error).message}`
+      );
+    }
+  }
 }

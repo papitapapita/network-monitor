@@ -27,4 +27,6 @@ export interface IWirelessAlertRecordRepository {
     to: Date,
     limit?: number
   ): Promise<Result<WirelessAlertRecord[]>>;
+
+  deleteClearedOlderThan(cutoff: Date): Promise<Result<number>>;
 }

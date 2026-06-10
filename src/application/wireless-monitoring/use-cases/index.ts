@@ -1,4 +1,6 @@
 export * from './PollWirelessDeviceUseCase';
+export * from './PurgeOldWirelessSnapshotsUseCase';
+export * from './PurgeOldWirelessAlertRecordsUseCase';
 export * from './GetWirelessDeviceStatusUseCase';
 export * from './GetWirelessDeviceHistoryUseCase';
 export * from './GetWirelessClientsUseCase';

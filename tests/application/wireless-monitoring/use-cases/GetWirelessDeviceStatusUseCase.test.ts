@@ -104,6 +104,7 @@ describe('GetWirelessDeviceStatusUseCase', () => {
       findById: jest.fn(),
       findLatestByDevice: jest.fn(),
       findHistoryByDevice: jest.fn(),
+      deleteOlderThan: jest.fn()
     };
 
     alertRecordRepo = {
@@ -114,6 +115,7 @@ describe('GetWirelessDeviceStatusUseCase', () => {
       findAllActiveByDevice: jest.fn(),
       findAllActive: jest.fn(),
       findHistoryByDevice: jest.fn(),
+      deleteClearedOlderThan: jest.fn()
     };
 
     logger = makeLogger();

@@ -17,6 +17,7 @@ const createMockPrisma = () => ({
     findFirst: jest.fn(),
     findMany: jest.fn(),
     count: jest.fn(),
+    deleteMany: jest.fn(),
   },
 });
 
@@ -370,6 +371,82 @@ describe('PrismaWirelessAlertRecordRepository', () => {
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Database error finding alert history');
+    });
+  });
+
+  describe('deleteClearedOlderThan()', () => {
+    const CUTOFF_DATE = new Date('2024-01-01T00:00:00.000Z');
+
+    // -----------------------------------------------------------------------
+    describe('happy path', () => {
+      it('should call prisma.wirelessAlertRecord.deleteMany with isActive: false and lt filter on clearedAt', async () => {
+        prismaMock.wirelessAlertRecord.deleteMany.mockResolvedValue({ count: 6 });
+
+        await repository.deleteClearedOlderThan(CUTOFF_DATE);
+
+        expect(prismaMock.wirelessAlertRecord.deleteMany).toHaveBeenCalledWith({
+          where: { isActive: false, clearedAt: { lt: CUTOFF_DATE } },
+        });
+      });
+
+      it('should return Result.ok with the number of deleted records', async () => {
+        prismaMock.wirelessAlertRecord.deleteMany.mockResolvedValue({ count: 6 });
+
+        const result = await repository.deleteClearedOlderThan(CUTOFF_DATE);
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBe(6);
+      });
+
+      it('should return Result.ok(0) when no cleared records are older than the cutoff', async () => {
+        prismaMock.wirelessAlertRecord.deleteMany.mockResolvedValue({ count: 0 });
+
+        const result = await repository.deleteClearedOlderThan(CUTOFF_DATE);
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBe(0);
+      });
+
+      it('should call deleteMany exactly once', async () => {
+        prismaMock.wirelessAlertRecord.deleteMany.mockResolvedValue({ count: 3 });
+
+        await repository.deleteClearedOlderThan(CUTOFF_DATE);
+
+        expect(prismaMock.wirelessAlertRecord.deleteMany).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('failure path', () => {
+      it('should return a failed Result when Prisma throws', async () => {
+        prismaMock.wirelessAlertRecord.deleteMany.mockRejectedValue(
+          new Error('transaction rollback')
+        );
+
+        const result = await repository.deleteClearedOlderThan(CUTOFF_DATE);
+
+        expect(result.isFailure).toBe(true);
+      });
+
+      it('should prefix the error message with "deleteClearedOlderThan failed:"', async () => {
+        prismaMock.wirelessAlertRecord.deleteMany.mockRejectedValue(
+          new Error('deadlock timeout')
+        );
+
+        const result = await repository.deleteClearedOlderThan(CUTOFF_DATE);
+
+        expect(result.error).toContain('deleteClearedOlderThan failed');
+      });
+
+      it('should include the original error message in the failure', async () => {
+        prismaMock.wirelessAlertRecord.deleteMany.mockRejectedValue(
+          new Error('transaction rollback')
+        );
+
+        const result = await repository.deleteClearedOlderThan(CUTOFF_DATE);
+
+        expect(result.error).toContain('transaction rollback');
+      });
     });
   });
 });

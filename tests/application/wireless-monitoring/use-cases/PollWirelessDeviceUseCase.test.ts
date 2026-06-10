@@ -142,7 +142,8 @@ function makeMocks() {
     save: jest.fn(),
     findById: jest.fn(),
     findLatestByDevice: jest.fn(),
-    findHistoryByDevice: jest.fn()
+    findHistoryByDevice: jest.fn(),
+    deleteOlderThan: jest.fn()
   };
 
   const alertRecordRepo: jest.Mocked<IWirelessAlertRecordRepository> = {
@@ -152,7 +153,8 @@ function makeMocks() {
     findActiveByDeviceAndMetric: jest.fn(),
     findAllActiveByDevice: jest.fn(),
     findAllActive: jest.fn(),
-    findHistoryByDevice: jest.fn()
+    findHistoryByDevice: jest.fn(),
+    deleteClearedOlderThan: jest.fn()
   };
 
   const credentialsRepo: jest.Mocked<IDeviceCredentialsRepository> = {

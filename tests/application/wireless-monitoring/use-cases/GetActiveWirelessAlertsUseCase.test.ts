@@ -73,6 +73,7 @@ describe('GetActiveWirelessAlertsUseCase', () => {
       findAllActiveByDevice: jest.fn(),
       findAllActive: jest.fn(),
       findHistoryByDevice: jest.fn(),
+      deleteClearedOlderThan: jest.fn()
     };
 
     logger = makeLogger();

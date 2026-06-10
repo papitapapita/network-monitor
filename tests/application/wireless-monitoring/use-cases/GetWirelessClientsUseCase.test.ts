@@ -119,6 +119,7 @@ describe('GetWirelessClientsUseCase', () => {
       findById: jest.fn(),
       findLatestByDevice: jest.fn(),
       findHistoryByDevice: jest.fn(),
+      deleteOlderThan: jest.fn()
     };
 
     logger = makeLogger();
