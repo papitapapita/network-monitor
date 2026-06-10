@@ -60,12 +60,9 @@ _Main user-facing features still missing._
   - When introduced: `WIRELESS_CPE` devices reference `serviceInstallationId` instead of `locationId`; `LocationType.CUSTOMER_PREMISES` is retired
   - Prerequisite: subscriber/customer bounded context
 
-- [ ] **Network map view** — geographic map showing all locations and their devices
-  - Pin = one `Location` (or future `ServiceInstallation`); only locations with coordinates appear
-  - `LocationType` drives the pin icon and color (tower, POP, customer premises, etc.)
-  - Clicking a pin reveals the device list at that location (name, category, status)
-  - Infrastructure locations (TOWER, NODE, POP…) and customer installations appear in the same view with different icons
-  - Read model: `MapPinDTO { locationId, locationName, locationType, coordinates, devices[] }` — dedicated `GetMapLocationsUseCase` querying locations with non-null coordinates
+- [x] **Network map view (backend)** — `GET /api/locations/map` returns all geolocated locations as `MapPinDTO[]` with nested devices
+  - Backend complete: `GetMapLocationsUseCase`, `findAllWithCoordinates`, `findByLocationIds`
+  - Frontend still needed: render pins on map, `LocationType` drives icon, click opens device list
   - Future: when `ServiceInstallation` BC exists, map queries both sources and merges into the same `MapPinDTO` shape; frontend rendering is unchanged
 
 - [ ] **Device categories** — allow creating and assigning categories (e.g. "STA Mimosa Cocuy")

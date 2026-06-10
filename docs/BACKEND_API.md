@@ -92,8 +92,8 @@ Missing or invalid tokens return `401`. Insufficient role returns `403`.
 ## Enums
 
 ```ts
-type LocationType   = 'TOWER' | 'NODE' | 'DATACENTER' | 'POP' | 'WAREHOUSE' | 'OFFICE' | 'OTHER'
-type DeviceStatus   = 'ACTIVE' | 'DAMAGED' | 'INVENTORY'
+type LocationType   = 'TOWER' | 'NODE' | 'DATACENTER' | 'POP' | 'WAREHOUSE' | 'OFFICE' | 'CUSTOMER_PREMISES' | 'OTHER'
+type DeviceStatus   = 'INVENTORY' | 'COMMISSIONING' | 'ACTIVE' | 'DAMAGED'
 type DeviceCategory = 'CPE' | 'WIRELESS_CPE' | 'AP' | 'ROUTERBOARD' | 'SMART_SWITCH' | 'SMART_SWITCH_POE' | 'OTHER'
 type DeviceOwner    = 'COMPANY' | 'CLIENT'
 type DeviceType     = 'ANTENNA' | 'OTHER' | 'RADIO' | 'ROUTER' | 'ROUTERBOARD' | 'SERVER' | 'SWITCH'
@@ -221,6 +221,48 @@ type?:   LocationType
 
 ---
 
+### `GET /api/locations/map` — Map pins
+**Status:** 200  
+**Auth required:** Yes (any role)
+
+Returns all locations that have coordinates, each with their nested devices. Intended for map rendering — one pin per location.
+
+```ts
+// Response
+{
+  success: true,
+  data: {
+    total: number       // number of pins returned
+    pins: Array<{
+      id: string            // location UUID
+      name: string
+      locationType: LocationType
+      latitude: number      // never null — only geolocated locations included
+      longitude: number
+      altitude: number | null
+      municipality: string | null
+      neighborhood: string | null
+      address: string | null
+      devices: Array<{
+        id: string
+        name: string
+        status: DeviceStatus
+        category: DeviceCategory | null
+        ipAddress: string | null
+        macAddress: string | null
+        monitoringEnabled: boolean
+      }>
+    }>
+  }
+}
+```
+
+> Locations without both `latitude` and `longitude` are excluded.  
+> Devices are grouped under their location — no N+1 queries.  
+> Use `locationType` to drive pin icon/colour on the frontend map.
+
+---
+
 ### `GET /api/locations/:id` — Get by ID
 **Status:** 200 | 404
 
@@ -278,7 +320,8 @@ type?:   LocationType
 
 **Business rules:**
 - `INVENTORY` / `DAMAGED` status → at least one of `serialNumber` or `macAddress` required (status defaults to `INVENTORY`, so a minimal request must include at least one)
-- `ACTIVE` status → `ipAddress` required
+- `COMMISSIONING` status → `ipAddress` required; `monitoringEnabled` is forced `true` regardless of what is sent
+- `ACTIVE` status → `ipAddress` and `locationId` required
 - Any `category` set → `ipAddress` required
 
 ```ts
@@ -327,6 +370,19 @@ sortOrder?:        'ASC' | 'DESC'  // default: DESC
 // Response
 { success: true, data: DeviceDTO }
 ```
+
+---
+
+**Device status lifecycle:**
+
+| Transition | Requirements |
+|------------|--------------|
+| any → `COMMISSIONING` | `ipAddress` must be set on the device |
+| any → `ACTIVE` | `ipAddress` and `locationId` must both be set |
+| any → `DAMAGED` | no extra requirements |
+| any → `INVENTORY` | no extra requirements |
+
+`DAMAGED` is a side-state (e.g. hardware failure) and can be set from any status.
 
 ---
 

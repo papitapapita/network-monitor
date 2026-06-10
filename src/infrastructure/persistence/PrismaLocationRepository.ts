@@ -142,6 +142,37 @@ export class PrismaLocationRepository implements ILocationRepository {
     }
   }
 
+  public async findAllWithCoordinates(): Promise<Result<Location[]>> {
+    try {
+      const rawRecords = await this.prisma.location.findMany({
+        where: {
+          latitude: { not: null },
+          longitude: { not: null }
+        },
+        orderBy: { name: 'asc' }
+      });
+
+      const locations: Location[] = [];
+      for (const raw of rawRecords) {
+        const domainResult = LocationMapper.toDomain(raw);
+        if (domainResult.isFailure) {
+          return Result.fail<Location[]>(
+            `Failed to map location: ${domainResult.error}`
+          );
+        }
+        locations.push(domainResult.value);
+      }
+
+      return Result.ok<Location[]>(locations);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<Location[]>(
+        `Database error finding geolocated locations: ${errorMessage}`
+      );
+    }
+  }
+
   public async delete(id: LocationId): Promise<Result<void>> {
     try {
       await this.prisma.location.delete({

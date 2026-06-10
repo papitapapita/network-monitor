@@ -62,6 +62,7 @@ describe('GetLocationUseCase', () => {
       findById: jest.fn(),
       findAll: jest.fn(),
       findByType: jest.fn(),
+      findAllWithCoordinates: jest.fn(),
       delete: jest.fn(),
       exists: jest.fn(),
       count: jest.fn()

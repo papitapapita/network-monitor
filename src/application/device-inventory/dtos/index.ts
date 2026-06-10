@@ -29,3 +29,4 @@ export * from './ScanNetworkSegmentRequestDTO';
 export * from './ScanNetworkSegmentResponseDTO';
 export * from './SetDeviceCredentialsRequestDTO';
 export * from './DeviceCredentialsResponseDTO';
+export * from './MapPinDTO';

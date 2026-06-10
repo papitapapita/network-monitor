@@ -8,7 +8,8 @@ import {
   CreateLocationUseCase,
   GetLocationUseCase,
   ListLocationsUseCase,
-  UpdateLocationUseCase
+  UpdateLocationUseCase,
+  GetMapLocationsUseCase
 } from 'application/device-inventory/use-cases';
 
 export class LocationController {
@@ -17,8 +18,34 @@ export class LocationController {
     private readonly getUseCase: GetLocationUseCase,
     private readonly listUseCase: ListLocationsUseCase,
     private readonly updateUseCase: UpdateLocationUseCase,
+    private readonly getMapUseCase: GetMapLocationsUseCase,
     private readonly logger: ILogger
   ) {}
+
+  public getMap = async (
+    _req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.getMapUseCase.execute({});
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res.status(statusCode).json({
+          success: false,
+          error: result.error
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: result.value
+      });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
 
   public create = async (
     req: Request,

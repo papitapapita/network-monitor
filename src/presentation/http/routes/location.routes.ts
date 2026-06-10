@@ -89,6 +89,22 @@ export function createLocationRoutes(
     controller.list
   );
 
+  /**
+   * GET /api/locations/map
+   * Return all geolocated locations as map pins, each with their nested devices.
+   *
+   * Response: 200 OK with MapPinsResponseDTO
+   *   { pins: [...], total: number }
+   * Errors:
+   *   500 - Unexpected infrastructure error
+   */
+  router.get(
+    '/map',
+    authorize('read'),
+    createRateLimiter('read'),
+    controller.getMap
+  );
+
   // =====================================
   // ITEM ENDPOINTS (parameterised — must come after static paths)
   // =====================================

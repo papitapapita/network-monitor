@@ -71,6 +71,7 @@ describe('CreateLocationUseCase', () => {
       findById: jest.fn(),
       findAll: jest.fn(),
       findByType: jest.fn(),
+      findAllWithCoordinates: jest.fn(),
       delete: jest.fn(),
       exists: jest.fn(),
       count: jest.fn()
@@ -162,9 +163,12 @@ describe('CreateLocationUseCase', () => {
             Result.ok(makePersistedLocation({ type }))
           );
 
-          const result = await useCase.execute(
-            makeMinimalDTO({ type })
-          );
+          const dto =
+            type === LocationType.CUSTOMER_PREMISES
+              ? makeMinimalDTO({ type, address: 'Carrera 80 # 75-32' })
+              : makeMinimalDTO({ type });
+
+          const result = await useCase.execute(dto);
 
           expect(result.isSuccess).toBe(true);
         }

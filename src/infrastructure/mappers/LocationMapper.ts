@@ -111,6 +111,10 @@ export class LocationMapper {
         return LocationType.WAREHOUSE;
       case 'OFFICE':
         return LocationType.OFFICE;
+      case 'OTHER':
+        return LocationType.OTHER;
+      case 'CUSTOMER_PREMISES':
+        return LocationType.CUSTOMER_PREMISES;
       default:
         throw new Error(
           `Data integrity violation: unrecognised LocationType "${prismaType}" in persistence store`
@@ -134,6 +138,8 @@ export class LocationMapper {
         return 'WAREHOUSE';
       case LocationType.OFFICE:
         return 'OFFICE';
+      case LocationType.OTHER:
+        return 'OTHER';
       default:
         throw new Error(
           `Unknown domain LocationType: ${locationType}`

@@ -186,6 +186,34 @@ export class PrismaDeviceRepository implements IDeviceRepository {
     }
   }
 
+  public async findByLocationIds(
+    ids: LocationId[]
+  ): Promise<Result<Device[]>> {
+    if (ids.length === 0) {
+      return Result.ok<Device[]>([]);
+    }
+
+    try {
+      const rawRecords = await this.prisma.device.findMany({
+        where: {
+          locationId: { in: ids.map((id) => id.toString()) }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      return this.mapManyToDomain(
+        rawRecords,
+        'Database error finding devices by location IDs'
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<Device[]>(
+        `Database error finding devices by location IDs: ${errorMessage}`
+      );
+    }
+  }
+
   public async findByDeviceModel(
     deviceModelId: DeviceModelId
   ): Promise<Result<Device[]>> {

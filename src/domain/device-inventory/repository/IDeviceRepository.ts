@@ -18,6 +18,7 @@ export interface IDeviceRepository {
 
   findAll(limit?: number, offset?: number): Promise<Result<Device[]>>;
   findByLocation(locationId: LocationId): Promise<Result<Device[]>>;
+  findByLocationIds(ids: LocationId[]): Promise<Result<Device[]>>;
   findByDeviceModel(
     deviceModelId: DeviceModelId
   ): Promise<Result<Device[]>>;

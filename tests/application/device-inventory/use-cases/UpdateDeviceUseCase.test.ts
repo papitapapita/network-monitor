@@ -60,6 +60,7 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
     findByStatus: jest.fn(),
     existsByMacAddress: jest.fn(),
     existsByIpAddress: jest.fn(),
+    findByLocationIds: jest.fn(),
     findByFilters: jest.fn()
   };
 }
@@ -243,6 +244,10 @@ describe('UpdateDeviceUseCase', () => {
   // =========================================================================
   describe('executeImpl — status change', () => {
     it('should succeed when a valid status is provided', async () => {
+      repo.findById.mockResolvedValue(
+        Result.ok(makePersistedDevice({ locationId: VALID_LOCATION_ID }))
+      );
+
       const result = await useCase.execute(
         makeRequest({ status: 'ACTIVE' })
       );
@@ -549,6 +554,10 @@ describe('UpdateDeviceUseCase', () => {
     });
 
     it('should not call updateDetails when no detail fields are provided', async () => {
+      repo.findById.mockResolvedValue(
+        Result.ok(makePersistedDevice({ locationId: VALID_LOCATION_ID }))
+      );
+
       // Only status and monitoring fields — no detail fields → updateDetails never invoked.
       // We confirm via save being called (the device exists) but no error about details.
       const result = await useCase.execute(

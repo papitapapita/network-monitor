@@ -11,6 +11,7 @@ export interface ILocationRepository {
     offset?: number
   ): Promise<Result<Location[]>>;
   findByType(type: LocationType): Promise<Result<Location[]>>;
+  findAllWithCoordinates(): Promise<Result<Location[]>>;
   delete(id: LocationId): Promise<Result<void>>;
   exists(id: LocationId): Promise<Result<boolean>>;
   count(): Promise<Result<number>>;
