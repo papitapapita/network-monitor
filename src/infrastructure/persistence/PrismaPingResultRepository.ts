@@ -93,6 +93,19 @@ export class PrismaPingResultRepository
     }
   }
 
+  async deleteOlderThan(cutoff: Date): Promise<Result<number>> {
+    try {
+      const { count } = await this.prisma.pingResult.deleteMany({
+        where: { checkedAt: { lt: cutoff } }
+      });
+      return Result.ok(count);
+    } catch (error) {
+      return Result.fail(
+        `deleteOlderThan failed: ${(error as Error).message}`
+      );
+    }
+  }
+
   // ============================================================================
   // Private Helpers
   // ============================================================================

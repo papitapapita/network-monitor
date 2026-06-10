@@ -39,4 +39,5 @@ export interface IPingResultRepository {
     deviceId: DeviceId,
     filters: PingResultFilters
   ): Promise<Result<PingResultPage>>;
+  deleteOlderThan(cutoff: Date): Promise<Result<number>>;
 }

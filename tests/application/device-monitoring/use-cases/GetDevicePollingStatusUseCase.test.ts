@@ -62,7 +62,8 @@ function makePingResultRepo(): jest.Mocked<IPingResultRepository> {
   return {
     save: jest.fn(),
     findLatestByDevice: jest.fn(),
-    findByDevice: jest.fn()
+    findByDevice: jest.fn(),
+    deleteOlderThan: jest.fn()
   };
 }
 
