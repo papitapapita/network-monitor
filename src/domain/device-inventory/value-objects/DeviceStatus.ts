@@ -3,11 +3,13 @@ import { DeviceStatusProps } from '../props';
 
 export class DeviceStatus extends ValueObject<DeviceStatusProps> {
   public static readonly ACTIVE = 'ACTIVE';
+  public static readonly COMMISSIONING = 'COMMISSIONING';
   public static readonly DAMAGED = 'DAMAGED';
   public static readonly INVENTORY = 'INVENTORY';
 
   private static readonly VALID_STATUSES = [
     DeviceStatus.ACTIVE,
+    DeviceStatus.COMMISSIONING,
     DeviceStatus.DAMAGED,
     DeviceStatus.INVENTORY
   ] as const;
@@ -57,6 +59,10 @@ export class DeviceStatus extends ValueObject<DeviceStatusProps> {
     return new DeviceStatus({ value: DeviceStatus.ACTIVE });
   }
 
+  public static createCommissioning(): DeviceStatus {
+    return new DeviceStatus({ value: DeviceStatus.COMMISSIONING });
+  }
+
   public static createDamaged(): DeviceStatus {
     return new DeviceStatus({ value: DeviceStatus.DAMAGED });
   }
@@ -75,6 +81,10 @@ export class DeviceStatus extends ValueObject<DeviceStatusProps> {
     return this._props.value === DeviceStatus.ACTIVE;
   }
 
+  public isCommissioning(): boolean {
+    return this._props.value === DeviceStatus.COMMISSIONING;
+  }
+
   public isDamaged(): boolean {
     return this._props.value === DeviceStatus.DAMAGED;
   }
@@ -87,6 +97,8 @@ export class DeviceStatus extends ValueObject<DeviceStatusProps> {
     switch (this._props.value) {
       case DeviceStatus.ACTIVE:
         return 'Active';
+      case DeviceStatus.COMMISSIONING:
+        return 'Commissioning';
       case DeviceStatus.DAMAGED:
         return 'Damaged';
       case DeviceStatus.INVENTORY:

@@ -20,6 +20,13 @@ describe('DeviceStatus', () => {
         expect(result.value.value).toBe('DAMAGED');
       });
 
+      it('should succeed for COMMISSIONING', () => {
+        const result = DeviceStatus.create('COMMISSIONING');
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.value).toBe('COMMISSIONING');
+      });
+
       it('should succeed for INVENTORY', () => {
         const result = DeviceStatus.create('INVENTORY');
 
@@ -118,6 +125,7 @@ describe('DeviceStatus', () => {
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('ACTIVE');
+        expect(result.error).toContain('COMMISSIONING');
         expect(result.error).toContain('DAMAGED');
         expect(result.error).toContain('INVENTORY');
       });
@@ -128,6 +136,10 @@ describe('DeviceStatus', () => {
   describe('static factory methods', () => {
     it('createActive() should return an ACTIVE status', () => {
       expect(DeviceStatus.createActive().value).toBe('ACTIVE');
+    });
+
+    it('createCommissioning() should return a COMMISSIONING status', () => {
+      expect(DeviceStatus.createCommissioning().value).toBe('COMMISSIONING');
     });
 
     it('createDamaged() should return a DAMAGED status', () => {
@@ -160,6 +172,12 @@ describe('DeviceStatus', () => {
       expect(DeviceStatus.createInventory().isActive()).toBe(false);
     });
 
+    it('isCommissioning() should return true only for COMMISSIONING', () => {
+      expect(DeviceStatus.createCommissioning().isCommissioning()).toBe(true);
+      expect(DeviceStatus.createActive().isCommissioning()).toBe(false);
+      expect(DeviceStatus.createInventory().isCommissioning()).toBe(false);
+    });
+
     it('isDamaged() should return true only for DAMAGED', () => {
       expect(DeviceStatus.createDamaged().isDamaged()).toBe(true);
       expect(DeviceStatus.createActive().isDamaged()).toBe(false);
@@ -175,6 +193,12 @@ describe('DeviceStatus', () => {
   describe('getDisplayName()', () => {
     it('should return "Active" for ACTIVE', () => {
       expect(DeviceStatus.createActive().getDisplayName()).toBe('Active');
+    });
+
+    it('should return "Commissioning" for COMMISSIONING', () => {
+      expect(
+        DeviceStatus.createCommissioning().getDisplayName()
+      ).toBe('Commissioning');
     });
 
     it('should return "Damaged" for DAMAGED', () => {

@@ -36,6 +36,7 @@ export class Location extends AggregateRoot<
     return this.props.address;
   }
 
+  // used by the client map feature to plot device locations on a geographic view
   get coordinates(): Coordinates | null | undefined {
     return this.props.coordinates;
   }
@@ -113,6 +114,15 @@ export class Location extends AggregateRoot<
 
     const oldType = this.props.type;
     if (oldType === newType) return Result.ok<void>();
+
+    if (newType === LocationType.CUSTOMER_PREMISES) {
+      const cpResult = Location.validateCustomerPremisesNavigability(
+        this.props
+      );
+      if (cpResult.isFailure) {
+        return Result.fail<void>(cpResult.error);
+      }
+    }
 
     this.props.type = newType;
     this.touch();
@@ -199,6 +209,10 @@ export class Location extends AggregateRoot<
     return this.props.coordinates != null;
   }
 
+  public hasAddress(): boolean {
+    return this.props.address != null && this.props.address.trim().length > 0;
+  }
+
   private touch(): void {
     this.props.updatedAt = new Date();
   }
@@ -273,6 +287,22 @@ export class Location extends AggregateRoot<
     return Result.ok<void>();
   }
 
+  private static validateCustomerPremisesNavigability(
+    props: Pick<LocationProps, 'address' | 'coordinates'>
+  ): Result<void> {
+    const hasAddress =
+      props.address != null && props.address.trim().length > 0;
+    const hasCoordinates = props.coordinates != null;
+
+    if (!hasAddress && !hasCoordinates) {
+      return Result.fail<void>(
+        'A CUSTOMER_PREMISES location must have an address or coordinates so technicians can navigate to it'
+      );
+    }
+
+    return Result.ok<void>();
+  }
+
   private static validate(props: LocationProps): Result<void> {
     const guardResult = Guard.againstNullOrUndefined(
       props.type,
@@ -288,6 +318,15 @@ export class Location extends AggregateRoot<
       return nameResult;
     }
 
-    return Location.validateAddressLengths(props);
+    const lengthResult = Location.validateAddressLengths(props);
+    if (lengthResult.isFailure) {
+      return lengthResult;
+    }
+
+    if (props.type === LocationType.CUSTOMER_PREMISES) {
+      return Location.validateCustomerPremisesNavigability(props);
+    }
+
+    return Result.ok<void>();
   }
 }

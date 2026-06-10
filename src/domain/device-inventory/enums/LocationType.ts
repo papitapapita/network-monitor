@@ -5,5 +5,6 @@ export enum LocationType {
   POP = 'POP',
   WAREHOUSE = 'WAREHOUSE',
   OFFICE = 'OFFICE',
+  CUSTOMER_PREMISES = 'CUSTOMER_PREMISES',
   OTHER = 'OTHER'
 }

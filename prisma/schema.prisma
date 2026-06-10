@@ -134,6 +134,7 @@ model Location {
 
 enum DeviceStatus {
   ACTIVE
+  COMMISSIONING
   DAMAGED
   INVENTORY
 

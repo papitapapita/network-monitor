@@ -116,6 +116,13 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       );
     }
 
+    // COMMISSIONING devices must have an IP address
+    if (props.status.isCommissioning() && !props.ipAddress) {
+      return Result.fail<Device>(
+        'Cannot create a COMMISSIONING device without an IP address'
+      );
+    }
+
     // A categorised device must have an IP address
     if (props.category && !props.ipAddress) {
       return Result.fail<Device>(
@@ -137,6 +144,9 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
         ipAddress: props.ipAddress ?? null,
         description: props.description ?? null,
         installedDate: props.installedDate ?? null,
+        monitoringEnabled: props.status.isCommissioning()
+          ? true
+          : props.monitoringEnabled,
         createdAt: now,
         updatedAt: now
       },
@@ -191,6 +201,18 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       );
     }
 
+    if (newStatus.isActive() && this.props.locationId === null) {
+      return Result.fail<void>(
+        'Cannot activate a device without a location assigned'
+      );
+    }
+
+    if (newStatus.isCommissioning() && this.props.ipAddress === null) {
+      return Result.fail<void>(
+        'Cannot commission a device without an IP address'
+      );
+    }
+
     if (
       Device.requiresIdentifier(newStatus) &&
       !this.props.serialNumber &&
@@ -218,6 +240,10 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
         dateTimeOccurred: new Date()
       })
     );
+
+    if (newStatus.isCommissioning() && !this.props.monitoringEnabled) {
+      this.setMonitoring(true);
+    }
 
     return Result.ok<void>();
   }
