@@ -95,7 +95,8 @@ import {
 import {
   SendDeviceDownAlertUseCase,
   SendDeviceRecoveryAlertUseCase,
-  ListAlertsUseCase
+  ListAlertsUseCase,
+  PurgeOldAlertsUseCase
 } from 'application/notifications/use-cases';
 import {
   DeviceWentOfflineNotificationHandler,
@@ -130,8 +131,18 @@ import {
   ConfigureDevicePollingUseCase,
   GetDevicePollingStatusUseCase,
   GetDevicePollingHistoryUseCase,
-  CreateDevicePollingUseCase
+  CreateDevicePollingUseCase,
+  PurgeOldPingResultsUseCase
 } from '../../application/device-monitoring/use-cases';
+import {
+  PurgeOldWirelessSnapshotsUseCase,
+  PurgeOldWirelessAlertRecordsUseCase
+} from 'application/wireless-monitoring/use-cases';
+import { DataRetentionOrchestrator } from '../retention/DataRetentionOrchestrator';
+import {
+  TriggerDataRetentionUseCase
+} from 'application/shared/use-cases/TriggerDataRetentionUseCase';
+import { AdminController } from 'presentation/http/controllers/AdminController';
 
 /**
  * DependencyContainer
@@ -175,6 +186,10 @@ export class DependencyContainer {
   // Orchestrators (lifecycle managed by main.ts)
   public pollingOrchestrator: PollingOrchestrator;
   public wirelessPollingOrchestrator: WirelessPollingOrchestrator;
+  public dataRetentionOrchestrator: DataRetentionOrchestrator;
+
+  // Admin
+  public adminController: AdminController;
 
   constructor() {
     // Initialize infrastructure
@@ -586,6 +601,66 @@ export class DependencyContainer {
         { maxConcurrentPolls: 50 },
         this.logger
       );
+
+    // =====================================
+    // DATA RETENTION
+    // =====================================
+
+    const purgeOldPingResultsUseCase = new PurgeOldPingResultsUseCase(
+      this.pingResultRepository
+    );
+    const purgeOldAlertsUseCase = new PurgeOldAlertsUseCase(
+      this.alertRepository
+    );
+    const purgeOldWirelessSnapshotsUseCase =
+      new PurgeOldWirelessSnapshotsUseCase(
+        this.wirelessSnapshotRepository
+      );
+    const purgeOldWirelessAlertRecordsUseCase =
+      new PurgeOldWirelessAlertRecordsUseCase(
+        this.wirelessAlertRecordRepository
+      );
+
+    const retentionConfig = {
+      pingResultRetentionDays: parseInt(
+        process.env.PING_RESULT_RETENTION_DAYS ?? '30',
+        10
+      ),
+      wirelessSnapshotRetentionDays: parseInt(
+        process.env.WIRELESS_SNAPSHOT_RETENTION_DAYS ?? '30',
+        10
+      ),
+      alertRetentionDays: parseInt(
+        process.env.ALERT_RETENTION_DAYS ?? '90',
+        10
+      ),
+      wirelessAlertRecordRetentionDays: parseInt(
+        process.env.WIRELESS_ALERT_RECORD_RETENTION_DAYS ?? '90',
+        10
+      )
+    };
+
+    const triggerDataRetentionUseCase = new TriggerDataRetentionUseCase(
+      purgeOldPingResultsUseCase,
+      purgeOldAlertsUseCase,
+      purgeOldWirelessSnapshotsUseCase,
+      purgeOldWirelessAlertRecordsUseCase,
+      retentionConfig
+    );
+
+    this.adminController = new AdminController(
+      triggerDataRetentionUseCase,
+      this.logger
+    );
+
+    this.dataRetentionOrchestrator = new DataRetentionOrchestrator(
+      purgeOldPingResultsUseCase,
+      purgeOldAlertsUseCase,
+      purgeOldWirelessSnapshotsUseCase,
+      purgeOldWirelessAlertRecordsUseCase,
+      retentionConfig,
+      this.logger
+    );
 
     // Register cross-context event handlers
     EventDispatcher.register(

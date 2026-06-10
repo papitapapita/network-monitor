@@ -10,6 +10,7 @@ import { createScanRoutes } from './scan.routes';
 import { createWirelessRoutes } from './wireless.routes';
 import { createCredentialsRoutes } from './credentials.routes';
 import { createAuthRoutes } from './auth.routes';
+import { createAdminRoutes } from './admin.routes';
 import {
   createAuditLogMiddleware,
   createAuthenticateMiddleware
@@ -117,6 +118,16 @@ export function setupRoutes(
   apiRouter.use(
     '/network/scan',
     createScanRoutes(container.scanController)
+  );
+
+  // =====================================
+  // ADMIN
+  // =====================================
+
+  // Admin: /api/admin/*
+  apiRouter.use(
+    '/admin',
+    createAdminRoutes(container.adminController)
   );
 
   app.use('/api', apiRouter);
