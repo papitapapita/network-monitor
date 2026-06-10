@@ -14,4 +14,5 @@ export interface IAlertRepository {
     offset?: number
   ): Promise<Result<Alert[]>>;
   findAll(limit?: number, offset?: number): Promise<Result<Alert[]>>;
+  deleteResolvedOlderThan(cutoff: Date): Promise<Result<number>>;
 }

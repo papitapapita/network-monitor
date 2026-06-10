@@ -100,4 +100,17 @@ export class PrismaAlertRepository implements IAlertRepository {
       );
     }
   }
+
+  async deleteResolvedOlderThan(cutoff: Date): Promise<Result<number>> {
+    try {
+      const { count } = await this.prisma.alertEvent.deleteMany({
+        where: { resolvedAt: { not: null, lt: cutoff } }
+      });
+      return Result.ok(count);
+    } catch (error) {
+      return Result.fail(
+        `deleteResolvedOlderThan failed: ${(error as Error).message}`
+      );
+    }
+  }
 }

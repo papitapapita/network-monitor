@@ -33,6 +33,7 @@ function makeFakePrismaClient(): {
     findUnique: jest.Mock;
     findFirst: jest.Mock;
     findMany: jest.Mock;
+    deleteMany: jest.Mock;
   };
 } {
   return {
@@ -40,7 +41,8 @@ function makeFakePrismaClient(): {
       upsert: jest.fn(),
       findUnique: jest.fn(),
       findFirst: jest.fn(),
-      findMany: jest.fn()
+      findMany: jest.fn(),
+      deleteMany: jest.fn()
     }
   };
 }
@@ -691,6 +693,83 @@ describe('PrismaAlertRepository', () => {
         const result = await repository.findAll();
 
         expect(result.error).toContain('replica unavailable');
+      });
+    });
+  });
+
+  // =========================================================================
+  describe('deleteResolvedOlderThan()', () => {
+    const CUTOFF_DATE = new Date('2024-01-01T00:00:00.000Z');
+
+    // -----------------------------------------------------------------------
+    describe('happy path', () => {
+      it('should call prisma.alertEvent.deleteMany with resolvedAt not null and lt cutoff', async () => {
+        prisma.alertEvent.deleteMany.mockResolvedValue({ count: 4 });
+
+        await repository.deleteResolvedOlderThan(CUTOFF_DATE);
+
+        expect(prisma.alertEvent.deleteMany).toHaveBeenCalledWith({
+          where: { resolvedAt: { not: null, lt: CUTOFF_DATE } }
+        });
+      });
+
+      it('should return Result.ok with the number of deleted alerts', async () => {
+        prisma.alertEvent.deleteMany.mockResolvedValue({ count: 4 });
+
+        const result = await repository.deleteResolvedOlderThan(CUTOFF_DATE);
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBe(4);
+      });
+
+      it('should return Result.ok(0) when no resolved alerts are older than the cutoff', async () => {
+        prisma.alertEvent.deleteMany.mockResolvedValue({ count: 0 });
+
+        const result = await repository.deleteResolvedOlderThan(CUTOFF_DATE);
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBe(0);
+      });
+
+      it('should call deleteMany exactly once', async () => {
+        prisma.alertEvent.deleteMany.mockResolvedValue({ count: 2 });
+
+        await repository.deleteResolvedOlderThan(CUTOFF_DATE);
+
+        expect(prisma.alertEvent.deleteMany).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('failure path', () => {
+      it('should return a failed Result when Prisma throws', async () => {
+        prisma.alertEvent.deleteMany.mockRejectedValue(
+          new Error('foreign key constraint')
+        );
+
+        const result = await repository.deleteResolvedOlderThan(CUTOFF_DATE);
+
+        expect(result.isFailure).toBe(true);
+      });
+
+      it('should prefix the error message with "deleteResolvedOlderThan failed:"', async () => {
+        prisma.alertEvent.deleteMany.mockRejectedValue(
+          new Error('deadlock detected')
+        );
+
+        const result = await repository.deleteResolvedOlderThan(CUTOFF_DATE);
+
+        expect(result.error).toContain('deleteResolvedOlderThan failed');
+      });
+
+      it('should include the original error message in the failure', async () => {
+        prisma.alertEvent.deleteMany.mockRejectedValue(
+          new Error('foreign key constraint')
+        );
+
+        const result = await repository.deleteResolvedOlderThan(CUTOFF_DATE);
+
+        expect(result.error).toContain('foreign key constraint');
       });
     });
   });
