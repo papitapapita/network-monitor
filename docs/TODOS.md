@@ -15,12 +15,12 @@ _These block or constrain everything else. Do in order._
   - Helmet + CORS (`ALLOWED_ORIGINS` env var) wired on app startup
   - bcrypt (cost 10) for password hashing at persistence layer
 
-- [ ] **Device activation workflow** — `DRAFT`/`ACTIVE` lifecycle + soft-delete + replacement
-  - New devices (API or discovery) land in `DRAFT` until an operator confirms them
+- [ ] **Device activation workflow** — full lifecycle + soft-delete + replacement
+  - COMMISSIONING status implemented: INVENTORY → COMMISSIONING (IP required, monitoring auto-on) → ACTIVE (IP + location required)
   - Soft-delete: `deletedAt` / `deletedBy` + 7-day grace period before hard removal
   - Replacement: `replacedByDeviceId` + `replacedAt` to track hardware swaps
   - Emit `DeviceDeletedEvent` on soft-delete so the polling and notification pipelines can react (no such event exists yet)
-  - Scope: schema migration + domain invariant (monitoring only runs on `ACTIVE` devices)
+  - Scope: schema migration + domain invariant (monitoring only runs on `ACTIVE` and `COMMISSIONING` devices)
 
 - [ ] **Status & capability guards** — centralise eligibility checks in a `DeviceEligibilityService`
   - Only `ACTIVE`, non-deleted, non-replaced devices are polled (ping, SNMP, wireless)
@@ -52,6 +52,21 @@ _Main user-facing features still missing._
   - Belongs in Device Inventory bounded context
   - For now: accept plain strings for city/province (clients are in one province)
   - Address mutability: TBD
+
+- [ ] **ServiceInstallation bounded context** — replace `LocationType.CUSTOMER_PREMISES` with a proper `ServiceInstallation` aggregate
+  - A `CUSTOMER_PREMISES` location is really where a contracted internet service is delivered, not a generic place
+  - One customer can have multiple service installations (home + business)
+  - `ServiceInstallation` fields: `serviceAddress` (required: street + coordinates), `subscriberId`, `contractId`, installed device references
+  - When introduced: `WIRELESS_CPE` devices reference `serviceInstallationId` instead of `locationId`; `LocationType.CUSTOMER_PREMISES` is retired
+  - Prerequisite: subscriber/customer bounded context
+
+- [ ] **Network map view** — geographic map showing all locations and their devices
+  - Pin = one `Location` (or future `ServiceInstallation`); only locations with coordinates appear
+  - `LocationType` drives the pin icon and color (tower, POP, customer premises, etc.)
+  - Clicking a pin reveals the device list at that location (name, category, status)
+  - Infrastructure locations (TOWER, NODE, POP…) and customer installations appear in the same view with different icons
+  - Read model: `MapPinDTO { locationId, locationName, locationType, coordinates, devices[] }` — dedicated `GetMapLocationsUseCase` querying locations with non-null coordinates
+  - Future: when `ServiceInstallation` BC exists, map queries both sources and merges into the same `MapPinDTO` shape; frontend rendering is unchanged
 
 - [ ] **Device categories** — allow creating and assigning categories (e.g. "STA Mimosa Cocuy")
 

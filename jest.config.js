@@ -5,7 +5,7 @@ export default {
   transform: {
     '^.+.tsx?$': ['ts-jest', { tsconfig: 'tsconfig.json' }]
   },
-  testPathIgnorePatterns: ['/node_modules/', '/dist/'],
+  testPathIgnorePatterns: ['/node_modules/', '/dist/', '/.claude/'],
   transformIgnorePatterns: [
     '/node_modules/(?!uuid)/' // Allow Jest to transform uuid
   ],

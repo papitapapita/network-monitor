@@ -856,11 +856,8 @@ interface WirelessMetricsDTO {
   noiseFloorDbm: number | null
   snrDb: number | null
   ccqPercent: number | null
-  txRateMbps: number | null
-  rxRateMbps: number | null
   frequencyMhz: number | null
   channelWidthMhz: number | null
-  txPowerDbm: number | null
   throughputTxBps: number | null
   throughputRxBps: number | null
   throughputTxPps: number | null
@@ -878,7 +875,6 @@ interface WirelessMetricsDTO {
   distanceM: number | null
   latencyMs: number | null
   clientsConnected: number | null
-  clientsProvisioned: number | null
 }
 
 interface WirelessStatusDTO {
@@ -894,7 +890,7 @@ interface WirelessStatusDTO {
 interface WirelessAlertDTO {
   id: string                // UUID
   deviceId: string          // UUID
-  metric: string            // e.g. "signal_rx_dbm", "clock_drift_s", "firmware_version_changed"
+  metric: string            // e.g. "signal_rx_dbm", "latency_ms", "clock_drift_s", "firmware_version_changed", "remote_ap_mac_changed"
   severity: WirelessAlertSeverity
   threshold: number
   lastValue: number
