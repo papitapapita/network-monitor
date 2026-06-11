@@ -1,7 +1,5 @@
 export * from './CoordinatesProps';
-export * from './LocationCreatedEventProps';
 export * from './LocationProps';
-export * from './LocationUpdatedEventProps';
 export * from './DeviceNameProps';
 export * from './SerialNumberProps';
 export * from './DeviceStatusProps';

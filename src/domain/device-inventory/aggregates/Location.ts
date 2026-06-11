@@ -3,10 +3,6 @@ import { LocationId } from 'domain/shared/ids';
 import { LocationType } from '../enums';
 import { Coordinates } from '../value-objects';
 import { LocationProps } from '../props';
-import {
-  LocationCreatedEvent,
-  LocationUpdatedEvent
-} from '../events';
 
 export class Location extends AggregateRoot<
   LocationProps,
@@ -71,15 +67,6 @@ export class Location extends AggregateRoot<
       id
     );
 
-    location.addDomainEvent(
-      new LocationCreatedEvent({
-        aggregateId: location.id,
-        locationName: location.name,
-        locationType: location.type,
-        dateTimeOccurred: now
-      })
-    );
-
     return Result.ok<Location>(location);
   }
 
@@ -101,7 +88,6 @@ export class Location extends AggregateRoot<
 
     this.props.name = newName;
     this.touch();
-    this.emitUpdate(['name'], { name: oldName }, { name: newName });
 
     return Result.ok<void>();
   }
@@ -126,7 +112,6 @@ export class Location extends AggregateRoot<
 
     this.props.type = newType;
     this.touch();
-    this.emitUpdate(['type'], { type: oldType }, { type: newType });
 
     return Result.ok<void>();
   }
@@ -178,7 +163,6 @@ export class Location extends AggregateRoot<
     if (changedFields.length === 0) return Result.ok<void>();
 
     this.touch();
-    this.emitUpdate(changedFields, previousValues, newValues);
 
     return Result.ok<void>();
   }
@@ -196,11 +180,6 @@ export class Location extends AggregateRoot<
 
     this.props.coordinates = coordinates;
     this.touch();
-    this.emitUpdate(
-      ['coordinates'],
-      { coordinates: previousStr },
-      { coordinates: newStr }
-    );
 
     return Result.ok<void>();
   }
@@ -215,23 +194,6 @@ export class Location extends AggregateRoot<
 
   private touch(): void {
     this.props.updatedAt = new Date();
-  }
-
-  private emitUpdate(
-    changedFields: string[],
-    previousValues: Record<string, unknown>,
-    newValues: Record<string, unknown>
-  ): void {
-    this.addDomainEvent(
-      new LocationUpdatedEvent({
-        aggregateId: this.id,
-        locationName: this.props.name,
-        changedFields,
-        previousValues,
-        newValues,
-        dateTimeOccurred: new Date()
-      })
-    );
   }
 
   private static validateName(name: string): Result<void> {
