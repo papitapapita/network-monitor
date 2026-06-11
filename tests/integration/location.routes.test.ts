@@ -2,13 +2,15 @@ import request from 'supertest';
 import { Application } from 'express';
 import { PrismaClient } from '../../src/generated/prisma/client';
 import { createTestApp } from './helpers/createTestApp';
-import { cleanDatabase, GHOST_ID, INVALID_ID } from './helpers/db';
+import { cleanDatabase, seedLocation, seedDeviceModel, GHOST_ID, INVALID_ID } from './helpers/db';
+import { seedAndGetToken } from './helpers/auth';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
 
 describe('Location Routes — /api/locations', () => {
   let app: Application;
   let container: DependencyContainer;
   let prisma: PrismaClient;
+  let token: string;
 
   beforeAll(async () => {
     ({ app, container } = await createTestApp());
@@ -21,6 +23,7 @@ describe('Location Routes — /api/locations', () => {
 
   beforeEach(async () => {
     await cleanDatabase(prisma);
+    token = await seedAndGetToken(app, prisma, 'ADMIN');
   });
 
   // ─────────────────────────────────────────────────────────────
@@ -31,6 +34,7 @@ describe('Location Routes — /api/locations', () => {
     it('201 — creates a location with required fields only', async () => {
       const res = await request(app)
         .post('/api/locations')
+        .set('Authorization', `Bearer ${token}`)
         .send({ name: 'Tower Norte', type: 'TOWER' });
 
       expect(res.status).toBe(201);
@@ -46,6 +50,7 @@ describe('Location Routes — /api/locations', () => {
     it('201 — creates a location with all optional fields', async () => {
       const res = await request(app)
         .post('/api/locations')
+        .set('Authorization', `Bearer ${token}`)
         .send({
           name: 'Datacenter SP',
           type: 'DATACENTER',
@@ -69,6 +74,7 @@ describe('Location Routes — /api/locations', () => {
     it('400 — rejects missing name', async () => {
       const res = await request(app)
         .post('/api/locations')
+        .set('Authorization', `Bearer ${token}`)
         .send({ type: 'TOWER' });
 
       expect(res.status).toBe(400);
@@ -77,6 +83,7 @@ describe('Location Routes — /api/locations', () => {
     it('400 — rejects missing type', async () => {
       const res = await request(app)
         .post('/api/locations')
+        .set('Authorization', `Bearer ${token}`)
         .send({ name: 'Tower Norte' });
 
       expect(res.status).toBe(400);
@@ -85,6 +92,7 @@ describe('Location Routes — /api/locations', () => {
     it('400 — rejects invalid location type', async () => {
       const res = await request(app)
         .post('/api/locations')
+        .set('Authorization', `Bearer ${token}`)
         .send({ name: 'Tower Norte', type: 'INVALID_TYPE' });
 
       expect(res.status).toBe(400);
@@ -93,6 +101,7 @@ describe('Location Routes — /api/locations', () => {
     it('400 — rejects latitude without longitude', async () => {
       const res = await request(app)
         .post('/api/locations')
+        .set('Authorization', `Bearer ${token}`)
         .send({ name: 'Tower Norte', type: 'TOWER', latitude: -23.55 });
 
       expect(res.status).toBe(400);
@@ -101,9 +110,18 @@ describe('Location Routes — /api/locations', () => {
     it('400 — rejects longitude without latitude', async () => {
       const res = await request(app)
         .post('/api/locations')
+        .set('Authorization', `Bearer ${token}`)
         .send({ name: 'Tower Norte', type: 'TOWER', longitude: -46.63 });
 
       expect(res.status).toBe(400);
+    });
+
+    it('401 — rejects request with no token', async () => {
+      const res = await request(app)
+        .post('/api/locations')
+        .send({ name: 'Tower Norte', type: 'TOWER' });
+
+      expect(res.status).toBe(401);
     });
   });
 
@@ -113,7 +131,9 @@ describe('Location Routes — /api/locations', () => {
 
   describe('GET /api/locations', () => {
     it('200 — returns empty list when no locations exist', async () => {
-      const res = await request(app).get('/api/locations');
+      const res = await request(app)
+        .get('/api/locations')
+        .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
       expect(res.body.data.total).toBe(0);
@@ -123,12 +143,16 @@ describe('Location Routes — /api/locations', () => {
     it('200 — returns created locations', async () => {
       await request(app)
         .post('/api/locations')
+        .set('Authorization', `Bearer ${token}`)
         .send({ name: 'Tower A', type: 'TOWER' });
       await request(app)
         .post('/api/locations')
+        .set('Authorization', `Bearer ${token}`)
         .send({ name: 'Node B', type: 'NODE' });
 
-      const res = await request(app).get('/api/locations');
+      const res = await request(app)
+        .get('/api/locations')
+        .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
       expect(res.body.data.total).toBe(2);
@@ -137,12 +161,16 @@ describe('Location Routes — /api/locations', () => {
     it('200 — filters by type', async () => {
       await request(app)
         .post('/api/locations')
+        .set('Authorization', `Bearer ${token}`)
         .send({ name: 'Tower A', type: 'TOWER' });
       await request(app)
         .post('/api/locations')
+        .set('Authorization', `Bearer ${token}`)
         .send({ name: 'Node B', type: 'NODE' });
 
-      const res = await request(app).get('/api/locations?type=TOWER');
+      const res = await request(app)
+        .get('/api/locations?type=TOWER')
+        .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
       expect(res.body.data.total).toBe(1);
@@ -153,10 +181,13 @@ describe('Location Routes — /api/locations', () => {
       for (let i = 1; i <= 3; i++) {
         await request(app)
           .post('/api/locations')
+          .set('Authorization', `Bearer ${token}`)
           .send({ name: `Location ${i}`, type: 'POP' });
       }
 
-      const res = await request(app).get('/api/locations?limit=2&offset=0');
+      const res = await request(app)
+        .get('/api/locations?limit=2&offset=0')
+        .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
       expect(res.body.data.locations).toHaveLength(2);
@@ -164,7 +195,9 @@ describe('Location Routes — /api/locations', () => {
     });
 
     it('400 — rejects invalid limit', async () => {
-      const res = await request(app).get('/api/locations?limit=0');
+      const res = await request(app)
+        .get('/api/locations?limit=0')
+        .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(400);
     });
@@ -178,10 +211,13 @@ describe('Location Routes — /api/locations', () => {
     it('200 — returns an existing location', async () => {
       const create = await request(app)
         .post('/api/locations')
+        .set('Authorization', `Bearer ${token}`)
         .send({ name: 'Warehouse Central', type: 'WAREHOUSE' });
       const id = create.body.data.id as string;
 
-      const res = await request(app).get(`/api/locations/${id}`);
+      const res = await request(app)
+        .get(`/api/locations/${id}`)
+        .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
       expect(res.body.data.id).toBe(id);
@@ -189,13 +225,17 @@ describe('Location Routes — /api/locations', () => {
     });
 
     it('404 — returns not found for unknown UUID', async () => {
-      const res = await request(app).get(`/api/locations/${GHOST_ID}`);
+      const res = await request(app)
+        .get(`/api/locations/${GHOST_ID}`)
+        .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(404);
     });
 
     it('400 — returns bad request for invalid UUID', async () => {
-      const res = await request(app).get(`/api/locations/${INVALID_ID}`);
+      const res = await request(app)
+        .get(`/api/locations/${INVALID_ID}`)
+        .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(400);
     });
@@ -209,11 +249,13 @@ describe('Location Routes — /api/locations', () => {
     it('200 — updates selected fields', async () => {
       const create = await request(app)
         .post('/api/locations')
+        .set('Authorization', `Bearer ${token}`)
         .send({ name: 'Office HQ', type: 'OFFICE' });
       const id = create.body.data.id as string;
 
       const res = await request(app)
         .patch(`/api/locations/${id}`)
+        .set('Authorization', `Bearer ${token}`)
         .send({ name: 'Office HQ Renamed', municipality: 'Bogotá' });
 
       expect(res.status).toBe(200);
@@ -225,11 +267,13 @@ describe('Location Routes — /api/locations', () => {
     it('200 — clears optional fields with null', async () => {
       const create = await request(app)
         .post('/api/locations')
+        .set('Authorization', `Bearer ${token}`)
         .send({ name: 'POP Site', type: 'POP', municipality: 'Medellín' });
       const id = create.body.data.id as string;
 
       const res = await request(app)
         .patch(`/api/locations/${id}`)
+        .set('Authorization', `Bearer ${token}`)
         .send({ municipality: null });
 
       expect(res.status).toBe(200);
@@ -239,6 +283,7 @@ describe('Location Routes — /api/locations', () => {
     it('404 — returns not found for unknown UUID', async () => {
       const res = await request(app)
         .patch(`/api/locations/${GHOST_ID}`)
+        .set('Authorization', `Bearer ${token}`)
         .send({ name: 'Ghost Location' });
 
       expect(res.status).toBe(404);
@@ -247,14 +292,108 @@ describe('Location Routes — /api/locations', () => {
     it('400 — rejects unpaired coordinate update', async () => {
       const create = await request(app)
         .post('/api/locations')
+        .set('Authorization', `Bearer ${token}`)
         .send({ name: 'Tower', type: 'TOWER' });
       const id = create.body.data.id as string;
 
       const res = await request(app)
         .patch(`/api/locations/${id}`)
+        .set('Authorization', `Bearer ${token}`)
         .send({ latitude: -23.55 });
 
       expect(res.status).toBe(400);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // DELETE /api/locations/:id
+  // ─────────────────────────────────────────────────────────────
+
+  describe('DELETE /api/locations/:id', () => {
+    it('204 — deletes a location with no devices', async () => {
+      const locationId = await seedLocation(prisma);
+
+      const res = await request(app)
+        .delete(`/api/locations/${locationId}`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(204);
+      expect(res.body).toEqual({});
+    });
+
+    it('204 — location is no longer returned by GET after deletion', async () => {
+      const locationId = await seedLocation(prisma);
+
+      await request(app)
+        .delete(`/api/locations/${locationId}`)
+        .set('Authorization', `Bearer ${token}`);
+
+      const res = await request(app)
+        .get(`/api/locations/${locationId}`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(404);
+    });
+
+    it('404 — returns not found for unknown UUID', async () => {
+      const res = await request(app)
+        .delete(`/api/locations/${GHOST_ID}`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(404);
+    });
+
+    it('400 — returns bad request for invalid UUID', async () => {
+      const res = await request(app)
+        .delete(`/api/locations/${INVALID_ID}`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(400);
+    });
+
+    it('409 — returns conflict when devices are assigned to the location', async () => {
+      const locationId = await seedLocation(prisma);
+      const deviceModelId = await seedDeviceModel(prisma);
+
+      await prisma.device.create({
+        data: {
+          name: 'CPE-001',
+          status: 'ACTIVE',
+          owner: 'COMPANY',
+          monitoringEnabled: false,
+          locationId,
+          deviceModelId,
+          ipAddress: '10.0.0.1'
+        }
+      });
+
+      const res = await request(app)
+        .delete(`/api/locations/${locationId}`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toMatch(/Cannot delete/i);
+    });
+
+    it('401 — rejects request with no token', async () => {
+      const locationId = await seedLocation(prisma);
+
+      const res = await request(app).delete(
+        `/api/locations/${locationId}`
+      );
+
+      expect(res.status).toBe(401);
+    });
+
+    it('403 — VIEWER cannot delete a location', async () => {
+      const locationId = await seedLocation(prisma);
+      const viewerToken = await seedAndGetToken(app, prisma, 'VIEWER');
+
+      const res = await request(app)
+        .delete(`/api/locations/${locationId}`)
+        .set('Authorization', `Bearer ${viewerToken}`);
+
+      expect(res.status).toBe(403);
     });
   });
 });
