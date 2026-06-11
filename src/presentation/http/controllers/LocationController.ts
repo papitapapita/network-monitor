@@ -9,7 +9,8 @@ import {
   GetLocationUseCase,
   ListLocationsUseCase,
   UpdateLocationUseCase,
-  GetMapLocationsUseCase
+  GetMapLocationsUseCase,
+  DeleteLocationUseCase
 } from 'application/device-inventory/use-cases';
 
 export class LocationController {
@@ -19,6 +20,7 @@ export class LocationController {
     private readonly listUseCase: ListLocationsUseCase,
     private readonly updateUseCase: UpdateLocationUseCase,
     private readonly getMapUseCase: GetMapLocationsUseCase,
+    private readonly deleteUseCase: DeleteLocationUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -173,9 +175,37 @@ export class LocationController {
     }
   };
 
+  public delete = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.deleteUseCase.execute({
+        id: req.params.id
+      });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res.status(statusCode).json({
+          success: false,
+          error: result.error
+        });
+        return;
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
   private getErrorStatusCode(errorMessage: string): number {
     if (errorMessage.includes('not found')) {
       return 404;
+    }
+
+    if (errorMessage.includes('Cannot delete')) {
+      return 409;
     }
 
     if (

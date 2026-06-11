@@ -345,3 +345,19 @@ export type UpdateLocationInput = z.infer<
 export type UpdateLocationParams = z.infer<
   typeof updateLocationSchema
 >['params'];
+
+// =====================================
+// DELETE SCHEMA
+// =====================================
+
+export const deleteLocationSchema = z.object({
+  params: z.object({
+    id: z
+      .string()
+      .regex(UUID_REGEX, 'Invalid location ID (must be a UUID v4)')
+  })
+});
+
+export type DeleteLocationParams = z.infer<
+  typeof deleteLocationSchema
+>['params'];

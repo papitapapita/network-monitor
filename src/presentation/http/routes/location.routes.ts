@@ -5,7 +5,8 @@ import {
   createLocationSchema,
   listLocationsSchema,
   getLocationByIdSchema,
-  updateLocationSchema
+  updateLocationSchema,
+  deleteLocationSchema
 } from '../validation';
 
 /**
@@ -153,6 +154,14 @@ export function createLocationRoutes(
     createRateLimiter('write'),
     validateRequest(updateLocationSchema),
     controller.update
+  );
+
+  router.delete(
+    '/:id',
+    authorize('delete'),
+    createRateLimiter('delete'),
+    validateRequest(deleteLocationSchema),
+    controller.delete
   );
 
   return router;

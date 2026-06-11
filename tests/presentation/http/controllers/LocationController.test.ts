@@ -7,6 +7,7 @@ import { GetLocationUseCase } from '../../../../src/application/device-inventory
 import { ListLocationsUseCase } from '../../../../src/application/device-inventory/use-cases/ListLocationsUseCase';
 import { UpdateLocationUseCase } from '../../../../src/application/device-inventory/use-cases/UpdateLocationUseCase';
 import { GetMapLocationsUseCase } from '../../../../src/application/device-inventory/use-cases/GetMapLocationsUseCase';
+import { DeleteLocationUseCase } from '../../../../src/application/device-inventory/use-cases/DeleteLocationUseCase';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
@@ -56,6 +57,9 @@ const createMockUpdateUseCase = () =>
 
 const createMockGetMapUseCase = () =>
   ({ execute: jest.fn() }) as unknown as GetMapLocationsUseCase;
+
+const createMockDeleteUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as DeleteLocationUseCase;
 
 const createMockLogger = (): jest.Mocked<ILogger> => ({
   info: jest.fn(),
@@ -123,6 +127,7 @@ describe('LocationController', () => {
   let mockListUseCase: ListLocationsUseCase;
   let mockUpdateUseCase: UpdateLocationUseCase;
   let mockGetMapUseCase: GetMapLocationsUseCase;
+  let mockDeleteUseCase: DeleteLocationUseCase;
   let mockLogger: jest.Mocked<ILogger>;
 
   beforeEach(() => {
@@ -131,6 +136,7 @@ describe('LocationController', () => {
     mockListUseCase = createMockListUseCase();
     mockUpdateUseCase = createMockUpdateUseCase();
     mockGetMapUseCase = createMockGetMapUseCase();
+    mockDeleteUseCase = createMockDeleteUseCase();
     mockLogger = createMockLogger();
 
     controller = new LocationController(
@@ -139,6 +145,7 @@ describe('LocationController', () => {
       mockListUseCase,
       mockUpdateUseCase,
       mockGetMapUseCase,
+      mockDeleteUseCase,
       mockLogger
     );
   });

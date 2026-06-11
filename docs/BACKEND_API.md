@@ -273,6 +273,19 @@ Returns all locations that have coordinates, each with their nested devices. Int
 
 ---
 
+### `DELETE /api/locations/:id` — Delete
+**Status:** 204 | 400 | 404 | 409
+
+```ts
+// No request body
+// Response: 204 No Content
+```
+
+> Returns 409 if any devices are assigned to this location — reassign or remove them first.  
+> Returns 400 if the id is not a valid UUID v4, 404 if no location exists with that id.
+
+---
+
 ### `PATCH /api/locations/:id` — Update
 **Status:** 200 | 404
 

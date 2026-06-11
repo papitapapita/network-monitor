@@ -69,7 +69,8 @@ import {
   SetDeviceCredentialsUseCase,
   GetDeviceCredentialsUseCase,
   DeleteDeviceCredentialsUseCase,
-  GetMapLocationsUseCase
+  GetMapLocationsUseCase,
+  DeleteLocationUseCase
 } from 'application/device-inventory/use-cases';
 import { PingService } from '../monitoring/ping';
 import {
@@ -264,6 +265,11 @@ export class DependencyContainer {
       this.deviceRepository,
       this.logger
     );
+    const deleteLocationUseCase = new DeleteLocationUseCase(
+      this.locationRepository,
+      this.deviceRepository,
+      this.logger
+    );
 
     // Initialize device use cases
     const createDeviceUseCase = new CreateDeviceUseCase(
@@ -342,6 +348,7 @@ export class DependencyContainer {
       listLocationsUseCase,
       updateLocationUseCase,
       getMapLocationsUseCase,
+      deleteLocationUseCase,
       this.logger
     );
 
