@@ -11,6 +11,9 @@ import { createWirelessRoutes } from './wireless.routes';
 import { createCredentialsRoutes } from './credentials.routes';
 import { createAuthRoutes } from './auth.routes';
 import { createAdminRoutes } from './admin.routes';
+import { createCustomerRoutes } from './customer.routes';
+import { createServicePlanRoutes } from './service-plan.routes';
+import { createContractedServiceRoutes } from './contracted-service.routes';
 import {
   createAuditLogMiddleware,
   createAuthenticateMiddleware
@@ -78,6 +81,30 @@ export function setupRoutes(
   apiRouter.use(
     '/vendors',
     createVendorRoutes(container.vendorController)
+  );
+
+  // =====================================
+  // CUSTOMERS BOUNDED CONTEXT
+  // =====================================
+
+  // Customers: /api/customers
+  apiRouter.use(
+    '/customers',
+    createCustomerRoutes(container.customerController)
+  );
+
+  // Service plans: /api/service-plans
+  apiRouter.use(
+    '/service-plans',
+    createServicePlanRoutes(container.servicePlanController)
+  );
+
+  // Contracted services: /api/contracted-services
+  apiRouter.use(
+    '/contracted-services',
+    createContractedServiceRoutes(
+      container.contractedServiceController
+    )
   );
 
   // =====================================

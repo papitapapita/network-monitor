@@ -4,6 +4,11 @@ import { WinstonLogger } from '../logging';
 import { JwtTokenService } from '../identity/services/JwtTokenService';
 import { BcryptPasswordService } from '../identity/services/BcryptPasswordService';
 import { PrismaUserRepository } from '../identity/repositories/PrismaUserRepository';
+import {
+  PrismaCustomerRepository,
+  PrismaServicePlanRepository,
+  PrismaContractedServiceRepository
+} from '../customers';
 import { LoginUseCase } from 'application/identity/use-cases/LoginUseCase';
 import { AuthController } from 'presentation/http/controllers/AuthController';
 import { ITokenService } from 'application/identity/interfaces/ITokenService';
@@ -27,8 +32,28 @@ import {
   AlertController,
   ScanController,
   WirelessController,
-  CredentialsController
+  CredentialsController,
+  CustomerController,
+  ServicePlanController,
+  ContractedServiceController
 } from 'presentation/http/controllers';
+import {
+  CreateCustomerUseCase,
+  GetCustomerUseCase,
+  ListCustomersUseCase,
+  UpdateCustomerUseCase,
+  DeleteCustomerUseCase,
+  CreateServicePlanUseCase,
+  GetServicePlanUseCase,
+  ListServicePlansUseCase,
+  UpdateServicePlanUseCase,
+  DeleteServicePlanUseCase,
+  CreateContractedServiceUseCase,
+  GetContractedServiceUseCase,
+  ListContractedServicesUseCase,
+  UpdateContractedServiceUseCase,
+  DeleteContractedServiceUseCase
+} from 'application/customers/use-cases';
 import {
   PrismaWirelessSnapshotRepository,
   PrismaWirelessAlertRecordRepository,
@@ -146,12 +171,6 @@ import {
 } from 'application/shared/use-cases/TriggerDataRetentionUseCase';
 import { AdminController } from 'presentation/http/controllers/AdminController';
 
-/**
- * DependencyContainer
- *
- * Simple dependency injection container for the application.
- * Provides singleton instances of all services, repositories, and controllers.
- */
 export class DependencyContainer {
   private prisma: PrismaClient;
   private logger: WinstonLogger;
@@ -170,6 +189,11 @@ export class DependencyContainer {
   private wirelessDeviceConfigRepository: PrismaWirelessDeviceConfigRepository;
   private deviceCredentialsRepository: PrismaDeviceCredentialsRepository;
 
+  // Customers
+  public customerRepository: PrismaCustomerRepository;
+  public servicePlanRepository: PrismaServicePlanRepository;
+  public contractedServiceRepository: PrismaContractedServiceRepository;
+
   // Identity
   public tokenService: ITokenService;
   public authController: AuthController;
@@ -184,6 +208,9 @@ export class DependencyContainer {
   public scanController: ScanController;
   public wirelessController: WirelessController;
   public credentialsController: CredentialsController;
+  public customerController: CustomerController;
+  public servicePlanController: ServicePlanController;
+  public contractedServiceController: ContractedServiceController;
 
   // Orchestrators (lifecycle managed by main.ts)
   public pollingOrchestrator: PollingOrchestrator;
@@ -225,6 +252,85 @@ export class DependencyContainer {
       this.prisma
     );
     this.alertRepository = new PrismaAlertRepository(this.prisma);
+
+    // =====================================
+    // CUSTOMERS BOUNDED CONTEXT
+    // =====================================
+
+    this.customerRepository = new PrismaCustomerRepository(
+      this.prisma
+    );
+    this.servicePlanRepository = new PrismaServicePlanRepository(
+      this.prisma
+    );
+    this.contractedServiceRepository =
+      new PrismaContractedServiceRepository(this.prisma);
+
+    this.customerController = new CustomerController(
+      new CreateCustomerUseCase(this.customerRepository, this.logger),
+      new GetCustomerUseCase(this.customerRepository, this.logger),
+      new ListCustomersUseCase(this.customerRepository, this.logger),
+      new UpdateCustomerUseCase(this.customerRepository, this.logger),
+      new DeleteCustomerUseCase(
+        this.customerRepository,
+        this.contractedServiceRepository,
+        this.logger
+      ),
+      this.logger
+    );
+
+    this.servicePlanController = new ServicePlanController(
+      new CreateServicePlanUseCase(
+        this.servicePlanRepository,
+        this.logger
+      ),
+      new GetServicePlanUseCase(
+        this.servicePlanRepository,
+        this.logger
+      ),
+      new ListServicePlansUseCase(
+        this.servicePlanRepository,
+        this.logger
+      ),
+      new UpdateServicePlanUseCase(
+        this.servicePlanRepository,
+        this.logger
+      ),
+      new DeleteServicePlanUseCase(
+        this.servicePlanRepository,
+        this.contractedServiceRepository,
+        this.logger
+      ),
+      this.logger
+    );
+
+    this.contractedServiceController =
+      new ContractedServiceController(
+        new CreateContractedServiceUseCase(
+          this.contractedServiceRepository,
+          this.customerRepository,
+          this.servicePlanRepository,
+          this.logger
+        ),
+        new GetContractedServiceUseCase(
+          this.contractedServiceRepository,
+          this.logger
+        ),
+        new ListContractedServicesUseCase(
+          this.contractedServiceRepository,
+          this.logger
+        ),
+        new UpdateContractedServiceUseCase(
+          this.contractedServiceRepository,
+          this.servicePlanRepository,
+          this.logger
+        ),
+        new DeleteContractedServiceUseCase(
+          this.contractedServiceRepository,
+          this.logger
+        ),
+        this.logger
+      );
 
     // =====================================
     // IDENTITY BOUNDED CONTEXT
@@ -705,9 +811,6 @@ export class DependencyContainer {
     );
   }
 
-  /**
-   * Connects to database and performs any necessary initialization.
-   */
   public async connect(): Promise<void> {
     try {
       await this.prisma.$connect();
@@ -721,9 +824,6 @@ export class DependencyContainer {
     }
   }
 
-  /**
-   * Gracefully disconnects from database.
-   */
   public async disconnect(): Promise<void> {
     try {
       await this.prisma.$disconnect();
@@ -737,24 +837,15 @@ export class DependencyContainer {
     }
   }
 
-  /**
-   * Returns the Prisma client instance for direct database access if needed.
-   */
   public getPrisma(): PrismaClient {
     return this.prisma;
   }
 
-  /**
-   * Returns the logger instance.
-   */
   public getLogger(): WinstonLogger {
     return this.logger;
   }
 }
 
-/**
- * Factory function to create and initialize the dependency container.
- */
 export async function setupDependencies(): Promise<DependencyContainer> {
   const container = new DependencyContainer();
   await container.connect();

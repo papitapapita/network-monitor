@@ -9,3 +9,6 @@ export * from './CredentialsController';
 export * from './AlertController';
 export * from './AuthController';
 export * from './AdminController';
+export * from './CustomerController';
+export * from './ServicePlanController';
+export * from './ContractedServiceController';

@@ -148,7 +148,7 @@ describe('Location Routes — /api/locations', () => {
       await request(app)
         .post('/api/locations')
         .set('Authorization', `Bearer ${token}`)
-        .send({ name: 'Node B', type: 'NODE' });
+        .send({ name: 'Office B', type: 'OFFICE' });
 
       const res = await request(app)
         .get('/api/locations')
@@ -166,7 +166,7 @@ describe('Location Routes — /api/locations', () => {
       await request(app)
         .post('/api/locations')
         .set('Authorization', `Bearer ${token}`)
-        .send({ name: 'Node B', type: 'NODE' });
+        .send({ name: 'Office B', type: 'OFFICE' });
 
       const res = await request(app)
         .get('/api/locations?type=TOWER')
@@ -182,7 +182,7 @@ describe('Location Routes — /api/locations', () => {
         await request(app)
           .post('/api/locations')
           .set('Authorization', `Bearer ${token}`)
-          .send({ name: `Location ${i}`, type: 'POP' });
+          .send({ name: `Location ${i}`, type: 'POINT_OF_PRESENCE' });
       }
 
       const res = await request(app)
@@ -212,7 +212,7 @@ describe('Location Routes — /api/locations', () => {
       const create = await request(app)
         .post('/api/locations')
         .set('Authorization', `Bearer ${token}`)
-        .send({ name: 'Warehouse Central', type: 'WAREHOUSE' });
+        .send({ name: 'Datacenter Central', type: 'DATACENTER' });
       const id = create.body.data.id as string;
 
       const res = await request(app)
@@ -221,7 +221,7 @@ describe('Location Routes — /api/locations', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.data.id).toBe(id);
-      expect(res.body.data.name).toBe('Warehouse Central');
+      expect(res.body.data.name).toBe('Datacenter Central');
     });
 
     it('404 — returns not found for unknown UUID', async () => {
@@ -268,7 +268,7 @@ describe('Location Routes — /api/locations', () => {
       const create = await request(app)
         .post('/api/locations')
         .set('Authorization', `Bearer ${token}`)
-        .send({ name: 'POP Site', type: 'POP', municipality: 'Medellín' });
+        .send({ name: 'POP Site', type: 'POINT_OF_PRESENCE', municipality: 'Medellín' });
       const id = create.body.data.id as string;
 
       const res = await request(app)

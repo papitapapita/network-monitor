@@ -7,3 +7,6 @@ export * from './wireless.schemas';
 export * from './alert.schemas';
 export * from './scan.schemas';
 export * from './auth.schemas';
+export * from './customer.schemas';
+export * from './service-plan.schemas';
+export * from './contracted-service.schemas';

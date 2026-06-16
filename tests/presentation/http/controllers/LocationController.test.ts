@@ -219,7 +219,7 @@ describe('LocationController', () => {
 
       it('should substitute null for missing optional body fields', async () => {
         const mockReq = createMockRequest({
-          body: { name: 'POP Alpha', type: 'POP' }
+          body: { name: 'POP Alpha', type: 'POINT_OF_PRESENCE' }
         });
         const { res } = createMockResponse();
 

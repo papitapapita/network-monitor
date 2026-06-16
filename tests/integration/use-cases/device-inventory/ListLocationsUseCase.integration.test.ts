@@ -72,7 +72,7 @@ describe('ListLocationsUseCase — integration', () => {
 
   it('applies pagination via limit and offset', async () => {
     for (let i = 1; i <= 4; i++) {
-      await createUseCase.execute({ name: `Location ${i}`, type: 'NODE' });
+      await createUseCase.execute({ name: `Location ${i}`, type: 'OFFICE' });
     }
 
     const page1 = await listUseCase.execute({ limit: 2, offset: 0 });

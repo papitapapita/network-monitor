@@ -150,6 +150,82 @@ export async function seedVendor(
   return vendor.id;
 }
 
+/**
+ * Cleans the customers bounded context in FK-safe order:
+ * contracted_services (which reference customers/service_plans/devices)
+ * must go before customers and service_plans.
+ */
+export async function cleanCustomers(prisma: PrismaClient): Promise<void> {
+  await prisma.contractedService.deleteMany();
+  await prisma.customer.deleteMany();
+  await prisma.servicePlan.deleteMany();
+}
+
+/** Upserts a test customer. Returns its UUID. */
+export async function seedCustomer(
+  prisma: PrismaClient,
+  overrides: {
+    fullName?: string;
+    phone?: string;
+    email?: string | null;
+    cedula?: string | null;
+  } = {}
+): Promise<string> {
+  const phone = overrides.phone ?? '3001234567';
+  const customer = await prisma.customer.upsert({
+    where: { phone },
+    update: {},
+    create: {
+      fullName: overrides.fullName ?? 'Test Customer',
+      phone,
+      email: overrides.email ?? null,
+      cedula: overrides.cedula ?? null
+    }
+  });
+  return customer.id;
+}
+
+/** Upserts a test service plan. Returns its UUID. */
+export async function seedServicePlan(
+  prisma: PrismaClient,
+  overrides: {
+    name?: string;
+    downloadMbps?: number;
+    uploadMbps?: number;
+    monthlyPrice?: number;
+  } = {}
+): Promise<string> {
+  const name = overrides.name ?? 'Test Plan 50/10';
+  const plan = await prisma.servicePlan.upsert({
+    where: { name },
+    update: {},
+    create: {
+      name,
+      downloadMbps: overrides.downloadMbps ?? 50,
+      uploadMbps: overrides.uploadMbps ?? 10,
+      monthlyPrice: overrides.monthlyPrice ?? 80000
+    }
+  });
+  return plan.id;
+}
+
+/** Creates a bare device (FK target for contracted-service tests). Returns its UUID. */
+export async function seedDevice(
+  prisma: PrismaClient,
+  deviceModelId: string,
+  overrides: { name?: string; serialNumber?: string } = {}
+): Promise<string> {
+  const device = await prisma.device.create({
+    data: {
+      name: overrides.name ?? 'Test CPE Device',
+      status: 'INVENTORY',
+      serialNumber: overrides.serialNumber ?? `SN-${Date.now()}`,
+      deviceModelId
+    }
+  });
+  return device.id;
+}
+
 /** Known-valid UUIDs that will never exist in the test DB */
 export const GHOST_ID = '00000000-0000-4000-8000-000000000001';
 export const INVALID_ID = 'not-a-uuid';

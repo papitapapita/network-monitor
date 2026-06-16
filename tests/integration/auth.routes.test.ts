@@ -264,7 +264,7 @@ describe('Auth Routes — /api/auth', () => {
       const create = await request(app)
         .post('/api/locations')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Target Location', type: 'NODE' });
+        .send({ name: 'Target Location', type: 'TOWER' });
       const id = create.body.data.id as string;
 
       const viewerToken = await seedAndGetToken(app, prisma, 'VIEWER');

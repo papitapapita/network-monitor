@@ -92,7 +92,7 @@ Missing or invalid tokens return `401`. Insufficient role returns `403`.
 ## Enums
 
 ```ts
-type LocationType   = 'TOWER' | 'NODE' | 'DATACENTER' | 'POP' | 'WAREHOUSE' | 'OFFICE' | 'CUSTOMER_PREMISES' | 'OTHER'
+type LocationType   = 'TOWER' | 'DATACENTER' | 'POINT_OF_PRESENCE' | 'OFFICE' | 'CUSTOMER_PREMISES' | 'OTHER'
 type DeviceStatus   = 'INVENTORY' | 'COMMISSIONING' | 'ACTIVE' | 'DAMAGED'
 type DeviceCategory = 'CPE' | 'WIRELESS_CPE' | 'AP' | 'ROUTERBOARD' | 'SMART_SWITCH' | 'SMART_SWITCH_POE' | 'OTHER'
 type DeviceOwner    = 'COMPANY' | 'CLIENT'
@@ -1226,6 +1226,294 @@ WirelessAlertDTO[]
 
 > Note: `deviceId` is **required** even though the route appears global. Omitting it returns 400.  
 > Prefer `GET /api/devices/:id/wireless/alerts/history` for per-device history.
+
+---
+
+## Customers `/api/customers`
+
+```ts
+interface CustomerDTO {
+  id: string          // UUID
+  fullName: string
+  phone: string
+  email: string | null
+  cedula: string | null
+  createdAt: string   // ISO 8601
+  updatedAt: string
+}
+```
+
+### `POST /api/customers` — Create
+**Status:** 201 | 400
+
+```ts
+// Request body
+{
+  fullName: string         // required, 1–150 chars
+  phone: string            // required, 7–20 chars, digits/spaces/()/.-/+ allowed
+  email?: string | null    // max 255 chars, valid email format
+  cedula?: string | null   // 6–15 chars, digits/dots/spaces
+}
+
+// Response
+{ success: true, data: CustomerDTO }
+```
+
+---
+
+### `GET /api/customers` — List
+**Status:** 200
+
+```ts
+// Query params (all optional)
+limit?:  number  // 1–100, default 20
+offset?: number  // ≥0, default 0
+
+// Response
+{
+  success: true,
+  data: {
+    customers: CustomerDTO[]
+    total: number
+    hasMore: boolean
+    limit: number
+    offset: number
+  }
+}
+```
+
+---
+
+### `GET /api/customers/:id` — Get by ID
+**Status:** 200 | 404
+
+```ts
+// Response
+{ success: true, data: CustomerDTO }
+```
+
+---
+
+### `PUT /api/customers/:id` — Update
+**Status:** 200 | 400 | 404
+
+```ts
+// Request body (at least one field required)
+{
+  fullName?: string
+  phone?: string
+  email?: string | null
+  cedula?: string | null
+}
+
+// Response
+{ success: true, data: CustomerDTO }
+```
+
+---
+
+### `DELETE /api/customers/:id` — Delete
+**Status:** 204 | 400 | 404
+
+```ts
+// No request body
+// Response: 204 No Content
+```
+
+---
+
+## Service Plans `/api/service-plans`
+
+```ts
+interface ServicePlanDTO {
+  id: string             // UUID
+  name: string
+  downloadMbps: number   // positive integer
+  uploadMbps: number     // positive integer
+  monthlyPrice: number   // non-negative decimal
+  description: string | null
+  isActive: boolean
+  createdAt: string      // ISO 8601
+  updatedAt: string
+}
+```
+
+### `POST /api/service-plans` — Create
+**Status:** 201 | 400
+
+```ts
+// Request body
+{
+  name: string             // required, 1–100 chars
+  downloadMbps: number     // required, positive integer (Mbps)
+  uploadMbps: number       // required, positive integer (Mbps)
+  monthlyPrice: number     // required, non-negative decimal
+  description?: string | null  // max 500 chars
+  isActive?: boolean       // default true
+}
+
+// Response
+{ success: true, data: ServicePlanDTO }
+```
+
+---
+
+### `GET /api/service-plans` — List
+**Status:** 200
+
+```ts
+// Query params (all optional)
+limit?:  number  // 1–100, default 20
+offset?: number  // ≥0, default 0
+
+// Response
+{
+  success: true,
+  data: {
+    servicePlans: ServicePlanDTO[]
+    total: number
+    hasMore: boolean
+    limit: number
+    offset: number
+  }
+}
+```
+
+---
+
+### `GET /api/service-plans/:id` — Get by ID
+**Status:** 200 | 404
+
+```ts
+// Response
+{ success: true, data: ServicePlanDTO }
+```
+
+---
+
+### `PUT /api/service-plans/:id` — Update
+**Status:** 200 | 400 | 404
+
+```ts
+// Request body (at least one field required)
+{
+  name?: string
+  downloadMbps?: number
+  uploadMbps?: number
+  monthlyPrice?: number
+  description?: string | null
+  isActive?: boolean
+}
+
+// Response
+{ success: true, data: ServicePlanDTO }
+```
+
+---
+
+### `DELETE /api/service-plans/:id` — Delete
+**Status:** 204 | 400 | 404
+
+```ts
+// No request body
+// Response: 204 No Content
+```
+
+---
+
+## Contracted Services `/api/contracted-services`
+
+```ts
+type ContractedServiceStatus = 'ACTIVE' | 'SUSPENDED' | 'CANCELLED'
+
+interface ContractedServiceDTO {
+  id: string                        // UUID
+  customerId: string                // UUID
+  servicePlanId: string             // UUID
+  deviceId: string | null           // UUID — the CPE device assigned to this service
+  status: ContractedServiceStatus
+  startDate: string                 // ISO 8601
+  createdAt: string                 // ISO 8601
+  updatedAt: string
+}
+```
+
+### `POST /api/contracted-services` — Create
+**Status:** 201 | 400
+
+```ts
+// Request body
+{
+  customerId: string        // required, UUID
+  servicePlanId: string     // required, UUID
+  deviceId?: string | null  // UUID — CPE device for this service
+  startDate?: string        // ISO 8601 datetime; defaults to now if omitted
+}
+
+// Response
+{ success: true, data: ContractedServiceDTO }
+```
+
+---
+
+### `GET /api/contracted-services` — List
+**Status:** 200
+
+```ts
+// Query params (all optional)
+customerId?: string  // UUID — filter by customer
+limit?:      number  // 1–100, default 20
+offset?:     number  // ≥0, default 0
+
+// Response
+{
+  success: true,
+  data: {
+    contractedServices: ContractedServiceDTO[]
+    total: number
+    hasMore: boolean
+    limit: number
+    offset: number
+  }
+}
+```
+
+---
+
+### `GET /api/contracted-services/:id` — Get by ID
+**Status:** 200 | 404
+
+```ts
+// Response
+{ success: true, data: ContractedServiceDTO }
+```
+
+---
+
+### `PUT /api/contracted-services/:id` — Update
+**Status:** 200 | 400 | 404
+
+```ts
+// Request body (at least one field required)
+{
+  servicePlanId?: string         // UUID — change the plan
+  deviceId?: string | null       // UUID — assign/unassign CPE
+  status?: ContractedServiceStatus
+}
+
+// Response
+{ success: true, data: ContractedServiceDTO }
+```
+
+---
+
+### `DELETE /api/contracted-services/:id` — Delete
+**Status:** 204 | 400 | 404
+
+```ts
+// No request body
+// Response: 204 No Content
+```
 
 ---
 

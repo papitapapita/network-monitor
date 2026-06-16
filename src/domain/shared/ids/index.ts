@@ -8,3 +8,6 @@ export * from './SnapshotId';
 export * from './WirelessDeviceConfigId';
 export * from './WirelessAlertRecordId';
 export * from './UserId';
+export * from './CustomerId';
+export * from './ServicePlanId';
+export * from './ContractedServiceId';

@@ -229,7 +229,7 @@ describe('validateRequest middleware', () => {
       const schema = z.object({
         body: z.object({
           name: z.string().min(1, 'Name is required'),
-          type: z.enum(['TOWER', 'NODE'])
+          type: z.enum(['TOWER', 'OFFICE'])
         }),
         params: z.object({}),
         query: z.object({})
