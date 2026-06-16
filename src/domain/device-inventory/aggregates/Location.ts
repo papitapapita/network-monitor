@@ -126,41 +126,33 @@ export class Location extends AggregateRoot<
       return Result.fail<void>(lengthResult.error);
     }
 
-    const changedFields: string[] = [];
-    const previousValues: Record<string, unknown> = {};
-    const newValues: Record<string, unknown> = {};
+    let changed = false;
 
     if (
       fields.municipality !== undefined &&
       fields.municipality !== this.props.municipality
     ) {
-      changedFields.push('municipality');
-      previousValues.municipality = this.props.municipality;
-      newValues.municipality = fields.municipality;
       this.props.municipality = fields.municipality;
+      changed = true;
     }
 
     if (
       fields.neighborhood !== undefined &&
       fields.neighborhood !== this.props.neighborhood
     ) {
-      changedFields.push('neighborhood');
-      previousValues.neighborhood = this.props.neighborhood;
-      newValues.neighborhood = fields.neighborhood;
       this.props.neighborhood = fields.neighborhood;
+      changed = true;
     }
 
     if (
       fields.address !== undefined &&
       fields.address !== this.props.address
     ) {
-      changedFields.push('address');
-      previousValues.address = this.props.address;
-      newValues.address = fields.address;
       this.props.address = fields.address;
+      changed = true;
     }
 
-    if (changedFields.length === 0) return Result.ok<void>();
+    if (!changed) return Result.ok<void>();
 
     this.touch();
 

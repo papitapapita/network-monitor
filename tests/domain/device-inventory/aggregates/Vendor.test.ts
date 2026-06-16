@@ -1,11 +1,6 @@
 // Source: src/domain/device-inventory/aggregates/Vendor.ts
 
-import {
-  Vendor,
-  VendorProps,
-  VendorCreatedEvent,
-  VendorUpdatedEvent
-} from '../../../../src/domain/device-inventory';
+import { Vendor, VendorProps } from '../../../../src/domain/device-inventory';
 import { VendorId } from '../../../../src/domain/shared';
 
 // ---------------------------------------------------------------------------
@@ -296,65 +291,6 @@ describe('Vendor', () => {
         expect(result.isSuccess).toBe(true);
       });
     });
-
-    // -----------------------------------------------------------------------
-    describe('domain event emission', () => {
-      it('should add exactly one domain event on successful creation', () => {
-        const vendor = makeVendor();
-
-        expect(vendor.domainEvents.length).toBe(1);
-      });
-
-      it('should emit a VendorCreatedEvent', () => {
-        const vendor = makeVendor();
-
-        expect(vendor.domainEvents[0]).toBeInstanceOf(VendorCreatedEvent);
-      });
-
-      it('should emit a VendorCreatedEvent with the correct aggregate ID', () => {
-        const vendor = makeVendor();
-        const event = vendor.domainEvents[0] as VendorCreatedEvent;
-
-        expect(event.aggregateId.toString()).toBe(vendor.id.toString());
-      });
-
-      it('should emit a VendorCreatedEvent with the correct vendorName', () => {
-        const vendor = makeVendor({ name: 'Ubiquiti' });
-        const event = vendor.domainEvents[0] as VendorCreatedEvent;
-
-        expect(event.vendorName).toBe('Ubiquiti');
-      });
-
-      it('should emit a VendorCreatedEvent with the correct vendorSlug', () => {
-        const vendor = makeVendor({ slug: 'ubiquiti' });
-        const event = vendor.domainEvents[0] as VendorCreatedEvent;
-
-        expect(event.vendorSlug).toBe('ubiquiti');
-      });
-
-      it('should emit a VendorCreatedEvent with a recent dateTimeOccurred', () => {
-        const before = new Date();
-        const vendor = makeVendor();
-        const after = new Date();
-        const event = vendor.domainEvents[0] as VendorCreatedEvent;
-
-        expect(event.dateTimeOccurred.getTime()).toBeGreaterThanOrEqual(
-          before.getTime()
-        );
-        expect(event.dateTimeOccurred.getTime()).toBeLessThanOrEqual(
-          after.getTime()
-        );
-      });
-
-      it('should not emit a domain event when creation fails', () => {
-        const result = Vendor.create(
-          makeProps({ name: null as unknown as string })
-        );
-
-        expect(result.isFailure).toBe(true);
-        // No Vendor instance created — no events exist.
-      });
-    });
   });
 
   // =========================================================================
@@ -454,51 +390,11 @@ describe('Vendor', () => {
           after.getTime()
         );
       });
-
-      it('should emit a VendorUpdatedEvent', () => {
-        const vendor = makeVendor();
-        vendor.clearEvents();
-        vendor.updateName('MikroTik');
-
-        expect(vendor.domainEvents.length).toBe(1);
-        expect(vendor.domainEvents[0]).toBeInstanceOf(VendorUpdatedEvent);
-      });
-
-      it('should emit a VendorUpdatedEvent with changedFields containing "name"', () => {
-        const vendor = makeVendor();
-        vendor.clearEvents();
-        vendor.updateName('MikroTik');
-
-        const event = vendor.domainEvents[0] as VendorUpdatedEvent;
-
-        expect(event.changedFields).toContain('name');
-        expect(event.changedFields).toHaveLength(1);
-      });
-
-      it('should emit a VendorUpdatedEvent with the correct aggregate ID', () => {
-        const vendor = makeVendor();
-        vendor.clearEvents();
-        vendor.updateName('MikroTik');
-
-        const event = vendor.domainEvents[0] as VendorUpdatedEvent;
-
-        expect(event.aggregateId.toString()).toBe(vendor.id.toString());
-      });
-
-      it('should emit a VendorUpdatedEvent carrying the updated name as vendorName', () => {
-        const vendor = makeVendor();
-        vendor.clearEvents();
-        vendor.updateName('MikroTik');
-
-        const event = vendor.domainEvents[0] as VendorUpdatedEvent;
-
-        expect(event.vendorName).toBe('MikroTik');
-      });
     });
 
     // -----------------------------------------------------------------------
     describe('no-op when name is unchanged', () => {
-      it('should return a successful Result without emitting an event', () => {
+      it('should return a successful Result and emit no events', () => {
         const vendor = makeVendor({ name: 'Cisco' });
         vendor.clearEvents();
         const result = vendor.updateName('Cisco');
@@ -564,14 +460,6 @@ describe('Vendor', () => {
 
         expect(vendor.name).toBe('Cisco');
       });
-
-      it('should not emit an event when validation fails', () => {
-        const vendor = makeVendor();
-        vendor.clearEvents();
-        vendor.updateName('');
-
-        expect(vendor.domainEvents.length).toBe(0);
-      });
     });
   });
 
@@ -612,41 +500,11 @@ describe('Vendor', () => {
           after.getTime()
         );
       });
-
-      it('should emit a VendorUpdatedEvent', () => {
-        const vendor = makeVendor();
-        vendor.clearEvents();
-        vendor.updateSlug('mikrotik');
-
-        expect(vendor.domainEvents.length).toBe(1);
-        expect(vendor.domainEvents[0]).toBeInstanceOf(VendorUpdatedEvent);
-      });
-
-      it('should emit a VendorUpdatedEvent with changedFields containing "slug"', () => {
-        const vendor = makeVendor();
-        vendor.clearEvents();
-        vendor.updateSlug('mikrotik');
-
-        const event = vendor.domainEvents[0] as VendorUpdatedEvent;
-
-        expect(event.changedFields).toContain('slug');
-        expect(event.changedFields).toHaveLength(1);
-      });
-
-      it('should emit a VendorUpdatedEvent with the correct aggregate ID', () => {
-        const vendor = makeVendor();
-        vendor.clearEvents();
-        vendor.updateSlug('mikrotik');
-
-        const event = vendor.domainEvents[0] as VendorUpdatedEvent;
-
-        expect(event.aggregateId.toString()).toBe(vendor.id.toString());
-      });
     });
 
     // -----------------------------------------------------------------------
     describe('no-op when slug is unchanged', () => {
-      it('should return a successful Result without emitting an event', () => {
+      it('should return a successful Result and emit no events', () => {
         const vendor = makeVendor({ slug: 'cisco' });
         vendor.clearEvents();
         const result = vendor.updateSlug('cisco');
@@ -740,14 +598,6 @@ describe('Vendor', () => {
 
         expect(vendor.slug).toBe('cisco');
       });
-
-      it('should not emit an event when validation fails', () => {
-        const vendor = makeVendor();
-        vendor.clearEvents();
-        vendor.updateSlug('InvalidSlug!');
-
-        expect(vendor.domainEvents.length).toBe(0);
-      });
     });
   });
 
@@ -769,23 +619,11 @@ describe('Vendor', () => {
       });
 
       it('should allow setting description to null', () => {
-        const vendor = makeVendor({
-          description: 'Some description'
-        });
-        vendor.clearEvents();
+        const vendor = makeVendor({ description: 'Some description' });
         const result = vendor.updateDescription(null);
 
         expect(result.isSuccess).toBe(true);
         expect(vendor.description).toBeNull();
-      });
-
-      it('should emit a VendorUpdatedEvent when setting to null', () => {
-        const vendor = makeVendor({ description: 'Old description' });
-        vendor.clearEvents();
-        vendor.updateDescription(null);
-
-        expect(vendor.domainEvents.length).toBe(1);
-        expect(vendor.domainEvents[0]).toBeInstanceOf(VendorUpdatedEvent);
       });
 
       it('should update updatedAt timestamp', () => {
@@ -802,36 +640,6 @@ describe('Vendor', () => {
         );
       });
 
-      it('should emit a VendorUpdatedEvent', () => {
-        const vendor = makeVendor({ description: null });
-        vendor.clearEvents();
-        vendor.updateDescription('New description');
-
-        expect(vendor.domainEvents.length).toBe(1);
-        expect(vendor.domainEvents[0]).toBeInstanceOf(VendorUpdatedEvent);
-      });
-
-      it('should emit a VendorUpdatedEvent with changedFields containing "description"', () => {
-        const vendor = makeVendor({ description: null });
-        vendor.clearEvents();
-        vendor.updateDescription('New description');
-
-        const event = vendor.domainEvents[0] as VendorUpdatedEvent;
-
-        expect(event.changedFields).toContain('description');
-        expect(event.changedFields).toHaveLength(1);
-      });
-
-      it('should emit a VendorUpdatedEvent with the correct aggregate ID', () => {
-        const vendor = makeVendor({ description: null });
-        vendor.clearEvents();
-        vendor.updateDescription('New description');
-
-        const event = vendor.domainEvents[0] as VendorUpdatedEvent;
-
-        expect(event.aggregateId.toString()).toBe(vendor.id.toString());
-      });
-
       it('should succeed when description is exactly 500 characters', () => {
         const vendor = makeVendor({ description: null });
         const result = vendor.updateDescription('A'.repeat(500));
@@ -842,7 +650,7 @@ describe('Vendor', () => {
 
     // -----------------------------------------------------------------------
     describe('no-op when description is unchanged', () => {
-      it('should return a successful Result without emitting an event when value is the same string', () => {
+      it('should return a successful Result and emit no events when value is the same string', () => {
         const vendor = makeVendor({ description: 'Same description' });
         vendor.clearEvents();
         const result = vendor.updateDescription('Same description');
@@ -851,7 +659,7 @@ describe('Vendor', () => {
         expect(vendor.domainEvents.length).toBe(0);
       });
 
-      it('should return a successful Result without emitting an event when both old and new are null', () => {
+      it('should return a successful Result and emit no events when both old and new are null', () => {
         const vendor = makeVendor({ description: null });
         vendor.clearEvents();
         const result = vendor.updateDescription(null);
@@ -885,68 +693,6 @@ describe('Vendor', () => {
 
         expect(vendor.description).toBe('Old description');
       });
-
-      it('should not emit an event when validation fails', () => {
-        const vendor = makeVendor({ description: 'Old description' });
-        vendor.clearEvents();
-        vendor.updateDescription('A'.repeat(501));
-
-        expect(vendor.domainEvents.length).toBe(0);
-      });
-    });
-  });
-
-  // =========================================================================
-  describe('domain event accumulation', () => {
-    it('should have 1 event after create', () => {
-      const vendor = makeVendor();
-
-      expect(vendor.domainEvents.length).toBe(1);
-    });
-
-    it('should have 2 events after create + one updateName call', () => {
-      const vendor = makeVendor({ name: 'Cisco' });
-      vendor.updateName('MikroTik');
-
-      expect(vendor.domainEvents.length).toBe(2);
-    });
-
-    it('should accumulate events across multiple update calls', () => {
-      const vendor = makeVendor({
-        name: 'Cisco',
-        slug: 'cisco',
-        description: null
-      });
-      vendor.updateName('MikroTik');
-      vendor.updateSlug('mikrotik');
-      vendor.updateDescription('Latvian networking company');
-
-      expect(vendor.domainEvents.length).toBe(4);
-      expect(vendor.domainEvents[0]).toBeInstanceOf(VendorCreatedEvent);
-      expect(vendor.domainEvents[1]).toBeInstanceOf(VendorUpdatedEvent);
-      expect(vendor.domainEvents[2]).toBeInstanceOf(VendorUpdatedEvent);
-      expect(vendor.domainEvents[3]).toBeInstanceOf(VendorUpdatedEvent);
-    });
-  });
-
-  // =========================================================================
-  describe('clearEvents()', () => {
-    it('should remove all domain events', () => {
-      const vendor = makeVendor();
-      expect(vendor.domainEvents.length).toBe(1);
-
-      vendor.clearEvents();
-
-      expect(vendor.domainEvents.length).toBe(0);
-    });
-
-    it('should allow new events to accumulate after clearing', () => {
-      const vendor = makeVendor({ name: 'Cisco' });
-      vendor.clearEvents();
-
-      vendor.updateName('MikroTik');
-
-      expect(vendor.domainEvents.length).toBe(1);
     });
   });
 });

@@ -1,8 +1,6 @@
 import { AggregateRoot, Result, Guard } from 'domain/shared/core';
 import { VendorId } from 'domain/shared/ids';
 import { VendorProps } from '../props';
-import { VendorCreatedEvent, VendorUpdatedEvent } from '../events';
-
 const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export class Vendor extends AggregateRoot<VendorProps, VendorId> {
@@ -51,15 +49,6 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
       id
     );
 
-    vendor.addDomainEvent(
-      new VendorCreatedEvent({
-        aggregateId: vendor.id,
-        vendorName: vendor.name,
-        vendorSlug: vendor.slug,
-        dateTimeOccurred: now
-      })
-    );
-
     return Result.ok<Vendor>(vendor);
   }
 
@@ -94,15 +83,6 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
     this.props.name = trimmed;
     this.props.updatedAt = new Date();
 
-    this.addDomainEvent(
-      new VendorUpdatedEvent({
-        aggregateId: this.id,
-        vendorName: trimmed,
-        changedFields: ['name'],
-        dateTimeOccurred: new Date()
-      })
-    );
-
     return Result.ok<void>();
   }
 
@@ -135,15 +115,6 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
     this.props.slug = trimmed;
     this.props.updatedAt = new Date();
 
-    this.addDomainEvent(
-      new VendorUpdatedEvent({
-        aggregateId: this.id,
-        vendorName: this.props.name,
-        changedFields: ['slug'],
-        dateTimeOccurred: new Date()
-      })
-    );
-
     return Result.ok<void>();
   }
 
@@ -161,15 +132,6 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
 
     this.props.description = newDescription;
     this.props.updatedAt = new Date();
-
-    this.addDomainEvent(
-      new VendorUpdatedEvent({
-        aggregateId: this.id,
-        vendorName: this.props.name,
-        changedFields: ['description'],
-        dateTimeOccurred: new Date()
-      })
-    );
 
     return Result.ok<void>();
   }
