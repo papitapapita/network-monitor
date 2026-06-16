@@ -1,11 +1,6 @@
 import { AggregateRoot, Result, Guard } from 'domain/shared/core';
 import { DeviceModelId, VendorId } from 'domain/shared/ids';
 import { DeviceModelProps } from '../props';
-import {
-  DeviceModelCreatedEvent,
-  DeviceModelUpdatedEvent
-} from '../events';
-
 export class DeviceModel extends AggregateRoot<
   DeviceModelProps,
   DeviceModelId
@@ -58,15 +53,6 @@ export class DeviceModel extends AggregateRoot<
       id
     );
 
-    deviceModel.addDomainEvent(
-      new DeviceModelCreatedEvent({
-        aggregateId: deviceModel.id,
-        vendorName: deviceModel.vendorName,
-        model: deviceModel.model,
-        dateTimeOccurred: now
-      })
-    );
-
     return Result.ok<DeviceModel>(deviceModel);
   }
 
@@ -101,15 +87,6 @@ export class DeviceModel extends AggregateRoot<
     this.props.model = trimmed;
     this.props.updatedAt = new Date();
 
-    this.addDomainEvent(
-      new DeviceModelUpdatedEvent({
-        aggregateId: this.id,
-        model: trimmed,
-        changedFields: ['model'],
-        dateTimeOccurred: new Date()
-      })
-    );
-
     return Result.ok<void>();
   }
 
@@ -127,15 +104,6 @@ export class DeviceModel extends AggregateRoot<
 
     this.props.deviceType = newDeviceType;
     this.props.updatedAt = new Date();
-
-    this.addDomainEvent(
-      new DeviceModelUpdatedEvent({
-        aggregateId: this.id,
-        model: this.props.model,
-        changedFields: ['deviceType'],
-        dateTimeOccurred: new Date()
-      })
-    );
 
     return Result.ok<void>();
   }
@@ -158,15 +126,6 @@ export class DeviceModel extends AggregateRoot<
     this.props.vendorName = vendorName;
     this.props.vendorSlug = vendorSlug;
     this.props.updatedAt = new Date();
-
-    this.addDomainEvent(
-      new DeviceModelUpdatedEvent({
-        aggregateId: this.id,
-        model: this.props.model,
-        changedFields: ['vendorId'],
-        dateTimeOccurred: new Date()
-      })
-    );
 
     return Result.ok<void>();
   }
