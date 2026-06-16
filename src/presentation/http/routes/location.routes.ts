@@ -46,7 +46,7 @@ export function createLocationRoutes(
    *
    * Body: CreateLocationInput
    *   - name         (required) Location name, 1-150 chars
-   *   - type         (required) One of: TOWER, NODE, DATACENTER, POP, WAREHOUSE, OFFICE
+   *   - type         (required) One of: TOWER, DATACENTER, POINT_OF_PRESENCE, OFFICE, CUSTOMER_PREMISES, OTHER
    *   - municipality (optional) Max 100 chars
    *   - neighborhood (optional) Max 150 chars
    *   - address      (optional) Max 255 chars
