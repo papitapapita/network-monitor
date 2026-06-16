@@ -14,7 +14,7 @@ export class MACAddress extends ValueObject<MACAddressProps> {
     super(_props);
   }
 
-  public static isValid(mac: string): boolean {
+  private static isValid(mac: string): boolean {
     return isValidMacAddress(mac);
   }
 
@@ -57,13 +57,5 @@ export class MACAddress extends ValueObject<MACAddressProps> {
 
   public toString(): string {
     return this._props.value;
-  }
-
-  public toHyphenFormat(): string {
-    return this._props.value.replace(/:/g, '-');
-  }
-
-  public toCompactFormat(): string {
-    return this._props.value.replace(/:/g, '');
   }
 }

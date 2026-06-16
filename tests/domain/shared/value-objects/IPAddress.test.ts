@@ -311,51 +311,6 @@ describe('IPAddress', () => {
     });
   });
 
-  describe('static isValidIPv4', () => {
-    it('should return true for valid IPv4', () => {
-      expect(IPAddress.isValidIPv4('192.168.1.1')).toBe(true);
-      expect(IPAddress.isValidIPv4('0.0.0.0')).toBe(true);
-      expect(IPAddress.isValidIPv4('255.255.255.255')).toBe(true);
-      expect(IPAddress.isValidIPv4('127.0.0.1')).toBe(true);
-    });
-
-    it('should return false for invalid IPv4', () => {
-      expect(IPAddress.isValidIPv4('256.1.1.1')).toBe(false);
-      expect(IPAddress.isValidIPv4('192.168.1')).toBe(false);
-      expect(IPAddress.isValidIPv4('192.168.1.1.1')).toBe(false);
-      expect(IPAddress.isValidIPv4('192.168.a.1')).toBe(false);
-    });
-
-    it('should return false for IPv6 addresses', () => {
-      expect(IPAddress.isValidIPv4('2001:db8::1')).toBe(false);
-    });
-  });
-
-  describe('static isValidIPv6', () => {
-    it('should return true for valid IPv6', () => {
-      expect(
-        IPAddress.isValidIPv6(
-          '2001:0db8:85a3:0000:0000:8a2e:0370:7334'
-        )
-      ).toBe(true);
-      expect(IPAddress.isValidIPv6('2001:db8::8a2e:370:7334')).toBe(
-        true
-      );
-      expect(IPAddress.isValidIPv6('::1')).toBe(true);
-      expect(IPAddress.isValidIPv6('::')).toBe(true);
-    });
-
-    it('should return false for invalid IPv6', () => {
-      expect(IPAddress.isValidIPv6('2001:::1')).toBe(false);
-      expect(IPAddress.isValidIPv6('gggg::1')).toBe(false);
-      expect(IPAddress.isValidIPv6('2001:db8::1::2')).toBe(false);
-    });
-
-    it('should return false for IPv4 addresses', () => {
-      expect(IPAddress.isValidIPv6('192.168.1.1')).toBe(false);
-    });
-  });
-
   describe('equals', () => {
     it('should return true for same IPv4 addresses', () => {
       const ip1 = IPAddress.create('192.168.1.1').value;

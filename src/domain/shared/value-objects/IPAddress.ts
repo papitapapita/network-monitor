@@ -10,7 +10,7 @@ export class IPAddress extends ValueObject<IPAddressProps> {
     super(props);
   }
 
-  public static isValidIPv4(ip: string): boolean {
+  private static isValidIPv4(ip: string): boolean {
     const octet = '(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)';
     const ipv4Regex = new RegExp(
       `^${octet}\\.${octet}\\.${octet}\\.${octet}$`
@@ -18,7 +18,7 @@ export class IPAddress extends ValueObject<IPAddressProps> {
     return ipv4Regex.test(ip);
   }
 
-  public static isValidIPv6(ip: string): boolean {
+  private static isValidIPv6(ip: string): boolean {
     const ipv6Regex =
       /^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
 
