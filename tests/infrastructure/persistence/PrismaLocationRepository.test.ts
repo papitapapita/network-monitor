@@ -520,11 +520,11 @@ describe('PrismaLocationRepository', () => {
       it('should work correctly for every LocationType value', async () => {
         const allTypes: LocationType[] = [
           LocationType.TOWER,
-          LocationType.NODE,
           LocationType.DATACENTER,
-          LocationType.POP,
-          LocationType.WAREHOUSE,
-          LocationType.OFFICE
+          LocationType.POINT_OF_PRESENCE,
+          LocationType.OFFICE,
+          LocationType.CUSTOMER_PREMISES,
+          LocationType.OTHER
         ];
 
         for (const type of allTypes) {
@@ -548,7 +548,7 @@ describe('PrismaLocationRepository', () => {
           Result.fail('corrupt type record')
         );
 
-        const result = await repository.findByType(LocationType.NODE);
+        const result = await repository.findByType(LocationType.TOWER);
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('Failed to map location');
@@ -571,7 +571,7 @@ describe('PrismaLocationRepository', () => {
       it('should prefix the error with "Database error finding locations by type"', async () => {
         prisma.location.findMany.mockRejectedValue(new Error('io error'));
 
-        const result = await repository.findByType(LocationType.WAREHOUSE);
+        const result = await repository.findByType(LocationType.OTHER);
 
         expect(result.error).toContain(
           'Database error finding locations by type'

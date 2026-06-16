@@ -435,10 +435,10 @@ describe('UpdateLocationUseCase', () => {
 
     it('should return the updated type when type was changed', async () => {
       const result = await useCase.execute(
-        makeRequest({ type: 'NODE' })
+        makeRequest({ type: 'OFFICE' })
       );
 
-      expect(result.value!.type).toBe('NODE');
+      expect(result.value!.type).toBe('OFFICE');
     });
 
     it('should return createdAt as an ISO 8601 string', async () => {

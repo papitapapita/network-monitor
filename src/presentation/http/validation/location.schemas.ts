@@ -32,11 +32,10 @@ const UUID_REGEX =
  */
 const LOCATION_TYPES = [
   'TOWER',
-  'NODE',
   'DATACENTER',
-  'POP',
-  'WAREHOUSE',
+  'POINT_OF_PRESENCE',
   'OFFICE',
+  'CUSTOMER_PREMISES',
   'OTHER'
 ] as const;
 

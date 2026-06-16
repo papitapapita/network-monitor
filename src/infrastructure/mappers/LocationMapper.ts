@@ -101,14 +101,10 @@ export class LocationMapper {
     switch (prismaType) {
       case 'TOWER':
         return LocationType.TOWER;
-      case 'NODE':
-        return LocationType.NODE;
       case 'DATACENTER':
         return LocationType.DATACENTER;
-      case 'POP':
-        return LocationType.POP;
-      case 'WAREHOUSE':
-        return LocationType.WAREHOUSE;
+      case 'POINT_OF_PRESENCE':
+        return LocationType.POINT_OF_PRESENCE;
       case 'OFFICE':
         return LocationType.OFFICE;
       case 'OTHER':
@@ -128,16 +124,14 @@ export class LocationMapper {
     switch (locationType) {
       case LocationType.TOWER:
         return 'TOWER';
-      case LocationType.NODE:
-        return 'NODE';
       case LocationType.DATACENTER:
         return 'DATACENTER';
-      case LocationType.POP:
-        return 'POP';
-      case LocationType.WAREHOUSE:
-        return 'WAREHOUSE';
+      case LocationType.POINT_OF_PRESENCE:
+        return 'POINT_OF_PRESENCE';
       case LocationType.OFFICE:
         return 'OFFICE';
+      case LocationType.CUSTOMER_PREMISES:
+        return 'CUSTOMER_PREMISES';
       case LocationType.OTHER:
         return 'OTHER';
       default:

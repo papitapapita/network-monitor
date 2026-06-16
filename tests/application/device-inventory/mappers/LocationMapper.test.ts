@@ -78,12 +78,12 @@ describe('LocationMapper (application layer)', () => {
     // -----------------------------------------------------------------------
     describe('LocationType string representation', () => {
       const typeMatrix: Array<[LocationType, string]> = [
-        [LocationType.TOWER,      'TOWER'],
-        [LocationType.NODE,       'NODE'],
-        [LocationType.DATACENTER, 'DATACENTER'],
-        [LocationType.POP,        'POP'],
-        [LocationType.WAREHOUSE,  'WAREHOUSE'],
-        [LocationType.OFFICE,     'OFFICE']
+        [LocationType.TOWER,              'TOWER'],
+        [LocationType.DATACENTER,         'DATACENTER'],
+        [LocationType.POINT_OF_PRESENCE,  'POINT_OF_PRESENCE'],
+        [LocationType.OFFICE,             'OFFICE'],
+        [LocationType.CUSTOMER_PREMISES,  'CUSTOMER_PREMISES'],
+        [LocationType.OTHER,              'OTHER']
       ];
 
       for (const [domainType, expectedString] of typeMatrix) {

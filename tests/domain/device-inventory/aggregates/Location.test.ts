@@ -224,11 +224,10 @@ describe('Location', () => {
       it('should accept all valid LocationType values', () => {
         const types: LocationType[] = [
           LocationType.TOWER,
-          LocationType.NODE,
           LocationType.DATACENTER,
-          LocationType.POP,
-          LocationType.WAREHOUSE,
-          LocationType.OFFICE
+          LocationType.POINT_OF_PRESENCE,
+          LocationType.OFFICE,
+          LocationType.OTHER
         ];
 
         for (const type of types) {
@@ -236,6 +235,12 @@ describe('Location', () => {
           expect(result.isSuccess).toBe(true);
           expect(result.value.type).toBe(type);
         }
+
+        const cpResult = Location.create(
+          validProps({ type: LocationType.CUSTOMER_PREMISES, address: '123 Main St' })
+        );
+        expect(cpResult.isSuccess).toBe(true);
+        expect(cpResult.value.type).toBe(LocationType.CUSTOMER_PREMISES);
       });
     });
 
@@ -510,7 +515,7 @@ describe('Location', () => {
     describe('happy path', () => {
       it('should return a successful Result when type is valid', () => {
         const location = makeLocation(LocationType.TOWER);
-        const result = location.updateType(LocationType.NODE);
+        const result = location.updateType(LocationType.OFFICE);
 
         expect(result.isSuccess).toBe(true);
       });

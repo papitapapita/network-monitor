@@ -96,11 +96,10 @@ model DeviceModel {
 
 enum LocationType {
   TOWER
-  NODE
   DATACENTER
-  POP
-  WAREHOUSE
+  POINT_OF_PRESENCE
   OFFICE
+  CUSTOMER_PREMISES
   OTHER
 
   @@map("location_type")
@@ -195,6 +194,7 @@ model Device {
   wirelessSnapshots            WirelessSnapshot[]
   wirelessAlertRecords         WirelessAlertRecord[]
   wirelessPollingConfiguration WirelessPollingConfiguration?
+  contractedService            ContractedService?
 
   @@index([ipAddress])
   @@index([monitoringEnabled])
@@ -428,4 +428,66 @@ model WirelessPollingConfiguration {
 
   @@index([enabled])
   @@map("wireless_polling_configurations")
+}
+
+// ============================================================================
+// CUSTOMERS BOUNDED CONTEXT
+// ============================================================================
+
+enum ContractedServiceStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+
+  @@map("contracted_service_status")
+}
+
+model Customer {
+  id        String   @id @default(uuid()) @db.Uuid
+  fullName  String   @map("full_name") @db.VarChar(150)
+  phone     String   @unique @db.VarChar(20)
+  email     String?  @unique @db.VarChar(255)
+  cedula    String?  @unique @db.VarChar(20)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  contractedServices ContractedService[]
+
+  @@map("customers")
+}
+
+model ServicePlan {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String   @unique @db.VarChar(100)
+  downloadMbps  Int      @map("download_mbps")
+  uploadMbps    Int      @map("upload_mbps")
+  monthlyPrice  Decimal  @map("monthly_price") @db.Decimal(12, 2)
+  description   String?  @db.VarChar(500)
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  contractedServices ContractedService[]
+
+  @@map("service_plans")
+}
+
+model ContractedService {
+  id            String                   @id @default(uuid()) @db.Uuid
+  customerId    String                   @map("customer_id") @db.Uuid
+  servicePlanId String                   @map("service_plan_id") @db.Uuid
+  deviceId      String?                  @unique @map("device_id") @db.Uuid
+  status        ContractedServiceStatus  @default(PENDING)
+  startDate     DateTime                 @map("start_date") @db.Timestamptz
+  createdAt     DateTime                 @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime                 @updatedAt @map("updated_at") @db.Timestamptz
+
+  customer    Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  servicePlan ServicePlan @relation(fields: [servicePlanId], references: [id], onDelete: Restrict)
+  device      Device?     @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@index([status])
+  @@map("contracted_services")
 }

@@ -207,7 +207,7 @@ describe('GetMapLocationsUseCase', () => {
     });
 
     it('should populate pin coordinates and metadata from location', async () => {
-      const loc = makeLocation(LOC_ID_1, { type: LocationType.POP });
+      const loc = makeLocation(LOC_ID_1, { type: LocationType.POINT_OF_PRESENCE });
       locationRepo.findAllWithCoordinates.mockResolvedValue(
         Result.ok([loc])
       );
@@ -218,7 +218,7 @@ describe('GetMapLocationsUseCase', () => {
       const pin = result.value!.pins[0];
       expect(pin.latitude).toBe(6.2442);
       expect(pin.longitude).toBe(-75.5812);
-      expect(pin.locationType).toBe(LocationType.POP);
+      expect(pin.locationType).toBe(LocationType.POINT_OF_PRESENCE);
       expect(pin.municipality).toBe('Medellín');
     });
 

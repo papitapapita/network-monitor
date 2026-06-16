@@ -278,11 +278,11 @@ describe('LocationMapper', () => {
     describe('LocationType mapping from Prisma string', () => {
       const typeMatrix: Array<[string, LocationType]> = [
         ['TOWER', LocationType.TOWER],
-        ['NODE', LocationType.NODE],
         ['DATACENTER', LocationType.DATACENTER],
-        ['POP', LocationType.POP],
-        ['WAREHOUSE', LocationType.WAREHOUSE],
-        ['OFFICE', LocationType.OFFICE]
+        ['POINT_OF_PRESENCE', LocationType.POINT_OF_PRESENCE],
+        ['OFFICE', LocationType.OFFICE],
+        ['CUSTOMER_PREMISES', LocationType.CUSTOMER_PREMISES],
+        ['OTHER', LocationType.OTHER]
       ];
 
       for (const [prismaType, expectedDomainType] of typeMatrix) {
@@ -535,11 +535,11 @@ describe('LocationMapper', () => {
     describe('LocationType mapping to Prisma string', () => {
       const typeMatrix: Array<[LocationType, string]> = [
         [LocationType.TOWER, 'TOWER'],
-        [LocationType.NODE, 'NODE'],
         [LocationType.DATACENTER, 'DATACENTER'],
-        [LocationType.POP, 'POP'],
-        [LocationType.WAREHOUSE, 'WAREHOUSE'],
-        [LocationType.OFFICE, 'OFFICE']
+        [LocationType.POINT_OF_PRESENCE, 'POINT_OF_PRESENCE'],
+        [LocationType.OFFICE, 'OFFICE'],
+        [LocationType.CUSTOMER_PREMISES, 'CUSTOMER_PREMISES'],
+        [LocationType.OTHER, 'OTHER']
       ];
 
       for (const [domainType, expectedPrismaString] of typeMatrix) {
@@ -610,11 +610,11 @@ describe('LocationMapper', () => {
     it('should round-trip every LocationType correctly', () => {
       const types: string[] = [
         'TOWER',
-        'NODE',
         'DATACENTER',
-        'POP',
-        'WAREHOUSE',
-        'OFFICE'
+        'POINT_OF_PRESENCE',
+        'OFFICE',
+        'CUSTOMER_PREMISES',
+        'OTHER'
       ];
 
       for (const type of types) {
