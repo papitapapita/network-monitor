@@ -107,6 +107,7 @@ import { TelegramNotificationService } from '../notifications';
 import { EventDispatcher } from 'domain/shared/core';
 import {
   DeviceCreatedEvent,
+  DeviceStatusChangedEvent,
   DeviceMonitoringToggledEvent,
   DeviceDetailsUpdatedEvent
 } from 'domain/device-inventory/events';
@@ -116,6 +117,7 @@ import {
 } from 'domain/device-monitoring/events';
 import {
   DeviceProvisionedHandler,
+  DeviceStatusChangedHandler,
   DeviceMonitoringToggledHandler,
   DeviceIPAddressChangedHandler
 } from 'application/device-monitoring/event-handlers';
@@ -654,6 +656,7 @@ export class DependencyContainer {
     const createWirelessConfigUseCase =
       new CreateWirelessConfigUseCase(
         this.deviceRepository,
+        this.deviceModelRepository,
         this.wirelessDeviceConfigRepository,
         this.logger
       );
@@ -785,11 +788,15 @@ export class DependencyContainer {
     // Register cross-context event handlers
     EventDispatcher.register(
       DeviceCreatedEvent.name,
-      new DeviceProvisionedHandler(this.pollingConfigRepository)
+      new DeviceProvisionedHandler(this.pollingConfigRepository, this.logger)
+    );
+    EventDispatcher.register(
+      DeviceStatusChangedEvent.name,
+      new DeviceStatusChangedHandler(this.pollingConfigRepository, this.logger)
     );
     EventDispatcher.register(
       DeviceMonitoringToggledEvent.name,
-      new DeviceMonitoringToggledHandler(this.pollingConfigRepository)
+      new DeviceMonitoringToggledHandler(this.pollingConfigRepository, this.logger)
     );
     EventDispatcher.register(
       DeviceDetailsUpdatedEvent.name,
