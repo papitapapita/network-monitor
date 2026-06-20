@@ -7,12 +7,14 @@ import {
 } from 'domain/device-monitoring/value-objects';
 import { PollingConfiguration } from 'domain/device-monitoring/entities';
 import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
+import { ILogger } from 'application/shared/interfaces';
 
 export class DeviceProvisionedHandler
   implements IHandle<DeviceCreatedEvent>
 {
   constructor(
-    private readonly pollingConfigRepo: IPollingConfigurationRepository
+    private readonly pollingConfigRepo: IPollingConfigurationRepository,
+    private readonly logger: ILogger
   ) {}
 
   public async handle(event: DeviceCreatedEvent): Promise<void> {
@@ -39,22 +41,21 @@ export class DeviceProvisionedHandler
       );
 
       if (configResult.isFailure) {
-        console.error(
+        this.logger.error(
           '[DeviceProvisionedHandler] Failed to create PollingConfiguration',
-          {
-            deviceId: deviceId.toString(),
-            error: configResult.error
-          }
+          undefined,
+          { deviceId: deviceId.toString(), error: configResult.error }
         );
         return;
       }
 
       await this.pollingConfigRepo.save(configResult.value);
     } catch (error) {
-      console.error('[DeviceProvisionedHandler] Unexpected error', {
-        deviceId: deviceId.toString(),
-        error: error instanceof Error ? error.message : String(error)
-      });
+      this.logger.error(
+        '[DeviceProvisionedHandler] Unexpected error',
+        error instanceof Error ? error : undefined,
+        { deviceId: deviceId.toString() }
+      );
     }
   }
 }

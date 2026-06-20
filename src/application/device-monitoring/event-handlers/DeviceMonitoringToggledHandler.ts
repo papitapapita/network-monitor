@@ -8,12 +8,14 @@ import {
 import { PollingConfiguration } from 'domain/device-monitoring/entities';
 import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
 import { IPAddress } from 'domain/shared';
+import { ILogger } from 'application/shared/interfaces';
 
 export class DeviceMonitoringToggledHandler
   implements IHandle<DeviceMonitoringToggledEvent>
 {
   constructor(
-    private readonly pollingConfigRepo: IPollingConfigurationRepository
+    private readonly pollingConfigRepo: IPollingConfigurationRepository,
+    private readonly logger: ILogger
   ) {}
 
   public async handle(event: DeviceMonitoringToggledEvent): Promise<void> {
@@ -43,13 +45,12 @@ export class DeviceMonitoringToggledHandler
         }
       }
     } catch (error) {
-      console.error(
+      this.logger.error(
         '[DeviceMonitoringToggledHandler] Unexpected error',
+        error instanceof Error ? error : undefined,
         {
           deviceId: deviceId.toString(),
-          monitoringEnabled: event.monitoringEnabled,
-          error:
-            error instanceof Error ? error.message : String(error)
+          monitoringEnabled: event.monitoringEnabled
         }
       );
     }
@@ -75,12 +76,10 @@ export class DeviceMonitoringToggledHandler
     );
 
     if (configResult.isFailure) {
-      console.error(
+      this.logger.error(
         '[DeviceMonitoringToggledHandler] Failed to create PollingConfiguration',
-        {
-          deviceId: deviceId.toString(),
-          error: configResult.error
-        }
+        undefined,
+        { deviceId: deviceId.toString(), error: configResult.error }
       );
       return;
     }
