@@ -1,7 +1,10 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 import { IPAddress, PollingInterval } from 'domain/shared/value-objects';
-import { IDeviceRepository } from 'domain/device-inventory/repository';
+import {
+  IDeviceRepository,
+  IDeviceModelRepository
+} from 'domain/device-inventory/repository';
 import { WirelessDeviceConfig } from 'domain/wireless-monitoring/aggregates';
 import { IWirelessDeviceConfigRepository } from 'domain/wireless-monitoring/repository';
 import { UseCase } from 'application/shared/core';
@@ -18,6 +21,7 @@ export class CreateWirelessConfigUseCase extends UseCase<
 > {
   constructor(
     private readonly deviceRepo: IDeviceRepository,
+    private readonly deviceModelRepo: IDeviceModelRepository,
     private readonly configRepo: IWirelessDeviceConfigRepository,
     logger: ILogger
   ) {
@@ -54,9 +58,26 @@ export class CreateWirelessConfigUseCase extends UseCase<
     if (deviceResult.value === null) {
       return this.fail('Device not found');
     }
-    if (!deviceResult.value.canHaveWirelessConfig()) {
+    const device = deviceResult.value;
+
+    if (!device.canHaveWirelessConfig()) {
       return this.fail(
-        'Device is not wireless-capable. Only WIRELESS_CPE and AP devices support wireless polling.'
+        'Only WIRELESS_CPE and AP devices can have a wireless config'
+      );
+    }
+
+    const modelResult = await this.deviceModelRepo.findById(
+      device.deviceModelId
+    );
+    if (modelResult.isFailure) {
+      return this.fail(modelResult.error);
+    }
+    if (modelResult.value === null) {
+      return this.fail('Device model not found');
+    }
+    if (!modelResult.value.isWireless) {
+      return this.fail(
+        'Device model is not wireless-capable. Mark the device model as wireless before configuring wireless polling.'
       );
     }
 
