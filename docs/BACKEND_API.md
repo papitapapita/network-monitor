@@ -335,7 +335,6 @@ Returns all locations that have coordinates, each with their nested devices. Int
 - `INVENTORY` / `DAMAGED` status → at least one of `serialNumber` or `macAddress` required (status defaults to `INVENTORY`, so a minimal request must include at least one)
 - `COMMISSIONING` status → `ipAddress` required; `monitoringEnabled` is forced `true` regardless of what is sent
 - `ACTIVE` status → `ipAddress` and `locationId` required
-- Any `category` set → `ipAddress` required
 
 ```ts
 // Response
@@ -388,14 +387,16 @@ sortOrder?:        'ASC' | 'DESC'  // default: DESC
 
 **Device status lifecycle:**
 
-| Transition | Requirements |
-|------------|--------------|
-| any → `COMMISSIONING` | `ipAddress` must be set on the device |
-| any → `ACTIVE` | `ipAddress` and `locationId` must both be set |
-| any → `DAMAGED` | no extra requirements |
-| any → `INVENTORY` | no extra requirements |
+| Transition | Requirements | Side effects |
+|------------|--------------|--------------|
+| any → `COMMISSIONING` | `ipAddress` must be set on the device | `monitoringEnabled` forced `true` |
+| any → `ACTIVE` | `ipAddress` and `locationId` must both be set | — |
+| any → `DAMAGED` | — | polling automatically disabled |
+| any → `INVENTORY` | — | polling automatically disabled |
 
 `DAMAGED` is a side-state (e.g. hardware failure) and can be set from any status.
+
+> When transitioning to `DAMAGED` or `INVENTORY`, the backend automatically disables the device's polling config. There is no need to also send `monitoringEnabled: false`.
 
 ---
 

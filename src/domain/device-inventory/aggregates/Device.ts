@@ -123,13 +123,6 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       );
     }
 
-    // A categorised device must have an IP address
-    if (props.category && !props.ipAddress) {
-      return Result.fail<Device>(
-        'A device with a category must have an IP address assigned'
-      );
-    }
-
     const id = DeviceId.create();
     const now = new Date();
 
@@ -174,15 +167,6 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     props: DeviceProps
   ): Device {
     return new Device(props, id);
-  }
-
-  // only WIRELESS_CPE and AP use the AirOS protocol; other categories do not
-  public canHaveWirelessConfig(): boolean {
-    if (this.props.category === null) return false;
-    return (
-      this.props.category.isWirelessCpe() ||
-      this.props.category.isAp()
-    );
   }
 
   // decommissioned is a terminal state
@@ -394,22 +378,6 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     );
 
     return Result.ok<void>();
-  }
-
-  public isActive(): boolean {
-    return this.props.status.isActive();
-  }
-
-  public isInInventory(): boolean {
-    return this.props.status.isInInventory();
-  }
-
-  public hasLocation(): boolean {
-    return this.props.locationId !== null;
-  }
-
-  public isMonitored(): boolean {
-    return this.props.monitoringEnabled;
   }
 
   private touch(): void {
