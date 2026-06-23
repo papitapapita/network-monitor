@@ -8,6 +8,7 @@ export interface DeviceModelProps {
   vendorSlug: string;
   model: string;
   deviceType: string;
+  isWireless: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

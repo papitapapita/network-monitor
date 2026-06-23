@@ -96,6 +96,13 @@ export class UpdateDeviceModelUseCase extends UseCase<
       }
     }
 
+    if (data.isWireless !== undefined) {
+      const wirelessResult = deviceModel.updateIsWireless(data.isWireless);
+      if (wirelessResult.isFailure) {
+        return this.fail(wirelessResult.error!);
+      }
+    }
+
     const saveResult =
       await this.deviceModelRepository.save(deviceModel);
     if (saveResult.isFailure) {

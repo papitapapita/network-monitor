@@ -23,6 +23,7 @@ export class PrismaDeviceModelRepository
           vendorId: data.vendorId,
           model: data.model,
           deviceType: data.deviceType as any,
+          isWireless: data.isWireless,
           updatedAt: data.updatedAt
         }
       });

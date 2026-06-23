@@ -79,6 +79,7 @@ model DeviceModel {
   vendor     Vendor     @relation(fields: [vendorId], references: [id], onDelete: Restrict)
   model      String     @db.VarChar(150)
   deviceType DeviceType @map("device_type")
+  isWireless Boolean    @default(false) @map("is_wireless")
   createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz
 

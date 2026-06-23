@@ -89,6 +89,12 @@ _Main user-facing features still missing._
   - `AlertEvent` already has these fields; `WirelessAlertRecord` does not
   - Prerequisite: decide whether wireless alerts share the same notification pipeline as ping alerts
 
+- [ ] **High-latency alerting** — fire an alert when a device's ICMP round-trip time exceeds a configurable threshold
+  - New alert type: `HIGH_LATENCY`; threshold stored per-device or as a global default (e.g. 150 ms)
+  - `PingAlertService` checks `latencyMs` after each successful poll; opens alert when threshold breached, auto-resolves when latency returns below threshold (with hysteresis to avoid flapping)
+  - Reuse the existing alert-open / alert-resolve flow used by the device-down path
+  - Prerequisite: a device must be `ACTIVE` and have a valid ping result (not a timeout) for the check to apply
+
 - [ ] **Advanced ping metrics** — enrich `PingResult` with `jitter`, `packetLoss`, `minLatencyMs`, `maxLatencyMs`, `ttl`, `packetsSent`, `packetsReceived`
   - Prerequisite: revisit `pingCount` decision — these only pay off with `pingCount > 1`
   - Unlocks: latency-trend graphs, packet-loss alerting, SLA reports

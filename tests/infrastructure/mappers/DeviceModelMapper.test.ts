@@ -18,6 +18,7 @@ type PrismaDeviceModelRecord = {
   vendorId: string;
   model: string;
   deviceType: string;
+  isWireless: boolean;
   createdAt: Date;
   updatedAt: Date;
   vendor: { name: string; slug: string };
@@ -29,6 +30,7 @@ function makeRaw(overrides: Partial<PrismaDeviceModelRecord> = {}): PrismaDevice
     vendorId: VENDOR_UUID,
     model: 'RB760iGS',
     deviceType: 'ROUTER',
+    isWireless: false,
     createdAt: NOW,
     updatedAt: NOW,
     vendor: { name: 'Mikrotik', slug: 'mikrotik' },
@@ -39,6 +41,7 @@ function makeRaw(overrides: Partial<PrismaDeviceModelRecord> = {}): PrismaDevice
 function makeDeviceModel(overrides: Partial<{
   model: string;
   deviceType: string;
+  isWireless: boolean;
   vendorName: string;
   vendorSlug: string;
 }> = {}): DeviceModel {
@@ -50,6 +53,7 @@ function makeDeviceModel(overrides: Partial<{
     vendorSlug: overrides.vendorSlug ?? 'mikrotik',
     model: overrides.model ?? 'RB760iGS',
     deviceType: overrides.deviceType ?? 'ROUTER',
+    isWireless: overrides.isWireless ?? false,
     createdAt: NOW,
     updatedAt: NOW
   });
@@ -256,13 +260,13 @@ describe('DeviceModelMapper', () => {
         expect(Object.keys(data)).not.toContain('vendorSlug');
       });
 
-      it('should include exactly the six base fields in the persistence shape', () => {
+      it('should include exactly the seven base fields in the persistence shape', () => {
         const dm = makeDeviceModel();
 
         const data = DeviceModelMapper.toPersistence(dm);
 
         expect(Object.keys(data).sort()).toEqual(
-          ['createdAt', 'deviceType', 'id', 'model', 'updatedAt', 'vendorId'].sort()
+          ['createdAt', 'deviceType', 'id', 'isWireless', 'model', 'updatedAt', 'vendorId'].sort()
         );
       });
     });

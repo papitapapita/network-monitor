@@ -7,6 +7,7 @@ import { createTestApp } from './helpers/createTestApp';
 import {
   cleanDatabase,
   seedDeviceModel,
+  seedWirelessDeviceModel,
   GHOST_ID,
   INVALID_ID
 } from './helpers/db';
@@ -88,7 +89,10 @@ describe('Wireless Config Routes — /api/devices/:id/wireless/config', () => {
   let app: Application;
   let container: DependencyContainer;
   let prisma: PrismaClient;
-  let deviceModelId: string;
+  /** isWireless=true — used for wireless devices */
+  let wirelessModelId: string;
+  /** isWireless=false (ROUTERBOARD) — used for wired device */
+  let wiredModelId: string;
 
   /** A wireless device (WIRELESS_CPE) with NO wireless config seeded. */
   let plainDeviceId: string;
@@ -96,13 +100,14 @@ describe('Wireless Config Routes — /api/devices/:id/wireless/config', () => {
   /** A wireless device that already has a wireless config seeded. */
   let configuredDeviceId: string;
 
-  /** A wired device (CPE) — should be rejected by canHaveWirelessConfig(). */
+  /** A wired device (CPE) — rejected because its model has isWireless=false. */
   let wiredDeviceId: string;
 
   beforeAll(async () => {
     ({ app, container } = await createTestApp());
     prisma = container.getPrisma();
-    deviceModelId = await seedDeviceModel(prisma);
+    wirelessModelId = await seedWirelessDeviceModel(prisma);
+    wiredModelId = await seedDeviceModel(prisma);
   });
 
   afterAll(async () => {
@@ -112,9 +117,9 @@ describe('Wireless Config Routes — /api/devices/:id/wireless/config', () => {
   beforeEach(async () => {
     await cleanDatabase(prisma);
 
-    plainDeviceId = await seedPlainDevice(prisma, deviceModelId);
-    configuredDeviceId = await seedDeviceWithConfig(prisma, deviceModelId);
-    wiredDeviceId = await seedWiredDevice(prisma, deviceModelId);
+    plainDeviceId = await seedPlainDevice(prisma, wirelessModelId);
+    configuredDeviceId = await seedDeviceWithConfig(prisma, wirelessModelId);
+    wiredDeviceId = await seedWiredDevice(prisma, wiredModelId);
   });
 
   // ─────────────────────────────────────────────────────────────

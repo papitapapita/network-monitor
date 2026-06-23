@@ -17,6 +17,7 @@ export class DeviceModelMapper {
       vendorSlug: deviceModel.vendorSlug,
       model: deviceModel.model,
       deviceType: deviceModel.deviceType,
+      isWireless: deviceModel.isWireless,
       createdAt: deviceModel.createdAt.toISOString(),
       updatedAt: deviceModel.updatedAt.toISOString()
     };
@@ -41,7 +42,8 @@ export class DeviceModelMapper {
     return {
       vendorId: dto.vendorId,
       model: dto.model,
-      deviceType: dto.deviceType
+      deviceType: dto.deviceType,
+      isWireless: dto.isWireless ?? false
     };
   }
 
@@ -50,10 +52,12 @@ export class DeviceModelMapper {
       vendorId?: string;
       model?: string;
       deviceType?: string;
+      isWireless?: boolean;
     } = {};
     if (dto.vendorId !== undefined) updates.vendorId = dto.vendorId;
     if (dto.model !== undefined) updates.model = dto.model;
     if (dto.deviceType !== undefined) updates.deviceType = dto.deviceType;
+    if (dto.isWireless !== undefined) updates.isWireless = dto.isWireless;
     return updates;
   }
 }

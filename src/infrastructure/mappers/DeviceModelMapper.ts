@@ -7,6 +7,7 @@ type PrismaDeviceModelRecord = {
   vendorId: string;
   model: string;
   deviceType: string;
+  isWireless: boolean;
   createdAt: Date;
   updatedAt: Date;
   vendor: {
@@ -20,6 +21,7 @@ type DeviceModelPersistenceData = {
   vendorId: string;
   model: string;
   deviceType: string;
+  isWireless: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -48,6 +50,7 @@ export class DeviceModelMapper {
       vendorSlug: raw.vendor.slug,
       model: raw.model,
       deviceType: raw.deviceType,
+      isWireless: raw.isWireless,
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt
     });
@@ -63,6 +66,7 @@ export class DeviceModelMapper {
       vendorId: deviceModel.vendorId.toString(),
       model: deviceModel.model,
       deviceType: deviceModel.deviceType,
+      isWireless: deviceModel.isWireless,
       createdAt: deviceModel.createdAt,
       updatedAt: deviceModel.updatedAt
     };

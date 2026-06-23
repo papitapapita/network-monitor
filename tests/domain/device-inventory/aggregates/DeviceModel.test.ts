@@ -21,6 +21,7 @@ function makeProps(
     vendorSlug: 'cisco',
     model: 'ISR-4321',
     deviceType: 'Router',
+    isWireless: false,
     ...overrides
   };
 }
@@ -246,6 +247,7 @@ describe('DeviceModel', () => {
         vendorSlug: 'hp',
         model: 'ProCurve-2920',
         deviceType: 'Switch',
+        isWireless: false,
         createdAt,
         updatedAt
       });

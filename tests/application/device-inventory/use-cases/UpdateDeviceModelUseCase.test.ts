@@ -57,6 +57,7 @@ function makeDeviceModel(): DeviceModel {
     vendorSlug: 'mikrotik',
     model: 'RB760iGS',
     deviceType: 'ROUTER',
+    isWireless: false,
     createdAt: NOW,
     updatedAt: NOW
   });

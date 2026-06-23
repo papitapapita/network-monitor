@@ -62,7 +62,9 @@ export const createDeviceModelSchema = z.object({
       error: () => ({
         message: `deviceType must be one of: ${DEVICE_TYPES.join(', ')}`
       })
-    })
+    }),
+
+    isWireless: z.boolean().optional().default(false)
   })
 });
 
@@ -95,13 +97,16 @@ export const updateDeviceModelSchema = z.object({
             message: `deviceType must be one of: ${DEVICE_TYPES.join(', ')}`
           })
         })
-        .optional()
+        .optional(),
+
+      isWireless: z.boolean().optional()
     })
     .refine(
       (body) =>
         body.vendorId !== undefined ||
         body.model !== undefined ||
-        body.deviceType !== undefined,
+        body.deviceType !== undefined ||
+        body.isWireless !== undefined,
       { message: 'At least one field must be provided for update' }
     )
 });

@@ -29,6 +29,10 @@ export class DeviceModel extends AggregateRoot<
     return this.props.deviceType;
   }
 
+  get isWireless(): boolean {
+    return this.props.isWireless;
+  }
+
   get createdAt(): Date {
     return this.props.createdAt;
   }
@@ -49,7 +53,7 @@ export class DeviceModel extends AggregateRoot<
     const now = new Date();
 
     const deviceModel = new DeviceModel(
-      { ...props, createdAt: now, updatedAt: now },
+      { ...props, isWireless: props.isWireless ?? false, createdAt: now, updatedAt: now },
       id
     );
 
@@ -105,6 +109,13 @@ export class DeviceModel extends AggregateRoot<
     this.props.deviceType = newDeviceType;
     this.props.updatedAt = new Date();
 
+    return Result.ok<void>();
+  }
+
+  public updateIsWireless(value: boolean): Result<void> {
+    if (this.props.isWireless === value) return Result.ok<void>();
+    this.props.isWireless = value;
+    this.props.updatedAt = new Date();
     return Result.ok<void>();
   }
 

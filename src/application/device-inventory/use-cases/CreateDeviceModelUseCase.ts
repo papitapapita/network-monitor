@@ -85,7 +85,8 @@ export class CreateDeviceModelUseCase extends UseCase<
       vendorName: vendor.name,
       vendorSlug: vendor.slug,
       model: modelTrimmed,
-      deviceType: data.deviceType.trim()
+      deviceType: data.deviceType.trim(),
+      isWireless: data.isWireless
     });
 
     if (deviceModelResult.isFailure) {

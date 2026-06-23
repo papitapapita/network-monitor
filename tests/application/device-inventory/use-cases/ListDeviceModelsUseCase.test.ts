@@ -31,6 +31,7 @@ function makeDeviceModel(id: string = '550e8400-e29b-41d4-a716-446655440000'): D
       vendorSlug: 'mikrotik',
       model: 'RB760iGS',
       deviceType: 'ROUTER',
+      isWireless: false,
       createdAt: NOW,
       updatedAt: NOW
     }

@@ -45,6 +45,41 @@ export async function seedDeviceModel(prisma: PrismaClient): Promise<string> {
 }
 
 /**
+ * Upserts a Ubiquiti LiteBeam 5AC device model with isWireless=true.
+ * Returns the device model UUID — use it as `deviceModelId` when creating wireless test devices.
+ */
+export async function seedWirelessDeviceModel(
+  prisma: PrismaClient
+): Promise<string> {
+  const vendor = await prisma.vendor.upsert({
+    where: { slug: 'ubiquiti' },
+    update: {},
+    create: {
+      name: 'Ubiquiti',
+      slug: 'ubiquiti',
+      description: null
+    }
+  });
+
+  const model = await prisma.deviceModel.upsert({
+    where: {
+      vendorId_model: {
+        vendorId: vendor.id,
+        model: 'LiteBeam 5AC'
+      }
+    },
+    update: {},
+    create: {
+      vendorId: vendor.id,
+      model: 'LiteBeam 5AC',
+      deviceType: 'ANTENNA',
+      isWireless: true
+    }
+  });
+  return model.id;
+}
+
+/**
  * Upserts a test Tower location.
  * Returns its UUID — use it as `locationId` when creating test devices.
  */
