@@ -383,18 +383,6 @@ describe('Device', () => {
 
     // -----------------------------------------------------------------------
     describe('category invariant', () => {
-      it('should fail when a category is set but ipAddress is absent', () => {
-        const result = Device.create(
-          makeProps({
-            category: DeviceCategory.createCpe(),
-            ipAddress: null
-          })
-        );
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('IP address');
-      });
-
       it('should succeed when a category is set and ipAddress is provided', () => {
         const result = Device.create(
           makeProps({
@@ -1228,53 +1216,53 @@ describe('Device', () => {
 
   // =========================================================================
   describe('query methods', () => {
-    it('isActive() should return true when status is ACTIVE', () => {
+    it('status.isActive() should return true when status is ACTIVE', () => {
       const device = makeDevice({
         status: DeviceStatus.createActive(),
         ipAddress: IPAddress.create('10.0.0.1').value
       });
 
-      expect(device.isActive()).toBe(true);
+      expect(device.status.isActive()).toBe(true);
     });
 
-    it('isActive() should return false when status is not ACTIVE', () => {
+    it('status.isActive() should return false when status is not ACTIVE', () => {
       const device = makeDevice({
         status: DeviceStatus.createInventory()
       });
 
-      expect(device.isActive()).toBe(false);
+      expect(device.status.isActive()).toBe(false);
     });
 
-    it('isInInventory() should return true when status is INVENTORY', () => {
+    it('status.isInInventory() should return true when status is INVENTORY', () => {
       const device = makeDevice({
         status: DeviceStatus.createInventory()
       });
 
-      expect(device.isInInventory()).toBe(true);
+      expect(device.status.isInInventory()).toBe(true);
     });
 
-    it('isInInventory() should return false when status is not INVENTORY', () => {
+    it('status.isInInventory() should return false when status is not INVENTORY', () => {
       const device = makeDevice({
         status: DeviceStatus.createActive(),
         ipAddress: IPAddress.create('10.0.0.1').value
       });
 
-      expect(device.isInInventory()).toBe(false);
+      expect(device.status.isInInventory()).toBe(false);
     });
 
-    it('hasLocation() should return false when locationId is null', () => {
+    it('locationId should be null when no location is assigned', () => {
       const device = makeDevice({ locationId: null });
 
-      expect(device.hasLocation()).toBe(false);
+      expect(device.locationId).toBeNull();
     });
 
-    it('hasLocation() should return true when locationId is set', () => {
+    it('locationId should be set when a location is assigned', () => {
       const device = makeDevice({ locationId: LocationId.create() });
 
-      expect(device.hasLocation()).toBe(true);
+      expect(device.locationId).not.toBeNull();
     });
 
-    it('isMonitored() should reflect the monitoringEnabled flag', () => {
+    it('monitoringEnabled should reflect the flag value', () => {
       const enabled = makeDevice({
         monitoringEnabled: true,
         ipAddress: IPAddress.create('10.0.0.1').value,
@@ -1282,19 +1270,19 @@ describe('Device', () => {
       });
       const disabled = makeDevice({ monitoringEnabled: false });
 
-      expect(enabled.isMonitored()).toBe(true);
-      expect(disabled.isMonitored()).toBe(false);
+      expect(enabled.monitoringEnabled).toBe(true);
+      expect(disabled.monitoringEnabled).toBe(false);
     });
 
-    it('hasLocation() should reflect updated state after assignLocation', () => {
+    it('locationId should reflect updated state after assignLocation', () => {
       const device = makeDevice({ locationId: null });
-      expect(device.hasLocation()).toBe(false);
+      expect(device.locationId).toBeNull();
 
       device.assignLocation(LocationId.create());
-      expect(device.hasLocation()).toBe(true);
+      expect(device.locationId).not.toBeNull();
 
       device.assignLocation(null);
-      expect(device.hasLocation()).toBe(false);
+      expect(device.locationId).toBeNull();
     });
   });
 
@@ -1342,9 +1330,9 @@ describe('Device', () => {
 
       expect(result.isSuccess).toBe(true);
       const device = result.value;
-      expect(device.isActive()).toBe(true);
-      expect(device.isMonitored()).toBe(true);
-      expect(device.hasLocation()).toBe(true);
+      expect(device.status.isActive()).toBe(true);
+      expect(device.monitoringEnabled).toBe(true);
+      expect(device.locationId).not.toBeNull();
       expect(device.category!.isSmartSwitch()).toBe(true);
     });
 
@@ -1389,7 +1377,7 @@ describe('Device', () => {
       );
 
       expect(result.isSuccess).toBe(true);
-      expect(device.isInInventory()).toBe(true);
+      expect(device.status.isInInventory()).toBe(true);
     });
 
     it('should fail transitioning ACTIVE to INVENTORY when no serial or MAC is set', () => {

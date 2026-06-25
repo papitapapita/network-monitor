@@ -254,6 +254,8 @@ export class DependencyContainer {
       this.prisma
     );
     this.alertRepository = new PrismaAlertRepository(this.prisma);
+    this.wirelessDeviceConfigRepository =
+      new PrismaWirelessDeviceConfigRepository(this.prisma);
 
     // =====================================
     // CUSTOMERS BOUNDED CONTEXT
@@ -418,6 +420,8 @@ export class DependencyContainer {
     const updateDeviceModelUseCase = new UpdateDeviceModelUseCase(
       this.deviceModelRepository,
       this.vendorRepository,
+      this.deviceRepository,
+      this.wirelessDeviceConfigRepository,
       this.logger
     );
     const deleteDeviceModelUseCase = new DeleteDeviceModelUseCase(
@@ -588,8 +592,6 @@ export class DependencyContainer {
       new PrismaWirelessSnapshotRepository(this.prisma);
     this.wirelessAlertRecordRepository =
       new PrismaWirelessAlertRecordRepository(this.prisma);
-    this.wirelessDeviceConfigRepository =
-      new PrismaWirelessDeviceConfigRepository(this.prisma);
     this.deviceCredentialsRepository =
       new PrismaDeviceCredentialsRepository(this.prisma);
 

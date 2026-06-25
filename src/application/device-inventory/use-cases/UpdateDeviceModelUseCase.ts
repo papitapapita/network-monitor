@@ -1,7 +1,9 @@
 import {
   IDeviceModelRepository,
-  IVendorRepository
+  IVendorRepository,
+  IDeviceRepository
 } from 'domain/device-inventory/repository';
+import { IWirelessDeviceConfigRepository } from 'domain/wireless-monitoring/repository';
 import { DeviceModelId, VendorId } from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
@@ -19,6 +21,8 @@ export class UpdateDeviceModelUseCase extends UseCase<
   constructor(
     private readonly deviceModelRepository: IDeviceModelRepository,
     private readonly vendorRepository: IVendorRepository,
+    private readonly deviceRepository: IDeviceRepository,
+    private readonly wirelessConfigRepo: IWirelessDeviceConfigRepository,
     logger: ILogger
   ) {
     super(logger, 'UpdateDeviceModelUseCase');
@@ -52,6 +56,7 @@ export class UpdateDeviceModelUseCase extends UseCase<
     }
 
     const deviceModel = findResult.value;
+    const wasWireless = deviceModel.isWireless;
     const data = DeviceModelMapper.extractUpdateData(request);
 
     if (data.vendorId !== undefined) {
@@ -109,6 +114,19 @@ export class UpdateDeviceModelUseCase extends UseCase<
       return this.fail(
         `Failed to persist device model: ${saveResult.error}`
       );
+    }
+
+    if (wasWireless && data.isWireless === false) {
+      const devicesResult = await this.deviceRepository.findByDeviceModel(
+        deviceModel.id
+      );
+      if (devicesResult.isSuccess && devicesResult.value.length > 0) {
+        await Promise.all(
+          devicesResult.value.map((d) =>
+            this.wirelessConfigRepo.delete(d.id)
+          )
+        );
+      }
     }
 
     return this.ok(DeviceModelMapper.toDTO(saveResult.value));

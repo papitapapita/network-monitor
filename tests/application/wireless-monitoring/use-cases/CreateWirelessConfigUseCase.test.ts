@@ -2,6 +2,7 @@
 
 import { CreateWirelessConfigUseCase } from '../../../../src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase';
 import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository/IDeviceRepository';
+import { IDeviceModelRepository } from '../../../../src/domain/device-inventory/repository/IDeviceModelRepository';
 import { IWirelessDeviceConfigRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessDeviceConfigRepository';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
@@ -84,6 +85,19 @@ function makeConfig(): WirelessDeviceConfig {
   );
 }
 
+function makeDeviceModelRepo(): jest.Mocked<IDeviceModelRepository> {
+  return {
+    save: jest.fn(),
+    findById: jest.fn(),
+    findAll: jest.fn(),
+    findByVendor: jest.fn(),
+    delete: jest.fn(),
+    exists: jest.fn(),
+    existsByVendorAndModel: jest.fn(),
+    count: jest.fn(),
+  } as any;
+}
+
 function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
   return {
     save: jest.fn(),
@@ -119,15 +133,25 @@ function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
 
 describe('CreateWirelessConfigUseCase', () => {
   let deviceRepo: jest.Mocked<IDeviceRepository>;
+  let deviceModelRepo: jest.Mocked<IDeviceModelRepository>;
   let configRepo: jest.Mocked<IWirelessDeviceConfigRepository>;
   let logger: jest.Mocked<ILogger>;
   let useCase: CreateWirelessConfigUseCase;
 
   beforeEach(() => {
     deviceRepo = makeDeviceRepo();
+    deviceModelRepo = makeDeviceModelRepo();
     configRepo = makeConfigRepo();
     logger = makeLogger();
-    useCase = new CreateWirelessConfigUseCase(deviceRepo, configRepo, logger);
+    useCase = new CreateWirelessConfigUseCase(
+      deviceRepo,
+      deviceModelRepo,
+      configRepo,
+      logger
+    );
+    (deviceModelRepo.findById as any).mockResolvedValue(
+      Result.ok({ isWireless: true })
+    );
   });
 
   afterEach(() => {
@@ -247,11 +271,37 @@ describe('CreateWirelessConfigUseCase', () => {
       });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('not wireless-capable');
+      expect(result.error).toContain('WIRELESS_CPE');
     });
 
     it('should NOT call configRepo when device is not wireless-capable', async () => {
       deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice(false)));
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID, deviceType: 'STATION' });
+
+      expect(configRepo.findByDeviceId).not.toHaveBeenCalled();
+    });
+
+    it('should fail when the device model is not marked wireless', async () => {
+      deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
+      (deviceModelRepo.findById as any).mockResolvedValue(
+        Result.ok({ isWireless: false })
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID,
+        deviceType: 'STATION',
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('not wireless-capable');
+    });
+
+    it('should NOT call configRepo when the device model is not wireless', async () => {
+      deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
+      (deviceModelRepo.findById as any).mockResolvedValue(
+        Result.ok({ isWireless: false })
+      );
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID, deviceType: 'STATION' });
 

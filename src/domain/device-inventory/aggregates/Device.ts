@@ -283,6 +283,13 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     return this.setMonitoring(false);
   }
 
+  public canHaveWirelessConfig(): boolean {
+    return (
+      this.props.category?.isWirelessCpe() === true ||
+      this.props.category?.isAp() === true
+    );
+  }
+
   public updateDetails(fields: {
     name?: string;
     description?: string | null;
