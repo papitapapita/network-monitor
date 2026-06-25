@@ -179,6 +179,12 @@ _Main user-facing features still missing._
 
 - [ ] **Normalize timestamps** — use NTP for consistent log timestamps across devices
 
+- [ ] **OpenAPI spec + typed frontend client** — replace the hand-maintained `docs/BACKEND_API.md` with a generated contract
+  - Generate `openapi.json` from Express controllers using `tsoa` or `zod-to-openapi`
+  - Frontend consumes it via `openapi-typescript` to get fully typed fetch calls with zero manual sync
+  - `BACKEND_API.md` becomes a generated artefact (or is retired entirely)
+  - Alternative if repos are ever consolidated into a monorepo: migrate to tRPC (router type IS the contract, no codegen step)
+
 - [ ] **Update README.md**
 
 ---
