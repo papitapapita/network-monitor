@@ -1,7 +1,7 @@
 import { Location } from 'domain/device-inventory/aggregates/';
 import { LocationId } from 'domain/shared/ids';
 import { LocationType } from 'domain/device-inventory/enums';
-import { Coordinates } from 'domain/device-inventory/value-objects';
+import { Address, Coordinates } from 'domain/device-inventory/value-objects';
 import { Result } from 'domain/shared/core';
 import { LocationType as PrismaLocationType } from 'generated/prisma/client';
 
@@ -57,12 +57,23 @@ export class LocationMapper {
       });
     }
 
+    let address: Address | null = null;
+    if (
+      raw.address != null &&
+      raw.municipality != null &&
+      raw.neighborhood != null
+    ) {
+      address = Address.reconstitute({
+        street: raw.address,
+        municipality: raw.municipality,
+        neighborhood: raw.neighborhood
+      });
+    }
+
     const location = Location.reconstitute(locationIdResult.value, {
       name: raw.name,
       type: locationType,
-      municipality: raw.municipality ?? null,
-      neighborhood: raw.neighborhood ?? null,
-      address: raw.address ?? null,
+      address,
       coordinates,
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt
@@ -80,9 +91,9 @@ export class LocationMapper {
       id: location.id.toString(),
       name: location.name,
       type: this.mapLocationTypeToPrisma(location.type),
-      municipality: location.municipality ?? null,
-      neighborhood: location.neighborhood ?? null,
-      address: location.address ?? null,
+      municipality: location.municipality,
+      neighborhood: location.neighborhood,
+      address: location.address,
       latitude: coordinates != null ? coordinates.latitude : null,
       longitude: coordinates != null ? coordinates.longitude : null,
       altitude:

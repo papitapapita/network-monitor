@@ -1,7 +1,7 @@
 import { Location } from 'domain/device-inventory/aggregates';
 import { ILocationRepository } from 'domain/device-inventory/repository';
 import { LocationType } from 'domain/device-inventory/enums';
-import { Coordinates } from 'domain/device-inventory/value-objects';
+import { Address, Coordinates } from 'domain/device-inventory/value-objects';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
@@ -73,14 +73,38 @@ export class CreateLocationUseCase extends UseCase<
       coordinates = coordResult.value;
     }
 
+    let address: Address | null = null;
+    if (
+      data.address !== null ||
+      data.municipality !== null ||
+      data.neighborhood !== null
+    ) {
+      if (
+        data.address === null ||
+        data.municipality === null ||
+        data.neighborhood === null
+      ) {
+        return this.fail(
+          'An address requires a street, municipality, and neighborhood'
+        );
+      }
+      const addressResult = Address.create({
+        street: data.address,
+        municipality: data.municipality,
+        neighborhood: data.neighborhood
+      });
+      if (addressResult.isFailure) {
+        return this.fail(addressResult.error);
+      }
+      address = addressResult.value;
+    }
+
     const now = new Date();
 
     const locationResult = Location.create({
       name: data.name.trim(),
       type: locationType,
-      municipality: data.municipality,
-      neighborhood: data.neighborhood,
-      address: data.address,
+      address,
       coordinates,
       createdAt: now,
       updatedAt: now
