@@ -3,6 +3,7 @@
 import {
   Location,
   LocationProps,
+  Address,
   Coordinates,
   LocationType
 } from '../../../../src/domain/device-inventory';
@@ -20,10 +21,19 @@ function validProps(
   return {
     name: 'Main Tower',
     type: LocationType.TOWER,
+    address: null,
     createdAt: BASE_DATE,
     updatedAt: BASE_DATE,
     ...overrides
   };
+}
+
+function makeAddress(
+  street = 'Calle 10 # 43-28',
+  municipality = 'Medellín',
+  neighborhood = 'El Poblado'
+): Address {
+  return Address.create({ street, municipality, neighborhood }).value;
 }
 
 function makeCoords(
@@ -119,9 +129,7 @@ describe('Location', () => {
         const coords = makeCoords(6.2442, -75.5812, 1495);
         const result = Location.create(
           validProps({
-            municipality: 'Medellín',
-            neighborhood: 'El Poblado',
-            address: 'Calle 10 # 43-28',
+            address: makeAddress('Calle 10 # 43-28', 'Medellín', 'El Poblado'),
             coordinates: coords
           })
         );
@@ -237,7 +245,10 @@ describe('Location', () => {
         }
 
         const cpResult = Location.create(
-          validProps({ type: LocationType.CUSTOMER_PREMISES, address: '123 Main St' })
+          validProps({
+            type: LocationType.CUSTOMER_PREMISES,
+            address: makeAddress('123 Main St', 'Some City', 'Some Neighborhood')
+          })
         );
         expect(cpResult.isSuccess).toBe(true);
         expect(cpResult.value.type).toBe(LocationType.CUSTOMER_PREMISES);
@@ -245,87 +256,22 @@ describe('Location', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('municipality validation', () => {
-      it('should fail when municipality exceeds 100 characters', () => {
-        const result = Location.create(
-          validProps({ municipality: 'A'.repeat(101) })
-        );
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('100');
-      });
-
-      it('should succeed when municipality is exactly 100 characters', () => {
-        const result = Location.create(
-          validProps({ municipality: 'A'.repeat(100) })
-        );
-
-        expect(result.isSuccess).toBe(true);
-      });
-
-      it('should succeed when municipality is null', () => {
-        const result = Location.create(
-          validProps({ municipality: null })
-        );
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.municipality).toBeNull();
-      });
-    });
-
-    // -----------------------------------------------------------------------
-    describe('neighborhood validation', () => {
-      it('should fail when neighborhood exceeds 150 characters', () => {
-        const result = Location.create(
-          validProps({ neighborhood: 'A'.repeat(151) })
-        );
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('150');
-      });
-
-      it('should succeed when neighborhood is exactly 150 characters', () => {
-        const result = Location.create(
-          validProps({ neighborhood: 'A'.repeat(150) })
-        );
-
-        expect(result.isSuccess).toBe(true);
-      });
-
-      it('should succeed when neighborhood is null', () => {
-        const result = Location.create(
-          validProps({ neighborhood: null })
-        );
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.neighborhood).toBeNull();
-      });
-    });
-
-    // -----------------------------------------------------------------------
     describe('address validation', () => {
-      it('should fail when address exceeds 255 characters', () => {
-        const result = Location.create(
-          validProps({ address: 'A'.repeat(256) })
-        );
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('255');
-      });
-
-      it('should succeed when address is exactly 255 characters', () => {
-        const result = Location.create(
-          validProps({ address: 'A'.repeat(255) })
-        );
-
-        expect(result.isSuccess).toBe(true);
-      });
-
       it('should succeed when address is null', () => {
         const result = Location.create(validProps({ address: null }));
 
         expect(result.isSuccess).toBe(true);
         expect(result.value.address).toBeNull();
+        expect(result.value.municipality).toBeNull();
+        expect(result.value.neighborhood).toBeNull();
+      });
+
+      it('should succeed with a complete Address value object', () => {
+        const result = Location.create(
+          validProps({ address: makeAddress() })
+        );
+
+        expect(result.isSuccess).toBe(true);
       });
     });
   });
@@ -353,9 +299,11 @@ describe('Location', () => {
       const props = validProps({
         name: 'DC Reconstituted',
         type: LocationType.DATACENTER,
-        municipality: 'Bogotá',
-        neighborhood: 'Chapinero',
-        address: 'Carrera 7 # 32-16',
+        address: Address.reconstitute({
+          street: 'Carrera 7 # 32-16',
+          municipality: 'Bogotá',
+          neighborhood: 'Chapinero'
+        }),
         coordinates: coords
       });
       const location = Location.reconstitute(id, props);
@@ -590,9 +538,7 @@ describe('Location', () => {
     function makeLocation(): Location {
       return Location.create(
         validProps({
-          municipality: 'Initial City',
-          neighborhood: 'Initial Neighborhood',
-          address: 'Initial Address'
+          address: makeAddress('Initial Address', 'Initial City', 'Initial Neighborhood')
         })
       ).value;
     }
@@ -642,19 +588,29 @@ describe('Location', () => {
         expect(location.address).toBe('Street C');
       });
 
-      it('should set municipality to null explicitly', () => {
+      it('should clear the address when all fields are set to null', () => {
         const location = makeLocation();
-        location.updateAddressFields({ municipality: null });
+        const result = location.updateAddressFields({
+          address: null,
+          municipality: null,
+          neighborhood: null
+        });
 
+        expect(result.isSuccess).toBe(true);
+        expect(location.address).toBeNull();
         expect(location.municipality).toBeNull();
+        expect(location.neighborhood).toBeNull();
       });
 
       it('should update updatedAt timestamp', () => {
         const location = Location.create(
-          validProps({ updatedAt: BASE_DATE })
+          validProps({
+            address: makeAddress('Initial St', 'Initial City', 'Initial Hood'),
+            updatedAt: BASE_DATE
+          })
         ).value;
         const before = new Date();
-        location.updateAddressFields({ municipality: 'A' });
+        location.updateAddressFields({ municipality: 'New City' });
         const after = new Date();
 
         expect(location.updatedAt.getTime()).toBeGreaterThanOrEqual(
@@ -882,9 +838,7 @@ describe('Location', () => {
       const result = Location.create({
         name: 'Torre Norte',
         type: LocationType.TOWER,
-        municipality: 'Medellín',
-        neighborhood: 'Robledo',
-        address: 'Carrera 80 # 75-32',
+        address: makeAddress('Carrera 80 # 75-32', 'Medellín', 'Robledo'),
         coordinates: makeCoords(6.281, -75.598, 1540),
         createdAt: BASE_DATE,
         updatedAt: BASE_DATE

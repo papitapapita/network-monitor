@@ -7,7 +7,7 @@ import { Location } from '../../../../src/domain/device-inventory/aggregates/Loc
 import { Device } from '../../../../src/domain/device-inventory/aggregates/Device';
 import { LocationType } from '../../../../src/domain/device-inventory/enums/LocationType';
 import { DeviceOwnerType } from '../../../../src/domain/device-inventory/enums';
-import { Coordinates } from '../../../../src/domain/device-inventory/value-objects';
+import { Address, Coordinates } from '../../../../src/domain/device-inventory/value-objects';
 import {
   DeviceName,
   DeviceStatus
@@ -40,9 +40,11 @@ function makeLocation(id: string, overrides: { type?: LocationType } = {}): Loca
   return Location.reconstitute(LocationId.parse(id).value, {
     name: `Location-${id.slice(-4)}`,
     type: overrides.type ?? LocationType.TOWER,
-    municipality: 'Medellín',
-    neighborhood: null,
-    address: null,
+    address: Address.reconstitute({
+      street: 'Carrera 80 # 75-32',
+      municipality: 'Medellín',
+      neighborhood: 'Robledo'
+    }),
     coordinates: Coordinates.reconstitute({
       latitude: 6.2442,
       longitude: -75.5812

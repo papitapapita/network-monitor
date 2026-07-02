@@ -35,8 +35,6 @@ function makePersistedLocation(
   return Location.reconstitute(id, {
     name: overrides.name ?? `Location ${_uuidCounter}`,
     type: overrides.type ?? LocationType.TOWER,
-    municipality: null,
-    neighborhood: null,
     address: null,
     coordinates: null,
     createdAt: new Date('2024-01-01T00:00:00.000Z'),

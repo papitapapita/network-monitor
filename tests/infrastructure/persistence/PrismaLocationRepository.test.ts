@@ -68,8 +68,6 @@ function makeFakeLocation(id = VALID_UUID_1): Location {
   return Location.reconstitute(locationId, {
     name: 'Tower Alpha',
     type: LocationType.TOWER,
-    municipality: 'Medellín',
-    neighborhood: null,
     address: null,
     coordinates: null,
     createdAt: new Date('2024-01-01T00:00:00Z'),

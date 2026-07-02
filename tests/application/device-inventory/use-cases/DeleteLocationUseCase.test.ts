@@ -30,8 +30,6 @@ function makeLocation(): Location {
   return Location.reconstitute(id, {
     name: 'Tower Alpha',
     type: LocationType.TOWER,
-    municipality: null,
-    neighborhood: null,
     address: null,
     coordinates: null,
     createdAt: NOW,

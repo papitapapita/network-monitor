@@ -4,7 +4,7 @@ import { LocationMapper } from '../../../src/infrastructure/mappers/LocationMapp
 import { Location } from '../../../src/domain/device-inventory/aggregates';
 import { LocationId } from '../../../src/domain/shared/ids';
 import { LocationType } from '../../../src/domain/device-inventory/enums';
-import { Coordinates } from '../../../src/domain/device-inventory/value-objects';
+import { Address, Coordinates } from '../../../src/domain/device-inventory/value-objects';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -42,12 +42,21 @@ function makeLocationDomain(overrides: {
   coordinates?: Coordinates | null;
 } = {}): Location {
   const id = LocationId.parse(VALID_UUID).value;
+  const street =
+    overrides.address !== undefined ? overrides.address : 'Carrera 80 # 75-32';
+  const municipality =
+    overrides.municipality !== undefined ? overrides.municipality : 'Medellín';
+  const neighborhood =
+    overrides.neighborhood !== undefined ? overrides.neighborhood : 'Robledo';
+  const addressVO =
+    street === null || municipality === null || neighborhood === null
+      ? null
+      : Address.reconstitute({ street, municipality, neighborhood });
+
   return Location.reconstitute(id, {
     name: overrides.name ?? 'Torre Norte',
     type: overrides.type ?? LocationType.TOWER,
-    municipality: overrides.municipality !== undefined ? overrides.municipality : 'Medellín',
-    neighborhood: overrides.neighborhood !== undefined ? overrides.neighborhood : 'Robledo',
-    address: overrides.address !== undefined ? overrides.address : 'Carrera 80 # 75-32',
+    address: addressVO,
     coordinates: overrides.coordinates !== undefined ? overrides.coordinates : null,
     createdAt: BASE_DATE,
     updatedAt: UPDATED_DATE
