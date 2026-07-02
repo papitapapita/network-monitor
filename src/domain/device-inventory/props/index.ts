@@ -1,3 +1,4 @@
+export * from './AddressProps';
 export * from './CoordinatesProps';
 export * from './LocationProps';
 export * from './DeviceNameProps';
