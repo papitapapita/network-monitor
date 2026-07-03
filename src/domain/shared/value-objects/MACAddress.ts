@@ -1,9 +1,8 @@
 import { ValueObject, Result, Guard } from '../core';
 import { MACAddressProps } from '../props';
-import {
-  isValidMacAddress,
-  normalizeMacAddress
-} from '../utils/macAddress';
+
+const COLON_REGEX = /^([0-9A-Fa-f]{2}:){5}([0-9A-Fa-f]{2})$/;
+const HYPHEN_REGEX = /^([0-9A-Fa-f]{2}-){5}([0-9A-Fa-f]{2})$/;
 
 export class MACAddress extends ValueObject<MACAddressProps> {
   get value(): string {
@@ -15,11 +14,11 @@ export class MACAddress extends ValueObject<MACAddressProps> {
   }
 
   private static isValid(mac: string): boolean {
-    return isValidMacAddress(mac);
+    return COLON_REGEX.test(mac) || HYPHEN_REGEX.test(mac);
   }
 
   private static normalizeMAC(mac: string): string {
-    return normalizeMacAddress(mac);
+    return mac.replace(/-/g, ':').toUpperCase();
   }
 
   public static reconstitute(mac: string): MACAddress {
