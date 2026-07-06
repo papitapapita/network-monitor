@@ -8,7 +8,8 @@ import { Result } from '../../../../src/domain/shared/core';
 import { Device } from '../../../../src/domain/device-inventory/aggregates';
 import {
   DeviceName,
-  DeviceStatus
+  DeviceStatus,
+  SerialNumber
 } from '../../../../src/domain/device-inventory/value-objects';
 import { DeviceOwnerType } from '../../../../src/domain/device-inventory/enums';
 import {
@@ -76,6 +77,7 @@ function makePersistedDevice(
     ipAddress?: string | null;
     monitoringEnabled?: boolean;
     locationId?: string | null;
+    serialNumber?: string | null;
   } = {}
 ): Device {
   const id = DeviceId.parse(VALID_DEVICE_ID).value;
@@ -93,6 +95,9 @@ function makePersistedDevice(
     : EXISTING_IP;
   const macAddress = macRaw ? MACAddress.create(macRaw).value : null;
   const ipAddress = ipRaw ? IPAddress.create(ipRaw).value : null;
+  const serialNumber = overrides.serialNumber
+    ? SerialNumber.create(overrides.serialNumber).value
+    : null;
 
   const locationId = overrides.hasOwnProperty('locationId')
     ? overrides.locationId
@@ -107,7 +112,7 @@ function makePersistedDevice(
     category: null,
     ownerType: DeviceOwnerType.COMPANY,
     name,
-    serialNumber: null,
+    serialNumber,
     macAddress: macAddress ?? null,
     ipAddress: ipAddress ?? null,
     description: null,
@@ -435,6 +440,12 @@ describe('UpdateDeviceUseCase', () => {
     });
 
     it('should succeed when macAddress is null (clear MAC)', async () => {
+      // Needs a serialNumber as fallback identifier — INVENTORY devices
+      // must keep at least one of serialNumber/macAddress.
+      repo.findById.mockResolvedValue(
+        Result.ok(makePersistedDevice({ serialNumber: 'SN-001' }))
+      );
+
       const result = await useCase.execute(
         makeRequest({ macAddress: null })
       );

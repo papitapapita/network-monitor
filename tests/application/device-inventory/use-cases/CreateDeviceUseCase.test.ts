@@ -456,7 +456,8 @@ describe('CreateDeviceUseCase', () => {
       const result = await useCase.execute(
         makeMinimalRequest({
           status: 'ACTIVE',
-          ipAddress: '192.168.1.1'
+          ipAddress: '192.168.1.1',
+          locationId: VALID_LOCATION_ID
         })
       );
 

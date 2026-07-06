@@ -65,7 +65,7 @@ export class DeviceMapper {
       ipAddress: dto.ipAddress ?? null,
       description: dto.description ?? null,
       installedDate: dto.installedDate ?? null,
-      monitoringEnabled: dto.monitoringEnabled ?? false
+      monitoringEnabled: dto.monitoringEnabled
     };
   }
 

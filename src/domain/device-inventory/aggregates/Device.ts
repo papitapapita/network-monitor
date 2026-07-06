@@ -83,7 +83,10 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
   }
 
   public static create(
-    props: Omit<DeviceProps, 'createdAt' | 'updatedAt'>
+    props: Omit<
+      DeviceProps,
+      'createdAt' | 'updatedAt' | 'monitoringEnabled'
+    > & { monitoringEnabled?: boolean }
   ): Result<Device> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(
@@ -98,29 +101,24 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       return Result.fail<Device>(guardResult.message!);
     }
 
-    // INVENTORY and DAMAGED devices must be identifiable by serial or MAC
-    if (
-      Device.requiresIdentifier(props.status) &&
-      !props.serialNumber &&
-      !props.macAddress
-    ) {
-      return Result.fail<Device>(
-        `A device with status ${props.status.toString()} must have at least a serial number or MAC address`
-      );
-    }
+    // COMMISSIONING defaults monitoring on, but only when the caller
+    // hasn't made an explicit choice — an explicit false is respected.
+    const monitoringEnabled =
+      props.monitoringEnabled ?? props.status.isCommissioning();
 
-    // ACTIVE devices must have an IP address
-    if (props.status.isActive() && !props.ipAddress) {
-      return Result.fail<Device>(
-        'Cannot create an ACTIVE device without an IP address'
-      );
-    }
+    const validationResult = Device.validate({
+      status: props.status,
+      serialNumber: props.serialNumber ?? null,
+      macAddress: props.macAddress ?? null,
+      ipAddress: props.ipAddress ?? null,
+      locationId: props.locationId ?? null,
+      monitoringEnabled,
+      description: props.description ?? null,
+      installedDate: props.installedDate ?? null
+    });
 
-    // COMMISSIONING devices must have an IP address
-    if (props.status.isCommissioning() && !props.ipAddress) {
-      return Result.fail<Device>(
-        'Cannot create a COMMISSIONING device without an IP address'
-      );
+    if (validationResult.isFailure) {
+      return Result.fail<Device>(validationResult.error);
     }
 
     const id = DeviceId.create();
@@ -137,9 +135,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
         ipAddress: props.ipAddress ?? null,
         description: props.description ?? null,
         installedDate: props.installedDate ?? null,
-        monitoringEnabled: props.status.isCommissioning()
-          ? true
-          : props.monitoringEnabled,
+        monitoringEnabled,
         createdAt: now,
         updatedAt: now
       },
@@ -179,32 +175,19 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       return Result.fail<void>(guardResult.message!);
     }
 
-    if (newStatus.isActive() && this.props.ipAddress === null) {
-      return Result.fail<void>(
-        'Cannot activate a device without an IP address assigned'
-      );
-    }
+    const validationResult = Device.validate({
+      status: newStatus,
+      serialNumber: this.props.serialNumber,
+      macAddress: this.props.macAddress,
+      ipAddress: this.props.ipAddress,
+      locationId: this.props.locationId,
+      monitoringEnabled: this.props.monitoringEnabled,
+      description: this.props.description,
+      installedDate: this.props.installedDate
+    });
 
-    if (newStatus.isActive() && this.props.locationId === null) {
-      return Result.fail<void>(
-        'Cannot activate a device without a location assigned'
-      );
-    }
-
-    if (newStatus.isCommissioning() && this.props.ipAddress === null) {
-      return Result.fail<void>(
-        'Cannot commission a device without an IP address'
-      );
-    }
-
-    if (
-      Device.requiresIdentifier(newStatus) &&
-      !this.props.serialNumber &&
-      !this.props.macAddress
-    ) {
-      return Result.fail<void>(
-        `Cannot transition to ${newStatus.toString()} without a serial number or MAC address`
-      );
+    if (validationResult.isFailure) {
+      return Result.fail<void>(validationResult.error);
     }
 
     if (this.props.status.equals(newStatus)) {
@@ -245,6 +228,21 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       return Result.ok<void>();
     }
 
+    const validationResult = Device.validate({
+      status: this.props.status,
+      serialNumber: this.props.serialNumber,
+      macAddress: this.props.macAddress,
+      ipAddress: this.props.ipAddress,
+      locationId,
+      monitoringEnabled: this.props.monitoringEnabled,
+      description: this.props.description,
+      installedDate: this.props.installedDate
+    });
+
+    if (validationResult.isFailure) {
+      return Result.fail<void>(validationResult.error);
+    }
+
     this.props.locationId = locationId;
     this.touch();
 
@@ -266,10 +264,19 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       return Result.ok<void>();
     }
 
-    if (this.props.ipAddress === null) {
-      return Result.fail<void>(
-        'Cannot enable monitoring for a device without an IP address assigned'
-      );
+    const validationResult = Device.validate({
+      status: this.props.status,
+      serialNumber: this.props.serialNumber,
+      macAddress: this.props.macAddress,
+      ipAddress: this.props.ipAddress,
+      locationId: this.props.locationId,
+      monitoringEnabled: true,
+      description: this.props.description,
+      installedDate: this.props.installedDate
+    });
+
+    if (validationResult.isFailure) {
+      return Result.fail<void>(validationResult.error);
     }
 
     return this.setMonitoring(true);
@@ -300,58 +307,31 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     installedDate?: Date | null;
     ownerType?: DeviceOwnerType;
   }): Result<void> {
+    let nextName = this.props.name;
     if (fields.name !== undefined) {
       const nameResult = DeviceName.create(fields.name);
       if (nameResult.isFailure) {
         return Result.fail(nameResult.error);
       }
-      this.props.name = nameResult.value;
+      nextName = nameResult.value;
     }
 
-    if (fields.description !== undefined) {
-      this.props.description = fields.description;
-    }
-
-    if (fields.category !== undefined) {
-      this.props.category = fields.category;
-    }
-
-    if (
-      fields.serialNumber !== undefined &&
-      fields.serialNumber !== null
-    ) {
-      const serialNumberResult = SerialNumber.create(
-        fields.serialNumber
-      );
-      if (serialNumberResult.isFailure) {
-        return Result.fail(serialNumberResult.error);
-      }
-      this.props.serialNumber = serialNumberResult.value;
-    } else if (fields.serialNumber === null) {
-      this.props.serialNumber = null;
-    }
-
-    if (fields.macAddress !== undefined) {
-      this.props.macAddress = fields.macAddress;
-    }
-
-    if (fields.ipAddress !== undefined) {
-      this.props.ipAddress = fields.ipAddress;
-    }
-
-    if (fields.installedDate !== undefined) {
-      if (fields.installedDate !== null) {
-        const guardResult = Guard.isDate(
-          fields.installedDate,
-          'installedDate'
+    let nextSerialNumber = this.props.serialNumber;
+    if (fields.serialNumber !== undefined) {
+      if (fields.serialNumber === null) {
+        nextSerialNumber = null;
+      } else {
+        const serialNumberResult = SerialNumber.create(
+          fields.serialNumber
         );
-        if (!guardResult.succeeded) {
-          return Result.fail<void>(guardResult.message!);
+        if (serialNumberResult.isFailure) {
+          return Result.fail(serialNumberResult.error);
         }
+        nextSerialNumber = serialNumberResult.value;
       }
-      this.props.installedDate = fields.installedDate;
     }
 
+    let nextOwnerType = this.props.ownerType;
     if (fields.ownerType !== undefined) {
       const guardResult = Guard.againstNullOrUndefined(
         fields.ownerType,
@@ -360,8 +340,53 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       if (!guardResult.succeeded) {
         return Result.fail<void>(guardResult.message!);
       }
-      this.props.ownerType = fields.ownerType;
+      nextOwnerType = fields.ownerType;
     }
+
+    const nextDescription =
+      fields.description !== undefined
+        ? fields.description
+        : this.props.description;
+    const nextCategory =
+      fields.category !== undefined
+        ? fields.category
+        : this.props.category;
+    const nextMacAddress =
+      fields.macAddress !== undefined
+        ? fields.macAddress
+        : this.props.macAddress;
+    const nextIpAddress =
+      fields.ipAddress !== undefined
+        ? fields.ipAddress
+        : this.props.ipAddress;
+    const nextInstalledDate =
+      fields.installedDate !== undefined
+        ? fields.installedDate
+        : this.props.installedDate;
+
+    const validationResult = Device.validate({
+      status: this.props.status,
+      serialNumber: nextSerialNumber,
+      macAddress: nextMacAddress,
+      ipAddress: nextIpAddress,
+      locationId: this.props.locationId,
+      monitoringEnabled: this.props.monitoringEnabled,
+      description: nextDescription,
+      installedDate: nextInstalledDate
+    });
+
+    if (validationResult.isFailure) {
+      return Result.fail<void>(validationResult.error);
+    }
+
+    this.props.name = nextName;
+    this.props.description = nextDescription;
+    this.props.category = nextCategory;
+    this.props.serialNumber = nextSerialNumber;
+    this.props.macAddress = nextMacAddress;
+    this.props.ipAddress = nextIpAddress;
+    this.props.installedDate = nextInstalledDate;
+    this.props.ownerType = nextOwnerType;
 
     this.touch();
 
@@ -410,5 +435,105 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
 
   private static requiresIdentifier(status: DeviceStatus): boolean {
     return status.isInInventory() || status.isDamaged();
+  }
+
+  // Single source of truth for status-dependent invariants — every
+  // mutator that can change status, identifiers, IP, location, or
+  // monitoring must route its prospective (not-yet-committed) state
+  // through this method.
+  private static validate(state: {
+    status: DeviceStatus;
+    serialNumber: SerialNumber | null;
+    macAddress: MACAddress | null;
+    ipAddress: IPAddress | null;
+    locationId: LocationId | null;
+    monitoringEnabled: boolean;
+    description: string | null;
+    installedDate: Date | null;
+  }): Result<void> {
+    if (
+      Device.requiresIdentifier(state.status) &&
+      !state.serialNumber &&
+      !state.macAddress
+    ) {
+      return Result.fail<void>(
+        `A device with status ${state.status.toString()} must have at least a serial number or MAC address`
+      );
+    }
+
+    if (state.status.isActive() && !state.ipAddress) {
+      return Result.fail<void>(
+        'An ACTIVE device must have an IP address assigned'
+      );
+    }
+
+    if (state.status.isActive() && !state.locationId) {
+      return Result.fail<void>(
+        'An ACTIVE device must have a location assigned'
+      );
+    }
+
+    if (state.status.isCommissioning() && !state.ipAddress) {
+      return Result.fail<void>(
+        'A COMMISSIONING device must have an IP address assigned'
+      );
+    }
+
+    if (
+      state.monitoringEnabled &&
+      !(state.status.isActive() || state.status.isCommissioning())
+    ) {
+      return Result.fail<void>(
+        'Monitoring can only be enabled for ACTIVE or COMMISSIONING devices'
+      );
+    }
+
+    const descriptionResult = Device.validateDescription(
+      state.description
+    );
+    if (descriptionResult.isFailure) {
+      return descriptionResult;
+    }
+
+    const installedDateResult = Device.validateInstalledDate(
+      state.installedDate
+    );
+    if (installedDateResult.isFailure) {
+      return installedDateResult;
+    }
+
+    return Result.ok<void>();
+  }
+
+  private static validateDescription(
+    description: string | null
+  ): Result<void> {
+    if (description !== null && description.length > 500) {
+      return Result.fail<void>(
+        'Device description cannot exceed 500 characters'
+      );
+    }
+    return Result.ok<void>();
+  }
+
+  private static validateInstalledDate(
+    installedDate: Date | null
+  ): Result<void> {
+    if (installedDate === null) {
+      return Result.ok<void>();
+    }
+
+    const guardResult = Guard.isDate(installedDate, 'installedDate');
+    if (!guardResult.succeeded) {
+      return Result.fail<void>(guardResult.message!);
+    }
+
+    if (installedDate.getTime() > Date.now()) {
+      return Result.fail<void>(
+        'installedDate cannot be in the future'
+      );
+    }
+
+    return Result.ok<void>();
   }
 }
