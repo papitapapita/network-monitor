@@ -1,3 +1,6 @@
+<img width="1632" height="941" alt="image" src="https://github.com/user-attachments/assets/8562bf98-efad-45e4-97a5-43135081d281" />
+
+
 # Network Management System — Backend
 
 Production-grade monitoring and management backend for a live ISP network (150+ clients, Ubiquiti AirOS infrastructure).
