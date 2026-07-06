@@ -175,16 +175,13 @@ describe('PollingConfiguration', () => {
   // ===========================================================================
   describe('reconstitute()', () => {
     it('should build a PollingConfiguration directly without Result wrapping', () => {
-      const config = PollingConfiguration.reconstitute(
-        {
-          deviceId: makeDeviceId(),
-          ipAddress: makeIPAddress(),
-          interval: makeInterval(),
-          failuresBeforeDown: makeThreshold(),
-          enabled: true
-        },
-        makeConfigId()
-      );
+      const config = PollingConfiguration.reconstitute(makeConfigId(), {
+        deviceId: makeDeviceId(),
+        ipAddress: makeIPAddress(),
+        interval: makeInterval(),
+        failuresBeforeDown: makeThreshold(),
+        enabled: true
+      });
 
       expect(config).toBeInstanceOf(PollingConfiguration);
     });
@@ -194,16 +191,13 @@ describe('PollingConfiguration', () => {
       const interval = makeInterval(300);
       const threshold = makeThreshold(5);
 
-      const config = PollingConfiguration.reconstitute(
-        {
-          deviceId,
-          ipAddress: makeIPAddress(),
-          interval,
-          failuresBeforeDown: threshold,
-          enabled: false
-        },
-        makeConfigId()
-      );
+      const config = PollingConfiguration.reconstitute(makeConfigId(), {
+        deviceId,
+        ipAddress: makeIPAddress(),
+        interval,
+        failuresBeforeDown: threshold,
+        enabled: false
+      });
 
       expect(config.deviceId).toBe(deviceId);
       expect(config.interval).toBe(interval);

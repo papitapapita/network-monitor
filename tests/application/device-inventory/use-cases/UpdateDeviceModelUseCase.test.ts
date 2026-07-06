@@ -11,10 +11,12 @@ import {
 import { UpdateDeviceModelUseCase } from '../../../../src/application/device-inventory/use-cases/UpdateDeviceModelUseCase';
 import { IDeviceModelRepository } from '../../../../src/domain/device-inventory/repository/IDeviceModelRepository';
 import { IVendorRepository } from '../../../../src/domain/device-inventory/repository/IVendorRepository';
+import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository/IDeviceRepository';
+import { IWirelessDeviceConfigRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessDeviceConfigRepository';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { DeviceModel } from '../../../../src/domain/device-inventory/aggregates/DeviceModel';
 import { Vendor } from '../../../../src/domain/device-inventory/aggregates/Vendor';
-import { DeviceModelId, VendorId } from '../../../../src/domain/shared/ids';
+import { DeviceModelId, VendorId, DeviceId } from '../../../../src/domain/shared/ids';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
 // ---------------------------------------------------------------------------
@@ -57,6 +59,7 @@ function makeDeviceModel(): DeviceModel {
     vendorSlug: 'mikrotik',
     model: 'RB760iGS',
     deviceType: 'ROUTER',
+    isWireless: false,
     createdAt: NOW,
     updatedAt: NOW
   });
@@ -73,6 +76,37 @@ function makeDeviceModelRepo(): jest.Mocked<IDeviceModelRepository> {
     existsByVendorAndModel: jest.fn(),
     count: jest.fn()
   } as any;
+}
+
+function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
+  return {
+    save: jest.fn(),
+    findById: jest.fn(),
+    delete: jest.fn(),
+    exists: jest.fn(),
+    count: jest.fn(),
+    findAll: jest.fn(),
+    findByLocation: jest.fn(),
+    findByLocationIds: jest.fn(),
+    findByDeviceModel: jest.fn(),
+    findByMacAddress: jest.fn(),
+    findByIpAddress: jest.fn(),
+    findByStatus: jest.fn(),
+    existsByMacAddress: jest.fn(),
+    existsByIpAddress: jest.fn(),
+    findByFilters: jest.fn(),
+  } as any;
+}
+
+function makeWirelessConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
+  return {
+    save: jest.fn(),
+    findById: jest.fn(),
+    delete: jest.fn(),
+    exists: jest.fn(),
+    findByDeviceId: jest.fn(),
+    findAllDue: jest.fn(),
+  };
 }
 
 function makeVendorRepo(): jest.Mocked<IVendorRepository> {
@@ -105,14 +139,24 @@ function makeLogger(): jest.Mocked<ILogger> {
 describe('UpdateDeviceModelUseCase', () => {
   let deviceModelRepo: jest.Mocked<IDeviceModelRepository>;
   let vendorRepo: jest.Mocked<IVendorRepository>;
+  let deviceRepo: jest.Mocked<IDeviceRepository>;
+  let wirelessConfigRepo: jest.Mocked<IWirelessDeviceConfigRepository>;
   let logger: jest.Mocked<ILogger>;
   let useCase: UpdateDeviceModelUseCase;
 
   beforeEach(() => {
     deviceModelRepo = makeDeviceModelRepo();
     vendorRepo = makeVendorRepo();
+    deviceRepo = makeDeviceRepo();
+    wirelessConfigRepo = makeWirelessConfigRepo();
     logger = makeLogger();
-    useCase = new UpdateDeviceModelUseCase(deviceModelRepo, vendorRepo, logger);
+    useCase = new UpdateDeviceModelUseCase(
+      deviceModelRepo,
+      vendorRepo,
+      deviceRepo,
+      wirelessConfigRepo,
+      logger
+    );
 
     (deviceModelRepo.findById as any).mockResolvedValue(Result.ok(makeDeviceModel()));
     (vendorRepo.findById as any).mockResolvedValue(Result.ok(makeVendor()));
@@ -336,6 +380,85 @@ describe('UpdateDeviceModelUseCase', () => {
 
       const savedArg = (deviceModelRepo.save as any).mock.calls[0][0];
       expect(savedArg).toBeInstanceOf(DeviceModel);
+    });
+  });
+
+  // =========================================================================
+  describe('executeImpl — isWireless cascade delete', () => {
+    const DEVICE_UUID_1 = '550e8400-e29b-41d4-a716-446655440010';
+    const DEVICE_UUID_2 = '550e8400-e29b-41d4-a716-446655440011';
+
+    function makeWirelessDeviceModel(): DeviceModel {
+      return DeviceModel.reconstitute(DeviceModelId.parse(VALID_UUID).value!, {
+        vendorId: VendorId.parse(VENDOR_UUID).value!,
+        vendorName: 'Ubiquiti',
+        vendorSlug: 'ubiquiti',
+        model: 'LiteBeam 5AC',
+        deviceType: 'ANTENNA',
+        isWireless: true,
+        createdAt: NOW,
+        updatedAt: NOW
+      });
+    }
+
+    beforeEach(() => {
+      (deviceModelRepo.findById as any).mockResolvedValue(
+        Result.ok(makeWirelessDeviceModel())
+      );
+      (deviceRepo.findByDeviceModel as any).mockResolvedValue(Result.ok([]));
+      (wirelessConfigRepo.delete as any).mockResolvedValue(Result.ok(undefined));
+    });
+
+    it('should call findByDeviceModel when isWireless flips true → false', async () => {
+      await useCase.execute({ id: VALID_UUID, isWireless: false });
+
+      expect(deviceRepo.findByDeviceModel).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not call findByDeviceModel when isWireless is not in the request', async () => {
+      await useCase.execute({ id: VALID_UUID });
+
+      expect(deviceRepo.findByDeviceModel).not.toHaveBeenCalled();
+    });
+
+    it('should not call findByDeviceModel when isWireless flips false → true', async () => {
+      (deviceModelRepo.findById as any).mockResolvedValue(Result.ok(makeDeviceModel()));
+
+      await useCase.execute({ id: VALID_UUID, isWireless: true });
+
+      expect(deviceRepo.findByDeviceModel).not.toHaveBeenCalled();
+    });
+
+    it('should delete the wireless config for each device when flipping true → false', async () => {
+      const id1 = DeviceId.parse(DEVICE_UUID_1).value!;
+      const id2 = DeviceId.parse(DEVICE_UUID_2).value!;
+      (deviceRepo.findByDeviceModel as any).mockResolvedValue(
+        Result.ok([{ id: id1 }, { id: id2 }])
+      );
+
+      await useCase.execute({ id: VALID_UUID, isWireless: false });
+
+      expect(wirelessConfigRepo.delete).toHaveBeenCalledTimes(2);
+      expect((wirelessConfigRepo.delete as any).mock.calls[0][0].toString()).toBe(DEVICE_UUID_1);
+      expect((wirelessConfigRepo.delete as any).mock.calls[1][0].toString()).toBe(DEVICE_UUID_2);
+    });
+
+    it('should not call wirelessConfigRepo.delete when no devices use the model', async () => {
+      (deviceRepo.findByDeviceModel as any).mockResolvedValue(Result.ok([]));
+
+      await useCase.execute({ id: VALID_UUID, isWireless: false });
+
+      expect(wirelessConfigRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('should still return success even when findByDeviceModel fails', async () => {
+      (deviceRepo.findByDeviceModel as any).mockResolvedValue(
+        Result.fail('DB error')
+      );
+
+      const result = await useCase.execute({ id: VALID_UUID, isWireless: false });
+
+      expect(result.isSuccess).toBe(true);
     });
   });
 

@@ -56,7 +56,8 @@ function makePingResultRepo(): jest.Mocked<IPingResultRepository> {
   return {
     save: jest.fn(),
     findLatestByDevice: jest.fn(),
-    findByDevice: jest.fn()
+    findByDevice: jest.fn(),
+    deleteOlderThan: jest.fn()
   };
 }
 
@@ -107,7 +108,7 @@ function makeDeviceState(
     updatedAt: FIXED_DATE,
     ...overrides
   };
-  return DeviceState.reconstitute(props, deviceId);
+  return DeviceState.reconstitute(deviceId, props);
 }
 
 function makeRequest(

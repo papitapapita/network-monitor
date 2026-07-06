@@ -44,7 +44,6 @@ function reconstituteAlert(
     resolvedAt?: Date | null;
     notifiedAt?: Date | null;
     recoveryNotifiedAt?: Date | null;
-    durationSecs?: number | null;
   } = {}
 ): Alert {
   return Alert.reconstitute(makeAlertId(), {
@@ -53,8 +52,7 @@ function reconstituteAlert(
     startedAt:           overrides.startedAt           ?? STARTED_AT,
     resolvedAt:          overrides.resolvedAt          !== undefined ? overrides.resolvedAt          : null,
     notifiedAt:          overrides.notifiedAt          !== undefined ? overrides.notifiedAt          : null,
-    recoveryNotifiedAt:  overrides.recoveryNotifiedAt  !== undefined ? overrides.recoveryNotifiedAt  : null,
-    durationSecs:        overrides.durationSecs        !== undefined ? overrides.durationSecs        : null
+    recoveryNotifiedAt:  overrides.recoveryNotifiedAt  !== undefined ? overrides.recoveryNotifiedAt  : null
   });
 }
 
@@ -130,14 +128,14 @@ describe('Alert', () => {
       it('should assign a generated AlertId to the alert', () => {
         const alert = openAlert();
 
-        expect(alert.alertId).toBeInstanceOf(AlertId);
+        expect(alert.id).toBeInstanceOf(AlertId);
       });
 
       it('should assign a unique AlertId on each call', () => {
         const alertA = openAlert();
         const alertB = openAlert();
 
-        expect(alertA.alertId.toString()).not.toBe(alertB.alertId.toString());
+        expect(alertA.id.toString()).not.toBe(alertB.id.toString());
       });
 
       it('should set startedAt to a Date close to the current time', () => {
@@ -196,11 +194,10 @@ describe('Alert', () => {
         startedAt:          STARTED_AT,
         resolvedAt:         null,
         notifiedAt:         null,
-        recoveryNotifiedAt: null,
-        durationSecs:       null
+        recoveryNotifiedAt: null
       });
 
-      expect(alert.alertId.toString()).toBe(VALID_ALERT_UUID);
+      expect(alert.id.toString()).toBe(VALID_ALERT_UUID);
     });
 
     it('should preserve deviceId', () => {
@@ -222,7 +219,7 @@ describe('Alert', () => {
     });
 
     it('should preserve a non-null resolvedAt', () => {
-      const alert = reconstituteAlert({ resolvedAt: RESOLVED_AT, durationSecs: 100 });
+      const alert = reconstituteAlert({ resolvedAt: RESOLVED_AT });
 
       expect(alert.resolvedAt).toEqual(RESOLVED_AT);
     });
@@ -250,8 +247,7 @@ describe('Alert', () => {
       const recoveryNotifiedAt = new Date('2024-06-01T10:02:00.000Z');
       const alert = reconstituteAlert({
         resolvedAt:         RESOLVED_AT,
-        recoveryNotifiedAt,
-        durationSecs:       100
+        recoveryNotifiedAt
       });
 
       expect(alert.recoveryNotifiedAt).toEqual(recoveryNotifiedAt);
@@ -263,17 +259,14 @@ describe('Alert', () => {
       expect(alert.recoveryNotifiedAt).toBeNull();
     });
 
-    it('should preserve a non-null durationSecs', () => {
-      const alert = reconstituteAlert({
-        resolvedAt:   RESOLVED_AT,
-        durationSecs: 100
-      });
+    it('should compute durationSecs from startedAt and resolvedAt', () => {
+      const alert = reconstituteAlert({ resolvedAt: RESOLVED_AT });
 
       expect(alert.durationSecs).toBe(100);
     });
 
-    it('should preserve null durationSecs', () => {
-      const alert = reconstituteAlert({ durationSecs: null });
+    it('should return null durationSecs when resolvedAt is null', () => {
+      const alert = reconstituteAlert({ resolvedAt: null });
 
       expect(alert.durationSecs).toBeNull();
     });
@@ -285,7 +278,7 @@ describe('Alert', () => {
     });
 
     it('should report isOpen as false when resolvedAt is set', () => {
-      const alert = reconstituteAlert({ resolvedAt: RESOLVED_AT, durationSecs: 100 });
+      const alert = reconstituteAlert({ resolvedAt: RESOLVED_AT });
 
       expect(alert.isOpen).toBe(false);
     });

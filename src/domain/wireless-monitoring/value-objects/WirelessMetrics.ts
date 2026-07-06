@@ -1,6 +1,6 @@
 import { ValueObject, Result, Guard } from 'domain/shared/core';
-import { isValidMacAddress } from 'domain/shared/utils/macAddress';
-import { WirelessMetricsProps } from '../props/WirelessMetricsProps';
+import { MACAddress } from 'domain/shared/value-objects';
+import { WirelessMetricsProps } from '../props';
 
 export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
   private constructor(props: WirelessMetricsProps) {
@@ -22,20 +22,11 @@ export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
   get ccqPercent(): number | null {
     return this._props.ccqPercent;
   }
-  get txRateMbps(): number | null {
-    return this._props.txRateMbps;
-  }
-  get rxRateMbps(): number | null {
-    return this._props.rxRateMbps;
-  }
   get frequencyMhz(): number | null {
     return this._props.frequencyMhz;
   }
   get channelWidthMhz(): number | null {
     return this._props.channelWidthMhz;
-  }
-  get txPowerDbm(): number | null {
-    return this._props.txPowerDbm;
   }
   get throughputTxBps(): number | null {
     return this._props.throughputTxBps;
@@ -64,9 +55,6 @@ export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
   get clientsConnected(): number | null {
     return this._props.clientsConnected;
   }
-  get clientsProvisioned(): number | null {
-    return this._props.clientsProvisioned;
-  }
   get throughputTxPps(): number | null {
     return this._props.throughputTxPps;
   }
@@ -85,11 +73,32 @@ export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
   get remoteApName(): string | null {
     return this._props.remoteApName;
   }
+  get remoteApIp(): string | null {
+    return this._props.remoteApIp;
+  }
   get distanceM(): number | null {
     return this._props.distanceM;
   }
   get latencyMs(): number | null {
     return this._props.latencyMs;
+  }
+  get capacityTxKbps(): number | null {
+    return this._props.capacityTxKbps;
+  }
+  get capacityRxKbps(): number | null {
+    return this._props.capacityRxKbps;
+  }
+  get deviceTimeEpoch(): number | null {
+    return this._props.deviceTimeEpoch;
+  }
+  get macAddress(): string | null {
+    return this._props.macAddress;
+  }
+  get deviceModel(): string | null {
+    return this._props.deviceModel;
+  }
+  get ssid(): string | null {
+    return this._props.ssid;
   }
 
   public isSignalDegraded(): boolean {
@@ -116,11 +125,16 @@ export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
     return null;
   }
 
-  /**
-   * Returns combined TX+RX utilization as a percentage of the given capacity.
-   * Returns null when throughput data is unavailable.
-   * @throws never — returns null on missing data; caller must guard against capacityBps <= 0.
-   */
+  public getSignalDelta(): number | null {
+    if (
+      this._props.signalTxDbm !== null &&
+      this._props.signalRxDbm !== null
+    ) {
+      return this._props.signalTxDbm - this._props.signalRxDbm;
+    }
+    return null;
+  }
+
   public getLinkUtilizationPercent(
     capacityBps: number
   ): number | null {
@@ -205,12 +219,6 @@ export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
         return Result.fail<WirelessMetrics>(guard.message!);
     }
 
-    if (props.txPowerDbm !== null) {
-      const guard = Guard.isNumber(props.txPowerDbm, 'txPowerDbm');
-      if (!guard.succeeded)
-        return Result.fail<WirelessMetrics>(guard.message!);
-    }
-
     if (props.frequencyMhz !== null) {
       const guard = Guard.greaterThan(
         0,
@@ -247,20 +255,40 @@ export class WirelessMetrics extends ValueObject<WirelessMetricsProps> {
       }
     }
 
+    let normalizedRemoteApMac: string | null = props.remoteApMac;
     if (props.remoteApMac !== null) {
-      if (!isValidMacAddress(props.remoteApMac)) {
-        return Result.fail<WirelessMetrics>(
-          `remoteApMac has invalid MAC address format: ${props.remoteApMac}`
-        );
+      const macResult = MACAddress.create(props.remoteApMac);
+      if (macResult.isFailure) {
+        return Result.fail<WirelessMetrics>(macResult.error!);
       }
+      normalizedRemoteApMac = macResult.value.value;
     }
 
-    return Result.ok<WirelessMetrics>(new WirelessMetrics(props));
+    let normalizedMacAddress: string | null = props.macAddress;
+    if (props.macAddress !== null) {
+      const macResult = MACAddress.create(props.macAddress);
+      if (macResult.isFailure) {
+        return Result.fail<WirelessMetrics>(macResult.error!);
+      }
+      normalizedMacAddress = macResult.value.value;
+    }
+
+    return Result.ok<WirelessMetrics>(
+      new WirelessMetrics({
+        ...props,
+        remoteApMac: normalizedRemoteApMac,
+        macAddress: normalizedMacAddress
+      })
+    );
   }
 
   public static reconstitute(
     props: WirelessMetricsProps
   ): WirelessMetrics {
     return new WirelessMetrics(props);
+  }
+
+  public toString(): string {
+    return `signal=${this._props.signalRxDbm ?? 'n/a'}dBm ccq=${this._props.ccqPercent ?? 'n/a'}%`;
   }
 }

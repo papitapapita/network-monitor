@@ -1,5 +1,5 @@
-import { PrismaClient } from '../../generated/prisma/client';
-import { IPAddress } from 'domain/shared';
+import { PrismaClient } from 'generated/prisma/client';
+import { IPAddress, MACAddress } from 'domain/shared';
 import { Device } from 'domain/device-inventory/aggregates';
 import {
   DeviceId,
@@ -7,7 +7,6 @@ import {
   DeviceModelId
 } from 'domain/shared/ids';
 import {
-  MACAddress,
   DeviceStatus,
   DeviceCategory
 } from 'domain/device-inventory/value-objects';
@@ -187,6 +186,34 @@ export class PrismaDeviceRepository implements IDeviceRepository {
     }
   }
 
+  public async findByLocationIds(
+    ids: LocationId[]
+  ): Promise<Result<Device[]>> {
+    if (ids.length === 0) {
+      return Result.ok<Device[]>([]);
+    }
+
+    try {
+      const rawRecords = await this.prisma.device.findMany({
+        where: {
+          locationId: { in: ids.map((id) => id.toString()) }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      return this.mapManyToDomain(
+        rawRecords,
+        'Database error finding devices by location IDs'
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<Device[]>(
+        `Database error finding devices by location IDs: ${errorMessage}`
+      );
+    }
+  }
+
   public async findByDeviceModel(
     deviceModelId: DeviceModelId
   ): Promise<Result<Device[]>> {
@@ -271,6 +298,7 @@ export class PrismaDeviceRepository implements IDeviceRepository {
     status: DeviceStatus
   ): Promise<Result<Device[]>> {
     try {
+      // Prisma's generated type expects enum literal, not string — string cast required
       const rawRecords = await this.prisma.device.findMany({
         where: { status: status.toString() as any },
         orderBy: { createdAt: 'desc' }

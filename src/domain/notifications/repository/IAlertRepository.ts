@@ -5,11 +5,14 @@ import { Alert } from '../aggregates';
 export interface IAlertRepository {
   save(alert: Alert): Promise<Result<Alert>>;
   findById(id: AlertId): Promise<Result<Alert | null>>;
-  findOpenByDeviceId(deviceId: DeviceId): Promise<Result<Alert | null>>;
+  findOpenByDeviceId(
+    deviceId: DeviceId
+  ): Promise<Result<Alert | null>>;
   findAllByDeviceId(
     deviceId: DeviceId,
     limit?: number,
     offset?: number
   ): Promise<Result<Alert[]>>;
   findAll(limit?: number, offset?: number): Promise<Result<Alert[]>>;
+  deleteResolvedOlderThan(cutoff: Date): Promise<Result<number>>;
 }

@@ -1,11 +1,13 @@
 import {
   IDeviceModelRepository,
-  IVendorRepository
-} from '../../../domain/device-inventory/repository';
-import { DeviceModelId, VendorId } from '../../../domain/shared/ids';
-import { Result } from '../../../domain/shared/core';
-import { UseCase } from '../../shared/core';
-import { ILogger } from '../../shared/interfaces';
+  IVendorRepository,
+  IDeviceRepository
+} from 'domain/device-inventory/repository';
+import { IWirelessDeviceConfigRepository } from 'domain/wireless-monitoring/repository';
+import { DeviceModelId, VendorId } from 'domain/shared/ids';
+import { Result } from 'domain/shared/core';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
 import { DeviceModelMapper } from '../mappers';
 import {
   UpdateDeviceModelRequestDTO,
@@ -19,6 +21,8 @@ export class UpdateDeviceModelUseCase extends UseCase<
   constructor(
     private readonly deviceModelRepository: IDeviceModelRepository,
     private readonly vendorRepository: IVendorRepository,
+    private readonly deviceRepository: IDeviceRepository,
+    private readonly wirelessConfigRepo: IWirelessDeviceConfigRepository,
     logger: ILogger
   ) {
     super(logger, 'UpdateDeviceModelUseCase');
@@ -41,7 +45,9 @@ export class UpdateDeviceModelUseCase extends UseCase<
       return this.fail(`Invalid device model ID: ${idResult.error}`);
     }
 
-    const findResult = await this.deviceModelRepository.findById(idResult.value);
+    const findResult = await this.deviceModelRepository.findById(
+      idResult.value
+    );
     if (findResult.isFailure) {
       return this.fail(findResult.error!);
     }
@@ -50,11 +56,15 @@ export class UpdateDeviceModelUseCase extends UseCase<
     }
 
     const deviceModel = findResult.value;
+    const wasWireless = deviceModel.isWireless;
+    const data = DeviceModelMapper.extractUpdateData(request);
 
-    if (request.vendorId !== undefined) {
-      const vendorIdResult = VendorId.parse(request.vendorId.trim());
+    if (data.vendorId !== undefined) {
+      const vendorIdResult = VendorId.parse(data.vendorId.trim());
       if (vendorIdResult.isFailure) {
-        return this.fail(`Invalid vendor ID: ${vendorIdResult.error}`);
+        return this.fail(
+          `Invalid vendor ID: ${vendorIdResult.error}`
+        );
       }
 
       const vendorResult = await this.vendorRepository.findById(
@@ -64,7 +74,7 @@ export class UpdateDeviceModelUseCase extends UseCase<
         return this.fail(vendorResult.error!);
       }
       if (vendorResult.value === null) {
-        return this.fail(`Vendor not found: ${request.vendorId}`);
+        return this.fail(`Vendor not found: ${data.vendorId}`);
       }
 
       const updateResult = deviceModel.updateVendor(
@@ -77,23 +87,46 @@ export class UpdateDeviceModelUseCase extends UseCase<
       }
     }
 
-    if (request.model !== undefined) {
-      const modelResult = deviceModel.updateModel(request.model);
+    if (data.model !== undefined) {
+      const modelResult = deviceModel.updateModel(data.model);
       if (modelResult.isFailure) {
         return this.fail(modelResult.error!);
       }
     }
 
-    if (request.deviceType !== undefined) {
-      const typeResult = deviceModel.updateDeviceType(request.deviceType);
+    if (data.deviceType !== undefined) {
+      const typeResult = deviceModel.updateDeviceType(data.deviceType);
       if (typeResult.isFailure) {
         return this.fail(typeResult.error!);
       }
     }
 
-    const saveResult = await this.deviceModelRepository.save(deviceModel);
+    if (data.isWireless !== undefined) {
+      const wirelessResult = deviceModel.updateIsWireless(data.isWireless);
+      if (wirelessResult.isFailure) {
+        return this.fail(wirelessResult.error!);
+      }
+    }
+
+    const saveResult =
+      await this.deviceModelRepository.save(deviceModel);
     if (saveResult.isFailure) {
-      return this.fail(`Failed to persist device model: ${saveResult.error}`);
+      return this.fail(
+        `Failed to persist device model: ${saveResult.error}`
+      );
+    }
+
+    if (wasWireless && data.isWireless === false) {
+      const devicesResult = await this.deviceRepository.findByDeviceModel(
+        deviceModel.id
+      );
+      if (devicesResult.isSuccess && devicesResult.value.length > 0) {
+        await Promise.all(
+          devicesResult.value.map((d) =>
+            this.wirelessConfigRepo.delete(d.id)
+          )
+        );
+      }
     }
 
     return this.ok(DeviceModelMapper.toDTO(saveResult.value));

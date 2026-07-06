@@ -1,19 +1,21 @@
-import { PrismaClient } from '../../../generated/prisma/client';
+import { PrismaClient } from 'generated/prisma/client';
 import { Result, EventDispatcher } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
-import { WirelessAlertRecordId } from 'domain/shared/ids';
-import {
-  IWirelessAlertRecordRepository,
-  WirelessAlertRecord
-} from 'domain/wireless-monitoring';
-import { WirelessAlertRecordPrismaMapper } from '../mappers/WirelessAlertRecordPrismaMapper';
+import { WirelessAlertRecordId, DeviceId } from 'domain/shared/ids';
+import { IWirelessAlertRecordRepository } from 'domain/wireless-monitoring/repository';
+import { WirelessAlertRecord } from 'domain/wireless-monitoring/aggregates';
+import { WirelessAlertRecordPrismaMapper } from '../mappers';
 
-export class PrismaWirelessAlertRecordRepository implements IWirelessAlertRecordRepository {
+export class PrismaWirelessAlertRecordRepository
+  implements IWirelessAlertRecordRepository
+{
   constructor(private readonly prisma: PrismaClient) {}
 
-  async save(record: WirelessAlertRecord): Promise<Result<WirelessAlertRecord>> {
+  async save(
+    record: WirelessAlertRecord
+  ): Promise<Result<WirelessAlertRecord>> {
     try {
-      const data = WirelessAlertRecordPrismaMapper.toPersistence(record);
+      const data =
+        WirelessAlertRecordPrismaMapper.toPersistence(record);
       EventDispatcher.markAggregateForDispatch(record);
 
       await this.prisma.wirelessAlertRecord.upsert({
@@ -24,7 +26,7 @@ export class PrismaWirelessAlertRecordRepository implements IWirelessAlertRecord
           clearedAt: data.clearedAt,
           isActive: data.isActive,
           lastValue: data.lastValue,
-          message: data.message,
+          message: data.message
         },
         create: {
           id: data.id,
@@ -36,38 +38,68 @@ export class PrismaWirelessAlertRecordRepository implements IWirelessAlertRecord
           clearedAt: data.clearedAt,
           isActive: data.isActive,
           lastValue: data.lastValue,
-          message: data.message,
-        },
+          message: data.message
+        }
       });
 
       EventDispatcher.dispatchEventsForAggregate(record.id);
       return Result.ok(record);
     } catch (error) {
-      return Result.fail(`Database error saving wireless alert record: ${(error as Error).message}`);
+      return Result.fail(
+        `Database error saving wireless alert record: ${(error as Error).message}`
+      );
     }
   }
 
-  async findActiveByDeviceAndMetric(deviceId: DeviceId, metric: string): Promise<Result<WirelessAlertRecord | null>> {
+  async findActiveByDeviceAndMetric(
+    deviceId: DeviceId,
+    metric: string
+  ): Promise<Result<WirelessAlertRecord | null>> {
     try {
       const raw = await this.prisma.wirelessAlertRecord.findFirst({
-        where: { deviceId: deviceId.toString(), metric, isActive: true },
+        where: {
+          deviceId: deviceId.toString(),
+          metric,
+          isActive: true
+        }
       });
       if (!raw) return Result.ok(null);
-      return Result.ok(WirelessAlertRecordPrismaMapper.toDomain(raw as Parameters<typeof WirelessAlertRecordPrismaMapper.toDomain>[0]));
+      // Prisma return type is broader than the mapper's narrowed type — cast required
+      return Result.ok(
+        WirelessAlertRecordPrismaMapper.toDomain(
+          raw as Parameters<
+            typeof WirelessAlertRecordPrismaMapper.toDomain
+          >[0]
+        )
+      );
     } catch (error) {
-      return Result.fail(`Database error finding active alert record: ${(error as Error).message}`);
+      return Result.fail(
+        `Database error finding active alert record: ${(error as Error).message}`
+      );
     }
   }
 
-  async findAllActiveByDevice(deviceId: DeviceId): Promise<Result<WirelessAlertRecord[]>> {
+  async findAllActiveByDevice(
+    deviceId: DeviceId
+  ): Promise<Result<WirelessAlertRecord[]>> {
     try {
       const raws = await this.prisma.wirelessAlertRecord.findMany({
         where: { deviceId: deviceId.toString(), isActive: true },
-        orderBy: { triggeredAt: 'desc' },
+        orderBy: { triggeredAt: 'desc' }
       });
-      return Result.ok(raws.map(r => WirelessAlertRecordPrismaMapper.toDomain(r as Parameters<typeof WirelessAlertRecordPrismaMapper.toDomain>[0])));
+      return Result.ok(
+        raws.map((r) =>
+          WirelessAlertRecordPrismaMapper.toDomain(
+            r as Parameters<
+              typeof WirelessAlertRecordPrismaMapper.toDomain
+            >[0]
+          )
+        )
+      );
     } catch (error) {
-      return Result.fail(`Database error finding active alerts by device: ${(error as Error).message}`);
+      return Result.fail(
+        `Database error finding active alerts by device: ${(error as Error).message}`
+      );
     }
   }
 
@@ -75,47 +107,101 @@ export class PrismaWirelessAlertRecordRepository implements IWirelessAlertRecord
     try {
       const raws = await this.prisma.wirelessAlertRecord.findMany({
         where: { isActive: true },
-        orderBy: { triggeredAt: 'desc' },
+        orderBy: { triggeredAt: 'desc' }
       });
-      return Result.ok(raws.map(r => WirelessAlertRecordPrismaMapper.toDomain(r as Parameters<typeof WirelessAlertRecordPrismaMapper.toDomain>[0])));
+      return Result.ok(
+        raws.map((r) =>
+          WirelessAlertRecordPrismaMapper.toDomain(
+            r as Parameters<
+              typeof WirelessAlertRecordPrismaMapper.toDomain
+            >[0]
+          )
+        )
+      );
     } catch (error) {
-      return Result.fail(`Database error finding all active alerts: ${(error as Error).message}`);
+      return Result.fail(
+        `Database error finding all active alerts: ${(error as Error).message}`
+      );
     }
   }
 
-  async findById(id: WirelessAlertRecordId): Promise<Result<WirelessAlertRecord | null>> {
+  async findById(
+    id: WirelessAlertRecordId
+  ): Promise<Result<WirelessAlertRecord | null>> {
     try {
       const raw = await this.prisma.wirelessAlertRecord.findUnique({
-        where: { id: id.toString() },
+        where: { id: id.toString() }
       });
       if (!raw) return Result.ok(null);
-      return Result.ok(WirelessAlertRecordPrismaMapper.toDomain(raw as Parameters<typeof WirelessAlertRecordPrismaMapper.toDomain>[0]));
+      return Result.ok(
+        WirelessAlertRecordPrismaMapper.toDomain(
+          raw as Parameters<
+            typeof WirelessAlertRecordPrismaMapper.toDomain
+          >[0]
+        )
+      );
     } catch (error) {
-      return Result.fail(`Database error finding wireless alert record: ${(error as Error).message}`);
+      return Result.fail(
+        `Database error finding wireless alert record: ${(error as Error).message}`
+      );
     }
   }
 
   async exists(id: WirelessAlertRecordId): Promise<Result<boolean>> {
     try {
       const count = await this.prisma.wirelessAlertRecord.count({
-        where: { id: id.toString() },
+        where: { id: id.toString() }
       });
       return Result.ok(count > 0);
     } catch (error) {
-      return Result.fail(`Database error checking wireless alert record existence: ${(error as Error).message}`);
+      return Result.fail(
+        `Database error checking wireless alert record existence: ${(error as Error).message}`
+      );
     }
   }
 
-  async findHistoryByDevice(deviceId: DeviceId, from: Date, to: Date, limit?: number): Promise<Result<WirelessAlertRecord[]>> {
+  async findHistoryByDevice(
+    deviceId: DeviceId,
+    from: Date,
+    to: Date,
+    limit?: number
+  ): Promise<Result<WirelessAlertRecord[]>> {
     try {
       const raws = await this.prisma.wirelessAlertRecord.findMany({
-        where: { deviceId: deviceId.toString(), triggeredAt: { gte: from, lte: to } },
+        where: {
+          deviceId: deviceId.toString(),
+          triggeredAt: { gte: from, lte: to }
+        },
         orderBy: { triggeredAt: 'desc' },
-        ...(limit !== undefined ? { take: limit } : {}),
+        ...(limit !== undefined ? { take: limit } : {})
       });
-      return Result.ok(raws.map(r => WirelessAlertRecordPrismaMapper.toDomain(r as Parameters<typeof WirelessAlertRecordPrismaMapper.toDomain>[0])));
+      return Result.ok(
+        raws.map((r) =>
+          WirelessAlertRecordPrismaMapper.toDomain(
+            r as Parameters<
+              typeof WirelessAlertRecordPrismaMapper.toDomain
+            >[0]
+          )
+        )
+      );
     } catch (error) {
-      return Result.fail(`Database error finding alert history: ${(error as Error).message}`);
+      return Result.fail(
+        `Database error finding alert history: ${(error as Error).message}`
+      );
+    }
+  }
+
+  async deleteClearedOlderThan(cutoff: Date): Promise<Result<number>> {
+    try {
+      const { count } =
+        await this.prisma.wirelessAlertRecord.deleteMany({
+          where: { isActive: false, clearedAt: { lt: cutoff } }
+        });
+      return Result.ok(count);
+    } catch (error) {
+      return Result.fail(
+        `deleteClearedOlderThan failed: ${(error as Error).message}`
+      );
     }
   }
 }

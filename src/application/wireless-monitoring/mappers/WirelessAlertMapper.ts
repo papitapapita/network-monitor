@@ -1,5 +1,5 @@
-import { WirelessAlertRecord } from 'domain/wireless-monitoring';
-import { WirelessAlertResponseDTO } from '../dtos/WirelessAlertResponseDTO';
+import { WirelessAlertRecord } from 'domain/wireless-monitoring/aggregates';
+import { WirelessAlertResponseDTO } from '../dtos';
 
 export class WirelessAlertMapper {
   public static toDTO(

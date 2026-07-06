@@ -1,4 +1,4 @@
-import { DeviceId } from 'domain/shared';
+import { DeviceId } from 'domain/shared/ids';
 import { DeviceState } from 'domain/device-monitoring/aggregates';
 import { DeviceStateProps } from 'domain/device-monitoring/props';
 
@@ -24,12 +24,13 @@ export class DeviceStateMapper {
       deviceId,
       isOnline: raw.isOnline,
       lastSeen: raw.lastSeen,
-      lastLatencyMs: raw.lastLatencyMs !== null ? Number(raw.lastLatencyMs) : null,
+      lastLatencyMs:
+        raw.lastLatencyMs !== null ? Number(raw.lastLatencyMs) : null,
       consecutiveFailures: raw.consecutiveFailures,
       lastCheckedAt: raw.lastCheckedAt,
       updatedAt: raw.updatedAt
     };
-    return DeviceState.reconstitute(props, deviceId);
+    return DeviceState.reconstitute(deviceId, props);
   }
 
   public static toPersistence(state: DeviceState) {

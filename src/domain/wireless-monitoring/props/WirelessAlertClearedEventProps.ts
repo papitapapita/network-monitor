@@ -1,5 +1,4 @@
-import { WirelessAlertRecordId } from 'domain/shared/ids';
-import { DeviceId } from 'domain/shared';
+import { WirelessAlertRecordId, DeviceId } from 'domain/shared/ids';
 
 export interface WirelessAlertClearedEventProps {
   readonly aggregateId: WirelessAlertRecordId;

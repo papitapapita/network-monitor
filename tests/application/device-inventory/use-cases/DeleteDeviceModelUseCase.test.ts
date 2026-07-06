@@ -44,6 +44,7 @@ function makeDeviceModel(): DeviceModel {
     vendorSlug: 'mikrotik',
     model: 'RB760iGS',
     deviceType: 'ROUTER',
+    isWireless: false,
     createdAt: NOW,
     updatedAt: NOW
   });
@@ -101,6 +102,7 @@ function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
     findByStatus: jest.fn(),
     existsByMacAddress: jest.fn(),
     existsByIpAddress: jest.fn(),
+    findByLocationIds: jest.fn(),
     findByFilters: jest.fn()
   } as any;
 }

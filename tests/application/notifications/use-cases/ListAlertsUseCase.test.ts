@@ -37,11 +37,12 @@ function makeLogger(): ILogger {
 
 function makeAlertRepo(): jest.Mocked<IAlertRepository> {
   return {
-    save:                jest.fn(),
-    findById:            jest.fn(),
-    findOpenByDeviceId:  jest.fn(),
-    findAllByDeviceId:   jest.fn(),
-    findAll:             jest.fn()
+    save:                    jest.fn(),
+    findById:                jest.fn(),
+    findOpenByDeviceId:      jest.fn(),
+    findAllByDeviceId:       jest.fn(),
+    findAll:                 jest.fn(),
+    deleteResolvedOlderThan: jest.fn()
   };
 }
 
@@ -53,7 +54,6 @@ function makeAlert(): Alert {
     resolvedAt:         null,
     notifiedAt:         null,
     recoveryNotifiedAt: null,
-    durationSecs:       null
   });
 }
 

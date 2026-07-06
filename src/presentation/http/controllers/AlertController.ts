@@ -1,8 +1,6 @@
 import { Request, Response } from 'express';
-import { ILogger } from '../../../application/shared/interfaces';
-import {
-  ListAlertsUseCase
-} from '../../../application/notifications/use-cases';
+import { ILogger } from 'application/shared/interfaces';
+import { ListAlertsUseCase } from 'application/notifications/use-cases';
 
 export class AlertController {
   constructor(
@@ -10,7 +8,10 @@ export class AlertController {
     private readonly logger: ILogger
   ) {}
 
-  public listAlerts = async (req: Request, res: Response): Promise<void> => {
+  public listAlerts = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const q = req.query as Record<string, string | undefined>;
 
@@ -21,8 +22,10 @@ export class AlertController {
       });
 
       if (result.isFailure) {
-        const statusCode = this.getErrorStatusCode(result.error);
-        res.status(statusCode).json({ success: false, error: result.error });
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
         return;
       }
 
@@ -51,10 +54,16 @@ export class AlertController {
     const errorMessage =
       error instanceof Error ? error.message : String(error);
 
-    this.logger.error('Unexpected error in AlertController', error as Error, {
-      error: errorMessage
-    });
+    this.logger.error(
+      `Unexpected error in ${this.constructor.name}`,
+      error as Error,
+      {
+        error: errorMessage
+      }
+    );
 
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    res
+      .status(500)
+      .json({ success: false, error: 'Internal server error' });
   }
 }

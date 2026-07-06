@@ -4,3 +4,4 @@ export * from './PollingConfigurationMapper';
 export * from './DeviceStateMapper';
 export * from './VendorMapper';
 export * from './DeviceModelMapper';
+export * from './AlertMapper';

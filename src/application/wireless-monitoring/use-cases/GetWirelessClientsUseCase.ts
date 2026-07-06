@@ -1,11 +1,13 @@
 import { Result } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
+import { DeviceId } from 'domain/shared/ids';
 import { IWirelessSnapshotRepository } from 'domain/wireless-monitoring';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
-import { GetWirelessClientsRequestDTO } from '../dtos/GetWirelessClientsRequestDTO';
-import { WirelessClientListResponseDTO } from '../dtos/WirelessClientListResponseDTO';
-import { WirelessSnapshotMapper } from '../mappers/WirelessSnapshotMapper';
+import {
+  GetWirelessClientsRequestDTO,
+  WirelessClientListResponseDTO
+} from '../dtos';
+import { WirelessSnapshotMapper } from '../mappers';
 
 export class GetWirelessClientsUseCase extends UseCase<
   GetWirelessClientsRequestDTO,
@@ -48,7 +50,7 @@ export class GetWirelessClientsUseCase extends UseCase<
       return this.fail('No wireless data found for device');
     }
 
-    if (snapshot.deviceType === 'CPE') {
+    if (snapshot.deviceType === 'STATION') {
       return this.fail(
         'NOT_AP: This device is a CPE and does not have a client list'
       );

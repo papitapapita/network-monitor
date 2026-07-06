@@ -5,6 +5,7 @@ import { createTestApp } from './helpers/createTestApp';
 import {
   cleanDatabase,
   seedDeviceModel,
+  waitForPollingConfig,
   GHOST_ID,
   INVALID_ID
 } from './helpers/db';
@@ -43,6 +44,10 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
       monitoringEnabled: true
     });
     monitoredDeviceId = res.body.data.id as string;
+
+    // DeviceProvisionedHandler is fire-and-forget — wait for the
+    // PollingConfiguration row to exist before tests that depend on it.
+    await waitForPollingConfig(prisma, monitoredDeviceId);
   });
 
   // ─────────────────────────────────────────────────────────────

@@ -4,11 +4,8 @@ export interface WirelessMetricsProps {
   noiseFloorDbm: number | null;
   snrDb: number | null;
   ccqPercent: number | null;
-  txRateMbps: number | null;
-  rxRateMbps: number | null;
   frequencyMhz: number | null;
   channelWidthMhz: number | null;
-  txPowerDbm: number | null;
   throughputTxBps: number | null;
   throughputRxBps: number | null;
   lanStatus: 'UP' | 'DOWN' | null;
@@ -18,13 +15,19 @@ export interface WirelessMetricsProps {
   cpuLoadPercent: number | null;
   memoryUsedPercent: number | null;
   clientsConnected: number | null;
-  clientsProvisioned: number | null;
   throughputTxPps: number | null;
   throughputRxPps: number | null;
   firmwareVersion: string | null;
   deviceName: string | null;
   remoteApMac: string | null;
   remoteApName: string | null;
+  remoteApIp: string | null;
   distanceM: number | null;
   latencyMs: number | null;
+  capacityTxKbps: number | null;
+  capacityRxKbps: number | null;
+  deviceTimeEpoch: number | null;
+  macAddress: string | null;
+  deviceModel: string | null;
+  ssid: string | null;
 }

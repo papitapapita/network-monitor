@@ -5,41 +5,62 @@ import {
   DevicePollingStatusDTO,
   PollingResultDTO,
   PollingMetricsDTO,
+  PollingConfigurationDTO,
   SingleDevicePollingResultDTO,
-  PollingHistoryDTO
+  PollingHistoryDTO,
+  CreateDevicePollingDTO,
+  ConfigureDevicePollingDTO
 } from '../dtos';
 
-/**
- * PollingMapper
- *
- * Pure data transformation between device-monitoring domain objects and
- * application-layer DTOs.
- *
- * Responsibilities (ONLY):
- * - Extract primitive values from domain entities and value objects.
- * - Assemble response DTOs from the combination of domain objects.
- * - Compute derived fields (nextScheduled, statistics, online status text).
- *
- * Does NOT:
- * - Validate business rules (entity/value object responsibility).
- * - Call repositories or perform side effects.
- * - Make decisions about whether polling should run.
- */
 export class PollingMapper {
-  // ============================================================================
-  // Status DTO
-  // ============================================================================
+  public static toDTO(
+    config: PollingConfiguration
+  ): PollingConfigurationDTO {
+    return {
+      id: config.id.toString(),
+      deviceId: config.deviceId.toString(),
+      ipAddress: config.ipAddress?.value ?? null,
+      intervalSeconds: config.interval.seconds,
+      failuresBeforeDown: config.failuresBeforeDown.value,
+      enabled: config.enabled
+    };
+  }
 
-  /**
-   * Assembles a DevicePollingStatusDTO from the three domain objects
-   * that back the GET /devices/:id/polling/status endpoint.
-   */
+  public static extractCreateData(dto: CreateDevicePollingDTO) {
+    return {
+      deviceId: dto.deviceId,
+      ipAddress: dto.ipAddress ?? null,
+      intervalSeconds: dto.intervalSeconds ?? null,
+      failuresBeforeDown: dto.failuresBeforeDown ?? null,
+      enabled: dto.enabled ?? null
+    };
+  }
+
+  public static extractUpdateData(dto: ConfigureDevicePollingDTO) {
+    const updates: {
+      intervalSeconds?: number;
+      failuresBeforeDown?: number;
+      enabled?: boolean;
+    } = {};
+
+    if (dto.intervalSeconds !== undefined) {
+      updates.intervalSeconds = dto.intervalSeconds;
+    }
+    if (dto.failuresBeforeDown !== undefined) {
+      updates.failuresBeforeDown = dto.failuresBeforeDown;
+    }
+    if (dto.enabled !== undefined) updates.enabled = dto.enabled;
+
+    return updates;
+  }
+
   public static toStatusDTO(
     config: PollingConfiguration,
     state: DeviceState | null,
     lastPing: PingResultRecord | null
   ): DevicePollingStatusDTO {
     const lastCheckedAt = state?.lastCheckedAt ?? null;
+    // nextScheduled: last poll time + interval; null when never polled (no baseline).
     const nextScheduled = lastCheckedAt
       ? new Date(
           lastCheckedAt.getTime() + config.interval.seconds * 1000
@@ -69,14 +90,6 @@ export class PollingMapper {
     };
   }
 
-  // ============================================================================
-  // Execute-cycle result DTO
-  // ============================================================================
-
-  /**
-   * Builds the SingleDevicePollingResultDTO for a skipped polling cycle
-   * (polling disabled and forceExecution is false).
-   */
   public static toSkippedResultDTO(
     deviceId: string,
     timestamp: Date
@@ -91,10 +104,6 @@ export class PollingMapper {
     };
   }
 
-  /**
-   * Builds the SingleDevicePollingResultDTO returned after a manual or
-   * scheduled poll execution.
-   */
   public static toPollResultDTO(params: {
     deviceId: string;
     isReachable: boolean;
@@ -127,14 +136,6 @@ export class PollingMapper {
     };
   }
 
-  // ============================================================================
-  // History DTO
-  // ============================================================================
-
-  /**
-   * Converts a page of PingResultRecords plus aggregate statistics into
-   * the full PollingHistoryDTO for the GET /devices/:id/polling/history endpoint.
-   */
   public static toHistoryDTO(
     page: PingResultRecord[],
     deviceId: string,
@@ -172,10 +173,6 @@ export class PollingMapper {
     };
   }
 
-  // ============================================================================
-  // Private helpers
-  // ============================================================================
-
   private static toPingResultDTO(
     ping: PingResultRecord,
     deviceId: string,
@@ -190,6 +187,7 @@ export class PollingMapper {
         ping.isReachable && ping.latencyMs !== null
           ? this.toMetricsDTO(ping.latencyMs)
           : null,
+      // No live state: use ping reachability as the best available status indicator.
       deviceStatus: state
         ? state.isOnline
           ? 'ONLINE'

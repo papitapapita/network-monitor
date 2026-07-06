@@ -52,7 +52,7 @@ describe('createLocationSchema', () => {
 
     it('should accept when both latitude and longitude are omitted', () => {
       const result = createLocationSchema.safeParse({
-        body: { name: 'POP Site Alpha', type: 'POP' }
+        body: { name: 'POP Site Alpha', type: 'POINT_OF_PRESENCE' }
       });
 
       expect(result.success).toBe(true);
@@ -103,11 +103,11 @@ describe('createLocationSchema', () => {
     it('should accept all valid location type values', () => {
       const validTypes = [
         'TOWER',
-        'NODE',
         'DATACENTER',
-        'POP',
-        'WAREHOUSE',
-        'OFFICE'
+        'POINT_OF_PRESENCE',
+        'OFFICE',
+        'CUSTOMER_PREMISES',
+        'OTHER'
       ] as const;
 
       for (const type of validTypes) {
@@ -477,11 +477,11 @@ describe('listLocationsSchema', () => {
     it('should accept all valid location types as filter', () => {
       const validTypes = [
         'TOWER',
-        'NODE',
         'DATACENTER',
-        'POP',
-        'WAREHOUSE',
-        'OFFICE'
+        'POINT_OF_PRESENCE',
+        'OFFICE',
+        'CUSTOMER_PREMISES',
+        'OTHER'
       ] as const;
 
       for (const type of validTypes) {
@@ -494,7 +494,7 @@ describe('listLocationsSchema', () => {
 
     it('should accept limit, offset, and type together', () => {
       const result = listLocationsSchema.safeParse({
-        query: { limit: '10', offset: '5', type: 'NODE' }
+        query: { limit: '10', offset: '5', type: 'TOWER' }
       });
 
       expect(result.success).toBe(true);
@@ -817,11 +817,11 @@ describe('updateLocationSchema', () => {
     it('should accept all valid location type values', () => {
       const validTypes = [
         'TOWER',
-        'NODE',
         'DATACENTER',
-        'POP',
-        'WAREHOUSE',
-        'OFFICE'
+        'POINT_OF_PRESENCE',
+        'OFFICE',
+        'CUSTOMER_PREMISES',
+        'OTHER'
       ] as const;
 
       for (const type of validTypes) {

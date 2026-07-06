@@ -356,10 +356,6 @@ describe('UseCase', () => {
 
       expect(errorLog).toBeDefined();
       expect(errorLog?.context).toHaveProperty('duration');
-      expect(errorLog?.context).toHaveProperty('error');
-      expect(errorLog?.context?.error).toBe(
-        'Business rule violation'
-      );
     });
   });
 

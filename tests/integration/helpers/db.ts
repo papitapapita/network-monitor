@@ -9,6 +9,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 export async function cleanDatabase(prisma: PrismaClient): Promise<void> {
   await prisma.device.deleteMany();
   await prisma.location.deleteMany();
+  await prisma.user.deleteMany();
 }
 
 /**
@@ -38,6 +39,41 @@ export async function seedDeviceModel(prisma: PrismaClient): Promise<string> {
       vendorId: vendor.id,
       model: 'RB4011iGS+',
       deviceType: 'ROUTERBOARD'
+    }
+  });
+  return model.id;
+}
+
+/**
+ * Upserts a Ubiquiti LiteBeam 5AC device model with isWireless=true.
+ * Returns the device model UUID — use it as `deviceModelId` when creating wireless test devices.
+ */
+export async function seedWirelessDeviceModel(
+  prisma: PrismaClient
+): Promise<string> {
+  const vendor = await prisma.vendor.upsert({
+    where: { slug: 'ubiquiti' },
+    update: {},
+    create: {
+      name: 'Ubiquiti',
+      slug: 'ubiquiti',
+      description: null
+    }
+  });
+
+  const model = await prisma.deviceModel.upsert({
+    where: {
+      vendorId_model: {
+        vendorId: vendor.id,
+        model: 'LiteBeam 5AC'
+      }
+    },
+    update: {},
+    create: {
+      vendorId: vendor.id,
+      model: 'LiteBeam 5AC',
+      deviceType: 'ANTENNA',
+      isWireless: true
     }
   });
   return model.id;
@@ -147,6 +183,82 @@ export async function seedVendor(
     }
   });
   return vendor.id;
+}
+
+/**
+ * Cleans the customers bounded context in FK-safe order:
+ * contracted_services (which reference customers/service_plans/devices)
+ * must go before customers and service_plans.
+ */
+export async function cleanCustomers(prisma: PrismaClient): Promise<void> {
+  await prisma.contractedService.deleteMany();
+  await prisma.customer.deleteMany();
+  await prisma.servicePlan.deleteMany();
+}
+
+/** Upserts a test customer. Returns its UUID. */
+export async function seedCustomer(
+  prisma: PrismaClient,
+  overrides: {
+    fullName?: string;
+    phone?: string;
+    email?: string | null;
+    cedula?: string | null;
+  } = {}
+): Promise<string> {
+  const phone = overrides.phone ?? '3001234567';
+  const customer = await prisma.customer.upsert({
+    where: { phone },
+    update: {},
+    create: {
+      fullName: overrides.fullName ?? 'Test Customer',
+      phone,
+      email: overrides.email ?? null,
+      cedula: overrides.cedula ?? null
+    }
+  });
+  return customer.id;
+}
+
+/** Upserts a test service plan. Returns its UUID. */
+export async function seedServicePlan(
+  prisma: PrismaClient,
+  overrides: {
+    name?: string;
+    downloadMbps?: number;
+    uploadMbps?: number;
+    monthlyPrice?: number;
+  } = {}
+): Promise<string> {
+  const name = overrides.name ?? 'Test Plan 50/10';
+  const plan = await prisma.servicePlan.upsert({
+    where: { name },
+    update: {},
+    create: {
+      name,
+      downloadMbps: overrides.downloadMbps ?? 50,
+      uploadMbps: overrides.uploadMbps ?? 10,
+      monthlyPrice: overrides.monthlyPrice ?? 80000
+    }
+  });
+  return plan.id;
+}
+
+/** Creates a bare device (FK target for contracted-service tests). Returns its UUID. */
+export async function seedDevice(
+  prisma: PrismaClient,
+  deviceModelId: string,
+  overrides: { name?: string; serialNumber?: string } = {}
+): Promise<string> {
+  const device = await prisma.device.create({
+    data: {
+      name: overrides.name ?? 'Test CPE Device',
+      status: 'INVENTORY',
+      serialNumber: overrides.serialNumber ?? `SN-${Date.now()}`,
+      deviceModelId
+    }
+  });
+  return device.id;
 }
 
 /** Known-valid UUIDs that will never exist in the test DB */

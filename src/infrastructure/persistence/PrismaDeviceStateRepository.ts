@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { Result, EventDispatcher } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
+import { DeviceId } from 'domain/shared/ids';
 import { IDeviceStateRepository } from 'domain/device-monitoring/repository';
 import { DeviceState } from 'domain/device-monitoring/aggregates';
 import { DeviceStateMapper } from '../mappers';

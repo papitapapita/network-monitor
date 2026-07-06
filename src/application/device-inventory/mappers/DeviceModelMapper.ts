@@ -1,8 +1,15 @@
-import { DeviceModel } from '../../../domain/device-inventory/aggregates';
-import { DeviceModelResponseDTO, DeviceModelListResponseDTO } from '../dtos';
+import { DeviceModel } from 'domain/device-inventory';
+import {
+  DeviceModelResponseDTO,
+  DeviceModelListResponseDTO,
+  CreateDeviceModelRequestDTO,
+  UpdateDeviceModelRequestDTO
+} from '../dtos';
 
 export class DeviceModelMapper {
-  public static toDTO(deviceModel: DeviceModel): DeviceModelResponseDTO {
+  public static toDTO(
+    deviceModel: DeviceModel
+  ): DeviceModelResponseDTO {
     return {
       id: deviceModel.id.toString(),
       vendorId: deviceModel.vendorId.toString(),
@@ -10,6 +17,7 @@ export class DeviceModelMapper {
       vendorSlug: deviceModel.vendorSlug,
       model: deviceModel.model,
       deviceType: deviceModel.deviceType,
+      isWireless: deviceModel.isWireless,
       createdAt: deviceModel.createdAt.toISOString(),
       updatedAt: deviceModel.updatedAt.toISOString()
     };
@@ -28,5 +36,28 @@ export class DeviceModelMapper {
       limit,
       offset
     };
+  }
+
+  public static extractCreateData(dto: CreateDeviceModelRequestDTO) {
+    return {
+      vendorId: dto.vendorId,
+      model: dto.model,
+      deviceType: dto.deviceType,
+      isWireless: dto.isWireless ?? false
+    };
+  }
+
+  public static extractUpdateData(dto: UpdateDeviceModelRequestDTO) {
+    const updates: {
+      vendorId?: string;
+      model?: string;
+      deviceType?: string;
+      isWireless?: boolean;
+    } = {};
+    if (dto.vendorId !== undefined) updates.vendorId = dto.vendorId;
+    if (dto.model !== undefined) updates.model = dto.model;
+    if (dto.deviceType !== undefined) updates.deviceType = dto.deviceType;
+    if (dto.isWireless !== undefined) updates.isWireless = dto.isWireless;
+    return updates;
   }
 }

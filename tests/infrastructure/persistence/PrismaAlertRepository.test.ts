@@ -33,6 +33,7 @@ function makeFakePrismaClient(): {
     findUnique: jest.Mock;
     findFirst: jest.Mock;
     findMany: jest.Mock;
+    deleteMany: jest.Mock;
   };
 } {
   return {
@@ -40,7 +41,8 @@ function makeFakePrismaClient(): {
       upsert: jest.fn(),
       findUnique: jest.fn(),
       findFirst: jest.fn(),
-      findMany: jest.fn()
+      findMany: jest.fn(),
+      deleteMany: jest.fn()
     }
   };
 }
@@ -59,8 +61,7 @@ function makeRawAlertRecord(
     startedAt: new Date('2024-01-01T00:00:00.000Z'),
     resolvedAt: null,
     notifiedAt: null,
-    recoveryNotifiedAt: null,
-    durationSecs: null
+    recoveryNotifiedAt: null
   };
 }
 
@@ -76,8 +77,7 @@ function makeFakePersistenceData(id = VALID_UUID_1): Record<string, unknown> {
     startedAt: new Date('2024-01-01T00:00:00.000Z'),
     resolvedAt: null,
     notifiedAt: null,
-    recoveryNotifiedAt: null,
-    durationSecs: null
+    recoveryNotifiedAt: null
   };
 }
 
@@ -94,8 +94,7 @@ function makeFakeAlert(id = VALID_UUID_1): Alert {
     startedAt: new Date('2024-01-01T00:00:00.000Z'),
     resolvedAt: null,
     notifiedAt: null,
-    recoveryNotifiedAt: null,
-    durationSecs: null
+    recoveryNotifiedAt: null
   });
 }
 
@@ -150,7 +149,7 @@ describe('PrismaAlertRepository', () => {
         );
       });
 
-      it('should include only resolvedAt, notifiedAt, recoveryNotifiedAt, durationSecs in the update clause', async () => {
+      it('should include only resolvedAt, notifiedAt, recoveryNotifiedAt in the update clause', async () => {
         prisma.alertEvent.upsert.mockResolvedValue(fakePersistenceData);
 
         await repository.save(fakeAlert);
@@ -163,8 +162,7 @@ describe('PrismaAlertRepository', () => {
         expect(call.update).toEqual({
           resolvedAt: fakePersistenceData.resolvedAt,
           notifiedAt: fakePersistenceData.notifiedAt,
-          recoveryNotifiedAt: fakePersistenceData.recoveryNotifiedAt,
-          durationSecs: fakePersistenceData.durationSecs
+          recoveryNotifiedAt: fakePersistenceData.recoveryNotifiedAt
         });
       });
 
@@ -222,7 +220,7 @@ describe('PrismaAlertRepository', () => {
 
         const result = await repository.save(fakeAlert);
 
-        expect(result.error).toContain('save failed:');
+        expect(result.error).toContain('Database error saving alert');
       });
 
       it('should include the original error message in the failure', async () => {
@@ -320,7 +318,7 @@ describe('PrismaAlertRepository', () => {
         const alertId = AlertId.parse(VALID_UUID_1).value;
         const result = await repository.findById(alertId);
 
-        expect(result.error).toContain('findById failed:');
+        expect(result.error).toContain('Database error finding alert');
       });
 
       it('should include the original error message in the failure', async () => {
@@ -416,7 +414,7 @@ describe('PrismaAlertRepository', () => {
         const deviceId = DeviceId.parse(VALID_UUID_2).value;
         const result = await repository.findOpenByDeviceId(deviceId);
 
-        expect(result.error).toContain('findOpenByDeviceId failed:');
+        expect(result.error).toContain('Database error finding open alert');
       });
 
       it('should include the original error message in the failure', async () => {
@@ -561,7 +559,7 @@ describe('PrismaAlertRepository', () => {
         const deviceId = DeviceId.parse(VALID_UUID_2).value;
         const result = await repository.findAllByDeviceId(deviceId);
 
-        expect(result.error).toContain('findAllByDeviceId failed:');
+        expect(result.error).toContain('Database error finding alerts by device');
       });
 
       it('should include the original error message in the failure', async () => {
@@ -684,7 +682,7 @@ describe('PrismaAlertRepository', () => {
 
         const result = await repository.findAll();
 
-        expect(result.error).toContain('findAll failed:');
+        expect(result.error).toContain('Database error finding all alerts');
       });
 
       it('should include the original error message in the failure', async () => {
@@ -695,6 +693,83 @@ describe('PrismaAlertRepository', () => {
         const result = await repository.findAll();
 
         expect(result.error).toContain('replica unavailable');
+      });
+    });
+  });
+
+  // =========================================================================
+  describe('deleteResolvedOlderThan()', () => {
+    const CUTOFF_DATE = new Date('2024-01-01T00:00:00.000Z');
+
+    // -----------------------------------------------------------------------
+    describe('happy path', () => {
+      it('should call prisma.alertEvent.deleteMany with resolvedAt not null and lt cutoff', async () => {
+        prisma.alertEvent.deleteMany.mockResolvedValue({ count: 4 });
+
+        await repository.deleteResolvedOlderThan(CUTOFF_DATE);
+
+        expect(prisma.alertEvent.deleteMany).toHaveBeenCalledWith({
+          where: { resolvedAt: { not: null, lt: CUTOFF_DATE } }
+        });
+      });
+
+      it('should return Result.ok with the number of deleted alerts', async () => {
+        prisma.alertEvent.deleteMany.mockResolvedValue({ count: 4 });
+
+        const result = await repository.deleteResolvedOlderThan(CUTOFF_DATE);
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBe(4);
+      });
+
+      it('should return Result.ok(0) when no resolved alerts are older than the cutoff', async () => {
+        prisma.alertEvent.deleteMany.mockResolvedValue({ count: 0 });
+
+        const result = await repository.deleteResolvedOlderThan(CUTOFF_DATE);
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBe(0);
+      });
+
+      it('should call deleteMany exactly once', async () => {
+        prisma.alertEvent.deleteMany.mockResolvedValue({ count: 2 });
+
+        await repository.deleteResolvedOlderThan(CUTOFF_DATE);
+
+        expect(prisma.alertEvent.deleteMany).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('failure path', () => {
+      it('should return a failed Result when Prisma throws', async () => {
+        prisma.alertEvent.deleteMany.mockRejectedValue(
+          new Error('foreign key constraint')
+        );
+
+        const result = await repository.deleteResolvedOlderThan(CUTOFF_DATE);
+
+        expect(result.isFailure).toBe(true);
+      });
+
+      it('should prefix the error message with "deleteResolvedOlderThan failed:"', async () => {
+        prisma.alertEvent.deleteMany.mockRejectedValue(
+          new Error('deadlock detected')
+        );
+
+        const result = await repository.deleteResolvedOlderThan(CUTOFF_DATE);
+
+        expect(result.error).toContain('deleteResolvedOlderThan failed');
+      });
+
+      it('should include the original error message in the failure', async () => {
+        prisma.alertEvent.deleteMany.mockRejectedValue(
+          new Error('foreign key constraint')
+        );
+
+        const result = await repository.deleteResolvedOlderThan(CUTOFF_DATE);
+
+        expect(result.error).toContain('foreign key constraint');
       });
     });
   });

@@ -1,12 +1,13 @@
 import { Router } from 'express';
-import { LocationController } from '../controllers/LocationController';
-import { validateRequest } from '../middleware/validateRequest';
+import { LocationController } from '../controllers';
+import { validateRequest, authorize, createRateLimiter } from '../middleware';
 import {
   createLocationSchema,
   listLocationsSchema,
   getLocationByIdSchema,
-  updateLocationSchema
-} from '../validation/location.schemas';
+  updateLocationSchema,
+  deleteLocationSchema
+} from '../validation';
 
 /**
  * Creates Express router for Location endpoints.
@@ -45,7 +46,7 @@ export function createLocationRoutes(
    *
    * Body: CreateLocationInput
    *   - name         (required) Location name, 1-150 chars
-   *   - type         (required) One of: TOWER, NODE, DATACENTER, POP, WAREHOUSE, OFFICE
+   *   - type         (required) One of: TOWER, DATACENTER, POINT_OF_PRESENCE, OFFICE, CUSTOMER_PREMISES, OTHER
    *   - municipality (optional) Max 100 chars
    *   - neighborhood (optional) Max 150 chars
    *   - address      (optional) Max 255 chars
@@ -60,6 +61,8 @@ export function createLocationRoutes(
    */
   router.post(
     '/',
+    authorize('create'),
+    createRateLimiter('write'),
     validateRequest(createLocationSchema),
     controller.create
   );
@@ -81,14 +84,26 @@ export function createLocationRoutes(
    */
   router.get(
     '/',
-    (req, _res, next) => {
-      console.log(
-        `Incoming Request before get: ${req.method} ${req.url}`
-      );
-      next();
-    },
+    authorize('read'),
+    createRateLimiter('read'),
     validateRequest(listLocationsSchema),
     controller.list
+  );
+
+  /**
+   * GET /api/locations/map
+   * Return all geolocated locations as map pins, each with their nested devices.
+   *
+   * Response: 200 OK with MapPinsResponseDTO
+   *   { pins: [...], total: number }
+   * Errors:
+   *   500 - Unexpected infrastructure error
+   */
+  router.get(
+    '/map',
+    authorize('read'),
+    createRateLimiter('read'),
+    controller.getMap
   );
 
   // =====================================
@@ -110,6 +125,8 @@ export function createLocationRoutes(
    */
   router.get(
     '/:id',
+    authorize('read'),
+    createRateLimiter('read'),
     validateRequest(getLocationByIdSchema),
     controller.getById
   );
@@ -133,8 +150,18 @@ export function createLocationRoutes(
    */
   router.patch(
     '/:id',
+    authorize('update'),
+    createRateLimiter('write'),
     validateRequest(updateLocationSchema),
     controller.update
+  );
+
+  router.delete(
+    '/:id',
+    authorize('delete'),
+    createRateLimiter('delete'),
+    validateRequest(deleteLocationSchema),
+    controller.delete
   );
 
   return router;

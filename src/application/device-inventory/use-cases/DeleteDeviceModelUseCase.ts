@@ -1,8 +1,11 @@
-import { IDeviceModelRepository, IDeviceRepository } from '../../../domain/device-inventory/repository';
-import { DeviceModelId } from '../../../domain/shared/ids';
-import { Result } from '../../../domain/shared/core';
-import { UseCase } from '../../shared/core';
-import { ILogger } from '../../shared/interfaces';
+import {
+  IDeviceModelRepository,
+  IDeviceRepository
+} from 'domain/device-inventory/repository';
+import { DeviceModelId } from 'domain/shared/ids';
+import { Result } from 'domain/shared/core';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
 import { DeleteDeviceModelRequestDTO } from '../dtos';
 
 export class DeleteDeviceModelUseCase extends UseCase<
@@ -36,7 +39,8 @@ export class DeleteDeviceModelUseCase extends UseCase<
 
     const deviceModelId = idResult.value;
 
-    const findResult = await this.deviceModelRepository.findById(deviceModelId);
+    const findResult =
+      await this.deviceModelRepository.findById(deviceModelId);
     if (findResult.isFailure) {
       return this.fail(findResult.error!);
     }
@@ -45,9 +49,8 @@ export class DeleteDeviceModelUseCase extends UseCase<
     }
 
     // Guard: cannot delete a device model that has associated devices
-    const devicesResult = await this.deviceRepository.findByDeviceModel(
-      deviceModelId
-    );
+    const devicesResult =
+      await this.deviceRepository.findByDeviceModel(deviceModelId);
     if (devicesResult.isFailure) {
       return this.fail(devicesResult.error!);
     }
@@ -57,7 +60,8 @@ export class DeleteDeviceModelUseCase extends UseCase<
       );
     }
 
-    const deleteResult = await this.deviceModelRepository.delete(deviceModelId);
+    const deleteResult =
+      await this.deviceModelRepository.delete(deviceModelId);
     if (deleteResult.isFailure) {
       return this.fail(deleteResult.error!);
     }

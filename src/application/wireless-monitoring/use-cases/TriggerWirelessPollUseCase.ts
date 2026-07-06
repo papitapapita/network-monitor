@@ -1,20 +1,14 @@
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
-import { TriggerPollRequestDTO } from '../dtos/TriggerPollRequestDTO';
-import { PollWirelessDeviceResponseDTO } from '../dtos/PollWirelessDeviceResponseDTO';
+import {
+  TriggerPollRequestDTO,
+  PollWirelessDeviceResponseDTO
+} from '../dtos';
 import { IWirelessPollOrchestrator } from '../interfaces';
 
-/**
- * TriggerWirelessPollUseCase
- *
- * Initiates an on-demand (forced) wireless poll for a given device.
- * Delegates execution to IWirelessPollOrchestrator so it remains decoupled
- * from PollWirelessDeviceUseCase (use cases must not call other use cases directly).
- *
- * The DI container registers PollWirelessDeviceUseCase as the implementation
- * of IWirelessPollOrchestrator.
- */
+// Delegates to IWirelessPollOrchestrator (bound to PollWirelessDeviceUseCase in the DI
+// container) so this use case never calls another use case directly.
 export class TriggerWirelessPollUseCase extends UseCase<
   TriggerPollRequestDTO,
   PollWirelessDeviceResponseDTO

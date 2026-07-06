@@ -1,12 +1,11 @@
 // Source: src/application/device-inventory/use-cases/CreateDeviceUseCase.ts
 
-import { IPAddress } from 'domain/shared';
+import { IPAddress, MACAddress } from 'domain/shared';
 import { CreateDeviceUseCase } from '../../../../src/application/device-inventory/use-cases';
 import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository';
 import { ILogger } from '../../../../src/application/shared/interfaces';
 import { Result } from '../../../../src/domain/shared/core';
 import { Device } from '../../../../src/domain/device-inventory/aggregates';
-import { MACAddress } from '../../../../src/domain/device-inventory/value-objects';
 import { CreateDeviceRequestDTO } from '../../../../src/application/device-inventory/dtos';
 
 // ---------------------------------------------------------------------------
@@ -48,6 +47,7 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
     findByStatus: jest.fn(),
     existsByMacAddress: jest.fn(),
     existsByIpAddress: jest.fn(),
+    findByLocationIds: jest.fn(),
     findByFilters: jest.fn()
   };
 }
@@ -456,7 +456,8 @@ describe('CreateDeviceUseCase', () => {
       const result = await useCase.execute(
         makeMinimalRequest({
           status: 'ACTIVE',
-          ipAddress: '192.168.1.1'
+          ipAddress: '192.168.1.1',
+          locationId: VALID_LOCATION_ID
         })
       );
 

@@ -5,10 +5,13 @@ import {
   DeviceDetailsUpdatedEventProps,
   DeviceName,
   DeviceCategory,
-  MACAddress,
   DeviceOwnerType
 } from '../../../../src/domain/device-inventory';
-import { DeviceId, UniqueEntityID } from '../../../../src/domain/shared';
+import {
+  DeviceId,
+  UniqueEntityID,
+  MACAddress
+} from '../../../../src/domain/shared';
 import { IPAddress } from '../../../../src/domain/shared/value-objects/IPAddress';
 
 // ---------------------------------------------------------------------------

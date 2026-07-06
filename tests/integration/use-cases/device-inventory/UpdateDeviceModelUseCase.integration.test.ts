@@ -4,6 +4,8 @@ import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { UpdateDeviceModelUseCase } from 'application/device-inventory/use-cases/UpdateDeviceModelUseCase';
 import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDeviceModelRepository';
 import { PrismaVendorRepository } from 'infrastructure/persistence/PrismaVendorRepository';
+import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
+import { PrismaWirelessDeviceConfigRepository } from 'infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import {
   setupDependencies,
@@ -24,8 +26,16 @@ describe('UpdateDeviceModelUseCase — integration', () => {
 
     const deviceModelRepo = new PrismaDeviceModelRepository(prisma);
     const vendorRepo = new PrismaVendorRepository(prisma);
+    const deviceRepo = new PrismaDeviceRepository(prisma);
+    const wirelessConfigRepo = new PrismaWirelessDeviceConfigRepository(prisma);
     const logger = new WinstonLogger();
-    useCase = new UpdateDeviceModelUseCase(deviceModelRepo, vendorRepo, logger);
+    useCase = new UpdateDeviceModelUseCase(
+      deviceModelRepo,
+      vendorRepo,
+      deviceRepo,
+      wirelessConfigRepo,
+      logger
+    );
   });
 
   afterAll(async () => {

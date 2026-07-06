@@ -10,7 +10,6 @@ type PrismaAlertRecord = {
   resolvedAt: Date | null;
   notifiedAt: Date | null;
   recoveryNotifiedAt: Date | null;
-  durationSecs: number | null;
 };
 
 export class AlertMapper {
@@ -35,21 +34,19 @@ export class AlertMapper {
       startedAt: raw.startedAt,
       resolvedAt: raw.resolvedAt,
       notifiedAt: raw.notifiedAt,
-      recoveryNotifiedAt: raw.recoveryNotifiedAt,
-      durationSecs: raw.durationSecs
+      recoveryNotifiedAt: raw.recoveryNotifiedAt
     });
   }
 
   public static toPersistence(alert: Alert) {
     return {
-      id: alert.alertId.toString(),
+      id: alert.id.toString(),
       deviceId: alert.deviceId.toString(),
       severity: alert.severity as string,
       startedAt: alert.startedAt,
       resolvedAt: alert.resolvedAt,
       notifiedAt: alert.notifiedAt,
-      recoveryNotifiedAt: alert.recoveryNotifiedAt,
-      durationSecs: alert.durationSecs
+      recoveryNotifiedAt: alert.recoveryNotifiedAt
     };
   }
 

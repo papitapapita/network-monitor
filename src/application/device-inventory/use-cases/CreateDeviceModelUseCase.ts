@@ -1,12 +1,12 @@
-import { DeviceModel } from '../../../domain/device-inventory/aggregates';
+import { DeviceModel } from 'domain/device-inventory/aggregates';
 import {
   IDeviceModelRepository,
   IVendorRepository
-} from '../../../domain/device-inventory/repository';
-import { VendorId } from '../../../domain/shared/ids';
-import { Result } from '../../../domain/shared/core';
-import { UseCase } from '../../shared/core';
-import { ILogger } from '../../shared/interfaces';
+} from 'domain/device-inventory/repository';
+import { VendorId } from 'domain/shared/ids';
+import { Result } from 'domain/shared/core';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
 import { DeviceModelMapper } from '../mappers';
 import {
   CreateDeviceModelRequestDTO,
@@ -34,7 +34,10 @@ export class CreateDeviceModelUseCase extends UseCase<
     if (!request.model || request.model.trim().length === 0) {
       return Result.fail('Model name is required');
     }
-    if (!request.deviceType || request.deviceType.trim().length === 0) {
+    if (
+      !request.deviceType ||
+      request.deviceType.trim().length === 0
+    ) {
       return Result.fail('Device type is required');
     }
     return null;
@@ -43,7 +46,9 @@ export class CreateDeviceModelUseCase extends UseCase<
   protected async executeImpl(
     request: CreateDeviceModelRequestDTO
   ): Promise<Result<DeviceModelResponseDTO>> {
-    const vendorIdResult = VendorId.parse(request.vendorId.trim());
+    const data = DeviceModelMapper.extractCreateData(request);
+
+    const vendorIdResult = VendorId.parse(data.vendorId.trim());
     if (vendorIdResult.isFailure) {
       return this.fail(`Invalid vendor ID: ${vendorIdResult.error}`);
     }
@@ -55,16 +60,17 @@ export class CreateDeviceModelUseCase extends UseCase<
       return this.fail(vendorResult.error!);
     }
     if (vendorResult.value === null) {
-      return this.fail(`Vendor not found: ${request.vendorId}`);
+      return this.fail(`Vendor not found: ${data.vendorId}`);
     }
 
     const vendor = vendorResult.value;
-    const modelTrimmed = request.model.trim();
+    const modelTrimmed = data.model.trim();
 
-    const existsResult = await this.deviceModelRepository.existsByVendorAndModel(
-      vendorIdResult.value,
-      modelTrimmed
-    );
+    const existsResult =
+      await this.deviceModelRepository.existsByVendorAndModel(
+        vendorIdResult.value,
+        modelTrimmed
+      );
     if (existsResult.isFailure) {
       return this.fail(existsResult.error!);
     }
@@ -79,7 +85,8 @@ export class CreateDeviceModelUseCase extends UseCase<
       vendorName: vendor.name,
       vendorSlug: vendor.slug,
       model: modelTrimmed,
-      deviceType: request.deviceType.trim()
+      deviceType: data.deviceType.trim(),
+      isWireless: data.isWireless
     });
 
     if (deviceModelResult.isFailure) {
@@ -90,7 +97,9 @@ export class CreateDeviceModelUseCase extends UseCase<
       deviceModelResult.value
     );
     if (saveResult.isFailure) {
-      return this.fail(`Failed to persist device model: ${saveResult.error}`);
+      return this.fail(
+        `Failed to persist device model: ${saveResult.error}`
+      );
     }
 
     return this.ok(DeviceModelMapper.toDTO(saveResult.value));

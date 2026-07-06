@@ -39,13 +39,15 @@ function makeLogger(): jest.Mocked<ILogger> {
 function makeNullMetrics(): WirelessMetrics {
   return WirelessMetrics.reconstitute({
     signalRxDbm: null, signalTxDbm: null, noiseFloorDbm: null, snrDb: null,
-    ccqPercent: null, txRateMbps: null, rxRateMbps: null, frequencyMhz: null,
-    channelWidthMhz: null, txPowerDbm: null, throughputTxBps: null,
+    ccqPercent: null, frequencyMhz: null,
+    channelWidthMhz: null, throughputTxBps: null,
     throughputRxBps: null, throughputTxPps: null, throughputRxPps: null,
     lanStatus: null, lanSpeedMbps: null, lanDuplex: null, uptimeSeconds: null,
     cpuLoadPercent: null, memoryUsedPercent: null, firmwareVersion: null,
-    deviceName: null, remoteApMac: null, remoteApName: null, distanceM: null,
-    latencyMs: null, clientsConnected: null, clientsProvisioned: null,
+    deviceName: null, remoteApMac: null, remoteApName: null, remoteApIp: null,
+    distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
+    deviceTimeEpoch: null, clientsConnected: null,
+    macAddress: null, deviceModel: null, ssid: null,
   });
 }
 
@@ -53,16 +55,17 @@ function makeSnapshot(snapshotUuid: string, collectedAt: Date): WirelessSnapshot
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const snapshotId = SnapshotId.parse(snapshotUuid).value;
   return WirelessSnapshot.reconstitute(
+    snapshotId,
     {
       deviceId,
-      deviceType: 'CPE',
+      deviceType: 'STATION',
       collectedAt,
       collectionMethod: 'snmp',
       metrics: makeNullMetrics(),
       clients: [],
       alerts: [],
-    },
-    snapshotId
+      remoteApDeviceId: null,
+    }
   );
 }
 
@@ -79,6 +82,7 @@ describe('GetWirelessDeviceHistoryUseCase', () => {
       findById: jest.fn(),
       findLatestByDevice: jest.fn(),
       findHistoryByDevice: jest.fn(),
+      deleteOlderThan: jest.fn()
     };
 
     logger = makeLogger();

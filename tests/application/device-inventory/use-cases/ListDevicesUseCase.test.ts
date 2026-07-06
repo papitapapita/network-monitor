@@ -57,6 +57,7 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
     findByStatus: jest.fn(),
     existsByMacAddress: jest.fn(),
     existsByIpAddress: jest.fn(),
+    findByLocationIds: jest.fn(),
     findByFilters: jest.fn()
   };
 }
@@ -67,13 +68,14 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
  */
 function makeDevice(): Device {
   const modelIdResult = DeviceModelId.parse(VALID_DEVICE_MODEL_UUID);
+  const locationIdResult = LocationId.parse(VALID_LOCATION_UUID);
   const nameResult = DeviceName.create('Test Device');
   const statusResult = DeviceStatus.create('ACTIVE');
   const ipAddressResult = IPAddress.create('192.168.1.100');
 
   const deviceResult = Device.create({
     deviceModelId: modelIdResult.value!,
-    locationId: null,
+    locationId: locationIdResult.value!,
     name: nameResult.value!,
     status: statusResult.value!,
     category: null,

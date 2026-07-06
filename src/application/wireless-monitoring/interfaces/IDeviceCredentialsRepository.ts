@@ -1,8 +1,14 @@
 import { Result } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
+import { DeviceId } from 'domain/shared/ids';
 
+/**
+ * Read-only view of device credentials used by wireless polling.
+ * The full CRUD interface lives in the device-inventory BC.
+ * DecryptedCredentials is kept as a local alias so PollWirelessDeviceUseCase
+ * does not need to import from another bounded context.
+ */
 export interface DecryptedCredentials {
-  snmpVersion: 2 | 3;
+  snmpVersion: 1 | 2 | 3;
   snmpCommunity: string | null;
   snmpV3AuthUser: string | null;
   snmpV3AuthProto: 'MD5' | 'SHA' | null;
@@ -16,6 +22,7 @@ export interface DecryptedCredentials {
 }
 
 export interface IDeviceCredentialsRepository {
-  findByDeviceId(deviceId: DeviceId): Promise<Result<DecryptedCredentials | null>>;
-  save(deviceId: DeviceId, credentials: DecryptedCredentials): Promise<Result<void>>;
+  findByDeviceId(
+    deviceId: DeviceId
+  ): Promise<Result<DecryptedCredentials | null>>;
 }

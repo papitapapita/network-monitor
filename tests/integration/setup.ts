@@ -8,3 +8,4 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env.test') });
 // those tests (alerts listing doesn't send notifications).
 process.env.TELEGRAM_BOT_TOKEN ??= 'test-bot-token';
 process.env.TELEGRAM_CHAT_ID ??= 'test-chat-id';
+process.env.JWT_SECRET ??= 'test-jwt-secret';

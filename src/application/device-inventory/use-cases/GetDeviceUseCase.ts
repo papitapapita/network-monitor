@@ -1,31 +1,11 @@
-import { DeviceId } from '../../../domain/shared/ids';
-import { IDeviceRepository } from '../../../domain/device-inventory/repository/IDeviceRepository';
-import { Result } from '../../../domain/shared/core/Result';
-import { UseCase } from '../../shared/core/UseCase';
-import { ILogger } from '../../shared/interfaces/ILogger';
-import { GetDeviceRequestDTO } from '../dtos/GetDeviceRequestDTO';
-import { DeviceResponseDTO } from '../dtos/DeviceResponseDTO';
-import { DeviceMapper } from '../mappers/DeviceMapper';
+import { DeviceId } from 'domain/shared/ids';
+import { IDeviceRepository } from 'domain/device-inventory/repository';
+import { Result } from 'domain/shared/core';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
+import { GetDeviceRequestDTO, DeviceResponseDTO } from '../dtos';
+import { DeviceMapper } from '../mappers';
 
-/**
- * GetDeviceUseCase
- *
- * Business Intent: Retrieve a single device by its unique identifier.
- *
- * Flow:
- * 1. beforeExecute: Validate that id is non-empty.
- * 2. executeImpl: Parse DeviceId, query the repository,
- *    and return a DeviceResponseDTO or a not-found failure.
- *
- * Business Rules:
- * - id is required and must be a valid UUID.
- * - Returns a failure Result (not an exception) when the device is not found,
- *   so the presentation layer can map it to HTTP 404.
- *
- * Dependencies:
- * - IDeviceRepository: Read-only access to the Device aggregate store.
- * - ILogger: Structured logging via the base UseCase template.
- */
 export class GetDeviceUseCase extends UseCase<
   GetDeviceRequestDTO,
   DeviceResponseDTO
@@ -37,10 +17,6 @@ export class GetDeviceUseCase extends UseCase<
     super(logger, 'GetDeviceUseCase');
   }
 
-  // ============================================================================
-  // Pre-execution validation
-  // ============================================================================
-
   protected async beforeExecute(
     request: GetDeviceRequestDTO
   ): Promise<Result<void> | null> {
@@ -48,12 +24,8 @@ export class GetDeviceUseCase extends UseCase<
       return Result.fail('Device ID is required');
     }
 
-    return null; // Validation passed
+    return null;
   }
-
-  // ============================================================================
-  // Main execution
-  // ============================================================================
 
   protected async executeImpl(
     request: GetDeviceRequestDTO

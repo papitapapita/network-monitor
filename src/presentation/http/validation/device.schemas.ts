@@ -18,14 +18,11 @@ import { z } from 'zod';
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const DEVICE_STATUSES = [
-  'INVENTORY',
-  'ACTIVE',
-  'DAMAGED'
-] as const;
+const DEVICE_STATUSES = ['INVENTORY', 'ACTIVE', 'DAMAGED', 'COMMISSIONING'] as const;
 
 const DEVICE_CATEGORIES = [
   'CPE',
+  'WIRELESS_CPE',
   'AP',
   'ROUTERBOARD',
   'SMART_SWITCH',

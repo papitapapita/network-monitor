@@ -28,6 +28,7 @@ function makeAlertRecord(
   const deviceId = DeviceId.parse(DEVICE_UUID).value!;
 
   return WirelessAlertRecord.reconstitute(
+    id,
     {
       deviceId,
       metric:      'signalRxDbm',
@@ -39,8 +40,7 @@ function makeAlertRecord(
       clearedAt:   null,
       isActive:    true,
       ...overrides,
-    },
-    id
+    }
   );
 }
 
@@ -211,6 +211,18 @@ describe('WirelessAlertMapper', () => {
 
         expect(dto.lastValue).toBe(-70);
       });
+    });
+  });
+
+  // ===========================================================================
+  describe('mapper compliance', () => {
+    it('should expose toDTO as a static method', () => {
+      expect(typeof WirelessAlertMapper.toDTO).toBe('function');
+    });
+
+    it('should produce identical output on repeated calls with the same record (deterministic)', () => {
+      const record = makeAlertRecord();
+      expect(WirelessAlertMapper.toDTO(record)).toEqual(WirelessAlertMapper.toDTO(record));
     });
   });
 });

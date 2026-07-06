@@ -1,12 +1,13 @@
-import { DeviceModel } from '../../domain/device-inventory/aggregates';
-import { DeviceModelId, VendorId } from '../../domain/shared/ids';
-import { Result } from '../../domain/shared/core';
+import { DeviceModel } from 'domain/device-inventory/aggregates';
+import { DeviceModelId, VendorId } from 'domain/shared/ids';
+import { Result } from 'domain/shared/core';
 
 type PrismaDeviceModelRecord = {
   id: string;
   vendorId: string;
   model: string;
   deviceType: string;
+  isWireless: boolean;
   createdAt: Date;
   updatedAt: Date;
   vendor: {
@@ -20,12 +21,15 @@ type DeviceModelPersistenceData = {
   vendorId: string;
   model: string;
   deviceType: string;
+  isWireless: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
 
 export class DeviceModelMapper {
-  public static toDomain(raw: PrismaDeviceModelRecord): Result<DeviceModel> {
+  public static toDomain(
+    raw: PrismaDeviceModelRecord
+  ): Result<DeviceModel> {
     const idResult = DeviceModelId.parse(raw.id);
     if (idResult.isFailure) {
       return Result.fail<DeviceModel>(
@@ -46,6 +50,7 @@ export class DeviceModelMapper {
       vendorSlug: raw.vendor.slug,
       model: raw.model,
       deviceType: raw.deviceType,
+      isWireless: raw.isWireless,
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt
     });
@@ -61,6 +66,7 @@ export class DeviceModelMapper {
       vendorId: deviceModel.vendorId.toString(),
       model: deviceModel.model,
       deviceType: deviceModel.deviceType,
+      isWireless: deviceModel.isWireless,
       createdAt: deviceModel.createdAt,
       updatedAt: deviceModel.updatedAt
     };

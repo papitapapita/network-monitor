@@ -5,7 +5,7 @@ import { ILocationRepository } from '../../../../src/domain/device-inventory/rep
 import { ILogger } from '../../../../src/application/shared/interfaces';
 import { Result } from '../../../../src/domain/shared/core';
 import { Location } from '../../../../src/domain/device-inventory/aggregates';
-import { Coordinates } from '../../../../src/domain/device-inventory/value-objects';
+import { Address, Coordinates } from '../../../../src/domain/device-inventory/value-objects';
 import { LocationType } from '../../../../src/domain/device-inventory/enums';
 import { LocationId } from '../../../../src/domain/shared/ids';
 import { UpdateLocationRequestDTO } from '../../../../src/application/device-inventory/dtos';
@@ -39,6 +39,7 @@ function makeRepo(): jest.Mocked<ILocationRepository> {
     findById: jest.fn(),
     findAll: jest.fn(),
     findByType: jest.fn(),
+      findAllWithCoordinates: jest.fn(),
     delete: jest.fn(),
     exists: jest.fn(),
     count: jest.fn()
@@ -59,13 +60,19 @@ function makePersistedLocation(
   } = {}
 ): Location {
   const id = LocationId.parse(VALID_LOCATION_ID).value;
+  const street       = overrides.address      ?? 'Carrera 80 # 75-32';
+  const municipality = overrides.municipality ?? 'Medellín';
+  const neighborhood = overrides.neighborhood ?? 'Robledo';
+  const addressVO =
+    street === null || municipality === null || neighborhood === null
+      ? null
+      : Address.reconstitute({ street, municipality, neighborhood });
+
   return Location.reconstitute(id, {
-    name:         overrides.name         ?? 'Torre Norte',
-    type:         overrides.type         ?? LocationType.TOWER,
-    municipality: overrides.municipality ?? 'Medellín',
-    neighborhood: overrides.neighborhood ?? 'Robledo',
-    address:      overrides.address      ?? 'Carrera 80 # 75-32',
-    coordinates:  overrides.hasOwnProperty('coordinates')
+    name:        overrides.name ?? 'Torre Norte',
+    type:        overrides.type ?? LocationType.TOWER,
+    address:     addressVO,
+    coordinates: overrides.hasOwnProperty('coordinates')
       ? overrides.coordinates
       : null,
     createdAt: NOW,
@@ -295,13 +302,23 @@ describe('UpdateLocationUseCase', () => {
       expect(result.value!.address).toBe('Av. 6N # 25-41');
     });
 
-    it('should succeed when municipality is cleared with null', async () => {
+    it('should fail when municipality is cleared in isolation (address must be complete or absent)', async () => {
       const result = await useCase.execute(
         makeRequest({ municipality: null })
       );
 
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('should succeed when all address fields are cleared to null together', async () => {
+      const result = await useCase.execute(
+        makeRequest({ address: null, municipality: null, neighborhood: null })
+      );
+
       expect(result.isSuccess).toBe(true);
       expect(result.value!.municipality).toBeNull();
+      expect(result.value!.neighborhood).toBeNull();
+      expect(result.value!.address).toBeNull();
     });
 
     it('should not call updateAddressFields when no address field is provided', async () => {
@@ -434,10 +451,10 @@ describe('UpdateLocationUseCase', () => {
 
     it('should return the updated type when type was changed', async () => {
       const result = await useCase.execute(
-        makeRequest({ type: 'NODE' })
+        makeRequest({ type: 'OFFICE' })
       );
 
-      expect(result.value!.type).toBe('NODE');
+      expect(result.value!.type).toBe('OFFICE');
     });
 
     it('should return createdAt as an ISO 8601 string', async () => {

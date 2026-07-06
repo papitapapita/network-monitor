@@ -4,7 +4,9 @@ import {
   NotificationMessage
 } from 'application/notifications/interfaces';
 
-export class TelegramNotificationService implements INotificationService {
+export class TelegramNotificationService
+  implements INotificationService
+{
   private readonly botToken: string;
   private readonly chatId: string;
 
@@ -40,14 +42,17 @@ export class TelegramNotificationService implements INotificationService {
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
         const description =
-          (body as { description?: string }).description ?? response.statusText;
+          (body as { description?: string }).description ??
+          response.statusText;
         return Result.fail(`Telegram API error: ${description}`);
       }
 
       return Result.ok<void>();
     } catch (error) {
       if (error instanceof Error && error.name === 'TimeoutError') {
-        return Result.fail('Telegram API error: request timed out after 10s');
+        return Result.fail(
+          'Telegram API error: request timed out after 10s'
+        );
       }
       return Result.fail(
         `Network error: ${error instanceof Error ? error.message : String(error)}`

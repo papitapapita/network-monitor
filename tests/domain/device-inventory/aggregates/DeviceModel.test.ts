@@ -2,9 +2,7 @@
 
 import {
   DeviceModel,
-  DeviceModelProps,
-  DeviceModelCreatedEvent,
-  DeviceModelUpdatedEvent
+  DeviceModelProps
 } from '../../../../src/domain/device-inventory';
 import { DeviceModelId, VendorId } from '../../../../src/domain/shared';
 
@@ -23,6 +21,7 @@ function makeProps(
     vendorSlug: 'cisco',
     model: 'ISR-4321',
     deviceType: 'Router',
+    isWireless: false,
     ...overrides
   };
 }
@@ -207,69 +206,6 @@ describe('DeviceModel', () => {
         expect(result.error).toContain('deviceType');
       });
     });
-
-    // -----------------------------------------------------------------------
-    describe('domain event emission', () => {
-      it('should add exactly one domain event on successful creation', () => {
-        const deviceModel = makeDeviceModel();
-
-        expect(deviceModel.domainEvents.length).toBe(1);
-      });
-
-      it('should emit a DeviceModelCreatedEvent', () => {
-        const deviceModel = makeDeviceModel();
-
-        expect(deviceModel.domainEvents[0]).toBeInstanceOf(
-          DeviceModelCreatedEvent
-        );
-      });
-
-      it('should emit a DeviceModelCreatedEvent with the correct aggregate ID', () => {
-        const deviceModel = makeDeviceModel();
-        const event = deviceModel.domainEvents[0] as DeviceModelCreatedEvent;
-
-        expect(event.aggregateId.toString()).toBe(
-          deviceModel.id.toString()
-        );
-      });
-
-      it('should emit a DeviceModelCreatedEvent with the correct vendorName', () => {
-        const deviceModel = makeDeviceModel({ vendorName: 'Ubiquiti' });
-        const event = deviceModel.domainEvents[0] as DeviceModelCreatedEvent;
-
-        expect(event.vendorName).toBe('Ubiquiti');
-      });
-
-      it('should emit a DeviceModelCreatedEvent with the correct model', () => {
-        const deviceModel = makeDeviceModel({ model: 'UniFi-AP-AC-Pro' });
-        const event = deviceModel.domainEvents[0] as DeviceModelCreatedEvent;
-
-        expect(event.model).toBe('UniFi-AP-AC-Pro');
-      });
-
-      it('should emit a DeviceModelCreatedEvent with a recent dateTimeOccurred', () => {
-        const before = new Date();
-        const deviceModel = makeDeviceModel();
-        const after = new Date();
-        const event = deviceModel.domainEvents[0] as DeviceModelCreatedEvent;
-
-        expect(event.dateTimeOccurred.getTime()).toBeGreaterThanOrEqual(
-          before.getTime()
-        );
-        expect(event.dateTimeOccurred.getTime()).toBeLessThanOrEqual(
-          after.getTime()
-        );
-      });
-
-      it('should not emit a domain event when creation fails', () => {
-        const result = DeviceModel.create(
-          makeProps({ model: null as unknown as string })
-        );
-
-        expect(result.isFailure).toBe(true);
-        // No DeviceModel instance created — no events exist.
-      });
-    });
   });
 
   // =========================================================================
@@ -311,6 +247,7 @@ describe('DeviceModel', () => {
         vendorSlug: 'hp',
         model: 'ProCurve-2920',
         deviceType: 'Switch',
+        isWireless: false,
         createdAt,
         updatedAt
       });
@@ -362,53 +299,11 @@ describe('DeviceModel', () => {
           after.getTime()
         );
       });
-
-      it('should emit a DeviceModelUpdatedEvent', () => {
-        const deviceModel = makeDeviceModel();
-        deviceModel.clearEvents();
-        deviceModel.updateModel('ISR-4431');
-
-        expect(deviceModel.domainEvents.length).toBe(1);
-        expect(deviceModel.domainEvents[0]).toBeInstanceOf(
-          DeviceModelUpdatedEvent
-        );
-      });
-
-      it('should emit a DeviceModelUpdatedEvent with changedFields containing "model"', () => {
-        const deviceModel = makeDeviceModel();
-        deviceModel.clearEvents();
-        deviceModel.updateModel('ISR-4431');
-
-        const event = deviceModel.domainEvents[0] as DeviceModelUpdatedEvent;
-
-        expect(event.changedFields).toContain('model');
-        expect(event.changedFields).toHaveLength(1);
-      });
-
-      it('should emit a DeviceModelUpdatedEvent with the correct aggregate ID', () => {
-        const deviceModel = makeDeviceModel();
-        deviceModel.clearEvents();
-        deviceModel.updateModel('ISR-4431');
-
-        const event = deviceModel.domainEvents[0] as DeviceModelUpdatedEvent;
-
-        expect(event.aggregateId.toString()).toBe(deviceModel.id.toString());
-      });
-
-      it('should emit a DeviceModelUpdatedEvent with the new model value', () => {
-        const deviceModel = makeDeviceModel();
-        deviceModel.clearEvents();
-        deviceModel.updateModel('ISR-4431');
-
-        const event = deviceModel.domainEvents[0] as DeviceModelUpdatedEvent;
-
-        expect(event.model).toBe('ISR-4431');
-      });
     });
 
     // -----------------------------------------------------------------------
     describe('no-op when model is unchanged', () => {
-      it('should return a successful Result without emitting an event', () => {
+      it('should return a successful Result and emit no events', () => {
         const deviceModel = makeDeviceModel({ model: 'ISR-4321' });
         deviceModel.clearEvents();
         const result = deviceModel.updateModel('ISR-4321');
@@ -474,14 +369,6 @@ describe('DeviceModel', () => {
 
         expect(deviceModel.model).toBe('ISR-4321');
       });
-
-      it('should not emit an event when validation fails', () => {
-        const deviceModel = makeDeviceModel();
-        deviceModel.clearEvents();
-        deviceModel.updateModel('');
-
-        expect(deviceModel.domainEvents.length).toBe(0);
-      });
     });
   });
 
@@ -515,43 +402,11 @@ describe('DeviceModel', () => {
           after.getTime()
         );
       });
-
-      it('should emit a DeviceModelUpdatedEvent', () => {
-        const deviceModel = makeDeviceModel({ deviceType: 'Router' });
-        deviceModel.clearEvents();
-        deviceModel.updateDeviceType('Switch');
-
-        expect(deviceModel.domainEvents.length).toBe(1);
-        expect(deviceModel.domainEvents[0]).toBeInstanceOf(
-          DeviceModelUpdatedEvent
-        );
-      });
-
-      it('should emit a DeviceModelUpdatedEvent with changedFields containing "deviceType"', () => {
-        const deviceModel = makeDeviceModel({ deviceType: 'Router' });
-        deviceModel.clearEvents();
-        deviceModel.updateDeviceType('Switch');
-
-        const event = deviceModel.domainEvents[0] as DeviceModelUpdatedEvent;
-
-        expect(event.changedFields).toContain('deviceType');
-        expect(event.changedFields).toHaveLength(1);
-      });
-
-      it('should emit a DeviceModelUpdatedEvent with the correct aggregate ID', () => {
-        const deviceModel = makeDeviceModel({ deviceType: 'Router' });
-        deviceModel.clearEvents();
-        deviceModel.updateDeviceType('Switch');
-
-        const event = deviceModel.domainEvents[0] as DeviceModelUpdatedEvent;
-
-        expect(event.aggregateId.toString()).toBe(deviceModel.id.toString());
-      });
     });
 
     // -----------------------------------------------------------------------
     describe('no-op when deviceType is unchanged', () => {
-      it('should return a successful Result without emitting an event', () => {
+      it('should return a successful Result and emit no events', () => {
         const deviceModel = makeDeviceModel({ deviceType: 'Router' });
         deviceModel.clearEvents();
         const result = deviceModel.updateDeviceType('Router');
@@ -596,14 +451,6 @@ describe('DeviceModel', () => {
         deviceModel.updateDeviceType(null as unknown as string);
 
         expect(deviceModel.deviceType).toBe('Router');
-      });
-
-      it('should not emit an event when validation fails', () => {
-        const deviceModel = makeDeviceModel();
-        deviceModel.clearEvents();
-        deviceModel.updateDeviceType(null as unknown as string);
-
-        expect(deviceModel.domainEvents.length).toBe(0);
       });
     });
   });
@@ -657,38 +504,6 @@ describe('DeviceModel', () => {
         expect(deviceModel.updatedAt.getTime()).toBeLessThanOrEqual(
           after.getTime()
         );
-      });
-
-      it('should emit a DeviceModelUpdatedEvent', () => {
-        const deviceModel = makeDeviceModel();
-        deviceModel.clearEvents();
-        deviceModel.updateVendor(VendorId.create(), 'MikroTik', 'mikrotik');
-
-        expect(deviceModel.domainEvents.length).toBe(1);
-        expect(deviceModel.domainEvents[0]).toBeInstanceOf(
-          DeviceModelUpdatedEvent
-        );
-      });
-
-      it('should emit a DeviceModelUpdatedEvent with changedFields containing "vendorId"', () => {
-        const deviceModel = makeDeviceModel();
-        deviceModel.clearEvents();
-        deviceModel.updateVendor(VendorId.create(), 'MikroTik', 'mikrotik');
-
-        const event = deviceModel.domainEvents[0] as DeviceModelUpdatedEvent;
-
-        expect(event.changedFields).toContain('vendorId');
-        expect(event.changedFields).toHaveLength(1);
-      });
-
-      it('should emit a DeviceModelUpdatedEvent with the correct aggregate ID', () => {
-        const deviceModel = makeDeviceModel();
-        deviceModel.clearEvents();
-        deviceModel.updateVendor(VendorId.create(), 'MikroTik', 'mikrotik');
-
-        const event = deviceModel.domainEvents[0] as DeviceModelUpdatedEvent;
-
-        expect(event.aggregateId.toString()).toBe(deviceModel.id.toString());
       });
     });
 
@@ -758,71 +573,6 @@ describe('DeviceModel', () => {
         expect(deviceModel.vendorName).toBe('Cisco');
         expect(deviceModel.vendorSlug).toBe('cisco');
       });
-
-      it('should not emit an event when validation fails', () => {
-        const deviceModel = makeDeviceModel();
-        deviceModel.clearEvents();
-        deviceModel.updateVendor(
-          null as unknown as VendorId,
-          'MikroTik',
-          'mikrotik'
-        );
-
-        expect(deviceModel.domainEvents.length).toBe(0);
-      });
-    });
-  });
-
-  // =========================================================================
-  describe('domain event accumulation', () => {
-    it('should have 1 event after create', () => {
-      const deviceModel = makeDeviceModel();
-
-      expect(deviceModel.domainEvents.length).toBe(1);
-    });
-
-    it('should have 2 events after create + one updateModel call', () => {
-      const deviceModel = makeDeviceModel({ model: 'Old-Model' });
-      deviceModel.updateModel('New-Model');
-
-      expect(deviceModel.domainEvents.length).toBe(2);
-    });
-
-    it('should accumulate events across multiple update calls', () => {
-      const deviceModel = makeDeviceModel({
-        model: 'Old-Model',
-        deviceType: 'Router'
-      });
-      deviceModel.updateModel('New-Model');
-      deviceModel.updateDeviceType('Switch');
-      deviceModel.updateVendor(VendorId.create(), 'HP', 'hp');
-
-      expect(deviceModel.domainEvents.length).toBe(4);
-      expect(deviceModel.domainEvents[0]).toBeInstanceOf(DeviceModelCreatedEvent);
-      expect(deviceModel.domainEvents[1]).toBeInstanceOf(DeviceModelUpdatedEvent);
-      expect(deviceModel.domainEvents[2]).toBeInstanceOf(DeviceModelUpdatedEvent);
-      expect(deviceModel.domainEvents[3]).toBeInstanceOf(DeviceModelUpdatedEvent);
-    });
-  });
-
-  // =========================================================================
-  describe('clearEvents()', () => {
-    it('should remove all domain events', () => {
-      const deviceModel = makeDeviceModel();
-      expect(deviceModel.domainEvents.length).toBe(1);
-
-      deviceModel.clearEvents();
-
-      expect(deviceModel.domainEvents.length).toBe(0);
-    });
-
-    it('should allow new events to accumulate after clearing', () => {
-      const deviceModel = makeDeviceModel({ model: 'Old-Model' });
-      deviceModel.clearEvents();
-
-      deviceModel.updateModel('New-Model');
-
-      expect(deviceModel.domainEvents.length).toBe(1);
     });
   });
 });

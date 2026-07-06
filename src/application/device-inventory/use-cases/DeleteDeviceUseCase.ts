@@ -1,31 +1,10 @@
-import { DeviceId } from '../../../domain/shared/ids';
-import { IDeviceRepository } from '../../../domain/device-inventory/repository/IDeviceRepository';
-import { Result } from '../../../domain/shared/core/Result';
-import { UseCase } from '../../shared/core/UseCase';
-import { ILogger } from '../../shared/interfaces/ILogger';
+import { DeviceId } from 'domain/shared/ids';
+import { IDeviceRepository } from 'domain/device-inventory/repository';
+import { Result } from 'domain/shared/core';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
 import { DeleteDeviceRequestDTO } from '../dtos/DeleteDeviceRequestDTO';
 
-/**
- * DeleteDeviceUseCase
- *
- * Business Intent: Permanently remove a device from the system by its unique identifier.
- *
- * Flow:
- * 1. beforeExecute: Validate that id is non-empty.
- * 2. executeImpl: Parse DeviceId, confirm the device exists,
- *    call the repository delete, and return a void success Result.
- *
- * Business Rules:
- * - id is required and must be a valid UUID.
- * - Returns a failure Result (not an exception) when the device is not found,
- *   so the presentation layer can map it to HTTP 404.
- * - The delete operation is delegated entirely to the repository; the use case
- *   performs no domain logic.
- *
- * Dependencies:
- * - IDeviceRepository: Write access to the Device aggregate store.
- * - ILogger: Structured logging via the base UseCase template.
- */
 export class DeleteDeviceUseCase extends UseCase<
   DeleteDeviceRequestDTO,
   void
@@ -37,10 +16,6 @@ export class DeleteDeviceUseCase extends UseCase<
     super(logger, 'DeleteDeviceUseCase');
   }
 
-  // ============================================================================
-  // Pre-execution validation
-  // ============================================================================
-
   protected async beforeExecute(
     request: DeleteDeviceRequestDTO
   ): Promise<Result<void> | null> {
@@ -48,12 +23,8 @@ export class DeleteDeviceUseCase extends UseCase<
       return Result.fail('Device ID is required');
     }
 
-    return null; // Validation passed
+    return null;
   }
-
-  // ============================================================================
-  // Main execution
-  // ============================================================================
 
   protected async executeImpl(
     request: DeleteDeviceRequestDTO

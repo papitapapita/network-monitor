@@ -1,6 +1,17 @@
-import { PrismaClient } from '../../generated/prisma/client';
+import { PrismaClient } from 'generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { WinstonLogger } from '../logging/WinstonLogger';
+import { WinstonLogger } from '../logging';
+import { JwtTokenService } from '../identity/services/JwtTokenService';
+import { BcryptPasswordService } from '../identity/services/BcryptPasswordService';
+import { PrismaUserRepository } from '../identity/repositories/PrismaUserRepository';
+import {
+  PrismaCustomerRepository,
+  PrismaServicePlanRepository,
+  PrismaContractedServiceRepository
+} from '../customers';
+import { LoginUseCase } from 'application/identity/use-cases/LoginUseCase';
+import { AuthController } from 'presentation/http/controllers/AuthController';
+import { ITokenService } from 'application/identity/interfaces/ITokenService';
 import {
   PrismaLocationRepository,
   PrismaDeviceRepository,
@@ -8,30 +19,64 @@ import {
   PrismaVendorRepository,
   PrismaPollingConfigurationRepository,
   PrismaPingResultRepository,
-  PrismaDeviceStateRepository
+  PrismaDeviceStateRepository,
+  PrismaAlertRepository,
+  PrismaDeviceCredentialsRepository
 } from '../persistence/';
-import { PrismaAlertRepository } from '../persistence/PrismaAlertRepository';
 import {
   LocationController,
   DeviceController,
   DeviceModelController,
   VendorController,
-  PollingController
-} from '../../presentation/http/controllers';
-import { AlertController } from '../../presentation/http/controllers/AlertController';
-import { ScanController } from '../../presentation/http/controllers/ScanController';
-import { WirelessController } from '../../presentation/http/controllers/WirelessController';
+  PollingController,
+  AlertController,
+  ScanController,
+  WirelessController,
+  CredentialsController,
+  CustomerController,
+  ServicePlanController,
+  ContractedServiceController
+} from 'presentation/http/controllers';
+import {
+  CreateCustomerUseCase,
+  GetCustomerUseCase,
+  ListCustomersUseCase,
+  UpdateCustomerUseCase,
+  DeleteCustomerUseCase,
+  CreateServicePlanUseCase,
+  GetServicePlanUseCase,
+  ListServicePlansUseCase,
+  UpdateServicePlanUseCase,
+  DeleteServicePlanUseCase,
+  CreateContractedServiceUseCase,
+  GetContractedServiceUseCase,
+  ListContractedServicesUseCase,
+  UpdateContractedServiceUseCase,
+  DeleteContractedServiceUseCase
+} from 'application/customers/use-cases';
 import {
   PrismaWirelessSnapshotRepository,
   PrismaWirelessAlertRecordRepository,
-  PrismaWirelessPollingConfigRepository,
-  PrismaDeviceCredentialsRepository,
-  SNMPCollector,
+  PrismaWirelessDeviceConfigRepository,
+  AirOsHttpClient,
   UbiquitiHttpCollector,
-  WirelessCounterStore,
   WirelessPollingOrchestrator
 } from '../wireless-monitoring';
-import { WirelessAlertEvaluator } from '../../application/wireless-monitoring/services/WirelessAlertEvaluator';
+import { WirelessDeviceRepositoryAdapter } from '../wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter';
+import { WirelessAlertEvaluator } from 'domain/wireless-monitoring/services';
+import { SignalStrengthRule } from 'domain/wireless-monitoring/services/rules/SignalStrengthRule';
+import { SnrRule } from 'domain/wireless-monitoring/services/rules/SnrRule';
+import { CcqRule } from 'domain/wireless-monitoring/services/rules/CcqRule';
+import { CpuMemoryRule } from 'domain/wireless-monitoring/services/rules/CpuMemoryRule';
+import { LanHealthRule } from 'domain/wireless-monitoring/services/rules/LanHealthRule';
+import { ClientCountRule } from 'domain/wireless-monitoring/services/rules/ClientCountRule';
+import { CapacityRule } from 'domain/wireless-monitoring/services/rules/CapacityRule';
+import { DistanceRule } from 'domain/wireless-monitoring/services/rules/DistanceRule';
+import { IdentityChangeRule } from 'domain/wireless-monitoring/services/rules/IdentityChangeRule';
+import { FirmwareRule } from 'domain/wireless-monitoring/services/rules/FirmwareRule';
+import { ThroughputSaturationRule } from 'domain/wireless-monitoring/services/rules/ThroughputSaturationRule';
+import { ClockSyncRule } from 'domain/wireless-monitoring/services/rules/ClockSyncRule';
+import { LatencyRule } from 'domain/wireless-monitoring/services/rules/LatencyRule';
 import {
   PollWirelessDeviceUseCase,
   GetWirelessDeviceStatusUseCase,
@@ -39,27 +84,53 @@ import {
   GetWirelessClientsUseCase,
   GetActiveWirelessAlertsUseCase,
   GetWirelessAlertHistoryUseCase,
-  TriggerWirelessPollUseCase
-} from '../../application/wireless-monitoring/use-cases';
-import { PingService } from '../monitoring/ping/PingService';
-import { ArpService } from '../monitoring/network-scanner/ArpService';
-import { NetworkScannerService } from '../monitoring/network-scanner/NetworkScannerService';
-import { PollingOrchestrator } from '../monitoring/orchestrator/PollingOrchestrator';
-import { TelegramNotificationService } from '../notifications/TelegramNotificationService';
-import { EventDispatcher } from '../../domain/shared/core';
-import { DeviceCreatedEvent } from '../../domain/device-inventory/events/DeviceCreatedEvent';
-import { DeviceMonitoringToggledEvent } from '../../domain/device-inventory/events/DeviceMonitoringToggledEvent';
-import { DeviceDetailsUpdatedEvent } from '../../domain/device-inventory/events/DeviceDetailsUpdatedEvent';
-import { DeviceWentOfflineEvent } from '../../domain/device-monitoring/events/DeviceWentOfflineEvent';
-import { DeviceCameOnlineEvent } from '../../domain/device-monitoring/events/DeviceCameOnlineEvent';
-import { DeviceProvisionedHandler } from '../../application/device-monitoring/event-handlers/DeviceProvisionedHandler';
-import { DeviceMonitoringToggledHandler } from '../../application/device-monitoring/event-handlers/DeviceMonitoringToggledHandler';
-import { DeviceIPAddressChangedHandler } from '../../application/device-monitoring/event-handlers/DeviceIPAddressChangedHandler';
-import { SendDeviceDownAlertUseCase } from '../../application/notifications/use-cases/SendDeviceDownAlertUseCase';
-import { SendDeviceRecoveryAlertUseCase } from '../../application/notifications/use-cases/SendDeviceRecoveryAlertUseCase';
-import { ListAlertsUseCase } from '../../application/notifications/use-cases/ListAlertsUseCase';
-import { DeviceWentOfflineNotificationHandler } from '../../application/notifications/event-handlers/DeviceWentOfflineNotificationHandler';
-import { DeviceCameOnlineNotificationHandler } from '../../application/notifications/event-handlers/DeviceCameOnlineNotificationHandler';
+  TriggerWirelessPollUseCase,
+  CreateWirelessConfigUseCase,
+  GetWirelessConfigUseCase,
+  UpdateWirelessConfigUseCase,
+  DeleteWirelessConfigUseCase
+} from 'application/wireless-monitoring/use-cases';
+import {
+  SetDeviceCredentialsUseCase,
+  GetDeviceCredentialsUseCase,
+  DeleteDeviceCredentialsUseCase,
+  GetMapLocationsUseCase,
+  DeleteLocationUseCase
+} from 'application/device-inventory/use-cases';
+import { PingService } from '../monitoring/ping';
+import {
+  ArpService,
+  NetworkScannerService
+} from '../monitoring/network-scanner';
+import { PollingOrchestrator } from '../monitoring/orchestrator';
+import { TelegramNotificationService } from '../notifications';
+import { EventDispatcher } from 'domain/shared/core';
+import {
+  DeviceCreatedEvent,
+  DeviceStatusChangedEvent,
+  DeviceMonitoringToggledEvent,
+  DeviceDetailsUpdatedEvent
+} from 'domain/device-inventory/events';
+import {
+  DeviceWentOfflineEvent,
+  DeviceCameOnlineEvent
+} from 'domain/device-monitoring/events';
+import {
+  DeviceProvisionedHandler,
+  DeviceStatusChangedHandler,
+  DeviceMonitoringToggledHandler,
+  DeviceIPAddressChangedHandler
+} from 'application/device-monitoring/event-handlers';
+import {
+  SendDeviceDownAlertUseCase,
+  SendDeviceRecoveryAlertUseCase,
+  ListAlertsUseCase,
+  PurgeOldAlertsUseCase
+} from 'application/notifications/use-cases';
+import {
+  DeviceWentOfflineNotificationHandler,
+  DeviceCameOnlineNotificationHandler
+} from 'application/notifications/event-handlers';
 
 // Use Cases
 import {
@@ -89,15 +160,19 @@ import {
   ConfigureDevicePollingUseCase,
   GetDevicePollingStatusUseCase,
   GetDevicePollingHistoryUseCase,
-  CreateDevicePollingUseCase
+  CreateDevicePollingUseCase,
+  PurgeOldPingResultsUseCase
 } from '../../application/device-monitoring/use-cases';
+import {
+  PurgeOldWirelessSnapshotsUseCase,
+  PurgeOldWirelessAlertRecordsUseCase
+} from 'application/wireless-monitoring/use-cases';
+import { DataRetentionOrchestrator } from '../retention/DataRetentionOrchestrator';
+import {
+  TriggerDataRetentionUseCase
+} from 'application/shared/use-cases/TriggerDataRetentionUseCase';
+import { AdminController } from 'presentation/http/controllers/AdminController';
 
-/**
- * DependencyContainer
- *
- * Simple dependency injection container for the application.
- * Provides singleton instances of all services, repositories, and controllers.
- */
 export class DependencyContainer {
   private prisma: PrismaClient;
   private logger: WinstonLogger;
@@ -113,8 +188,17 @@ export class DependencyContainer {
   // Wireless repositories
   private wirelessSnapshotRepository: PrismaWirelessSnapshotRepository;
   private wirelessAlertRecordRepository: PrismaWirelessAlertRecordRepository;
-  private wirelessPollingConfigRepository: PrismaWirelessPollingConfigRepository;
+  private wirelessDeviceConfigRepository: PrismaWirelessDeviceConfigRepository;
   private deviceCredentialsRepository: PrismaDeviceCredentialsRepository;
+
+  // Customers
+  public customerRepository: PrismaCustomerRepository;
+  public servicePlanRepository: PrismaServicePlanRepository;
+  public contractedServiceRepository: PrismaContractedServiceRepository;
+
+  // Identity
+  public tokenService: ITokenService;
+  public authController: AuthController;
 
   // Controllers
   public locationController: LocationController;
@@ -125,10 +209,18 @@ export class DependencyContainer {
   public alertController: AlertController;
   public scanController: ScanController;
   public wirelessController: WirelessController;
+  public credentialsController: CredentialsController;
+  public customerController: CustomerController;
+  public servicePlanController: ServicePlanController;
+  public contractedServiceController: ContractedServiceController;
 
   // Orchestrators (lifecycle managed by main.ts)
   public pollingOrchestrator: PollingOrchestrator;
   public wirelessPollingOrchestrator: WirelessPollingOrchestrator;
+  public dataRetentionOrchestrator: DataRetentionOrchestrator;
+
+  // Admin
+  public adminController: AdminController;
 
   constructor() {
     // Initialize infrastructure
@@ -162,6 +254,104 @@ export class DependencyContainer {
       this.prisma
     );
     this.alertRepository = new PrismaAlertRepository(this.prisma);
+    this.wirelessDeviceConfigRepository =
+      new PrismaWirelessDeviceConfigRepository(this.prisma);
+
+    // =====================================
+    // CUSTOMERS BOUNDED CONTEXT
+    // =====================================
+
+    this.customerRepository = new PrismaCustomerRepository(
+      this.prisma
+    );
+    this.servicePlanRepository = new PrismaServicePlanRepository(
+      this.prisma
+    );
+    this.contractedServiceRepository =
+      new PrismaContractedServiceRepository(this.prisma);
+
+    this.customerController = new CustomerController(
+      new CreateCustomerUseCase(this.customerRepository, this.logger),
+      new GetCustomerUseCase(this.customerRepository, this.logger),
+      new ListCustomersUseCase(this.customerRepository, this.logger),
+      new UpdateCustomerUseCase(this.customerRepository, this.logger),
+      new DeleteCustomerUseCase(
+        this.customerRepository,
+        this.contractedServiceRepository,
+        this.logger
+      ),
+      this.logger
+    );
+
+    this.servicePlanController = new ServicePlanController(
+      new CreateServicePlanUseCase(
+        this.servicePlanRepository,
+        this.logger
+      ),
+      new GetServicePlanUseCase(
+        this.servicePlanRepository,
+        this.logger
+      ),
+      new ListServicePlansUseCase(
+        this.servicePlanRepository,
+        this.logger
+      ),
+      new UpdateServicePlanUseCase(
+        this.servicePlanRepository,
+        this.logger
+      ),
+      new DeleteServicePlanUseCase(
+        this.servicePlanRepository,
+        this.contractedServiceRepository,
+        this.logger
+      ),
+      this.logger
+    );
+
+    this.contractedServiceController =
+      new ContractedServiceController(
+        new CreateContractedServiceUseCase(
+          this.contractedServiceRepository,
+          this.customerRepository,
+          this.servicePlanRepository,
+          this.logger
+        ),
+        new GetContractedServiceUseCase(
+          this.contractedServiceRepository,
+          this.logger
+        ),
+        new ListContractedServicesUseCase(
+          this.contractedServiceRepository,
+          this.logger
+        ),
+        new UpdateContractedServiceUseCase(
+          this.contractedServiceRepository,
+          this.servicePlanRepository,
+          this.logger
+        ),
+        new DeleteContractedServiceUseCase(
+          this.contractedServiceRepository,
+          this.logger
+        ),
+        this.logger
+      );
+
+    // =====================================
+    // IDENTITY BOUNDED CONTEXT
+    // =====================================
+
+    const jwtTokenService = new JwtTokenService();
+    const bcryptPasswordService = new BcryptPasswordService();
+    const userRepository = new PrismaUserRepository(this.prisma);
+    const loginUseCase = new LoginUseCase(
+      userRepository,
+      bcryptPasswordService,
+      jwtTokenService,
+      this.logger
+    );
+
+    this.tokenService = jwtTokenService;
+    this.authController = new AuthController(loginUseCase, this.logger);
 
     // Initialize location use cases
     const createLocationUseCase = new CreateLocationUseCase(
@@ -178,6 +368,16 @@ export class DependencyContainer {
     );
     const updateLocationUseCase = new UpdateLocationUseCase(
       this.locationRepository,
+      this.logger
+    );
+    const getMapLocationsUseCase = new GetMapLocationsUseCase(
+      this.locationRepository,
+      this.deviceRepository,
+      this.logger
+    );
+    const deleteLocationUseCase = new DeleteLocationUseCase(
+      this.locationRepository,
+      this.deviceRepository,
       this.logger
     );
 
@@ -220,6 +420,8 @@ export class DependencyContainer {
     const updateDeviceModelUseCase = new UpdateDeviceModelUseCase(
       this.deviceModelRepository,
       this.vendorRepository,
+      this.deviceRepository,
+      this.wirelessDeviceConfigRepository,
       this.logger
     );
     const deleteDeviceModelUseCase = new DeleteDeviceModelUseCase(
@@ -257,6 +459,8 @@ export class DependencyContainer {
       getLocationUseCase,
       listLocationsUseCase,
       updateLocationUseCase,
+      getMapLocationsUseCase,
+      deleteLocationUseCase,
       this.logger
     );
 
@@ -338,13 +542,15 @@ export class DependencyContainer {
       getPollingStatusUseCase,
       getPollingHistoryUseCase,
       configurePollingUseCase,
-      createDevicePollingUseCase
+      createDevicePollingUseCase,
+      this.logger
     );
 
     this.pollingOrchestrator = new PollingOrchestrator(
       this.pollingConfigRepository,
       executePollingCycleUseCase,
-      { maxConcurrentPolls: 50 }
+      { maxConcurrentPolls: 50 },
+      this.logger
     );
 
     // Initialize notification service (fail-fast if env vars missing)
@@ -382,52 +588,94 @@ export class DependencyContainer {
     // WIRELESS-MONITORING BOUNDED CONTEXT
     // =====================================
 
-    this.wirelessSnapshotRepository = new PrismaWirelessSnapshotRepository(this.prisma);
-    this.wirelessAlertRecordRepository = new PrismaWirelessAlertRecordRepository(this.prisma);
-    this.wirelessPollingConfigRepository = new PrismaWirelessPollingConfigRepository(this.prisma);
-    this.deviceCredentialsRepository = new PrismaDeviceCredentialsRepository(this.prisma);
+    this.wirelessSnapshotRepository =
+      new PrismaWirelessSnapshotRepository(this.prisma);
+    this.wirelessAlertRecordRepository =
+      new PrismaWirelessAlertRecordRepository(this.prisma);
+    this.deviceCredentialsRepository =
+      new PrismaDeviceCredentialsRepository(this.prisma);
 
-    const snmpCollector = new SNMPCollector();
-    const httpCollector = new UbiquitiHttpCollector();
-    const counterStore = new WirelessCounterStore();
-    const alertEvaluator = new WirelessAlertEvaluator();
+    const airOsHttpClient = new AirOsHttpClient(10_000, this.logger);
+    const httpCollector = new UbiquitiHttpCollector(airOsHttpClient);
+    const alertEvaluator = new WirelessAlertEvaluator([
+      new SignalStrengthRule(),
+      new SnrRule(),
+      new CcqRule(),
+      new CpuMemoryRule(),
+      new LanHealthRule(),
+      new ClientCountRule(),
+      new CapacityRule(),
+      new DistanceRule(),
+      new IdentityChangeRule(),
+      new FirmwareRule(),
+      new ThroughputSaturationRule(),
+      new ClockSyncRule(),
+      new LatencyRule()
+    ]);
+    const wirelessDeviceRepo = new WirelessDeviceRepositoryAdapter(
+      this.deviceRepository
+    );
 
     const pollWirelessDeviceUseCase = new PollWirelessDeviceUseCase(
-      this.wirelessPollingConfigRepository,
+      this.wirelessDeviceConfigRepository,
       this.wirelessSnapshotRepository,
       this.wirelessAlertRecordRepository,
       this.deviceCredentialsRepository,
-      snmpCollector,
       httpCollector,
-      counterStore,
       alertEvaluator,
+      wirelessDeviceRepo,
       this.logger
     );
-    const getWirelessDeviceStatusUseCase = new GetWirelessDeviceStatusUseCase(
-      this.wirelessSnapshotRepository,
-      this.wirelessAlertRecordRepository,
-      this.logger
-    );
-    const getWirelessDeviceHistoryUseCase = new GetWirelessDeviceHistoryUseCase(
-      this.wirelessSnapshotRepository,
-      this.logger
-    );
+    const getWirelessDeviceStatusUseCase =
+      new GetWirelessDeviceStatusUseCase(
+        this.wirelessSnapshotRepository,
+        this.wirelessAlertRecordRepository,
+        this.logger
+      );
+    const getWirelessDeviceHistoryUseCase =
+      new GetWirelessDeviceHistoryUseCase(
+        this.wirelessSnapshotRepository,
+        this.logger
+      );
     const getWirelessClientsUseCase = new GetWirelessClientsUseCase(
       this.wirelessSnapshotRepository,
       this.logger
     );
-    const getActiveWirelessAlertsUseCase = new GetActiveWirelessAlertsUseCase(
-      this.wirelessAlertRecordRepository,
-      this.logger
-    );
-    const getWirelessAlertHistoryUseCase = new GetWirelessAlertHistoryUseCase(
-      this.wirelessAlertRecordRepository,
-      this.logger
-    );
+    const getActiveWirelessAlertsUseCase =
+      new GetActiveWirelessAlertsUseCase(
+        this.wirelessAlertRecordRepository,
+        this.logger
+      );
+    const getWirelessAlertHistoryUseCase =
+      new GetWirelessAlertHistoryUseCase(
+        this.wirelessAlertRecordRepository,
+        this.logger
+      );
     const triggerWirelessPollUseCase = new TriggerWirelessPollUseCase(
       pollWirelessDeviceUseCase,
       this.logger
     );
+    const createWirelessConfigUseCase =
+      new CreateWirelessConfigUseCase(
+        this.deviceRepository,
+        this.deviceModelRepository,
+        this.wirelessDeviceConfigRepository,
+        this.logger
+      );
+    const getWirelessConfigUseCase = new GetWirelessConfigUseCase(
+      this.wirelessDeviceConfigRepository,
+      this.logger
+    );
+    const updateWirelessConfigUseCase =
+      new UpdateWirelessConfigUseCase(
+        this.wirelessDeviceConfigRepository,
+        this.logger
+      );
+    const deleteWirelessConfigUseCase =
+      new DeleteWirelessConfigUseCase(
+        this.wirelessDeviceConfigRepository,
+        this.logger
+      );
 
     this.wirelessController = new WirelessController(
       getWirelessDeviceStatusUseCase,
@@ -435,24 +683,122 @@ export class DependencyContainer {
       getWirelessClientsUseCase,
       getActiveWirelessAlertsUseCase,
       getWirelessAlertHistoryUseCase,
-      triggerWirelessPollUseCase
+      triggerWirelessPollUseCase,
+      createWirelessConfigUseCase,
+      getWirelessConfigUseCase,
+      updateWirelessConfigUseCase,
+      deleteWirelessConfigUseCase,
+      this.logger
     );
 
-    this.wirelessPollingOrchestrator = new WirelessPollingOrchestrator(
-      this.wirelessPollingConfigRepository,
-      pollWirelessDeviceUseCase,
-      { maxConcurrentPolls: 50 },
+    // =====================================
+    // DEVICE CREDENTIALS (device-inventory BC)
+    // =====================================
+
+    const setDeviceCredentialsUseCase =
+      new SetDeviceCredentialsUseCase(
+        this.deviceRepository,
+        this.deviceCredentialsRepository,
+        this.logger
+      );
+    const getDeviceCredentialsUseCase =
+      new GetDeviceCredentialsUseCase(
+        this.deviceCredentialsRepository,
+        this.logger
+      );
+    const deleteDeviceCredentialsUseCase =
+      new DeleteDeviceCredentialsUseCase(
+        this.deviceCredentialsRepository,
+        this.logger
+      );
+
+    this.credentialsController = new CredentialsController(
+      setDeviceCredentialsUseCase,
+      getDeviceCredentialsUseCase,
+      deleteDeviceCredentialsUseCase,
+      this.logger
+    );
+
+    this.wirelessPollingOrchestrator =
+      new WirelessPollingOrchestrator(
+        this.wirelessDeviceConfigRepository,
+        pollWirelessDeviceUseCase,
+        { maxConcurrentPolls: 50 },
+        this.logger
+      );
+
+    // =====================================
+    // DATA RETENTION
+    // =====================================
+
+    const purgeOldPingResultsUseCase = new PurgeOldPingResultsUseCase(
+      this.pingResultRepository
+    );
+    const purgeOldAlertsUseCase = new PurgeOldAlertsUseCase(
+      this.alertRepository
+    );
+    const purgeOldWirelessSnapshotsUseCase =
+      new PurgeOldWirelessSnapshotsUseCase(
+        this.wirelessSnapshotRepository
+      );
+    const purgeOldWirelessAlertRecordsUseCase =
+      new PurgeOldWirelessAlertRecordsUseCase(
+        this.wirelessAlertRecordRepository
+      );
+
+    const retentionConfig = {
+      pingResultRetentionDays: parseInt(
+        process.env.PING_RESULT_RETENTION_DAYS ?? '30',
+        10
+      ),
+      wirelessSnapshotRetentionDays: parseInt(
+        process.env.WIRELESS_SNAPSHOT_RETENTION_DAYS ?? '30',
+        10
+      ),
+      alertRetentionDays: parseInt(
+        process.env.ALERT_RETENTION_DAYS ?? '90',
+        10
+      ),
+      wirelessAlertRecordRetentionDays: parseInt(
+        process.env.WIRELESS_ALERT_RECORD_RETENTION_DAYS ?? '90',
+        10
+      )
+    };
+
+    const triggerDataRetentionUseCase = new TriggerDataRetentionUseCase(
+      purgeOldPingResultsUseCase,
+      purgeOldAlertsUseCase,
+      purgeOldWirelessSnapshotsUseCase,
+      purgeOldWirelessAlertRecordsUseCase,
+      retentionConfig
+    );
+
+    this.adminController = new AdminController(
+      triggerDataRetentionUseCase,
+      this.logger
+    );
+
+    this.dataRetentionOrchestrator = new DataRetentionOrchestrator(
+      purgeOldPingResultsUseCase,
+      purgeOldAlertsUseCase,
+      purgeOldWirelessSnapshotsUseCase,
+      purgeOldWirelessAlertRecordsUseCase,
+      retentionConfig,
       this.logger
     );
 
     // Register cross-context event handlers
     EventDispatcher.register(
       DeviceCreatedEvent.name,
-      new DeviceProvisionedHandler(this.pollingConfigRepository)
+      new DeviceProvisionedHandler(this.pollingConfigRepository, this.logger)
+    );
+    EventDispatcher.register(
+      DeviceStatusChangedEvent.name,
+      new DeviceStatusChangedHandler(this.pollingConfigRepository, this.logger)
     );
     EventDispatcher.register(
       DeviceMonitoringToggledEvent.name,
-      new DeviceMonitoringToggledHandler(this.pollingConfigRepository)
+      new DeviceMonitoringToggledHandler(this.pollingConfigRepository, this.logger)
     );
     EventDispatcher.register(
       DeviceDetailsUpdatedEvent.name,
@@ -461,20 +807,19 @@ export class DependencyContainer {
     EventDispatcher.register(
       DeviceWentOfflineEvent.name,
       new DeviceWentOfflineNotificationHandler(
-        sendDeviceDownAlertUseCase
+        sendDeviceDownAlertUseCase,
+        this.logger
       )
     );
     EventDispatcher.register(
       DeviceCameOnlineEvent.name,
       new DeviceCameOnlineNotificationHandler(
-        sendDeviceRecoveryAlertUseCase
+        sendDeviceRecoveryAlertUseCase,
+        this.logger
       )
     );
   }
 
-  /**
-   * Connects to database and performs any necessary initialization.
-   */
   public async connect(): Promise<void> {
     try {
       await this.prisma.$connect();
@@ -488,9 +833,6 @@ export class DependencyContainer {
     }
   }
 
-  /**
-   * Gracefully disconnects from database.
-   */
   public async disconnect(): Promise<void> {
     try {
       await this.prisma.$disconnect();
@@ -504,24 +846,15 @@ export class DependencyContainer {
     }
   }
 
-  /**
-   * Returns the Prisma client instance for direct database access if needed.
-   */
   public getPrisma(): PrismaClient {
     return this.prisma;
   }
 
-  /**
-   * Returns the logger instance.
-   */
   public getLogger(): WinstonLogger {
     return this.logger;
   }
 }
 
-/**
- * Factory function to create and initialize the dependency container.
- */
 export async function setupDependencies(): Promise<DependencyContainer> {
   const container = new DependencyContainer();
   await container.connect();

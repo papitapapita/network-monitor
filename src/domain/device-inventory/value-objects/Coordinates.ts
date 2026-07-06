@@ -1,21 +1,8 @@
-import { ValueObject, Result, Guard } from '../../shared/core';
+import { ValueObject, Result, Guard } from 'domain/shared/core';
 import { CoordinatesProps } from '../props';
 
-/**
- * Coordinates Value Object
- *
- * Represents a geographic position expressed in WGS-84 decimal degrees.
- * Latitude and longitude must always be provided together — providing one
- * without the other is a domain invariant violation.
- * Altitude (elevation above sea level in metres) is optional.
- *
- * Business Rules:
- * - Latitude must be in the range -90 to 90 (inclusive)
- * - Longitude must be in the range -180 to 180 (inclusive)
- * - Latitude and longitude are required together; neither can appear without the other
- * - Altitude has no enforced range (negative values are valid, e.g. below sea level)
- * - All values must be finite numbers (NaN and Infinity are rejected)
- */
+// WGS-84 decimal degrees. Lat and lon are always paired — one without the
+// other is an invariant violation enforced by CoordinatesProps structure.
 export class Coordinates extends ValueObject<CoordinatesProps> {
   get latitude(): number {
     return this._props.latitude;

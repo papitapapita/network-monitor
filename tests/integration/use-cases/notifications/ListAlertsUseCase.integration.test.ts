@@ -84,7 +84,7 @@ describe('ListAlertsUseCase — integration', () => {
     const startedAt = new Date('2025-06-01T10:00:00Z');
     const resolvedAt = new Date('2025-06-01T11:00:00Z');
     await prisma.alertEvent.create({
-      data: { deviceId, severity: 'CRITICAL', startedAt, resolvedAt, durationSecs: 3600 }
+      data: { deviceId, severity: 'CRITICAL', startedAt, resolvedAt }
     });
 
     const result = await useCase.execute({});

@@ -4,7 +4,7 @@ import { LocationMapper } from '../../../src/infrastructure/mappers/LocationMapp
 import { Location } from '../../../src/domain/device-inventory/aggregates';
 import { LocationId } from '../../../src/domain/shared/ids';
 import { LocationType } from '../../../src/domain/device-inventory/enums';
-import { Coordinates } from '../../../src/domain/device-inventory/value-objects';
+import { Address, Coordinates } from '../../../src/domain/device-inventory/value-objects';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -42,12 +42,21 @@ function makeLocationDomain(overrides: {
   coordinates?: Coordinates | null;
 } = {}): Location {
   const id = LocationId.parse(VALID_UUID).value;
+  const street =
+    overrides.address !== undefined ? overrides.address : 'Carrera 80 # 75-32';
+  const municipality =
+    overrides.municipality !== undefined ? overrides.municipality : 'Medellín';
+  const neighborhood =
+    overrides.neighborhood !== undefined ? overrides.neighborhood : 'Robledo';
+  const addressVO =
+    street === null || municipality === null || neighborhood === null
+      ? null
+      : Address.reconstitute({ street, municipality, neighborhood });
+
   return Location.reconstitute(id, {
     name: overrides.name ?? 'Torre Norte',
     type: overrides.type ?? LocationType.TOWER,
-    municipality: overrides.municipality !== undefined ? overrides.municipality : 'Medellín',
-    neighborhood: overrides.neighborhood !== undefined ? overrides.neighborhood : 'Robledo',
-    address: overrides.address !== undefined ? overrides.address : 'Carrera 80 # 75-32',
+    address: addressVO,
     coordinates: overrides.coordinates !== undefined ? overrides.coordinates : null,
     createdAt: BASE_DATE,
     updatedAt: UPDATED_DATE
@@ -278,11 +287,11 @@ describe('LocationMapper', () => {
     describe('LocationType mapping from Prisma string', () => {
       const typeMatrix: Array<[string, LocationType]> = [
         ['TOWER', LocationType.TOWER],
-        ['NODE', LocationType.NODE],
         ['DATACENTER', LocationType.DATACENTER],
-        ['POP', LocationType.POP],
-        ['WAREHOUSE', LocationType.WAREHOUSE],
-        ['OFFICE', LocationType.OFFICE]
+        ['POINT_OF_PRESENCE', LocationType.POINT_OF_PRESENCE],
+        ['OFFICE', LocationType.OFFICE],
+        ['CUSTOMER_PREMISES', LocationType.CUSTOMER_PREMISES],
+        ['OTHER', LocationType.OTHER]
       ];
 
       for (const [prismaType, expectedDomainType] of typeMatrix) {
@@ -535,11 +544,11 @@ describe('LocationMapper', () => {
     describe('LocationType mapping to Prisma string', () => {
       const typeMatrix: Array<[LocationType, string]> = [
         [LocationType.TOWER, 'TOWER'],
-        [LocationType.NODE, 'NODE'],
         [LocationType.DATACENTER, 'DATACENTER'],
-        [LocationType.POP, 'POP'],
-        [LocationType.WAREHOUSE, 'WAREHOUSE'],
-        [LocationType.OFFICE, 'OFFICE']
+        [LocationType.POINT_OF_PRESENCE, 'POINT_OF_PRESENCE'],
+        [LocationType.OFFICE, 'OFFICE'],
+        [LocationType.CUSTOMER_PREMISES, 'CUSTOMER_PREMISES'],
+        [LocationType.OTHER, 'OTHER']
       ];
 
       for (const [domainType, expectedPrismaString] of typeMatrix) {
@@ -610,11 +619,11 @@ describe('LocationMapper', () => {
     it('should round-trip every LocationType correctly', () => {
       const types: string[] = [
         'TOWER',
-        'NODE',
         'DATACENTER',
-        'POP',
-        'WAREHOUSE',
-        'OFFICE'
+        'POINT_OF_PRESENCE',
+        'OFFICE',
+        'CUSTOMER_PREMISES',
+        'OTHER'
       ];
 
       for (const type of types) {

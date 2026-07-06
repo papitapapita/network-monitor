@@ -1,5 +1,10 @@
-import { Vendor } from '../../../domain/device-inventory/aggregates';
-import { VendorResponseDTO, VendorListResponseDTO } from '../dtos';
+import { Vendor } from 'domain/device-inventory';
+import {
+  VendorResponseDTO,
+  VendorListResponseDTO,
+  CreateVendorRequestDTO,
+  UpdateVendorRequestDTO
+} from '../dtos';
 
 export class VendorMapper {
   public static toDTO(vendor: Vendor): VendorResponseDTO {
@@ -26,5 +31,25 @@ export class VendorMapper {
       limit,
       offset
     };
+  }
+
+  public static extractCreateData(dto: CreateVendorRequestDTO) {
+    return {
+      name: dto.name,
+      slug: dto.slug,
+      description: dto.description ?? null
+    };
+  }
+
+  public static extractUpdateData(dto: UpdateVendorRequestDTO) {
+    const updates: {
+      name?: string;
+      slug?: string;
+      description?: string | null;
+    } = {};
+    if (dto.name !== undefined) updates.name = dto.name;
+    if (dto.slug !== undefined) updates.slug = dto.slug;
+    if (dto.description !== undefined) updates.description = dto.description;
+    return updates;
   }
 }

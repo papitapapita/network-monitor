@@ -1,11 +1,10 @@
+import { WirelessSnapshot } from 'domain/wireless-monitoring/aggregates';
+import { WirelessMetricsProps } from 'domain/wireless-monitoring/props';
 import {
-  WirelessSnapshot,
   WirelessMetrics,
-  WirelessClientEntry,
-  WirelessMetricsProps
-} from 'domain/wireless-monitoring';
-import { DeviceId } from 'domain/shared';
-import { SnapshotId } from 'domain/shared/ids';
+  WirelessClientEntry
+} from 'domain/wireless-monitoring/value-objects';
+import { SnapshotId, DeviceId } from 'domain/shared/ids';
 
 type PrismaWirelessSnapshot = {
   id: string;
@@ -18,11 +17,8 @@ type PrismaWirelessSnapshot = {
   noiseFloorDbm: number | null;
   snrDb: number | null;
   ccqPercent: number | null;
-  txRateMbps: { toNumber(): number } | null;
-  rxRateMbps: { toNumber(): number } | null;
   frequencyMhz: number | null;
   channelWidthMhz: number | null;
-  txPowerDbm: number | null;
   throughputTxBps: bigint | null;
   throughputRxBps: bigint | null;
   throughputTxPps: bigint | null;
@@ -37,11 +33,18 @@ type PrismaWirelessSnapshot = {
   deviceName: string | null;
   remoteApMac: string | null;
   remoteApName: string | null;
+  remoteApIp: string | null;
+  remoteApDeviceId: string | null;
   distanceM: number | null;
   latencyMs: number | null;
+  capacityTxKbps: number | null;
+  capacityRxKbps: number | null;
+  deviceTimeEpoch: bigint | null;
   clientsConnected: number | null;
-  clientsProvisioned: number | null;
   clientsJson: unknown;
+  macAddress: string | null;
+  deviceModel: string | null;
+  ssid: string | null;
 };
 
 type PersistenceData = {
@@ -55,11 +58,8 @@ type PersistenceData = {
   noiseFloorDbm: number | null;
   snrDb: number | null;
   ccqPercent: number | null;
-  txRateMbps: number | null;
-  rxRateMbps: number | null;
   frequencyMhz: number | null;
   channelWidthMhz: number | null;
-  txPowerDbm: number | null;
   throughputTxBps: bigint | null;
   throughputRxBps: bigint | null;
   throughputTxPps: bigint | null;
@@ -74,11 +74,18 @@ type PersistenceData = {
   deviceName: string | null;
   remoteApMac: string | null;
   remoteApName: string | null;
+  remoteApIp: string | null;
+  remoteApDeviceId: string | null;
   distanceM: number | null;
   latencyMs: number | null;
+  capacityTxKbps: number | null;
+  capacityRxKbps: number | null;
+  deviceTimeEpoch: bigint | null;
   clientsConnected: number | null;
-  clientsProvisioned: number | null;
   clientsJson: unknown;
+  macAddress: string | null;
+  deviceModel: string | null;
+  ssid: string | null;
 };
 
 export class WirelessSnapshotPrismaMapper {
@@ -97,11 +104,8 @@ export class WirelessSnapshotPrismaMapper {
       noiseFloorDbm: raw.noiseFloorDbm,
       snrDb: raw.snrDb,
       ccqPercent: raw.ccqPercent,
-      txRateMbps: raw.txRateMbps ? raw.txRateMbps.toNumber() : null,
-      rxRateMbps: raw.rxRateMbps ? raw.rxRateMbps.toNumber() : null,
       frequencyMhz: raw.frequencyMhz,
       channelWidthMhz: raw.channelWidthMhz,
-      txPowerDbm: raw.txPowerDbm,
       throughputTxBps:
         raw.throughputTxBps !== null
           ? Number(raw.throughputTxBps)
@@ -129,10 +133,17 @@ export class WirelessSnapshotPrismaMapper {
       deviceName: raw.deviceName,
       remoteApMac: raw.remoteApMac,
       remoteApName: raw.remoteApName,
+      remoteApIp: raw.remoteApIp,
       distanceM: raw.distanceM,
       latencyMs: raw.latencyMs,
+      capacityTxKbps: raw.capacityTxKbps,
+      capacityRxKbps: raw.capacityRxKbps,
+      deviceTimeEpoch:
+        raw.deviceTimeEpoch !== null ? Number(raw.deviceTimeEpoch) : null,
       clientsConnected: raw.clientsConnected,
-      clientsProvisioned: raw.clientsProvisioned
+      macAddress: raw.macAddress,
+      deviceModel: raw.deviceModel,
+      ssid: raw.ssid
     };
 
     const metrics = WirelessMetrics.reconstitute(metricsProps);
@@ -140,58 +151,125 @@ export class WirelessSnapshotPrismaMapper {
     const clients: WirelessClientEntry[] = [];
     if (raw.clientsJson && Array.isArray(raw.clientsJson)) {
       for (const c of raw.clientsJson as Record<string, unknown>[]) {
+        const txBytes = c['txBytesTotal'];
+        const rxBytes = c['rxBytesTotal'];
         clients.push(
           WirelessClientEntry.reconstitute({
             macAddress: String(c['macAddress'] ?? ''),
+            ipAddress: (c['ipAddress'] as string | null) ?? null,
             signalRxDbm: (c['signalRxDbm'] as number | null) ?? null,
-            signalTxDbm: (c['signalTxDbm'] as number | null) ?? null,
-            snrDb: (c['snrDb'] as number | null) ?? null,
-            txRateMbps: (c['txRateMbps'] as number | null) ?? null,
-            rxRateMbps: (c['rxRateMbps'] as number | null) ?? null,
-            throughputTxBps:
-              (c['throughputTxBps'] as number | null) ?? null,
-            throughputRxBps:
-              (c['throughputRxBps'] as number | null) ?? null,
-            ccqPercent: (c['ccqPercent'] as number | null) ?? null,
-            uptimeSeconds:
-              (c['uptimeSeconds'] as number | null) ?? null,
-            ipAddress: (c['ipAddress'] as string | null) ?? null
+            noiseFloorDbm: (c['noiseFloorDbm'] as number | null) ?? null,
+            distanceM: (c['distanceM'] as number | null) ?? null,
+            uptimeSeconds: (c['uptimeSeconds'] as number | null) ?? null,
+            txLatencyMs: (c['txLatencyMs'] as number | null) ?? null,
+            dlLinkScore: (c['dlLinkScore'] as number | null) ?? null,
+            ulLinkScore: (c['ulLinkScore'] as number | null) ?? null,
+            dlCapacityKbps:
+              (c['dlCapacityKbps'] as number | null) ?? null,
+            ulCapacityKbps:
+              (c['ulCapacityKbps'] as number | null) ?? null,
+            dlCinr: (c['dlCinr'] as number | null) ?? null,
+            ulCinr: (c['ulCinr'] as number | null) ?? null,
+            txBytesTotal:
+              txBytes !== null && txBytes !== undefined
+                ? BigInt(String(txBytes))
+                : null,
+            rxBytesTotal:
+              rxBytes !== null && rxBytes !== undefined
+                ? BigInt(String(rxBytes))
+                : null,
+            txPps: (c['txPps'] as number | null) ?? null,
+            rxPps: (c['rxPps'] as number | null) ?? null,
+            remoteHostname:
+              (c['remoteHostname'] as string | null) ?? null,
+            remotePlatform:
+              (c['remotePlatform'] as string | null) ?? null,
+            remoteVersion:
+              (c['remoteVersion'] as string | null) ?? null,
+            remoteCpuLoad:
+              (c['remoteCpuLoad'] as number | null) ?? null,
+            remoteTotalRam:
+              (c['remoteTotalRam'] as number | null) ?? null,
+            remoteFreeRam:
+              (c['remoteFreeRam'] as number | null) ?? null,
+            remoteSignal: (c['remoteSignal'] as number | null) ?? null,
+            remoteNoiseFloor:
+              (c['remoteNoiseFloor'] as number | null) ?? null,
+            remoteTxPower:
+              (c['remoteTxPower'] as number | null) ?? null,
+            remoteTxThroughputKbps:
+              (c['remoteTxThroughputKbps'] as number | null) ?? null,
+            remoteRxThroughputKbps:
+              (c['remoteRxThroughputKbps'] as number | null) ?? null,
+            remoteIpAddresses: Array.isArray(c['remoteIpAddresses'])
+              ? (c['remoteIpAddresses'] as string[])
+              : [],
+            dlAirtimePercent:
+              (c['dlAirtimePercent'] as number | null) ?? null,
+            ulAirtimePercent:
+              (c['ulAirtimePercent'] as number | null) ?? null
           })
         );
       }
     }
 
-    return WirelessSnapshot.reconstitute(
-      {
-        deviceId: deviceId.value,
-        deviceType: raw.deviceType as 'CPE' | 'ACCESS_POINT',
-        collectedAt: raw.collectedAt,
-        collectionMethod: raw.collectionMethod as
-          | 'snmp'
-          | 'http_api'
-          | 'mixed',
-        metrics,
-        clients,
-        alerts: []
-      },
-      snapshotId.value
-    );
+    let remoteApDeviceId = null;
+    if (raw.remoteApDeviceId) {
+      const apId = DeviceId.parse(raw.remoteApDeviceId);
+      if (apId.isSuccess) remoteApDeviceId = apId.value;
+    }
+
+    return WirelessSnapshot.reconstitute(snapshotId.value, {
+      deviceId: deviceId.value,
+      deviceType: raw.deviceType as 'STATION' | 'ACCESS_POINT',
+      collectedAt: raw.collectedAt,
+      collectionMethod: raw.collectionMethod as
+        | 'snmp'
+        | 'http_api'
+        | 'mixed',
+      metrics,
+      clients,
+      alerts: [],
+      remoteApDeviceId
+    });
   }
 
   static toPersistence(snapshot: WirelessSnapshot): PersistenceData {
     const m = snapshot.metrics;
     const clientsJson = snapshot.clients.map((c) => ({
       macAddress: c.macAddress,
+      ipAddress: c.ipAddress,
       signalRxDbm: c.signalRxDbm,
-      signalTxDbm: c.signalTxDbm,
-      snrDb: c.snrDb,
-      txRateMbps: c.txRateMbps,
-      rxRateMbps: c.rxRateMbps,
-      throughputTxBps: c.throughputTxBps,
-      throughputRxBps: c.throughputRxBps,
-      ccqPercent: c.ccqPercent,
+      noiseFloorDbm: c.noiseFloorDbm,
+      distanceM: c.distanceM,
       uptimeSeconds: c.uptimeSeconds,
-      ipAddress: c.ipAddress
+      txLatencyMs: c.txLatencyMs,
+      dlLinkScore: c.dlLinkScore,
+      ulLinkScore: c.ulLinkScore,
+      dlCapacityKbps: c.dlCapacityKbps,
+      ulCapacityKbps: c.ulCapacityKbps,
+      dlCinr: c.dlCinr,
+      ulCinr: c.ulCinr,
+      txBytesTotal:
+        c.txBytesTotal !== null ? c.txBytesTotal.toString() : null,
+      rxBytesTotal:
+        c.rxBytesTotal !== null ? c.rxBytesTotal.toString() : null,
+      txPps: c.txPps,
+      rxPps: c.rxPps,
+      remoteHostname: c.remoteHostname,
+      remotePlatform: c.remotePlatform,
+      remoteVersion: c.remoteVersion,
+      remoteCpuLoad: c.remoteCpuLoad,
+      remoteTotalRam: c.remoteTotalRam,
+      remoteFreeRam: c.remoteFreeRam,
+      remoteSignal: c.remoteSignal,
+      remoteNoiseFloor: c.remoteNoiseFloor,
+      remoteTxPower: c.remoteTxPower,
+      remoteTxThroughputKbps: c.remoteTxThroughputKbps,
+      remoteRxThroughputKbps: c.remoteRxThroughputKbps,
+      remoteIpAddresses: c.remoteIpAddresses,
+      dlAirtimePercent: c.dlAirtimePercent,
+      ulAirtimePercent: c.ulAirtimePercent
     }));
 
     return {
@@ -205,11 +283,8 @@ export class WirelessSnapshotPrismaMapper {
       noiseFloorDbm: m.noiseFloorDbm,
       snrDb: m.snrDb,
       ccqPercent: m.ccqPercent,
-      txRateMbps: m.txRateMbps,
-      rxRateMbps: m.rxRateMbps,
       frequencyMhz: m.frequencyMhz,
       channelWidthMhz: m.channelWidthMhz,
-      txPowerDbm: m.txPowerDbm,
       throughputTxBps:
         m.throughputTxBps !== null ? BigInt(m.throughputTxBps) : null,
       throughputRxBps:
@@ -229,11 +304,21 @@ export class WirelessSnapshotPrismaMapper {
       deviceName: m.deviceName,
       remoteApMac: m.remoteApMac,
       remoteApName: m.remoteApName,
+      remoteApIp: m.remoteApIp,
+      remoteApDeviceId: snapshot.remoteApDeviceId
+        ? snapshot.remoteApDeviceId.toString()
+        : null,
       distanceM: m.distanceM,
       latencyMs: m.latencyMs,
+      capacityTxKbps: m.capacityTxKbps,
+      capacityRxKbps: m.capacityRxKbps,
+      deviceTimeEpoch:
+        m.deviceTimeEpoch !== null ? BigInt(m.deviceTimeEpoch) : null,
       clientsConnected: m.clientsConnected,
-      clientsProvisioned: m.clientsProvisioned,
-      clientsJson: clientsJson.length > 0 ? clientsJson : null
+      clientsJson: clientsJson.length > 0 ? clientsJson : null,
+      macAddress: m.macAddress,
+      deviceModel: m.deviceModel,
+      ssid: m.ssid
     };
   }
 }

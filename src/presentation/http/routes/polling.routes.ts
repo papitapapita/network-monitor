@@ -1,13 +1,13 @@
 import { Router } from 'express';
-import { PollingController } from '../controllers/PollingController';
-import { validateRequest } from '../middleware/validateRequest';
+import { PollingController } from '../controllers';
+import { validateRequest, authorize, createRateLimiter } from '../middleware';
 import {
   pollDeviceSchema,
   getPollingStatusSchema,
   getPollingHistorySchema,
   configurePollingSchema,
   createDevicePollingSchema
-} from '../validation/polling.schemas';
+} from '../validation';
 
 /**
  * Creates Express routes for polling endpoints.
@@ -26,30 +26,40 @@ export function createPollingRoutes(
 
   router.post(
     '/:id/poll',
+    authorize('create'),
+    createRateLimiter('write'),
     validateRequest(pollDeviceSchema),
     controller.poll
   );
 
   router.get(
     '/:id/polling/status',
+    authorize('read'),
+    createRateLimiter('read'),
     validateRequest(getPollingStatusSchema),
     controller.getStatus
   );
 
   router.get(
     '/:id/polling/history',
+    authorize('read'),
+    createRateLimiter('read'),
     validateRequest(getPollingHistorySchema),
     controller.getHistory
   );
 
   router.post(
     '/:id/polling/config',
+    authorize('create'),
+    createRateLimiter('write'),
     validateRequest(createDevicePollingSchema),
     controller.create
   );
 
   router.patch(
     '/:id/polling/config',
+    authorize('update'),
+    createRateLimiter('write'),
     validateRequest(configurePollingSchema),
     controller.configure
   );

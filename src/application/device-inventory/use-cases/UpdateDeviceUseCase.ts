@@ -1,67 +1,17 @@
-import { IPAddress } from 'domain/shared';
+import { IPAddress, MACAddress } from 'domain/shared';
 import { IDeviceRepository } from 'domain/device-inventory/repository';
 import { DeviceOwnerType } from 'domain/device-inventory/enums';
 import { LocationId, DeviceId } from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
-import { UseCase } from '../../shared/core';
-import { ILogger } from '../../shared/interfaces';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
 import { DeviceResponseDTO, UpdateDeviceRequestDTO } from '../dtos';
 import { DeviceMapper } from '../mappers';
 import {
   DeviceStatus,
-  DeviceCategory,
-  MACAddress
+  DeviceCategory
 } from 'domain/device-inventory/value-objects';
 
-/**
- * UpdateDeviceUseCase
- *
- * Business Intent: Apply a partial update (PATCH semantics) to an existing physical
- * device asset in the inventory. Only fields that are explicitly provided in the
- * request are changed; all omitted fields are left unchanged.
- *
- * Flow:
- * 1. beforeExecute: Validate the id is non-empty and that any provided enum fields
- *    (ownerType, status, category) contain a recognised value. This prevents
- *    corrupted domain calls before any I/O takes place.
- * 2. executeImpl:
- *    a. Parse DeviceId and look up the device — return failure if not found.
- *    b. Apply status change via device.changeStatus() when status is provided.
- *    c. Apply location assignment/unassignment via device.assignLocation() when
- *       locationId is provided (null means unassign).
- *    d. Toggle monitoring via device.enableMonitoring() / device.disableMonitoring()
- *       when monitoringEnabled is provided.
- *    e. Build the updateDetails fields object and enforce MAC/IP uniqueness against
- *       the repository (skipping the check when the address is already held by
- *       this device — same-device change does not violate uniqueness).
- *    f. Call device.updateDetails() when any updatable detail field is present.
- *    g. Persist via IDeviceRepository and return a DeviceResponseDTO.
- *
- * Business Rules:
- * - id is required.
- * - Transitioning to ACTIVE requires an IP address (enforced by domain).
- * - MAC address must be unique — only fails if the MAC is held by a *different* device.
- * - IP address must be unique — only fails if the IP is held by a *different* device.
- * - Passing null for locationId, macAddress, ipAddress, serialNumber, category,
- *   description, or installedDate explicitly clears those fields.
- * - Domain events (DeviceStatusChangedEvent, DeviceLocationAssignedEvent, etc.)
- *   are dispatched by the repository after the aggregate is persisted.
- *
- * Dependencies:
- * - IDeviceRepository: Load, persist, and check uniqueness for the Device aggregate.
- * - ILogger: Structured logging via the base UseCase template.
- *
- * @example
- * ```typescript
- * const useCase = new UpdateDeviceUseCase(deviceRepository, logger);
- * const result = await useCase.execute({
- *   id: '550e8400-e29b-41d4-a716-446655440000',
- *   status: 'ACTIVE',
- *   locationId: '550e8400-e29b-41d4-a716-446655440001',
- *   monitoringEnabled: true
- * });
- * ```
- */
 export class UpdateDeviceUseCase extends UseCase<
   UpdateDeviceRequestDTO,
   DeviceResponseDTO
@@ -73,23 +23,6 @@ export class UpdateDeviceUseCase extends UseCase<
     super(logger, 'UpdateDeviceUseCase');
   }
 
-  // ============================================================================
-  // Pre-execution validation
-  // ============================================================================
-
-  /**
-   * Validates the inbound DTO before any domain or I/O work begins.
-   *
-   * Checks performed here (not in executeImpl) because they are
-   * boundary-level rejections that do not require loading the aggregate:
-   * - id presence (required)
-   * - ownerType enum membership (when provided)
-   * - status validity via DeviceStatus.create() (when provided)
-   * - category validity via DeviceCategory.create() (when provided)
-   *
-   * The domain's own Guard clauses inside command methods provide a second
-   * layer of defence; both layers are intentional (defence-in-depth).
-   */
   protected async beforeExecute(
     request: UpdateDeviceRequestDTO
   ): Promise<Result<void> | null> {
@@ -124,41 +57,17 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    return null; // Validation passed
+    return null;
   }
 
-  // ============================================================================
-  // Main execution
-  // ============================================================================
-
-  /**
-   * Orchestrates the device update.
-   *
-   * Steps:
-   * 1. Parse DeviceId from request.id.
-   * 2. Load the device from the repository — return failure if not found.
-   * 3. Apply status change when provided.
-   * 4. Apply location assignment (or unassignment) when locationId is provided.
-   * 5. Toggle monitoring when monitoringEnabled is provided.
-   * 6. Build MACAddress and IPAddress value objects, enforcing uniqueness while
-   *    excluding the current device's own addresses from the conflict check.
-   * 7. Build the updateDetails fields and call device.updateDetails() when any
-   *    detail field is present.
-   * 8. Persist the updated aggregate and return a DeviceResponseDTO.
-   *
-   * No domain logic lives here — all invariants are enforced inside the
-   * Device aggregate and its value objects.
-   */
   protected async executeImpl(
     request: UpdateDeviceRequestDTO
   ): Promise<Result<DeviceResponseDTO>> {
-    // Parse DeviceId UUID
     const deviceIdResult = DeviceId.parse(request.id.trim());
     if (deviceIdResult.isFailure) {
       return this.fail(`Invalid device ID: ${deviceIdResult.error}`);
     }
 
-    // Load existing device
     const findResult = await this.deviceRepository.findById(
       deviceIdResult.value
     );
@@ -170,46 +79,43 @@ export class UpdateDeviceUseCase extends UseCase<
     }
 
     const device = findResult.value;
+    const data = DeviceMapper.extractUpdateData(request);
 
-    // Build updateDetails fields
-    // Only populate keys whose corresponding request fields are not undefined.
     const updateFields: Parameters<typeof device.updateDetails>[0] =
       {};
 
-    if (request.name !== undefined) {
-      updateFields.name = request.name;
+    if (data.name !== undefined) {
+      updateFields.name = data.name;
     }
 
-    if (request.description !== undefined) {
-      updateFields.description = request.description;
+    if (data.description !== undefined) {
+      updateFields.description = data.description;
     }
 
-    if (request.ownerType !== undefined) {
+    if (data.ownerType !== undefined) {
       updateFields.ownerType =
-        request.ownerType.toUpperCase() as DeviceOwnerType;
+        data.ownerType.toUpperCase() as DeviceOwnerType;
     }
 
-    if (request.installedDate !== undefined) {
-      if (request.installedDate === null) {
+    if (data.installedDate !== undefined) {
+      if (data.installedDate === null) {
         updateFields.installedDate = null;
       } else {
-        const parsed = new Date(request.installedDate);
+        const parsed = new Date(data.installedDate);
         if (isNaN(parsed.getTime())) {
           return this.fail(
-            `Invalid installedDate: "${request.installedDate}". Must be a valid ISO 8601 date string.`
+            `Invalid installedDate: "${data.installedDate}". Must be a valid ISO 8601 date string.`
           );
         }
         updateFields.installedDate = parsed;
       }
     }
 
-    if (request.category !== undefined) {
-      if (request.category === null) {
+    if (data.category !== undefined) {
+      if (data.category === null) {
         updateFields.category = null;
       } else {
-        const categoryResult = DeviceCategory.create(
-          request.category
-        );
+        const categoryResult = DeviceCategory.create(data.category);
         if (categoryResult.isFailure) {
           return this.fail(categoryResult.error!);
         }
@@ -217,24 +123,20 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    if (request.serialNumber !== undefined) {
-      // Pass raw string (including null) — the aggregate's updateDetails
-      // handles SerialNumber construction internally for non-null values.
-      updateFields.serialNumber = request.serialNumber;
+    if (data.serialNumber !== undefined) {
+      updateFields.serialNumber = data.serialNumber;
     }
 
-    // Build MACAddress and check uniqueness (skip if unchanged on this device)
-    if (request.macAddress !== undefined) {
-      if (request.macAddress === null) {
+    if (data.macAddress !== undefined) {
+      if (data.macAddress === null) {
         updateFields.macAddress = null;
       } else {
-        const macResult = MACAddress.create(request.macAddress);
+        const macResult = MACAddress.create(data.macAddress);
         if (macResult.isFailure) {
           return this.fail(macResult.error!);
         }
         const newMac = macResult.value;
 
-        // Only enforce uniqueness when the MAC differs from the device's current value
         const currentMac = device.macAddress?.value ?? null;
         if (currentMac !== newMac.value) {
           const macExistsResult =
@@ -246,7 +148,7 @@ export class UpdateDeviceUseCase extends UseCase<
           }
           if (macExistsResult.value) {
             return this.fail(
-              `MAC address "${request.macAddress}" is already assigned to another device`
+              `MAC address "${data.macAddress}" is already assigned to another device`
             );
           }
         }
@@ -255,18 +157,16 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    // Build IPAddress and check uniqueness (skip if unchanged on this device)
-    if (request.ipAddress !== undefined) {
-      if (request.ipAddress === null) {
+    if (data.ipAddress !== undefined) {
+      if (data.ipAddress === null) {
         updateFields.ipAddress = null;
       } else {
-        const ipResult = IPAddress.create(request.ipAddress);
+        const ipResult = IPAddress.create(data.ipAddress);
         if (ipResult.isFailure) {
           return this.fail(ipResult.error!);
         }
         const newIp = ipResult.value;
 
-        // Only enforce uniqueness when the IP differs from the device's current value
         const currentIp = device.ipAddress?.value ?? null;
         if (currentIp !== newIp.value) {
           const ipExistsResult =
@@ -278,7 +178,7 @@ export class UpdateDeviceUseCase extends UseCase<
           }
           if (ipExistsResult.value) {
             return this.fail(
-              `IP address "${request.ipAddress}" is already assigned to another device`
+              `IP address "${data.ipAddress}" is already assigned to another device`
             );
           }
         }
@@ -287,8 +187,9 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    // Apply detail updates first so that IP/MAC are set before any
-    // status transition is validated by the aggregate.
+    // updateDetails must run before changeStatus so that an IP set in the same
+    // request is already present on the aggregate when the status transition
+    // (e.g. INVENTORY → ACTIVE) is validated by the domain.
     if (Object.keys(updateFields).length > 0) {
       const updateResult = device.updateDetails(updateFields);
       if (updateResult.isFailure) {
@@ -296,10 +197,8 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    // Apply status change (after updateDetails so IP is present if being set
-    // in the same request as an INVENTORY → ACTIVE transition)
-    if (request.status !== undefined) {
-      const statusResult = DeviceStatus.create(request.status);
+    if (data.status !== undefined) {
+      const statusResult = DeviceStatus.create(data.status);
       if (statusResult.isFailure) {
         return this.fail(statusResult.error!);
       }
@@ -311,16 +210,11 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    // Apply location assignment or unassignment
-    // locationId in the DTO is `string | null | undefined`:
-    //   undefined  → field was not sent; skip
-    //   null       → explicit unassign
-    //   string     → assign to new location
-    if (request.locationId !== undefined) {
+    if (data.locationId !== undefined) {
       let newLocationId: LocationId | null = null;
-      if (request.locationId !== null) {
+      if (data.locationId !== null) {
         const locationIdResult = LocationId.parse(
-          request.locationId.trim()
+          data.locationId.trim()
         );
         if (locationIdResult.isFailure) {
           return this.fail(
@@ -335,20 +229,18 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    // Toggle monitoring
-    if (request.monitoringEnabled === true) {
+    if (data.monitoringEnabled === true) {
       const enableResult = device.enableMonitoring();
       if (enableResult.isFailure) {
         return this.fail(enableResult.error!);
       }
-    } else if (request.monitoringEnabled === false) {
+    } else if (data.monitoringEnabled === false) {
       const disableResult = device.disableMonitoring();
       if (disableResult.isFailure) {
         return this.fail(disableResult.error!);
       }
     }
 
-    // Persist — domain events are dispatched by the repository implementation
     const saveResult = await this.deviceRepository.save(device);
     if (saveResult.isFailure) {
       return this.fail(

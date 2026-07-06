@@ -8,7 +8,7 @@ import { IPollingConfigurationRepository } from 'domain/device-monitoring/reposi
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import { INotificationService } from '../interfaces';
-import { AlertMapper } from '../mappers/AlertMapper';
+import { AlertMapper } from '../mappers';
 import { AlertResponseDTO, SendDeviceDownAlertDTO } from '../dtos';
 
 export class SendDeviceDownAlertUseCase extends UseCase<
@@ -75,14 +75,14 @@ export class SendDeviceDownAlertUseCase extends UseCase<
         ipAddress,
         consecutiveFailures: request.consecutiveFailures,
         occurredAt: request.occurredAt,
-        alertId: alert.alertId.toString()
+        alertId: alert.id.toString()
       }),
       metadata: {
         deviceId: deviceId.toString(),
         deviceName,
         ipAddress,
         severity: AlertSeverity.CRITICAL,
-        alertId: alert.alertId.toString(),
+        alertId: alert.id.toString(),
         timestamp: request.occurredAt.toISOString(),
         consecutiveFailures: request.consecutiveFailures
       }
@@ -164,8 +164,12 @@ export class SendDeviceDownAlertUseCase extends UseCase<
   private formatLocalTime(date: Date): string {
     return date.toLocaleString('es-CO', {
       timeZone: 'America/Bogota',
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
       hour12: false
     });
   }

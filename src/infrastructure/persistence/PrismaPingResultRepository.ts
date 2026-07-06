@@ -1,13 +1,13 @@
-import { PrismaClient, Prisma } from '../../generated/prisma/client';
-import { Result } from '../../domain/shared/core';
-import { DeviceId } from '../../domain/shared';
+import { PrismaClient, Prisma } from 'generated/prisma/client';
+import { Result } from 'domain/shared/core';
+import { DeviceId } from 'domain/shared/ids';
 import {
   IPingResultRepository,
   PingResultRecord,
   PingResultFilters,
   PingResultPage,
   CreatePingResultInput
-} from '../../domain/device-monitoring/repository/IPingResultRepository';
+} from 'domain/device-monitoring/repository';
 
 export class PrismaPingResultRepository
   implements IPingResultRepository
@@ -89,6 +89,19 @@ export class PrismaPingResultRepository
     } catch (error) {
       return Result.fail(
         `findByDevice failed: ${(error as Error).message}`
+      );
+    }
+  }
+
+  async deleteOlderThan(cutoff: Date): Promise<Result<number>> {
+    try {
+      const { count } = await this.prisma.pingResult.deleteMany({
+        where: { checkedAt: { lt: cutoff } }
+      });
+      return Result.ok(count);
+    } catch (error) {
+      return Result.fail(
+        `deleteOlderThan failed: ${(error as Error).message}`
       );
     }
   }

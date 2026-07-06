@@ -43,11 +43,12 @@ function makeLogger(): ILogger {
 
 function makeAlertRepo(): jest.Mocked<IAlertRepository> {
   return {
-    save:               jest.fn(),
-    findById:           jest.fn(),
-    findOpenByDeviceId: jest.fn(),
-    findAllByDeviceId:  jest.fn(),
-    findAll:            jest.fn()
+    save:                    jest.fn(),
+    findById:                jest.fn(),
+    findOpenByDeviceId:      jest.fn(),
+    findAllByDeviceId:       jest.fn(),
+    findAll:                 jest.fn(),
+    deleteResolvedOlderThan: jest.fn()
   };
 }
 
@@ -66,6 +67,7 @@ function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
     findByStatus:        jest.fn(),
     existsByMacAddress:  jest.fn(),
     existsByIpAddress:   jest.fn(),
+    findByLocationIds:   jest.fn(),
     findByFilters:       jest.fn()
   };
 }
@@ -105,7 +107,6 @@ function makeOpenAlert(): Alert {
     resolvedAt:         null,
     notifiedAt:         null,
     recoveryNotifiedAt: null,
-    durationSecs:       null
   });
 }
 

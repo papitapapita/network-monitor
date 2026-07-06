@@ -1,8 +1,11 @@
 import { AggregateRoot, Result, Guard } from 'domain/shared/core';
-import { DeviceId, LocationId } from 'domain/shared/ids';
-import { IPAddress } from 'domain/shared';
 import {
-  MACAddress,
+  DeviceId,
+  DeviceModelId,
+  LocationId
+} from 'domain/shared/ids';
+import { IPAddress, MACAddress } from 'domain/shared/value-objects';
+import {
   DeviceName,
   SerialNumber,
   DeviceStatus,
@@ -18,32 +21,13 @@ import {
   DeviceDetailsUpdatedEvent
 } from '../events';
 
-/**
- * Device Aggregate Root
- *
- * Represents a physical network device asset (router, switch, access point, CPE, etc.)
- * managed in the inventory system. This is distinct from the NetworkDevice aggregate,
- * which models the monitoring/operational view of a device.
- *
- * Responsibilities:
- * - Enforce business invariants for physical device assets
- * - Manage operational status lifecycle (INVENTORY → ACTIVE → MAINTENANCE, etc.)
- * - Track physical identity (serial number, MAC address, IP address)
- * - Control location assignment
- * - Gate monitoring enable/disable transitions
- * - Emit domain events for significant state changes
- */
 export class Device extends AggregateRoot<DeviceProps, DeviceId> {
   private constructor(props: DeviceProps, id: DeviceId) {
     super(props, id);
   }
 
-  // ============================================================================
-  // Getters
-  // ============================================================================
-
-  get deviceModelId(): DeviceId {
-    return this.props.deviceModelId as unknown as DeviceId;
+  get deviceModelId(): DeviceModelId {
+    return this.props.deviceModelId;
   }
 
   get locationId(): LocationId | null {
@@ -98,19 +82,11 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     return this.props.monitoringEnabled;
   }
 
-  // ============================================================================
-  // Factory Methods
-  // ============================================================================
-
-  /**
-   * Creates a new Device aggregate, assigning a new DeviceId and emitting
-   * a DeviceCreatedEvent.
-   *
-   * @param props - Device properties (without createdAt / updatedAt — set internally)
-   * @returns Result containing the new Device or a validation error message
-   */
   public static create(
-    props: Omit<DeviceProps, 'createdAt' | 'updatedAt'>
+    props: Omit<
+      DeviceProps,
+      'createdAt' | 'updatedAt' | 'monitoringEnabled'
+    > & { monitoringEnabled?: boolean }
   ): Result<Device> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(
@@ -125,27 +101,24 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       return Result.fail<Device>(guardResult.message!);
     }
 
-    // INVENTORY and DAMAGED devices must be identifiable by serial or MAC
-    if (props.status.isInInventory() || props.status.isDamaged()) {
-      if (!props.serialNumber && !props.macAddress) {
-        return Result.fail<Device>(
-          `A device with status ${props.status.toString()} must have at least a serial number or MAC address`
-        );
-      }
-    }
+    // COMMISSIONING defaults monitoring on, but only when the caller
+    // hasn't made an explicit choice — an explicit false is respected.
+    const monitoringEnabled =
+      props.monitoringEnabled ?? props.status.isCommissioning();
 
-    // ACTIVE devices must have an IP address
-    if (props.status.isActive() && !props.ipAddress) {
-      return Result.fail<Device>(
-        'Cannot create an ACTIVE device without an IP address'
-      );
-    }
+    const validationResult = Device.validate({
+      status: props.status,
+      serialNumber: props.serialNumber ?? null,
+      macAddress: props.macAddress ?? null,
+      ipAddress: props.ipAddress ?? null,
+      locationId: props.locationId ?? null,
+      monitoringEnabled,
+      description: props.description ?? null,
+      installedDate: props.installedDate ?? null
+    });
 
-    // A categorised device must have an IP address
-    if (props.category && !props.ipAddress) {
-      return Result.fail<Device>(
-        'A device with a category must have an IP address assigned'
-      );
+    if (validationResult.isFailure) {
+      return Result.fail<Device>(validationResult.error);
     }
 
     const id = DeviceId.create();
@@ -162,6 +135,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
         ipAddress: props.ipAddress ?? null,
         description: props.description ?? null,
         installedDate: props.installedDate ?? null,
+        monitoringEnabled,
         createdAt: now,
         updatedAt: now
       },
@@ -183,15 +157,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     return Result.ok<Device>(device);
   }
 
-  /**
-   * Reconstitutes a Device aggregate from a trusted persistence source,
-   * bypassing validation. Use only in repository implementations when
-   * loading data that was already validated at creation time.
-   *
-   * @param id - The persisted DeviceId
-   * @param props - Full device properties from persistence
-   * @returns Device instance
-   */
+  // bypasses validation — for repository use only
   public static reconstitute(
     id: DeviceId,
     props: DeviceProps
@@ -199,18 +165,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     return new Device(props, id);
   }
 
-  // ============================================================================
-  // Command Methods
-  // ============================================================================
-
-  /**
-   * Changes the operational status of the device.
-   * A decommissioned device cannot transition to any other status —
-   * decommissioning is a terminal state.
-   *
-   * @param newStatus - The target DeviceStatus value object
-   * @returns Result indicating success or failure
-   */
+  // decommissioned is a terminal state
   public changeStatus(newStatus: DeviceStatus): Result<void> {
     const guardResult = Guard.againstNullOrUndefined(
       newStatus,
@@ -220,20 +175,19 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       return Result.fail<void>(guardResult.message!);
     }
 
-    if (newStatus.isActive() && this.props.ipAddress === null) {
-      return Result.fail<void>(
-        'Cannot activate a device without an IP address assigned'
-      );
-    }
+    const validationResult = Device.validate({
+      status: newStatus,
+      serialNumber: this.props.serialNumber,
+      macAddress: this.props.macAddress,
+      ipAddress: this.props.ipAddress,
+      locationId: this.props.locationId,
+      monitoringEnabled: this.props.monitoringEnabled,
+      description: this.props.description,
+      installedDate: this.props.installedDate
+    });
 
-    if (
-      (newStatus.isInInventory() || newStatus.isDamaged()) &&
-      !this.props.serialNumber &&
-      !this.props.macAddress
-    ) {
-      return Result.fail<void>(
-        `Cannot transition to ${newStatus.toString()} without a serial number or MAC address`
-      );
+    if (validationResult.isFailure) {
+      return Result.fail<void>(validationResult.error);
     }
 
     if (this.props.status.equals(newStatus)) {
@@ -242,7 +196,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
 
     const previousStatus = this.props.status;
     this.props.status = newStatus;
-    this.props.updatedAt = new Date();
+    this.touch();
 
     this.addDomainEvent(
       new DeviceStatusChangedEvent({
@@ -254,16 +208,13 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       })
     );
 
+    if (newStatus.isCommissioning() && !this.props.monitoringEnabled) {
+      this.setMonitoring(true);
+    }
+
     return Result.ok<void>();
   }
 
-  /**
-   * Assigns the device to a location or removes its current location.
-   * Passing null clears the location assignment.
-   *
-   * @param locationId - The LocationId to assign, or null to unassign
-   * @returns Result indicating success or failure
-   */
   public assignLocation(locationId: LocationId | null): Result<void> {
     const previousLocationId = this.props.locationId;
 
@@ -277,8 +228,23 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       return Result.ok<void>();
     }
 
+    const validationResult = Device.validate({
+      status: this.props.status,
+      serialNumber: this.props.serialNumber,
+      macAddress: this.props.macAddress,
+      ipAddress: this.props.ipAddress,
+      locationId,
+      monitoringEnabled: this.props.monitoringEnabled,
+      description: this.props.description,
+      installedDate: this.props.installedDate
+    });
+
+    if (validationResult.isFailure) {
+      return Result.fail<void>(validationResult.error);
+    }
+
     this.props.locationId = locationId;
-    this.props.updatedAt = new Date();
+    this.touch();
 
     this.addDomainEvent(
       new DeviceLocationAssignedEvent({
@@ -293,73 +259,44 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     return Result.ok<void>();
   }
 
-  /**
-   * Enables monitoring for this device.
-   * No-op if monitoring is already enabled.
-   *
-   * @returns Result indicating success or failure
-   */
   public enableMonitoring(): Result<void> {
     if (this.props.monitoringEnabled) {
       return Result.ok<void>();
     }
 
-    if (this.props.ipAddress === null) {
-      return Result.fail<void>(
-        'Cannot enable monitoring for a device without an IP address assigned'
-      );
+    const validationResult = Device.validate({
+      status: this.props.status,
+      serialNumber: this.props.serialNumber,
+      macAddress: this.props.macAddress,
+      ipAddress: this.props.ipAddress,
+      locationId: this.props.locationId,
+      monitoringEnabled: true,
+      description: this.props.description,
+      installedDate: this.props.installedDate
+    });
+
+    if (validationResult.isFailure) {
+      return Result.fail<void>(validationResult.error);
     }
-    this.props.monitoringEnabled = true;
-    this.props.updatedAt = new Date();
 
-    this.addDomainEvent(
-      new DeviceMonitoringToggledEvent({
-        aggregateId: this.id,
-        deviceName: this.props.name,
-        monitoringEnabled: true,
-        ipAddress: this.props.ipAddress as IPAddress,
-        dateTimeOccurred: new Date()
-      })
-    );
-
-    return Result.ok<void>();
+    return this.setMonitoring(true);
   }
 
-  /**
-   * Disables monitoring for this device.
-   * No-op if monitoring is already disabled.
-   *
-   * @returns Result indicating success or failure
-   */
   public disableMonitoring(): Result<void> {
     if (!this.props.monitoringEnabled) {
       return Result.ok<void>();
     }
 
-    this.props.monitoringEnabled = false;
-    this.props.updatedAt = new Date();
-
-    this.addDomainEvent(
-      new DeviceMonitoringToggledEvent({
-        aggregateId: this.id,
-        deviceName: this.props.name,
-        monitoringEnabled: false,
-        ipAddress: this.props.ipAddress as IPAddress,
-        dateTimeOccurred: new Date()
-      })
-    );
-
-    return Result.ok<void>();
+    return this.setMonitoring(false);
   }
 
-  /**
-   * Updates the device's mutable details: name, description, category,
-   * serial number, MAC address, IP address, and installed date.
-   * Only fields that are explicitly provided (non-undefined) are changed.
-   *
-   * @param fields - Partial set of updatable fields
-   * @returns Result indicating success or failure
-   */
+  public canHaveWirelessConfig(): boolean {
+    return (
+      this.props.category?.isWirelessCpe() === true ||
+      this.props.category?.isAp() === true
+    );
+  }
+
   public updateDetails(fields: {
     name?: string;
     description?: string | null;
@@ -370,70 +307,31 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     installedDate?: Date | null;
     ownerType?: DeviceOwnerType;
   }): Result<void> {
+    let nextName = this.props.name;
     if (fields.name !== undefined) {
       const nameResult = DeviceName.create(fields.name);
       if (nameResult.isFailure) {
         return Result.fail(nameResult.error);
       }
-      this.props.name = nameResult.value;
+      nextName = nameResult.value;
     }
 
-    if (fields.description !== undefined) {
-      if (
-        fields.description !== null &&
-        fields.description.length > 0
-      ) {
-        const guardResult = Guard.isString(
-          fields.description,
-          'description'
+    let nextSerialNumber = this.props.serialNumber;
+    if (fields.serialNumber !== undefined) {
+      if (fields.serialNumber === null) {
+        nextSerialNumber = null;
+      } else {
+        const serialNumberResult = SerialNumber.create(
+          fields.serialNumber
         );
-        if (!guardResult.succeeded) {
-          return Result.fail<void>(guardResult.message!);
+        if (serialNumberResult.isFailure) {
+          return Result.fail(serialNumberResult.error);
         }
+        nextSerialNumber = serialNumberResult.value;
       }
-      this.props.description = fields.description;
     }
 
-    if (fields.category !== undefined) {
-      this.props.category = fields.category;
-    }
-
-    if (
-      fields.serialNumber !== undefined &&
-      fields.serialNumber !== null
-    ) {
-      const serialNumberResult = SerialNumber.create(
-        fields.serialNumber
-      );
-      if (serialNumberResult.isFailure) {
-        return Result.fail(serialNumberResult.error);
-      }
-      this.props.serialNumber = serialNumberResult.value;
-    } else if (fields.serialNumber === null) {
-      this.props.serialNumber = null;
-    }
-
-    if (fields.macAddress !== undefined) {
-      this.props.macAddress = fields.macAddress;
-    }
-
-    if (fields.ipAddress !== undefined) {
-      this.props.ipAddress = fields.ipAddress;
-    }
-
-    if (fields.installedDate !== undefined) {
-      if (fields.installedDate !== null) {
-        const guardResult = Guard.isDate(
-          fields.installedDate,
-          'installedDate'
-        );
-        if (!guardResult.succeeded) {
-          return Result.fail<void>(guardResult.message!);
-        }
-      }
-      this.props.installedDate = fields.installedDate;
-    }
-
+    let nextOwnerType = this.props.ownerType;
     if (fields.ownerType !== undefined) {
       const guardResult = Guard.againstNullOrUndefined(
         fields.ownerType,
@@ -442,10 +340,55 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       if (!guardResult.succeeded) {
         return Result.fail<void>(guardResult.message!);
       }
-      this.props.ownerType = fields.ownerType;
+      nextOwnerType = fields.ownerType;
     }
 
-    this.props.updatedAt = new Date();
+    const nextDescription =
+      fields.description !== undefined
+        ? fields.description
+        : this.props.description;
+    const nextCategory =
+      fields.category !== undefined
+        ? fields.category
+        : this.props.category;
+    const nextMacAddress =
+      fields.macAddress !== undefined
+        ? fields.macAddress
+        : this.props.macAddress;
+    const nextIpAddress =
+      fields.ipAddress !== undefined
+        ? fields.ipAddress
+        : this.props.ipAddress;
+    const nextInstalledDate =
+      fields.installedDate !== undefined
+        ? fields.installedDate
+        : this.props.installedDate;
+
+    const validationResult = Device.validate({
+      status: this.props.status,
+      serialNumber: nextSerialNumber,
+      macAddress: nextMacAddress,
+      ipAddress: nextIpAddress,
+      locationId: this.props.locationId,
+      monitoringEnabled: this.props.monitoringEnabled,
+      description: nextDescription,
+      installedDate: nextInstalledDate
+    });
+
+    if (validationResult.isFailure) {
+      return Result.fail<void>(validationResult.error);
+    }
+
+    this.props.name = nextName;
+    this.props.description = nextDescription;
+    this.props.category = nextCategory;
+    this.props.serialNumber = nextSerialNumber;
+    this.props.macAddress = nextMacAddress;
+    this.props.ipAddress = nextIpAddress;
+    this.props.installedDate = nextInstalledDate;
+    this.props.ownerType = nextOwnerType;
+
+    this.touch();
 
     this.addDomainEvent(
       new DeviceDetailsUpdatedEvent({
@@ -469,23 +412,128 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     return Result.ok<void>();
   }
 
-  // ============================================================================
-  // Query Methods
-  // ============================================================================
-
-  public isActive(): boolean {
-    return this.props.status.isActive();
+  private touch(): void {
+    this.props.updatedAt = new Date();
   }
 
-  public isInInventory(): boolean {
-    return this.props.status.isInInventory();
+  private setMonitoring(enabled: boolean): Result<void> {
+    this.props.monitoringEnabled = enabled;
+    this.touch();
+
+    this.addDomainEvent(
+      new DeviceMonitoringToggledEvent({
+        aggregateId: this.id,
+        deviceName: this.props.name,
+        monitoringEnabled: enabled,
+        ipAddress: this.props.ipAddress as IPAddress,
+        dateTimeOccurred: new Date()
+      })
+    );
+
+    return Result.ok<void>();
   }
 
-  public hasLocation(): boolean {
-    return this.props.locationId !== null;
+  private static requiresIdentifier(status: DeviceStatus): boolean {
+    return status.isInInventory() || status.isDamaged();
   }
 
-  public isMonitored(): boolean {
-    return this.props.monitoringEnabled;
+  // Single source of truth for status-dependent invariants — every
+  // mutator that can change status, identifiers, IP, location, or
+  // monitoring must route its prospective (not-yet-committed) state
+  // through this method.
+  private static validate(state: {
+    status: DeviceStatus;
+    serialNumber: SerialNumber | null;
+    macAddress: MACAddress | null;
+    ipAddress: IPAddress | null;
+    locationId: LocationId | null;
+    monitoringEnabled: boolean;
+    description: string | null;
+    installedDate: Date | null;
+  }): Result<void> {
+    if (
+      Device.requiresIdentifier(state.status) &&
+      !state.serialNumber &&
+      !state.macAddress
+    ) {
+      return Result.fail<void>(
+        `A device with status ${state.status.toString()} must have at least a serial number or MAC address`
+      );
+    }
+
+    if (state.status.isActive() && !state.ipAddress) {
+      return Result.fail<void>(
+        'An ACTIVE device must have an IP address assigned'
+      );
+    }
+
+    if (state.status.isActive() && !state.locationId) {
+      return Result.fail<void>(
+        'An ACTIVE device must have a location assigned'
+      );
+    }
+
+    if (state.status.isCommissioning() && !state.ipAddress) {
+      return Result.fail<void>(
+        'A COMMISSIONING device must have an IP address assigned'
+      );
+    }
+
+    if (
+      state.monitoringEnabled &&
+      !(state.status.isActive() || state.status.isCommissioning())
+    ) {
+      return Result.fail<void>(
+        'Monitoring can only be enabled for ACTIVE or COMMISSIONING devices'
+      );
+    }
+
+    const descriptionResult = Device.validateDescription(
+      state.description
+    );
+    if (descriptionResult.isFailure) {
+      return descriptionResult;
+    }
+
+    const installedDateResult = Device.validateInstalledDate(
+      state.installedDate
+    );
+    if (installedDateResult.isFailure) {
+      return installedDateResult;
+    }
+
+    return Result.ok<void>();
+  }
+
+  private static validateDescription(
+    description: string | null
+  ): Result<void> {
+    if (description !== null && description.length > 500) {
+      return Result.fail<void>(
+        'Device description cannot exceed 500 characters'
+      );
+    }
+    return Result.ok<void>();
+  }
+
+  private static validateInstalledDate(
+    installedDate: Date | null
+  ): Result<void> {
+    if (installedDate === null) {
+      return Result.ok<void>();
+    }
+
+    const guardResult = Guard.isDate(installedDate, 'installedDate');
+    if (!guardResult.succeeded) {
+      return Result.fail<void>(guardResult.message!);
+    }
+
+    if (installedDate.getTime() > Date.now()) {
+      return Result.fail<void>(
+        'installedDate cannot be in the future'
+      );
+    }
+
+    return Result.ok<void>();
   }
 }

@@ -20,7 +20,8 @@ function makeFakePrismaClient() {
     pingResult: {
       create: jest.fn(),
       findMany: jest.fn(),
-      count: jest.fn()
+      count: jest.fn(),
+      deleteMany: jest.fn()
     },
     $transaction: jest.fn()
   };
@@ -313,6 +314,81 @@ describe('PrismaPingResultRepository', () => {
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('findByDevice failed');
+    });
+  });
+
+  // ===========================================================================
+  describe('deleteOlderThan()', () => {
+    // -------------------------------------------------------------------------
+    describe('happy path', () => {
+      it('should call prisma.pingResult.deleteMany with a lt filter on checkedAt', async () => {
+        prisma.pingResult.deleteMany.mockResolvedValue({ count: 7 });
+
+        await repo.deleteOlderThan(FIXED_DATE);
+
+        expect(prisma.pingResult.deleteMany).toHaveBeenCalledWith({
+          where: { checkedAt: { lt: FIXED_DATE } }
+        });
+      });
+
+      it('should return Result.ok with the number of deleted records', async () => {
+        prisma.pingResult.deleteMany.mockResolvedValue({ count: 7 });
+
+        const result = await repo.deleteOlderThan(FIXED_DATE);
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBe(7);
+      });
+
+      it('should return Result.ok(0) when no records match the cutoff', async () => {
+        prisma.pingResult.deleteMany.mockResolvedValue({ count: 0 });
+
+        const result = await repo.deleteOlderThan(FIXED_DATE);
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBe(0);
+      });
+
+      it('should call deleteMany exactly once', async () => {
+        prisma.pingResult.deleteMany.mockResolvedValue({ count: 1 });
+
+        await repo.deleteOlderThan(FIXED_DATE);
+
+        expect(prisma.pingResult.deleteMany).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    describe('failure path', () => {
+      it('should return a failed Result when Prisma throws', async () => {
+        prisma.pingResult.deleteMany.mockRejectedValue(
+          new Error('delete constraint violated')
+        );
+
+        const result = await repo.deleteOlderThan(FIXED_DATE);
+
+        expect(result.isFailure).toBe(true);
+      });
+
+      it('should prefix the error message with "deleteOlderThan failed:"', async () => {
+        prisma.pingResult.deleteMany.mockRejectedValue(
+          new Error('DB locked')
+        );
+
+        const result = await repo.deleteOlderThan(FIXED_DATE);
+
+        expect(result.error).toContain('deleteOlderThan failed');
+      });
+
+      it('should include the original error message in the failure', async () => {
+        prisma.pingResult.deleteMany.mockRejectedValue(
+          new Error('delete constraint violated')
+        );
+
+        const result = await repo.deleteOlderThan(FIXED_DATE);
+
+        expect(result.error).toContain('delete constraint violated');
+      });
     });
   });
 });

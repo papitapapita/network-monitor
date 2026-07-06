@@ -1,28 +1,57 @@
 import { AggregateRoot } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
-import { WirelessSnapshotProps } from '../props/WirelessSnapshotProps';
-import { SnapshotId } from 'domain/shared/ids';
-import { WirelessMetrics } from '../value-objects/WirelessMetrics';
-import { WirelessClientEntry } from '../value-objects/WirelessClientEntry';
-import { WirelessAlert } from '../value-objects/WirelessAlert';
-import { WirelessSnapshotCreatedEvent } from '../events/WirelessSnapshotCreated';
-import { WirelessAlertTriggeredEvent } from '../events/WirelessAlertTriggered';
+import { DeviceId, SnapshotId } from 'domain/shared/ids';
+import { WirelessSnapshotProps } from '../props';
+import {
+  WirelessMetrics,
+  WirelessClientEntry,
+  WirelessAlert
+} from '../value-objects';
+import {
+  WirelessSnapshotCreatedEvent,
+  WirelessAlertTriggeredEvent
+} from '../events';
 
-export class WirelessSnapshot extends AggregateRoot<WirelessSnapshotProps, SnapshotId> {
+export class WirelessSnapshot extends AggregateRoot<
+  WirelessSnapshotProps,
+  SnapshotId
+> {
   private constructor(props: WirelessSnapshotProps, id: SnapshotId) {
     super(props, id);
   }
 
-  get snapshotId(): SnapshotId                            { return this.id; }
-  get deviceId(): DeviceId                                { return this.props.deviceId; }
-  get deviceType(): 'CPE' | 'ACCESS_POINT'               { return this.props.deviceType; }
-  get collectedAt(): Date                                 { return this.props.collectedAt; }
-  get collectionMethod(): 'snmp' | 'http_api' | 'mixed'  { return this.props.collectionMethod; }
-  get metrics(): WirelessMetrics                          { return this.props.metrics; }
-  get clients(): WirelessClientEntry[]                    { return [...this.props.clients]; }
-  get alerts(): WirelessAlert[]                           { return [...this.props.alerts]; }
+  get snapshotId(): SnapshotId {
+    return this.id;
+  }
+  get deviceId(): DeviceId {
+    return this.props.deviceId;
+  }
+  get deviceType(): 'STATION' | 'ACCESS_POINT' {
+    return this.props.deviceType;
+  }
+  get collectedAt(): Date {
+    return this.props.collectedAt;
+  }
+  get collectionMethod(): 'snmp' | 'http_api' | 'mixed' {
+    return this.props.collectionMethod;
+  }
+  get metrics(): WirelessMetrics {
+    return this.props.metrics;
+  }
+  get clients(): WirelessClientEntry[] {
+    return [...this.props.clients];
+  }
+  get alerts(): WirelessAlert[] {
+    return [...this.props.alerts];
+  }
+  get remoteApDeviceId(): DeviceId | null {
+    return this.props.remoteApDeviceId;
+  }
 
-  public static create(props: WirelessSnapshotProps, id?: SnapshotId): WirelessSnapshot {
+  // no creation invariants — props are validated upstream by the collector pipeline
+  public static create(
+    props: WirelessSnapshotProps,
+    id?: SnapshotId
+  ): WirelessSnapshot {
     const snapshotId = id ?? SnapshotId.create();
     const snapshot = new WirelessSnapshot(props, snapshotId);
 
@@ -50,7 +79,11 @@ export class WirelessSnapshot extends AggregateRoot<WirelessSnapshotProps, Snaps
     return snapshot;
   }
 
-  public static reconstitute(props: WirelessSnapshotProps, id: SnapshotId): WirelessSnapshot {
+  // bypasses validation — for repository use only
+  public static reconstitute(
+    id: SnapshotId,
+    props: WirelessSnapshotProps
+  ): WirelessSnapshot {
     return new WirelessSnapshot(props, id);
   }
 }

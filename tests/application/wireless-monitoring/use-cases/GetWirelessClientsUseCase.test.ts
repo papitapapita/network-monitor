@@ -37,23 +37,26 @@ function makeLogger(): jest.Mocked<ILogger> {
 function makeNullMetrics(): WirelessMetrics {
   return WirelessMetrics.reconstitute({
     signalRxDbm: null, signalTxDbm: null, noiseFloorDbm: null, snrDb: null,
-    ccqPercent: null, txRateMbps: null, rxRateMbps: null, frequencyMhz: null,
-    channelWidthMhz: null, txPowerDbm: null, throughputTxBps: null,
+    ccqPercent: null, frequencyMhz: null,
+    channelWidthMhz: null, throughputTxBps: null,
     throughputRxBps: null, throughputTxPps: null, throughputRxPps: null,
     lanStatus: null, lanSpeedMbps: null, lanDuplex: null, uptimeSeconds: null,
     cpuLoadPercent: null, memoryUsedPercent: null, firmwareVersion: null,
-    deviceName: null, remoteApMac: null, remoteApName: null, distanceM: null,
-    latencyMs: null, clientsConnected: null, clientsProvisioned: null,
+    deviceName: null, remoteApMac: null, remoteApName: null, remoteApIp: null,
+    distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
+    deviceTimeEpoch: null, clientsConnected: null,
+    macAddress: null, deviceModel: null, ssid: null,
   });
 }
 
 function makeSnapshot(
-  deviceType: 'CPE' | 'ACCESS_POINT',
+  deviceType: 'STATION' | 'ACCESS_POINT',
   clients: WirelessClientEntry[] = []
 ): WirelessSnapshot {
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const snapshotId = SnapshotId.parse(SNAPSHOT_UUID).value;
   return WirelessSnapshot.reconstitute(
+    snapshotId,
     {
       deviceId,
       deviceType,
@@ -62,24 +65,44 @@ function makeSnapshot(
       metrics: makeNullMetrics(),
       clients,
       alerts: [],
-    },
-    snapshotId
+      remoteApDeviceId: null,
+    }
   );
 }
 
 function makeClient(macAddress: string): WirelessClientEntry {
   return WirelessClientEntry.reconstitute({
     macAddress,
-    signalRxDbm: -68,
-    signalTxDbm: null,
-    snrDb: 22,
-    txRateMbps: 54,
-    rxRateMbps: 48,
-    throughputTxBps: null,
-    throughputRxBps: null,
-    ccqPercent: 90,
-    uptimeSeconds: 3600,
     ipAddress: '192.168.1.10',
+    signalRxDbm: -68,
+    noiseFloorDbm: -95,
+    distanceM: 1000,
+    uptimeSeconds: 3600,
+    txLatencyMs: null,
+    dlLinkScore: null,
+    ulLinkScore: null,
+    dlCapacityKbps: null,
+    ulCapacityKbps: null,
+    dlCinr: null,
+    ulCinr: null,
+    txBytesTotal: null,
+    rxBytesTotal: null,
+    txPps: null,
+    rxPps: null,
+    remoteHostname: null,
+    remotePlatform: null,
+    remoteVersion: null,
+    remoteCpuLoad: null,
+    remoteTotalRam: null,
+    remoteFreeRam: null,
+    remoteSignal: null,
+    remoteNoiseFloor: null,
+    remoteTxPower: null,
+    remoteTxThroughputKbps: null,
+    remoteRxThroughputKbps: null,
+    remoteIpAddresses: [],
+    dlAirtimePercent: null,
+    ulAirtimePercent: null,
   });
 }
 
@@ -96,6 +119,7 @@ describe('GetWirelessClientsUseCase', () => {
       findById: jest.fn(),
       findLatestByDevice: jest.fn(),
       findHistoryByDevice: jest.fn(),
+      deleteOlderThan: jest.fn()
     };
 
     logger = makeLogger();
@@ -163,7 +187,7 @@ describe('GetWirelessClientsUseCase', () => {
   // ===========================================================================
   describe('executeImpl — CPE device type rejection', () => {
     it('should fail when the device is a CPE', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot('CPE')));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot('STATION')));
 
       const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
@@ -171,7 +195,7 @@ describe('GetWirelessClientsUseCase', () => {
     });
 
     it('should include NOT_AP in the error message when device is a CPE', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot('CPE')));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot('STATION')));
 
       const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 

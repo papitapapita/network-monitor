@@ -4,16 +4,6 @@ import { IPAddress } from 'domain/shared/value-objects';
 import { PollingInterval, FailureThreshold } from '../value-objects';
 import { PollingConfigurationProps } from '../props';
 
-/**
- * PollingConfiguration Entity
- *
- * Owns all invariants for how a device should be polled:
- * interval, failure threshold, and enabled state.
- *
- * Belongs to the device-monitoring bounded context.
- * Created/updated in response to DeviceCreatedEvent and
- * DeviceMonitoringToggledEvent from device-inventory.
- */
 export class PollingConfiguration extends Entity<
   PollingConfigurationProps,
   PollingConfigurationId
@@ -45,9 +35,9 @@ export class PollingConfiguration extends Entity<
     return this.props.enabled;
   }
 
-  // ============================================================================
-  // Factory Methods
-  // ============================================================================
+  get lastPolledAt(): Date | null {
+    return this.props.lastPolledAt ?? null;
+  }
 
   public static create(
     props: PollingConfigurationProps,
@@ -71,25 +61,14 @@ export class PollingConfiguration extends Entity<
     );
   }
 
-  /**
-   * Reconstitutes a PollingConfiguration from a trusted persistence source.
-   * Bypasses validation — use only in repository implementations.
-   */
+  // bypasses validation — for repository use only
   public static reconstitute(
-    props: PollingConfigurationProps,
-    id: PollingConfigurationId
+    id: PollingConfigurationId,
+    props: PollingConfigurationProps
   ): PollingConfiguration {
     return new PollingConfiguration(props, id);
   }
 
-  // ============================================================================
-  // Command Methods
-  // ============================================================================
-
-  /**
-   * Updates the polling interval.
-   * The interval value object already enforces the 1–86400s range.
-   */
   public updateInterval(interval: PollingInterval): Result<void> {
     const guardResult = Guard.againstNullOrUndefined(
       interval,
@@ -103,10 +82,6 @@ export class PollingConfiguration extends Entity<
     return Result.ok<void>();
   }
 
-  /**
-   * Updates the consecutive-failure threshold.
-   * The value object enforces that it must be a positive integer.
-   */
   public updateFailureThreshold(
     threshold: FailureThreshold
   ): Result<void> {
@@ -122,27 +97,22 @@ export class PollingConfiguration extends Entity<
     return Result.ok<void>();
   }
 
-  /**
-   * Updates the IP address used for pinging.
-   * Null means the device has no IP yet — polling will be skipped.
-   */
+  // null = no IP yet; polling scheduler skips this config
   public updateIpAddress(ipAddress: IPAddress | null): void {
     this.props.ipAddress = ipAddress;
   }
 
-  /**
-   * Enables polling. No-op if already enabled.
-   */
   public enable(): Result<void> {
     this.props.enabled = true;
     return Result.ok<void>();
   }
 
-  /**
-   * Disables polling. No-op if already disabled.
-   */
   public disable(): Result<void> {
     this.props.enabled = false;
     return Result.ok<void>();
+  }
+
+  public markPolled(at: Date): void {
+    this.props.lastPolledAt = at;
   }
 }

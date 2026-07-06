@@ -1,5 +1,3 @@
-// Source: src/application/device-monitoring/event-handlers/DeviceIPAddressChangedHandler.ts
-
 import { DeviceIPAddressChangedHandler } from '../../../../src/application/device-monitoring/event-handlers/DeviceIPAddressChangedHandler';
 import { IPollingConfigurationRepository } from '../../../../src/domain/device-monitoring/repository/IPollingConfigurationRepository';
 import { DeviceDetailsUpdatedEvent } from '../../../../src/domain/device-inventory/events/DeviceDetailsUpdatedEvent';
@@ -13,18 +11,10 @@ import { DeviceName } from '../../../../src/domain/device-inventory/value-object
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { DeviceDetailsUpdatedEventProps } from '../../../../src/domain/device-inventory/props/DeviceDetailsUpdatedEventProps';
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
 const VALID_CONFIG_UUID = '550e8400-e29b-41d4-a716-446655440002';
 const ORIGINAL_IP = '10.0.0.1';
 const NEW_IP = '10.0.0.99';
-
-// ---------------------------------------------------------------------------
-// Stub factories
-// ---------------------------------------------------------------------------
 
 function makeRepo(): jest.Mocked<IPollingConfigurationRepository> {
   return {
@@ -64,8 +54,6 @@ function makeEvent(
   });
 }
 
-// ---------------------------------------------------------------------------
-
 describe('DeviceIPAddressChangedHandler', () => {
   let repo: jest.Mocked<IPollingConfigurationRepository>;
   let handler: DeviceIPAddressChangedHandler;
@@ -79,7 +67,6 @@ describe('DeviceIPAddressChangedHandler', () => {
     jest.clearAllMocks();
   });
 
-  // ===========================================================================
   describe('handle — no-op when ipAddress is not in updatedFields', () => {
     it('should return without calling the repository when ipAddress is absent from updatedFields', async () => {
       const event = makeEvent({ name: DeviceName.reconstitute('New Name') });
@@ -107,7 +94,6 @@ describe('DeviceIPAddressChangedHandler', () => {
     });
   });
 
-  // ===========================================================================
   describe('handle — no-op when no PollingConfiguration exists for the device', () => {
     it('should not call save when the repository returns a failure result', async () => {
       repo.findByDeviceId.mockResolvedValue(Result.fail('DB unavailable'));
@@ -130,7 +116,6 @@ describe('DeviceIPAddressChangedHandler', () => {
     });
   });
 
-  // ===========================================================================
   describe('handle — happy path: ipAddress update is in the event', () => {
     it('should call findByDeviceId with the device ID from the event', async () => {
       const config = makeConfig(ORIGINAL_IP);
@@ -178,7 +163,6 @@ describe('DeviceIPAddressChangedHandler', () => {
       repo.findByDeviceId.mockResolvedValue(Result.ok(config));
       repo.save.mockResolvedValue(Result.ok(config));
 
-      // ipAddress key is present but its value is null (device IP removed)
       const event = makeEvent({ ipAddress: null });
 
       await handler.handle(event);
@@ -188,13 +172,11 @@ describe('DeviceIPAddressChangedHandler', () => {
     });
 
     it('should set the IP address to null when updatedFields.ipAddress is undefined (key present via ?? null)', async () => {
-      // The handler uses `event.updatedFields.ipAddress ?? null` so when the
-      // field is present but resolves to undefined the IP is cleared to null.
+      // Key present but undefined — handler coerces to null via ?? null.
       const config = makeConfig(ORIGINAL_IP);
       repo.findByDeviceId.mockResolvedValue(Result.ok(config));
       repo.save.mockResolvedValue(Result.ok(config));
 
-      // Construct props directly so ipAddress key exists but value is undefined
       const event = new DeviceDetailsUpdatedEvent({
         aggregateId: makeDeviceId(),
         deviceName: DeviceName.reconstitute('Core-Router-01'),
@@ -209,7 +191,6 @@ describe('DeviceIPAddressChangedHandler', () => {
     });
   });
 
-  // ===========================================================================
   describe('handle — error resilience', () => {
     it('should not throw when findByDeviceId rejects unexpectedly', async () => {
       repo.findByDeviceId.mockRejectedValue(new Error('Unexpected DB crash'));

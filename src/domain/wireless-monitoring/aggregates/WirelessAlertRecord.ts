@@ -1,23 +1,46 @@
 import { AggregateRoot, Result } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
-import { WirelessAlertRecordProps } from '../props/WirelessAlertRecordProps';
-import { WirelessAlertRecordId } from 'domain/shared/ids';
-import { WirelessAlertClearedEvent } from '../events/WirelessAlertCleared';
+import { DeviceId, WirelessAlertRecordId } from 'domain/shared/ids';
+import { WirelessAlertRecordProps } from '../props';
+import { WirelessAlertClearedEvent } from '../events';
 
-export class WirelessAlertRecord extends AggregateRoot<WirelessAlertRecordProps, WirelessAlertRecordId> {
-  private constructor(props: WirelessAlertRecordProps, id: WirelessAlertRecordId) {
+export class WirelessAlertRecord extends AggregateRoot<
+  WirelessAlertRecordProps,
+  WirelessAlertRecordId
+> {
+  private constructor(
+    props: WirelessAlertRecordProps,
+    id: WirelessAlertRecordId
+  ) {
     super(props, id);
   }
 
-  get deviceId(): DeviceId                   { return this.props.deviceId; }
-  get metric(): string                       { return this.props.metric; }
-  get severity(): 'WARNING' | 'CRITICAL'    { return this.props.severity; }
-  get threshold(): number                    { return this.props.threshold; }
-  get triggeredAt(): Date                    { return this.props.triggeredAt; }
-  get clearedAt(): Date | null               { return this.props.clearedAt; }
-  get isActive(): boolean                    { return this.props.isActive; }
-  get lastValue(): number                    { return this.props.lastValue; }
-  get message(): string                      { return this.props.message; }
+  get deviceId(): DeviceId {
+    return this.props.deviceId;
+  }
+  get metric(): string {
+    return this.props.metric;
+  }
+  get severity(): 'WARNING' | 'CRITICAL' {
+    return this.props.severity;
+  }
+  get threshold(): number {
+    return this.props.threshold;
+  }
+  get triggeredAt(): Date {
+    return this.props.triggeredAt;
+  }
+  get clearedAt(): Date | null {
+    return this.props.clearedAt;
+  }
+  get isActive(): boolean {
+    return this.props.isActive;
+  }
+  get lastValue(): number {
+    return this.props.lastValue;
+  }
+  get message(): string {
+    return this.props.message;
+  }
 
   public static open(
     deviceId: DeviceId,
@@ -28,21 +51,28 @@ export class WirelessAlertRecord extends AggregateRoot<WirelessAlertRecordProps,
     message: string
   ): Result<WirelessAlertRecord> {
     const id = WirelessAlertRecordId.create();
-    const record = new WirelessAlertRecord({
-      deviceId,
-      metric,
-      severity,
-      threshold,
-      triggeredAt: new Date(),
-      clearedAt: null,
-      isActive: true,
-      lastValue: currentValue,
-      message,
-    }, id);
+    const record = new WirelessAlertRecord(
+      {
+        deviceId,
+        metric,
+        severity,
+        threshold,
+        triggeredAt: new Date(),
+        clearedAt: null,
+        isActive: true,
+        lastValue: currentValue,
+        message
+      },
+      id
+    );
     return Result.ok(record);
   }
 
-  public static reconstitute(props: WirelessAlertRecordProps, id: WirelessAlertRecordId): WirelessAlertRecord {
+  // bypasses validation — for repository use only
+  public static reconstitute(
+    id: WirelessAlertRecordId,
+    props: WirelessAlertRecordProps
+  ): WirelessAlertRecord {
     return new WirelessAlertRecord(props, id);
   }
 
@@ -56,14 +86,16 @@ export class WirelessAlertRecord extends AggregateRoot<WirelessAlertRecordProps,
     }
     this.props.isActive = false;
     this.props.clearedAt = clearedAt;
-    this.addDomainEvent(new WirelessAlertClearedEvent({
-      aggregateId: this.id,
-      deviceId: this.props.deviceId,
-      metric: this.props.metric,
-      severity: this.props.severity,
-      clearedAt,
-      dateTimeOccurred: new Date(),
-    }));
+    this.addDomainEvent(
+      new WirelessAlertClearedEvent({
+        aggregateId: this.id,
+        deviceId: this.props.deviceId,
+        metric: this.props.metric,
+        severity: this.props.severity,
+        clearedAt,
+        dateTimeOccurred: new Date()
+      })
+    );
     return Result.ok();
   }
 }

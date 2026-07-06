@@ -42,6 +42,7 @@ function makeAlertRecord(
   const deviceId = DeviceId.parse(deviceUuid).value;
   const alertId = WirelessAlertRecordId.parse(alertUuid).value;
   return WirelessAlertRecord.reconstitute(
+    alertId,
     {
       deviceId,
       metric,
@@ -52,8 +53,7 @@ function makeAlertRecord(
       triggeredAt: new Date('2024-01-01T00:00:00.000Z'),
       clearedAt: null,
       isActive: true,
-    },
-    alertId
+    }
   );
 }
 
@@ -73,6 +73,7 @@ describe('GetActiveWirelessAlertsUseCase', () => {
       findAllActiveByDevice: jest.fn(),
       findAllActive: jest.fn(),
       findHistoryByDevice: jest.fn(),
+      deleteClearedOlderThan: jest.fn()
     };
 
     logger = makeLogger();

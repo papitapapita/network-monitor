@@ -62,7 +62,7 @@ function makeFakeDomainState(overrides: Partial<DeviceStateProps> = {}): DeviceS
     updatedAt:           FIXED_DATE,
     ...overrides
   };
-  return DeviceState.reconstitute(props, deviceId);
+  return DeviceState.reconstitute(deviceId, props);
 }
 
 function makeFakePersistenceData() {

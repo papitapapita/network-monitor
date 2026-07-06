@@ -32,11 +32,11 @@ const UUID_REGEX =
  */
 const LOCATION_TYPES = [
   'TOWER',
-  'NODE',
   'DATACENTER',
-  'POP',
-  'WAREHOUSE',
-  'OFFICE'
+  'POINT_OF_PRESENCE',
+  'OFFICE',
+  'CUSTOMER_PREMISES',
+  'OTHER'
 ] as const;
 
 // =====================================
@@ -329,8 +329,34 @@ export const updateLocationSchema = z.object({
  * TypeScript types inferred from Zod schemas.
  * Use these types in LocationController for compile-time safety.
  */
-export type CreateLocationInput = z.infer<typeof createLocationSchema>['body'];
-export type ListLocationsQuery = z.infer<typeof listLocationsSchema>['query'];
-export type GetLocationByIdParams = z.infer<typeof getLocationByIdSchema>['params'];
-export type UpdateLocationInput = z.infer<typeof updateLocationSchema>['body'];
-export type UpdateLocationParams = z.infer<typeof updateLocationSchema>['params'];
+export type CreateLocationInput = z.infer<
+  typeof createLocationSchema
+>['body'];
+export type ListLocationsQuery = z.infer<
+  typeof listLocationsSchema
+>['query'];
+export type GetLocationByIdParams = z.infer<
+  typeof getLocationByIdSchema
+>['params'];
+export type UpdateLocationInput = z.infer<
+  typeof updateLocationSchema
+>['body'];
+export type UpdateLocationParams = z.infer<
+  typeof updateLocationSchema
+>['params'];
+
+// =====================================
+// DELETE SCHEMA
+// =====================================
+
+export const deleteLocationSchema = z.object({
+  params: z.object({
+    id: z
+      .string()
+      .regex(UUID_REGEX, 'Invalid location ID (must be a UUID v4)')
+  })
+});
+
+export type DeleteLocationParams = z.infer<
+  typeof deleteLocationSchema
+>['params'];

@@ -1,12 +1,9 @@
-import { PrismaClient } from '../../generated/prisma/client';
-import { Result } from '../../domain/shared/core';
-import {
-  DeviceId,
-  PollingConfigurationId
-} from '../../domain/shared/ids';
-import { PollingConfiguration } from '../../domain/device-monitoring/entities/PollingConfiguration';
-import { IPollingConfigurationRepository } from '../../domain/device-monitoring/repository/IPollingConfigurationRepository';
-import { PollingConfigurationMapper } from '../mappers/PollingConfigurationMapper';
+import { PrismaClient } from 'generated/prisma/client';
+import { Result } from 'domain/shared/core';
+import { DeviceId, PollingConfigurationId } from 'domain/shared/ids';
+import { PollingConfiguration } from 'domain/device-monitoring/entities';
+import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
+import { PollingConfigurationMapper } from '../mappers';
 
 export class PrismaPollingConfigurationRepository
   implements IPollingConfigurationRepository
@@ -27,7 +24,7 @@ export class PrismaPollingConfigurationRepository
       return Result.ok(PollingConfigurationMapper.toDomain(record));
     } catch (error) {
       return Result.fail(
-        `findById failed: ${(error as Error).message}`
+        `Database error finding polling config: ${(error as Error).message}`
       );
     }
   }
@@ -46,7 +43,7 @@ export class PrismaPollingConfigurationRepository
       return Result.ok(PollingConfigurationMapper.toDomain(record));
     } catch (error) {
       return Result.fail(
-        `findByDeviceId failed: ${(error as Error).message}`
+        `Database error finding polling config: ${(error as Error).message}`
       );
     }
   }
@@ -63,10 +60,11 @@ export class PrismaPollingConfigurationRepository
           enabled: boolean;
           interval_seconds: number;
           failures_before_down: number;
+          last_polled_at: Date | null;
         }>
       >`
         SELECT pc.id, pc.device_id, pc.ip_address, pc.enabled,
-               pc.interval_seconds, pc.failures_before_down
+               pc.interval_seconds, pc.failures_before_down, pc.last_polled_at
         FROM polling_configurations pc
         LEFT JOIN device_states ds ON ds.device_id = pc.device_id
         WHERE pc.enabled = true
@@ -84,14 +82,15 @@ export class PrismaPollingConfigurationRepository
           ipAddress: r.ip_address,
           enabled: r.enabled,
           pingIntervalSecs: r.interval_seconds,
-          failuresBeforeDown: r.failures_before_down
+          failuresBeforeDown: r.failures_before_down,
+          lastPolledAt: r.last_polled_at
         })
       );
 
       return Result.ok(entities);
     } catch (error) {
       return Result.fail(
-        `findAllDue failed: ${(error as Error).message}`
+        `Database error finding due polling configs: ${(error as Error).message}`
       );
     }
   }
@@ -108,7 +107,8 @@ export class PrismaPollingConfigurationRepository
           ipAddress: data.ipAddress,
           enabled: data.enabled,
           pingIntervalSecs: data.pingIntervalSecs,
-          failuresBeforeDown: data.failuresBeforeDown
+          failuresBeforeDown: data.failuresBeforeDown,
+          lastPolledAt: data.lastPolledAt
         },
         create: {
           id: data.id,
@@ -116,13 +116,14 @@ export class PrismaPollingConfigurationRepository
           ipAddress: data.ipAddress,
           enabled: data.enabled,
           pingIntervalSecs: data.pingIntervalSecs,
-          failuresBeforeDown: data.failuresBeforeDown
+          failuresBeforeDown: data.failuresBeforeDown,
+          lastPolledAt: data.lastPolledAt
         }
       });
 
       return Result.ok(entity);
     } catch (error) {
-      return Result.fail(`save failed: ${(error as Error).message}`);
+      return Result.fail(`Database error saving polling config: ${(error as Error).message}`);
     }
   }
 
@@ -134,7 +135,7 @@ export class PrismaPollingConfigurationRepository
       return Result.ok(undefined);
     } catch (error) {
       return Result.fail(
-        `delete failed: ${(error as Error).message}`
+        `Database error deleting polling config: ${(error as Error).message}`
       );
     }
   }

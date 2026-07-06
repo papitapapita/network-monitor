@@ -14,7 +14,7 @@ import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Location } from '../../../../src/domain/device-inventory/aggregates/Location';
 import { LocationId } from '../../../../src/domain/shared/ids';
 import { LocationType } from '../../../../src/domain/device-inventory/enums/LocationType';
-import { Coordinates } from '../../../../src/domain/device-inventory/value-objects';
+import { Address, Coordinates } from '../../../../src/domain/device-inventory/value-objects';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
 // ---------------------------------------------------------------------------
@@ -37,13 +37,13 @@ function makePersistedLocation(
   return Location.reconstitute(id, {
     name: overrides.name ?? 'Torre Norte',
     type: overrides.type ?? LocationType.TOWER,
-    municipality: 'Medellín',
-    neighborhood: 'Robledo',
-    address: 'Carrera 80 # 75-32',
+    address: Address.reconstitute({
+      street: 'Carrera 80 # 75-32',
+      municipality: 'Medellín',
+      neighborhood: 'Robledo'
+    }),
     coordinates:
-      overrides.coordinates !== undefined
-        ? overrides.coordinates
-        : null,
+      overrides.coordinates !== undefined ? overrides.coordinates : null,
     createdAt: NOW,
     updatedAt: NOW
   });
@@ -62,6 +62,7 @@ describe('GetLocationUseCase', () => {
       findById: jest.fn(),
       findAll: jest.fn(),
       findByType: jest.fn(),
+      findAllWithCoordinates: jest.fn(),
       delete: jest.fn(),
       exists: jest.fn(),
       count: jest.fn()

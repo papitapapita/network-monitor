@@ -32,10 +32,9 @@ function makeStateProps(overrides: Partial<DeviceStateProps> = {}): DeviceStateP
   };
 }
 
-/** Reconstitute a DeviceState with given props. */
 function makeState(overrides: Partial<DeviceStateProps> = {}): DeviceState {
   const props = makeStateProps(overrides);
-  return DeviceState.reconstitute(props, props.deviceId);
+  return DeviceState.reconstitute(props.deviceId, props);
 }
 
 // ---------------------------------------------------------------------------

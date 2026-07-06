@@ -1,53 +1,19 @@
 import { PollingIntervalProps } from '../props';
 import { ValueObject, Result, Guard } from 'domain/shared/core';
-/**
- * PollingInterval Value Object
- *
- * Represents the time interval between consecutive polls of a network device.
- * Measured in seconds with a valid range of 1 second to 24 hours (86400 seconds).
- *
- * Used to configure how frequently devices should be polled for status updates.
- *
- * Business Rules:
- * - Interval cannot be null or undefined
- * - Must be between 1 second and 86400 seconds (24 hours)
- * - Must be a valid number
- * - Automatically rounded to nearest integer
- * - Minimum interval: 1 second (prevents excessive polling)
- * - Maximum interval: 24 hours (ensures devices are checked daily)
- *
- * @example
- * const interval1 = PollingInterval.create(60);
- * if (interval1.isSuccess) {
- *   const interval = interval1.value;
- *   console.log(interval.seconds); // 60
- *   console.log(interval.toMilliseconds()); // 60000
- *   console.log(interval.toDisplayString()); // '1 minute'
- * }
- *
- * @example
- * const interval2 = PollingInterval.fromMinutes(5); // 5 minutes = 300 seconds
- * const interval3 = PollingInterval.fromHours(1); // 1 hour = 3600 seconds
- */
+
 export class PollingInterval extends ValueObject<PollingIntervalProps> {
   public static readonly MIN_SECONDS = 1;
-  public static readonly MAX_SECONDS = 86400; // 24 hours
-  public static readonly DEFAULT_SECONDS = 60; // 1 minute
+  public static readonly MAX_SECONDS = 86400;
+  public static readonly DEFAULT_SECONDS = 60;
 
   get seconds(): number {
     return this._props.seconds;
   }
 
-  private constructor(_props: PollingIntervalProps) {
-    super(_props);
+  private constructor(props: PollingIntervalProps) {
+    super(props);
   }
 
-  /**
-   * Creates a new PollingInterval from seconds.
-   *
-   * @param seconds - Interval in seconds (1-86400)
-   * @returns Result containing PollingInterval or error message
-   */
   public static create(seconds: number): Result<PollingInterval> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(
@@ -67,7 +33,6 @@ export class PollingInterval extends ValueObject<PollingIntervalProps> {
       return Result.fail<PollingInterval>(guardResult.message!);
     }
 
-    // Ensure it's an integer
     const roundedSeconds = Math.round(seconds);
 
     return Result.ok<PollingInterval>(
@@ -77,19 +42,10 @@ export class PollingInterval extends ValueObject<PollingIntervalProps> {
 
   public static createDefault(): PollingInterval {
     return new PollingInterval({
-      seconds: this.DEFAULT_SECONDS // Default to 60 seconds (1 minute)
+      seconds: this.DEFAULT_SECONDS
     });
   }
 
-  /**
-   * Creates a PollingInterval from minutes.
-   *
-   * @param minutes - Interval in minutes (0.017-1440)
-   * @returns Result containing PollingInterval or error message
-   *
-   * @example
-   * const interval = PollingInterval.fromMinutes(5); // 300 seconds
-   */
   public static fromMinutes(
     minutes: number
   ): Result<PollingInterval> {
@@ -114,15 +70,7 @@ export class PollingInterval extends ValueObject<PollingIntervalProps> {
   ): PollingInterval {
     return new PollingInterval(props);
   }
-  /**
-   * Creates a PollingInterval from hours.
-   *
-   * @param hours - Interval in hours (0.0003-24)
-   * @returns Result containing PollingInterval or error message
-   *
-   * @example
-   * const interval = PollingInterval.fromHours(1); // 3600 seconds
-   */
+
   public static fromHours(hours: number): Result<PollingInterval> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(hours, 'polling interval hours'),
@@ -137,39 +85,18 @@ export class PollingInterval extends ValueObject<PollingIntervalProps> {
     return this.create(seconds);
   }
 
-  /**
-   * Converts the polling interval to milliseconds.
-   * Useful for setTimeout/setInterval in JavaScript.
-   *
-   * @returns Interval in milliseconds
-   */
   public toMilliseconds(): number {
     return this._props.seconds * 1000;
   }
 
-  /**
-   * Converts the polling interval to minutes.
-   *
-   * @returns Interval in minutes (rounded to 2 decimal places)
-   */
   public toMinutes(): number {
     return Math.round((this._props.seconds / 60) * 100) / 100;
   }
 
-  /**
-   * Converts the polling interval to hours.
-   *
-   * @returns Interval in hours (rounded to 2 decimal places)
-   */
   public toHours(): number {
     return Math.round((this._props.seconds / 3600) * 100) / 100;
   }
 
-  /**
-   * Returns a human-readable string representation.
-   *
-   * @returns String like "60 seconds", "5 minutes", or "1 hour"
-   */
   public toDisplayString(): string {
     const { seconds } = this._props;
 
@@ -186,9 +113,6 @@ export class PollingInterval extends ValueObject<PollingIntervalProps> {
     return `${hours} hour${hours !== 1 ? 's' : ''}`;
   }
 
-  /**
-   * Returns the numeric value in seconds.
-   */
   public toString(): string {
     return this._props.seconds.toString();
   }

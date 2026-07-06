@@ -10,7 +10,11 @@ import {
 import { PollingConfiguration } from 'domain/device-monitoring/entities';
 import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
 import { IDeviceRepository } from 'domain/device-inventory/repository';
-import { CreateDevicePollingDTO, PollingConfigurationDTO } from '../dtos';
+import {
+  CreateDevicePollingDTO,
+  PollingConfigurationDTO
+} from '../dtos';
+import { PollingMapper } from '../mappers';
 
 export class CreateDevicePollingUseCase extends UseCase<
   CreateDevicePollingDTO,
@@ -50,9 +54,12 @@ export class CreateDevicePollingUseCase extends UseCase<
       return this.fail('Device not found');
     }
 
-    const configResult = await this.pollingConfigRepo.findByDeviceId(deviceId);
+    const configResult =
+      await this.pollingConfigRepo.findByDeviceId(deviceId);
     if (configResult.isFailure) {
-      return this.fail(`Failed to load config: ${configResult.error}`);
+      return this.fail(
+        `Failed to load config: ${configResult.error}`
+      );
     }
 
     const existingConfig = configResult.value;
@@ -70,7 +77,9 @@ export class CreateDevicePollingUseCase extends UseCase<
   ): Promise<Result<PollingConfigurationDTO>> {
     let interval: PollingInterval;
     if (request.intervalSeconds !== undefined) {
-      const intervalResult = PollingInterval.create(request.intervalSeconds);
+      const intervalResult = PollingInterval.create(
+        request.intervalSeconds
+      );
       if (intervalResult.isFailure) {
         return this.fail(intervalResult.error);
       }
@@ -116,12 +125,14 @@ export class CreateDevicePollingUseCase extends UseCase<
       return this.fail(newConfigResult.error);
     }
 
-    const saveResult = await this.pollingConfigRepo.save(newConfigResult.value);
+    const saveResult = await this.pollingConfigRepo.save(
+      newConfigResult.value
+    );
     if (saveResult.isFailure) {
       return this.fail(`Failed to save config: ${saveResult.error}`);
     }
 
-    return this.ok(this.toDTO(saveResult.value));
+    return this.ok(PollingMapper.toDTO(saveResult.value));
   }
 
   private async updateConfig(
@@ -129,11 +140,15 @@ export class CreateDevicePollingUseCase extends UseCase<
     config: PollingConfiguration
   ): Promise<Result<PollingConfigurationDTO>> {
     if (request.intervalSeconds !== undefined) {
-      const intervalResult = PollingInterval.create(request.intervalSeconds);
+      const intervalResult = PollingInterval.create(
+        request.intervalSeconds
+      );
       if (intervalResult.isFailure) {
         return this.fail(intervalResult.error);
       }
-      const updateResult = config.updateInterval(intervalResult.value);
+      const updateResult = config.updateInterval(
+        intervalResult.value
+      );
       if (updateResult.isFailure) {
         return this.fail(updateResult.error);
       }
@@ -146,13 +161,15 @@ export class CreateDevicePollingUseCase extends UseCase<
       if (thresholdResult.isFailure) {
         return this.fail(thresholdResult.error);
       }
-      const updateResult = config.updateFailureThreshold(thresholdResult.value);
+      const updateResult = config.updateFailureThreshold(
+        thresholdResult.value
+      );
       if (updateResult.isFailure) {
         return this.fail(updateResult.error);
       }
     }
 
-    // 'ipAddress' key present in the DTO (including null) means update
+    // `'ipAddress' in request` distinguishes explicit null (clear) from omitted (skip)
     if ('ipAddress' in request) {
       let ipAddress: IPAddress | null = null;
       if (request.ipAddress != null) {
@@ -178,18 +195,7 @@ export class CreateDevicePollingUseCase extends UseCase<
       return this.fail(`Failed to save config: ${saveResult.error}`);
     }
 
-    return this.ok(this.toDTO(saveResult.value));
-  }
-
-  private toDTO(config: PollingConfiguration): PollingConfigurationDTO {
-    return {
-      id: config.id.toString(),
-      deviceId: config.deviceId.toString(),
-      ipAddress: config.ipAddress?.value ?? null,
-      intervalSeconds: config.interval.seconds,
-      failuresBeforeDown: config.failuresBeforeDown.value,
-      enabled: config.enabled
-    };
+    return this.ok(PollingMapper.toDTO(saveResult.value));
   }
 
   protected sanitizeForLogging(data: unknown): unknown {

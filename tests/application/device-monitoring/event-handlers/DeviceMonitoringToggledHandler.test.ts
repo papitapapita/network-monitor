@@ -1,7 +1,6 @@
-// Source: src/application/device-monitoring/event-handlers/DeviceMonitoringToggledHandler.ts
-
 import { DeviceMonitoringToggledHandler } from '../../../../src/application/device-monitoring/event-handlers/DeviceMonitoringToggledHandler';
 import { IPollingConfigurationRepository } from '../../../../src/domain/device-monitoring/repository/IPollingConfigurationRepository';
+import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { DeviceMonitoringToggledEvent } from '../../../../src/domain/device-inventory/events/DeviceMonitoringToggledEvent';
 import { PollingConfiguration } from '../../../../src/domain/device-monitoring/entities/PollingConfiguration';
 import { PollingConfigurationId } from '../../../../src/domain/shared/ids/PollingConfigurationId';
@@ -13,17 +12,21 @@ import { DeviceName } from '../../../../src/domain/device-inventory/value-object
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { DeviceMonitoringToggledEventProps } from '../../../../src/domain/device-inventory/props/DeviceMonitoringToggledEventProps';
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
 const VALID_CONFIG_UUID = '550e8400-e29b-41d4-a716-446655440002';
 const DEVICE_IP = '10.0.0.1';
 
-// ---------------------------------------------------------------------------
-// Stub factories
-// ---------------------------------------------------------------------------
+function makeLogger(): jest.Mocked<ILogger> {
+  return {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    fatal: jest.fn(),
+    child: jest.fn().mockReturnThis() as any,
+    setLevel: jest.fn()
+  };
+}
 
 function makeRepo(): jest.Mocked<IPollingConfigurationRepository> {
   return {
@@ -76,22 +79,21 @@ function makeEvent(
   });
 }
 
-// ---------------------------------------------------------------------------
-
 describe('DeviceMonitoringToggledHandler', () => {
   let repo: jest.Mocked<IPollingConfigurationRepository>;
+  let logger: jest.Mocked<ILogger>;
   let handler: DeviceMonitoringToggledHandler;
 
   beforeEach(() => {
     repo = makeRepo();
-    handler = new DeviceMonitoringToggledHandler(repo);
+    logger = makeLogger();
+    handler = new DeviceMonitoringToggledHandler(repo, logger);
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  // ===========================================================================
   describe('handle — monitoring enabled with no existing config (first-time creation)', () => {
     it('should call findByDeviceId with the device ID from the event', async () => {
       repo.findByDeviceId.mockResolvedValue(Result.ok(null));
@@ -172,7 +174,6 @@ describe('DeviceMonitoringToggledHandler', () => {
     });
 
     it('should also create a config when findByDeviceId returns a failure result', async () => {
-      // When finding the existing config fails, the handler treats it as no existing config
       repo.findByDeviceId.mockResolvedValue(Result.fail('DB read error'));
       repo.save.mockResolvedValue(Result.ok(makeConfig()));
 
@@ -182,7 +183,6 @@ describe('DeviceMonitoringToggledHandler', () => {
     });
   });
 
-  // ===========================================================================
   describe('handle — monitoring enabled with an existing config (re-enable)', () => {
     it('should call enable() and save the existing config', async () => {
       const config = makeConfig({ enabled: false });
@@ -215,8 +215,7 @@ describe('DeviceMonitoringToggledHandler', () => {
       repo.findByDeviceId.mockResolvedValue(Result.ok(config));
       repo.save.mockResolvedValue(Result.ok(config));
 
-      // The handler guards with `if (event.ipAddress)` — exercise the falsy branch by
-      // constructing an event and then replacing the getter with a null-returning stub.
+      // Exercise the falsy ipAddress branch by stubbing the event getter.
       const event = makeEvent({ monitoringEnabled: true });
       jest.spyOn(event, 'ipAddress', 'get').mockReturnValue(
         null as unknown as IPAddress
@@ -224,7 +223,6 @@ describe('DeviceMonitoringToggledHandler', () => {
 
       await handler.handle(event);
 
-      // The existing IP should remain unchanged since the branch `if (event.ipAddress)` is falsy
       expect(config.ipAddress?.toString()).toBe('10.0.0.1');
     });
 
@@ -239,7 +237,6 @@ describe('DeviceMonitoringToggledHandler', () => {
     });
   });
 
-  // ===========================================================================
   describe('handle — monitoring disabled with an existing config', () => {
     it('should call disable() and save the existing config', async () => {
       const config = makeConfig({ enabled: true });
@@ -267,7 +264,6 @@ describe('DeviceMonitoringToggledHandler', () => {
     });
   });
 
-  // ===========================================================================
   describe('handle — monitoring disabled with no existing config', () => {
     it('should not call save when findByDeviceId returns null and monitoring is disabled', async () => {
       repo.findByDeviceId.mockResolvedValue(Result.ok(null));
@@ -286,20 +282,10 @@ describe('DeviceMonitoringToggledHandler', () => {
     });
   });
 
-  // ===========================================================================
   describe('handle — PollingConfiguration.create failure during first-time creation', () => {
     it('should not call save and should log an error when PollingConfiguration.create fails', async () => {
-      const consoleSpy = jest
-        .spyOn(console, 'error')
-        .mockImplementation(() => undefined);
-
       repo.findByDeviceId.mockResolvedValue(Result.ok(null));
 
-      // Force PollingConfiguration.create to fail by passing a null deviceId
-      // via an event whose aggregateId will cause the entity factory to fail.
-      // We do this indirectly: the handler uses PollingConfiguration.create internally.
-      // Since we cannot inject a broken factory without modifying production code,
-      // we instead spy on PollingConfiguration.create to return a failure result.
       const createSpy = jest
         .spyOn(PollingConfiguration, 'create')
         .mockReturnValueOnce(Result.fail('Simulated creation failure'));
@@ -307,17 +293,12 @@ describe('DeviceMonitoringToggledHandler', () => {
       await handler.handle(makeEvent({ monitoringEnabled: true }));
 
       expect(repo.save).not.toHaveBeenCalled();
-      expect(consoleSpy).toHaveBeenCalledTimes(1);
+      expect(logger.error).toHaveBeenCalledTimes(1);
 
       createSpy.mockRestore();
-      consoleSpy.mockRestore();
     });
 
     it('should log the device ID when PollingConfiguration.create fails', async () => {
-      const consoleSpy = jest
-        .spyOn(console, 'error')
-        .mockImplementation(() => undefined);
-
       repo.findByDeviceId.mockResolvedValue(Result.ok(null));
 
       const createSpy = jest
@@ -326,17 +307,15 @@ describe('DeviceMonitoringToggledHandler', () => {
 
       await handler.handle(makeEvent({ monitoringEnabled: true }));
 
-      const logPayload = consoleSpy.mock.calls[0][1] as {
+      const context = (logger.error as jest.Mock).mock.calls[0][2] as {
         deviceId: string;
       };
-      expect(logPayload.deviceId).toBe(VALID_DEVICE_UUID);
+      expect(context.deviceId).toBe(VALID_DEVICE_UUID);
 
       createSpy.mockRestore();
-      consoleSpy.mockRestore();
     });
   });
 
-  // ===========================================================================
   describe('handle — error resilience', () => {
     it('should not throw when findByDeviceId rejects unexpectedly', async () => {
       repo.findByDeviceId.mockRejectedValue(new Error('DB crash'));
@@ -357,45 +336,33 @@ describe('DeviceMonitoringToggledHandler', () => {
     });
 
     it('should log the error when an unexpected exception is thrown', async () => {
-      const consoleSpy = jest
-        .spyOn(console, 'error')
-        .mockImplementation(() => undefined);
       repo.findByDeviceId.mockRejectedValue(new Error('Network timeout'));
 
       await handler.handle(makeEvent({ monitoringEnabled: true }));
 
-      expect(consoleSpy).toHaveBeenCalledTimes(1);
-      consoleSpy.mockRestore();
+      expect(logger.error).toHaveBeenCalledTimes(1);
     });
 
     it('should include the device ID in the error log payload when an exception is thrown', async () => {
-      const consoleSpy = jest
-        .spyOn(console, 'error')
-        .mockImplementation(() => undefined);
       repo.findByDeviceId.mockRejectedValue(new Error('Fatal error'));
 
       await handler.handle(makeEvent({ monitoringEnabled: true }));
 
-      const logPayload = consoleSpy.mock.calls[0][1] as {
+      const context = (logger.error as jest.Mock).mock.calls[0][2] as {
         deviceId: string;
       };
-      expect(logPayload.deviceId).toBe(VALID_DEVICE_UUID);
-      consoleSpy.mockRestore();
+      expect(context.deviceId).toBe(VALID_DEVICE_UUID);
     });
 
     it('should include the monitoringEnabled flag in the error log payload', async () => {
-      const consoleSpy = jest
-        .spyOn(console, 'error')
-        .mockImplementation(() => undefined);
       repo.findByDeviceId.mockRejectedValue(new Error('Fatal error'));
 
       await handler.handle(makeEvent({ monitoringEnabled: false }));
 
-      const logPayload = consoleSpy.mock.calls[0][1] as {
+      const context = (logger.error as jest.Mock).mock.calls[0][2] as {
         monitoringEnabled: boolean;
       };
-      expect(logPayload.monitoringEnabled).toBe(false);
-      consoleSpy.mockRestore();
+      expect(context.monitoringEnabled).toBe(false);
     });
 
     it('should not throw when save rejects during first-time config creation', async () => {

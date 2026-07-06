@@ -1,197 +1,289 @@
-# AP Polling Frequency & Monitoring System
+# Network Management System — Backend
 
-## Objective
-
-The system polls each Access Point (AP) at regular intervals (default: every 15 seconds) to ensure real-time or near-real-time monitoring. Polling frequency is adjustable per AP or globally, balancing responsiveness and system load.
-
-## Build & Run Instructions
-
-1. **Install dependencies:**
-   ```sh
-   npm install
-   ```
-2. **Build the project:**
-   ```sh
-   npm run build
-   ```
-3. **Start the monitoring service:**
-   ```sh
-   npm start
-   ```
-   - The service will begin polling all configured APs at the default or configured intervals.
-
-## Implementation Overview
-
-- **Polling Mechanism:**
-
-  - Uses asynchronous timers to poll each AP at its configured interval (default: 15s).
-  - Polling frequency can be set globally or per AP via the settings manager (`SettingsManager` class).
-  - Polling jobs are managed independently for each AP, supporting concurrent polling and runtime changes.
-  - APs can be added/removed or have their polling frequency changed without restarting the service.
-  - Polling can be paused for maintenance (set `enabled: false` for an AP).
-  - The system can adapt polling intervals in response to network congestion (future enhancement).
-  - All polling results and failures are logged for audit and debugging.
-
-- **Configuration:**
-
-  - Settings are managed via the `SettingsManager` class (`src/services/settings.service.ts`).
-  - Polling intervals are persisted in a config file and can be updated via API or CLI (see code for details).
-  - Input validation ensures intervals are within allowed bounds (min 5s, max 5min).
-
-- **Extensibility:**
-  - Supports various AP brands (Mikrotik, Ubiquiti, etc.).
-  - Polling logic is protocol-agnostic and can be extended for SNMP, HTTP, or custom protocols.
-  - Integrates with third-party alerting tools (Slack, Discord, email) and provides API hooks for external systems.
-
-## Acceptance Criteria Mapping
-
-1. **Default Polling:** APs are polled every 15s by default (configurable).
-2. **Configurable Frequency:** Admins can set polling frequency per AP or globally via the settings manager.
-3. **Live Updates:** Changes to polling frequency are applied at runtime without restart.
-4. **Pause Polling:** Polling can be paused per AP (set `enabled: false`).
-5. **Adaptive Polling:** (Planned) System can adapt intervals based on network load.
-6. **Failure Handling:** Polling failures are logged and do not crash the system.
-
-## User Roles
-
-- **Admins:** Configure polling frequency and AP settings.
-- **Technicians:** View polling status and receive alerts.
-- **System:** Automated polling and alerting.
-
-## Testing
-
-- Unit tests for polling logic and frequency adjustment (`src/services/settings.service.test.ts`).
-- Load and integration tests recommended for large-scale deployments.
-
-## Security & Compliance
-
-- Follows best practices for secure polling and logging.
-- Logs and configuration changes are auditable and retained per policy.
-
-## Further Details
-
-- See `src/services/settings.service.ts` for core implementation.
-- See `src/monitor.ts` for polling loop and job scheduling.
-- See `src/notifier.ts` for alerting integration.
+Production-grade monitoring and management backend for a live ISP network (150+ clients, Ubiquiti AirOS infrastructure).
 
 ---
 
-For more details on requirements, see the [requirements section](#) or contact the project maintainer.
+## The Problem
 
-# Node.js Ping Monitoring System
-
-A simple **Node.js monitoring tool** that **pings multiple endpoints** at a set interval and sends **email notifications** if an endpoint goes down.
-
-## 🚀 Features
-
-- ✅ **Ping multiple endpoints** to check availability.
-- ✅ **Email notifications** when an endpoint fails.
-- ✅ **Retry mechanism** to avoid false alerts.
-- ✅ **Logging with Winston** for debugging and analysis.
-- ✅ **Fully typed with TypeScript** for better maintainability.
+Managing a small ISP with dozens of wireless links, CPEs, and routers across multiple towers means your failure detection is usually a phone call from an angry customer. This system replaces that with real-time ICMP polling, Ubiquiti AirOS metric collection over their HTTP API, Telegram alerting, and a full inventory of every device, vendor, and customer service contract — all built to survive the chaos of a real network.
 
 ---
 
-## 📦 Installation
-
-1.  **Clone the repository**
-
-    ```sh
-    git clone https://github.com/your-username/node-ping-monitor.git
-    cd node-ping-monitor
-    ```
-
-2.  **Install dependencies**
-
-    ```sh
-     npm install
-
-    ```
-
-3.  **Set up environment variables**
-
-    Create a .env file and add your email credentials:
-
-    ```ini
-    EMAIL_USER=your-email@gmail.com
-    EMAIL_PASS=your-email-password
-    ALERT_EMAIL=recipient-email@gmail.com
-    ```
-
-4.  **Compile TypeScript**
-
-    ```sh
-    npm run build
-    ```
-
-5.  **Run the monitor**
-
-    ```sh
-    npm start
-    ```
-
-## 🛠 Configuration
-
-Edit src/config.ts to add or modify endpoints and settings:
-
-```js
-export const config = {
-  endpoints: [
-    { url: '8.8.8.8', name: 'Google DNS' },
-    { url: '1.1.1.1', name: 'Cloudflare DNS' }
-  ],
-  interval: 30000, // Check every 30 seconds
-  maxRetries: 3 // Retries before sending alert
-};
-```
-
-## 📂 Project Structure
+## Live API Sample
 
 ```bash
-node-ping-monitor/
-│── src/
-│ ├── config.ts # Monitoring configuration
-│ ├── logger.ts # Logging system (Winston)
-│ ├── notifier.ts # Email notification system
-│ ├── monitor.ts # Main monitoring logic
-│── .env # Environment variables (ignored in Git)
-│── .gitignore # Ignored files list
-│── .eslintrc.json # ESLint configuration
-│── .prettierrc # Prettier formatting rules
-│── package.json # Project metadata & scripts
-│── tsconfig.json # TypeScript configuration
-│── README.md # Project documentation
+# Trigger a manual poll on a device
+curl -s -X POST http://localhost:3000/api/devices/abc-123/poll \
+  -H "Authorization: Bearer $TOKEN" | jq .
+
+{
+  "deviceId": "abc-123",
+  "status": "SUCCESS",
+  "message": "Device responded in 4ms",
+  "timestamp": "2026-06-30T22:14:03.512Z",
+  "metrics": { "latencyMs": 4 },
+  "deviceStatus": "ONLINE"
+}
 ```
 
-## 📝 Logging
+```bash
+# Get wireless status for a Ubiquiti antenna
+curl -s http://localhost:3000/api/devices/def-456/wireless/status \
+  -H "Authorization: Bearer $TOKEN" | jq '.metrics | {signalRxDbm, ccqPercent, throughputTxBps}'
 
-The system logs events in monitor.log and also displays them in the console.
-
-Example logs:
-
-```csharp
-✅ Google DNS (8.8.8.8) is UP
-⚠️ Cloudflare DNS (1.1.1.1) is DOWN
-🚨 Alert sent: Cloudflare DNS is DOWN!
+{
+  "signalRxDbm": -64,
+  "ccqPercent": 94,
+  "throughputTxBps": 8241920
+}
 ```
 
-## 📬 Future Improvements
+---
 
-- 📡 Add Telegram or Twilio SMS notifications.
-- 📊 Create a web dashboard to monitor endpoints in real-time.
-- 📈 Store monitoring history in a database.
-- ⌨️ Create a CLI command that receives a file of IP addresses as argument
+## Architecture
 
-## 👨‍💻 Contributing
+```mermaid
+graph TD
+  subgraph Presentation
+    R[Express Routes]
+    MW[Auth · Rate Limit · Audit Log]
+  end
 
-Feel free to submit issues or pull requests to improve the project!
+  subgraph Application
+    UC[Use Cases]
+    EH[Event Handlers]
+    MAP[Mappers · DTOs]
+  end
 
-## 📜 License
+  subgraph Domain
+    DI[Device Inventory]
+    DM[Device Monitoring]
+    WM[Wireless Monitoring]
+    NO[Notifications]
+    CU[Customers]
+    ID[Identity]
+    SK[Shared Kernel]
+  end
 
-This project is licensed under the MIT License.
+  subgraph Infrastructure
+    PR[Prisma Repositories]
+    PING[ICMP Poller]
+    HTTP[AirOS HTTP Collector]
+    TG[Telegram Service]
+    ENC[AES-256-GCM Encryption]
+    DIC[DI Container]
+  end
 
-### **Next Steps**
+  R --> MW --> UC
+  UC --> Domain
+  EH --> Domain
+  Infrastructure --> Domain
+  Domain -.->|interfaces only| Infrastructure
+```
 
-1. Replace `your-username` with your GitHub username in the **clone** section.
-2. Add a **LICENSE file** (optional but recommended).
-3. Customize the **Future Improvements** section if you plan to add more features.
+**Dependency rule:** inner layers never import from outer ones. Domain has zero framework dependencies.
+
+```mermaid
+sequenceDiagram
+  participant Scheduler
+  participant PingOrchestrator
+  participant Device
+  participant TelegramService
+
+  Scheduler->>PingOrchestrator: tick
+  PingOrchestrator->>Device: ICMP ping
+  alt device goes offline
+    Device-->>PingOrchestrator: timeout × failuresBeforeDown
+    PingOrchestrator->>Device: mark OFFLINE, open AlertEvent
+    PingOrchestrator->>TelegramService: notify (deviceId, severity)
+  else device recovers
+    Device-->>PingOrchestrator: reply
+    PingOrchestrator->>Device: mark ONLINE, resolve alert
+    PingOrchestrator->>TelegramService: recovery notification
+  end
+```
+
+---
+
+## Bounded Contexts
+
+| Context | Responsibility |
+|---------|----------------|
+| **Device Inventory** | Devices, models, vendors, locations, credentials, network scan |
+| **Device Monitoring** | ICMP polling, online/offline state, polling config, ping history |
+| **Wireless Monitoring** | AirOS HTTP polling, signal/CCQ/throughput snapshots, wireless alerts |
+| **Notifications** | Telegram dispatch, delivery tracking, alert lifecycle |
+| **Customers** | Customer records, service plans, contracted services |
+| **Identity** | JWT auth, RBAC (Admin / Operator / Viewer), audit log |
+
+Shared kernel (`domain/shared/`): `AggregateRoot`, `Entity`, `ValueObject`, `Result`, `Guard`, `DomainEvent`, `IPAddress`.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Runtime | Node.js 24, TypeScript |
+| Framework | Express 5 |
+| ORM / DB | Prisma 7 + PostgreSQL (`pg` adapter) |
+| Architecture | Clean Architecture + DDD |
+| Auth | JWT (HS256, 24 h), bcrypt (cost 10) |
+| Encryption | AES-256-GCM (device credentials at rest) |
+| Logging | Winston (structured JSON in production) |
+| Notifications | Telegram Bot API |
+| Testing | Jest (unit), Supertest (integration, real DB) |
+
+---
+
+## Engineering Notes
+
+### Why HTTP API instead of SNMP for Ubiquiti devices
+
+The initial plan was standard SNMPv2 polls against Ubiquiti's MIBs. Field testing showed the problem: AirOS exposes very little through the standard MIB tree. Signal strength, CCQ, airMAX capacity scores, connected client details, and remote CPE diagnostics are only available through the proprietary `/status.cgi` and `/sta.cgi` HTTP endpoints.
+
+The HTTP API returns a single JSON blob with 50+ fields per device per request — one round-trip beats five SNMP walks. It also gives you the full client list on access points (MAC, signal, throughput, uptime, CPE firmware) which SNMP does not expose at all. The tradeoff is vendor lock-in to AirOS; multi-vendor polling (Mikrotik RouterOS API, generic SNMP) is planned behind an `IVendorPoller` abstraction.
+
+### Topology-aware alert suppression (in design)
+
+When an AP goes offline, every CPE under it appears offline too — a 20-device AP can generate 21 simultaneous Telegram messages. The planned suppression model: the `NetworkTopology` aggregate stores a child→parent edge map. On each offline event, `TopologyRootCauseService` walks the chain (CPE → AP → PoE switch → backhaul → provider link) and only notifies if no ancestor is already down. One message for the root cause; descendants are suppressed. See `docs/TODOS.md` for the full design.
+
+### Result + Guard pattern throughout the domain
+
+No `try/catch` for business rule violations. Every use case and aggregate method returns `Result<T, string>` — success or a named failure. `Guard.againstNullOrUndefined` handles null checks at aggregate boundaries. This keeps the domain free of framework error classes and makes failure paths explicit in the type system.
+
+### Device status lifecycle enforced at domain layer
+
+Status transitions (`INVENTORY → COMMISSIONING → ACTIVE → DAMAGED`) carry hard invariants enforced inside the `Device` aggregate, not in controllers:
+- `COMMISSIONING` requires an IP address and auto-enables monitoring
+- `ACTIVE` requires both IP and location
+- Transitioning to `DAMAGED` or `INVENTORY` automatically disables polling
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 24+
+- PostgreSQL 15+
+
+### Install
+
+```sh
+npm install
+```
+
+### Environment
+
+Copy `.env.example` and fill in the values:
+
+```sh
+cp .env.example .env
+```
+
+Key variables:
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `JWT_SECRET` | HS256 signing secret (≥ 32 random bytes) |
+| `DEVICE_CREDENTIALS_KEY` | AES-256-GCM key as hex — generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather |
+| `TELEGRAM_CHAT_ID` | Target chat or group ID |
+
+### Database
+
+```sh
+npm run db:migrate:dev   # run migrations
+npm run db:seed          # create admin user (SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD)
+```
+
+### Run
+
+```sh
+npm run dev     # watch mode
+npm run build && npm start   # production
+```
+
+### Test
+
+```sh
+npm test                  # unit tests
+npm run test:integration  # requires a running PostgreSQL instance
+```
+
+---
+
+## API Overview
+
+All endpoints require `Authorization: Bearer <token>` except `POST /api/auth/login`.
+
+| Group | Base path |
+|-------|-----------|
+| Auth | `POST /api/auth/login` |
+| Devices | `/api/devices` |
+| Credentials | `/api/devices/:id/credentials` |
+| Polling | `/api/devices/:id/poll`, `/api/devices/:id/polling/*` |
+| Wireless | `/api/devices/:id/wireless/*` |
+| Locations | `/api/locations` |
+| Vendors | `/api/vendors` |
+| Device Models | `/api/device-models` |
+| Alerts | `/api/alerts` |
+| Customers | `/api/customers` |
+| Service Plans | `/api/service-plans` |
+| Contracted Services | `/api/contracted-services` |
+| Network Scan | `POST /api/network/scan` |
+
+Full spec: [`docs/BACKEND_API.md`](docs/BACKEND_API.md)
+
+---
+
+## Project Structure
+
+```
+src/
+├── domain/                     # Pure business logic — no framework dependencies
+│   ├── shared/                 # Kernel: AggregateRoot, Result, Guard, IPAddress, IDs
+│   ├── device-inventory/       # Device, DeviceModel, Vendor, Location aggregates
+│   ├── device-monitoring/      # PollingConfiguration, ping state machine
+│   ├── wireless-monitoring/    # WirelessSnapshot, WirelessAlertRecord
+│   ├── notifications/          # Alert lifecycle, Telegram dispatch
+│   ├── customers/              # Customer, ServicePlan, ContractedService
+│   └── identity/               # User, Role
+│
+├── application/                # Orchestration — use cases, DTOs, mappers, event handlers
+│   ├── device-inventory/
+│   ├── device-monitoring/
+│   ├── wireless-monitoring/
+│   ├── notifications/
+│   ├── customers/
+│   └── identity/
+│
+├── infrastructure/             # Adapters — DB, HTTP clients, encryption, DI
+│   ├── persistence/            # Prisma repositories
+│   ├── wireless-monitoring/    # AirOS HTTP collector, SNMP adapter
+│   ├── monitoring/             # ICMP ping orchestrator, network scanner
+│   ├── notifications/          # Telegram service
+│   ├── crypto/                 # AES-256-GCM credentials encryption
+│   ├── identity/               # JWT service, bcrypt
+│   ├── logging/                # Winston logger
+│   └── di/                     # Dependency injection container
+│
+└── presentation/
+    ├── http/                   # Express routes, controllers, middleware, validation
+    └── websocket/              # WebSocket gateway
+```
+
+---
+
+## Frontend
+
+The frontend repo lives at [papitapapita/network-management-system-frontend](https://github.com/papitapapita/network-management-system-frontend) *(link placeholder — update when public)*.
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).

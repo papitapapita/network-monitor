@@ -1,19 +1,16 @@
-// Source: src/infrastructure/wireless-monitoring/repositories/PrismaDeviceCredentialsRepository.ts
+// Source: src/infrastructure/persistence/PrismaDeviceCredentialsRepository.ts
 //
-// NOTE: CredentialsEncryption is mocked using its module path alias so that the
-// import inside PrismaDeviceCredentialsRepository (which uses a relative path
-// resolved at build time) is intercepted by Jest's module registry.
-// The mock uses a predictable prefix strategy so assertion values are easy to
-// verify without needing a real AES key.
+// NOTE: CredentialsEncryption is mocked via its module path so that the
+// import inside PrismaDeviceCredentialsRepository is intercepted.
+// The mock uses a predictable prefix strategy for easy assertions.
 
-import { PrismaDeviceCredentialsRepository } from '../../../../src/infrastructure/wireless-monitoring/repositories/PrismaDeviceCredentialsRepository';
+import { PrismaDeviceCredentialsRepository } from '../../../../src/infrastructure/persistence/PrismaDeviceCredentialsRepository';
 import { DeviceId } from 'domain/shared';
-import { DecryptedCredentials } from 'application/wireless-monitoring/interfaces';
+import { DeviceCredentials } from 'application/device-inventory/interfaces/IDeviceCredentialsRepository';
 import type { PrismaClient } from '../../../../src/generated/prisma/client';
 
-// Jest.mock must be hoisted before imports and uses a factory to avoid
-// the hoisting constraint when referencing module-level variables.
-jest.mock('../../../../src/infrastructure/wireless-monitoring/crypto/CredentialsEncryption', () => ({
+// Jest.mock must be hoisted before imports.
+jest.mock('../../../../src/infrastructure/crypto/CredentialsEncryption', () => ({
   CredentialsEncryption: {
     encrypt: jest.fn((plaintext: string) => `enc:${plaintext}`),
     decrypt: jest.fn((ciphertext: string) => ciphertext.replace(/^enc:/, '')),
@@ -21,7 +18,7 @@ jest.mock('../../../../src/infrastructure/wireless-monitoring/crypto/Credentials
 }));
 
 // Import the mocked module AFTER jest.mock so we can access the mock functions
-import { CredentialsEncryption } from '../../../../src/infrastructure/wireless-monitoring/crypto/CredentialsEncryption';
+import { CredentialsEncryption } from '../../../../src/infrastructure/crypto/CredentialsEncryption';
 
 const DEVICE_UUID = 'f149790a-58f0-479a-8534-b0b01e9942bb';
 
@@ -32,10 +29,11 @@ const createMockPrisma = () => ({
   deviceCredentials: {
     findUnique: jest.fn(),
     upsert: jest.fn(),
+    deleteMany: jest.fn(),
   },
 });
 
-const makeDecryptedCredentials = (overrides: Partial<DecryptedCredentials> = {}): DecryptedCredentials => ({
+const makeDecryptedCredentials = (overrides: Partial<DeviceCredentials> = {}): DeviceCredentials => ({
   snmpVersion: 2,
   snmpCommunity: 'public',
   snmpV3AuthUser: null,
@@ -173,7 +171,7 @@ describe('PrismaDeviceCredentialsRepository', () => {
       const result = await repository.save(deviceId, makeDecryptedCredentials());
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Database error saving device credentials');
+      expect(result.error).toContain('Database error saving credentials');
     });
   });
 
@@ -277,7 +275,7 @@ describe('PrismaDeviceCredentialsRepository', () => {
       const result = await repository.findByDeviceId(deviceId);
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Database error finding device credentials');
+      expect(result.error).toContain('Database error finding credentials');
     });
 
     it('should return a failed Result when prisma.deviceCredentials.findUnique throws', async () => {
@@ -287,7 +285,7 @@ describe('PrismaDeviceCredentialsRepository', () => {
       const result = await repository.findByDeviceId(deviceId);
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Database error finding device credentials');
+      expect(result.error).toContain('Database error finding credentials');
     });
   });
 });

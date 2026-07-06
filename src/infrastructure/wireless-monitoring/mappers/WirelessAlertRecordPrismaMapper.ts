@@ -1,9 +1,6 @@
-import {
-  WirelessAlertRecord,
-  WirelessAlertRecordProps
-} from 'domain/wireless-monitoring';
-import { DeviceId } from 'domain/shared';
-import { WirelessAlertRecordId } from 'domain/shared/ids';
+import { WirelessAlertRecord } from 'domain/wireless-monitoring/aggregates';
+import { WirelessAlertRecordProps } from 'domain/wireless-monitoring/props';
+import { WirelessAlertRecordId, DeviceId } from 'domain/shared/ids';
 
 type PrismaWirelessAlertRecord = {
   id: string;
@@ -54,7 +51,7 @@ export class WirelessAlertRecordPrismaMapper {
       message: raw.message
     };
 
-    return WirelessAlertRecord.reconstitute(props, id.value);
+    return WirelessAlertRecord.reconstitute(id.value, props);
   }
 
   static toPersistence(record: WirelessAlertRecord): PersistenceData {

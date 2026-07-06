@@ -8,6 +8,7 @@ import {
 import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
 import { ConfigureDevicePollingDTO } from '../dtos';
 import { DeviceId } from 'domain/shared';
+import { PollingMapper } from '../mappers';
 
 export class ConfigureDevicePollingUseCase extends UseCase<
   ConfigureDevicePollingDTO,
@@ -53,9 +54,11 @@ export class ConfigureDevicePollingUseCase extends UseCase<
       );
     }
 
-    if (request.intervalSeconds !== undefined) {
+    const updates = PollingMapper.extractUpdateData(request);
+
+    if (updates.intervalSeconds !== undefined) {
       const intervalResult = PollingInterval.create(
-        request.intervalSeconds
+        updates.intervalSeconds
       );
       if (intervalResult.isFailure) {
         return this.fail(intervalResult.error);
@@ -69,10 +72,9 @@ export class ConfigureDevicePollingUseCase extends UseCase<
       }
     }
 
-    // Delegate failure threshold validation to the FailureThreshold value object
-    if (request.failuresBeforeDown !== undefined) {
+    if (updates.failuresBeforeDown !== undefined) {
       const thresholdResult = FailureThreshold.create(
-        request.failuresBeforeDown
+        updates.failuresBeforeDown
       );
       if (thresholdResult.isFailure) {
         return this.fail(thresholdResult.error);
@@ -86,9 +88,8 @@ export class ConfigureDevicePollingUseCase extends UseCase<
       }
     }
 
-    // Delegate enable/disable to the entity
-    if (request.enabled !== undefined) {
-      if (request.enabled) {
+    if (updates.enabled !== undefined) {
+      if (updates.enabled) {
         config.enable();
       } else {
         config.disable();

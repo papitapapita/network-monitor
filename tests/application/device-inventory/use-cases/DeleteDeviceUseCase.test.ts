@@ -5,10 +5,10 @@ import { IDeviceRepository } from '../../../../src/domain/device-inventory/repos
 import { ILogger } from '../../../../src/application/shared/interfaces';
 import { Result } from '../../../../src/domain/shared/core';
 import { Device } from '../../../../src/domain/device-inventory/aggregates';
+import { MACAddress } from '../../../../src/domain/shared';
 import {
   DeviceName,
-  DeviceStatus,
-  MACAddress
+  DeviceStatus
 } from '../../../../src/domain/device-inventory/value-objects';
 import { DeviceOwnerType } from '../../../../src/domain/device-inventory/enums';
 import {
@@ -56,6 +56,7 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
     findByStatus: jest.fn(),
     existsByMacAddress: jest.fn(),
     existsByIpAddress: jest.fn(),
+    findByLocationIds: jest.fn(),
     findByFilters: jest.fn()
   };
 }

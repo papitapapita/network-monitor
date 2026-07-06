@@ -1,5 +1,5 @@
 import { Device } from 'domain/device-inventory/aggregates';
-import { IPAddress } from 'domain/shared';
+import { IPAddress, MACAddress } from 'domain/shared/value-objects';
 import {
   DeviceId,
   DeviceModelId,
@@ -7,7 +7,6 @@ import {
 } from 'domain/shared/ids';
 import { DeviceOwnerType } from 'domain/device-inventory/enums';
 import {
-  MACAddress,
   DeviceName,
   SerialNumber,
   DeviceStatus,
@@ -18,7 +17,7 @@ import {
   DeviceStatus as PrismaDeviceStatus,
   DeviceCategory as PrismaDeviceCategory,
   DeviceOwnerType as PrismaDeviceOwnerType
-} from '../../generated/prisma/client';
+} from 'generated/prisma/client';
 
 type PrismaDeviceRecord = {
   id: string;
@@ -86,7 +85,9 @@ export class DeviceMapper {
     }
 
     const ownerType =
-      raw.owner != null ? this.mapOwnerTypeFromPrisma(raw.owner) : null;
+      raw.owner != null
+        ? this.mapOwnerTypeFromPrisma(raw.owner)
+        : null;
 
     const device = Device.reconstitute(deviceIdResult.value, {
       deviceModelId: deviceModelIdResult.value,
@@ -128,7 +129,8 @@ export class DeviceMapper {
       status: device.status.toString() as PrismaDeviceStatus,
       category: (device.category?.toString() ??
         null) as PrismaDeviceCategory | null,
-      owner: (device.ownerType?.toString() ?? null) as PrismaDeviceOwnerType | null,
+      owner: (device.ownerType?.toString() ??
+        null) as PrismaDeviceOwnerType | null,
       name: device.name.toString(),
       serialNumber: device.serialNumber?.toString() ?? null,
       macAddress: device.macAddress?.toString() ?? null,
@@ -140,10 +142,6 @@ export class DeviceMapper {
       monitoringEnabled: device.monitoringEnabled
     };
   }
-
-  // ============================================================================
-  // Private Helpers
-  // ============================================================================
 
   private static mapOwnerTypeFromPrisma(
     owner: string

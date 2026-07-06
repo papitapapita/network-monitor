@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { ScanController } from '../controllers/ScanController';
-import { validateRequest } from '../middleware/validateRequest';
-import { scanNetworkSegmentSchema } from '../validation/scan.schemas';
+import { ScanController } from '../controllers';
+import { validateRequest, authorize, createRateLimiter } from '../middleware';
+import { scanNetworkSegmentSchema } from '../validation';
 
 /**
  * Creates Express router for network scan endpoints.
@@ -34,7 +34,13 @@ export function createScanRoutes(controller: ScanController): Router {
    *   404 - Referenced DeviceModel does not exist
    *   500 - Unexpected infrastructure error
    */
-  router.post('/', validateRequest(scanNetworkSegmentSchema), controller.scan);
+  router.post(
+    '/',
+    authorize('create'),
+    createRateLimiter('write'),
+    validateRequest(scanNetworkSegmentSchema),
+    controller.scan
+  );
 
   return router;
 }

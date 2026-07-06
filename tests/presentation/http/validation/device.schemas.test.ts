@@ -39,7 +39,7 @@ describe('createDeviceSchema', () => {
           name: 'Core-Router-01',
           ownerType: 'COMPANY',
           status: 'ACTIVE',
-          category: 'CORE',
+          category: 'WIRELESS_CPE',
           locationId: VALID_UUID,
           serialNumber: 'SN-2024-XYZ-001',
           macAddress: 'AA:BB:CC:DD:EE:FF',
@@ -57,9 +57,7 @@ describe('createDeviceSchema', () => {
       const statuses = [
         'INVENTORY',
         'ACTIVE',
-        'MAINTENANCE',
-        'DAMAGED',
-        'DECOMMISSIONED'
+        'DAMAGED'
       ] as const;
 
       for (const status of statuses) {
@@ -72,11 +70,13 @@ describe('createDeviceSchema', () => {
 
     it('should accept all valid category values', () => {
       const categories = [
-        'CORE',
-        'DISTRIBUTION',
-        'POE',
-        'ACCESS_POINT',
-        'CLIENT_CPE'
+        'CPE',
+        'WIRELESS_CPE',
+        'AP',
+        'ROUTERBOARD',
+        'SMART_SWITCH',
+        'SMART_SWITCH_POE',
+        'OTHER'
       ] as const;
 
       for (const category of categories) {
@@ -194,14 +194,6 @@ describe('createDeviceSchema', () => {
     it('should fail when name is missing', () => {
       const result = createDeviceSchema.safeParse({
         body: { deviceModelId: MODEL_UUID, ownerType: 'COMPANY' }
-      });
-
-      expect(result.success).toBe(false);
-    });
-
-    it('should fail when ownerType is missing', () => {
-      const result = createDeviceSchema.safeParse({
-        body: { deviceModelId: MODEL_UUID, name: 'Router' }
       });
 
       expect(result.success).toBe(false);
@@ -356,7 +348,7 @@ describe('createDeviceSchema', () => {
           i.path.includes('category')
         );
         expect(err).toBeDefined();
-        expect(err!.message).toMatch(/CORE/);
+        expect(err!.message).toMatch(/WIRELESS_CPE/);
       }
     });
   });
@@ -516,8 +508,8 @@ describe('listDevicesSchema', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should accept limit at its maximum boundary of 100', () => {
-      const result = listDevicesSchema.safeParse({ query: { limit: '100' } });
+    it('should accept limit at its maximum boundary of 300', () => {
+      const result = listDevicesSchema.safeParse({ query: { limit: '300' } });
 
       expect(result.success).toBe(true);
     });
@@ -532,9 +524,7 @@ describe('listDevicesSchema', () => {
       const statuses = [
         'INVENTORY',
         'ACTIVE',
-        'MAINTENANCE',
-        'DAMAGED',
-        'DECOMMISSIONED'
+        'DAMAGED'
       ] as const;
 
       for (const status of statuses) {
@@ -545,11 +535,13 @@ describe('listDevicesSchema', () => {
 
     it('should accept all valid category filter values', () => {
       const categories = [
-        'CORE',
-        'DISTRIBUTION',
-        'POE',
-        'ACCESS_POINT',
-        'CLIENT_CPE'
+        'CPE',
+        'WIRELESS_CPE',
+        'AP',
+        'ROUTERBOARD',
+        'SMART_SWITCH',
+        'SMART_SWITCH_POE',
+        'OTHER'
       ] as const;
 
       for (const category of categories) {
@@ -642,7 +634,7 @@ describe('listDevicesSchema', () => {
           limit: '10',
           offset: '0',
           status: 'ACTIVE',
-          category: 'CORE',
+          category: 'WIRELESS_CPE',
           owner: 'COMPANY',
           locationId: VALID_UUID,
           deviceModelId: MODEL_UUID,
@@ -672,8 +664,8 @@ describe('listDevicesSchema', () => {
       }
     });
 
-    it('should fail when limit is 101 (above maximum of 100)', () => {
-      const result = listDevicesSchema.safeParse({ query: { limit: '101' } });
+    it('should fail when limit is 301 (above maximum of 300)', () => {
+      const result = listDevicesSchema.safeParse({ query: { limit: '301' } });
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -681,7 +673,7 @@ describe('listDevicesSchema', () => {
           i.path.includes('limit')
         );
         expect(limitError).toBeDefined();
-        expect(limitError!.message).toMatch(/100/);
+        expect(limitError!.message).toMatch(/300/);
       }
     });
 
@@ -772,7 +764,7 @@ describe('listDevicesSchema', () => {
           i.path.includes('category')
         );
         expect(err).toBeDefined();
-        expect(err!.message).toMatch(/CORE/);
+        expect(err!.message).toMatch(/WIRELESS_CPE/);
       }
     });
   });
@@ -1018,7 +1010,7 @@ describe('updateDeviceSchema', () => {
         body: {
           name: 'Core-Router-Updated',
           status: 'ACTIVE',
-          category: 'CORE',
+          category: 'WIRELESS_CPE',
           ownerType: 'COMPANY',
           locationId: VALID_UUID,
           serialNumber: 'SN-UPDATED-001',
@@ -1054,9 +1046,7 @@ describe('updateDeviceSchema', () => {
       const statuses = [
         'INVENTORY',
         'ACTIVE',
-        'MAINTENANCE',
-        'DAMAGED',
-        'DECOMMISSIONED'
+        'DAMAGED'
       ] as const;
 
       for (const status of statuses) {
@@ -1070,11 +1060,13 @@ describe('updateDeviceSchema', () => {
 
     it('should accept all valid category values', () => {
       const categories = [
-        'CORE',
-        'DISTRIBUTION',
-        'POE',
-        'ACCESS_POINT',
-        'CLIENT_CPE'
+        'CPE',
+        'WIRELESS_CPE',
+        'AP',
+        'ROUTERBOARD',
+        'SMART_SWITCH',
+        'SMART_SWITCH_POE',
+        'OTHER'
       ] as const;
 
       for (const category of categories) {
@@ -1267,7 +1259,7 @@ describe('updateDeviceSchema', () => {
           i.path.includes('category')
         );
         expect(err).toBeDefined();
-        expect(err!.message).toMatch(/CORE/);
+        expect(err!.message).toMatch(/WIRELESS_CPE/);
       }
     });
 

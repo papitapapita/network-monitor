@@ -5,175 +5,232 @@ import {
   HttpCollectionResult,
   HttpClientEntry
 } from 'application/wireless-monitoring/interfaces';
+import { AirOsHttpClient } from './AirOsHttpClient';
 
 export class UbiquitiHttpCollector implements IUbiquitiHttpCollector {
-  private readonly timeoutMs = 5000;
+  constructor(private readonly client: AirOsHttpClient) {}
 
   async collect(
     ipAddress: string,
-    credentials: HttpCredentials
+    credentials: HttpCredentials,
+    deviceType: 'STATION' | 'ACCESS_POINT'
   ): Promise<Result<HttpCollectionResult>> {
-    try {
-      const scheme = credentials.useHttps ? 'https' : 'http';
-      const url = `${scheme}://${ipAddress}:${credentials.port}/status.cgi`;
-      const response = await this.fetchWithTimeout(url, credentials);
-
-      if (!response.ok) {
-        return Result.fail(`HTTP ${response.status} from ${url}`);
-      }
-
-      const data = (await response.json()) as Record<string, unknown>;
-      return Result.ok(this.parseStatusCgi(data));
-    } catch (error) {
-      return Result.fail(
-        `HTTP collection failed: ${error instanceof Error ? error.message : String(error)}`
-      );
+    const fetchResult = await this.client.fetchStatus(ipAddress, credentials.port, {
+      username: credentials.username,
+      password: credentials.password
+    });
+    if (fetchResult.isFailure) {
+      return Result.fail(fetchResult.error!);
     }
-  }
-
-  async collectClients(
-    ipAddress: string,
-    credentials: HttpCredentials
-  ): Promise<Result<HttpClientEntry[]>> {
-    try {
-      const scheme = credentials.useHttps ? 'https' : 'http';
-      const url = `${scheme}://${ipAddress}:${credentials.port}/sta.cgi`;
-      const response = await this.fetchWithTimeout(url, credentials);
-
-      if (!response.ok) {
-        return Result.fail(`HTTP ${response.status} from ${url}`);
-      }
-
-      const data = (await response.json()) as unknown[];
-      if (!Array.isArray(data)) return Result.ok([]);
-
-      return Result.ok(
-        data.map((item) =>
-          this.parseClientEntry(item as Record<string, unknown>)
-        )
-      );
-    } catch (error) {
-      return Result.fail(
-        `HTTP clients collection failed: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-  }
-
-  private fetchWithTimeout(
-    url: string,
-    credentials: HttpCredentials
-  ): Promise<Response> {
-    const controller = new AbortController();
-    const timer = setTimeout(
-      () => controller.abort(),
-      this.timeoutMs
+    return Result.ok(
+      this.parseStatusCgi(
+        fetchResult.value as Record<string, unknown>,
+        deviceType
+      )
     );
-    const authHeader =
-      'Basic ' +
-      Buffer.from(
-        `${credentials.username}:${credentials.password}`
-      ).toString('base64');
-    return fetch(url, {
-      signal: controller.signal,
-      headers: { Authorization: authHeader }
-    }).finally(() => clearTimeout(timer));
   }
 
   private parseStatusCgi(
-    data: Record<string, unknown>
+    data: Record<string, unknown>,
+    deviceType: 'STATION' | 'ACCESS_POINT'
   ): HttpCollectionResult {
-    const wireless = (data['wireless'] ?? {}) as Record<
-      string,
-      unknown
-    >;
-    const interfaces = Array.isArray(data['interfaces'])
-      ? (data['interfaces'] as Record<string, unknown>[])
-      : [];
-    const lanIface =
-      interfaces.find((i) => i['ifname'] === 'eth0') ?? {};
-    const host = (data['host'] ?? {}) as Record<string, unknown>;
+    const host = obj(data, 'host');
+    const wireless = obj(data, 'wireless');
+    const throughput = obj(wireless, 'throughput');
+    const sta = arr(wireless, 'sta');
+    const interfaces = arr(data, 'interfaces');
 
-    const numFrom = (
-      obj: Record<string, unknown>,
-      key: string
-    ): number | null => {
-      const v = obj[key];
-      if (v === null || v === undefined) return null;
-      const n = Number(v);
-      return isNaN(n) ? null : n;
-    };
+    const eth0 = (interfaces.find((i) => str(i, 'ifname') === 'eth0') ??
+      {}) as Record<string, unknown>;
+    const eth0Status = obj(eth0, 'status');
 
-    const strFrom = (
-      obj: Record<string, unknown>,
-      key: string
-    ): string | null => {
-      const v = obj[key];
-      if (v === null || v === undefined) return null;
-      return String(v);
-    };
+    const isStaMode = deviceType === 'STATION';
+    const sta0 = sta.length > 0 ? sta[0]! : null;
 
-    const txRateRaw = numFrom(wireless, 'txrate');
-    const rxRateRaw = numFrom(wireless, 'rxrate');
-    const ccqRaw = numFrom(wireless, 'ccq');
-    const lanStatusRaw = strFrom(
-      lanIface as Record<string, unknown>,
-      'status'
-    );
+    const totalRam = num(host, 'totalram');
+    const freeRam = num(host, 'freeram');
+    const memoryUsedPercent =
+      totalRam !== null && totalRam > 0 && freeRam !== null
+        ? ((totalRam - freeRam) / totalRam) * 100
+        : null;
 
-    return {
-      signalRxDbm:
-        numFrom(wireless, 'signal') ?? numFrom(wireless, 'rssi'),
-      noiseFloorDbm: numFrom(wireless, 'noisef'),
-      txRateMbps: txRateRaw !== null ? txRateRaw / 1000 : null,
-      rxRateMbps: rxRateRaw !== null ? rxRateRaw / 1000 : null,
-      ccqPercent: ccqRaw !== null ? ccqRaw / 10 : null,
-      frequencyMhz: numFrom(wireless, 'frequency'),
-      txPowerDbm: numFrom(wireless, 'txpower'),
-      distanceM: numFrom(wireless, 'distance'),
-      latencyMs: null,
-      uptimeSeconds: numFrom(host, 'uptime'),
-      firmwareVersion: strFrom(host, 'fwversion'),
-      deviceName: strFrom(host, 'hostname'),
-      remoteApMac: strFrom(wireless, 'apmac'),
-      remoteApName: strFrom(wireless, 'apname'),
-      lanStatus:
-        lanStatusRaw === 'UP' || lanStatusRaw === 'up'
-          ? 'UP'
-          : lanStatusRaw === 'DOWN' || lanStatusRaw === 'down'
-            ? 'DOWN'
-            : null,
-      lanSpeedMbps: numFrom(
-        lanIface as Record<string, unknown>,
-        'speed'
-      ),
-      clients: []
-    };
-  }
+    const chanbw = num(wireless, 'chanbw');
+    const txThroughputRaw = num(throughput, 'tx');
+    const rxThroughputRaw = num(throughput, 'rx');
+    const ccqRaw = num(wireless, 'ccq');
 
-  private parseClientEntry(
-    item: Record<string, unknown>
-  ): HttpClientEntry {
-    const num = (key: string): number | null => {
-      const v = item[key];
-      if (v === null || v === undefined) return null;
-      const n = Number(v);
-      return isNaN(n) ? null : n;
-    };
+    // airOS 8: eth0.status.plugged is a boolean; eth0.status.speed is Mbps
+    const plugged = eth0Status['plugged'];
+    const lanStatus: 'UP' | 'DOWN' | null =
+      typeof plugged === 'boolean' ? (plugged ? 'UP' : 'DOWN') : null;
+    const lanSpeedMbps = num(eth0Status, 'speed');
 
-    const txRateRaw = num('txrate');
-    const rxRateRaw = num('rxrate');
-    const ccqRaw = num('ccq');
+    const remote0 =
+      isStaMode && sta0 ? obj(sta0, 'remote') : null;
+    const airmax0 =
+      isStaMode && sta0 ? obj(sta0, 'airmax') : null;
+
+    const rawRemoteIps =
+      isStaMode && remote0 ? remote0['ipaddr'] : null;
+    const remoteApIp =
+      Array.isArray(rawRemoteIps) && rawRemoteIps.length > 0
+        ? String(rawRemoteIps[0])
+        : null;
 
     return {
-      macAddress: String(item['mac'] ?? item['macaddr'] ?? ''),
-      signalRxDbm: num('signal') ?? num('rssi'),
-      signalTxDbm: num('remote_signal'),
-      snrDb: null,
-      txRateMbps: txRateRaw !== null ? txRateRaw / 1000 : null,
-      rxRateMbps: rxRateRaw !== null ? rxRateRaw / 1000 : null,
-      ccqPercent: ccqRaw !== null ? ccqRaw / 10 : null,
-      uptimeSeconds: num('uptime'),
-      ipAddress: item['ip'] ? String(item['ip']) : null
+      deviceName: str(host, 'hostname'),
+      firmwareVersion: str(host, 'fwversion'),
+      uptimeSeconds: num(host, 'uptime'),
+      deviceTimeEpoch: num(host, 'time'),
+      cpuLoadPercent: num(host, 'cpuload'),
+      memoryUsedPercent,
+      essid: str(wireless, 'essid'),
+      macAddress: str(wireless, 'mac'),
+      deviceModel: str(host, 'platform'),
+      mode: parseMode(str(wireless, 'mode')),
+      frequencyMhz: num(wireless, 'frequency'),
+      channelWidthMhz: chanbw !== null && chanbw > 0 ? chanbw : null,
+      noiseFloorDbm: num(wireless, 'noisef'),
+      throughputTxBps:
+        txThroughputRaw !== null ? txThroughputRaw * 1000 : null,
+      throughputRxBps:
+        rxThroughputRaw !== null ? rxThroughputRaw * 1000 : null,
+      distanceM: num(wireless, 'distance'),
+      clientsConnected:
+        deviceType === 'ACCESS_POINT' ? num(wireless, 'count') : null,
+      ccqPercent:
+        ccqRaw !== null && ccqRaw > 0 ? ccqRaw / 10 : null,
+      signalRxDbm: isStaMode && sta0 ? num(sta0, 'signal') : null,
+      signalTxDbm: isStaMode && remote0 ? num(remote0, 'signal') : null,
+      latencyMs: isStaMode && sta0 ? num(sta0, 'tx_latency') : null,
+      remoteApMac: isStaMode && sta0 ? str(sta0, 'mac') : null,
+      remoteApName:
+        isStaMode && remote0 ? str(remote0, 'hostname') : null,
+      remoteApIp,
+      capacityRxKbps: airmax0 ? num(airmax0, 'downlink_capacity') : null,
+      capacityTxKbps: airmax0 ? num(airmax0, 'uplink_capacity') : null,
+      lanStatus,
+      lanSpeedMbps,
+      clients:
+        deviceType === 'ACCESS_POINT'
+          ? sta.map(parseClientEntry)
+          : []
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Module-level parse helpers (avoid closure overhead per call)
+// ---------------------------------------------------------------------------
+
+function obj(
+  source: Record<string, unknown>,
+  key: string
+): Record<string, unknown> {
+  const v = source[key];
+  return v !== null && typeof v === 'object' && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : {};
+}
+
+function arr(
+  source: Record<string, unknown>,
+  key: string
+): Record<string, unknown>[] {
+  const v = source[key];
+  return Array.isArray(v) ? (v as Record<string, unknown>[]) : [];
+}
+
+function num(
+  source: Record<string, unknown>,
+  key: string
+): number | null {
+  const v = source[key];
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+}
+
+function str(
+  source: Record<string, unknown>,
+  key: string
+): string | null {
+  const v = source[key];
+  if (v === null || v === undefined) return null;
+  return String(v);
+}
+
+function big(
+  source: Record<string, unknown>,
+  key: string
+): bigint | null {
+  const v = source[key];
+  if (v === null || v === undefined) return null;
+  try {
+    return BigInt(String(v));
+  } catch {
+    return null;
+  }
+}
+
+function parseMode(
+  raw: string | null
+): HttpCollectionResult['mode'] {
+  if (
+    raw === 'ap-ptmp' ||
+    raw === 'sta-ptmp' ||
+    raw === 'ap-ptp' ||
+    raw === 'sta-ptp'
+  ) {
+    return raw;
+  }
+  return null;
+}
+
+function parseClientEntry(
+  s: Record<string, unknown>
+): HttpClientEntry {
+  const airmax = obj(s, 'airmax');
+  const airmaxRx = obj(airmax, 'rx');
+  const airmaxTx = obj(airmax, 'tx');
+  const stats = obj(s, 'stats');
+  const remote = obj(s, 'remote');
+  const rawIps = remote['ipaddr'];
+  const remoteIpAddresses = Array.isArray(rawIps)
+    ? (rawIps as unknown[]).map(String)
+    : [];
+
+  return {
+    macAddress: String(s['mac'] ?? ''),
+    ipAddress: str(s, 'lastip'),
+    signalRxDbm: num(s, 'signal'),
+    noiseFloorDbm: num(s, 'noisefloor'),
+    distanceM: num(s, 'distance'),
+    uptimeSeconds: num(s, 'uptime'),
+    txLatencyMs: num(s, 'tx_latency'),
+    dlLinkScore: num(s, 'dl_linkscore'),
+    ulLinkScore: num(s, 'ul_linkscore'),
+    dlCapacityKbps: num(airmax, 'downlink_capacity'),
+    ulCapacityKbps: num(airmax, 'uplink_capacity'),
+    dlCinr: num(airmaxRx, 'cinr'),
+    ulCinr: num(airmaxTx, 'cinr'),
+    txBytesTotal: big(stats, 'tx_bytes'),
+    rxBytesTotal: big(stats, 'rx_bytes'),
+    txPps: num(stats, 'tx_pps'),
+    rxPps: num(stats, 'rx_pps'),
+    remoteHostname: str(remote, 'hostname'),
+    remotePlatform: str(remote, 'platform'),
+    remoteVersion: str(remote, 'version'),
+    remoteCpuLoad: num(remote, 'cpuload'),
+    remoteTotalRam: num(remote, 'totalram'),
+    remoteFreeRam: num(remote, 'freeram'),
+    remoteSignal: num(remote, 'signal'),
+    remoteNoiseFloor: num(remote, 'noisefloor'),
+    remoteTxPower: num(remote, 'tx_power'),
+    remoteTxThroughputKbps: num(remote, 'tx_throughput'),
+    remoteRxThroughputKbps: num(remote, 'rx_throughput'),
+    remoteIpAddresses,
+    dlAirtimePercent: num(airmaxRx, 'airtime'),
+    ulAirtimePercent: num(airmaxTx, 'airtime')
+  };
 }

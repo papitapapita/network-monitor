@@ -21,6 +21,7 @@ function makeDeviceModel(
     vendorSlug: string;
     model: string;
     deviceType: string;
+    isWireless: boolean;
     createdAt: Date;
     updatedAt: Date;
   }> = {}
@@ -36,6 +37,7 @@ function makeDeviceModel(
       vendorSlug: overrides.vendorSlug ?? 'mikrotik',
       model: overrides.model ?? 'RB760iGS',
       deviceType: overrides.deviceType ?? 'ROUTER',
+      isWireless: overrides.isWireless ?? false,
       createdAt: overrides.createdAt ?? BASE_DATE,
       updatedAt: overrides.updatedAt ?? UPDATED_DATE
     }
@@ -101,7 +103,7 @@ describe('DeviceModelMapper', () => {
         const dto = DeviceModelMapper.toDTO(makeDeviceModel());
 
         expect(Object.keys(dto).sort()).toEqual(
-          ['id', 'vendorId', 'vendorName', 'vendorSlug', 'model', 'deviceType', 'createdAt', 'updatedAt'].sort()
+          ['id', 'vendorId', 'vendorName', 'vendorSlug', 'model', 'deviceType', 'isWireless', 'createdAt', 'updatedAt'].sort()
         );
       });
     });

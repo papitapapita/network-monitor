@@ -1,19 +1,13 @@
-import { AggregateRoot, Result, Guard } from '../../shared/core';
-import { DeviceModelId, VendorId } from '../../shared/ids';
+import { AggregateRoot, Result, Guard } from 'domain/shared/core';
+import { DeviceModelId, VendorId } from 'domain/shared/ids';
 import { DeviceModelProps } from '../props';
-import {
-  DeviceModelCreatedEvent,
-  DeviceModelUpdatedEvent
-} from '../events';
-
-export class DeviceModel extends AggregateRoot<DeviceModelProps, DeviceModelId> {
+export class DeviceModel extends AggregateRoot<
+  DeviceModelProps,
+  DeviceModelId
+> {
   private constructor(props: DeviceModelProps, id: DeviceModelId) {
     super(props, id);
   }
-
-  // ============================================================================
-  // Getters
-  // ============================================================================
 
   get vendorId(): VendorId {
     return this.props.vendorId;
@@ -35,6 +29,10 @@ export class DeviceModel extends AggregateRoot<DeviceModelProps, DeviceModelId> 
     return this.props.deviceType;
   }
 
+  get isWireless(): boolean {
+    return this.props.isWireless;
+  }
+
   get createdAt(): Date {
     return this.props.createdAt;
   }
@@ -42,10 +40,6 @@ export class DeviceModel extends AggregateRoot<DeviceModelProps, DeviceModelId> 
   get updatedAt(): Date {
     return this.props.updatedAt;
   }
-
-  // ============================================================================
-  // Factory Methods
-  // ============================================================================
 
   public static create(
     props: Omit<DeviceModelProps, 'createdAt' | 'updatedAt'>
@@ -59,17 +53,8 @@ export class DeviceModel extends AggregateRoot<DeviceModelProps, DeviceModelId> 
     const now = new Date();
 
     const deviceModel = new DeviceModel(
-      { ...props, createdAt: now, updatedAt: now },
+      { ...props, isWireless: props.isWireless ?? false, createdAt: now, updatedAt: now },
       id
-    );
-
-    deviceModel.addDomainEvent(
-      new DeviceModelCreatedEvent({
-        aggregateId: deviceModel.id,
-        vendorName: deviceModel.vendorName,
-        model: deviceModel.model,
-        dateTimeOccurred: now
-      })
     );
 
     return Result.ok<DeviceModel>(deviceModel);
@@ -81,10 +66,6 @@ export class DeviceModel extends AggregateRoot<DeviceModelProps, DeviceModelId> 
   ): DeviceModel {
     return new DeviceModel(props, id);
   }
-
-  // ============================================================================
-  // Command Methods
-  // ============================================================================
 
   public updateModel(newModel: string): Result<void> {
     const guardResult = Guard.combine([
@@ -100,7 +81,9 @@ export class DeviceModel extends AggregateRoot<DeviceModelProps, DeviceModelId> 
       return Result.fail<void>('Model name cannot be empty');
     }
     if (trimmed.length > 150) {
-      return Result.fail<void>('Model name cannot exceed 150 characters');
+      return Result.fail<void>(
+        'Model name cannot exceed 150 characters'
+      );
     }
 
     if (this.props.model === trimmed) return Result.ok<void>();
@@ -108,38 +91,31 @@ export class DeviceModel extends AggregateRoot<DeviceModelProps, DeviceModelId> 
     this.props.model = trimmed;
     this.props.updatedAt = new Date();
 
-    this.addDomainEvent(
-      new DeviceModelUpdatedEvent({
-        aggregateId: this.id,
-        model: trimmed,
-        changedFields: ['model'],
-        dateTimeOccurred: new Date()
-      })
-    );
-
     return Result.ok<void>();
   }
 
   public updateDeviceType(newDeviceType: string): Result<void> {
-    const guardResult = Guard.againstNullOrUndefined(newDeviceType, 'deviceType');
+    const guardResult = Guard.againstNullOrUndefined(
+      newDeviceType,
+      'deviceType'
+    );
     if (!guardResult.succeeded) {
       return Result.fail<void>(guardResult.message!);
     }
 
-    if (this.props.deviceType === newDeviceType) return Result.ok<void>();
+    if (this.props.deviceType === newDeviceType)
+      return Result.ok<void>();
 
     this.props.deviceType = newDeviceType;
     this.props.updatedAt = new Date();
 
-    this.addDomainEvent(
-      new DeviceModelUpdatedEvent({
-        aggregateId: this.id,
-        model: this.props.model,
-        changedFields: ['deviceType'],
-        dateTimeOccurred: new Date()
-      })
-    );
+    return Result.ok<void>();
+  }
 
+  public updateIsWireless(value: boolean): Result<void> {
+    if (this.props.isWireless === value) return Result.ok<void>();
+    this.props.isWireless = value;
+    this.props.updatedAt = new Date();
     return Result.ok<void>();
   }
 
@@ -162,21 +138,8 @@ export class DeviceModel extends AggregateRoot<DeviceModelProps, DeviceModelId> 
     this.props.vendorSlug = vendorSlug;
     this.props.updatedAt = new Date();
 
-    this.addDomainEvent(
-      new DeviceModelUpdatedEvent({
-        aggregateId: this.id,
-        model: this.props.model,
-        changedFields: ['vendorId'],
-        dateTimeOccurred: new Date()
-      })
-    );
-
     return Result.ok<void>();
   }
-
-  // ============================================================================
-  // Private Helpers
-  // ============================================================================
 
   private static validate(
     props: Omit<DeviceModelProps, 'createdAt' | 'updatedAt'>
@@ -198,7 +161,9 @@ export class DeviceModel extends AggregateRoot<DeviceModelProps, DeviceModelId> 
       return Result.fail<void>('Model name cannot be empty');
     }
     if (model.length > 150) {
-      return Result.fail<void>('Model name cannot exceed 150 characters');
+      return Result.fail<void>(
+        'Model name cannot exceed 150 characters'
+      );
     }
 
     return Result.ok<void>();

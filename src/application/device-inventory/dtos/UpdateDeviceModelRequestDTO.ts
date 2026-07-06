@@ -3,4 +3,5 @@ export interface UpdateDeviceModelRequestDTO {
   vendorId?: string;
   model?: string;
   deviceType?: string;
+  isWireless?: boolean;
 }

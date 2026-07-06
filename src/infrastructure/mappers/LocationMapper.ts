@@ -1,9 +1,9 @@
-import { Location } from '../../domain/device-inventory/aggregates/';
-import { LocationId } from '../../domain/shared/ids';
-import { LocationType } from '../../domain/device-inventory/enums';
-import { Coordinates } from '../../domain/device-inventory/value-objects';
-import { Result } from '../../domain/shared/core';
-import { LocationType as PrismaLocationType } from '../../generated/prisma/client';
+import { Location } from 'domain/device-inventory/aggregates/';
+import { LocationId } from 'domain/shared/ids';
+import { LocationType } from 'domain/device-inventory/enums';
+import { Address, Coordinates } from 'domain/device-inventory/value-objects';
+import { Result } from 'domain/shared/core';
+import { LocationType as PrismaLocationType } from 'generated/prisma/client';
 
 type PrismaLocationRecord = {
   id: string;
@@ -33,20 +33,10 @@ type LocationPersistenceData = {
   updatedAt: Date;
 };
 
-/**
- * Mapper for converting Location aggregate to/from Prisma model.
- *
- * Handles bidirectional conversion between:
- * - Domain aggregate (Location)
- * - Persistence model (Prisma Location)
- *
- * Key mappings:
- * - latitude / longitude / altitude (Prisma Decimal?) → Coordinates value object (nullable)
- * - type (Prisma LocationType enum) → domain LocationType enum (1-to-1, no translation needed)
- * - Optional address fields (municipality, neighborhood, address) preserved as-is
- */
 export class LocationMapper {
-  public static toDomain(raw: PrismaLocationRecord): Result<Location> {
+  public static toDomain(
+    raw: PrismaLocationRecord
+  ): Result<Location> {
     const locationIdResult = LocationId.parse(raw.id);
     if (locationIdResult.isFailure) {
       return Result.fail<Location>(
@@ -62,16 +52,28 @@ export class LocationMapper {
       coordinates = Coordinates.reconstitute({
         latitude: Number(raw.latitude),
         longitude: Number(raw.longitude),
-        altitude: raw.altitude != null ? Number(raw.altitude) : undefined
+        altitude:
+          raw.altitude != null ? Number(raw.altitude) : undefined
+      });
+    }
+
+    let address: Address | null = null;
+    if (
+      raw.address != null &&
+      raw.municipality != null &&
+      raw.neighborhood != null
+    ) {
+      address = Address.reconstitute({
+        street: raw.address,
+        municipality: raw.municipality,
+        neighborhood: raw.neighborhood
       });
     }
 
     const location = Location.reconstitute(locationIdResult.value, {
       name: raw.name,
       type: locationType,
-      municipality: raw.municipality ?? null,
-      neighborhood: raw.neighborhood ?? null,
-      address: raw.address ?? null,
+      address,
       coordinates,
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt
@@ -80,16 +82,18 @@ export class LocationMapper {
     return Result.ok<Location>(location);
   }
 
-  public static toPersistence(location: Location): LocationPersistenceData {
+  public static toPersistence(
+    location: Location
+  ): LocationPersistenceData {
     const coordinates = location.coordinates;
 
     return {
       id: location.id.toString(),
       name: location.name,
       type: this.mapLocationTypeToPrisma(location.type),
-      municipality: location.municipality ?? null,
-      neighborhood: location.neighborhood ?? null,
-      address: location.address ?? null,
+      municipality: location.municipality,
+      neighborhood: location.neighborhood,
+      address: location.address,
       latitude: coordinates != null ? coordinates.latitude : null,
       longitude: coordinates != null ? coordinates.longitude : null,
       altitude:
@@ -101,28 +105,23 @@ export class LocationMapper {
     };
   }
 
-  // ============================================================================
-  // Private Helpers
-  // ============================================================================
-
-  /**
-   * Throws on an unrecognised value — an unknown type in the database is a data
-   * integrity violation that the repository's try/catch will surface as Result.fail.
-   */
-  private static mapLocationTypeFromPrisma(prismaType: string): LocationType {
+  // throws on unrecognised value — the repo's try/catch surfaces it as Result.fail
+  private static mapLocationTypeFromPrisma(
+    prismaType: string
+  ): LocationType {
     switch (prismaType) {
       case 'TOWER':
         return LocationType.TOWER;
-      case 'NODE':
-        return LocationType.NODE;
       case 'DATACENTER':
         return LocationType.DATACENTER;
-      case 'POP':
-        return LocationType.POP;
-      case 'WAREHOUSE':
-        return LocationType.WAREHOUSE;
+      case 'POINT_OF_PRESENCE':
+        return LocationType.POINT_OF_PRESENCE;
       case 'OFFICE':
         return LocationType.OFFICE;
+      case 'OTHER':
+        return LocationType.OTHER;
+      case 'CUSTOMER_PREMISES':
+        return LocationType.CUSTOMER_PREMISES;
       default:
         throw new Error(
           `Data integrity violation: unrecognised LocationType "${prismaType}" in persistence store`
@@ -130,20 +129,22 @@ export class LocationMapper {
     }
   }
 
-  private static mapLocationTypeToPrisma(locationType: LocationType): PrismaLocationType {
+  private static mapLocationTypeToPrisma(
+    locationType: LocationType
+  ): PrismaLocationType {
     switch (locationType) {
       case LocationType.TOWER:
         return 'TOWER';
-      case LocationType.NODE:
-        return 'NODE';
       case LocationType.DATACENTER:
         return 'DATACENTER';
-      case LocationType.POP:
-        return 'POP';
-      case LocationType.WAREHOUSE:
-        return 'WAREHOUSE';
+      case LocationType.POINT_OF_PRESENCE:
+        return 'POINT_OF_PRESENCE';
       case LocationType.OFFICE:
         return 'OFFICE';
+      case LocationType.CUSTOMER_PREMISES:
+        return 'CUSTOMER_PREMISES';
+      case LocationType.OTHER:
+        return 'OTHER';
       default:
         throw new Error(
           `Unknown domain LocationType: ${locationType}`

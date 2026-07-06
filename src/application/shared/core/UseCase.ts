@@ -1,4 +1,4 @@
-import { Result } from '../../../domain/shared';
+import { Result } from 'domain/shared';
 import { IUseCase, ILogger } from '../interfaces';
 
 /**
@@ -119,10 +119,11 @@ export abstract class UseCase<Request, Response>
           }
         );
       } else {
-        this.logger.error(`${this.useCaseName} failed`, undefined, {
-          duration: `${duration}ms`,
-          error: result.error
-        });
+        this.logger.error(
+          `${this.useCaseName} failed: ${result.error}`,
+          undefined,
+          { duration: `${duration}ms` }
+        );
       }
 
       return result;

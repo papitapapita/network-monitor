@@ -8,4 +8,5 @@ export interface PollingConfigurationProps {
   interval: PollingInterval;
   failuresBeforeDown: FailureThreshold;
   enabled: boolean;
+  lastPolledAt?: Date | null;
 }

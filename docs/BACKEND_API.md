@@ -14,7 +14,7 @@
 | API prefix | `/api` |
 | Content-Type | `application/json` |
 
-All API responses are wrapped:
+Most API responses are wrapped:
 ```ts
 // Success
 { success: true, data: T }
@@ -23,14 +23,78 @@ All API responses are wrapped:
 { success: false, error: string }
 ```
 
+> **Exceptions:** Credentials, Polling, and Wireless endpoints return **raw data** — no `{ success, data }` wrapper.  
+> Their error responses use `{ error: string }` (no `success` field).
+
+---
+
+## Authentication
+
+All endpoints except `POST /api/auth/login` require a valid JWT in the `Authorization` header:
+
+```
+Authorization: Bearer <token>
+```
+
+Missing or invalid tokens return `401`. Insufficient role returns `403`.
+
+### Roles
+
+| Role | Allowed operations |
+|------|--------------------|
+| `ADMIN` | read, create, update, delete, activate, bulk-import |
+| `OPERATOR` | read, create, update, activate, bulk-import |
+| `VIEWER` | read only |
+
+### Rate limits (per IP)
+
+| Operation type | Limit |
+|----------------|-------|
+| Read (`GET`) | 100 / min |
+| Write (`POST`, `PATCH`, `PUT`) | 20 / min |
+| Delete (`DELETE`) | 10 / min |
+| Bulk import | 5 / hr |
+
+---
+
+## Auth `/api/auth`
+
+### `POST /api/auth/login` — Login
+**Status:** 200 | 400 | 401  
+**Auth required:** No
+
+```ts
+// Request body
+{
+  email: string     // required
+  password: string  // required
+}
+
+// Response 200
+{
+  success: true,
+  data: {
+    token: string   // JWT — include as Bearer token on all subsequent requests
+    user: {
+      id: string    // UUID
+      email: string
+      role: 'ADMIN' | 'OPERATOR' | 'VIEWER'
+    }
+  }
+}
+```
+
+> Returns `401` for both wrong password and unknown email (identical error message — no credential enumeration).  
+> Token expires after 24 hours; obtain a new one by logging in again.
+
 ---
 
 ## Enums
 
 ```ts
-type LocationType   = 'TOWER' | 'NODE' | 'DATACENTER' | 'POP' | 'WAREHOUSE' | 'OFFICE'
-type DeviceStatus   = 'ACTIVE' | 'DAMAGED' | 'INVENTORY'
-type DeviceCategory = 'CPE' | 'AP' | 'ROUTERBOARD' | 'SMART_SWITCH' | 'SMART_SWITCH_POE' | 'OTHER'
+type LocationType   = 'TOWER' | 'DATACENTER' | 'POINT_OF_PRESENCE' | 'OFFICE' | 'CUSTOMER_PREMISES' | 'OTHER'
+type DeviceStatus   = 'INVENTORY' | 'COMMISSIONING' | 'ACTIVE' | 'DAMAGED'
+type DeviceCategory = 'CPE' | 'WIRELESS_CPE' | 'AP' | 'ROUTERBOARD' | 'SMART_SWITCH' | 'SMART_SWITCH_POE' | 'OTHER'
 type DeviceOwner    = 'COMPANY' | 'CLIENT'
 type DeviceType     = 'ANTENNA' | 'OTHER' | 'RADIO' | 'ROUTER' | 'ROUTERBOARD' | 'SERVER' | 'SWITCH'
 type PollingStatus      = 'SUCCESS' | 'FAILED' | 'SKIPPED'
@@ -157,6 +221,48 @@ type?:   LocationType
 
 ---
 
+### `GET /api/locations/map` — Map pins
+**Status:** 200  
+**Auth required:** Yes (any role)
+
+Returns all locations that have coordinates, each with their nested devices. Intended for map rendering — one pin per location.
+
+```ts
+// Response
+{
+  success: true,
+  data: {
+    total: number       // number of pins returned
+    pins: Array<{
+      id: string            // location UUID
+      name: string
+      locationType: LocationType
+      latitude: number      // never null — only geolocated locations included
+      longitude: number
+      altitude: number | null
+      municipality: string | null
+      neighborhood: string | null
+      address: string | null
+      devices: Array<{
+        id: string
+        name: string
+        status: DeviceStatus
+        category: DeviceCategory | null
+        ipAddress: string | null
+        macAddress: string | null
+        monitoringEnabled: boolean
+      }>
+    }>
+  }
+}
+```
+
+> Locations without both `latitude` and `longitude` are excluded.  
+> Devices are grouped under their location — no N+1 queries.  
+> Use `locationType` to drive pin icon/colour on the frontend map.
+
+---
+
 ### `GET /api/locations/:id` — Get by ID
 **Status:** 200 | 404
 
@@ -164,6 +270,19 @@ type?:   LocationType
 // Response
 { success: true, data: LocationDTO }
 ```
+
+---
+
+### `DELETE /api/locations/:id` — Delete
+**Status:** 204 | 400 | 404 | 409
+
+```ts
+// No request body
+// Response: 204 No Content
+```
+
+> Returns 409 if any devices are assigned to this location — reassign or remove them first.  
+> Returns 400 if the id is not a valid UUID v4, 404 if no location exists with that id.
 
 ---
 
@@ -214,8 +333,8 @@ type?:   LocationType
 
 **Business rules:**
 - `INVENTORY` / `DAMAGED` status → at least one of `serialNumber` or `macAddress` required (status defaults to `INVENTORY`, so a minimal request must include at least one)
-- `ACTIVE` status → `ipAddress` required
-- Any `category` set → `ipAddress` required
+- `COMMISSIONING` status → `ipAddress` required; `monitoringEnabled` is forced `true` regardless of what is sent
+- `ACTIVE` status → `ipAddress` and `locationId` required
 
 ```ts
 // Response
@@ -266,6 +385,21 @@ sortOrder?:        'ASC' | 'DESC'  // default: DESC
 
 ---
 
+**Device status lifecycle:**
+
+| Transition | Requirements | Side effects |
+|------------|--------------|--------------|
+| any → `COMMISSIONING` | `ipAddress` must be set on the device | `monitoringEnabled` forced `true` |
+| any → `ACTIVE` | `ipAddress` and `locationId` must both be set | — |
+| any → `DAMAGED` | — | polling automatically disabled |
+| any → `INVENTORY` | — | polling automatically disabled |
+
+`DAMAGED` is a side-state (e.g. hardware failure) and can be set from any status.
+
+> When transitioning to `DAMAGED` or `INVENTORY`, the backend automatically disables the device's polling config. There is no need to also send `monitoringEnabled: false`.
+
+---
+
 ### `PATCH /api/devices/:id` — Update
 **Status:** 200 | 404
 
@@ -303,6 +437,99 @@ sortOrder?:        'ASC' | 'DESC'  // default: DESC
 ```
 
 > Permanently removes the device. Returns 400 if the id is not a valid UUID v4, 404 if no device exists with that id.
+
+---
+
+## Device Credentials `/api/devices/:id/credentials`
+
+> **Response envelope:** Credentials endpoints return raw data directly — **no `{ success, data }` wrapper**.  
+> Success: the DTO object directly (or 204 No Content).  
+> Error: `{ error: string }`.
+
+Sensitive fields (`snmpCommunity`, `snmpV3AuthKey`, `snmpV3PrivKey`, `httpPassword`) are **never returned in plaintext** — they are always masked as `'***'` in responses.
+
+```ts
+interface DeviceCredentialsResponseDTO {
+  deviceId: string               // UUID
+  snmpVersion: 1 | 2 | 3
+  snmpCommunity: '***' | null    // masked; null if not set
+  snmpV3AuthUser: string | null
+  snmpV3AuthProto: 'MD5' | 'SHA' | null
+  snmpV3AuthKey: '***' | null    // masked; null if not set
+  snmpV3PrivProto: 'DES' | 'AES' | null
+  snmpV3PrivKey: '***' | null    // masked; null if not set
+  snmpPort: number               // default 161
+  httpUsername: string | null
+  httpPassword: '***' | null     // masked; null if not set
+  httpPort: number               // default 80
+  hasSnmpCredentials: boolean    // true if the effective SNMP secret is present
+  hasHttpCredentials: boolean    // true if both httpUsername and httpPassword are set
+}
+```
+
+---
+
+### `PUT /api/devices/:id/credentials` — Set Credentials
+**Status:** 200 | 400 | 404
+
+Fully replaces the stored credentials for the device (upsert).
+
+```ts
+// Request body
+{
+  snmpVersion: 1 | 2 | 3         // required
+
+  // SNMP v1/v2 fields
+  snmpCommunity?: string | null  // required when snmpVersion = 1 or 2
+
+  // SNMP v3 fields
+  snmpV3AuthUser?: string | null   // required when snmpVersion = 3
+  snmpV3AuthProto?: 'MD5' | 'SHA' | null  // required when snmpVersion = 3
+  snmpV3AuthKey?: string | null    // required when snmpVersion = 3
+  snmpV3PrivProto?: 'DES' | 'AES' | null  // optional privacy protocol
+  snmpV3PrivKey?: string | null    // required when snmpV3PrivProto is set
+
+  // HTTP / web-UI credentials (optional for all SNMP versions)
+  httpUsername?: string | null
+  httpPassword?: string | null
+
+  // Ports
+  snmpPort?: number   // 1–65535; default 161
+  httpPort?: number   // 1–65535; default 80
+}
+
+// Response — DeviceCredentialsResponseDTO (raw, no wrapper)
+```
+
+**Business rules:**
+- `snmpVersion = 1` or `2` → `snmpCommunity` is required.
+- `snmpVersion = 3` → `snmpV3AuthUser`, `snmpV3AuthProto`, and `snmpV3AuthKey` are required.
+- `snmpV3PrivKey` is required when `snmpV3PrivProto` is provided.
+- Port values must be in range 1–65535.
+- Returns 404 if the device does not exist.
+
+---
+
+### `GET /api/devices/:id/credentials` — Get Credentials
+**Status:** 200 | 404
+
+```ts
+// Response — DeviceCredentialsResponseDTO (raw, no wrapper)
+```
+
+> Returns 404 with `{ error: 'No credentials configured for this device' }` if no credentials have been saved yet.
+
+---
+
+### `DELETE /api/devices/:id/credentials` — Delete Credentials
+**Status:** 204 | 404
+
+```ts
+// No request body
+// Response: 204 No Content
+```
+
+> Removes all stored credentials for the device. Returns 404 if the device does not exist.
 
 ---
 
@@ -476,6 +703,9 @@ offset?: number  // ≥0, default 0
 
 ## Polling `/api/devices/:id/polling/*`
 
+> **Response envelope:** Polling endpoints return **raw data** — no `{ success, data }` wrapper.  
+> Error: `{ error: string }`.
+
 ### `POST /api/devices/:id/poll` — Trigger Manual Poll
 **Status:** 200 | 404
 
@@ -484,15 +714,12 @@ offset?: number  // ≥0, default 0
 
 // Response
 {
-  success: true,
-  data: {
-    deviceId: string
-    status: PollingStatus
-    message: string
-    timestamp: string           // ISO 8601
-    metrics: { latencyMs: number } | null
-    deviceStatus: DeviceOnlineStatus
-  }
+  deviceId: string
+  status: PollingStatus
+  message: string
+  timestamp: string           // ISO 8601
+  metrics: { latencyMs: number } | null
+  deviceStatus: DeviceOnlineStatus
 }
 ```
 
@@ -504,25 +731,22 @@ offset?: number  // ≥0, default 0
 ```ts
 // Response
 {
-  success: true,
-  data: {
+  deviceId: string
+  pollingEnabled: boolean
+  intervalSeconds: number
+  failuresBeforeDown: number
+  lastPolled: string | null          // ISO 8601
+  nextScheduled: string | null       // lastPolled + intervalSeconds
+  currentStatus: DeviceOnlineStatus
+  consecutiveFailures: number
+  lastResult: {
+    id: string
     deviceId: string
-    pollingEnabled: boolean
-    intervalSeconds: number
-    failuresBeforeDown: number
-    lastPolled: string | null          // ISO 8601
-    nextScheduled: string | null       // lastPolled + intervalSeconds
-    currentStatus: DeviceOnlineStatus
-    consecutiveFailures: number
-    lastResult: {
-      id: string
-      deviceId: string
-      timestamp: string
-      status: 'SUCCESS' | 'FAILED'
-      metrics: { latencyMs: number } | null
-      deviceStatus: DeviceOnlineStatus
-    } | null
-  }
+    timestamp: string
+    status: 'SUCCESS' | 'FAILED'
+    metrics: { latencyMs: number } | null
+    deviceStatus: DeviceOnlineStatus
+  } | null
 }
 ```
 
@@ -541,25 +765,22 @@ offset?:   number   // ≥0
 
 // Response
 {
-  success: true,
-  data: {
+  deviceId: string
+  results: Array<{
+    id: string
     deviceId: string
-    results: Array<{
-      id: string
-      deviceId: string
-      timestamp: string
-      status: 'SUCCESS' | 'FAILED'
-      metrics: { latencyMs: number } | null
-      deviceStatus: DeviceOnlineStatus
-    }>
-    totalCount: number
-    statistics: {
-      successRate: number        // 0–100 %
-      averageResponseTime: number // ms
-      minResponseTime: number
-      maxResponseTime: number
-      uptimePercentage: number   // 0–100 %
-    }
+    timestamp: string
+    status: 'SUCCESS' | 'FAILED'
+    metrics: { latencyMs: number } | null
+    deviceStatus: DeviceOnlineStatus
+  }>
+  totalCount: number
+  statistics: {
+    successRate: number        // 0–100 %
+    averageResponseTime: number // ms
+    minResponseTime: number
+    maxResponseTime: number
+    uptimePercentage: number   // 0–100 %
   }
 }
 ```
@@ -580,15 +801,12 @@ offset?:   number   // ≥0
 
 // Response
 {
-  success: true,
-  data: {
-    id: string               // UUID
-    deviceId: string         // UUID
-    ipAddress: string | null
-    intervalSeconds: number
-    failuresBeforeDown: number
-    enabled: boolean
-  }
+  id: string               // UUID
+  deviceId: string         // UUID
+  ipAddress: string | null
+  intervalSeconds: number
+  failuresBeforeDown: number
+  enabled: boolean
 }
 ```
 
@@ -689,6 +907,617 @@ offset?:   number  // ≥0, default 0
 
 ---
 
+## Wireless Monitoring
+
+> **Response envelope:** Wireless endpoints return raw data directly — **no `{ success, data }` wrapper**.  
+> Success: the DTO object or array directly.  
+> Error: `{ error: string }`.
+
+```ts
+type WirelessDeviceType      = 'STATION' | 'ACCESS_POINT'
+type WirelessCollectionMethod = 'snmp' | 'http_api' | 'mixed'
+type WirelessAlertSeverity   = 'WARNING' | 'CRITICAL'
+```
+
+```ts
+interface WirelessMetricsDTO {
+  signalRxDbm: number | null
+  signalTxDbm: number | null
+  noiseFloorDbm: number | null
+  snrDb: number | null
+  ccqPercent: number | null
+  frequencyMhz: number | null
+  channelWidthMhz: number | null
+  throughputTxBps: number | null
+  throughputRxBps: number | null
+  throughputTxPps: number | null
+  throughputRxPps: number | null
+  lanStatus: string | null
+  lanSpeedMbps: number | null
+  lanDuplex: string | null
+  uptimeSeconds: number | null
+  cpuLoadPercent: number | null
+  memoryUsedPercent: number | null
+  firmwareVersion: string | null
+  deviceName: string | null
+  remoteApMac: string | null
+  remoteApName: string | null
+  distanceM: number | null
+  latencyMs: number | null
+  clientsConnected: number | null
+}
+
+interface WirelessStatusDTO {
+  deviceId: string                        // UUID
+  deviceType: WirelessDeviceType
+  collectedAt: string                     // ISO 8601
+  collectionMethod: WirelessCollectionMethod
+  metrics: WirelessMetricsDTO
+  activeAlerts: WirelessAlertDTO[]
+  clients: WirelessClientDTO[]
+}
+
+interface WirelessAlertDTO {
+  id: string                // UUID
+  deviceId: string          // UUID
+  metric: string            // e.g. "signal_rx_dbm", "latency_ms", "clock_drift_s", "firmware_version_changed", "remote_ap_mac_changed"
+  severity: WirelessAlertSeverity
+  threshold: number
+  lastValue: number
+  message: string
+  triggeredAt: string       // ISO 8601
+  clearedAt: string | null  // ISO 8601 — null while active
+  isActive: boolean
+}
+
+interface WirelessClientDTO {
+  macAddress: string
+  ipAddress: string | null           // last known IP (sta[].lastip)
+  signalRxDbm: number | null         // signal AP receives from this client (dBm)
+  noiseFloorDbm: number | null       // client-side noise floor (dBm)
+  distanceM: number | null           // distance to AP (m)
+  uptimeSeconds: number | null       // association uptime (s)
+  txLatencyMs: number | null         // TX latency (ms)
+  dlLinkScore: number | null         // downlink link score 0–100
+  ulLinkScore: number | null         // uplink link score 0–100
+  dlCapacityKbps: number | null      // airMAX downlink capacity (kbps)
+  ulCapacityKbps: number | null      // airMAX uplink capacity (kbps)
+  dlCinr: number | null              // downlink CINR (dB)
+  ulCinr: number | null              // uplink CINR (dB)
+  txBytesTotal: string | null        // cumulative TX bytes since association (serialised bigint)
+  rxBytesTotal: string | null        // cumulative RX bytes since association (serialised bigint)
+  txPps: number | null               // current TX packets/s
+  rxPps: number | null               // current RX packets/s
+  // Remote CPE info (from sta[].remote — AP-side view of the CPE)
+  remoteHostname: string | null
+  remotePlatform: string | null      // CPE model string
+  remoteVersion: string | null       // CPE firmware version
+  remoteCpuLoad: number | null       // CPE CPU load %
+  remoteTotalRam: number | null      // CPE total RAM (bytes)
+  remoteFreeRam: number | null       // CPE free RAM (bytes)
+  remoteSignal: number | null        // signal CPE receives from AP (dBm)
+  remoteNoiseFloor: number | null    // CPE noise floor (dBm)
+  remoteTxPower: number | null       // CPE TX power (dBm)
+  remoteTxThroughputKbps: number | null
+  remoteRxThroughputKbps: number | null
+  remoteIpAddresses: string[]        // CPE IP addresses
+}
+```
+
+---
+
+### `POST /api/devices/:id/wireless/config` — Register Wireless Config
+**Status:** 201 | 400 | 404 | 409
+
+```ts
+// Request body
+{
+  deviceType: 'STATION' | 'ACCESS_POINT'   // required
+  ipAddress?: string | null                // IPv4 or IPv6; used for HTTP API polling
+  intervalSecs?: number                    // 60–86400; default 3600
+  enabled?: boolean                        // default true
+  linkCapacityKbps?: number | null          // STATION only — provisioned uplink capacity (bps)
+  clientsProvisionedLimit?: number | null  // ACCESS_POINT only — max expected clients
+}
+
+// Response
+{
+  id: string
+  deviceId: string
+  ipAddress: string | null
+  enabled: boolean
+  intervalSecs: number
+  deviceType: 'STATION' | 'ACCESS_POINT'
+  linkCapacityKbps: number | null
+  clientsProvisionedLimit: number | null
+  lastPolledAt: string | null   // ISO 8601 — null until first poll
+}
+```
+
+**Business rules:**
+- `linkCapacityKbps` may only be set (non-null) for `STATION` devices — returns 400 for `ACCESS_POINT`.
+- `clientsProvisionedLimit` may only be set (non-null) for `ACCESS_POINT` devices — returns 400 for `STATION`.
+
+> Returns 404 if the device does not exist.  
+> Returns 409 if a wireless config already exists for this device — use `PATCH` to update it.
+
+---
+
+### `GET /api/devices/:id/wireless/config` — Get Config
+**Status:** 200 | 400 | 404
+
+```ts
+// Response — same shape as POST 201 above
+```
+
+> Returns 404 if the device exists but has no wireless config registered.
+
+---
+
+### `PATCH /api/devices/:id/wireless/config` — Update Config
+**Status:** 200 | 400 | 404
+
+```ts
+// Request body (at least one field required)
+{
+  ipAddress?: string | null
+  intervalSecs?: number                   // 60–86400
+  enabled?: boolean
+  linkCapacityKbps?: number | null         // STATION only — returns 400 if device is ACCESS_POINT
+  clientsProvisionedLimit?: number | null // ACCESS_POINT only — returns 400 if device is STATION
+}
+
+// Response — same shape as POST 201 above
+```
+
+> Returns 404 if no config exists for this device — use `POST` to create it first.
+
+---
+
+### `DELETE /api/devices/:id/wireless/config` — Remove Config
+**Status:** 204 | 400 | 404
+
+```ts
+// No request body
+// Response: 204 No Content
+```
+
+> Removes wireless monitoring from the device. The device record itself is not affected.  
+> Returns 404 if no config exists.
+
+---
+
+### `GET /api/devices/:id/wireless/status` — Latest Snapshot
+**Status:** 200 | 400 | 404
+
+```ts
+// Response — WirelessStatusDTO (raw, no wrapper)
+{
+  deviceId: string
+  deviceType: WirelessDeviceType
+  collectedAt: string
+  collectionMethod: WirelessCollectionMethod
+  metrics: WirelessMetricsDTO
+  activeAlerts: WirelessAlertDTO[]
+  clients: WirelessClientDTO[]
+}
+```
+
+> Returns 404 if the device has never been polled (no snapshot exists) or does not exist.
+
+---
+
+### `GET /api/devices/:id/wireless/history` — Historical Snapshots
+**Status:** 200 | 400
+
+```ts
+// Query params (from and to are required)
+from: string   // ISO 8601 with offset, e.g. "2026-01-01T00:00:00Z"
+to:   string   // ISO 8601 with offset
+limit?: number // 1–1000
+
+// Response
+{
+  snapshots: WirelessStatusDTO[]
+  total: number
+}
+```
+
+---
+
+### `GET /api/devices/:id/wireless/clients` — Client List
+**Status:** 200 | 400 | 404
+
+```ts
+// Response
+{
+  deviceId: string
+  collectedAt: string        // ISO 8601
+  clients: WirelessClientDTO[]
+}
+```
+
+> Returns the connected client list from the most recent snapshot (AP devices only).  
+> Returns 404 if no snapshot exists for this device.
+
+---
+
+### `GET /api/devices/:id/wireless/alerts` — Active Alerts for Device
+**Status:** 200 | 400
+
+```ts
+// Response — raw array
+WirelessAlertDTO[]
+```
+
+> Returns all currently active wireless alerts for the given device.  
+> Returns an empty array if the device has no active alerts (does not 404 on unknown device IDs).
+
+---
+
+### `GET /api/devices/:id/wireless/alerts/history` — Alert History for Device
+**Status:** 200 | 400
+
+```ts
+// Query params (all optional)
+from?:  string  // ISO 8601 with offset
+to?:    string  // ISO 8601 with offset
+limit?: number  // 1–500
+
+// Response — raw array
+WirelessAlertDTO[]
+```
+
+> Returns all alerts (active and cleared) for the device within the optional time window.  
+> Returns an empty array for unknown device IDs.
+
+---
+
+### `POST /api/devices/:id/wireless/poll` — Trigger Immediate Poll
+**Status:** 202 | 400 | 404
+
+```ts
+// No request body
+
+// Response (202)
+{
+  deviceId: string
+  collectedAt: string         // ISO 8601
+  metricsCollected: boolean
+  alertsTriggered: number
+  alertsCleared: number
+  collectionMethod: string
+  skipped?: boolean           // true if polling was disabled and forceExecution not set
+}
+```
+
+> Triggers an on-demand poll. Returns 404 if the device has no wireless polling configuration.  
+> The poll attempts real device connectivity — expect 400/500 in environments without reachable devices.
+
+---
+
+### `GET /api/wireless/alerts` — All Active Alerts (Global)
+**Status:** 200 | 400
+
+```ts
+// Query params (all optional)
+deviceId?: string  // UUID — filter to a single device
+
+// Response — raw array
+WirelessAlertDTO[]
+```
+
+> Returns all currently active wireless alerts across all devices, or filtered by deviceId.
+
+---
+
+### `GET /api/wireless/alerts/history` — Alert History (Global, filtered by device)
+**Status:** 200 | 400
+
+```ts
+// Query params
+deviceId: string   // UUID — required (use /api/devices/:id/wireless/alerts/history for the same)
+from?:    string   // ISO 8601 with offset
+to?:      string   // ISO 8601 with offset
+limit?:   number   // 1–500
+
+// Response — raw array
+WirelessAlertDTO[]
+```
+
+> Note: `deviceId` is **required** even though the route appears global. Omitting it returns 400.  
+> Prefer `GET /api/devices/:id/wireless/alerts/history` for per-device history.
+
+---
+
+## Customers `/api/customers`
+
+```ts
+interface CustomerDTO {
+  id: string          // UUID
+  fullName: string
+  phone: string
+  email: string | null
+  cedula: string | null
+  createdAt: string   // ISO 8601
+  updatedAt: string
+}
+```
+
+### `POST /api/customers` — Create
+**Status:** 201 | 400
+
+```ts
+// Request body
+{
+  fullName: string         // required, 1–150 chars
+  phone: string            // required, 7–20 chars, digits/spaces/()/.-/+ allowed
+  email?: string | null    // max 255 chars, valid email format
+  cedula?: string | null   // 6–15 chars, digits/dots/spaces
+}
+
+// Response
+{ success: true, data: CustomerDTO }
+```
+
+---
+
+### `GET /api/customers` — List
+**Status:** 200
+
+```ts
+// Query params (all optional)
+limit?:  number  // 1–100, default 20
+offset?: number  // ≥0, default 0
+
+// Response
+{
+  success: true,
+  data: {
+    customers: CustomerDTO[]
+    total: number
+    hasMore: boolean
+    limit: number
+    offset: number
+  }
+}
+```
+
+---
+
+### `GET /api/customers/:id` — Get by ID
+**Status:** 200 | 404
+
+```ts
+// Response
+{ success: true, data: CustomerDTO }
+```
+
+---
+
+### `PUT /api/customers/:id` — Update
+**Status:** 200 | 400 | 404
+
+```ts
+// Request body (at least one field required)
+{
+  fullName?: string
+  phone?: string
+  email?: string | null
+  cedula?: string | null
+}
+
+// Response
+{ success: true, data: CustomerDTO }
+```
+
+---
+
+### `DELETE /api/customers/:id` — Delete
+**Status:** 204 | 400 | 404
+
+```ts
+// No request body
+// Response: 204 No Content
+```
+
+---
+
+## Service Plans `/api/service-plans`
+
+```ts
+interface ServicePlanDTO {
+  id: string             // UUID
+  name: string
+  downloadMbps: number   // positive integer
+  uploadMbps: number     // positive integer
+  monthlyPrice: number   // non-negative decimal
+  description: string | null
+  isActive: boolean
+  createdAt: string      // ISO 8601
+  updatedAt: string
+}
+```
+
+### `POST /api/service-plans` — Create
+**Status:** 201 | 400
+
+```ts
+// Request body
+{
+  name: string             // required, 1–100 chars
+  downloadMbps: number     // required, positive integer (Mbps)
+  uploadMbps: number       // required, positive integer (Mbps)
+  monthlyPrice: number     // required, non-negative decimal
+  description?: string | null  // max 500 chars
+  isActive?: boolean       // default true
+}
+
+// Response
+{ success: true, data: ServicePlanDTO }
+```
+
+---
+
+### `GET /api/service-plans` — List
+**Status:** 200
+
+```ts
+// Query params (all optional)
+limit?:  number  // 1–100, default 20
+offset?: number  // ≥0, default 0
+
+// Response
+{
+  success: true,
+  data: {
+    servicePlans: ServicePlanDTO[]
+    total: number
+    hasMore: boolean
+    limit: number
+    offset: number
+  }
+}
+```
+
+---
+
+### `GET /api/service-plans/:id` — Get by ID
+**Status:** 200 | 404
+
+```ts
+// Response
+{ success: true, data: ServicePlanDTO }
+```
+
+---
+
+### `PUT /api/service-plans/:id` — Update
+**Status:** 200 | 400 | 404
+
+```ts
+// Request body (at least one field required)
+{
+  name?: string
+  downloadMbps?: number
+  uploadMbps?: number
+  monthlyPrice?: number
+  description?: string | null
+  isActive?: boolean
+}
+
+// Response
+{ success: true, data: ServicePlanDTO }
+```
+
+---
+
+### `DELETE /api/service-plans/:id` — Delete
+**Status:** 204 | 400 | 404
+
+```ts
+// No request body
+// Response: 204 No Content
+```
+
+---
+
+## Contracted Services `/api/contracted-services`
+
+```ts
+type ContractedServiceStatus = 'ACTIVE' | 'SUSPENDED' | 'CANCELLED'
+
+interface ContractedServiceDTO {
+  id: string                        // UUID
+  customerId: string                // UUID
+  servicePlanId: string             // UUID
+  deviceId: string | null           // UUID — the CPE device assigned to this service
+  status: ContractedServiceStatus
+  startDate: string                 // ISO 8601
+  createdAt: string                 // ISO 8601
+  updatedAt: string
+}
+```
+
+### `POST /api/contracted-services` — Create
+**Status:** 201 | 400
+
+```ts
+// Request body
+{
+  customerId: string        // required, UUID
+  servicePlanId: string     // required, UUID
+  deviceId?: string | null  // UUID — CPE device for this service
+  startDate?: string        // ISO 8601 datetime; defaults to now if omitted
+}
+
+// Response
+{ success: true, data: ContractedServiceDTO }
+```
+
+---
+
+### `GET /api/contracted-services` — List
+**Status:** 200
+
+```ts
+// Query params (all optional)
+customerId?: string  // UUID — filter by customer
+limit?:      number  // 1–100, default 20
+offset?:     number  // ≥0, default 0
+
+// Response
+{
+  success: true,
+  data: {
+    contractedServices: ContractedServiceDTO[]
+    total: number
+    hasMore: boolean
+    limit: number
+    offset: number
+  }
+}
+```
+
+---
+
+### `GET /api/contracted-services/:id` — Get by ID
+**Status:** 200 | 404
+
+```ts
+// Response
+{ success: true, data: ContractedServiceDTO }
+```
+
+---
+
+### `PUT /api/contracted-services/:id` — Update
+**Status:** 200 | 400 | 404
+
+```ts
+// Request body (at least one field required)
+{
+  servicePlanId?: string         // UUID — change the plan
+  deviceId?: string | null       // UUID — assign/unassign CPE
+  status?: ContractedServiceStatus
+}
+
+// Response
+{ success: true, data: ContractedServiceDTO }
+```
+
+---
+
+### `DELETE /api/contracted-services/:id` — Delete
+**Status:** 204 | 400 | 404
+
+```ts
+// No request body
+// Response: 204 No Content
+```
+
+---
+
 ## Other
 
 ### `GET /health`
@@ -710,8 +1539,11 @@ offset?:   number  // ≥0, default 0
 | Code | Meaning |
 |------|---------|
 | 400 | Validation error or business rule violation (e.g. duplicate MAC/IP) |
+| 401 | Missing, expired, or invalid JWT |
+| 403 | Valid token but insufficient role for this operation |
 | 404 | Resource not found |
 | 409 | Conflict — resource already exists or cannot be deleted (e.g. vendor has models, model has devices) |
+| 429 | Rate limit exceeded |
 | 500 | Unexpected server error |
 
-Error body: `{ success: false, error: string }`
+Error body: `{ success: false, error: string }` (standard endpoints) / `{ error: string }` (credentials, polling, wireless)

@@ -55,7 +55,7 @@ function makeDomainState(overrides: Partial<DeviceStateProps> = {}): DeviceState
     updatedAt:           FIXED_DATE,
     ...overrides
   };
-  return DeviceState.reconstitute(props, deviceId);
+  return DeviceState.reconstitute(deviceId, props);
 }
 
 // ---------------------------------------------------------------------------

@@ -1,24 +1,6 @@
-import { ValueObject, Result, Guard } from '../../shared';
+import { ValueObject, Result, Guard } from 'domain/shared';
 import { DeviceNameProps } from '../props';
 
-/**
- * DeviceName Value Object
- *
- * Represents the human-readable name assigned to a physical device.
- * Immutable and self-validating at creation time.
- *
- * Business Rules:
- * - Name cannot be null, undefined, or empty
- * - Must be a string
- * - Cannot exceed 150 characters (matches db VarChar(150))
- * - Leading and trailing whitespace is trimmed before storage
- *
- * @example
- * const result = DeviceName.create('Core-Router-01');
- * if (result.isSuccess) {
- *   console.log(result.value.toString()); // 'Core-Router-01'
- * }
- */
 export class DeviceName extends ValueObject<DeviceNameProps> {
   private static readonly MAX_LENGTH = 150;
 

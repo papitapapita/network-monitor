@@ -1,14 +1,18 @@
-import { PrismaClient } from '../../generated/prisma/client';
-import { DeviceModel } from '../../domain/device-inventory/aggregates';
-import { DeviceModelId, VendorId } from '../../domain/shared/ids';
-import { Result, EventDispatcher } from '../../domain/shared/core';
-import { IDeviceModelRepository } from '../../domain/device-inventory/repository';
+import { PrismaClient } from 'generated/prisma/client';
+import { DeviceModel } from 'domain/device-inventory/aggregates';
+import { DeviceModelId, VendorId } from 'domain/shared/ids';
+import { Result, EventDispatcher } from 'domain/shared/core';
+import { IDeviceModelRepository } from 'domain/device-inventory/repository';
 import { DeviceModelMapper } from '../mappers';
 
-export class PrismaDeviceModelRepository implements IDeviceModelRepository {
+export class PrismaDeviceModelRepository
+  implements IDeviceModelRepository
+{
   constructor(private readonly prisma: PrismaClient) {}
 
-  public async save(deviceModel: DeviceModel): Promise<Result<DeviceModel>> {
+  public async save(
+    deviceModel: DeviceModel
+  ): Promise<Result<DeviceModel>> {
     try {
       const data = DeviceModelMapper.toPersistence(deviceModel);
 
@@ -19,6 +23,7 @@ export class PrismaDeviceModelRepository implements IDeviceModelRepository {
           vendorId: data.vendorId,
           model: data.model,
           deviceType: data.deviceType as any,
+          isWireless: data.isWireless,
           updatedAt: data.updatedAt
         }
       });
@@ -32,7 +37,9 @@ export class PrismaDeviceModelRepository implements IDeviceModelRepository {
       });
 
       if (!raw) {
-        return Result.fail<DeviceModel>('Device model not found after save');
+        return Result.fail<DeviceModel>(
+          'Device model not found after save'
+        );
       }
 
       const domainResult = DeviceModelMapper.toDomain(raw as any);

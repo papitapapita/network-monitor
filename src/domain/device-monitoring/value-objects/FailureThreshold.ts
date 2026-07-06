@@ -1,17 +1,6 @@
-import { ValueObject, Result, Guard } from '../../shared/core';
+import { ValueObject, Result, Guard } from 'domain/shared/core';
 import { FailureThresholdProps } from '../props/FailureThresholdProps';
 
-/**
- * FailureThreshold Value Object
- *
- * Represents the number of consecutive ping failures required before
- * a device is marked as offline.
- *
- * Business Rules:
- * - Must be a positive integer
- * - Minimum: 1 (first failure triggers down state)
- * - Maximum: 100 (prevents unreasonably high thresholds)
- */
 export class FailureThreshold extends ValueObject<FailureThresholdProps> {
   public static readonly MIN = 1;
   public static readonly DEFAULT = 3;

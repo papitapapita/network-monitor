@@ -1,7 +1,7 @@
-import { IVendorRepository } from '../../../domain/device-inventory/repository';
-import { Result } from '../../../domain/shared/core';
-import { UseCase } from '../../shared/core';
-import { ILogger } from '../../shared/interfaces';
+import { IVendorRepository } from 'domain/device-inventory/repository';
+import { Result } from 'domain/shared/core';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
 import { VendorMapper } from '../mappers';
 import { ListVendorsQueryDTO, VendorListResponseDTO } from '../dtos';
 
@@ -28,7 +28,10 @@ export class ListVendorsUseCase extends UseCase<
     );
     const offset = request.offset ?? 0;
 
-    const vendorsResult = await this.vendorRepository.findAll(limit, offset);
+    const vendorsResult = await this.vendorRepository.findAll(
+      limit,
+      offset
+    );
     if (vendorsResult.isFailure) {
       return this.fail(vendorsResult.error!);
     }
@@ -39,7 +42,12 @@ export class ListVendorsUseCase extends UseCase<
     }
 
     return this.ok(
-      VendorMapper.toListDTO(vendorsResult.value, countResult.value, limit, offset)
+      VendorMapper.toListDTO(
+        vendorsResult.value,
+        countResult.value,
+        limit,
+        offset
+      )
     );
   }
 }

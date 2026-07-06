@@ -64,16 +64,13 @@ function makePollingConfig(overrides: {
     ipAddress = ipResult.value;
   }
 
-  return PollingConfiguration.reconstitute(
-    {
-      deviceId,
-      ipAddress,
-      interval: interval.value,
-      failuresBeforeDown: threshold.value,
-      enabled: overrides.enabled ?? true
-    },
-    configId.value
-  );
+  return PollingConfiguration.reconstitute(configId.value, {
+    deviceId,
+    ipAddress,
+    interval: interval.value,
+    failuresBeforeDown: threshold.value,
+    enabled: overrides.enabled ?? true
+  });
 }
 
 function makeDeviceState(overrides: {
@@ -85,6 +82,7 @@ function makeDeviceState(overrides: {
 } = {}): DeviceState {
   const deviceId = makeDeviceId();
   return DeviceState.reconstitute(
+    deviceId,
     {
       deviceId,
       isOnline: overrides.isOnline ?? true,
@@ -95,8 +93,7 @@ function makeDeviceState(overrides: {
         ? overrides.lastCheckedAt
         : FIXED_LAST_CHECKED,
       updatedAt: FIXED_LAST_CHECKED
-    },
-    deviceId
+    }
   );
 }
 
@@ -927,6 +924,265 @@ describe('PollingMapper', () => {
   });
 
   // ==========================================================================
+  describe('toDTO()', () => {
+    // ------------------------------------------------------------------------
+    describe('field mapping', () => {
+      it('should map id as the string representation of config.id', () => {
+        const config = makePollingConfig();
+
+        const dto = PollingMapper.toDTO(config);
+
+        expect(dto.id).toBe(CONFIG_UUID);
+      });
+
+      it('should map deviceId as the string representation of config.deviceId', () => {
+        const config = makePollingConfig();
+
+        const dto = PollingMapper.toDTO(config);
+
+        expect(dto.deviceId).toBe(DEVICE_UUID);
+      });
+
+      it('should map ipAddress to the value string when an IP is present', () => {
+        const config = makePollingConfig({ ipAddress: TEST_IP });
+
+        const dto = PollingMapper.toDTO(config);
+
+        expect(dto.ipAddress).toBe(TEST_IP);
+      });
+
+      it('should map ipAddress to null when no IP is configured', () => {
+        const config = makePollingConfig({ ipAddress: null });
+
+        const dto = PollingMapper.toDTO(config);
+
+        expect(dto.ipAddress).toBeNull();
+      });
+
+      it('should map intervalSeconds from config.interval.seconds', () => {
+        const config = makePollingConfig({ intervalSeconds: 120 });
+
+        const dto = PollingMapper.toDTO(config);
+
+        expect(dto.intervalSeconds).toBe(120);
+      });
+
+      it('should map failuresBeforeDown from config.failuresBeforeDown.value', () => {
+        const config = makePollingConfig({ failureCount: 5 });
+
+        const dto = PollingMapper.toDTO(config);
+
+        expect(dto.failuresBeforeDown).toBe(5);
+      });
+
+      it('should map enabled from config.enabled when true', () => {
+        const config = makePollingConfig({ enabled: true });
+
+        const dto = PollingMapper.toDTO(config);
+
+        expect(dto.enabled).toBe(true);
+      });
+
+      it('should map enabled from config.enabled when false', () => {
+        const config = makePollingConfig({ enabled: false });
+
+        const dto = PollingMapper.toDTO(config);
+
+        expect(dto.enabled).toBe(false);
+      });
+
+      it('should produce identical output on repeated calls with the same input (pure transformation)', () => {
+        const config = makePollingConfig({ intervalSeconds: 30, failureCount: 2, enabled: true });
+
+        expect(PollingMapper.toDTO(config)).toEqual(PollingMapper.toDTO(config));
+      });
+    });
+  });
+
+  // ==========================================================================
+  describe('extractCreateData()', () => {
+    // ------------------------------------------------------------------------
+    describe('required fields', () => {
+      it('should pass deviceId through as-is', () => {
+        const result = PollingMapper.extractCreateData({ deviceId: DEVICE_UUID });
+
+        expect(result.deviceId).toBe(DEVICE_UUID);
+      });
+    });
+
+    // ------------------------------------------------------------------------
+    describe('optional fields — absent', () => {
+      it('should default ipAddress to null when absent', () => {
+        const result = PollingMapper.extractCreateData({ deviceId: DEVICE_UUID });
+
+        expect(result.ipAddress).toBeNull();
+      });
+
+      it('should default intervalSeconds to null when absent', () => {
+        const result = PollingMapper.extractCreateData({ deviceId: DEVICE_UUID });
+
+        expect(result.intervalSeconds).toBeNull();
+      });
+
+      it('should default failuresBeforeDown to null when absent', () => {
+        const result = PollingMapper.extractCreateData({ deviceId: DEVICE_UUID });
+
+        expect(result.failuresBeforeDown).toBeNull();
+      });
+
+      it('should default enabled to null when absent', () => {
+        const result = PollingMapper.extractCreateData({ deviceId: DEVICE_UUID });
+
+        expect(result.enabled).toBeNull();
+      });
+    });
+
+    // ------------------------------------------------------------------------
+    describe('optional fields — provided', () => {
+      it('should pass through ipAddress when provided', () => {
+        const result = PollingMapper.extractCreateData({
+          deviceId: DEVICE_UUID,
+          ipAddress: TEST_IP
+        });
+
+        expect(result.ipAddress).toBe(TEST_IP);
+      });
+
+      it('should treat explicit null ipAddress as null', () => {
+        const result = PollingMapper.extractCreateData({
+          deviceId: DEVICE_UUID,
+          ipAddress: null
+        });
+
+        expect(result.ipAddress).toBeNull();
+      });
+
+      it('should pass through intervalSeconds when provided', () => {
+        const result = PollingMapper.extractCreateData({
+          deviceId: DEVICE_UUID,
+          intervalSeconds: 90
+        });
+
+        expect(result.intervalSeconds).toBe(90);
+      });
+
+      it('should pass through failuresBeforeDown when provided', () => {
+        const result = PollingMapper.extractCreateData({
+          deviceId: DEVICE_UUID,
+          failuresBeforeDown: 4
+        });
+
+        expect(result.failuresBeforeDown).toBe(4);
+      });
+
+      it('should pass through enabled as true when provided', () => {
+        const result = PollingMapper.extractCreateData({
+          deviceId: DEVICE_UUID,
+          enabled: true
+        });
+
+        expect(result.enabled).toBe(true);
+      });
+
+      it('should pass through enabled as false when provided', () => {
+        const result = PollingMapper.extractCreateData({
+          deviceId: DEVICE_UUID,
+          enabled: false
+        });
+
+        expect(result.enabled).toBe(false);
+      });
+    });
+  });
+
+  // ==========================================================================
+  describe('extractUpdateData()', () => {
+    // ------------------------------------------------------------------------
+    describe('when no fields are provided', () => {
+      it('should return an empty object', () => {
+        const result = PollingMapper.extractUpdateData({ deviceId: DEVICE_UUID });
+
+        expect(result).toEqual({});
+      });
+    });
+
+    // ------------------------------------------------------------------------
+    describe('when fields are provided', () => {
+      it('should include intervalSeconds when provided', () => {
+        const result = PollingMapper.extractUpdateData({
+          deviceId: DEVICE_UUID,
+          intervalSeconds: 60
+        });
+
+        expect(result.intervalSeconds).toBe(60);
+      });
+
+      it('should include failuresBeforeDown when provided', () => {
+        const result = PollingMapper.extractUpdateData({
+          deviceId: DEVICE_UUID,
+          failuresBeforeDown: 3
+        });
+
+        expect(result.failuresBeforeDown).toBe(3);
+      });
+
+      it('should include enabled as true when provided', () => {
+        const result = PollingMapper.extractUpdateData({
+          deviceId: DEVICE_UUID,
+          enabled: true
+        });
+
+        expect(result.enabled).toBe(true);
+      });
+
+      it('should include enabled as false when provided', () => {
+        const result = PollingMapper.extractUpdateData({
+          deviceId: DEVICE_UUID,
+          enabled: false
+        });
+
+        expect(result.enabled).toBe(false);
+      });
+
+      it('should include all provided fields when all are specified', () => {
+        const result = PollingMapper.extractUpdateData({
+          deviceId: DEVICE_UUID,
+          intervalSeconds: 45,
+          failuresBeforeDown: 2,
+          enabled: false
+        });
+
+        expect(result).toEqual({
+          intervalSeconds: 45,
+          failuresBeforeDown: 2,
+          enabled: false
+        });
+      });
+    });
+
+    // ------------------------------------------------------------------------
+    describe('when fields are absent', () => {
+      it('should omit intervalSeconds when undefined', () => {
+        const result = PollingMapper.extractUpdateData({ deviceId: DEVICE_UUID });
+
+        expect('intervalSeconds' in result).toBe(false);
+      });
+
+      it('should omit failuresBeforeDown when undefined', () => {
+        const result = PollingMapper.extractUpdateData({ deviceId: DEVICE_UUID });
+
+        expect('failuresBeforeDown' in result).toBe(false);
+      });
+
+      it('should omit enabled when undefined', () => {
+        const result = PollingMapper.extractUpdateData({ deviceId: DEVICE_UUID });
+
+        expect('enabled' in result).toBe(false);
+      });
+    });
+  });
+
+  // ==========================================================================
   describe('mapper compliance', () => {
     it('should expose toStatusDTO as a static method', () => {
       expect(typeof PollingMapper.toStatusDTO).toBe('function');
@@ -942,6 +1198,18 @@ describe('PollingMapper', () => {
 
     it('should expose toHistoryDTO as a static method', () => {
       expect(typeof PollingMapper.toHistoryDTO).toBe('function');
+    });
+
+    it('should expose toDTO as a static method', () => {
+      expect(typeof PollingMapper.toDTO).toBe('function');
+    });
+
+    it('should expose extractCreateData as a static method', () => {
+      expect(typeof PollingMapper.extractCreateData).toBe('function');
+    });
+
+    it('should expose extractUpdateData as a static method', () => {
+      expect(typeof PollingMapper.extractUpdateData).toBe('function');
     });
 
     it('should produce identical output on repeated calls with the same inputs (deterministic)', () => {

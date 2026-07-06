@@ -1,8 +1,8 @@
-import { PrismaClient } from '../../generated/prisma/client';
-import { Vendor } from '../../domain/device-inventory/aggregates';
-import { VendorId } from '../../domain/shared/ids';
-import { Result, EventDispatcher } from '../../domain/shared/core';
-import { IVendorRepository } from '../../domain/device-inventory/repository';
+import { PrismaClient } from 'generated/prisma/client';
+import { Vendor } from 'domain/device-inventory/aggregates';
+import { VendorId } from 'domain/shared/ids';
+import { Result, EventDispatcher } from 'domain/shared/core';
+import { IVendorRepository } from 'domain/device-inventory/repository';
 import { VendorMapper } from '../mappers';
 
 export class PrismaVendorRepository implements IVendorRepository {
@@ -42,7 +42,9 @@ export class PrismaVendorRepository implements IVendorRepository {
     }
   }
 
-  public async findById(id: VendorId): Promise<Result<Vendor | null>> {
+  public async findById(
+    id: VendorId
+  ): Promise<Result<Vendor | null>> {
     try {
       const raw = await this.prisma.vendor.findUnique({
         where: { id: id.toString() }
@@ -67,7 +69,9 @@ export class PrismaVendorRepository implements IVendorRepository {
     }
   }
 
-  public async findBySlug(slug: string): Promise<Result<Vendor | null>> {
+  public async findBySlug(
+    slug: string
+  ): Promise<Result<Vendor | null>> {
     try {
       const raw = await this.prisma.vendor.findUnique({
         where: { slug }
@@ -162,7 +166,9 @@ export class PrismaVendorRepository implements IVendorRepository {
 
   public async existsBySlug(slug: string): Promise<Result<boolean>> {
     try {
-      const count = await this.prisma.vendor.count({ where: { slug } });
+      const count = await this.prisma.vendor.count({
+        where: { slug }
+      });
       return Result.ok<boolean>(count > 0);
     } catch (error) {
       const errorMessage =

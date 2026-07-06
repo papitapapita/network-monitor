@@ -5,6 +5,7 @@ export interface DeviceModelResponseDTO {
   vendorSlug: string;
   model: string;
   deviceType: string;
+  isWireless: boolean;
   createdAt: string;
   updatedAt: string;
 }

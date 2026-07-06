@@ -1,5 +1,5 @@
 import { DeviceId } from 'domain/shared';
-import { Result } from '../../shared/core';
+import { Result } from 'domain/shared/core';
 
 export interface PingResultRecord {
   id: string;
@@ -39,4 +39,5 @@ export interface IPingResultRepository {
     deviceId: DeviceId,
     filters: PingResultFilters
   ): Promise<Result<PingResultPage>>;
+  deleteOlderThan(cutoff: Date): Promise<Result<number>>;
 }

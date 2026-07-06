@@ -5,9 +5,6 @@ import { WirelessSnapshot, WirelessMetrics, WirelessClientEntry } from 'domain/w
 import { DeviceId } from 'domain/shared';
 import { SnapshotId } from 'domain/shared/ids';
 
-// Prisma returns Decimal types with a toNumber() method; simulate that here.
-const decimal = (value: number): { toNumber(): number } => ({ toNumber: () => value });
-
 const DEVICE_UUID   = 'f149790a-58f0-479a-8534-b0b01e9942bb';
 const SNAPSHOT_UUID = 'd39d887e-e307-484c-b4c4-bdcb55572201';
 
@@ -16,7 +13,7 @@ type PrismaWirelessSnapshot = Parameters<typeof WirelessSnapshotPrismaMapper.toD
 const makeMinimalPrismaRow = (): PrismaWirelessSnapshot => ({
   id: SNAPSHOT_UUID,
   deviceId: DEVICE_UUID,
-  deviceType: 'CPE',
+  deviceType: 'STATION',
   collectedAt: new Date('2024-01-01T12:00:00Z'),
   collectionMethod: 'snmp',
   signalRxDbm: null,
@@ -24,11 +21,8 @@ const makeMinimalPrismaRow = (): PrismaWirelessSnapshot => ({
   noiseFloorDbm: null,
   snrDb: null,
   ccqPercent: null,
-  txRateMbps: null,
-  rxRateMbps: null,
   frequencyMhz: null,
   channelWidthMhz: null,
-  txPowerDbm: null,
   throughputTxBps: null,
   throughputRxBps: null,
   throughputTxPps: null,
@@ -43,11 +37,18 @@ const makeMinimalPrismaRow = (): PrismaWirelessSnapshot => ({
   deviceName: null,
   remoteApMac: null,
   remoteApName: null,
+  remoteApIp: null,
+  remoteApDeviceId: null,
   distanceM: null,
   latencyMs: null,
+  capacityTxKbps: null,
+  capacityRxKbps: null,
+  deviceTimeEpoch: null,
   clientsConnected: null,
-  clientsProvisioned: null,
   clientsJson: null,
+  macAddress: null,
+  deviceModel: null,
+  ssid: null,
 });
 
 const makeFullPrismaRow = (): PrismaWirelessSnapshot => ({
@@ -61,11 +62,8 @@ const makeFullPrismaRow = (): PrismaWirelessSnapshot => ({
   noiseFloorDbm: -95,
   snrDb: 30,
   ccqPercent: 98,
-  txRateMbps: decimal(54),
-  rxRateMbps: decimal(48),
   frequencyMhz: 5180,
   channelWidthMhz: 40,
-  txPowerDbm: 23,
   throughputTxBps: 1_000_000n,
   throughputRxBps: 500_000n,
   throughputTxPps: 1000n,
@@ -80,18 +78,23 @@ const makeFullPrismaRow = (): PrismaWirelessSnapshot => ({
   deviceName: 'ubnt-ap-1',
   remoteApMac: 'AA:BB:CC:DD:EE:FF',
   remoteApName: 'tower-ap',
+  remoteApIp: '10.0.0.1',
+  remoteApDeviceId: null,
   distanceM: 1500,
   latencyMs: 5,
+  capacityTxKbps: 20000,
+  capacityRxKbps: 40000,
+  deviceTimeEpoch: 1718440200n,
   clientsConnected: 3,
-  clientsProvisioned: 10,
+  macAddress: 'AA:BB:CC:DD:EE:FF',
+  deviceModel: 'Rocket 5AC',
+  ssid: 'TestNet',
   clientsJson: [
     {
       macAddress: 'AA:BB:CC:DD:EE:01',
       signalRxDbm: -70,
       signalTxDbm: -72,
       snrDb: null,
-      txRateMbps: 54,
-      rxRateMbps: 48,
       throughputTxBps: null,
       throughputRxBps: null,
       ccqPercent: 96,
@@ -102,7 +105,7 @@ const makeFullPrismaRow = (): PrismaWirelessSnapshot => ({
 });
 
 const buildDomainSnapshot = (overrides: Partial<{
-  deviceType: 'CPE' | 'ACCESS_POINT';
+  deviceType: 'STATION' | 'ACCESS_POINT';
   collectionMethod: 'snmp' | 'http_api' | 'mixed';
 }> = {}): WirelessSnapshot => {
   const deviceId = DeviceId.parse(DEVICE_UUID).value;
@@ -113,11 +116,8 @@ const buildDomainSnapshot = (overrides: Partial<{
     noiseFloorDbm: -95,
     snrDb: null,
     ccqPercent: 98,
-    txRateMbps: 54,
-    rxRateMbps: 48,
     frequencyMhz: 5180,
     channelWidthMhz: null,
-    txPowerDbm: 23,
     throughputTxBps: 1_000_000,
     throughputRxBps: 500_000,
     throughputTxPps: 1000,
@@ -132,23 +132,30 @@ const buildDomainSnapshot = (overrides: Partial<{
     deviceName: 'ubnt-ap-1',
     remoteApMac: 'AA:BB:CC:DD:EE:FF',
     remoteApName: 'tower-ap',
+    remoteApIp: null,
     distanceM: null,
     latencyMs: null,
+    capacityTxKbps: null,
+    capacityRxKbps: null,
+    deviceTimeEpoch: null,
     clientsConnected: 3,
-    clientsProvisioned: null,
+    macAddress: null,
+    deviceModel: null,
+    ssid: null,
   });
 
   return WirelessSnapshot.reconstitute(
+    snapshotId,
     {
       deviceId,
-      deviceType: overrides.deviceType ?? 'CPE',
+      deviceType: overrides.deviceType ?? 'STATION',
       collectedAt: new Date('2024-06-15T08:30:00Z'),
       collectionMethod: overrides.collectionMethod ?? 'snmp',
       metrics,
       clients: [],
       alerts: [],
-    },
-    snapshotId
+      remoteApDeviceId: null,
+    }
   );
 };
 
@@ -164,15 +171,6 @@ describe('WirelessSnapshotPrismaMapper', () => {
       expect(snapshot.deviceType).toBe('ACCESS_POINT');
       expect(snapshot.collectionMethod).toBe('http_api');
       expect(snapshot.collectedAt).toEqual(new Date('2024-06-15T08:30:00Z'));
-    });
-
-    it('should call toNumber() on Decimal fields for txRateMbps and rxRateMbps', () => {
-      const row = makeFullPrismaRow();
-
-      const snapshot = WirelessSnapshotPrismaMapper.toDomain(row);
-
-      expect(snapshot.metrics.txRateMbps).toBe(54);
-      expect(snapshot.metrics.rxRateMbps).toBe(48);
     });
 
     it('should convert BigInt throughput fields to numbers', () => {
@@ -201,8 +199,6 @@ describe('WirelessSnapshotPrismaMapper', () => {
       const m = snapshot.metrics;
 
       expect(m.signalRxDbm).toBeNull();
-      expect(m.txRateMbps).toBeNull();
-      expect(m.rxRateMbps).toBeNull();
       expect(m.throughputTxBps).toBeNull();
       expect(m.throughputRxBps).toBeNull();
       expect(m.uptimeSeconds).toBeNull();
@@ -248,7 +244,7 @@ describe('WirelessSnapshotPrismaMapper', () => {
 
       expect(data.id).toBe(SNAPSHOT_UUID);
       expect(data.deviceId).toBe(DEVICE_UUID);
-      expect(data.deviceType).toBe('CPE');
+      expect(data.deviceType).toBe('STATION');
       expect(data.collectionMethod).toBe('snmp');
     });
 
@@ -276,18 +272,20 @@ describe('WirelessSnapshotPrismaMapper', () => {
       const snapshotId = SnapshotId.parse(SNAPSHOT_UUID).value;
       const metrics = WirelessMetrics.reconstitute({
         signalRxDbm: null, signalTxDbm: null, noiseFloorDbm: null, snrDb: null,
-        ccqPercent: null, txRateMbps: null, rxRateMbps: null, frequencyMhz: null,
-        channelWidthMhz: null, txPowerDbm: null, throughputTxBps: null,
+        ccqPercent: null, frequencyMhz: null,
+        channelWidthMhz: null, throughputTxBps: null,
         throughputRxBps: null, throughputTxPps: null, throughputRxPps: null,
         lanStatus: null, lanSpeedMbps: null, lanDuplex: null, uptimeSeconds: null,
         cpuLoadPercent: null, memoryUsedPercent: null, firmwareVersion: null,
-        deviceName: null, remoteApMac: null, remoteApName: null,
-        distanceM: null, latencyMs: null, clientsConnected: null, clientsProvisioned: null,
+        deviceName: null, remoteApMac: null, remoteApName: null, remoteApIp: null,
+        distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
+        deviceTimeEpoch: null, clientsConnected: null,
+        macAddress: null, deviceModel: null, ssid: null,
       });
 
       const snapshot = WirelessSnapshot.reconstitute(
-        { deviceId, deviceType: 'CPE', collectedAt: new Date(), collectionMethod: 'snmp', metrics, clients: [], alerts: [] },
-        snapshotId
+        snapshotId,
+        { deviceId, deviceType: 'STATION', collectedAt: new Date(), collectionMethod: 'snmp', metrics, clients: [], alerts: [], remoteApDeviceId: null }
       );
 
       const data = WirelessSnapshotPrismaMapper.toPersistence(snapshot);
@@ -310,32 +308,54 @@ describe('WirelessSnapshotPrismaMapper', () => {
       const snapshotId = SnapshotId.parse(SNAPSHOT_UUID).value;
       const metrics = WirelessMetrics.reconstitute({
         signalRxDbm: null, signalTxDbm: null, noiseFloorDbm: null, snrDb: null,
-        ccqPercent: null, txRateMbps: null, rxRateMbps: null, frequencyMhz: null,
-        channelWidthMhz: null, txPowerDbm: null, throughputTxBps: null,
+        ccqPercent: null, frequencyMhz: null,
+        channelWidthMhz: null, throughputTxBps: null,
         throughputRxBps: null, throughputTxPps: null, throughputRxPps: null,
         lanStatus: null, lanSpeedMbps: null, lanDuplex: null, uptimeSeconds: null,
         cpuLoadPercent: null, memoryUsedPercent: null, firmwareVersion: null,
-        deviceName: null, remoteApMac: null, remoteApName: null,
-        distanceM: null, latencyMs: null, clientsConnected: null, clientsProvisioned: null,
+        deviceName: null, remoteApMac: null, remoteApName: null, remoteApIp: null,
+        distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
+        deviceTimeEpoch: null, clientsConnected: null,
+        macAddress: null, deviceModel: null, ssid: null,
       });
 
       const client = WirelessClientEntry.reconstitute({
         macAddress: 'AA:BB:CC:DD:EE:01',
-        signalRxDbm: -70,
-        signalTxDbm: null,
-        snrDb: null,
-        txRateMbps: 54,
-        rxRateMbps: null,
-        throughputTxBps: null,
-        throughputRxBps: null,
-        ccqPercent: null,
-        uptimeSeconds: 1200,
         ipAddress: '192.168.200.10',
+        signalRxDbm: -70,
+        noiseFloorDbm: -95,
+        distanceM: 1000,
+        uptimeSeconds: 1200,
+        txLatencyMs: null,
+        dlLinkScore: 85,
+        ulLinkScore: null,
+        dlCapacityKbps: null,
+        ulCapacityKbps: null,
+        dlCinr: null,
+        ulCinr: null,
+        txBytesTotal: BigInt(500000),
+        rxBytesTotal: null,
+        txPps: null,
+        rxPps: null,
+        remoteHostname: 'tower-ap',
+        remotePlatform: null,
+        remoteVersion: null,
+        remoteCpuLoad: null,
+        remoteTotalRam: null,
+        remoteFreeRam: null,
+        remoteSignal: null,
+        remoteNoiseFloor: null,
+        remoteTxPower: null,
+        remoteTxThroughputKbps: null,
+        remoteRxThroughputKbps: null,
+        remoteIpAddresses: ['10.0.0.1'],
+        dlAirtimePercent: null,
+        ulAirtimePercent: null,
       });
 
       const snapshot = WirelessSnapshot.reconstitute(
-        { deviceId, deviceType: 'CPE', collectedAt: new Date(), collectionMethod: 'snmp', metrics, clients: [client], alerts: [] },
-        snapshotId
+        snapshotId,
+        { deviceId, deviceType: 'STATION', collectedAt: new Date(), collectionMethod: 'http_api', metrics, clients: [client], alerts: [], remoteApDeviceId: null }
       );
 
       const data = WirelessSnapshotPrismaMapper.toPersistence(snapshot);
@@ -344,7 +364,7 @@ describe('WirelessSnapshotPrismaMapper', () => {
       const persisted = (data.clientsJson as Record<string, unknown>[])[0]!;
       expect(persisted['macAddress']).toBe('AA:BB:CC:DD:EE:01');
       expect(persisted['signalRxDbm']).toBe(-70);
-      expect(persisted['txRateMbps']).toBe(54);
+      expect(persisted['txBytesTotal']).toBe('500000');
     });
   });
 
@@ -368,8 +388,6 @@ describe('WirelessSnapshotPrismaMapper', () => {
       expect(back.signalRxDbm).toBe(row.signalRxDbm);
       expect(back.noiseFloorDbm).toBe(row.noiseFloorDbm);
       expect(back.ccqPercent).toBe(row.ccqPercent);
-      expect(back.txRateMbps).toBe(row.txRateMbps!.toNumber());
-      expect(back.rxRateMbps).toBe(row.rxRateMbps!.toNumber());
     });
 
     it('should preserve BigInt fields as BigInts through a round-trip', () => {

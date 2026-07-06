@@ -1,2 +1,2 @@
-export * from './SNMPCollector';
+export * from './AirOsHttpClient';
 export * from './UbiquitiHttpCollector';

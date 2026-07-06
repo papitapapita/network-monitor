@@ -1,9 +1,6 @@
 import { ValueObject, Result, Guard } from 'domain/shared/core';
-import {
-  isValidMacAddress,
-  normalizeMacAddress
-} from 'domain/shared/utils/macAddress';
-import { WirelessClientEntryProps } from '../props/WirelessClientEntryProps';
+import { MACAddress } from 'domain/shared/value-objects';
+import { WirelessClientEntryProps } from '../props';
 
 export class WirelessClientEntry extends ValueObject<WirelessClientEntryProps> {
   private constructor(props: WirelessClientEntryProps) {
@@ -13,35 +10,105 @@ export class WirelessClientEntry extends ValueObject<WirelessClientEntryProps> {
   get macAddress(): string {
     return this._props.macAddress;
   }
+  get ipAddress(): string | null {
+    return this._props.ipAddress;
+  }
   get signalRxDbm(): number | null {
     return this._props.signalRxDbm;
   }
-  get signalTxDbm(): number | null {
-    return this._props.signalTxDbm;
+  get noiseFloorDbm(): number | null {
+    return this._props.noiseFloorDbm;
   }
-  get snrDb(): number | null {
-    return this._props.snrDb;
-  }
-  get txRateMbps(): number | null {
-    return this._props.txRateMbps;
-  }
-  get rxRateMbps(): number | null {
-    return this._props.rxRateMbps;
-  }
-  get throughputTxBps(): number | null {
-    return this._props.throughputTxBps;
-  }
-  get throughputRxBps(): number | null {
-    return this._props.throughputRxBps;
-  }
-  get ccqPercent(): number | null {
-    return this._props.ccqPercent;
+  get distanceM(): number | null {
+    return this._props.distanceM;
   }
   get uptimeSeconds(): number | null {
     return this._props.uptimeSeconds;
   }
-  get ipAddress(): string | null {
-    return this._props.ipAddress;
+  get txLatencyMs(): number | null {
+    return this._props.txLatencyMs;
+  }
+  get dlLinkScore(): number | null {
+    return this._props.dlLinkScore;
+  }
+  get ulLinkScore(): number | null {
+    return this._props.ulLinkScore;
+  }
+  get dlCapacityKbps(): number | null {
+    return this._props.dlCapacityKbps;
+  }
+  get ulCapacityKbps(): number | null {
+    return this._props.ulCapacityKbps;
+  }
+  get dlCinr(): number | null {
+    return this._props.dlCinr;
+  }
+  get ulCinr(): number | null {
+    return this._props.ulCinr;
+  }
+  get txBytesTotal(): bigint | null {
+    return this._props.txBytesTotal;
+  }
+  get rxBytesTotal(): bigint | null {
+    return this._props.rxBytesTotal;
+  }
+  get txPps(): number | null {
+    return this._props.txPps;
+  }
+  get rxPps(): number | null {
+    return this._props.rxPps;
+  }
+  get remoteHostname(): string | null {
+    return this._props.remoteHostname;
+  }
+  get remotePlatform(): string | null {
+    return this._props.remotePlatform;
+  }
+  get remoteVersion(): string | null {
+    return this._props.remoteVersion;
+  }
+  get remoteCpuLoad(): number | null {
+    return this._props.remoteCpuLoad;
+  }
+  get remoteTotalRam(): number | null {
+    return this._props.remoteTotalRam;
+  }
+  get remoteFreeRam(): number | null {
+    return this._props.remoteFreeRam;
+  }
+  get remoteSignal(): number | null {
+    return this._props.remoteSignal;
+  }
+  get remoteNoiseFloor(): number | null {
+    return this._props.remoteNoiseFloor;
+  }
+  get remoteTxPower(): number | null {
+    return this._props.remoteTxPower;
+  }
+  get remoteTxThroughputKbps(): number | null {
+    return this._props.remoteTxThroughputKbps;
+  }
+  get remoteRxThroughputKbps(): number | null {
+    return this._props.remoteRxThroughputKbps;
+  }
+  get remoteIpAddresses(): string[] {
+    return this._props.remoteIpAddresses;
+  }
+  get dlAirtimePercent(): number | null {
+    return this._props.dlAirtimePercent;
+  }
+  get ulAirtimePercent(): number | null {
+    return this._props.ulAirtimePercent;
+  }
+
+  public getSnr(): number | null {
+    if (
+      this._props.signalRxDbm !== null &&
+      this._props.noiseFloorDbm !== null
+    ) {
+      return this._props.signalRxDbm - this._props.noiseFloorDbm;
+    }
+    return null;
   }
 
   public static create(
@@ -55,29 +122,9 @@ export class WirelessClientEntry extends ValueObject<WirelessClientEntryProps> {
       return Result.fail<WirelessClientEntry>(nullCheck.message!);
     }
 
-    const macGuards = Guard.combine([
-      Guard.againstNullOrUndefined(props.macAddress, 'macAddress'),
-      Guard.isString(props.macAddress, 'macAddress')
-    ]);
-    if (!macGuards.succeeded) {
-      return Result.fail<WirelessClientEntry>(macGuards.message!);
-    }
-
-    if (!isValidMacAddress(props.macAddress)) {
-      return Result.fail<WirelessClientEntry>(
-        `macAddress has invalid MAC address format: ${props.macAddress}. Must be AA:BB:CC:DD:EE:FF or AA-BB-CC-DD-EE-FF.`
-      );
-    }
-
-    if (props.ccqPercent !== null) {
-      const guard = Guard.inRange(
-        props.ccqPercent,
-        0,
-        100,
-        'ccqPercent'
-      );
-      if (!guard.succeeded)
-        return Result.fail<WirelessClientEntry>(guard.message!);
+    const macResult = MACAddress.create(props.macAddress);
+    if (macResult.isFailure) {
+      return Result.fail<WirelessClientEntry>(macResult.error!);
     }
 
     if (props.signalRxDbm !== null) {
@@ -86,14 +133,20 @@ export class WirelessClientEntry extends ValueObject<WirelessClientEntryProps> {
         return Result.fail<WirelessClientEntry>(guard.message!);
     }
 
-    if (props.signalTxDbm !== null) {
-      const guard = Guard.isNumber(props.signalTxDbm, 'signalTxDbm');
+    if (props.noiseFloorDbm !== null) {
+      const guard = Guard.isNumber(props.noiseFloorDbm, 'noiseFloorDbm');
       if (!guard.succeeded)
         return Result.fail<WirelessClientEntry>(guard.message!);
     }
 
-    if (props.snrDb !== null) {
-      const guard = Guard.isNumber(props.snrDb, 'snrDb');
+    if (props.dlLinkScore !== null) {
+      const guard = Guard.inRange(props.dlLinkScore, 0, 100, 'dlLinkScore');
+      if (!guard.succeeded)
+        return Result.fail<WirelessClientEntry>(guard.message!);
+    }
+
+    if (props.ulLinkScore !== null) {
+      const guard = Guard.inRange(props.ulLinkScore, 0, 100, 'ulLinkScore');
       if (!guard.succeeded)
         return Result.fail<WirelessClientEntry>(guard.message!);
     }
@@ -107,16 +160,57 @@ export class WirelessClientEntry extends ValueObject<WirelessClientEntryProps> {
         return Result.fail<WirelessClientEntry>(ipGuards.message!);
     }
 
-    const normalizedMac = normalizeMacAddress(props.macAddress);
+    if (props.dlAirtimePercent !== null) {
+      const guard = Guard.inRange(
+        props.dlAirtimePercent,
+        0,
+        100,
+        'dlAirtimePercent'
+      );
+      if (!guard.succeeded)
+        return Result.fail<WirelessClientEntry>(guard.message!);
+    }
+
+    if (props.ulAirtimePercent !== null) {
+      const guard = Guard.inRange(
+        props.ulAirtimePercent,
+        0,
+        100,
+        'ulAirtimePercent'
+      );
+      if (!guard.succeeded)
+        return Result.fail<WirelessClientEntry>(guard.message!);
+    }
 
     return Result.ok<WirelessClientEntry>(
-      new WirelessClientEntry({ ...props, macAddress: normalizedMac })
+      new WirelessClientEntry({
+        ...props,
+        macAddress: macResult.value.value
+      })
     );
+  }
+
+  public override equals(
+    vo?: ValueObject<WirelessClientEntryProps>
+  ): boolean {
+    if (vo == null) return false;
+    if (!(vo instanceof WirelessClientEntry)) return false;
+    const serialize = (p: WirelessClientEntryProps): string =>
+      JSON.stringify({
+        ...p,
+        txBytesTotal: p.txBytesTotal?.toString() ?? null,
+        rxBytesTotal: p.rxBytesTotal?.toString() ?? null
+      });
+    return serialize(this._props) === serialize(vo._props);
   }
 
   public static reconstitute(
     props: WirelessClientEntryProps
   ): WirelessClientEntry {
     return new WirelessClientEntry(props);
+  }
+
+  public toString(): string {
+    return this._props.macAddress;
   }
 }

@@ -7,6 +7,17 @@ import { createVendorRoutes } from './vendor.routes';
 import { createPollingRoutes } from './polling.routes';
 import { createAlertRoutes } from './alert.routes';
 import { createScanRoutes } from './scan.routes';
+import { createWirelessRoutes } from './wireless.routes';
+import { createCredentialsRoutes } from './credentials.routes';
+import { createAuthRoutes } from './auth.routes';
+import { createAdminRoutes } from './admin.routes';
+import { createCustomerRoutes } from './customer.routes';
+import { createServicePlanRoutes } from './service-plan.routes';
+import { createContractedServiceRoutes } from './contracted-service.routes';
+import {
+  createAuditLogMiddleware,
+  createAuthenticateMiddleware
+} from '../middleware';
 
 /**
  * setupRoutes
@@ -24,6 +35,21 @@ export function setupRoutes(
   const apiRouter = Router();
 
   // =====================================
+  // IDENTITY — public (no auth required)
+  // =====================================
+
+  apiRouter.use('/auth', createAuthRoutes(container.authController));
+
+  // =====================================
+  // GLOBAL MIDDLEWARE — all routes below require a valid JWT
+  // =====================================
+
+  apiRouter.use(
+    createAuditLogMiddleware(container.getLogger()),
+    createAuthenticateMiddleware(container.tokenService)
+  );
+
+  // =====================================
   // DEVICE-INVENTORY BOUNDED CONTEXT
   // =====================================
 
@@ -39,6 +65,12 @@ export function setupRoutes(
     createDeviceRoutes(container.deviceController)
   );
 
+  // Device credentials: /api/devices/:id/credentials
+  apiRouter.use(
+    '/devices',
+    createCredentialsRoutes(container.credentialsController)
+  );
+
   // Device Models: /api/device-models
   apiRouter.use(
     '/device-models',
@@ -49,6 +81,30 @@ export function setupRoutes(
   apiRouter.use(
     '/vendors',
     createVendorRoutes(container.vendorController)
+  );
+
+  // =====================================
+  // CUSTOMERS BOUNDED CONTEXT
+  // =====================================
+
+  // Customers: /api/customers
+  apiRouter.use(
+    '/customers',
+    createCustomerRoutes(container.customerController)
+  );
+
+  // Service plans: /api/service-plans
+  apiRouter.use(
+    '/service-plans',
+    createServicePlanRoutes(container.servicePlanController)
+  );
+
+  // Contracted services: /api/contracted-services
+  apiRouter.use(
+    '/contracted-services',
+    createContractedServiceRoutes(
+      container.contractedServiceController
+    )
   );
 
   // =====================================
@@ -66,7 +122,20 @@ export function setupRoutes(
   // =====================================
 
   // Alerts: /api/alerts
-  apiRouter.use('/alerts', createAlertRoutes(container.alertController));
+  apiRouter.use(
+    '/alerts',
+    createAlertRoutes(container.alertController)
+  );
+
+  // =====================================
+  // WIRELESS-MONITORING BOUNDED CONTEXT
+  // =====================================
+
+  // Wireless: /api/devices/:id/wireless/*, /api/wireless/*
+  apiRouter.use(
+    '/',
+    createWirelessRoutes(container.wirelessController)
+  );
 
   // =====================================
   // NETWORK DISCOVERY
@@ -78,6 +147,15 @@ export function setupRoutes(
     createScanRoutes(container.scanController)
   );
 
-  // Mount API router under /api prefix
+  // =====================================
+  // ADMIN
+  // =====================================
+
+  // Admin: /api/admin/*
+  apiRouter.use(
+    '/admin',
+    createAdminRoutes(container.adminController)
+  );
+
   app.use('/api', apiRouter);
 }

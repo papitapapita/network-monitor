@@ -41,20 +41,23 @@ function makeLogger(): jest.Mocked<ILogger> {
 function makeNullMetrics(): WirelessMetrics {
   return WirelessMetrics.reconstitute({
     signalRxDbm: null, signalTxDbm: null, noiseFloorDbm: null, snrDb: null,
-    ccqPercent: null, txRateMbps: null, rxRateMbps: null, frequencyMhz: null,
-    channelWidthMhz: null, txPowerDbm: null, throughputTxBps: null,
+    ccqPercent: null, frequencyMhz: null,
+    channelWidthMhz: null, throughputTxBps: null,
     throughputRxBps: null, throughputTxPps: null, throughputRxPps: null,
     lanStatus: null, lanSpeedMbps: null, lanDuplex: null, uptimeSeconds: null,
     cpuLoadPercent: null, memoryUsedPercent: null, firmwareVersion: null,
-    deviceName: null, remoteApMac: null, remoteApName: null, distanceM: null,
-    latencyMs: null, clientsConnected: null, clientsProvisioned: null,
+    deviceName: null, remoteApMac: null, remoteApName: null, remoteApIp: null,
+    distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
+    deviceTimeEpoch: null, clientsConnected: null,
+    macAddress: null, deviceModel: null, ssid: null,
   });
 }
 
-function makeSnapshot(deviceType: 'CPE' | 'ACCESS_POINT' = 'CPE'): WirelessSnapshot {
+function makeSnapshot(deviceType: 'STATION' | 'ACCESS_POINT' = 'STATION'): WirelessSnapshot {
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const snapshotId = SnapshotId.parse(SNAPSHOT_UUID).value;
   return WirelessSnapshot.reconstitute(
+    snapshotId,
     {
       deviceId,
       deviceType,
@@ -63,8 +66,8 @@ function makeSnapshot(deviceType: 'CPE' | 'ACCESS_POINT' = 'CPE'): WirelessSnaps
       metrics: makeNullMetrics(),
       clients: [],
       alerts: [],
-    },
-    snapshotId
+      remoteApDeviceId: null,
+    }
   );
 }
 
@@ -72,6 +75,7 @@ function makeAlertRecord(): WirelessAlertRecord {
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const alertId = WirelessAlertRecordId.parse(ALERT_UUID).value;
   return WirelessAlertRecord.reconstitute(
+    alertId,
     {
       deviceId,
       metric: 'signal_rx_dbm',
@@ -82,8 +86,7 @@ function makeAlertRecord(): WirelessAlertRecord {
       triggeredAt: new Date('2024-01-01T00:00:00.000Z'),
       clearedAt: null,
       isActive: true,
-    },
-    alertId
+    }
   );
 }
 
@@ -101,6 +104,7 @@ describe('GetWirelessDeviceStatusUseCase', () => {
       findById: jest.fn(),
       findLatestByDevice: jest.fn(),
       findHistoryByDevice: jest.fn(),
+      deleteOlderThan: jest.fn()
     };
 
     alertRecordRepo = {
@@ -111,6 +115,7 @@ describe('GetWirelessDeviceStatusUseCase', () => {
       findAllActiveByDevice: jest.fn(),
       findAllActive: jest.fn(),
       findHistoryByDevice: jest.fn(),
+      deleteClearedOlderThan: jest.fn()
     };
 
     logger = makeLogger();

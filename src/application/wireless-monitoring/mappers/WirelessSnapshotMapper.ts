@@ -1,11 +1,15 @@
-import { WirelessSnapshot, WirelessAlertRecord } from 'domain/wireless-monitoring';
+import {
+  WirelessSnapshot,
+  WirelessAlertRecord
+} from 'domain/wireless-monitoring/aggregates';
 import {
   WirelessStatusResponseDTO,
-  WirelessMetricsDTO
-} from '../dtos/WirelessStatusResponseDTO';
-import { WirelessAlertResponseDTO } from '../dtos/WirelessAlertResponseDTO';
-import { WirelessClientDTO } from '../dtos/WirelessClientDTO';
-import { WirelessClientListResponseDTO } from '../dtos/WirelessClientListResponseDTO';
+  WirelessMetricsDTO,
+  WirelessClientDTO,
+  WirelessClientListResponseDTO
+} from '../dtos';
+import { WirelessAlertMapper } from './WirelessAlertMapper';
+import { WirelessClientEntry } from 'domain/wireless-monitoring/value-objects';
 
 export class WirelessSnapshotMapper {
   public static toStatusDTO(
@@ -19,11 +23,8 @@ export class WirelessSnapshotMapper {
       noiseFloorDbm: m.noiseFloorDbm,
       snrDb: m.snrDb,
       ccqPercent: m.ccqPercent,
-      txRateMbps: m.txRateMbps,
-      rxRateMbps: m.rxRateMbps,
       frequencyMhz: m.frequencyMhz,
       channelWidthMhz: m.channelWidthMhz,
-      txPowerDbm: m.txPowerDbm,
       throughputTxBps: m.throughputTxBps,
       throughputRxBps: m.throughputRxBps,
       throughputTxPps: m.throughputTxPps,
@@ -41,39 +42,10 @@ export class WirelessSnapshotMapper {
       distanceM: m.distanceM,
       latencyMs: m.latencyMs,
       clientsConnected: m.clientsConnected,
-      clientsProvisioned: m.clientsProvisioned
+      macAddress: m.macAddress,
+      deviceModel: m.deviceModel,
+      ssid: m.ssid
     };
-
-    const activeAlerts: WirelessAlertResponseDTO[] = alerts.map(
-      (a) => ({
-        id: a.id.toString(),
-        deviceId: a.deviceId.toString(),
-        metric: a.metric,
-        severity: a.severity,
-        threshold: a.threshold,
-        lastValue: a.lastValue,
-        message: a.message,
-        triggeredAt: a.triggeredAt.toISOString(),
-        clearedAt: a.clearedAt?.toISOString() ?? null,
-        isActive: a.isActive
-      })
-    );
-
-    const clients: WirelessClientDTO[] = snapshot.clients.map(
-      (c) => ({
-        macAddress: c.macAddress,
-        signalRxDbm: c.signalRxDbm,
-        signalTxDbm: c.signalTxDbm,
-        snrDb: c.snrDb,
-        txRateMbps: c.txRateMbps,
-        rxRateMbps: c.rxRateMbps,
-        throughputTxBps: c.throughputTxBps,
-        throughputRxBps: c.throughputRxBps,
-        ccqPercent: c.ccqPercent,
-        uptimeSeconds: c.uptimeSeconds,
-        ipAddress: c.ipAddress
-      })
-    );
 
     return {
       deviceId: snapshot.deviceId.toString(),
@@ -81,36 +53,56 @@ export class WirelessSnapshotMapper {
       collectedAt: snapshot.collectedAt.toISOString(),
       collectionMethod: snapshot.collectionMethod,
       metrics,
-      activeAlerts,
-      clients
+      activeAlerts: alerts.map((a) => WirelessAlertMapper.toDTO(a)),
+      clients: snapshot.clients.map((c) => this.toClientDTO(c))
     };
   }
 
-  /**
-   * Maps a snapshot's client list to a WirelessClientListResponseDTO.
-   * Centralises all structural DTO transformation for client data.
-   */
   public static toClientListDTO(
     snapshot: WirelessSnapshot
   ): WirelessClientListResponseDTO {
-    const clients: WirelessClientDTO[] = snapshot.clients.map((c) => ({
-      macAddress: c.macAddress,
-      signalRxDbm: c.signalRxDbm,
-      signalTxDbm: c.signalTxDbm,
-      snrDb: c.snrDb,
-      txRateMbps: c.txRateMbps,
-      rxRateMbps: c.rxRateMbps,
-      throughputTxBps: c.throughputTxBps,
-      throughputRxBps: c.throughputRxBps,
-      ccqPercent: c.ccqPercent,
-      uptimeSeconds: c.uptimeSeconds,
-      ipAddress: c.ipAddress,
-    }));
-
     return {
       deviceId: snapshot.deviceId.toString(),
       collectedAt: snapshot.collectedAt.toISOString(),
-      clients,
+      clients: snapshot.clients.map((c) => this.toClientDTO(c))
+    };
+  }
+
+  private static toClientDTO(c: WirelessClientEntry): WirelessClientDTO {
+    return {
+      macAddress: c.macAddress,
+      ipAddress: c.ipAddress,
+      signalRxDbm: c.signalRxDbm,
+      noiseFloorDbm: c.noiseFloorDbm,
+      distanceM: c.distanceM,
+      uptimeSeconds: c.uptimeSeconds,
+      txLatencyMs: c.txLatencyMs,
+      dlLinkScore: c.dlLinkScore,
+      ulLinkScore: c.ulLinkScore,
+      dlCapacityKbps: c.dlCapacityKbps,
+      ulCapacityKbps: c.ulCapacityKbps,
+      dlCinr: c.dlCinr,
+      ulCinr: c.ulCinr,
+      txBytesTotal:
+        c.txBytesTotal !== null ? c.txBytesTotal.toString() : null,
+      rxBytesTotal:
+        c.rxBytesTotal !== null ? c.rxBytesTotal.toString() : null,
+      txPps: c.txPps,
+      rxPps: c.rxPps,
+      remoteHostname: c.remoteHostname,
+      remotePlatform: c.remotePlatform,
+      remoteVersion: c.remoteVersion,
+      remoteCpuLoad: c.remoteCpuLoad,
+      remoteTotalRam: c.remoteTotalRam,
+      remoteFreeRam: c.remoteFreeRam,
+      remoteSignal: c.remoteSignal,
+      remoteNoiseFloor: c.remoteNoiseFloor,
+      remoteTxPower: c.remoteTxPower,
+      remoteTxThroughputKbps: c.remoteTxThroughputKbps,
+      remoteRxThroughputKbps: c.remoteRxThroughputKbps,
+      remoteIpAddresses: c.remoteIpAddresses,
+      dlAirtimePercent: c.dlAirtimePercent,
+      ulAirtimePercent: c.ulAirtimePercent
     };
   }
 }

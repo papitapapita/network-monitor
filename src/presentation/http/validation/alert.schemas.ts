@@ -12,4 +12,6 @@ export const listAlertsSchema = z.object({
     .optional()
 });
 
-export type ListAlertsQuery = z.infer<typeof listAlertsSchema>['query'];
+export type ListAlertsQuery = z.infer<
+  typeof listAlertsSchema
+>['query'];

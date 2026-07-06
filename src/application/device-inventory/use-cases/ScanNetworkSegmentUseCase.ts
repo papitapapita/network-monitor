@@ -1,34 +1,12 @@
 import { Result } from 'domain/shared/core';
-import { UseCase } from '../../shared/core';
-import { ILogger } from '../../shared/interfaces';
+import { UseCase } from 'application/shared/core';
+import { ILogger } from 'application/shared/interfaces';
 import {
   ScanNetworkSegmentRequestDTO,
   ScanNetworkSegmentResponseDTO
 } from '../dtos';
 import { INetworkScannerService } from '../interfaces';
 
-/**
- * ScanNetworkSegmentUseCase
- *
- * Business Intent: Probe all hosts within a CIDR segment and return every
- * responsive host enriched with MAC address and manufacturer information,
- * so the operator can identify devices before deciding how to register them.
- *
- * This use case is intentionally read-only with respect to the inventory.
- * Device registration is a separate, deliberate action: the operator reviews
- * scan results (including manufacturer data), picks the correct DeviceModel
- * for each discovered host, and registers them individually via
- * CreateDeviceUseCase.
- *
- * Flow:
- * 1. beforeExecute: Validate that segment is a non-empty string.
- * 2. executeImpl:   Delegate to INetworkScannerService (ICMP ping sweep,
- *    ARP resolution, OUI manufacturer lookup) and wrap the results.
- *
- * Dependencies:
- * - INetworkScannerService: Performs the network probing.
- * - ILogger: Structured logging via the base UseCase template.
- */
 export class ScanNetworkSegmentUseCase extends UseCase<
   ScanNetworkSegmentRequestDTO,
   ScanNetworkSegmentResponseDTO

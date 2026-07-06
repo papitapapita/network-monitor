@@ -3,7 +3,7 @@ import { DeviceId } from 'domain/shared/ids';
 import { IAlertRepository } from 'domain/notifications/repository';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
-import { AlertMapper } from '../mappers/AlertMapper';
+import { AlertMapper } from '../mappers';
 import { AlertListResponseDTO, ListAlertsDTO } from '../dtos';
 
 export class ListAlertsUseCase extends UseCase<

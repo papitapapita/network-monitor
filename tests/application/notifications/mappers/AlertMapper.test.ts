@@ -37,8 +37,7 @@ function makeOpenAlert(): Alert {
     startedAt:          STARTED_AT,
     resolvedAt:         null,
     notifiedAt:         null,
-    recoveryNotifiedAt: null,
-    durationSecs:       null
+    recoveryNotifiedAt: null
   });
 }
 
@@ -49,8 +48,7 @@ function makeResolvedAlert(): Alert {
     startedAt:          STARTED_AT,
     resolvedAt:         RESOLVED_AT,
     notifiedAt:         NOTIFIED_AT,
-    recoveryNotifiedAt: RECOVERY_NOTIFIED_AT,
-    durationSecs:       100
+    recoveryNotifiedAt: RECOVERY_NOTIFIED_AT
   });
 }
 
@@ -289,6 +287,22 @@ describe('AlertMapper', () => {
       expect(dto.alerts).toEqual([]);
       expect(dto.total).toBe(0);
       expect(dto.hasMore).toBe(false);
+    });
+  });
+
+  // ===========================================================================
+  describe('mapper compliance', () => {
+    it('should expose toDTO as a static method', () => {
+      expect(typeof AlertMapper.toDTO).toBe('function');
+    });
+
+    it('should expose toListDTO as a static method', () => {
+      expect(typeof AlertMapper.toListDTO).toBe('function');
+    });
+
+    it('should produce identical output on repeated calls with the same alert (deterministic)', () => {
+      const alert = makeOpenAlert();
+      expect(AlertMapper.toDTO(alert)).toEqual(AlertMapper.toDTO(alert));
     });
   });
 });

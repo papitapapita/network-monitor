@@ -1,6 +1,6 @@
-import { Vendor } from '../../domain/device-inventory/aggregates';
-import { VendorId } from '../../domain/shared/ids';
-import { Result } from '../../domain/shared/core';
+import { Vendor } from 'domain/device-inventory/aggregates';
+import { VendorId } from 'domain/shared/ids';
+import { Result } from 'domain/shared/core';
 
 type PrismaVendorRecord = {
   id: string;
@@ -24,7 +24,9 @@ export class VendorMapper {
   public static toDomain(raw: PrismaVendorRecord): Result<Vendor> {
     const idResult = VendorId.parse(raw.id);
     if (idResult.isFailure) {
-      return Result.fail<Vendor>(`Invalid vendor ID: ${idResult.error}`);
+      return Result.fail<Vendor>(
+        `Invalid vendor ID: ${idResult.error}`
+      );
     }
 
     const vendor = Vendor.reconstitute(idResult.value, {

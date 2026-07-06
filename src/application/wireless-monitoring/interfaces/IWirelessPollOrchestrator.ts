@@ -1,6 +1,8 @@
 import { Result } from 'domain/shared/core';
-import { PollWirelessDeviceRequestDTO } from '../dtos/PollWirelessDeviceRequestDTO';
-import { PollWirelessDeviceResponseDTO } from '../dtos/PollWirelessDeviceResponseDTO';
+import {
+  PollWirelessDeviceRequestDTO,
+  PollWirelessDeviceResponseDTO
+} from '../dtos';
 
 /**
  * Application-layer abstraction for executing a wireless device poll.
@@ -11,5 +13,7 @@ import { PollWirelessDeviceResponseDTO } from '../dtos/PollWirelessDeviceRespons
  * implementation of this interface.
  */
 export interface IWirelessPollOrchestrator {
-  execute(request: PollWirelessDeviceRequestDTO): Promise<Result<PollWirelessDeviceResponseDTO>>;
+  execute(
+    request: PollWirelessDeviceRequestDTO
+  ): Promise<Result<PollWirelessDeviceResponseDTO>>;
 }

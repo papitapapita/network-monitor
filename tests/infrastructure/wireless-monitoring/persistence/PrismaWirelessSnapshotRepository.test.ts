@@ -18,6 +18,7 @@ const createMockPrisma = () => ({
     findUnique: jest.fn(),
     findFirst: jest.fn(),
     findMany: jest.fn(),
+    deleteMany: jest.fn(),
   },
 });
 
@@ -26,25 +27,26 @@ const buildDomainSnapshot = (): WirelessSnapshot => {
   const snapshotId = SnapshotId.parse(SNAPSHOT_UUID).value;
   const metrics = WirelessMetrics.reconstitute({
     signalRxDbm: -65, signalTxDbm: null, noiseFloorDbm: -95, snrDb: null,
-    ccqPercent: 98, txRateMbps: 54, rxRateMbps: 48, frequencyMhz: 5180,
-    channelWidthMhz: null, txPowerDbm: 23, throughputTxBps: null,
-    throughputRxBps: null, throughputTxPps: null, throughputRxPps: null,
-    lanStatus: 'UP', lanSpeedMbps: 100, lanDuplex: null, uptimeSeconds: 3600,
-    cpuLoadPercent: null, memoryUsedPercent: null, firmwareVersion: 'XW.v8.7.1',
-    deviceName: 'ubnt-cpe', remoteApMac: null, remoteApName: null,
-    distanceM: null, latencyMs: null, clientsConnected: 2, clientsProvisioned: null,
+    ccqPercent: 98, frequencyMhz: 5180, channelWidthMhz: null,
+    throughputTxBps: null, throughputRxBps: null, throughputTxPps: null,
+    throughputRxPps: null, lanStatus: 'UP', lanSpeedMbps: 100, lanDuplex: null,
+    uptimeSeconds: 3600, cpuLoadPercent: null, memoryUsedPercent: null,
+    firmwareVersion: 'XW.v8.7.1', deviceName: 'ubnt-cpe', remoteApMac: null,
+    remoteApName: null, remoteApIp: null, distanceM: null, latencyMs: null,
+    capacityTxKbps: null, capacityRxKbps: null, deviceTimeEpoch: null,
+    clientsConnected: 2, macAddress: null, deviceModel: null, ssid: null,
   });
 
   return WirelessSnapshot.reconstitute(
-    { deviceId, deviceType: 'CPE', collectedAt: new Date('2024-01-01T12:00:00Z'), collectionMethod: 'snmp', metrics, clients: [], alerts: [] },
-    snapshotId
+    snapshotId,
+    { deviceId, deviceType: 'STATION', collectedAt: new Date('2024-01-01T12:00:00Z'), collectionMethod: 'snmp', metrics, clients: [], alerts: [], remoteApDeviceId: null }
   );
 };
 
 const makePrismaRow = () => ({
   id: SNAPSHOT_UUID,
   deviceId: DEVICE_UUID,
-  deviceType: 'CPE',
+  deviceType: 'STATION',
   collectedAt: new Date('2024-01-01T12:00:00Z'),
   collectionMethod: 'snmp',
   signalRxDbm: -65,
@@ -52,11 +54,8 @@ const makePrismaRow = () => ({
   noiseFloorDbm: -95,
   snrDb: null,
   ccqPercent: 98,
-  txRateMbps: { toNumber: () => 54 },
-  rxRateMbps: { toNumber: () => 48 },
   frequencyMhz: 5180,
   channelWidthMhz: null,
-  txPowerDbm: 23,
   throughputTxBps: null,
   throughputRxBps: null,
   throughputTxPps: null,
@@ -71,11 +70,18 @@ const makePrismaRow = () => ({
   deviceName: 'ubnt-cpe',
   remoteApMac: null,
   remoteApName: null,
+  remoteApIp: null,
+  remoteApDeviceId: null,
   distanceM: null,
   latencyMs: null,
+  capacityTxKbps: null,
+  capacityRxKbps: null,
+  deviceTimeEpoch: null,
   clientsConnected: 2,
-  clientsProvisioned: null,
   clientsJson: null,
+  macAddress: null,
+  deviceModel: null,
+  ssid: null,
 });
 
 describe('PrismaWirelessSnapshotRepository', () => {
@@ -294,6 +300,82 @@ describe('PrismaWirelessSnapshotRepository', () => {
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Database error finding wireless history');
+    });
+  });
+
+  describe('deleteOlderThan()', () => {
+    const CUTOFF_DATE = new Date('2024-01-01T00:00:00.000Z');
+
+    // -----------------------------------------------------------------------
+    describe('happy path', () => {
+      it('should call prisma.wirelessSnapshot.deleteMany with a lt filter on collectedAt', async () => {
+        prismaMock.wirelessSnapshot.deleteMany.mockResolvedValue({ count: 15 });
+
+        await repository.deleteOlderThan(CUTOFF_DATE);
+
+        expect(prismaMock.wirelessSnapshot.deleteMany).toHaveBeenCalledWith({
+          where: { collectedAt: { lt: CUTOFF_DATE } },
+        });
+      });
+
+      it('should return Result.ok with the number of deleted snapshots', async () => {
+        prismaMock.wirelessSnapshot.deleteMany.mockResolvedValue({ count: 15 });
+
+        const result = await repository.deleteOlderThan(CUTOFF_DATE);
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBe(15);
+      });
+
+      it('should return Result.ok(0) when no snapshots are older than the cutoff', async () => {
+        prismaMock.wirelessSnapshot.deleteMany.mockResolvedValue({ count: 0 });
+
+        const result = await repository.deleteOlderThan(CUTOFF_DATE);
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBe(0);
+      });
+
+      it('should call deleteMany exactly once', async () => {
+        prismaMock.wirelessSnapshot.deleteMany.mockResolvedValue({ count: 5 });
+
+        await repository.deleteOlderThan(CUTOFF_DATE);
+
+        expect(prismaMock.wirelessSnapshot.deleteMany).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('failure path', () => {
+      it('should return a failed Result when Prisma throws', async () => {
+        prismaMock.wirelessSnapshot.deleteMany.mockRejectedValue(
+          new Error('table locked')
+        );
+
+        const result = await repository.deleteOlderThan(CUTOFF_DATE);
+
+        expect(result.isFailure).toBe(true);
+      });
+
+      it('should prefix the error message with "deleteOlderThan failed:"', async () => {
+        prismaMock.wirelessSnapshot.deleteMany.mockRejectedValue(
+          new Error('I/O error')
+        );
+
+        const result = await repository.deleteOlderThan(CUTOFF_DATE);
+
+        expect(result.error).toContain('deleteOlderThan failed');
+      });
+
+      it('should include the original error message in the failure', async () => {
+        prismaMock.wirelessSnapshot.deleteMany.mockRejectedValue(
+          new Error('table locked')
+        );
+
+        const result = await repository.deleteOlderThan(CUTOFF_DATE);
+
+        expect(result.error).toContain('table locked');
+      });
     });
   });
 });

@@ -1,31 +1,30 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared';
 import {
-  IWirelessPollingConfigRepository,
+  IWirelessDeviceConfigRepository,
   IWirelessSnapshotRepository,
   IWirelessAlertRecordRepository,
   WirelessAlertRecord,
   WirelessMetrics,
   WirelessClientEntry,
   WirelessAlert,
-  WirelessSnapshot
+  WirelessSnapshot,
+  IWirelessAlertEvaluator,
+  EvaluationContext
 } from 'domain/wireless-monitoring';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import {
-  ISNMPCollector,
-  SNMPCredentials,
   IUbiquitiHttpCollector,
   HttpCredentials,
-  IWirelessCounterStore,
-  CounterSnapshot,
   IDeviceCredentialsRepository,
-  IWirelessAlertEvaluator,
+  IDeviceRepository,
   IWirelessPollOrchestrator
 } from '../interfaces';
-import { EvaluationContext } from '../services/WirelessAlertEvaluator';
-import { PollWirelessDeviceRequestDTO } from '../dtos/PollWirelessDeviceRequestDTO';
-import { PollWirelessDeviceResponseDTO } from '../dtos/PollWirelessDeviceResponseDTO';
+import {
+  PollWirelessDeviceRequestDTO,
+  PollWirelessDeviceResponseDTO
+} from '../dtos';
 
 export class PollWirelessDeviceUseCase
   extends UseCase<
@@ -34,15 +33,16 @@ export class PollWirelessDeviceUseCase
   >
   implements IWirelessPollOrchestrator
 {
+  private readonly activePolls = new Set<string>();
+
   constructor(
-    private readonly wirelessPollingConfigRepo: IWirelessPollingConfigRepository,
+    private readonly wirelessDeviceConfigRepo: IWirelessDeviceConfigRepository,
     private readonly snapshotRepo: IWirelessSnapshotRepository,
     private readonly alertRecordRepo: IWirelessAlertRecordRepository,
     private readonly credentialsRepo: IDeviceCredentialsRepository,
-    private readonly snmpCollector: ISNMPCollector,
     private readonly httpCollector: IUbiquitiHttpCollector,
-    private readonly counterStore: IWirelessCounterStore,
     private readonly alertEvaluator: IWirelessAlertEvaluator,
+    private readonly deviceRepo: IDeviceRepository,
     logger: ILogger
   ) {
     super(logger, 'PollWirelessDeviceUseCase');
@@ -65,10 +65,36 @@ export class PollWirelessDeviceUseCase
       return this.fail(`Invalid device ID: ${deviceIdResult.error}`);
     }
     const deviceId = deviceIdResult.value;
+    const deviceIdStr = deviceId.toString();
     const now = new Date();
 
+    if (this.activePolls.has(deviceIdStr)) {
+      return this.ok({
+        deviceId: request.deviceId,
+        collectedAt: now.toISOString(),
+        metricsCollected: false,
+        alertsTriggered: 0,
+        alertsCleared: 0,
+        collectionMethod: 'http_api',
+        skipped: true
+      });
+    }
+
+    this.activePolls.add(deviceIdStr);
+    try {
+      return await this.poll(deviceId, now, request);
+    } finally {
+      this.activePolls.delete(deviceIdStr);
+    }
+  }
+
+  private async poll(
+    deviceId: DeviceId,
+    now: Date,
+    request: PollWirelessDeviceRequestDTO
+  ): Promise<Result<PollWirelessDeviceResponseDTO>> {
     const configResult =
-      await this.wirelessPollingConfigRepo.findByDeviceId(deviceId);
+      await this.wirelessDeviceConfigRepo.findByDeviceId(deviceId);
     if (configResult.isFailure) {
       return this.fail(
         `Failed to load wireless polling config: ${configResult.error}`
@@ -88,7 +114,7 @@ export class PollWirelessDeviceUseCase
         metricsCollected: false,
         alertsTriggered: 0,
         alertsCleared: 0,
-        collectionMethod: 'snmp',
+        collectionMethod: 'http_api',
         skipped: true
       });
     }
@@ -113,71 +139,40 @@ export class PollWirelessDeviceUseCase
 
     const ipAddress = config.ipAddress.value;
 
-    const snmpCreds: SNMPCredentials = {
-      version: credentials.snmpVersion,
-      community: credentials.snmpCommunity ?? undefined,
-      authUser: credentials.snmpV3AuthUser ?? undefined,
-      authProtocol: credentials.snmpV3AuthProto ?? undefined,
-      authKey: credentials.snmpV3AuthKey ?? undefined,
-      privProtocol: credentials.snmpV3PrivProto ?? undefined,
-      privKey: credentials.snmpV3PrivKey ?? undefined,
-      port: credentials.snmpPort
-    };
-
     const httpCreds: HttpCredentials = {
       username: credentials.httpUsername ?? '',
       password: credentials.httpPassword ?? '',
       port: credentials.httpPort
     };
 
-    // Retry logic on transient SNMP failures is the responsibility of the
-    // ISNMPCollector implementation (infrastructure layer), not the use case.
-    const snmpResult = await this.snmpCollector.collect(
-      ipAddress,
-      snmpCreds
-    );
+    this.logger.info('[PollWirelessDeviceUseCase] polling device', {
+      ip: ipAddress,
+      port: httpCreds.port,
+      username: httpCreds.username,
+      hasPassword: !!httpCreds.password
+    });
 
     const httpResult = await this.httpCollector.collect(
       ipAddress,
-      httpCreds
+      httpCreds,
+      config.deviceType
     );
 
-    const isSnmpOk = snmpResult.isSuccess;
-    const isHttpOk = httpResult.isSuccess;
-
-    let collectionMethod: 'snmp' | 'http_api' | 'mixed';
-    if (isSnmpOk && isHttpOk) {
-      collectionMethod = 'mixed';
-    } else if (isSnmpOk) {
-      collectionMethod = 'snmp';
-    } else if (isHttpOk) {
-      collectionMethod = 'http_api';
-    } else {
-      return this.fail(
-        'Failed to collect metrics: both SNMP and HTTP collectors failed'
-      );
+    if (httpResult.isFailure) {
+      this.logger.warn('HTTP collector failed', {
+        ip: ipAddress,
+        port: httpCreds.port,
+        error: httpResult.error
+      });
+      return this.fail(`Failed to collect metrics: ${httpResult.error}`);
     }
 
-    const snmp = isSnmpOk ? snmpResult.value : null;
-    const http = isHttpOk ? httpResult.value : null;
+    const http = httpResult.value;
 
-    // firmwareVersion is extracted from sysDescr by the ISNMPCollector
-    // implementation (infrastructure concern). The use case reads the typed field.
-    const firmwareVersion = snmp?.firmwareVersion ?? null;
-
-    const counterSnapshot: CounterSnapshot = {
-      ifHCInOctets: snmp?.ifHCInOctets ?? null,
-      ifHCOutOctets: snmp?.ifHCOutOctets ?? null,
-      ifInUcastPkts: snmp?.ifInUcastPkts ?? null,
-      ifOutUcastPkts: snmp?.ifOutUcastPkts ?? null,
-      timestamp: now
-    };
-
-    const delta = this.counterStore.computeDelta(
-      deviceId.toString(),
-      counterSnapshot
-    );
-    this.counterStore.store(deviceId.toString(), counterSnapshot);
+    const snrDb =
+      http.signalRxDbm !== null && http.noiseFloorDbm !== null
+        ? http.signalRxDbm - http.noiseFloorDbm
+        : null;
 
     const activeAlertsResult =
       await this.alertRecordRepo.findAllActiveByDevice(deviceId);
@@ -188,49 +183,66 @@ export class PollWirelessDeviceUseCase
       activeAlertsList.map((a) => [`${a.metric}:${a.severity}`, a])
     );
 
+    const latestSnapshotResult =
+      await this.snapshotRepo.findLatestByDevice(deviceId);
+    const previousMetrics =
+      latestSnapshotResult.isSuccess
+        ? latestSnapshotResult.value?.metrics ?? null
+        : null;
+
     const ctx: EvaluationContext = {
-      deviceName:
-        snmp?.sysName ?? http?.deviceName ?? 'Equipo desconocido',
-      linkCapacityBps: config.linkCapacityBps,
-      clientsProvisionedLimit: config.clientsProvisionedLimit
+      deviceName: http.deviceName ?? 'Equipo desconocido',
+      deviceModel: http.deviceModel,
+      linkCapacityKbps: config.linkCapacityKbps,
+      clientsProvisionedLimit: config.clientsProvisionedLimit,
+      previousMetrics,
+      collectedAt: now
     };
 
+    let remoteApDeviceId = null;
+    if (http.remoteApMac) {
+      const apLookup = await this.deviceRepo.findIdByMacAddress(
+        http.remoteApMac
+      );
+      if (apLookup.isSuccess) remoteApDeviceId = apLookup.value;
+    }
+
     const metricsResult = WirelessMetrics.create({
-      signalRxDbm: snmp?.signalRxDbm ?? http?.signalRxDbm ?? null,
-      signalTxDbm: snmp?.signalTxDbm ?? null,
-      noiseFloorDbm:
-        snmp?.noiseFloorDbm ?? http?.noiseFloorDbm ?? null,
-      snrDb: snmp?.snrDb ?? null,
-      ccqPercent: snmp?.ccqPercent ?? http?.ccqPercent ?? null,
-      txRateMbps: snmp?.txRateMbps ?? http?.txRateMbps ?? null,
-      rxRateMbps: snmp?.rxRateMbps ?? http?.rxRateMbps ?? null,
-      frequencyMhz: snmp?.frequencyMhz ?? http?.frequencyMhz ?? null,
-      channelWidthMhz: snmp?.channelWidthMhz ?? null,
-      txPowerDbm: snmp?.txPowerDbm ?? http?.txPowerDbm ?? null,
-      throughputTxBps: delta.throughputTxBps,
-      throughputRxBps: delta.throughputRxBps,
-      throughputTxPps: delta.throughputTxPps,
-      throughputRxPps: delta.throughputRxPps,
-      lanStatus: snmp?.lanStatus ?? http?.lanStatus ?? null,
-      lanSpeedMbps: snmp?.lanSpeedMbps ?? http?.lanSpeedMbps ?? null,
-      lanDuplex: snmp?.lanDuplex ?? null,
-      uptimeSeconds:
-        snmp?.uptimeSeconds ?? http?.uptimeSeconds ?? null,
-      cpuLoadPercent: snmp?.cpuLoadPercent ?? null,
-      memoryUsedPercent: snmp?.memoryUsedPercent ?? null,
-      clientsConnected: snmp?.clientsConnected ?? null,
-      clientsProvisioned: config.clientsProvisionedLimit,
-      firmwareVersion:
-        firmwareVersion ?? http?.firmwareVersion ?? null,
-      deviceName: snmp?.sysName ?? http?.deviceName ?? null,
-      remoteApMac: snmp?.remoteApMac ?? http?.remoteApMac ?? null,
-      remoteApName: snmp?.remoteApName ?? http?.remoteApName ?? null,
-      distanceM: snmp?.distanceM ?? http?.distanceM ?? null,
-      latencyMs: snmp?.latencyMs ?? http?.latencyMs ?? null
+      signalRxDbm: http.signalRxDbm,
+      signalTxDbm: http.signalTxDbm,
+      noiseFloorDbm: http.noiseFloorDbm,
+      snrDb,
+      ccqPercent: http.ccqPercent,
+      frequencyMhz: http.frequencyMhz,
+      channelWidthMhz: http.channelWidthMhz,
+      throughputTxBps: http.throughputTxBps,
+      throughputRxBps: http.throughputRxBps,
+      throughputTxPps: null,
+      throughputRxPps: null,
+      lanStatus: http.lanStatus,
+      lanSpeedMbps: http.lanSpeedMbps,
+      lanDuplex: null,
+      uptimeSeconds: http.uptimeSeconds,
+      cpuLoadPercent: http.cpuLoadPercent,
+      memoryUsedPercent: http.memoryUsedPercent,
+      clientsConnected: http.clientsConnected,
+      firmwareVersion: http.firmwareVersion,
+      deviceName: http.deviceName,
+      remoteApMac: http.remoteApMac,
+      remoteApName: http.remoteApName,
+      remoteApIp: http.remoteApIp,
+      distanceM: http.distanceM,
+      latencyMs: http.latencyMs,
+      capacityTxKbps: http.capacityTxKbps,
+      capacityRxKbps: http.capacityRxKbps,
+      deviceTimeEpoch: http.deviceTimeEpoch,
+      macAddress: http.macAddress,
+      deviceModel: http.deviceModel,
+      ssid: http.essid
     });
     if (metricsResult.isFailure) {
       return this.fail(
-        `Invalid metrics data from collectors: ${metricsResult.error}`
+        `Invalid metrics data from collector: ${metricsResult.error}`
       );
     }
     const metrics = metricsResult.value;
@@ -241,12 +253,8 @@ export class PollWirelessDeviceUseCase
       ctx
     );
 
-    const openDecisions = decisions.filter(
-      (d) => d.action === 'OPEN'
-    );
-    const clearDecisions = decisions.filter(
-      (d) => d.action === 'CLEAR'
-    );
+    const openDecisions = decisions.filter((d) => d.action === 'OPEN');
+    const clearDecisions = decisions.filter((d) => d.action === 'CLEAR');
 
     for (const decision of openDecisions) {
       const recordResult = WirelessAlertRecord.open(
@@ -297,34 +305,42 @@ export class PollWirelessDeviceUseCase
       }
     }
 
-    let httpClientsResult: Awaited<
-      ReturnType<typeof this.httpCollector.collectClients>
-    > | null = null;
-    if (config.deviceType === 'ACCESS_POINT' && isHttpOk) {
-      httpClientsResult = await this.httpCollector.collectClients(
-        ipAddress,
-        httpCreds
-      );
-    }
-
     const clients: WirelessClientEntry[] =
-      config.deviceType === 'ACCESS_POINT' &&
-      httpClientsResult !== null &&
-      httpClientsResult.isSuccess
-        ? httpClientsResult.value
+      config.deviceType === 'ACCESS_POINT'
+        ? http.clients
             .map((c) =>
               WirelessClientEntry.create({
                 macAddress: c.macAddress,
+                ipAddress: c.ipAddress,
                 signalRxDbm: c.signalRxDbm,
-                signalTxDbm: c.signalTxDbm,
-                snrDb: c.snrDb,
-                txRateMbps: c.txRateMbps,
-                rxRateMbps: c.rxRateMbps,
-                throughputTxBps: null,
-                throughputRxBps: null,
-                ccqPercent: c.ccqPercent,
+                noiseFloorDbm: c.noiseFloorDbm,
+                distanceM: c.distanceM,
                 uptimeSeconds: c.uptimeSeconds,
-                ipAddress: c.ipAddress
+                txLatencyMs: c.txLatencyMs,
+                dlLinkScore: c.dlLinkScore,
+                ulLinkScore: c.ulLinkScore,
+                dlCapacityKbps: c.dlCapacityKbps,
+                ulCapacityKbps: c.ulCapacityKbps,
+                dlCinr: c.dlCinr,
+                ulCinr: c.ulCinr,
+                txBytesTotal: c.txBytesTotal,
+                rxBytesTotal: c.rxBytesTotal,
+                txPps: c.txPps,
+                rxPps: c.rxPps,
+                remoteHostname: c.remoteHostname,
+                remotePlatform: c.remotePlatform,
+                remoteVersion: c.remoteVersion,
+                remoteCpuLoad: c.remoteCpuLoad,
+                remoteTotalRam: c.remoteTotalRam,
+                remoteFreeRam: c.remoteFreeRam,
+                remoteSignal: c.remoteSignal,
+                remoteNoiseFloor: c.remoteNoiseFloor,
+                remoteTxPower: c.remoteTxPower,
+                remoteTxThroughputKbps: c.remoteTxThroughputKbps,
+                remoteRxThroughputKbps: c.remoteRxThroughputKbps,
+                remoteIpAddresses: c.remoteIpAddresses,
+                dlAirtimePercent: c.dlAirtimePercent,
+                ulAirtimePercent: c.ulAirtimePercent
               })
             )
             .filter((r) => r.isSuccess)
@@ -346,10 +362,11 @@ export class PollWirelessDeviceUseCase
       deviceId,
       deviceType: config.deviceType,
       collectedAt: now,
-      collectionMethod,
+      collectionMethod: 'http_api',
       metrics,
       clients,
-      alerts: embeddedAlerts
+      alerts: embeddedAlerts,
+      remoteApDeviceId
     });
 
     const snapshotSaveResult = await this.snapshotRepo.save(snapshot);
@@ -366,7 +383,7 @@ export class PollWirelessDeviceUseCase
 
     config.markPolled(now);
     const configSaveResult =
-      await this.wirelessPollingConfigRepo.save(config);
+      await this.wirelessDeviceConfigRepo.save(config);
     if (configSaveResult.isFailure) {
       this.logger.error(
         'Failed to update polling config lastPolledAt',
@@ -384,7 +401,7 @@ export class PollWirelessDeviceUseCase
       metricsCollected: true,
       alertsTriggered: openDecisions.length,
       alertsCleared: clearDecisions.length,
-      collectionMethod
+      collectionMethod: 'http_api'
     });
   }
 }

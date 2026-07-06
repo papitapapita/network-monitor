@@ -1,9 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from 'generated/prisma/client';
 import { Result } from 'domain/shared/core';
 import { AlertId, DeviceId } from 'domain/shared/ids';
 import { IAlertRepository } from 'domain/notifications/repository';
 import { Alert } from 'domain/notifications/aggregates';
-import { AlertMapper } from '../mappers/AlertMapper';
+import { AlertMapper } from '../mappers';
 
 export class PrismaAlertRepository implements IAlertRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -17,15 +17,15 @@ export class PrismaAlertRepository implements IAlertRepository {
         update: {
           resolvedAt: data.resolvedAt,
           notifiedAt: data.notifiedAt,
-          recoveryNotifiedAt: data.recoveryNotifiedAt,
-          durationSecs: data.durationSecs
+          recoveryNotifiedAt: data.recoveryNotifiedAt
         },
-        create: data
+        // Prisma's generated type expects enum literal for severity — string cast required
+        create: { ...data, severity: data.severity as 'WARNING' | 'CRITICAL' }
       });
 
       return Result.ok(alert);
     } catch (error) {
-      return Result.fail(`save failed: ${(error as Error).message}`);
+      return Result.fail(`Database error saving alert: ${(error as Error).message}`);
     }
   }
 
@@ -39,7 +39,9 @@ export class PrismaAlertRepository implements IAlertRepository {
 
       return Result.ok(AlertMapper.toDomain(record));
     } catch (error) {
-      return Result.fail(`findById failed: ${(error as Error).message}`);
+      return Result.fail(
+        `Database error finding alert: ${(error as Error).message}`
+      );
     }
   }
 
@@ -57,7 +59,7 @@ export class PrismaAlertRepository implements IAlertRepository {
       return Result.ok(AlertMapper.toDomain(record));
     } catch (error) {
       return Result.fail(
-        `findOpenByDeviceId failed: ${(error as Error).message}`
+        `Database error finding open alert: ${(error as Error).message}`
       );
     }
   }
@@ -78,7 +80,7 @@ export class PrismaAlertRepository implements IAlertRepository {
       return Result.ok(records.map(AlertMapper.toDomain));
     } catch (error) {
       return Result.fail(
-        `findAllByDeviceId failed: ${(error as Error).message}`
+        `Database error finding alerts by device: ${(error as Error).message}`
       );
     }
   }
@@ -93,7 +95,22 @@ export class PrismaAlertRepository implements IAlertRepository {
 
       return Result.ok(records.map(AlertMapper.toDomain));
     } catch (error) {
-      return Result.fail(`findAll failed: ${(error as Error).message}`);
+      return Result.fail(
+        `Database error finding all alerts: ${(error as Error).message}`
+      );
+    }
+  }
+
+  async deleteResolvedOlderThan(cutoff: Date): Promise<Result<number>> {
+    try {
+      const { count } = await this.prisma.alertEvent.deleteMany({
+        where: { resolvedAt: { not: null, lt: cutoff } }
+      });
+      return Result.ok(count);
+    } catch (error) {
+      return Result.fail(
+        `deleteResolvedOlderThan failed: ${(error as Error).message}`
+      );
     }
   }
 }

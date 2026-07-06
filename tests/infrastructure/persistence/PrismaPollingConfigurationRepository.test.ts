@@ -56,14 +56,14 @@ function makeFakePrismaRow(id = VALID_CONFIG_UUID) {
 
 function makeFakeDomainEntity(): PollingConfiguration {
   return PollingConfiguration.reconstitute(
+    PollingConfigurationId.parse(VALID_CONFIG_UUID).value,
     {
       deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
       ipAddress: IPAddress.reconstitute(TEST_IP),
       interval: PollingInterval.reconstitute({ seconds: 60 }),
       failuresBeforeDown: FailureThreshold.reconstitute({ count: 3 }),
       enabled: true
-    },
-    PollingConfigurationId.parse(VALID_CONFIG_UUID).value
+    }
   );
 }
 
@@ -74,7 +74,8 @@ function makeFakePersistenceData() {
     ipAddress: TEST_IP,
     enabled: true,
     pingIntervalSecs: 60,
-    failuresBeforeDown: 3
+    failuresBeforeDown: 3,
+    lastPolledAt: null
   };
 }
 
@@ -150,7 +151,7 @@ describe('PrismaPollingConfigurationRepository', () => {
       const result = await repo.findById(id);
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('findById failed');
+      expect(result.error).toContain('Database error finding polling config');
     });
   });
 
@@ -196,7 +197,7 @@ describe('PrismaPollingConfigurationRepository', () => {
       const result = await repo.findByDeviceId(deviceId);
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('findByDeviceId failed');
+      expect(result.error).toContain('Database error finding polling config');
     });
   });
 
@@ -261,7 +262,7 @@ describe('PrismaPollingConfigurationRepository', () => {
       const result = await repo.findAllDue(FIXED_DATE);
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('findAllDue failed');
+      expect(result.error).toContain('Database error finding due polling configs');
     });
   });
 
@@ -304,7 +305,7 @@ describe('PrismaPollingConfigurationRepository', () => {
       const result = await repo.save(fakeEntity);
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('save failed');
+      expect(result.error).toContain('Database error saving polling config');
     });
   });
 
@@ -339,7 +340,7 @@ describe('PrismaPollingConfigurationRepository', () => {
       const result = await repo.delete(deviceId);
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('delete failed');
+      expect(result.error).toContain('Database error deleting polling config');
     });
   });
 });

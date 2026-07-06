@@ -1,8 +1,7 @@
-import { DeviceModelId, LocationId } from '../../shared/ids';
-import { IPAddress } from 'domain/shared';
+import { DeviceModelId, LocationId } from 'domain/shared/ids';
+import { IPAddress, MACAddress } from 'domain/shared/value-objects';
 import {
   DeviceName,
-  MACAddress,
   SerialNumber,
   DeviceStatus,
   DeviceCategory

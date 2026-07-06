@@ -3,10 +3,9 @@
 import {
   Location,
   LocationProps,
+  Address,
   Coordinates,
-  LocationType,
-  LocationCreatedEvent,
-  LocationUpdatedEvent
+  LocationType
 } from '../../../../src/domain/device-inventory';
 import { LocationId } from '../../../../src/domain/shared';
 
@@ -22,10 +21,19 @@ function validProps(
   return {
     name: 'Main Tower',
     type: LocationType.TOWER,
+    address: null,
     createdAt: BASE_DATE,
     updatedAt: BASE_DATE,
     ...overrides
   };
+}
+
+function makeAddress(
+  street = 'Calle 10 # 43-28',
+  municipality = 'Medellín',
+  neighborhood = 'El Poblado'
+): Address {
+  return Address.create({ street, municipality, neighborhood }).value;
 }
 
 function makeCoords(
@@ -121,9 +129,7 @@ describe('Location', () => {
         const coords = makeCoords(6.2442, -75.5812, 1495);
         const result = Location.create(
           validProps({
-            municipality: 'Medellín',
-            neighborhood: 'El Poblado',
-            address: 'Calle 10 # 43-28',
+            address: makeAddress('Calle 10 # 43-28', 'Medellín', 'El Poblado'),
             coordinates: coords
           })
         );
@@ -226,11 +232,10 @@ describe('Location', () => {
       it('should accept all valid LocationType values', () => {
         const types: LocationType[] = [
           LocationType.TOWER,
-          LocationType.NODE,
           LocationType.DATACENTER,
-          LocationType.POP,
-          LocationType.WAREHOUSE,
-          LocationType.OFFICE
+          LocationType.POINT_OF_PRESENCE,
+          LocationType.OFFICE,
+          LocationType.OTHER
         ];
 
         for (const type of types) {
@@ -238,159 +243,35 @@ describe('Location', () => {
           expect(result.isSuccess).toBe(true);
           expect(result.value.type).toBe(type);
         }
-      });
-    });
 
-    // -----------------------------------------------------------------------
-    describe('municipality validation', () => {
-      it('should fail when municipality exceeds 100 characters', () => {
-        const result = Location.create(
-          validProps({ municipality: 'A'.repeat(101) })
+        const cpResult = Location.create(
+          validProps({
+            type: LocationType.CUSTOMER_PREMISES,
+            address: makeAddress('123 Main St', 'Some City', 'Some Neighborhood')
+          })
         );
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('100');
-      });
-
-      it('should succeed when municipality is exactly 100 characters', () => {
-        const result = Location.create(
-          validProps({ municipality: 'A'.repeat(100) })
-        );
-
-        expect(result.isSuccess).toBe(true);
-      });
-
-      it('should succeed when municipality is null', () => {
-        const result = Location.create(
-          validProps({ municipality: null })
-        );
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.municipality).toBeNull();
-      });
-    });
-
-    // -----------------------------------------------------------------------
-    describe('neighborhood validation', () => {
-      it('should fail when neighborhood exceeds 150 characters', () => {
-        const result = Location.create(
-          validProps({ neighborhood: 'A'.repeat(151) })
-        );
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('150');
-      });
-
-      it('should succeed when neighborhood is exactly 150 characters', () => {
-        const result = Location.create(
-          validProps({ neighborhood: 'A'.repeat(150) })
-        );
-
-        expect(result.isSuccess).toBe(true);
-      });
-
-      it('should succeed when neighborhood is null', () => {
-        const result = Location.create(
-          validProps({ neighborhood: null })
-        );
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.neighborhood).toBeNull();
+        expect(cpResult.isSuccess).toBe(true);
+        expect(cpResult.value.type).toBe(LocationType.CUSTOMER_PREMISES);
       });
     });
 
     // -----------------------------------------------------------------------
     describe('address validation', () => {
-      it('should fail when address exceeds 255 characters', () => {
-        const result = Location.create(
-          validProps({ address: 'A'.repeat(256) })
-        );
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('255');
-      });
-
-      it('should succeed when address is exactly 255 characters', () => {
-        const result = Location.create(
-          validProps({ address: 'A'.repeat(255) })
-        );
-
-        expect(result.isSuccess).toBe(true);
-      });
-
       it('should succeed when address is null', () => {
         const result = Location.create(validProps({ address: null }));
 
         expect(result.isSuccess).toBe(true);
         expect(result.value.address).toBeNull();
-      });
-    });
-
-    // -----------------------------------------------------------------------
-    describe('domain event emission', () => {
-      it('should add exactly one domain event on successful creation', () => {
-        const result = Location.create(validProps());
-
-        expect(result.value.domainEvents.length).toBe(1);
+        expect(result.value.municipality).toBeNull();
+        expect(result.value.neighborhood).toBeNull();
       });
 
-      it('should emit a LocationCreatedEvent', () => {
-        const result = Location.create(validProps());
-        const event = result.value.domainEvents[0];
-
-        expect(event).toBeInstanceOf(LocationCreatedEvent);
-      });
-
-      it('should emit a LocationCreatedEvent with the correct aggregate ID', () => {
-        const result = Location.create(validProps());
-        const event = result.value
-          .domainEvents[0] as LocationCreatedEvent;
-
-        expect(event.aggregateId.toString()).toBe(
-          result.value.id.toString()
-        );
-      });
-
-      it('should emit a LocationCreatedEvent with the correct location name', () => {
+      it('should succeed with a complete Address value object', () => {
         const result = Location.create(
-          validProps({ name: 'POP Site 3' })
+          validProps({ address: makeAddress() })
         );
-        const event = result.value
-          .domainEvents[0] as LocationCreatedEvent;
 
-        expect(event.locationName).toBe('POP Site 3');
-      });
-
-      it('should emit a LocationCreatedEvent with the correct location type', () => {
-        const result = Location.create(
-          validProps({ type: LocationType.POP })
-        );
-        const event = result.value
-          .domainEvents[0] as LocationCreatedEvent;
-
-        expect(event.locationType).toBe(LocationType.POP);
-      });
-
-      it('should emit a LocationCreatedEvent with a recent dateTimeOccurred', () => {
-        const before = new Date();
-        const result = Location.create(validProps());
-        const after = new Date();
-        const event = result.value
-          .domainEvents[0] as LocationCreatedEvent;
-
-        expect(
-          event.dateTimeOccurred.getTime()
-        ).toBeGreaterThanOrEqual(before.getTime());
-        expect(event.dateTimeOccurred.getTime()).toBeLessThanOrEqual(
-          after.getTime()
-        );
-      });
-
-      it('should not emit any domain event when creation fails', () => {
-        const result = Location.create(validProps({ name: '' }));
-
-        expect(result.isFailure).toBe(true);
-        // No Location instance is created, so no events exist.
+        expect(result.isSuccess).toBe(true);
       });
     });
   });
@@ -418,9 +299,11 @@ describe('Location', () => {
       const props = validProps({
         name: 'DC Reconstituted',
         type: LocationType.DATACENTER,
-        municipality: 'Bogotá',
-        neighborhood: 'Chapinero',
-        address: 'Carrera 7 # 32-16',
+        address: Address.reconstitute({
+          street: 'Carrera 7 # 32-16',
+          municipality: 'Bogotá',
+          neighborhood: 'Chapinero'
+        }),
         coordinates: coords
       });
       const location = Location.reconstitute(id, props);
@@ -466,37 +349,6 @@ describe('Location', () => {
         location.updateName('New Name');
 
         expect(location.name).toBe('New Name');
-      });
-
-      it('should add a LocationUpdatedEvent', () => {
-        const location = makeLocation();
-        location.clearEvents();
-        location.updateName('Changed Name');
-
-        const events = location.domainEvents;
-        expect(events.length).toBe(1);
-        expect(events[0]).toBeInstanceOf(LocationUpdatedEvent);
-      });
-
-      it('should emit a LocationUpdatedEvent with changedFields = ["name"]', () => {
-        const location = makeLocation('Original');
-        location.clearEvents();
-        location.updateName('Changed');
-        const event = location
-          .domainEvents[0] as LocationUpdatedEvent;
-
-        expect(event.changedFields).toEqual(['name']);
-      });
-
-      it('should emit a LocationUpdatedEvent capturing previousValues and newValues', () => {
-        const location = makeLocation('Old Name');
-        location.clearEvents();
-        location.updateName('New Name');
-        const event = location
-          .domainEvents[0] as LocationUpdatedEvent;
-
-        expect(event.previousValues).toEqual({ name: 'Old Name' });
-        expect(event.newValues).toEqual({ name: 'New Name' });
       });
 
       it('should update updatedAt timestamp', () => {
@@ -611,7 +463,7 @@ describe('Location', () => {
     describe('happy path', () => {
       it('should return a successful Result when type is valid', () => {
         const location = makeLocation(LocationType.TOWER);
-        const result = location.updateType(LocationType.NODE);
+        const result = location.updateType(LocationType.OFFICE);
 
         expect(result.isSuccess).toBe(true);
       });
@@ -621,30 +473,6 @@ describe('Location', () => {
         location.updateType(LocationType.DATACENTER);
 
         expect(location.type).toBe(LocationType.DATACENTER);
-      });
-
-      it('should emit a LocationUpdatedEvent with changedFields = ["type"]', () => {
-        const location = makeLocation(LocationType.TOWER);
-        location.clearEvents();
-        location.updateType(LocationType.POP);
-        const event = location
-          .domainEvents[0] as LocationUpdatedEvent;
-
-        expect(event).toBeInstanceOf(LocationUpdatedEvent);
-        expect(event.changedFields).toEqual(['type']);
-      });
-
-      it('should emit a LocationUpdatedEvent capturing previousValues and newValues', () => {
-        const location = makeLocation(LocationType.TOWER);
-        location.clearEvents();
-        location.updateType(LocationType.NODE);
-        const event = location
-          .domainEvents[0] as LocationUpdatedEvent;
-
-        expect(event.previousValues).toEqual({
-          type: LocationType.TOWER
-        });
-        expect(event.newValues).toEqual({ type: LocationType.NODE });
       });
 
       it('should update updatedAt timestamp', () => {
@@ -710,9 +538,7 @@ describe('Location', () => {
     function makeLocation(): Location {
       return Location.create(
         validProps({
-          municipality: 'Initial City',
-          neighborhood: 'Initial Neighborhood',
-          address: 'Initial Address'
+          address: makeAddress('Initial Address', 'Initial City', 'Initial Neighborhood')
         })
       ).value;
     }
@@ -720,7 +546,6 @@ describe('Location', () => {
     describe('happy path', () => {
       it('should update municipality when provided and different', () => {
         const location = makeLocation();
-        location.clearEvents();
         const result = location.updateAddressFields({
           municipality: 'New City'
         });
@@ -751,7 +576,6 @@ describe('Location', () => {
 
       it('should update all three fields simultaneously', () => {
         const location = makeLocation();
-        location.clearEvents();
         const result = location.updateAddressFields({
           municipality: 'City A',
           neighborhood: 'Barrio B',
@@ -764,48 +588,29 @@ describe('Location', () => {
         expect(location.address).toBe('Street C');
       });
 
-      it('should set municipality to null explicitly', () => {
+      it('should clear the address when all fields are set to null', () => {
         const location = makeLocation();
-        location.updateAddressFields({ municipality: null });
-
-        expect(location.municipality).toBeNull();
-      });
-
-      it('should emit a LocationUpdatedEvent with the fields that changed', () => {
-        const location = makeLocation();
-        location.clearEvents();
-        location.updateAddressFields({
-          municipality: 'New City',
-          neighborhood: 'New Barrio'
+        const result = location.updateAddressFields({
+          address: null,
+          municipality: null,
+          neighborhood: null
         });
-        const event = location
-          .domainEvents[0] as LocationUpdatedEvent;
 
-        expect(event).toBeInstanceOf(LocationUpdatedEvent);
-        expect(event.changedFields).toContain('municipality');
-        expect(event.changedFields).toContain('neighborhood');
-        expect(event.changedFields).not.toContain('address');
-      });
-
-      it('should capture previousValues and newValues in the event', () => {
-        const location = makeLocation();
-        location.clearEvents();
-        location.updateAddressFields({ municipality: 'New City' });
-        const event = location
-          .domainEvents[0] as LocationUpdatedEvent;
-
-        expect(event.previousValues.municipality).toBe(
-          'Initial City'
-        );
-        expect(event.newValues.municipality).toBe('New City');
+        expect(result.isSuccess).toBe(true);
+        expect(location.address).toBeNull();
+        expect(location.municipality).toBeNull();
+        expect(location.neighborhood).toBeNull();
       });
 
       it('should update updatedAt timestamp', () => {
         const location = Location.create(
-          validProps({ updatedAt: BASE_DATE })
+          validProps({
+            address: makeAddress('Initial St', 'Initial City', 'Initial Hood'),
+            updatedAt: BASE_DATE
+          })
         ).value;
         const before = new Date();
-        location.updateAddressFields({ municipality: 'A' });
+        location.updateAddressFields({ municipality: 'New City' });
         const after = new Date();
 
         expect(location.updatedAt.getTime()).toBeGreaterThanOrEqual(
@@ -950,54 +755,6 @@ describe('Location', () => {
         expect(location.coordinates).toBeNull();
       });
 
-      it('should emit a LocationUpdatedEvent with changedFields = ["coordinates"]', () => {
-        const location = makeLocation();
-        location.clearEvents();
-        location.updateCoordinates(makeCoords(6.2442, -75.5812));
-        const event = location
-          .domainEvents[0] as LocationUpdatedEvent;
-
-        expect(event).toBeInstanceOf(LocationUpdatedEvent);
-        expect(event.changedFields).toEqual(['coordinates']);
-      });
-
-      it('should emit an event carrying the string representations of previous and new coords', () => {
-        const oldCoords = makeCoords(6.2442, -75.5812);
-        const location = makeLocation(oldCoords);
-        location.clearEvents();
-        const newCoords = makeCoords(40.7128, -74.006);
-        location.updateCoordinates(newCoords);
-        const event = location
-          .domainEvents[0] as LocationUpdatedEvent;
-
-        expect(event.previousValues.coordinates).toBe(
-          oldCoords.toString()
-        );
-        expect(event.newValues.coordinates).toBe(
-          newCoords.toString()
-        );
-      });
-
-      it('should emit an event with null previousValues when location had no coords', () => {
-        const location = makeLocation();
-        location.clearEvents();
-        location.updateCoordinates(makeCoords());
-        const event = location
-          .domainEvents[0] as LocationUpdatedEvent;
-
-        expect(event.previousValues.coordinates).toBeNull();
-      });
-
-      it('should emit an event with null newValues when clearing coordinates', () => {
-        const location = makeLocation(makeCoords());
-        location.clearEvents();
-        location.updateCoordinates(null);
-        const event = location
-          .domainEvents[0] as LocationUpdatedEvent;
-
-        expect(event.newValues.coordinates).toBeNull();
-      });
-
       it('should update updatedAt timestamp', () => {
         const location = Location.create(
           validProps({ updatedAt: BASE_DATE })
@@ -1076,35 +833,12 @@ describe('Location', () => {
   });
 
   // =========================================================================
-  describe('clearEvents()', () => {
-    it('should remove all domain events', () => {
-      const location = Location.create(validProps()).value;
-      expect(location.domainEvents.length).toBe(1);
-
-      location.clearEvents();
-
-      expect(location.domainEvents.length).toBe(0);
-    });
-
-    it('should allow new events to accumulate after clearing', () => {
-      const location = Location.create(validProps()).value;
-      location.clearEvents();
-
-      location.updateName('New Name');
-
-      expect(location.domainEvents.length).toBe(1);
-    });
-  });
-
-  // =========================================================================
   describe('real-world scenarios', () => {
     it('should represent a full ISP tower record with all fields populated', () => {
       const result = Location.create({
         name: 'Torre Norte',
         type: LocationType.TOWER,
-        municipality: 'Medellín',
-        neighborhood: 'Robledo',
-        address: 'Carrera 80 # 75-32',
+        address: makeAddress('Carrera 80 # 75-32', 'Medellín', 'Robledo'),
         coordinates: makeCoords(6.281, -75.598, 1540),
         createdAt: BASE_DATE,
         updatedAt: BASE_DATE
@@ -1116,25 +850,6 @@ describe('Location', () => {
       expect(location.type).toBe(LocationType.TOWER);
       expect(location.municipality).toBe('Medellín');
       expect(location.hasCoordinates()).toBe(true);
-    });
-
-    it('should allow sequential updates and accumulate matching events', () => {
-      const location = Location.create(
-        validProps({ name: 'Site Alpha', type: LocationType.POP })
-      ).value;
-      location.clearEvents();
-
-      location.updateName('Site Alpha Prime');
-      location.updateType(LocationType.NODE);
-      location.updateAddressFields({ municipality: 'Cali' });
-      location.updateCoordinates(makeCoords(3.4516, -76.5321));
-
-      expect(location.domainEvents.length).toBe(4);
-      expect(
-        location.domainEvents.every(
-          (e) => e instanceof LocationUpdatedEvent
-        )
-      ).toBe(true);
     });
 
     it('should generate a unique ID for each created location', () => {
