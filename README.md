@@ -108,14 +108,14 @@ sequenceDiagram
 
 ## Bounded Contexts
 
-| Context | Responsibility |
-|---------|----------------|
-| **Device Inventory** | Devices, models, vendors, locations, credentials, network scan |
-| **Device Monitoring** | ICMP polling, online/offline state, polling config, ping history |
+| Context                 | Responsibility                                                       |
+| ----------------------- | -------------------------------------------------------------------- |
+| **Device Inventory**    | Devices, models, vendors, locations, credentials, network scan       |
+| **Device Monitoring**   | ICMP polling, online/offline state, polling config, ping history     |
 | **Wireless Monitoring** | AirOS HTTP polling, signal/CCQ/throughput snapshots, wireless alerts |
-| **Notifications** | Telegram dispatch, delivery tracking, alert lifecycle |
-| **Customers** | Customer records, service plans, contracted services |
-| **Identity** | JWT auth, RBAC (Admin / Operator / Viewer), audit log |
+| **Notifications**       | Telegram dispatch, delivery tracking, alert lifecycle                |
+| **Customers**           | Customer records, service plans, contracted services                 |
+| **Identity**            | JWT auth, RBAC (Admin / Operator / Viewer), audit log                |
 
 Shared kernel (`domain/shared/`): `AggregateRoot`, `Entity`, `ValueObject`, `Result`, `Guard`, `DomainEvent`, `IPAddress`.
 
@@ -123,17 +123,17 @@ Shared kernel (`domain/shared/`): `AggregateRoot`, `Entity`, `ValueObject`, `Res
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Runtime | Node.js 24, TypeScript |
-| Framework | Express 5 |
-| ORM / DB | Prisma 7 + PostgreSQL (`pg` adapter) |
-| Architecture | Clean Architecture + DDD |
-| Auth | JWT (HS256, 24 h), bcrypt (cost 10) |
-| Encryption | AES-256-GCM (device credentials at rest) |
-| Logging | Winston (structured JSON in production) |
-| Notifications | Telegram Bot API |
-| Testing | Jest (unit), Supertest (integration, real DB) |
+| Layer         | Technology                                    |
+| ------------- | --------------------------------------------- |
+| Runtime       | Node.js 24, TypeScript                        |
+| Framework     | Express 5                                     |
+| ORM / DB      | Prisma 7 + PostgreSQL (`pg` adapter)          |
+| Architecture  | Clean Architecture + DDD                      |
+| Auth          | JWT (HS256, 24 h), bcrypt (cost 10)           |
+| Encryption    | AES-256-GCM (device credentials at rest)      |
+| Logging       | Winston (structured JSON in production)       |
+| Notifications | Telegram Bot API                              |
+| Testing       | Jest (unit), Supertest (integration, real DB) |
 
 ---
 
@@ -156,6 +156,7 @@ No `try/catch` for business rule violations. Every use case and aggregate method
 ### Device status lifecycle enforced at domain layer
 
 Status transitions (`INVENTORY → COMMISSIONING → ACTIVE → DAMAGED`) carry hard invariants enforced inside the `Device` aggregate, not in controllers:
+
 - `COMMISSIONING` requires an IP address and auto-enables monitoring
 - `ACTIVE` requires both IP and location
 - Transitioning to `DAMAGED` or `INVENTORY` automatically disables polling
@@ -185,13 +186,13 @@ cp .env.example .env
 
 Key variables:
 
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | HS256 signing secret (≥ 32 random bytes) |
+| Variable                 | Description                                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`           | PostgreSQL connection string                                                                                       |
+| `JWT_SECRET`             | HS256 signing secret (≥ 32 random bytes)                                                                           |
 | `DEVICE_CREDENTIALS_KEY` | AES-256-GCM key as hex — generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
-| `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather |
-| `TELEGRAM_CHAT_ID` | Target chat or group ID |
+| `TELEGRAM_BOT_TOKEN`     | Bot token from @BotFather                                                                                          |
+| `TELEGRAM_CHAT_ID`       | Target chat or group ID                                                                                            |
 
 ### Database
 
@@ -220,21 +221,21 @@ npm run test:integration  # requires a running PostgreSQL instance
 
 All endpoints require `Authorization: Bearer <token>` except `POST /api/auth/login`.
 
-| Group | Base path |
-|-------|-----------|
-| Auth | `POST /api/auth/login` |
-| Devices | `/api/devices` |
-| Credentials | `/api/devices/:id/credentials` |
-| Polling | `/api/devices/:id/poll`, `/api/devices/:id/polling/*` |
-| Wireless | `/api/devices/:id/wireless/*` |
-| Locations | `/api/locations` |
-| Vendors | `/api/vendors` |
-| Device Models | `/api/device-models` |
-| Alerts | `/api/alerts` |
-| Customers | `/api/customers` |
-| Service Plans | `/api/service-plans` |
-| Contracted Services | `/api/contracted-services` |
-| Network Scan | `POST /api/network/scan` |
+| Group               | Base path                                             |
+| ------------------- | ----------------------------------------------------- |
+| Auth                | `POST /api/auth/login`                                |
+| Devices             | `/api/devices`                                        |
+| Credentials         | `/api/devices/:id/credentials`                        |
+| Polling             | `/api/devices/:id/poll`, `/api/devices/:id/polling/*` |
+| Wireless            | `/api/devices/:id/wireless/*`                         |
+| Locations           | `/api/locations`                                      |
+| Vendors             | `/api/vendors`                                        |
+| Device Models       | `/api/device-models`                                  |
+| Alerts              | `/api/alerts`                                         |
+| Customers           | `/api/customers`                                      |
+| Service Plans       | `/api/service-plans`                                  |
+| Contracted Services | `/api/contracted-services`                            |
+| Network Scan        | `POST /api/network/scan`                              |
 
 Full spec: [`docs/BACKEND_API.md`](docs/BACKEND_API.md)
 
@@ -280,7 +281,7 @@ src/
 
 ## Frontend
 
-The frontend repo lives at [papitapapita/network-management-system-frontend](https://github.com/papitapapita/network-management-system-frontend) *(link placeholder — update when public)*.
+The frontend repo lives at [papitapapita/network-monitor-frontend](https://github.com/papitapapita/network-monitor-frontend) _(link placeholder — update when public)_.
 
 ---
 
