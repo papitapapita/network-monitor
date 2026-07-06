@@ -281,7 +281,7 @@ src/
 
 ## Frontend
 
-The frontend repo lives at [papitapapita/network-monitor-frontend](https://github.com/papitapapita/network-monitor-frontend) _(link placeholder — update when public)_.
+The frontend repo lives at [papitapapita/network-monitor-frontend](https://github.com/papitapapita/network-monitor-frontend).
 
 ---
 
