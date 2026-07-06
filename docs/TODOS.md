@@ -65,6 +65,12 @@ _Main user-facing features still missing._
   - Frontend still needed: render pins on map, `LocationType` drives icon, click opens device list
   - Future: when `ServiceInstallation` BC exists, map queries both sources and merges into the same `MapPinDTO` shape; frontend rendering is unchanged
 
+- [ ] **Live map refresh notification (SSE/WebSocket)** — notify the frontend map that a device's location changed so a refresh affordance can appear instead of requiring a manual reload
+  - Wire a handler for `DeviceLocationAssignedEvent` — currently raised in `Device.assignLocation` (`src/domain/device-inventory/aggregates/Device.ts`) but has no registered consumer in `container.ts`
+  - Push a lightweight "changed" signal only (not the full pin payload); frontend re-fetches `GET /api/locations/map` when the operator clicks refresh
+  - Delivery mechanism: reuse the SSE pattern from "Real-time alerts via SSE" below if that lands first (`clients` Set + broadcast); otherwise a small dedicated `GET /locations/stream` endpoint
+  - Prerequisite: none — can be built ahead of the SSE alerts item, whichever lands first should establish the shared SSE broadcast helper
+
 - [ ] **Device categories** — allow creating and assigning categories (e.g. "STA Mimosa Cocuy")
 
 - [ ] **Model manufacturers** — allow creating vendor/manufacturer records
