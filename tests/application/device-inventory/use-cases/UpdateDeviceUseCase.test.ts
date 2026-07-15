@@ -343,7 +343,13 @@ describe('UpdateDeviceUseCase', () => {
   describe('executeImpl — monitoring toggle', () => {
     it('should enable monitoring when monitoringEnabled is true', async () => {
       repo.findById.mockResolvedValue(
-        Result.ok(makePersistedDevice({ monitoringEnabled: false }))
+        Result.ok(
+          makePersistedDevice({
+            status: 'ACTIVE',
+            monitoringEnabled: false,
+            locationId: VALID_LOCATION_ID
+          })
+        )
       );
 
       const result = await useCase.execute(
@@ -377,6 +383,25 @@ describe('UpdateDeviceUseCase', () => {
       );
 
       expect(result.isSuccess).toBe(true);
+      expect(result.value!.monitoringEnabled).toBe(false);
+    });
+
+    it('should allow moving to DAMAGED while disabling monitoring in the same request', async () => {
+      // Regression test: an ACTIVE device with monitoring on must be able to move to
+      // DAMAGED and turn monitoring off in one PATCH, without the status-change validation
+      // reading the still-true (not-yet-updated) monitoringEnabled and rejecting it.
+      repo.findById.mockResolvedValue(
+        Result.ok(
+          makePersistedDevice({ status: 'ACTIVE', monitoringEnabled: true })
+        )
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ status: 'DAMAGED', monitoringEnabled: false })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value!.status).toBe('DAMAGED');
       expect(result.value!.monitoringEnabled).toBe(false);
     });
   });
