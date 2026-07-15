@@ -5,6 +5,7 @@ import {
   DeviceDetailsUpdatedEventProps,
   DeviceName,
   DeviceCategory,
+  SerialNumber,
   DeviceOwnerType
 } from '../../../../src/domain/device-inventory';
 import {
@@ -20,6 +21,10 @@ import { IPAddress } from '../../../../src/domain/shared/value-objects/IPAddress
 
 function makeDeviceName(raw = 'Core-Router-01'): DeviceName {
   return DeviceName.create(raw).value;
+}
+
+function makeSerialNumber(raw: string): SerialNumber {
+  return SerialNumber.create(raw).value;
 }
 
 function makeEventProps(
@@ -100,6 +105,7 @@ describe('DeviceDetailsUpdatedEvent', () => {
       const mac = MACAddress.create('AA:BB:CC:DD:EE:FF').value;
       const ip = IPAddress.create('10.0.0.1').value;
       const installedDate = new Date('2023-01-01T00:00:00Z');
+      const serialNumber = makeSerialNumber('SN-001');
 
       const event = new DeviceDetailsUpdatedEvent(
         makeEventProps({
@@ -107,7 +113,7 @@ describe('DeviceDetailsUpdatedEvent', () => {
             name: updatedName,
             description: 'Updated description',
             category,
-            serialNumber: 'SN-001',
+            serialNumber,
             macAddress: mac,
             ipAddress: ip,
             installedDate,
@@ -119,7 +125,7 @@ describe('DeviceDetailsUpdatedEvent', () => {
       expect(event.updatedFields.name).toBe(updatedName);
       expect(event.updatedFields.description).toBe('Updated description');
       expect(event.updatedFields.category).toBe(category);
-      expect(event.updatedFields.serialNumber).toBe('SN-001');
+      expect(event.updatedFields.serialNumber).toBe(serialNumber);
       expect(event.updatedFields.macAddress).toBe(mac);
       expect(event.updatedFields.ipAddress).toBe(ip);
       expect(event.updatedFields.installedDate).toBe(installedDate);
@@ -397,12 +403,13 @@ describe('DeviceDetailsUpdatedEvent', () => {
 
     // -- serialNumber field --------------------------------------------------
     describe('serialNumber field', () => {
-      it('should carry the updated serial number string when provided', () => {
+      it('should carry the updated SerialNumber value object when provided', () => {
+        const serialNumber = makeSerialNumber('SN-XYZ-789');
         const event = new DeviceDetailsUpdatedEvent(
-          makeEventProps({ updatedFields: { serialNumber: 'SN-XYZ-789' } })
+          makeEventProps({ updatedFields: { serialNumber } })
         );
 
-        expect(event.updatedFields.serialNumber).toBe('SN-XYZ-789');
+        expect(event.updatedFields.serialNumber).toBe(serialNumber);
       });
 
       it('should carry null when serialNumber is explicitly cleared', () => {
@@ -631,6 +638,7 @@ describe('DeviceDetailsUpdatedEvent', () => {
         const mac = MACAddress.create('FF:EE:DD:CC:BB:AA').value;
         const ip = IPAddress.create('10.10.10.10').value;
         const installedDate = new Date('2021-07-04T12:00:00Z');
+        const serialNumber = makeSerialNumber('SN-FULL-001');
 
         const event = new DeviceDetailsUpdatedEvent(
           makeEventProps({
@@ -638,7 +646,7 @@ describe('DeviceDetailsUpdatedEvent', () => {
               name: updatedName,
               description: 'Complete update',
               category,
-              serialNumber: 'SN-FULL-001',
+              serialNumber,
               macAddress: mac,
               ipAddress: ip,
               installedDate,
@@ -650,7 +658,7 @@ describe('DeviceDetailsUpdatedEvent', () => {
         expect(event.updatedFields.name).toBe(updatedName);
         expect(event.updatedFields.description).toBe('Complete update');
         expect(event.updatedFields.category).toBe(category);
-        expect(event.updatedFields.serialNumber).toBe('SN-FULL-001');
+        expect(event.updatedFields.serialNumber).toBe(serialNumber);
         expect(event.updatedFields.macAddress).toBe(mac);
         expect(event.updatedFields.ipAddress).toBe(ip);
         expect(event.updatedFields.installedDate).toBe(installedDate);

@@ -298,38 +298,21 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
   }
 
   public updateDetails(fields: {
-    name?: string;
+    name?: DeviceName;
     description?: string | null;
     category?: DeviceCategory | null;
-    serialNumber?: string | null;
+    serialNumber?: SerialNumber | null;
     macAddress?: MACAddress | null;
     ipAddress?: IPAddress | null;
     installedDate?: Date | null;
     ownerType?: DeviceOwnerType;
   }): Result<void> {
-    let nextName = this.props.name;
-    if (fields.name !== undefined) {
-      const nameResult = DeviceName.create(fields.name);
-      if (nameResult.isFailure) {
-        return Result.fail(nameResult.error);
-      }
-      nextName = nameResult.value;
-    }
-
-    let nextSerialNumber = this.props.serialNumber;
-    if (fields.serialNumber !== undefined) {
-      if (fields.serialNumber === null) {
-        nextSerialNumber = null;
-      } else {
-        const serialNumberResult = SerialNumber.create(
-          fields.serialNumber
-        );
-        if (serialNumberResult.isFailure) {
-          return Result.fail(serialNumberResult.error);
-        }
-        nextSerialNumber = serialNumberResult.value;
-      }
-    }
+    const nextName =
+      fields.name !== undefined ? fields.name : this.props.name;
+    const nextSerialNumber =
+      fields.serialNumber !== undefined
+        ? fields.serialNumber
+        : this.props.serialNumber;
 
     let nextOwnerType = this.props.ownerType;
     if (fields.ownerType !== undefined) {

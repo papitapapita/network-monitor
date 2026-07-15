@@ -1311,38 +1311,13 @@ describe('Device', () => {
   // =========================================================================
   describe('updateDetails()', () => {
     describe('name update', () => {
-      it('should update the name when a valid string is provided', () => {
+      it('should update the name when a valid DeviceName is provided', () => {
         const device = makeDevice();
-        device.updateDetails({ name: 'Updated-Router' });
+        device.updateDetails({
+          name: DeviceName.create('Updated-Router').value
+        });
 
         expect(device.name.value).toBe('Updated-Router');
-      });
-
-      it('should fail when name is empty', () => {
-        const device = makeDevice();
-        const result = device.updateDetails({ name: '' });
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('empty');
-      });
-
-      it('should fail when name exceeds 150 characters', () => {
-        const device = makeDevice();
-        const result = device.updateDetails({
-          name: 'A'.repeat(151)
-        });
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('150');
-      });
-
-      it('should not change the name when validation fails', () => {
-        const device = makeDevice({
-          name: DeviceName.create('Good-Name').value
-        });
-        device.updateDetails({ name: '' });
-
-        expect(device.name.value).toBe('Good-Name');
       });
     });
 
@@ -1364,7 +1339,9 @@ describe('Device', () => {
 
       it('should not change the description when not provided (undefined)', () => {
         const device = makeDevice({ description: 'Keep me' });
-        device.updateDetails({ name: 'New-Name' });
+        device.updateDetails({
+          name: DeviceName.create('New-Name').value
+        });
 
         expect(device.description).toBe('Keep me');
       });
@@ -1411,19 +1388,13 @@ describe('Device', () => {
 
     // -----------------------------------------------------------------------
     describe('serialNumber update', () => {
-      it('should update the serial number when a valid string is provided', () => {
+      it('should update the serial number when a valid SerialNumber is provided', () => {
         const device = makeDevice();
-        device.updateDetails({ serialNumber: 'SN-NEW-001' });
+        device.updateDetails({
+          serialNumber: SerialNumber.create('SN-NEW-001').value
+        });
 
         expect(device.serialNumber!.value).toBe('SN-NEW-001');
-      });
-
-      it('should fail when serial number is empty', () => {
-        const device = makeDevice();
-        const result = device.updateDetails({ serialNumber: '' });
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('empty');
       });
 
       it('should set serialNumber to null when explicitly null and a macAddress remains', () => {
@@ -1506,7 +1477,9 @@ describe('Device', () => {
       it('should update updatedAt on a successful update', () => {
         const device = makeDevice();
         const before = new Date();
-        device.updateDetails({ name: 'Updated-Name' });
+        device.updateDetails({
+          name: DeviceName.create('Updated-Name').value
+        });
         const after = new Date();
 
         expect(device.updatedAt.getTime()).toBeGreaterThanOrEqual(
@@ -1876,7 +1849,9 @@ describe('Device', () => {
     it('should emit a DeviceDetailsUpdatedEvent after a successful update', () => {
       const device = makeDevice();
       device.clearEvents();
-      device.updateDetails({ name: 'Renamed-Device' });
+      device.updateDetails({
+        name: DeviceName.create('Renamed-Device').value
+      });
 
       expect(device.domainEvents.length).toBe(1);
       expect(device.domainEvents[0]).toBeInstanceOf(DeviceDetailsUpdatedEvent);
@@ -1885,7 +1860,9 @@ describe('Device', () => {
     it('should embed the correct aggregateId in the DeviceDetailsUpdatedEvent', () => {
       const device = makeDevice();
       device.clearEvents();
-      device.updateDetails({ name: 'Renamed-Device' });
+      device.updateDetails({
+        name: DeviceName.create('Renamed-Device').value
+      });
 
       const event = device.domainEvents[0] as DeviceDetailsUpdatedEvent;
 
@@ -1895,7 +1872,9 @@ describe('Device', () => {
     it('should embed the updated device name in the DeviceDetailsUpdatedEvent', () => {
       const device = makeDevice();
       device.clearEvents();
-      device.updateDetails({ name: 'New-Name' });
+      device.updateDetails({
+        name: DeviceName.create('New-Name').value
+      });
 
       const event = device.domainEvents[0] as DeviceDetailsUpdatedEvent;
 
@@ -1945,7 +1924,9 @@ describe('Device', () => {
     it('should not change macAddress when the field is not included', () => {
       const mac = MACAddress.create('AA:BB:CC:DD:EE:FF').value;
       const device = makeDevice({ macAddress: mac });
-      device.updateDetails({ name: 'No-Mac-Change' });
+      device.updateDetails({
+        name: DeviceName.create('No-Mac-Change').value
+      });
 
       expect(device.macAddress).toBe(mac);
     });

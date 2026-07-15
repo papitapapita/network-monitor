@@ -9,7 +9,9 @@ import { DeviceResponseDTO, UpdateDeviceRequestDTO } from '../dtos';
 import { DeviceMapper } from '../mappers';
 import {
   DeviceStatus,
-  DeviceCategory
+  DeviceCategory,
+  DeviceName,
+  SerialNumber
 } from 'domain/device-inventory/value-objects';
 
 export class UpdateDeviceUseCase extends UseCase<
@@ -85,7 +87,11 @@ export class UpdateDeviceUseCase extends UseCase<
       {};
 
     if (data.name !== undefined) {
-      updateFields.name = data.name;
+      const nameResult = DeviceName.create(data.name);
+      if (nameResult.isFailure) {
+        return this.fail(nameResult.error!);
+      }
+      updateFields.name = nameResult.value;
     }
 
     if (data.description !== undefined) {
@@ -124,7 +130,17 @@ export class UpdateDeviceUseCase extends UseCase<
     }
 
     if (data.serialNumber !== undefined) {
-      updateFields.serialNumber = data.serialNumber;
+      if (data.serialNumber === null) {
+        updateFields.serialNumber = null;
+      } else {
+        const serialNumberResult = SerialNumber.create(
+          data.serialNumber
+        );
+        if (serialNumberResult.isFailure) {
+          return this.fail(serialNumberResult.error!);
+        }
+        updateFields.serialNumber = serialNumberResult.value;
+      }
     }
 
     if (data.macAddress !== undefined) {
@@ -197,6 +213,17 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
+    // A disable must be applied before changeStatus validates, since that validation
+    // reads the aggregate's current (not-yet-updated) monitoringEnabled — otherwise
+    // turning monitoring off while moving to a non-monitorable status in the same
+    // request would be rejected as if monitoring were still on.
+    if (data.monitoringEnabled === false) {
+      const disableResult = device.disableMonitoring();
+      if (disableResult.isFailure) {
+        return this.fail(disableResult.error!);
+      }
+    }
+
     if (data.status !== undefined) {
       const statusResult = DeviceStatus.create(data.status);
       if (statusResult.isFailure) {
@@ -233,11 +260,6 @@ export class UpdateDeviceUseCase extends UseCase<
       const enableResult = device.enableMonitoring();
       if (enableResult.isFailure) {
         return this.fail(enableResult.error!);
-      }
-    } else if (data.monitoringEnabled === false) {
-      const disableResult = device.disableMonitoring();
-      if (disableResult.isFailure) {
-        return this.fail(disableResult.error!);
       }
     }
 

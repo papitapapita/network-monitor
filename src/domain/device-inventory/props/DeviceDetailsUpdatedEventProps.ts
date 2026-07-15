@@ -1,6 +1,10 @@
 import { DeviceId } from 'domain/shared/ids';
 import { IPAddress, MACAddress } from 'domain/shared';
-import { DeviceName, DeviceCategory } from '../value-objects';
+import {
+  DeviceName,
+  DeviceCategory,
+  SerialNumber
+} from '../value-objects';
 import { DeviceOwnerType } from '../enums';
 
 export interface DeviceDetailsUpdatedEventProps {
@@ -10,7 +14,7 @@ export interface DeviceDetailsUpdatedEventProps {
     readonly name?: DeviceName;
     readonly description?: string | null;
     readonly category?: DeviceCategory | null;
-    readonly serialNumber?: string | null;
+    readonly serialNumber?: SerialNumber | null;
     readonly macAddress?: MACAddress | null;
     readonly ipAddress?: IPAddress | null;
     readonly installedDate?: Date | null;
