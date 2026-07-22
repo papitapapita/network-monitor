@@ -98,6 +98,7 @@ type DeviceCategory = 'CPE' | 'WIRELESS_CPE' | 'AP' | 'ROUTERBOARD' | 'SMART_SWI
 type DeviceOwner    = 'COMPANY' | 'CLIENT'
 type DeviceType     = 'ANTENNA' | 'OTHER' | 'RADIO' | 'ROUTER' | 'ROUTERBOARD' | 'SERVER' | 'SWITCH'
 type PollingStatus      = 'SUCCESS' | 'FAILED' | 'SKIPPED'
+type BillStatus         = 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELLED'
 type DeviceOnlineStatus = 'ONLINE' | 'OFFLINE' | 'UNKNOWN'
 type AlertSeverity      = 'WARNING' | 'CRITICAL'
 type AlertStatus        = 'OPEN' | 'RESOLVED'
@@ -1515,6 +1516,177 @@ offset?:     number  // ≥0, default 0
 // No request body
 // Response: 204 No Content
 ```
+
+---
+
+## Bills `/api/bills`
+
+One bill per customer per billing period (`'YYYY-MM'`). Line items snapshot the plan name and price **at generation time** — later plan price changes never affect existing bills. `total` is the sum of line items.
+
+**Lifecycle:** `PENDING → PAID | OVERDUE | CANCELLED`. `PAID` and `CANCELLED` are terminal. `OVERDUE` bills can still be paid or cancelled.
+
+```ts
+interface BillLineItemDTO {
+  contractedServiceId: string  // UUID
+  servicePlanId: string        // UUID
+  planName: string             // snapshot at generation time
+  monthlyPrice: number         // snapshot at generation time
+}
+
+interface BillDTO {
+  id: string                // UUID
+  customerId: string        // UUID
+  period: string            // 'YYYY-MM', e.g. '2026-07'
+  status: BillStatus
+  issueDate: string         // ISO 8601
+  dueDate: string           // ISO 8601
+  paidAt: string | null     // ISO 8601 — null until marked paid
+  total: number             // sum of lineItems monthlyPrice
+  lineItems: BillLineItemDTO[]
+  createdAt: string         // ISO 8601
+  updatedAt: string
+}
+```
+
+### `POST /api/bills/generate` — Generate Bill for a Customer
+**Status:** 201 | 400 | 404 | 409 | 500  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// Request body
+{
+  customerId: string   // required, UUID
+  year: number         // required, integer 2000–2100
+  month: number        // required, integer 1–12
+  issueDate?: string   // ISO 8601 datetime; default: now
+  dueDate?: string     // ISO 8601 datetime; default: issueDate + 15 days
+}
+
+// Response
+{ success: true, data: BillDTO }
+```
+
+**Business rules:**
+- One line item per **ACTIVE** contracted service of the customer (PENDING/SUSPENDED/CANCELLED services are excluded).
+- Returns 409 if the customer has no ACTIVE contracted services.
+- Returns 409 if a non-cancelled bill already exists for this customer + period. Cancelled bills don't block regeneration.
+- Returns 404 if the customer does not exist.
+
+---
+
+### `POST /api/bills/generate-bulk` — Generate Bills for All Customers
+**Status:** 200 | 400  
+**Roles:** ADMIN, OPERATOR  
+**Rate limit:** bulk-import bucket — 5 / hr
+
+Generates bills for **every customer that has at least one ACTIVE contracted service**. Per-customer failures never abort the run — inspect the three result buckets.
+
+```ts
+// Request body
+{
+  year: number         // required, integer 2000–2100
+  month: number        // required, integer 1–12
+  issueDate?: string   // ISO 8601 datetime; default: now
+  dueDate?: string     // ISO 8601 datetime; default: issueDate + 15 days
+}
+
+// Response — always 200 even if some customers failed
+{
+  success: true,
+  data: {
+    period: string   // 'YYYY-MM'
+    generated: BillDTO[]
+    skipped: Array<{ customerId: string; reason: string }>  // e.g. bill already exists
+    failed:  Array<{ customerId: string; error: string }>
+  }
+}
+```
+
+---
+
+### `GET /api/bills` — List
+**Status:** 200 | 400
+
+```ts
+// Query params (all optional)
+customerId?: string      // UUID
+status?:     BillStatus
+year?:       number      // 2000–2100 ← must pair with month
+month?:      number      // 1–12
+limit?:      number      // 1–100, default 20
+offset?:     number      // ≥0, default 0
+
+// Response
+{
+  success: true,
+  data: {
+    bills: BillDTO[]
+    total: number
+    hasMore: boolean
+    limit: number
+    offset: number
+  }
+}
+```
+
+> `year` and `month` must always be provided together (400 otherwise).  
+> Results are ordered by `createdAt` descending (newest first).
+
+---
+
+### `GET /api/bills/:id` — Get by ID
+**Status:** 200 | 400 | 404
+
+```ts
+// Response
+{ success: true, data: BillDTO }
+```
+
+---
+
+### `POST /api/bills/:id/pay` — Mark as Paid
+**Status:** 200 | 400 | 404 | 409  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// No request body
+
+// Response — BillDTO with status 'PAID' and paidAt set
+{ success: true, data: BillDTO }
+```
+
+> Allowed from `PENDING` or `OVERDUE`. Returns 409 if the bill is already `PAID` or `CANCELLED`.
+
+---
+
+### `POST /api/bills/:id/overdue` — Mark as Overdue
+**Status:** 200 | 400 | 404 | 409  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// No request body
+
+// Response
+{ success: true, data: BillDTO }
+```
+
+> Allowed only from `PENDING`, and only once the bill is **past its due date** — returns 409 otherwise. There is no automatic overdue job; the frontend (or an operator) triggers this explicitly.
+
+---
+
+### `POST /api/bills/:id/cancel` — Cancel
+**Status:** 200 | 400 | 404 | 409  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// No request body
+
+// Response — BillDTO with status 'CANCELLED'
+{ success: true, data: BillDTO }
+```
+
+> Allowed from `PENDING` or `OVERDUE`. Returns 409 for a `PAID` bill ("Cannot cancel a paid bill") or an already-cancelled one.  
+> Cancelling frees the customer + period for regeneration via `POST /generate`.
 
 ---
 
