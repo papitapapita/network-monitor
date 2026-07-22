@@ -1456,8 +1456,18 @@ interface ContractedServiceDTO {
 { success: true, data: ContractedServiceDTO }
 ```
 
-> New services are created with status **`PENDING`**. To activate one, assign a device (if not done at creation) and send `PUT /:id` with `{ status: 'ACTIVE' }`.  
+> New services are **always created as `PENDING`** — the create endpoint does not accept a `status` field. To activate one, assign a device (if not done at creation) and send `PUT /:id` with `{ status: 'ACTIVE' }`.  
 > **Billing only includes `ACTIVE` services** — `POST /api/bills/generate` returns 409 for a customer whose services are all PENDING/SUSPENDED/CANCELLED.
+
+**Contracted service status lifecycle:**
+
+| Transition | Requirements | Notes |
+|------------|--------------|-------|
+| (create) → `PENDING` | — | only possible initial status |
+| `PENDING` / `SUSPENDED` → `ACTIVE` | `deviceId` must be set | 409 `"Cannot activate a contracted service without a device assigned"` otherwise |
+| `PENDING` / `ACTIVE` → `SUSPENDED` | — | — |
+| any → `CANCELLED` | — | **terminal** — every later update returns 409 `"Cannot modify a cancelled contracted service"` |
+| any → `PENDING` | **not allowed** | `PENDING` is not a valid `status` value on `PUT` — returns 400 |
 
 ---
 
@@ -1496,19 +1506,27 @@ offset?:     number  // ≥0, default 0
 ---
 
 ### `PUT /api/contracted-services/:id` — Update
-**Status:** 200 | 400 | 404
+**Status:** 200 | 400 | 404 | 409
 
 ```ts
 // Request body (at least one field required)
 {
-  servicePlanId?: string         // UUID — change the plan
-  deviceId?: string | null       // UUID — assign/unassign CPE
-  status?: ContractedServiceStatus
+  servicePlanId?: string         // UUID — change the plan (plan must exist → 404 otherwise)
+  deviceId?: string | null       // UUID — assign CPE; null releases it
+  status?: 'ACTIVE' | 'SUSPENDED' | 'CANCELLED'   // ⚠ PENDING is NOT accepted → 400
 }
 
 // Response
 { success: true, data: ContractedServiceDTO }
 ```
+
+**Business rules:**
+- `status: 'PENDING'` is rejected with 400 — services can never return to PENDING.
+- `status: 'ACTIVE'` requires the service to have a device (either already assigned or included as `deviceId` in the same request) — otherwise 409 `"Cannot activate a contracted service without a device assigned"`.
+- `deviceId: null` on an **ACTIVE** service returns 409 `"Cannot release the device of an ACTIVE service; suspend it first"`.
+- A device can belong to only one contracted service — assigning a taken device returns 409 `"This device is already assigned to another contracted service"`.
+- **CANCELLED is terminal** — any update to a cancelled service returns 409.
+- Fields in one request are applied in a fixed order: plan change → suspend → device change → activate → cancel. So a single `PUT` can do `{ status: 'SUSPENDED', deviceId: null }` (suspend then release) or `{ deviceId: '…', status: 'ACTIVE' }` (assign then activate).
 
 ---
 
