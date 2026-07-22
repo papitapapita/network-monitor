@@ -291,7 +291,9 @@ model PollingConfiguration {
   deviceId            String    @unique @map("device_id") @db.Uuid
   ipAddress           String?   @map("ip_address") @db.VarChar(45)
   enabled             Boolean   @default(true)
-  pingIntervalSecs    Int       @default(60) @map("interval_seconds") // Polling interval (1-86400 seconds)
+  // Range enforced by a CHECK constraint (migration 20260722010000) — Prisma
+  // cannot express CHECK constraints in the schema DSL.
+  pingIntervalSecs    Int       @default(60) @map("interval_seconds") // Polling interval (5-86400 seconds)
   failuresBeforeDown  Int       @default(3) @map("failures_before_down") // Consecutive failures before marking device as down
   lastPolledAt        DateTime? @map("last_polled_at") @db.Timestamptz
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
@@ -417,7 +419,9 @@ model WirelessPollingConfiguration {
   deviceId                String    @unique @map("device_id") @db.Uuid
   ipAddress               String?   @map("ip_address") @db.VarChar(45)
   enabled                 Boolean   @default(true)
-  intervalSecs            Int       @default(3600) @map("interval_secs")
+  // Range enforced by a CHECK constraint (migration 20260722010000) — Prisma
+  // cannot express CHECK constraints in the schema DSL.
+  intervalSecs            Int       @default(3600) @map("interval_secs") // Polling interval (60-86400 seconds)
   deviceType              WirelessDeviceType @map("device_type")
   linkCapacityKbps         BigInt?   @map("link_capacity_kbps")
   clientsProvisionedLimit Int?      @map("clients_provisioned_limit")
