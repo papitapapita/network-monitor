@@ -9,3 +9,5 @@ export * from './MarkBillPaidRequestDTO';
 export * from './CancelBillRequestDTO';
 export * from './MarkBillOverdueRequestDTO';
 export * from './ListBillsQueryDTO';
+export * from './GetBillPdfRequestDTO';
+export * from './BillPdfResponseDTO';

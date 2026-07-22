@@ -9,7 +9,10 @@ import {
   PrismaServicePlanRepository,
   PrismaContractedServiceRepository
 } from '../customers';
-import { PrismaBillRepository } from '../billing';
+import {
+  PrismaBillRepository,
+  PdfKitBillPdfRenderer
+} from '../billing';
 import { LoginUseCase } from 'application/identity/use-cases/LoginUseCase';
 import { AuthController } from 'presentation/http/controllers/AuthController';
 import { ITokenService } from 'application/identity/interfaces/ITokenService';
@@ -60,6 +63,7 @@ import {
   GenerateBillUseCase,
   GenerateBillsForPeriodUseCase,
   GetBillUseCase,
+  GetBillPdfUseCase,
   ListBillsUseCase,
   MarkBillPaidUseCase,
   MarkBillOverdueUseCase,
@@ -373,6 +377,12 @@ export class DependencyContainer {
       ),
       new ListBillsUseCase(this.billRepository, this.logger),
       new GetBillUseCase(this.billRepository, this.logger),
+      new GetBillPdfUseCase(
+        this.billRepository,
+        this.customerRepository,
+        new PdfKitBillPdfRenderer(),
+        this.logger
+      ),
       new MarkBillPaidUseCase(this.billRepository, this.logger),
       new MarkBillOverdueUseCase(this.billRepository, this.logger),
       new CancelBillUseCase(this.billRepository, this.logger),

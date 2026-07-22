@@ -1644,6 +1644,23 @@ offset?:     number      // ≥0, default 0
 
 ---
 
+### `GET /api/bills/:id/pdf` — Download as PDF
+**Status:** 200 | 400 | 404
+
+Returns the bill as a **PDF document** — not the JSON envelope.
+
+```
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="bill-<period>-<billId>.pdf"
+```
+
+The PDF includes the bill header (period, status, issue/due/paid dates), the customer block (name, phone, email, cedula), one row per line item with its snapshot price, and the total.
+
+> Error responses (400/404) still use the standard JSON envelope `{ success: false, error }`.  
+> Frontend tip: fetch with the Bearer token and download via a blob URL — a plain `<a href>` won't carry the Authorization header.
+
+---
+
 ### `POST /api/bills/:id/pay` — Mark as Paid
 **Status:** 200 | 400 | 404 | 409  
 **Roles:** ADMIN, OPERATOR

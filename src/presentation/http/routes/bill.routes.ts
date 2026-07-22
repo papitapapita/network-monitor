@@ -48,6 +48,14 @@ export function createBillRoutes(controller: BillController): Router {
     controller.getById
   );
 
+  router.get(
+    '/:id/pdf',
+    authorize('read'),
+    createRateLimiter('read'),
+    validateRequest(billIdParamSchema),
+    controller.getPdf
+  );
+
   router.post(
     '/:id/pay',
     authorize('update'),

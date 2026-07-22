@@ -5,6 +5,7 @@ import {
   GenerateBillsForPeriodUseCase,
   ListBillsUseCase,
   GetBillUseCase,
+  GetBillPdfUseCase,
   MarkBillPaidUseCase,
   MarkBillOverdueUseCase,
   CancelBillUseCase
@@ -16,6 +17,7 @@ export class BillController {
     private readonly generateBulkUseCase: GenerateBillsForPeriodUseCase,
     private readonly listUseCase: ListBillsUseCase,
     private readonly getUseCase: GetBillUseCase,
+    private readonly getPdfUseCase: GetBillPdfUseCase,
     private readonly markPaidUseCase: MarkBillPaidUseCase,
     private readonly markOverdueUseCase: MarkBillOverdueUseCase,
     private readonly cancelUseCase: CancelBillUseCase,
@@ -104,6 +106,33 @@ export class BillController {
         return;
       }
       res.status(200).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public getPdf = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.getPdfUseCase.execute({
+        id: req.params.id
+      });
+      if (result.isFailure) {
+        res
+          .status(this.getErrorStatusCode(result.error!))
+          .json({ success: false, error: result.error });
+        return;
+      }
+      res
+        .status(200)
+        .setHeader('Content-Type', 'application/pdf')
+        .setHeader(
+          'Content-Disposition',
+          `attachment; filename="${result.value.fileName}"`
+        )
+        .send(result.value.content);
     } catch (error) {
       this.handleUnexpectedError(error, res);
     }

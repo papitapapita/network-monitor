@@ -5,3 +5,4 @@ export * from './ListBillsUseCase';
 export * from './MarkBillPaidUseCase';
 export * from './CancelBillUseCase';
 export * from './MarkBillOverdueUseCase';
+export * from './GetBillPdfUseCase';
