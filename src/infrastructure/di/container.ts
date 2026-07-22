@@ -605,7 +605,7 @@ export class DependencyContainer {
     this.pollingOrchestrator = new PollingOrchestrator(
       this.pollingConfigRepository,
       executePollingCycleUseCase,
-      { maxConcurrentPolls: 50 },
+      { maxConcurrentPolls: 50, checkIntervalMs: 1_000 },
       this.logger
     );
 
