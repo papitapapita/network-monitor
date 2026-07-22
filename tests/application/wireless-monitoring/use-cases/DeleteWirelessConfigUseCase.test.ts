@@ -7,7 +7,7 @@ import { Result } from '../../../../src/domain/shared/core/Result';
 import { WirelessDeviceConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig';
 import { WirelessDeviceConfigId } from '../../../../src/domain/shared/ids/WirelessDeviceConfigId';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
-import { PollingInterval } from '../../../../src/domain/shared/value-objects/PollingInterval';
+import { PollingInterval } from '../../../../src/domain/wireless-monitoring/value-objects/PollingInterval';
 
 // ---------------------------------------------------------------------------
 // Constants

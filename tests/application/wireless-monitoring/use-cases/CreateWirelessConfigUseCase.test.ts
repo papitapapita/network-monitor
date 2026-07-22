@@ -16,7 +16,7 @@ import { DeviceStatus } from '../../../../src/domain/device-inventory/value-obje
 import { DeviceCategory } from '../../../../src/domain/device-inventory/value-objects/DeviceCategory';
 import { DeviceOwnerType } from '../../../../src/domain/device-inventory/enums/DeviceOwnerType';
 import { IPAddress } from '../../../../src/domain/shared/value-objects/IPAddress';
-import { PollingInterval } from '../../../../src/domain/shared/value-objects/PollingInterval';
+import { PollingInterval } from '../../../../src/domain/wireless-monitoring/value-objects/PollingInterval';
 
 // ---------------------------------------------------------------------------
 // Constants

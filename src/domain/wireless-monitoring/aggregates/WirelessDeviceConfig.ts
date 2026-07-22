@@ -1,14 +1,10 @@
 import { AggregateRoot, Result, Guard } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
-import {
-  IPAddress,
-  PollingInterval
-} from 'domain/shared/value-objects';
+import { IPAddress } from 'domain/shared/value-objects';
+import { PollingInterval } from '../value-objects';
 import { WirelessDeviceConfigProps } from '../props';
 import { WirelessDeviceConfigId } from 'domain/shared/ids';
 import { WirelessDeviceConfigToggledEvent } from '../events';
-
-const MIN_POLLING_SECONDS = 60;
 
 export class WirelessDeviceConfig extends AggregateRoot<
   WirelessDeviceConfigProps,
@@ -59,11 +55,6 @@ export class WirelessDeviceConfig extends AggregateRoot<
     ]);
     if (!guardResult.succeeded) {
       return Result.fail(guardResult.message!);
-    }
-    if (props.pollingInterval.seconds < MIN_POLLING_SECONDS) {
-      return Result.fail(
-        `Wireless polling interval must be at least ${MIN_POLLING_SECONDS} seconds`
-      );
     }
     if (
       props.linkCapacityKbps !== null &&
@@ -138,11 +129,6 @@ export class WirelessDeviceConfig extends AggregateRoot<
   public updatePollingInterval(
     interval: PollingInterval
   ): Result<void> {
-    if (interval.seconds < MIN_POLLING_SECONDS) {
-      return Result.fail(
-        `Wireless polling interval must be at least ${MIN_POLLING_SECONDS} seconds`
-      );
-    }
     this.props.pollingInterval = interval;
     return Result.ok();
   }

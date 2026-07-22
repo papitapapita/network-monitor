@@ -1,5 +1,6 @@
 import { DeviceId } from 'domain/shared/ids';
-import { IPAddress, PollingInterval } from 'domain/shared/value-objects';
+import { IPAddress } from 'domain/shared/value-objects';
+import { PollingInterval } from '../value-objects';
 
 export interface WirelessDeviceConfigProps {
   readonly deviceId: DeviceId;

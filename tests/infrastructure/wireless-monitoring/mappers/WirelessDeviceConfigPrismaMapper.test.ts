@@ -4,7 +4,8 @@ import { WirelessDeviceConfigPrismaMapper } from '../../../../src/infrastructure
 import { WirelessDeviceConfig } from 'domain/wireless-monitoring';
 import { DeviceId } from 'domain/shared';
 import { WirelessDeviceConfigId } from 'domain/shared/ids';
-import { IPAddress, PollingInterval } from 'domain/shared/value-objects';
+import { IPAddress } from 'domain/shared/value-objects';
+import { PollingInterval } from 'domain/wireless-monitoring/value-objects';
 
 const DEVICE_UUID = 'f149790a-58f0-479a-8534-b0b01e9942bb';
 const CONFIG_UUID  = '61b09316-4070-4461-9b1b-7ecbd2eda306';

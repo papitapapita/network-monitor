@@ -1,16 +1,15 @@
-import { ValueObject, Result, Guard } from '../core';
+import { ValueObject, Result, Guard } from 'domain/shared/core';
 
 interface PollingIntervalProps {
   readonly seconds: number;
 }
 
-const MIN_SECONDS = 30;
+// AirOS status pages are scraped over authenticated HTTP; polling faster than
+// this overloads the embedded web server on the radio.
+const MIN_SECONDS = 60;
 const MAX_SECONDS = 86400;
 
 export class PollingInterval extends ValueObject<PollingIntervalProps> {
-  static readonly MIN_SECONDS = MIN_SECONDS;
-  static readonly MAX_SECONDS = MAX_SECONDS;
-
   private constructor(props: PollingIntervalProps) {
     super(props);
   }
@@ -20,17 +19,21 @@ export class PollingInterval extends ValueObject<PollingIntervalProps> {
   }
 
   static create(seconds: number): Result<PollingInterval> {
-    const guardResult = Guard.againstNullOrUndefined(seconds, 'seconds');
-    if (!guardResult.succeeded) return Result.fail(guardResult.message!);
+    const guardResult = Guard.againstNullOrUndefined(
+      seconds,
+      'seconds'
+    );
+    if (!guardResult.succeeded)
+      return Result.fail(guardResult.message!);
 
     if (!Number.isInteger(seconds) || seconds < MIN_SECONDS) {
       return Result.fail(
-        `Polling interval must be at least ${MIN_SECONDS} seconds`
+        `Wireless polling interval must be at least ${MIN_SECONDS} seconds`
       );
     }
     if (seconds > MAX_SECONDS) {
       return Result.fail(
-        `Polling interval must not exceed ${MAX_SECONDS} seconds`
+        `Wireless polling interval must not exceed ${MAX_SECONDS} seconds`
       );
     }
 

@@ -2,7 +2,8 @@ import { WirelessDeviceConfig } from 'domain/wireless-monitoring/aggregates';
 import { WirelessDeviceConfigProps } from 'domain/wireless-monitoring/props';
 import { DeviceId } from 'domain/shared';
 import { WirelessDeviceConfigId } from 'domain/shared/ids';
-import { IPAddress, PollingInterval } from 'domain/shared/value-objects';
+import { IPAddress } from 'domain/shared/value-objects';
+import { PollingInterval } from 'domain/wireless-monitoring/value-objects';
 
 type PrismaWirelessDeviceConfigRow = {
   id: string;

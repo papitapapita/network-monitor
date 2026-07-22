@@ -4,7 +4,8 @@ import { PrismaWirelessDeviceConfigRepository } from '../../../../src/infrastruc
 import { WirelessDeviceConfig } from 'domain/wireless-monitoring';
 import { DeviceId } from 'domain/shared';
 import { WirelessDeviceConfigId } from 'domain/shared/ids';
-import { IPAddress, PollingInterval } from 'domain/shared/value-objects';
+import { IPAddress } from 'domain/shared/value-objects';
+import { PollingInterval } from 'domain/wireless-monitoring/value-objects';
 import type { PrismaClient } from '../../../../src/generated/prisma/client';
 
 const DEVICE_UUID = 'f149790a-58f0-479a-8534-b0b01e9942bb';

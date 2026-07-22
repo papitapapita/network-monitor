@@ -3,10 +3,8 @@ import { WirelessDeviceConfigToggledEvent } from '../../../../src/domain/wireles
 import { WirelessDeviceConfigProps } from '../../../../src/domain/wireless-monitoring/props/WirelessDeviceConfigProps';
 import { WirelessDeviceConfigId } from '../../../../src/domain/shared/ids';
 import { DeviceId } from '../../../../src/domain/shared/ids';
-import {
-  IPAddress,
-  PollingInterval
-} from '../../../../src/domain/shared/value-objects';
+import { IPAddress } from '../../../../src/domain/shared/value-objects';
+import { PollingInterval } from '../../../../src/domain/wireless-monitoring/value-objects';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -167,29 +165,6 @@ describe('WirelessDeviceConfig', () => {
       });
     });
 
-    // -----------------------------------------------------------------------
-    describe('wireless-specific polling interval minimum', () => {
-      it('should fail when pollingInterval is below 60 seconds', () => {
-        const result = WirelessDeviceConfig.create(
-          makeProps({
-            pollingInterval: PollingInterval.reconstitute(59)
-          })
-        );
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('60');
-      });
-
-      it('should succeed when pollingInterval is exactly 60 seconds', () => {
-        const result = WirelessDeviceConfig.create(
-          makeProps({
-            pollingInterval: PollingInterval.reconstitute(60)
-          })
-        );
-
-        expect(result.isSuccess).toBe(true);
-      });
-    });
   });
 
   // =========================================================================
@@ -535,25 +510,6 @@ describe('WirelessDeviceConfig', () => {
       config.updatePollingInterval(PollingInterval.reconstitute(120));
 
       expect(config.pollingInterval.seconds).toBe(120);
-    });
-
-    it('should fail when the new interval is below 60 seconds', () => {
-      const config = makeConfig();
-      const result = config.updatePollingInterval(
-        PollingInterval.reconstitute(59)
-      );
-
-      expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('60');
-    });
-
-    it('should not mutate the interval when validation fails', () => {
-      const config = makeConfig({
-        pollingInterval: PollingInterval.reconstitute(60)
-      });
-      config.updatePollingInterval(PollingInterval.reconstitute(59));
-
-      expect(config.pollingInterval.seconds).toBe(60);
     });
 
     it('should succeed when the interval is exactly 60 seconds', () => {

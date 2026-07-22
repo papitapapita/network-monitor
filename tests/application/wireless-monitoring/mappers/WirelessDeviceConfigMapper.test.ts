@@ -2,7 +2,8 @@
 
 import { WirelessDeviceConfig } from 'domain/wireless-monitoring/aggregates';
 import { WirelessDeviceConfigId, DeviceId } from 'domain/shared/ids';
-import { IPAddress, PollingInterval } from 'domain/shared/value-objects';
+import { IPAddress } from 'domain/shared/value-objects';
+import { PollingInterval } from 'domain/wireless-monitoring/value-objects';
 import { WirelessDeviceConfigMapper } from 'application/wireless-monitoring/mappers';
 import {
   CreateWirelessConfigRequestDTO,
