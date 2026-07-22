@@ -1426,7 +1426,7 @@ offset?: number  // ≥0, default 0
 ## Contracted Services `/api/contracted-services`
 
 ```ts
-type ContractedServiceStatus = 'ACTIVE' | 'SUSPENDED' | 'CANCELLED'
+type ContractedServiceStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED'
 
 interface ContractedServiceDTO {
   id: string                        // UUID
@@ -1455,6 +1455,9 @@ interface ContractedServiceDTO {
 // Response
 { success: true, data: ContractedServiceDTO }
 ```
+
+> New services are created with status **`PENDING`**. To activate one, assign a device (if not done at creation) and send `PUT /:id` with `{ status: 'ACTIVE' }`.  
+> **Billing only includes `ACTIVE` services** — `POST /api/bills/generate` returns 409 for a customer whose services are all PENDING/SUSPENDED/CANCELLED.
 
 ---
 
