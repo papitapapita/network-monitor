@@ -10,3 +10,4 @@ export * from './auth.schemas';
 export * from './customer.schemas';
 export * from './service-plan.schemas';
 export * from './contracted-service.schemas';
+export * from './bill.schemas';

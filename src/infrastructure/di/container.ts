@@ -9,6 +9,7 @@ import {
   PrismaServicePlanRepository,
   PrismaContractedServiceRepository
 } from '../customers';
+import { PrismaBillRepository } from '../billing';
 import { LoginUseCase } from 'application/identity/use-cases/LoginUseCase';
 import { AuthController } from 'presentation/http/controllers/AuthController';
 import { ITokenService } from 'application/identity/interfaces/ITokenService';
@@ -35,7 +36,8 @@ import {
   CredentialsController,
   CustomerController,
   ServicePlanController,
-  ContractedServiceController
+  ContractedServiceController,
+  BillController
 } from 'presentation/http/controllers';
 import {
   CreateCustomerUseCase,
@@ -54,6 +56,15 @@ import {
   UpdateContractedServiceUseCase,
   DeleteContractedServiceUseCase
 } from 'application/customers/use-cases';
+import {
+  GenerateBillUseCase,
+  GenerateBillsForPeriodUseCase,
+  GetBillUseCase,
+  ListBillsUseCase,
+  MarkBillPaidUseCase,
+  MarkBillOverdueUseCase,
+  CancelBillUseCase
+} from 'application/billing/use-cases';
 import {
   PrismaWirelessSnapshotRepository,
   PrismaWirelessAlertRecordRepository,
@@ -168,9 +179,7 @@ import {
   PurgeOldWirelessAlertRecordsUseCase
 } from 'application/wireless-monitoring/use-cases';
 import { DataRetentionOrchestrator } from '../retention/DataRetentionOrchestrator';
-import {
-  TriggerDataRetentionUseCase
-} from 'application/shared/use-cases/TriggerDataRetentionUseCase';
+import { TriggerDataRetentionUseCase } from 'application/shared/use-cases/TriggerDataRetentionUseCase';
 import { AdminController } from 'presentation/http/controllers/AdminController';
 
 export class DependencyContainer {
@@ -196,6 +205,9 @@ export class DependencyContainer {
   public servicePlanRepository: PrismaServicePlanRepository;
   public contractedServiceRepository: PrismaContractedServiceRepository;
 
+  // Billing
+  public billRepository: PrismaBillRepository;
+
   // Identity
   public tokenService: ITokenService;
   public authController: AuthController;
@@ -213,6 +225,7 @@ export class DependencyContainer {
   public customerController: CustomerController;
   public servicePlanController: ServicePlanController;
   public contractedServiceController: ContractedServiceController;
+  public billController: BillController;
 
   // Orchestrators (lifecycle managed by main.ts)
   public pollingOrchestrator: PollingOrchestrator;
@@ -337,6 +350,36 @@ export class DependencyContainer {
       );
 
     // =====================================
+    // BILLING BOUNDED CONTEXT
+    // =====================================
+
+    this.billRepository = new PrismaBillRepository(this.prisma);
+
+    const generateBillUseCase = new GenerateBillUseCase(
+      this.billRepository,
+      this.customerRepository,
+      this.contractedServiceRepository,
+      this.servicePlanRepository,
+      this.logger
+    );
+
+    this.billController = new BillController(
+      generateBillUseCase,
+      new GenerateBillsForPeriodUseCase(
+        generateBillUseCase,
+        this.billRepository,
+        this.contractedServiceRepository,
+        this.logger
+      ),
+      new ListBillsUseCase(this.billRepository, this.logger),
+      new GetBillUseCase(this.billRepository, this.logger),
+      new MarkBillPaidUseCase(this.billRepository, this.logger),
+      new MarkBillOverdueUseCase(this.billRepository, this.logger),
+      new CancelBillUseCase(this.billRepository, this.logger),
+      this.logger
+    );
+
+    // =====================================
     // IDENTITY BOUNDED CONTEXT
     // =====================================
 
@@ -351,7 +394,10 @@ export class DependencyContainer {
     );
 
     this.tokenService = jwtTokenService;
-    this.authController = new AuthController(loginUseCase, this.logger);
+    this.authController = new AuthController(
+      loginUseCase,
+      this.logger
+    );
 
     // Initialize location use cases
     const createLocationUseCase = new CreateLocationUseCase(
@@ -765,13 +811,14 @@ export class DependencyContainer {
       )
     };
 
-    const triggerDataRetentionUseCase = new TriggerDataRetentionUseCase(
-      purgeOldPingResultsUseCase,
-      purgeOldAlertsUseCase,
-      purgeOldWirelessSnapshotsUseCase,
-      purgeOldWirelessAlertRecordsUseCase,
-      retentionConfig
-    );
+    const triggerDataRetentionUseCase =
+      new TriggerDataRetentionUseCase(
+        purgeOldPingResultsUseCase,
+        purgeOldAlertsUseCase,
+        purgeOldWirelessSnapshotsUseCase,
+        purgeOldWirelessAlertRecordsUseCase,
+        retentionConfig
+      );
 
     this.adminController = new AdminController(
       triggerDataRetentionUseCase,
@@ -790,15 +837,24 @@ export class DependencyContainer {
     // Register cross-context event handlers
     EventDispatcher.register(
       DeviceCreatedEvent.name,
-      new DeviceProvisionedHandler(this.pollingConfigRepository, this.logger)
+      new DeviceProvisionedHandler(
+        this.pollingConfigRepository,
+        this.logger
+      )
     );
     EventDispatcher.register(
       DeviceStatusChangedEvent.name,
-      new DeviceStatusChangedHandler(this.pollingConfigRepository, this.logger)
+      new DeviceStatusChangedHandler(
+        this.pollingConfigRepository,
+        this.logger
+      )
     );
     EventDispatcher.register(
       DeviceMonitoringToggledEvent.name,
-      new DeviceMonitoringToggledHandler(this.pollingConfigRepository, this.logger)
+      new DeviceMonitoringToggledHandler(
+        this.pollingConfigRepository,
+        this.logger
+      )
     );
     EventDispatcher.register(
       DeviceDetailsUpdatedEvent.name,

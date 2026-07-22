@@ -14,6 +14,7 @@ import { createAdminRoutes } from './admin.routes';
 import { createCustomerRoutes } from './customer.routes';
 import { createServicePlanRoutes } from './service-plan.routes';
 import { createContractedServiceRoutes } from './contracted-service.routes';
+import { createBillRoutes } from './bill.routes';
 import {
   createAuditLogMiddleware,
   createAuthenticateMiddleware
@@ -106,6 +107,13 @@ export function setupRoutes(
       container.contractedServiceController
     )
   );
+
+  // =====================================
+  // BILLING BOUNDED CONTEXT
+  // =====================================
+
+  // Bills: /api/bills
+  apiRouter.use('/bills', createBillRoutes(container.billController));
 
   // =====================================
   // DEVICE-MONITORING BOUNDED CONTEXT

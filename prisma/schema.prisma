@@ -454,6 +454,7 @@ model Customer {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   contractedServices ContractedService[]
+  bills              Bill[]
 
   @@map("customers")
 }
@@ -491,4 +492,52 @@ model ContractedService {
   @@index([customerId])
   @@index([status])
   @@map("contracted_services")
+}
+
+// ============================================================================
+// BILLING BOUNDED CONTEXT
+// ============================================================================
+
+enum BillStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+
+  @@map("bill_status")
+}
+
+model Bill {
+  id          String     @id @default(uuid()) @db.Uuid
+  customerId  String     @map("customer_id") @db.Uuid
+  periodYear  Int        @map("period_year")
+  periodMonth Int        @map("period_month")
+  status      BillStatus @default(PENDING)
+  issueDate   DateTime   @map("issue_date") @db.Timestamptz
+  dueDate     DateTime   @map("due_date") @db.Timestamptz
+  paidAt      DateTime?  @map("paid_at") @db.Timestamptz
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+
+  customer  Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  lineItems BillLineItem[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([periodYear, periodMonth])
+  @@map("bills")
+}
+
+model BillLineItem {
+  id                  String   @id @default(uuid()) @db.Uuid
+  billId              String   @map("bill_id") @db.Uuid
+  contractedServiceId String   @map("contracted_service_id") @db.Uuid
+  servicePlanId       String   @map("service_plan_id") @db.Uuid
+  planName            String   @map("plan_name") @db.VarChar(100)
+  monthlyPrice        Decimal  @map("monthly_price") @db.Decimal(12, 2)
+
+  bill Bill @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@index([billId])
+  @@map("bill_line_items")
 }

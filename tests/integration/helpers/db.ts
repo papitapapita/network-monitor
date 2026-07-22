@@ -261,6 +261,41 @@ export async function seedDevice(
   return device.id;
 }
 
+/**
+ * Cleans the billing bounded context in FK-safe order:
+ * bill_line_items (which reference bills) must go before bills, and
+ * bills (which reference customers, Restrict) must go before cleanCustomers().
+ */
+export async function cleanBills(prisma: PrismaClient): Promise<void> {
+  await prisma.billLineItem.deleteMany();
+  await prisma.bill.deleteMany();
+}
+
+/**
+ * Creates a contracted service in ACTIVE status directly via Prisma,
+ * bypassing the PENDING -> ACTIVE activation flow used by the
+ * contracted-service HTTP API. Useful for billing tests that only care
+ * about the customer having an active, billable service.
+ * Returns its UUID.
+ */
+export async function seedActiveContractedService(
+  prisma: PrismaClient,
+  customerId: string,
+  servicePlanId: string,
+  overrides: { deviceId?: string | null; startDate?: Date } = {}
+): Promise<string> {
+  const service = await prisma.contractedService.create({
+    data: {
+      customerId,
+      servicePlanId,
+      deviceId: overrides.deviceId ?? null,
+      status: 'ACTIVE',
+      startDate: overrides.startDate ?? new Date()
+    }
+  });
+  return service.id;
+}
+
 /** Known-valid UUIDs that will never exist in the test DB */
 export const GHOST_ID = '00000000-0000-4000-8000-000000000001';
 export const INVALID_ID = 'not-a-uuid';

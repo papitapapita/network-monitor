@@ -1,5 +1,6 @@
 import { PrismaClient } from 'generated/prisma/client';
 import { ContractedService } from 'domain/customers/aggregates';
+import { ContractedServiceStatus } from 'domain/customers/enums';
 import {
   ContractedServiceId,
   CustomerId,
@@ -121,6 +122,25 @@ export class PrismaContractedServiceRepository
         error instanceof Error ? error.message : String(error);
       return Result.fail<ContractedService[]>(
         `Database error finding contracted services by service plan: ${errorMessage}`
+      );
+    }
+  }
+
+  public async findByStatus(
+    status: ContractedServiceStatus
+  ): Promise<Result<ContractedService[]>> {
+    try {
+      const rawRecords = await this.prisma.contractedService.findMany({
+        where: { status },
+        orderBy: { startDate: 'desc' }
+      });
+
+      return this.mapMany(rawRecords);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<ContractedService[]>(
+        `Database error finding contracted services by status: ${errorMessage}`
       );
     }
   }

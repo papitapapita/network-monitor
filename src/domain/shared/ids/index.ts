@@ -11,3 +11,4 @@ export * from './UserId';
 export * from './CustomerId';
 export * from './ServicePlanId';
 export * from './ContractedServiceId';
+export * from './BillId';

@@ -12,3 +12,4 @@ export * from './AdminController';
 export * from './CustomerController';
 export * from './ServicePlanController';
 export * from './ContractedServiceController';
+export * from './BillController';

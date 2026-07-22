@@ -6,6 +6,7 @@ import {
 } from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
 import { ContractedService } from '../aggregates';
+import { ContractedServiceStatus } from '../enums';
 
 export interface IContractedServiceRepository {
   save(
@@ -23,6 +24,9 @@ export interface IContractedServiceRepository {
   findByDeviceId(
     deviceId: DeviceId
   ): Promise<Result<ContractedService | null>>;
+  findByStatus(
+    status: ContractedServiceStatus
+  ): Promise<Result<ContractedService[]>>;
   findAll(
     limit?: number,
     offset?: number
