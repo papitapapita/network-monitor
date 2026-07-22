@@ -91,6 +91,15 @@ _Main user-facing features still missing._
   - Currently only ICMP ping; vendor-specific collectors unlock richer metrics
   - Abstract behind `IVendorPoller` — V1 ping adapter already exists as reference
 
+- [ ] **Materialize `next_poll_at` on polling configs** — the due-device query does not scale past a few thousand devices
+  - `PrismaPollingConfigurationRepository.findAllDue` computes due-ness inline: `ds.last_checked_at + (pc.interval_seconds || ' seconds')::interval <= now`
+  - That predicate is a computed expression across a `LEFT JOIN`, so **no index can serve it** — Postgres seq-scans `polling_configurations` and `device_states` and hash-joins them on every orchestrator tick
+  - Cost is linear in device count and runs once per tick; the ICMP orchestrator ticks at 1s (`container.ts`), so this is ~1 full scan/sec
+  - Fine at the current ~300-device target (both tables sit in `shared_buffers`); becomes a real load source around 10k devices
+  - Fix: store `next_poll_at` on `polling_configurations`, write it on each poll (`last_checked_at + interval_seconds`), add an index, and reduce the query to `WHERE enabled AND next_poll_at <= now()` — a cheap index range scan
+  - Same applies to `WirelessPollingConfiguration` / `WirelessPollingOrchestrator`, though it ticks at 10s with a 60s floor so the pressure is ~6× lower
+  - Do **not** address this by slowing the tick — the tick is the polling resolution, and a tick coarser than `PollingInterval.MIN_SECONDS` makes short intervals unenforceable
+
 - [ ] **Wireless alert notification tracking** — add `notifiedAt` and `recoveryNotifiedAt` to `WirelessAlertRecord`
   - `AlertEvent` already has these fields; `WirelessAlertRecord` does not
   - Prerequisite: decide whether wireless alerts share the same notification pipeline as ping alerts
