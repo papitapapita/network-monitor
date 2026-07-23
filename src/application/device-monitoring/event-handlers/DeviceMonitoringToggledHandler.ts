@@ -32,10 +32,36 @@ export class DeviceMonitoringToggledHandler
         if (!existingConfig) {
           await this.createConfig(deviceId, event.ipAddress);
         } else {
-          existingConfig.enable();
           if (event.ipAddress) {
-            existingConfig.updateIpAddress(event.ipAddress);
+            const ipUpdateResult = existingConfig.updateIpAddress(
+              event.ipAddress
+            );
+            if (ipUpdateResult.isFailure) {
+              this.logger.error(
+                '[DeviceMonitoringToggledHandler] Failed to update IP address',
+                undefined,
+                {
+                  deviceId: deviceId.toString(),
+                  error: ipUpdateResult.error
+                }
+              );
+              return;
+            }
           }
+
+          const enableResult = existingConfig.enable();
+          if (enableResult.isFailure) {
+            this.logger.error(
+              '[DeviceMonitoringToggledHandler] Cannot enable polling',
+              undefined,
+              {
+                deviceId: deviceId.toString(),
+                error: enableResult.error
+              }
+            );
+            return;
+          }
+
           await this.pollingConfigRepo.save(existingConfig);
         }
       } else {

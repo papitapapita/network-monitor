@@ -59,16 +59,16 @@ function makeConfig(
   } = {}
 ): PollingConfiguration {
   const rawIp = overrides.ipAddress !== undefined ? overrides.ipAddress : '10.0.0.1';
-  return PollingConfiguration.create(
+  return PollingConfiguration.reconstitute(
+    PollingConfigurationId.parse(VALID_CONFIG_UUID).value,
     {
       deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
       ipAddress: rawIp !== null ? IPAddress.reconstitute(rawIp) : null,
       interval: PollingInterval.create(overrides.intervalSeconds ?? 60).value,
       failuresBeforeDown: FailureThreshold.create(overrides.thresholdCount ?? 3).value,
       enabled: overrides.enabled !== undefined ? overrides.enabled : true
-    },
-    PollingConfigurationId.parse(VALID_CONFIG_UUID).value
-  ).value;
+    }
+  );
 }
 
 function makeRequest(
@@ -208,8 +208,24 @@ describe('CreateDevicePollingUseCase', () => {
       expect(result.isSuccess).toBe(true);
       expect(result.value.intervalSeconds).toBe(60);
       expect(result.value.failuresBeforeDown).toBe(3);
-      expect(result.value.enabled).toBe(true);
+      expect(result.value.enabled).toBe(false);
       expect(result.value.ipAddress).toBeNull();
+    });
+
+    it('should reject an explicit enabled:true when no ipAddress is provided', async () => {
+      const result = await useCase.execute(makeRequest({ enabled: true }));
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('IP address');
+    });
+
+    it('should create an enabled config when an ipAddress is provided', async () => {
+      const result = await useCase.execute(
+        makeRequest({ ipAddress: '192.168.1.10' })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.enabled).toBe(true);
     });
 
     it('should create a config with provided intervalSeconds', async () => {
@@ -336,14 +352,40 @@ describe('CreateDevicePollingUseCase', () => {
       expect(config.ipAddress?.value).toBe('192.168.1.99');
     });
 
-    it('should set ipAddress to null when ipAddress is explicitly null', async () => {
-      const config = makeConfig({ ipAddress: '10.0.0.1' });
+    it('should set ipAddress to null when ipAddress is explicitly null on a disabled config', async () => {
+      const config = makeConfig({ ipAddress: '10.0.0.1', enabled: false });
       pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
       pollingConfigRepo.save.mockResolvedValue(Result.ok(config));
 
       await useCase.execute(makeRequest({ ipAddress: null }));
 
       expect(config.ipAddress).toBeNull();
+    });
+
+    it('should clear the ipAddress when the same request also disables polling', async () => {
+      const config = makeConfig({ ipAddress: '10.0.0.1', enabled: true });
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      pollingConfigRepo.save.mockResolvedValue(Result.ok(config));
+
+      const result = await useCase.execute(
+        makeRequest({ ipAddress: null, enabled: false })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(config.ipAddress).toBeNull();
+      expect(config.enabled).toBe(false);
+    });
+
+    it('should fail when clearing the ipAddress of an enabled config', async () => {
+      const config = makeConfig({ ipAddress: '10.0.0.1', enabled: true });
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      pollingConfigRepo.save.mockResolvedValue(Result.ok(config));
+
+      const result = await useCase.execute(makeRequest({ ipAddress: null }));
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('IP address');
+      expect(pollingConfigRepo.save).not.toHaveBeenCalled();
     });
 
     it('should not update interval when intervalSeconds is absent', async () => {

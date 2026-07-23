@@ -54,16 +54,16 @@ function makeConfig(
 ): PollingConfiguration {
   const rawIp =
     overrides.ipAddress !== undefined ? overrides.ipAddress : DEVICE_IP;
-  return PollingConfiguration.create(
+  return PollingConfiguration.reconstitute(
+    PollingConfigurationId.parse(VALID_CONFIG_UUID).value,
     {
       deviceId: makeDeviceId(),
       ipAddress: rawIp !== null ? IPAddress.reconstitute(rawIp) : null,
       interval: PollingInterval.create(60).value,
       failuresBeforeDown: FailureThreshold.create(3).value,
       enabled: overrides.enabled !== undefined ? overrides.enabled : true
-    },
-    PollingConfigurationId.parse(VALID_CONFIG_UUID).value
-  ).value;
+    }
+  );
 }
 
 function makeEvent(
@@ -234,6 +234,22 @@ describe('DeviceMonitoringToggledHandler', () => {
       await handler.handle(makeEvent({ monitoringEnabled: true }));
 
       expect(repo.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not enable or save when neither the config nor the event has an IP address', async () => {
+      const config = makeConfig({ enabled: false, ipAddress: null });
+      repo.findByDeviceId.mockResolvedValue(Result.ok(config));
+
+      const event = makeEvent({ monitoringEnabled: true });
+      jest.spyOn(event, 'ipAddress', 'get').mockReturnValue(
+        null as unknown as IPAddress
+      );
+
+      await handler.handle(event);
+
+      expect(config.enabled).toBe(false);
+      expect(repo.save).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalled();
     });
   });
 

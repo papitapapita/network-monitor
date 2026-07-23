@@ -82,16 +82,18 @@ function makeConfig(
   } = {}
 ): PollingConfiguration {
   const rawIp = overrides.ipAddress !== undefined ? overrides.ipAddress : TEST_IP;
-  return PollingConfiguration.create(
+  // reconstitute: legacy rows can still be enabled without an IP, which is
+  // exactly the case the scheduler has to defend against
+  return PollingConfiguration.reconstitute(
+    PollingConfigurationId.parse(VALID_CONFIG_UUID).value,
     {
       deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
       ipAddress: rawIp !== null ? IPAddress.reconstitute(rawIp) : null,
       interval: PollingInterval.create(60).value,
       failuresBeforeDown: FailureThreshold.create(overrides.thresholdCount ?? 3).value,
       enabled: overrides.enabled !== undefined ? overrides.enabled : true
-    },
-    PollingConfigurationId.parse(VALID_CONFIG_UUID).value
-  ).value;
+    }
+  );
 }
 
 function makeDeviceState(

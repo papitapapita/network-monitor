@@ -50,7 +50,7 @@ function makeConfig(
       ipAddress: rawIp !== null ? IPAddress.reconstitute(rawIp) : null,
       interval: makeInterval(overrides.intervalSeconds ?? 60),
       failuresBeforeDown: makeThreshold(overrides.thresholdCount ?? 3),
-      enabled: overrides.enabled !== undefined ? overrides.enabled : true
+      enabled: overrides.enabled ?? rawIp !== null
     },
     makeConfigId()
   ).value;
@@ -107,7 +107,23 @@ describe('PollingConfiguration', () => {
       expect(result.value.id.toString()).toBe(VALID_CONFIG_UUID);
     });
 
-    it('should allow a null ipAddress', () => {
+    it('should allow a null ipAddress while disabled', () => {
+      const result = PollingConfiguration.create(
+        {
+          deviceId: makeDeviceId(),
+          ipAddress: null,
+          interval: makeInterval(),
+          failuresBeforeDown: makeThreshold(),
+          enabled: false
+        },
+        makeConfigId()
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.ipAddress).toBeNull();
+    });
+
+    it('should fail when enabled with a null ipAddress', () => {
       const result = PollingConfiguration.create(
         {
           deviceId: makeDeviceId(),
@@ -119,8 +135,8 @@ describe('PollingConfiguration', () => {
         makeConfigId()
       );
 
-      expect(result.isSuccess).toBe(true);
-      expect(result.value.ipAddress).toBeNull();
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('IP address');
     });
 
     it('should fail when deviceId is null', () => {
@@ -334,16 +350,34 @@ describe('PollingConfiguration', () => {
       expect(config.ipAddress?.value).toBe('10.0.0.2');
     });
 
-    it('should allow setting the IP address to null', () => {
-      const config = makeConfig({ ipAddress: TEST_IP });
+    it('should allow setting the IP address to null while disabled', () => {
+      const config = makeConfig({ ipAddress: TEST_IP, enabled: false });
 
-      config.updateIpAddress(null);
+      const result = config.updateIpAddress(null);
 
+      expect(result.isSuccess).toBe(true);
       expect(config.ipAddress).toBeNull();
     });
 
+    it('should fail when clearing the IP address while enabled', () => {
+      const config = makeConfig({ ipAddress: TEST_IP, enabled: true });
+
+      const result = config.updateIpAddress(null);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('IP address');
+    });
+
+    it('should keep the previous IP address when clearing is rejected', () => {
+      const config = makeConfig({ ipAddress: TEST_IP, enabled: true });
+
+      config.updateIpAddress(null);
+
+      expect(config.ipAddress?.value).toBe(TEST_IP);
+    });
+
     it('should allow clearing and re-setting the IP address', () => {
-      const config = makeConfig({ ipAddress: TEST_IP });
+      const config = makeConfig({ ipAddress: TEST_IP, enabled: false });
 
       config.updateIpAddress(null);
       config.updateIpAddress(makeIPAddress('172.16.0.1'));
@@ -384,6 +418,33 @@ describe('PollingConfiguration', () => {
       const result = config.enable();
 
       expect(result.isSuccess).toBe(true);
+    });
+
+    it('should fail when the config has no IP address', () => {
+      const config = makeConfig({ ipAddress: null });
+
+      const result = config.enable();
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('IP address');
+    });
+
+    it('should leave the config disabled when enabling is rejected', () => {
+      const config = makeConfig({ ipAddress: null });
+
+      config.enable();
+
+      expect(config.enabled).toBe(false);
+    });
+
+    it('should succeed once an IP address has been set', () => {
+      const config = makeConfig({ ipAddress: null });
+
+      config.updateIpAddress(makeIPAddress());
+      const result = config.enable();
+
+      expect(result.isSuccess).toBe(true);
+      expect(config.enabled).toBe(true);
     });
   });
 

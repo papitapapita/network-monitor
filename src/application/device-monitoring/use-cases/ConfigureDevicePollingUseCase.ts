@@ -90,7 +90,10 @@ export class ConfigureDevicePollingUseCase extends UseCase<
 
     if (updates.enabled !== undefined) {
       if (updates.enabled) {
-        config.enable();
+        const enableResult = config.enable();
+        if (enableResult.isFailure) {
+          return this.fail(enableResult.error);
+        }
       } else {
         config.disable();
       }

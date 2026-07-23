@@ -1,12 +1,14 @@
 import { IHandle } from 'domain/shared/interfaces';
 import { DeviceDetailsUpdatedEvent } from 'domain/device-inventory/events';
 import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
+import { ILogger } from 'application/shared/interfaces';
 
 export class DeviceIPAddressChangedHandler
   implements IHandle<DeviceDetailsUpdatedEvent>
 {
   constructor(
-    private readonly pollingConfigRepo: IPollingConfigurationRepository
+    private readonly pollingConfigRepo: IPollingConfigurationRepository,
+    private readonly logger: ILogger
   ) {}
 
   public async handle(event: DeviceDetailsUpdatedEvent): Promise<void> {
@@ -25,16 +27,25 @@ export class DeviceIPAddressChangedHandler
       }
 
       const config = result.value;
-      config.updateIpAddress(newIpAddress);
+
+      // losing the IP means the device can no longer be polled
+      if (!newIpAddress) {
+        config.disable();
+      }
+
+      const updateResult = config.updateIpAddress(newIpAddress);
+      if (updateResult.isFailure) {
+        return;
+      }
+
       await this.pollingConfigRepo.save(config);
     } catch (error) {
-      console.error(
+      this.logger.error(
         '[DeviceIPAddressChangedHandler] Unexpected error',
+        error instanceof Error ? error : undefined,
         {
           deviceId: deviceId.toString(),
-          newIpAddress: newIpAddress?.toString() ?? null,
-          error:
-            error instanceof Error ? error.message : String(error)
+          newIpAddress: newIpAddress?.toString() ?? null
         }
       );
     }

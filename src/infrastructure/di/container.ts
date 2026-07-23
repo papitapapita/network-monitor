@@ -868,7 +868,10 @@ export class DependencyContainer {
     );
     EventDispatcher.register(
       DeviceDetailsUpdatedEvent.name,
-      new DeviceIPAddressChangedHandler(this.pollingConfigRepository)
+      new DeviceIPAddressChangedHandler(
+        this.pollingConfigRepository,
+        this.logger
+      )
     );
     EventDispatcher.register(
       DeviceWentOfflineEvent.name,

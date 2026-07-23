@@ -56,6 +56,17 @@ export class PollingConfiguration extends Entity<
       return Result.fail<PollingConfiguration>(guardResult.message!);
     }
 
+    const validationResult = PollingConfiguration.validate({
+      ipAddress: props.ipAddress,
+      enabled: props.enabled
+    });
+
+    if (validationResult.isFailure) {
+      return Result.fail<PollingConfiguration>(
+        validationResult.error
+      );
+    }
+
     return Result.ok<PollingConfiguration>(
       new PollingConfiguration(props, id)
     );
@@ -97,12 +108,31 @@ export class PollingConfiguration extends Entity<
     return Result.ok<void>();
   }
 
-  // null = no IP yet; polling scheduler skips this config
-  public updateIpAddress(ipAddress: IPAddress | null): void {
+  // null = no IP yet; only allowed while polling is disabled
+  public updateIpAddress(ipAddress: IPAddress | null): Result<void> {
+    const validationResult = PollingConfiguration.validate({
+      ipAddress,
+      enabled: this.props.enabled
+    });
+
+    if (validationResult.isFailure) {
+      return Result.fail<void>(validationResult.error);
+    }
+
     this.props.ipAddress = ipAddress;
+    return Result.ok<void>();
   }
 
   public enable(): Result<void> {
+    const validationResult = PollingConfiguration.validate({
+      ipAddress: this.props.ipAddress,
+      enabled: true
+    });
+
+    if (validationResult.isFailure) {
+      return Result.fail<void>(validationResult.error);
+    }
+
     this.props.enabled = true;
     return Result.ok<void>();
   }
@@ -114,5 +144,21 @@ export class PollingConfiguration extends Entity<
 
   public markPolled(at: Date): void {
     this.props.lastPolledAt = at;
+  }
+
+  // Single source of truth for the enabled/IP invariant — every mutator
+  // that can change either must route its prospective (not-yet-committed)
+  // state through this method.
+  private static validate(state: {
+    ipAddress: IPAddress | null;
+    enabled: boolean;
+  }): Result<void> {
+    if (state.enabled && !state.ipAddress) {
+      return Result.fail<void>(
+        'Polling cannot be enabled without an IP address'
+      );
+    }
+
+    return Result.ok<void>();
   }
 }

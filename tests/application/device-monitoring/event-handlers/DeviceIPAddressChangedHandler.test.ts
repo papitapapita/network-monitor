@@ -10,6 +10,7 @@ import { FailureThreshold } from '../../../../src/domain/device-monitoring/value
 import { DeviceName } from '../../../../src/domain/device-inventory/value-objects/DeviceName';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { DeviceDetailsUpdatedEventProps } from '../../../../src/domain/device-inventory/props/DeviceDetailsUpdatedEventProps';
+import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
 const VALID_CONFIG_UUID = '550e8400-e29b-41d4-a716-446655440002';
@@ -26,21 +27,33 @@ function makeRepo(): jest.Mocked<IPollingConfigurationRepository> {
   };
 }
 
+function makeLogger(): jest.Mocked<ILogger> {
+  return {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    fatal: jest.fn(),
+    child: jest.fn().mockReturnThis() as any,
+    setLevel: jest.fn()
+  };
+}
+
 function makeDeviceId(): DeviceId {
   return DeviceId.parse(VALID_DEVICE_UUID).value;
 }
 
 function makeConfig(ipRaw: string | null = ORIGINAL_IP): PollingConfiguration {
-  return PollingConfiguration.create(
+  return PollingConfiguration.reconstitute(
+    PollingConfigurationId.parse(VALID_CONFIG_UUID).value,
     {
       deviceId: makeDeviceId(),
       ipAddress: ipRaw !== null ? IPAddress.reconstitute(ipRaw) : null,
       interval: PollingInterval.create(60).value,
       failuresBeforeDown: FailureThreshold.create(3).value,
       enabled: true
-    },
-    PollingConfigurationId.parse(VALID_CONFIG_UUID).value
-  ).value;
+    }
+  );
 }
 
 function makeEvent(
@@ -56,11 +69,13 @@ function makeEvent(
 
 describe('DeviceIPAddressChangedHandler', () => {
   let repo: jest.Mocked<IPollingConfigurationRepository>;
+  let logger: jest.Mocked<ILogger>;
   let handler: DeviceIPAddressChangedHandler;
 
   beforeEach(() => {
     repo = makeRepo();
-    handler = new DeviceIPAddressChangedHandler(repo);
+    logger = makeLogger();
+    handler = new DeviceIPAddressChangedHandler(repo, logger);
   });
 
   afterEach(() => {
@@ -171,6 +186,16 @@ describe('DeviceIPAddressChangedHandler', () => {
       expect(repo.save).toHaveBeenCalledTimes(1);
     });
 
+    it('should disable polling when the IP address is cleared', async () => {
+      const config = makeConfig(ORIGINAL_IP);
+      repo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      repo.save.mockResolvedValue(Result.ok(config));
+
+      await handler.handle(makeEvent({ ipAddress: null }));
+
+      expect(config.enabled).toBe(false);
+    });
+
     it('should set the IP address to null when updatedFields.ipAddress is undefined (key present via ?? null)', async () => {
       // Key present but undefined — handler coerces to null via ?? null.
       const config = makeConfig(ORIGINAL_IP);
@@ -211,32 +236,37 @@ describe('DeviceIPAddressChangedHandler', () => {
     });
 
     it('should log the error when an unexpected exception is thrown', async () => {
-      const consoleSpy = jest
-        .spyOn(console, 'error')
-        .mockImplementation(() => undefined);
       repo.findByDeviceId.mockRejectedValue(new Error('Disk full'));
 
       const event = makeEvent({ ipAddress: IPAddress.reconstitute(NEW_IP) });
 
       await handler.handle(event);
 
-      expect(consoleSpy).toHaveBeenCalledTimes(1);
-      consoleSpy.mockRestore();
+      expect(logger.error).toHaveBeenCalledTimes(1);
+    });
+
+    it('should pass the thrown Error to the logger', async () => {
+      const thrown = new Error('Disk full');
+      repo.findByDeviceId.mockRejectedValue(thrown);
+
+      const event = makeEvent({ ipAddress: IPAddress.reconstitute(NEW_IP) });
+
+      await handler.handle(event);
+
+      expect(logger.error.mock.calls[0][1]).toBe(thrown);
     });
 
     it('should include the device ID in the error log payload', async () => {
-      const consoleSpy = jest
-        .spyOn(console, 'error')
-        .mockImplementation(() => undefined);
       repo.findByDeviceId.mockRejectedValue(new Error('Fatal error'));
 
       const event = makeEvent({ ipAddress: IPAddress.reconstitute(NEW_IP) });
 
       await handler.handle(event);
 
-      const logPayload = consoleSpy.mock.calls[0][1] as { deviceId: string };
+      const logPayload = logger.error.mock.calls[0][2] as {
+        deviceId: string;
+      };
       expect(logPayload.deviceId).toBe(VALID_DEVICE_UUID);
-      consoleSpy.mockRestore();
     });
   });
 });

@@ -116,7 +116,9 @@ export class CreateDevicePollingUseCase extends UseCase<
         ipAddress,
         interval,
         failuresBeforeDown: threshold,
-        enabled: request.enabled ?? true
+        // defaults on, but only when there is an IP to poll — an explicit
+        // `enabled: true` without one is rejected by the entity
+        enabled: request.enabled ?? ipAddress !== null
       },
       PollingConfigurationId.create()
     );
@@ -169,6 +171,12 @@ export class CreateDevicePollingUseCase extends UseCase<
       }
     }
 
+    // disable before touching the IP so a request that clears the IP and
+    // turns polling off in one call doesn't trip the enabled/IP invariant
+    if (request.enabled === false) {
+      config.disable();
+    }
+
     // `'ipAddress' in request` distinguishes explicit null (clear) from omitted (skip)
     if ('ipAddress' in request) {
       let ipAddress: IPAddress | null = null;
@@ -179,14 +187,16 @@ export class CreateDevicePollingUseCase extends UseCase<
         }
         ipAddress = ipResult.value;
       }
-      config.updateIpAddress(ipAddress);
+      const ipUpdateResult = config.updateIpAddress(ipAddress);
+      if (ipUpdateResult.isFailure) {
+        return this.fail(ipUpdateResult.error);
+      }
     }
 
-    if (request.enabled !== undefined) {
-      if (request.enabled) {
-        config.enable();
-      } else {
-        config.disable();
+    if (request.enabled === true) {
+      const enableResult = config.enable();
+      if (enableResult.isFailure) {
+        return this.fail(enableResult.error);
       }
     }
 
