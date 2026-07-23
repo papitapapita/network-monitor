@@ -343,7 +343,7 @@ describe('DeviceState', () => {
     });
 
     // -------------------------------------------------------------------------
-    describe('isFirstPoll = true — no events regardless of transition', () => {
+    describe('isFirstPoll = true — unknown previous state', () => {
       it('should NOT raise DeviceCameOnlineEvent on the first poll even when offline→online', () => {
         const state = makeState({ isOnline: false, consecutiveFailures: 0 });
 
@@ -352,12 +352,32 @@ describe('DeviceState', () => {
         expect(state.domainEvents).toHaveLength(0);
       });
 
-      it('should NOT raise DeviceWentOfflineEvent on the first poll even when online→offline', () => {
+      it('should raise DeviceWentOfflineEvent on the first poll when unreachable', () => {
+        const state = DeviceState.createInitial(makeDeviceId());
+
+        state.applyPingResult(false, null, LATER_DATE, true);
+
+        const events = state.domainEvents;
+        expect(events).toHaveLength(1);
+        expect(events[0]).toBeInstanceOf(DeviceWentOfflineEvent);
+      });
+
+      it('should report a single consecutive failure on a first-poll outage', () => {
+        const state = DeviceState.createInitial(makeDeviceId());
+
+        state.applyPingResult(false, null, LATER_DATE, true);
+
+        const event = state.domainEvents[0] as DeviceWentOfflineEvent;
+        expect(event.consecutiveFailures).toBe(1);
+      });
+
+      it('should raise DeviceWentOfflineEvent on a first-poll outage regardless of the seeded isOnline flag', () => {
         const state = makeState({ isOnline: true, consecutiveFailures: 0 });
 
         state.applyPingResult(false, null, LATER_DATE, true);
 
-        expect(state.domainEvents).toHaveLength(0);
+        expect(state.domainEvents).toHaveLength(1);
+        expect(state.domainEvents[0]).toBeInstanceOf(DeviceWentOfflineEvent);
       });
 
       it('should still update isOnline to true on the first poll when reachable', () => {

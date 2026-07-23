@@ -33,7 +33,8 @@ export class DeviceState extends AggregateRoot<
     return this.props.lastCheckedAt;
   }
 
-  // no events raised — unknown→online is not a recoverable transition
+  // isOnline: false represents "not yet observed", not a confirmed outage —
+  // applyPingResult relies on isFirstPoll to tell the two apart
   public static createInitial(deviceId: DeviceId): DeviceState {
     return new DeviceState(
       {
@@ -57,7 +58,6 @@ export class DeviceState extends AggregateRoot<
     return new DeviceState(props, id);
   }
 
-  // raises events only on genuine transitions, never on the first poll
   // caller retries before calling this — isReachable is the definitive post-retry result
   public applyPingResult(
     isReachable: boolean,
@@ -80,24 +80,33 @@ export class DeviceState extends AggregateRoot<
     this.props.updatedAt = checkedAt;
     if (isReachable) this.props.lastSeen = checkedAt;
 
-    if (!isFirstPoll) {
-      if (!previouslyOnline && newIsOnline) {
-        this.addDomainEvent(
-          new DeviceCameOnlineEvent({
-            aggregateId: this.id,
-            latencyMs,
-            dateTimeOccurred: checkedAt
-          })
-        );
-      } else if (previouslyOnline && !newIsOnline) {
-        this.addDomainEvent(
-          new DeviceWentOfflineEvent({
-            aggregateId: this.id,
-            consecutiveFailures: newConsecutiveFailures,
-            dateTimeOccurred: checkedAt
-          })
-        );
-      }
+    // On the first poll the previous state is unknown rather than offline, so a
+    // successful ping is not a recovery and must not raise CameOnline. A failed
+    // one is still a genuine outage — a device that is dead when first seen has
+    // to alert, or it would stay silent until its first recovery.
+    const cameOnline = isFirstPoll
+      ? false
+      : !previouslyOnline && newIsOnline;
+    const wentOffline = isFirstPoll
+      ? !newIsOnline
+      : previouslyOnline && !newIsOnline;
+
+    if (cameOnline) {
+      this.addDomainEvent(
+        new DeviceCameOnlineEvent({
+          aggregateId: this.id,
+          latencyMs,
+          dateTimeOccurred: checkedAt
+        })
+      );
+    } else if (wentOffline) {
+      this.addDomainEvent(
+        new DeviceWentOfflineEvent({
+          aggregateId: this.id,
+          consecutiveFailures: newConsecutiveFailures,
+          dateTimeOccurred: checkedAt
+        })
+      );
     }
   }
 }
