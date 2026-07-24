@@ -58,6 +58,15 @@ export class DeviceState extends AggregateRoot<
     return new DeviceState(props, id);
   }
 
+  // The probe could not be run at all, so reachability is unknown: record that
+  // an attempt happened without touching status, lastSeen or failure counts.
+  // Advancing lastCheckedAt keeps the device on its normal schedule — leaving
+  // it stale would make the scheduler re-queue the device on every tick.
+  public applyPollFailure(checkedAt: Date): void {
+    this.props.lastCheckedAt = checkedAt;
+    this.props.updatedAt = checkedAt;
+  }
+
   // caller retries before calling this — isReachable is the definitive post-retry result
   public applyPingResult(
     isReachable: boolean,

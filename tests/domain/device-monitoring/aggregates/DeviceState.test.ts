@@ -147,6 +147,65 @@ describe('DeviceState', () => {
   });
 
   // ===========================================================================
+  describe('applyPollFailure()', () => {
+    it('should advance lastCheckedAt', () => {
+      const state = makeState({ lastCheckedAt: FIXED_DATE });
+
+      state.applyPollFailure(LATER_DATE);
+
+      expect(state.lastCheckedAt).toEqual(LATER_DATE);
+    });
+
+    it('should not change isOnline', () => {
+      const state = makeState({ isOnline: true });
+
+      state.applyPollFailure(LATER_DATE);
+
+      expect(state.isOnline).toBe(true);
+    });
+
+    it('should not change isOnline for an offline device either', () => {
+      const state = makeState({ isOnline: false });
+
+      state.applyPollFailure(LATER_DATE);
+
+      expect(state.isOnline).toBe(false);
+    });
+
+    it('should not touch lastSeen, so staleness stays visible', () => {
+      const state = makeState({ lastSeen: FIXED_DATE });
+
+      state.applyPollFailure(LATER_DATE);
+
+      expect(state.lastSeen).toEqual(FIXED_DATE);
+    });
+
+    it('should not change consecutiveFailures', () => {
+      const state = makeState({ consecutiveFailures: 2 });
+
+      state.applyPollFailure(LATER_DATE);
+
+      expect(state.consecutiveFailures).toBe(2);
+    });
+
+    it('should not change lastLatencyMs', () => {
+      const state = makeState({ lastLatencyMs: 42 });
+
+      state.applyPollFailure(LATER_DATE);
+
+      expect(state.lastLatencyMs).toBe(42);
+    });
+
+    it('should raise no domain events', () => {
+      const state = makeState({ isOnline: true });
+
+      state.applyPollFailure(LATER_DATE);
+
+      expect(state.domainEvents).toHaveLength(0);
+    });
+  });
+
+  // ===========================================================================
   describe('applyPingResult()', () => {
     // -------------------------------------------------------------------------
     describe('successful ping (isReachable = true)', () => {

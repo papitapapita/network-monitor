@@ -146,6 +146,12 @@ describe('ExecutePollingCycleUseCase', () => {
       logger,
       0 // no delay between retries in tests
     );
+
+    // permissive defaults — individual tests override to assert failures
+    configRepo.save.mockResolvedValue(Result.ok(makeConfig()));
+    pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
+    deviceStateRepo.save.mockResolvedValue(Result.ok(makeDeviceState()));
+    deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
   });
 
   afterEach(() => {
@@ -502,6 +508,213 @@ describe('ExecutePollingCycleUseCase', () => {
 
       const savedState: DeviceState = deviceStateRepo.save.mock.calls[0][0];
       expect(savedState.consecutiveFailures).toBe(1);
+    });
+  });
+
+  // ===========================================================================
+  describe('executeImpl — persistence failures', () => {
+    beforeEach(() => {
+      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      pingService.ping.mockResolvedValue(
+        Result.ok({ isReachable: true, latencyMs: 15 })
+      );
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeDeviceState({ isOnline: true }))
+      );
+    });
+
+    it('should fail when the device state cannot be saved', async () => {
+      deviceStateRepo.save.mockResolvedValue(Result.fail('DB write error'));
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Failed to save device state');
+    });
+
+    it('should not report success from a state the repository rejected', async () => {
+      deviceStateRepo.save.mockResolvedValue(Result.fail('DB write error'));
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.isSuccess).toBe(false);
+      expect(configRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('should still update device state when the ping history write fails', async () => {
+      pingResultRepo.save.mockResolvedValue(Result.fail('history unavailable'));
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.isSuccess).toBe(true);
+      expect(deviceStateRepo.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('should warn but succeed when lastPolledAt cannot be persisted', async () => {
+      configRepo.save.mockResolvedValue(Result.fail('config write error'));
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.isSuccess).toBe(true);
+      expect(logger.warn).toHaveBeenCalled();
+    });
+  });
+
+  // ===========================================================================
+  describe('executeImpl — first poll of an unseen device', () => {
+    beforeEach(() => {
+      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
+    });
+
+    it('should raise DeviceWentOfflineEvent when a device is unreachable on first sight', async () => {
+      pingService.ping.mockResolvedValue(
+        Result.ok({ isReachable: false, latencyMs: null })
+      );
+
+      await useCase.execute(makeRequest());
+
+      const savedState: DeviceState = deviceStateRepo.save.mock.calls[0][0];
+      expect(savedState.domainEvents).toHaveLength(1);
+      expect(savedState.domainEvents[0].constructor.name).toBe(
+        'DeviceWentOfflineEvent'
+      );
+    });
+
+    it('should raise no event when a device is reachable on first sight', async () => {
+      pingService.ping.mockResolvedValue(
+        Result.ok({ isReachable: true, latencyMs: 15 })
+      );
+
+      await useCase.execute(makeRequest());
+
+      const savedState: DeviceState = deviceStateRepo.save.mock.calls[0][0];
+      expect(savedState.domainEvents).toHaveLength(0);
+    });
+  });
+
+  // ===========================================================================
+  describe('executeImpl — the ping program cannot be executed', () => {
+    beforeEach(() => {
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig({ thresholdCount: 3 }))
+      );
+    });
+
+    it('should retry the remaining attempts instead of giving up immediately', async () => {
+      pingService.ping.mockResolvedValue(Result.fail('spawn EAGAIN'));
+
+      await useCase.execute(makeRequest());
+
+      expect(pingService.ping).toHaveBeenCalledTimes(3);
+    });
+
+    it('should recover when a later attempt executes successfully', async () => {
+      pingService.ping
+        .mockResolvedValueOnce(Result.fail('spawn EAGAIN'))
+        .mockResolvedValueOnce(Result.ok({ isReachable: true, latencyMs: 18 }));
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.deviceStatus).toBe('ONLINE');
+    });
+
+    it('should fail only when no attempt could be executed', async () => {
+      pingService.ping.mockResolvedValue(Result.fail('spawn ENOENT'));
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Ping execution error');
+    });
+
+    it('should not mark a reachable device as offline', async () => {
+      pingService.ping.mockResolvedValue(Result.fail('spawn ENOENT'));
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeDeviceState({ isOnline: true, consecutiveFailures: 0 }))
+      );
+
+      await useCase.execute(makeRequest());
+
+      const savedState: DeviceState = deviceStateRepo.save.mock.calls[0][0];
+      expect(savedState.isOnline).toBe(true);
+      expect(savedState.consecutiveFailures).toBe(0);
+      expect(savedState.domainEvents).toHaveLength(0);
+    });
+
+    it('should advance lastCheckedAt so the scheduler does not re-queue every tick', async () => {
+      pingService.ping.mockResolvedValue(Result.fail('spawn ENOENT'));
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeDeviceState({ lastCheckedAt: FIXED_DATE }))
+      );
+
+      await useCase.execute(makeRequest());
+
+      const savedState: DeviceState = deviceStateRepo.save.mock.calls[0][0];
+      expect(savedState.lastCheckedAt!.getTime()).toBeGreaterThan(
+        FIXED_DATE.getTime()
+      );
+    });
+
+    it('should not seed a state row for a device that has never been polled', async () => {
+      pingService.ping.mockResolvedValue(Result.fail('spawn ENOENT'));
+      deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
+
+      await useCase.execute(makeRequest());
+
+      expect(deviceStateRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('should report the failure to the probe health reporter', async () => {
+      const probeHealth = {
+        recordProbeExecutionFailure: jest.fn(),
+        recordProbeExecuted: jest.fn()
+      };
+      useCase = new ExecutePollingCycleUseCase(
+        configRepo,
+        pingResultRepo,
+        deviceStateRepo,
+        pingService,
+        logger,
+        0,
+        probeHealth
+      );
+      pingService.ping.mockResolvedValue(Result.fail('spawn ENOENT'));
+
+      await useCase.execute(makeRequest());
+
+      expect(probeHealth.recordProbeExecutionFailure).toHaveBeenCalledWith(
+        VALID_DEVICE_UUID,
+        expect.stringContaining('ENOENT')
+      );
+      expect(probeHealth.recordProbeExecuted).not.toHaveBeenCalled();
+    });
+
+    it('should report a healthy probe when the ping program runs', async () => {
+      const probeHealth = {
+        recordProbeExecutionFailure: jest.fn(),
+        recordProbeExecuted: jest.fn()
+      };
+      useCase = new ExecutePollingCycleUseCase(
+        configRepo,
+        pingResultRepo,
+        deviceStateRepo,
+        pingService,
+        logger,
+        0,
+        probeHealth
+      );
+      pingService.ping.mockResolvedValue(
+        Result.ok({ isReachable: false, latencyMs: null })
+      );
+
+      await useCase.execute(makeRequest());
+
+      expect(probeHealth.recordProbeExecuted).toHaveBeenCalledWith(
+        VALID_DEVICE_UUID
+      );
+      expect(probeHealth.recordProbeExecutionFailure).not.toHaveBeenCalled();
     });
   });
 });

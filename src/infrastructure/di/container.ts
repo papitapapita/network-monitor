@@ -113,6 +113,7 @@ import {
   DeleteLocationUseCase
 } from 'application/device-inventory/use-cases';
 import { PingService } from '../monitoring/ping';
+import { ProbeHealthReporter } from '../monitoring/health';
 import {
   ArpService,
   NetworkScannerService
@@ -565,12 +566,16 @@ export class DependencyContainer {
       this.logger
     );
 
+    const probeHealthReporter = new ProbeHealthReporter(this.logger);
+
     const executePollingCycleUseCase = new ExecutePollingCycleUseCase(
       this.pollingConfigRepository,
       this.pingResultRepository,
       this.deviceStateRepository,
       pingService,
-      this.logger
+      this.logger,
+      undefined,
+      probeHealthReporter
     );
     const configurePollingUseCase = new ConfigureDevicePollingUseCase(
       this.pollingConfigRepository,
