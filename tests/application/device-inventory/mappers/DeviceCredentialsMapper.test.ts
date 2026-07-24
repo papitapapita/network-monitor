@@ -421,13 +421,13 @@ describe('DeviceCredentialsMapper', () => {
         expect(result.httpPassword).toBeNull();
       });
 
-      it('should default httpPort to 80 when absent', () => {
+      it('should default httpPort to 443 when absent', () => {
         const result = DeviceCredentialsMapper.extractCreateData({
           deviceId: DEVICE_UUID,
           snmpVersion: 2
         });
 
-        expect(result.httpPort).toBe(80);
+        expect(result.httpPort).toBe(443);
       });
     });
 
@@ -443,14 +443,14 @@ describe('DeviceCredentialsMapper', () => {
         expect(result.snmpPort).toBe(162);
       });
 
-      it('should use the provided httpPort instead of the default 80', () => {
+      it('should use the provided httpPort instead of the default 443', () => {
         const result = DeviceCredentialsMapper.extractCreateData({
           deviceId: DEVICE_UUID,
           snmpVersion: 2,
-          httpPort: 443
+          httpPort: 8080
         });
 
-        expect(result.httpPort).toBe(443);
+        expect(result.httpPort).toBe(8080);
       });
 
       it('should pass through snmpCommunity when provided', () => {

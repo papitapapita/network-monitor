@@ -462,7 +462,7 @@ interface DeviceCredentialsResponseDTO {
   snmpPort: number               // default 161
   httpUsername: string | null
   httpPassword: '***' | null     // masked; null if not set
-  httpPort: number               // default 80
+  httpPort: number               // default 443
   hasSnmpCredentials: boolean    // true if the effective SNMP secret is present
   hasHttpCredentials: boolean    // true if both httpUsername and httpPassword are set
 }
@@ -496,7 +496,7 @@ Fully replaces the stored credentials for the device (upsert).
 
   // Ports
   snmpPort?: number   // 1–65535; default 161
-  httpPort?: number   // 1–65535; default 80
+  httpPort?: number   // 1–65535; default 443
 }
 
 // Response — DeviceCredentialsResponseDTO (raw, no wrapper)

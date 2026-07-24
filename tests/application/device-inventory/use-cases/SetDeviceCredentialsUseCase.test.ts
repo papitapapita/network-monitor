@@ -429,7 +429,7 @@ describe('SetDeviceCredentialsUseCase', () => {
       expect(savedCredentials.snmpVersion).toBe(2);
       expect(savedCredentials.snmpCommunity).toBe('my-community');
       expect(savedCredentials.snmpPort).toBe(161);
-      expect(savedCredentials.httpPort).toBe(80);
+      expect(savedCredentials.httpPort).toBe(443);
     });
 
     it('should call credentialsRepo.save with data shaped by extractCreateData (SNMPv3)', async () => {
@@ -458,13 +458,13 @@ describe('SetDeviceCredentialsUseCase', () => {
       expect(savedCredentials.snmpPort).toBe(161);
     });
 
-    it('should default httpPort to 80 when not provided', async () => {
+    it('should default httpPort to 443 when not provided', async () => {
       await useCase.execute(makeV2Request({ httpPort: undefined }));
 
       const savedCredentials: DeviceCredentials =
         credentialsRepo.save.mock.calls[0][1];
 
-      expect(savedCredentials.httpPort).toBe(80);
+      expect(savedCredentials.httpPort).toBe(443);
     });
 
     it('should set null for optional snmp fields when not provided', async () => {

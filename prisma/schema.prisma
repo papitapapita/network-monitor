@@ -336,7 +336,7 @@ model DeviceCredentials {
   httpUsername    String?  @map("http_username") @db.VarChar(500)
   httpPassword    String?  @map("http_password") @db.VarChar(500)
   snmpPort        Int      @default(161) @map("snmp_port")
-  httpPort        Int      @default(80) @map("http_port")
+  httpPort        Int      @default(443) @map("http_port")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
