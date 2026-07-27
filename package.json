@@ -42,6 +42,7 @@
     "libphonenumber-js": "^1.12.29",
     "mac-oui-lookup": "^1.1.4",
     "net-snmp": "^3.26.3",
+    "node-routeros": "^1.6.8",
     "nodemailer": "^8.0.7",
     "pdfkit": "^0.19.1",
     "pg": "^8.19.0",
