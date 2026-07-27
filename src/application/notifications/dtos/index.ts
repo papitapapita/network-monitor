@@ -3,3 +3,5 @@ export * from './AlertListResponseDTO';
 export * from './SendDeviceDownAlertDTO';
 export * from './SendDeviceRecoveryAlertDTO';
 export * from './ListAlertsDTO';
+export * from './SendSuspensionNoticeDTO';
+export * from './SendAlertNotificationDTO';

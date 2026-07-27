@@ -8,6 +8,7 @@ import { IPollingConfigurationRepository } from 'domain/device-monitoring/reposi
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import { INotificationService } from '../interfaces';
+import { TelegramFormatting } from '../shared';
 import { AlertMapper } from '../mappers';
 import { AlertResponseDTO, SendDeviceDownAlertDTO } from '../dtos';
 
@@ -144,9 +145,11 @@ export class SendDeviceDownAlertUseCase extends UseCase<
     occurredAt: Date;
     alertId: string;
   }): string {
-    const e = (text: string) => this.escapeMd(text);
+    const e = (text: string) => TelegramFormatting.escapeMd(text);
     const ip = params.ipAddress ? e(params.ipAddress) : 'N/A';
-    const ts = e(this.formatLocalTime(params.occurredAt));
+    const ts = e(
+      TelegramFormatting.formatLocalTime(params.occurredAt)
+    );
 
     return [
       '🔴 *DISPOSITIVO FUERA DE LÍNEA*',
@@ -159,22 +162,5 @@ export class SendDeviceDownAlertUseCase extends UseCase<
       '',
       `🆔 Alerta: \`${e(params.alertId)}\``
     ].join('\n');
-  }
-
-  private formatLocalTime(date: Date): string {
-    return date.toLocaleString('es-CO', {
-      timeZone: 'America/Bogota',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
-    });
-  }
-
-  private escapeMd(text: string): string {
-    return text.replace(/[_*[\]()~`>#+=|{}.!\\-]/g, '\\$&');
   }
 }

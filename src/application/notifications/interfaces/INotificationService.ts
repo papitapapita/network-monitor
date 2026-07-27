@@ -8,7 +8,7 @@ export interface NotificationMessage {
     deviceName: string;
     ipAddress: string | null;
     severity: string;
-    alertId: string;
+    alertId?: string;
     timestamp: string;
     consecutiveFailures?: number;
     latencyMs?: number | null;
