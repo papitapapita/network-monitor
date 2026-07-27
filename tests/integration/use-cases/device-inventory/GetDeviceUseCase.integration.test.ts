@@ -10,6 +10,7 @@ import {
 import {
   cleanDatabase,
   seedDeviceModel,
+  seedLocation,
   GHOST_ID,
   INVALID_ID
 } from '../../helpers/db';
@@ -20,6 +21,7 @@ describe('GetDeviceUseCase — integration', () => {
   let createUseCase: CreateDeviceUseCase;
   let getUseCase: GetDeviceUseCase;
   let deviceModelId: string;
+  let locationId: string;
 
   beforeAll(async () => {
     container = await setupDependencies();
@@ -36,8 +38,10 @@ describe('GetDeviceUseCase — integration', () => {
     await container.disconnect();
   });
 
+  // cleanDatabase() wipes locations, so the fixture is re-seeded per test.
   beforeEach(async () => {
     await cleanDatabase(prisma);
+    locationId = await seedLocation(prisma);
   });
 
   // ──────────────────────────────────────────────────────────────
@@ -47,6 +51,7 @@ describe('GetDeviceUseCase — integration', () => {
   it('retrieves a device by ID with all fields matching', async () => {
     const created = await createUseCase.execute({
       deviceModelId,
+      locationId,
       name: 'Core Router',
       ownerType: 'COMPANY',
       status: 'ACTIVE',

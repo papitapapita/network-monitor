@@ -78,7 +78,8 @@ describe('CreateDevicePollingUseCase — integration', () => {
       });
       expect(config!.pingIntervalSecs).toBe(60);
       expect(config!.failuresBeforeDown).toBe(3);
-      expect(config!.enabled).toBe(true);
+      // polling stays off without an IP — the entity rejects enabled + no IP
+      expect(config!.enabled).toBe(false);
       expect(config!.ipAddress).toBeNull();
     });
 
@@ -228,8 +229,14 @@ describe('CreateDevicePollingUseCase — integration', () => {
       expect(config!.ipAddress).toBe('172.16.0.1');
     });
 
-    it('clears the ipAddress when null is provided', async () => {
-      const result = await useCase.execute({ deviceId, ipAddress: null });
+    it('clears the ipAddress when polling is disabled in the same call', async () => {
+      // seedMonitoredDevice leaves polling enabled with an IP, so the IP can
+      // only be cleared alongside disabling — the use case disables first.
+      const result = await useCase.execute({
+        deviceId,
+        ipAddress: null,
+        enabled: false
+      });
 
       expect(result.isSuccess).toBe(true);
 
@@ -237,6 +244,18 @@ describe('CreateDevicePollingUseCase — integration', () => {
         where: { deviceId }
       });
       expect(config!.ipAddress).toBeNull();
+      expect(config!.enabled).toBe(false);
+    });
+
+    it('rejects clearing the ipAddress while polling stays enabled', async () => {
+      const result = await useCase.execute({ deviceId, ipAddress: null });
+
+      expect(result.isFailure).toBe(true);
+
+      const config = await prisma.pollingConfiguration.findFirst({
+        where: { deviceId }
+      });
+      expect(config!.ipAddress).toBe('192.168.99.1');
     });
 
     it('does not touch fields that are absent from the request', async () => {

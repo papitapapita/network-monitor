@@ -34,10 +34,21 @@ Inner layers never import from outer. No framework dependencies in domain.
 
 Tests mirror `src/` under `tests/`. File extension: `*.test.ts`.
 
-- `npm test` — unit tests
+- `npm test` — unit tests (never touches a database)
 - `npm run test:integration` — real DB, no Prisma mocks
 
 Style: `describe/it` blocks, fixture helpers (`makeDevice()`, `makeProps()`), `clearEvents()` before asserting specific events, `reconstitute()` to bypass invariants in command tests.
+
+### Integration tests
+
+Two layers, split by what can break — full rules in `docs/rules/TESTING-INTEGRATION-STANDARD.md`.
+
+- **Route tests** (`tests/integration/<resource>.routes.test.ts`) — the whole picture. One per route file, always. Supertest through the real container: status codes, auth (`401`), RBAC (`403`), validation (`400`), response envelope. **Every request needs a Bearer token** — all `/api` routes sit behind `createAuthenticateMiddleware`.
+- **Use case tests** (`tests/integration/use-cases/<context>/<Name>.integration.test.ts`) — specific features. **One per use case, no exceptions** — coverage stays a `find` command, not a judgment call. Depth scales with the use case: DB-state rules (uniqueness, cascade), state machines, events another handler persists, non-trivial queries, and use cases with **no HTTP surface** (purge jobs, orchestrators — nothing else covers these) get thorough suites; thin pass-throughs get happy path + not-found + malformed id.
+
+Fixtures live in `tests/integration/helpers/`: `clean*` (FK-safe deletes), `seed*` (returns the id), `Fake*` (outbound ports — never hit the network). Extension is `.test.ts`; `.spec.ts` is silently skipped.
+
+The test DB (`network_monitor_test` from `.env.test`) is separate from dev — `prisma migrate dev` does not migrate it. Uniform `column ... does not exist` failures across unrelated contexts mean drift: `set -a; . ./.env.test; set +a; npx prisma migrate deploy`.
 
 ## Naming
 

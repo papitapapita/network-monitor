@@ -9,6 +9,7 @@ import {
 import {
   cleanDatabase,
   seedDeviceModel,
+  seedLocation,
   GHOST_ID
 } from '../../helpers/db';
 
@@ -26,6 +27,7 @@ describe('CreateDeviceUseCase — integration', () => {
   let prisma: PrismaClient;
   let useCase: CreateDeviceUseCase;
   let deviceModelId: string;
+  let locationId: string;
 
   beforeAll(async () => {
     container = await setupDependencies();
@@ -42,8 +44,10 @@ describe('CreateDeviceUseCase — integration', () => {
     await container.disconnect();
   });
 
+  // cleanDatabase() wipes locations, so the fixture is re-seeded per test.
   beforeEach(async () => {
     await cleanDatabase(prisma);
+    locationId = await seedLocation(prisma);
   });
 
   // ──────────────────────────────────────────────────────────────
@@ -69,6 +73,7 @@ describe('CreateDeviceUseCase — integration', () => {
   it('succeeds with all optional fields', async () => {
     const result = await useCase.execute({
       deviceModelId,
+      locationId,
       name: 'Access Point SP',
       ownerType: 'CLIENT',
       status: 'ACTIVE',
@@ -93,8 +98,10 @@ describe('CreateDeviceUseCase — integration', () => {
   it('auto-creates a PollingConfiguration when monitoringEnabled=true', async () => {
     const result = await useCase.execute({
       deviceModelId,
+      locationId,
       name: 'Monitored Switch',
       ownerType: 'COMPANY',
+      status: 'ACTIVE',
       serialNumber: 'SN-001',
       ipAddress: '192.168.1.1',
       monitoringEnabled: true

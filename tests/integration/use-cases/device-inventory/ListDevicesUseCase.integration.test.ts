@@ -7,7 +7,11 @@ import {
   setupDependencies,
   DependencyContainer
 } from 'infrastructure/di/container';
-import { cleanDatabase, seedDeviceModel } from '../../helpers/db';
+import {
+  cleanDatabase,
+  seedDeviceModel,
+  seedLocation
+} from '../../helpers/db';
 
 describe('ListDevicesUseCase — integration', () => {
   let container: DependencyContainer;
@@ -15,6 +19,7 @@ describe('ListDevicesUseCase — integration', () => {
   let createUseCase: CreateDeviceUseCase;
   let listUseCase: ListDevicesUseCase;
   let deviceModelId: string;
+  let locationId: string;
 
   beforeAll(async () => {
     container = await setupDependencies();
@@ -31,8 +36,10 @@ describe('ListDevicesUseCase — integration', () => {
     await container.disconnect();
   });
 
+  // cleanDatabase() wipes locations, so the fixture is re-seeded per test.
   beforeEach(async () => {
     await cleanDatabase(prisma);
+    locationId = await seedLocation(prisma);
   });
 
   // ──────────────────────────────────────────────────────────────
@@ -104,6 +111,7 @@ describe('ListDevicesUseCase — integration', () => {
   it('filters by status', async () => {
     await createUseCase.execute({
       deviceModelId,
+      locationId,
       name: 'Active Device',
       ownerType: 'COMPANY',
       status: 'ACTIVE',
@@ -127,6 +135,7 @@ describe('ListDevicesUseCase — integration', () => {
   it('filters by category', async () => {
     await createUseCase.execute({
       deviceModelId,
+      locationId,
       name: 'Core Switch',
       ownerType: 'COMPANY',
       status: 'ACTIVE',
@@ -135,6 +144,7 @@ describe('ListDevicesUseCase — integration', () => {
     });
     await createUseCase.execute({
       deviceModelId,
+      locationId,
       name: 'Access Point',
       ownerType: 'COMPANY',
       status: 'ACTIVE',

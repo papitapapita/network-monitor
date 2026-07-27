@@ -45,7 +45,9 @@ describe('GetLocationUseCase — integration', () => {
     const created = await createUseCase.execute({
       name: 'Roof Tower',
       type: 'TOWER',
-      municipality: 'Campinas'
+      address: 'Rua das Palmeiras 100',
+      municipality: 'Campinas',
+      neighborhood: 'Centro'
     });
 
     expect(created.isSuccess).toBe(true);
@@ -57,7 +59,22 @@ describe('GetLocationUseCase — integration', () => {
     expect(result.value.id).toBe(id);
     expect(result.value.name).toBe('Roof Tower');
     expect(result.value.type).toBe('TOWER');
+    expect(result.value.address).toBe('Rua das Palmeiras 100');
     expect(result.value.municipality).toBe('Campinas');
+    expect(result.value.neighborhood).toBe('Centro');
+  });
+
+  it('fails when an address is given without a street and neighborhood', async () => {
+    const result = await createUseCase.execute({
+      name: 'Partial Address Tower',
+      type: 'TOWER',
+      municipality: 'Campinas'
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(
+      /address requires a street, municipality, and neighborhood/i
+    );
   });
 
   // ──────────────────────────────────────────────────────────────

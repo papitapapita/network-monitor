@@ -5,7 +5,14 @@ export default {
   transform: {
     '^.+.tsx?$': ['ts-jest', { tsconfig: 'tsconfig.json' }]
   },
-  testPathIgnorePatterns: ['/node_modules/', '/dist/', '/.claude/'],
+  // Integration tests need a real DB and .env.test; they run via
+  // jest.integration.config.js only. Without this they leak into `npm test`.
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '/dist/',
+    '/.claude/',
+    '/tests/integration/'
+  ],
   transformIgnorePatterns: [
     '/node_modules/(?!uuid)/' // Allow Jest to transform uuid
   ],

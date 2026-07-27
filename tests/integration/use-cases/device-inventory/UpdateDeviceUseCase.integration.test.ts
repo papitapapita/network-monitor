@@ -71,13 +71,22 @@ describe('UpdateDeviceUseCase — integration', () => {
   });
 
   it('updates the device status from INVENTORY to ACTIVE', async () => {
-    // Domain rule: cannot activate without an IP address
-    const id = await createDevice({ ipAddress: '10.1.0.1' });
+    // Domain rules: activating needs both an IP address and a location
+    const id = await createDevice({ ipAddress: '10.1.0.1', locationId });
 
     const result = await updateUseCase.execute({ id, status: 'ACTIVE' });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.status).toBe('ACTIVE');
+  });
+
+  it('fails to activate a device that has no location', async () => {
+    const id = await createDevice({ ipAddress: '10.1.0.2' });
+
+    const result = await updateUseCase.execute({ id, status: 'ACTIVE' });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/ACTIVE device must have a location/i);
   });
 
   it('assigns a location to the device', async () => {
@@ -99,7 +108,12 @@ describe('UpdateDeviceUseCase — integration', () => {
   });
 
   it('enables monitoring and creates a polling configuration', async () => {
-    const id = await createDevice({ ipAddress: '10.100.0.1' });
+    // Domain rule: monitoring is only allowed on ACTIVE/COMMISSIONING devices
+    const id = await createDevice({
+      ipAddress: '10.100.0.1',
+      locationId,
+      status: 'ACTIVE'
+    });
 
     const result = await updateUseCase.execute({
       id,
