@@ -11,3 +11,4 @@ export * from './customer.schemas';
 export * from './service-plan.schemas';
 export * from './contracted-service.schemas';
 export * from './bill.schemas';
+export * from './enforcement.schemas';

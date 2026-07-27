@@ -168,6 +168,7 @@ describe('EventDispatcher', () => {
   beforeEach(() => {
     EventDispatcher.clearHandlers();
     EventDispatcher.clearMarkedAggregates();
+    EventDispatcher.clearErrorReporter();
   });
 
   // =========================================================================
@@ -701,10 +702,9 @@ describe('EventDispatcher', () => {
     });
 
     describe('synchronous handler error isolation', () => {
-      it('should log an error via console.error when a synchronous handler throws', () => {
-        const errorSpy = jest
-          .spyOn(console, 'error')
-          .mockImplementation(() => undefined);
+      it('should report an error via the error reporter when a synchronous handler throws', () => {
+        const errorSpy = jest.fn();
+        EventDispatcher.setErrorReporter(errorSpy);
 
         const throwingHandler: IHandle<FakeDomainEvent> = {
           handle(_event: FakeDomainEvent): void {
@@ -722,11 +722,9 @@ describe('EventDispatcher', () => {
         EventDispatcher.dispatchEventsForAggregate(id);
 
         expect(errorSpy).toHaveBeenCalledWith(
-          expect.stringContaining('FakeDomainEvent'),
+          'FakeDomainEvent',
           expect.any(Error)
         );
-
-        errorSpy.mockRestore();
       });
 
       it('should not propagate the exception thrown by a synchronous handler to the caller', () => {
@@ -783,10 +781,9 @@ describe('EventDispatcher', () => {
         jest.restoreAllMocks();
       });
 
-      it('should log the correct error message prefix for a synchronous failure', () => {
-        const errorSpy = jest
-          .spyOn(console, 'error')
-          .mockImplementation(() => undefined);
+      it('should pass the thrown error through to the reporter for a synchronous failure', () => {
+        const errorSpy = jest.fn();
+        EventDispatcher.setErrorReporter(errorSpy);
 
         const thrown = new Error('specific sync error');
         const throwingHandler: IHandle<FakeDomainEvent> = {
@@ -805,19 +802,42 @@ describe('EventDispatcher', () => {
         EventDispatcher.dispatchEventsForAggregate(id);
 
         expect(errorSpy).toHaveBeenCalledWith(
-          `Error in handler for FakeDomainEvent:`,
+          'FakeDomainEvent',
           thrown
         );
+      });
 
-        errorSpy.mockRestore();
+      it('should keep dispatching when the error reporter itself throws', () => {
+        EventDispatcher.setErrorReporter(() => {
+          throw new Error('reporter is broken');
+        });
+
+        const throwingHandler: IHandle<FakeDomainEvent> = {
+          handle(_event: FakeDomainEvent): void {
+            throw new Error('handler boom');
+          }
+        };
+        const survivingHandler = new FakeEventHandler();
+
+        EventDispatcher.register('FakeDomainEvent', throwingHandler);
+        EventDispatcher.register('FakeDomainEvent', survivingHandler);
+
+        const id = makeId(UUID_A);
+        const aggregate = makeAggregate(id);
+        aggregate.generateEvent(makeEvent(id));
+        EventDispatcher.markAggregateForDispatch(aggregate);
+
+        expect(() =>
+          EventDispatcher.dispatchEventsForAggregate(id)
+        ).not.toThrow();
+        expect(survivingHandler.callCount).toBe(1);
       });
     });
 
     describe('asynchronous handler error isolation', () => {
       it('should catch a rejected Promise returned by an async handler without causing an unhandled rejection', async () => {
-        const errorSpy = jest
-          .spyOn(console, 'error')
-          .mockImplementation(() => undefined);
+        const errorSpy = jest.fn();
+        EventDispatcher.setErrorReporter(errorSpy);
 
         const asyncThrowingHandler: IHandle<FakeDomainEvent> = {
           handle(_event: FakeDomainEvent): Promise<void> {
@@ -846,17 +866,14 @@ describe('EventDispatcher', () => {
         await Promise.resolve();
 
         expect(errorSpy).toHaveBeenCalledWith(
-          expect.stringContaining('FakeDomainEvent'),
+          'FakeDomainEvent',
           expect.any(Error)
         );
-
-        errorSpy.mockRestore();
       });
 
-      it('should log the correct error message prefix for an async failure', async () => {
-        const errorSpy = jest
-          .spyOn(console, 'error')
-          .mockImplementation(() => undefined);
+      it('should pass the rejected error through to the reporter for an async failure', async () => {
+        const errorSpy = jest.fn();
+        EventDispatcher.setErrorReporter(errorSpy);
 
         const rejectedError = new Error('specific async error');
         const asyncThrowingHandler: IHandle<FakeDomainEvent> = {
@@ -880,11 +897,9 @@ describe('EventDispatcher', () => {
         await Promise.resolve();
 
         expect(errorSpy).toHaveBeenCalledWith(
-          `Error in async handler for FakeDomainEvent:`,
+          'FakeDomainEvent',
           rejectedError
         );
-
-        errorSpy.mockRestore();
       });
 
       it('should not invoke synchronous handlers with the returned Promise object', () => {

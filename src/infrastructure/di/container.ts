@@ -40,7 +40,8 @@ import {
   CustomerController,
   ServicePlanController,
   ContractedServiceController,
-  BillController
+  BillController,
+  EnforcementController
 } from 'presentation/http/controllers';
 import {
   CreateCustomerUseCase,
@@ -100,6 +101,7 @@ import {
   GetActiveWirelessAlertsUseCase,
   GetWirelessAlertHistoryUseCase,
   TriggerWirelessPollUseCase,
+  RebootWirelessDeviceUseCase,
   CreateWirelessConfigUseCase,
   GetWirelessConfigUseCase,
   UpdateWirelessConfigUseCase,
@@ -119,8 +121,25 @@ import {
   NetworkScannerService
 } from '../monitoring/network-scanner';
 import { PollingOrchestrator } from '../monitoring/orchestrator';
-import { TelegramNotificationService } from '../notifications';
+import {
+  TelegramNotificationService,
+  WhatsAppNotificationService,
+  WirelessAlertNotifier
+} from '../notifications';
+import {
+  RouterOsQueueService,
+  SuspensionReconciliationOrchestrator
+} from '../service-enforcement';
+import { EnforcementRouterResolver } from 'application/service-enforcement/services';
+import {
+  EnforceSuspensionUseCase,
+  ReleaseSuspensionUseCase,
+  ListSuspensionEnforcementsUseCase,
+  GetServiceEnforcementStatusUseCase
+} from 'application/service-enforcement/use-cases';
+import { ContractedServiceStatusChangedEnforcementHandler } from 'application/service-enforcement/event-handlers';
 import { EventDispatcher } from 'domain/shared/core';
+import { ContractedServiceStatusChangedEvent } from 'domain/customers/events';
 import {
   DeviceCreatedEvent,
   DeviceStatusChangedEvent,
@@ -141,12 +160,17 @@ import {
   SendDeviceDownAlertUseCase,
   SendDeviceRecoveryAlertUseCase,
   ListAlertsUseCase,
-  PurgeOldAlertsUseCase
+  PurgeOldAlertsUseCase,
+  SendSuspensionNoticeUseCase,
+  SendAlertNotificationUseCase
 } from 'application/notifications/use-cases';
 import {
   DeviceWentOfflineNotificationHandler,
-  DeviceCameOnlineNotificationHandler
+  DeviceCameOnlineNotificationHandler,
+  ContractedServiceSuspendedNotificationHandler
 } from 'application/notifications/event-handlers';
+import { WirelessAlertClearedNotificationHandler } from 'application/wireless-monitoring/event-handlers';
+import { WirelessAlertClearedEvent } from 'domain/wireless-monitoring/events';
 
 // Use Cases
 import {
@@ -231,11 +255,15 @@ export class DependencyContainer {
   public servicePlanController: ServicePlanController;
   public contractedServiceController: ContractedServiceController;
   public billController: BillController;
+  public enforcementController: EnforcementController;
 
   // Orchestrators (lifecycle managed by main.ts)
   public pollingOrchestrator: PollingOrchestrator;
   public wirelessPollingOrchestrator: WirelessPollingOrchestrator;
   public dataRetentionOrchestrator: DataRetentionOrchestrator;
+  // null when ENFORCEMENT_ROUTER_DEVICE_ID is not configured
+  public suspensionReconciliationOrchestrator: SuspensionReconciliationOrchestrator | null =
+    null;
 
   // Admin
   public adminController: AdminController;
@@ -634,6 +662,24 @@ export class DependencyContainer {
         telegramNotificationService,
         this.logger
       );
+    const sendAlertNotificationUseCase =
+      new SendAlertNotificationUseCase(
+        this.deviceRepository,
+        telegramNotificationService,
+        this.logger
+      );
+
+    // Wireless alert delivery is independently disableable so wireless
+    // polling can run without paging anyone.
+    const wirelessAlertNotifier =
+      process.env.WIRELESS_ALERT_NOTIFICATIONS_ENABLED === 'false'
+        ? null
+        : new WirelessAlertNotifier(sendAlertNotificationUseCase);
+    if (!wirelessAlertNotifier) {
+      this.logger.warn(
+        'WIRELESS_ALERT_NOTIFICATIONS_ENABLED=false — wireless alert notifications disabled'
+      );
+    }
     const listAlertsUseCase = new ListAlertsUseCase(
       this.alertRepository,
       this.logger
@@ -685,6 +731,7 @@ export class DependencyContainer {
       httpCollector,
       alertEvaluator,
       wirelessDeviceRepo,
+      wirelessAlertNotifier,
       this.logger
     );
     const getWirelessDeviceStatusUseCase =
@@ -716,6 +763,13 @@ export class DependencyContainer {
       pollWirelessDeviceUseCase,
       this.logger
     );
+    const rebootWirelessDeviceUseCase =
+      new RebootWirelessDeviceUseCase(
+        this.wirelessDeviceConfigRepository,
+        this.deviceCredentialsRepository,
+        httpCollector,
+        this.logger
+      );
     const createWirelessConfigUseCase =
       new CreateWirelessConfigUseCase(
         this.deviceRepository,
@@ -745,6 +799,7 @@ export class DependencyContainer {
       getActiveWirelessAlertsUseCase,
       getWirelessAlertHistoryUseCase,
       triggerWirelessPollUseCase,
+      rebootWirelessDeviceUseCase,
       createWirelessConfigUseCase,
       getWirelessConfigUseCase,
       updateWirelessConfigUseCase,
@@ -849,6 +904,14 @@ export class DependencyContainer {
       this.logger
     );
 
+    EventDispatcher.setErrorReporter((eventClassName, error) =>
+      this.logger.error(
+        `Unhandled error in domain event handler`,
+        error,
+        { event: eventClassName }
+      )
+    );
+
     // Register cross-context event handlers
     EventDispatcher.register(
       DeviceCreatedEvent.name,
@@ -892,6 +955,121 @@ export class DependencyContainer {
         this.logger
       )
     );
+
+    if (wirelessAlertNotifier) {
+      EventDispatcher.register(
+        WirelessAlertClearedEvent.name,
+        new WirelessAlertClearedNotificationHandler(
+          wirelessAlertNotifier,
+          this.logger
+        )
+      );
+    }
+
+    // WhatsApp suspension notices are optional — existing deployments
+    // without the env vars must keep booting.
+    if (
+      process.env.WHATSAPP_ACCESS_TOKEN &&
+      process.env.WHATSAPP_PHONE_NUMBER_ID &&
+      process.env.WHATSAPP_TEMPLATE_NAME
+    ) {
+      const whatsAppNotificationService =
+        new WhatsAppNotificationService();
+      const sendSuspensionNoticeUseCase =
+        new SendSuspensionNoticeUseCase(
+          this.contractedServiceRepository,
+          this.customerRepository,
+          whatsAppNotificationService,
+          this.logger
+        );
+      EventDispatcher.register(
+        ContractedServiceStatusChangedEvent.name,
+        new ContractedServiceSuspendedNotificationHandler(
+          sendSuspensionNoticeUseCase,
+          this.logger
+        )
+      );
+    } else {
+      this.logger.warn(
+        'WhatsApp env vars not set — suspension notices disabled'
+      );
+    }
+
+    // MikroTik suspension enforcement is optional — existing deployments
+    // without an enforcement router must keep booting.
+    const enforcementRouterDeviceId =
+      process.env.ENFORCEMENT_ROUTER_DEVICE_ID;
+    if (enforcementRouterDeviceId) {
+      const routerResolver = new EnforcementRouterResolver(
+        this.deviceRepository,
+        this.deviceCredentialsRepository,
+        {
+          routerDeviceId: enforcementRouterDeviceId,
+          apiPort: Number(
+            process.env.ENFORCEMENT_ROUTER_API_PORT ?? 8728
+          )
+        }
+      );
+      const routerQueueService = new RouterOsQueueService(
+        this.logger
+      );
+      const enforceSuspensionUseCase = new EnforceSuspensionUseCase(
+        this.contractedServiceRepository,
+        this.deviceRepository,
+        routerResolver,
+        routerQueueService,
+        this.logger
+      );
+      const releaseSuspensionUseCase = new ReleaseSuspensionUseCase(
+        routerResolver,
+        routerQueueService,
+        this.logger
+      );
+      EventDispatcher.register(
+        ContractedServiceStatusChangedEvent.name,
+        new ContractedServiceStatusChangedEnforcementHandler(
+          enforceSuspensionUseCase,
+          releaseSuspensionUseCase,
+          this.logger
+        )
+      );
+      this.suspensionReconciliationOrchestrator =
+        new SuspensionReconciliationOrchestrator(
+          this.contractedServiceRepository,
+          this.deviceRepository,
+          routerResolver,
+          routerQueueService,
+          {
+            checkIntervalMs: Number(
+              process.env.SUSPENSION_RECONCILE_INTERVAL_MS ?? 60_000
+            )
+          },
+          this.logger
+        );
+      this.enforcementController = new EnforcementController(
+        new ListSuspensionEnforcementsUseCase(
+          routerResolver,
+          routerQueueService,
+          this.logger
+        ),
+        new GetServiceEnforcementStatusUseCase(
+          routerResolver,
+          routerQueueService,
+          this.logger
+        ),
+        this.logger
+      );
+    } else {
+      this.logger.warn(
+        'ENFORCEMENT_ROUTER_DEVICE_ID not set — suspension enforcement disabled'
+      );
+      // routes stay mounted; endpoints answer 503 until configured
+      this.enforcementController = new EnforcementController(
+        null,
+        null,
+        this.logger
+      );
+    }
   }
 
   public async connect(): Promise<void> {

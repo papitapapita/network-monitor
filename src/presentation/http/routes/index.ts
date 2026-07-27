@@ -14,6 +14,7 @@ import { createAdminRoutes } from './admin.routes';
 import { createCustomerRoutes } from './customer.routes';
 import { createServicePlanRoutes } from './service-plan.routes';
 import { createContractedServiceRoutes } from './contracted-service.routes';
+import { createEnforcementRoutes } from './enforcement.routes';
 import { createBillRoutes } from './bill.routes';
 import {
   createAuditLogMiddleware,
@@ -106,6 +107,17 @@ export function setupRoutes(
     createContractedServiceRoutes(
       container.contractedServiceController
     )
+  );
+
+  // =====================================
+  // SERVICE-ENFORCEMENT BOUNDED CONTEXT
+  // =====================================
+
+  // Enforcement status: /api/enforcement/suspensions,
+  // /api/contracted-services/:id/enforcement
+  apiRouter.use(
+    '/',
+    createEnforcementRoutes(container.enforcementController)
   );
 
   // =====================================

@@ -2,11 +2,27 @@ import { IDomainEvent, IHandle } from '../interfaces';
 import { AggregateRoot } from './AggregateRoot';
 import { UniqueEntityID } from './UniqueEntityID';
 
+export type EventHandlerErrorReporter = (
+  eventClassName: string,
+  error: Error
+) => void;
+
 export abstract class EventDispatcher {
   private static handlersMap: Map<string, IHandle<IDomainEvent>[]> =
     new Map();
 
   private static markedAggregates: AggregateRoot<any, any>[] = [];
+
+  // The domain layer cannot depend on ILogger, so composition root injects a
+  // reporter instead. Defaults to a no-op: handler failures are already
+  // isolated from the dispatch loop, reporting them is the outer layer's job.
+  private static errorReporter: EventHandlerErrorReporter = () => {};
+
+  public static setErrorReporter(
+    reporter: EventHandlerErrorReporter
+  ): void {
+    this.errorReporter = reporter;
+  }
 
   public static markAggregateForDispatch<
     T,
@@ -82,6 +98,25 @@ export abstract class EventDispatcher {
     this.markedAggregates = [];
   }
 
+  public static clearErrorReporter(): void { // for testing
+    this.errorReporter = () => {};
+  }
+
+  // reporting must never take down the dispatch loop it is reporting from
+  private static report(
+    eventClassName: string,
+    error: unknown
+  ): void {
+    try {
+      this.errorReporter(
+        eventClassName,
+        error instanceof Error ? error : new Error(String(error))
+      );
+    } catch {
+      // swallowed deliberately
+    }
+  }
+
   private static dispatch(event: IDomainEvent): void {
     const eventClassName: string = event.constructor.name;
 
@@ -93,19 +128,11 @@ export abstract class EventDispatcher {
           const result = handler.handle(event);
           if (result instanceof Promise) {
             result.catch((error) => {
-              // TODO: replace with logger
-              console.error(
-                `Error in async handler for ${eventClassName}:`,
-                error
-              );
+              this.report(eventClassName, error);
             });
           }
         } catch (error) {
-          // TODO: replace with logger
-          console.error(
-            `Error in handler for ${eventClassName}:`,
-            error
-          );
+          this.report(eventClassName, error);
         }
       }
     }
