@@ -404,12 +404,13 @@ model WirelessAlertRecord {
   isActive    Boolean               @default(true) @map("is_active")
   lastValue   Decimal               @map("last_value") @db.Decimal(12, 4)
   message     String                @db.Text
+  notifiedAt  DateTime?             @map("notified_at") @db.Timestamptz
   createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime              @updatedAt @map("updated_at") @db.Timestamptz
 
   device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
-  @@index([deviceId, metric, isActive])
+  @@index([deviceId, metric, severity, isActive])
   @@index([isActive, triggeredAt(sort: Desc)])
   @@map("wireless_alert_records")
 }
