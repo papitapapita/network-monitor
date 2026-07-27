@@ -50,7 +50,8 @@ export class UpdateWirelessConfigUseCase extends UseCase<
       return this.fail('Wireless config not found for device');
     }
 
-    const updates = WirelessDeviceConfigMapper.extractUpdateData(request);
+    const updates =
+      WirelessDeviceConfigMapper.extractUpdateData(request);
 
     if (updates.ipAddress !== undefined) {
       if (updates.ipAddress === null) {
@@ -72,14 +73,20 @@ export class UpdateWirelessConfigUseCase extends UseCase<
     }
 
     if (updates.intervalSecs !== undefined) {
-      const intervalResult = PollingInterval.create(updates.intervalSecs);
+      const intervalResult = PollingInterval.create(
+        updates.intervalSecs
+      );
       if (intervalResult.isFailure) {
-        return this.fail(`Invalid polling interval: ${intervalResult.error}`);
+        return this.fail(
+          `Invalid polling interval: ${intervalResult.error}`
+        );
       }
       config.updatePollingInterval(intervalResult.value);
     }
     if (updates.linkCapacityKbps !== undefined) {
-      const r = config.updateLinkCapacityBps(updates.linkCapacityKbps);
+      const r = config.updateLinkCapacityBps(
+        updates.linkCapacityKbps
+      );
       if (r.isFailure) return this.fail(r.error);
     }
     if (updates.clientsProvisionedLimit !== undefined) {
@@ -93,6 +100,8 @@ export class UpdateWirelessConfigUseCase extends UseCase<
       return this.fail(saveResult.error);
     }
 
-    return this.ok(WirelessDeviceConfigMapper.toDTO(saveResult.value));
+    return this.ok(
+      WirelessDeviceConfigMapper.toDTO(saveResult.value)
+    );
   }
 }

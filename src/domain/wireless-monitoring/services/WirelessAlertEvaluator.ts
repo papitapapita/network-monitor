@@ -9,7 +9,9 @@ import { IAlertRule } from './rules/IAlertRule';
 
 export type { AlertDecision, EvaluationContext };
 
-export class WirelessAlertEvaluator implements IWirelessAlertEvaluator {
+export class WirelessAlertEvaluator
+  implements IWirelessAlertEvaluator
+{
   constructor(private readonly rules: IAlertRule[]) {}
 
   evaluate(

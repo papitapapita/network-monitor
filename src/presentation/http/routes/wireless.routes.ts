@@ -8,6 +8,7 @@ import {
   getDeviceWirelessAlertsSchema,
   getDeviceWirelessAlertHistorySchema,
   triggerWirelessPollSchema,
+  rebootWirelessDeviceSchema,
   getAllActiveAlertsSchema,
   getAllAlertHistorySchema,
   createWirelessConfigSchema,
@@ -31,6 +32,7 @@ import {
  * - GET    /api/devices/:id/wireless/alerts/history - Alert history for device
  * - GET    /api/devices/:id/wireless/alerts        - Active alerts for device
  * - POST   /api/devices/:id/wireless/poll          - Trigger immediate poll
+ * - POST   /api/devices/:id/wireless/reboot        - Reboot the device
  * - GET    /api/wireless/alerts/history            - All alert history
  * - GET    /api/wireless/alerts                    - All active alerts
  */
@@ -119,6 +121,14 @@ export function createWirelessRoutes(
     createRateLimiter('write'),
     validateRequest(triggerWirelessPollSchema),
     controller.triggerPoll
+  );
+
+  router.post(
+    '/devices/:id/wireless/reboot',
+    authorize('update'),
+    createRateLimiter('write'),
+    validateRequest(rebootWirelessDeviceSchema),
+    controller.reboot
   );
 
   // Global wireless routes (not device-scoped)

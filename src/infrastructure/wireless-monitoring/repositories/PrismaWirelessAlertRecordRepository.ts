@@ -26,7 +26,8 @@ export class PrismaWirelessAlertRecordRepository
           clearedAt: data.clearedAt,
           isActive: data.isActive,
           lastValue: data.lastValue,
-          message: data.message
+          message: data.message,
+          notifiedAt: data.notifiedAt
         },
         create: {
           id: data.id,
@@ -38,7 +39,8 @@ export class PrismaWirelessAlertRecordRepository
           clearedAt: data.clearedAt,
           isActive: data.isActive,
           lastValue: data.lastValue,
-          message: data.message
+          message: data.message,
+          notifiedAt: data.notifiedAt
         }
       });
 
@@ -51,15 +53,17 @@ export class PrismaWirelessAlertRecordRepository
     }
   }
 
-  async findActiveByDeviceAndMetric(
+  async findActiveByDeviceMetricAndSeverity(
     deviceId: DeviceId,
-    metric: string
+    metric: string,
+    severity: 'WARNING' | 'CRITICAL'
   ): Promise<Result<WirelessAlertRecord | null>> {
     try {
       const raw = await this.prisma.wirelessAlertRecord.findFirst({
         where: {
           deviceId: deviceId.toString(),
           metric,
+          severity,
           isActive: true
         }
       });
@@ -75,6 +79,34 @@ export class PrismaWirelessAlertRecordRepository
     } catch (error) {
       return Result.fail(
         `Database error finding active alert record: ${(error as Error).message}`
+      );
+    }
+  }
+
+  async findActiveUnnotifiedByDevice(
+    deviceId: DeviceId
+  ): Promise<Result<WirelessAlertRecord[]>> {
+    try {
+      const raws = await this.prisma.wirelessAlertRecord.findMany({
+        where: {
+          deviceId: deviceId.toString(),
+          isActive: true,
+          notifiedAt: null
+        },
+        orderBy: { triggeredAt: 'asc' }
+      });
+      return Result.ok(
+        raws.map((r) =>
+          WirelessAlertRecordPrismaMapper.toDomain(
+            r as Parameters<
+              typeof WirelessAlertRecordPrismaMapper.toDomain
+            >[0]
+          )
+        )
+      );
+    } catch (error) {
+      return Result.fail(
+        `Database error finding unnotified alerts: ${(error as Error).message}`
       );
     }
   }
@@ -191,7 +223,9 @@ export class PrismaWirelessAlertRecordRepository
     }
   }
 
-  async deleteClearedOlderThan(cutoff: Date): Promise<Result<number>> {
+  async deleteClearedOlderThan(
+    cutoff: Date
+  ): Promise<Result<number>> {
     try {
       const { count } =
         await this.prisma.wirelessAlertRecord.deleteMany({

@@ -88,9 +88,7 @@ export class PrismaWirelessDeviceConfigRepository
     }
   }
 
-  async exists(
-    id: WirelessDeviceConfigId
-  ): Promise<Result<boolean>> {
+  async exists(id: WirelessDeviceConfigId): Promise<Result<boolean>> {
     try {
       const count =
         await this.prisma.wirelessPollingConfiguration.count({

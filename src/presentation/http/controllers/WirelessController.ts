@@ -7,6 +7,7 @@ import {
   GetActiveWirelessAlertsUseCase,
   GetWirelessAlertHistoryUseCase,
   TriggerWirelessPollUseCase,
+  RebootWirelessDeviceUseCase,
   CreateWirelessConfigUseCase,
   GetWirelessConfigUseCase,
   UpdateWirelessConfigUseCase,
@@ -21,6 +22,7 @@ export class WirelessController {
     private readonly getActiveWirelessAlertsUseCase: GetActiveWirelessAlertsUseCase,
     private readonly getWirelessAlertHistoryUseCase: GetWirelessAlertHistoryUseCase,
     private readonly triggerWirelessPollUseCase: TriggerWirelessPollUseCase,
+    private readonly rebootWirelessDeviceUseCase: RebootWirelessDeviceUseCase,
     private readonly createWirelessConfigUseCase: CreateWirelessConfigUseCase,
     private readonly getWirelessConfigUseCase: GetWirelessConfigUseCase,
     private readonly updateWirelessConfigUseCase: UpdateWirelessConfigUseCase,
@@ -163,6 +165,30 @@ export class WirelessController {
   ): Promise<void> => {
     try {
       const result = await this.triggerWirelessPollUseCase.execute({
+        deviceId: req.params.id
+      });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res
+          .status(statusCode)
+          .json({ error: result.error });
+        return;
+      }
+
+      res.status(202).json(result.value);
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  // 202 Accepted — the device reboots asynchronously after acknowledging.
+  public reboot = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.rebootWirelessDeviceUseCase.execute({
         deviceId: req.params.id
       });
 

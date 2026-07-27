@@ -50,6 +50,7 @@ function makeAlertRecord(
       threshold: -70,
       lastValue: -75,
       message: 'Signal below threshold',
+      notifiedAt: null,
       triggeredAt: new Date('2024-01-01T00:00:00.000Z'),
       clearedAt: null,
       isActive: true,
@@ -69,8 +70,9 @@ describe('GetActiveWirelessAlertsUseCase', () => {
       save: jest.fn(),
       findById: jest.fn(),
       exists: jest.fn(),
-      findActiveByDeviceAndMetric: jest.fn(),
+      findActiveByDeviceMetricAndSeverity: jest.fn(),
       findAllActiveByDevice: jest.fn(),
+    findActiveUnnotifiedByDevice: jest.fn(),
       findAllActive: jest.fn(),
       findHistoryByDevice: jest.fn(),
       deleteClearedOlderThan: jest.fn()

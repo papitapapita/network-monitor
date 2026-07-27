@@ -19,8 +19,9 @@ function makeRepo(): jest.Mocked<IWirelessAlertRecordRepository> {
     save: jest.fn(),
     findById: jest.fn(),
     exists: jest.fn(),
-    findActiveByDeviceAndMetric: jest.fn(),
+    findActiveByDeviceMetricAndSeverity: jest.fn(),
     findAllActiveByDevice: jest.fn(),
+    findActiveUnnotifiedByDevice: jest.fn(),
     findAllActive: jest.fn(),
     findHistoryByDevice: jest.fn(),
     deleteClearedOlderThan: jest.fn()

@@ -328,4 +328,131 @@ describe('AirOsHttpClient', () => {
       expect(result.error).toContain('JSON');
     });
   });
+
+  // ===========================================================================
+  describe('reboot', () => {
+    const CSRF_ID = 'csrf-token-123';
+
+    function stubReboot(options: {
+      authHeaders?: Record<string, string | string[]>;
+      rebootStatusCodes?: number[];
+    }): { requests: https.RequestOptions[] } {
+      const requests: https.RequestOptions[] = [];
+      let rebootCallCount = 0;
+      (https.request as jest.Mock).mockImplementation(
+        (
+          opts: https.RequestOptions,
+          cb?: (res: EventEmitter & { statusCode?: number; headers: Record<string, unknown> }) => void
+        ) => {
+          requests.push(opts);
+          const isAuth = (opts.path ?? '').includes('/api/auth');
+          let statusCode: number;
+          let headers: Record<string, string | string[]> = {};
+          if (isAuth) {
+            statusCode = 200;
+            headers = options.authHeaders ?? {
+              'set-cookie': [`${SESSION_COOKIE}; Path=/`],
+              'x-csrf-id': CSRF_ID
+            };
+          } else {
+            statusCode =
+              options.rebootStatusCodes?.[rebootCallCount] ?? 200;
+            rebootCallCount++;
+          }
+          const req = new EventEmitter() as EventEmitter & { end: jest.Mock; write: jest.Mock; destroy: jest.Mock };
+          req.end = jest.fn().mockImplementation(() => {
+            if (cb) {
+              const res = new EventEmitter() as EventEmitter & { statusCode?: number; headers: Record<string, unknown> };
+              res.statusCode = statusCode;
+              res.headers = headers;
+              cb(res);
+              res.emit('data', Buffer.from(''));
+              res.emit('end');
+            }
+          });
+          req.write = jest.fn();
+          req.destroy = jest.fn();
+          return req;
+        }
+      );
+      return { requests };
+    }
+
+    it('should POST to /api/system/reboot with cookie and CSRF header', async () => {
+      const { requests } = stubReboot({});
+
+      const client = new AirOsHttpClient();
+      const result = await client.reboot(IP, PORT, CREDS);
+
+      expect(result.isSuccess).toBe(true);
+      const rebootReq = requests.find(
+        (r) => r.path === '/api/system/reboot'
+      );
+      expect(rebootReq).toBeDefined();
+      expect(rebootReq!.method).toBe('POST');
+      expect(rebootReq!.headers?.['Cookie']).toBe(SESSION_COOKIE);
+      expect(rebootReq!.headers?.['X-CSRF-ID']).toBe(CSRF_ID);
+    });
+
+    it('should tolerate a missing x-csrf-id header on auth', async () => {
+      const { requests } = stubReboot({
+        authHeaders: { 'set-cookie': [`${SESSION_COOKIE}; Path=/`] }
+      });
+
+      const client = new AirOsHttpClient();
+      const result = await client.reboot(IP, PORT, CREDS);
+
+      expect(result.isSuccess).toBe(true);
+      const rebootReq = requests.find(
+        (r) => r.path === '/api/system/reboot'
+      );
+      expect(rebootReq!.headers?.['X-CSRF-ID']).toBeUndefined();
+    });
+
+    it('should re-authenticate once and retry when reboot returns 401', async () => {
+      const { requests } = stubReboot({ rebootStatusCodes: [401, 200] });
+
+      const client = new AirOsHttpClient();
+      const result = await client.reboot(IP, PORT, CREDS);
+
+      expect(result.isSuccess).toBe(true);
+      const authCalls = requests.filter(
+        (r) => r.path === '/api/auth'
+      );
+      expect(authCalls).toHaveLength(2);
+    });
+
+    it('should fail when reboot returns a non-success status', async () => {
+      stubReboot({ rebootStatusCodes: [500] });
+
+      const client = new AirOsHttpClient();
+      const result = await client.reboot(IP, PORT, CREDS);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('HTTP 500');
+    });
+
+    it('should drop the session after a successful reboot', async () => {
+      const { requests } = stubReboot({});
+
+      const client = new AirOsHttpClient();
+      await client.reboot(IP, PORT, CREDS);
+      await client.reboot(IP, PORT, CREDS);
+
+      const authCalls = requests.filter(
+        (r) => r.path === '/api/auth'
+      );
+      expect(authCalls).toHaveLength(2);
+    });
+
+    it('should fail when auth fails', async () => {
+      stubRequest({ statusCode: 403, body: '' });
+
+      const client = new AirOsHttpClient();
+      const result = await client.reboot(IP, PORT, CREDS);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Authentication failed');
+    });
+  });
 });

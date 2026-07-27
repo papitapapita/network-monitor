@@ -50,6 +50,7 @@ function makeAlertRecord(
       threshold: -70,
       lastValue: -65,
       message: 'Signal recovered',
+      notifiedAt: null,
       triggeredAt,
       clearedAt,
       isActive,
@@ -69,8 +70,9 @@ describe('GetWirelessAlertHistoryUseCase', () => {
       save: jest.fn(),
       findById: jest.fn(),
       exists: jest.fn(),
-      findActiveByDeviceAndMetric: jest.fn(),
+      findActiveByDeviceMetricAndSeverity: jest.fn(),
       findAllActiveByDevice: jest.fn(),
+    findActiveUnnotifiedByDevice: jest.fn(),
       findAllActive: jest.fn(),
       findHistoryByDevice: jest.fn(),
       deleteClearedOlderThan: jest.fn()

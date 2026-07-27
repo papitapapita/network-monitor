@@ -139,7 +139,9 @@ export class WirelessSnapshotPrismaMapper {
       capacityTxKbps: raw.capacityTxKbps,
       capacityRxKbps: raw.capacityRxKbps,
       deviceTimeEpoch:
-        raw.deviceTimeEpoch !== null ? Number(raw.deviceTimeEpoch) : null,
+        raw.deviceTimeEpoch !== null
+          ? Number(raw.deviceTimeEpoch)
+          : null,
       clientsConnected: raw.clientsConnected,
       macAddress: raw.macAddress,
       deviceModel: raw.deviceModel,
@@ -158,9 +160,11 @@ export class WirelessSnapshotPrismaMapper {
             macAddress: String(c['macAddress'] ?? ''),
             ipAddress: (c['ipAddress'] as string | null) ?? null,
             signalRxDbm: (c['signalRxDbm'] as number | null) ?? null,
-            noiseFloorDbm: (c['noiseFloorDbm'] as number | null) ?? null,
+            noiseFloorDbm:
+              (c['noiseFloorDbm'] as number | null) ?? null,
             distanceM: (c['distanceM'] as number | null) ?? null,
-            uptimeSeconds: (c['uptimeSeconds'] as number | null) ?? null,
+            uptimeSeconds:
+              (c['uptimeSeconds'] as number | null) ?? null,
             txLatencyMs: (c['txLatencyMs'] as number | null) ?? null,
             dlLinkScore: (c['dlLinkScore'] as number | null) ?? null,
             ulLinkScore: (c['ulLinkScore'] as number | null) ?? null,
@@ -192,7 +196,8 @@ export class WirelessSnapshotPrismaMapper {
               (c['remoteTotalRam'] as number | null) ?? null,
             remoteFreeRam:
               (c['remoteFreeRam'] as number | null) ?? null,
-            remoteSignal: (c['remoteSignal'] as number | null) ?? null,
+            remoteSignal:
+              (c['remoteSignal'] as number | null) ?? null,
             remoteNoiseFloor:
               (c['remoteNoiseFloor'] as number | null) ?? null,
             remoteTxPower:

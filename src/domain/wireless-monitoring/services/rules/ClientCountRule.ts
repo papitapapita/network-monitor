@@ -1,6 +1,9 @@
 import { WirelessMetrics } from '../../value-objects';
 import { WirelessAlertRecord } from '../../aggregates';
-import { AlertDecision, EvaluationContext } from '../IWirelessAlertEvaluator';
+import {
+  AlertDecision,
+  EvaluationContext
+} from '../IWirelessAlertEvaluator';
 import { IAlertRule } from './IAlertRule';
 
 const SUDDEN_DROP_RATIO = 0.5;
@@ -46,8 +49,13 @@ export class ClientCountRule implements IAlertRule {
     }
 
     // clients_sudden_drop — WARNING when connected count drops ≥50% vs previous poll
-    const previous = context.previousMetrics?.clientsConnected ?? null;
-    if (current !== null && previous !== null && previous > SUDDEN_DROP_MIN_PREVIOUS) {
+    const previous =
+      context.previousMetrics?.clientsConnected ?? null;
+    if (
+      current !== null &&
+      previous !== null &&
+      previous > SUDDEN_DROP_MIN_PREVIOUS
+    ) {
       const key = 'clients_sudden_drop:WARNING';
       const active = activeAlerts.get(key);
       // Store the 50% floor computed at OPEN time so CLEAR doesn't need previousMetrics

@@ -13,6 +13,7 @@ type PrismaWirelessAlertRecord = {
   isActive: boolean;
   lastValue: { toNumber(): number };
   message: string;
+  notifiedAt: Date | null;
 };
 
 type PersistenceData = {
@@ -26,6 +27,7 @@ type PersistenceData = {
   isActive: boolean;
   lastValue: number;
   message: string;
+  notifiedAt: Date | null;
 };
 
 export class WirelessAlertRecordPrismaMapper {
@@ -48,7 +50,8 @@ export class WirelessAlertRecordPrismaMapper {
       clearedAt: raw.clearedAt,
       isActive: raw.isActive,
       lastValue: raw.lastValue.toNumber(),
-      message: raw.message
+      message: raw.message,
+      notifiedAt: raw.notifiedAt
     };
 
     return WirelessAlertRecord.reconstitute(id.value, props);
@@ -65,7 +68,8 @@ export class WirelessAlertRecordPrismaMapper {
       clearedAt: record.clearedAt,
       isActive: record.isActive,
       lastValue: record.lastValue,
-      message: record.message
+      message: record.message,
+      notifiedAt: record.notifiedAt
     };
   }
 }

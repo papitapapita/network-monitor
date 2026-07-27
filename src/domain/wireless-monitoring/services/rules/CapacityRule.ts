@@ -1,6 +1,9 @@
 import { WirelessMetrics } from '../../value-objects';
 import { WirelessAlertRecord } from '../../aggregates';
-import { AlertDecision, EvaluationContext } from '../IWirelessAlertEvaluator';
+import {
+  AlertDecision,
+  EvaluationContext
+} from '../IWirelessAlertEvaluator';
 import { IAlertRule } from './IAlertRule';
 
 // Expected minimum capacity floors per channel width (in kbps)

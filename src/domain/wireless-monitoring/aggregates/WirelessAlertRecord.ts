@@ -41,6 +41,12 @@ export class WirelessAlertRecord extends AggregateRoot<
   get message(): string {
     return this.props.message;
   }
+  get notifiedAt(): Date | null {
+    return this.props.notifiedAt;
+  }
+  get isNotified(): boolean {
+    return this.props.notifiedAt !== null;
+  }
 
   public static open(
     deviceId: DeviceId,
@@ -61,7 +67,8 @@ export class WirelessAlertRecord extends AggregateRoot<
         clearedAt: null,
         isActive: true,
         lastValue: currentValue,
-        message
+        message,
+        notifiedAt: null
       },
       id
     );
@@ -78,6 +85,16 @@ export class WirelessAlertRecord extends AggregateRoot<
 
   public updateValue(value: number): void {
     this.props.lastValue = value;
+  }
+
+  // delivery is retried on later poll cycles while this stays null, so an
+  // alert opened while the notification channel was down is not lost
+  public markNotified(notifiedAt: Date): Result<void> {
+    if (this.props.notifiedAt !== null) {
+      return Result.fail('Alert has already been notified');
+    }
+    this.props.notifiedAt = notifiedAt;
+    return Result.ok();
   }
 
   public clear(clearedAt: Date): Result<void> {

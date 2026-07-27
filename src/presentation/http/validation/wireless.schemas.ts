@@ -39,6 +39,10 @@ export const triggerWirelessPollSchema = z.object({
   params: z.object({ id: uuidSchema })
 });
 
+export const rebootWirelessDeviceSchema = z.object({
+  params: z.object({ id: uuidSchema })
+});
+
 export const getAllActiveAlertsSchema = z.object({
   query: z
     .object({
@@ -152,6 +156,9 @@ export type GetDeviceWirelessAlertHistoryInput = z.infer<
 >;
 export type TriggerWirelessPollInput = z.infer<
   typeof triggerWirelessPollSchema
+>;
+export type RebootWirelessDeviceInput = z.infer<
+  typeof rebootWirelessDeviceSchema
 >;
 export type GetAllActiveAlertsInput = z.infer<
   typeof getAllActiveAlertsSchema

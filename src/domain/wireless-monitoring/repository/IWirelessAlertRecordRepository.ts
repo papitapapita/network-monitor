@@ -11,12 +11,18 @@ export interface IWirelessAlertRecordRepository {
   ): Promise<Result<WirelessAlertRecord | null>>;
   exists(id: WirelessAlertRecordId): Promise<Result<boolean>>;
 
-  // at most one active alert exists per device per metric at any time
-  findActiveByDeviceAndMetric(
+  // at most one active alert exists per device/metric/severity — a metric may
+  // hold a WARNING and a CRITICAL record simultaneously when both thresholds breach
+  findActiveByDeviceMetricAndSeverity(
     deviceId: DeviceId,
-    metric: string
+    metric: string,
+    severity: 'WARNING' | 'CRITICAL'
   ): Promise<Result<WirelessAlertRecord | null>>;
   findAllActiveByDevice(
+    deviceId: DeviceId
+  ): Promise<Result<WirelessAlertRecord[]>>;
+  // active alerts whose notification has not yet been delivered
+  findActiveUnnotifiedByDevice(
     deviceId: DeviceId
   ): Promise<Result<WirelessAlertRecord[]>>;
   findAllActive(): Promise<Result<WirelessAlertRecord[]>>;

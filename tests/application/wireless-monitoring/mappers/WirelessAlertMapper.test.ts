@@ -36,6 +36,7 @@ function makeAlertRecord(
       threshold:   -70,
       lastValue:   -75,
       message:     'Signal below threshold',
+      notifiedAt: null,
       triggeredAt: TRIGGERED_AT,
       clearedAt:   null,
       isActive:    true,

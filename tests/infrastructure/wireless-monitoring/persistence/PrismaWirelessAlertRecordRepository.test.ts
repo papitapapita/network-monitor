@@ -37,6 +37,7 @@ const buildDomainRecord = (): WirelessAlertRecord => {
       isActive: true,
       lastValue: -75,
       message: 'Signal below threshold',
+      notifiedAt: null,
     }
   );
 };
@@ -52,6 +53,7 @@ const makePrismaRow = () => ({
   isActive: true,
   lastValue: { toNumber: () => -75 },
   message: 'Signal below threshold',
+  notifiedAt: null,
 });
 
 describe('PrismaWirelessAlertRecordRepository', () => {
@@ -230,15 +232,20 @@ describe('PrismaWirelessAlertRecordRepository', () => {
     });
   });
 
-  describe('findActiveByDeviceAndMetric', () => {
-    it('should call findFirst with deviceId, metric, and isActive: true filter', async () => {
+  describe('findActiveByDeviceMetricAndSeverity', () => {
+    it('should call findFirst with deviceId, metric, severity, and isActive: true filter', async () => {
       prismaMock.wirelessAlertRecord.findFirst.mockResolvedValue(null);
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
 
-      await repository.findActiveByDeviceAndMetric(deviceId, 'signalRxDbm');
+      await repository.findActiveByDeviceMetricAndSeverity(deviceId, 'signalRxDbm', 'WARNING');
 
       expect(prismaMock.wirelessAlertRecord.findFirst).toHaveBeenCalledWith({
-        where: { deviceId: DEVICE_UUID, metric: 'signalRxDbm', isActive: true },
+        where: {
+          deviceId: DEVICE_UUID,
+          metric: 'signalRxDbm',
+          severity: 'WARNING',
+          isActive: true
+        },
       });
     });
 
@@ -246,7 +253,7 @@ describe('PrismaWirelessAlertRecordRepository', () => {
       prismaMock.wirelessAlertRecord.findFirst.mockResolvedValue(makePrismaRow());
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
 
-      const result = await repository.findActiveByDeviceAndMetric(deviceId, 'signalRxDbm');
+      const result = await repository.findActiveByDeviceMetricAndSeverity(deviceId, 'signalRxDbm', 'WARNING');
 
       expect(result.isSuccess).toBe(true);
       expect(result.value).not.toBeNull();
@@ -257,7 +264,7 @@ describe('PrismaWirelessAlertRecordRepository', () => {
       prismaMock.wirelessAlertRecord.findFirst.mockResolvedValue(null);
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
 
-      const result = await repository.findActiveByDeviceAndMetric(deviceId, 'signalRxDbm');
+      const result = await repository.findActiveByDeviceMetricAndSeverity(deviceId, 'signalRxDbm', 'WARNING');
 
       expect(result.isSuccess).toBe(true);
       expect(result.value).toBeNull();
@@ -267,10 +274,57 @@ describe('PrismaWirelessAlertRecordRepository', () => {
       prismaMock.wirelessAlertRecord.findFirst.mockRejectedValue(new Error('query failed'));
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
 
-      const result = await repository.findActiveByDeviceAndMetric(deviceId, 'signalRxDbm');
+      const result = await repository.findActiveByDeviceMetricAndSeverity(deviceId, 'signalRxDbm', 'WARNING');
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Database error finding active alert record');
+    });
+  });
+
+  describe('findActiveUnnotifiedByDevice', () => {
+    it('should filter on isActive and a null notifiedAt', async () => {
+      prismaMock.wirelessAlertRecord.findMany.mockResolvedValue([]);
+      const deviceId = DeviceId.parse(DEVICE_UUID).value;
+
+      await repository.findActiveUnnotifiedByDevice(deviceId);
+
+      expect(prismaMock.wirelessAlertRecord.findMany).toHaveBeenCalledWith({
+        where: {
+          deviceId: DEVICE_UUID,
+          isActive: true,
+          notifiedAt: null
+        },
+        orderBy: { triggeredAt: 'asc' }
+      });
+    });
+
+    it('should map the rows to domain records', async () => {
+      prismaMock.wirelessAlertRecord.findMany.mockResolvedValue([
+        makePrismaRow()
+      ]);
+      const deviceId = DeviceId.parse(DEVICE_UUID).value;
+
+      const result =
+        await repository.findActiveUnnotifiedByDevice(deviceId);
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value).toHaveLength(1);
+      expect(result.value[0].isNotified).toBe(false);
+    });
+
+    it('should return a failed Result when prisma throws', async () => {
+      prismaMock.wirelessAlertRecord.findMany.mockRejectedValue(
+        new Error('query failed')
+      );
+      const deviceId = DeviceId.parse(DEVICE_UUID).value;
+
+      const result =
+        await repository.findActiveUnnotifiedByDevice(deviceId);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'Database error finding unnotified alerts'
+      );
     });
   });
 

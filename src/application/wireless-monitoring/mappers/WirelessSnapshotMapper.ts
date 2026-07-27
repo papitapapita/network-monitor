@@ -68,7 +68,9 @@ export class WirelessSnapshotMapper {
     };
   }
 
-  private static toClientDTO(c: WirelessClientEntry): WirelessClientDTO {
+  private static toClientDTO(
+    c: WirelessClientEntry
+  ): WirelessClientDTO {
     return {
       macAddress: c.macAddress,
       ipAddress: c.ipAddress,

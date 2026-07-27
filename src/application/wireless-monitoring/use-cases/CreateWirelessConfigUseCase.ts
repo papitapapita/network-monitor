@@ -44,7 +44,8 @@ export class CreateWirelessConfigUseCase extends UseCase<
   protected async executeImpl(
     request: CreateWirelessConfigRequestDTO
   ): Promise<Result<WirelessConfigResponseDTO>> {
-    const data = WirelessDeviceConfigMapper.extractCreateData(request);
+    const data =
+      WirelessDeviceConfigMapper.extractCreateData(request);
 
     const deviceIdResult = DeviceId.parse(data.deviceId);
     if (deviceIdResult.isFailure) {
@@ -102,9 +103,13 @@ export class CreateWirelessConfigUseCase extends UseCase<
       ipAddress = ipResult.value;
     }
 
-    const intervalResult = PollingInterval.create(data.intervalSecs ?? 3600);
+    const intervalResult = PollingInterval.create(
+      data.intervalSecs ?? 3600
+    );
     if (intervalResult.isFailure) {
-      return this.fail(`Invalid polling interval: ${intervalResult.error}`);
+      return this.fail(
+        `Invalid polling interval: ${intervalResult.error}`
+      );
     }
 
     const configResult = WirelessDeviceConfig.create({
@@ -127,6 +132,8 @@ export class CreateWirelessConfigUseCase extends UseCase<
       return this.fail(saveResult.error);
     }
 
-    return this.ok(WirelessDeviceConfigMapper.toDTO(saveResult.value));
+    return this.ok(
+      WirelessDeviceConfigMapper.toDTO(saveResult.value)
+    );
   }
 }

@@ -1,6 +1,9 @@
 import { WirelessMetrics } from '../../value-objects';
 import { WirelessAlertRecord } from '../../aggregates';
-import { AlertDecision, EvaluationContext } from '../IWirelessAlertEvaluator';
+import {
+  AlertDecision,
+  EvaluationContext
+} from '../IWirelessAlertEvaluator';
 import { IAlertRule } from './IAlertRule';
 
 // CCQ is an airMax M-series metric (M2, M5, M900). Not reported by AC-series devices.
@@ -39,7 +42,10 @@ export class CcqRule implements IAlertRule {
     context: EvaluationContext,
     activeAlerts: Map<string, WirelessAlertRecord>
   ): AlertDecision[] {
-    if (!context.deviceModel || !M_SERIES_PATTERN.test(context.deviceModel)) {
+    if (
+      !context.deviceModel ||
+      !M_SERIES_PATTERN.test(context.deviceModel)
+    ) {
       return [];
     }
 

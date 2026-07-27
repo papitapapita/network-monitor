@@ -110,9 +110,11 @@ export class PrismaWirelessSnapshotRepository
 
   async deleteOlderThan(cutoff: Date): Promise<Result<number>> {
     try {
-      const { count } = await this.prisma.wirelessSnapshot.deleteMany({
-        where: { collectedAt: { lt: cutoff } }
-      });
+      const { count } = await this.prisma.wirelessSnapshot.deleteMany(
+        {
+          where: { collectedAt: { lt: cutoff } }
+        }
+      );
       return Result.ok(count);
     } catch (error) {
       return Result.fail(

@@ -1,6 +1,9 @@
 import { WirelessMetrics } from '../../value-objects';
 import { WirelessAlertRecord } from '../../aggregates';
-import { AlertDecision, EvaluationContext } from '../IWirelessAlertEvaluator';
+import {
+  AlertDecision,
+  EvaluationContext
+} from '../IWirelessAlertEvaluator';
 import { IAlertRule } from './IAlertRule';
 
 export class FirmwareRule implements IAlertRule {
@@ -11,7 +14,8 @@ export class FirmwareRule implements IAlertRule {
   ): AlertDecision[] {
     const currentFirmware = metrics.firmwareVersion;
 
-    if (context.previousMetrics === null || currentFirmware === null) return [];
+    if (context.previousMetrics === null || currentFirmware === null)
+      return [];
 
     const previousFirmware = context.previousMetrics.firmwareVersion;
     if (previousFirmware === null) return [];

@@ -36,7 +36,9 @@ export class WirelessDeviceConfigMapper {
     };
   }
 
-  public static extractUpdateData(dto: UpdateWirelessConfigRequestDTO): {
+  public static extractUpdateData(
+    dto: UpdateWirelessConfigRequestDTO
+  ): {
     ipAddress?: string | null;
     intervalSecs?: number;
     enabled?: boolean;
@@ -51,7 +53,8 @@ export class WirelessDeviceConfigMapper {
       clientsProvisionedLimit?: number | null;
     } = {};
 
-    if (dto.ipAddress !== undefined) updates.ipAddress = dto.ipAddress;
+    if (dto.ipAddress !== undefined)
+      updates.ipAddress = dto.ipAddress;
     if (dto.intervalSecs !== undefined)
       updates.intervalSecs = dto.intervalSecs;
     if (dto.enabled !== undefined) updates.enabled = dto.enabled;

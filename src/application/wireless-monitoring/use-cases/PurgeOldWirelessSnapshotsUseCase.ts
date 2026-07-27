@@ -7,9 +7,7 @@ export class PurgeOldWirelessSnapshotsUseCase {
   ) {}
 
   async execute(retentionDays: number): Promise<Result<number>> {
-    const cutoff = new Date(
-      Date.now() - retentionDays * 86_400_000
-    );
+    const cutoff = new Date(Date.now() - retentionDays * 86_400_000);
     return this.snapshotRepo.deleteOlderThan(cutoff);
   }
 }

@@ -1,12 +1,15 @@
 import { WirelessMetrics } from '../../value-objects';
 import { WirelessAlertRecord } from '../../aggregates';
-import { AlertDecision, EvaluationContext } from '../IWirelessAlertEvaluator';
+import {
+  AlertDecision,
+  EvaluationContext
+} from '../IWirelessAlertEvaluator';
 import { IAlertRule } from './IAlertRule';
 
 const CHANNEL_WIDTH_MAX_DISTANCE_M: Record<number, number> = {
   20: 15_000,
   40: 10_000,
-  80: 5_000,
+  80: 5_000
 };
 
 export class DistanceRule implements IAlertRule {
@@ -20,7 +23,8 @@ export class DistanceRule implements IAlertRule {
 
     if (distanceM === null || channelWidthMhz === null) return [];
 
-    const maxDistanceM = CHANNEL_WIDTH_MAX_DISTANCE_M[channelWidthMhz];
+    const maxDistanceM =
+      CHANNEL_WIDTH_MAX_DISTANCE_M[channelWidthMhz];
     if (maxDistanceM === undefined) return [];
 
     const key = 'distance_m:WARNING';

@@ -14,9 +14,14 @@ interface AirOsCredentials {
   password: string;
 }
 
+interface AirOsSession {
+  cookie: string;
+  csrfId: string | null;
+}
+
 export class AirOsHttpClient {
   private readonly timeoutMs: number;
-  private readonly sessions = new Map<string, string>();
+  private readonly sessions = new Map<string, AirOsSession>();
 
   constructor(
     timeoutMs = 10_000,
@@ -30,22 +35,34 @@ export class AirOsHttpClient {
     port: number,
     creds: AirOsCredentials
   ): Promise<Result<unknown>> {
-    let cookie = this.sessions.get(ip);
-    if (!cookie) {
+    let session = this.sessions.get(ip);
+    if (!session) {
       const authResult = await this.authenticate(ip, port, creds);
       if (authResult.isFailure) return Result.fail(authResult.error!);
-      cookie = authResult.value;
+      session = authResult.value;
     }
 
-    const getResult = await this.doGet(ip, port, '/status.cgi', cookie);
+    const getResult = await this.doGet(
+      ip,
+      port,
+      '/status.cgi',
+      session
+    );
     if (getResult.isFailure) return Result.fail(getResult.error!);
 
     if (this.isSessionExpired(getResult.value.statusCode)) {
       this.sessions.delete(ip);
       const reAuthResult = await this.authenticate(ip, port, creds);
-      if (reAuthResult.isFailure) return Result.fail(reAuthResult.error!);
-      const retryResult = await this.doGet(ip, port, '/status.cgi', reAuthResult.value);
-      if (retryResult.isFailure) return Result.fail(retryResult.error!);
+      if (reAuthResult.isFailure)
+        return Result.fail(reAuthResult.error!);
+      const retryResult = await this.doGet(
+        ip,
+        port,
+        '/status.cgi',
+        reAuthResult.value
+      );
+      if (retryResult.isFailure)
+        return Result.fail(retryResult.error!);
       if (retryResult.value.statusCode !== 200) {
         return Result.fail(
           `status.cgi returned HTTP ${retryResult.value.statusCode} after re-auth`
@@ -62,6 +79,62 @@ export class AirOsHttpClient {
     return this.parseJson(getResult.value.body);
   }
 
+  async reboot(
+    ip: string,
+    port: number,
+    creds: AirOsCredentials
+  ): Promise<Result<void>> {
+    let session = this.sessions.get(ip);
+    if (!session) {
+      const authResult = await this.authenticate(ip, port, creds);
+      if (authResult.isFailure) return Result.fail(authResult.error!);
+      session = authResult.value;
+    }
+
+    const postResult = await this.doPost(
+      ip,
+      port,
+      '/api/system/reboot',
+      session
+    );
+    if (postResult.isFailure) return Result.fail(postResult.error!);
+
+    if (this.isSessionExpired(postResult.value.statusCode)) {
+      this.sessions.delete(ip);
+      const reAuthResult = await this.authenticate(ip, port, creds);
+      if (reAuthResult.isFailure)
+        return Result.fail(reAuthResult.error!);
+      const retryResult = await this.doPost(
+        ip,
+        port,
+        '/api/system/reboot',
+        reAuthResult.value
+      );
+      if (retryResult.isFailure)
+        return Result.fail(retryResult.error!);
+      if (!this.isSuccess(retryResult.value.statusCode)) {
+        return Result.fail(
+          `Reboot request returned HTTP ${retryResult.value.statusCode} after re-auth`
+        );
+      }
+      this.sessions.delete(ip);
+      return Result.ok();
+    }
+
+    if (!this.isSuccess(postResult.value.statusCode)) {
+      return Result.fail(
+        `Reboot request returned HTTP ${postResult.value.statusCode}`
+      );
+    }
+    // the device drops all sessions when it restarts
+    this.sessions.delete(ip);
+    return Result.ok();
+  }
+
+  private isSuccess(statusCode: number): boolean {
+    return statusCode === 200 || statusCode === 201;
+  }
+
   private isSessionExpired(statusCode: number): boolean {
     return statusCode === 401 || statusCode === 302;
   }
@@ -70,7 +143,7 @@ export class AirOsHttpClient {
     ip: string,
     port: number,
     creds: AirOsCredentials
-  ): Promise<Result<string>> {
+  ): Promise<Result<AirOsSession>> {
     const body =
       `username=${encodeURIComponent(creds.username)}` +
       `&password=${encodeURIComponent(creds.password)}`;
@@ -96,7 +169,9 @@ export class AirOsHttpClient {
     }
 
     const rawCookies = headers['set-cookie'] ?? [];
-    const cookieList = Array.isArray(rawCookies) ? rawCookies : [rawCookies];
+    const cookieList = Array.isArray(rawCookies)
+      ? rawCookies
+      : [rawCookies];
     const airOsCookie = cookieList
       .map((h) => h.split(';')[0]?.trim())
       .find((s) => s !== undefined && /^AIROS_[0-9A-Fa-f]+=/.test(s));
@@ -107,22 +182,51 @@ export class AirOsHttpClient {
       );
     }
 
-    this.sessions.set(ip, airOsCookie);
-    return Result.ok(airOsCookie);
+    // some 8.x firmwares do not issue a CSRF token; POSTs work without it there
+    const rawCsrfId = headers['x-csrf-id'];
+    const csrfId = Array.isArray(rawCsrfId)
+      ? (rawCsrfId[0] ?? null)
+      : (rawCsrfId ?? null);
+
+    const session: AirOsSession = { cookie: airOsCookie, csrfId };
+    this.sessions.set(ip, session);
+    return Result.ok(session);
   }
 
   private doGet(
     ip: string,
     port: number,
     path: string,
-    cookie: string
+    session: AirOsSession
   ): Promise<Result<HttpsResponse>> {
     return this.httpsRequest({
       hostname: ip,
       port,
       path,
       method: 'GET',
-      headers: { Cookie: cookie }
+      headers: { Cookie: session.cookie }
+    });
+  }
+
+  private doPost(
+    ip: string,
+    port: number,
+    path: string,
+    session: AirOsSession
+  ): Promise<Result<HttpsResponse>> {
+    const headers: Record<string, string | number> = {
+      Cookie: session.cookie,
+      'Content-Length': 0
+    };
+    if (session.csrfId) {
+      headers['X-CSRF-ID'] = session.csrfId;
+    }
+    return this.httpsRequest({
+      hostname: ip,
+      port,
+      path,
+      method: 'POST',
+      headers
     });
   }
 
@@ -191,7 +295,9 @@ export class AirOsHttpClient {
     try {
       return Result.ok(JSON.parse(body));
     } catch {
-      return Result.fail('Failed to parse status.cgi response as JSON');
+      return Result.fail(
+        'Failed to parse status.cgi response as JSON'
+      );
     }
   }
 }

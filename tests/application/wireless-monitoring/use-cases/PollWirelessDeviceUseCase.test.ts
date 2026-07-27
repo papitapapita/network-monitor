@@ -8,6 +8,7 @@ import { IWirelessAlertRecordRepository } from '../../../../src/domain/wireless-
 import { IDeviceCredentialsRepository, DecryptedCredentials } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceCredentialsRepository';
 import { IUbiquitiHttpCollector, HttpCollectionResult } from '../../../../src/application/wireless-monitoring/interfaces/IUbiquitiHttpCollector';
 import { IDeviceRepository } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceRepository';
+import { IWirelessAlertNotifier } from '../../../../src/application/wireless-monitoring/interfaces/IWirelessAlertNotifier';
 import { WirelessDeviceConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig';
 import { WirelessDeviceConfigId } from '../../../../src/domain/shared/ids/WirelessDeviceConfigId';
 import { WirelessAlertRecord } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
@@ -150,8 +151,9 @@ function makeMocks() {
     save: jest.fn(),
     findById: jest.fn(),
     exists: jest.fn(),
-    findActiveByDeviceAndMetric: jest.fn(),
+    findActiveByDeviceMetricAndSeverity: jest.fn(),
     findAllActiveByDevice: jest.fn(),
+    findActiveUnnotifiedByDevice: jest.fn(),
     findAllActive: jest.fn(),
     findHistoryByDevice: jest.fn(),
     deleteClearedOlderThan: jest.fn()
@@ -173,6 +175,11 @@ function makeMocks() {
     findIdByMacAddress: jest.fn().mockResolvedValue(Result.ok(null))
   };
 
+  const alertNotifier: jest.Mocked<IWirelessAlertNotifier> = {
+    notifyTriggered: jest.fn().mockResolvedValue(Result.ok()),
+    notifyCleared: jest.fn().mockResolvedValue(Result.ok())
+  };
+
   const logger = makeLogger();
 
   return {
@@ -183,6 +190,7 @@ function makeMocks() {
     httpCollector,
     alertEvaluator,
     deviceRepo,
+    alertNotifier,
     logger
   };
 }
@@ -196,6 +204,7 @@ function makeUseCase(mocks: ReturnType<typeof makeMocks>): PollWirelessDeviceUse
     mocks.httpCollector,
     mocks.alertEvaluator,
     mocks.deviceRepo,
+    mocks.alertNotifier,
     mocks.logger
   );
 }
@@ -224,6 +233,9 @@ function configureHappyPath(
   );
 
   mocks.alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([]));
+  mocks.alertRecordRepo.findActiveUnnotifiedByDevice.mockResolvedValue(
+    Result.ok([])
+  );
   mocks.snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(null));
   mocks.alertEvaluator.evaluate.mockReturnValue([]);
   mocks.snapshotRepo.save.mockImplementation((snapshot) =>
@@ -232,7 +244,7 @@ function configureHappyPath(
   mocks.alertRecordRepo.save.mockImplementation((record) =>
     Promise.resolve(Result.ok(record))
   );
-  mocks.alertRecordRepo.findActiveByDeviceAndMetric.mockResolvedValue(
+  mocks.alertRecordRepo.findActiveByDeviceMetricAndSeverity.mockResolvedValue(
     Result.ok(null)
   );
 }
@@ -500,7 +512,7 @@ describe('PollWirelessDeviceUseCase', () => {
           severity: 'WARNING',
           currentValue: -72,
           threshold: -70,
-          message: 'a'
+          message: 'a',
         },
         {
           metric: 'cpu_load_percent',
@@ -508,7 +520,7 @@ describe('PollWirelessDeviceUseCase', () => {
           severity: 'WARNING',
           currentValue: 85,
           threshold: 80,
-          message: 'b'
+          message: 'b',
         }
       ];
       mocks.alertEvaluator.evaluate.mockReturnValue(openDecisions);
@@ -527,7 +539,7 @@ describe('PollWirelessDeviceUseCase', () => {
           severity: 'WARNING',
           currentValue: -72,
           threshold: -70,
-          message: 'a'
+          message: 'a',
         },
         {
           metric: 'cpu_load_percent',
@@ -535,7 +547,7 @@ describe('PollWirelessDeviceUseCase', () => {
           severity: 'WARNING',
           currentValue: 85,
           threshold: 80,
-          message: 'b'
+          message: 'b',
         }
       ];
       mocks.alertEvaluator.evaluate.mockReturnValue(openDecisions);
@@ -553,7 +565,7 @@ describe('PollWirelessDeviceUseCase', () => {
         severity: 'WARNING',
         currentValue: -72,
         threshold: -70,
-        message: 'Signal weak'
+        message: 'Signal weak',
       };
       mocks.alertEvaluator.evaluate.mockReturnValue([openDecision]);
       mocks.alertRecordRepo.save.mockResolvedValueOnce(
@@ -568,8 +580,119 @@ describe('PollWirelessDeviceUseCase', () => {
   });
 
   // ===========================================================================
+  describe('executeImpl — pending alert notification delivery', () => {
+    function makePendingRecord(
+      severity: 'WARNING' | 'CRITICAL' = 'CRITICAL'
+    ): WirelessAlertRecord {
+      return WirelessAlertRecord.open(
+        makeDeviceId(),
+        'signal_rx_dbm',
+        severity,
+        -80,
+        -83,
+        'Señal crítica'
+      ).value;
+    }
+
+    it('should notify each alert awaiting delivery', async () => {
+      configureHappyPath(mocks);
+      mocks.alertRecordRepo.findActiveUnnotifiedByDevice.mockResolvedValue(
+        Result.ok([makePendingRecord(), makePendingRecord('WARNING')])
+      );
+      mocks.alertRecordRepo.save.mockResolvedValue(
+        Result.ok(makePendingRecord())
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(mocks.alertNotifier.notifyTriggered).toHaveBeenCalledTimes(
+        2
+      );
+    });
+
+    it('should persist the delivery timestamp after a successful send', async () => {
+      configureHappyPath(mocks);
+      const record = makePendingRecord();
+      mocks.alertRecordRepo.findActiveUnnotifiedByDevice.mockResolvedValue(
+        Result.ok([record])
+      );
+      mocks.alertRecordRepo.save.mockResolvedValue(Result.ok(record));
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(record.isNotified).toBe(true);
+      expect(mocks.alertRecordRepo.save).toHaveBeenCalledWith(record);
+    });
+
+    it('should leave the alert un-notified when delivery fails, so it retries', async () => {
+      configureHappyPath(mocks);
+      const record = makePendingRecord();
+      mocks.alertRecordRepo.findActiveUnnotifiedByDevice.mockResolvedValue(
+        Result.ok([record])
+      );
+      mocks.alertNotifier.notifyTriggered.mockResolvedValue(
+        Result.fail('telegram down')
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(record.isNotified).toBe(false);
+      expect(mocks.logger.error).toHaveBeenCalled();
+    });
+
+    it('should keep delivering later alerts when one fails', async () => {
+      configureHappyPath(mocks);
+      const first = makePendingRecord();
+      const second = makePendingRecord('WARNING');
+      mocks.alertRecordRepo.findActiveUnnotifiedByDevice.mockResolvedValue(
+        Result.ok([first, second])
+      );
+      mocks.alertNotifier.notifyTriggered
+        .mockResolvedValueOnce(Result.fail('telegram down'))
+        .mockResolvedValueOnce(Result.ok());
+      mocks.alertRecordRepo.save.mockResolvedValue(Result.ok(second));
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(first.isNotified).toBe(false);
+      expect(second.isNotified).toBe(true);
+    });
+
+    it('should carry the alert severity into the notification', async () => {
+      configureHappyPath(mocks);
+      const record = makePendingRecord('WARNING');
+      mocks.alertRecordRepo.findActiveUnnotifiedByDevice.mockResolvedValue(
+        Result.ok([record])
+      );
+      mocks.alertRecordRepo.save.mockResolvedValue(Result.ok(record));
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(mocks.alertNotifier.notifyTriggered).toHaveBeenCalledWith(
+        expect.objectContaining({
+          severity: 'WARNING',
+          metric: 'signal_rx_dbm'
+        })
+      );
+    });
+
+    it('should still complete the poll when the pending lookup fails', async () => {
+      configureHappyPath(mocks);
+      mocks.alertRecordRepo.findActiveUnnotifiedByDevice.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(mocks.alertNotifier.notifyTriggered).not.toHaveBeenCalled();
+    });
+  });
+
   describe('executeImpl — alert evaluation (CLEAR decisions)', () => {
-    it('should call alertRecordRepo.findActiveByDeviceAndMetric for each CLEAR decision', async () => {
+    it('should call alertRecordRepo.findActiveByDeviceMetricAndSeverity for each CLEAR decision', async () => {
       configureHappyPath(mocks);
 
       const activeRecord = WirelessAlertRecord.open(
@@ -580,7 +703,7 @@ describe('PollWirelessDeviceUseCase', () => {
         -72,
         'test'
       ).value;
-      mocks.alertRecordRepo.findActiveByDeviceAndMetric.mockResolvedValue(
+      mocks.alertRecordRepo.findActiveByDeviceMetricAndSeverity.mockResolvedValue(
         Result.ok(activeRecord)
       );
 
@@ -590,15 +713,47 @@ describe('PollWirelessDeviceUseCase', () => {
         severity: 'WARNING',
         currentValue: -65,
         threshold: -70,
-        message: 'Signal recovered'
+        message: 'Signal recovered',
       };
       mocks.alertEvaluator.evaluate.mockReturnValue([clearDecision]);
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
       expect(
-        mocks.alertRecordRepo.findActiveByDeviceAndMetric
+        mocks.alertRecordRepo.findActiveByDeviceMetricAndSeverity
       ).toHaveBeenCalledTimes(1);
+    });
+
+    it('should look up the active alert by the severity of the CLEAR decision', async () => {
+      configureHappyPath(mocks);
+
+      const activeRecord = WirelessAlertRecord.open(
+        makeDeviceId(),
+        'snr_db',
+        'CRITICAL',
+        10,
+        8,
+        'test'
+      ).value;
+      mocks.alertRecordRepo.findActiveByDeviceMetricAndSeverity.mockResolvedValue(
+        Result.ok(activeRecord)
+      );
+
+      const clearDecision: AlertDecision = {
+        metric: 'snr_db',
+        action: 'CLEAR',
+        severity: 'CRITICAL',
+        currentValue: 13,
+        threshold: 10,
+        message: 'SNR recovered',
+      };
+      mocks.alertEvaluator.evaluate.mockReturnValue([clearDecision]);
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(
+        mocks.alertRecordRepo.findActiveByDeviceMetricAndSeverity
+      ).toHaveBeenCalledWith(expect.anything(), 'snr_db', 'CRITICAL');
     });
 
     it('should call alertRecordRepo.save after clearing the active alert', async () => {
@@ -612,7 +767,7 @@ describe('PollWirelessDeviceUseCase', () => {
         -72,
         'test'
       ).value;
-      mocks.alertRecordRepo.findActiveByDeviceAndMetric.mockResolvedValue(
+      mocks.alertRecordRepo.findActiveByDeviceMetricAndSeverity.mockResolvedValue(
         Result.ok(activeRecord)
       );
 
@@ -622,7 +777,7 @@ describe('PollWirelessDeviceUseCase', () => {
         severity: 'WARNING',
         currentValue: -65,
         threshold: -70,
-        message: 'Signal recovered'
+        message: 'Signal recovered',
       };
       mocks.alertEvaluator.evaluate.mockReturnValue([clearDecision]);
 
@@ -642,7 +797,7 @@ describe('PollWirelessDeviceUseCase', () => {
         -72,
         'test'
       ).value;
-      mocks.alertRecordRepo.findActiveByDeviceAndMetric.mockResolvedValue(
+      mocks.alertRecordRepo.findActiveByDeviceMetricAndSeverity.mockResolvedValue(
         Result.ok(activeRecord)
       );
 
@@ -652,7 +807,7 @@ describe('PollWirelessDeviceUseCase', () => {
         severity: 'WARNING',
         currentValue: -65,
         threshold: -70,
-        message: 'Signal recovered'
+        message: 'Signal recovered',
       };
       mocks.alertEvaluator.evaluate.mockReturnValue([clearDecision]);
 
@@ -663,7 +818,7 @@ describe('PollWirelessDeviceUseCase', () => {
 
     it('should NOT call alertRecordRepo.save for CLEAR when active record is not found', async () => {
       configureHappyPath(mocks);
-      mocks.alertRecordRepo.findActiveByDeviceAndMetric.mockResolvedValue(
+      mocks.alertRecordRepo.findActiveByDeviceMetricAndSeverity.mockResolvedValue(
         Result.ok(null)
       );
 
@@ -673,7 +828,7 @@ describe('PollWirelessDeviceUseCase', () => {
         severity: 'WARNING',
         currentValue: -65,
         threshold: -70,
-        message: 'Signal recovered'
+        message: 'Signal recovered',
       };
       mocks.alertEvaluator.evaluate.mockReturnValue([clearDecision]);
 

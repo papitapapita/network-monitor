@@ -10,4 +10,5 @@ export interface WirelessAlertRecordProps {
   isActive: boolean;
   lastValue: number;
   message: string;
+  notifiedAt: Date | null;
 }

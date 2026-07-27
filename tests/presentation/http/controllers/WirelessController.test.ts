@@ -8,6 +8,7 @@ import { GetWirelessClientsUseCase } from '../../../../src/application/wireless-
 import { GetActiveWirelessAlertsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetActiveWirelessAlertsUseCase';
 import { GetWirelessAlertHistoryUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetWirelessAlertHistoryUseCase';
 import { TriggerWirelessPollUseCase } from '../../../../src/application/wireless-monitoring/use-cases/TriggerWirelessPollUseCase';
+import { RebootWirelessDeviceUseCase } from '../../../../src/application/wireless-monitoring/use-cases/RebootWirelessDeviceUseCase';
 import { CreateWirelessConfigUseCase } from '../../../../src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase';
 import { GetWirelessConfigUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetWirelessConfigUseCase';
 import { UpdateWirelessConfigUseCase } from '../../../../src/application/wireless-monitoring/use-cases/UpdateWirelessConfigUseCase';
@@ -67,6 +68,9 @@ const createMockGetAlertHistoryUseCase = () =>
 
 const createMockTriggerPollUseCase = () =>
   ({ execute: jest.fn() }) as unknown as TriggerWirelessPollUseCase;
+
+const createMockRebootUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as RebootWirelessDeviceUseCase;
 
 const createMockCreateWirelessConfigUseCase = () =>
   ({ execute: jest.fn() }) as unknown as CreateWirelessConfigUseCase;
@@ -151,6 +155,11 @@ const mockTriggerPollResult = {
   queuedAt: '2024-01-15T10:30:00.000Z'
 };
 
+const mockRebootResult = {
+  deviceId: DEVICE_UUID,
+  requestedAt: '2024-01-15T10:30:00.000Z'
+};
+
 // ---------------------------------------------------------------------------
 
 describe('WirelessController', () => {
@@ -161,6 +170,7 @@ describe('WirelessController', () => {
   let mockGetActiveAlertsUseCase: GetActiveWirelessAlertsUseCase;
   let mockGetAlertHistoryUseCase: GetWirelessAlertHistoryUseCase;
   let mockTriggerPollUseCase: TriggerWirelessPollUseCase;
+  let mockRebootUseCase: RebootWirelessDeviceUseCase;
   let mockCreateWirelessConfigUseCase: CreateWirelessConfigUseCase;
   let mockGetWirelessConfigUseCase: GetWirelessConfigUseCase;
   let mockUpdateWirelessConfigUseCase: UpdateWirelessConfigUseCase;
@@ -174,6 +184,7 @@ describe('WirelessController', () => {
     mockGetActiveAlertsUseCase = createMockGetActiveAlertsUseCase();
     mockGetAlertHistoryUseCase = createMockGetAlertHistoryUseCase();
     mockTriggerPollUseCase = createMockTriggerPollUseCase();
+    mockRebootUseCase = createMockRebootUseCase();
     mockCreateWirelessConfigUseCase = createMockCreateWirelessConfigUseCase();
     mockGetWirelessConfigUseCase = createMockGetWirelessConfigUseCase();
     mockUpdateWirelessConfigUseCase = createMockUpdateWirelessConfigUseCase();
@@ -187,6 +198,7 @@ describe('WirelessController', () => {
       mockGetActiveAlertsUseCase,
       mockGetAlertHistoryUseCase,
       mockTriggerPollUseCase,
+      mockRebootUseCase,
       mockCreateWirelessConfigUseCase,
       mockGetWirelessConfigUseCase,
       mockUpdateWirelessConfigUseCase,
@@ -916,6 +928,102 @@ describe('WirelessController', () => {
           'Unexpected error in WirelessController',
           thrownError,
           { error: 'Poll trigger failed' }
+        );
+      });
+    });
+  });
+
+  // =========================================================================
+  describe('reboot (POST /api/devices/:id/wireless/reboot)', () => {
+    // -----------------------------------------------------------------------
+    describe('Happy Path', () => {
+      it('should return 202 with the reboot acknowledgement directly (no wrapper)', async () => {
+        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (mockRebootUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.ok(mockRebootResult)
+        );
+
+        await controller.reboot(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(202);
+        expect(jsonMock).toHaveBeenCalledWith(mockRebootResult);
+      });
+
+      it('should pass deviceId to the use case', async () => {
+        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const { res } = createMockResponse();
+
+        (mockRebootUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.ok(mockRebootResult)
+        );
+
+        await controller.reboot(mockReq as Request, res as Response);
+
+        expect(mockRebootUseCase.execute).toHaveBeenCalledWith({
+          deviceId: DEVICE_UUID
+        });
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 404 Not Found', () => {
+      it('should return 404 when no wireless config exists for the device', async () => {
+        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (mockRebootUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.fail('No wireless polling configuration found for device')
+        );
+
+        await controller.reboot(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(404);
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'No wireless polling configuration found for device'
+        });
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 400 Bad Request', () => {
+      it('should return 400 when credentials are not configured', async () => {
+        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (mockRebootUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.fail('Credentials not configured for device')
+        );
+
+        await controller.reboot(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(400);
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'Credentials not configured for device'
+        });
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 500 Internal Server Error (unexpected thrown exception)', () => {
+      it('should return 500 and log the error when the use case throws', async () => {
+        const thrownError = new Error('Reboot failed');
+        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (mockRebootUseCase.execute as jest.Mock).mockRejectedValue(
+          thrownError
+        );
+
+        await controller.reboot(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(500);
+        expect(jsonMock).toHaveBeenCalledWith({ error: 'Internal server error' });
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          'Unexpected error in WirelessController',
+          thrownError,
+          { error: 'Reboot failed' }
         );
       });
     });

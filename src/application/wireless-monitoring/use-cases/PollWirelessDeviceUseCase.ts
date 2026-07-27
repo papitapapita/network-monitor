@@ -19,7 +19,8 @@ import {
   HttpCredentials,
   IDeviceCredentialsRepository,
   IDeviceRepository,
-  IWirelessPollOrchestrator
+  IWirelessPollOrchestrator,
+  IWirelessAlertNotifier
 } from '../interfaces';
 import {
   PollWirelessDeviceRequestDTO,
@@ -43,6 +44,7 @@ export class PollWirelessDeviceUseCase
     private readonly httpCollector: IUbiquitiHttpCollector,
     private readonly alertEvaluator: IWirelessAlertEvaluator,
     private readonly deviceRepo: IDeviceRepository,
+    private readonly alertNotifier: IWirelessAlertNotifier | null,
     logger: ILogger
   ) {
     super(logger, 'PollWirelessDeviceUseCase');
@@ -164,7 +166,9 @@ export class PollWirelessDeviceUseCase
         port: httpCreds.port,
         error: httpResult.error
       });
-      return this.fail(`Failed to collect metrics: ${httpResult.error}`);
+      return this.fail(
+        `Failed to collect metrics: ${httpResult.error}`
+      );
     }
 
     const http = httpResult.value;
@@ -185,10 +189,9 @@ export class PollWirelessDeviceUseCase
 
     const latestSnapshotResult =
       await this.snapshotRepo.findLatestByDevice(deviceId);
-    const previousMetrics =
-      latestSnapshotResult.isSuccess
-        ? latestSnapshotResult.value?.metrics ?? null
-        : null;
+    const previousMetrics = latestSnapshotResult.isSuccess
+      ? (latestSnapshotResult.value?.metrics ?? null)
+      : null;
 
     const ctx: EvaluationContext = {
       deviceName: http.deviceName ?? 'Equipo desconocido',
@@ -253,8 +256,12 @@ export class PollWirelessDeviceUseCase
       ctx
     );
 
-    const openDecisions = decisions.filter((d) => d.action === 'OPEN');
-    const clearDecisions = decisions.filter((d) => d.action === 'CLEAR');
+    const openDecisions = decisions.filter(
+      (d) => d.action === 'OPEN'
+    );
+    const clearDecisions = decisions.filter(
+      (d) => d.action === 'CLEAR'
+    );
 
     for (const decision of openDecisions) {
       const recordResult = WirelessAlertRecord.open(
@@ -281,9 +288,10 @@ export class PollWirelessDeviceUseCase
 
     for (const decision of clearDecisions) {
       const findResult =
-        await this.alertRecordRepo.findActiveByDeviceAndMetric(
+        await this.alertRecordRepo.findActiveByDeviceMetricAndSeverity(
           deviceId,
-          decision.metric
+          decision.metric,
+          decision.severity
         );
       if (findResult.isSuccess && findResult.value) {
         const clearResult = findResult.value.clear(now);
@@ -304,6 +312,8 @@ export class PollWirelessDeviceUseCase
         }
       }
     }
+
+    await this.deliverPendingAlertNotifications(deviceId, now);
 
     const clients: WirelessClientEntry[] =
       config.deviceType === 'ACCESS_POINT'
@@ -403,5 +413,60 @@ export class PollWirelessDeviceUseCase
       alertsCleared: clearDecisions.length,
       collectionMethod: 'http_api'
     });
+  }
+
+  // Retries alerts opened on earlier cycles whose delivery failed, so an
+  // outage of the notification channel does not silently drop an alert.
+  private async deliverPendingAlertNotifications(
+    deviceId: DeviceId,
+    now: Date
+  ): Promise<void> {
+    if (!this.alertNotifier) return;
+
+    const pendingResult =
+      await this.alertRecordRepo.findActiveUnnotifiedByDevice(
+        deviceId
+      );
+    if (pendingResult.isFailure) {
+      this.logger.error(
+        'Failed to load alerts pending notification',
+        undefined,
+        { deviceId: deviceId.toString(), error: pendingResult.error }
+      );
+      return;
+    }
+
+    for (const record of pendingResult.value) {
+      const sendResult = await this.alertNotifier.notifyTriggered({
+        deviceId: deviceId.toString(),
+        metric: record.metric,
+        severity: record.severity,
+        threshold: record.threshold,
+        currentValue: record.lastValue,
+        message: record.message,
+        triggeredAt: record.triggeredAt
+      });
+
+      if (sendResult.isFailure) {
+        this.logger.error(
+          `Alert notification failed, will retry next cycle`,
+          undefined,
+          { metric: record.metric, error: sendResult.error }
+        );
+        continue;
+      }
+
+      const markResult = record.markNotified(now);
+      if (markResult.isFailure) continue;
+
+      const saveResult = await this.alertRecordRepo.save(record);
+      if (saveResult.isFailure) {
+        this.logger.error(
+          'Failed to persist alert notification timestamp',
+          undefined,
+          { metric: record.metric, error: saveResult.error }
+        );
+      }
+    }
   }
 }

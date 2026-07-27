@@ -134,19 +134,32 @@ export class WirelessClientEntry extends ValueObject<WirelessClientEntryProps> {
     }
 
     if (props.noiseFloorDbm !== null) {
-      const guard = Guard.isNumber(props.noiseFloorDbm, 'noiseFloorDbm');
+      const guard = Guard.isNumber(
+        props.noiseFloorDbm,
+        'noiseFloorDbm'
+      );
       if (!guard.succeeded)
         return Result.fail<WirelessClientEntry>(guard.message!);
     }
 
     if (props.dlLinkScore !== null) {
-      const guard = Guard.inRange(props.dlLinkScore, 0, 100, 'dlLinkScore');
+      const guard = Guard.inRange(
+        props.dlLinkScore,
+        0,
+        100,
+        'dlLinkScore'
+      );
       if (!guard.succeeded)
         return Result.fail<WirelessClientEntry>(guard.message!);
     }
 
     if (props.ulLinkScore !== null) {
-      const guard = Guard.inRange(props.ulLinkScore, 0, 100, 'ulLinkScore');
+      const guard = Guard.inRange(
+        props.ulLinkScore,
+        0,
+        100,
+        'ulLinkScore'
+      );
       if (!guard.succeeded)
         return Result.fail<WirelessClientEntry>(guard.message!);
     }

@@ -11,6 +11,8 @@ export * from './GetAlertHistoryRequestDTO';
 export * from './TriggerPollRequestDTO';
 export * from './PollWirelessDeviceRequestDTO';
 export * from './PollWirelessDeviceResponseDTO';
+export * from './RebootWirelessDeviceRequestDTO';
+export * from './RebootWirelessDeviceResponseDTO';
 export * from './WirelessConfigResponseDTO';
 export * from './CreateWirelessConfigRequestDTO';
 export * from './UpdateWirelessConfigRequestDTO';

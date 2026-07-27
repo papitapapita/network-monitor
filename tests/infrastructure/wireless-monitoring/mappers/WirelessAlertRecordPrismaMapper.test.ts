@@ -24,6 +24,7 @@ const makeActiveRow = (): PrismaWirelessAlertRecord => ({
   isActive: true,
   lastValue: decimal(-75),
   message: 'Signal below threshold',
+  notifiedAt: null,
 });
 
 const makeClearedRow = (): PrismaWirelessAlertRecord => ({
@@ -48,6 +49,7 @@ const buildDomainRecord = (): WirelessAlertRecord => {
       isActive: true,
       lastValue: -75,
       message: 'Signal below threshold',
+      notifiedAt: null,
     }
   );
 };
@@ -152,6 +154,7 @@ describe('WirelessAlertRecordPrismaMapper', () => {
           isActive: false,
           lastValue: -80,
           message: 'Critical signal',
+          notifiedAt: null,
         }
       );
 
