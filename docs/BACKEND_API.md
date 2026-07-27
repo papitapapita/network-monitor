@@ -1197,6 +1197,30 @@ WirelessAlertDTO[]
 
 ---
 
+### `POST /api/devices/:id/wireless/reboot` — Reboot Device (AirOS 8)
+**Status:** 202 | 400 | 404 | 500  
+**Roles:** ADMIN, OPERATOR
+
+Reboots the antenna remotely via its AirOS 8 HTTP API. Requires the device to have a **wireless config** (source of the IP) and **HTTP credentials** (`httpUsername`/`httpPassword` via `PUT /api/devices/:id/credentials`).
+
+```ts
+// No request body
+
+// Response (202) — raw, no wrapper
+{
+  deviceId: string      // UUID
+  requestedAt: string   // ISO 8601 — when the reboot was accepted
+}
+```
+
+> **202 means the device acknowledged the reboot request** — it then goes offline for ~1–2 minutes while restarting. Expect polls/status to fail during that window; show a "rebooting…" state rather than an error.  
+> Returns 404 if the device has no wireless polling configuration.  
+> Returns 400 if credentials are not configured or the device has no IP address.  
+> Returns 500 if the device is unreachable or authentication against it fails.  
+> This is a destructive-ish action — put it behind a confirmation dialog in the UI.
+
+---
+
 ### `GET /api/wireless/alerts` — All Active Alerts (Global)
 **Status:** 200 | 400
 
@@ -1465,9 +1489,23 @@ interface ContractedServiceDTO {
 |------------|--------------|-------|
 | (create) → `PENDING` | — | only possible initial status |
 | `PENDING` / `SUSPENDED` → `ACTIVE` | `deviceId` must be set | 409 `"Cannot activate a contracted service without a device assigned"` otherwise |
-| `PENDING` / `ACTIVE` → `SUSPENDED` | — | — |
+| `PENDING` / `ACTIVE` → `SUSPENDED` | — | triggers suspension side effects (see below) |
 | any → `CANCELLED` | — | **terminal** — every later update returns 409 `"Cannot modify a cancelled contracted service"` |
 | any → `PENDING` | **not allowed** | `PENDING` is not a valid `status` value on `PUT` — returns 400 |
+
+**Suspension side effects (automatic, server-side):**
+
+When a service transitions **into `SUSPENDED`**, the backend automatically (when the deployment has them configured):
+
+1. **Throttles the customer's internet to 1 kbps** — a queue targeting the assigned device's IP is created on the core MikroTik router. Requires the service to have a `deviceId` with an IP address.
+2. **Sends a WhatsApp notification** to the customer's `phone` (pre-approved template with the customer's name).
+
+When a service transitions **out of `SUSPENDED`** (→ `ACTIVE` or `CANCELLED`), the throttle is removed automatically. Reactivation does not send a WhatsApp message.
+
+> **The API contract is unchanged** — the `PUT` request/response shapes are exactly as documented above; side effects are fire-and-forget and never block or fail the status update.  
+> Enforcement is **eventually consistent**: it is attempted immediately, and a background reconciler repairs any miss (router briefly unreachable, queue edited by hand) within ~60 seconds.  
+> To show whether the throttle is **actually applied** on the router, use the [Suspension Enforcement Status](#suspension-enforcement-status) endpoints below.  
+> If the service has **no device assigned** (or the device has no IP), the status still changes but the throttle cannot be applied — worth surfacing in the UI when suspending a device-less service.
 
 ---
 
@@ -1537,6 +1575,60 @@ offset?:     number  // ≥0, default 0
 // No request body
 // Response: 204 No Content
 ```
+
+---
+
+## Suspension Enforcement Status
+
+Live view of which suspensions are **actually enforced on the router** (vs. just `status: SUSPENDED` in the DB). These endpoints query the MikroTik router in real time — the answer is always current, but each call costs a router round-trip (~100–300 ms).
+
+A suspended service is "enforced" when its throttle queue exists on the router. It can be un-enforced because: the service has no device/IP, the router was unreachable when suspension happened (the reconciler will fix it within ~60 s), or someone removed the queue by hand.
+
+Uses the standard `{ success, data }` envelope.
+
+### `GET /api/enforcement/suspensions` — All Enforced Suspensions
+**Status:** 200 | 503
+
+```ts
+// No query params
+
+// Response
+{
+  success: true,
+  data: {
+    checkedAt: string      // ISO 8601 — when the router was queried
+    enforcements: Array<{
+      contractedServiceId: string  // UUID — join against your contracted services
+      targetIp: string             // the IP currently being throttled
+    }>
+  }
+}
+```
+
+> **One router call for everything** — prefer this on list views: fetch once, build a `Set` of enforced `contractedServiceId`s, and badge each SUSPENDED row as "throttled" / "not yet throttled".  
+> Returns `503` when enforcement is not configured on the backend, or the router is unreachable — treat as "enforcement status unknown", not as "not enforced".
+
+---
+
+### `GET /api/contracted-services/:id/enforcement` — Enforcement Status for One Service
+**Status:** 200 | 400 | 503
+
+```ts
+// Response
+{
+  success: true,
+  data: {
+    contractedServiceId: string
+    enforced: boolean           // true = throttle queue exists on the router
+    targetIp: string | null     // IP being throttled; null when not enforced
+    checkedAt: string           // ISO 8601
+  }
+}
+```
+
+> Use on the service/customer detail view, or as a "verify now" refresh after suspending.  
+> `enforced: false` for an `ACTIVE` service is normal (nothing to enforce). `enforced: false` for a `SUSPENDED` service means the throttle isn't applied (yet) — show a warning and re-check after ~60 s before escalating.  
+> Returns `400` for a non-UUID id, `503` when enforcement is not configured or the router is unreachable (= status unknown).
 
 ---
 
@@ -1755,5 +1847,6 @@ The PDF includes the bill header (period, status, issue/due/paid dates), the cus
 | 409 | Conflict — resource already exists or cannot be deleted (e.g. vendor has models, model has devices) |
 | 429 | Rate limit exceeded |
 | 500 | Unexpected server error |
+| 503 | Dependent system unavailable — enforcement router unreachable or enforcement not configured (enforcement endpoints only) |
 
 Error body: `{ success: false, error: string }` (standard endpoints) / `{ error: string }` (credentials, polling, wireless)

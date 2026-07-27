@@ -3,18 +3,6 @@
 ## Priority 1 — Foundation
 _These block or constrain everything else. Do in order._
 
-- [ ] **Authentication & authorization module**
-  - New bounded context (`identity` or `auth`): login use case, JWT middleware, user/role persistence
-  - JWT: HS256, 24h expiry, payload `{ userId, email, role }`, secret from `JWT_SECRET` env var
-  - Middleware stack order (per route): audit log → `authenticate` → `authorize` → rate limit → validate → controller
-  - `authenticate.ts` — extract Bearer token, `jwt.verify`, attach `req.user`
-  - `authorize.ts` — `ROLE_PERMISSIONS` map + `Permission` type; check all required permissions
-  - Roles: Admin (full), Operator (create/read/update/activate/bulk-import), Viewer (read-only)
-  - Rate limiting (token bucket): read 100/min, write 20/min, delete 10/min, bulk-import 5/hr
-  - `auditLog.ts` middleware — log `userId`, `role`, `action`, `ip`, `statusCode`, `duration` via Winston
-  - Helmet + CORS (`ALLOWED_ORIGINS` env var) wired on app startup
-  - bcrypt (cost 10) for password hashing at persistence layer
-
 - [ ] **Device activation workflow** — full lifecycle + soft-delete + replacement
   - COMMISSIONING status implemented: INVENTORY → COMMISSIONING (IP required, monitoring auto-on) → ACTIVE (IP + location required)
   - Soft-delete: `deletedAt` / `deletedBy` + 7-day grace period before hard removal
@@ -38,10 +26,13 @@ _Main user-facing features still missing._
   - Show as % of `linkCapacityBps` (already stored on `WirelessPollingConfiguration`) for utilisation context
   - Useful for confirming a customer is actually saturating their plan in real time
 
-- [ ] **Clear wireless device alerts** — allow operators to manually clear (acknowledge) active wireless alerts
-  - New use case: `ClearWirelessAlertUseCase` — finds alert by ID, calls `WirelessAlertRecord.clear(now)`
-  - Endpoint: `DELETE /wireless/:deviceId/alerts/:alertId` or `POST /wireless/:deviceId/alerts/:alertId/clear`
-  - Guards: alert must belong to the device; only active alerts can be cleared
+- [ ] **Clear alerts — all types, not just wireless** — allow operators to manually clear (acknowledge) any active alert
+  - Two separate aggregates today with no shared clearing path: `WirelessAlertRecord` (wireless-monitoring) and `AlertEvent` (notifications, used by the ping/device-down pipeline)
+  - Wireless: `ClearWirelessAlertUseCase` — finds alert by ID, calls `WirelessAlertRecord.clear(now)`; endpoint `POST /wireless/:deviceId/alerts/:alertId/clear`
+  - Ping/device-down: equivalent clear path for `AlertEvent`; endpoint `POST /alerts/:alertId/clear`
+  - Guards for both: alert must belong to the device; only active alerts can be cleared; clearing is idempotent
+  - Also needs a bulk path — clearing alerts one at a time is unusable after an outage storm (e.g. `POST /alerts/clear` taking a list of IDs, or a per-device "clear all")
+  - Decide whether a manual clear differs from an automatic (rule-driven) clear — an operator acknowledging a still-breaching metric should probably not be re-opened on the next poll, which needs a suppressed-until timestamp rather than a plain clear
 
 - [ ] **Real-time alerts via SSE** — push alerts to the browser without manual reload
   - `GET /alerts/stream` endpoint; keep a `clients` Set; push to all connected clients on alert fire
@@ -58,12 +49,8 @@ _Main user-facing features still missing._
   - One customer can have multiple service installations (home + business)
   - `ServiceInstallation` fields: `serviceAddress` (required: street + coordinates), `subscriberId`, `contractId`, installed device references
   - When introduced: `WIRELESS_CPE` devices reference `serviceInstallationId` instead of `locationId`; `LocationType.CUSTOMER_PREMISES` is retired
+  - `GET /api/locations/map` then queries both sources and merges them into the same `MapPinDTO` shape; frontend rendering is unchanged
   - Prerequisite: subscriber/customer bounded context
-
-- [x] **Network map view (backend)** — `GET /api/locations/map` returns all geolocated locations as `MapPinDTO[]` with nested devices
-  - Backend complete: `GetMapLocationsUseCase`, `findAllWithCoordinates`, `findByLocationIds`
-  - Frontend still needed: render pins on map, `LocationType` drives icon, click opens device list
-  - Future: when `ServiceInstallation` BC exists, map queries both sources and merges into the same `MapPinDTO` shape; frontend rendering is unchanged
 
 - [ ] **Live map refresh notification (SSE/WebSocket)** — notify the frontend map that a device's location changed so a refresh affordance can appear instead of requiring a manual reload
   - Wire a handler for `DeviceLocationAssignedEvent` — currently raised in `Device.assignLocation` (`src/domain/device-inventory/aggregates/Device.ts`) but has no registered consumer in `container.ts`
@@ -71,9 +58,20 @@ _Main user-facing features still missing._
   - Delivery mechanism: reuse the SSE pattern from "Real-time alerts via SSE" below if that lands first (`clients` Set + broadcast); otherwise a small dedicated `GET /locations/stream` endpoint
   - Prerequisite: none — can be built ahead of the SSE alerts item, whichever lands first should establish the shared SSE broadcast helper
 
-- [ ] **Device categories** — allow creating and assigning categories (e.g. "STA Mimosa Cocuy")
+- [ ] **Stop asking for SNMP credentials** — nothing reads them, so the form is asking operators for secrets the system never uses
+  - Verified: `snmpCommunity` / `snmpV3AuthUser` appear only in storage and validation plumbing (`SetDeviceCredentialsUseCase`, `DeviceCredentialsMapper`, `PrismaDeviceCredentialsRepository`, the DTOs) — **no collector consumes them**; all polling today is ICMP ping plus AirOS HTTP
+  - Hide the SNMP section in the frontend credentials form; make HTTP username + password the only required pair
+  - Backend: relax `SetDeviceCredentialsUseCase.beforeExecute` so HTTP-only is the normal path, not one of two branches — the current error ("Provide either HTTP credentials or SNMP credentials") describes a choice that no longer exists
+  - Keep the schema columns and the encryption path — this is hiding an unused input, not dropping the capability. Re-enable when "SNMP system metrics" (Priority 3) lands
+  - Do not delete stored SNMP rows; they are encrypted and harmless, and re-entry would be tedious
 
-- [ ] **Model manufacturers** — allow creating vendor/manufacturer records
+- [ ] **HTTP credential port defaults to 443, not 80** — the frontend sends the wrong default
+  - Backend is already correct: `DeviceCredentialsMapper.extractCreateData` does `httpPort: dto.httpPort ?? 443`
+  - The frontend credentials form still defaults the field to 80, so an operator who leaves it alone stores 80 and AirOS collection fails against an HTTPS-only radio
+  - Fix in the frontend form default; consider also making the backend reject 80 with a clear message, or at least log it, so a stale client cannot silently write a broken port
+  - Check existing rows for `http_port = 80` and decide whether to migrate them to 443
+
+- [ ] **Device categories** — allow creating and assigning categories (e.g. "STA Mimosa Cocuy")
 
 - [ ] **Scan multiple network segments at once**
 
@@ -100,9 +98,25 @@ _Main user-facing features still missing._
   - Same applies to `WirelessPollingConfiguration` / `WirelessPollingOrchestrator`, though it ticks at 10s with a 60s floor so the pressure is ~6× lower
   - Do **not** address this by slowing the tick — the tick is the polling resolution, and a tick coarser than `PollingInterval.MIN_SECONDS` makes short intervals unenforceable
 
+- [ ] **Define which alerts actually notify, and set their thresholds** — right now every rule that fires becomes an alert, and every threshold is a hardcoded constant
+  - 14 rules exist in `src/domain/wireless-monitoring/services/rules/`: Ccq, Capacity, ClientCount, ClockSync, CpuMemory, Distance, Firmware, IdentityChange, LanHealth, Latency, SignalStrength, Snr, ThroughputSaturation
+  - Every threshold is a module-level literal inside its rule file — e.g. `CcqRule` hardcodes WARNING < 75 (clear > 78) and CRITICAL < 50 (clear > 55). Changing a threshold currently means editing and redeploying code
+  - Two separate decisions to make explicit: (1) which rules raise an **alert record**, and (2) which of those escalate to an **outbound notification** — today the two are conflated, so every rule is implicitly notify-worthy
+  - Some rules are clearly informational rather than pageable (ClockSync, Firmware, IdentityChange, Distance) and should record without notifying
+  - Move thresholds to configuration: per-device override on `WirelessDeviceConfig` falling back to a global default per rule; keep the hysteresis pattern (separate breach/clear values) since it already prevents flapping
+  - Prerequisite for the notification split: decide whether wireless alerts share the ping alert notification pipeline (see the item below — same open question)
+
 - [ ] **Wireless alert notification tracking** — add `notifiedAt` and `recoveryNotifiedAt` to `WirelessAlertRecord`
   - `AlertEvent` already has these fields; `WirelessAlertRecord` does not
   - Prerequisite: decide whether wireless alerts share the same notification pipeline as ping alerts
+
+- [ ] **Fix the CCQ reading for non-M-series devices** — the collector applies an M-series scaling factor to every device
+  - `UbiquitiHttpCollector` (line ~117) stores `ccqPercent: ccqRaw > 0 ? ccqRaw / 10 : null` unconditionally
+  - The `/10` is correct for airMAX M-series (M2/M5/M900), which report CCQ on a 0–1000 scale. AC-series radios do not report CCQ the same way, so the stored percentage is wrong — silently, since no error is raised
+  - `CcqRule` already guards correctly (`M_SERIES_PATTERN = /\bM[259]\d*\b/i`, returns no decisions for non-M models), so **alerting is unaffected** — the bug is in the persisted snapshot value and anything that reads it (history charts, the device status view)
+  - Fix: gate the scaling on device model the same way the rule does, and store `null` for models that do not report a usable CCQ rather than a misscaled number
+  - Better: move the M-series check into one shared place so the collector and `CcqRule` cannot drift apart — right now the knowledge lives in two files
+  - Backfill question: existing `wireless_snapshots.ccq_percent` rows for AC devices hold bad values; decide whether to null them out or leave them
 
 - [ ] **High-latency alerting** — fire an alert when a device's ICMP round-trip time exceeds a configurable threshold
   - New alert type: `HIGH_LATENCY`; threshold stored per-device or as a global default (e.g. 150 ms)
@@ -200,8 +214,6 @@ _Main user-facing features still missing._
   - `BACKEND_API.md` becomes a generated artefact (or is retired entirely)
   - Alternative if repos are ever consolidated into a monorepo: migrate to tRPC (router type IS the contract, no codegen step)
 
-- [ ] **Update README.md**
-
 ---
 
 ## Decisions Made
@@ -214,3 +226,7 @@ _Main user-facing features still missing._
 
 - [x] Make the backend run (2026-04-06)
 - [x] Frontend sorting for IP addresses
+- [x] Model manufacturers — `Vendor` aggregate + full CRUD under `/api/vendors` (2026-05-07)
+- [x] Authentication & authorization module — `identity` BC, JWT, `ROLE_PERMISSIONS`, rate limiting, audit log, Helmet/CORS, bcrypt (2026-06-08)
+- [x] Network map view (backend) — `GET /api/locations/map` returns `MapPinDTO[]`; frontend rendering tracked in the frontend repo (2026-06-10)
+- [x] Update README.md (2026-07-06)
