@@ -33,7 +33,9 @@ describe('GetDeviceCredentialsUseCase — integration', () => {
     deviceModelId = await seedDeviceModel(prisma);
 
     const deviceRepo = new PrismaDeviceRepository(prisma);
-    const credentialsRepo = new PrismaDeviceCredentialsRepository(prisma);
+    const credentialsRepo = new PrismaDeviceCredentialsRepository(
+      prisma
+    );
     const logger = new WinstonLogger();
     createDevice = new CreateDeviceUseCase(deviceRepo, logger);
     setCredentials = new SetDeviceCredentialsUseCase(
@@ -41,7 +43,10 @@ describe('GetDeviceCredentialsUseCase — integration', () => {
       credentialsRepo,
       logger
     );
-    useCase = new GetDeviceCredentialsUseCase(credentialsRepo, logger);
+    useCase = new GetDeviceCredentialsUseCase(
+      credentialsRepo,
+      logger
+    );
   });
 
   afterAll(async () => {
@@ -87,6 +92,8 @@ describe('GetDeviceCredentialsUseCase — integration', () => {
   it('retrieves stored SNMPv3 credentials with secrets masked', async () => {
     const stored = await setCredentials.execute({
       deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'super-secret',
       snmpVersion: 3,
       snmpV3AuthUser: 'monitor',
       snmpV3AuthProto: 'SHA',
@@ -117,22 +124,24 @@ describe('GetDeviceCredentialsUseCase — integration', () => {
 
     const result = await useCase.execute({ deviceId });
 
-    expect(JSON.stringify(result.value)).not.toContain('super-secret');
+    expect(JSON.stringify(result.value)).not.toContain(
+      'super-secret'
+    );
   });
 
-  it('reports hasHttpCredentials=false when only SNMP is configured', async () => {
+  it('reports hasSnmpCredentials=false when only HTTP is configured', async () => {
     await setCredentials.execute({
       deviceId,
-      snmpVersion: 2,
-      snmpCommunity: 'public'
+      httpUsername: 'ubnt',
+      httpPassword: 'super-secret'
     });
 
     const result = await useCase.execute({ deviceId });
 
     expect(result.isSuccess).toBe(true);
-    expect(result.value.hasSnmpCredentials).toBe(true);
-    expect(result.value.hasHttpCredentials).toBe(false);
-    expect(result.value.httpUsername).toBeNull();
+    expect(result.value.hasHttpCredentials).toBe(true);
+    expect(result.value.hasSnmpCredentials).toBe(false);
+    expect(result.value.snmpCommunity).toBeNull();
   });
 
   // ──────────────────────────────────────────────────────────────

@@ -3,9 +3,7 @@ import { DeviceId } from 'domain/shared';
 import { IDeviceRepository } from 'domain/device-inventory/repository';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
-import {
-  IDeviceCredentialsRepository
-} from '../interfaces';
+import { IDeviceCredentialsRepository } from '../interfaces';
 import {
   SetDeviceCredentialsRequestDTO,
   DeviceCredentialsResponseDTO
@@ -31,18 +29,35 @@ export class SetDeviceCredentialsUseCase extends UseCase<
       return Result.fail('deviceId is required');
     }
 
-    const hasHttp = !!(
-      request.httpUsername?.trim() && request.httpPassword?.trim()
-    );
-    const hasSnmpVersion = request.snmpVersion !== undefined;
-
-    if (!hasHttp && !hasSnmpVersion) {
+    if (
+      !request.httpUsername?.trim() ||
+      !request.httpPassword?.trim()
+    ) {
       return Result.fail(
-        'Provide either HTTP credentials (httpUsername + httpPassword) or SNMP credentials (snmpVersion + ...)'
+        'httpUsername and httpPassword are required'
       );
     }
 
-    if (hasSnmpVersion) {
+    // SNMP is not collected by any client today — nothing polls it yet. The
+    // rules below still hold for callers that do send it, so the capability
+    // survives untouched until SNMP metrics land.
+    const hasSnmpInput = [
+      request.snmpVersion,
+      request.snmpCommunity,
+      request.snmpV3AuthUser,
+      request.snmpV3AuthProto,
+      request.snmpV3AuthKey,
+      request.snmpV3PrivProto,
+      request.snmpV3PrivKey
+    ].some((field) => field !== undefined && field !== null);
+
+    if (hasSnmpInput) {
+      if (request.snmpVersion === undefined) {
+        return Result.fail(
+          'snmpVersion is required when SNMP credentials are provided'
+        );
+      }
+
       if (
         request.snmpVersion !== 1 &&
         request.snmpVersion !== 2 &&
@@ -72,7 +87,10 @@ export class SetDeviceCredentialsUseCase extends UseCase<
         if (!request.snmpV3AuthKey?.trim()) {
           return Result.fail('snmpV3AuthKey is required for SNMPv3');
         }
-        if (request.snmpV3PrivProto && !request.snmpV3PrivKey?.trim()) {
+        if (
+          request.snmpV3PrivProto &&
+          !request.snmpV3PrivKey?.trim()
+        ) {
           return Result.fail(
             'snmpV3PrivKey is required when snmpV3PrivProto is set'
           );
@@ -116,7 +134,18 @@ export class SetDeviceCredentialsUseCase extends UseCase<
       return this.fail('Device not found');
     }
 
-    const credentials = DeviceCredentialsMapper.extractCreateData(request);
+    const existingResult =
+      await this.credentialsRepo.findByDeviceId(deviceId);
+    if (existingResult.isFailure) {
+      return this.fail(
+        `Failed to look up credentials: ${existingResult.error}`
+      );
+    }
+
+    const credentials = DeviceCredentialsMapper.extractCreateData(
+      request,
+      existingResult.value
+    );
 
     const saveResult = await this.credentialsRepo.save(
       deviceId,
@@ -129,7 +158,10 @@ export class SetDeviceCredentialsUseCase extends UseCase<
     }
 
     return this.ok(
-      DeviceCredentialsMapper.toDTO(request.deviceId.trim(), credentials)
+      DeviceCredentialsMapper.toDTO(
+        request.deviceId.trim(),
+        credentials
+      )
     );
   }
 

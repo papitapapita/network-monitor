@@ -60,10 +60,10 @@ _Main user-facing features still missing._
 
 - [ ] **Stop asking for SNMP credentials** — nothing reads them, so the form is asking operators for secrets the system never uses
   - Verified: `snmpCommunity` / `snmpV3AuthUser` appear only in storage and validation plumbing (`SetDeviceCredentialsUseCase`, `DeviceCredentialsMapper`, `PrismaDeviceCredentialsRepository`, the DTOs) — **no collector consumes them**; all polling today is ICMP ping plus AirOS HTTP
-  - Hide the SNMP section in the frontend credentials form; make HTTP username + password the only required pair
-  - Backend: relax `SetDeviceCredentialsUseCase.beforeExecute` so HTTP-only is the normal path, not one of two branches — the current error ("Provide either HTTP credentials or SNMP credentials") describes a choice that no longer exists
-  - Keep the schema columns and the encryption path — this is hiding an unused input, not dropping the capability. Re-enable when "SNMP system metrics" (Priority 3) lands
-  - Do not delete stored SNMP rows; they are encrypted and harmless, and re-entry would be tedious
+  - Hide the SNMP section in the frontend credentials form; make HTTP username + password the only required pair — **still pending, frontend only**
+  - ~~Backend: relax `SetDeviceCredentialsUseCase.beforeExecute` so HTTP-only is the normal path~~ — done 2026-07-27. `httpUsername` + `httpPassword` are now the required pair; SNMP validation runs only when the request actually carries an SNMP field, and `snmpVersion` is required as soon as one is sent
+  - ~~Keep the schema columns and the encryption path~~ — untouched; re-enable the form when "SNMP system metrics" (Priority 3) lands
+  - ~~Do not delete stored SNMP rows~~ — done: `extractCreateData` now carries stored SNMP values forward when the request omits them (only an explicit `null` clears one), so an HTTP-only save from the new form cannot wipe keys that would be tedious to re-enter
 
 - [ ] **HTTP credential port defaults to 443, not 80** — the frontend sends the wrong default
   - Backend is already correct: `DeviceCredentialsMapper.extractCreateData` does `httpPort: dto.httpPort ?? 443`

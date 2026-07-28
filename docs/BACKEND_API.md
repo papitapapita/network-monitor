@@ -473,12 +473,21 @@ interface DeviceCredentialsResponseDTO {
 ### `PUT /api/devices/:id/credentials` — Set Credentials
 **Status:** 200 | 400 | 404
 
-Fully replaces the stored credentials for the device (upsert).
+Upserts the credentials for the device. **HTTP credentials are the required pair** and are replaced on every call.
+
+The SNMP fields are optional and **nothing polls them today** — all polling is ICMP ping plus AirOS HTTP. They stay in the contract for the future "SNMP system metrics" work, so clients should simply omit them: an omitted SNMP field keeps whatever is stored, and only an explicit `null` clears it.
 
 ```ts
 // Request body
 {
-  snmpVersion: 1 | 2 | 3         // required
+  // HTTP / web-UI credentials — required
+  httpUsername: string
+  httpPassword: string
+  httpPort?: number   // 1–65535; default 443
+
+  // SNMP — optional, not consumed by any collector yet.
+  // Omit to keep the stored value; send null to clear it.
+  snmpVersion?: 1 | 2 | 3        // required as soon as any SNMP field is sent
 
   // SNMP v1/v2 fields
   snmpCommunity?: string | null  // required when snmpVersion = 1 or 2
@@ -490,22 +499,19 @@ Fully replaces the stored credentials for the device (upsert).
   snmpV3PrivProto?: 'DES' | 'AES' | null  // optional privacy protocol
   snmpV3PrivKey?: string | null    // required when snmpV3PrivProto is set
 
-  // HTTP / web-UI credentials (optional for all SNMP versions)
-  httpUsername?: string | null
-  httpPassword?: string | null
-
-  // Ports
   snmpPort?: number   // 1–65535; default 161
-  httpPort?: number   // 1–65535; default 443
 }
 
 // Response — DeviceCredentialsResponseDTO (raw, no wrapper)
 ```
 
 **Business rules:**
-- `snmpVersion = 1` or `2` → `snmpCommunity` is required.
-- `snmpVersion = 3` → `snmpV3AuthUser`, `snmpV3AuthProto`, and `snmpV3AuthKey` are required.
-- `snmpV3PrivKey` is required when `snmpV3PrivProto` is provided.
+- `httpUsername` and `httpPassword` are both required; neither may be blank.
+- SNMP validation runs only when the request carries an SNMP field:
+  - `snmpVersion` is required as soon as any other SNMP field is sent.
+  - `snmpVersion = 1` or `2` → `snmpCommunity` is required.
+  - `snmpVersion = 3` → `snmpV3AuthUser`, `snmpV3AuthProto`, and `snmpV3AuthKey` are required.
+  - `snmpV3PrivKey` is required when `snmpV3PrivProto` is provided.
 - Port values must be in range 1–65535.
 - Returns 404 if the device does not exist.
 

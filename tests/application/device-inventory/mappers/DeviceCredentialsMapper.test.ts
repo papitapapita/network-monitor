@@ -2,6 +2,7 @@
 
 import { DeviceCredentialsMapper } from 'application/device-inventory/mappers/DeviceCredentialsMapper';
 import { DeviceCredentials } from 'application/device-inventory/interfaces';
+import { SetDeviceCredentialsRequestDTO } from 'application/device-inventory/dtos';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -32,6 +33,17 @@ function makeCredentials(
   };
 }
 
+function makeRequest(
+  overrides: Partial<SetDeviceCredentialsRequestDTO> = {}
+): SetDeviceCredentialsRequestDTO {
+  return {
+    deviceId: DEVICE_UUID,
+    httpUsername: 'ubnt',
+    httpPassword: 'topsecret',
+    ...overrides
+  };
+}
+
 // ---------------------------------------------------------------------------
 
 describe('DeviceCredentialsMapper', () => {
@@ -40,7 +52,10 @@ describe('DeviceCredentialsMapper', () => {
     // ------------------------------------------------------------------------
     describe('field pass-through', () => {
       it('should map deviceId to the provided string', () => {
-        const dto = DeviceCredentialsMapper.toDTO(DEVICE_UUID, makeCredentials());
+        const dto = DeviceCredentialsMapper.toDTO(
+          DEVICE_UUID,
+          makeCredentials()
+        );
 
         expect(dto.deviceId).toBe(DEVICE_UUID);
       });
@@ -75,7 +90,10 @@ describe('DeviceCredentialsMapper', () => {
       it('should map snmpV3AuthUser from credentials', () => {
         const dto = DeviceCredentialsMapper.toDTO(
           DEVICE_UUID,
-          makeCredentials({ snmpVersion: 3, snmpV3AuthUser: 'adminUser' })
+          makeCredentials({
+            snmpVersion: 3,
+            snmpV3AuthUser: 'adminUser'
+          })
         );
 
         expect(dto.snmpV3AuthUser).toBe('adminUser');
@@ -135,7 +153,10 @@ describe('DeviceCredentialsMapper', () => {
       it('should mask snmpV3AuthKey as "***" when an auth key is set', () => {
         const dto = DeviceCredentialsMapper.toDTO(
           DEVICE_UUID,
-          makeCredentials({ snmpVersion: 3, snmpV3AuthKey: 'secretkey' })
+          makeCredentials({
+            snmpVersion: 3,
+            snmpV3AuthKey: 'secretkey'
+          })
         );
 
         expect(dto.snmpV3AuthKey).toBe('***');
@@ -156,7 +177,10 @@ describe('DeviceCredentialsMapper', () => {
       it('should mask snmpV3PrivKey as "***" when a privacy key is set', () => {
         const dto = DeviceCredentialsMapper.toDTO(
           DEVICE_UUID,
-          makeCredentials({ snmpVersion: 3, snmpV3PrivKey: 'privkey' })
+          makeCredentials({
+            snmpVersion: 3,
+            snmpV3PrivKey: 'privkey'
+          })
         );
 
         expect(dto.snmpV3PrivKey).toBe('***');
@@ -177,7 +201,10 @@ describe('DeviceCredentialsMapper', () => {
       it('should mask httpPassword as "***" when a password is set', () => {
         const dto = DeviceCredentialsMapper.toDTO(
           DEVICE_UUID,
-          makeCredentials({ httpUsername: 'ubnt', httpPassword: 'secret' })
+          makeCredentials({
+            httpUsername: 'ubnt',
+            httpPassword: 'secret'
+          })
         );
 
         expect(dto.httpPassword).toBe('***');
@@ -282,7 +309,10 @@ describe('DeviceCredentialsMapper', () => {
       it('should be true when both httpUsername and httpPassword are set', () => {
         const dto = DeviceCredentialsMapper.toDTO(
           DEVICE_UUID,
-          makeCredentials({ httpUsername: 'ubnt', httpPassword: 'secret' })
+          makeCredentials({
+            httpUsername: 'ubnt',
+            httpPassword: 'secret'
+          })
         );
 
         expect(dto.hasHttpCredentials).toBe(true);
@@ -291,7 +321,10 @@ describe('DeviceCredentialsMapper', () => {
       it('should be false when httpUsername is null', () => {
         const dto = DeviceCredentialsMapper.toDTO(
           DEVICE_UUID,
-          makeCredentials({ httpUsername: null, httpPassword: 'secret' })
+          makeCredentials({
+            httpUsername: null,
+            httpPassword: 'secret'
+          })
         );
 
         expect(dto.hasHttpCredentials).toBe(false);
@@ -300,7 +333,10 @@ describe('DeviceCredentialsMapper', () => {
       it('should be false when httpPassword is null', () => {
         const dto = DeviceCredentialsMapper.toDTO(
           DEVICE_UUID,
-          makeCredentials({ httpUsername: 'ubnt', httpPassword: null })
+          makeCredentials({
+            httpUsername: 'ubnt',
+            httpPassword: null
+          })
         );
 
         expect(dto.hasHttpCredentials).toBe(false);
@@ -317,7 +353,9 @@ describe('DeviceCredentialsMapper', () => {
           httpPassword: 'secret'
         });
 
-        expect(DeviceCredentialsMapper.toDTO(DEVICE_UUID, credentials)).toEqual(
+        expect(
+          DeviceCredentialsMapper.toDTO(DEVICE_UUID, credentials)
+        ).toEqual(
           DeviceCredentialsMapper.toDTO(DEVICE_UUID, credentials)
         );
       });
@@ -327,243 +365,256 @@ describe('DeviceCredentialsMapper', () => {
   // ==========================================================================
   describe('extractCreateData()', () => {
     // ------------------------------------------------------------------------
-    describe('required fields', () => {
-      it('should pass snmpVersion through as-is', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 1
-        });
+    describe('HTTP fields — always replaced', () => {
+      it('should pass httpUsername through as-is', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest({ httpUsername: 'operator' })
+        );
 
-        expect(result.snmpVersion).toBe(1);
-      });
-    });
-
-    // ------------------------------------------------------------------------
-    describe('optional fields — absent (defaults)', () => {
-      it('should default snmpCommunity to null when absent', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 2
-        });
-
-        expect(result.snmpCommunity).toBeNull();
+        expect(result.httpUsername).toBe('operator');
       });
 
-      it('should default snmpV3AuthUser to null when absent', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 3
-        });
+      it('should pass httpPassword through as-is', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest({ httpPassword: 'pw-value' })
+        );
 
-        expect(result.snmpV3AuthUser).toBeNull();
-      });
-
-      it('should default snmpV3AuthProto to null when absent', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 3
-        });
-
-        expect(result.snmpV3AuthProto).toBeNull();
-      });
-
-      it('should default snmpV3AuthKey to null when absent', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 3
-        });
-
-        expect(result.snmpV3AuthKey).toBeNull();
-      });
-
-      it('should default snmpV3PrivProto to null when absent', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 3
-        });
-
-        expect(result.snmpV3PrivProto).toBeNull();
-      });
-
-      it('should default snmpV3PrivKey to null when absent', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 3
-        });
-
-        expect(result.snmpV3PrivKey).toBeNull();
-      });
-
-      it('should default snmpPort to 161 when absent', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 2
-        });
-
-        expect(result.snmpPort).toBe(161);
-      });
-
-      it('should default httpUsername to null when absent', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 2
-        });
-
-        expect(result.httpUsername).toBeNull();
-      });
-
-      it('should default httpPassword to null when absent', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 2
-        });
-
-        expect(result.httpPassword).toBeNull();
+        expect(result.httpPassword).toBe('pw-value');
       });
 
       it('should default httpPort to 443 when absent', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 2
-        });
+        const result =
+          DeviceCredentialsMapper.extractCreateData(makeRequest());
 
+        expect(result.httpPort).toBe(443);
+      });
+
+      it('should use the provided httpPort instead of the default 443', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest({ httpPort: 8080 })
+        );
+
+        expect(result.httpPort).toBe(8080);
+      });
+
+      it('should replace stored HTTP values rather than keeping them', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest({
+            httpUsername: 'new-user',
+            httpPassword: 'new-pw'
+          }),
+          makeCredentials({
+            httpUsername: 'old-user',
+            httpPassword: 'old-pw',
+            httpPort: 8443
+          })
+        );
+
+        expect(result.httpUsername).toBe('new-user');
+        expect(result.httpPassword).toBe('new-pw');
         expect(result.httpPort).toBe(443);
       });
     });
 
     // ------------------------------------------------------------------------
-    describe('optional fields — provided values override defaults', () => {
-      it('should use the provided snmpPort instead of the default 161', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 2,
-          snmpPort: 162
-        });
+    describe('SNMP fields — absent with nothing stored (defaults)', () => {
+      it('should default snmpVersion to 1', () => {
+        const result =
+          DeviceCredentialsMapper.extractCreateData(makeRequest());
 
-        expect(result.snmpPort).toBe(162);
+        expect(result.snmpVersion).toBe(1);
       });
 
-      it('should use the provided httpPort instead of the default 443', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 2,
-          httpPort: 8080
-        });
+      it('should pass snmpVersion through as-is when provided', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest({ snmpVersion: 3 })
+        );
 
-        expect(result.httpPort).toBe(8080);
+        expect(result.snmpVersion).toBe(3);
       });
 
-      it('should pass through snmpCommunity when provided', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 2,
-          snmpCommunity: 'private'
-        });
-
-        expect(result.snmpCommunity).toBe('private');
-      });
-
-      it('should pass through snmpV3AuthUser when provided', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 3,
-          snmpV3AuthUser: 'adminUser'
-        });
-
-        expect(result.snmpV3AuthUser).toBe('adminUser');
-      });
-
-      it('should pass through snmpV3AuthProto when provided', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 3,
-          snmpV3AuthProto: 'MD5'
-        });
-
-        expect(result.snmpV3AuthProto).toBe('MD5');
-      });
-
-      it('should pass through snmpV3AuthKey when provided', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 3,
-          snmpV3AuthKey: 'authsecret'
-        });
-
-        expect(result.snmpV3AuthKey).toBe('authsecret');
-      });
-
-      it('should pass through snmpV3PrivProto when provided', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 3,
-          snmpV3PrivProto: 'DES'
-        });
-
-        expect(result.snmpV3PrivProto).toBe('DES');
-      });
-
-      it('should pass through snmpV3PrivKey when provided', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 3,
-          snmpV3PrivKey: 'privsecret'
-        });
-
-        expect(result.snmpV3PrivKey).toBe('privsecret');
-      });
-
-      it('should pass through httpUsername when provided', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 2,
-          httpUsername: 'ubnt'
-        });
-
-        expect(result.httpUsername).toBe('ubnt');
-      });
-
-      it('should pass through httpPassword when provided', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 2,
-          httpPassword: 'topsecret'
-        });
-
-        expect(result.httpPassword).toBe('topsecret');
-      });
-    });
-
-    // ------------------------------------------------------------------------
-    describe('optional fields — explicit null values', () => {
-      it('should treat explicit null snmpCommunity as null', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 2,
-          snmpCommunity: null
-        });
+      it('should default snmpCommunity to null', () => {
+        const result =
+          DeviceCredentialsMapper.extractCreateData(makeRequest());
 
         expect(result.snmpCommunity).toBeNull();
       });
 
-      it('should treat explicit null snmpV3AuthUser as null', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
+      it('should default every SNMPv3 field to null', () => {
+        const result =
+          DeviceCredentialsMapper.extractCreateData(makeRequest());
+
+        expect(result.snmpV3AuthUser).toBeNull();
+        expect(result.snmpV3AuthProto).toBeNull();
+        expect(result.snmpV3AuthKey).toBeNull();
+        expect(result.snmpV3PrivProto).toBeNull();
+        expect(result.snmpV3PrivKey).toBeNull();
+      });
+
+      it('should default snmpPort to 161', () => {
+        const result =
+          DeviceCredentialsMapper.extractCreateData(makeRequest());
+
+        expect(result.snmpPort).toBe(161);
+      });
+    });
+
+    // ------------------------------------------------------------------------
+    describe('SNMP fields — provided values override defaults', () => {
+      it('should use the provided snmpPort instead of the default 161', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest({ snmpVersion: 2, snmpPort: 162 })
+        );
+
+        expect(result.snmpPort).toBe(162);
+      });
+
+      it('should pass through snmpCommunity when provided', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest({ snmpVersion: 2, snmpCommunity: 'private' })
+        );
+
+        expect(result.snmpCommunity).toBe('private');
+      });
+
+      it('should pass through the SNMPv3 auth fields when provided', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest({
+            snmpVersion: 3,
+            snmpV3AuthUser: 'adminUser',
+            snmpV3AuthProto: 'MD5',
+            snmpV3AuthKey: 'authsecret'
+          })
+        );
+
+        expect(result.snmpV3AuthUser).toBe('adminUser');
+        expect(result.snmpV3AuthProto).toBe('MD5');
+        expect(result.snmpV3AuthKey).toBe('authsecret');
+      });
+
+      it('should pass through the SNMPv3 privacy fields when provided', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest({
+            snmpVersion: 3,
+            snmpV3PrivProto: 'DES',
+            snmpV3PrivKey: 'privsecret'
+          })
+        );
+
+        expect(result.snmpV3PrivProto).toBe('DES');
+        expect(result.snmpV3PrivKey).toBe('privsecret');
+      });
+    });
+
+    // ------------------------------------------------------------------------
+    describe('SNMP fields — absent but stored (carried forward)', () => {
+      const stored = () =>
+        makeCredentials({
           snmpVersion: 3,
-          snmpV3AuthUser: null
+          snmpCommunity: 'stored-community',
+          snmpV3AuthUser: 'stored-user',
+          snmpV3AuthProto: 'SHA',
+          snmpV3AuthKey: 'stored-auth-key',
+          snmpV3PrivProto: 'AES',
+          snmpV3PrivKey: 'stored-priv-key',
+          snmpPort: 1161
         });
+
+      it('should keep the stored snmpVersion', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest(),
+          stored()
+        );
+
+        expect(result.snmpVersion).toBe(3);
+      });
+
+      it('should keep the stored snmpCommunity', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest(),
+          stored()
+        );
+
+        expect(result.snmpCommunity).toBe('stored-community');
+      });
+
+      it('should keep the stored SNMPv3 fields', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest(),
+          stored()
+        );
+
+        expect(result.snmpV3AuthUser).toBe('stored-user');
+        expect(result.snmpV3AuthProto).toBe('SHA');
+        expect(result.snmpV3AuthKey).toBe('stored-auth-key');
+        expect(result.snmpV3PrivProto).toBe('AES');
+        expect(result.snmpV3PrivKey).toBe('stored-priv-key');
+      });
+
+      it('should keep the stored snmpPort', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest(),
+          stored()
+        );
+
+        expect(result.snmpPort).toBe(1161);
+      });
+
+      it('should prefer a provided SNMP value over the stored one', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest({
+            snmpVersion: 2,
+            snmpCommunity: 'fresh-community'
+          }),
+          stored()
+        );
+
+        expect(result.snmpVersion).toBe(2);
+        expect(result.snmpCommunity).toBe('fresh-community');
+      });
+
+      it('should treat a null existing row as nothing stored', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest(),
+          null
+        );
+
+        expect(result.snmpVersion).toBe(1);
+        expect(result.snmpCommunity).toBeNull();
+      });
+    });
+
+    // ------------------------------------------------------------------------
+    describe('SNMP fields — explicit null clears the stored value', () => {
+      it('should clear a stored snmpCommunity when null is sent', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest({ snmpCommunity: null }),
+          makeCredentials({ snmpCommunity: 'stored-community' })
+        );
+
+        expect(result.snmpCommunity).toBeNull();
+      });
+
+      it('should clear a stored snmpV3AuthUser when null is sent', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest({ snmpV3AuthUser: null }),
+          makeCredentials({ snmpV3AuthUser: 'stored-user' })
+        );
 
         expect(result.snmpV3AuthUser).toBeNull();
       });
 
-      it('should treat explicit null httpPassword as null', () => {
-        const result = DeviceCredentialsMapper.extractCreateData({
-          deviceId: DEVICE_UUID,
-          snmpVersion: 2,
-          httpPassword: null
-        });
+      it('should clear only the fields sent as null', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest({ snmpV3PrivKey: null }),
+          makeCredentials({
+            snmpV3AuthKey: 'stored-auth-key',
+            snmpV3PrivKey: 'stored-priv-key'
+          })
+        );
 
-        expect(result.httpPassword).toBeNull();
+        expect(result.snmpV3PrivKey).toBeNull();
+        expect(result.snmpV3AuthKey).toBe('stored-auth-key');
       });
     });
   });
@@ -575,7 +626,9 @@ describe('DeviceCredentialsMapper', () => {
     });
 
     it('should expose extractCreateData as a static method', () => {
-      expect(typeof DeviceCredentialsMapper.extractCreateData).toBe('function');
+      expect(typeof DeviceCredentialsMapper.extractCreateData).toBe(
+        'function'
+      );
     });
   });
 });

@@ -35,16 +35,38 @@ export class DeviceCredentialsMapper {
     };
   }
 
-  public static extractCreateData(dto: SetDeviceCredentialsRequestDTO) {
+  // HTTP fields are replaced outright. SNMP fields are carried forward from
+  // the stored row when the request omits them: no client collects SNMP today,
+  // so a plain HTTP save must not silently wipe keys that would be tedious to
+  // re-enter. Passing null for an SNMP field still clears it.
+  public static extractCreateData(
+    dto: SetDeviceCredentialsRequestDTO,
+    existing?: DeviceCredentials | null
+  ): DeviceCredentials {
+    const keep = <T>(
+      incoming: T | null | undefined,
+      stored: T | null | undefined
+    ): T | null =>
+      incoming !== undefined ? incoming : (stored ?? null);
+
     return {
-      snmpVersion: dto.snmpVersion ?? 1,
-      snmpCommunity: dto.snmpCommunity ?? null,
-      snmpV3AuthUser: dto.snmpV3AuthUser ?? null,
-      snmpV3AuthProto: dto.snmpV3AuthProto ?? null,
-      snmpV3AuthKey: dto.snmpV3AuthKey ?? null,
-      snmpV3PrivProto: dto.snmpV3PrivProto ?? null,
-      snmpV3PrivKey: dto.snmpV3PrivKey ?? null,
-      snmpPort: dto.snmpPort ?? 161,
+      snmpVersion: dto.snmpVersion ?? existing?.snmpVersion ?? 1,
+      snmpCommunity: keep(dto.snmpCommunity, existing?.snmpCommunity),
+      snmpV3AuthUser: keep(
+        dto.snmpV3AuthUser,
+        existing?.snmpV3AuthUser
+      ),
+      snmpV3AuthProto: keep(
+        dto.snmpV3AuthProto,
+        existing?.snmpV3AuthProto
+      ),
+      snmpV3AuthKey: keep(dto.snmpV3AuthKey, existing?.snmpV3AuthKey),
+      snmpV3PrivProto: keep(
+        dto.snmpV3PrivProto,
+        existing?.snmpV3PrivProto
+      ),
+      snmpV3PrivKey: keep(dto.snmpV3PrivKey, existing?.snmpV3PrivKey),
+      snmpPort: dto.snmpPort ?? existing?.snmpPort ?? 161,
       httpUsername: dto.httpUsername ?? null,
       httpPassword: dto.httpPassword ?? null,
       httpPort: dto.httpPort ?? 443

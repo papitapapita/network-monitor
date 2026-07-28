@@ -31,7 +31,9 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
     deviceModelId = await seedDeviceModel(prisma);
 
     const deviceRepo = new PrismaDeviceRepository(prisma);
-    const credentialsRepo = new PrismaDeviceCredentialsRepository(prisma);
+    const credentialsRepo = new PrismaDeviceCredentialsRepository(
+      prisma
+    );
     const logger = new WinstonLogger();
     createDevice = new CreateDeviceUseCase(deviceRepo, logger);
     useCase = new SetDeviceCredentialsUseCase(
@@ -134,6 +136,8 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
   it('stores SNMPv2 credentials with a community string', async () => {
     const result = await useCase.execute({
       deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'pw',
       snmpVersion: 2,
       snmpCommunity: 'public-ro'
     });
@@ -147,6 +151,8 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
   it('stores SNMPv3 credentials with auth user and key', async () => {
     const result = await useCase.execute({
       deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'pw',
       snmpVersion: 3,
       snmpV3AuthUser: 'monitor',
       snmpV3AuthProto: 'SHA',
@@ -163,6 +169,8 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
   it('accepts a custom snmpPort and httpPort', async () => {
     const result = await useCase.execute({
       deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'pw',
       snmpVersion: 2,
       snmpCommunity: 'public',
       snmpPort: 1161,
@@ -175,19 +183,140 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
   });
 
   // ──────────────────────────────────────────────────────────────
+  // Stored SNMP keys survive an HTTP-only save
+  // ──────────────────────────────────────────────────────────────
+
+  it('keeps stored SNMP keys when a later call sends HTTP credentials only', async () => {
+    await useCase.execute({
+      deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'pw',
+      snmpVersion: 3,
+      snmpV3AuthUser: 'monitor',
+      snmpV3AuthProto: 'SHA',
+      snmpV3AuthKey: 'auth-key-value',
+      snmpPort: 1161
+    });
+
+    const result = await useCase.execute({
+      deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'rotated-pw'
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.snmpVersion).toBe(3);
+    expect(result.value.snmpV3AuthUser).toBe('monitor');
+    expect(result.value.snmpV3AuthKey).toBe('***');
+    expect(result.value.snmpPort).toBe(1161);
+    expect(result.value.hasSnmpCredentials).toBe(true);
+  });
+
+  it('re-encrypts a carried-forward SNMP key rather than storing plaintext', async () => {
+    await useCase.execute({
+      deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'pw',
+      snmpVersion: 3,
+      snmpV3AuthUser: 'monitor',
+      snmpV3AuthProto: 'SHA',
+      snmpV3AuthKey: 'auth-key-value'
+    });
+    await useCase.execute({
+      deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'rotated-pw'
+    });
+
+    const row = await prisma.deviceCredentials.findUnique({
+      where: { deviceId }
+    });
+
+    expect(row!.snmpV3AuthKey).not.toBeNull();
+    expect(row!.snmpV3AuthKey).not.toContain('auth-key-value');
+    expect(row!.snmpV3AuthKey!.split(':')).toHaveLength(3);
+  });
+
+  it('clears a stored SNMP key when the request sends it as null', async () => {
+    await useCase.execute({
+      deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'pw',
+      snmpVersion: 2,
+      snmpCommunity: 'public-ro'
+    });
+
+    const result = await useCase.execute({
+      deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'pw',
+      snmpCommunity: null
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.snmpCommunity).toBeNull();
+    expect(result.value.hasSnmpCredentials).toBe(false);
+  });
+
+  // ──────────────────────────────────────────────────────────────
   // Validation failures
   // ──────────────────────────────────────────────────────────────
 
-  it('fails when neither HTTP nor SNMP credentials are supplied', async () => {
-    const result = await useCase.execute({ deviceId });
+  it('fails when no HTTP credentials are supplied', async () => {
+    const result = await useCase.execute({
+      deviceId
+    } as never);
 
     expect(result.isFailure).toBe(true);
-    expect(result.error).toMatch(/provide either HTTP credentials/i);
+    expect(result.error).toMatch(
+      /httpUsername and httpPassword are required/i
+    );
+  });
+
+  it('fails when only SNMP credentials are supplied', async () => {
+    const result = await useCase.execute({
+      deviceId,
+      snmpVersion: 2,
+      snmpCommunity: 'public-ro'
+    } as never);
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(
+      /httpUsername and httpPassword are required/i
+    );
+  });
+
+  it('fails when httpPassword is missing', async () => {
+    const result = await useCase.execute({
+      deviceId,
+      httpUsername: 'ubnt'
+    } as never);
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(
+      /httpUsername and httpPassword are required/i
+    );
+  });
+
+  it('fails when an SNMP field is sent without snmpVersion', async () => {
+    const result = await useCase.execute({
+      deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'pw',
+      snmpCommunity: 'public'
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(
+      /snmpVersion is required when SNMP credentials are provided/i
+    );
   });
 
   it('fails with an unsupported snmpVersion', async () => {
     const result = await useCase.execute({
       deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'pw',
       snmpVersion: 4 as never,
       snmpCommunity: 'public'
     });
@@ -197,14 +326,24 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
   });
 
   it('fails when SNMPv2 is given without a community string', async () => {
-    const result = await useCase.execute({ deviceId, snmpVersion: 2 });
+    const result = await useCase.execute({
+      deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'pw',
+      snmpVersion: 2
+    });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/snmpCommunity is required/i);
   });
 
   it('fails when SNMPv3 is given without an auth user', async () => {
-    const result = await useCase.execute({ deviceId, snmpVersion: 3 });
+    const result = await useCase.execute({
+      deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'pw',
+      snmpVersion: 3
+    });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/snmpV3AuthUser is required/i);
@@ -213,6 +352,8 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
   it('fails when SNMPv3 is given without an auth key', async () => {
     const result = await useCase.execute({
       deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'pw',
       snmpVersion: 3,
       snmpV3AuthUser: 'monitor',
       snmpV3AuthProto: 'SHA'
@@ -225,6 +366,8 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
   it('fails when a priv protocol is set without a priv key', async () => {
     const result = await useCase.execute({
       deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'pw',
       snmpVersion: 3,
       snmpV3AuthUser: 'monitor',
       snmpV3AuthProto: 'SHA',
@@ -239,13 +382,17 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
   it('fails with an out-of-range snmpPort', async () => {
     const result = await useCase.execute({
       deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'pw',
       snmpVersion: 2,
       snmpCommunity: 'public',
       snmpPort: 70000
     });
 
     expect(result.isFailure).toBe(true);
-    expect(result.error).toMatch(/snmpPort must be between 1 and 65535/i);
+    expect(result.error).toMatch(
+      /snmpPort must be between 1 and 65535/i
+    );
   });
 
   it('fails with an out-of-range httpPort', async () => {
@@ -257,7 +404,9 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
     });
 
     expect(result.isFailure).toBe(true);
-    expect(result.error).toMatch(/httpPort must be between 1 and 65535/i);
+    expect(result.error).toMatch(
+      /httpPort must be between 1 and 65535/i
+    );
   });
 
   // ──────────────────────────────────────────────────────────────

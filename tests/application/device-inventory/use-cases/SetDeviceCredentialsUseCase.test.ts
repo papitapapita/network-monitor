@@ -9,9 +9,15 @@ import {
 import { ILogger } from '../../../../src/application/shared/interfaces';
 import { Result } from '../../../../src/domain/shared/core';
 import { Device } from '../../../../src/domain/device-inventory/aggregates';
-import { DeviceName, DeviceStatus } from '../../../../src/domain/device-inventory/value-objects';
+import {
+  DeviceName,
+  DeviceStatus
+} from '../../../../src/domain/device-inventory/value-objects';
 import { DeviceOwnerType } from '../../../../src/domain/device-inventory/enums';
-import { DeviceId, DeviceModelId } from '../../../../src/domain/shared/ids';
+import {
+  DeviceId,
+  DeviceModelId
+} from '../../../../src/domain/shared/ids';
 import { SetDeviceCredentialsRequestDTO } from '../../../../src/application/device-inventory/dtos';
 
 // ---------------------------------------------------------------------------
@@ -91,26 +97,54 @@ function makePersistedDevice(): Device {
   });
 }
 
-function makeV2Request(
+function makeHttpRequest(
   overrides: Partial<SetDeviceCredentialsRequestDTO> = {}
 ): SetDeviceCredentialsRequestDTO {
   return {
     deviceId: VALID_DEVICE_ID,
+    httpUsername: 'ubnt',
+    httpPassword: 'http-secret',
+    ...overrides
+  };
+}
+
+function makeV2Request(
+  overrides: Partial<SetDeviceCredentialsRequestDTO> = {}
+): SetDeviceCredentialsRequestDTO {
+  return makeHttpRequest({
     snmpVersion: 2,
     snmpCommunity: 'public',
     ...overrides
-  };
+  });
 }
 
 function makeV3Request(
   overrides: Partial<SetDeviceCredentialsRequestDTO> = {}
 ): SetDeviceCredentialsRequestDTO {
-  return {
-    deviceId: VALID_DEVICE_ID,
+  return makeHttpRequest({
     snmpVersion: 3,
     snmpV3AuthUser: 'admin',
     snmpV3AuthProto: 'SHA',
     snmpV3AuthKey: 'secret-auth-key',
+    ...overrides
+  });
+}
+
+function makeStoredCredentials(
+  overrides: Partial<DeviceCredentials> = {}
+): DeviceCredentials {
+  return {
+    snmpVersion: 3,
+    snmpCommunity: null,
+    snmpV3AuthUser: 'stored-monitor',
+    snmpV3AuthProto: 'SHA',
+    snmpV3AuthKey: 'stored-auth-key',
+    snmpV3PrivProto: 'AES',
+    snmpV3PrivKey: 'stored-priv-key',
+    httpUsername: 'stored-user',
+    httpPassword: 'stored-pw',
+    snmpPort: 1161,
+    httpPort: 8443,
     ...overrides
   };
 }
@@ -136,6 +170,7 @@ describe('SetDeviceCredentialsUseCase', () => {
     deviceRepo.findById.mockResolvedValue(
       Result.ok(makePersistedDevice())
     );
+    credentialsRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
     credentialsRepo.save.mockResolvedValue(Result.ok(undefined));
   });
 
@@ -171,14 +206,98 @@ describe('SetDeviceCredentialsUseCase', () => {
   });
 
   // =========================================================================
+  describe('beforeExecute — HTTP credentials are required', () => {
+    it('should pass with HTTP credentials alone and no SNMP fields', async () => {
+      const result = await useCase.execute(makeHttpRequest());
+
+      expect(result.isSuccess).toBe(true);
+    });
+
+    it('should fail when both httpUsername and httpPassword are missing', async () => {
+      const result = await useCase.execute(
+        makeHttpRequest({
+          httpUsername: undefined,
+          httpPassword: undefined
+        })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'httpUsername and httpPassword are required'
+      );
+    });
+
+    it('should fail when httpPassword is missing', async () => {
+      const result = await useCase.execute(
+        makeHttpRequest({ httpPassword: undefined })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'httpUsername and httpPassword are required'
+      );
+    });
+
+    it('should fail when httpUsername is whitespace only', async () => {
+      const result = await useCase.execute(
+        makeHttpRequest({ httpUsername: '   ' })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'httpUsername and httpPassword are required'
+      );
+    });
+
+    it('should fail when only SNMP credentials are supplied', async () => {
+      const result = await useCase.execute(
+        makeV2Request({
+          httpUsername: undefined,
+          httpPassword: undefined
+        })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'httpUsername and httpPassword are required'
+      );
+    });
+  });
+
+  // =========================================================================
   describe('beforeExecute — snmpVersion validation', () => {
+    it('should fail when an SNMP field is sent without snmpVersion', async () => {
+      const result = await useCase.execute(
+        makeHttpRequest({ snmpCommunity: 'public' })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'snmpVersion is required when SNMP credentials are provided'
+      );
+    });
+
+    it('should skip SNMP validation when SNMP fields are all null', async () => {
+      const result = await useCase.execute(
+        makeHttpRequest({
+          snmpCommunity: null,
+          snmpV3AuthUser: null,
+          snmpV3AuthKey: null
+        })
+      );
+
+      expect(result.isSuccess).toBe(true);
+    });
+
     it('should fail when snmpVersion is not 1, 2, or 3', async () => {
       const result = await useCase.execute(
         makeV2Request({ snmpVersion: 4 as 1 | 2 | 3 })
       );
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('snmpVersion must be 1, 2, or 3');
+      expect(result.error).toContain(
+        'snmpVersion must be 1, 2, or 3'
+      );
     });
 
     it('should pass when snmpVersion is 1', async () => {
@@ -284,7 +403,10 @@ describe('SetDeviceCredentialsUseCase', () => {
 
     it('should fail when snmpV3PrivProto is set but snmpV3PrivKey is missing', async () => {
       const result = await useCase.execute(
-        makeV3Request({ snmpV3PrivProto: 'AES', snmpV3PrivKey: undefined })
+        makeV3Request({
+          snmpV3PrivProto: 'AES',
+          snmpV3PrivKey: undefined
+        })
       );
 
       expect(result.isFailure).toBe(true);
@@ -293,7 +415,10 @@ describe('SetDeviceCredentialsUseCase', () => {
 
     it('should pass when snmpV3PrivProto and snmpV3PrivKey are both provided', async () => {
       const result = await useCase.execute(
-        makeV3Request({ snmpV3PrivProto: 'AES', snmpV3PrivKey: 'priv-secret' })
+        makeV3Request({
+          snmpV3PrivProto: 'AES',
+          snmpV3PrivKey: 'priv-secret'
+        })
       );
 
       expect(result.isSuccess).toBe(true);
@@ -316,7 +441,9 @@ describe('SetDeviceCredentialsUseCase', () => {
       );
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('snmpPort must be between 1 and 65535');
+      expect(result.error).toContain(
+        'snmpPort must be between 1 and 65535'
+      );
     });
 
     it('should fail when snmpPort is above 65535', async () => {
@@ -325,7 +452,9 @@ describe('SetDeviceCredentialsUseCase', () => {
       );
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('snmpPort must be between 1 and 65535');
+      expect(result.error).toContain(
+        'snmpPort must be between 1 and 65535'
+      );
     });
 
     it('should pass when snmpPort is within valid range', async () => {
@@ -350,7 +479,9 @@ describe('SetDeviceCredentialsUseCase', () => {
       );
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('httpPort must be between 1 and 65535');
+      expect(result.error).toContain(
+        'httpPort must be between 1 and 65535'
+      );
     });
 
     it('should fail when httpPort is above 65535', async () => {
@@ -359,7 +490,9 @@ describe('SetDeviceCredentialsUseCase', () => {
       );
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('httpPort must be between 1 and 65535');
+      expect(result.error).toContain(
+        'httpPort must be between 1 and 65535'
+      );
     });
 
     it('should pass when httpPort is within valid range', async () => {
@@ -434,7 +567,10 @@ describe('SetDeviceCredentialsUseCase', () => {
 
     it('should call credentialsRepo.save with data shaped by extractCreateData (SNMPv3)', async () => {
       await useCase.execute(
-        makeV3Request({ snmpV3PrivProto: 'AES', snmpV3PrivKey: 'priv-k' })
+        makeV3Request({
+          snmpV3PrivProto: 'AES',
+          snmpV3PrivKey: 'priv-k'
+        })
       );
 
       expect(credentialsRepo.save).toHaveBeenCalledTimes(1);
@@ -481,10 +617,75 @@ describe('SetDeviceCredentialsUseCase', () => {
     });
 
     it('should pass the trimmed deviceId as the first arg to credentialsRepo.save', async () => {
-      await useCase.execute(makeV2Request({ deviceId: `  ${VALID_DEVICE_ID}  ` }));
+      await useCase.execute(
+        makeV2Request({ deviceId: `  ${VALID_DEVICE_ID}  ` })
+      );
 
       const savedDeviceId = credentialsRepo.save.mock.calls[0][0];
       expect(savedDeviceId.toString()).toBe(VALID_DEVICE_ID);
+    });
+  });
+
+  // =========================================================================
+  describe('executeImpl — stored SNMP values survive an HTTP-only save', () => {
+    beforeEach(() => {
+      credentialsRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeStoredCredentials())
+      );
+    });
+
+    it('should keep the stored SNMP fields when the request omits them', async () => {
+      await useCase.execute(makeHttpRequest());
+
+      const saved: DeviceCredentials =
+        credentialsRepo.save.mock.calls[0][1];
+
+      expect(saved.snmpVersion).toBe(3);
+      expect(saved.snmpV3AuthUser).toBe('stored-monitor');
+      expect(saved.snmpV3AuthProto).toBe('SHA');
+      expect(saved.snmpV3AuthKey).toBe('stored-auth-key');
+      expect(saved.snmpV3PrivProto).toBe('AES');
+      expect(saved.snmpV3PrivKey).toBe('stored-priv-key');
+      expect(saved.snmpPort).toBe(1161);
+    });
+
+    it('should replace the HTTP fields rather than keeping the stored ones', async () => {
+      await useCase.execute(makeHttpRequest());
+
+      const saved: DeviceCredentials =
+        credentialsRepo.save.mock.calls[0][1];
+
+      expect(saved.httpUsername).toBe('ubnt');
+      expect(saved.httpPassword).toBe('http-secret');
+      expect(saved.httpPort).toBe(443);
+    });
+
+    it('should clear a stored SNMP field when the request sends null', async () => {
+      await useCase.execute(
+        makeHttpRequest({
+          snmpV3PrivProto: null,
+          snmpV3PrivKey: null
+        })
+      );
+
+      const saved: DeviceCredentials =
+        credentialsRepo.save.mock.calls[0][1];
+
+      expect(saved.snmpV3PrivProto).toBeNull();
+      expect(saved.snmpV3PrivKey).toBeNull();
+      expect(saved.snmpV3AuthKey).toBe('stored-auth-key');
+    });
+
+    it('should fail when the stored credentials lookup fails', async () => {
+      credentialsRepo.findByDeviceId.mockResolvedValue(
+        Result.fail('Decryption error')
+      );
+
+      const result = await useCase.execute(makeHttpRequest());
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Failed to look up credentials');
+      expect(credentialsRepo.save).not.toHaveBeenCalled();
     });
   });
 
@@ -557,12 +758,6 @@ describe('SetDeviceCredentialsUseCase', () => {
       expect(result.value!.hasSnmpCredentials).toBe(true);
     });
 
-    it('should indicate hasHttpCredentials false when HTTP credentials are not set', async () => {
-      const result = await useCase.execute(makeV2Request());
-
-      expect(result.value!.hasHttpCredentials).toBe(false);
-    });
-
     it('should indicate hasHttpCredentials true when both httpUsername and httpPassword are set', async () => {
       const result = await useCase.execute(
         makeV2Request({
@@ -572,6 +767,12 @@ describe('SetDeviceCredentialsUseCase', () => {
       );
 
       expect(result.value!.hasHttpCredentials).toBe(true);
+    });
+
+    it('should indicate hasSnmpCredentials false on an HTTP-only request', async () => {
+      const result = await useCase.execute(makeHttpRequest());
+
+      expect(result.value!.hasSnmpCredentials).toBe(false);
     });
 
     it('should mask httpPassword in the response DTO when it is set', async () => {
