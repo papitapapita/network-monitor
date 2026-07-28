@@ -1,5 +1,5 @@
 import { Result } from 'domain/shared/core';
-import { DeviceId } from 'domain/shared';
+import { DeviceId, AlertSeverity } from 'domain/shared';
 import {
   IWirelessDeviceConfigRepository,
   IWirelessSnapshotRepository,
@@ -13,14 +13,13 @@ import {
   EvaluationContext
 } from 'domain/wireless-monitoring';
 import { UseCase } from 'application/shared/core';
-import { ILogger } from 'application/shared/interfaces';
+import { ILogger, IAlertPublisher } from 'application/shared/interfaces';
 import {
   IUbiquitiHttpCollector,
   HttpCredentials,
   IDeviceCredentialsRepository,
   IDeviceRepository,
-  IWirelessPollOrchestrator,
-  IWirelessAlertNotifier
+  IWirelessPollOrchestrator
 } from '../interfaces';
 import {
   PollWirelessDeviceRequestDTO,
@@ -44,7 +43,7 @@ export class PollWirelessDeviceUseCase
     private readonly httpCollector: IUbiquitiHttpCollector,
     private readonly alertEvaluator: IWirelessAlertEvaluator,
     private readonly deviceRepo: IDeviceRepository,
-    private readonly alertNotifier: IWirelessAlertNotifier | null,
+    private readonly alertPublisher: IAlertPublisher | null,
     logger: ILogger
   ) {
     super(logger, 'PollWirelessDeviceUseCase');
@@ -421,7 +420,7 @@ export class PollWirelessDeviceUseCase
     deviceId: DeviceId,
     now: Date
   ): Promise<void> {
-    if (!this.alertNotifier) return;
+    if (!this.alertPublisher) return;
 
     const pendingResult =
       await this.alertRecordRepo.findActiveUnnotifiedByDevice(
@@ -437,14 +436,17 @@ export class PollWirelessDeviceUseCase
     }
 
     for (const record of pendingResult.value) {
-      const sendResult = await this.alertNotifier.notifyTriggered({
+      const sendResult = await this.alertPublisher.publish({
         deviceId: deviceId.toString(),
-        metric: record.metric,
-        severity: record.severity,
-        threshold: record.threshold,
-        currentValue: record.lastValue,
-        message: record.message,
-        triggeredAt: record.triggeredAt
+        severity:
+          record.severity === 'CRITICAL'
+            ? AlertSeverity.CRITICAL
+            : AlertSeverity.WARNING,
+        source: 'Enlace inalámbrico',
+        subject: record.metric,
+        detail: record.message,
+        occurredAt: record.triggeredAt,
+        resolved: false
       });
 
       if (sendResult.isFailure) {

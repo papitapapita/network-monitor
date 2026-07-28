@@ -1,4 +1,4 @@
-import { PrismaClient } from 'generated/prisma/client';
+import { PrismaClient, Prisma } from 'generated/prisma/client';
 import { Result } from 'domain/shared/core';
 import { AlertId, DeviceId } from 'domain/shared/ids';
 import { IAlertRepository } from 'domain/notifications/repository';
@@ -19,8 +19,13 @@ export class PrismaAlertRepository implements IAlertRepository {
           notifiedAt: data.notifiedAt,
           recoveryNotifiedAt: data.recoveryNotifiedAt
         },
-        // Prisma's generated type expects enum literal for severity — string cast required
-        create: { ...data, severity: data.severity as 'WARNING' | 'CRITICAL' }
+        // Prisma's generated type expects enum literal for severity and a JSON
+        // input value for details — casts required from the mapper's plain shape
+        create: {
+          ...data,
+          severity: data.severity as 'WARNING' | 'CRITICAL',
+          details: data.details as Prisma.InputJsonValue
+        }
       });
 
       return Result.ok(alert);
@@ -45,12 +50,17 @@ export class PrismaAlertRepository implements IAlertRepository {
     }
   }
 
-  async findOpenByDeviceId(
-    deviceId: DeviceId
+  async findOpenByDeviceAndType(
+    deviceId: DeviceId,
+    type: string
   ): Promise<Result<Alert | null>> {
     try {
       const record = await this.prisma.alertEvent.findFirst({
-        where: { deviceId: deviceId.toString(), resolvedAt: null },
+        where: {
+          deviceId: deviceId.toString(),
+          type,
+          resolvedAt: null
+        },
         orderBy: { startedAt: 'desc' }
       });
 
@@ -60,6 +70,19 @@ export class PrismaAlertRepository implements IAlertRepository {
     } catch (error) {
       return Result.fail(
         `Database error finding open alert: ${(error as Error).message}`
+      );
+    }
+  }
+
+  async deleteById(id: AlertId): Promise<Result<void>> {
+    try {
+      await this.prisma.alertEvent.delete({
+        where: { id: id.toString() }
+      });
+      return Result.ok();
+    } catch (error) {
+      return Result.fail(
+        `Database error deleting alert: ${(error as Error).message}`
       );
     }
   }

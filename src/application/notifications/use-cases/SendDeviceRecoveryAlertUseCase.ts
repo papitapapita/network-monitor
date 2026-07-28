@@ -1,17 +1,18 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 import { IAlertRepository } from 'domain/notifications/repository';
-import { IDeviceRepository } from 'domain/device-inventory/repository';
 import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
 import { UseCase } from 'application/shared/core';
-import { ILogger } from 'application/shared/interfaces';
-import { INotificationService } from '../interfaces';
-import { TelegramFormatting } from '../shared';
+import { ILogger, IAlertPublisher } from 'application/shared/interfaces';
 import { AlertMapper } from '../mappers';
 import {
   AlertResponseDTO,
   SendDeviceRecoveryAlertDTO
 } from '../dtos';
+
+const SOURCE = 'Disponibilidad';
+const SUBJECT = 'Dispositivo recuperado';
+const ALERT_TYPE = 'device_unreachable';
 
 export class SendDeviceRecoveryAlertUseCase extends UseCase<
   SendDeviceRecoveryAlertDTO,
@@ -19,9 +20,8 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
 > {
   constructor(
     private readonly alertRepository: IAlertRepository,
-    private readonly deviceRepository: IDeviceRepository,
     private readonly pollingConfigRepository: IPollingConfigurationRepository,
-    private readonly notificationService: INotificationService,
+    private readonly alertPublisher: IAlertPublisher,
     logger: ILogger
   ) {
     super(logger, 'SendDeviceRecoveryAlertUseCase');
@@ -46,7 +46,10 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
     const deviceId = deviceIdResult.value;
 
     const existingResult =
-      await this.alertRepository.findOpenByDeviceId(deviceId);
+      await this.alertRepository.findOpenByDeviceAndType(
+        deviceId,
+        ALERT_TYPE
+      );
     if (existingResult.isFailure) {
       return this.fail(
         `Failed to load open alert: ${existingResult.error}`
@@ -69,37 +72,27 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
       return this.fail(resolveResult.error);
     }
 
-    const deviceName = await this.resolveDeviceName(deviceId);
     const ipAddress = await this.resolveIpAddress(deviceId);
 
-    const message = {
-      title: '🟢 Dispositivo de vuelta en línea',
-      body: this.formatRecoveryMessage({
-        deviceName,
+    const publishResult = await this.alertPublisher.publish({
+      deviceId: deviceId.toString(),
+      severity: openAlert.severity,
+      source: SOURCE,
+      subject: SUBJECT,
+      detail: this.buildDetail({
         ipAddress,
-        latencyMs: request.latencyMs,
-        occurredAt: request.occurredAt,
-        durationSecs: openAlert.durationSecs,
-        alertId: openAlert.id.toString()
-      }),
-      metadata: {
-        deviceId: deviceId.toString(),
-        deviceName,
-        ipAddress,
-        severity: openAlert.severity,
-        alertId: openAlert.id.toString(),
-        timestamp: request.occurredAt.toISOString(),
         latencyMs: request.latencyMs,
         durationSecs: openAlert.durationSecs
-      }
-    };
+      }),
+      occurredAt: request.occurredAt,
+      resolved: true
+    });
 
-    const sendResult = await this.notificationService.send(message);
-    if (sendResult.isFailure) {
+    if (publishResult.isFailure) {
       this.logger.error(
-        'Failed to send Telegram notification for device recovery',
+        'Failed to publish device-recovery alert notification',
         undefined,
-        { deviceId: deviceId.toString(), error: sendResult.error }
+        { deviceId: deviceId.toString(), error: publishResult.error }
       );
     } else {
       openAlert.markRecoveryNotified();
@@ -111,20 +104,6 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
     }
 
     return this.ok(AlertMapper.toDTO(saveResult.value));
-  }
-
-  private async resolveDeviceName(
-    deviceId: DeviceId
-  ): Promise<string> {
-    try {
-      const result = await this.deviceRepository.findById(deviceId);
-      if (result.isSuccess && result.value) {
-        return result.value.name.value;
-      }
-    } catch {
-      // fallback
-    }
-    return 'Unknown Device';
   }
 
   private async resolveIpAddress(
@@ -142,39 +121,23 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
     return null;
   }
 
-  private formatRecoveryMessage(params: {
-    deviceName: string;
+  private buildDetail(params: {
     ipAddress: string | null;
     latencyMs: number | null;
-    occurredAt: Date;
     durationSecs: number | null;
-    alertId: string;
   }): string {
-    const e = (text: string) => TelegramFormatting.escapeMd(text);
-    const ip = params.ipAddress ? e(params.ipAddress) : 'N/A';
-    const ts = e(
-      TelegramFormatting.formatLocalTime(params.occurredAt)
-    );
+    const ip = params.ipAddress ? ` IP: ${params.ipAddress}.` : '';
     const latency =
       params.latencyMs !== null ? `${params.latencyMs}ms` : 'N/A';
     const duration = this.formatDuration(params.durationSecs);
-
     return [
-      '🟢 *DISPOSITIVO DE VUELTA EN LÍNEA*',
-      '',
-      `📛 *Dispositivo:* ${e(params.deviceName)}`,
-      `🌐 *Dirección IP:* ${ip}`,
-      `✅ *Severidad:* CRÍTICA`,
-      `⚡ *Latencia:* ${e(latency)}`,
-      `⏱️ *Tiempo fuera de línea:* ${e(duration)}`,
-      `🕐 *Recuperado a las:* ${ts}`,
-      '',
-      `🆔 Alerta: \`${e(params.alertId)}\``
+      `Conexión restablecida.${ip}`,
+      `Latencia: ${latency}. Tiempo fuera de línea: ${duration}.`
     ].join('\n');
   }
 
   private formatDuration(secs: number | null): string {
-    if (secs === null) return 'unknown';
+    if (secs === null) return 'desconocido';
     const h = Math.floor(secs / 3600);
     const m = Math.floor((secs % 3600) / 60);
     const s = secs % 60;

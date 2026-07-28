@@ -1,6 +1,6 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
-import { AlertSeverity } from 'domain/notifications/enums';
+import { AlertSeverity } from 'domain/shared/enums';
 import { IDeviceRepository } from 'domain/device-inventory/repository';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';

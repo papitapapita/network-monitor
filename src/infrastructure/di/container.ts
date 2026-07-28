@@ -124,7 +124,8 @@ import { PollingOrchestrator } from '../monitoring/orchestrator';
 import {
   TelegramNotificationService,
   WhatsAppNotificationService,
-  WirelessAlertNotifier
+  AlertPublisher,
+  AlertRecorder
 } from '../notifications';
 import {
   RouterOsQueueService,
@@ -160,6 +161,10 @@ import {
   SendDeviceDownAlertUseCase,
   SendDeviceRecoveryAlertUseCase,
   ListAlertsUseCase,
+  GetAlertByIdUseCase,
+  DeleteAlertUseCase,
+  OpenAlertUseCase,
+  ResolveAlertUseCase,
   PurgeOldAlertsUseCase,
   SendSuspensionNoticeUseCase,
   SendAlertNotificationUseCase
@@ -169,8 +174,15 @@ import {
   DeviceCameOnlineNotificationHandler,
   ContractedServiceSuspendedNotificationHandler
 } from 'application/notifications/event-handlers';
-import { WirelessAlertClearedNotificationHandler } from 'application/wireless-monitoring/event-handlers';
-import { WirelessAlertClearedEvent } from 'domain/wireless-monitoring/events';
+import {
+  WirelessAlertClearedNotificationHandler,
+  WirelessAlertTriggeredAlertRecordHandler,
+  WirelessAlertClearedAlertRecordHandler
+} from 'application/wireless-monitoring/event-handlers';
+import {
+  WirelessAlertClearedEvent,
+  WirelessAlertTriggeredEvent
+} from 'domain/wireless-monitoring/events';
 
 // Use Cases
 import {
@@ -646,36 +658,41 @@ export class DependencyContainer {
     const telegramNotificationService =
       new TelegramNotificationService();
 
-    // Initialize notification use cases
-    const sendDeviceDownAlertUseCase = new SendDeviceDownAlertUseCase(
-      this.alertRepository,
-      this.deviceRepository,
-      this.pollingConfigRepository,
-      telegramNotificationService,
-      this.logger
-    );
-    const sendDeviceRecoveryAlertUseCase =
-      new SendDeviceRecoveryAlertUseCase(
-        this.alertRepository,
-        this.deviceRepository,
-        this.pollingConfigRepository,
-        telegramNotificationService,
-        this.logger
-      );
+    // Initialize notification use cases. The single renderer +
+    // AlertPublisher adapter are built first so every alert-producing
+    // use case can deliver through the one shared spine.
     const sendAlertNotificationUseCase =
       new SendAlertNotificationUseCase(
         this.deviceRepository,
         telegramNotificationService,
         this.logger
       );
+    const alertPublisher = new AlertPublisher(
+      sendAlertNotificationUseCase
+    );
+
+    const sendDeviceDownAlertUseCase = new SendDeviceDownAlertUseCase(
+      this.alertRepository,
+      this.pollingConfigRepository,
+      alertPublisher,
+      this.logger
+    );
+    const sendDeviceRecoveryAlertUseCase =
+      new SendDeviceRecoveryAlertUseCase(
+        this.alertRepository,
+        this.pollingConfigRepository,
+        alertPublisher,
+        this.logger
+      );
 
     // Wireless alert delivery is independently disableable so wireless
-    // polling can run without paging anyone.
-    const wirelessAlertNotifier =
+    // polling can run without paging anyone. Device-availability alerts
+    // (down/recovery) are unaffected by this flag.
+    const wirelessAlertPublisher =
       process.env.WIRELESS_ALERT_NOTIFICATIONS_ENABLED === 'false'
         ? null
-        : new WirelessAlertNotifier(sendAlertNotificationUseCase);
-    if (!wirelessAlertNotifier) {
+        : alertPublisher;
+    if (!wirelessAlertPublisher) {
       this.logger.warn(
         'WIRELESS_ALERT_NOTIFICATIONS_ENABLED=false — wireless alert notifications disabled'
       );
@@ -684,10 +701,27 @@ export class DependencyContainer {
       this.alertRepository,
       this.logger
     );
+    const getAlertByIdUseCase = new GetAlertByIdUseCase(
+      this.alertRepository,
+      this.logger
+    );
+    const deleteAlertUseCase = new DeleteAlertUseCase(
+      this.alertRepository,
+      this.logger
+    );
+
+    // Recorder: any producer BC persists alerts into the shared list through
+    // this (via IAlertRecorder), independent of notification delivery.
+    const alertRecorder = new AlertRecorder(
+      new OpenAlertUseCase(this.alertRepository, this.logger),
+      new ResolveAlertUseCase(this.alertRepository, this.logger)
+    );
 
     // Initialize alert controller
     this.alertController = new AlertController(
       listAlertsUseCase,
+      getAlertByIdUseCase,
+      deleteAlertUseCase,
       this.logger
     );
 
@@ -731,7 +765,7 @@ export class DependencyContainer {
       httpCollector,
       alertEvaluator,
       wirelessDeviceRepo,
-      wirelessAlertNotifier,
+      wirelessAlertPublisher,
       this.logger
     );
     const getWirelessDeviceStatusUseCase =
@@ -956,11 +990,28 @@ export class DependencyContainer {
       )
     );
 
-    if (wirelessAlertNotifier) {
+    // Wireless alerts feed the unified alert list (independent of whether
+    // wireless notifications are enabled).
+    EventDispatcher.register(
+      WirelessAlertTriggeredEvent.name,
+      new WirelessAlertTriggeredAlertRecordHandler(
+        alertRecorder,
+        this.logger
+      )
+    );
+    EventDispatcher.register(
+      WirelessAlertClearedEvent.name,
+      new WirelessAlertClearedAlertRecordHandler(
+        alertRecorder,
+        this.logger
+      )
+    );
+
+    if (wirelessAlertPublisher) {
       EventDispatcher.register(
         WirelessAlertClearedEvent.name,
         new WirelessAlertClearedNotificationHandler(
-          wirelessAlertNotifier,
+          wirelessAlertPublisher,
           this.logger
         )
       );

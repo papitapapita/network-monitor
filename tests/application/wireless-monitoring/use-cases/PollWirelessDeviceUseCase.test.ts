@@ -8,7 +8,7 @@ import { IWirelessAlertRecordRepository } from '../../../../src/domain/wireless-
 import { IDeviceCredentialsRepository, DecryptedCredentials } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceCredentialsRepository';
 import { IUbiquitiHttpCollector, HttpCollectionResult } from '../../../../src/application/wireless-monitoring/interfaces/IUbiquitiHttpCollector';
 import { IDeviceRepository } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceRepository';
-import { IWirelessAlertNotifier } from '../../../../src/application/wireless-monitoring/interfaces/IWirelessAlertNotifier';
+import { IAlertPublisher } from '../../../../src/application/shared/interfaces/IAlertPublisher';
 import { WirelessDeviceConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig';
 import { WirelessDeviceConfigId } from '../../../../src/domain/shared/ids/WirelessDeviceConfigId';
 import { WirelessAlertRecord } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
@@ -17,6 +17,7 @@ import { IPAddress } from '../../../../src/domain/shared/value-objects/IPAddress
 import { PollingInterval } from '../../../../src/domain/wireless-monitoring/value-objects/PollingInterval';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
+import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -175,9 +176,8 @@ function makeMocks() {
     findIdByMacAddress: jest.fn().mockResolvedValue(Result.ok(null))
   };
 
-  const alertNotifier: jest.Mocked<IWirelessAlertNotifier> = {
-    notifyTriggered: jest.fn().mockResolvedValue(Result.ok()),
-    notifyCleared: jest.fn().mockResolvedValue(Result.ok())
+  const alertPublisher: jest.Mocked<IAlertPublisher> = {
+    publish: jest.fn().mockResolvedValue(Result.ok())
   };
 
   const logger = makeLogger();
@@ -190,7 +190,7 @@ function makeMocks() {
     httpCollector,
     alertEvaluator,
     deviceRepo,
-    alertNotifier,
+    alertPublisher,
     logger
   };
 }
@@ -204,7 +204,7 @@ function makeUseCase(mocks: ReturnType<typeof makeMocks>): PollWirelessDeviceUse
     mocks.httpCollector,
     mocks.alertEvaluator,
     mocks.deviceRepo,
-    mocks.alertNotifier,
+    mocks.alertPublisher,
     mocks.logger
   );
 }
@@ -605,7 +605,7 @@ describe('PollWirelessDeviceUseCase', () => {
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      expect(mocks.alertNotifier.notifyTriggered).toHaveBeenCalledTimes(
+      expect(mocks.alertPublisher.publish).toHaveBeenCalledTimes(
         2
       );
     });
@@ -630,7 +630,7 @@ describe('PollWirelessDeviceUseCase', () => {
       mocks.alertRecordRepo.findActiveUnnotifiedByDevice.mockResolvedValue(
         Result.ok([record])
       );
-      mocks.alertNotifier.notifyTriggered.mockResolvedValue(
+      mocks.alertPublisher.publish.mockResolvedValue(
         Result.fail('telegram down')
       );
 
@@ -647,7 +647,7 @@ describe('PollWirelessDeviceUseCase', () => {
       mocks.alertRecordRepo.findActiveUnnotifiedByDevice.mockResolvedValue(
         Result.ok([first, second])
       );
-      mocks.alertNotifier.notifyTriggered
+      mocks.alertPublisher.publish
         .mockResolvedValueOnce(Result.fail('telegram down'))
         .mockResolvedValueOnce(Result.ok());
       mocks.alertRecordRepo.save.mockResolvedValue(Result.ok(second));
@@ -668,10 +668,11 @@ describe('PollWirelessDeviceUseCase', () => {
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      expect(mocks.alertNotifier.notifyTriggered).toHaveBeenCalledWith(
+      expect(mocks.alertPublisher.publish).toHaveBeenCalledWith(
         expect.objectContaining({
-          severity: 'WARNING',
-          metric: 'signal_rx_dbm'
+          severity: AlertSeverity.WARNING,
+          subject: 'signal_rx_dbm',
+          resolved: false
         })
       );
     });
@@ -687,7 +688,7 @@ describe('PollWirelessDeviceUseCase', () => {
       });
 
       expect(result.isSuccess).toBe(true);
-      expect(mocks.alertNotifier.notifyTriggered).not.toHaveBeenCalled();
+      expect(mocks.alertPublisher.publish).not.toHaveBeenCalled();
     });
   });
 

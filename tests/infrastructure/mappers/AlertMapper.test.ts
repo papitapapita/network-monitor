@@ -2,7 +2,7 @@
 
 import { AlertMapper } from '../../../src/infrastructure/mappers/AlertMapper';
 import { Alert } from '../../../src/domain/notifications/aggregates/Alert';
-import { AlertSeverity } from '../../../src/domain/notifications/enums/AlertSeverity';
+import { AlertSeverity } from '../../../src/domain/shared/enums/AlertSeverity';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -24,6 +24,9 @@ type RawAlertRecord = {
   id: string;
   deviceId: string;
   severity: string;
+  source: string;
+  type: string;
+  description: string;
   startedAt: Date;
   resolvedAt: Date | null;
   notifiedAt: Date | null;
@@ -37,6 +40,9 @@ function makeRawAlertRecord(
     id: VALID_UUID_1,
     deviceId: VALID_UUID_2,
     severity: 'WARNING',
+    source: 'Disponibilidad',
+    type: 'device_unreachable',
+    description: 'Sin conexión',
     startedAt: STARTED_AT,
     resolvedAt: null,
     notifiedAt: null,

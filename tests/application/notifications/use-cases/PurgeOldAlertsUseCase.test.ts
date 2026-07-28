@@ -18,9 +18,10 @@ function makeRepo(): jest.Mocked<IAlertRepository> {
   return {
     save: jest.fn(),
     findById: jest.fn(),
-    findOpenByDeviceId: jest.fn(),
+    findOpenByDeviceAndType: jest.fn(),
     findAllByDeviceId: jest.fn(),
     findAll: jest.fn(),
+    deleteById: jest.fn(),
     deleteResolvedOlderThan: jest.fn()
   };
 }

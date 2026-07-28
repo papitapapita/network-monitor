@@ -2,7 +2,7 @@ import { SendAlertNotificationUseCase } from '../../../../src/application/notifi
 import { SendAlertNotificationDTO } from '../../../../src/application/notifications/dtos/SendAlertNotificationDTO';
 import { INotificationService } from '../../../../src/application/notifications/interfaces/INotificationService';
 import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository/IDeviceRepository';
-import { AlertSeverity } from '../../../../src/domain/notifications/enums/AlertSeverity';
+import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 

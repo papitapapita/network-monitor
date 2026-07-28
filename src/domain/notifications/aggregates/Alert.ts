@@ -1,6 +1,6 @@
 import { AggregateRoot, Result, Guard } from 'domain/shared/core';
 import { AlertId, DeviceId } from 'domain/shared/ids';
-import { AlertSeverity } from '../enums';
+import { AlertSeverity } from 'domain/shared/enums';
 import { AlertProps } from '../props';
 
 export class Alert extends AggregateRoot<AlertProps, AlertId> {
@@ -14,6 +14,22 @@ export class Alert extends AggregateRoot<AlertProps, AlertId> {
 
   get severity(): AlertSeverity {
     return this.props.severity;
+  }
+
+  get source(): string {
+    return this.props.source;
+  }
+
+  get type(): string {
+    return this.props.type;
+  }
+
+  get description(): string {
+    return this.props.description;
+  }
+
+  get details(): Record<string, unknown> {
+    return this.props.details ?? {};
   }
 
   get startedAt(): Date {
@@ -45,11 +61,22 @@ export class Alert extends AggregateRoot<AlertProps, AlertId> {
 
   public static open(
     deviceId: DeviceId,
-    severity: AlertSeverity
+    severity: AlertSeverity,
+    source: string,
+    type: string,
+    description: string,
+    details: Record<string, unknown> = {}
   ): Result<Alert> {
     const guard = Guard.againstNullOrUndefined(deviceId, 'deviceId');
     if (!guard.succeeded) {
       return Result.fail(guard.message ?? 'deviceId is required');
+    }
+
+    if (!source?.trim()) {
+      return Result.fail('source is required');
+    }
+    if (!type?.trim()) {
+      return Result.fail('type is required');
     }
 
     const id = AlertId.create();
@@ -57,6 +84,10 @@ export class Alert extends AggregateRoot<AlertProps, AlertId> {
       {
         deviceId,
         severity,
+        source,
+        type,
+        description,
+        details,
         startedAt: new Date(),
         resolvedAt: null,
         notifiedAt: null,

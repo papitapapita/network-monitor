@@ -2,17 +2,15 @@
 
 import { SendDeviceRecoveryAlertUseCase } from '../../../../src/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase';
 import { IAlertRepository } from '../../../../src/domain/notifications/repository/IAlertRepository';
-import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository/IDeviceRepository';
 import { IPollingConfigurationRepository } from '../../../../src/domain/device-monitoring/repository/IPollingConfigurationRepository';
-import { INotificationService } from '../../../../src/application/notifications/interfaces/INotificationService';
+import { IAlertPublisher } from '../../../../src/application/shared/interfaces/IAlertPublisher';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { Alert } from '../../../../src/domain/notifications/aggregates/Alert';
 import { AlertId } from '../../../../src/domain/shared/ids/AlertId';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
-import { AlertSeverity } from '../../../../src/domain/notifications/enums/AlertSeverity';
+import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
 import { SendDeviceRecoveryAlertDTO } from '../../../../src/application/notifications/dtos/SendDeviceRecoveryAlertDTO';
-import { Device } from '../../../../src/domain/device-inventory/aggregates/Device';
 import { PollingConfiguration } from '../../../../src/domain/device-monitoring/entities/PollingConfiguration';
 
 // ---------------------------------------------------------------------------
@@ -46,30 +44,11 @@ function makeAlertRepo(): jest.Mocked<IAlertRepository> {
   return {
     save:                    jest.fn(),
     findById:                jest.fn(),
-    findOpenByDeviceId:      jest.fn(),
+    findOpenByDeviceAndType:      jest.fn(),
     findAllByDeviceId:       jest.fn(),
     findAll:                 jest.fn(),
+    deleteById:              jest.fn(),
     deleteResolvedOlderThan: jest.fn()
-  };
-}
-
-function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
-  return {
-    save:                jest.fn(),
-    findById:            jest.fn(),
-    delete:              jest.fn(),
-    exists:              jest.fn(),
-    count:               jest.fn(),
-    findAll:             jest.fn(),
-    findByLocation:      jest.fn(),
-    findByDeviceModel:   jest.fn(),
-    findByMacAddress:    jest.fn(),
-    findByIpAddress:     jest.fn(),
-    findByStatus:        jest.fn(),
-    existsByMacAddress:  jest.fn(),
-    existsByIpAddress:   jest.fn(),
-    findByLocationIds:   jest.fn(),
-    findByFilters:       jest.fn()
   };
 }
 
@@ -83,9 +62,9 @@ function makePollingConfigRepo(): jest.Mocked<IPollingConfigurationRepository> {
   };
 }
 
-function makeNotificationService(): jest.Mocked<INotificationService> {
+function makeAlertPublisher(): jest.Mocked<IAlertPublisher> {
   return {
-    send: jest.fn()
+    publish: jest.fn().mockResolvedValue(Result.ok())
   };
 }
 
@@ -105,6 +84,9 @@ function makeOpenAlert(): Alert {
   return Alert.reconstitute(AlertId.parse(VALID_ALERT_UUID).value, {
     deviceId:           DeviceId.parse(VALID_DEVICE_UUID).value,
     severity:           AlertSeverity.CRITICAL,
+    source:             'Disponibilidad',
+    type:               'device_unreachable',
+    description:        'Sin conexión',
     startedAt:          STARTED_AT,
     resolvedAt:         null,
     notifiedAt:         null,
@@ -112,12 +94,7 @@ function makeOpenAlert(): Alert {
   });
 }
 
-/** Creates a minimal fake device stub (only the fields the use case reads). */
-function makeDevice(name = 'Core-Router-01'): Device {
-  return { name: { value: name } } as unknown as Device;
-}
-
-/** Creates a minimal fake polling config stub (only the field the use case reads). */
+/** Minimal fake polling config stub (only the field the use case reads). */
 function makePollingConfig(ip = '192.168.1.1'): PollingConfiguration {
   return { ipAddress: { value: ip } } as unknown as PollingConfiguration;
 }
@@ -125,24 +102,21 @@ function makePollingConfig(ip = '192.168.1.1'): PollingConfiguration {
 // ---------------------------------------------------------------------------
 
 describe('SendDeviceRecoveryAlertUseCase', () => {
-  let alertRepo:           jest.Mocked<IAlertRepository>;
-  let deviceRepo:          jest.Mocked<IDeviceRepository>;
-  let pollingConfigRepo:   jest.Mocked<IPollingConfigurationRepository>;
-  let notificationService: jest.Mocked<INotificationService>;
-  let logger:              ILogger;
-  let useCase:             SendDeviceRecoveryAlertUseCase;
+  let alertRepo:         jest.Mocked<IAlertRepository>;
+  let pollingConfigRepo: jest.Mocked<IPollingConfigurationRepository>;
+  let alertPublisher:    jest.Mocked<IAlertPublisher>;
+  let logger:            ILogger;
+  let useCase:           SendDeviceRecoveryAlertUseCase;
 
   beforeEach(() => {
-    alertRepo           = makeAlertRepo();
-    deviceRepo          = makeDeviceRepo();
-    pollingConfigRepo   = makePollingConfigRepo();
-    notificationService = makeNotificationService();
-    logger              = makeLogger();
+    alertRepo         = makeAlertRepo();
+    pollingConfigRepo = makePollingConfigRepo();
+    alertPublisher    = makeAlertPublisher();
+    logger            = makeLogger();
     useCase = new SendDeviceRecoveryAlertUseCase(
       alertRepo,
-      deviceRepo,
       pollingConfigRepo,
-      notificationService,
+      alertPublisher,
       logger
     );
   });
@@ -154,19 +128,13 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
   // ===========================================================================
   describe('beforeExecute — input validation', () => {
     it('should fail when deviceId is an empty string', async () => {
-      // act
       const result = await useCase.execute(makeRequest({ deviceId: '' }));
-
-      // assert
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('deviceId is required');
     });
 
     it('should fail when deviceId is whitespace only', async () => {
-      // act
       const result = await useCase.execute(makeRequest({ deviceId: '   ' }));
-
-      // assert
       expect(result.isFailure).toBe(true);
     });
   });
@@ -174,10 +142,7 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
   // ===========================================================================
   describe('executeImpl — invalid UUID', () => {
     it('should fail when deviceId is not a valid UUID', async () => {
-      // act
       const result = await useCase.execute(makeRequest({ deviceId: INVALID_UUID }));
-
-      // assert
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid device ID');
     });
@@ -186,174 +151,107 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
   // ===========================================================================
   describe('executeImpl — no open alert found (skip recovery)', () => {
     it('should return a failure with a skip message when no open alert exists', async () => {
-      // arrange
-      alertRepo.findOpenByDeviceId.mockResolvedValue(Result.ok(null));
-
-      // act
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(null));
       const result = await useCase.execute(makeRequest());
-
-      // assert
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('recovery skipped');
     });
 
     it('should not call alertRepository.save when no open alert is found', async () => {
-      // arrange
-      alertRepo.findOpenByDeviceId.mockResolvedValue(Result.ok(null));
-
-      // act
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(null));
       await useCase.execute(makeRequest());
-
-      // assert
       expect(alertRepo.save).not.toHaveBeenCalled();
     });
 
-    it('should not call notificationService.send when no open alert is found', async () => {
-      // arrange
-      alertRepo.findOpenByDeviceId.mockResolvedValue(Result.ok(null));
-
-      // act
+    it('should not publish when no open alert is found', async () => {
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(null));
       await useCase.execute(makeRequest());
-
-      // assert
-      expect(notificationService.send).not.toHaveBeenCalled();
+      expect(alertPublisher.publish).not.toHaveBeenCalled();
     });
 
-    it('should return a failure when findOpenByDeviceId itself returns a failure', async () => {
-      // arrange
-      alertRepo.findOpenByDeviceId.mockResolvedValue(Result.fail('DB error'));
-
-      // act
+    it('should return a failure when findOpenByDeviceAndType itself returns a failure', async () => {
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.fail('DB error'));
       const result = await useCase.execute(makeRequest());
-
-      // assert
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Failed to load open alert');
     });
   });
 
   // ===========================================================================
-  describe('executeImpl — happy path: resolves alert, notifies, saves', () => {
-    it('should return a successful DTO with status RESOLVED', async () => {
-      // arrange
-      const openAlert = makeOpenAlert();
-      alertRepo.findOpenByDeviceId.mockResolvedValue(Result.ok(openAlert));
-      deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
+  describe('executeImpl — happy path: resolves alert, publishes, saves', () => {
+    beforeEach(() => {
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(makeOpenAlert()));
       pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(makePollingConfig()));
-      notificationService.send.mockResolvedValue(Result.ok(undefined));
       alertRepo.save.mockImplementation(async (a) => Result.ok(a));
+    });
 
-      // act
+    it('should return a successful DTO with status RESOLVED', async () => {
       const result = await useCase.execute(makeRequest());
-
-      // assert
       expect(result.isSuccess).toBe(true);
       expect(result.value.status).toBe('RESOLVED');
     });
 
     it('should call alertRepository.save exactly once', async () => {
-      // arrange
-      const openAlert = makeOpenAlert();
-      alertRepo.findOpenByDeviceId.mockResolvedValue(Result.ok(openAlert));
-      deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(makePollingConfig()));
-      notificationService.send.mockResolvedValue(Result.ok(undefined));
-      alertRepo.save.mockImplementation(async (a) => Result.ok(a));
-
-      // act
       await useCase.execute(makeRequest());
-
-      // assert
       expect(alertRepo.save).toHaveBeenCalledTimes(1);
     });
 
-    it('should call notificationService.send exactly once', async () => {
-      // arrange
-      const openAlert = makeOpenAlert();
-      alertRepo.findOpenByDeviceId.mockResolvedValue(Result.ok(openAlert));
-      deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(makePollingConfig()));
-      notificationService.send.mockResolvedValue(Result.ok(undefined));
-      alertRepo.save.mockImplementation(async (a) => Result.ok(a));
-
-      // act
+    it('should publish exactly one resolved availability alert', async () => {
       await useCase.execute(makeRequest());
-
-      // assert
-      expect(notificationService.send).toHaveBeenCalledTimes(1);
+      expect(alertPublisher.publish).toHaveBeenCalledTimes(1);
+      expect(alertPublisher.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deviceId: VALID_DEVICE_UUID,
+          severity: AlertSeverity.CRITICAL,
+          source: 'Disponibilidad',
+          resolved: true,
+          occurredAt: OCCURRED_AT
+        })
+      );
     });
 
-    it('should save the alert with recoveryNotifiedAt set when notification succeeds', async () => {
-      // arrange
-      const openAlert = makeOpenAlert();
-      alertRepo.findOpenByDeviceId.mockResolvedValue(Result.ok(openAlert));
-      deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(makePollingConfig()));
-      notificationService.send.mockResolvedValue(Result.ok(undefined));
-
+    it('should save the alert with recoveryNotifiedAt set when publish succeeds', async () => {
       let capturedAlert: Alert | null = null;
       alertRepo.save.mockImplementation(async (a) => {
         capturedAlert = a;
         return Result.ok(a);
       });
 
-      // act
       await useCase.execute(makeRequest());
-
-      // assert
       expect(capturedAlert).not.toBeNull();
       expect(capturedAlert!.recoveryNotifiedAt).not.toBeNull();
     });
 
     it('should set resolvedAt on the alert before saving', async () => {
-      // arrange
-      const openAlert = makeOpenAlert();
-      alertRepo.findOpenByDeviceId.mockResolvedValue(Result.ok(openAlert));
-      deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(makePollingConfig()));
-      notificationService.send.mockResolvedValue(Result.ok(undefined));
-
       let capturedAlert: Alert | null = null;
       alertRepo.save.mockImplementation(async (a) => {
         capturedAlert = a;
         return Result.ok(a);
       });
 
-      // act
       await useCase.execute(makeRequest());
-
-      // assert
       expect(capturedAlert).not.toBeNull();
       expect(capturedAlert!.resolvedAt).toEqual(OCCURRED_AT);
     });
   });
 
   // ===========================================================================
-  describe('executeImpl — notification failure', () => {
-    it('should still save the alert when notificationService.send fails', async () => {
-      // arrange
-      const openAlert = makeOpenAlert();
-      alertRepo.findOpenByDeviceId.mockResolvedValue(Result.ok(openAlert));
-      deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
+  describe('executeImpl — publish failure', () => {
+    it('should still save the alert when publish fails', async () => {
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(makeOpenAlert()));
       pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(makePollingConfig()));
-      notificationService.send.mockResolvedValue(Result.fail('Telegram down'));
+      alertPublisher.publish.mockResolvedValue(Result.fail('Telegram down'));
       alertRepo.save.mockImplementation(async (a) => Result.ok(a));
 
-      // act
       const result = await useCase.execute(makeRequest());
-
-      // assert
       expect(alertRepo.save).toHaveBeenCalledTimes(1);
       expect(result.isSuccess).toBe(true);
     });
 
-    it('should save the alert without recoveryNotifiedAt when notification fails', async () => {
-      // arrange
-      const openAlert = makeOpenAlert();
-      alertRepo.findOpenByDeviceId.mockResolvedValue(Result.ok(openAlert));
-      deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
+    it('should save the alert without recoveryNotifiedAt when publish fails', async () => {
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(makeOpenAlert()));
       pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(makePollingConfig()));
-      notificationService.send.mockResolvedValue(Result.fail('Telegram down'));
+      alertPublisher.publish.mockResolvedValue(Result.fail('Telegram down'));
 
       let capturedAlert: Alert | null = null;
       alertRepo.save.mockImplementation(async (a) => {
@@ -361,10 +259,7 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
         return Result.ok(a);
       });
 
-      // act
       await useCase.execute(makeRequest());
-
-      // assert
       expect(capturedAlert).not.toBeNull();
       expect(capturedAlert!.recoveryNotifiedAt).toBeNull();
     });
@@ -373,94 +268,45 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
   // ===========================================================================
   describe('executeImpl — repository save failure', () => {
     it('should return a failure result when alertRepository.save fails', async () => {
-      // arrange
-      const openAlert = makeOpenAlert();
-      alertRepo.findOpenByDeviceId.mockResolvedValue(Result.ok(openAlert));
-      deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(makeOpenAlert()));
       pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(makePollingConfig()));
-      notificationService.send.mockResolvedValue(Result.ok(undefined));
       alertRepo.save.mockResolvedValue(Result.fail('Write conflict'));
 
-      // act
       const result = await useCase.execute(makeRequest());
-
-      // assert
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Failed to save alert');
     });
   });
 
   // ===========================================================================
-  describe('executeImpl — device name fallback on resolution', () => {
-    it('should use "Unknown Device" when deviceRepository.findById returns a failure', async () => {
-      // arrange
-      const openAlert = makeOpenAlert();
-      alertRepo.findOpenByDeviceId.mockResolvedValue(Result.ok(openAlert));
-      deviceRepo.findById.mockResolvedValue(Result.fail('Not found'));
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
-      notificationService.send.mockResolvedValue(Result.ok(undefined));
-      alertRepo.save.mockImplementation(async (a) => Result.ok(a));
-
-      // act
-      const result = await useCase.execute(makeRequest());
-
-      // assert
-      expect(result.isSuccess).toBe(true);
-      const sentMessage = notificationService.send.mock.calls[0][0];
-      expect(sentMessage.metadata.deviceName).toBe('Unknown Device');
-    });
-
-    it('should use null IP when pollingConfigRepository returns a failure', async () => {
-      // arrange
-      const openAlert = makeOpenAlert();
-      alertRepo.findOpenByDeviceId.mockResolvedValue(Result.ok(openAlert));
-      deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.fail('Unavailable'));
-      notificationService.send.mockResolvedValue(Result.ok(undefined));
-      alertRepo.save.mockImplementation(async (a) => Result.ok(a));
-
-      // act
-      await useCase.execute(makeRequest());
-
-      // assert
-      const sentMessage = notificationService.send.mock.calls[0][0];
-      expect(sentMessage.metadata.ipAddress).toBeNull();
-    });
-
-    it('should use null IP when pollingConfigRepository throws', async () => {
-      // arrange
-      const openAlert = makeOpenAlert();
-      alertRepo.findOpenByDeviceId.mockResolvedValue(Result.ok(openAlert));
-      deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
-      pollingConfigRepo.findByDeviceId.mockRejectedValue(new Error('Timeout'));
-      notificationService.send.mockResolvedValue(Result.ok(undefined));
-      alertRepo.save.mockImplementation(async (a) => Result.ok(a));
-
-      // act
-      const result = await useCase.execute(makeRequest());
-
-      // assert
-      expect(result.isSuccess).toBe(true);
-      const sentMessage = notificationService.send.mock.calls[0][0];
-      expect(sentMessage.metadata.ipAddress).toBeNull();
-    });
-  });
-
-  // ===========================================================================
-  describe('executeImpl — latencyMs variants', () => {
-    it('should succeed when latencyMs is null (no latency data)', async () => {
-      // arrange
-      const openAlert = makeOpenAlert();
-      alertRepo.findOpenByDeviceId.mockResolvedValue(Result.ok(openAlert));
-      deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
+  describe('executeImpl — IP + latency detail', () => {
+    it('should fold IP and latency into the detail', async () => {
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(makeOpenAlert()));
       pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(makePollingConfig()));
-      notificationService.send.mockResolvedValue(Result.ok(undefined));
       alertRepo.save.mockImplementation(async (a) => Result.ok(a));
 
-      // act
-      const result = await useCase.execute(makeRequest({ latencyMs: null }));
+      await useCase.execute(makeRequest({ latencyMs: 42 }));
+      const envelope = alertPublisher.publish.mock.calls[0][0];
+      expect(envelope.detail).toContain('192.168.1.1');
+      expect(envelope.detail).toContain('42ms');
+    });
 
-      // assert
+    it('should still publish (no IP in detail) when polling config lookup fails', async () => {
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(makeOpenAlert()));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.fail('Unavailable'));
+      alertRepo.save.mockImplementation(async (a) => Result.ok(a));
+
+      await useCase.execute(makeRequest());
+      const envelope = alertPublisher.publish.mock.calls[0][0];
+      expect(envelope.detail).not.toContain('IP:');
+    });
+
+    it('should succeed when latencyMs is null (no latency data)', async () => {
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(makeOpenAlert()));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(makePollingConfig()));
+      alertRepo.save.mockImplementation(async (a) => Result.ok(a));
+
+      const result = await useCase.execute(makeRequest({ latencyMs: null }));
       expect(result.isSuccess).toBe(true);
     });
   });

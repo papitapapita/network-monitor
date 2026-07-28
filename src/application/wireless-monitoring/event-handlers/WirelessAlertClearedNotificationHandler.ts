@@ -1,13 +1,15 @@
 import { IHandle } from 'domain/shared/interfaces';
+import { AlertSeverity } from 'domain/shared/enums';
 import { WirelessAlertClearedEvent } from 'domain/wireless-monitoring/events';
-import { ILogger } from 'application/shared/interfaces';
-import { IWirelessAlertNotifier } from '../interfaces';
+import { ILogger, IAlertPublisher } from 'application/shared/interfaces';
+
+const SOURCE = 'Enlace inalámbrico';
 
 export class WirelessAlertClearedNotificationHandler
   implements IHandle<WirelessAlertClearedEvent>
 {
   constructor(
-    private readonly notifier: IWirelessAlertNotifier,
+    private readonly alertPublisher: IAlertPublisher,
     private readonly logger: ILogger
   ) {}
 
@@ -18,16 +20,19 @@ export class WirelessAlertClearedNotificationHandler
     if (event.severity !== 'CRITICAL') return;
 
     try {
-      const result = await this.notifier.notifyCleared({
+      const result = await this.alertPublisher.publish({
         deviceId: event.deviceId.toString(),
-        metric: event.metric,
-        severity: event.severity,
-        clearedAt: event.clearedAt
+        severity: AlertSeverity.CRITICAL,
+        source: SOURCE,
+        subject: event.metric,
+        detail: `La condición de alerta en ${event.metric} se ha normalizado.`,
+        occurredAt: event.clearedAt,
+        resolved: true
       });
 
       if (result.isFailure) {
         this.logger.error(
-          'WirelessAlertClearedNotificationHandler: notifier failed',
+          'WirelessAlertClearedNotificationHandler: publish failed',
           undefined,
           { metric: event.metric, error: result.error }
         );

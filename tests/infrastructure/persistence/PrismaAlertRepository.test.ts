@@ -5,7 +5,7 @@ import { AlertMapper } from '../../../src/infrastructure/mappers/AlertMapper';
 import { Alert } from '../../../src/domain/notifications/aggregates/Alert';
 import { AlertId } from '../../../src/domain/shared/ids/AlertId';
 import { DeviceId } from '../../../src/domain/shared/ids/DeviceId';
-import { AlertSeverity } from '../../../src/domain/notifications/enums/AlertSeverity';
+import { AlertSeverity } from '../../../src/domain/shared/enums/AlertSeverity';
 
 // ---------------------------------------------------------------------------
 // Module-level mocks
@@ -91,6 +91,9 @@ function makeFakeAlert(id = VALID_UUID_1): Alert {
   return Alert.reconstitute(alertId, {
     deviceId,
     severity: AlertSeverity.WARNING,
+    source: 'Disponibilidad',
+    type: 'device_unreachable',
+    description: 'Sin conexión',
     startedAt: new Date('2024-01-01T00:00:00.000Z'),
     resolvedAt: null,
     notifiedAt: null,
@@ -335,18 +338,22 @@ describe('PrismaAlertRepository', () => {
   });
 
   // =========================================================================
-  describe('findOpenByDeviceId()', () => {
+  describe('findOpenByDeviceAndType()', () => {
     // -----------------------------------------------------------------------
     describe('query construction', () => {
       it('should call prisma.alertEvent.findFirst with deviceId string and resolvedAt: null filter', async () => {
         prisma.alertEvent.findFirst.mockResolvedValue(null);
 
         const deviceId = DeviceId.parse(VALID_UUID_2).value;
-        await repository.findOpenByDeviceId(deviceId);
+        await repository.findOpenByDeviceAndType(deviceId, 'device_unreachable');
 
         expect(prisma.alertEvent.findFirst).toHaveBeenCalledWith(
           expect.objectContaining({
-            where: { deviceId: VALID_UUID_2, resolvedAt: null }
+            where: {
+              deviceId: VALID_UUID_2,
+              type: 'device_unreachable',
+              resolvedAt: null
+            }
           })
         );
       });
@@ -355,7 +362,7 @@ describe('PrismaAlertRepository', () => {
         prisma.alertEvent.findFirst.mockResolvedValue(null);
 
         const deviceId = DeviceId.parse(VALID_UUID_2).value;
-        await repository.findOpenByDeviceId(deviceId);
+        await repository.findOpenByDeviceAndType(deviceId, 'device_unreachable');
 
         expect(prisma.alertEvent.findFirst).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -371,7 +378,7 @@ describe('PrismaAlertRepository', () => {
         prisma.alertEvent.findFirst.mockResolvedValue(null);
 
         const deviceId = DeviceId.parse(VALID_UUID_2).value;
-        const result = await repository.findOpenByDeviceId(deviceId);
+        const result = await repository.findOpenByDeviceAndType(deviceId, 'device_unreachable');
 
         expect(result.isSuccess).toBe(true);
         expect(result.value).toBeNull();
@@ -386,7 +393,7 @@ describe('PrismaAlertRepository', () => {
         );
 
         const deviceId = DeviceId.parse(VALID_UUID_2).value;
-        const result = await repository.findOpenByDeviceId(deviceId);
+        const result = await repository.findOpenByDeviceAndType(deviceId, 'device_unreachable');
 
         expect(result.isSuccess).toBe(true);
         expect(result.value).toBe(fakeAlert);
@@ -401,18 +408,18 @@ describe('PrismaAlertRepository', () => {
         );
 
         const deviceId = DeviceId.parse(VALID_UUID_2).value;
-        const result = await repository.findOpenByDeviceId(deviceId);
+        const result = await repository.findOpenByDeviceAndType(deviceId, 'device_unreachable');
 
         expect(result.isFailure).toBe(true);
       });
 
-      it('should prefix the error message with "findOpenByDeviceId failed:"', async () => {
+      it('should prefix the error message with "Database error finding open alert"', async () => {
         prisma.alertEvent.findFirst.mockRejectedValue(
           new Error('socket error')
         );
 
         const deviceId = DeviceId.parse(VALID_UUID_2).value;
-        const result = await repository.findOpenByDeviceId(deviceId);
+        const result = await repository.findOpenByDeviceAndType(deviceId, 'device_unreachable');
 
         expect(result.error).toContain('Database error finding open alert');
       });
@@ -423,7 +430,7 @@ describe('PrismaAlertRepository', () => {
         );
 
         const deviceId = DeviceId.parse(VALID_UUID_2).value;
-        const result = await repository.findOpenByDeviceId(deviceId);
+        const result = await repository.findOpenByDeviceAndType(deviceId, 'device_unreachable');
 
         expect(result.error).toContain('socket error');
       });

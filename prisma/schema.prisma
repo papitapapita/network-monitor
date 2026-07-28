@@ -267,6 +267,10 @@ model AlertEvent {
   id          String        @id @default(uuid()) @db.Uuid
   deviceId    String        @map("device_id") @db.Uuid
   severity    AlertSeverity @default(CRITICAL)
+  source      String        @default("") @db.Text
+  type        String        @default("") @db.Text
+  description String        @default("") @db.Text
+  details     Json          @default("{}")
   startedAt   DateTime      @default(now()) @map("started_at") @db.Timestamptz
   resolvedAt  DateTime?     @map("resolved_at") @db.Timestamptz
   notifiedAt  DateTime?     @map("notified_at") @db.Timestamptz
@@ -277,6 +281,7 @@ model AlertEvent {
 
   @@index([deviceId, startedAt(sort: Desc)])
   @@index([resolvedAt])
+  @@index([deviceId, type, resolvedAt])
   @@map("alert_events")
 }
 

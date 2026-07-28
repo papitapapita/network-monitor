@@ -1,4 +1,4 @@
-import { AlertSeverity } from 'domain/notifications/enums';
+import { AlertSeverity } from 'domain/shared/enums';
 
 export interface SendAlertNotificationDTO {
   deviceId: string;

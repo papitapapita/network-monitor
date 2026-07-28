@@ -833,11 +833,17 @@ offset?:   number   // ≥0
 
 ## Alerts `/api/alerts`
 
+This is the **unified operational-alert list**. Every bounded context that detects an infrastructure problem records into this one store, so dashboards (and future ticketing) read a single place instead of chasing per-context lists. Both **device-availability** alerts and **wireless-link** alerts land here.
+
 ```ts
 interface AlertDTO {
   id: string                        // UUID
   deviceId: string                  // UUID
   severity: AlertSeverity
+  source: string                    // human-readable origin — e.g. "Disponibilidad", "Enlace inalámbrico"
+  type: string                      // machine discriminator (see table); at most one OPEN alert per (deviceId, type)
+  description: string               // human-readable detail line, ready to display
+  details: Record<string, unknown>  // producer-specific structured payload — shape varies by source (see table)
   status: AlertStatus
   startedAt: string                 // ISO 8601
   resolvedAt: string | null         // ISO 8601 — null while alert is open
@@ -846,6 +852,17 @@ interface AlertDTO {
   durationSecs: number | null       // seconds device was offline; null while open
 }
 ```
+
+**Producers** — who writes alerts and what they put in `type` / `details`:
+
+| `source` | `type` | `details` shape | Notes |
+|----------|--------|-----------------|-------|
+| `Disponibilidad` | `device_unreachable` | `{ consecutiveFailures: number, ipAddress: string \| null }` | Device stopped answering ICMP ping. Resolves automatically on recovery. |
+| `Enlace inalámbrico` | `wireless:<metric>:<severity>`<br>e.g. `wireless:signal_rx_dbm:CRITICAL` | `{ metric: string, severity: 'WARNING' \| 'CRITICAL', threshold: number, currentValue: number }` | One row per wireless metric + severity. Resolves automatically when the condition clears. |
+
+> **Dedup:** at most **one OPEN alert per `(deviceId, type)`**. A repeated trigger for a condition that is already open does **not** create a duplicate — the existing open alert stands until it resolves.  
+> `details` is a free-form JSON bag, easy to render but not queryable server-side — filter/sort in the frontend, don't expect a backend query param for its inner keys.  
+> **Not the same as `/api/devices/:id/wireless/alerts`** (`WirelessAlertDTO`): those remain the live, per-poll wireless view. This `/api/alerts` list is the **persisted, cross-context record** — a wireless problem appears in both.
 
 ### `GET /api/alerts` — List
 **Status:** 200
@@ -871,6 +888,33 @@ offset?:   number  // ≥0, default 0
 
 > Results are ordered by `startedAt` descending (newest first).  
 > Omit `deviceId` to list alerts across all devices.
+
+---
+
+### `GET /api/alerts/:id` — Get by ID
+**Status:** 200 | 400 | 404
+
+```ts
+// Response
+{ success: true, data: AlertDTO }
+```
+
+> Returns 400 if the id is not a valid UUID, 404 if no alert exists with that id.
+
+---
+
+### `DELETE /api/alerts/:id` — Delete
+**Status:** 204 | 400 | 404 | 409  
+**Roles:** ADMIN
+
+```ts
+// No request body
+// Response: 204 No Content
+```
+
+> **Only resolved alerts can be deleted.** Deleting an alert that is still `OPEN` returns 409 `"Cannot delete an alert that is still open"` — resolve (or let it auto-resolve) first.  
+> Returns 400 for a non-UUID id, 404 if no alert exists with that id.  
+> There is no create/update endpoint — alerts are opened and resolved by the system (producers), never by clients. This is read + delete only.
 
 ---
 

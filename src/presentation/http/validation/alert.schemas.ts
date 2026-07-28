@@ -15,3 +15,11 @@ export const listAlertsSchema = z.object({
 export type ListAlertsQuery = z.infer<
   typeof listAlertsSchema
 >['query'];
+
+export const getAlertByIdSchema = z.object({
+  params: z.object({ id: uuidSchema })
+});
+
+export const deleteAlertSchema = z.object({
+  params: z.object({ id: uuidSchema })
+});

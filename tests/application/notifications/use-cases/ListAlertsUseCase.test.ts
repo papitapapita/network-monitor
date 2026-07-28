@@ -7,7 +7,7 @@ import { Result } from '../../../../src/domain/shared/core/Result';
 import { Alert } from '../../../../src/domain/notifications/aggregates/Alert';
 import { AlertId } from '../../../../src/domain/shared/ids/AlertId';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
-import { AlertSeverity } from '../../../../src/domain/notifications/enums/AlertSeverity';
+import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -39,9 +39,10 @@ function makeAlertRepo(): jest.Mocked<IAlertRepository> {
   return {
     save:                    jest.fn(),
     findById:                jest.fn(),
-    findOpenByDeviceId:      jest.fn(),
+    findOpenByDeviceAndType: jest.fn(),
     findAllByDeviceId:       jest.fn(),
     findAll:                 jest.fn(),
+    deleteById:              jest.fn(),
     deleteResolvedOlderThan: jest.fn()
   };
 }
@@ -50,6 +51,9 @@ function makeAlert(): Alert {
   return Alert.reconstitute(AlertId.parse(VALID_ALERT_UUID).value, {
     deviceId:           DeviceId.parse(VALID_DEVICE_UUID).value,
     severity:           AlertSeverity.CRITICAL,
+    source:             'Disponibilidad',
+    type:               'device_unreachable',
+    description:        'Sin conexión',
     startedAt:          STARTED_AT,
     resolvedAt:         null,
     notifiedAt:         null,

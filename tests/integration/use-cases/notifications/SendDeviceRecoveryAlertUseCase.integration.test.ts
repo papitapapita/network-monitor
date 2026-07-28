@@ -1,6 +1,8 @@
 import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { SendDeviceDownAlertUseCase } from 'application/notifications/use-cases/SendDeviceDownAlertUseCase';
 import { SendDeviceRecoveryAlertUseCase } from 'application/notifications/use-cases/SendDeviceRecoveryAlertUseCase';
+import { SendAlertNotificationUseCase } from 'application/notifications/use-cases/SendAlertNotificationUseCase';
+import { AlertPublisher } from 'infrastructure/notifications/AlertPublisher';
 import { PrismaAlertRepository } from 'infrastructure/persistence/PrismaAlertRepository';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
 import { PrismaPollingConfigurationRepository } from 'infrastructure/persistence/PrismaPollingConfigurationRepository';
@@ -32,18 +34,19 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
     const logger = new WinstonLogger();
 
     fakeNotification = new FakeNotificationService();
+    const alertPublisher = new AlertPublisher(
+      new SendAlertNotificationUseCase(deviceRepo, fakeNotification, logger)
+    );
     downUseCase = new SendDeviceDownAlertUseCase(
       alertRepo,
-      deviceRepo,
       pollingConfigRepo,
-      fakeNotification,
+      alertPublisher,
       logger
     );
     recoveryUseCase = new SendDeviceRecoveryAlertUseCase(
       alertRepo,
-      deviceRepo,
       pollingConfigRepo,
-      fakeNotification,
+      alertPublisher,
       logger
     );
   });
@@ -115,9 +118,10 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
     expect(fakeNotification.callCount).toBe(1);
     const msg = fakeNotification.lastMessage!;
     expect(msg.metadata.deviceId).toBe(deviceId);
-    expect(msg.metadata.latencyMs).toBe(45);
-    expect(msg.metadata.durationSecs).toBe(3600);
     expect(msg.metadata.timestamp).toBe(recoveredAt.toISOString());
+    // latency + offline duration now live in the rendered body detail
+    expect(msg.body).toContain('45ms');
+    expect(msg.body).toContain('1h');
   });
 
   it('includes device name and IP in the recovery notification', async () => {
@@ -136,7 +140,8 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
 
     const msg = fakeNotification.lastMessage!;
     expect(msg.metadata.deviceName).toBe('Monitored Test Device');
-    expect(msg.metadata.ipAddress).toBe('192.168.99.1');
+    // IP now lives in the rendered body detail (MarkdownV2-escaped), not metadata
+    expect(msg.body.replace(/\\/g, '')).toContain('192.168.99.1');
   });
 
   it('resolves and saves the alert even when recovery notification fails', async () => {
@@ -181,7 +186,8 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
 
     expect(result.isSuccess).toBe(true);
     const msg = fakeNotification.lastMessage!;
-    expect(msg.metadata.latencyMs).toBeNull();
+    // null latency renders as N/A in the body detail
+    expect(msg.body).toContain('N/A');
   });
 
   // ──────────────────────────────────────────────────────────────

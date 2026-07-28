@@ -7,6 +7,10 @@ export class AlertMapper {
       id: alert.id.toString(),
       deviceId: alert.deviceId.toString(),
       severity: alert.severity,
+      source: alert.source,
+      type: alert.type,
+      description: alert.description,
+      details: alert.details,
       status: alert.isOpen ? 'OPEN' : 'RESOLVED',
       startedAt: alert.startedAt.toISOString(),
       resolvedAt: alert.resolvedAt

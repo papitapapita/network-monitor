@@ -1,11 +1,15 @@
 import { AlertId, DeviceId } from 'domain/shared/ids';
 import { Alert } from 'domain/notifications/aggregates';
-import { AlertSeverity } from 'domain/notifications/enums';
+import { AlertSeverity } from 'domain/shared/enums';
 
 type PrismaAlertRecord = {
   id: string;
   deviceId: string;
   severity: string;
+  source: string;
+  type: string;
+  description: string;
+  details?: unknown;
   startedAt: Date;
   resolvedAt: Date | null;
   notifiedAt: Date | null;
@@ -31,6 +35,10 @@ export class AlertMapper {
     return Alert.reconstitute(alertIdResult.value, {
       deviceId: deviceIdResult.value,
       severity: AlertMapper.mapSeverity(raw.severity),
+      source: raw.source,
+      type: raw.type,
+      description: raw.description,
+      details: (raw.details as Record<string, unknown>) ?? {},
       startedAt: raw.startedAt,
       resolvedAt: raw.resolvedAt,
       notifiedAt: raw.notifiedAt,
@@ -43,6 +51,10 @@ export class AlertMapper {
       id: alert.id.toString(),
       deviceId: alert.deviceId.toString(),
       severity: alert.severity as string,
+      source: alert.source,
+      type: alert.type,
+      description: alert.description,
+      details: alert.details,
       startedAt: alert.startedAt,
       resolvedAt: alert.resolvedAt,
       notifiedAt: alert.notifiedAt,

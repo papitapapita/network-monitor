@@ -1,10 +1,16 @@
 import { Request, Response } from 'express';
 import { ILogger } from 'application/shared/interfaces';
-import { ListAlertsUseCase } from 'application/notifications/use-cases';
+import {
+  ListAlertsUseCase,
+  GetAlertByIdUseCase,
+  DeleteAlertUseCase
+} from 'application/notifications/use-cases';
 
 export class AlertController {
   constructor(
     private readonly listAlertsUseCase: ListAlertsUseCase,
+    private readonly getAlertByIdUseCase: GetAlertByIdUseCase,
+    private readonly deleteAlertUseCase: DeleteAlertUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -35,9 +41,58 @@ export class AlertController {
     }
   };
 
+  public getAlertById = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.getAlertByIdUseCase.execute({
+        id: req.params.id
+      });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(200).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public deleteAlert = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.deleteAlertUseCase.execute({
+        id: req.params.id
+      });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
   private getErrorStatusCode(errorMessage: string): number {
     if (errorMessage.includes('not found')) {
       return 404;
+    }
+    if (errorMessage.includes('still open')) {
+      return 409;
     }
     if (
       errorMessage.includes('Invalid') ||

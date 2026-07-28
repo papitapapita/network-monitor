@@ -5,8 +5,9 @@ import { Alert } from '../aggregates';
 export interface IAlertRepository {
   save(alert: Alert): Promise<Result<Alert>>;
   findById(id: AlertId): Promise<Result<Alert | null>>;
-  findOpenByDeviceId(
-    deviceId: DeviceId
+  findOpenByDeviceAndType(
+    deviceId: DeviceId,
+    type: string
   ): Promise<Result<Alert | null>>;
   findAllByDeviceId(
     deviceId: DeviceId,
@@ -14,5 +15,6 @@ export interface IAlertRepository {
     offset?: number
   ): Promise<Result<Alert[]>>;
   findAll(limit?: number, offset?: number): Promise<Result<Alert[]>>;
+  deleteById(id: AlertId): Promise<Result<void>>;
   deleteResolvedOlderThan(cutoff: Date): Promise<Result<number>>;
 }

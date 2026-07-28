@@ -4,7 +4,7 @@ import { AlertMapper } from '../../../../src/application/notifications/mappers/A
 import { Alert } from '../../../../src/domain/notifications/aggregates/Alert';
 import { AlertId } from '../../../../src/domain/shared/ids/AlertId';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
-import { AlertSeverity } from '../../../../src/domain/notifications/enums/AlertSeverity';
+import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -34,6 +34,9 @@ function makeOpenAlert(): Alert {
   return Alert.reconstitute(makeAlertId(), {
     deviceId:           makeDeviceId(),
     severity:           AlertSeverity.CRITICAL,
+    source:             'Disponibilidad',
+    type:               'device_unreachable',
+    description:        'Sin conexión',
     startedAt:          STARTED_AT,
     resolvedAt:         null,
     notifiedAt:         null,
@@ -45,6 +48,9 @@ function makeResolvedAlert(): Alert {
   return Alert.reconstitute(makeAlertId(), {
     deviceId:           makeDeviceId(),
     severity:           AlertSeverity.CRITICAL,
+    source:             'Disponibilidad',
+    type:               'device_unreachable',
+    description:        'Sin conexión',
     startedAt:          STARTED_AT,
     resolvedAt:         RESOLVED_AT,
     notifiedAt:         NOTIFIED_AT,

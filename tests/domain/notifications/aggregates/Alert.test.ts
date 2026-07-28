@@ -3,7 +3,7 @@
 import { Alert } from '../../../../src/domain/notifications/aggregates/Alert';
 import { AlertId } from '../../../../src/domain/shared/ids/AlertId';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
-import { AlertSeverity } from '../../../../src/domain/notifications/enums/AlertSeverity';
+import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
 
 // ---------------------------------------------------------------------------
 // Constants & Fixtures
@@ -28,7 +28,13 @@ function openAlert(
   deviceId: DeviceId = makeDeviceId(),
   severity: AlertSeverity = AlertSeverity.WARNING
 ): Alert {
-  const result = Alert.open(deviceId, severity);
+  const result = Alert.open(
+    deviceId,
+    severity,
+    'Disponibilidad',
+    'device_unreachable',
+    'Sin conexión'
+  );
   if (result.isFailure) {
     throw new Error(`openAlert fixture failed: ${result.error}`);
   }
@@ -49,6 +55,9 @@ function reconstituteAlert(
   return Alert.reconstitute(makeAlertId(), {
     deviceId:            overrides.deviceId            ?? makeDeviceId(),
     severity:            overrides.severity            ?? AlertSeverity.WARNING,
+    source:              'Disponibilidad',
+    type:                'device_unreachable',
+    description:         'Sin conexión',
     startedAt:           overrides.startedAt           ?? STARTED_AT,
     resolvedAt:          overrides.resolvedAt          !== undefined ? overrides.resolvedAt          : null,
     notifiedAt:          overrides.notifiedAt          !== undefined ? overrides.notifiedAt          : null,
@@ -64,14 +73,14 @@ describe('Alert', () => {
     // -------------------------------------------------------------------------
     describe('when given valid arguments', () => {
       it('should return a successful Result', () => {
-        const result = Alert.open(makeDeviceId(), AlertSeverity.WARNING);
+        const result = Alert.open(makeDeviceId(), AlertSeverity.WARNING, 'Disponibilidad', 'device_unreachable', 'Sin conexión');
 
         expect(result.isSuccess).toBe(true);
         expect(result.isFailure).toBe(false);
       });
 
       it('should return an Alert instance', () => {
-        const result = Alert.open(makeDeviceId(), AlertSeverity.WARNING);
+        const result = Alert.open(makeDeviceId(), AlertSeverity.WARNING, 'Disponibilidad', 'device_unreachable', 'Sin conexión');
 
         expect(result.value).toBeInstanceOf(Alert);
       });
@@ -151,27 +160,27 @@ describe('Alert', () => {
     // -------------------------------------------------------------------------
     describe('when deviceId is null or undefined', () => {
       it('should return a failure Result when deviceId is null', () => {
-        const result = Alert.open(null as unknown as DeviceId, AlertSeverity.WARNING);
+        const result = Alert.open(null as unknown as DeviceId, AlertSeverity.WARNING, 'Disponibilidad', 'device_unreachable', 'Sin conexión');
 
         expect(result.isFailure).toBe(true);
         expect(result.isSuccess).toBe(false);
       });
 
       it('should return a failure Result when deviceId is undefined', () => {
-        const result = Alert.open(undefined as unknown as DeviceId, AlertSeverity.WARNING);
+        const result = Alert.open(undefined as unknown as DeviceId, AlertSeverity.WARNING, 'Disponibilidad', 'device_unreachable', 'Sin conexión');
 
         expect(result.isFailure).toBe(true);
         expect(result.isSuccess).toBe(false);
       });
 
       it('should include "deviceId" in the error message when null', () => {
-        const result = Alert.open(null as unknown as DeviceId, AlertSeverity.WARNING);
+        const result = Alert.open(null as unknown as DeviceId, AlertSeverity.WARNING, 'Disponibilidad', 'device_unreachable', 'Sin conexión');
 
         expect(result.error).toContain('deviceId');
       });
 
       it('should include "deviceId" in the error message when undefined', () => {
-        const result = Alert.open(undefined as unknown as DeviceId, AlertSeverity.WARNING);
+        const result = Alert.open(undefined as unknown as DeviceId, AlertSeverity.WARNING, 'Disponibilidad', 'device_unreachable', 'Sin conexión');
 
         expect(result.error).toContain('deviceId');
       });
@@ -191,6 +200,9 @@ describe('Alert', () => {
       const alert   = Alert.reconstitute(alertId, {
         deviceId:           makeDeviceId(),
         severity:           AlertSeverity.WARNING,
+        source:             'Disponibilidad',
+        type:               'device_unreachable',
+        description:        'Sin conexión',
         startedAt:          STARTED_AT,
         resolvedAt:         null,
         notifiedAt:         null,

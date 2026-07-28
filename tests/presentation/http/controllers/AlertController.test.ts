@@ -3,6 +3,8 @@
 import { Request, Response } from 'express';
 import { AlertController } from '../../../../src/presentation/http/controllers/AlertController';
 import { ListAlertsUseCase } from '../../../../src/application/notifications/use-cases/ListAlertsUseCase';
+import { GetAlertByIdUseCase } from '../../../../src/application/notifications/use-cases/GetAlertByIdUseCase';
+import { DeleteAlertUseCase } from '../../../../src/application/notifications/use-cases/DeleteAlertUseCase';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
@@ -34,6 +36,12 @@ interface AlertListResponseDTO {
 
 const createMockListAlertsUseCase = () =>
   ({ execute: jest.fn() }) as unknown as ListAlertsUseCase;
+
+const createMockGetAlertByIdUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as GetAlertByIdUseCase;
+
+const createMockDeleteAlertUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as DeleteAlertUseCase;
 
 const createMockLogger = (): jest.Mocked<ILogger> => ({
   info: jest.fn(),
@@ -92,13 +100,22 @@ const mockAlertListDTO: AlertListResponseDTO = {
 describe('AlertController', () => {
   let controller: AlertController;
   let mockListAlertsUseCase: ListAlertsUseCase;
+  let mockGetAlertByIdUseCase: GetAlertByIdUseCase;
+  let mockDeleteAlertUseCase: DeleteAlertUseCase;
   let mockLogger: jest.Mocked<ILogger>;
 
   beforeEach(() => {
     mockListAlertsUseCase = createMockListAlertsUseCase();
+    mockGetAlertByIdUseCase = createMockGetAlertByIdUseCase();
+    mockDeleteAlertUseCase = createMockDeleteAlertUseCase();
     mockLogger = createMockLogger();
 
-    controller = new AlertController(mockListAlertsUseCase, mockLogger);
+    controller = new AlertController(
+      mockListAlertsUseCase,
+      mockGetAlertByIdUseCase,
+      mockDeleteAlertUseCase,
+      mockLogger
+    );
   });
 
   afterEach(() => {

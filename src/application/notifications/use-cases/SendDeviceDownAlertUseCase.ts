@@ -1,16 +1,17 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 import { Alert } from 'domain/notifications/aggregates';
-import { AlertSeverity } from 'domain/notifications/enums';
+import { AlertSeverity } from 'domain/shared/enums';
 import { IAlertRepository } from 'domain/notifications/repository';
-import { IDeviceRepository } from 'domain/device-inventory/repository';
 import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
 import { UseCase } from 'application/shared/core';
-import { ILogger } from 'application/shared/interfaces';
-import { INotificationService } from '../interfaces';
-import { TelegramFormatting } from '../shared';
+import { ILogger, IAlertPublisher } from 'application/shared/interfaces';
 import { AlertMapper } from '../mappers';
 import { AlertResponseDTO, SendDeviceDownAlertDTO } from '../dtos';
+
+const SOURCE = 'Disponibilidad';
+const SUBJECT = 'Dispositivo fuera de línea';
+const ALERT_TYPE = 'device_unreachable';
 
 export class SendDeviceDownAlertUseCase extends UseCase<
   SendDeviceDownAlertDTO,
@@ -18,9 +19,8 @@ export class SendDeviceDownAlertUseCase extends UseCase<
 > {
   constructor(
     private readonly alertRepository: IAlertRepository,
-    private readonly deviceRepository: IDeviceRepository,
     private readonly pollingConfigRepository: IPollingConfigurationRepository,
-    private readonly notificationService: INotificationService,
+    private readonly alertPublisher: IAlertPublisher,
     logger: ILogger
   ) {
     super(logger, 'SendDeviceDownAlertUseCase');
@@ -48,7 +48,10 @@ export class SendDeviceDownAlertUseCase extends UseCase<
     const deviceId = deviceIdResult.value;
 
     const existingResult =
-      await this.alertRepository.findOpenByDeviceId(deviceId);
+      await this.alertRepository.findOpenByDeviceAndType(
+        deviceId,
+        ALERT_TYPE
+      );
     if (existingResult.isFailure) {
       return this.fail(
         `Failed to check existing alerts: ${existingResult.error}`
@@ -58,7 +61,23 @@ export class SendDeviceDownAlertUseCase extends UseCase<
       return this.ok(AlertMapper.toDTO(existingResult.value));
     }
 
-    const alertResult = Alert.open(deviceId, AlertSeverity.CRITICAL);
+    const ipAddress = await this.resolveIpAddress(deviceId);
+    const detail = this.buildDetail({
+      ipAddress,
+      consecutiveFailures: request.consecutiveFailures
+    });
+
+    const alertResult = Alert.open(
+      deviceId,
+      AlertSeverity.CRITICAL,
+      SOURCE,
+      ALERT_TYPE,
+      detail,
+      {
+        consecutiveFailures: request.consecutiveFailures,
+        ipAddress
+      }
+    );
     if (alertResult.isFailure) {
       return this.fail(
         `Failed to create alert: ${alertResult.error}`
@@ -66,35 +85,21 @@ export class SendDeviceDownAlertUseCase extends UseCase<
     }
     const alert = alertResult.value;
 
-    const deviceName = await this.resolveDeviceName(deviceId);
-    const ipAddress = await this.resolveIpAddress(deviceId);
+    const publishResult = await this.alertPublisher.publish({
+      deviceId: deviceId.toString(),
+      severity: AlertSeverity.CRITICAL,
+      source: SOURCE,
+      subject: SUBJECT,
+      detail,
+      occurredAt: request.occurredAt,
+      resolved: false
+    });
 
-    const message = {
-      title: '🔴 Dispositivo fuera de línea',
-      body: this.formatDownMessage({
-        deviceName,
-        ipAddress,
-        consecutiveFailures: request.consecutiveFailures,
-        occurredAt: request.occurredAt,
-        alertId: alert.id.toString()
-      }),
-      metadata: {
-        deviceId: deviceId.toString(),
-        deviceName,
-        ipAddress,
-        severity: AlertSeverity.CRITICAL,
-        alertId: alert.id.toString(),
-        timestamp: request.occurredAt.toISOString(),
-        consecutiveFailures: request.consecutiveFailures
-      }
-    };
-
-    const sendResult = await this.notificationService.send(message);
-    if (sendResult.isFailure) {
+    if (publishResult.isFailure) {
       this.logger.error(
-        'Failed to send Telegram notification for device down',
+        'Failed to publish device-down alert notification',
         undefined,
-        { deviceId: deviceId.toString(), error: sendResult.error }
+        { deviceId: deviceId.toString(), error: publishResult.error }
       );
     } else {
       alert.markNotified();
@@ -107,20 +112,6 @@ export class SendDeviceDownAlertUseCase extends UseCase<
     }
 
     return this.ok(AlertMapper.toDTO(saveResult.value));
-  }
-
-  private async resolveDeviceName(
-    deviceId: DeviceId
-  ): Promise<string> {
-    try {
-      const result = await this.deviceRepository.findById(deviceId);
-      if (result.isSuccess && result.value) {
-        return result.value.name.value;
-      }
-    } catch {
-      // fallback
-    }
-    return 'Unknown Device';
   }
 
   private async resolveIpAddress(
@@ -138,29 +129,11 @@ export class SendDeviceDownAlertUseCase extends UseCase<
     return null;
   }
 
-  private formatDownMessage(params: {
-    deviceName: string;
+  private buildDetail(params: {
     ipAddress: string | null;
     consecutiveFailures: number;
-    occurredAt: Date;
-    alertId: string;
   }): string {
-    const e = (text: string) => TelegramFormatting.escapeMd(text);
-    const ip = params.ipAddress ? e(params.ipAddress) : 'N/A';
-    const ts = e(
-      TelegramFormatting.formatLocalTime(params.occurredAt)
-    );
-
-    return [
-      '🔴 *DISPOSITIVO FUERA DE LÍNEA*',
-      '',
-      `📛 *Dispositivo:* ${e(params.deviceName)}`,
-      `🌐 *Dirección IP:* ${ip}`,
-      `⚠️ *Severidad:* CRÍTICA`,
-      `❌ *Fallos Consecutivos:* ${params.consecutiveFailures}`,
-      `🕐 *Sin conexión desde:* ${ts}`,
-      '',
-      `🆔 Alerta: \`${e(params.alertId)}\``
-    ].join('\n');
+    const ip = params.ipAddress ? ` IP: ${params.ipAddress}.` : '';
+    return `Sin conexión tras ${params.consecutiveFailures} intento(s) fallido(s).${ip}`;
   }
 }
