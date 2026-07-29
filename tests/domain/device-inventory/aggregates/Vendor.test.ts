@@ -107,7 +107,7 @@ describe('Vendor', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('[DEV-001] required field validation', () => {
+    describe('[DEV-001] [DEV-006] required field validation', () => {
       it('should fail when name is null', () => {
         const result = Vendor.create(
           makeProps({ name: null as unknown as string })

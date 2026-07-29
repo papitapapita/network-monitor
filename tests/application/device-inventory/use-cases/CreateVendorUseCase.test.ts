@@ -59,7 +59,7 @@ describe('CreateVendorUseCase', () => {
   });
 
   // =========================================================================
-  describe('[DEV-001] [DEV-002] beforeExecute — required field validation', () => {
+  describe('[DEV-001] [DEV-002] [DEV-006] beforeExecute — required field validation', () => {
     it('should fail when name is an empty string', async () => {
       const result = await useCase.execute({ name: '', slug: 'mikrotik' });
 

@@ -61,7 +61,8 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
 
   public updateName(newName: string): Result<void> {
     const nameResult = Vendor.validateName(newName);
-    if (nameResult.isFailure) return Result.fail<void>(nameResult.error);
+    if (nameResult.isFailure)
+      return Result.fail<void>(nameResult.error);
 
     const trimmed = newName.trim();
     if (this.props.name === trimmed) return Result.ok<void>();
@@ -73,7 +74,8 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
 
   public updateSlug(newSlug: string): Result<void> {
     const slugResult = Vendor.validateSlug(newSlug);
-    if (slugResult.isFailure) return Result.fail<void>(slugResult.error);
+    if (slugResult.isFailure)
+      return Result.fail<void>(slugResult.error);
 
     const trimmed = newSlug.trim();
     if (this.props.slug === trimmed) return Result.ok<void>();
@@ -83,11 +85,15 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
     return Result.ok<void>();
   }
 
-  public updateDescription(newDescription: string | null): Result<void> {
+  public updateDescription(
+    newDescription: string | null
+  ): Result<void> {
     const descResult = Vendor.validateDescription(newDescription);
-    if (descResult.isFailure) return Result.fail<void>(descResult.error);
+    if (descResult.isFailure)
+      return Result.fail<void>(descResult.error);
 
-    if (this.props.description === newDescription) return Result.ok<void>();
+    if (this.props.description === newDescription)
+      return Result.ok<void>();
 
     this.props.description = newDescription;
     this.props.updatedAt = new Date();
@@ -107,7 +113,9 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
       return Result.fail<void>('Vendor name cannot be empty');
     }
     if (trimmed.length > 100) {
-      return Result.fail<void>('Vendor name cannot exceed 100 characters');
+      return Result.fail<void>(
+        'Vendor name cannot exceed 100 characters'
+      );
     }
     return Result.ok<void>();
   }
@@ -125,7 +133,9 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
       return Result.fail<void>('Vendor slug cannot be empty');
     }
     if (trimmed.length > 100) {
-      return Result.fail<void>('Vendor slug cannot exceed 100 characters');
+      return Result.fail<void>(
+        'Vendor slug cannot exceed 100 characters'
+      );
     }
     if (!SLUG_REGEX.test(trimmed)) {
       return Result.fail<void>(
@@ -155,7 +165,9 @@ export class Vendor extends AggregateRoot<VendorProps, VendorId> {
     const slugResult = Vendor.validateSlug(props.slug);
     if (slugResult.isFailure) return slugResult;
 
-    const descResult = Vendor.validateDescription(props.description ?? null);
+    const descResult = Vendor.validateDescription(
+      props.description ?? null
+    );
     if (descResult.isFailure) return descResult;
 
     return Result.ok<void>();
