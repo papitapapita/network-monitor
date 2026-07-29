@@ -13,8 +13,11 @@ import { ILocationRepository } from '../../../../src/domain/device-inventory/rep
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Location } from '../../../../src/domain/device-inventory/aggregates/Location';
 import { LocationId } from '../../../../src/domain/shared/ids';
-import { LocationType } from '../../../../src/domain/device-inventory/enums/LocationType';
-import { Address, Coordinates } from '../../../../src/domain/device-inventory/value-objects';
+import {
+  Address,
+  Coordinates,
+  LocationType
+} from '../../../../src/domain/device-inventory/value-objects';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
 // ---------------------------------------------------------------------------
@@ -28,7 +31,7 @@ function makePersistedLocation(
   overrides: {
     id?: string;
     name?: string;
-    type?: LocationType;
+    type?: string;
     coordinates?: Coordinates | null;
   } = {}
 ): Location {
@@ -36,7 +39,7 @@ function makePersistedLocation(
   const id = LocationId.parse(idStr).value;
   return Location.reconstitute(id, {
     name: overrides.name ?? 'Torre Norte',
-    type: overrides.type ?? LocationType.TOWER,
+    type: LocationType.reconstitute(overrides.type ?? LocationType.TOWER),
     address: Address.reconstitute({
       street: 'Carrera 80 # 75-32',
       municipality: 'Medellín',

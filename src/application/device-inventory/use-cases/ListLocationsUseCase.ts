@@ -1,5 +1,5 @@
 import { ILocationRepository } from 'domain/device-inventory/repository';
-import { LocationType } from 'domain/device-inventory/enums';
+import { LocationType } from 'domain/device-inventory/value-objects';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
@@ -67,19 +67,14 @@ export class ListLocationsUseCase extends UseCase<
     limit: number,
     offset: number
   ): Promise<Result<LocationListResponseDTO>> {
-    const upperType = typeStr.toUpperCase();
-    const validTypes = Object.values(LocationType) as string[];
-
-    if (!validTypes.includes(upperType)) {
-      return this.fail<LocationListResponseDTO>(
-        `Invalid location type: "${typeStr}". Must be one of: ${validTypes.join(', ')}`
-      );
+    const typeResult = LocationType.create(typeStr);
+    if (typeResult.isFailure) {
+      return this.fail<LocationListResponseDTO>(typeResult.error!);
     }
 
-    const locationType = upperType as LocationType;
-
-    const locationsResult =
-      await this.locationRepository.findByType(locationType);
+    const locationsResult = await this.locationRepository.findByType(
+      typeResult.value
+    );
     if (locationsResult.isFailure) {
       return this.fail<LocationListResponseDTO>(
         locationsResult.error!

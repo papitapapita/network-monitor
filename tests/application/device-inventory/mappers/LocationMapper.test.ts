@@ -4,8 +4,11 @@ import { describe, it, expect } from '@jest/globals';
 import { LocationMapper } from '../../../../src/application/device-inventory/mappers/LocationMapper';
 import { Location }       from '../../../../src/domain/device-inventory/aggregates/Location';
 import { LocationId }     from '../../../../src/domain/shared/ids';
-import { LocationType }   from '../../../../src/domain/device-inventory/enums';
-import { Address, Coordinates } from '../../../../src/domain/device-inventory/value-objects';
+import {
+  Address,
+  Coordinates,
+  LocationType
+} from '../../../../src/domain/device-inventory/value-objects';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -17,7 +20,7 @@ const UPDATED_DATE = new Date('2024-06-15T12:00:00.000Z');
 
 function makeLocationDomain(overrides: {
   name?:         string;
-  type?:         LocationType;
+  type?:         string;
   municipality?: string | null;
   neighborhood?: string | null;
   address?:      string | null;
@@ -37,7 +40,7 @@ function makeLocationDomain(overrides: {
 
   return Location.reconstitute(id, {
     name:        overrides.name ?? 'Torre Norte',
-    type:        overrides.type ?? LocationType.TOWER,
+    type:        LocationType.reconstitute(overrides.type ?? LocationType.TOWER),
     address:     addressVO,
     coordinates: overrides.coordinates !== undefined ? overrides.coordinates : null,
     createdAt:   BASE_DATE,
@@ -86,7 +89,7 @@ describe('LocationMapper (application layer)', () => {
 
     // -----------------------------------------------------------------------
     describe('LocationType string representation', () => {
-      const typeMatrix: Array<[LocationType, string]> = [
+      const typeMatrix: Array<[string, string]> = [
         [LocationType.TOWER,              'TOWER'],
         [LocationType.DATACENTER,         'DATACENTER'],
         [LocationType.POINT_OF_PRESENCE,  'POINT_OF_PRESENCE'],

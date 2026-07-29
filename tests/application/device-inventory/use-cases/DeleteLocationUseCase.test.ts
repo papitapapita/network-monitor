@@ -8,8 +8,11 @@ import { Result } from '../../../../src/domain/shared/core/Result';
 import { Location } from '../../../../src/domain/device-inventory/aggregates/Location';
 import { Device } from '../../../../src/domain/device-inventory/aggregates/Device';
 import { LocationId, DeviceId, DeviceModelId } from '../../../../src/domain/shared/ids';
-import { LocationType } from '../../../../src/domain/device-inventory/enums/LocationType';
-import { DeviceName, DeviceStatus } from '../../../../src/domain/device-inventory/value-objects';
+import {
+  DeviceName,
+  DeviceStatus,
+  LocationType
+} from '../../../../src/domain/device-inventory/value-objects';
 import { DeviceOwnerType } from '../../../../src/domain/device-inventory/enums/DeviceOwnerType';
 import { MACAddress } from '../../../../src/domain/shared';
 
@@ -29,7 +32,7 @@ function makeLocation(): Location {
   const id = LocationId.parse(VALID_LOCATION_ID).value;
   return Location.reconstitute(id, {
     name: 'Tower Alpha',
-    type: LocationType.TOWER,
+    type: LocationType.reconstitute(LocationType.TOWER),
     address: null,
     coordinates: null,
     createdAt: NOW,
@@ -180,7 +183,7 @@ describe('DeleteLocationUseCase', () => {
   });
 
   // =========================================================================
-  describe('conflict — location has devices', () => {
+  describe('[DEV-097] conflict — location has devices', () => {
     it('should fail when the location has one or more assigned devices', async () => {
       locationRepo.findById.mockResolvedValue(
         Result.ok(makeLocation())

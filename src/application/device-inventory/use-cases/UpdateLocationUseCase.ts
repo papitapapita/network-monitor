@@ -1,6 +1,8 @@
 import { ILocationRepository } from 'domain/device-inventory/repository';
-import { LocationType } from 'domain/device-inventory/enums';
-import { Coordinates } from 'domain/device-inventory/value-objects';
+import {
+  Coordinates,
+  LocationType
+} from 'domain/device-inventory/value-objects';
 import { LocationId } from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
@@ -27,16 +29,6 @@ export class UpdateLocationUseCase extends UseCase<
   ): Promise<Result<void> | null> {
     if (!request.id || request.id.trim().length === 0) {
       return Result.fail('Location ID is required');
-    }
-
-    if (request.type !== undefined) {
-      const upperType = request.type.toUpperCase();
-      const validTypes = Object.values(LocationType) as string[];
-      if (!validTypes.includes(upperType)) {
-        return Result.fail(
-          `Invalid location type: "${request.type}". Must be one of: ${validTypes.join(', ')}`
-        );
-      }
     }
 
     // Coordinates are optional, but lat and lon must come together
@@ -82,8 +74,12 @@ export class UpdateLocationUseCase extends UseCase<
     }
 
     if (data.type !== undefined) {
-      const locationType = data.type.toUpperCase() as LocationType;
-      const updateTypeResult = location.updateType(locationType);
+      const typeResult = LocationType.create(data.type);
+      if (typeResult.isFailure) {
+        return this.fail(typeResult.error!);
+      }
+
+      const updateTypeResult = location.updateType(typeResult.value);
       if (updateTypeResult.isFailure) {
         return this.fail(updateTypeResult.error!);
       }

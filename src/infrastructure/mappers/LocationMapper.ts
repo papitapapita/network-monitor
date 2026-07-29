@@ -1,7 +1,10 @@
 import { Location } from 'domain/device-inventory/aggregates/';
 import { LocationId } from 'domain/shared/ids';
-import { LocationType } from 'domain/device-inventory/enums';
-import { Address, Coordinates } from 'domain/device-inventory/value-objects';
+import {
+  Address,
+  Coordinates,
+  LocationType
+} from 'domain/device-inventory/value-objects';
 import { Result } from 'domain/shared/core';
 import { LocationType as PrismaLocationType } from 'generated/prisma/client';
 
@@ -90,7 +93,7 @@ export class LocationMapper {
     return {
       id: location.id.toString(),
       name: location.name,
-      type: this.mapLocationTypeToPrisma(location.type),
+      type: location.type.value as PrismaLocationType,
       municipality: location.municipality,
       neighborhood: location.neighborhood,
       address: location.address,
@@ -105,50 +108,18 @@ export class LocationMapper {
     };
   }
 
-  // throws on unrecognised value — the repo's try/catch surfaces it as Result.fail
+  // throws on unrecognised value — the repo's try/catch surfaces it as Result.fail.
+  // Deliberately strict: the stored value must match a domain type exactly, with no
+  // trimming or case-folding, so drift between the Prisma enum and the domain surfaces here.
   private static mapLocationTypeFromPrisma(
     prismaType: string
   ): LocationType {
-    switch (prismaType) {
-      case 'TOWER':
-        return LocationType.TOWER;
-      case 'DATACENTER':
-        return LocationType.DATACENTER;
-      case 'POINT_OF_PRESENCE':
-        return LocationType.POINT_OF_PRESENCE;
-      case 'OFFICE':
-        return LocationType.OFFICE;
-      case 'OTHER':
-        return LocationType.OTHER;
-      case 'CUSTOMER_PREMISES':
-        return LocationType.CUSTOMER_PREMISES;
-      default:
-        throw new Error(
-          `Data integrity violation: unrecognised LocationType "${prismaType}" in persistence store`
-        );
+    if (!LocationType.isValid(prismaType)) {
+      throw new Error(
+        `Data integrity violation: unrecognised LocationType "${prismaType}" in persistence store`
+      );
     }
-  }
 
-  private static mapLocationTypeToPrisma(
-    locationType: LocationType
-  ): PrismaLocationType {
-    switch (locationType) {
-      case LocationType.TOWER:
-        return 'TOWER';
-      case LocationType.DATACENTER:
-        return 'DATACENTER';
-      case LocationType.POINT_OF_PRESENCE:
-        return 'POINT_OF_PRESENCE';
-      case LocationType.OFFICE:
-        return 'OFFICE';
-      case LocationType.CUSTOMER_PREMISES:
-        return 'CUSTOMER_PREMISES';
-      case LocationType.OTHER:
-        return 'OTHER';
-      default:
-        throw new Error(
-          `Unknown domain LocationType: ${locationType}`
-        );
-    }
+    return LocationType.reconstitute(prismaType);
   }
 }

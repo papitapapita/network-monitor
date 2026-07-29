@@ -4,7 +4,7 @@ import { PrismaLocationRepository } from '../../../src/infrastructure/persistenc
 import { LocationMapper } from '../../../src/infrastructure/mappers/LocationMapper';
 import { Location } from '../../../src/domain/device-inventory/aggregates';
 import { LocationId } from '../../../src/domain/shared/ids';
-import { LocationType } from '../../../src/domain/device-inventory/enums';
+import { LocationType } from '../../../src/domain/device-inventory/value-objects';
 import { Result, EventDispatcher } from '../../../src/domain/shared/core';
 
 // ---------------------------------------------------------------------------
@@ -67,7 +67,7 @@ function makeFakeLocation(id = VALID_UUID_1): Location {
   const locationId = LocationId.parse(id).value;
   return Location.reconstitute(locationId, {
     name: 'Tower Alpha',
-    type: LocationType.TOWER,
+    type: LocationType.reconstitute(LocationType.TOWER),
     address: null,
     coordinates: null,
     createdAt: new Date('2024-01-01T00:00:00Z'),
@@ -485,7 +485,7 @@ describe('PrismaLocationRepository', () => {
       it('should call prisma.location.findMany with the given type in the where clause', async () => {
         prisma.location.findMany.mockResolvedValue([makeFakePrismaRow()]);
 
-        await repository.findByType(LocationType.TOWER);
+        await repository.findByType(LocationType.reconstitute(LocationType.TOWER));
 
         expect(prisma.location.findMany).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -499,7 +499,7 @@ describe('PrismaLocationRepository', () => {
         prisma.location.findMany.mockResolvedValue([makeFakePrismaRow()]);
         MockedLocationMapper.toDomain.mockReturnValue(Result.ok(fakeLocation));
 
-        const result = await repository.findByType(LocationType.TOWER);
+        const result = await repository.findByType(LocationType.reconstitute(LocationType.TOWER));
 
         expect(result.isSuccess).toBe(true);
         expect(result.value).toHaveLength(1);
@@ -509,14 +509,14 @@ describe('PrismaLocationRepository', () => {
       it('should return a successful Result with an empty array when no matching records exist', async () => {
         prisma.location.findMany.mockResolvedValue([]);
 
-        const result = await repository.findByType(LocationType.DATACENTER);
+        const result = await repository.findByType(LocationType.reconstitute(LocationType.DATACENTER));
 
         expect(result.isSuccess).toBe(true);
         expect(result.value).toHaveLength(0);
       });
 
       it('should work correctly for every LocationType value', async () => {
-        const allTypes: LocationType[] = [
+        const allTypes: string[] = [
           LocationType.TOWER,
           LocationType.DATACENTER,
           LocationType.POINT_OF_PRESENCE,
@@ -529,7 +529,9 @@ describe('PrismaLocationRepository', () => {
           jest.clearAllMocks();
           prisma.location.findMany.mockResolvedValue([]);
 
-          const result = await repository.findByType(type);
+          const result = await repository.findByType(
+            LocationType.reconstitute(type)
+          );
 
           expect(result.isSuccess).toBe(true);
           expect(prisma.location.findMany).toHaveBeenCalledWith(
@@ -546,7 +548,7 @@ describe('PrismaLocationRepository', () => {
           Result.fail('corrupt type record')
         );
 
-        const result = await repository.findByType(LocationType.TOWER);
+        const result = await repository.findByType(LocationType.reconstitute(LocationType.TOWER));
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('Failed to map location');
@@ -560,7 +562,7 @@ describe('PrismaLocationRepository', () => {
           new Error('query timeout')
         );
 
-        const result = await repository.findByType(LocationType.OFFICE);
+        const result = await repository.findByType(LocationType.reconstitute(LocationType.OFFICE));
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('query timeout');
@@ -569,7 +571,7 @@ describe('PrismaLocationRepository', () => {
       it('should prefix the error with "Database error finding locations by type"', async () => {
         prisma.location.findMany.mockRejectedValue(new Error('io error'));
 
-        const result = await repository.findByType(LocationType.OTHER);
+        const result = await repository.findByType(LocationType.reconstitute(LocationType.OTHER));
 
         expect(result.error).toContain(
           'Database error finding locations by type'

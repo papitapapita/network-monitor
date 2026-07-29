@@ -14,3 +14,4 @@ export * from './DeviceMonitoringToggledEventProps';
 export * from './DeviceDetailsUpdatedEventProps';
 export * from './VendorProps';
 export * from './DeviceModelProps';
+export * from './LocationTypeProps';

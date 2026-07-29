@@ -1,7 +1,6 @@
 import { AggregateRoot, Result, Guard } from 'domain/shared/core';
 import { LocationId } from 'domain/shared/ids';
-import { LocationType } from '../enums';
-import { Address, Coordinates } from '../value-objects';
+import { Address, Coordinates, LocationType } from '../value-objects';
 import { LocationProps } from '../props';
 
 export class Location extends AggregateRoot<LocationProps, LocationId> {
@@ -89,9 +88,9 @@ export class Location extends AggregateRoot<LocationProps, LocationId> {
       return Result.fail<void>(guardResult.message!);
     }
 
-    if (this.props.type === newType) return Result.ok<void>();
+    if (this.props.type.equals(newType)) return Result.ok<void>();
 
-    if (newType === LocationType.CUSTOMER_PREMISES) {
+    if (newType.isCustomerPremises()) {
       const cpResult = Location.validateCustomerPremisesNavigability(
         this.props
       );
@@ -124,20 +123,16 @@ export class Location extends AggregateRoot<LocationProps, LocationId> {
         ? fields.neighborhood
         : (this.props.address?.neighborhood ?? null);
 
-    let newAddressVO: Address | null = null;
+    const addressResult = Address.createOptional({
+      street,
+      municipality,
+      neighborhood
+    });
+    if (addressResult.isFailure) return Result.fail<void>(addressResult.error);
 
-    if (street !== null || municipality !== null || neighborhood !== null) {
-      if (street === null || municipality === null || neighborhood === null) {
-        return Result.fail<void>(
-          'An address requires a street, municipality, and neighborhood'
-        );
-      }
-      const addressResult = Address.create({ street, municipality, neighborhood });
-      if (addressResult.isFailure) return Result.fail<void>(addressResult.error);
-      newAddressVO = addressResult.value;
-    }
+    const newAddressVO = addressResult.value;
 
-    if (this.props.type === LocationType.CUSTOMER_PREMISES) {
+    if (this.props.type.isCustomerPremises()) {
       const cpResult = Location.validateCustomerPremisesNavigability({
         address: newAddressVO,
         coordinates: this.props.coordinates ?? null
@@ -227,7 +222,7 @@ export class Location extends AggregateRoot<LocationProps, LocationId> {
     const nameResult = Location.validateName(props.name);
     if (nameResult.isFailure) return nameResult;
 
-    if (props.type === LocationType.CUSTOMER_PREMISES) {
+    if (props.type.isCustomerPremises()) {
       return Location.validateCustomerPremisesNavigability(props);
     }
 

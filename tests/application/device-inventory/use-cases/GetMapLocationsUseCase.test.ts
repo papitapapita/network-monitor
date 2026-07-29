@@ -5,9 +5,12 @@ import { IDeviceRepository } from '../../../../src/domain/device-inventory/repos
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Location } from '../../../../src/domain/device-inventory/aggregates/Location';
 import { Device } from '../../../../src/domain/device-inventory/aggregates/Device';
-import { LocationType } from '../../../../src/domain/device-inventory/enums/LocationType';
 import { DeviceOwnerType } from '../../../../src/domain/device-inventory/enums';
-import { Address, Coordinates } from '../../../../src/domain/device-inventory/value-objects';
+import {
+  Address,
+  Coordinates,
+  LocationType
+} from '../../../../src/domain/device-inventory/value-objects';
 import {
   DeviceName,
   DeviceStatus
@@ -36,10 +39,10 @@ const NOW = new Date('2024-01-01T00:00:00.000Z');
 // Fixtures
 // ---------------------------------------------------------------------------
 
-function makeLocation(id: string, overrides: { type?: LocationType } = {}): Location {
+function makeLocation(id: string, overrides: { type?: string } = {}): Location {
   return Location.reconstitute(LocationId.parse(id).value, {
     name: `Location-${id.slice(-4)}`,
-    type: overrides.type ?? LocationType.TOWER,
+    type: LocationType.reconstitute(overrides.type ?? LocationType.TOWER),
     address: Address.reconstitute({
       street: 'Carrera 80 # 75-32',
       municipality: 'Medellín',
@@ -136,7 +139,7 @@ describe('GetMapLocationsUseCase', () => {
   });
 
   // =========================================================================
-  describe('happy path', () => {
+  describe('[DEV-098] happy path', () => {
     it('should return empty pins when no geolocated locations exist', async () => {
       locationRepo.findAllWithCoordinates.mockResolvedValue(
         Result.ok([])

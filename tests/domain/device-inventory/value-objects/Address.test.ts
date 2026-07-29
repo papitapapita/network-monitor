@@ -21,7 +21,7 @@ function validProps(overrides: Partial<AddressProps> = {}): AddressProps {
 // ---------------------------------------------------------------------------
 describe('Address', () => {
   // -------------------------------------------------------------------------
-  describe('create()', () => {
+  describe('[DEV-095] create()', () => {
     describe('when given valid inputs', () => {
       it('should return a successful Result', () => {
         const result = Address.create(validProps());
@@ -450,6 +450,69 @@ describe('Address', () => {
       ).value;
 
       expect(address.neighborhood).toBe('Granada');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  describe('[DEV-094] [DEV-095] createOptional()', () => {
+    describe('when every field is absent', () => {
+      it('should return a successful Result holding null', () => {
+        const result = Address.createOptional({
+          street: null,
+          municipality: null,
+          neighborhood: null
+        });
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBeNull();
+      });
+    });
+
+    describe('when the fields are partially supplied', () => {
+      const partials = [
+        { street: '123 Main Street', municipality: null, neighborhood: null },
+        { street: null, municipality: 'Medellín', neighborhood: null },
+        { street: null, municipality: null, neighborhood: 'El Poblado' },
+        {
+          street: '123 Main Street',
+          municipality: 'Medellín',
+          neighborhood: null
+        }
+      ];
+
+      for (const partial of partials) {
+        const supplied = Object.entries(partial)
+          .filter(([, value]) => value !== null)
+          .map(([key]) => key)
+          .join(', ');
+
+        it(`should fail when only ${supplied} is supplied`, () => {
+          const result = Address.createOptional(partial);
+
+          expect(result.isFailure).toBe(true);
+          expect(result.error).toBe(
+            'An address requires a street, municipality, and neighborhood'
+          );
+        });
+      }
+    });
+
+    describe('when every field is supplied', () => {
+      it('should return an Address instance', () => {
+        const result = Address.createOptional(validProps());
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBeInstanceOf(Address);
+      });
+
+      it('should apply the same field validation as create()', () => {
+        const result = Address.createOptional(
+          validProps({ street: '   ' })
+        );
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('Street');
+      });
     });
   });
 

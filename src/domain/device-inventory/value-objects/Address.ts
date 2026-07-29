@@ -58,6 +58,35 @@ export class Address extends ValueObject<AddressProps> {
     return Result.ok<Address>(new Address({ street, municipality, neighborhood }));
   }
 
+  public static createOptional(props: {
+    street: string | null;
+    municipality: string | null;
+    neighborhood: string | null;
+  }): Result<Address | null> {
+    const { street, municipality, neighborhood } = props;
+
+    if (street === null && municipality === null && neighborhood === null) {
+      return Result.ok<Address | null>(null);
+    }
+
+    if (street === null || municipality === null || neighborhood === null) {
+      return Result.fail<Address | null>(
+        'An address requires a street, municipality, and neighborhood'
+      );
+    }
+
+    const addressResult = Address.create({
+      street,
+      municipality,
+      neighborhood
+    });
+    if (addressResult.isFailure) {
+      return Result.fail<Address | null>(addressResult.error);
+    }
+
+    return Result.ok<Address | null>(addressResult.value);
+  }
+
   public static reconstitute(props: AddressProps): Address {
     return new Address(props);
   }

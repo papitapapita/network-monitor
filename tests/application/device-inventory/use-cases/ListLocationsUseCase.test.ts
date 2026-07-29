@@ -13,7 +13,7 @@ import { ILocationRepository } from '../../../../src/domain/device-inventory/rep
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Location } from '../../../../src/domain/device-inventory/aggregates/Location';
 import { LocationId } from '../../../../src/domain/shared/ids';
-import { LocationType } from '../../../../src/domain/device-inventory/enums/LocationType';
+import { LocationType } from '../../../../src/domain/device-inventory/value-objects';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
 // ---------------------------------------------------------------------------
@@ -26,7 +26,7 @@ const BASE_UUID = '550e8400-e29b-41d4-a716-44665544';
 function makePersistedLocation(
   overrides: {
     name?: string;
-    type?: LocationType;
+    type?: string;
   } = {}
 ): Location {
   _uuidCounter++;
@@ -34,7 +34,7 @@ function makePersistedLocation(
   const id = LocationId.parse(`${BASE_UUID}${suffix}`).value;
   return Location.reconstitute(id, {
     name: overrides.name ?? `Location ${_uuidCounter}`,
-    type: overrides.type ?? LocationType.TOWER,
+    type: LocationType.reconstitute(overrides.type ?? LocationType.TOWER),
     address: null,
     coordinates: null,
     createdAt: new Date('2024-01-01T00:00:00.000Z'),
@@ -44,7 +44,7 @@ function makePersistedLocation(
 
 function makeLocations(
   count: number,
-  type?: LocationType
+  type?: string
 ): Location[] {
   return Array.from({ length: count }, () =>
     makePersistedLocation({ type })
@@ -303,7 +303,7 @@ describe('ListLocationsUseCase', () => {
             typeof mockRepository.findByType
           >
         ).mock.calls[0][0];
-        expect(calledType).toBe(LocationType.DATACENTER);
+        expect(calledType.value).toBe(LocationType.DATACENTER);
       });
 
       it('should accept a lowercase type string (case-insensitive)', async () => {

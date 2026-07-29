@@ -14,8 +14,11 @@ import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { CreateLocationRequestDTO } from '../../../../src/application/device-inventory/dtos/CreateLocationRequestDTO';
 import { Location } from '../../../../src/domain/device-inventory/aggregates/Location';
 import { LocationId } from '../../../../src/domain/shared/ids';
-import { LocationType } from '../../../../src/domain/device-inventory/enums/LocationType';
-import { Address, Coordinates } from '../../../../src/domain/device-inventory/value-objects';
+import {
+  Address,
+  Coordinates,
+  LocationType
+} from '../../../../src/domain/device-inventory/value-objects';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
 // ---------------------------------------------------------------------------
@@ -28,14 +31,14 @@ const NOW = new Date('2024-01-01T00:00:00.000Z');
 function makePersistedLocation(
   overrides: {
     name?: string;
-    type?: LocationType;
+    type?: string;
     coordinates?: Coordinates | null;
   } = {}
 ): Location {
   const id = LocationId.parse(VALID_UUID).value;
   return Location.reconstitute(id, {
     name: overrides.name ?? 'Torre Norte',
-    type: overrides.type ?? LocationType.TOWER,
+    type: LocationType.reconstitute(overrides.type ?? LocationType.TOWER),
     address: Address.reconstitute({
       street: 'Carrera 80 # 75-32',
       municipality: 'Medellín',
@@ -97,7 +100,7 @@ describe('CreateLocationUseCase', () => {
   // =========================================================================
   describe('beforeExecute — input validation', () => {
     // -----------------------------------------------------------------------
-    describe('name validation', () => {
+    describe('[DEV-090] name validation', () => {
       it('should fail when name is an empty string', async () => {
         const result = await useCase.execute(
           makeMinimalDTO({ name: '' })
@@ -124,7 +127,7 @@ describe('CreateLocationUseCase', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('type validation', () => {
+    describe('[DEV-091] type validation', () => {
       it('should fail when type is an empty string', async () => {
         const result = await useCase.execute(
           makeMinimalDTO({ type: '' })
@@ -155,8 +158,15 @@ describe('CreateLocationUseCase', () => {
         expect(result.isSuccess).toBe(true);
       });
 
-      it('should accept all valid LocationType enum values', async () => {
-        const validTypes = Object.values(LocationType);
+      it('should accept all valid LocationType values', async () => {
+        const validTypes = [
+          LocationType.TOWER,
+          LocationType.DATACENTER,
+          LocationType.POINT_OF_PRESENCE,
+          LocationType.OFFICE,
+          LocationType.CUSTOMER_PREMISES,
+          LocationType.OTHER
+        ];
 
         for (const type of validTypes) {
           mockRepository.save.mockResolvedValue(
@@ -189,7 +199,7 @@ describe('CreateLocationUseCase', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('coordinates coherence validation', () => {
+    describe('[DEV-092] coordinates coherence validation', () => {
       it('should fail when only latitude is provided', async () => {
         const result = await useCase.execute(
           makeMinimalDTO({ latitude: -23.561684 })
@@ -368,7 +378,7 @@ describe('CreateLocationUseCase', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('coordinates in response DTO', () => {
+    describe('[DEV-093] coordinates in response DTO', () => {
       it('should return null latitude when no coordinates are provided', async () => {
         mockRepository.save.mockResolvedValue(
           Result.ok(makePersistedLocation({ coordinates: null }))

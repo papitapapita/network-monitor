@@ -1,7 +1,10 @@
 import { Location } from 'domain/device-inventory/aggregates';
 import { ILocationRepository } from 'domain/device-inventory/repository';
-import { LocationType } from 'domain/device-inventory/enums';
-import { Address, Coordinates } from 'domain/device-inventory/value-objects';
+import {
+  Address,
+  Coordinates,
+  LocationType
+} from 'domain/device-inventory/value-objects';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
@@ -33,14 +36,6 @@ export class CreateLocationUseCase extends UseCase<
       return Result.fail('Location type is required');
     }
 
-    const upperType = request.type.toUpperCase();
-    const validTypes = Object.values(LocationType) as string[];
-    if (!validTypes.includes(upperType)) {
-      return Result.fail(
-        `Invalid location type: "${request.type}". Must be one of: ${validTypes.join(', ')}`
-      );
-    }
-
     // Coordinates are optional, but lat and lon must come together
     const hasLatitude = request.latitude != null;
     const hasLongitude = request.longitude != null;
@@ -58,7 +53,10 @@ export class CreateLocationUseCase extends UseCase<
   ): Promise<Result<LocationResponseDTO>> {
     const data = LocationMapper.extractCreateData(request);
 
-    const locationType = data.type.toUpperCase() as LocationType;
+    const typeResult = LocationType.create(data.type);
+    if (typeResult.isFailure) {
+      return this.fail(typeResult.error!);
+    }
 
     let coordinates: Coordinates | null = null;
     if (data.latitude !== null && data.longitude !== null) {
@@ -73,37 +71,21 @@ export class CreateLocationUseCase extends UseCase<
       coordinates = coordResult.value;
     }
 
-    let address: Address | null = null;
-    if (
-      data.address !== null ||
-      data.municipality !== null ||
-      data.neighborhood !== null
-    ) {
-      if (
-        data.address === null ||
-        data.municipality === null ||
-        data.neighborhood === null
-      ) {
-        return this.fail(
-          'An address requires a street, municipality, and neighborhood'
-        );
-      }
-      const addressResult = Address.create({
-        street: data.address,
-        municipality: data.municipality,
-        neighborhood: data.neighborhood
-      });
-      if (addressResult.isFailure) {
-        return this.fail(addressResult.error);
-      }
-      address = addressResult.value;
+    const addressResult = Address.createOptional({
+      street: data.address,
+      municipality: data.municipality,
+      neighborhood: data.neighborhood
+    });
+    if (addressResult.isFailure) {
+      return this.fail(addressResult.error);
     }
+    const address = addressResult.value;
 
     const now = new Date();
 
     const locationResult = Location.create({
       name: data.name.trim(),
-      type: locationType,
+      type: typeResult.value,
       address,
       coordinates,
       createdAt: now,

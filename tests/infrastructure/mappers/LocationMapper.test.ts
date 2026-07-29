@@ -3,7 +3,7 @@
 import { LocationMapper } from '../../../src/infrastructure/mappers/LocationMapper';
 import { Location } from '../../../src/domain/device-inventory/aggregates';
 import { LocationId } from '../../../src/domain/shared/ids';
-import { LocationType } from '../../../src/domain/device-inventory/enums';
+import { LocationType } from '../../../src/domain/device-inventory/value-objects';
 import { Address, Coordinates } from '../../../src/domain/device-inventory/value-objects';
 
 // ---------------------------------------------------------------------------
@@ -35,7 +35,7 @@ function makeRawLocation(
 
 function makeLocationDomain(overrides: {
   name?: string;
-  type?: LocationType;
+  type?: string;
   municipality?: string | null;
   neighborhood?: string | null;
   address?: string | null;
@@ -55,7 +55,7 @@ function makeLocationDomain(overrides: {
 
   return Location.reconstitute(id, {
     name: overrides.name ?? 'Torre Norte',
-    type: overrides.type ?? LocationType.TOWER,
+    type: LocationType.reconstitute(overrides.type ?? LocationType.TOWER),
     address: addressVO,
     coordinates: overrides.coordinates !== undefined ? overrides.coordinates : null,
     createdAt: BASE_DATE,
@@ -285,7 +285,7 @@ describe('LocationMapper', () => {
 
     // -----------------------------------------------------------------------
     describe('LocationType mapping from Prisma string', () => {
-      const typeMatrix: Array<[string, LocationType]> = [
+      const typeMatrix: Array<[string, string]> = [
         ['TOWER', LocationType.TOWER],
         ['DATACENTER', LocationType.DATACENTER],
         ['POINT_OF_PRESENCE', LocationType.POINT_OF_PRESENCE],
@@ -301,7 +301,7 @@ describe('LocationMapper', () => {
           const result = LocationMapper.toDomain(raw);
 
           expect(result.isSuccess).toBe(true);
-          expect(result.value.type).toBe(expectedDomainType);
+          expect(result.value.type.value).toBe(expectedDomainType);
         });
       }
 
@@ -542,7 +542,7 @@ describe('LocationMapper', () => {
 
     // -----------------------------------------------------------------------
     describe('LocationType mapping to Prisma string', () => {
-      const typeMatrix: Array<[LocationType, string]> = [
+      const typeMatrix: Array<[string, string]> = [
         [LocationType.TOWER, 'TOWER'],
         [LocationType.DATACENTER, 'DATACENTER'],
         [LocationType.POINT_OF_PRESENCE, 'POINT_OF_PRESENCE'],

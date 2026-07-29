@@ -1,6 +1,6 @@
 import { Location } from '../aggregates';
 import { LocationId } from 'domain/shared/ids';
-import { LocationType } from '../enums';
+import { LocationType } from '../value-objects';
 import { Result } from 'domain/shared/core';
 
 export interface ILocationRepository {

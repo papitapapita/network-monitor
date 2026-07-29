@@ -1,5 +1,4 @@
-import { LocationType } from '../enums';
-import { Address, Coordinates } from '../value-objects';
+import { Address, Coordinates, LocationType } from '../value-objects';
 
 export interface LocationProps {
   name: string;

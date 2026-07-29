@@ -70,7 +70,7 @@ export class GetMapLocationsUseCase extends UseCase<
       return {
         id: location.id.toString(),
         name: location.name,
-        locationType: location.type,
+        locationType: location.type.toString(),
         latitude: coords.latitude,
         longitude: coords.longitude,
         altitude: coords.hasAltitude() ? coords.altitude! : null,

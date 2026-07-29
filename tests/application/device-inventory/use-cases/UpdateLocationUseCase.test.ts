@@ -5,8 +5,11 @@ import { ILocationRepository } from '../../../../src/domain/device-inventory/rep
 import { ILogger } from '../../../../src/application/shared/interfaces';
 import { Result } from '../../../../src/domain/shared/core';
 import { Location } from '../../../../src/domain/device-inventory/aggregates';
-import { Address, Coordinates } from '../../../../src/domain/device-inventory/value-objects';
-import { LocationType } from '../../../../src/domain/device-inventory/enums';
+import {
+  Address,
+  Coordinates,
+  LocationType
+} from '../../../../src/domain/device-inventory/value-objects';
 import { LocationId } from '../../../../src/domain/shared/ids';
 import { UpdateLocationRequestDTO } from '../../../../src/application/device-inventory/dtos';
 
@@ -52,7 +55,7 @@ function makeRepo(): jest.Mocked<ILocationRepository> {
 function makePersistedLocation(
   overrides: {
     name?: string;
-    type?: LocationType;
+    type?: string;
     municipality?: string | null;
     neighborhood?: string | null;
     address?: string | null;
@@ -70,7 +73,7 @@ function makePersistedLocation(
 
   return Location.reconstitute(id, {
     name:        overrides.name ?? 'Torre Norte',
-    type:        overrides.type ?? LocationType.TOWER,
+    type:        LocationType.reconstitute(overrides.type ?? LocationType.TOWER),
     address:     addressVO,
     coordinates: overrides.hasOwnProperty('coordinates')
       ? overrides.coordinates
@@ -109,7 +112,7 @@ describe('UpdateLocationUseCase', () => {
   });
 
   // =========================================================================
-  describe('beforeExecute — validation', () => {
+  describe('[DEV-091] [DEV-092] beforeExecute — validation', () => {
     it('should fail when id is an empty string', async () => {
       const result = await useCase.execute(makeRequest({ id: '' }));
 
@@ -213,7 +216,7 @@ describe('UpdateLocationUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — name update', () => {
+  describe('[DEV-090] executeImpl — name update', () => {
     it('should succeed when name is provided', async () => {
       const result = await useCase.execute(
         makeRequest({ name: 'Torre Sur' })
@@ -240,7 +243,7 @@ describe('UpdateLocationUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — type update', () => {
+  describe('[DEV-091] executeImpl — type update', () => {
     it('should succeed when type is provided and valid', async () => {
       const result = await useCase.execute(
         makeRequest({ type: 'DATACENTER' })
@@ -259,7 +262,7 @@ describe('UpdateLocationUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — address fields', () => {
+  describe('[DEV-094] executeImpl — address fields', () => {
     it('should succeed when municipality is updated', async () => {
       const result = await useCase.execute(
         makeRequest({ municipality: 'Bogotá' })
@@ -334,7 +337,7 @@ describe('UpdateLocationUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — coordinates update', () => {
+  describe('[DEV-093] executeImpl — coordinates update', () => {
     it('should succeed when both lat and lon are provided', async () => {
       const result = await useCase.execute(
         makeRequest({ latitude: 6.2442, longitude: -75.5812 })

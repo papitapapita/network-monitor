@@ -20,7 +20,7 @@ function validProps(
 ): LocationProps {
   return {
     name: 'Main Tower',
-    type: LocationType.TOWER,
+    type: LocationType.reconstitute(LocationType.TOWER),
     address: null,
     createdAt: BASE_DATE,
     updatedAt: BASE_DATE,
@@ -76,10 +76,10 @@ describe('Location', () => {
 
       it('should expose the provided type', () => {
         const result = Location.create(
-          validProps({ type: LocationType.DATACENTER })
+          validProps({ type: LocationType.reconstitute(LocationType.DATACENTER) })
         );
 
-        expect(result.value.type).toBe(LocationType.DATACENTER);
+        expect(result.value.type.value).toBe(LocationType.DATACENTER);
       });
 
       it('should default municipality to null when not provided', () => {
@@ -143,7 +143,7 @@ describe('Location', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('name validation', () => {
+    describe('[DEV-090] name validation', () => {
       it('should fail when name is null', () => {
         const result = Location.create(
           validProps({ name: null as unknown as string })
@@ -210,7 +210,7 @@ describe('Location', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('type validation', () => {
+    describe('[DEV-091] [DEV-096] type validation', () => {
       it('should fail when type is null', () => {
         const result = Location.create(
           validProps({ type: null as unknown as LocationType })
@@ -230,7 +230,7 @@ describe('Location', () => {
       });
 
       it('should accept all valid LocationType values', () => {
-        const types: LocationType[] = [
+        const types: string[] = [
           LocationType.TOWER,
           LocationType.DATACENTER,
           LocationType.POINT_OF_PRESENCE,
@@ -239,24 +239,26 @@ describe('Location', () => {
         ];
 
         for (const type of types) {
-          const result = Location.create(validProps({ type }));
+          const result = Location.create(
+            validProps({ type: LocationType.reconstitute(type) })
+          );
           expect(result.isSuccess).toBe(true);
-          expect(result.value.type).toBe(type);
+          expect(result.value.type.value).toBe(type);
         }
 
         const cpResult = Location.create(
           validProps({
-            type: LocationType.CUSTOMER_PREMISES,
+            type: LocationType.reconstitute(LocationType.CUSTOMER_PREMISES),
             address: makeAddress('123 Main St', 'Some City', 'Some Neighborhood')
           })
         );
         expect(cpResult.isSuccess).toBe(true);
-        expect(cpResult.value.type).toBe(LocationType.CUSTOMER_PREMISES);
+        expect(cpResult.value.type.value).toBe(LocationType.CUSTOMER_PREMISES);
       });
     });
 
     // -----------------------------------------------------------------------
-    describe('address validation', () => {
+    describe('[DEV-094] address validation', () => {
       it('should succeed when address is null', () => {
         const result = Location.create(validProps({ address: null }));
 
@@ -298,7 +300,7 @@ describe('Location', () => {
       const coords = makeCoords();
       const props = validProps({
         name: 'DC Reconstituted',
-        type: LocationType.DATACENTER,
+        type: LocationType.reconstitute(LocationType.DATACENTER),
         address: Address.reconstitute({
           street: 'Carrera 7 # 32-16',
           municipality: 'Bogotá',
@@ -309,7 +311,7 @@ describe('Location', () => {
       const location = Location.reconstitute(id, props);
 
       expect(location.name).toBe('DC Reconstituted');
-      expect(location.type).toBe(LocationType.DATACENTER);
+      expect(location.type.value).toBe(LocationType.DATACENTER);
       expect(location.municipality).toBe('Bogotá');
       expect(location.neighborhood).toBe('Chapinero');
       expect(location.address).toBe('Carrera 7 # 32-16');
@@ -379,7 +381,7 @@ describe('Location', () => {
       });
     });
 
-    describe('validation failures', () => {
+    describe('[DEV-090] validation failures', () => {
       it('should fail when name is null', () => {
         const location = makeLocation();
         const result = location.updateName(null as unknown as string);
@@ -456,23 +458,25 @@ describe('Location', () => {
 
   // =========================================================================
   describe('updateType()', () => {
-    function makeLocation(type = LocationType.TOWER): Location {
-      return Location.create(validProps({ type })).value;
+    function makeLocation(type: string = LocationType.TOWER): Location {
+      return Location.create(
+        validProps({ type: LocationType.reconstitute(type) })
+      ).value;
     }
 
     describe('happy path', () => {
       it('should return a successful Result when type is valid', () => {
         const location = makeLocation(LocationType.TOWER);
-        const result = location.updateType(LocationType.OFFICE);
+        const result = location.updateType(LocationType.reconstitute(LocationType.OFFICE));
 
         expect(result.isSuccess).toBe(true);
       });
 
       it('should update the type', () => {
         const location = makeLocation(LocationType.TOWER);
-        location.updateType(LocationType.DATACENTER);
+        location.updateType(LocationType.reconstitute(LocationType.DATACENTER));
 
-        expect(location.type).toBe(LocationType.DATACENTER);
+        expect(location.type.value).toBe(LocationType.DATACENTER);
       });
 
       it('should update updatedAt timestamp', () => {
@@ -480,7 +484,7 @@ describe('Location', () => {
           validProps({ updatedAt: BASE_DATE })
         ).value;
         const before = new Date();
-        location.updateType(LocationType.OFFICE);
+        location.updateType(LocationType.reconstitute(LocationType.OFFICE));
         const after = new Date();
 
         expect(location.updatedAt.getTime()).toBeGreaterThanOrEqual(
@@ -496,14 +500,14 @@ describe('Location', () => {
       it('should return a successful Result without emitting an event', () => {
         const location = makeLocation(LocationType.TOWER);
         location.clearEvents();
-        const result = location.updateType(LocationType.TOWER);
+        const result = location.updateType(LocationType.reconstitute(LocationType.TOWER));
 
         expect(result.isSuccess).toBe(true);
         expect(location.domainEvents.length).toBe(0);
       });
     });
 
-    describe('validation failures', () => {
+    describe('[DEV-091] validation failures', () => {
       it('should fail when type is null', () => {
         const location = makeLocation();
         const result = location.updateType(
@@ -528,7 +532,7 @@ describe('Location', () => {
         const location = makeLocation(LocationType.TOWER);
         location.updateType(null as unknown as LocationType);
 
-        expect(location.type).toBe(LocationType.TOWER);
+        expect(location.type.value).toBe(LocationType.TOWER);
       });
     });
   });
@@ -655,7 +659,7 @@ describe('Location', () => {
       });
     });
 
-    describe('validation failures', () => {
+    describe('[DEV-094] validation failures', () => {
       it('should fail when municipality exceeds 100 characters', () => {
         const location = makeLocation();
         const result = location.updateAddressFields({
@@ -837,7 +841,7 @@ describe('Location', () => {
     it('should represent a full ISP tower record with all fields populated', () => {
       const result = Location.create({
         name: 'Torre Norte',
-        type: LocationType.TOWER,
+        type: LocationType.reconstitute(LocationType.TOWER),
         address: makeAddress('Carrera 80 # 75-32', 'Medellín', 'Robledo'),
         coordinates: makeCoords(6.281, -75.598, 1540),
         createdAt: BASE_DATE,
@@ -847,7 +851,7 @@ describe('Location', () => {
       expect(result.isSuccess).toBe(true);
       const location = result.value;
       expect(location.name).toBe('Torre Norte');
-      expect(location.type).toBe(LocationType.TOWER);
+      expect(location.type.value).toBe(LocationType.TOWER);
       expect(location.municipality).toBe('Medellín');
       expect(location.hasCoordinates()).toBe(true);
     });
