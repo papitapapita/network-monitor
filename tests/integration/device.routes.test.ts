@@ -58,7 +58,7 @@ describe('Device Routes — /api/devices', () => {
         name: 'Access Point Floor 3',
         ownerType: 'CLIENT',
         status: 'ACTIVE',
-        category: 'AP',
+        category: 'ACCESS_POINT',
         serialNumber: 'SN-00123',
         macAddress: 'AA:BB:CC:DD:EE:FF',
         ipAddress: '192.168.1.100',
@@ -71,7 +71,7 @@ describe('Device Routes — /api/devices', () => {
       expect(res.body.data).toMatchObject({
         name: 'Access Point Floor 3',
         status: 'ACTIVE',
-        category: 'AP',
+        category: 'ACCESS_POINT',
         serialNumber: 'SN-00123',
         macAddress: 'AA:BB:CC:DD:EE:FF',
         ipAddress: '192.168.1.100',

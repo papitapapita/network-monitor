@@ -27,7 +27,6 @@ export class WirelessDeviceConfigMapper {
   ) {
     return {
       deviceId: dto.deviceId,
-      deviceType: dto.deviceType,
       ipAddress: dto.ipAddress ?? null,
       intervalSecs: dto.intervalSecs ?? null,
       enabled: dto.enabled ?? null,

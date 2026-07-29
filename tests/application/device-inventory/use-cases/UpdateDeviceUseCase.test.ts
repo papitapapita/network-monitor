@@ -192,11 +192,11 @@ describe('UpdateDeviceUseCase', () => {
 
     it('should fail when category is an invalid non-null value', async () => {
       const result = await useCase.execute(
-        makeRequest({ category: 'GATEWAY' })
+        makeRequest({ category: 'ROUTER' })
       );
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('GATEWAY');
+      expect(result.error).toContain('ROUTER');
     });
 
     it('should pass validation when category is null (null skips category validation)', async () => {

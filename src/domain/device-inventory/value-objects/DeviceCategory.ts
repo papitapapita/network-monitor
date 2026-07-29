@@ -4,19 +4,17 @@ import { DeviceCategoryProps } from '../props';
 export class DeviceCategory extends ValueObject<DeviceCategoryProps> {
   public static readonly CPE = 'CPE';
   public static readonly WIRELESS_CPE = 'WIRELESS_CPE';
-  public static readonly AP = 'AP';
-  public static readonly ROUTERBOARD = 'ROUTERBOARD';
-  public static readonly SMART_SWITCH = 'SMART_SWITCH';
-  public static readonly SMART_SWITCH_POE = 'SMART_SWITCH_POE';
+  public static readonly ACCESS_POINT = 'ACCESS_POINT';
+  public static readonly GATEWAY = 'GATEWAY';
+  public static readonly AGGREGATION_SWITCH = 'AGGREGATION_SWITCH';
   public static readonly OTHER = 'OTHER';
 
   private static readonly VALID_CATEGORIES = [
     DeviceCategory.CPE,
     DeviceCategory.WIRELESS_CPE,
-    DeviceCategory.AP,
-    DeviceCategory.ROUTERBOARD,
-    DeviceCategory.SMART_SWITCH,
-    DeviceCategory.SMART_SWITCH_POE,
+    DeviceCategory.ACCESS_POINT,
+    DeviceCategory.GATEWAY,
+    DeviceCategory.AGGREGATION_SWITCH,
     DeviceCategory.OTHER
   ] as const;
 
@@ -69,21 +67,17 @@ export class DeviceCategory extends ValueObject<DeviceCategoryProps> {
     return new DeviceCategory({ value: DeviceCategory.WIRELESS_CPE });
   }
 
-  public static createAp(): DeviceCategory {
-    return new DeviceCategory({ value: DeviceCategory.AP });
+  public static createAccessPoint(): DeviceCategory {
+    return new DeviceCategory({ value: DeviceCategory.ACCESS_POINT });
   }
 
-  public static createRouterboard(): DeviceCategory {
-    return new DeviceCategory({ value: DeviceCategory.ROUTERBOARD });
+  public static createGateway(): DeviceCategory {
+    return new DeviceCategory({ value: DeviceCategory.GATEWAY });
   }
 
-  public static createSmartSwitch(): DeviceCategory {
-    return new DeviceCategory({ value: DeviceCategory.SMART_SWITCH });
-  }
-
-  public static createSmartSwitchPoe(): DeviceCategory {
+  public static createAggregationSwitch(): DeviceCategory {
     return new DeviceCategory({
-      value: DeviceCategory.SMART_SWITCH_POE
+      value: DeviceCategory.AGGREGATION_SWITCH
     });
   }
 
@@ -105,20 +99,16 @@ export class DeviceCategory extends ValueObject<DeviceCategoryProps> {
     return this._props.value === DeviceCategory.WIRELESS_CPE;
   }
 
-  public isAp(): boolean {
-    return this._props.value === DeviceCategory.AP;
+  public isAccessPoint(): boolean {
+    return this._props.value === DeviceCategory.ACCESS_POINT;
   }
 
-  public isRouterboard(): boolean {
-    return this._props.value === DeviceCategory.ROUTERBOARD;
+  public isGateway(): boolean {
+    return this._props.value === DeviceCategory.GATEWAY;
   }
 
-  public isSmartSwitch(): boolean {
-    return this._props.value === DeviceCategory.SMART_SWITCH;
-  }
-
-  public isSmartSwitchPoe(): boolean {
-    return this._props.value === DeviceCategory.SMART_SWITCH_POE;
+  public isAggregationSwitch(): boolean {
+    return this._props.value === DeviceCategory.AGGREGATION_SWITCH;
   }
 
   public isOther(): boolean {
@@ -131,14 +121,12 @@ export class DeviceCategory extends ValueObject<DeviceCategoryProps> {
         return 'CPE';
       case DeviceCategory.WIRELESS_CPE:
         return 'Wireless CPE';
-      case DeviceCategory.AP:
+      case DeviceCategory.ACCESS_POINT:
         return 'Access Point';
-      case DeviceCategory.ROUTERBOARD:
-        return 'Routerboard';
-      case DeviceCategory.SMART_SWITCH:
-        return 'Smart Switch';
-      case DeviceCategory.SMART_SWITCH_POE:
-        return 'Smart Switch PoE';
+      case DeviceCategory.GATEWAY:
+        return 'Gateway';
+      case DeviceCategory.AGGREGATION_SWITCH:
+        return 'Aggregation Switch';
       case DeviceCategory.OTHER:
         return 'Other';
       default:

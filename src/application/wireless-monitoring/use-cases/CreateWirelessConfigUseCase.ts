@@ -35,9 +35,6 @@ export class CreateWirelessConfigUseCase extends UseCase<
     if (!request.deviceId?.trim()) {
       return Result.fail('Device ID is required');
     }
-    if (!request.deviceType?.trim()) {
-      return Result.fail('Device type is required');
-    }
     return null;
   }
 
@@ -64,7 +61,31 @@ export class CreateWirelessConfigUseCase extends UseCase<
 
     if (!device.canHaveWirelessConfig()) {
       return this.fail(
-        'Only WIRELESS_CPE and AP devices can have a wireless config'
+        'Only WIRELESS_CPE and ACCESS_POINT devices can have a wireless config'
+      );
+    }
+
+    // Radio mode follows the device's deployment role: an access point serves
+    // subscribers, a wireless CPE is the station end of that link.
+    const deviceType: 'STATION' | 'ACCESS_POINT' =
+      device.category?.isAccessPoint() === true
+        ? 'ACCESS_POINT'
+        : 'STATION';
+
+    if (
+      deviceType === 'ACCESS_POINT' &&
+      data.linkCapacityKbps != null
+    ) {
+      return this.fail(
+        'linkCapacityKbps can only be set for STATION devices'
+      );
+    }
+    if (
+      deviceType === 'STATION' &&
+      data.clientsProvisionedLimit != null
+    ) {
+      return this.fail(
+        'clientsProvisionedLimit can only be set for ACCESS_POINT devices'
       );
     }
 
@@ -117,7 +138,7 @@ export class CreateWirelessConfigUseCase extends UseCase<
       ipAddress,
       enabled: data.enabled ?? true,
       pollingInterval: intervalResult.value,
-      deviceType: data.deviceType,
+      deviceType,
       linkCapacityKbps: data.linkCapacityKbps ?? null,
       clientsProvisionedLimit: data.clientsProvisionedLimit ?? null,
       lastPolledAt: null

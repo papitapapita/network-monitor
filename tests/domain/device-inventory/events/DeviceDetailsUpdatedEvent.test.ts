@@ -356,13 +356,15 @@ describe('DeviceDetailsUpdatedEvent', () => {
     // -- category field ------------------------------------------------------
     describe('category field', () => {
       it('should carry the updated DeviceCategory when provided', () => {
-        const category = DeviceCategory.createAp();
+        const category = DeviceCategory.createAccessPoint();
         const event = new DeviceDetailsUpdatedEvent(
           makeEventProps({ updatedFields: { category } })
         );
 
         expect(event.updatedFields.category).toBe(category);
-        expect(event.updatedFields.category?.value).toBe('AP');
+        expect(event.updatedFields.category?.value).toBe(
+          'ACCESS_POINT'
+        );
       });
 
       it('should carry null when category is explicitly cleared', () => {
@@ -384,10 +386,10 @@ describe('DeviceDetailsUpdatedEvent', () => {
       it('should accept every valid category variant', () => {
         const categories = [
           DeviceCategory.createCpe(),
-          DeviceCategory.createAp(),
-          DeviceCategory.createRouterboard(),
-          DeviceCategory.createSmartSwitch(),
-          DeviceCategory.createSmartSwitchPoe(),
+          DeviceCategory.createWirelessCpe(),
+          DeviceCategory.createAccessPoint(),
+          DeviceCategory.createGateway(),
+          DeviceCategory.createAggregationSwitch(),
           DeviceCategory.createOther()
         ];
 
@@ -578,7 +580,7 @@ describe('DeviceDetailsUpdatedEvent', () => {
       });
 
       it('should handle updating description and category simultaneously', () => {
-        const category = DeviceCategory.createAp();
+        const category = DeviceCategory.createAccessPoint();
         const event = new DeviceDetailsUpdatedEvent(
           makeEventProps({
             updatedFields: {
@@ -634,7 +636,7 @@ describe('DeviceDetailsUpdatedEvent', () => {
 
       it('should handle updating all fields at once', () => {
         const updatedName = makeDeviceName('Full-Update-Device');
-        const category = DeviceCategory.createSmartSwitchPoe();
+        const category = DeviceCategory.createAggregationSwitch();
         const mac = MACAddress.create('FF:EE:DD:CC:BB:AA').value;
         const ip = IPAddress.create('10.10.10.10').value;
         const installedDate = new Date('2021-07-04T12:00:00Z');

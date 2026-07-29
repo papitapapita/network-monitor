@@ -186,31 +186,15 @@ describe('WirelessDeviceConfigMapper', () => {
   // ===========================================================================
   describe('extractCreateData()', () => {
     it('should pass deviceId through as-is', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION' };
+      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
 
       const result = WirelessDeviceConfigMapper.extractCreateData(dto);
 
       expect(result.deviceId).toBe(DEVICE_UUID);
     });
 
-    it('should pass deviceType STATION through as-is', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION' };
-
-      const result = WirelessDeviceConfigMapper.extractCreateData(dto);
-
-      expect(result.deviceType).toBe('STATION');
-    });
-
-    it('should pass deviceType ACCESS_POINT through as-is', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'ACCESS_POINT' };
-
-      const result = WirelessDeviceConfigMapper.extractCreateData(dto);
-
-      expect(result.deviceType).toBe('ACCESS_POINT');
-    });
-
     it('should pass ipAddress through when provided as a string', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION', ipAddress: '10.0.0.5' };
+      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, ipAddress: '10.0.0.5' };
 
       const result = WirelessDeviceConfigMapper.extractCreateData(dto);
 
@@ -218,7 +202,7 @@ describe('WirelessDeviceConfigMapper', () => {
     });
 
     it('should default ipAddress to null when omitted', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION' };
+      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
 
       const result = WirelessDeviceConfigMapper.extractCreateData(dto);
 
@@ -226,7 +210,7 @@ describe('WirelessDeviceConfigMapper', () => {
     });
 
     it('should pass ipAddress as null when explicitly null', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION', ipAddress: null };
+      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, ipAddress: null };
 
       const result = WirelessDeviceConfigMapper.extractCreateData(dto);
 
@@ -234,7 +218,7 @@ describe('WirelessDeviceConfigMapper', () => {
     });
 
     it('should pass intervalSecs through when provided', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION', intervalSecs: 300 };
+      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, intervalSecs: 300 };
 
       const result = WirelessDeviceConfigMapper.extractCreateData(dto);
 
@@ -242,7 +226,7 @@ describe('WirelessDeviceConfigMapper', () => {
     });
 
     it('should default intervalSecs to null when omitted', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION' };
+      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
 
       const result = WirelessDeviceConfigMapper.extractCreateData(dto);
 
@@ -250,7 +234,7 @@ describe('WirelessDeviceConfigMapper', () => {
     });
 
     it('should pass enabled true through unchanged', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION', enabled: true };
+      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, enabled: true };
 
       const result = WirelessDeviceConfigMapper.extractCreateData(dto);
 
@@ -258,7 +242,7 @@ describe('WirelessDeviceConfigMapper', () => {
     });
 
     it('should pass enabled false through unchanged', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION', enabled: false };
+      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, enabled: false };
 
       const result = WirelessDeviceConfigMapper.extractCreateData(dto);
 
@@ -266,7 +250,7 @@ describe('WirelessDeviceConfigMapper', () => {
     });
 
     it('should default enabled to null when omitted', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION' };
+      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
 
       const result = WirelessDeviceConfigMapper.extractCreateData(dto);
 
@@ -274,7 +258,7 @@ describe('WirelessDeviceConfigMapper', () => {
     });
 
     it('should pass linkCapacityKbps through when provided', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION', linkCapacityKbps: 50000000 };
+      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, linkCapacityKbps: 50000000 };
 
       const result = WirelessDeviceConfigMapper.extractCreateData(dto);
 
@@ -282,7 +266,7 @@ describe('WirelessDeviceConfigMapper', () => {
     });
 
     it('should default linkCapacityKbps to null when omitted', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION' };
+      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
 
       const result = WirelessDeviceConfigMapper.extractCreateData(dto);
 
@@ -290,7 +274,7 @@ describe('WirelessDeviceConfigMapper', () => {
     });
 
     it('should pass linkCapacityKbps as null when explicitly null', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION', linkCapacityKbps: null };
+      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, linkCapacityKbps: null };
 
       const result = WirelessDeviceConfigMapper.extractCreateData(dto);
 
@@ -298,7 +282,7 @@ describe('WirelessDeviceConfigMapper', () => {
     });
 
     it('should pass clientsProvisionedLimit through when provided', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION', clientsProvisionedLimit: 20 };
+      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, clientsProvisionedLimit: 20 };
 
       const result = WirelessDeviceConfigMapper.extractCreateData(dto);
 
@@ -306,7 +290,7 @@ describe('WirelessDeviceConfigMapper', () => {
     });
 
     it('should default clientsProvisionedLimit to null when omitted', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, deviceType: 'STATION' };
+      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
 
       const result = WirelessDeviceConfigMapper.extractCreateData(dto);
 

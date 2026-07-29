@@ -139,7 +139,7 @@ describe('ListDevicesUseCase — integration', () => {
       name: 'Core Switch',
       ownerType: 'COMPANY',
       status: 'ACTIVE',
-      category: 'ROUTERBOARD',
+      category: 'GATEWAY',
       ipAddress: '10.0.0.1'
     });
     await createUseCase.execute({
@@ -148,11 +148,11 @@ describe('ListDevicesUseCase — integration', () => {
       name: 'Access Point',
       ownerType: 'COMPANY',
       status: 'ACTIVE',
-      category: 'AP',
+      category: 'ACCESS_POINT',
       ipAddress: '10.0.0.2'
     });
 
-    const result = await listUseCase.execute({ category: 'ROUTERBOARD' });
+    const result = await listUseCase.execute({ category: 'GATEWAY' });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.devices).toHaveLength(1);

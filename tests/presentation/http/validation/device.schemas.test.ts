@@ -72,10 +72,9 @@ describe('createDeviceSchema', () => {
       const categories = [
         'CPE',
         'WIRELESS_CPE',
-        'AP',
-        'ROUTERBOARD',
-        'SMART_SWITCH',
-        'SMART_SWITCH_POE',
+        'ACCESS_POINT',
+        'GATEWAY',
+        'AGGREGATION_SWITCH',
         'OTHER'
       ] as const;
 
@@ -537,10 +536,9 @@ describe('listDevicesSchema', () => {
       const categories = [
         'CPE',
         'WIRELESS_CPE',
-        'AP',
-        'ROUTERBOARD',
-        'SMART_SWITCH',
-        'SMART_SWITCH_POE',
+        'ACCESS_POINT',
+        'GATEWAY',
+        'AGGREGATION_SWITCH',
         'OTHER'
       ] as const;
 
@@ -1062,10 +1060,9 @@ describe('updateDeviceSchema', () => {
       const categories = [
         'CPE',
         'WIRELESS_CPE',
-        'AP',
-        'ROUTERBOARD',
-        'SMART_SWITCH',
-        'SMART_SWITCH_POE',
+        'ACCESS_POINT',
+        'GATEWAY',
+        'AGGREGATION_SWITCH',
         'OTHER'
       ] as const;
 

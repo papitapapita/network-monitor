@@ -154,12 +154,12 @@ describe('CreateDeviceUseCase', () => {
     });
 
     it('should fail when an invalid category is provided', async () => {
-      const request = makeMinimalRequest({ category: 'GATEWAY' });
+      const request = makeMinimalRequest({ category: 'ROUTER' });
 
       const result = await useCase.execute(request);
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('GATEWAY');
+      expect(result.error).toContain('ROUTER');
     });
 
     it('should not call the repository when beforeExecute fails', async () => {

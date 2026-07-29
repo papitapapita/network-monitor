@@ -144,10 +144,9 @@ enum DeviceStatus {
 enum DeviceCategory {
   CPE
   WIRELESS_CPE
-  AP
-  ROUTERBOARD
-  SMART_SWITCH
-  SMART_SWITCH_POE
+  ACCESS_POINT
+  GATEWAY
+  AGGREGATION_SWITCH
   OTHER
 
   @@map("device_category")

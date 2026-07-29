@@ -293,7 +293,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
   public canHaveWirelessConfig(): boolean {
     return (
       this.props.category?.isWirelessCpe() === true ||
-      this.props.category?.isAp() === true
+      this.props.category?.isAccessPoint() === true
     );
   }
 

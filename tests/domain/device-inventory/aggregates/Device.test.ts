@@ -566,7 +566,7 @@ describe('Device', () => {
       it('should succeed when a category is set and ipAddress is provided', () => {
         const result = Device.create(
           makeProps({
-            category: DeviceCategory.createAp(),
+            category: DeviceCategory.createAccessPoint(),
             ipAddress: IPAddress.create('192.168.1.1').value
           })
         );
@@ -675,7 +675,7 @@ describe('Device', () => {
     it('should expose all props it was given', () => {
       const id = DeviceId.create();
       const locationId = LocationId.create();
-      const category = DeviceCategory.createRouterboard();
+      const category = DeviceCategory.createGateway();
       const serialNumber = SerialNumber.create('SN-PERSIST').value;
       const now = new Date('2023-01-01T00:00:00Z');
 
@@ -1377,7 +1377,7 @@ describe('Device', () => {
 
       it('should set category to null when explicitly null', () => {
         const device = makeDevice({
-          category: DeviceCategory.createAp(),
+          category: DeviceCategory.createAccessPoint(),
           ipAddress: IPAddress.create('10.0.0.1').value
         });
         device.updateDetails({ category: null });
@@ -1578,7 +1578,7 @@ describe('Device', () => {
     });
 
     it('should return true for an AP device', () => {
-      const device = makeDevice({ category: DeviceCategory.createAp() });
+      const device = makeDevice({ category: DeviceCategory.createAccessPoint() });
 
       expect(device.canHaveWirelessConfig()).toBe(true);
     });
@@ -1589,17 +1589,17 @@ describe('Device', () => {
       expect(device.canHaveWirelessConfig()).toBe(false);
     });
 
-    it('should return false for a ROUTERBOARD device', () => {
+    it('should return false for a GATEWAY device', () => {
       const device = makeDevice({
-        category: DeviceCategory.createRouterboard()
+        category: DeviceCategory.createGateway()
       });
 
       expect(device.canHaveWirelessConfig()).toBe(false);
     });
 
-    it('should return false for a SMART_SWITCH device', () => {
+    it('should return false for an AGGREGATION_SWITCH device', () => {
       const device = makeDevice({
-        category: DeviceCategory.createSmartSwitch()
+        category: DeviceCategory.createAggregationSwitch()
       });
 
       expect(device.canHaveWirelessConfig()).toBe(false);
@@ -1647,7 +1647,7 @@ describe('Device', () => {
         status: DeviceStatus.createActive(),
         ownerType: DeviceOwnerType.COMPANY,
         locationId: LocationId.create(),
-        category: DeviceCategory.createSmartSwitch(),
+        category: DeviceCategory.createAggregationSwitch(),
         serialNumber: SerialNumber.create('SN-DIST-2024-001').value,
         macAddress: MACAddress.create('AA:BB:CC:DD:EE:FF').value,
         ipAddress: IPAddress.create('10.0.1.1').value,
@@ -1661,7 +1661,7 @@ describe('Device', () => {
       expect(device.status.isActive()).toBe(true);
       expect(device.monitoringEnabled).toBe(true);
       expect(device.locationId).not.toBeNull();
-      expect(device.category!.isSmartSwitch()).toBe(true);
+      expect(device.category!.isAggregationSwitch()).toBe(true);
     });
 
     it('should allow sequential state changes and accumulate matching events', () => {

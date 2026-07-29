@@ -43,12 +43,17 @@ function makeLogger(): jest.Mocked<ILogger> {
   return child;
 }
 
-function makeDevice(wirelessCapable = true): Device {
+function makeDevice(
+  wirelessCapable = true,
+  categoryOverride?: DeviceCategory
+): Device {
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const modelId = DeviceModelId.create();
-  const category = wirelessCapable
-    ? DeviceCategory.createWirelessCpe()
-    : DeviceCategory.createCpe();
+  const category =
+    categoryOverride ??
+    (wirelessCapable
+      ? DeviceCategory.createWirelessCpe()
+      : DeviceCategory.createCpe());
   return Device.reconstitute(deviceId, {
     deviceModelId: modelId,
     locationId: null,
@@ -75,9 +80,9 @@ function makeConfig(): WirelessDeviceConfig {
     {
       deviceId,
       ipAddress,
+      deviceType: 'STATION',
       enabled: true,
       pollingInterval: PollingInterval.reconstitute(3600),
-      deviceType: 'STATION',
       linkCapacityKbps: null,
       clientsProvisionedLimit: null,
       lastPolledAt: null,
@@ -163,7 +168,6 @@ describe('CreateWirelessConfigUseCase', () => {
     it('should fail when deviceId is empty', async () => {
       const result = await useCase.execute({
         deviceId: '',
-        deviceType: 'STATION',
       });
 
       expect(result.isFailure).toBe(true);
@@ -173,35 +177,14 @@ describe('CreateWirelessConfigUseCase', () => {
     it('should fail when deviceId is whitespace only', async () => {
       const result = await useCase.execute({
         deviceId: '   ',
-        deviceType: 'STATION',
       });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Device ID is required');
     });
 
-    it('should fail when deviceType is empty', async () => {
-      const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
-        deviceType: '' as 'STATION',
-      });
-
-      expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Device type is required');
-    });
-
-    it('should fail when deviceType is whitespace only', async () => {
-      const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
-        deviceType: '   ' as 'STATION',
-      });
-
-      expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Device type is required');
-    });
-
     it('should NOT call any repository when beforeExecute fails', async () => {
-      await useCase.execute({ deviceId: '', deviceType: 'STATION' });
+      await useCase.execute({ deviceId: '' });
 
       expect(deviceRepo.findById).not.toHaveBeenCalled();
       expect(configRepo.findByDeviceId).not.toHaveBeenCalled();
@@ -213,7 +196,6 @@ describe('CreateWirelessConfigUseCase', () => {
     it('should fail when deviceId is not a valid UUID', async () => {
       const result = await useCase.execute({
         deviceId: 'not-a-uuid',
-        deviceType: 'STATION',
       });
 
       expect(result.isFailure).toBe(true);
@@ -221,7 +203,7 @@ describe('CreateWirelessConfigUseCase', () => {
     });
 
     it('should NOT call deviceRepo.findById when deviceId is invalid', async () => {
-      await useCase.execute({ deviceId: 'bad-id', deviceType: 'STATION' });
+      await useCase.execute({ deviceId: 'bad-id' });
 
       expect(deviceRepo.findById).not.toHaveBeenCalled();
     });
@@ -234,7 +216,6 @@ describe('CreateWirelessConfigUseCase', () => {
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
       });
 
       expect(result.isFailure).toBe(true);
@@ -246,7 +227,6 @@ describe('CreateWirelessConfigUseCase', () => {
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
       });
 
       expect(result.isFailure).toBe(true);
@@ -256,7 +236,7 @@ describe('CreateWirelessConfigUseCase', () => {
     it('should call deviceRepo.findById with the parsed deviceId', async () => {
       deviceRepo.findById.mockResolvedValue(Result.ok(null));
 
-      await useCase.execute({ deviceId: VALID_DEVICE_UUID, deviceType: 'STATION' });
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
       const calledWith = deviceRepo.findById.mock.calls[0][0];
       expect(calledWith.toString()).toBe(VALID_DEVICE_UUID);
@@ -267,7 +247,6 @@ describe('CreateWirelessConfigUseCase', () => {
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
       });
 
       expect(result.isFailure).toBe(true);
@@ -277,9 +256,35 @@ describe('CreateWirelessConfigUseCase', () => {
     it('should NOT call configRepo when device is not wireless-capable', async () => {
       deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice(false)));
 
-      await useCase.execute({ deviceId: VALID_DEVICE_UUID, deviceType: 'STATION' });
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
       expect(configRepo.findByDeviceId).not.toHaveBeenCalled();
+    });
+
+    it('should reject linkCapacityKbps on an access point', async () => {
+      deviceRepo.findById.mockResolvedValue(
+        Result.ok(makeDevice(true, DeviceCategory.createAccessPoint()))
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID,
+        linkCapacityKbps: 50000
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('linkCapacityKbps');
+    });
+
+    it('should reject clientsProvisionedLimit on a station', async () => {
+      deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID,
+        clientsProvisionedLimit: 40
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('clientsProvisionedLimit');
     });
 
     it('should fail when the device model is not marked wireless', async () => {
@@ -290,7 +295,6 @@ describe('CreateWirelessConfigUseCase', () => {
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
       });
 
       expect(result.isFailure).toBe(true);
@@ -303,7 +307,7 @@ describe('CreateWirelessConfigUseCase', () => {
         Result.ok({ isWireless: false })
       );
 
-      await useCase.execute({ deviceId: VALID_DEVICE_UUID, deviceType: 'STATION' });
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
       expect(configRepo.findByDeviceId).not.toHaveBeenCalled();
     });
@@ -317,7 +321,6 @@ describe('CreateWirelessConfigUseCase', () => {
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
       });
 
       expect(result.isFailure).toBe(true);
@@ -330,7 +333,6 @@ describe('CreateWirelessConfigUseCase', () => {
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
       });
 
       expect(result.isFailure).toBe(true);
@@ -345,7 +347,6 @@ describe('CreateWirelessConfigUseCase', () => {
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
         ipAddress: 'not-an-ip',
       });
 
@@ -360,7 +361,6 @@ describe('CreateWirelessConfigUseCase', () => {
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
         ipAddress: null,
       });
 
@@ -374,7 +374,6 @@ describe('CreateWirelessConfigUseCase', () => {
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
       });
 
       expect(result.isSuccess).toBe(true);
@@ -390,7 +389,6 @@ describe('CreateWirelessConfigUseCase', () => {
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
       });
 
       expect(result.isFailure).toBe(true);
@@ -401,7 +399,7 @@ describe('CreateWirelessConfigUseCase', () => {
       configRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
       configRepo.save.mockImplementation((c) => Promise.resolve(Result.ok(c)));
 
-      await useCase.execute({ deviceId: VALID_DEVICE_UUID, deviceType: 'STATION' });
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
       expect(configRepo.save).toHaveBeenCalledTimes(1);
     });
@@ -418,7 +416,6 @@ describe('CreateWirelessConfigUseCase', () => {
     it('should return a successful Result', async () => {
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
       });
 
       expect(result.isSuccess).toBe(true);
@@ -427,7 +424,6 @@ describe('CreateWirelessConfigUseCase', () => {
     it('should include the deviceId in the response DTO', async () => {
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
       });
 
       expect(result.value.deviceId).toBe(VALID_DEVICE_UUID);
@@ -436,7 +432,6 @@ describe('CreateWirelessConfigUseCase', () => {
     it('should default enabled to true when not provided', async () => {
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
       });
 
       expect(result.value.enabled).toBe(true);
@@ -445,16 +440,28 @@ describe('CreateWirelessConfigUseCase', () => {
     it('should default intervalSecs to 3600 when not provided', async () => {
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
       });
 
       expect(result.value.intervalSecs).toBe(3600);
     });
 
-    it('should include the requested deviceType in the response', async () => {
+    it('should derive deviceType STATION from a WIRELESS_CPE device', async () => {
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
-        deviceType: 'ACCESS_POINT',
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.value.deviceType).toBe('STATION');
+    });
+
+    it('should derive deviceType ACCESS_POINT from an ACCESS_POINT device', async () => {
+      deviceRepo.findById.mockResolvedValue(
+        Result.ok(
+          makeDevice(true, DeviceCategory.createAccessPoint())
+        )
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
       });
 
       expect(result.value.deviceType).toBe('ACCESS_POINT');
@@ -463,7 +470,6 @@ describe('CreateWirelessConfigUseCase', () => {
     it('should include the provided ipAddress in the response', async () => {
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
         ipAddress: '10.0.0.5',
       });
 
@@ -473,7 +479,6 @@ describe('CreateWirelessConfigUseCase', () => {
     it('should set ipAddress to null in the response when not provided', async () => {
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
       });
 
       expect(result.value.ipAddress).toBeNull();
@@ -482,7 +487,6 @@ describe('CreateWirelessConfigUseCase', () => {
     it('should set lastPolledAt to null for a newly created config', async () => {
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
       });
 
       expect(result.value.lastPolledAt).toBeNull();
@@ -491,7 +495,6 @@ describe('CreateWirelessConfigUseCase', () => {
     it('should use the provided enabled value when supplied', async () => {
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
         enabled: false,
       });
 
@@ -501,7 +504,6 @@ describe('CreateWirelessConfigUseCase', () => {
     it('should use the provided intervalSecs when supplied', async () => {
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        deviceType: 'STATION',
         intervalSecs: 60,
       });
 

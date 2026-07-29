@@ -35,6 +35,24 @@ async function seedPlainDevice(
   return device.id;
 }
 
+async function seedAccessPointDevice(
+  prisma: PrismaClient,
+  deviceModelId: string
+): Promise<string> {
+  const device = await prisma.device.create({
+    data: {
+      name: 'Tower Access Point',
+      owner: 'COMPANY',
+      status: 'ACTIVE',
+      monitoringEnabled: false,
+      ipAddress: '10.0.0.3',
+      category: 'ACCESS_POINT',
+      deviceModelId
+    }
+  });
+  return device.id;
+}
+
 async function seedDeviceWithConfig(
   prisma: PrismaClient,
   deviceModelId: string
@@ -103,6 +121,9 @@ describe('Wireless Config Routes — /api/devices/:id/wireless/config', () => {
   /** A wired device (CPE) — rejected because its model has isWireless=false. */
   let wiredDeviceId: string;
 
+  /** An ACCESS_POINT-role device — its radio mode derives to ACCESS_POINT. */
+  let apDeviceId: string;
+
   beforeAll(async () => {
     ({ app, container } = await createTestApp());
     prisma = container.getPrisma();
@@ -120,6 +141,7 @@ describe('Wireless Config Routes — /api/devices/:id/wireless/config', () => {
     plainDeviceId = await seedPlainDevice(prisma, wirelessModelId);
     configuredDeviceId = await seedDeviceWithConfig(prisma, wirelessModelId);
     wiredDeviceId = await seedWiredDevice(prisma, wiredModelId);
+    apDeviceId = await seedAccessPointDevice(prisma, wirelessModelId);
   });
 
   // ─────────────────────────────────────────────────────────────
@@ -127,10 +149,10 @@ describe('Wireless Config Routes — /api/devices/:id/wireless/config', () => {
   // ─────────────────────────────────────────────────────────────
 
   describe('POST /api/devices/:id/wireless/config', () => {
-    it('201 — creates config with required deviceType only and returns correct defaults', async () => {
+    it('201 — derives STATION from a WIRELESS_CPE device and returns correct defaults', async () => {
       const res = await request(app)
         .post(`/api/devices/${plainDeviceId}/wireless/config`)
-        .send({ deviceType: 'STATION' });
+        .send({});
 
       expect(res.status).toBe(201);
       expect(res.body.deviceId).toBe(plainDeviceId);
@@ -139,32 +161,39 @@ describe('Wireless Config Routes — /api/devices/:id/wireless/config', () => {
       expect(res.body.intervalSecs).toBe(3600);
     });
 
-    it('201 — creates config with all optional fields and reflects them in the response', async () => {
+    it('201 — creates a STATION config with all station-valid optional fields', async () => {
       const res = await request(app)
         .post(`/api/devices/${plainDeviceId}/wireless/config`)
         .send({
-          deviceType: 'ACCESS_POINT',
           ipAddress: '192.168.10.1',
           intervalSecs: 120,
           enabled: false,
-          linkCapacityKbps: 100000000,
-          clientsProvisionedLimit: 50
+          linkCapacityKbps: 100000000
         });
 
       expect(res.status).toBe(201);
       expect(res.body.deviceId).toBe(plainDeviceId);
-      expect(res.body.deviceType).toBe('ACCESS_POINT');
+      expect(res.body.deviceType).toBe('STATION');
       expect(res.body.ipAddress).toBe('192.168.10.1');
       expect(res.body.intervalSecs).toBe(120);
       expect(res.body.enabled).toBe(false);
       expect(res.body.linkCapacityKbps).toBe(100000000);
+    });
+
+    it('201 — derives ACCESS_POINT from an ACCESS_POINT device', async () => {
+      const res = await request(app)
+        .post(`/api/devices/${apDeviceId}/wireless/config`)
+        .send({ clientsProvisionedLimit: 50 });
+
+      expect(res.status).toBe(201);
+      expect(res.body.deviceType).toBe('ACCESS_POINT');
       expect(res.body.clientsProvisionedLimit).toBe(50);
     });
 
     it('409 — returns 409 when a config already exists for the device', async () => {
       const res = await request(app)
         .post(`/api/devices/${configuredDeviceId}/wireless/config`)
-        .send({ deviceType: 'STATION' });
+        .send({});
 
       expect(res.status).toBe(409);
       expect(res.body).toHaveProperty('error');
@@ -173,16 +202,24 @@ describe('Wireless Config Routes — /api/devices/:id/wireless/config', () => {
     it('404 — returns 404 when the device does not exist', async () => {
       const res = await request(app)
         .post(`/api/devices/${GHOST_ID}/wireless/config`)
-        .send({ deviceType: 'STATION' });
+        .send({});
 
       expect(res.status).toBe(404);
       expect(res.body).toHaveProperty('error');
     });
 
-    it('400 — returns 400 when required deviceType field is missing', async () => {
+    it('400 — rejects clientsProvisionedLimit on a derived STATION device', async () => {
       const res = await request(app)
         .post(`/api/devices/${plainDeviceId}/wireless/config`)
-        .send({});
+        .send({ clientsProvisionedLimit: 50 });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('400 — rejects linkCapacityKbps on a derived ACCESS_POINT device', async () => {
+      const res = await request(app)
+        .post(`/api/devices/${apDeviceId}/wireless/config`)
+        .send({ linkCapacityKbps: 100000000 });
 
       expect(res.status).toBe(400);
     });
@@ -190,7 +227,7 @@ describe('Wireless Config Routes — /api/devices/:id/wireless/config', () => {
     it('400 — returns 400 when intervalSecs is below the minimum of 30', async () => {
       const res = await request(app)
         .post(`/api/devices/${plainDeviceId}/wireless/config`)
-        .send({ deviceType: 'STATION', intervalSecs: 10 });
+        .send({ intervalSecs: 10 });
 
       expect(res.status).toBe(400);
     });
@@ -198,7 +235,7 @@ describe('Wireless Config Routes — /api/devices/:id/wireless/config', () => {
     it('400 — returns 400 when the device is not wireless-capable (wired CPE)', async () => {
       const res = await request(app)
         .post(`/api/devices/${wiredDeviceId}/wireless/config`)
-        .send({ deviceType: 'STATION' });
+        .send({});
 
       expect(res.status).toBe(400);
       expect(res.body).toHaveProperty('error');
@@ -207,7 +244,7 @@ describe('Wireless Config Routes — /api/devices/:id/wireless/config', () => {
     it('400 — returns 400 when device ID is not a valid UUID', async () => {
       const res = await request(app)
         .post(`/api/devices/${INVALID_ID}/wireless/config`)
-        .send({ deviceType: 'STATION' });
+        .send({});
 
       expect(res.status).toBe(400);
     });

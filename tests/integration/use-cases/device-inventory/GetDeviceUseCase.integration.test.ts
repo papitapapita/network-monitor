@@ -55,7 +55,7 @@ describe('GetDeviceUseCase — integration', () => {
       name: 'Core Router',
       ownerType: 'COMPANY',
       status: 'ACTIVE',
-      category: 'ROUTERBOARD',
+      category: 'GATEWAY',
       ipAddress: '10.0.0.1',
       macAddress: 'AA:BB:CC:DD:EE:01'
     });
@@ -70,7 +70,7 @@ describe('GetDeviceUseCase — integration', () => {
     expect(result.value.name).toBe('Core Router');
     expect(result.value.ownerType).toBe('COMPANY');
     expect(result.value.status).toBe('ACTIVE');
-    expect(result.value.category).toBe('ROUTERBOARD');
+    expect(result.value.category).toBe('GATEWAY');
     expect(result.value.ipAddress).toBe('10.0.0.1');
     expect(result.value.macAddress).toBe('AA:BB:CC:DD:EE:01');
   });

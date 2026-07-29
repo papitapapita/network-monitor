@@ -134,7 +134,7 @@ describe('GetMapLocationsUseCase — integration', () => {
       name: 'Router A1',
       ownerType: 'COMPANY',
       status: 'ACTIVE',
-      category: 'ROUTERBOARD',
+      category: 'GATEWAY',
       ipAddress: '10.20.0.1'
     });
     expect(first.isSuccess).toBe(true);
@@ -178,7 +178,7 @@ describe('GetMapLocationsUseCase — integration', () => {
       name: 'Core Router',
       ownerType: 'COMPANY',
       status: 'ACTIVE',
-      category: 'ROUTERBOARD',
+      category: 'GATEWAY',
       ipAddress: '10.21.0.1',
       macAddress: 'AA:BB:CC:DD:EE:10'
     });
@@ -190,7 +190,7 @@ describe('GetMapLocationsUseCase — integration', () => {
     expect(device.id).toBe(created.value.id);
     expect(device.name).toBe('Core Router');
     expect(device.status).toBe('ACTIVE');
-    expect(device.category).toBe('ROUTERBOARD');
+    expect(device.category).toBe('GATEWAY');
     expect(device.ipAddress).toBe('10.21.0.1');
     expect(device.macAddress).toBe('AA:BB:CC:DD:EE:10');
     expect(device.monitoringEnabled).toBe(false);

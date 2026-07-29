@@ -13,32 +13,32 @@ describe('DeviceCategory', () => {
         expect(result.value.value).toBe('CPE');
       });
 
-      it('should succeed for AP', () => {
-        const result = DeviceCategory.create('AP');
+      it('should succeed for WIRELESS_CPE', () => {
+        const result = DeviceCategory.create('WIRELESS_CPE');
 
         expect(result.isSuccess).toBe(true);
-        expect(result.value.value).toBe('AP');
+        expect(result.value.value).toBe('WIRELESS_CPE');
       });
 
-      it('should succeed for ROUTERBOARD', () => {
-        const result = DeviceCategory.create('ROUTERBOARD');
+      it('should succeed for ACCESS_POINT', () => {
+        const result = DeviceCategory.create('ACCESS_POINT');
 
         expect(result.isSuccess).toBe(true);
-        expect(result.value.value).toBe('ROUTERBOARD');
+        expect(result.value.value).toBe('ACCESS_POINT');
       });
 
-      it('should succeed for SMART_SWITCH', () => {
-        const result = DeviceCategory.create('SMART_SWITCH');
+      it('should succeed for GATEWAY', () => {
+        const result = DeviceCategory.create('GATEWAY');
 
         expect(result.isSuccess).toBe(true);
-        expect(result.value.value).toBe('SMART_SWITCH');
+        expect(result.value.value).toBe('GATEWAY');
       });
 
-      it('should succeed for SMART_SWITCH_POE', () => {
-        const result = DeviceCategory.create('SMART_SWITCH_POE');
+      it('should succeed for AGGREGATION_SWITCH', () => {
+        const result = DeviceCategory.create('AGGREGATION_SWITCH');
 
         expect(result.isSuccess).toBe(true);
-        expect(result.value.value).toBe('SMART_SWITCH_POE');
+        expect(result.value.value).toBe('AGGREGATION_SWITCH');
       });
 
       it('should succeed for OTHER', () => {
@@ -127,8 +127,29 @@ describe('DeviceCategory', () => {
         expect(result.error).toContain('Invalid device category');
       });
 
-      it('should fail for removed ACCESS_POINT category', () => {
-        const result = DeviceCategory.create('ACCESS_POINT');
+      it('should fail for retired AP category', () => {
+        const result = DeviceCategory.create('AP');
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('Invalid device category');
+      });
+
+      it('should fail for ROUTERBOARD, now a hardware type not a role', () => {
+        const result = DeviceCategory.create('ROUTERBOARD');
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('Invalid device category');
+      });
+
+      it('should fail for retired SMART_SWITCH category', () => {
+        const result = DeviceCategory.create('SMART_SWITCH');
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('Invalid device category');
+      });
+
+      it('should fail for retired SMART_SWITCH_POE category', () => {
+        const result = DeviceCategory.create('SMART_SWITCH_POE');
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('Invalid device category');
@@ -139,9 +160,9 @@ describe('DeviceCategory', () => {
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('CPE');
-        expect(result.error).toContain('AP');
-        expect(result.error).toContain('ROUTERBOARD');
-        expect(result.error).toContain('SMART_SWITCH');
+        expect(result.error).toContain('ACCESS_POINT');
+        expect(result.error).toContain('GATEWAY');
+        expect(result.error).toContain('AGGREGATION_SWITCH');
         expect(result.error).toContain('OTHER');
       });
     });
@@ -153,20 +174,20 @@ describe('DeviceCategory', () => {
       expect(DeviceCategory.createCpe().value).toBe('CPE');
     });
 
-    it('createAp() should return an AP category', () => {
-      expect(DeviceCategory.createAp().value).toBe('AP');
+    it('createAccessPoint() should return an ACCESS_POINT category', () => {
+      expect(DeviceCategory.createAccessPoint().value).toBe(
+        'ACCESS_POINT'
+      );
     });
 
-    it('createRouterboard() should return a ROUTERBOARD category', () => {
-      expect(DeviceCategory.createRouterboard().value).toBe('ROUTERBOARD');
+    it('createGateway() should return a GATEWAY category', () => {
+      expect(DeviceCategory.createGateway().value).toBe('GATEWAY');
     });
 
-    it('createSmartSwitch() should return a SMART_SWITCH category', () => {
-      expect(DeviceCategory.createSmartSwitch().value).toBe('SMART_SWITCH');
-    });
-
-    it('createSmartSwitchPoe() should return a SMART_SWITCH_POE category', () => {
-      expect(DeviceCategory.createSmartSwitchPoe().value).toBe('SMART_SWITCH_POE');
+    it('createAggregationSwitch() should return an AGGREGATION_SWITCH category', () => {
+      expect(DeviceCategory.createAggregationSwitch().value).toBe(
+        'AGGREGATION_SWITCH'
+      );
     });
 
     it('createOther() should return an OTHER category', () => {
@@ -192,27 +213,28 @@ describe('DeviceCategory', () => {
   describe('predicate methods', () => {
     it('isCpe() should return true only for CPE', () => {
       expect(DeviceCategory.createCpe().isCpe()).toBe(true);
-      expect(DeviceCategory.createAp().isCpe()).toBe(false);
+      expect(DeviceCategory.createAccessPoint().isCpe()).toBe(false);
     });
 
-    it('isAp() should return true only for AP', () => {
-      expect(DeviceCategory.createAp().isAp()).toBe(true);
-      expect(DeviceCategory.createCpe().isAp()).toBe(false);
+    it('isAccessPoint() should return true only for ACCESS_POINT', () => {
+      expect(
+        DeviceCategory.createAccessPoint().isAccessPoint()
+      ).toBe(true);
+      expect(DeviceCategory.createCpe().isAccessPoint()).toBe(false);
     });
 
-    it('isRouterboard() should return true only for ROUTERBOARD', () => {
-      expect(DeviceCategory.createRouterboard().isRouterboard()).toBe(true);
-      expect(DeviceCategory.createCpe().isRouterboard()).toBe(false);
+    it('isGateway() should return true only for GATEWAY', () => {
+      expect(DeviceCategory.createGateway().isGateway()).toBe(true);
+      expect(DeviceCategory.createCpe().isGateway()).toBe(false);
     });
 
-    it('isSmartSwitch() should return true only for SMART_SWITCH', () => {
-      expect(DeviceCategory.createSmartSwitch().isSmartSwitch()).toBe(true);
-      expect(DeviceCategory.createCpe().isSmartSwitch()).toBe(false);
-    });
-
-    it('isSmartSwitchPoe() should return true only for SMART_SWITCH_POE', () => {
-      expect(DeviceCategory.createSmartSwitchPoe().isSmartSwitchPoe()).toBe(true);
-      expect(DeviceCategory.createCpe().isSmartSwitchPoe()).toBe(false);
+    it('isAggregationSwitch() should return true only for AGGREGATION_SWITCH', () => {
+      expect(
+        DeviceCategory.createAggregationSwitch().isAggregationSwitch()
+      ).toBe(true);
+      expect(
+        DeviceCategory.createCpe().isAggregationSwitch()
+      ).toBe(false);
     });
 
     it('isOther() should return true only for OTHER', () => {
@@ -227,20 +249,22 @@ describe('DeviceCategory', () => {
       expect(DeviceCategory.createCpe().getDisplayName()).toBe('CPE');
     });
 
-    it('should return "Access Point" for AP', () => {
-      expect(DeviceCategory.createAp().getDisplayName()).toBe('Access Point');
+    it('should return "Access Point" for ACCESS_POINT', () => {
+      expect(
+        DeviceCategory.createAccessPoint().getDisplayName()
+      ).toBe('Access Point');
     });
 
-    it('should return "Routerboard" for ROUTERBOARD', () => {
-      expect(DeviceCategory.createRouterboard().getDisplayName()).toBe('Routerboard');
+    it('should return "Gateway" for GATEWAY', () => {
+      expect(DeviceCategory.createGateway().getDisplayName()).toBe(
+        'Gateway'
+      );
     });
 
-    it('should return "Smart Switch" for SMART_SWITCH', () => {
-      expect(DeviceCategory.createSmartSwitch().getDisplayName()).toBe('Smart Switch');
-    });
-
-    it('should return "Smart Switch PoE" for SMART_SWITCH_POE', () => {
-      expect(DeviceCategory.createSmartSwitchPoe().getDisplayName()).toBe('Smart Switch PoE');
+    it('should return "Aggregation Switch" for AGGREGATION_SWITCH', () => {
+      expect(
+        DeviceCategory.createAggregationSwitch().getDisplayName()
+      ).toBe('Aggregation Switch');
     });
 
     it('should return "Other" for OTHER', () => {
@@ -255,7 +279,7 @@ describe('DeviceCategory', () => {
     });
 
     it('should return consistent output on repeated calls', () => {
-      const cat = DeviceCategory.createAp();
+      const cat = DeviceCategory.createAccessPoint();
 
       expect(cat.toString()).toBe(cat.toString());
     });
@@ -272,7 +296,7 @@ describe('DeviceCategory', () => {
 
     it('should return false for two categories with different values', () => {
       const a = DeviceCategory.createCpe();
-      const b = DeviceCategory.createAp();
+      const b = DeviceCategory.createAccessPoint();
 
       expect(a.equals(b)).toBe(false);
     });

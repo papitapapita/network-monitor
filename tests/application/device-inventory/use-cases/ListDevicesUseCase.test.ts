@@ -418,10 +418,10 @@ describe('ListDevicesUseCase', () => {
     });
 
     it('should fail when an invalid category is provided', async () => {
-      const result = await useCase.execute({ category: 'GATEWAY' });
+      const result = await useCase.execute({ category: 'ROUTER' });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('GATEWAY');
+      expect(result.error).toContain('ROUTER');
     });
 
     it('should fail when an invalid owner type is provided', async () => {

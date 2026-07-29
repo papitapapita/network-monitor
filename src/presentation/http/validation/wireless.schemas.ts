@@ -62,9 +62,11 @@ export const getAllAlertHistorySchema = z.object({
 
 export const createWirelessConfigSchema = z.object({
   params: z.object({ id: uuidSchema }),
+  // deviceType is not accepted: radio mode is derived from the device's
+  // category, so linkCapacityKbps/clientsProvisionedLimit are cross-checked
+  // in CreateWirelessConfigUseCase where that category is known.
   body: z
     .object({
-      deviceType: z.enum(['STATION', 'ACCESS_POINT']),
       ipAddress: z
         .union([z.string().ipv4(), z.string().ipv6(), z.null()])
         .optional(),
@@ -82,25 +84,6 @@ export const createWirelessConfigSchema = z.object({
         .positive()
         .nullable()
         .optional()
-    })
-    .superRefine((data, ctx) => {
-      if (data.deviceType === 'ACCESS_POINT' && data.linkCapacityKbps != null) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'linkCapacityKbps can only be set for STATION devices',
-          path: ['linkCapacityKbps']
-        });
-      }
-      if (
-        data.deviceType === 'STATION' &&
-        data.clientsProvisionedLimit != null
-      ) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'clientsProvisionedLimit can only be set for ACCESS_POINT devices',
-          path: ['clientsProvisionedLimit']
-        });
-      }
     })
 });
 

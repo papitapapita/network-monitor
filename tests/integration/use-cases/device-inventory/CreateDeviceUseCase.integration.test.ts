@@ -77,7 +77,7 @@ describe('CreateDeviceUseCase — integration', () => {
       name: 'Access Point SP',
       ownerType: 'CLIENT',
       status: 'ACTIVE',
-      category: 'AP',
+      category: 'ACCESS_POINT',
       serialNumber: 'SN-99001',
       macAddress: 'AA:BB:CC:DD:EE:FF',
       ipAddress: '10.0.0.1',
@@ -88,7 +88,7 @@ describe('CreateDeviceUseCase — integration', () => {
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.status).toBe('ACTIVE');
-    expect(result.value.category).toBe('AP');
+    expect(result.value.category).toBe('ACCESS_POINT');
     expect(result.value.serialNumber).toBe('SN-99001');
     expect(result.value.macAddress).toBe('AA:BB:CC:DD:EE:FF');
     expect(result.value.ipAddress).toBe('10.0.0.1');
