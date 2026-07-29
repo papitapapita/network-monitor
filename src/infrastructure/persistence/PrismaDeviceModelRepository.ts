@@ -18,11 +18,11 @@ export class PrismaDeviceModelRepository
 
       await this.prisma.deviceModel.upsert({
         where: { id: data.id },
-        create: { ...data, deviceType: data.deviceType as any },
+        create: data,
         update: {
           vendorId: data.vendorId,
           model: data.model,
-          deviceType: data.deviceType as any,
+          deviceType: data.deviceType,
           isWireless: data.isWireless,
           updatedAt: data.updatedAt
         }

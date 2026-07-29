@@ -3,6 +3,7 @@
 import { describe, it, expect, afterEach } from '@jest/globals';
 import { DeviceModelMapper } from '../../../src/infrastructure/mappers/DeviceModelMapper';
 import { DeviceModel } from '../../../src/domain/device-inventory/aggregates/DeviceModel';
+import { DeviceType } from '../../../src/domain/device-inventory/value-objects';
 import { DeviceModelId, VendorId } from '../../../src/domain/shared/ids';
 
 // ---------------------------------------------------------------------------
@@ -52,7 +53,9 @@ function makeDeviceModel(overrides: Partial<{
     vendorName: overrides.vendorName ?? 'Mikrotik',
     vendorSlug: overrides.vendorSlug ?? 'mikrotik',
     model: overrides.model ?? 'RB760iGS',
-    deviceType: overrides.deviceType ?? 'ROUTER',
+    deviceType: DeviceType.reconstitute(
+      overrides.deviceType ?? 'ROUTER'
+    ),
     isWireless: overrides.isWireless ?? false,
     createdAt: NOW,
     updatedAt: NOW
@@ -107,7 +110,7 @@ describe('DeviceModelMapper', () => {
 
         const result = DeviceModelMapper.toDomain(raw);
 
-        expect(result.value!.deviceType).toBe('SWITCH');
+        expect(result.value!.deviceType.value).toBe('SWITCH');
       });
 
       it('should map vendorName from the vendor join field', () => {

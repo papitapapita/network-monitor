@@ -1,4 +1,5 @@
 import { DeviceModel } from 'domain/device-inventory/aggregates';
+import { DeviceType } from 'domain/device-inventory/value-objects';
 import {
   IDeviceModelRepository,
   IVendorRepository
@@ -48,6 +49,11 @@ export class CreateDeviceModelUseCase extends UseCase<
   ): Promise<Result<DeviceModelResponseDTO>> {
     const data = DeviceModelMapper.extractCreateData(request);
 
+    const deviceTypeResult = DeviceType.create(data.deviceType);
+    if (deviceTypeResult.isFailure) {
+      return this.fail(deviceTypeResult.error!);
+    }
+
     const vendorIdResult = VendorId.parse(data.vendorId.trim());
     if (vendorIdResult.isFailure) {
       return this.fail(`Invalid vendor ID: ${vendorIdResult.error}`);
@@ -85,7 +91,7 @@ export class CreateDeviceModelUseCase extends UseCase<
       vendorName: vendor.name,
       vendorSlug: vendor.slug,
       model: modelTrimmed,
-      deviceType: data.deviceType.trim(),
+      deviceType: deviceTypeResult.value,
       isWireless: data.isWireless
     });
 

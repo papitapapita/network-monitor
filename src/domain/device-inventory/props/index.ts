@@ -5,6 +5,7 @@ export * from './DeviceNameProps';
 export * from './SerialNumberProps';
 export * from './DeviceStatusProps';
 export * from './DeviceCategoryProps';
+export * from './DeviceTypeProps';
 export * from './DeviceProps';
 export * from './DeviceCreatedEventProps';
 export * from './DeviceStatusChangedEventProps';

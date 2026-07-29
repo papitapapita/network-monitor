@@ -12,6 +12,7 @@ import { GetDeviceModelUseCase } from '../../../../src/application/device-invent
 import { IDeviceModelRepository } from '../../../../src/domain/device-inventory/repository/IDeviceModelRepository';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { DeviceModel } from '../../../../src/domain/device-inventory/aggregates/DeviceModel';
+import { DeviceType } from '../../../../src/domain/device-inventory/value-objects';
 import { DeviceModelId, VendorId } from '../../../../src/domain/shared/ids';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
@@ -31,7 +32,7 @@ function makeDeviceModel(): DeviceModel {
       vendorName: 'Mikrotik',
       vendorSlug: 'mikrotik',
       model: 'RB760iGS',
-      deviceType: 'ROUTER',
+      deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
       isWireless: false,
       createdAt: NOW,
       updatedAt: NOW

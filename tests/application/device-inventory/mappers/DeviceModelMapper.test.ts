@@ -2,6 +2,7 @@
 
 import { DeviceModelMapper } from '../../../../src/application/device-inventory/mappers/DeviceModelMapper';
 import { DeviceModel } from '../../../../src/domain/device-inventory/aggregates/DeviceModel';
+import { DeviceType } from '../../../../src/domain/device-inventory/value-objects';
 import { DeviceModelId, VendorId } from '../../../../src/domain/shared/ids';
 
 // ---------------------------------------------------------------------------
@@ -36,7 +37,9 @@ function makeDeviceModel(
       vendorName: overrides.vendorName ?? 'Mikrotik',
       vendorSlug: overrides.vendorSlug ?? 'mikrotik',
       model: overrides.model ?? 'RB760iGS',
-      deviceType: overrides.deviceType ?? 'ROUTER',
+      deviceType: DeviceType.reconstitute(
+        overrides.deviceType ?? 'ROUTER'
+      ),
       isWireless: overrides.isWireless ?? false,
       createdAt: overrides.createdAt ?? BASE_DATE,
       updatedAt: overrides.updatedAt ?? UPDATED_DATE
@@ -82,9 +85,9 @@ describe('DeviceModelMapper', () => {
       });
 
       it('should map deviceType as a string', () => {
-        const dto = DeviceModelMapper.toDTO(makeDeviceModel({ deviceType: 'ACCESS_POINT' }));
+        const dto = DeviceModelMapper.toDTO(makeDeviceModel({ deviceType: 'SWITCH' }));
 
-        expect(dto.deviceType).toBe('ACCESS_POINT');
+        expect(dto.deviceType).toBe('SWITCH');
       });
 
       it('should map createdAt to an ISO 8601 string', () => {

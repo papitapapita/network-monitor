@@ -1,6 +1,7 @@
 import { AggregateRoot, Result, Guard } from 'domain/shared/core';
 import { DeviceModelId, VendorId } from 'domain/shared/ids';
 import { DeviceModelProps } from '../props';
+import { DeviceType } from '../value-objects';
 export class DeviceModel extends AggregateRoot<
   DeviceModelProps,
   DeviceModelId
@@ -25,7 +26,7 @@ export class DeviceModel extends AggregateRoot<
     return this.props.model;
   }
 
-  get deviceType(): string {
+  get deviceType(): DeviceType {
     return this.props.deviceType;
   }
 
@@ -53,7 +54,12 @@ export class DeviceModel extends AggregateRoot<
     const now = new Date();
 
     const deviceModel = new DeviceModel(
-      { ...props, isWireless: props.isWireless ?? false, createdAt: now, updatedAt: now },
+      {
+        ...props,
+        isWireless: props.isWireless ?? false,
+        createdAt: now,
+        updatedAt: now
+      },
       id
     );
 
@@ -94,7 +100,7 @@ export class DeviceModel extends AggregateRoot<
     return Result.ok<void>();
   }
 
-  public updateDeviceType(newDeviceType: string): Result<void> {
+  public updateDeviceType(newDeviceType: DeviceType): Result<void> {
     const guardResult = Guard.againstNullOrUndefined(
       newDeviceType,
       'deviceType'
@@ -103,7 +109,7 @@ export class DeviceModel extends AggregateRoot<
       return Result.fail<void>(guardResult.message!);
     }
 
-    if (this.props.deviceType === newDeviceType)
+    if (this.props.deviceType.equals(newDeviceType))
       return Result.ok<void>();
 
     this.props.deviceType = newDeviceType;
@@ -148,8 +154,7 @@ export class DeviceModel extends AggregateRoot<
       Guard.againstNullOrUndefined(props.vendorId, 'vendorId'),
       Guard.againstNullOrUndefined(props.model, 'model'),
       Guard.againstNullOrUndefined(props.deviceType, 'deviceType'),
-      Guard.isString(props.model, 'model'),
-      Guard.isString(props.deviceType, 'deviceType')
+      Guard.isString(props.model, 'model')
     ]);
 
     if (!guardResult.succeeded) {

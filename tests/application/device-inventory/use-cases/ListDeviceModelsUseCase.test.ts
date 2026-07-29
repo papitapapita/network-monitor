@@ -11,6 +11,7 @@ import {
 import { ListDeviceModelsUseCase } from '../../../../src/application/device-inventory/use-cases/ListDeviceModelsUseCase';
 import { IDeviceModelRepository } from '../../../../src/domain/device-inventory/repository/IDeviceModelRepository';
 import { DeviceModel } from '../../../../src/domain/device-inventory/aggregates/DeviceModel';
+import { DeviceType } from '../../../../src/domain/device-inventory/value-objects';
 import { DeviceModelId, VendorId } from '../../../../src/domain/shared/ids';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
@@ -30,7 +31,7 @@ function makeDeviceModel(id: string = '550e8400-e29b-41d4-a716-446655440000'): D
       vendorName: 'Mikrotik',
       vendorSlug: 'mikrotik',
       model: 'RB760iGS',
-      deviceType: 'ROUTER',
+      deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
       isWireless: false,
       createdAt: NOW,
       updatedAt: NOW

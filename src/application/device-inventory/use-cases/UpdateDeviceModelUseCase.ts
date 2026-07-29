@@ -4,6 +4,7 @@ import {
   IDeviceRepository
 } from 'domain/device-inventory/repository';
 import { IWirelessDeviceConfigRepository } from 'domain/wireless-monitoring/repository';
+import { DeviceType } from 'domain/device-inventory/value-objects';
 import { DeviceModelId, VendorId } from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
@@ -95,14 +96,23 @@ export class UpdateDeviceModelUseCase extends UseCase<
     }
 
     if (data.deviceType !== undefined) {
-      const typeResult = deviceModel.updateDeviceType(data.deviceType);
+      const deviceTypeResult = DeviceType.create(data.deviceType);
+      if (deviceTypeResult.isFailure) {
+        return this.fail(deviceTypeResult.error!);
+      }
+
+      const typeResult = deviceModel.updateDeviceType(
+        deviceTypeResult.value
+      );
       if (typeResult.isFailure) {
         return this.fail(typeResult.error!);
       }
     }
 
     if (data.isWireless !== undefined) {
-      const wirelessResult = deviceModel.updateIsWireless(data.isWireless);
+      const wirelessResult = deviceModel.updateIsWireless(
+        data.isWireless
+      );
       if (wirelessResult.isFailure) {
         return this.fail(wirelessResult.error!);
       }
@@ -117,9 +127,8 @@ export class UpdateDeviceModelUseCase extends UseCase<
     }
 
     if (wasWireless && data.isWireless === false) {
-      const devicesResult = await this.deviceRepository.findByDeviceModel(
-        deviceModel.id
-      );
+      const devicesResult =
+        await this.deviceRepository.findByDeviceModel(deviceModel.id);
       if (devicesResult.isSuccess && devicesResult.value.length > 0) {
         await Promise.all(
           devicesResult.value.map((d) =>

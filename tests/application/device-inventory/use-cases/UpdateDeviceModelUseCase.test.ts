@@ -15,6 +15,7 @@ import { IDeviceRepository } from '../../../../src/domain/device-inventory/repos
 import { IWirelessDeviceConfigRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessDeviceConfigRepository';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { DeviceModel } from '../../../../src/domain/device-inventory/aggregates/DeviceModel';
+import { DeviceType } from '../../../../src/domain/device-inventory/value-objects';
 import { Vendor } from '../../../../src/domain/device-inventory/aggregates/Vendor';
 import { DeviceModelId, VendorId, DeviceId } from '../../../../src/domain/shared/ids';
 import { Result } from '../../../../src/domain/shared/core/Result';
@@ -58,7 +59,7 @@ function makeDeviceModel(): DeviceModel {
     vendorName: 'Mikrotik',
     vendorSlug: 'mikrotik',
     model: 'RB760iGS',
-    deviceType: 'ROUTER',
+    deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
     isWireless: false,
     createdAt: NOW,
     updatedAt: NOW
@@ -232,7 +233,7 @@ describe('UpdateDeviceModelUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — vendor change', () => {
+  describe('[DEV-021] executeImpl — vendor change', () => {
     it('should fail when vendorId is not a valid UUID', async () => {
       const result = await useCase.execute({ id: VALID_UUID, vendorId: 'bad-uuid' });
 
@@ -286,7 +287,7 @@ describe('UpdateDeviceModelUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — model update', () => {
+  describe('[DEV-023] executeImpl — model update', () => {
     it('should fail when the new model is an empty string', async () => {
       const result = await useCase.execute({ id: VALID_UUID, model: '' });
 
@@ -384,7 +385,7 @@ describe('UpdateDeviceModelUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — isWireless cascade delete', () => {
+  describe('[DEV-027] executeImpl — isWireless cascade delete', () => {
     const DEVICE_UUID_1 = '550e8400-e29b-41d4-a716-446655440010';
     const DEVICE_UUID_2 = '550e8400-e29b-41d4-a716-446655440011';
 
@@ -394,7 +395,7 @@ describe('UpdateDeviceModelUseCase', () => {
         vendorName: 'Ubiquiti',
         vendorSlug: 'ubiquiti',
         model: 'LiteBeam 5AC',
-        deviceType: 'ANTENNA',
+        deviceType: DeviceType.reconstitute(DeviceType.ANTENNA),
         isWireless: true,
         createdAt: NOW,
         updatedAt: NOW

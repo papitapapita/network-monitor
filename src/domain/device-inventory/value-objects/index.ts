@@ -4,3 +4,4 @@ export * from './DeviceName';
 export * from './SerialNumber';
 export * from './DeviceStatus';
 export * from './DeviceCategory';
+export * from './DeviceType';

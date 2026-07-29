@@ -18,7 +18,8 @@ import { DeviceModelId, VendorId, DeviceId } from '../../../../src/domain/shared
 import { Result } from '../../../../src/domain/shared/core/Result';
 import {
   DeviceName,
-  DeviceStatus
+  DeviceStatus,
+  DeviceType
 } from '../../../../src/domain/device-inventory/value-objects';
 import { DeviceOwnerType } from '../../../../src/domain/device-inventory/enums';
 
@@ -43,7 +44,7 @@ function makeDeviceModel(): DeviceModel {
     vendorName: 'Mikrotik',
     vendorSlug: 'mikrotik',
     model: 'RB760iGS',
-    deviceType: 'ROUTER',
+    deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
     isWireless: false,
     createdAt: NOW,
     updatedAt: NOW
@@ -216,7 +217,7 @@ describe('DeleteDeviceModelUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — associated devices guard', () => {
+  describe('[DEV-026] executeImpl — associated devices guard', () => {
     it('should fail when 1 device is associated with this model', async () => {
       (deviceRepo.findByDeviceModel as any).mockResolvedValue(
         Result.ok([makeDevice(DEVICE_UUID_1)])

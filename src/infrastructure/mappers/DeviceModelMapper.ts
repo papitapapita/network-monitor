@@ -1,6 +1,8 @@
 import { DeviceModel } from 'domain/device-inventory/aggregates';
+import { DeviceType } from 'domain/device-inventory/value-objects';
 import { DeviceModelId, VendorId } from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
+import { DeviceType as PrismaDeviceType } from 'generated/prisma/client';
 
 type PrismaDeviceModelRecord = {
   id: string;
@@ -20,7 +22,7 @@ type DeviceModelPersistenceData = {
   id: string;
   vendorId: string;
   model: string;
-  deviceType: string;
+  deviceType: PrismaDeviceType;
   isWireless: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -44,12 +46,18 @@ export class DeviceModelMapper {
       );
     }
 
+    if (!DeviceType.isValid(raw.deviceType)) {
+      return Result.fail<DeviceModel>(
+        `Data integrity violation: unrecognised DeviceType "${raw.deviceType}" in persistence store`
+      );
+    }
+
     const deviceModel = DeviceModel.reconstitute(idResult.value, {
       vendorId: vendorIdResult.value,
       vendorName: raw.vendor.name,
       vendorSlug: raw.vendor.slug,
       model: raw.model,
-      deviceType: raw.deviceType,
+      deviceType: DeviceType.reconstitute(raw.deviceType),
       isWireless: raw.isWireless,
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt
@@ -65,7 +73,7 @@ export class DeviceModelMapper {
       id: deviceModel.id.toString(),
       vendorId: deviceModel.vendorId.toString(),
       model: deviceModel.model,
-      deviceType: deviceModel.deviceType,
+      deviceType: deviceModel.deviceType.value as PrismaDeviceType,
       isWireless: deviceModel.isWireless,
       createdAt: deviceModel.createdAt,
       updatedAt: deviceModel.updatedAt

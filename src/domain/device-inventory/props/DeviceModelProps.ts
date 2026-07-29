@@ -1,4 +1,5 @@
 import { VendorId } from 'domain/shared/ids';
+import { DeviceType } from '../value-objects/DeviceType';
 
 export interface DeviceModelProps {
   vendorId: VendorId;
@@ -7,7 +8,7 @@ export interface DeviceModelProps {
   vendorName: string;
   vendorSlug: string;
   model: string;
-  deviceType: string;
+  deviceType: DeviceType;
   isWireless: boolean;
   createdAt: Date;
   updatedAt: Date;

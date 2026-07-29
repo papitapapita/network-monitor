@@ -123,7 +123,9 @@ describe('PrismaDeviceModelRepository', () => {
 
         const result = await repository.findById(validId);
 
-        expect((result.value as DeviceModel).deviceType).toBe('SWITCH');
+        expect((result.value as DeviceModel).deviceType.value).toBe(
+          'SWITCH'
+        );
       });
 
       it('should preserve createdAt as a Date', async () => {
