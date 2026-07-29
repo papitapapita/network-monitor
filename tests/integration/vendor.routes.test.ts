@@ -57,7 +57,7 @@ describe('Vendor Routes — /api/vendors', () => {
       expect(res.body.data.description).toBe('Networking gear');
     });
 
-    it('400 — rejects missing name', async () => {
+    it('[DEV-001] 400 — rejects missing name', async () => {
       const res = await request(app)
         .post('/api/vendors')
         .send({ slug: 'no-name' });
@@ -65,7 +65,7 @@ describe('Vendor Routes — /api/vendors', () => {
       expect(res.status).toBe(400);
     });
 
-    it('400 — rejects missing slug', async () => {
+    it('[DEV-002] 400 — rejects missing slug', async () => {
       const res = await request(app)
         .post('/api/vendors')
         .send({ name: 'No Slug Vendor' });
@@ -73,7 +73,7 @@ describe('Vendor Routes — /api/vendors', () => {
       expect(res.status).toBe(400);
     });
 
-    it('400 — rejects slug with uppercase letters', async () => {
+    it('[DEV-002] 400 — rejects slug with uppercase letters', async () => {
       const res = await request(app)
         .post('/api/vendors')
         .send({ name: 'Bad Slug', slug: 'Bad-Slug' });
@@ -81,7 +81,7 @@ describe('Vendor Routes — /api/vendors', () => {
       expect(res.status).toBe(400);
     });
 
-    it('400 — rejects slug with spaces', async () => {
+    it('[DEV-002] 400 — rejects slug with spaces', async () => {
       const res = await request(app)
         .post('/api/vendors')
         .send({ name: 'Bad Slug', slug: 'bad slug' });
@@ -89,7 +89,7 @@ describe('Vendor Routes — /api/vendors', () => {
       expect(res.status).toBe(400);
     });
 
-    it('409 — returns conflict on duplicate slug', async () => {
+    it('[DEV-003] 409 — returns conflict on duplicate slug', async () => {
       await request(app)
         .post('/api/vendors')
         .send({ name: 'Cisco', slug: 'cisco' });
@@ -216,7 +216,7 @@ describe('Vendor Routes — /api/vendors', () => {
       expect(res.status).toBe(400);
     });
 
-    it('409 — slug conflict returns 409', async () => {
+    it('[DEV-003] 409 — slug conflict returns 409', async () => {
       await seedVendor(prisma, { name: 'First', slug: 'first-vendor' });
       const secondId = await seedVendor(prisma, { name: 'Second', slug: 'second-vendor' });
 
@@ -250,7 +250,7 @@ describe('Vendor Routes — /api/vendors', () => {
       expect(res.status).toBe(404);
     });
 
-    it('409 — cannot delete vendor that has device models', async () => {
+    it('[DEV-005] 409 — cannot delete vendor that has device models', async () => {
       const vendorId = await seedVendor(prisma, { name: 'Locked Vendor', slug: 'locked-vendor' });
 
       await prisma.deviceModel.create({

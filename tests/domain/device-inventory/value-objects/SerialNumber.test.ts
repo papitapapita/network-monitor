@@ -4,7 +4,7 @@ import { SerialNumber } from '../../../../src/domain/device-inventory';
 
 describe('SerialNumber', () => {
   // =========================================================================
-  describe('create()', () => {
+  describe('[DEV-045] create()', () => {
     describe('happy path', () => {
       it('should return a successful Result for a valid serial number', () => {
         const result = SerialNumber.create('SN-2024-XYZ-001');

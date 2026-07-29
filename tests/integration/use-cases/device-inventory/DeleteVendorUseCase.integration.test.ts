@@ -64,7 +64,7 @@ describe('DeleteVendorUseCase — integration', () => {
   // Guard: vendor has device models
   // ──────────────────────────────────────────────────────────────
 
-  it('fails with a "Cannot delete" error when the vendor has associated device models', async () => {
+  it('[DEV-005] fails with a "Cannot delete" error when the vendor has associated device models', async () => {
     const vendorId = await seedVendor(prisma, { name: 'Locked Vendor', slug: 'locked-vendor' });
 
     await prisma.deviceModel.create({

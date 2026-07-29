@@ -68,7 +68,7 @@ describe('UpdateDeviceModelUseCase — integration', () => {
     expect(result.value.deviceType).toBe('ROUTERBOARD');
   });
 
-  it('updates the deviceType and result.value.deviceType matches the new type', async () => {
+  it('[DEV-024] updates the deviceType and result.value.deviceType matches the new type', async () => {
     const result = await useCase.execute({ id: deviceModelId, deviceType: 'ROUTER' });
 
     expect(result.isSuccess).toBe(true);

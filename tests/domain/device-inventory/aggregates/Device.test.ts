@@ -215,7 +215,7 @@ describe('Device', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('required field validation', () => {
+    describe('[DEV-040] required field validation', () => {
       it('should fail when deviceModelId is null', () => {
         const result = Device.create(
           makeProps({
@@ -267,7 +267,7 @@ describe('Device', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('description invariant', () => {
+    describe('[DEV-052] description invariant', () => {
       it('should fail when description exceeds 500 characters', () => {
         const result = Device.create(
           makeProps({ description: 'A'.repeat(501) })
@@ -287,7 +287,7 @@ describe('Device', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('installedDate invariant', () => {
+    describe('[DEV-051] installedDate invariant', () => {
       it('should fail when installedDate is not a valid Date', () => {
         const result = Device.create(
           makeProps({
@@ -319,7 +319,7 @@ describe('Device', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('monitoringEnabled invariant', () => {
+    describe('[DEV-057] [DEV-058] monitoringEnabled invariant', () => {
       it('should fail when monitoringEnabled is true and status is INVENTORY', () => {
         const result = Device.create(
           makeProps({
@@ -405,7 +405,7 @@ describe('Device', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('INVENTORY / DAMAGED status invariant', () => {
+    describe('[DEV-053] INVENTORY / DAMAGED status invariant', () => {
       it('should fail when INVENTORY status has neither serialNumber nor macAddress', () => {
         const result = Device.create(
           makeProps({
@@ -470,7 +470,7 @@ describe('Device', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('ACTIVE status invariant', () => {
+    describe('[DEV-054] [DEV-055] ACTIVE status invariant', () => {
       it('should fail when ACTIVE status has no ipAddress', () => {
         const result = Device.create(
           makeProps({
@@ -511,7 +511,7 @@ describe('Device', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('COMMISSIONING status invariant', () => {
+    describe('[DEV-056] [DEV-058] COMMISSIONING status invariant', () => {
       it('should fail when creating a COMMISSIONING device without an IP address', () => {
         const result = Device.create(
           makeProps({
@@ -646,7 +646,7 @@ describe('Device', () => {
   });
 
   // =========================================================================
-  describe('reconstitute()', () => {
+  describe('[DEV-061] reconstitute()', () => {
     it('should return a Device instance without emitting domain events', () => {
       const id = DeviceId.create();
       const now = new Date();
@@ -812,7 +812,7 @@ describe('Device', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('INVENTORY / DAMAGED transition invariant', () => {
+    describe('[DEV-053] INVENTORY / DAMAGED transition invariant', () => {
       it('should fail when transitioning to INVENTORY without a serial number or MAC address', () => {
         const device = Device.reconstitute(DeviceId.create(), {
           ...makeProps({
@@ -874,7 +874,7 @@ describe('Device', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('monitoringEnabled invariant', () => {
+    describe('[DEV-057] monitoringEnabled invariant', () => {
       it('should fail to transition to INVENTORY while monitoring is enabled', () => {
         const device = makeDevice({
           status: DeviceStatus.createActive(),
@@ -924,7 +924,7 @@ describe('Device', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('COMMISSIONING status invariant', () => {
+    describe('[DEV-056] [DEV-059] COMMISSIONING status invariant', () => {
       it('should fail when transitioning to COMMISSIONING without an IP address', () => {
         const device = makeDevice({
           status: DeviceStatus.createInventory(),
@@ -1103,7 +1103,7 @@ describe('Device', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('invariant enforcement', () => {
+    describe('[DEV-055] invariant enforcement', () => {
       it('should fail to unassign the location of an ACTIVE device', () => {
         const locationId = LocationId.create();
         const device = makeDevice({
@@ -1310,7 +1310,7 @@ describe('Device', () => {
 
   // =========================================================================
   describe('updateDetails()', () => {
-    describe('name update', () => {
+    describe('[DEV-041] name update', () => {
       it('should update the name when a valid DeviceName is provided', () => {
         const device = makeDevice();
         device.updateDetails({
@@ -1322,7 +1322,7 @@ describe('Device', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('description update', () => {
+    describe('[DEV-052] description update', () => {
       it('should update the description when a valid string is provided', () => {
         const device = makeDevice();
         device.updateDetails({ description: 'New description' });
@@ -1365,7 +1365,7 @@ describe('Device', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('category update', () => {
+    describe('[DEV-043] category update', () => {
       it('should update the category', () => {
         const device = makeDevice();
         device.updateDetails({
@@ -1387,7 +1387,7 @@ describe('Device', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('serialNumber update', () => {
+    describe('[DEV-045] serialNumber update', () => {
       it('should update the serial number when a valid SerialNumber is provided', () => {
         const device = makeDevice();
         device.updateDetails({
@@ -1422,7 +1422,7 @@ describe('Device', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('ownerType update', () => {
+    describe('[DEV-044] ownerType update', () => {
       it('should update the ownerType', () => {
         const device = makeDevice({
           ownerType: DeviceOwnerType.COMPANY
@@ -1434,7 +1434,7 @@ describe('Device', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('installedDate update', () => {
+    describe('[DEV-051] installedDate update', () => {
       it('should update the installedDate', () => {
         const device = makeDevice();
         const date = new Date('2023-06-01T00:00:00Z');
@@ -1564,6 +1564,51 @@ describe('Device', () => {
 
       device.assignLocation(null);
       expect(device.locationId).toBeNull();
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-062] canHaveWirelessConfig()', () => {
+    it('should return true for a WIRELESS_CPE device', () => {
+      const device = makeDevice({
+        category: DeviceCategory.createWirelessCpe()
+      });
+
+      expect(device.canHaveWirelessConfig()).toBe(true);
+    });
+
+    it('should return true for an AP device', () => {
+      const device = makeDevice({ category: DeviceCategory.createAp() });
+
+      expect(device.canHaveWirelessConfig()).toBe(true);
+    });
+
+    it('should return false for a CPE device', () => {
+      const device = makeDevice({ category: DeviceCategory.createCpe() });
+
+      expect(device.canHaveWirelessConfig()).toBe(false);
+    });
+
+    it('should return false for a ROUTERBOARD device', () => {
+      const device = makeDevice({
+        category: DeviceCategory.createRouterboard()
+      });
+
+      expect(device.canHaveWirelessConfig()).toBe(false);
+    });
+
+    it('should return false for a SMART_SWITCH device', () => {
+      const device = makeDevice({
+        category: DeviceCategory.createSmartSwitch()
+      });
+
+      expect(device.canHaveWirelessConfig()).toBe(false);
+    });
+
+    it('should return false when the device has no category', () => {
+      const device = makeDevice({ category: null });
+
+      expect(device.canHaveWirelessConfig()).toBe(false);
     });
   });
 
@@ -1903,7 +1948,7 @@ describe('Device', () => {
   });
 
   // =========================================================================
-  describe('updateDetails() — macAddress and ipAddress fields', () => {
+  describe('[DEV-046] [DEV-048] updateDetails() — macAddress and ipAddress fields', () => {
     it('should update macAddress when a valid MACAddress is provided', () => {
       const mac = MACAddress.create('11:22:33:44:55:66').value;
       const device = makeDevice({ macAddress: null });

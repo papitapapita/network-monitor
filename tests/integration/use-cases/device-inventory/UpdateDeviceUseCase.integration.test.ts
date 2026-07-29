@@ -80,7 +80,7 @@ describe('UpdateDeviceUseCase — integration', () => {
     expect(result.value.status).toBe('ACTIVE');
   });
 
-  it('fails to activate a device that has no location', async () => {
+  it('[DEV-055] fails to activate a device that has no location', async () => {
     const id = await createDevice({ ipAddress: '10.1.0.2' });
 
     const result = await updateUseCase.execute({ id, status: 'ACTIVE' });
@@ -132,7 +132,7 @@ describe('UpdateDeviceUseCase — integration', () => {
     expect(config!.enabled).toBe(true);
   });
 
-  it('updating MAC to its own current value does not fail', async () => {
+  it('[DEV-047] updating MAC to its own current value does not fail', async () => {
     const mac = 'AA:BB:CC:DD:EE:01';
     const id = await createDevice({ macAddress: mac });
 
@@ -146,7 +146,7 @@ describe('UpdateDeviceUseCase — integration', () => {
   // Uniqueness and validation failures
   // ──────────────────────────────────────────────────────────────
 
-  it('fails when updating MAC to another device\'s MAC', async () => {
+  it('[DEV-047] fails when updating MAC to another device\'s MAC', async () => {
     const mac = 'AA:BB:CC:DD:EE:02';
     await createDevice({ macAddress: mac, name: 'First Device' });
     const secondId = await createDevice({ name: 'Second Device' });
@@ -157,7 +157,7 @@ describe('UpdateDeviceUseCase — integration', () => {
     expect(result.error).toMatch(/MAC address/i);
   });
 
-  it('fails when updating IP to another device\'s IP', async () => {
+  it('[DEV-049] fails when updating IP to another device\'s IP', async () => {
     const ip = '10.200.0.1';
     await createDevice({ ipAddress: ip, name: 'First Device' });
     const secondId = await createDevice({ name: 'Second Device' });
@@ -168,7 +168,7 @@ describe('UpdateDeviceUseCase — integration', () => {
     expect(result.error).toMatch(/IP address/i);
   });
 
-  it('fails with an invalid status enum', async () => {
+  it('[DEV-042] fails with an invalid status enum', async () => {
     const id = await createDevice();
 
     const result = await updateUseCase.execute({ id, status: 'EXPLODED' as any });

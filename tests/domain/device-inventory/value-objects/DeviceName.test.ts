@@ -4,7 +4,7 @@ import { DeviceName } from '../../../../src/domain/device-inventory';
 
 describe('DeviceName', () => {
   // =========================================================================
-  describe('create()', () => {
+  describe('[DEV-041] create()', () => {
     describe('happy path', () => {
       it('should return a successful Result for a valid name', () => {
         const result = DeviceName.create('Core-Router-01');

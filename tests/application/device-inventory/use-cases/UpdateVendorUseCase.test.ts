@@ -147,7 +147,7 @@ describe('UpdateVendorUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — slug update', () => {
+  describe('[DEV-003] executeImpl — slug update', () => {
     it('should fail when the new slug is already taken by a different vendor', async () => {
       const otherVendor = makeVendor({ id: OTHER_UUID, slug: 'ubiquiti' });
       (repo.findBySlug as any).mockResolvedValue(Result.ok(otherVendor));

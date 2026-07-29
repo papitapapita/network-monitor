@@ -72,7 +72,7 @@ describe('CreateVendorUseCase — integration', () => {
   // Duplicate slug
   // ──────────────────────────────────────────────────────────────
 
-  it('fails with isFailure=true when slug already exists', async () => {
+  it('[DEV-003] fails with isFailure=true when slug already exists', async () => {
     await useCase.execute({ name: 'First Vendor', slug: 'duplicate-slug' });
 
     const second = await useCase.execute({ name: 'Second Vendor', slug: 'duplicate-slug' });
@@ -85,14 +85,14 @@ describe('CreateVendorUseCase — integration', () => {
   // Validation failures
   // ──────────────────────────────────────────────────────────────
 
-  it('fails with isFailure=true when name is empty', async () => {
+  it('[DEV-001] fails with isFailure=true when name is empty', async () => {
     const result = await useCase.execute({ name: '', slug: 'valid-slug' });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/name/i);
   });
 
-  it('fails with isFailure=true when slug is empty', async () => {
+  it('[DEV-002] fails with isFailure=true when slug is empty', async () => {
     const result = await useCase.execute({ name: 'Valid Name', slug: '' });
 
     expect(result.isFailure).toBe(true);

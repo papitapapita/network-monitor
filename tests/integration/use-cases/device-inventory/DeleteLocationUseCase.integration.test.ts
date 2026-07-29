@@ -71,7 +71,7 @@ describe('DeleteLocationUseCase — integration', () => {
   // Guard: location has assigned devices
   // ──────────────────────────────────────────────────────────────
 
-  it('fails with a "Cannot delete" error when the location has assigned devices', async () => {
+  it('[DEV-097] fails with a "Cannot delete" error when the location has assigned devices', async () => {
     const locationId = await seedLocation(prisma);
     const deviceModelId = await seedDeviceModel(prisma);
 
@@ -93,7 +93,7 @@ describe('DeleteLocationUseCase — integration', () => {
     expect(result.error).toMatch(/Cannot delete/i);
   });
 
-  it('does not remove the location row when devices are assigned', async () => {
+  it('[DEV-097] does not remove the location row when devices are assigned', async () => {
     const locationId = await seedLocation(prisma);
     const deviceModelId = await seedDeviceModel(prisma);
 
@@ -117,7 +117,7 @@ describe('DeleteLocationUseCase — integration', () => {
     expect(row).not.toBeNull();
   });
 
-  it('succeeds once all devices are removed from the location', async () => {
+  it('[DEV-097] succeeds once all devices are removed from the location', async () => {
     const locationId = await seedLocation(prisma);
     const deviceModelId = await seedDeviceModel(prisma);
 

@@ -100,7 +100,7 @@ describe('CreateDeviceModelUseCase', () => {
   });
 
   // =========================================================================
-  describe('beforeExecute — required field validation', () => {
+  describe('[DEV-020] [DEV-024] beforeExecute — required field validation', () => {
     it('should fail when vendorId is an empty string', async () => {
       const result = await useCase.execute({
         vendorId: '',
@@ -201,7 +201,7 @@ describe('CreateDeviceModelUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — vendor lookup', () => {
+  describe('[DEV-021] executeImpl — vendor lookup', () => {
     it('should fail when vendor is not found', async () => {
       (vendorRepo.findById as any).mockResolvedValue(Result.ok(null));
 
@@ -231,7 +231,7 @@ describe('CreateDeviceModelUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — model uniqueness check', () => {
+  describe('[DEV-022] executeImpl — model uniqueness check', () => {
     it('should fail when the model already exists for this vendor', async () => {
       (deviceModelRepo.existsByVendorAndModel as any).mockResolvedValue(Result.ok(true));
 

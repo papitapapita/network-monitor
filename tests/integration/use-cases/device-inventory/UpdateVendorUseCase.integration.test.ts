@@ -73,7 +73,7 @@ describe('UpdateVendorUseCase — integration', () => {
   // Slug conflict
   // ──────────────────────────────────────────────────────────────
 
-  it('fails when the new slug is already taken by another vendor', async () => {
+  it('[DEV-003] fails when the new slug is already taken by another vendor', async () => {
     await seedVendor(prisma, { name: 'Alpha', slug: 'alpha-vendor' });
     const betaId = await seedVendor(prisma, { name: 'Beta', slug: 'beta-vendor' });
 

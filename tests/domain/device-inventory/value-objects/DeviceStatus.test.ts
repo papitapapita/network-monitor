@@ -4,7 +4,7 @@ import { DeviceStatus } from '../../../../src/domain/device-inventory';
 
 describe('DeviceStatus', () => {
   // =========================================================================
-  describe('create()', () => {
+  describe('[DEV-042] create()', () => {
     describe('happy path', () => {
       it('should succeed for ACTIVE', () => {
         const result = DeviceStatus.create('ACTIVE');

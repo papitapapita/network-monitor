@@ -71,7 +71,7 @@ describe('Location Routes — /api/locations', () => {
       });
     });
 
-    it('400 — rejects missing name', async () => {
+    it('[DEV-090] 400 — rejects missing name', async () => {
       const res = await request(app)
         .post('/api/locations')
         .set('Authorization', `Bearer ${token}`)
@@ -80,7 +80,7 @@ describe('Location Routes — /api/locations', () => {
       expect(res.status).toBe(400);
     });
 
-    it('400 — rejects missing type', async () => {
+    it('[DEV-091] 400 — rejects missing type', async () => {
       const res = await request(app)
         .post('/api/locations')
         .set('Authorization', `Bearer ${token}`)
@@ -89,7 +89,7 @@ describe('Location Routes — /api/locations', () => {
       expect(res.status).toBe(400);
     });
 
-    it('400 — rejects invalid location type', async () => {
+    it('[DEV-091] 400 — rejects invalid location type', async () => {
       const res = await request(app)
         .post('/api/locations')
         .set('Authorization', `Bearer ${token}`)
@@ -98,7 +98,7 @@ describe('Location Routes — /api/locations', () => {
       expect(res.status).toBe(400);
     });
 
-    it('400 — rejects latitude without longitude', async () => {
+    it('[DEV-092] 400 — rejects latitude without longitude', async () => {
       const res = await request(app)
         .post('/api/locations')
         .set('Authorization', `Bearer ${token}`)
@@ -107,7 +107,7 @@ describe('Location Routes — /api/locations', () => {
       expect(res.status).toBe(400);
     });
 
-    it('400 — rejects longitude without latitude', async () => {
+    it('[DEV-092] 400 — rejects longitude without latitude', async () => {
       const res = await request(app)
         .post('/api/locations')
         .set('Authorization', `Bearer ${token}`)
@@ -116,7 +116,7 @@ describe('Location Routes — /api/locations', () => {
       expect(res.status).toBe(400);
     });
 
-    it('401 — rejects request with no token', async () => {
+    it('[DEV-140] 401 — rejects request with no token', async () => {
       const res = await request(app)
         .post('/api/locations')
         .send({ name: 'Tower Norte', type: 'TOWER' });
@@ -289,7 +289,7 @@ describe('Location Routes — /api/locations', () => {
       expect(res.status).toBe(404);
     });
 
-    it('400 — rejects unpaired coordinate update', async () => {
+    it('[DEV-092] 400 — rejects unpaired coordinate update', async () => {
       const create = await request(app)
         .post('/api/locations')
         .set('Authorization', `Bearer ${token}`)
@@ -351,7 +351,7 @@ describe('Location Routes — /api/locations', () => {
       expect(res.status).toBe(400);
     });
 
-    it('409 — returns conflict when devices are assigned to the location', async () => {
+    it('[DEV-097] 409 — returns conflict when devices are assigned to the location', async () => {
       const locationId = await seedLocation(prisma);
       const deviceModelId = await seedDeviceModel(prisma);
 
@@ -375,7 +375,7 @@ describe('Location Routes — /api/locations', () => {
       expect(res.body.error).toMatch(/Cannot delete/i);
     });
 
-    it('401 — rejects request with no token', async () => {
+    it('[DEV-140] 401 — rejects request with no token', async () => {
       const locationId = await seedLocation(prisma);
 
       const res = await request(app).delete(
@@ -385,7 +385,7 @@ describe('Location Routes — /api/locations', () => {
       expect(res.status).toBe(401);
     });
 
-    it('403 — VIEWER cannot delete a location', async () => {
+    it('[DEV-141] 403 — VIEWER cannot delete a location', async () => {
       const locationId = await seedLocation(prisma);
       const viewerToken = await seedAndGetToken(app, prisma, 'VIEWER');
 

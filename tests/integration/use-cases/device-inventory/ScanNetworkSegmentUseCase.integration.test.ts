@@ -88,38 +88,38 @@ describe('ScanNetworkSegmentUseCase — integration', () => {
   // scannedCount — usable host arithmetic per prefix length
   // ──────────────────────────────────────────────────────────────
 
-  it('excludes network and broadcast addresses for a /24', async () => {
+  it('[DEV-143] excludes network and broadcast addresses for a /24', async () => {
     const result = await useCase.execute({ segment: '192.168.1.0/24' });
 
     expect(result.value.scannedCount).toBe(254);
   });
 
-  it('excludes network and broadcast addresses for a /16', async () => {
+  it('[DEV-143] excludes network and broadcast addresses for a /16', async () => {
     const result = await useCase.execute({ segment: '10.0.0.0/16' });
 
     expect(result.value.scannedCount).toBe(65534);
   });
 
-  it('counts both addresses in a /31 point-to-point link', async () => {
+  it('[DEV-143] counts both addresses in a /31 point-to-point link', async () => {
     const result = await useCase.execute({ segment: '10.0.0.0/31' });
 
     expect(result.value.scannedCount).toBe(2);
   });
 
-  it('counts the single address in a /32', async () => {
+  it('[DEV-143] counts the single address in a /32', async () => {
     const result = await useCase.execute({ segment: '10.0.0.1/32' });
 
     expect(result.value.scannedCount).toBe(1);
   });
 
-  it('reports zero scanned for a segment with no prefix', async () => {
+  it('[DEV-143] reports zero scanned for a segment with no prefix', async () => {
     const result = await useCase.execute({ segment: '10.0.0.1' });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.scannedCount).toBe(0);
   });
 
-  it('reports zero scanned for an out-of-range prefix', async () => {
+  it('[DEV-143] reports zero scanned for an out-of-range prefix', async () => {
     const result = await useCase.execute({ segment: '10.0.0.0/33' });
 
     expect(result.isSuccess).toBe(true);
@@ -130,14 +130,14 @@ describe('ScanNetworkSegmentUseCase — integration', () => {
   // Validation failures
   // ──────────────────────────────────────────────────────────────
 
-  it('fails when segment is empty', async () => {
+  it('[DEV-143] fails when segment is empty', async () => {
     const result = await useCase.execute({ segment: '' });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/segment is required/i);
   });
 
-  it('fails when segment is only whitespace', async () => {
+  it('[DEV-143] fails when segment is only whitespace', async () => {
     const result = await useCase.execute({ segment: '   ' });
 
     expect(result.isFailure).toBe(true);

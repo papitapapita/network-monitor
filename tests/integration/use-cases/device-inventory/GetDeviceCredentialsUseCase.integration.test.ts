@@ -70,7 +70,7 @@ describe('GetDeviceCredentialsUseCase — integration', () => {
   // Happy path — round trip through encryption
   // ──────────────────────────────────────────────────────────────
 
-  it('retrieves stored HTTP credentials with the password masked', async () => {
+  it('[DEV-128] retrieves stored HTTP credentials with the password masked', async () => {
     const stored = await setCredentials.execute({
       deviceId,
       httpUsername: 'ubnt',
@@ -89,7 +89,7 @@ describe('GetDeviceCredentialsUseCase — integration', () => {
     expect(result.value.hasHttpCredentials).toBe(true);
   });
 
-  it('retrieves stored SNMPv3 credentials with secrets masked', async () => {
+  it('[DEV-128] retrieves stored SNMPv3 credentials with secrets masked', async () => {
     const stored = await setCredentials.execute({
       deviceId,
       httpUsername: 'ubnt',
@@ -115,7 +115,7 @@ describe('GetDeviceCredentialsUseCase — integration', () => {
     expect(result.value.hasSnmpCredentials).toBe(true);
   });
 
-  it('never returns a plaintext secret in the DTO', async () => {
+  it('[DEV-128] never returns a plaintext secret in the DTO', async () => {
     await setCredentials.execute({
       deviceId,
       httpUsername: 'ubnt',
@@ -129,7 +129,7 @@ describe('GetDeviceCredentialsUseCase — integration', () => {
     );
   });
 
-  it('reports hasSnmpCredentials=false when only HTTP is configured', async () => {
+  it('[DEV-128] reports hasSnmpCredentials=false when only HTTP is configured', async () => {
     await setCredentials.execute({
       deviceId,
       httpUsername: 'ubnt',
@@ -148,7 +148,7 @@ describe('GetDeviceCredentialsUseCase — integration', () => {
   // Not found / validation failures
   // ──────────────────────────────────────────────────────────────
 
-  it('fails when the device has no credentials configured', async () => {
+  it('[DEV-131] fails when the device has no credentials configured', async () => {
     const result = await useCase.execute({ deviceId });
 
     expect(result.isFailure).toBe(true);

@@ -154,7 +154,7 @@ describe('UpdateDeviceUseCase', () => {
   });
 
   // =========================================================================
-  describe('beforeExecute — validation', () => {
+  describe('[DEV-042] [DEV-043] [DEV-044] beforeExecute — validation', () => {
     it('should fail when id is an empty string', async () => {
       const result = await useCase.execute(makeRequest({ id: '' }));
 
@@ -247,7 +247,7 @@ describe('UpdateDeviceUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — status change', () => {
+  describe('[DEV-054] executeImpl — status change', () => {
     it('should succeed when a valid status is provided', async () => {
       repo.findById.mockResolvedValue(
         Result.ok(makePersistedDevice({ locationId: VALID_LOCATION_ID }))
@@ -340,7 +340,7 @@ describe('UpdateDeviceUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — monitoring toggle', () => {
+  describe('[DEV-057] executeImpl — monitoring toggle', () => {
     it('should enable monitoring when monitoringEnabled is true', async () => {
       repo.findById.mockResolvedValue(
         Result.ok(
@@ -386,7 +386,7 @@ describe('UpdateDeviceUseCase', () => {
       expect(result.value!.monitoringEnabled).toBe(false);
     });
 
-    it('should allow moving to DAMAGED while disabling monitoring in the same request', async () => {
+    it('[DEV-060] should allow moving to DAMAGED while disabling monitoring in the same request', async () => {
       // Regression test: an ACTIVE device with monitoring on must be able to move to
       // DAMAGED and turn monitoring off in one PATCH, without the status-change validation
       // reading the still-true (not-yet-updated) monitoringEnabled and rejecting it.
@@ -407,7 +407,7 @@ describe('UpdateDeviceUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — MAC address uniqueness', () => {
+  describe('[DEV-046] [DEV-047] executeImpl — MAC address uniqueness', () => {
     it('should fail when MAC address format is invalid', async () => {
       const result = await useCase.execute(
         makeRequest({ macAddress: 'not-a-mac' })
@@ -487,7 +487,7 @@ describe('UpdateDeviceUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — IP address uniqueness', () => {
+  describe('[DEV-048] [DEV-049] executeImpl — IP address uniqueness', () => {
     it('should fail when IP format is invalid', async () => {
       const result = await useCase.execute(
         makeRequest({ ipAddress: '999.999.999.999' })
@@ -549,7 +549,7 @@ describe('UpdateDeviceUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — updateDetails', () => {
+  describe('[DEV-050] executeImpl — updateDetails', () => {
     it('should succeed when name is provided', async () => {
       const result = await useCase.execute(
         makeRequest({ name: 'Updated-Router' })

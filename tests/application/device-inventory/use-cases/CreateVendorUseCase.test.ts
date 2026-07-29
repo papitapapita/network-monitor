@@ -59,7 +59,7 @@ describe('CreateVendorUseCase', () => {
   });
 
   // =========================================================================
-  describe('beforeExecute — required field validation', () => {
+  describe('[DEV-001] [DEV-002] beforeExecute — required field validation', () => {
     it('should fail when name is an empty string', async () => {
       const result = await useCase.execute({ name: '', slug: 'mikrotik' });
 
@@ -104,7 +104,7 @@ describe('CreateVendorUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — slug conflict check', () => {
+  describe('[DEV-003] executeImpl — slug conflict check', () => {
     it('should fail when a vendor with the same slug already exists', async () => {
       (repo.existsBySlug as any).mockResolvedValue(Result.ok(true));
 

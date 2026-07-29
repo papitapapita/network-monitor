@@ -208,6 +208,29 @@ _Main user-facing features still missing._
 
 - [ ] **Normalize timestamps** — use NTP for consistent log timestamps across devices
 
+- [ ] **Business rules catalogue — remaining contexts + CI** — finish `docs/business-rules/`
+  - Device Inventory is done: `DEV-001`–`DEV-143` (63 rules), every rule tagged in unit + integration tests, `npm run test:rules DEV` reports 63/63
+  - Remaining seven contexts, each its own file and ID prefix: `CUS` (customers), `BIL` (billing), `MON` (device-monitoring), `WLS` (wireless-monitoring), `NOT` (notifications), `IDN` (identity), `SHR` (shared kernel)
+  - `WLS` is the big one — the 14 rule files in `src/domain/wireless-monitoring/services/rules/` are all Policy with hardcoded thresholds and hysteresis bands; overlaps with the "Define which alerts actually notify" item in Priority 3, and writing the rules down first would make that decision concrete
+  - Wire `npm run test:rules` into CI once all contexts are written (until then run it scoped to a prefix — an unscoped run reports nothing for contexts with no rules declared)
+  - ~20 rationales in `device-inventory.md` are marked `_(inferred)_` — reconstructed from code, not stated by the business. Worth a pass to confirm or correct; a wrong "why" justifies the wrong future change
+
+- [ ] **Triage the 8 gaps found while writing the device-inventory rules** — see the "Known gaps" section of `docs/business-rules/device-inventory.md`
+  - **G-1** MAC and IP uniqueness are check-then-write in the use case with no unique index — concurrent requests can both insert. The two worth acting on, with G-6
+  - **G-6** credentials reuse the generic `update` permission, so any OPERATOR can set device passwords
+  - **G-2** `deviceType` non-emptiness is only checked on create, not on `updateDeviceType` — resolved by the in-flight `DeviceType` value object refactor
+  - **G-3** renaming a vendor does not propagate to the denormalized copies on its device models
+  - **G-4** wireless-config cleanup on `isWireless: true → false` is fire-and-forget; failures are swallowed and the use case still reports success
+  - **G-5** the `installedDate` error message promises ISO 8601 but the check accepts anything `new Date()` parses
+  - **G-7** filtered device listings load the full matching set and paginate in memory
+  - **G-8** `Vendor.name` is `@unique` in Prisma but unchecked in code, so a duplicate name surfaces as a raw Prisma error instead of a clean message
+
+- [ ] **Update the rule book for the DeviceType / LocationType refactor** — the in-flight working-tree changes invalidate two written rules
+  - `DEV-024` documents device type as a free-form string; it is becoming a closed `DeviceType` value object (`ANTENNA`, `OTHER`, `RADIO`, `ROUTER`, `ROUTERBOARD`, `SERVER`, `SWITCH`)
+  - `DEV-091` documents `LocationType` as an enum at `src/domain/device-inventory/enums/LocationType.ts`, which is deleted in the working tree
+  - The coverage script will **not** catch this — it checks that a test cites a rule, never that the rule still describes the code
+  - Also finish the refactor itself: `src/domain/device-inventory/value-objects/DeviceType.ts` imports `DeviceTypeProps` which does not exist in `../props`, so 21 device-inventory suites currently fail to compile
+
 - [ ] **OpenAPI spec + typed frontend client** — replace the hand-maintained `docs/BACKEND_API.md` with a generated contract
   - Generate `openapi.json` from Express controllers using `tsoa` or `zod-to-openapi`
   - Frontend consumes it via `openapi-typescript` to get fully typed fetch calls with zero manual sync
@@ -230,3 +253,15 @@ _Main user-facing features still missing._
 - [x] Authentication & authorization module — `identity` BC, JWT, `ROLE_PERMISSIONS`, rate limiting, audit log, Helmet/CORS, bcrypt (2026-06-08)
 - [x] Network map view (backend) — `GET /api/locations/map` returns `MapPinDTO[]`; frontend rendering tracked in the frontend repo (2026-06-10)
 - [x] Update README.md (2026-07-06)
+- [x] Business rules catalogue — Device Inventory (2026-07-28)
+  - `docs/business-rules/` — one file per bounded context, permanent `<CTX>-<NNN>` IDs, each rule tagged Invariant / Validation / Policy with its rationale, enforcement site, failure message and call paths
+  - `device-inventory.md` — 63 rules (`DEV-001`–`DEV-143`) covering Vendor, DeviceModel, Device, Location, Credentials, and cross-cutting access/listing/discovery
+  - Rule IDs in every device-inventory test name, unit and integration (`it('[DEV-054] …')`), so `npx jest -t "DEV-054"` selects one rule's tests
+  - `npm run test:rules` — cross-checks the rule book against the suite; fails on a rule with no test **and** on a test citing an ID no rule declares. Device Inventory is at 63/63
+  - The check found four rules nothing verified: `DEV-025`, `DEV-028`, `DEV-062` (an invariant), `DEV-129` (secrets in logs). Tests written for all four
+  - The loose bullet list that used to sit at the bottom of this file is superseded by `device-inventory.md`, which carries the same rules plus rationale, IDs and enforcement anchors
+
+> **Business rules live in [`docs/business-rules/`](business-rules/README.md), not here.**
+> Any code change touching an invariant, validation or policy updates the matching
+> entry in the same change — see the standing rule in that README.
+

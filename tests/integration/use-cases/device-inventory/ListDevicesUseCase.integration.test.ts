@@ -79,7 +79,7 @@ describe('ListDevicesUseCase — integration', () => {
     expect(result.value.hasMore).toBe(false);
   });
 
-  it('applies limit and offset for pagination', async () => {
+  it('[DEV-142] applies limit and offset for pagination', async () => {
     for (let i = 1; i <= 5; i++) {
       await createUseCase.execute({
         deviceModelId,

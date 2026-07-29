@@ -98,7 +98,7 @@ describe('GetMapLocationsUseCase — integration', () => {
   // The filter that defines this use case: coordinates required
   // ──────────────────────────────────────────────────────────────
 
-  it('excludes locations that have no coordinates', async () => {
+  it('[DEV-098] excludes locations that have no coordinates', async () => {
     await createTower('Mapped Tower', -22.9, -47.06);
     await createTower('Unmapped Tower', null, null);
 
@@ -196,7 +196,7 @@ describe('GetMapLocationsUseCase — integration', () => {
     expect(device.monitoringEnabled).toBe(false);
   });
 
-  it('does not attach devices that have no location', async () => {
+  it('[DEV-098] does not attach devices that have no location', async () => {
     await createTower('Tower A', -22.9, -47.06);
 
     const orphan = await createDevice.execute({

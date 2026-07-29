@@ -12,6 +12,7 @@
     "start": "node --env-file=.env.production dist/main.js",
     "test": "jest",
     "test:watch": "jest --watch",
+    "test:rules": "node scripts/check-rule-coverage.mjs",
     "test:integration": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js --runInBand",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:prod": "NODE_ENV=production prisma migrate deploy",

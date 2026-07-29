@@ -95,7 +95,7 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
     expect(row!.httpPassword!.split(':')).toHaveLength(3);
   });
 
-  it('defaults httpPort to 443 and snmpPort to 161', async () => {
+  it('[DEV-127] defaults httpPort to 443 and snmpPort to 161', async () => {
     const result = await useCase.execute({
       deviceId,
       httpUsername: 'ubnt',
@@ -186,7 +186,7 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
   // Stored SNMP keys survive an HTTP-only save
   // ──────────────────────────────────────────────────────────────
 
-  it('keeps stored SNMP keys when a later call sends HTTP credentials only', async () => {
+  it('[DEV-130] keeps stored SNMP keys when a later call sends HTTP credentials only', async () => {
     await useCase.execute({
       deviceId,
       httpUsername: 'ubnt',
@@ -237,7 +237,7 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
     expect(row!.snmpV3AuthKey!.split(':')).toHaveLength(3);
   });
 
-  it('clears a stored SNMP key when the request sends it as null', async () => {
+  it('[DEV-130] clears a stored SNMP key when the request sends it as null', async () => {
     await useCase.execute({
       deviceId,
       httpUsername: 'ubnt',
@@ -262,7 +262,7 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
   // Validation failures
   // ──────────────────────────────────────────────────────────────
 
-  it('fails when no HTTP credentials are supplied', async () => {
+  it('[DEV-120] fails when no HTTP credentials are supplied', async () => {
     const result = await useCase.execute({
       deviceId
     } as never);
@@ -273,7 +273,7 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
     );
   });
 
-  it('fails when only SNMP credentials are supplied', async () => {
+  it('[DEV-120] fails when only SNMP credentials are supplied', async () => {
     const result = await useCase.execute({
       deviceId,
       snmpVersion: 2,
@@ -286,7 +286,7 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
     );
   });
 
-  it('fails when httpPassword is missing', async () => {
+  it('[DEV-120] fails when httpPassword is missing', async () => {
     const result = await useCase.execute({
       deviceId,
       httpUsername: 'ubnt'
@@ -298,7 +298,7 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
     );
   });
 
-  it('fails when an SNMP field is sent without snmpVersion', async () => {
+  it('[DEV-122] fails when an SNMP field is sent without snmpVersion', async () => {
     const result = await useCase.execute({
       deviceId,
       httpUsername: 'ubnt',
@@ -312,7 +312,7 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
     );
   });
 
-  it('fails with an unsupported snmpVersion', async () => {
+  it('[DEV-123] fails with an unsupported snmpVersion', async () => {
     const result = await useCase.execute({
       deviceId,
       httpUsername: 'ubnt',
@@ -325,7 +325,7 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
     expect(result.error).toMatch(/snmpVersion must be 1, 2, or 3/i);
   });
 
-  it('fails when SNMPv2 is given without a community string', async () => {
+  it('[DEV-124] fails when SNMPv2 is given without a community string', async () => {
     const result = await useCase.execute({
       deviceId,
       httpUsername: 'ubnt',
@@ -337,7 +337,7 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
     expect(result.error).toMatch(/snmpCommunity is required/i);
   });
 
-  it('fails when SNMPv3 is given without an auth user', async () => {
+  it('[DEV-125] fails when SNMPv3 is given without an auth user', async () => {
     const result = await useCase.execute({
       deviceId,
       httpUsername: 'ubnt',
@@ -349,7 +349,7 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
     expect(result.error).toMatch(/snmpV3AuthUser is required/i);
   });
 
-  it('fails when SNMPv3 is given without an auth key', async () => {
+  it('[DEV-125] fails when SNMPv3 is given without an auth key', async () => {
     const result = await useCase.execute({
       deviceId,
       httpUsername: 'ubnt',
@@ -363,7 +363,7 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
     expect(result.error).toMatch(/snmpV3AuthKey is required/i);
   });
 
-  it('fails when a priv protocol is set without a priv key', async () => {
+  it('[DEV-126] fails when a priv protocol is set without a priv key', async () => {
     const result = await useCase.execute({
       deviceId,
       httpUsername: 'ubnt',
@@ -379,7 +379,7 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
     expect(result.error).toMatch(/snmpV3PrivKey is required/i);
   });
 
-  it('fails with an out-of-range snmpPort', async () => {
+  it('[DEV-127] fails with an out-of-range snmpPort', async () => {
     const result = await useCase.execute({
       deviceId,
       httpUsername: 'ubnt',
@@ -395,7 +395,7 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
     );
   });
 
-  it('fails with an out-of-range httpPort', async () => {
+  it('[DEV-127] fails with an out-of-range httpPort', async () => {
     const result = await useCase.execute({
       deviceId,
       httpUsername: 'ubnt',
@@ -413,7 +413,7 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
   // Device resolution failures
   // ──────────────────────────────────────────────────────────────
 
-  it('fails when the device does not exist (GHOST_ID)', async () => {
+  it('[DEV-121] fails when the device does not exist (GHOST_ID)', async () => {
     const result = await useCase.execute({
       deviceId: GHOST_ID,
       httpUsername: 'ubnt',

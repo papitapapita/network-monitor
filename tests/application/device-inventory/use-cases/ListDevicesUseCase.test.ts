@@ -483,7 +483,7 @@ describe('ListDevicesUseCase', () => {
   });
 
   // =========================================================================
-  describe('pagination — no-filter path limit caps', () => {
+  describe('[DEV-142] pagination — no-filter path limit caps', () => {
     beforeEach(() => {
       repo.findAll.mockResolvedValue(Result.ok([]));
       repo.count.mockResolvedValue(Result.ok(0));

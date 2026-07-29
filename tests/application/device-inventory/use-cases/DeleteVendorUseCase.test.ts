@@ -163,7 +163,7 @@ describe('DeleteVendorUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — device model guard', () => {
+  describe('[DEV-005] executeImpl — device model guard', () => {
     it('should fail when vendor has associated device models', async () => {
       const fakeModel = {} as DeviceModel;
       (deviceModelRepo.findByVendor as any).mockResolvedValue(Result.ok([fakeModel]));

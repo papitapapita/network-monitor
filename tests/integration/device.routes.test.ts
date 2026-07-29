@@ -79,7 +79,7 @@ describe('Device Routes — /api/devices', () => {
       });
     });
 
-    it('400 — rejects missing deviceModelId', async () => {
+    it('[DEV-040] 400 — rejects missing deviceModelId', async () => {
       const res = await request(app).post('/api/devices').send({
         name: 'Router',
         ownerType: 'COMPANY'
@@ -88,7 +88,7 @@ describe('Device Routes — /api/devices', () => {
       expect(res.status).toBe(400);
     });
 
-    it('400 — rejects missing name', async () => {
+    it('[DEV-040] 400 — rejects missing name', async () => {
       const res = await request(app).post('/api/devices').send({
         deviceModelId,
         ownerType: 'COMPANY'
@@ -97,7 +97,7 @@ describe('Device Routes — /api/devices', () => {
       expect(res.status).toBe(400);
     });
 
-    it('400 — rejects missing ownerType', async () => {
+    it('[DEV-044] 400 — rejects missing ownerType', async () => {
       const res = await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Router'
@@ -106,7 +106,7 @@ describe('Device Routes — /api/devices', () => {
       expect(res.status).toBe(400);
     });
 
-    it('400 — rejects invalid ownerType', async () => {
+    it('[DEV-044] 400 — rejects invalid ownerType', async () => {
       const res = await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Router',
@@ -116,7 +116,7 @@ describe('Device Routes — /api/devices', () => {
       expect(res.status).toBe(400);
     });
 
-    it('400 — rejects malformed MAC address', async () => {
+    it('[DEV-046] 400 — rejects malformed MAC address', async () => {
       const res = await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Router',
@@ -357,7 +357,7 @@ describe('Device Routes — /api/devices', () => {
       expect(res.status).toBe(404);
     });
 
-    it('400 — rejects invalid status value', async () => {
+    it('[DEV-042] 400 — rejects invalid status value', async () => {
       const create = await request(app).post('/api/devices').send({
         deviceModelId,
         name: 'Router',

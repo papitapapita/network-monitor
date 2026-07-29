@@ -59,7 +59,7 @@ describe('CreateDeviceModelUseCase — integration', () => {
   // Duplicate
   // ──────────────────────────────────────────────────────────────
 
-  it('fails when the same vendorId and model already exist', async () => {
+  it('[DEV-022] fails when the same vendorId and model already exist', async () => {
     await useCase.execute({ vendorId, model: 'hAP ac3', deviceType: 'ROUTER' });
 
     const second = await useCase.execute({ vendorId, model: 'hAP ac3', deviceType: 'ROUTER' });
@@ -82,7 +82,7 @@ describe('CreateDeviceModelUseCase — integration', () => {
     expect(result.isFailure).toBe(true);
   });
 
-  it('fails when the vendor does not exist (GHOST_ID as vendorId)', async () => {
+  it('[DEV-021] fails when the vendor does not exist (GHOST_ID as vendorId)', async () => {
     const result = await useCase.execute({
       vendorId: GHOST_ID,
       model: 'GhostModel',

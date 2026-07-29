@@ -79,7 +79,7 @@ describe('DeleteDeviceModelUseCase — integration', () => {
   // Guard: device model has associated devices
   // ──────────────────────────────────────────────────────────────
 
-  it('fails with a "Cannot delete" error when the device model has associated devices', async () => {
+  it('[DEV-026] fails with a "Cannot delete" error when the device model has associated devices', async () => {
     await seedMonitoredDevice(prisma, deviceModelId, '192.168.50.1');
 
     const result = await useCase.execute({ id: deviceModelId });

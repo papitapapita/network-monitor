@@ -4,7 +4,7 @@ import { DeviceCategory } from '../../../../src/domain/device-inventory';
 
 describe('DeviceCategory', () => {
   // =========================================================================
-  describe('create()', () => {
+  describe('[DEV-043] create()', () => {
     describe('happy path', () => {
       it('should succeed for CPE', () => {
         const result = DeviceCategory.create('CPE');

@@ -2,7 +2,8 @@
 
 import {
   DeviceModel,
-  DeviceModelProps
+  DeviceModelProps,
+  DeviceType
 } from '../../../../src/domain/device-inventory';
 import { DeviceModelId, VendorId } from '../../../../src/domain/shared';
 
@@ -20,7 +21,7 @@ function makeProps(
     vendorName: 'Cisco',
     vendorSlug: 'cisco',
     model: 'ISR-4321',
-    deviceType: 'Router',
+    deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
     isWireless: false,
     ...overrides
   };
@@ -87,9 +88,9 @@ describe('DeviceModel', () => {
       });
 
       it('should expose the provided deviceType', () => {
-        const deviceModel = makeDeviceModel({ deviceType: 'Switch' });
+        const deviceModel = makeDeviceModel({ deviceType: DeviceType.reconstitute(DeviceType.SWITCH) });
 
-        expect(deviceModel.deviceType).toBe('Switch');
+        expect(deviceModel.deviceType.value).toBe(DeviceType.SWITCH);
       });
 
       it('should set createdAt and updatedAt to recent timestamps', () => {
@@ -120,7 +121,29 @@ describe('DeviceModel', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('required field validation', () => {
+    describe('[DEV-025] isWireless default', () => {
+      it('should default isWireless to false when not provided', () => {
+        const props = makeProps();
+        delete (props as Partial<CreateDeviceModelProps>).isWireless;
+
+        const result = DeviceModel.create(
+          props as CreateDeviceModelProps
+        );
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.isWireless).toBe(false);
+      });
+
+      it('should respect an explicit isWireless=true', () => {
+        const result = DeviceModel.create(makeProps({ isWireless: true }));
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.isWireless).toBe(true);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('[DEV-020] required field validation', () => {
       it('should fail when vendorId is null', () => {
         const result = DeviceModel.create(
           makeProps({ vendorId: null as unknown as VendorId })
@@ -190,7 +213,7 @@ describe('DeviceModel', () => {
 
       it('should fail when deviceType is null', () => {
         const result = DeviceModel.create(
-          makeProps({ deviceType: null as unknown as string })
+          makeProps({ deviceType: null as unknown as DeviceType })
         );
 
         expect(result.isFailure).toBe(true);
@@ -199,7 +222,7 @@ describe('DeviceModel', () => {
 
       it('should fail when deviceType is undefined', () => {
         const result = DeviceModel.create(
-          makeProps({ deviceType: undefined as unknown as string })
+          makeProps({ deviceType: undefined as unknown as DeviceType })
         );
 
         expect(result.isFailure).toBe(true);
@@ -246,7 +269,7 @@ describe('DeviceModel', () => {
         vendorName: 'HP',
         vendorSlug: 'hp',
         model: 'ProCurve-2920',
-        deviceType: 'Switch',
+        deviceType: DeviceType.reconstitute(DeviceType.SWITCH),
         isWireless: false,
         createdAt,
         updatedAt
@@ -256,7 +279,7 @@ describe('DeviceModel', () => {
       expect(deviceModel.vendorName).toBe('HP');
       expect(deviceModel.vendorSlug).toBe('hp');
       expect(deviceModel.model).toBe('ProCurve-2920');
-      expect(deviceModel.deviceType).toBe('Switch');
+      expect(deviceModel.deviceType.value).toBe(DeviceType.SWITCH);
       expect(deviceModel.createdAt).toEqual(createdAt);
       expect(deviceModel.updatedAt).toEqual(updatedAt);
     });
@@ -322,7 +345,7 @@ describe('DeviceModel', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('validation failures', () => {
+    describe('[DEV-023] validation failures', () => {
       it('should fail when newModel is null', () => {
         const deviceModel = makeDeviceModel();
         const result = deviceModel.updateModel(null as unknown as string);
@@ -376,23 +399,29 @@ describe('DeviceModel', () => {
   describe('updateDeviceType()', () => {
     describe('happy path', () => {
       it('should return a successful Result when given a valid new device type', () => {
-        const deviceModel = makeDeviceModel({ deviceType: 'Router' });
-        const result = deviceModel.updateDeviceType('Switch');
+        const deviceModel = makeDeviceModel({ deviceType: DeviceType.reconstitute(DeviceType.ROUTER) });
+        const result = deviceModel.updateDeviceType(
+          DeviceType.reconstitute(DeviceType.SWITCH)
+        );
 
         expect(result.isSuccess).toBe(true);
       });
 
       it('should update the deviceType prop', () => {
-        const deviceModel = makeDeviceModel({ deviceType: 'Router' });
-        deviceModel.updateDeviceType('Switch');
+        const deviceModel = makeDeviceModel({ deviceType: DeviceType.reconstitute(DeviceType.ROUTER) });
+        deviceModel.updateDeviceType(
+          DeviceType.reconstitute(DeviceType.SWITCH)
+        );
 
-        expect(deviceModel.deviceType).toBe('Switch');
+        expect(deviceModel.deviceType.value).toBe(DeviceType.SWITCH);
       });
 
       it('should update updatedAt timestamp', () => {
-        const deviceModel = makeDeviceModel({ deviceType: 'Router' });
+        const deviceModel = makeDeviceModel({ deviceType: DeviceType.reconstitute(DeviceType.ROUTER) });
         const before = new Date();
-        deviceModel.updateDeviceType('Switch');
+        deviceModel.updateDeviceType(
+          DeviceType.reconstitute(DeviceType.SWITCH)
+        );
         const after = new Date();
 
         expect(deviceModel.updatedAt.getTime()).toBeGreaterThanOrEqual(
@@ -407,30 +436,32 @@ describe('DeviceModel', () => {
     // -----------------------------------------------------------------------
     describe('no-op when deviceType is unchanged', () => {
       it('should return a successful Result and emit no events', () => {
-        const deviceModel = makeDeviceModel({ deviceType: 'Router' });
+        const deviceModel = makeDeviceModel({ deviceType: DeviceType.reconstitute(DeviceType.ROUTER) });
         deviceModel.clearEvents();
-        const result = deviceModel.updateDeviceType('Router');
+        const result = deviceModel.updateDeviceType(
+          DeviceType.reconstitute(DeviceType.ROUTER)
+        );
 
         expect(result.isSuccess).toBe(true);
         expect(deviceModel.domainEvents.length).toBe(0);
       });
 
       it('should not change updatedAt when the value is the same', () => {
-        const deviceModel = makeDeviceModel({ deviceType: 'Router' });
+        const deviceModel = makeDeviceModel({ deviceType: DeviceType.reconstitute(DeviceType.ROUTER) });
         const updatedAtBefore = deviceModel.updatedAt;
-        deviceModel.updateDeviceType('Router');
+        deviceModel.updateDeviceType(
+          DeviceType.reconstitute(DeviceType.ROUTER)
+        );
 
         expect(deviceModel.updatedAt).toBe(updatedAtBefore);
       });
     });
 
     // -----------------------------------------------------------------------
-    describe('validation failures', () => {
+    describe('[DEV-024] validation failures', () => {
       it('should fail when newDeviceType is null', () => {
         const deviceModel = makeDeviceModel();
-        const result = deviceModel.updateDeviceType(
-          null as unknown as string
-        );
+        const result = deviceModel.updateDeviceType(null as unknown as DeviceType);
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('deviceType');
@@ -438,26 +469,24 @@ describe('DeviceModel', () => {
 
       it('should fail when newDeviceType is undefined', () => {
         const deviceModel = makeDeviceModel();
-        const result = deviceModel.updateDeviceType(
-          undefined as unknown as string
-        );
+        const result = deviceModel.updateDeviceType(undefined as unknown as DeviceType);
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('deviceType');
       });
 
       it('should not change the deviceType when validation fails', () => {
-        const deviceModel = makeDeviceModel({ deviceType: 'Router' });
-        deviceModel.updateDeviceType(null as unknown as string);
+        const deviceModel = makeDeviceModel({ deviceType: DeviceType.reconstitute(DeviceType.ROUTER) });
+        deviceModel.updateDeviceType(null as unknown as DeviceType);
 
-        expect(deviceModel.deviceType).toBe('Router');
+        expect(deviceModel.deviceType.value).toBe(DeviceType.ROUTER);
       });
     });
   });
 
   // =========================================================================
   describe('updateVendor()', () => {
-    describe('happy path', () => {
+    describe('[DEV-028] happy path', () => {
       it('should return a successful Result when given valid vendor data', () => {
         const deviceModel = makeDeviceModel();
         const newVendorId = VendorId.create();

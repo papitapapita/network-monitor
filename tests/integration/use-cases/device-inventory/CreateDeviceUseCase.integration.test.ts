@@ -54,7 +54,7 @@ describe('CreateDeviceUseCase — integration', () => {
   // Happy path
   // ──────────────────────────────────────────────────────────────
 
-  it('succeeds with required fields only and defaults status to INVENTORY', async () => {
+  it('[DEV-042] succeeds with required fields only and defaults status to INVENTORY', async () => {
     const result = await useCase.execute({
       deviceModelId,
       name: 'Core Router',
@@ -128,7 +128,7 @@ describe('CreateDeviceUseCase — integration', () => {
   // Validation failures
   // ──────────────────────────────────────────────────────────────
 
-  it('fails when deviceModelId is missing', async () => {
+  it('[DEV-040] fails when deviceModelId is missing', async () => {
     const result = await useCase.execute({
       deviceModelId: '',
       name: 'Router',
@@ -139,7 +139,7 @@ describe('CreateDeviceUseCase — integration', () => {
     expect(result.error).toMatch(/deviceModelId/i);
   });
 
-  it('fails when name is missing', async () => {
+  it('[DEV-040] fails when name is missing', async () => {
     const result = await useCase.execute({
       deviceModelId,
       name: '',
@@ -150,7 +150,7 @@ describe('CreateDeviceUseCase — integration', () => {
     expect(result.error).toMatch(/name/i);
   });
 
-  it('fails with an invalid ownerType', async () => {
+  it('[DEV-044] fails with an invalid ownerType', async () => {
     const result = await useCase.execute({
       deviceModelId,
       name: 'Router',
@@ -171,7 +171,7 @@ describe('CreateDeviceUseCase — integration', () => {
     expect(result.isFailure).toBe(true);
   });
 
-  it('fails on duplicate MAC address', async () => {
+  it('[DEV-047] fails on duplicate MAC address', async () => {
     const mac = 'AA:BB:CC:DD:EE:01';
 
     await useCase.execute({
@@ -192,7 +192,7 @@ describe('CreateDeviceUseCase — integration', () => {
     expect(second.error).toMatch(/MAC address/i);
   });
 
-  it('fails on duplicate IP address', async () => {
+  it('[DEV-049] fails on duplicate IP address', async () => {
     const ip = '10.10.0.1';
 
     await useCase.execute({
@@ -215,7 +215,7 @@ describe('CreateDeviceUseCase — integration', () => {
     expect(second.error).toMatch(/IP address/i);
   });
 
-  it('fails with an invalid MAC address format', async () => {
+  it('[DEV-046] fails with an invalid MAC address format', async () => {
     const result = await useCase.execute({
       deviceModelId,
       name: 'Router',

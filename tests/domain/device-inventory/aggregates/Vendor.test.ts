@@ -107,7 +107,7 @@ describe('Vendor', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('required field validation', () => {
+    describe('[DEV-001] required field validation', () => {
       it('should fail when name is null', () => {
         const result = Vendor.create(
           makeProps({ name: null as unknown as string })
@@ -197,7 +197,7 @@ describe('Vendor', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('slug format validation', () => {
+    describe('[DEV-002] slug format validation', () => {
       it('should succeed for a simple lowercase slug', () => {
         const result = Vendor.create(makeProps({ slug: 'cisco' }));
 
@@ -267,7 +267,7 @@ describe('Vendor', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('description validation', () => {
+    describe('[DEV-004] description validation', () => {
       it('should fail when description exceeds 500 characters', () => {
         const result = Vendor.create(
           makeProps({ description: 'A'.repeat(501) })
@@ -413,7 +413,7 @@ describe('Vendor', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('validation failures', () => {
+    describe('[DEV-001] validation failures', () => {
       it('should fail when newName is null', () => {
         const vendor = makeVendor();
         const result = vendor.updateName(null as unknown as string);
@@ -523,7 +523,7 @@ describe('Vendor', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('validation failures', () => {
+    describe('[DEV-002] validation failures', () => {
       it('should fail when newSlug is null', () => {
         const vendor = makeVendor();
         const result = vendor.updateSlug(null as unknown as string);
@@ -678,7 +678,7 @@ describe('Vendor', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('validation failures', () => {
+    describe('[DEV-004] validation failures', () => {
       it('should fail when description exceeds 500 characters', () => {
         const vendor = makeVendor({ description: null });
         const result = vendor.updateDescription('A'.repeat(501));

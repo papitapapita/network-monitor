@@ -136,7 +136,7 @@ describe('Device Model Routes — /api/device-models', () => {
       });
     });
 
-    it('201 — accepts model name at exactly 150 characters', async () => {
+    it('[DEV-023] 201 — accepts model name at exactly 150 characters', async () => {
       const model = 'A'.repeat(150);
       const res = await request(app)
         .post('/api/device-models')
@@ -145,7 +145,7 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(res.status).toBe(201);
     });
 
-    it('400 — rejects missing vendorId', async () => {
+    it('[DEV-020] 400 — rejects missing vendorId', async () => {
       const res = await request(app)
         .post('/api/device-models')
         .send({ model: 'UniFi AP', deviceType: 'RADIO' });
@@ -154,7 +154,7 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(res.body.success).toBe(false);
     });
 
-    it('400 — rejects missing model', async () => {
+    it('[DEV-020] 400 — rejects missing model', async () => {
       const res = await request(app)
         .post('/api/device-models')
         .send({ vendorId: postVendorId, deviceType: 'RADIO' });
@@ -163,7 +163,7 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(res.body.success).toBe(false);
     });
 
-    it('400 — rejects missing deviceType', async () => {
+    it('[DEV-020] 400 — rejects missing deviceType', async () => {
       const res = await request(app)
         .post('/api/device-models')
         .send({ vendorId: postVendorId, model: 'UniFi AP' });
@@ -181,7 +181,7 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(res.body.success).toBe(false);
     });
 
-    it('400 — rejects empty model name', async () => {
+    it('[DEV-023] 400 — rejects empty model name', async () => {
       const res = await request(app)
         .post('/api/device-models')
         .send({ vendorId: postVendorId, model: '', deviceType: 'RADIO' });
@@ -190,7 +190,7 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(res.body.success).toBe(false);
     });
 
-    it('400 — rejects whitespace-only model name', async () => {
+    it('[DEV-023] 400 — rejects whitespace-only model name', async () => {
       const res = await request(app)
         .post('/api/device-models')
         .send({ vendorId: postVendorId, model: '   ', deviceType: 'RADIO' });
@@ -199,7 +199,7 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(res.body.success).toBe(false);
     });
 
-    it('400 — rejects model name exceeding 150 characters', async () => {
+    it('[DEV-023] 400 — rejects model name exceeding 150 characters', async () => {
       const res = await request(app)
         .post('/api/device-models')
         .send({ vendorId: postVendorId, model: 'A'.repeat(151), deviceType: 'RADIO' });
@@ -208,7 +208,7 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(res.body.success).toBe(false);
     });
 
-    it('400 — rejects invalid deviceType', async () => {
+    it('[DEV-024] 400 — rejects invalid deviceType', async () => {
       const res = await request(app)
         .post('/api/device-models')
         .send({ vendorId: postVendorId, model: 'UniFi AP', deviceType: 'INVALID_TYPE' });
@@ -217,7 +217,7 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(res.body.success).toBe(false);
     });
 
-    it('404 — returns not found when vendorId is a valid UUID but does not exist', async () => {
+    it('[DEV-021] 404 — returns not found when vendorId is a valid UUID but does not exist', async () => {
       const res = await request(app)
         .post('/api/device-models')
         .send({ vendorId: GHOST_ID, model: 'UniFi AP', deviceType: 'RADIO' });
@@ -226,7 +226,7 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(res.body.success).toBe(false);
     });
 
-    it('409 — duplicate vendorId+model returns 409', async () => {
+    it('[DEV-022] 409 — duplicate vendorId+model returns 409', async () => {
       await request(app)
         .post('/api/device-models')
         .send({ vendorId: postVendorId, model: 'EdgeRouter X', deviceType: 'ROUTER' });
@@ -320,7 +320,7 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(res.status).toBe(404);
     });
 
-    it('409 — returns 409 when the model has associated devices', async () => {
+    it('[DEV-026] 409 — returns 409 when the model has associated devices', async () => {
       await prisma.device.create({
         data: {
           name: 'Associated Device',

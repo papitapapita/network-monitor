@@ -68,7 +68,7 @@ describe('UpdateLocationUseCase — integration', () => {
     expect(result.value.type).toBe('DATACENTER');
   });
 
-  it('updates address fields', async () => {
+  it('[DEV-094] updates address fields', async () => {
     const id = await createLocation();
 
     const result = await updateUseCase.execute({
@@ -84,7 +84,7 @@ describe('UpdateLocationUseCase — integration', () => {
     expect(result.value.address).toBe('Rua do Sol, 100');
   });
 
-  it('updates coordinates', async () => {
+  it('[DEV-093] updates coordinates', async () => {
     const id = await createLocation();
 
     const result = await updateUseCase.execute({
@@ -102,7 +102,7 @@ describe('UpdateLocationUseCase — integration', () => {
   // Validation failures
   // ──────────────────────────────────────────────────────────────
 
-  it('fails when type is an invalid enum value', async () => {
+  it('[DEV-091] fails when type is an invalid enum value', async () => {
     const id = await createLocation();
 
     const result = await updateUseCase.execute({ id, type: 'ROOFTOP' as any });
@@ -110,7 +110,7 @@ describe('UpdateLocationUseCase — integration', () => {
     expect(result.isFailure).toBe(true);
   });
 
-  it('fails when only one of latitude/longitude is provided', async () => {
+  it('[DEV-092] fails when only one of latitude/longitude is provided', async () => {
     const id = await createLocation();
 
     const result = await updateUseCase.execute({ id, latitude: -23.5 });

@@ -206,7 +206,7 @@ describe('SetDeviceCredentialsUseCase', () => {
   });
 
   // =========================================================================
-  describe('beforeExecute — HTTP credentials are required', () => {
+  describe('[DEV-120] beforeExecute — HTTP credentials are required', () => {
     it('should pass with HTTP credentials alone and no SNMP fields', async () => {
       const result = await useCase.execute(makeHttpRequest());
 
@@ -265,7 +265,7 @@ describe('SetDeviceCredentialsUseCase', () => {
   });
 
   // =========================================================================
-  describe('beforeExecute — snmpVersion validation', () => {
+  describe('[DEV-122] [DEV-123] beforeExecute — snmpVersion validation', () => {
     it('should fail when an SNMP field is sent without snmpVersion', async () => {
       const result = await useCase.execute(
         makeHttpRequest({ snmpCommunity: 'public' })
@@ -322,7 +322,7 @@ describe('SetDeviceCredentialsUseCase', () => {
   });
 
   // =========================================================================
-  describe('beforeExecute — SNMPv1/v2 community string validation', () => {
+  describe('[DEV-124] beforeExecute — SNMPv1/v2 community string validation', () => {
     it('should fail when snmpVersion is 1 and snmpCommunity is missing', async () => {
       const result = await useCase.execute(
         makeV2Request({
@@ -355,7 +355,7 @@ describe('SetDeviceCredentialsUseCase', () => {
   });
 
   // =========================================================================
-  describe('beforeExecute — SNMPv3 field validation', () => {
+  describe('[DEV-125] [DEV-126] beforeExecute — SNMPv3 field validation', () => {
     it('should fail when snmpVersion is 3 and snmpV3AuthUser is missing', async () => {
       const result = await useCase.execute(
         makeV3Request({ snmpV3AuthUser: undefined })
@@ -434,7 +434,7 @@ describe('SetDeviceCredentialsUseCase', () => {
   });
 
   // =========================================================================
-  describe('beforeExecute — port validation', () => {
+  describe('[DEV-127] beforeExecute — port validation', () => {
     it('should fail when snmpPort is below 1', async () => {
       const result = await useCase.execute(
         makeV2Request({ snmpPort: 0 })
@@ -517,7 +517,7 @@ describe('SetDeviceCredentialsUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — device lookup', () => {
+  describe('[DEV-121] executeImpl — device lookup', () => {
     it('should fail when device is not found (findById returns null)', async () => {
       deviceRepo.findById.mockResolvedValue(Result.ok(null));
 
@@ -627,7 +627,7 @@ describe('SetDeviceCredentialsUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — stored SNMP values survive an HTTP-only save', () => {
+  describe('[DEV-130] executeImpl — stored SNMP values survive an HTTP-only save', () => {
     beforeEach(() => {
       credentialsRepo.findByDeviceId.mockResolvedValue(
         Result.ok(makeStoredCredentials())
@@ -781,6 +781,90 @@ describe('SetDeviceCredentialsUseCase', () => {
       );
 
       expect(result.value!.httpPassword).toBe('***');
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-129] sanitizeForLogging — secrets never reach the logs', () => {
+    const SECRETS = {
+      httpPassword: 'http-pw-plaintext',
+      snmpCommunity: 'community-plaintext',
+      snmpV3AuthKey: 'auth-key-plaintext',
+      snmpV3PrivKey: 'priv-key-plaintext'
+    };
+
+    function loggedPayloads(): string {
+      const calls = [
+        ...(logger.info as jest.Mock).mock.calls,
+        ...(logger.debug as jest.Mock).mock.calls,
+        ...(logger.warn as jest.Mock).mock.calls,
+        ...(logger.error as jest.Mock).mock.calls
+      ];
+      return JSON.stringify(calls);
+    }
+
+    it('should not write any secret value into the logs on a successful save', async () => {
+      await useCase.execute(
+        makeV3Request({
+          httpPassword: SECRETS.httpPassword,
+          snmpV3AuthKey: SECRETS.snmpV3AuthKey,
+          snmpV3PrivProto: 'AES',
+          snmpV3PrivKey: SECRETS.snmpV3PrivKey
+        })
+      );
+
+      const logged = loggedPayloads();
+      for (const secret of Object.values(SECRETS)) {
+        expect(logged).not.toContain(secret);
+      }
+    });
+
+    it('should not write the SNMP community string into the logs', async () => {
+      await useCase.execute(
+        makeV2Request({
+          httpPassword: SECRETS.httpPassword,
+          snmpCommunity: SECRETS.snmpCommunity
+        })
+      );
+
+      const logged = loggedPayloads();
+      expect(logged).not.toContain(SECRETS.snmpCommunity);
+      expect(logged).not.toContain(SECRETS.httpPassword);
+    });
+
+    it('should not leak secrets when the request fails validation', async () => {
+      await useCase.execute(
+        makeV2Request({
+          deviceId: '',
+          httpPassword: SECRETS.httpPassword,
+          snmpCommunity: SECRETS.snmpCommunity
+        })
+      );
+
+      const logged = loggedPayloads();
+      expect(logged).not.toContain(SECRETS.httpPassword);
+      expect(logged).not.toContain(SECRETS.snmpCommunity);
+    });
+
+    it('should replace each secret field with *** rather than dropping it', () => {
+      const sanitize = (
+        useCase as unknown as {
+          sanitizeForLogging(data: unknown): Record<string, unknown>;
+        }
+      ).sanitizeForLogging.bind(useCase);
+
+      const sanitized = sanitize({
+        deviceId: 'abc',
+        httpUsername: 'admin',
+        ...SECRETS
+      });
+
+      expect(sanitized.httpPassword).toBe('***');
+      expect(sanitized.snmpCommunity).toBe('***');
+      expect(sanitized.snmpV3AuthKey).toBe('***');
+      expect(sanitized.snmpV3PrivKey).toBe('***');
+      expect(sanitized.httpUsername).toBe('admin');
+      expect(sanitized.deviceId).toBe('abc');
     });
   });
 });

@@ -88,7 +88,7 @@ describe('CreateDeviceUseCase', () => {
   });
 
   // =========================================================================
-  describe('beforeExecute — required field validation', () => {
+  describe('[DEV-040] [DEV-042] [DEV-043] [DEV-044] beforeExecute — required field validation', () => {
     it('should fail when deviceModelId is missing', async () => {
       const request = makeMinimalRequest({ deviceModelId: '' });
 
@@ -223,7 +223,7 @@ describe('CreateDeviceUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — MAC address uniqueness', () => {
+  describe('[DEV-046] [DEV-047] executeImpl — MAC address uniqueness', () => {
     it('should fail when MAC address format is invalid', async () => {
       const request = makeMinimalRequest({ macAddress: 'not-a-mac' });
 
@@ -284,7 +284,7 @@ describe('CreateDeviceUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — IP address uniqueness', () => {
+  describe('[DEV-048] [DEV-049] executeImpl — IP address uniqueness', () => {
     it('should fail when IP address format is invalid', async () => {
       const request = makeMinimalRequest({
         ipAddress: '999.999.999.999'
@@ -344,7 +344,7 @@ describe('CreateDeviceUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — installedDate parsing', () => {
+  describe('[DEV-050] executeImpl — installedDate parsing', () => {
     it('should fail when installedDate is not a valid date string', async () => {
       const request = makeMinimalRequest({
         installedDate: 'not-a-date'
@@ -425,13 +425,13 @@ describe('CreateDeviceUseCase', () => {
       expect(result.value!.name).toBe('Core-Router-01');
     });
 
-    it('should default status to INVENTORY when not provided', async () => {
+    it('[DEV-042] should default status to INVENTORY when not provided', async () => {
       const result = await useCase.execute(makeMinimalRequest());
 
       expect(result.value!.status).toBe('INVENTORY');
     });
 
-    it('should default monitoringEnabled to false when not provided', async () => {
+    it('[DEV-058] should default monitoringEnabled to false when not provided', async () => {
       const result = await useCase.execute(makeMinimalRequest());
 
       expect(result.value!.monitoringEnabled).toBe(false);

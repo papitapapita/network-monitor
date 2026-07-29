@@ -61,7 +61,7 @@ describe('ScanNetworkSegmentUseCase', () => {
   });
 
   // =========================================================================
-  describe('beforeExecute — validation', () => {
+  describe('[DEV-143] beforeExecute — validation', () => {
     it('should fail when segment is an empty string', async () => {
       const result = await useCase.execute(makeRequest({ segment: '' }));
 
@@ -171,7 +171,7 @@ describe('ScanNetworkSegmentUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — scannedCount calculation (/24 CIDR)', () => {
+  describe('[DEV-143] executeImpl — scannedCount calculation (/24 CIDR)', () => {
     it('should calculate scannedCount as 254 for a /24 segment', async () => {
       const result = await useCase.execute(
         makeRequest({ segment: '192.168.1.0/24' })

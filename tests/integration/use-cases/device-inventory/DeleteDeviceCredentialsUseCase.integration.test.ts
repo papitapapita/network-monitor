@@ -101,7 +101,7 @@ describe('DeleteDeviceCredentialsUseCase — integration', () => {
     expect(device!.name).toBe('Credentialed Device');
   });
 
-  it('is idempotent — deleting when nothing is stored still succeeds', async () => {
+  it('[DEV-132] is idempotent — deleting when nothing is stored still succeeds', async () => {
     const first = await useCase.execute({ deviceId });
     const second = await useCase.execute({ deviceId });
 
@@ -109,7 +109,7 @@ describe('DeleteDeviceCredentialsUseCase — integration', () => {
     expect(second.isSuccess).toBe(true);
   });
 
-  it('succeeds for a device that does not exist (GHOST_ID)', async () => {
+  it('[DEV-132] succeeds for a device that does not exist (GHOST_ID)', async () => {
     // The use case deletes by deviceId without loading the device first,
     // so a missing device is indistinguishable from missing credentials.
     const result = await useCase.execute({ deviceId: GHOST_ID });
