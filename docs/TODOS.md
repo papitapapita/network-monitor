@@ -6,9 +6,20 @@ _These block or constrain everything else. Do in order._
 - [ ] **Device activation workflow** — full lifecycle + soft-delete + replacement
   - COMMISSIONING status implemented: INVENTORY → COMMISSIONING (IP required, monitoring auto-on) → ACTIVE (IP + location required)
   - Soft-delete: `deletedAt` / `deletedBy` + 7-day grace period before hard removal
-  - Replacement: `replacedByDeviceId` + `replacedAt` to track hardware swaps
   - Emit `DeviceDeletedEvent` on soft-delete so the polling and notification pipelines can react (no such event exists yet)
   - Scope: schema migration + domain invariant (monitoring only runs on `ACTIVE` and `COMMISSIONING` devices)
+  - **Hardware replacement — `ReplaceDeviceUseCase`** (the remaining half of "device model change"; the correction half shipped as DEV-063)
+    - The problem: a unit gets damaged and is swapped for a physically different box, often of a **different model**. That is not an update to the `Device` row — a `Device` is one physical unit, and `pingResults` / `wirelessSnapshots` / `alertEvents` / `deviceState` all hang off its id. Editing `deviceModelId` in place would retroactively re-attribute months of metrics to hardware that never produced them, with no record that a swap happened. DEV-063 therefore restricts model corrections to `INVENTORY` devices, which deliberately leaves this case with **no path at all** today
+    - Interim workaround for operators: retire the old device (→ `DAMAGED`) and create a new one by hand. Loses the lineage link and requires manually re-pointing credentials and the contracted service
+    - Schema: `replacesDeviceId` / `replacedByDeviceId` self-relation on `Device` + `replacedAt`. Without the lineage link a replacement is indistinguishable from an unrelated device appearing, and the dashboard cannot say "this CPE, current unit since March" while keeping the old unit's history on the old row
+    - Orchestration (this is what makes it a use case and not something an operator can do correctly by hand):
+      1. old device → `DAMAGED` (note: there is no `DECOMMISSIONED` status — decide whether replacement needs one, since `DAMAGED` also means "broken but still ours")
+      2. create the new `Device` with the new model, inheriting location, category, owner, and the IP released by the old unit
+      3. re-point `DeviceCredentials` (1:1) and `ContractedService.deviceId` (1:1 `@unique`, `prisma/schema.prisma:491`) to the new device — miss this and the customer's billing link silently detaches
+      4. emit `DeviceReplacedEvent`
+    - Wireless: if old and new models differ in `isWireless`, the old unit's `WirelessPollingConfiguration` must not be copied blindly — a non-wireless replacement should end wireless polling (cf. DEV-027)
+    - Testing: no HTTP-only surface covers an orchestrator, so per `docs/rules/TESTING-INTEGRATION-STANDARD.md` this needs a thorough integration suite of its own — lineage, credential/contract transfer, IP handover, and the wireless-mismatch case
+    - Also worth deciding here: whether `POST /api/devices/:id/replace` or a top-level `POST /api/devices/replacements` better reflects that the operation creates a new aggregate
 
 - [ ] **Status & capability guards** — centralise eligibility checks in a `DeviceEligibilityService`
   - Only `ACTIVE`, non-deleted, non-replaced devices are polled (ping, SNMP, wireless)
@@ -215,21 +226,23 @@ _Main user-facing features still missing._
   - Wire `npm run test:rules` into CI once all contexts are written (until then run it scoped to a prefix — an unscoped run reports nothing for contexts with no rules declared)
   - ~20 rationales in `device-inventory.md` are marked `_(inferred)_` — reconstructed from code, not stated by the business. Worth a pass to confirm or correct; a wrong "why" justifies the wrong future change
 
-- [ ] **Triage the 8 gaps found while writing the device-inventory rules** — see the "Known gaps" section of `docs/business-rules/device-inventory.md`
+- [ ] **Triage the gaps found while writing the device-inventory rules** — see the "Known gaps" section of `docs/business-rules/device-inventory.md` (11 recorded, G-2 closed)
   - **G-1** MAC and IP uniqueness are check-then-write in the use case with no unique index — concurrent requests can both insert. The two worth acting on, with G-6
   - **G-6** credentials reuse the generic `update` permission, so any OPERATOR can set device passwords
-  - **G-2** `deviceType` non-emptiness is only checked on create, not on `updateDeviceType` — resolved by the in-flight `DeviceType` value object refactor
+  - **G-2** ~~`deviceType` non-emptiness is only checked on create~~ — **closed** by the `DeviceType` value object; create and update now share one validator
+  - **G-9** device creation never looks up `deviceModelId`, so a bad UUID surfaces as a raw Prisma FK error instead of `Device model not found` (the correction path, DEV-063, gets this right) — same shape as G-8, and both are one repository injection away
+  - **G-10** `locationId` + `status: 'ACTIVE'` in one request is rejected because `assignLocation` runs after `changeStatus`; the IP equivalent works. Callers need two requests
+  - **G-11** a stored device `category` is not re-checked on read, unlike `DeviceType`, `LocationType` and `DeviceOwnerType` — an unrecognised value loads silently. Newly relevant after the DEV-043 recast
   - **G-3** renaming a vendor does not propagate to the denormalized copies on its device models
   - **G-4** wireless-config cleanup on `isWireless: true → false` is fire-and-forget; failures are swallowed and the use case still reports success
   - **G-5** the `installedDate` error message promises ISO 8601 but the check accepts anything `new Date()` parses
   - **G-7** filtered device listings load the full matching set and paginate in memory
   - **G-8** `Vendor.name` is `@unique` in Prisma but unchecked in code, so a duplicate name surfaces as a raw Prisma error instead of a clean message
 
-- [ ] **Update the rule book for the DeviceType / LocationType refactor** — the in-flight working-tree changes invalidate two written rules
-  - `DEV-024` documents device type as a free-form string; it is becoming a closed `DeviceType` value object (`ANTENNA`, `OTHER`, `RADIO`, `ROUTER`, `ROUTERBOARD`, `SERVER`, `SWITCH`)
-  - `DEV-091` documents `LocationType` as an enum at `src/domain/device-inventory/enums/LocationType.ts`, which is deleted in the working tree
-  - The coverage script will **not** catch this — it checks that a test cites a rule, never that the rule still describes the code
-  - Also finish the refactor itself: `src/domain/device-inventory/value-objects/DeviceType.ts` imports `DeviceTypeProps` which does not exist in `../props`, so 21 device-inventory suites currently fail to compile
+- [ ] **Guard against rule-book drift** — the DeviceType / LocationType / DeviceCategory refactors each silently invalidated a written rule before anyone noticed
+  - The coverage script will **not** catch this — it checks that a test cites a rule, never that the rule still describes the code. `DEV-024`, `DEV-043` and `DEV-091` all sat wrong for a while: the first two described a set the code had replaced, the third pointed at a deleted file
+  - Line references (`Foo.ts:47`) rot fastest and are the least useful part to hand-maintain. Worth deciding whether they earn their keep, or whether anchoring on a symbol name is enough
+  - Cheapest real check: assert that each set a rule enumerates matches the value object's exported list, so a recast fails a test instead of quietly ageing the prose
 
 - [ ] **OpenAPI spec + typed frontend client** — replace the hand-maintained `docs/BACKEND_API.md` with a generated contract
   - Generate `openapi.json` from Express controllers using `tsoa` or `zod-to-openapi`

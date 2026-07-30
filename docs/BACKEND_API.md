@@ -94,7 +94,7 @@ Missing or invalid tokens return `401`. Insufficient role returns `403`.
 ```ts
 type LocationType   = 'TOWER' | 'DATACENTER' | 'POINT_OF_PRESENCE' | 'OFFICE' | 'CUSTOMER_PREMISES' | 'OTHER'
 type DeviceStatus   = 'INVENTORY' | 'COMMISSIONING' | 'ACTIVE' | 'DAMAGED'
-type DeviceCategory = 'CPE' | 'WIRELESS_CPE' | 'AP' | 'ROUTERBOARD' | 'SMART_SWITCH' | 'SMART_SWITCH_POE' | 'OTHER'
+type DeviceCategory = 'CPE' | 'WIRELESS_CPE' | 'ACCESS_POINT' | 'GATEWAY' | 'AGGREGATION_SWITCH' | 'OTHER'
 type DeviceOwner    = 'COMPANY' | 'CLIENT'
 type DeviceType     = 'ANTENNA' | 'OTHER' | 'RADIO' | 'ROUTER' | 'ROUTERBOARD' | 'SERVER' | 'SWITCH'
 type PollingStatus      = 'SUCCESS' | 'FAILED' | 'SKIPPED'
@@ -103,6 +103,22 @@ type DeviceOnlineStatus = 'ONLINE' | 'OFFLINE' | 'UNKNOWN'
 type AlertSeverity      = 'WARNING' | 'CRITICAL'
 type AlertStatus        = 'OPEN' | 'RESOLVED'
 ```
+
+> **`DeviceCategory` vs `DeviceType` — two different questions.**  
+> `DeviceCategory` lives on the **device** and says *what role the unit plays in the network*: `ACCESS_POINT` serves subscribers, `WIRELESS_CPE` is the station end of that link, `GATEWAY` routes, `AGGREGATION_SWITCH` aggregates, `CPE` is customer equipment, `OTHER` is the escape hatch.  
+> `DeviceType` lives on the **device model** and says *what kind of hardware it is* (`ANTENNA`, `ROUTER`, `SWITCH`, …).  
+> One box can be a `SWITCH` by type and an `AGGREGATION_SWITCH` by role — PoE, port count and so on are hardware traits and belong to the model, never to the category.
+>
+> **⚠ Breaking change (2026-07-29):** the category set changed, and a migration rewrote existing rows:
+>
+> | Old category | New category | |
+> |---|---|---|
+> | `AP` | `ACCESS_POINT` | renamed for clarity |
+> | `ROUTERBOARD` | `GATEWAY` | the role is "where upstream internet enters"; `ROUTERBOARD` survives as a `DeviceType` |
+> | `SMART_SWITCH` | `AGGREGATION_SWITCH` | the node switch radios converge on |
+> | `SMART_SWITCH_POE` | `AGGREGATION_SWITCH` | PoE is a hardware trait, not a role |
+>
+> `CPE`, `WIRELESS_CPE` and `OTHER` are unchanged. Any frontend picker, filter or badge map holding the old literals must be updated — sending an old value now returns `400`, and a device that used to read `SMART_SWITCH_POE` now reads `AGGREGATION_SWITCH`.
 
 ---
 
@@ -408,6 +424,7 @@ sortOrder?:        'ASC' | 'DESC'  // default: DESC
 // Request body (all fields optional — send only what changes)
 {
   name?: string
+  deviceModelId?: string       // UUID — INVENTORY devices only, see below
   status?: DeviceStatus
   category?: DeviceCategory | null
   ownerType?: DeviceOwner
@@ -420,11 +437,55 @@ sortOrder?:        'ASC' | 'DESC'  // default: DESC
   monitoringEnabled?: boolean
 }
 
-// Note: deviceModelId cannot be changed after creation
-
 // Response
 { success: true, data: DeviceDTO }
 ```
+
+**`deviceModelId` — correcting a mis-registered model**
+
+Changing the model is a **data-entry correction**, not a way to record a hardware
+replacement. It is accepted **only while the device's status is `INVENTORY`** —
+the one status in which the unit has never been polled, so no collected metric
+can end up attributed to the wrong hardware.
+
+- Device is `ACTIVE`, `COMMISSIONING` or `DAMAGED` → `400` `"Cannot change the device model of a device with status <status> — only an INVENTORY device may have its model corrected"`
+- Target model does not exist → `404` `"Device model not found: <id>"`
+- Sending the model the device **already has** is a no-op that succeeds in any
+  status — so a UI that PATCHes the whole form back is safe.
+- A single request may both correct the model and move the device out of
+  `INVENTORY` (e.g. `{ deviceModelId, ipAddress, status: 'COMMISSIONING' }`) —
+  the correction is applied first.
+
+> **Frontend:** show the model picker as editable only on `INVENTORY` devices; on
+> any other status render it read-only. Replacing a unit with different hardware
+> is not this endpoint — that path does not exist yet (a device is one physical
+> box, and its metric history belongs to that box). For now, retire the old
+> device and create a new one.
+
+**Field combinations are validated as one end state**
+
+A `PATCH` describes the state you want the device to end up in, and the whole
+combination is checked at once — so any request that describes a legal end state
+succeeds, whatever mix of fields it carries:
+
+```ts
+// Commission a device sitting in inventory — one request
+PATCH /api/devices/:id  { ipAddress: '10.0.0.5', status: 'COMMISSIONING' }
+
+// Install and activate — one request
+PATCH /api/devices/:id  { locationId: '…', status: 'ACTIVE' }
+
+// Retire: pull it off site and back to the shelf — one request
+PATCH /api/devices/:id  { locationId: null, status: 'INVENTORY' }
+```
+
+Requests are all-or-nothing: if the resulting state would break a rule, the
+response is `400` and **nothing is applied** — you never end up with a device
+that got its location but not its status.
+
+> The rules still hold on the end state, not on the individual fields. `{ status: 'ACTIVE' }`
+> alone on a device with no location is still `400` "An ACTIVE device must have a
+> location assigned" — supply the location in the same request and it succeeds.
 
 ---
 
@@ -1061,13 +1122,12 @@ interface WirelessClientDTO {
 **Status:** 201 | 400 | 404 | 409
 
 ```ts
-// Request body
+// Request body — deviceType is NOT accepted; it is derived (see below)
 {
-  deviceType: 'STATION' | 'ACCESS_POINT'   // required
   ipAddress?: string | null                // IPv4 or IPv6; used for HTTP API polling
   intervalSecs?: number                    // 60–86400; default 3600
   enabled?: boolean                        // default true
-  linkCapacityKbps?: number | null          // STATION only — provisioned uplink capacity (bps)
+  linkCapacityKbps?: number | null         // STATION only — provisioned uplink capacity in kbps
   clientsProvisionedLimit?: number | null  // ACCESS_POINT only — max expected clients
 }
 
@@ -1085,10 +1145,27 @@ interface WirelessClientDTO {
 }
 ```
 
-**Business rules:**
-- `linkCapacityKbps` may only be set (non-null) for `STATION` devices — returns 400 for `ACCESS_POINT`.
-- `clientsProvisionedLimit` may only be set (non-null) for `ACCESS_POINT` devices — returns 400 for `STATION`.
+**`deviceType` is derived, not sent.** The radio mode follows the device's
+`category`, which already encodes that distinction:
 
+| Device `category` | Resulting `deviceType` |
+|---|---|
+| `ACCESS_POINT` | `ACCESS_POINT` |
+| `WIRELESS_CPE` | `STATION` |
+
+Only those two categories may hold a wireless config at all — any other category
+returns `400` `"Only WIRELESS_CPE and ACCESS_POINT devices can have a wireless
+config"`. The derived value is still returned in the response, so read it from
+there rather than assuming it.
+
+**Business rules:**
+- `linkCapacityKbps` may only be set (non-null) when the derived type is `STATION` — returns 400 for an `ACCESS_POINT` category device.
+- `clientsProvisionedLimit` may only be set (non-null) when the derived type is `ACCESS_POINT` — returns 400 for a `WIRELESS_CPE` category device.
+- `intervalSecs` must be **at least 60**. Polling AirOS faster than that overloads the embedded web server on the radio, so the floor is a hardware constraint, not a preference.
+
+> **`linkCapacityKbps` is in kbps, not bps** — a 50 Mbps link is `50000`. It feeds the link-saturation alert, which warns at 80 % of this value, so an entry off by 1000× either never fires or fires permanently.
+
+> **Frontend:** set the device's `category` first (`PATCH /api/devices/:id`) — it decides which of the two fields this endpoint will accept. Sending `deviceType` in the body is now ignored by the schema.  
 > Returns 404 if the device does not exist.  
 > Returns 409 if a wireless config already exists for this device — use `PATCH` to update it.
 
@@ -1114,14 +1191,15 @@ interface WirelessClientDTO {
   ipAddress?: string | null
   intervalSecs?: number                   // 60–86400
   enabled?: boolean
-  linkCapacityKbps?: number | null         // STATION only — returns 400 if device is ACCESS_POINT
-  clientsProvisionedLimit?: number | null // ACCESS_POINT only — returns 400 if device is STATION
+  linkCapacityKbps?: number | null        // kbps; STATION only — returns 400 if config is ACCESS_POINT
+  clientsProvisionedLimit?: number | null // ACCESS_POINT only — returns 400 if config is STATION
 }
 
 // Response — same shape as POST 201 above
 ```
 
-> Returns 404 if no config exists for this device — use `POST` to create it first.
+> Returns 404 if no config exists for this device — use `POST` to create it first.  
+> The STATION / ACCESS_POINT check here runs against the config's **stored** `deviceType` — the value derived from the device's category at creation. Changing the device's category does **not** retroactively change an existing config; delete and re-create it if the role really changed.
 
 ---
 
