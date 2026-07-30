@@ -493,6 +493,7 @@ export class DependencyContainer {
     );
     const updateDeviceUseCase = new UpdateDeviceUseCase(
       this.deviceRepository,
+      this.deviceModelRepository,
       this.logger
     );
     const deleteDeviceUseCase = new DeleteDeviceUseCase(

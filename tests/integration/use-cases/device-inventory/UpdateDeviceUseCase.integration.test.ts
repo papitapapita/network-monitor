@@ -2,6 +2,7 @@ import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { CreateDeviceUseCase } from 'application/device-inventory/use-cases/CreateDeviceUseCase';
 import { UpdateDeviceUseCase } from 'application/device-inventory/use-cases/UpdateDeviceUseCase';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
+import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDeviceModelRepository';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import {
   setupDependencies,
@@ -10,6 +11,7 @@ import {
 import {
   cleanDatabase,
   seedDeviceModel,
+  seedWirelessDeviceModel,
   seedLocation,
   waitForPollingConfig,
   GHOST_ID
@@ -21,18 +23,21 @@ describe('UpdateDeviceUseCase — integration', () => {
   let createUseCase: CreateDeviceUseCase;
   let updateUseCase: UpdateDeviceUseCase;
   let deviceModelId: string;
+  let otherDeviceModelId: string;
   let locationId: string;
 
   beforeAll(async () => {
     container = await setupDependencies();
     prisma = container.getPrisma();
     deviceModelId = await seedDeviceModel(prisma);
+    otherDeviceModelId = await seedWirelessDeviceModel(prisma);
     locationId = await seedLocation(prisma);
 
     const repo = new PrismaDeviceRepository(prisma);
+    const modelRepo = new PrismaDeviceModelRepository(prisma);
     const logger = new WinstonLogger();
     createUseCase = new CreateDeviceUseCase(repo, logger);
-    updateUseCase = new UpdateDeviceUseCase(repo, logger);
+    updateUseCase = new UpdateDeviceUseCase(repo, modelRepo, logger);
   });
 
   afterAll(async () => {
@@ -78,6 +83,55 @@ describe('UpdateDeviceUseCase — integration', () => {
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.status).toBe('ACTIVE');
+  });
+
+  it('[DEV-060] assigns a location and activates in one request', async () => {
+    const id = await createDevice({ ipAddress: '10.1.0.9' });
+
+    const result = await updateUseCase.execute({
+      id,
+      locationId,
+      status: 'ACTIVE'
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.locationId).toBe(locationId);
+    expect(result.value.status).toBe('ACTIVE');
+
+    const row = await prisma.device.findUnique({ where: { id } });
+    expect(row!.status).toBe('ACTIVE');
+    expect(row!.locationId).toBe(locationId);
+  });
+
+  it('[DEV-060] sets an IP and activates in one request', async () => {
+    const id = await createDevice({ locationId });
+
+    const result = await updateUseCase.execute({
+      id,
+      ipAddress: '10.1.0.10',
+      status: 'ACTIVE'
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.ipAddress).toBe('10.1.0.10');
+    expect(result.value.status).toBe('ACTIVE');
+  });
+
+  it('[DEV-060] leaves the row untouched when the combined state is invalid', async () => {
+    const id = await createDevice();
+
+    // ACTIVE needs an IP and a location; only the IP is supplied.
+    const result = await updateUseCase.execute({
+      id,
+      ipAddress: '10.1.0.11',
+      status: 'ACTIVE'
+    });
+
+    expect(result.isFailure).toBe(true);
+
+    const row = await prisma.device.findUnique({ where: { id } });
+    expect(row!.status).toBe('INVENTORY');
+    expect(row!.ipAddress).toBeNull();
   });
 
   it('[DEV-055] fails to activate a device that has no location', async () => {
@@ -174,6 +228,81 @@ describe('UpdateDeviceUseCase — integration', () => {
     const result = await updateUseCase.execute({ id, status: 'EXPLODED' as any });
 
     expect(result.isFailure).toBe(true);
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Device model correction
+  // ──────────────────────────────────────────────────────────────
+
+  it('[DEV-063] corrects the model of an INVENTORY device and persists it', async () => {
+    const id = await createDevice();
+
+    const result = await updateUseCase.execute({
+      id,
+      deviceModelId: otherDeviceModelId
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.deviceModelId).toBe(otherDeviceModelId);
+
+    const row = await prisma.device.findUnique({ where: { id } });
+    expect(row!.deviceModelId).toBe(otherDeviceModelId);
+  });
+
+  it('[DEV-063] fails to correct the model of an ACTIVE device', async () => {
+    const id = await createDevice({
+      ipAddress: '10.60.0.1',
+      locationId,
+      status: 'ACTIVE'
+    });
+
+    const result = await updateUseCase.execute({
+      id,
+      deviceModelId: otherDeviceModelId
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/only an INVENTORY device/i);
+
+    const row = await prisma.device.findUnique({ where: { id } });
+    expect(row!.deviceModelId).toBe(deviceModelId);
+  });
+
+  it('[DEV-063] fails when the target device model does not exist', async () => {
+    const id = await createDevice();
+
+    const result = await updateUseCase.execute({
+      id,
+      deviceModelId: GHOST_ID
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/Device model not found/i);
+  });
+
+  it('[DEV-063] accepts the device\'s own model unchanged while ACTIVE', async () => {
+    const id = await createDevice({
+      ipAddress: '10.60.0.2',
+      locationId,
+      status: 'ACTIVE'
+    });
+
+    const result = await updateUseCase.execute({ id, deviceModelId });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.deviceModelId).toBe(deviceModelId);
+  });
+
+  it('[DEV-063] fails with a malformed deviceModelId', async () => {
+    const id = await createDevice();
+
+    const result = await updateUseCase.execute({
+      id,
+      deviceModelId: 'not-a-uuid'
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/Invalid deviceModelId/i);
   });
 
   it('fails when the device does not exist', async () => {

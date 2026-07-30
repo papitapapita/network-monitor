@@ -266,6 +266,11 @@ export const updateDeviceSchema = z.object({
       .trim()
       .optional(),
 
+    deviceModelId: z
+      .string()
+      .regex(UUID_REGEX, 'deviceModelId must be a valid UUID v4')
+      .optional(),
+
     status: z
       .enum(DEVICE_STATUSES, {
         error: () => ({

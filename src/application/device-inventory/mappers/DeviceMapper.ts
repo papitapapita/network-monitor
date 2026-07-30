@@ -72,6 +72,7 @@ export class DeviceMapper {
   public static extractUpdateData(dto: UpdateDeviceRequestDTO) {
     const updates: {
       name?: string;
+      deviceModelId?: string;
       status?: string;
       category?: string | null;
       ownerType?: string;
@@ -84,6 +85,8 @@ export class DeviceMapper {
       monitoringEnabled?: boolean;
     } = {};
     if (dto.name !== undefined) updates.name = dto.name;
+    if (dto.deviceModelId !== undefined)
+      updates.deviceModelId = dto.deviceModelId;
     if (dto.status !== undefined) updates.status = dto.status;
     if (dto.category !== undefined) updates.category = dto.category;
     if (dto.ownerType !== undefined) updates.ownerType = dto.ownerType;

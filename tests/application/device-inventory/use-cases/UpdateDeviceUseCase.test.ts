@@ -2,7 +2,10 @@
 
 import { IPAddress, MACAddress } from 'domain/shared';
 import { UpdateDeviceUseCase } from '../../../../src/application/device-inventory/use-cases';
-import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository';
+import {
+  IDeviceRepository,
+  IDeviceModelRepository
+} from '../../../../src/domain/device-inventory/repository';
 import { ILogger } from '../../../../src/application/shared/interfaces';
 import { Result } from '../../../../src/domain/shared/core';
 import { Device } from '../../../../src/domain/device-inventory/aggregates';
@@ -26,6 +29,7 @@ import { UpdateDeviceRequestDTO } from '../../../../src/application/device-inven
 const VALID_DEVICE_ID = '550e8400-e29b-41d4-a716-446655440000';
 const VALID_DEVICE_MODEL = '550e8400-e29b-41d4-a716-446655440001';
 const VALID_LOCATION_ID = '550e8400-e29b-41d4-a716-446655440002';
+const OTHER_DEVICE_MODEL = '550e8400-e29b-41d4-a716-446655440003';
 const EXISTING_MAC = 'AA:BB:CC:DD:EE:FF';
 const EXISTING_IP = '192.168.1.100';
 const NOW = new Date('2024-06-01T00:00:00.000Z');
@@ -43,6 +47,19 @@ function makeLogger(): ILogger {
     fatal: jest.fn(),
     child: jest.fn().mockReturnThis(),
     setLevel: jest.fn()
+  };
+}
+
+function makeDeviceModelRepo(): jest.Mocked<IDeviceModelRepository> {
+  return {
+    save: jest.fn(),
+    findById: jest.fn(),
+    findAll: jest.fn(),
+    findByVendor: jest.fn(),
+    delete: jest.fn(),
+    exists: jest.fn(),
+    existsByVendorAndModel: jest.fn(),
+    count: jest.fn()
   };
 }
 
@@ -134,19 +151,22 @@ function makeRequest(
 
 describe('UpdateDeviceUseCase', () => {
   let repo: jest.Mocked<IDeviceRepository>;
+  let deviceModelRepo: jest.Mocked<IDeviceModelRepository>;
   let logger: ILogger;
   let useCase: UpdateDeviceUseCase;
 
   beforeEach(() => {
     repo = makeRepo();
+    deviceModelRepo = makeDeviceModelRepo();
     logger = makeLogger();
-    useCase = new UpdateDeviceUseCase(repo, logger);
+    useCase = new UpdateDeviceUseCase(repo, deviceModelRepo, logger);
 
     // Default happy-path mocks
     repo.findById.mockResolvedValue(Result.ok(makePersistedDevice()));
     repo.existsByMacAddress.mockResolvedValue(Result.ok(false));
     repo.existsByIpAddress.mockResolvedValue(Result.ok(false));
     repo.save.mockImplementation(async (device) => Result.ok(device));
+    deviceModelRepo.exists.mockResolvedValue(Result.ok(true));
   });
 
   afterEach(() => {
@@ -602,6 +622,231 @@ describe('UpdateDeviceUseCase', () => {
 
       expect(result.isSuccess).toBe(true);
       expect(repo.save).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-063] executeImpl — device model correction', () => {
+    it('should fail when deviceModelId is whitespace only', async () => {
+      const result = await useCase.execute(
+        makeRequest({ deviceModelId: '   ' })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('deviceModelId cannot be empty');
+    });
+
+    it('should fail when deviceModelId is not a UUID', async () => {
+      const result = await useCase.execute(
+        makeRequest({ deviceModelId: 'not-a-uuid' })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Invalid deviceModelId');
+    });
+
+    it('should fail when the target device model does not exist', async () => {
+      deviceModelRepo.exists.mockResolvedValue(Result.ok(false));
+
+      const result = await useCase.execute(
+        makeRequest({ deviceModelId: OTHER_DEVICE_MODEL })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Device model not found');
+    });
+
+    it('should fail when the model existence check errors', async () => {
+      deviceModelRepo.exists.mockResolvedValue(
+        Result.fail('connection lost')
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ deviceModelId: OTHER_DEVICE_MODEL })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Failed to verify device model');
+    });
+
+    it('should correct the model of an INVENTORY device', async () => {
+      const result = await useCase.execute(
+        makeRequest({ deviceModelId: OTHER_DEVICE_MODEL })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value!.deviceModelId).toBe(OTHER_DEVICE_MODEL);
+    });
+
+    it('should reject the correction when the device is ACTIVE', async () => {
+      repo.findById.mockResolvedValue(
+        Result.ok(
+          makePersistedDevice({
+            status: 'ACTIVE',
+            locationId: VALID_LOCATION_ID
+          })
+        )
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ deviceModelId: OTHER_DEVICE_MODEL })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'Cannot change the device model of a device with status ACTIVE'
+      );
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('should reject the correction when the device is DAMAGED', async () => {
+      repo.findById.mockResolvedValue(
+        Result.ok(makePersistedDevice({ status: 'DAMAGED' }))
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ deviceModelId: OTHER_DEVICE_MODEL })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('only an INVENTORY device');
+    });
+
+    it('should accept re-sending the current model on an ACTIVE device', async () => {
+      repo.findById.mockResolvedValue(
+        Result.ok(
+          makePersistedDevice({
+            status: 'ACTIVE',
+            locationId: VALID_LOCATION_ID
+          })
+        )
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ deviceModelId: VALID_DEVICE_MODEL })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(deviceModelRepo.exists).not.toHaveBeenCalled();
+    });
+
+    it('should apply the correction before a status change out of INVENTORY', async () => {
+      repo.findById.mockResolvedValue(
+        Result.ok(
+          makePersistedDevice({ locationId: VALID_LOCATION_ID })
+        )
+      );
+
+      const result = await useCase.execute(
+        makeRequest({
+          deviceModelId: OTHER_DEVICE_MODEL,
+          ipAddress: '192.168.1.200',
+          status: 'ACTIVE'
+        })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value!.deviceModelId).toBe(OTHER_DEVICE_MODEL);
+      expect(result.value!.status).toBe('ACTIVE');
+    });
+
+    it('should not consult the model repository when deviceModelId is omitted', async () => {
+      await useCase.execute(makeRequest({ name: 'Renamed' }));
+
+      expect(deviceModelRepo.exists).not.toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-060] executeImpl — fields validated as one candidate state', () => {
+    it('should accept locationId and status ACTIVE in the same request', async () => {
+      repo.findById.mockResolvedValue(
+        Result.ok(makePersistedDevice({ locationId: null }))
+      );
+
+      const result = await useCase.execute(
+        makeRequest({
+          locationId: VALID_LOCATION_ID,
+          status: 'ACTIVE'
+        })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value!.locationId).toBe(VALID_LOCATION_ID);
+      expect(result.value!.status).toBe('ACTIVE');
+    });
+
+    it('should accept ipAddress and status ACTIVE in the same request', async () => {
+      repo.findById.mockResolvedValue(
+        Result.ok(
+          makePersistedDevice({
+            ipAddress: null,
+            locationId: VALID_LOCATION_ID
+          })
+        )
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ ipAddress: '10.9.0.1', status: 'ACTIVE' })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value!.ipAddress).toBe('10.9.0.1');
+      expect(result.value!.status).toBe('ACTIVE');
+    });
+
+    it('should accept clearing the location while retiring to INVENTORY', async () => {
+      repo.findById.mockResolvedValue(
+        Result.ok(
+          makePersistedDevice({
+            status: 'ACTIVE',
+            locationId: VALID_LOCATION_ID,
+            serialNumber: 'SN-9'
+          })
+        )
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ locationId: null, status: 'INVENTORY' })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value!.locationId).toBeNull();
+      expect(result.value!.status).toBe('INVENTORY');
+    });
+
+    it('should still reject clearing the location of a device that stays ACTIVE', async () => {
+      repo.findById.mockResolvedValue(
+        Result.ok(
+          makePersistedDevice({
+            status: 'ACTIVE',
+            locationId: VALID_LOCATION_ID
+          })
+        )
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ locationId: null })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('must have a location assigned');
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('should not save when the combined candidate state is invalid', async () => {
+      repo.findById.mockResolvedValue(
+        Result.ok(
+          makePersistedDevice({ ipAddress: null, locationId: null })
+        )
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ ipAddress: '10.9.0.2', status: 'ACTIVE' })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(repo.save).not.toHaveBeenCalled();
     });
   });
 

@@ -26,6 +26,7 @@ export class PrismaDeviceRepository implements IDeviceRepository {
         where: { id: data.id },
         create: data,
         update: {
+          deviceModelId: data.deviceModelId,
           locationId: data.locationId,
           status: data.status,
           category: data.category,

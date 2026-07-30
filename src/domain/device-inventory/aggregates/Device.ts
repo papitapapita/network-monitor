@@ -12,13 +12,14 @@ import {
   DeviceCategory
 } from '../value-objects';
 import { DeviceOwnerType } from '../enums';
-import { DeviceProps } from '../props';
+import { DeviceProps, DeviceChanges } from '../props';
 import {
   DeviceCreatedEvent,
   DeviceStatusChangedEvent,
   DeviceLocationAssignedEvent,
   DeviceMonitoringToggledEvent,
-  DeviceDetailsUpdatedEvent
+  DeviceDetailsUpdatedEvent,
+  DeviceModelCorrectedEvent
 } from '../events';
 
 export class Device extends AggregateRoot<DeviceProps, DeviceId> {
@@ -165,129 +166,226 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     return new Device(props, id);
   }
 
-  // decommissioned is a terminal state
-  public changeStatus(newStatus: DeviceStatus): Result<void> {
-    const guardResult = Guard.againstNullOrUndefined(
-      newStatus,
-      'status'
+  // The single mutation path. Every field a caller may change arrives together,
+  // so the whole candidate state is validated once instead of field-by-field —
+  // which is what lets a request that is legal as a whole (set an IP *and* go
+  // ACTIVE, assign a location *and* go ACTIVE) succeed regardless of the order
+  // its fields happen to be listed in. The narrower mutators below are thin
+  // wrappers over this one; none of them re-implements a rule.
+  public applyChanges(changes: DeviceChanges): Result<void> {
+    if (changes.ownerType !== undefined) {
+      const guardResult = Guard.againstNullOrUndefined(
+        changes.ownerType,
+        'ownerType'
+      );
+      if (!guardResult.succeeded) {
+        return Result.fail<void>(guardResult.message!);
+      }
+    }
+
+    if (changes.status !== undefined) {
+      const guardResult = Guard.againstNullOrUndefined(
+        changes.status,
+        'status'
+      );
+      if (!guardResult.succeeded) {
+        return Result.fail<void>(guardResult.message!);
+      }
+    }
+
+    if (changes.deviceModelId !== undefined) {
+      const guardResult = Guard.againstNullOrUndefined(
+        changes.deviceModelId,
+        'deviceModelId'
+      );
+      if (!guardResult.succeeded) {
+        return Result.fail<void>(guardResult.message!);
+      }
+    }
+
+    const next = this.resolve(changes);
+
+    // DEV-063 is judged against the status the device has *now*, not the one it
+    // is moving to — correcting the model of a unit that is still INVENTORY is
+    // legal even when the same request commissions it.
+    const modelChanged = !this.props.deviceModelId.equals(
+      next.deviceModelId
     );
-    if (!guardResult.succeeded) {
-      return Result.fail<void>(guardResult.message!);
+    if (modelChanged && !this.props.status.isInInventory()) {
+      return Result.fail<void>(
+        `Cannot change the device model of a device with status ${this.props.status.toString()} — only an INVENTORY device may have its model corrected`
+      );
+    }
+
+    const statusChanged = !this.props.status.equals(next.status);
+
+    // DEV-059: arriving at COMMISSIONING turns monitoring on, overriding an
+    // explicit false in the same request. DEV-058's "respect an explicit
+    // false" applies to creation only.
+    const monitoringEnabled =
+      statusChanged && next.status.isCommissioning()
+        ? true
+        : next.monitoringEnabled;
+
+    const nothingProvided = Object.keys(changes).length === 0;
+    if (nothingProvided) {
+      return Result.ok<void>();
     }
 
     const validationResult = Device.validate({
-      status: newStatus,
-      serialNumber: this.props.serialNumber,
-      macAddress: this.props.macAddress,
-      ipAddress: this.props.ipAddress,
-      locationId: this.props.locationId,
-      monitoringEnabled: this.props.monitoringEnabled,
-      description: this.props.description,
-      installedDate: this.props.installedDate
+      status: next.status,
+      serialNumber: next.serialNumber,
+      macAddress: next.macAddress,
+      ipAddress: next.ipAddress,
+      locationId: next.locationId,
+      monitoringEnabled,
+      description: next.description,
+      installedDate: next.installedDate
     });
 
     if (validationResult.isFailure) {
       return Result.fail<void>(validationResult.error);
     }
 
-    if (this.props.status.equals(newStatus)) {
+    const previousDeviceModelId = this.props.deviceModelId;
+    const previousStatus = this.props.status;
+    const previousLocationId = this.props.locationId;
+    const previousMonitoring = this.props.monitoringEnabled;
+
+    const locationChanged = !Device.sameLocation(
+      previousLocationId,
+      next.locationId
+    );
+    const detailsProvided = Device.touchesDetails(changes);
+    const monitoringChanged =
+      previousMonitoring !== monitoringEnabled;
+
+    if (
+      !modelChanged &&
+      !statusChanged &&
+      !locationChanged &&
+      !monitoringChanged &&
+      !detailsProvided
+    ) {
       return Result.ok<void>();
     }
 
-    const previousStatus = this.props.status;
-    this.props.status = newStatus;
+    this.props.deviceModelId = next.deviceModelId;
+    this.props.name = next.name;
+    this.props.description = next.description;
+    this.props.category = next.category;
+    this.props.serialNumber = next.serialNumber;
+    this.props.macAddress = next.macAddress;
+    this.props.ipAddress = next.ipAddress;
+    this.props.installedDate = next.installedDate;
+    this.props.ownerType = next.ownerType;
+    this.props.status = next.status;
+    this.props.locationId = next.locationId;
+    this.props.monitoringEnabled = monitoringEnabled;
+
     this.touch();
 
-    this.addDomainEvent(
-      new DeviceStatusChangedEvent({
-        aggregateId: this.id,
-        deviceName: this.props.name,
-        previousStatus,
-        newStatus,
-        dateTimeOccurred: new Date()
-      })
-    );
+    const now = new Date();
 
-    if (newStatus.isCommissioning() && !this.props.monitoringEnabled) {
-      this.setMonitoring(true);
+    if (modelChanged) {
+      this.addDomainEvent(
+        new DeviceModelCorrectedEvent({
+          aggregateId: this.id,
+          deviceName: this.props.name,
+          previousDeviceModelId,
+          newDeviceModelId: this.props.deviceModelId,
+          dateTimeOccurred: now
+        })
+      );
+    }
+
+    if (detailsProvided) {
+      this.addDomainEvent(
+        new DeviceDetailsUpdatedEvent({
+          aggregateId: this.id,
+          deviceName: this.props.name,
+          updatedFields: {
+            name:
+              changes.name !== undefined
+                ? this.props.name
+                : undefined,
+            description: changes.description,
+            category: changes.category,
+            serialNumber: changes.serialNumber,
+            macAddress: changes.macAddress,
+            ipAddress: changes.ipAddress,
+            installedDate: changes.installedDate,
+            ownerType: changes.ownerType
+          },
+          dateTimeOccurred: now
+        })
+      );
+    }
+
+    if (statusChanged) {
+      this.addDomainEvent(
+        new DeviceStatusChangedEvent({
+          aggregateId: this.id,
+          deviceName: this.props.name,
+          previousStatus,
+          newStatus: this.props.status,
+          dateTimeOccurred: now
+        })
+      );
+    }
+
+    if (locationChanged) {
+      this.addDomainEvent(
+        new DeviceLocationAssignedEvent({
+          aggregateId: this.id,
+          deviceName: this.props.name,
+          previousLocationId,
+          newLocationId: this.props.locationId,
+          dateTimeOccurred: now
+        })
+      );
+    }
+
+    if (monitoringChanged) {
+      this.addDomainEvent(
+        new DeviceMonitoringToggledEvent({
+          aggregateId: this.id,
+          deviceName: this.props.name,
+          monitoringEnabled,
+          ipAddress: this.props.ipAddress as IPAddress,
+          dateTimeOccurred: now
+        })
+      );
     }
 
     return Result.ok<void>();
+  }
+
+  public changeStatus(newStatus: DeviceStatus): Result<void> {
+    return this.applyChanges({ status: newStatus });
   }
 
   public assignLocation(locationId: LocationId | null): Result<void> {
-    const previousLocationId = this.props.locationId;
+    return this.applyChanges({ locationId });
+  }
 
-    const isSameLocation =
-      (previousLocationId === null && locationId === null) ||
-      (previousLocationId !== null &&
-        locationId !== null &&
-        previousLocationId.equals(locationId));
-
-    if (isSameLocation) {
-      return Result.ok<void>();
-    }
-
-    const validationResult = Device.validate({
-      status: this.props.status,
-      serialNumber: this.props.serialNumber,
-      macAddress: this.props.macAddress,
-      ipAddress: this.props.ipAddress,
-      locationId,
-      monitoringEnabled: this.props.monitoringEnabled,
-      description: this.props.description,
-      installedDate: this.props.installedDate
-    });
-
-    if (validationResult.isFailure) {
-      return Result.fail<void>(validationResult.error);
-    }
-
-    this.props.locationId = locationId;
-    this.touch();
-
-    this.addDomainEvent(
-      new DeviceLocationAssignedEvent({
-        aggregateId: this.id,
-        deviceName: this.props.name,
-        previousLocationId,
-        newLocationId: locationId,
-        dateTimeOccurred: new Date()
-      })
-    );
-
-    return Result.ok<void>();
+  // A data-entry correction, not a hardware swap. Restricted to INVENTORY
+  // because that is the only status in which the unit has never been polled,
+  // so no collected metric can end up attributed to the wrong hardware.
+  // Replacing a unit with one of a different model is a separate operation —
+  // see TODO "Device replacement" in docs/TODOS.md.
+  public correctDeviceModel(
+    deviceModelId: DeviceModelId
+  ): Result<void> {
+    return this.applyChanges({ deviceModelId });
   }
 
   public enableMonitoring(): Result<void> {
-    if (this.props.monitoringEnabled) {
-      return Result.ok<void>();
-    }
-
-    const validationResult = Device.validate({
-      status: this.props.status,
-      serialNumber: this.props.serialNumber,
-      macAddress: this.props.macAddress,
-      ipAddress: this.props.ipAddress,
-      locationId: this.props.locationId,
-      monitoringEnabled: true,
-      description: this.props.description,
-      installedDate: this.props.installedDate
-    });
-
-    if (validationResult.isFailure) {
-      return Result.fail<void>(validationResult.error);
-    }
-
-    return this.setMonitoring(true);
+    return this.applyChanges({ monitoringEnabled: true });
   }
 
   public disableMonitoring(): Result<void> {
-    if (!this.props.monitoringEnabled) {
-      return Result.ok<void>();
-    }
-
-    return this.setMonitoring(false);
+    return this.applyChanges({ monitoringEnabled: false });
   }
 
   public canHaveWirelessConfig(): boolean {
@@ -297,123 +395,84 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     );
   }
 
-  public updateDetails(fields: {
-    name?: DeviceName;
-    description?: string | null;
-    category?: DeviceCategory | null;
-    serialNumber?: SerialNumber | null;
-    macAddress?: MACAddress | null;
-    ipAddress?: IPAddress | null;
-    installedDate?: Date | null;
-    ownerType?: DeviceOwnerType;
-  }): Result<void> {
-    const nextName =
-      fields.name !== undefined ? fields.name : this.props.name;
-    const nextSerialNumber =
-      fields.serialNumber !== undefined
-        ? fields.serialNumber
-        : this.props.serialNumber;
+  public updateDetails(fields: DeviceChanges): Result<void> {
+    return this.applyChanges(fields);
+  }
 
-    let nextOwnerType = this.props.ownerType;
-    if (fields.ownerType !== undefined) {
-      const guardResult = Guard.againstNullOrUndefined(
-        fields.ownerType,
-        'ownerType'
-      );
-      if (!guardResult.succeeded) {
-        return Result.fail<void>(guardResult.message!);
-      }
-      nextOwnerType = fields.ownerType;
-    }
+  private static readonly DETAIL_FIELDS = [
+    'name',
+    'description',
+    'category',
+    'serialNumber',
+    'macAddress',
+    'ipAddress',
+    'installedDate',
+    'ownerType'
+  ] as const;
 
-    const nextDescription =
-      fields.description !== undefined
-        ? fields.description
-        : this.props.description;
-    const nextCategory =
-      fields.category !== undefined
-        ? fields.category
-        : this.props.category;
-    const nextMacAddress =
-      fields.macAddress !== undefined
-        ? fields.macAddress
-        : this.props.macAddress;
-    const nextIpAddress =
-      fields.ipAddress !== undefined
-        ? fields.ipAddress
-        : this.props.ipAddress;
-    const nextInstalledDate =
-      fields.installedDate !== undefined
-        ? fields.installedDate
-        : this.props.installedDate;
-
-    const validationResult = Device.validate({
-      status: this.props.status,
-      serialNumber: nextSerialNumber,
-      macAddress: nextMacAddress,
-      ipAddress: nextIpAddress,
-      locationId: this.props.locationId,
-      monitoringEnabled: this.props.monitoringEnabled,
-      description: nextDescription,
-      installedDate: nextInstalledDate
-    });
-
-    if (validationResult.isFailure) {
-      return Result.fail<void>(validationResult.error);
-    }
-
-    this.props.name = nextName;
-    this.props.description = nextDescription;
-    this.props.category = nextCategory;
-    this.props.serialNumber = nextSerialNumber;
-    this.props.macAddress = nextMacAddress;
-    this.props.ipAddress = nextIpAddress;
-    this.props.installedDate = nextInstalledDate;
-    this.props.ownerType = nextOwnerType;
-
-    this.touch();
-
-    this.addDomainEvent(
-      new DeviceDetailsUpdatedEvent({
-        aggregateId: this.id,
-        deviceName: this.props.name,
-        updatedFields: {
-          name:
-            fields.name !== undefined ? this.props.name : undefined,
-          description: fields.description,
-          category: fields.category,
-          serialNumber: fields.serialNumber,
-          macAddress: fields.macAddress,
-          ipAddress: fields.ipAddress,
-          installedDate: fields.installedDate,
-          ownerType: fields.ownerType
-        },
-        dateTimeOccurred: new Date()
-      })
+  private static touchesDetails(changes: DeviceChanges): boolean {
+    return Device.DETAIL_FIELDS.some(
+      (field) => changes[field] !== undefined
     );
+  }
 
-    return Result.ok<void>();
+  private static sameLocation(
+    a: LocationId | null,
+    b: LocationId | null
+  ): boolean {
+    if (a === null || b === null) {
+      return a === b;
+    }
+    return a.equals(b);
+  }
+
+  private resolve(changes: DeviceChanges): {
+    deviceModelId: DeviceModelId;
+    name: DeviceName;
+    description: string | null;
+    category: DeviceCategory | null;
+    serialNumber: SerialNumber | null;
+    macAddress: MACAddress | null;
+    ipAddress: IPAddress | null;
+    installedDate: Date | null;
+    ownerType: DeviceOwnerType | null;
+    status: DeviceStatus;
+    locationId: LocationId | null;
+    monitoringEnabled: boolean;
+  } {
+    const pick = <T>(incoming: T | undefined, current: T): T =>
+      incoming !== undefined ? incoming : current;
+
+    return {
+      deviceModelId: pick(
+        changes.deviceModelId,
+        this.props.deviceModelId
+      ),
+      name: pick(changes.name, this.props.name),
+      description: pick(changes.description, this.props.description),
+      category: pick(changes.category, this.props.category),
+      serialNumber: pick(
+        changes.serialNumber,
+        this.props.serialNumber
+      ),
+      macAddress: pick(changes.macAddress, this.props.macAddress),
+      ipAddress: pick(changes.ipAddress, this.props.ipAddress),
+      installedDate: pick(
+        changes.installedDate,
+        this.props.installedDate
+      ),
+      ownerType: pick(changes.ownerType, this.props.ownerType),
+      status: pick(changes.status, this.props.status),
+      locationId: pick(changes.locationId, this.props.locationId),
+      monitoringEnabled: pick(
+        changes.monitoringEnabled,
+        this.props.monitoringEnabled
+      )
+    };
   }
 
   private touch(): void {
     this.props.updatedAt = new Date();
-  }
-
-  private setMonitoring(enabled: boolean): Result<void> {
-    this.props.monitoringEnabled = enabled;
-    this.touch();
-
-    this.addDomainEvent(
-      new DeviceMonitoringToggledEvent({
-        aggregateId: this.id,
-        deviceName: this.props.name,
-        monitoringEnabled: enabled,
-        ipAddress: this.props.ipAddress as IPAddress,
-        dateTimeOccurred: new Date()
-      })
-    );
-
-    return Result.ok<void>();
   }
 
   private static requiresIdentifier(status: DeviceStatus): boolean {

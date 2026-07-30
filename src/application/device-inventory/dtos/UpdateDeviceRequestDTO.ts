@@ -2,6 +2,9 @@
 export interface UpdateDeviceRequestDTO {
   id: string;
   name?: string;
+  // Corrects a mis-registered model. Accepted only while the device is
+  // INVENTORY — this is not a hardware-replacement path.
+  deviceModelId?: string;
   status?: string;
   // null clears the category. When set, device must have an IP address.
   category?: string | null;

@@ -11,6 +11,7 @@ import {
   DeviceLocationAssignedEvent,
   DeviceMonitoringToggledEvent,
   DeviceDetailsUpdatedEvent,
+  DeviceModelCorrectedEvent,
   DeviceOwnerType,
   DeviceProps
 } from '../../../../src/domain/device-inventory';
@@ -1120,6 +1121,289 @@ describe('Device', () => {
   });
 
   // =========================================================================
+  describe('[DEV-060] applyChanges() — whole-state validation', () => {
+    it('should accept a location and ACTIVE status in one call', () => {
+      const device = makeDevice({
+        status: DeviceStatus.createInventory(),
+        ipAddress: IPAddress.create('10.2.0.1').value,
+        locationId: null
+      });
+      const locationId = LocationId.create();
+
+      const result = device.applyChanges({
+        locationId,
+        status: DeviceStatus.createActive()
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.locationId).toBe(locationId);
+      expect(device.status.toString()).toBe('ACTIVE');
+    });
+
+    it('should accept an IP and ACTIVE status in one call', () => {
+      const device = makeDevice({
+        status: DeviceStatus.createInventory(),
+        ipAddress: null,
+        locationId: LocationId.create()
+      });
+      const ip = IPAddress.create('10.2.0.2').value;
+
+      const result = device.applyChanges({
+        ipAddress: ip,
+        status: DeviceStatus.createActive()
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.ipAddress).toBe(ip);
+    });
+
+    it('should accept clearing the location while leaving ACTIVE in one call', () => {
+      const device = makeDevice({
+        status: DeviceStatus.createActive(),
+        ipAddress: IPAddress.create('10.2.0.3').value,
+        locationId: LocationId.create(),
+        serialNumber: SerialNumber.create('SN-1').value
+      });
+
+      const result = device.applyChanges({
+        locationId: null,
+        status: DeviceStatus.createInventory()
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.locationId).toBeNull();
+      expect(device.status.toString()).toBe('INVENTORY');
+    });
+
+    it('should still reject clearing the location of a device that stays ACTIVE', () => {
+      const locationId = LocationId.create();
+      const device = makeDevice({
+        status: DeviceStatus.createActive(),
+        ipAddress: IPAddress.create('10.2.0.4').value,
+        locationId
+      });
+
+      const result = device.applyChanges({ locationId: null });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('must have a location assigned');
+      expect(device.locationId).toBe(locationId);
+    });
+
+    it('should accept disabling monitoring while moving to a non-monitorable status', () => {
+      const device = makeDevice({
+        status: DeviceStatus.createActive(),
+        ipAddress: IPAddress.create('10.2.0.5').value,
+        locationId: LocationId.create(),
+        serialNumber: SerialNumber.create('SN-2').value,
+        monitoringEnabled: true
+      });
+
+      const result = device.applyChanges({
+        status: DeviceStatus.createDamaged(),
+        monitoringEnabled: false
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.monitoringEnabled).toBe(false);
+      expect(device.status.toString()).toBe('DAMAGED');
+    });
+
+    it('[DEV-059] should force monitoring on when moving into COMMISSIONING, overriding an explicit false', () => {
+      const device = makeDevice({
+        status: DeviceStatus.createInventory(),
+        ipAddress: IPAddress.create('10.2.0.6').value,
+        monitoringEnabled: false
+      });
+
+      const result = device.applyChanges({
+        status: DeviceStatus.createCommissioning(),
+        monitoringEnabled: false
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.monitoringEnabled).toBe(true);
+    });
+
+    it('should leave the aggregate untouched when the candidate state is invalid', () => {
+      const device = makeDevice({
+        status: DeviceStatus.createInventory(),
+        ipAddress: null,
+        locationId: null
+      });
+      device.clearEvents();
+
+      // ACTIVE needs both an IP and a location; only the IP is supplied.
+      const result = device.applyChanges({
+        ipAddress: IPAddress.create('10.2.0.7').value,
+        status: DeviceStatus.createActive()
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(device.ipAddress).toBeNull();
+      expect(device.status.toString()).toBe('INVENTORY');
+      expect(device.domainEvents.length).toBe(0);
+    });
+
+    it('should emit one event per changed aspect', () => {
+      const device = makeDevice({
+        status: DeviceStatus.createInventory(),
+        ipAddress: IPAddress.create('10.2.0.8').value,
+        locationId: null
+      });
+      device.clearEvents();
+
+      device.applyChanges({
+        name: DeviceName.create('Renamed').value,
+        locationId: LocationId.create(),
+        status: DeviceStatus.createActive(),
+        monitoringEnabled: true
+      });
+
+      const kinds = device.domainEvents.map((e) => e.constructor.name);
+      expect(kinds).toEqual([
+        'DeviceDetailsUpdatedEvent',
+        'DeviceStatusChangedEvent',
+        'DeviceLocationAssignedEvent',
+        'DeviceMonitoringToggledEvent'
+      ]);
+    });
+
+    it('should be a no-op for an empty change set', () => {
+      const device = makeDevice();
+      const before = device.updatedAt;
+      device.clearEvents();
+
+      const result = device.applyChanges({});
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.domainEvents.length).toBe(0);
+      expect(device.updatedAt).toBe(before);
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-063] correctDeviceModel()', () => {
+    describe('happy path', () => {
+      it('should return a successful Result for an INVENTORY device', () => {
+        const device = makeDevice();
+        const result = device.correctDeviceModel(DeviceModelId.create());
+
+        expect(result.isSuccess).toBe(true);
+      });
+
+      it('should replace deviceModelId', () => {
+        const device = makeDevice();
+        const newModelId = DeviceModelId.create();
+        device.correctDeviceModel(newModelId);
+
+        expect(device.deviceModelId).toBe(newModelId);
+      });
+
+      it('should emit a DeviceModelCorrectedEvent carrying both ids', () => {
+        const oldModelId = DeviceModelId.create();
+        const newModelId = DeviceModelId.create();
+        const device = makeDevice({ deviceModelId: oldModelId });
+        device.clearEvents();
+        device.correctDeviceModel(newModelId);
+
+        expect(device.domainEvents.length).toBe(1);
+        const event = device
+          .domainEvents[0] as DeviceModelCorrectedEvent;
+
+        expect(event).toBeInstanceOf(DeviceModelCorrectedEvent);
+        expect(event.previousDeviceModelId.toString()).toBe(
+          oldModelId.toString()
+        );
+        expect(event.newDeviceModelId.toString()).toBe(
+          newModelId.toString()
+        );
+        expect(event.deviceName).toBe(device.name);
+      });
+
+      it('should update the updatedAt timestamp', () => {
+        const device = makeDevice();
+        const before = new Date();
+        device.correctDeviceModel(DeviceModelId.create());
+        const after = new Date();
+
+        expect(device.updatedAt.getTime()).toBeGreaterThanOrEqual(
+          before.getTime()
+        );
+        expect(device.updatedAt.getTime()).toBeLessThanOrEqual(
+          after.getTime()
+        );
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('no-op', () => {
+      it('should succeed without an event when the model is unchanged', () => {
+        const modelId = DeviceModelId.create();
+        const device = makeDevice({ deviceModelId: modelId });
+        device.clearEvents();
+        const result = device.correctDeviceModel(modelId);
+
+        expect(result.isSuccess).toBe(true);
+        expect(device.domainEvents.length).toBe(0);
+      });
+
+      it('should succeed for the unchanged model even when not INVENTORY', () => {
+        const modelId = DeviceModelId.create();
+        const device = makeDevice({
+          deviceModelId: modelId,
+          status: DeviceStatus.createActive(),
+          ipAddress: IPAddress.create('10.0.0.5').value,
+          locationId: LocationId.create()
+        });
+        const result = device.correctDeviceModel(modelId);
+
+        expect(result.isSuccess).toBe(true);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('invariant enforcement', () => {
+      it.each([
+        ['ACTIVE', DeviceStatus.createActive()],
+        ['COMMISSIONING', DeviceStatus.createCommissioning()],
+        ['DAMAGED', DeviceStatus.createDamaged()]
+      ])(
+        'should fail for a %s device and leave the model untouched',
+        (_label, status) => {
+          const oldModelId = DeviceModelId.create();
+          const device = makeDevice({
+            deviceModelId: oldModelId,
+            status,
+            ipAddress: IPAddress.create('10.0.0.9').value,
+            locationId: LocationId.create()
+          });
+          device.clearEvents();
+          const result = device.correctDeviceModel(
+            DeviceModelId.create()
+          );
+
+          expect(result.isFailure).toBe(true);
+          expect(result.error).toContain(
+            'Cannot change the device model of a device with status'
+          );
+          expect(device.deviceModelId).toBe(oldModelId);
+          expect(device.domainEvents.length).toBe(0);
+        }
+      );
+
+      it('should fail when deviceModelId is null', () => {
+        const device = makeDevice();
+        const result = device.correctDeviceModel(
+          null as unknown as DeviceModelId
+        );
+
+        expect(result.isFailure).toBe(true);
+      });
+    });
+  });
+
+  // =========================================================================
   describe('enableMonitoring()', () => {
     describe('happy path', () => {
       it('should return a successful Result', () => {
@@ -1936,14 +2220,15 @@ describe('Device', () => {
       expect(event.updatedFields.description).toBe('A useful description');
     });
 
-    it('should still emit DeviceDetailsUpdatedEvent even when called with an empty fields object', () => {
+    it('should not emit anything when called with an empty fields object', () => {
       const device = makeDevice();
+      const before = device.updatedAt;
       device.clearEvents();
       const result = device.updateDetails({});
 
       expect(result.isSuccess).toBe(true);
-      expect(device.domainEvents.length).toBe(1);
-      expect(device.domainEvents[0]).toBeInstanceOf(DeviceDetailsUpdatedEvent);
+      expect(device.domainEvents.length).toBe(0);
+      expect(device.updatedAt).toBe(before);
     });
   });
 

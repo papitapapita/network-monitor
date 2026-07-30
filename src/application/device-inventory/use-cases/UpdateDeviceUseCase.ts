@@ -1,7 +1,15 @@
 import { IPAddress, MACAddress } from 'domain/shared';
-import { IDeviceRepository } from 'domain/device-inventory/repository';
+import {
+  IDeviceRepository,
+  IDeviceModelRepository
+} from 'domain/device-inventory/repository';
 import { DeviceOwnerType } from 'domain/device-inventory/enums';
-import { LocationId, DeviceId } from 'domain/shared/ids';
+import { DeviceChanges } from 'domain/device-inventory/props';
+import {
+  LocationId,
+  DeviceId,
+  DeviceModelId
+} from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
@@ -20,6 +28,7 @@ export class UpdateDeviceUseCase extends UseCase<
 > {
   constructor(
     private readonly deviceRepository: IDeviceRepository,
+    private readonly deviceModelRepository: IDeviceModelRepository,
     logger: ILogger
   ) {
     super(logger, 'UpdateDeviceUseCase');
@@ -30,6 +39,13 @@ export class UpdateDeviceUseCase extends UseCase<
   ): Promise<Result<void> | null> {
     if (!request.id || request.id.trim().length === 0) {
       return Result.fail('Device ID is required');
+    }
+
+    if (
+      request.deviceModelId !== undefined &&
+      request.deviceModelId.trim().length === 0
+    ) {
+      return Result.fail('deviceModelId cannot be empty');
     }
 
     if (request.ownerType !== undefined) {
@@ -83,8 +99,7 @@ export class UpdateDeviceUseCase extends UseCase<
     const device = findResult.value;
     const data = DeviceMapper.extractUpdateData(request);
 
-    const updateFields: Parameters<typeof device.updateDetails>[0] =
-      {};
+    const updateFields: DeviceChanges = {};
 
     if (data.name !== undefined) {
       const nameResult = DeviceName.create(data.name);
@@ -203,25 +218,33 @@ export class UpdateDeviceUseCase extends UseCase<
       }
     }
 
-    // updateDetails must run before changeStatus so that an IP set in the same
-    // request is already present on the aggregate when the status transition
-    // (e.g. INVENTORY → ACTIVE) is validated by the domain.
-    if (Object.keys(updateFields).length > 0) {
-      const updateResult = device.updateDetails(updateFields);
-      if (updateResult.isFailure) {
-        return this.fail(updateResult.error!);
+    if (data.deviceModelId !== undefined) {
+      const deviceModelIdResult = DeviceModelId.parse(
+        data.deviceModelId.trim()
+      );
+      if (deviceModelIdResult.isFailure) {
+        return this.fail(
+          `Invalid deviceModelId: ${deviceModelIdResult.error}`
+        );
       }
-    }
+      const newDeviceModelId = deviceModelIdResult.value;
 
-    // A disable must be applied before changeStatus validates, since that validation
-    // reads the aggregate's current (not-yet-updated) monitoringEnabled — otherwise
-    // turning monitoring off while moving to a non-monitorable status in the same
-    // request would be rejected as if monitoring were still on.
-    if (data.monitoringEnabled === false) {
-      const disableResult = device.disableMonitoring();
-      if (disableResult.isFailure) {
-        return this.fail(disableResult.error!);
+      if (!device.deviceModelId.equals(newDeviceModelId)) {
+        const modelExistsResult =
+          await this.deviceModelRepository.exists(newDeviceModelId);
+        if (modelExistsResult.isFailure) {
+          return this.fail(
+            `Failed to verify device model: ${modelExistsResult.error}`
+          );
+        }
+        if (!modelExistsResult.value) {
+          return this.fail(
+            `Device model not found: ${data.deviceModelId}`
+          );
+        }
       }
+
+      updateFields.deviceModelId = newDeviceModelId;
     }
 
     if (data.status !== undefined) {
@@ -229,17 +252,13 @@ export class UpdateDeviceUseCase extends UseCase<
       if (statusResult.isFailure) {
         return this.fail(statusResult.error!);
       }
-      const changeStatusResult = device.changeStatus(
-        statusResult.value
-      );
-      if (changeStatusResult.isFailure) {
-        return this.fail(changeStatusResult.error!);
-      }
+      updateFields.status = statusResult.value;
     }
 
     if (data.locationId !== undefined) {
-      let newLocationId: LocationId | null = null;
-      if (data.locationId !== null) {
+      if (data.locationId === null) {
+        updateFields.locationId = null;
+      } else {
         const locationIdResult = LocationId.parse(
           data.locationId.trim()
         );
@@ -248,19 +267,19 @@ export class UpdateDeviceUseCase extends UseCase<
             `Invalid locationId: ${locationIdResult.error}`
           );
         }
-        newLocationId = locationIdResult.value;
-      }
-      const assignResult = device.assignLocation(newLocationId);
-      if (assignResult.isFailure) {
-        return this.fail(assignResult.error!);
+        updateFields.locationId = locationIdResult.value;
       }
     }
 
-    if (data.monitoringEnabled === true) {
-      const enableResult = device.enableMonitoring();
-      if (enableResult.isFailure) {
-        return this.fail(enableResult.error!);
-      }
+    if (data.monitoringEnabled !== undefined) {
+      updateFields.monitoringEnabled = data.monitoringEnabled;
+    }
+
+    // One call, one validation of the whole candidate state — so no field in
+    // the request can be judged against a half-applied version of the others.
+    const applyResult = device.applyChanges(updateFields);
+    if (applyResult.isFailure) {
+      return this.fail(applyResult.error!);
     }
 
     const saveResult = await this.deviceRepository.save(device);
