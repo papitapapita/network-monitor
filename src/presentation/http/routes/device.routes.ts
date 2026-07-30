@@ -43,8 +43,8 @@ export function createDeviceRoutes(
    *   - deviceModelId  (required) UUID of the device model
    *   - name           (required) 1-150 chars
    *   - ownerType      (required) COMPANY | CLIENT
-   *   - status         (optional) INVENTORY | ACTIVE | MAINTENANCE | DAMAGED | DECOMMISSIONED
-   *   - category       (optional) CORE | DISTRIBUTION | POE | ACCESS_POINT | CLIENT_CPE
+   *   - status         (optional) INVENTORY | COMMISSIONING | ACTIVE | DAMAGED
+   *   - category       (optional) CPE | WIRELESS_CPE | ACCESS_POINT | GATEWAY | AGGREGATION_SWITCH | OTHER
    *   - locationId     (optional) UUID of assigned location
    *   - serialNumber   (optional) max 100 chars
    *   - macAddress     (optional) AA:BB:CC:DD:EE:FF or AA-BB-CC-DD-EE-FF; must be unique
