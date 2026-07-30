@@ -43,7 +43,7 @@ export class DeviceModelMapper {
       vendorId: dto.vendorId,
       model: dto.model,
       deviceType: dto.deviceType,
-      isWireless: dto.isWireless ?? false
+      isWireless: dto.isWireless
     };
   }
 

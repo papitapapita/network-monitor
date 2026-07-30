@@ -43,7 +43,10 @@ export class DeviceModel extends AggregateRoot<
   }
 
   public static create(
-    props: Omit<DeviceModelProps, 'createdAt' | 'updatedAt'>
+    props: Omit<
+      DeviceModelProps,
+      'createdAt' | 'updatedAt' | 'isWireless'
+    > & { isWireless?: boolean }
   ): Result<DeviceModel> {
     const validationResult = DeviceModel.validate(props);
     if (validationResult.isFailure) {
@@ -148,7 +151,10 @@ export class DeviceModel extends AggregateRoot<
   }
 
   private static validate(
-    props: Omit<DeviceModelProps, 'createdAt' | 'updatedAt'>
+    props: Omit<
+      DeviceModelProps,
+      'createdAt' | 'updatedAt' | 'isWireless'
+    >
   ): Result<void> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(props.vendorId, 'vendorId'),

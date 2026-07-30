@@ -64,7 +64,7 @@ export const createDeviceModelSchema = z.object({
       })
     }),
 
-    isWireless: z.boolean().optional().default(false)
+    isWireless: z.boolean().optional()
   })
 });
 
