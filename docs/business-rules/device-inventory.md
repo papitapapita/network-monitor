@@ -129,10 +129,14 @@ All three are mandatory at creation.
 
 **Why:** A model is meaningless without its maker — "AirGrid M5" is only
 identifiable as _Ubiquiti's_ AirGrid M5. The device type drives which collector
-and which alert rules apply to units of this model. _(inferred)_
+and which alert rules apply to units of this model.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/DeviceModel.ts:144` (`DeviceModel.validate`), use case pre-checks at `CreateDeviceModelUseCase.ts:32-41`
+**Enforced at:** `src/domain/device-inventory/aggregates/DeviceModel.ts:150` (`DeviceModel.validate`), use case pre-checks at `CreateDeviceModelUseCase.ts:32-43`
 **Message:** `Vendor ID is required` / `Model name is required` / `Device type is required`
+
+The shape of each is then governed by DEV-023 (model name) and DEV-024 (device
+type). The aggregate guard only checks that a `DeviceType` is present — by the
+time `create` runs, the value has already been through `DeviceType.create`.
 
 ### DEV-021 — The vendor of a device model must exist
 
@@ -171,24 +175,44 @@ Trimmed before storage.
 **Why:** Matches the database column and keeps model names readable in pickers.
 _(inferred)_
 
-**Enforced at:** `src/domain/device-inventory/aggregates/DeviceModel.ts:81` (`validate`), `:161` (`updateModel`)
+**Enforced at:** `src/domain/device-inventory/aggregates/DeviceModel.ts:164` (`validate`), `:85` (`updateModel`)
 **Reached from:** `create`, `updateModel`
 **Message:** `Model name cannot be empty` / `Model name cannot exceed 150 characters`
 
-### DEV-024 — A device type is a free-form string
+### DEV-024 — A device type is one of seven values
 
 **Type:** Validation · **Status:** Active
 
-Not an enum. Required and non-empty **at creation only**.
+Required: `ANTENNA`, `OTHER`, `RADIO`, `ROUTER`, `ROUTERBOARD`, `SERVER`,
+`SWITCH`. Input is trimmed and upper-cased before the set is checked, so
+`router` is accepted and stored as `ROUTER`. A blank or whitespace-only value is
+rejected before the set is consulted, with its own message.
 
-**Why:** Device types vary by manufacturer and new categories appear faster than
-the code changes; an enum would need a deploy for every new kind of hardware.
-Note this is a deliberately weaker rule than `DeviceCategory` (DEV-043), which
-_is_ a closed set because behaviour branches on it. _(inferred)_
+The set is owned by the `DeviceType` value object. Nothing above the domain
+holds a copy of it: the aggregate's `deviceType` is a `DeviceType`, never a
+string, so an unparsed value cannot reach `DeviceModel.create` or
+`updateDeviceType`. The Zod schemas at the HTTP edge do carry their own literal
+list — that one is a fast-fail for a better 400, not the authority. The Prisma
+`device_type` enum (`prisma/schema.prisma:64`) carries the same seven values, so
+the column cannot hold anything the domain would reject.
 
-**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceModelUseCase.ts:41`
-**Message:** `Device type is required`
-**Gap:** `updateDeviceType` does not re-check non-emptiness — see [G-2](#known-gaps).
+**Why:** The type drives which collector runs against units of this model and
+which alert rules apply, so behaviour branches on it — the same reason
+`DeviceCategory` (DEV-043) is a closed set. `OTHER` is the escape hatch that
+keeps the set from needing to grow for every unusual piece of hardware.
+
+**Enforced at:** `src/domain/device-inventory/value-objects/DeviceType.ts:31` (`DeviceType.create`)
+**Reached from:** `CreateDeviceModelUseCase.ts:52`, `UpdateDeviceModelUseCase.ts:99`; use case pre-check at `CreateDeviceModelUseCase.ts:38-43`; HTTP fast-fail in `src/presentation/http/validation/device-model.schemas.ts:61`, `:94`
+**Message:** `Device type cannot be empty` / `Invalid device type: "<value>". Must be one of: ANTENNA, OTHER, RADIO, ROUTER, ROUTERBOARD, SERVER, SWITCH`
+**Tests:** `tests/domain/device-inventory/value-objects/DeviceType.test.ts`
+
+A stored value is held to a stricter standard than an incoming one:
+`DeviceModelMapper.toDomain` checks `DeviceType.isValid` on the raw column with
+no trimming or case-folding, and fails with
+`Data integrity violation: unrecognised DeviceType "<value>" in persistence store`
+on a miss. A row that only matches after normalisation means the database and
+the domain have drifted, which is a defect to surface rather than paper over.
+(`src/infrastructure/mappers/DeviceModelMapper.ts:49`)
 
 ### DEV-025 — A device model is non-wireless unless stated
 
@@ -196,11 +220,19 @@ _is_ a closed set because behaviour branches on it. _(inferred)_
 
 `isWireless` defaults to `false` when omitted.
 
+The default is applied in the aggregate, not at the edge. `DeviceModel.create`
+accepts `isWireless` as optional and resolves it; the Zod schema only checks
+that a supplied value is a boolean, and the application mapper passes the
+caller's value through untouched. So a non-HTTP caller — a seed script, an
+importer — gets the same default as a request, and there is one place to read to
+know what omission means. Same arrangement as DEV-058.
+
 **Why:** Wireless is the exception in the catalogue and the flag switches on
 extra collection machinery. Defaulting to off means a carelessly created model
 does not silently start wireless polling. _(inferred)_
 
-**Enforced at:** `src/domain/device-inventory/aggregates/DeviceModel.ts:56`
+**Enforced at:** `src/domain/device-inventory/aggregates/DeviceModel.ts:62` (`DeviceModel.create`)
+**Tests:** `tests/domain/device-inventory/aggregates/DeviceModel.test.ts`, `tests/application/device-inventory/mappers/DeviceModelMapper.test.ts`
 
 ### DEV-026 — A device model with devices cannot be deleted
 
@@ -257,7 +289,7 @@ optional at creation, subject to the status rules below.
 is, and what we call it. Keeping the rest optional is what lets equipment be
 registered on arrival, before it has been configured or installed.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:91` (`Guard.combine` in `create`)
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:92` (`Guard.combine` in `create`)
 **Message:** `deviceModelId is required` / `Device name is required`
 
 ### DEV-041 — A device name is non-empty and at most 150 characters
@@ -285,21 +317,52 @@ before it is deployed.
 **Default applied at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:104`
 **Message:** `Invalid device status: <value>. Must be one of: ACTIVE, COMMISSIONING, DAMAGED, INVENTORY`
 
-### DEV-043 — A device category, when set, is one of seven values
+### DEV-043 — A device category, when set, is one of six deployment roles
 
 **Type:** Validation · **Status:** Active
 
-Optional (nullable). When present it must be one of `CPE`, `WIRELESS_CPE`, `AP`,
-`ROUTERBOARD`, `SMART_SWITCH`, `SMART_SWITCH_POE`, `OTHER`. Trimmed and
-upper-cased.
+Optional (nullable). When present it must be one of `CPE`, `WIRELESS_CPE`,
+`ACCESS_POINT`, `GATEWAY`, `AGGREGATION_SWITCH`, `OTHER`. Trimmed and
+upper-cased, so `access_point` is accepted and stored as `ACCESS_POINT`. A blank
+or whitespace-only value is rejected before the set is consulted, with its own
+message.
 
-**Why:** Unlike device _type_ (DEV-024), behaviour branches on category: only
-`WIRELESS_CPE` and `AP` may hold a wireless configuration (DEV-062). A closed
-set is what makes that decision safe. `OTHER` is the escape hatch that keeps the
-set from needing to grow for every oddity.
+The set is owned by the `DeviceCategory` value object; the aggregate's
+`category` is a `DeviceCategory`, never a string. The Zod schemas at the HTTP
+edge carry their own literal list
+(`src/presentation/http/validation/device.schemas.ts:23`) — a fast-fail for a
+better 400, not the authority. The Prisma `device_category` enum
+(`prisma/schema.prisma:144`) carries the same six values.
 
-**Enforced at:** `src/domain/device-inventory/value-objects/DeviceCategory.ts:50`
-**Message:** `Invalid device category: <value>. Must be one of: CPE, WIRELESS_CPE, AP, ROUTERBOARD, SMART_SWITCH, SMART_SWITCH_POE, OTHER`
+**Why:** Category answers **what role the unit plays in the network**, where
+device type (DEV-024) answers **what kind of hardware it is** — both closed
+sets, for the same reason: behaviour branches on them. Only `WIRELESS_CPE` and
+`ACCESS_POINT` may hold a wireless configuration (DEV-062), and the wireless
+radio mode is derived from the category rather than asked for (DEV-064). `OTHER`
+is the escape hatch that keeps the set from needing to grow for every oddity.
+
+**Enforced at:** `src/domain/device-inventory/value-objects/DeviceCategory.ts:47` (`DeviceCategory.create`)
+**Message:** `Device category cannot be empty` / `Invalid device category: <value>. Must be one of: CPE, WIRELESS_CPE, ACCESS_POINT, GATEWAY, AGGREGATION_SWITCH, OTHER`
+**Tests:** `tests/domain/device-inventory/value-objects/DeviceCategory.test.ts`
+
+**History — the roles were recast on 2026-07-29.** The original set mixed
+network role with hardware kind, which is the distinction DEV-024 now owns. The
+migration `20260729030000_device_category_deployment_roles` rewrote existing
+rows:
+
+| Old | New | Reason |
+| ------------------ | -------------------- | ------------------------------------------ |
+| `AP`               | `ACCESS_POINT`       | renamed for clarity                        |
+| `ROUTERBOARD`      | `GATEWAY`            | the role is _where upstream internet enters_; `ROUTERBOARD` remains a `DeviceType` |
+| `SMART_SWITCH`     | `AGGREGATION_SWITCH` | the node switch radios converge on         |
+| `SMART_SWITCH_POE` | `AGGREGATION_SWITCH` | PoE is a hardware trait, not a role        |
+
+`SMART_SWITCH` and `SMART_SWITCH_POE` collapsing onto one role is why the
+migration swaps the enum type rather than renaming values in place — Postgres
+cannot drop an enum value.
+
+Unlike DEV-024 and DEV-091, a stored category is **not** re-checked on the way
+out of persistence — see [G-11](#known-gaps).
 
 ### DEV-044 — A device owner, when set, is COMPANY or CLIENT
 
@@ -311,7 +374,7 @@ Optional. Case-insensitive on input.
 fails and whether it goes back to the warehouse when a client leaves.
 _(inferred)_
 
-**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:50`, `UpdateDeviceUseCase.ts:44`
+**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:50`, `UpdateDeviceUseCase.ts:51`
 **Message:** `Invalid ownerType: "<value>". Must be one of: COMPANY, CLIENT`
 
 ### DEV-045 — A serial number is non-empty and at most 100 characters
@@ -349,7 +412,7 @@ re-submitting a device's own MAC is not a collision.
 inventory error — most often the same physical unit registered twice — and would
 make network scan results ambiguous about which record they matched.
 
-**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:144`, `UpdateDeviceUseCase.ts:167`
+**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:144`, `UpdateDeviceUseCase.ts:174`
 **Message:** `MAC address "<value>" is already assigned to another device`
 **Gap:** No database constraint backs this — see [G-1](#known-gaps).
 
@@ -375,7 +438,7 @@ Same change-detection as DEV-047: a device may keep its own IP on update.
 a duplicate record. Either way the monitor cannot tell which unit answered a
 ping, so the data would be silently wrong rather than absent.
 
-**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:166`, `UpdateDeviceUseCase.ts:197`
+**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:166`, `UpdateDeviceUseCase.ts:204`
 **Message:** `IP address "<value>" is already assigned to another device`
 **Gap:** No database constraint backs this — see [G-1](#known-gaps).
 
@@ -385,7 +448,7 @@ ping, so the data would be silently wrong rather than absent.
 
 Optional. Rejected if `new Date(value)` yields `Invalid Date`.
 
-**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:176`, `UpdateDeviceUseCase.ts:113`
+**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:176`, `UpdateDeviceUseCase.ts:128`
 **Message:** `Invalid installedDate: "<value>". Must be a valid ISO 8601 date string.`
 **Note:** The message promises ISO 8601 but the check is looser than that — see
 [G-5](#known-gaps).
@@ -400,15 +463,15 @@ Compared against the moment of validation.
 plan. A future date is a typo, and it would distort age-based reporting on the
 fleet.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:514` (`Device.validateInstalledDate`)
-**Reached from:** `create`, `changeStatus`, `assignLocation`, `enableMonitoring`, `updateDetails`
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:573` (`Device.validateInstalledDate`)
+**Reached from:** `create`, and every later change via `applyChanges` (DEV-060)
 **Message:** `installedDate cannot be in the future`
 
 ### DEV-052 — A device description is at most 500 characters
 
 **Type:** Validation · **Status:** Active
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:494` (`Device.validateDescription`)
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:553` (`Device.validateDescription`)
 **Message:** `Device description cannot exceed 500 characters`
 
 ### DEV-053 — An INVENTORY or DAMAGED device must have a serial number or a MAC address
@@ -422,8 +485,8 @@ a physical object on a shelf. Without a serial or a MAC there is no way to match
 the record to the box in your hand, so the row is untraceable stock. An ACTIVE
 device is exempt because its IP already identifies it.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:437` (`Device.validate`)
-**Reached from:** `create`, `changeStatus`, `assignLocation`, `enableMonitoring`, `updateDetails`
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:497` (`Device.validate`)
+**Reached from:** `create`, and every later change via `applyChanges` (DEV-060)
 **Message:** `A device with status <status> must have at least a serial number or MAC address`
 
 ### DEV-054 — An ACTIVE device must have an IP address
@@ -434,8 +497,8 @@ device is exempt because its IP already identifies it.
 device with no IP cannot be polled — it would sit in the dashboard permanently
 green and never actually be checked. _(inferred)_
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:447`
-**Reached from:** `create`, `changeStatus`, `assignLocation`, `enableMonitoring`, `updateDetails`
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:506`
+**Reached from:** `create`, and every later change via `applyChanges` (DEV-060)
 **Message:** `An ACTIVE device must have an IP address assigned`
 
 ### DEV-055 — An ACTIVE device must have a location
@@ -448,8 +511,8 @@ Also blocks _removing_ the location from a device that is already ACTIVE.
 to a fault needs somewhere to drive. A device with no location cannot be found
 in the field. _(inferred)_
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:453`
-**Reached from:** `create`, `changeStatus`, `assignLocation`, `enableMonitoring`, `updateDetails`
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:512`
+**Reached from:** `create`, and every later change via `applyChanges` (DEV-060)
 **Message:** `An ACTIVE device must have a location assigned`
 
 ### DEV-056 — A COMMISSIONING device must have an IP address
@@ -461,7 +524,7 @@ watched to see whether it stays up. That requires reaching it. Note this is
 weaker than ACTIVE: no location is required yet, because a unit can be
 configured on the bench before it is installed. _(inferred)_
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:459`
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:518`
 **Message:** `A COMMISSIONING device must have an IP address assigned`
 
 ### DEV-057 — Monitoring can only be enabled for ACTIVE or COMMISSIONING devices
@@ -472,8 +535,8 @@ configured on the bench before it is installed. _(inferred)_
 a warehouse unit or a broken one would generate a permanent stream of
 false-alarm outage alerts and train operators to ignore the dashboard.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:465`
-**Reached from:** `create`, `changeStatus`, `assignLocation`, `enableMonitoring`, `updateDetails`
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:525`
+**Reached from:** `create`, and every later change via `applyChanges` (DEV-060)
 **Message:** `Monitoring can only be enabled for ACTIVE or COMMISSIONING devices`
 
 ### DEV-058 — A new COMMISSIONING device gets monitoring on by default
@@ -488,7 +551,7 @@ it is the sensible default rather than a step to remember. It stays a default
 and not a rule because there are legitimate reasons to stage a device without
 polling it yet.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:106`
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:108`
 
 ### DEV-059 — Moving a device into COMMISSIONING turns monitoring on
 
@@ -500,37 +563,52 @@ DEV-058, this is not conditional on caller intent.
 **Why:** Same reasoning as DEV-058, applied to units that reach commissioning by
 transition rather than at creation.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:211` (`changeStatus`)
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:226` (`applyChanges` — the COMMISSIONING override)
 
 ### DEV-060 — Status-dependent rules are validated against prospective state, not current state
 
 **Type:** Invariant · **Status:** Active
 
 `Device.validate()` is the single source of truth for DEV-051 through DEV-057.
-It is static and takes the _candidate_ state as an argument, so it can run
-before a mutation commits. Every mutator that can change status, identifiers,
-IP, location or monitoring routes through it: `create`, `changeStatus`,
-`assignLocation`, `enableMonitoring`, `updateDetails`.
+It is static and takes the _candidate_ state as an argument, so it runs before
+any mutation commits.
+
+There is exactly one mutation path: `Device.applyChanges(changes)`. It receives
+every field a caller may change **together**, resolves the candidate state
+(absent key = unchanged, explicit `null` = clear), validates that candidate
+**once**, and only then commits and raises events. `changeStatus`,
+`assignLocation`, `enableMonitoring`, `disableMonitoring`, `correctDeviceModel`
+and `updateDetails` are one-line wrappers over it and hold no rules of their
+own.
 
 **Why:** Rules that span several fields cannot be checked field-by-field. A
-request that sets an IP _and_ flips the status to ACTIVE is legal as a whole but
-illegal in either order if each field is validated alone. Validating the
-prospective whole state is what makes such a request work.
+request that sets an IP _and_ flips the status to ACTIVE, or assigns a location
+_and_ flips the status to ACTIVE, is legal as a whole but illegal in either
+order if each field is validated alone. Validating the whole candidate at once
+is what makes the API's PATCH semantics honest: a request either describes a
+legal end state or it does not, and no field is ever judged against a
+half-applied version of the others.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:427`
+Two consequences worth stating, because both were bugs under the previous
+field-by-field design:
 
-**Consequence — update ordering.** `UpdateDeviceUseCase` applies changes in a
-fixed order, and the order is load-bearing:
+- **Either order works.** `{ locationId, status: 'ACTIVE' }` and
+  `{ ipAddress, status: 'ACTIVE' }` both succeed. The old implementation
+  accepted the second and rejected the first, purely because of the sequence
+  its mutators ran in (the closed gap G-10).
+- **Nothing partially applies.** A rejected request leaves the aggregate
+  exactly as it was and raises no events, so a caller cannot end up with a
+  located-but-not-activated device after a failed call.
 
-1. `updateDetails` — so an IP arriving in the same request is on the aggregate
-   before the status transition is judged
-2. `disableMonitoring` — so turning monitoring off while moving to a
-   non-monitorable status is not rejected by DEV-057
-3. `changeStatus`
-4. `assignLocation`
-5. `enableMonitoring`
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:175` (`Device.applyChanges`), validation at `:486` (`Device.validate`)
+**Reached from:** `create` validates the same way at construction; every later change goes through `applyChanges`
+**Called from:** `src/application/device-inventory/use-cases/UpdateDeviceUseCase.ts:280` — one call, after the use case has parsed and uniqueness-checked the incoming fields
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts` (`applyChanges() — whole-state validation`), `tests/application/device-inventory/use-cases/UpdateDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`
 
-**Enforced at:** `src/application/device-inventory/use-cases/UpdateDeviceUseCase.ts:206-262`
+**Event order.** When one call changes several aspects, events are raised in a
+fixed sequence — model, details, status, location, monitoring — and only for
+aspects that actually changed. An empty change set is a no-op: no validation, no
+`updatedAt` bump, no events.
 
 ### DEV-061 — Devices loaded from the database bypass validation
 
@@ -543,19 +621,102 @@ or a rule tightening would make existing equipment unreadable rather than merely
 uneditable. The trade-off is that a row violating a current invariant loads
 silently — invalid state is caught on the next _write_, not on read.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:161`
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:162`
 
-### DEV-062 — Only WIRELESS_CPE and AP devices may hold a wireless configuration
+### DEV-062 — Only WIRELESS_CPE and ACCESS_POINT devices may hold a wireless configuration
 
 **Type:** Invariant · **Status:** Active
 
-Exposed as `device.canHaveWirelessConfig()`.
+Exposed as `device.canHaveWirelessConfig()`, which asks the category itself
+(`isWirelessCpe()`, `isAccessPoint()`) rather than comparing against constants. A
+device with no category at all cannot hold one either — the check is on a
+present, matching category.
 
 **Why:** Wireless collection reads radio metrics — signal, SNR, CCQ. On hardware
 with no radio there is nothing to read, so a config would schedule polls that
 can only fail.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:293`
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:391`
+**Reached from:** `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:62`
+**Message:** `Only WIRELESS_CPE and ACCESS_POINT devices can have a wireless config`
+
+### DEV-063 — A device's model can only be corrected while it is INVENTORY
+
+**Type:** Invariant · **Status:** Active
+
+`deviceModelId` is mandatory at creation (DEV-040) and thereafter changeable
+only through `Device.correctDeviceModel()`, which refuses unless the device's
+current status is `INVENTORY`. Re-submitting the model the device already has is
+a no-op that succeeds in any status — so a `PATCH` echoing the whole record back
+is not rejected. The target model must exist.
+
+**Why:** This is a **data-entry correction**, not a hardware swap. An operator
+registering a box on arrival can pick the wrong model from the picker — "AirGrid
+M2" instead of "AirGrid M5" — and the record must be fixable without deleting
+and re-creating it (which DEV-026's `onDelete: Restrict` and the credential and
+contracted-service links make painful).
+
+The restriction to `INVENTORY` is what keeps the correction from becoming a
+replacement. A `Device` row is one physical unit, and its model determines which
+collector polls it (DEV-024), whether it may hold a wireless config (DEV-062),
+and which alert rules apply. Every metric — `pingResults`, `wirelessSnapshots`,
+`alertEvents` — hangs off the device id. `INVENTORY` is the one status in which
+none of that history can exist yet (monitoring is impossible there, DEV-057), so
+a correction cannot retroactively re-attribute collected data to hardware that
+never produced it. Once a unit has been ACTIVE, COMMISSIONING or DAMAGED, the
+model is frozen and swapping in different hardware is a separate operation that
+retires the old record and links a new one — see the "Device activation
+workflow" item in [TODOS.md](../TODOS.md).
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:377` (`Device.correctDeviceModel`); model existence at `src/application/device-inventory/use-cases/UpdateDeviceUseCase.ts:234`
+**Reached from:** `UpdateDeviceUseCase` (`deviceModelId` on `PATCH /api/devices/:id`)
+**Message:** `Cannot change the device model of a device with status <status> — only an INVENTORY device may have its model corrected` / `Device model not found: <id>`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/application/device-inventory/use-cases/UpdateDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`
+
+**Judged against the current status.** `applyChanges` checks this rule against
+the status the device has *now*, not the one it is moving to, so a single request
+may both correct the model and commission the unit — the correction is legal
+because the device is still `INVENTORY` when the request arrives.
+
+`Device.create` does **not** check that the model exists — see
+[G-9](#known-gaps).
+
+### DEV-064 — Wireless radio mode is derived from the device's category, never supplied
+
+**Type:** Policy · **Status:** Active
+
+When a wireless configuration is created, its `deviceType` (`STATION` or
+`ACCESS_POINT`) is computed from the device's category — `ACCESS_POINT` category
+→ `ACCESS_POINT` radio mode, otherwise `STATION`. Given DEV-062 has already
+narrowed the field to two categories, "otherwise" means `WIRELESS_CPE`. The HTTP
+schema no longer accepts a `deviceType` field; one sent anyway is stripped and
+ignored, not rejected.
+
+**Why:** The category already encodes the distinction — an access point serves
+subscribers, a wireless CPE is the station end of that same link. Accepting it a
+second time as client input creates a value that can disagree with the category
+it duplicates, and there is no correct answer when it does. Deriving it removes
+the contradiction rather than adding a rule to detect it.
+
+**Consequence.** The `linkCapacityKbps` / `clientsProvisionedLimit` cross-checks
+moved with it: they were a Zod `superRefine` against the submitted `deviceType`,
+and are now checked in the use case, where the derived value is known.
+`linkCapacityKbps` is `STATION`-only, `clientsProvisionedLimit` is
+`ACCESS_POINT`-only — so which of the two a device accepts is decided by its
+category, and correcting the category is what changes it.
+
+**Enforced at:** `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:70` (derivation), `:76-90` (cross-checks); `deviceType` dropped from `src/presentation/http/validation/wireless.schemas.ts:63`
+**Message:** `linkCapacityKbps can only be set for STATION devices` / `clientsProvisionedLimit can only be set for ACCESS_POINT devices`
+**Tests:** `tests/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.test.ts`, `tests/integration/wireless-config.routes.test.ts`
+
+**Note:** This rule is listed here rather than in the wireless-monitoring rule
+book because the deciding input is a device-inventory concept. `PATCH` still
+validates against the config's **stored** `deviceType`
+(`WirelessDeviceConfig.ts:140`, `:156`), which is that derived value — so the
+two paths agree.
+
+The derivation happens **once, at creation**. Recategorising the device later
+does not revisit it — see [G-12](#known-gaps).
 
 ---
 
@@ -948,11 +1109,11 @@ an index on `ipAddress` but no unique constraint, and `macAddress` has neither.
 For a single-operator ISP tool this may never fire. The fix is a unique index on
 each, which would also convert the race into a clean database error.
 
-**G-2 — `deviceType` is only validated at creation.**
-DEV-024 is checked in `CreateDeviceModelUseCase` but
-`DeviceModel.updateDeviceType` (`DeviceModel.ts:97`) guards only against
-`null`/`undefined` — an empty string or a non-string passes. Unlike model name,
-there is no shared validator between the create and update paths.
+**G-2 — `deviceType` is only validated at creation. — Closed.**
+The create and update paths now share one validator: both parse through
+`DeviceType.create` (DEV-024), and `DeviceModel.updateDeviceType` takes a
+`DeviceType`, so an empty or unrecognised string cannot reach the aggregate by
+either route.
 
 **G-3 — Renaming a vendor does not update its device models.**
 DEV-028 copies `vendorName` and `vendorSlug` onto each model, refreshed only
@@ -986,3 +1147,49 @@ matters.
 checks the slug. A duplicate vendor name surfaces as a raw Prisma error instead
 of the clean `A vendor with ... already exists` message that a duplicate slug
 produces. Either add the check (and a rule) or drop the constraint.
+
+**G-9 — Device creation does not check that the device model exists.**
+`CreateDeviceUseCase` parses `deviceModelId` but never looks it up, so a
+well-formed UUID for a non-existent model surfaces as a raw Prisma foreign-key
+error rather than the clean `Device model not found: <id>` that the correction
+path (DEV-063) returns. Same shape of problem as G-8. The fix is to inject
+`IDeviceModelRepository` into the create use case as well.
+
+**G-10 — Assigning a location and activating in the same request fails. — Closed.**
+`UpdateDeviceUseCase` used to apply changes through five separate mutators in a
+fixed sequence, and `assignLocation` ran _after_ `changeStatus`, so
+`{ locationId, status: 'ACTIVE' }` was judged against the device's old (absent)
+location and rejected by DEV-055 — while the IP equivalent worked, because
+`updateDetails` happened to run first. Reordering alone would only have mirrored
+the bug onto `{ locationId: null, status: 'INVENTORY' }`, which is why the fix
+was structural: all changes now arrive together at `Device.applyChanges` and the
+whole candidate state is validated once (DEV-060). Both directions work, and
+neither can partially apply.
+
+**G-11 — A stored device category is not re-checked on read.**
+`DeviceType` (DEV-024) and `LocationType` (DEV-091) both verify the raw column
+through `isValid` in their mapper and fail loudly on a miss, and `DeviceMapper`
+itself does exactly that for `DeviceOwnerType` (`DeviceMapper.ts:156`). But
+`category` goes straight through `DeviceCategory.reconstitute`
+(`src/infrastructure/mappers/DeviceMapper.ts:98`) with no check, so a row holding
+a value the domain no longer recognises loads silently and only surfaces
+downstream — a `getDisplayName()` falling through to its `default`, or a
+`canHaveWirelessConfig()` quietly answering `false`. The DEV-043 recast makes
+this concrete: the migration covered the rows that existed, but nothing would
+catch a stale `SMART_SWITCH_POE` arriving from a hand-edited row or an
+un-migrated database. `DeviceCategory.isValid` is currently `private` — closing
+this means widening it and adding the same guard as its two siblings.
+
+**G-12 — A recategorised device keeps its old wireless radio mode.**
+DEV-064 derives the config's `deviceType` from the device's category once, at
+creation, and nothing re-derives it afterwards: no handler reacts to a category
+change, and `UpdateWirelessConfigUseCase` never touches the field. So a device
+switched from `WIRELESS_CPE` to `ACCESS_POINT` keeps a `STATION` config — it
+will still accept `linkCapacityKbps` and still refuse `clientsProvisionedLimit`,
+which is the opposite of what its category now says, and the AP-specific
+collection path never engages. Recovering means deleting the config and
+re-creating it. The narrower question first: whether recategorising a device
+that already has a wireless config should be **refused** (the category is a
+statement about hardware and rarely changes legitimately), or whether it should
+cascade. Refusing is the smaller change and surfaces the problem to the operator
+instead of leaving it silent.
