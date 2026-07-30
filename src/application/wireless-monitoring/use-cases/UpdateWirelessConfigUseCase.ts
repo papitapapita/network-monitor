@@ -84,7 +84,7 @@ export class UpdateWirelessConfigUseCase extends UseCase<
       config.updatePollingInterval(intervalResult.value);
     }
     if (updates.linkCapacityKbps !== undefined) {
-      const r = config.updateLinkCapacityBps(
+      const r = config.updateLinkCapacityKbps(
         updates.linkCapacityKbps
       );
       if (r.isFailure) return this.fail(r.error);

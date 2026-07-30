@@ -133,7 +133,7 @@ export class WirelessDeviceConfig extends AggregateRoot<
     return Result.ok();
   }
 
-  public updateLinkCapacityBps(
+  public updateLinkCapacityKbps(
     linkCapacityKbps: number | null
   ): Result<void> {
     if (

@@ -261,7 +261,7 @@ describe('CreateWirelessConfigUseCase', () => {
       expect(configRepo.findByDeviceId).not.toHaveBeenCalled();
     });
 
-    it('should reject linkCapacityKbps on an access point', async () => {
+    it('[DEV-064] should reject linkCapacityKbps on an access point', async () => {
       deviceRepo.findById.mockResolvedValue(
         Result.ok(makeDevice(true, DeviceCategory.createAccessPoint()))
       );
@@ -275,7 +275,7 @@ describe('CreateWirelessConfigUseCase', () => {
       expect(result.error).toContain('linkCapacityKbps');
     });
 
-    it('should reject clientsProvisionedLimit on a station', async () => {
+    it('[DEV-064] should reject clientsProvisionedLimit on a station', async () => {
       deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
 
       const result = await useCase.execute({
@@ -445,7 +445,7 @@ describe('CreateWirelessConfigUseCase', () => {
       expect(result.value.intervalSecs).toBe(3600);
     });
 
-    it('should derive deviceType STATION from a WIRELESS_CPE device', async () => {
+    it('[DEV-064] should derive deviceType STATION from a WIRELESS_CPE device', async () => {
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID
       });
@@ -453,7 +453,7 @@ describe('CreateWirelessConfigUseCase', () => {
       expect(result.value.deviceType).toBe('STATION');
     });
 
-    it('should derive deviceType ACCESS_POINT from an ACCESS_POINT device', async () => {
+    it('[DEV-064] should derive deviceType ACCESS_POINT from an ACCESS_POINT device', async () => {
       deviceRepo.findById.mockResolvedValue(
         Result.ok(
           makeDevice(true, DeviceCategory.createAccessPoint())

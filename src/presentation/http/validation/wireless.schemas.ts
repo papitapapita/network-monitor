@@ -70,7 +70,9 @@ export const createWirelessConfigSchema = z.object({
       ipAddress: z
         .union([z.string().ipv4(), z.string().ipv6(), z.null()])
         .optional(),
-      intervalSecs: z.number().int().min(30).max(86400).optional(),
+      // Floor matches PollingInterval's MIN_SECONDS: polling AirOS faster
+      // than this overloads the embedded web server on the radio.
+      intervalSecs: z.number().int().min(60).max(86400).optional(),
       enabled: z.boolean().optional(),
       linkCapacityKbps: z
         .number()
@@ -98,7 +100,9 @@ export const updateWirelessConfigSchema = z.object({
       ipAddress: z
         .union([z.string().ipv4(), z.string().ipv6(), z.null()])
         .optional(),
-      intervalSecs: z.number().int().min(30).max(86400).optional(),
+      // Floor matches PollingInterval's MIN_SECONDS: polling AirOS faster
+      // than this overloads the embedded web server on the radio.
+      intervalSecs: z.number().int().min(60).max(86400).optional(),
       enabled: z.boolean().optional(),
       linkCapacityKbps: z
         .number()
