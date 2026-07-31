@@ -452,14 +452,73 @@ describe('UpdateDeviceModelUseCase', () => {
       expect(wirelessConfigRepo.delete).not.toHaveBeenCalled();
     });
 
-    it('should still return success even when findByDeviceModel fails', async () => {
+    it('should fail when findByDeviceModel fails', async () => {
       (deviceRepo.findByDeviceModel as any).mockResolvedValue(
         Result.fail('DB error')
       );
 
       const result = await useCase.execute({ id: VALID_UUID, isWireless: false });
 
-      expect(result.isSuccess).toBe(true);
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('DB error');
+    });
+
+    it('should not persist the model when findByDeviceModel fails', async () => {
+      (deviceRepo.findByDeviceModel as any).mockResolvedValue(
+        Result.fail('DB error')
+      );
+
+      await useCase.execute({ id: VALID_UUID, isWireless: false });
+
+      expect(deviceModelRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('should fail when a wireless config delete fails', async () => {
+      const id1 = DeviceId.parse(DEVICE_UUID_1).value!;
+      const id2 = DeviceId.parse(DEVICE_UUID_2).value!;
+      (deviceRepo.findByDeviceModel as any).mockResolvedValue(
+        Result.ok([{ id: id1 }, { id: id2 }])
+      );
+      (wirelessConfigRepo.delete as any)
+        .mockResolvedValueOnce(Result.ok(undefined))
+        .mockResolvedValueOnce(Result.fail('Database error deleting wireless polling config'));
+
+      const result = await useCase.execute({ id: VALID_UUID, isWireless: false });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Database error deleting wireless polling config');
+    });
+
+    it('should leave the model wireless when a wireless config delete fails', async () => {
+      const id1 = DeviceId.parse(DEVICE_UUID_1).value!;
+      (deviceRepo.findByDeviceModel as any).mockResolvedValue(
+        Result.ok([{ id: id1 }])
+      );
+      (wirelessConfigRepo.delete as any).mockResolvedValue(Result.fail('DB error'));
+
+      await useCase.execute({ id: VALID_UUID, isWireless: false });
+
+      expect(deviceModelRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('should persist the model only after every config is deleted', async () => {
+      const id1 = DeviceId.parse(DEVICE_UUID_1).value!;
+      (deviceRepo.findByDeviceModel as any).mockResolvedValue(
+        Result.ok([{ id: id1 }])
+      );
+      const order: string[] = [];
+      (wirelessConfigRepo.delete as any).mockImplementation(async () => {
+        order.push('delete');
+        return Result.ok(undefined);
+      });
+      (deviceModelRepo.save as any).mockImplementation(async (m: DeviceModel) => {
+        order.push('save');
+        return Result.ok(m);
+      });
+
+      await useCase.execute({ id: VALID_UUID, isWireless: false });
+
+      expect(order).toEqual(['delete', 'save']);
     });
   });
 

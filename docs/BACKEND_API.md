@@ -173,6 +173,7 @@ interface DeviceModelDTO {
   vendorSlug: string    // e.g. "mikrotik"
   model: string
   deviceType: DeviceType
+  isWireless: boolean   // hardware has a radio — gates wireless configs
   createdAt: string     // ISO 8601
   updatedAt: string
 }
@@ -697,6 +698,7 @@ offset?: number  // ≥0, default 0
   vendorId: string    // required, UUID
   model: string       // required, 1–150 chars
   deviceType: DeviceType  // required
+  isWireless?: boolean    // default false
 }
 
 // Response
@@ -704,6 +706,8 @@ offset?: number  // ≥0, default 0
 ```
 
 > Returns 409 if a model with the same name already exists for that vendor.
+> `isWireless` marks the hardware as radio-capable; devices built on a model
+> with `isWireless: false` are refused a wireless config.
 
 ---
 
@@ -749,11 +753,20 @@ offset?: number  // ≥0, default 0
   vendorId?: string    // UUID
   model?: string       // 1–150 chars
   deviceType?: DeviceType
+  isWireless?: boolean
 }
 
 // Response
 { success: true, data: DeviceModelDTO }
 ```
+
+> **Cascade:** setting `isWireless` from `true` to `false` deletes the wireless
+> polling config of *every* device built on this model (DEV-027) — the devices
+> and their collected history are kept, only the polling configuration goes.
+> The cleanup runs before the flag is saved: if any config cannot be deleted the
+> request fails with 500 and the model stays wireless, so it can be retried.
+> The reverse (`false → true`) creates nothing — each config must be re-created
+> through `POST /api/devices/:id/wireless/config`.
 
 ---
 

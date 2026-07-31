@@ -93,4 +93,53 @@ describe('UpdateVendorUseCase — integration', () => {
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/not found/i);
   });
+
+  // ──────────────────────────────────────────────────────────────
+  // The create-path rules must hold on update too
+  // ──────────────────────────────────────────────────────────────
+
+  it('[DEV-001] fails when the new name is empty or exceeds 100 characters', async () => {
+    const vendorId = await seedVendor(prisma, { name: 'Keep Me', slug: 'keep-me' });
+
+    for (const name of ['', '   ', 'A'.repeat(101)]) {
+      const result = await useCase.execute({ id: vendorId, name });
+
+      expect(result.isFailure).toBe(true);
+    }
+
+    const row = await prisma.vendor.findUnique({ where: { id: vendorId } });
+    expect(row!.name).toBe('Keep Me');
+  });
+
+  it('[DEV-002] fails when the new slug is not lowercase letters, digits and hyphens', async () => {
+    const vendorId = await seedVendor(prisma, { name: 'Keep Me', slug: 'keep-me' });
+
+    for (const slug of ['Bad-Slug', 'bad slug', 'bad_slug']) {
+      const result = await useCase.execute({ id: vendorId, slug });
+
+      expect(result.isFailure).toBe(true);
+    }
+
+    const row = await prisma.vendor.findUnique({ where: { id: vendorId } });
+    expect(row!.slug).toBe('keep-me');
+  });
+
+  it('[DEV-004] fails when the new description exceeds 500 characters', async () => {
+    const vendorId = await seedVendor(prisma, {
+      name: 'Keep Me',
+      slug: 'keep-me',
+      description: 'Original'
+    });
+
+    const result = await useCase.execute({
+      id: vendorId,
+      description: 'D'.repeat(501)
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/500/);
+
+    const row = await prisma.vendor.findUnique({ where: { id: vendorId } });
+    expect(row!.description).toBe('Original');
+  });
 });

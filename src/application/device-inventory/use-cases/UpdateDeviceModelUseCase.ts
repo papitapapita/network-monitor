@@ -118,6 +118,18 @@ export class UpdateDeviceModelUseCase extends UseCase<
       }
     }
 
+    // The cascade runs before the flag is persisted: it only ever fires on the
+    // true → false edge, so a failure after the save would leave configs no
+    // later update could reach.
+    if (wasWireless && data.isWireless === false) {
+      const cascadeResult = await this.removeWirelessConfigs(
+        deviceModel.id
+      );
+      if (cascadeResult.isFailure) {
+        return this.fail(cascadeResult.error);
+      }
+    }
+
     const saveResult =
       await this.deviceModelRepository.save(deviceModel);
     if (saveResult.isFailure) {
@@ -126,18 +138,33 @@ export class UpdateDeviceModelUseCase extends UseCase<
       );
     }
 
-    if (wasWireless && data.isWireless === false) {
-      const devicesResult =
-        await this.deviceRepository.findByDeviceModel(deviceModel.id);
-      if (devicesResult.isSuccess && devicesResult.value.length > 0) {
-        await Promise.all(
-          devicesResult.value.map((d) =>
-            this.wirelessConfigRepo.delete(d.id)
-          )
-        );
-      }
+    return this.ok(DeviceModelMapper.toDTO(saveResult.value));
+  }
+
+  private async removeWirelessConfigs(
+    deviceModelId: DeviceModelId
+  ): Promise<Result<void>> {
+    const devicesResult =
+      await this.deviceRepository.findByDeviceModel(deviceModelId);
+    if (devicesResult.isFailure) {
+      return Result.fail(
+        `Failed to load devices for wireless config cleanup: ${devicesResult.error}`
+      );
     }
 
-    return this.ok(DeviceModelMapper.toDTO(saveResult.value));
+    const deleteResults = await Promise.all(
+      devicesResult.value.map((d) =>
+        this.wirelessConfigRepo.delete(d.id)
+      )
+    );
+
+    const failure = deleteResults.find((r) => r.isFailure);
+    if (failure !== undefined) {
+      return Result.fail(
+        `Failed to remove wireless config: ${failure.error}`
+      );
+    }
+
+    return Result.ok<void>();
   }
 }

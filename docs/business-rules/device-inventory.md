@@ -131,7 +131,7 @@ All three are mandatory at creation.
 identifiable as _Ubiquiti's_ AirGrid M5. The device type drives which collector
 and which alert rules apply to units of this model.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/DeviceModel.ts:150` (`DeviceModel.validate`), use case pre-checks at `CreateDeviceModelUseCase.ts:32-43`
+**Enforced at:** `src/domain/device-inventory/aggregates/DeviceModel.ts:153` (`DeviceModel.validate`), use case pre-checks at `CreateDeviceModelUseCase.ts:32-43`
 **Message:** `Vendor ID is required` / `Model name is required` / `Device type is required`
 
 The shape of each is then governed by DEV-023 (model name) and DEV-024 (device
@@ -173,9 +173,8 @@ manufacturers all the time.
 Trimmed before storage.
 
 **Why:** Matches the database column and keeps model names readable in pickers.
-_(inferred)_
 
-**Enforced at:** `src/domain/device-inventory/aggregates/DeviceModel.ts:164` (`validate`), `:85` (`updateModel`)
+**Enforced at:** `src/domain/device-inventory/aggregates/DeviceModel.ts:170` (`validate`), `:88` (`updateModel`)
 **Reached from:** `create`, `updateModel`
 **Message:** `Model name cannot be empty` / `Model name cannot exceed 150 characters`
 
@@ -229,7 +228,7 @@ know what omission means. Same arrangement as DEV-058.
 
 **Why:** Wireless is the exception in the catalogue and the flag switches on
 extra collection machinery. Defaulting to off means a carelessly created model
-does not silently start wireless polling. _(inferred)_
+does not silently start wireless polling.
 
 **Enforced at:** `src/domain/device-inventory/aggregates/DeviceModel.ts:62` (`DeviceModel.create`)
 **Tests:** `tests/domain/device-inventory/aggregates/DeviceModel.test.ts`, `tests/application/device-inventory/mappers/DeviceModelMapper.test.ts`
@@ -249,16 +248,21 @@ built on it of its identity. Reassignment must be an explicit decision.
 **Type:** Policy · **Status:** Active
 
 When an update changes `isWireless` from `true` to `false`, wireless device
-configurations for all devices of that model are deleted.
+configurations for all devices of that model are deleted. The deletion runs
+**before** the flag is persisted: if any config cannot be removed, the whole
+update fails and the model stays wireless.
 
 **Why:** The flag is the statement of what the hardware can do. Once a model is
 declared non-wireless, wireless polling of those units is collecting from an
 interface that was never there — the configs are dead weight that would keep
-scheduling failing polls.
+scheduling failing polls. The cascade only fires on the `true → false` edge, so
+a config that survived a partial failure would be unreachable by any later
+update; leaving the model wireless keeps the operation retryable, and deletion
+is idempotent.
 
-**Enforced at:** `src/application/device-inventory/use-cases/UpdateDeviceModelUseCase.ts:119`
-**Note:** Deletion is fire-and-forget — failures are not surfaced to the caller.
-See [G-4](#known-gaps).
+**Enforced at:** `src/application/device-inventory/use-cases/UpdateDeviceModelUseCase.ts:124`, `:144` (`removeWirelessConfigs`)
+**Message:** `Failed to remove wireless config: <reason>` / `Failed to load devices for wireless config cleanup: <reason>`
+**Tests:** `tests/application/device-inventory/use-cases/UpdateDeviceModelUseCase.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceModelUseCase.integration.test.ts`
 
 ### DEV-028 — A device model carries a copy of its vendor's name and slug
 
@@ -272,7 +276,7 @@ join on the hottest read path in the catalogue. The cost is that renaming a
 vendor does **not** propagate to existing models — see [G-3](#known-gaps).
 _(inferred)_
 
-**Enforced at:** `src/domain/device-inventory/aggregates/DeviceModel.ts:122` (`updateVendor`)
+**Enforced at:** `src/domain/device-inventory/aggregates/DeviceModel.ts:131` (`updateVendor`)
 
 ---
 
@@ -350,12 +354,12 @@ network role with hardware kind, which is the distinction DEV-024 now owns. The
 migration `20260729030000_device_category_deployment_roles` rewrote existing
 rows:
 
-| Old | New | Reason |
-| ------------------ | -------------------- | ------------------------------------------ |
-| `AP`               | `ACCESS_POINT`       | renamed for clarity                        |
+| Old                | New                  | Reason                                                                             |
+| ------------------ | -------------------- | ---------------------------------------------------------------------------------- |
+| `AP`               | `ACCESS_POINT`       | renamed for clarity                                                                |
 | `ROUTERBOARD`      | `GATEWAY`            | the role is _where upstream internet enters_; `ROUTERBOARD` remains a `DeviceType` |
-| `SMART_SWITCH`     | `AGGREGATION_SWITCH` | the node switch radios converge on         |
-| `SMART_SWITCH_POE` | `AGGREGATION_SWITCH` | PoE is a hardware trait, not a role        |
+| `SMART_SWITCH`     | `AGGREGATION_SWITCH` | the node switch radios converge on                                                 |
+| `SMART_SWITCH_POE` | `AGGREGATION_SWITCH` | PoE is a hardware trait, not a role                                                |
 
 `SMART_SWITCH` and `SMART_SWITCH_POE` collapsing onto one role is why the
 migration swaps the enum type rather than renaming values in place — Postgres
@@ -674,7 +678,7 @@ workflow" item in [TODOS.md](../TODOS.md).
 **Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/application/device-inventory/use-cases/UpdateDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`
 
 **Judged against the current status.** `applyChanges` checks this rule against
-the status the device has *now*, not the one it is moving to, so a single request
+the status the device has _now_, not the one it is moving to, so a single request
 may both correct the model and commission the unit — the correction is legal
 because the device is still `INVENTORY` when the request arrives.
 
@@ -1120,10 +1124,14 @@ DEV-028 copies `vendorName` and `vendorSlug` onto each model, refreshed only
 when the _model's_ vendor changes. `Vendor.updateName` and `updateSlug` do not
 propagate, so after a rename existing models keep showing the old value.
 
-**G-4 — Wireless config cleanup is fire-and-forget.**
-DEV-027's deletions run through `Promise.all` with no result check
-(`UpdateDeviceModelUseCase.ts:119`). A failure is silently swallowed and the use
-case still reports success, leaving orphaned configs.
+**G-4 — Wireless config cleanup is fire-and-forget. — Closed.**
+DEV-027's deletions used to run through `Promise.all` with no result check,
+after the model had already been saved: a failure was silently swallowed, the
+use case still reported success, and the orphaned configs were unreachable —
+the cascade only fires on the `true → false` edge, which had already been
+crossed. The cleanup now runs before the save and every result is checked, so a
+failure aborts the update with the model still wireless and the operation
+retryable.
 
 **G-5 — The installedDate message over-promises.**
 DEV-050 says "Must be a valid ISO 8601 date string" but the check is

@@ -55,6 +55,57 @@ describe('CreateDeviceModelUseCase — integration', () => {
     expect(result.value.deviceType).toBe('ROUTERBOARD');
   });
 
+  it('[DEV-028] persists a copy of the vendor name and slug on the model row', async () => {
+    const result = await useCase.execute({
+      vendorId,
+      model: 'hEX S',
+      deviceType: 'ROUTER'
+    });
+
+    expect(result.value.vendorSlug).toBe('mikrotik');
+
+    const row = await prisma.deviceModel.findUnique({
+      where: { id: result.value.id },
+      include: { vendor: true }
+    });
+    expect(row!.vendor.name).toBe('MikroTik');
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // DEV-025 — wireless flag
+  // ──────────────────────────────────────────────────────────────
+
+  it('[DEV-025] stores isWireless false when the flag is omitted', async () => {
+    const result = await useCase.execute({
+      vendorId,
+      model: 'CRS310',
+      deviceType: 'SWITCH'
+    });
+
+    expect(result.value.isWireless).toBe(false);
+
+    const row = await prisma.deviceModel.findUnique({
+      where: { id: result.value.id }
+    });
+    expect(row!.isWireless).toBe(false);
+  });
+
+  it('[DEV-025] stores isWireless true when the flag is set', async () => {
+    const result = await useCase.execute({
+      vendorId,
+      model: 'LHG 5',
+      deviceType: 'ANTENNA',
+      isWireless: true
+    });
+
+    expect(result.value.isWireless).toBe(true);
+
+    const row = await prisma.deviceModel.findUnique({
+      where: { id: result.value.id }
+    });
+    expect(row!.isWireless).toBe(true);
+  });
+
   // ──────────────────────────────────────────────────────────────
   // Duplicate
   // ──────────────────────────────────────────────────────────────
@@ -91,5 +142,77 @@ describe('CreateDeviceModelUseCase — integration', () => {
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/not found/i);
+  });
+
+  // These bypass the Zod schema entirely — the rule has to hold at the use case
+  // too, or a non-HTTP caller could write a row the API would have rejected.
+
+  it('[DEV-020] fails when vendorId, model or deviceType is missing', async () => {
+    const bodies = [
+      { model: 'NoVendor', deviceType: 'ROUTER' },
+      { vendorId, deviceType: 'ROUTER' },
+      { vendorId, model: 'NoType' }
+    ];
+
+    for (const body of bodies) {
+      const result = await useCase.execute(body as any);
+
+      expect(result.isFailure).toBe(true);
+    }
+
+    await expect(prisma.deviceModel.count()).resolves.toBe(0);
+  });
+
+  it('[DEV-023] fails when the model name is empty or whitespace only', async () => {
+    for (const model of ['', '   ']) {
+      const result = await useCase.execute({
+        vendorId,
+        model,
+        deviceType: 'ROUTER'
+      });
+
+      expect(result.isFailure).toBe(true);
+    }
+
+    await expect(prisma.deviceModel.count()).resolves.toBe(0);
+  });
+
+  it('[DEV-023] fails when the model name exceeds 150 characters', async () => {
+    const result = await useCase.execute({
+      vendorId,
+      model: 'A'.repeat(151),
+      deviceType: 'ROUTER'
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/150/);
+  });
+
+  it('[DEV-023] accepts a model name of exactly 150 characters', async () => {
+    const model = 'A'.repeat(150);
+
+    const result = await useCase.execute({
+      vendorId,
+      model,
+      deviceType: 'ROUTER'
+    });
+
+    expect(result.isSuccess).toBe(true);
+
+    const row = await prisma.deviceModel.findUnique({
+      where: { id: result.value.id }
+    });
+    expect(row!.model).toHaveLength(150);
+  });
+
+  it('[DEV-024] fails when the deviceType is not one of the seven values', async () => {
+    const result = await useCase.execute({
+      vendorId,
+      model: 'Mystery Box',
+      deviceType: 'TOASTER' as any
+    });
+
+    expect(result.isFailure).toBe(true);
+    await expect(prisma.deviceModel.count()).resolves.toBe(0);
   });
 });

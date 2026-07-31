@@ -11,7 +11,14 @@ import {
   setupDependencies,
   DependencyContainer
 } from 'infrastructure/di/container';
-import { cleanCatalog, seedVendor, GHOST_ID } from '../../helpers/db';
+import {
+  cleanCatalog,
+  seedVendor,
+  seedDevice,
+  seedWirelessDeviceModel,
+  GHOST_ID,
+  INVALID_ID
+} from '../../helpers/db';
 
 describe('UpdateDeviceModelUseCase — integration', () => {
   let container: DependencyContainer;
@@ -77,7 +84,127 @@ describe('UpdateDeviceModelUseCase — integration', () => {
   });
 
   // ──────────────────────────────────────────────────────────────
-  // Not found
+  // DEV-028 — denormalised vendor name and slug
+  // ──────────────────────────────────────────────────────────────
+
+  it('[DEV-028] refreshes the stored vendor name and slug when the vendor changes', async () => {
+    const otherVendorId = await seedVendor(prisma, {
+      name: 'Ubiquiti',
+      slug: 'ubiquiti'
+    });
+
+    const result = await useCase.execute({
+      id: deviceModelId,
+      vendorId: otherVendorId
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.vendorName).toBe('Ubiquiti');
+    expect(result.value.vendorSlug).toBe('ubiquiti');
+
+    const row = await prisma.deviceModel.findUnique({
+      where: { id: deviceModelId },
+      include: { vendor: true }
+    });
+    expect(row!.vendorId).toBe(otherVendorId);
+    expect(row!.vendor.slug).toBe('ubiquiti');
+  });
+
+  it('[DEV-021] fails when the new vendor does not exist', async () => {
+    const result = await useCase.execute({
+      id: deviceModelId,
+      vendorId: GHOST_ID
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/vendor not found/i);
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // DEV-027 — isWireless cascade
+  // ──────────────────────────────────────────────────────────────
+
+  /** Creates `count` devices on the model, each with a STATION wireless config. */
+  async function seedConfiguredDevices(
+    modelId: string,
+    count: number
+  ): Promise<string[]> {
+    const deviceIds: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const deviceId = await seedDevice(prisma, modelId, {
+        name: `Wireless CPE ${i}`,
+        serialNumber: `SN-${modelId.slice(0, 8)}-${i}`
+      });
+      await prisma.wirelessPollingConfiguration.create({
+        data: { deviceId, deviceType: 'STATION' }
+      });
+      deviceIds.push(deviceId);
+    }
+    return deviceIds;
+  }
+
+  it('[DEV-027] deletes the wireless config of every device on the model when isWireless flips true → false', async () => {
+    const modelId = await seedWirelessDeviceModel(prisma);
+    await seedConfiguredDevices(modelId, 2);
+
+    const result = await useCase.execute({ id: modelId, isWireless: false });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.isWireless).toBe(false);
+    await expect(
+      prisma.wirelessPollingConfiguration.count()
+    ).resolves.toBe(0);
+  });
+
+  it('[DEV-027] persists isWireless=false after the cascade', async () => {
+    const modelId = await seedWirelessDeviceModel(prisma);
+    await seedConfiguredDevices(modelId, 1);
+
+    await useCase.execute({ id: modelId, isWireless: false });
+
+    const stored = await prisma.deviceModel.findUnique({
+      where: { id: modelId }
+    });
+    expect(stored!.isWireless).toBe(false);
+  });
+
+  it('[DEV-027] leaves configs of devices on other models untouched', async () => {
+    const modelId = await seedWirelessDeviceModel(prisma);
+    await seedConfiguredDevices(modelId, 1);
+    const otherModel = await prisma.deviceModel.create({
+      data: {
+        vendorId,
+        model: 'NanoStation 5AC',
+        deviceType: 'ANTENNA',
+        isWireless: true
+      }
+    });
+    const [untouchedDeviceId] = await seedConfiguredDevices(otherModel.id, 1);
+
+    await useCase.execute({ id: modelId, isWireless: false });
+
+    const remaining =
+      await prisma.wirelessPollingConfiguration.findMany();
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].deviceId).toBe(untouchedDeviceId);
+  });
+
+  it('[DEV-027] does not touch configs when isWireless flips false → true', async () => {
+    await seedConfiguredDevices(deviceModelId, 1);
+
+    const result = await useCase.execute({
+      id: deviceModelId,
+      isWireless: true
+    });
+
+    expect(result.isSuccess).toBe(true);
+    await expect(
+      prisma.wirelessPollingConfiguration.count()
+    ).resolves.toBe(1);
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Not found & malformed input
   // ──────────────────────────────────────────────────────────────
 
   it('fails with a not-found error when the device model does not exist (GHOST_ID)', async () => {
@@ -85,5 +212,19 @@ describe('UpdateDeviceModelUseCase — integration', () => {
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/not found/i);
+  });
+
+  it('fails with an invalid-id error when the id is malformed (INVALID_ID)', async () => {
+    const result = await useCase.execute({ id: INVALID_ID, model: 'Whatever' });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/invalid device model id/i);
+  });
+
+  it('fails when the id is empty', async () => {
+    const result = await useCase.execute({ id: '   ', model: 'Whatever' });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/required/i);
   });
 });

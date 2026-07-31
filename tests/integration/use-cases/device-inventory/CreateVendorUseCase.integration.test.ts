@@ -98,4 +98,75 @@ describe('CreateVendorUseCase — integration', () => {
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/slug/i);
   });
+
+  it('[DEV-001] fails when the name exceeds 100 characters', async () => {
+    const result = await useCase.execute({
+      name: 'A'.repeat(101),
+      slug: 'long-name'
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/100/);
+    await expect(prisma.vendor.count()).resolves.toBe(0);
+  });
+
+  it('[DEV-001] accepts a name of exactly 100 characters', async () => {
+    const result = await useCase.execute({
+      name: 'A'.repeat(100),
+      slug: 'hundred-char-name'
+    });
+
+    expect(result.isSuccess).toBe(true);
+
+    const row = await prisma.vendor.findUnique({ where: { id: result.value.id } });
+    expect(row!.name).toHaveLength(100);
+  });
+
+  it('[DEV-002] fails when the slug is not lowercase letters, digits and hyphens', async () => {
+    for (const slug of ['Bad-Slug', 'bad slug', 'bad_slug']) {
+      const result = await useCase.execute({ name: 'Valid Name', slug });
+
+      expect(result.isFailure).toBe(true);
+    }
+
+    await expect(prisma.vendor.count()).resolves.toBe(0);
+  });
+
+  it('[DEV-004] fails when the description exceeds 500 characters', async () => {
+    const result = await useCase.execute({
+      name: 'Verbose',
+      slug: 'verbose',
+      description: 'D'.repeat(501)
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/500/);
+    await expect(prisma.vendor.count()).resolves.toBe(0);
+  });
+
+  it('[DEV-004] accepts a description of exactly 500 characters', async () => {
+    const result = await useCase.execute({
+      name: 'Verbose',
+      slug: 'verbose',
+      description: 'D'.repeat(500)
+    });
+
+    expect(result.isSuccess).toBe(true);
+
+    const row = await prisma.vendor.findUnique({ where: { id: result.value.id } });
+    expect(row!.description).toHaveLength(500);
+  });
+
+  it('[DEV-006] fails when name or slug is missing entirely', async () => {
+    const bodies = [{ slug: 'no-name' }, { name: 'No Slug' }, {}];
+
+    for (const body of bodies) {
+      const result = await useCase.execute(body as any);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toMatch(/required/i);
+    }
+
+    await expect(prisma.vendor.count()).resolves.toBe(0);
+  });
 });
