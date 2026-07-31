@@ -3,6 +3,7 @@ import { CreateDeviceUseCase } from 'application/device-inventory/use-cases/Crea
 import { UpdateDeviceUseCase } from 'application/device-inventory/use-cases/UpdateDeviceUseCase';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
 import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDeviceModelRepository';
+import { PrismaWirelessDeviceConfigRepository } from 'infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import {
   setupDependencies,
@@ -35,9 +36,17 @@ describe('UpdateDeviceUseCase — integration', () => {
 
     const repo = new PrismaDeviceRepository(prisma);
     const modelRepo = new PrismaDeviceModelRepository(prisma);
+    const wirelessConfigRepo = new PrismaWirelessDeviceConfigRepository(
+      prisma
+    );
     const logger = new WinstonLogger();
     createUseCase = new CreateDeviceUseCase(repo, logger);
-    updateUseCase = new UpdateDeviceUseCase(repo, modelRepo, logger);
+    updateUseCase = new UpdateDeviceUseCase(
+      repo,
+      modelRepo,
+      wirelessConfigRepo,
+      logger
+    );
   });
 
   afterAll(async () => {
@@ -303,6 +312,104 @@ describe('UpdateDeviceUseCase — integration', () => {
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/Invalid deviceModelId/i);
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // DEV-065 — category is frozen while a wireless config exists
+  // ──────────────────────────────────────────────────────────────
+
+  async function createWirelessDevice(
+    category: string
+  ): Promise<string> {
+    const id = await createDevice({
+      deviceModelId: otherDeviceModelId,
+      category,
+      serialNumber: `SN-WL-${category}`
+    });
+    await prisma.wirelessPollingConfiguration.create({
+      data: {
+        deviceId: id,
+        deviceType:
+          category === 'ACCESS_POINT' ? 'ACCESS_POINT' : 'STATION',
+        enabled: true,
+        intervalSecs: 3600
+      }
+    });
+    return id;
+  }
+
+  it('[DEV-065] refuses to recategorise a device that has a wireless config', async () => {
+    const id = await createWirelessDevice('WIRELESS_CPE');
+
+    const result = await updateUseCase.execute({
+      id,
+      category: 'ACCESS_POINT'
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/wireless config/i);
+
+    const persisted = await prisma.device.findUnique({ where: { id } });
+    expect(persisted!.category).toBe('WIRELESS_CPE');
+  });
+
+  it('[DEV-065] leaves the stored radio mode untouched when the update is refused', async () => {
+    const id = await createWirelessDevice('WIRELESS_CPE');
+
+    await updateUseCase.execute({ id, category: 'ACCESS_POINT' });
+
+    const config = await prisma.wirelessPollingConfiguration.findUnique({
+      where: { deviceId: id }
+    });
+    expect(config!.deviceType).toBe('STATION');
+  });
+
+  it('[DEV-065] refuses to clear the category while a wireless config exists', async () => {
+    const id = await createWirelessDevice('ACCESS_POINT');
+
+    const result = await updateUseCase.execute({ id, category: null });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/wireless config/i);
+  });
+
+  it('[DEV-065] allows unrelated fields to change while a wireless config exists', async () => {
+    const id = await createWirelessDevice('WIRELESS_CPE');
+
+    const result = await updateUseCase.execute({
+      id,
+      name: 'Rooftop CPE 04'
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.name).toBe('Rooftop CPE 04');
+  });
+
+  it('[DEV-065] allows recategorising once the wireless config is deleted', async () => {
+    const id = await createWirelessDevice('WIRELESS_CPE');
+    await prisma.wirelessPollingConfiguration.delete({
+      where: { deviceId: id }
+    });
+
+    const result = await updateUseCase.execute({
+      id,
+      category: 'ACCESS_POINT'
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.category).toBe('ACCESS_POINT');
+  });
+
+  it('[DEV-065] allows recategorising a device that never had a wireless config', async () => {
+    const id = await createDevice({ category: 'CPE' });
+
+    const result = await updateUseCase.execute({
+      id,
+      category: 'GATEWAY'
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.category).toBe('GATEWAY');
   });
 
   it('fails when the device does not exist', async () => {

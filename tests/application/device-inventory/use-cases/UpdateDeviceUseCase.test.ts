@@ -6,12 +6,17 @@ import {
   IDeviceRepository,
   IDeviceModelRepository
 } from '../../../../src/domain/device-inventory/repository';
+import { IWirelessDeviceConfigRepository } from '../../../../src/domain/wireless-monitoring/repository';
+import { WirelessDeviceConfig } from '../../../../src/domain/wireless-monitoring/aggregates';
+import { PollingInterval } from '../../../../src/domain/wireless-monitoring/value-objects';
+import { WirelessDeviceConfigId } from '../../../../src/domain/shared/ids';
 import { ILogger } from '../../../../src/application/shared/interfaces';
 import { Result } from '../../../../src/domain/shared/core';
 import { Device } from '../../../../src/domain/device-inventory/aggregates';
 import {
   DeviceName,
   DeviceStatus,
+  DeviceCategory,
   SerialNumber
 } from '../../../../src/domain/device-inventory/value-objects';
 import { DeviceOwnerType } from '../../../../src/domain/device-inventory/enums';
@@ -83,6 +88,17 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
   };
 }
 
+function makeWirelessConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
+  return {
+    save: jest.fn(),
+    findById: jest.fn(),
+    delete: jest.fn(),
+    exists: jest.fn(),
+    findByDeviceId: jest.fn(),
+    findAllDue: jest.fn()
+  };
+}
+
 /**
  * Builds a Device reconstituted from persistence with the given status,
  * MAC, and IP already set. Defaults to INVENTORY status.
@@ -95,6 +111,7 @@ function makePersistedDevice(
     monitoringEnabled?: boolean;
     locationId?: string | null;
     serialNumber?: string | null;
+    category?: string | null;
   } = {}
 ): Device {
   const id = DeviceId.parse(VALID_DEVICE_ID).value;
@@ -126,7 +143,9 @@ function makePersistedDevice(
     deviceModelId: modelId as unknown as DeviceModelId,
     locationId,
     status,
-    category: null,
+    category: overrides.category
+      ? DeviceCategory.reconstitute(overrides.category)
+      : null,
     ownerType: DeviceOwnerType.COMPANY,
     name,
     serialNumber,
@@ -138,6 +157,22 @@ function makePersistedDevice(
     updatedAt: NOW,
     monitoringEnabled: overrides.monitoringEnabled ?? false
   });
+}
+
+function makeWirelessConfig(): WirelessDeviceConfig {
+  return WirelessDeviceConfig.reconstitute(
+    WirelessDeviceConfigId.create(),
+    {
+      deviceId: DeviceId.parse(VALID_DEVICE_ID).value,
+      ipAddress: null,
+      enabled: true,
+      pollingInterval: PollingInterval.create(3600).value,
+      deviceType: 'STATION',
+      linkCapacityKbps: null,
+      clientsProvisionedLimit: null,
+      lastPolledAt: null
+    }
+  );
 }
 
 /** Minimal valid request DTO — only the required `id` field. */
@@ -152,14 +187,21 @@ function makeRequest(
 describe('UpdateDeviceUseCase', () => {
   let repo: jest.Mocked<IDeviceRepository>;
   let deviceModelRepo: jest.Mocked<IDeviceModelRepository>;
+  let wirelessConfigRepo: jest.Mocked<IWirelessDeviceConfigRepository>;
   let logger: ILogger;
   let useCase: UpdateDeviceUseCase;
 
   beforeEach(() => {
     repo = makeRepo();
     deviceModelRepo = makeDeviceModelRepo();
+    wirelessConfigRepo = makeWirelessConfigRepo();
     logger = makeLogger();
-    useCase = new UpdateDeviceUseCase(repo, deviceModelRepo, logger);
+    useCase = new UpdateDeviceUseCase(
+      repo,
+      deviceModelRepo,
+      wirelessConfigRepo,
+      logger
+    );
 
     // Default happy-path mocks
     repo.findById.mockResolvedValue(Result.ok(makePersistedDevice()));
@@ -167,6 +209,9 @@ describe('UpdateDeviceUseCase', () => {
     repo.existsByIpAddress.mockResolvedValue(Result.ok(false));
     repo.save.mockImplementation(async (device) => Result.ok(device));
     deviceModelRepo.exists.mockResolvedValue(Result.ok(true));
+    wirelessConfigRepo.findByDeviceId.mockResolvedValue(
+      Result.ok(null)
+    );
   });
 
   afterEach(() => {
@@ -270,7 +315,9 @@ describe('UpdateDeviceUseCase', () => {
   describe('[DEV-054] executeImpl — status change', () => {
     it('should succeed when a valid status is provided', async () => {
       repo.findById.mockResolvedValue(
-        Result.ok(makePersistedDevice({ locationId: VALID_LOCATION_ID }))
+        Result.ok(
+          makePersistedDevice({ locationId: VALID_LOCATION_ID })
+        )
       );
 
       const result = await useCase.execute(
@@ -284,7 +331,10 @@ describe('UpdateDeviceUseCase', () => {
     it('should fail when trying to change status to ACTIVE without an IP address', async () => {
       repo.findById.mockResolvedValue(
         Result.ok(
-          makePersistedDevice({ status: DeviceStatus.INVENTORY, ipAddress: null })
+          makePersistedDevice({
+            status: DeviceStatus.INVENTORY,
+            ipAddress: null
+          })
         )
       );
 
@@ -412,7 +462,10 @@ describe('UpdateDeviceUseCase', () => {
       // reading the still-true (not-yet-updated) monitoringEnabled and rejecting it.
       repo.findById.mockResolvedValue(
         Result.ok(
-          makePersistedDevice({ status: 'ACTIVE', monitoringEnabled: true })
+          makePersistedDevice({
+            status: 'ACTIVE',
+            monitoringEnabled: true
+          })
         )
       );
 
@@ -611,7 +664,9 @@ describe('UpdateDeviceUseCase', () => {
 
     it('should not call updateDetails when no detail fields are provided', async () => {
       repo.findById.mockResolvedValue(
-        Result.ok(makePersistedDevice({ locationId: VALID_LOCATION_ID }))
+        Result.ok(
+          makePersistedDevice({ locationId: VALID_LOCATION_ID })
+        )
       );
 
       // Only status and monitoring fields — no detail fields → updateDetails never invoked.
@@ -944,6 +999,107 @@ describe('UpdateDeviceUseCase', () => {
       const result = await useCase.execute(makeRequest());
 
       expect(result.value!.ipAddress).toBe(EXISTING_IP);
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-065] category is frozen while a wireless config exists', () => {
+    beforeEach(() => {
+      repo.findById.mockResolvedValue(
+        Result.ok(
+          makePersistedDevice({
+            category: DeviceCategory.WIRELESS_CPE
+          })
+        )
+      );
+    });
+
+    it('should refuse to recategorise a device that has a wireless config', async () => {
+      wirelessConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeWirelessConfig())
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ category: 'ACCESS_POINT' })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'Cannot change the category of a device that has a wireless config'
+      );
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('should refuse to clear the category of a device that has a wireless config', async () => {
+      wirelessConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeWirelessConfig())
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ category: null })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('should allow other fields to be updated while a wireless config exists', async () => {
+      wirelessConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeWirelessConfig())
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ name: 'Rooftop-CPE-04' })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(
+        wirelessConfigRepo.findByDeviceId
+      ).not.toHaveBeenCalled();
+    });
+
+    it('should allow resubmitting the same category unchanged', async () => {
+      wirelessConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeWirelessConfig())
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ category: 'WIRELESS_CPE' })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(
+        wirelessConfigRepo.findByDeviceId
+      ).not.toHaveBeenCalled();
+    });
+
+    it('should allow recategorising when no wireless config exists', async () => {
+      wirelessConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ category: 'ACCESS_POINT' })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value!.category).toBe('ACCESS_POINT');
+    });
+
+    it('should fail when the wireless config lookup fails', async () => {
+      wirelessConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.fail('connection reset')
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ category: 'ACCESS_POINT' })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'Failed to check for an existing wireless config'
+      );
+      expect(repo.save).not.toHaveBeenCalled();
     });
   });
 });

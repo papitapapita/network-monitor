@@ -463,6 +463,27 @@ can end up attributed to the wrong hardware.
 > box, and its metric history belongs to that box). For now, retire the old
 > device and create a new one.
 
+**`category` — frozen while a wireless config exists**
+
+The device's category decides the radio mode of its wireless config, and that
+mode is derived **once**, when the config is created. So while a config exists,
+the category is locked:
+
+- Device has a wireless config and the request changes `category` (to another
+  value **or** to `null`) → `400` `"Cannot change the category of a device that has a wireless config. Delete the wireless config first, then recategorise the device."`
+- Sending the category the device **already has** is not a change and succeeds.
+- Every other field on the same request is unaffected — only `category` is
+  blocked.
+- No wireless config → `category` is freely editable.
+
+To recategorise a device that has one, `DELETE /api/devices/:id/wireless/config`
+first, then PATCH the category, then create the config again. The refusal
+happens before anything is written, so a rejected request changes nothing.
+
+> **Frontend:** on a device that has a wireless config, render the category
+> field read-only and point the operator at the wireless config screen. A UI that
+> PATCHes the whole form back unchanged is safe — same value is a no-op.
+
 **Field combinations are validated as one end state**
 
 A `PATCH` describes the state you want the device to end up in, and the whole
@@ -1178,7 +1199,7 @@ there rather than assuming it.
 
 > **`linkCapacityKbps` is in kbps, not bps** — a 50 Mbps link is `50000`. It feeds the link-saturation alert, which warns at 80 % of this value, so an entry off by 1000× either never fires or fires permanently.
 
-> **Frontend:** set the device's `category` first (`PATCH /api/devices/:id`) — it decides which of the two fields this endpoint will accept. Sending `deviceType` in the body is now ignored by the schema.  
+> **Frontend:** set the device's `category` first (`PATCH /api/devices/:id`) — it decides which of the two fields this endpoint will accept, and creating this config **locks it**: the category cannot be changed again until the config is deleted. Sending `deviceType` in the body is now ignored by the schema.  
 > Returns 404 if the device does not exist.  
 > Returns 409 if a wireless config already exists for this device — use `PATCH` to update it.
 
@@ -1212,7 +1233,7 @@ there rather than assuming it.
 ```
 
 > Returns 404 if no config exists for this device — use `POST` to create it first.  
-> The STATION / ACCESS_POINT check here runs against the config's **stored** `deviceType` — the value derived from the device's category at creation. Changing the device's category does **not** retroactively change an existing config; delete and re-create it if the role really changed.
+> The STATION / ACCESS_POINT check here runs against the config's **stored** `deviceType` — the value derived from the device's category at creation. The two can no longer drift apart: while this config exists, `PATCH /api/devices/:id` refuses to change the device's category at all. If the role really changed, delete this config, recategorise the device, then create it again.
 
 ---
 

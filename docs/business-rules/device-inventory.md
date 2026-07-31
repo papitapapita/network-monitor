@@ -374,9 +374,7 @@ out of persistence — see [G-11](#known-gaps).
 
 Optional. Case-insensitive on input.
 
-**Why:** Determines who owns the hardware, which decides who replaces it when it
-fails and whether it goes back to the warehouse when a client leaves.
-_(inferred)_
+**Why:** Determines who owns the hardware, which decides who replaces it when it fails and whether it goes back to the warehouse when a client leaves.
 
 **Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:50`, `UpdateDeviceUseCase.ts:51`
 **Message:** `Invalid ownerType: "<value>". Must be one of: COMPANY, CLIENT`
@@ -719,8 +717,55 @@ validates against the config's **stored** `deviceType`
 (`WirelessDeviceConfig.ts:140`, `:156`), which is that derived value — so the
 two paths agree.
 
-The derivation happens **once, at creation**. Recategorising the device later
-does not revisit it — see [G-12](#known-gaps).
+The derivation happens **once, at creation**, and is never revisited — which is
+why DEV-065 freezes the input it was derived from.
+
+---
+
+### DEV-065 — A device's category cannot change while it has a wireless configuration
+
+**Type:** Policy · **Status:** Active
+
+Once a wireless configuration exists for a device, `PATCH /api/devices/:id`
+refuses any request that would change that device's `category` — including
+clearing it to `null`. Every other field on the same request is unaffected;
+submitting the category it already has is not a change and passes. The check
+only runs when the value actually differs, so no read is spent on requests that
+leave the category alone.
+
+To recategorise the device, delete its wireless configuration first
+(`DELETE /api/devices/:id/wireless/config`) and create a new one afterwards.
+
+**Why:** DEV-064 derives the config's radio mode from the category once, at
+creation, and nothing re-derives it. Letting the category move afterwards
+recreates precisely the contradiction DEV-064 exists to remove — a device
+categorised `ACCESS_POINT` holding a `STATION` config, still accepting
+`linkCapacityKbps`, still refusing `clientsProvisionedLimit`, and never
+engaging the AP collection path in the collector.
+
+Refusing is chosen over cascading because the cascade cannot be performed
+without data loss: which of `linkCapacityKbps` / `clientsProvisionedLimit` is
+legal flips with the mode, so re-deriving would have to silently discard
+whichever value the operator had set. A category is a statement about physical
+hardware; a legitimate `WIRELESS_CPE` → `ACCESS_POINT` move is a hardware
+replacement, and rebuilding the config is the honest representation of that.
+Failing loudly puts the decision in front of the operator instead of resolving
+it silently — the same reasoning as the DEV-027 cascade (G-4).
+
+**Consequence.** The refusal happens before `Device.applyChanges`, so a rejected
+request leaves both the device row and the stored `deviceType` untouched and the
+operation is retryable. `UpdateDeviceUseCase` now depends on
+`IWirelessDeviceConfigRepository`; a failed lookup aborts the update rather than
+being treated as "no config".
+
+This rule prevents new drift, it does not repair old drift. A config written
+before this rule existed, whose `device_type` already disagrees with its
+device's category, stays wrong until it is deleted and re-created — the rule
+only stops the category moving any further.
+
+**Enforced at:** `src/application/device-inventory/use-cases/UpdateDeviceUseCase.ts:135-172`
+**Message:** `Cannot change the category of a device that has a wireless config. Delete the wireless config first, then recategorise the device.`
+**Tests:** `tests/application/device-inventory/use-cases/UpdateDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`
 
 ---
 
@@ -1187,17 +1232,3 @@ this concrete: the migration covered the rows that existed, but nothing would
 catch a stale `SMART_SWITCH_POE` arriving from a hand-edited row or an
 un-migrated database. `DeviceCategory.isValid` is currently `private` — closing
 this means widening it and adding the same guard as its two siblings.
-
-**G-12 — A recategorised device keeps its old wireless radio mode.**
-DEV-064 derives the config's `deviceType` from the device's category once, at
-creation, and nothing re-derives it afterwards: no handler reacts to a category
-change, and `UpdateWirelessConfigUseCase` never touches the field. So a device
-switched from `WIRELESS_CPE` to `ACCESS_POINT` keeps a `STATION` config — it
-will still accept `linkCapacityKbps` and still refuse `clientsProvisionedLimit`,
-which is the opposite of what its category now says, and the AP-specific
-collection path never engages. Recovering means deleting the config and
-re-creating it. The narrower question first: whether recategorising a device
-that already has a wireless config should be **refused** (the category is a
-statement about hardware and rarely changes legitimately), or whether it should
-cascade. Refusing is the smaller change and surfaces the problem to the operator
-instead of leaving it silent.

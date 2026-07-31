@@ -10,6 +10,7 @@ import {
   DeviceId,
   DeviceModelId
 } from 'domain/shared/ids';
+import { IWirelessDeviceConfigRepository } from 'domain/wireless-monitoring/repository';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
@@ -29,6 +30,7 @@ export class UpdateDeviceUseCase extends UseCase<
   constructor(
     private readonly deviceRepository: IDeviceRepository,
     private readonly deviceModelRepository: IDeviceModelRepository,
+    private readonly wirelessConfigRepository: IWirelessDeviceConfigRepository,
     logger: ILogger
   ) {
     super(logger, 'UpdateDeviceUseCase');
@@ -133,15 +135,42 @@ export class UpdateDeviceUseCase extends UseCase<
     }
 
     if (data.category !== undefined) {
-      if (data.category === null) {
-        updateFields.category = null;
-      } else {
+      let nextCategory: DeviceCategory | null = null;
+      if (data.category !== null) {
         const categoryResult = DeviceCategory.create(data.category);
         if (categoryResult.isFailure) {
           return this.fail(categoryResult.error!);
         }
-        updateFields.category = categoryResult.value;
+        nextCategory = categoryResult.value;
       }
+
+      const categoryChanged =
+        (device.category?.value ?? null) !==
+        (nextCategory?.value ?? null);
+
+      // DEV-064 derives the wireless radio mode from this category once, at
+      // config creation, and nothing re-derives it. Moving the category
+      // afterwards is refused rather than cascaded: which of linkCapacityKbps
+      // / clientsProvisionedLimit is legal flips with the mode, so a cascade
+      // would have to silently discard whichever value the operator set.
+      if (categoryChanged) {
+        const configResult =
+          await this.wirelessConfigRepository.findByDeviceId(
+            device.id
+          );
+        if (configResult.isFailure) {
+          return this.fail(
+            `Failed to check for an existing wireless config: ${configResult.error}`
+          );
+        }
+        if (configResult.value !== null) {
+          return this.fail(
+            'Cannot change the category of a device that has a wireless config. Delete the wireless config first, then recategorise the device.'
+          );
+        }
+      }
+
+      updateFields.category = nextCategory;
     }
 
     if (data.serialNumber !== undefined) {
