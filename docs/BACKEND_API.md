@@ -728,7 +728,9 @@ offset?: number  // ≥0, default 0
 
 > Returns 409 if a model with the same name already exists for that vendor.
 > `isWireless` marks the hardware as radio-capable; devices built on a model
-> with `isWireless: false` are refused a wireless config.
+> with `isWireless: false` are refused a wireless config. Getting it wrong here
+> is cheap to fix later — but only until a device on the model is configured,
+> see `PUT /api/device-models/:id`.
 
 ---
 
@@ -766,7 +768,7 @@ offset?: number  // ≥0, default 0
 ---
 
 ### `PUT /api/device-models/:id` — Update
-**Status:** 200 | 400 | 404
+**Status:** 200 | 400 | 404 | 409
 
 ```ts
 // Request body (at least one field required)
@@ -781,13 +783,35 @@ offset?: number  // ≥0, default 0
 { success: true, data: DeviceModelDTO }
 ```
 
-> **Cascade:** setting `isWireless` from `true` to `false` deletes the wireless
-> polling config of *every* device built on this model (DEV-027) — the devices
-> and their collected history are kept, only the polling configuration goes.
-> The cleanup runs before the flag is saved: if any config cannot be deleted the
-> request fails with 500 and the model stays wireless, so it can be retried.
-> The reverse (`false → true`) creates nothing — each config must be re-created
-> through `POST /api/devices/:id/wireless/config`.
+**`isWireless: true → false` — refused while wireless configs exist**
+
+Turning the flag off is blocked while **any** device built on this model still
+has a wireless polling config (DEV-027) — those configs hold operator-entered
+values (`linkCapacityKbps` / `clientsProvisionedLimit`) that a non-wireless
+model has nowhere to keep, so they are never deleted for you:
+
+- One or more devices on the model have a config → `409`
+  `"Cannot mark device model as non-wireless: N device(s) built on it have a wireless config. Delete those wireless configs first."`
+- Devices on the model with **no** config do not block it — the check is about
+  configs, not devices, and not about their `category`.
+- The refusal is all-or-nothing: no other field of the same request is applied,
+  and the model stays wireless.
+- Resubmitting the value the model already has is a no-op and always succeeds.
+
+To make the model non-wireless, `DELETE /api/devices/:id/wireless/config` on
+each listed device first, then send `isWireless: false`.
+
+> The reverse (`false → true`) checks nothing and creates nothing — each config
+> is created through `POST /api/devices/:id/wireless/config`.
+>
+> **Frontend:** the `N` in the message is the number of configs to clear. On a
+> `409`, list the model's devices (`GET /api/devices?deviceModelId=…`) and point
+> the operator at their wireless config screens rather than retrying.
+>
+> **Note:** devices already categorised `WIRELESS_CPE` / `ACCESS_POINT` keep that
+> category when a model is made non-wireless. That combination is inert and
+> legal — no config can be created for it — so don't treat it as an error state
+> in the UI.
 
 ---
 
@@ -1246,7 +1270,8 @@ there rather than assuming it.
 ```
 
 > Removes wireless monitoring from the device. The device record itself is not affected.  
-> Returns 404 if no config exists.
+> Returns 404 if no config exists.  
+> This is also the prerequisite for two other operations that refuse to destroy a config on their own: recategorising the device (`PATCH /api/devices/:id`) and marking its model non-wireless (`PUT /api/device-models/:id`).
 
 ---
 
@@ -2006,7 +2031,7 @@ The PDF includes the bill header (period, status, issue/due/paid dates), the cus
 | 401 | Missing, expired, or invalid JWT |
 | 403 | Valid token but insufficient role for this operation |
 | 404 | Resource not found |
-| 409 | Conflict — resource already exists or cannot be deleted (e.g. vendor has models, model has devices) |
+| 409 | Conflict — resource already exists, or cannot be deleted/changed while dependents exist (e.g. vendor has models, model has devices, model has wireless configs) |
 | 429 | Rate limit exceeded |
 | 500 | Unexpected server error |
 | 503 | Dependent system unavailable — enforcement router unreachable or enforcement not configured (enforcement endpoints only) |

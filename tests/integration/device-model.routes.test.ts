@@ -387,7 +387,7 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(res.body.data.vendorSlug).toBe('ubiquiti');
     });
 
-    it('[DEV-027] 200 — turning off isWireless deletes the wireless config of its devices', async () => {
+    it('[DEV-027] 409 — turning off isWireless is refused while a device on the model has a wireless config', async () => {
       const wirelessModelId = await seedModel({
         model: 'LHG 5',
         deviceType: 'ANTENNA',
@@ -395,7 +395,7 @@ describe('Device Model Routes — /api/device-models', () => {
       });
       const deviceId = await seedDevice(prisma, wirelessModelId, {
         name: 'CPE',
-        serialNumber: 'SN-CASCADE'
+        serialNumber: 'SN-CONFIGURED'
       });
       await prisma.wirelessPollingConfiguration.create({
         data: { deviceId, deviceType: 'STATION' }
@@ -406,11 +406,35 @@ describe('Device Model Routes — /api/device-models', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ isWireless: false });
 
-      expect(res.status).toBe(200);
-      expect(res.body.data.isWireless).toBe(false);
+      expect(res.status).toBe(409);
+      expect(res.body.error).toMatch(/Cannot mark device model as non-wireless/);
       await expect(
         prisma.wirelessPollingConfiguration.count()
-      ).resolves.toBe(0);
+      ).resolves.toBe(1);
+      const row = await prisma.deviceModel.findUnique({
+        where: { id: wirelessModelId }
+      });
+      expect(row!.isWireless).toBe(true);
+    });
+
+    it('[DEV-027] 200 — turning off isWireless succeeds when no device on the model has a wireless config', async () => {
+      const wirelessModelId = await seedModel({
+        model: 'LHG 5 XL',
+        deviceType: 'ANTENNA',
+        isWireless: true
+      });
+      await seedDevice(prisma, wirelessModelId, {
+        name: 'CPE',
+        serialNumber: 'SN-UNCONFIGURED'
+      });
+
+      const res = await request(app)
+        .put(`/api/device-models/${wirelessModelId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ isWireless: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.isWireless).toBe(false);
     });
 
     it('[DEV-027] 200 — turning on isWireless leaves existing configs alone', async () => {

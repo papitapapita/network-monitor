@@ -17,7 +17,7 @@ _These block or constrain everything else. Do in order._
       2. create the new `Device` with the new model, inheriting location, category, owner, and the IP released by the old unit
       3. re-point `DeviceCredentials` (1:1) and `ContractedService.deviceId` (1:1 `@unique`, `prisma/schema.prisma:491`) to the new device — miss this and the customer's billing link silently detaches
       4. emit `DeviceReplacedEvent`
-    - Wireless: if old and new models differ in `isWireless`, the old unit's `WirelessPollingConfiguration` must not be copied blindly — a non-wireless replacement should end wireless polling (cf. DEV-027)
+    - Wireless: if old and new models differ in `isWireless`, the old unit's `WirelessPollingConfiguration` must not be copied blindly — a non-wireless replacement should end wireless polling. Nothing does this for you: DEV-027 now *refuses* to make a model non-wireless while configs exist rather than deleting them, so the orchestrator has to delete the old unit's config explicitly and say so in its result
     - Testing: no HTTP-only surface covers an orchestrator, so per `docs/rules/TESTING-INTEGRATION-STANDARD.md` this needs a thorough integration suite of its own — lineage, credential/contract transfer, IP handover, and the wireless-mismatch case
     - Also worth deciding here: whether `POST /api/devices/:id/replace` or a top-level `POST /api/devices/replacements` better reflects that the operation creates a new aggregate
 

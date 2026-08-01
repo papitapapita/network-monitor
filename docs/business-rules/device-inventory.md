@@ -243,40 +243,70 @@ built on it of its identity. Reassignment must be an explicit decision.
 **Enforced at:** `src/application/device-inventory/use-cases/DeleteDeviceModelUseCase.ts:58`
 **Message:** `Cannot delete device model: it has N device(s) associated. Reassign or remove those devices first.`
 
-### DEV-027 — Turning off `isWireless` removes the wireless config of every device on that model
+### DEV-027 — `isWireless` cannot be turned off while any device on the model has a wireless configuration
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28 · **Revised:** 2026-07-30
 
-When an update changes `isWireless` from `true` to `false`, wireless device
-configurations for all devices of that model are deleted. The deletion runs
-**before** the flag is persisted: if any config cannot be removed, the whole
-update fails and the model stays wireless.
+An update changing `isWireless` from `true` to `false` is refused when any
+device built on that model still holds a wireless configuration; the message
+names how many. Devices on the model that have **no** configuration do not block
+it — the refusal is about configurations, not about the devices or their
+categories. Every other field of the same request is refused with it, and
+nothing is written.
 
-**Why:** The flag is the statement of what the hardware can do. Once a model is
-declared non-wireless, wireless polling of those units is collecting from an
-interface that was never there — the configs are dead weight that would keep
-scheduling failing polls. The cascade only fires on the `true → false` edge, so
-a config that survived a partial failure would be unreachable by any later
-update; leaving the model wireless keeps the operation retryable, and deletion
-is idempotent.
+To make the model non-wireless, delete those configurations first
+(`DELETE /api/devices/:id/wireless/config`), then set the flag.
 
-**Enforced at:** `src/application/device-inventory/use-cases/UpdateDeviceModelUseCase.ts:124`, `:144` (`removeWirelessConfigs`)
-**Message:** `Failed to remove wireless config: <reason>` / `Failed to load devices for wireless config cleanup: <reason>`
-**Tests:** `tests/application/device-inventory/use-cases/UpdateDeviceModelUseCase.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceModelUseCase.integration.test.ts`
+**Why:** A configuration carries operator-entered values — `linkCapacityKbps` or
+`clientsProvisionedLimit` (DEV-064) — that no cascade can preserve, because a
+non-wireless model has nowhere to put them. This is the same data DEV-065
+refuses to discard one device at a time, so the model catalogue may not discard
+it wholesale: it would be inconsistent for a single device's category to be
+frozen against losing one field while a checkbox on its model destroyed that
+field for the entire fleet built on it. Refusing puts the decision in front of
+the operator, which is also what DEV-026 does for a model that still has
+devices.
 
-### DEV-028 — A device model carries a copy of its vendor's name and slug
+The check only runs on the `true → false` edge, so resubmitting the current
+value costs no query, and a failed lookup aborts rather than being read as "no
+configuration".
+
+**Consequence.** A model mis-flagged as wireless can still be corrected freely
+until someone configures a device on it. After that the correction has an
+explicit price: the configurations go first.
+
+**History — this rule replaced a cascade on 2026-07-30.** It previously deleted
+the wireless configuration of every device on the model, which is how the data
+loss described above was possible. The deletions also ran unchecked and after
+the save, so a failure left orphaned configurations behind while the request
+still reported success.
+
+**Enforced at:** `src/application/device-inventory/use-cases/UpdateDeviceModelUseCase.ts:144` (`guardAgainstWirelessConfigs`)
+**Message:** `Cannot mark device model as non-wireless: N device(s) built on it have a wireless config. Delete those wireless configs first.` → `409` / `Failed to load devices for the wireless config check: <reason>` / `Failed to check for existing wireless configs: <reason>`
+**Tests:** `tests/application/device-inventory/use-cases/UpdateDeviceModelUseCase.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceModelUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
+
+### DEV-028 — A device model reports its vendor's name and slug
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28 · **Revised:** 2026-07-30
 
-`vendorName` and `vendorSlug` are stored on the model and refreshed whenever the
-model's vendor changes.
+Every device model response carries `vendorName` and `vendorSlug` alongside
+`vendorId`. Neither is a column on `device_models`: each read joins `vendors`
+and the mapper hydrates the pair onto the aggregate, so a vendor rename is
+visible on its models from the next read — no propagation step exists because
+there is no copy to propagate to. `updateVendor` sets all three together, which
+keeps an in-memory aggregate consistent for the rest of the request that
+reassigned it.
 
-**Why:** Device listings show the vendor on every row; denormalizing avoids a
-join on the hottest read path in the catalogue. The cost is that renaming a
-vendor does **not** propagate to existing models — see [G-3](#known-gaps).
-_(inferred)_
+**Why:** A model is identified by maker and model together (DEV-020), so the
+vendor label belongs on every row a caller lists — making clients resolve
+`vendorId` themselves would mean an extra request per row. Serving it off the
+join rather than a stored copy is what keeps it from ageing: the catalogue can
+never disagree with the vendor record it came from. _(inferred)_
 
-**Enforced at:** `src/domain/device-inventory/aggregates/DeviceModel.ts:131` (`updateVendor`)
+**Enforced at:** `src/infrastructure/mappers/DeviceModelMapper.ts:55` (`toDomain`), `src/domain/device-inventory/aggregates/DeviceModel.ts:131` (`updateVendor`)
+**Tests:** `tests/integration/use-cases/device-inventory/UpdateVendorUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceModelUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceModelUseCase.integration.test.ts`
 
 ---
 
@@ -750,7 +780,8 @@ whichever value the operator had set. A category is a statement about physical
 hardware; a legitimate `WIRELESS_CPE` → `ACCESS_POINT` move is a hardware
 replacement, and rebuilding the config is the honest representation of that.
 Failing loudly puts the decision in front of the operator instead of resolving
-it silently — the same reasoning as the DEV-027 cascade (G-4).
+it silently — DEV-027 refuses the model-wide version of the same loss for the
+same reason.
 
 **Consequence.** The refusal happens before `Device.applyChanges`, so a rejected
 request leaves both the device row and the stored `deviceType` untouched and the

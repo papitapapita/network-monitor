@@ -145,7 +145,8 @@ export class DeviceModelController {
 
     if (
       errorMessage.includes('already exists') ||
-      errorMessage.includes('Cannot delete')
+      errorMessage.includes('Cannot delete') ||
+      errorMessage.includes('Cannot mark device model')
     ) {
       return 409;
     }

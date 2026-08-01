@@ -57,7 +57,6 @@ export class UpdateDeviceModelUseCase extends UseCase<
     }
 
     const deviceModel = findResult.value;
-    const wasWireless = deviceModel.isWireless;
     const data = DeviceModelMapper.extractUpdateData(request);
 
     if (data.vendorId !== undefined) {
@@ -110,23 +109,24 @@ export class UpdateDeviceModelUseCase extends UseCase<
     }
 
     if (data.isWireless !== undefined) {
+      // The configs hold operator-entered values (linkCapacityKbps /
+      // clientsProvisionedLimit) that deleting them would discard — the same
+      // data DEV-065 refuses to discard one device at a time. So the flag is
+      // refused while any of them exists rather than cascading.
+      if (deviceModel.isWireless && !data.isWireless) {
+        const guardResult = await this.guardAgainstWirelessConfigs(
+          deviceModel.id
+        );
+        if (guardResult.isFailure) {
+          return this.fail(guardResult.error);
+        }
+      }
+
       const wirelessResult = deviceModel.updateIsWireless(
         data.isWireless
       );
       if (wirelessResult.isFailure) {
         return this.fail(wirelessResult.error!);
-      }
-    }
-
-    // The cascade runs before the flag is persisted: it only ever fires on the
-    // true → false edge, so a failure after the save would leave configs no
-    // later update could reach.
-    if (wasWireless && data.isWireless === false) {
-      const cascadeResult = await this.removeWirelessConfigs(
-        deviceModel.id
-      );
-      if (cascadeResult.isFailure) {
-        return this.fail(cascadeResult.error);
       }
     }
 
@@ -141,27 +141,38 @@ export class UpdateDeviceModelUseCase extends UseCase<
     return this.ok(DeviceModelMapper.toDTO(saveResult.value));
   }
 
-  private async removeWirelessConfigs(
+  private async guardAgainstWirelessConfigs(
     deviceModelId: DeviceModelId
   ): Promise<Result<void>> {
     const devicesResult =
       await this.deviceRepository.findByDeviceModel(deviceModelId);
     if (devicesResult.isFailure) {
       return Result.fail(
-        `Failed to load devices for wireless config cleanup: ${devicesResult.error}`
+        `Failed to load devices for the wireless config check: ${devicesResult.error}`
       );
     }
 
-    const deleteResults = await Promise.all(
+    const configResults = await Promise.all(
       devicesResult.value.map((d) =>
-        this.wirelessConfigRepo.delete(d.id)
+        this.wirelessConfigRepo.findByDeviceId(d.id)
       )
     );
 
-    const failure = deleteResults.find((r) => r.isFailure);
+    // A lookup that failed is not an absent config: aborting keeps the
+    // operation retryable instead of clearing the flag on a partial answer.
+    const failure = configResults.find((r) => r.isFailure);
     if (failure !== undefined) {
       return Result.fail(
-        `Failed to remove wireless config: ${failure.error}`
+        `Failed to check for existing wireless configs: ${failure.error}`
+      );
+    }
+
+    const configured = configResults.filter(
+      (r) => r.value !== null
+    ).length;
+    if (configured > 0) {
+      return Result.fail(
+        `Cannot mark device model as non-wireless: ${configured} device(s) built on it have a wireless config. Delete those wireless configs first.`
       );
     }
 

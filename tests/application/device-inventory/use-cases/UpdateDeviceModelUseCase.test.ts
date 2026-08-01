@@ -385,7 +385,7 @@ describe('UpdateDeviceModelUseCase', () => {
   });
 
   // =========================================================================
-  describe('[DEV-027] executeImpl — isWireless cascade delete', () => {
+  describe('[DEV-027] executeImpl — isWireless refusal while configs exist', () => {
     const DEVICE_UUID_1 = '550e8400-e29b-41d4-a716-446655440010';
     const DEVICE_UUID_2 = '550e8400-e29b-41d4-a716-446655440011';
 
@@ -402,12 +402,22 @@ describe('UpdateDeviceModelUseCase', () => {
       });
     }
 
+    function makeConfig(): object {
+      return { id: 'config' };
+    }
+
+    function withDevices(...uuids: string[]): void {
+      (deviceRepo.findByDeviceModel as any).mockResolvedValue(
+        Result.ok(uuids.map((u) => ({ id: DeviceId.parse(u).value! })))
+      );
+    }
+
     beforeEach(() => {
       (deviceModelRepo.findById as any).mockResolvedValue(
         Result.ok(makeWirelessDeviceModel())
       );
       (deviceRepo.findByDeviceModel as any).mockResolvedValue(Result.ok([]));
-      (wirelessConfigRepo.delete as any).mockResolvedValue(Result.ok(undefined));
+      (wirelessConfigRepo.findByDeviceId as any).mockResolvedValue(Result.ok(null));
     });
 
     it('should call findByDeviceModel when isWireless flips true → false', async () => {
@@ -430,26 +440,101 @@ describe('UpdateDeviceModelUseCase', () => {
       expect(deviceRepo.findByDeviceModel).not.toHaveBeenCalled();
     });
 
-    it('should delete the wireless config for each device when flipping true → false', async () => {
-      const id1 = DeviceId.parse(DEVICE_UUID_1).value!;
-      const id2 = DeviceId.parse(DEVICE_UUID_2).value!;
-      (deviceRepo.findByDeviceModel as any).mockResolvedValue(
-        Result.ok([{ id: id1 }, { id: id2 }])
+    it('should not call findByDeviceModel when isWireless is resubmitted as false on a non-wireless model', async () => {
+      (deviceModelRepo.findById as any).mockResolvedValue(Result.ok(makeDeviceModel()));
+
+      await useCase.execute({ id: VALID_UUID, isWireless: false });
+
+      expect(deviceRepo.findByDeviceModel).not.toHaveBeenCalled();
+    });
+
+    it('should check every device on the model for a wireless config', async () => {
+      withDevices(DEVICE_UUID_1, DEVICE_UUID_2);
+
+      await useCase.execute({ id: VALID_UUID, isWireless: false });
+
+      expect(wirelessConfigRepo.findByDeviceId).toHaveBeenCalledTimes(2);
+      expect((wirelessConfigRepo.findByDeviceId as any).mock.calls[0][0].toString()).toBe(DEVICE_UUID_1);
+      expect((wirelessConfigRepo.findByDeviceId as any).mock.calls[1][0].toString()).toBe(DEVICE_UUID_2);
+    });
+
+    it('should succeed when no device on the model has a wireless config', async () => {
+      withDevices(DEVICE_UUID_1, DEVICE_UUID_2);
+
+      const result = await useCase.execute({ id: VALID_UUID, isWireless: false });
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.isWireless).toBe(false);
+    });
+
+    it('should not look up any config when no devices use the model', async () => {
+      (deviceRepo.findByDeviceModel as any).mockResolvedValue(Result.ok([]));
+
+      const result = await useCase.execute({ id: VALID_UUID, isWireless: false });
+
+      expect(wirelessConfigRepo.findByDeviceId).not.toHaveBeenCalled();
+      expect(result.isSuccess).toBe(true);
+    });
+
+    it('should refuse the flag when a device on the model has a wireless config', async () => {
+      withDevices(DEVICE_UUID_1, DEVICE_UUID_2);
+      (wirelessConfigRepo.findByDeviceId as any)
+        .mockResolvedValueOnce(Result.ok(makeConfig()))
+        .mockResolvedValueOnce(Result.ok(null));
+
+      const result = await useCase.execute({ id: VALID_UUID, isWireless: false });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Cannot mark device model as non-wireless');
+    });
+
+    it('should report how many devices still hold a config', async () => {
+      withDevices(DEVICE_UUID_1, DEVICE_UUID_2);
+      (wirelessConfigRepo.findByDeviceId as any).mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+
+      const result = await useCase.execute({ id: VALID_UUID, isWireless: false });
+
+      expect(result.error).toContain('2 device(s)');
+    });
+
+    it('should not delete any wireless config when refusing', async () => {
+      withDevices(DEVICE_UUID_1);
+      (wirelessConfigRepo.findByDeviceId as any).mockResolvedValue(
+        Result.ok(makeConfig())
       );
 
       await useCase.execute({ id: VALID_UUID, isWireless: false });
 
-      expect(wirelessConfigRepo.delete).toHaveBeenCalledTimes(2);
-      expect((wirelessConfigRepo.delete as any).mock.calls[0][0].toString()).toBe(DEVICE_UUID_1);
-      expect((wirelessConfigRepo.delete as any).mock.calls[1][0].toString()).toBe(DEVICE_UUID_2);
+      expect(wirelessConfigRepo.delete).not.toHaveBeenCalled();
     });
 
-    it('should not call wirelessConfigRepo.delete when no devices use the model', async () => {
-      (deviceRepo.findByDeviceModel as any).mockResolvedValue(Result.ok([]));
+    it('should not persist the model when refusing', async () => {
+      withDevices(DEVICE_UUID_1);
+      (wirelessConfigRepo.findByDeviceId as any).mockResolvedValue(
+        Result.ok(makeConfig())
+      );
 
       await useCase.execute({ id: VALID_UUID, isWireless: false });
 
-      expect(wirelessConfigRepo.delete).not.toHaveBeenCalled();
+      expect(deviceModelRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('should not apply other fields of the same request when refusing', async () => {
+      withDevices(DEVICE_UUID_1);
+      (wirelessConfigRepo.findByDeviceId as any).mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        model: 'PowerBeam 5AC',
+        isWireless: false
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(deviceModelRepo.save).not.toHaveBeenCalled();
     });
 
     it('should fail when findByDeviceModel fails', async () => {
@@ -473,52 +558,17 @@ describe('UpdateDeviceModelUseCase', () => {
       expect(deviceModelRepo.save).not.toHaveBeenCalled();
     });
 
-    it('should fail when a wireless config delete fails', async () => {
-      const id1 = DeviceId.parse(DEVICE_UUID_1).value!;
-      const id2 = DeviceId.parse(DEVICE_UUID_2).value!;
-      (deviceRepo.findByDeviceModel as any).mockResolvedValue(
-        Result.ok([{ id: id1 }, { id: id2 }])
-      );
-      (wirelessConfigRepo.delete as any)
-        .mockResolvedValueOnce(Result.ok(undefined))
-        .mockResolvedValueOnce(Result.fail('Database error deleting wireless polling config'));
+    it('should fail when a config lookup fails rather than reading it as no config', async () => {
+      withDevices(DEVICE_UUID_1, DEVICE_UUID_2);
+      (wirelessConfigRepo.findByDeviceId as any)
+        .mockResolvedValueOnce(Result.ok(null))
+        .mockResolvedValueOnce(Result.fail('Database error reading wireless polling config'));
 
       const result = await useCase.execute({ id: VALID_UUID, isWireless: false });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Database error deleting wireless polling config');
-    });
-
-    it('should leave the model wireless when a wireless config delete fails', async () => {
-      const id1 = DeviceId.parse(DEVICE_UUID_1).value!;
-      (deviceRepo.findByDeviceModel as any).mockResolvedValue(
-        Result.ok([{ id: id1 }])
-      );
-      (wirelessConfigRepo.delete as any).mockResolvedValue(Result.fail('DB error'));
-
-      await useCase.execute({ id: VALID_UUID, isWireless: false });
-
+      expect(result.error).toContain('Database error reading wireless polling config');
       expect(deviceModelRepo.save).not.toHaveBeenCalled();
-    });
-
-    it('should persist the model only after every config is deleted', async () => {
-      const id1 = DeviceId.parse(DEVICE_UUID_1).value!;
-      (deviceRepo.findByDeviceModel as any).mockResolvedValue(
-        Result.ok([{ id: id1 }])
-      );
-      const order: string[] = [];
-      (wirelessConfigRepo.delete as any).mockImplementation(async () => {
-        order.push('delete');
-        return Result.ok(undefined);
-      });
-      (deviceModelRepo.save as any).mockImplementation(async (m: DeviceModel) => {
-        order.push('save');
-        return Result.ok(m);
-      });
-
-      await useCase.execute({ id: VALID_UUID, isWireless: false });
-
-      expect(order).toEqual(['delete', 'save']);
     });
   });
 

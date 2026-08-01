@@ -121,7 +121,7 @@ describe('UpdateDeviceModelUseCase — integration', () => {
   });
 
   // ──────────────────────────────────────────────────────────────
-  // DEV-027 — isWireless cascade
+  // DEV-027 — isWireless is frozen while configs exist
   // ──────────────────────────────────────────────────────────────
 
   /** Creates `count` devices on the model, each with a STATION wireless config. */
@@ -143,34 +143,79 @@ describe('UpdateDeviceModelUseCase — integration', () => {
     return deviceIds;
   }
 
-  it('[DEV-027] deletes the wireless config of every device on the model when isWireless flips true → false', async () => {
+  it('[DEV-027] refuses isWireless true → false while a device on the model has a wireless config', async () => {
     const modelId = await seedWirelessDeviceModel(prisma);
     await seedConfiguredDevices(modelId, 2);
 
     const result = await useCase.execute({ id: modelId, isWireless: false });
 
-    expect(result.isSuccess).toBe(true);
-    expect(result.value.isWireless).toBe(false);
-    await expect(
-      prisma.wirelessPollingConfiguration.count()
-    ).resolves.toBe(0);
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/Cannot mark device model as non-wireless/);
+    expect(result.error).toContain('2 device(s)');
   });
 
-  it('[DEV-027] persists isWireless=false after the cascade', async () => {
+  it('[DEV-027] leaves the model wireless and every config in place when refused', async () => {
     const modelId = await seedWirelessDeviceModel(prisma);
-    await seedConfiguredDevices(modelId, 1);
+    await seedConfiguredDevices(modelId, 2);
 
     await useCase.execute({ id: modelId, isWireless: false });
 
     const stored = await prisma.deviceModel.findUnique({
       where: { id: modelId }
     });
+    expect(stored!.isWireless).toBe(true);
+    await expect(
+      prisma.wirelessPollingConfiguration.count()
+    ).resolves.toBe(2);
+  });
+
+  it('[DEV-027] applies no other field of the same request when refused', async () => {
+    const modelId = await seedWirelessDeviceModel(prisma);
+    await seedConfiguredDevices(modelId, 1);
+
+    const result = await useCase.execute({
+      id: modelId,
+      model: 'PowerBeam 5AC',
+      isWireless: false
+    });
+
+    expect(result.isFailure).toBe(true);
+    const stored = await prisma.deviceModel.findUnique({
+      where: { id: modelId }
+    });
+    expect(stored!.model).not.toBe('PowerBeam 5AC');
+  });
+
+  it('[DEV-027] allows isWireless true → false once the configs are deleted', async () => {
+    const modelId = await seedWirelessDeviceModel(prisma);
+    await seedConfiguredDevices(modelId, 2);
+    await prisma.wirelessPollingConfiguration.deleteMany();
+
+    const result = await useCase.execute({ id: modelId, isWireless: false });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.isWireless).toBe(false);
+    const stored = await prisma.deviceModel.findUnique({
+      where: { id: modelId }
+    });
     expect(stored!.isWireless).toBe(false);
   });
 
-  it('[DEV-027] leaves configs of devices on other models untouched', async () => {
+  it('[DEV-027] allows isWireless true → false when the model has devices but none is configured', async () => {
     const modelId = await seedWirelessDeviceModel(prisma);
-    await seedConfiguredDevices(modelId, 1);
+    await seedDevice(prisma, modelId, {
+      name: 'Unconfigured CPE',
+      serialNumber: 'SN-UNCONFIGURED'
+    });
+
+    const result = await useCase.execute({ id: modelId, isWireless: false });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.isWireless).toBe(false);
+  });
+
+  it('[DEV-027] ignores configs of devices on other models', async () => {
+    const modelId = await seedWirelessDeviceModel(prisma);
     const otherModel = await prisma.deviceModel.create({
       data: {
         vendorId,
@@ -179,17 +224,17 @@ describe('UpdateDeviceModelUseCase — integration', () => {
         isWireless: true
       }
     });
-    const [untouchedDeviceId] = await seedConfiguredDevices(otherModel.id, 1);
+    await seedConfiguredDevices(otherModel.id, 1);
 
-    await useCase.execute({ id: modelId, isWireless: false });
+    const result = await useCase.execute({ id: modelId, isWireless: false });
 
-    const remaining =
-      await prisma.wirelessPollingConfiguration.findMany();
-    expect(remaining).toHaveLength(1);
-    expect(remaining[0].deviceId).toBe(untouchedDeviceId);
+    expect(result.isSuccess).toBe(true);
+    await expect(
+      prisma.wirelessPollingConfiguration.count()
+    ).resolves.toBe(1);
   });
 
-  it('[DEV-027] does not touch configs when isWireless flips false → true', async () => {
+  it('[DEV-027] does not check configs when isWireless flips false → true', async () => {
     await seedConfiguredDevices(deviceModelId, 1);
 
     const result = await useCase.execute({
