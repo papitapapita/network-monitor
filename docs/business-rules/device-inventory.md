@@ -27,6 +27,7 @@ the business. They are the ones to read critically.
 ### DEV-001 — A vendor has a non-empty name of at most 100 characters
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 The name is trimmed before storage. Whitespace-only names are rejected.
 
@@ -41,6 +42,7 @@ column and keeps the picker from wrapping.
 ### DEV-002 — A vendor slug is lowercase letters, digits and hyphens only
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 Required, non-empty, at most 100 characters, matching
 `^[a-z0-9]+(?:-[a-z0-9]+)*$` — e.g. `tp-link`, `ubiquiti`, `mikrotik`. No
@@ -58,6 +60,7 @@ alphabet means it never needs escaping, and forbidding uppercase prevents
 ### DEV-003 — Vendor slugs are unique
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28
 
 No two vendors may share a slug. On update, a vendor may keep its own slug —
 only a collision with a _different_ vendor is rejected.
@@ -72,6 +75,7 @@ would make the identifier ambiguous everywhere it is reported.
 ### DEV-004 — A vendor description is at most 500 characters
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 Optional; defaults to `null`.
 
@@ -85,6 +89,7 @@ document.
 ### DEV-005 — A vendor with device models cannot be deleted
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28
 
 Deletion is refused while any device model references the vendor. The message
 reports how many.
@@ -100,6 +105,7 @@ silently.
 ### DEV-006 — A vendor requires both a name and a slug
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 Both are mandatory at creation. `null`, `undefined`, a non-string and a blank
 string are all rejected; neither has a default to fall back on. Update accepts a
@@ -125,6 +131,7 @@ optional.
 ### DEV-020 — A device model requires a vendor, a model name and a device type
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 All three are mandatory at creation.
 
@@ -142,6 +149,7 @@ time `create` runs, the value has already been through `DeviceType.create`.
 ### DEV-021 — The vendor of a device model must exist
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28
 
 Checked on create and on any update that changes the vendor.
 
@@ -154,6 +162,7 @@ name and slug the model reports until its next read (DEV-028).
 ### DEV-022 — A vendor cannot have two device models with the same name
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28
 
 Uniqueness is per vendor, on the trimmed model name. Two different vendors may
 both have a model called "AC Lite".
@@ -170,6 +179,7 @@ manufacturers all the time.
 ### DEV-023 — A model name is non-empty and at most 150 characters
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 Trimmed before storage.
 
@@ -182,6 +192,7 @@ Trimmed before storage.
 ### DEV-024 — A device type is one of seven values
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28 · **Revised:** 2026-07-29
 
 Required: `ANTENNA`, `OTHER`, `RADIO`, `ROUTER`, `ROUTERBOARD`, `SERVER`,
 `SWITCH`. Input is trimmed and upper-cased before the set is checked, so
@@ -217,6 +228,7 @@ the domain have drifted, which is a defect to surface rather than paper over.
 ### DEV-025 — A device model is non-wireless unless stated
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28 · **Revised:** 2026-07-29
 
 `isWireless` defaults to `false` when omitted.
 
@@ -237,6 +249,7 @@ does not silently start wireless polling.
 ### DEV-026 — A device model with devices cannot be deleted
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28
 
 **Why:** Same reasoning as DEV-005 — deleting the model would strip every unit
 built on it of its identity. Reassignment must be an explicit decision.
@@ -316,6 +329,7 @@ never disagree with the vendor record it came from. _(inferred)_
 ### DEV-040 — A device requires a device model and a name
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28
 
 Everything else — location, category, owner, serial, MAC, IP, dates — is
 optional at creation, subject to the status rules below.
@@ -330,6 +344,7 @@ registered on arrival, before it has been configured or installed.
 ### DEV-041 — A device name is non-empty and at most 150 characters
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 Trimmed before storage.
 
@@ -339,6 +354,7 @@ Trimmed before storage.
 ### DEV-042 — A device status is one of ACTIVE, COMMISSIONING, DAMAGED, INVENTORY
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 Input is trimmed and upper-cased. **INVENTORY is the default** when no status is
 given.
@@ -424,6 +440,7 @@ how they were found and corrected.
 ### DEV-044 — A device owner, when set, is COMPANY or CLIENT
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 Optional. Case-insensitive on input.
 
@@ -435,6 +452,7 @@ Optional. Case-insensitive on input.
 ### DEV-045 — A serial number is non-empty and at most 100 characters
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 Optional; trimmed before storage.
 
@@ -444,6 +462,7 @@ Optional; trimmed before storage.
 ### DEV-046 — A MAC address is in colon or hyphen hex format
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 Accepts `AA:BB:CC:DD:EE:FF` or `AA-BB-CC-DD-EE-FF`. **Normalized to
 upper-case with colons** before storage, so the two input forms cannot produce
@@ -459,6 +478,7 @@ spellings of one address would defeat the uniqueness check.
 ### DEV-047 — A MAC address belongs to at most one device
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28 · **Revised:** 2026-07-30
 
 Checked on create, and on update only when the value actually changes — so
 re-submitting a device's own MAC is not a collision.
@@ -475,6 +495,7 @@ concurrent writes that both clear it and reports the same message.
 ### DEV-048 — An IP address is a valid IPv4 or IPv6 address
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 Optional. IPv6 is lower-cased on storage; IPv4 is stored as written.
 
@@ -487,6 +508,7 @@ time, long after the operator who typed it has moved on.
 ### DEV-049 — An IP address belongs to at most one device
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28 · **Revised:** 2026-07-30
 
 Same change-detection as DEV-047: a device may keep its own IP on update.
 
@@ -501,6 +523,7 @@ ping, so the data would be silently wrong rather than absent.
 ### DEV-050 — An installation date must be a parseable date
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 Optional. Rejected if `new Date(value)` yields `Invalid Date`.
 
@@ -512,7 +535,7 @@ Optional. Rejected if `new Date(value)` yields `Invalid Date`.
 ### DEV-051 — An installation date cannot be in the future
 
 **Type:** Invariant · **Status:** Active
-**Since:** 2026-07-28 · **Revised:** 2026-07-30
+**Since:** 2026-07-28
 
 Compared against the moment of validation.
 
@@ -527,6 +550,7 @@ fleet.
 ### DEV-052 — A device description is at most 500 characters
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:553` (`Device.validateDescription`)
 **Message:** `Device description cannot exceed 500 characters`
@@ -534,7 +558,7 @@ fleet.
 ### DEV-053 — An INVENTORY or DAMAGED device must have a serial number or a MAC address
 
 **Type:** Invariant · **Status:** Active
-**Since:** 2026-07-28 · **Revised:** 2026-07-30
+**Since:** 2026-07-28
 
 At least one of the two. Either satisfies the rule.
 
@@ -550,6 +574,7 @@ device is exempt because its IP already identifies it.
 ### DEV-054 — An ACTIVE device must have an IP address
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28
 
 **Why:** ACTIVE means in service and monitored. Monitoring is ping-based, so a
 device with no IP cannot be polled — it would sit in the dashboard permanently
@@ -562,6 +587,7 @@ green and never actually be checked. _(inferred)_
 ### DEV-055 — An ACTIVE device must have a location
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28
 
 Also blocks _removing_ the location from a device that is already ACTIVE.
 
@@ -576,6 +602,7 @@ in the field. _(inferred)_
 ### DEV-056 — A COMMISSIONING device must have an IP address
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28
 
 **Why:** Commissioning is the stage where the unit is being brought up and
 watched to see whether it stays up. That requires reaching it. Note this is
@@ -588,6 +615,7 @@ configured on the bench before it is installed. _(inferred)_
 ### DEV-057 — Monitoring can only be enabled for ACTIVE or COMMISSIONING devices
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28
 
 **Why:** Those are the two states where the device is expected to answer. Polling
 a warehouse unit or a broken one would generate a permanent stream of
@@ -600,6 +628,7 @@ false-alarm outage alerts and train operators to ignore the dashboard.
 ### DEV-058 — A new COMMISSIONING device gets monitoring on by default
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28
 
 Default applies only when the caller expresses no preference. An **explicit
 `false` is respected**.
@@ -614,6 +643,7 @@ polling it yet.
 ### DEV-059 — Moving a device into COMMISSIONING turns monitoring on
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28
 
 A status change into COMMISSIONING enables monitoring if it was off. Unlike
 DEV-058, this is not conditional on caller intent.
@@ -626,6 +656,7 @@ transition rather than at creation.
 ### DEV-060 — Status-dependent rules are validated against prospective state, not current state
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28 · **Revised:** 2026-07-29
 
 `Device.validate()` is the single source of truth for DEV-051 through DEV-057.
 It is static and takes the _candidate_ state as an argument, so it runs before
@@ -653,7 +684,7 @@ field-by-field design:
 - **Either order works.** `{ locationId, status: 'ACTIVE' }` and
   `{ ipAddress, status: 'ACTIVE' }` both succeed. The old implementation
   accepted the second and rejected the first, purely because of the sequence
-  its mutators ran in (the closed gap G-10).
+  its mutators ran in.
 - **Nothing partially applies.** A rejected request leaves the aggregate
   exactly as it was and raises no events, so a caller cannot end up with a
   located-but-not-activated device after a failed call.
@@ -671,6 +702,7 @@ aspects that actually changed. An empty change set is a no-op: no validation, no
 ### DEV-061 — Devices loaded from the database bypass validation
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28
 
 `Device.reconstitute()` applies no rules.
 
@@ -684,6 +716,7 @@ silently — invalid state is caught on the next _write_, not on read.
 ### DEV-062 — Only WIRELESS_CPE and ACCESS_POINT devices may hold a wireless configuration
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28 · **Revised:** 2026-07-29
 
 Exposed as `device.canHaveWirelessConfig()`, which asks the category itself
 (`isWirelessCpe()`, `isAccessPoint()`) rather than comparing against constants. A
@@ -701,6 +734,7 @@ can only fail.
 ### DEV-063 — A device's model can only be corrected while it is INVENTORY
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-29
 
 `deviceModelId` is mandatory at creation (DEV-040) and thereafter changeable
 only through `Device.correctDeviceModel()`, which refuses unless the device's
@@ -742,6 +776,7 @@ because the device is still `INVENTORY` when the request arrives.
 ### DEV-064 — Wireless radio mode is derived from the device's category, never supplied
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-29 · **Revised:** 2026-07-30
 
 When a wireless configuration is created, its `deviceType` (`STATION` or
 `ACCESS_POINT`) is computed from the device's category — `ACCESS_POINT` category
@@ -781,6 +816,7 @@ why DEV-065 freezes the input it was derived from.
 ### DEV-065 — A device's category cannot change while it has a wireless configuration
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-30
 
 Once a wireless configuration exists for a device, `PATCH /api/devices/:id`
 refuses any request that would change that device's `category` — including
@@ -831,6 +867,7 @@ only stops the category moving any further.
 ### DEV-090 — A location has a non-empty name of at most 150 characters
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 **Why:** The name is what operators search by and what appears on the map pin.
 _(inferred)_
@@ -842,6 +879,7 @@ _(inferred)_
 ### DEV-091 — A location type is one of six values
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 Required: `TOWER`, `DATACENTER`, `POINT_OF_PRESENCE`, `OFFICE`,
 `CUSTOMER_PREMISES`, `OTHER`. Input is trimmed and upper-cased before the set is
@@ -873,6 +911,7 @@ domain have drifted, which is a defect to surface rather than paper over.
 ### DEV-092 — Latitude and longitude must be supplied together
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 Coordinates are optional, but half a coordinate is rejected. On update, passing
 both as `null` explicitly clears them.
@@ -887,6 +926,7 @@ meridian.
 ### DEV-093 — Coordinates are finite numbers in WGS-84 range
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 Latitude −90 to 90, longitude −180 to 180. Altitude is optional and unbounded
 but must be a finite number when present. `NaN` and `Infinity` are rejected for
@@ -902,6 +942,7 @@ a point on Earth. The explicit finite check exists because `NaN` passes a naive
 ### DEV-094 — An address is all three parts or none
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28
 
 Street, municipality and neighborhood must be supplied together. Supplying any
 one of them requires all three. On update, the rule is applied to the merged
@@ -924,6 +965,7 @@ site.
 ### DEV-095 — Address parts are non-empty and length-capped
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 Street ≤ 255, municipality ≤ 100, neighborhood ≤ 150. All trimmed.
 
@@ -933,6 +975,7 @@ Street ≤ 255, municipality ≤ 100, neighborhood ≤ 150. All trimmed.
 ### DEV-096 — A CUSTOMER_PREMISES location must be navigable
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28
 
 It must have coordinates **or** a complete address. Either satisfies the rule;
 having neither is rejected. Enforced at creation, when changing an existing
@@ -950,6 +993,7 @@ already know where their own towers and offices are.
 ### DEV-097 — A location with devices assigned cannot be deleted
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28
 
 **Why:** Deleting it would strip those devices of the answer to "where is it" —
 and for ACTIVE devices that is a state DEV-055 forbids. The devices must be
@@ -961,6 +1005,7 @@ moved first, deliberately.
 ### DEV-098 — The map shows only locations with coordinates
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28
 
 `GetMapLocationsUseCase` returns pins for locations that have coordinates.
 Address-only locations are omitted. Each pin carries its devices with their
@@ -982,6 +1027,7 @@ application layer.
 ### DEV-120 — HTTP username and password are required, together
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 Both must be present and non-blank on every save. There is no way to store one
 without the other.
@@ -997,6 +1043,7 @@ failures later. See also DEV-122: SNMP is the optional pair.
 ### DEV-121 — Credentials can only be set for a device that exists
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28
 
 **Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:134`
 **Message:** `Device not found`
@@ -1004,6 +1051,7 @@ failures later. See also DEV-122: SNMP is the optional pair.
 ### DEV-122 — SNMP is optional, but partial SNMP input is rejected
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 If **any** SNMP field is present, `snmpVersion` becomes mandatory and the
 version-specific rules (DEV-123 to DEV-126) apply. If none is present, SNMP is
@@ -1019,6 +1067,7 @@ must not force every HTTP-only save to supply SNMP fields it does not have.
 ### DEV-123 — SNMP version is 1, 2 or 3
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 **Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:66`
 **Message:** `snmpVersion must be 1, 2, or 3`
@@ -1026,6 +1075,7 @@ must not force every HTTP-only save to supply SNMP fields it does not have.
 ### DEV-124 — SNMPv1 and v2 require a community string
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 **Why:** The community string is the entire authentication mechanism in these
 versions. Without it there is no credential at all.
@@ -1036,6 +1086,7 @@ versions. Without it there is no credential at all.
 ### DEV-125 — SNMPv3 requires an auth user, protocol and key
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 All three of `snmpV3AuthUser`, `snmpV3AuthProto`, `snmpV3AuthKey`.
 
@@ -1048,6 +1099,7 @@ three fields are one credential and any subset cannot authenticate.
 ### DEV-126 — An SNMPv3 privacy protocol requires a privacy key
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 Privacy (encryption) is optional in v3; requesting it without a key is not.
 
@@ -1060,6 +1112,7 @@ no key would fail at connection time.
 ### DEV-127 — Ports are between 1 and 65535, defaulting to 161 and 443
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 SNMP defaults to 161, HTTP to 443.
 
@@ -1072,6 +1125,7 @@ port and HTTPS, which is what the devices in the fleet listen on. _(inferred)_
 ### DEV-128 — Stored secrets are never returned; they are masked as `***`
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28
 
 `snmpCommunity`, `snmpV3AuthKey`, `snmpV3PrivKey` and `httpPassword` come back
 as `***` when set and `null` when absent. Two booleans — `hasSnmpCredentials`,
@@ -1088,6 +1142,7 @@ without ever putting the secret on the wire.
 ### DEV-129 — Secrets are redacted from logs
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28
 
 `SetDeviceCredentialsUseCase` overrides `sanitizeForLogging` to replace the four
 secret fields with `***` before the request is logged.
@@ -1101,6 +1156,7 @@ retained and less protected than the database.
 ### DEV-130 — A save replaces HTTP fields but preserves omitted SNMP fields
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28
 
 HTTP username and password are taken from the request outright. SNMP fields are
 carried forward from the stored row when the request omits them. Passing an
@@ -1116,6 +1172,7 @@ intended to touch. Honouring explicit `null` keeps deliberate clearing possible.
 ### DEV-131 — Reading credentials for a device with none configured is a failure
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28
 
 Not an empty success.
 
@@ -1125,6 +1182,7 @@ Not an empty success.
 ### DEV-132 — Deleting credentials succeeds whether or not any exist
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28
 
 Idempotent, and does not check that the device exists.
 
@@ -1140,6 +1198,7 @@ is already true when there are none. _(inferred)_
 ### DEV-140 — Every device inventory endpoint requires authentication
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28
 
 All `/api` routes sit behind `createAuthenticateMiddleware`. No Bearer token
 means `401`.
@@ -1149,6 +1208,7 @@ means `401`.
 ### DEV-141 — Write access to the catalogue is role-gated
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28
 
 | Operation   | Permission | ADMIN | OPERATOR | VIEWER |
 | ----------- | ---------- | :---: | :------: | :----: |
@@ -1173,6 +1233,7 @@ permissions as any other resource — an OPERATOR can set device passwords. See
 ### DEV-142 — Listings page at 20 per page, capped at 100
 
 **Type:** Policy · **Status:** Active
+**Since:** 2026-07-28
 
 `limit` defaults to 20 and is silently clamped to 100 — an over-large request is
 reduced, not rejected. `offset` defaults to 0.
@@ -1188,6 +1249,7 @@ a known scaling limit, see [G-7](#known-gaps).
 ### DEV-143 — A network scan requires a segment
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28
 
 `segment` is required and non-blank. The response reports how many addresses
 were scanned, derived from the CIDR prefix: `2^(32−prefix)`, minus network and

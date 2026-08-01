@@ -51,6 +51,7 @@ Each rule has a permanent ID: `<CONTEXT>-<NNN>`.
 ### DEV-054 — An ACTIVE device must have an IP address
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28 · **Revised:** 2026-07-30
 
 A device cannot be in ACTIVE status without an IP address.
 
@@ -71,6 +72,51 @@ Two fields carry more weight than they look:
   and will "simplify" it away.
 - **Reached from** — every mutator that routes through the check. This is what
   catches the mutator someone adds next year that forgets to call `validate()`.
+
+## Dating a rule
+
+Every entry carries a date line under its type:
+
+```markdown
+**Since:** 2026-07-28 · **Revised:** 2026-07-30
+```
+
+- **Since** — when the rule was first written down _here_. It is not when the
+  business first required it: this catalogue was written on 2026-07-28, long
+  after most of the code it describes, so every rule dated `2026-07-28` should be
+  read as _at or before_ that date. Rules added afterwards carry their real
+  birthday, and the distinction stops mattering as the file ages.
+- **Revised** — the last date the rule itself changed: what it requires, what it
+  refuses, where it is enforced, or the message it returns. **Omitted entirely
+  while a rule has never changed** — an absent `Revised` is a claim, not a gap.
+- **Removed** — appended as a third field when a rule is retired
+  (`· **Removed:** 2026-08-04`). The entry and its ID stay forever, so the date
+  is the only thing that says when it stopped being true.
+
+`Revised` is not a "last touched" stamp. Rewording a `Why`, repairing a rotted
+line number, or adding a test to the `Tests` list leaves it alone. Ask whether
+someone who obeyed the old entry would now be wrong; if not, the date stands.
+
+All three are the day the change lands on the branch, not the day it ships.
+
+### When the change needs a reason
+
+A date says _when_. When the _why_ matters — a rule that reversed itself, a set
+of enum values that was recast, a migration that rewrote existing rows — add a
+narrative paragraph at the end of the entry:
+
+```markdown
+**History — this rule replaced a cascade on 2026-07-30.** It previously deleted
+the wireless configuration of every device on the model, which is how the data
+loss described above was possible.
+```
+
+Reserve it for changes whose old shape still explains something about the
+current one — usually because data written under the old rule is still in the
+database, or because the obvious "simplification" is the rule we already
+retreated from. Most revisions need only the date. See `DEV-027` and `DEV-043`
+in [device-inventory.md](device-inventory.md) for the two kinds worth writing:
+a reversed decision and a migrated enum.
 
 ## Linking tests to rules
 
@@ -122,7 +168,9 @@ A rule book that drifts from the code is worse than none, because people trust
 it. Two habits prevent that:
 
 - **Same PR.** Changing a rule in code and updating its entry here are one
-  change, not two. A rule change with no doc change should not pass review.
+  change, not two. A rule change with no doc change should not pass review — and
+  a rule change that leaves `Revised` untouched is the same omission, just
+  harder to spot.
 - **Verify the anchors.** Line numbers rot fastest. When you touch a file, check
   the `Enforced at` lines pointing into it. The `Message` field is the more
   durable anchor — it can be grepped.
@@ -134,6 +182,7 @@ Written so far:
 - [x] `README.md` — conventions, ID scheme, entry format
 - [x] `device-inventory.md` — all rules for the Device Inventory context
 - [x] Rule IDs in device-inventory test names (unit + integration)
+- [x] `Since` / `Revised` dates on every device-inventory rule
 - [x] Coverage script — `npm run test:rules`
 - [ ] Remaining seven contexts
 - [ ] Wire `npm run test:rules` into CI
