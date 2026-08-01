@@ -23,7 +23,7 @@ function makeRawDevice(
     deviceModelId: VALID_UUID_2,
     locationId: VALID_UUID_3,
     status: 'ACTIVE',
-    category: 'CORE',
+    category: 'GATEWAY',
     owner: 'COMPANY',
     name: 'Test Device',
     serialNumber: 'SN-001',
@@ -276,13 +276,13 @@ describe('DeviceMapper', () => {
       });
 
       it('should map category when present', () => {
-        const raw = makeRawDevice({ category: 'DISTRIBUTION' });
+        const raw = makeRawDevice({ category: 'AGGREGATION_SWITCH' });
 
         const result = DeviceMapper.toDomain(raw);
 
         expect(result.value.category).not.toBeNull();
         expect(result.value.category!.toString()).toBe(
-          'DISTRIBUTION'
+          'AGGREGATION_SWITCH'
         );
       });
 
@@ -489,11 +489,12 @@ describe('DeviceMapper', () => {
     // -----------------------------------------------------------------------
     describe('DeviceCategory mapping from Prisma string', () => {
       const categoryMatrix: string[] = [
-        'CORE',
-        'DISTRIBUTION',
-        'POE',
+        'CPE',
+        'WIRELESS_CPE',
         'ACCESS_POINT',
-        'CLIENT_CPE'
+        'GATEWAY',
+        'AGGREGATION_SWITCH',
+        'OTHER'
       ];
 
       for (const category of categoryMatrix) {
@@ -507,6 +508,34 @@ describe('DeviceMapper', () => {
           expect(result.value.category!.toString()).toBe(category);
         });
       }
+
+      it('should throw when raw.category is an unrecognised value', () => {
+        const raw = makeRawDevice({ category: 'TELEPORTER' });
+
+        expect(() => DeviceMapper.toDomain(raw)).toThrow(
+          'Data integrity violation: unrecognised DeviceCategory "TELEPORTER" in persistence store'
+        );
+      });
+
+      it('should throw for a category retired by the DEV-043 recast', () => {
+        const raw = makeRawDevice({ category: 'SMART_SWITCH_POE' });
+
+        expect(() => DeviceMapper.toDomain(raw)).toThrow(
+          'Data integrity violation: unrecognised DeviceCategory "SMART_SWITCH_POE" in persistence store'
+        );
+      });
+
+      it('should throw when raw.category is an empty string', () => {
+        const raw = makeRawDevice({ category: '' });
+
+        expect(() => DeviceMapper.toDomain(raw)).toThrow();
+      });
+
+      it('should throw for a lowercase category string "gateway"', () => {
+        const raw = makeRawDevice({ category: 'gateway' });
+
+        expect(() => DeviceMapper.toDomain(raw)).toThrow();
+      });
     });
   });
 
@@ -559,7 +588,7 @@ describe('DeviceMapper', () => {
 
         const raw = DeviceMapper.toPersistence(device);
 
-        expect(raw.category).toBe('CORE');
+        expect(raw.category).toBe('GATEWAY');
       });
 
       it('should use the field name "owner" (not "ownerType") for the Prisma column', () => {

@@ -119,6 +119,8 @@ type AlertStatus        = 'OPEN' | 'RESOLVED'
 > | `SMART_SWITCH_POE` | `AGGREGATION_SWITCH` | PoE is a hardware trait, not a role |
 >
 > `CPE`, `WIRELESS_CPE` and `OTHER` are unchanged. Any frontend picker, filter or badge map holding the old literals must be updated — sending an old value now returns `400`, and a device that used to read `SMART_SWITCH_POE` now reads `AGGREGATION_SWITCH`.
+>
+> **Since 2026-08-01, reading a device whose stored category is not one of the six fails with `500`** `"Data integrity violation: unrecognised DeviceCategory \"<value>\" in persistence store"`, instead of returning the stale value. A migrated database cannot reach this — the Postgres enum only permits the six — so if you see it, **your database is behind on migrations**; run them and retry rather than filing a bug. It applies to any endpoint that returns a device, `GET /api/devices` and `GET /api/locations/map` included.
 
 ---
 

@@ -85,7 +85,7 @@ export class DeviceCategory extends ValueObject<DeviceCategoryProps> {
     return new DeviceCategory({ value: DeviceCategory.OTHER });
   }
 
-  private static isValid(value: string): boolean {
+  public static isValid(value: string): boolean {
     return DeviceCategory.VALID_CATEGORIES.includes(
       value as (typeof DeviceCategory.VALID_CATEGORIES)[number]
     );

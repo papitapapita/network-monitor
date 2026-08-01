@@ -102,7 +102,7 @@ const mockDeviceDTO: DeviceResponseDTO = {
   deviceModelId: MODEL_UUID,
   locationId: null,
   status: 'INVENTORY',
-  category: 'CORE',
+  category: 'GATEWAY',
   ownerType: 'COMPANY',
   name: 'Core-Router-01',
   serialNumber: 'SN-2024-XYZ-001',
@@ -208,7 +208,7 @@ describe('DeviceController', () => {
           name: 'Core-Router-01',
           ownerType: 'COMPANY',
           status: 'ACTIVE',
-          category: 'CORE',
+          category: 'GATEWAY',
           locationId: VALID_UUID,
           serialNumber: 'SN-2024-XYZ-001',
           macAddress: 'AA:BB:CC:DD:EE:FF',
@@ -229,7 +229,7 @@ describe('DeviceController', () => {
         expect(mockCreateUseCase.execute).toHaveBeenCalledWith(
           expect.objectContaining({
             status: 'ACTIVE',
-            category: 'CORE',
+            category: 'GATEWAY',
             locationId: VALID_UUID,
             serialNumber: 'SN-2024-XYZ-001',
             macAddress: 'AA:BB:CC:DD:EE:FF',
@@ -549,7 +549,7 @@ describe('DeviceController', () => {
 
       it('should forward status, category, and owner filter params to the use case', async () => {
         const mockReq = createMockRequest({
-          query: { status: 'ACTIVE', category: 'CORE', owner: 'COMPANY' }
+          query: { status: 'ACTIVE', category: 'GATEWAY', owner: 'COMPANY' }
         });
         const { res } = createMockResponse();
 
@@ -562,7 +562,7 @@ describe('DeviceController', () => {
         expect(mockListUseCase.execute).toHaveBeenCalledWith(
           expect.objectContaining({
             status: 'ACTIVE',
-            category: 'CORE',
+            category: 'GATEWAY',
             owner: 'COMPANY'
           })
         );
@@ -991,7 +991,7 @@ describe('DeviceController', () => {
           body: {
             name: 'Core-Router-01-Updated',
             status: 'MAINTENANCE',
-            category: 'CORE',
+            category: 'GATEWAY',
             ownerType: 'COMPANY',
             locationId: LOCATION_UUID,
             serialNumber: 'SN-2024-XYZ-001',
@@ -1015,7 +1015,7 @@ describe('DeviceController', () => {
             id: VALID_UUID,
             name: 'Core-Router-01-Updated',
             status: 'MAINTENANCE',
-            category: 'CORE',
+            category: 'GATEWAY',
             ownerType: 'COMPANY',
             locationId: LOCATION_UUID,
             serialNumber: 'SN-2024-XYZ-001',

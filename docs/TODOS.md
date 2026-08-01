@@ -220,7 +220,7 @@ _Main user-facing features still missing._
 - [ ] **Normalize timestamps** — use NTP for consistent log timestamps across devices
 
 - [ ] **Business rules catalogue — remaining contexts + CI** — finish `docs/business-rules/`
-  - Device Inventory is done: `DEV-001`–`DEV-143` (63 rules), every rule tagged in unit + integration tests, `npm run test:rules DEV` reports 63/63
+  - Device Inventory is done: `DEV-001`–`DEV-143` (67 rules), every rule tagged in unit + integration tests, `npm run test:rules DEV` reports 67/67
   - Remaining seven contexts, each its own file and ID prefix: `CUS` (customers), `BIL` (billing), `MON` (device-monitoring), `WLS` (wireless-monitoring), `NOT` (notifications), `IDN` (identity), `SHR` (shared kernel)
   - `WLS` is the big one — the 14 rule files in `src/domain/wireless-monitoring/services/rules/` are all Policy with hardcoded thresholds and hysteresis bands; overlaps with the "Define which alerts actually notify" item in Priority 3, and writing the rules down first would make that decision concrete
   - Wire `npm run test:rules` into CI once all contexts are written (until then run it scoped to a prefix — an unscoped run reports nothing for contexts with no rules declared)

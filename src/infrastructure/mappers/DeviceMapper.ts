@@ -89,14 +89,16 @@ export class DeviceMapper {
         ? this.mapOwnerTypeFromPrisma(raw.owner)
         : null;
 
+    const category =
+      raw.category != null
+        ? this.mapCategoryFromPrisma(raw.category)
+        : null;
+
     const device = Device.reconstitute(deviceIdResult.value, {
       deviceModelId: deviceModelIdResult.value,
       locationId,
       status: DeviceStatus.reconstitute(raw.status),
-      category:
-        raw.category != null
-          ? DeviceCategory.reconstitute(raw.category)
-          : null,
+      category,
       ownerType,
       name: DeviceName.reconstitute(raw.name),
       serialNumber:
@@ -141,6 +143,22 @@ export class DeviceMapper {
       updatedAt: device.updatedAt,
       monitoringEnabled: device.monitoringEnabled
     };
+  }
+
+  // Deliberately strict: the stored value must match a domain category exactly,
+  // with no trimming or case-folding, so a category the domain has dropped —
+  // SMART_SWITCH_POE from before the DEV-043 recast — surfaces here rather than
+  // as a silent getDisplayName() default downstream.
+  private static mapCategoryFromPrisma(
+    category: string
+  ): DeviceCategory {
+    if (!DeviceCategory.isValid(category)) {
+      throw new Error(
+        `Data integrity violation: unrecognised DeviceCategory "${category}" in persistence store`
+      );
+    }
+
+    return DeviceCategory.reconstitute(category);
   }
 
   private static mapOwnerTypeFromPrisma(

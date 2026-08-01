@@ -37,7 +37,7 @@ function makeDevice(
     locationId,
     name: DeviceName.reconstitute('Core-Router-01'),
     status: DeviceStatus.reconstitute('ACTIVE'),
-    category: DeviceCategory.reconstitute('CORE'),
+    category: DeviceCategory.reconstitute('GATEWAY'),
     ownerType: DeviceOwnerType.COMPANY,
     serialNumber: SerialNumber.reconstitute('SN-001'),
     macAddress: MACAddress.reconstitute('AA:BB:CC:DD:EE:FF'),
@@ -108,7 +108,7 @@ describe('DeviceMapper (application layer)', () => {
 
         const dto = DeviceMapper.toDTO(device);
 
-        expect(dto.category).toBe('CORE');
+        expect(dto.category).toBe('GATEWAY');
       });
 
       it('should map ownerType as a string', () => {
@@ -299,11 +299,12 @@ describe('DeviceMapper (application layer)', () => {
     // -----------------------------------------------------------------------
     describe('DeviceCategory string values', () => {
       const categories = [
-        'CORE',
-        'DISTRIBUTION',
-        'POE',
+        'CPE',
+        'WIRELESS_CPE',
         'ACCESS_POINT',
-        'CLIENT_CPE'
+        'GATEWAY',
+        'AGGREGATION_SWITCH',
+        'OTHER'
       ] as const;
 
       for (const category of categories) {

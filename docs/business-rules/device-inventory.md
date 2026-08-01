@@ -354,6 +354,7 @@ before it is deployed.
 ### DEV-043 — A device category, when set, is one of six deployment roles
 
 **Type:** Validation · **Status:** Active
+**Since:** 2026-07-28 · **Revised:** 2026-07-29, 2026-08-01
 
 Optional (nullable). When present it must be one of `CPE`, `WIRELESS_CPE`,
 `ACCESS_POINT`, `GATEWAY`, `AGGREGATION_SWITCH`, `OTHER`. Trimmed and
@@ -377,7 +378,17 @@ is the escape hatch that keeps the set from needing to grow for every oddity.
 
 **Enforced at:** `src/domain/device-inventory/value-objects/DeviceCategory.ts:47` (`DeviceCategory.create`)
 **Message:** `Device category cannot be empty` / `Invalid device category: <value>. Must be one of: CPE, WIRELESS_CPE, ACCESS_POINT, GATEWAY, AGGREGATION_SWITCH, OTHER`
-**Tests:** `tests/domain/device-inventory/value-objects/DeviceCategory.test.ts`
+**Tests:** `tests/domain/device-inventory/value-objects/DeviceCategory.test.ts`, `tests/infrastructure/mappers/DeviceMapper.test.ts`
+
+A stored value is held to a stricter standard than an incoming one, exactly as
+DEV-024 and DEV-091 are: `DeviceMapper.toDomain` checks `DeviceCategory.isValid`
+on the raw column with no trimming or case-folding, and fails with
+`Data integrity violation: unrecognised DeviceCategory "<value>" in persistence store`
+on a miss. A row that only matches after normalisation means the database and
+the domain have drifted, which is a defect to surface rather than paper over.
+The repository's `try`/`catch` turns the throw into a `Result.fail`, so a stale
+row fails the read rather than escaping as a half-valid aggregate.
+(`src/infrastructure/mappers/DeviceMapper.ts`, `DeviceMapper.mapCategoryFromPrisma`)
 
 **History — the roles were recast on 2026-07-29.** The original set mixed
 network role with hardware kind, which is the distinction DEV-024 now owns. The
@@ -395,8 +406,19 @@ rows:
 migration swaps the enum type rather than renaming values in place — Postgres
 cannot drop an enum value.
 
-Unlike DEV-024 and DEV-091, a stored category is **not** re-checked on the way
-out of persistence — see [G-11](#known-gaps).
+**History — the read guard was added on 2026-08-01, closing G-11.** Until then
+`DeviceMapper.toDomain` called `DeviceCategory.reconstitute` on the raw column
+unchecked, so a row the recast had missed loaded silently and only surfaced
+downstream — a `getDisplayName()` falling through to its `default`, or a
+`canHaveWirelessConfig()` quietly answering `false`. Widening
+`DeviceCategory.isValid` from `private` to `public` was the only change the
+domain needed; the guard itself lives in the mapper.
+
+That the gap was real is not hypothetical: the fixtures in four test suites had
+drifted onto the pre-recast vocabulary (`CORE`, `DISTRIBUTION`, `POE`,
+`CLIENT_CPE`) and still passed, because `reconstitute` accepted values `create`
+had rejected since 2026-07-29. Adding the guard failed those suites, which is
+how they were found and corrected.
 
 ### DEV-044 — A device owner, when set, is COMPANY or CLIENT
 
@@ -1215,27 +1237,34 @@ error rather than the clean `Device model not found: <id>` that the correction
 path (DEV-063) returns. Same shape of problem as G-8. The fix is to inject
 `IDeviceModelRepository` into the create use case as well.
 
-**G-10 — Assigning a location and activating in the same request fails. — Closed.**
-`UpdateDeviceUseCase` used to apply changes through five separate mutators in a
-fixed sequence, and `assignLocation` ran _after_ `changeStatus`, so
-`{ locationId, status: 'ACTIVE' }` was judged against the device's old (absent)
-location and rejected by DEV-055 — while the IP equivalent worked, because
-`updateDetails` happened to run first. Reordering alone would only have mirrored
-the bug onto `{ locationId: null, status: 'INVENTORY' }`, which is why the fix
-was structural: all changes now arrive together at `Device.applyChanges` and the
-whole candidate state is validated once (DEV-060). Both directions work, and
-neither can partially apply.
+**G-12 — Eight repositories test for `P2002` in the error message.**
+`PrismaCustomerRepository`, `PrismaServicePlanRepository`,
+`PrismaContractedServiceRepository`, `PrismaUserRepository`,
+`PrismaLocationRepository`, `PrismaVendorRepository`,
+`PrismaDeviceModelRepository` and `PrismaBillRepository` all branch on
+`errorMessage.includes('P2002')`. That string is never in a Prisma error
+message, so each falls through to its raw `Database error ...` wording instead
+of the clean duplicate message it meant to return. Found while putting the
+device repository on `error.code` (DEV-047, DEV-049); the one-line fix is
+`isUniqueViolation(error)` from
+`src/infrastructure/persistence/prisma-errors.ts`. Left alone here because the
+affected rules live in other contexts' rule books, which are not yet written.
 
-**G-11 — A stored device category is not re-checked on read.**
-`DeviceType` (DEV-024) and `LocationType` (DEV-091) both verify the raw column
-through `isValid` in their mapper and fail loudly on a miss, and `DeviceMapper`
-itself does exactly that for `DeviceOwnerType` (`DeviceMapper.ts:156`). But
-`category` goes straight through `DeviceCategory.reconstitute`
-(`src/infrastructure/mappers/DeviceMapper.ts:98`) with no check, so a row holding
-a value the domain no longer recognises loads silently and only surfaces
-downstream — a `getDisplayName()` falling through to its `default`, or a
-`canHaveWirelessConfig()` quietly answering `false`. The DEV-043 recast makes
-this concrete: the migration covered the rows that existed, but nothing would
-catch a stale `SMART_SWITCH_POE` arriving from a hand-edited row or an
-un-migrated database. `DeviceCategory.isValid` is currently `private` — closing
-this means widening it and adding the same guard as its two siblings.
+**G-13 — A wireless category on a non-wireless model is legal, deliberately.**
+Nothing requires `category ∈ {WIRELESS_CPE, ACCESS_POINT}` to imply
+`model.isWireless`. `CreateWirelessConfigUseCase` consults the two
+independently — the device's category (DEV-062) and the model's flag
+(`CreateWirelessConfigUseCase.ts:101`) — and `CreateDeviceUseCase` /
+`UpdateDeviceUseCase` never read the flag at all, so a device can be
+categorised `WIRELESS_CPE` on a non-wireless model at any time, and DEV-027
+leaves such categories standing when the flag goes off. The combination is
+inert, not corrupt: no configuration can be created, nothing polls, and no query
+returns a false answer.
+
+It is left unenforced on purpose. Making it an invariant would have to bind the
+device path as well as the model path, and that creates an ordering trap with no
+escape: the model must be flagged before any device can be categorised, and
+every device must be re-categorised before a mis-flagged model can be corrected.
+The cost of the rule lands on the operator fixing a mistake, which is the wrong
+place for it. What actually needs protecting is the configuration data, and
+DEV-027 protects that directly.
