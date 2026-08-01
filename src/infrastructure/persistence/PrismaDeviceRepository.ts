@@ -14,14 +14,15 @@ import { DeviceOwnerType } from 'domain/device-inventory/enums';
 import { Result, EventDispatcher } from 'domain/shared/core';
 import { IDeviceRepository } from 'domain/device-inventory/repository';
 import { DeviceMapper } from '../mappers';
+import { isUniqueViolation } from './prisma-errors';
 
 export class PrismaDeviceRepository implements IDeviceRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
   public async save(device: Device): Promise<Result<Device>> {
-    try {
-      const data = DeviceMapper.toPersistence(device);
+    const data = DeviceMapper.toPersistence(device);
 
+    try {
       await this.prisma.device.upsert({
         where: { id: data.id },
         create: data,
@@ -50,7 +51,22 @@ export class PrismaDeviceRepository implements IDeviceRepository {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (errorMessage.includes('P2002')) {
+      // The use cases pre-check both fields, so a unique violation here means
+      // a concurrent write won the race. Same wording either way, so the
+      // caller cannot tell which path rejected it.
+      if (isUniqueViolation(error)) {
+        if (errorMessage.includes('mac_address')) {
+          return Result.fail<Device>(
+            `MAC address "${data.macAddress}" is already assigned to another device`
+          );
+        }
+
+        if (errorMessage.includes('ip_address')) {
+          return Result.fail<Device>(
+            `IP address "${data.ipAddress}" is already assigned to another device`
+          );
+        }
+
         return Result.fail<Device>(
           'A device with this MAC address or IP address already exists'
         );

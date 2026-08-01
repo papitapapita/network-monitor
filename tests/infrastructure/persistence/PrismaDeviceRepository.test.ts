@@ -120,6 +120,18 @@ function makeFakePersistenceData(
   };
 }
 
+// Shaped like a real Prisma unique-violation: the code lives on `code`, and
+// the column appears only in the message text.
+function makeUniqueViolation(column?: string): Error {
+  const error = new Error(
+    column
+      ? `Unique constraint failed on the fields: (\`${column}\`)`
+      : 'Unique constraint failed'
+  );
+  (error as Error & { code: string }).code = 'P2002';
+  return error;
+}
+
 // ---------------------------------------------------------------------------
 // Fake domain Device factory (uses Device.reconstitute for simplicity)
 // ---------------------------------------------------------------------------
@@ -269,7 +281,7 @@ describe('PrismaDeviceRepository', () => {
     describe('Prisma P2002 unique constraint error', () => {
       it('should return a failed Result without throwing', async () => {
         prisma.device.upsert.mockRejectedValue(
-          new Error('Unique constraint failed P2002')
+          makeUniqueViolation('mac_address')
         );
 
         const result = await repository.save(fakeDevice);
@@ -277,10 +289,32 @@ describe('PrismaDeviceRepository', () => {
         expect(result.isFailure).toBe(true);
       });
 
-      it('should return the MAC / IP conflict message for P2002 errors', async () => {
+      it('[DEV-047] should name the MAC address when it is the conflicting column', async () => {
         prisma.device.upsert.mockRejectedValue(
-          new Error('Unique constraint failed P2002')
+          makeUniqueViolation('mac_address')
         );
+
+        const result = await repository.save(fakeDevice);
+
+        expect(result.error).toBe(
+          'MAC address "AA:BB:CC:DD:EE:FF" is already assigned to another device'
+        );
+      });
+
+      it('[DEV-049] should name the IP address when it is the conflicting column', async () => {
+        prisma.device.upsert.mockRejectedValue(
+          makeUniqueViolation('ip_address')
+        );
+
+        const result = await repository.save(fakeDevice);
+
+        expect(result.error).toBe(
+          'IP address "192.168.1.1" is already assigned to another device'
+        );
+      });
+
+      it('should fall back to the combined message when the column is unnamed', async () => {
+        prisma.device.upsert.mockRejectedValue(makeUniqueViolation());
 
         const result = await repository.save(fakeDevice);
 
@@ -289,9 +323,23 @@ describe('PrismaDeviceRepository', () => {
         );
       });
 
+      // Prisma carries the code on `error.code`; matching the message text
+      // for "P2002" never fires.
+      it('should not treat a message mentioning P2002 as a unique violation', async () => {
+        prisma.device.upsert.mockRejectedValue(
+          new Error('Unique constraint failed P2002')
+        );
+
+        const result = await repository.save(fakeDevice);
+
+        expect(result.error).toContain(
+          'Database error saving device'
+        );
+      });
+
       it('should not dispatch domain events on P2002 failure', async () => {
         prisma.device.upsert.mockRejectedValue(
-          new Error('P2002 violation')
+          makeUniqueViolation('mac_address')
         );
 
         await repository.save(fakeDevice);

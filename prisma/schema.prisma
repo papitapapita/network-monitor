@@ -171,8 +171,8 @@ model Device {
   //Identity
   name             String  @db.VarChar(150)
   serialNumber     String? @map("serial_number") @db.VarChar(100) 
-  macAddress       String? @map("mac_address") @db.VarChar(17)
-  ipAddress        String? @map("ip_address") @db.VarChar(45)
+  macAddress       String? @unique @map("mac_address") @db.VarChar(17)
+  ipAddress        String? @unique @map("ip_address") @db.VarChar(45)
   description      String?   @db.Text
 
   // Lifecycle
@@ -196,7 +196,6 @@ model Device {
   wirelessPollingConfiguration WirelessPollingConfiguration?
   contractedService            ContractedService?
 
-  @@index([ipAddress])
   @@index([monitoringEnabled])
   @@map("devices")
 }

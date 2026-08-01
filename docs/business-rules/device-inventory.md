@@ -444,9 +444,10 @@ re-submitting a device's own MAC is not a collision.
 inventory error — most often the same physical unit registered twice — and would
 make network scan results ambiguous about which record they matched.
 
-**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:144`, `UpdateDeviceUseCase.ts:174`
+**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:144`, `UpdateDeviceUseCase.ts:174`, `prisma/schema.prisma:174` (unique index `devices_mac_address_key`)
 **Message:** `MAC address "<value>" is already assigned to another device`
-**Gap:** No database constraint backs this — see [G-1](#known-gaps).
+**Note:** The use case check is the normal path; the unique index catches
+concurrent writes that both clear it and reports the same message.
 
 ### DEV-048 — An IP address is a valid IPv4 or IPv6 address
 
@@ -470,9 +471,9 @@ Same change-detection as DEV-047: a device may keep its own IP on update.
 a duplicate record. Either way the monitor cannot tell which unit answered a
 ping, so the data would be silently wrong rather than absent.
 
-**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:166`, `UpdateDeviceUseCase.ts:204`
+**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:166`, `UpdateDeviceUseCase.ts:204`, `prisma/schema.prisma:175` (unique index `devices_ip_address_key`)
 **Message:** `IP address "<value>" is already assigned to another device`
-**Gap:** No database constraint backs this — see [G-1](#known-gaps).
+**Note:** Same two-layer enforcement as DEV-047.
 
 ### DEV-050 — An installation date must be a parseable date
 
@@ -488,6 +489,7 @@ Optional. Rejected if `new Date(value)` yields `Invalid Date`.
 ### DEV-051 — An installation date cannot be in the future
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28 · **Revised:** 2026-07-30
 
 Compared against the moment of validation.
 
@@ -509,6 +511,7 @@ fleet.
 ### DEV-053 — An INVENTORY or DAMAGED device must have a serial number or a MAC address
 
 **Type:** Invariant · **Status:** Active
+**Since:** 2026-07-28 · **Revised:** 2026-07-30
 
 At least one of the two. Either satisfies the rule.
 
@@ -1181,33 +1184,6 @@ meaningful. /31 and /32 are exempt because they have no reserved pair.
 Discrepancies found while reconciling this document against the code. Each is a
 decision to make, not a bug report — recorded here so the rule book states what
 is true rather than what was intended.
-
-**G-1 — MAC and IP uniqueness are not enforced by the database.**
-DEV-047 and DEV-049 are check-then-write in the use case. Two concurrent
-requests can both pass the check and both insert; `prisma/schema.prisma:200` has
-an index on `ipAddress` but no unique constraint, and `macAddress` has neither.
-For a single-operator ISP tool this may never fire. The fix is a unique index on
-each, which would also convert the race into a clean database error.
-
-**G-2 — `deviceType` is only validated at creation. — Closed.**
-The create and update paths now share one validator: both parse through
-`DeviceType.create` (DEV-024), and `DeviceModel.updateDeviceType` takes a
-`DeviceType`, so an empty or unrecognised string cannot reach the aggregate by
-either route.
-
-**G-3 — Renaming a vendor does not update its device models.**
-DEV-028 copies `vendorName` and `vendorSlug` onto each model, refreshed only
-when the _model's_ vendor changes. `Vendor.updateName` and `updateSlug` do not
-propagate, so after a rename existing models keep showing the old value.
-
-**G-4 — Wireless config cleanup is fire-and-forget. — Closed.**
-DEV-027's deletions used to run through `Promise.all` with no result check,
-after the model had already been saved: a failure was silently swallowed, the
-use case still reported success, and the orphaned configs were unreachable —
-the cascade only fires on the `true → false` edge, which had already been
-crossed. The cleanup now runs before the save and every result is checked, so a
-failure aborts the update with the model still wireless and the operation
-retryable.
 
 **G-5 — The installedDate message over-promises.**
 DEV-050 says "Must be a valid ISO 8601 date string" but the check is

@@ -215,6 +215,68 @@ describe('CreateDeviceUseCase — integration', () => {
     expect(second.error).toMatch(/IP address/i);
   });
 
+  // Concurrent creates can both clear the use case's pre-check; the unique
+  // index is what stops the second insert. Same message either way.
+  it('[DEV-047] rejects the loser of a concurrent duplicate MAC address', async () => {
+    const mac = 'AA:BB:CC:DD:EE:02';
+
+    const results = await Promise.all([
+      useCase.execute({
+        deviceModelId,
+        name: 'Racer A',
+        ownerType: 'COMPANY',
+        macAddress: mac
+      }),
+      useCase.execute({
+        deviceModelId,
+        name: 'Racer B',
+        ownerType: 'COMPANY',
+        macAddress: mac
+      })
+    ]);
+
+    const failed = results.filter((r) => r.isFailure);
+    expect(results.filter((r) => r.isSuccess)).toHaveLength(1);
+    expect(failed).toHaveLength(1);
+    expect(failed[0].error).toMatch(/MAC address/i);
+
+    const stored = await prisma.device.count({
+      where: { macAddress: mac }
+    });
+    expect(stored).toBe(1);
+  });
+
+  it('[DEV-049] rejects the loser of a concurrent duplicate IP address', async () => {
+    const ip = '10.10.0.2';
+
+    const results = await Promise.all([
+      useCase.execute({
+        deviceModelId,
+        name: 'Racer A',
+        ownerType: 'COMPANY',
+        serialNumber: 'SN-RACE-A',
+        ipAddress: ip
+      }),
+      useCase.execute({
+        deviceModelId,
+        name: 'Racer B',
+        ownerType: 'COMPANY',
+        serialNumber: 'SN-RACE-B',
+        ipAddress: ip
+      })
+    ]);
+
+    const failed = results.filter((r) => r.isFailure);
+    expect(results.filter((r) => r.isSuccess)).toHaveLength(1);
+    expect(failed).toHaveLength(1);
+    expect(failed[0].error).toMatch(/IP address/i);
+
+    const stored = await prisma.device.count({
+      where: { ipAddress: ip }
+    });
+    expect(stored).toBe(1);
+  });
+
   it('[DEV-046] fails with an invalid MAC address format', async () => {
     const result = await useCase.execute({
       deviceModelId,

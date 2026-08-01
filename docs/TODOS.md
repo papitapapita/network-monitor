@@ -226,15 +226,10 @@ _Main user-facing features still missing._
   - Wire `npm run test:rules` into CI once all contexts are written (until then run it scoped to a prefix — an unscoped run reports nothing for contexts with no rules declared)
   - ~20 rationales in `device-inventory.md` are marked `_(inferred)_` — reconstructed from code, not stated by the business. Worth a pass to confirm or correct; a wrong "why" justifies the wrong future change
 
-- [ ] **Triage the gaps found while writing the device-inventory rules** — see the "Known gaps" section of `docs/business-rules/device-inventory.md` (11 recorded, G-2 closed)
-  - **G-1** MAC and IP uniqueness are check-then-write in the use case with no unique index — concurrent requests can both insert. The two worth acting on, with G-6
-  - **G-6** credentials reuse the generic `update` permission, so any OPERATOR can set device passwords
-  - **G-2** ~~`deviceType` non-emptiness is only checked on create~~ — **closed** by the `DeviceType` value object; create and update now share one validator
+- [ ] **Triage the gaps found while writing the device-inventory rules** — see the "Known gaps" section of `docs/business-rules/device-inventory.md`. G-1, G-2, G-3, G-4, G-10 and G-11 were verified closed against the code and removed from that section; each rule now carries its own history (DEV-047/DEV-049, DEV-024, DEV-028, DEV-027, DEV-060, DEV-043)
+  - **G-6** credentials reuse the generic `update` permission, so any OPERATOR can set device passwords — the one left worth acting on
+  - **G-12** the `P2002` branch in eight other repositories matches on the error *message*, where Prisma never puts the code — so the clean duplicate message never fires. Found while putting the device repository on `error.code`; fix is `isUniqueViolation` from `src/infrastructure/persistence/prisma-errors.ts`, one line each
   - **G-9** device creation never looks up `deviceModelId`, so a bad UUID surfaces as a raw Prisma FK error instead of `Device model not found` (the correction path, DEV-063, gets this right) — same shape as G-8, and both are one repository injection away
-  - **G-10** `locationId` + `status: 'ACTIVE'` in one request is rejected because `assignLocation` runs after `changeStatus`; the IP equivalent works. Callers need two requests
-  - **G-11** a stored device `category` is not re-checked on read, unlike `DeviceType`, `LocationType` and `DeviceOwnerType` — an unrecognised value loads silently. Newly relevant after the DEV-043 recast
-  - **G-3** renaming a vendor does not propagate to the denormalized copies on its device models
-  - **G-4** wireless-config cleanup on `isWireless: true → false` is fire-and-forget; failures are swallowed and the use case still reports success
   - **G-5** the `installedDate` error message promises ISO 8601 but the check accepts anything `new Date()` parses
   - **G-7** filtered device listings load the full matching set and paginate in memory
   - **G-8** `Vendor.name` is `@unique` in Prisma but unchecked in code, so a duplicate name surfaces as a raw Prisma error instead of a clean message
