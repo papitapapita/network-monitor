@@ -69,17 +69,9 @@ _Main user-facing features still missing._
   - Delivery mechanism: reuse the SSE pattern from "Real-time alerts via SSE" below if that lands first (`clients` Set + broadcast); otherwise a small dedicated `GET /locations/stream` endpoint
   - Prerequisite: none — can be built ahead of the SSE alerts item, whichever lands first should establish the shared SSE broadcast helper
 
-- [ ] **Stop asking for SNMP credentials** — nothing reads them, so the form is asking operators for secrets the system never uses
-  - Verified: `snmpCommunity` / `snmpV3AuthUser` appear only in storage and validation plumbing (`SetDeviceCredentialsUseCase`, `DeviceCredentialsMapper`, `PrismaDeviceCredentialsRepository`, the DTOs) — **no collector consumes them**; all polling today is ICMP ping plus AirOS HTTP
-  - Hide the SNMP section in the frontend credentials form; make HTTP username + password the only required pair — **still pending, frontend only**
-  - ~~Backend: relax `SetDeviceCredentialsUseCase.beforeExecute` so HTTP-only is the normal path~~ — done 2026-07-27. `httpUsername` + `httpPassword` are now the required pair; SNMP validation runs only when the request actually carries an SNMP field, and `snmpVersion` is required as soon as one is sent
-  - ~~Keep the schema columns and the encryption path~~ — untouched; re-enable the form when "SNMP system metrics" (Priority 3) lands
-  - ~~Do not delete stored SNMP rows~~ — done: `extractCreateData` now carries stored SNMP values forward when the request omits them (only an explicit `null` clears one), so an HTTP-only save from the new form cannot wipe keys that would be tedious to re-enter
-
-- [ ] **HTTP credential port defaults to 443, not 80** — the frontend sends the wrong default
-  - Backend is already correct: `DeviceCredentialsMapper.extractCreateData` does `httpPort: dto.httpPort ?? 443`
-  - The frontend credentials form still defaults the field to 80, so an operator who leaves it alone stores 80 and AirOS collection fails against an HTTPS-only radio
-  - Fix in the frontend form default; consider also making the backend reject 80 with a clear message, or at least log it, so a stale client cannot silently write a broken port
+- [ ] **Reject or flag an HTTP credential port of 80** — a stale client can still silently write a port AirOS collection cannot use
+  - `DeviceCredentialsMapper.extractCreateData` already does `httpPort: dto.httpPort ?? 443`, and the frontend now sends 443 as well, so newly written rows are correct
+  - Remaining: decide whether to reject 80 outright with a clear message or merely log it — an HTTPS-only radio fails collection silently today
   - Check existing rows for `http_port = 80` and decide whether to migrate them to 443
 
 - [ ] **Device categories** — allow creating and assigning categories (e.g. "STA Mimosa Cocuy")
@@ -256,11 +248,15 @@ _Main user-facing features still missing._
 ## Done
 
 - [x] Make the backend run (2026-04-06)
-- [x] Frontend sorting for IP addresses
 - [x] Model manufacturers — `Vendor` aggregate + full CRUD under `/api/vendors` (2026-05-07)
 - [x] Authentication & authorization module — `identity` BC, JWT, `ROLE_PERMISSIONS`, rate limiting, audit log, Helmet/CORS, bcrypt (2026-06-08)
 - [x] Network map view (backend) — `GET /api/locations/map` returns `MapPinDTO[]`; frontend rendering tracked in the frontend repo (2026-06-10)
 - [x] Update README.md (2026-07-06)
+- [x] SNMP credentials are no longer required — HTTP-only is the normal path (2026-07-27)
+  - Verified nothing reads them: `snmpCommunity` / `snmpV3AuthUser` appear only in storage and validation plumbing (`SetDeviceCredentialsUseCase`, `DeviceCredentialsMapper`, `PrismaDeviceCredentialsRepository`, the DTOs) — no collector consumes them; all polling is ICMP ping plus AirOS HTTP
+  - `SetDeviceCredentialsUseCase.beforeExecute` relaxed: `httpUsername` + `httpPassword` are the required pair; SNMP validation runs only when the request actually carries an SNMP field, and `snmpVersion` is required as soon as one is sent
+  - Schema columns and the encryption path untouched. `extractCreateData` carries stored SNMP values forward when a request omits them (only an explicit `null` clears one), so an HTTP-only save cannot wipe keys that would be tedious to re-enter
+  - Hiding the SNMP section in the credentials form is frontend-only work — tracked in the frontend repo's `TODOS.md`, to be re-enabled when "SNMP system metrics" (Priority 3) lands
 - [x] Business rules catalogue — Device Inventory (2026-07-28)
   - `docs/business-rules/` — one file per bounded context, permanent `<CTX>-<NNN>` IDs, each rule tagged Invariant / Validation / Policy with its rationale, enforcement site, failure message and call paths
   - `device-inventory.md` — 63 rules (`DEV-001`–`DEV-143`) covering Vendor, DeviceModel, Device, Location, Credentials, and cross-cutting access/listing/discovery
