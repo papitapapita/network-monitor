@@ -70,6 +70,21 @@ export class UpdateVendorUseCase extends UseCase<
     }
 
     if (data.name !== undefined) {
+      const newName = data.name.trim();
+      const existingResult =
+        await this.vendorRepository.findByName(newName);
+      if (existingResult.isFailure) {
+        return this.fail(existingResult.error!);
+      }
+      if (
+        existingResult.value !== null &&
+        !existingResult.value.id.equals(vendor.id)
+      ) {
+        return this.fail(
+          `A vendor with name "${newName}" already exists`
+        );
+      }
+
       const nameResult = vendor.updateName(data.name);
       if (nameResult.isFailure) {
         return this.fail(nameResult.error!);

@@ -1,6 +1,7 @@
 // Source: src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts
 
 import { PrismaClient } from '../../../../src/generated/prisma/client';
+import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDeviceModelRepository';
 import { CreateDeviceUseCase } from 'application/device-inventory/use-cases/CreateDeviceUseCase';
 import { SetDeviceCredentialsUseCase } from 'application/device-inventory/use-cases/SetDeviceCredentialsUseCase';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
@@ -35,7 +36,11 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
       prisma
     );
     const logger = new WinstonLogger();
-    createDevice = new CreateDeviceUseCase(deviceRepo, logger);
+    createDevice = new CreateDeviceUseCase(
+      deviceRepo,
+      new PrismaDeviceModelRepository(prisma),
+      logger
+    );
     useCase = new SetDeviceCredentialsUseCase(
       deviceRepo,
       credentialsRepo,

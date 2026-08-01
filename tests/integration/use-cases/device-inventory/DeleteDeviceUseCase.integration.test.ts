@@ -1,6 +1,7 @@
 // Source: src/application/device-inventory/use-cases/DeleteDeviceUseCase.ts
 
 import { PrismaClient } from '../../../../src/generated/prisma/client';
+import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDeviceModelRepository';
 import { CreateDeviceUseCase } from 'application/device-inventory/use-cases/CreateDeviceUseCase';
 import { DeleteDeviceUseCase } from 'application/device-inventory/use-cases/DeleteDeviceUseCase';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
@@ -33,7 +34,11 @@ describe('DeleteDeviceUseCase — integration', () => {
 
     const repo = new PrismaDeviceRepository(prisma);
     const logger = new WinstonLogger();
-    createUseCase = new CreateDeviceUseCase(repo, logger);
+    createUseCase = new CreateDeviceUseCase(
+      repo,
+      new PrismaDeviceModelRepository(prisma),
+      logger
+    );
     deleteUseCase = new DeleteDeviceUseCase(repo, logger);
   });
 

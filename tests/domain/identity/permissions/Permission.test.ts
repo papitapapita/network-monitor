@@ -11,8 +11,8 @@ describe('ROLE_PERMISSIONS', () => {
   describe('ADMIN permissions', () => {
     const adminPerms: Permission[] = ROLE_PERMISSIONS[UserRole.ADMIN];
 
-    it('should grant exactly 6 permissions', () => {
-      expect(adminPerms).toHaveLength(6);
+    it('should grant exactly 7 permissions', () => {
+      expect(adminPerms).toHaveLength(7);
     });
 
     it('should include read', () => {
@@ -37,6 +37,10 @@ describe('ROLE_PERMISSIONS', () => {
 
     it('should include bulk-import', () => {
       expect(adminPerms).toContain('bulk-import');
+    });
+
+    it('should include manage-credentials', () => {
+      expect(adminPerms).toContain('manage-credentials');
     });
   });
 
@@ -70,6 +74,10 @@ describe('ROLE_PERMISSIONS', () => {
 
     it('should NOT include delete', () => {
       expect(operatorPerms).not.toContain('delete');
+    });
+
+    it('should NOT include manage-credentials', () => {
+      expect(operatorPerms).not.toContain('manage-credentials');
     });
   });
 

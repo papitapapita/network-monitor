@@ -120,6 +120,7 @@ function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
     existsByIpAddress: jest.fn(),
     findByLocationIds: jest.fn(),
     findByFilters: jest.fn(),
+    countByFilters: jest.fn(),
   };
 }
 

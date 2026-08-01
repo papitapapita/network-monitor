@@ -14,6 +14,7 @@ import { IWirelessDeviceConfigRepository } from 'domain/wireless-monitoring/repo
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
+import { parseIso8601Date } from 'application/shared/utils';
 import { DeviceResponseDTO, UpdateDeviceRequestDTO } from '../dtos';
 import { DeviceMapper } from '../mappers';
 import {
@@ -124,8 +125,8 @@ export class UpdateDeviceUseCase extends UseCase<
       if (data.installedDate === null) {
         updateFields.installedDate = null;
       } else {
-        const parsed = new Date(data.installedDate);
-        if (isNaN(parsed.getTime())) {
+        const parsed = parseIso8601Date(data.installedDate);
+        if (parsed === null) {
           return this.fail(
             `Invalid installedDate: "${data.installedDate}". Must be a valid ISO 8601 date string.`
           );

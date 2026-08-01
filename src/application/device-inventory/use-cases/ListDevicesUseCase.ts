@@ -82,9 +82,6 @@ export class ListDevicesUseCase extends UseCase<
     );
   }
 
-  // findByFilters does not support pagination parameters, so the full matching
-  // set is fetched and sliced in-memory — consistent with findByType in
-  // ListLocationsUseCase.
   private async listByFilters(
     request: ListDevicesQueryDTO,
     limit: number,
@@ -148,7 +145,7 @@ export class ListDevicesUseCase extends UseCase<
       deviceModelIdFilter = deviceModelIdResult.value;
     }
 
-    const devicesResult = await this.deviceRepository.findByFilters({
+    const filters = {
       status: statusFilter,
       category: categoryFilter,
       owner: ownerFilter,
@@ -158,19 +155,29 @@ export class ListDevicesUseCase extends UseCase<
       search: request.search,
       sortBy: request.sortBy,
       sortOrder: request.sortOrder
+    };
+
+    const devicesResult = await this.deviceRepository.findByFilters({
+      ...filters,
+      limit,
+      offset
     });
 
     if (devicesResult.isFailure) {
       return this.fail<DeviceListResponseDTO>(devicesResult.error!);
     }
 
-    const allDevices = devicesResult.value;
-    const paginatedDevices = allDevices.slice(offset, offset + limit);
+    const countResult =
+      await this.deviceRepository.countByFilters(filters);
+
+    if (countResult.isFailure) {
+      return this.fail<DeviceListResponseDTO>(countResult.error!);
+    }
 
     return this.ok<DeviceListResponseDTO>(
       DeviceMapper.toListDTO(
-        paginatedDevices,
-        allDevices.length,
+        devicesResult.value,
+        countResult.value,
         limit,
         offset
       )

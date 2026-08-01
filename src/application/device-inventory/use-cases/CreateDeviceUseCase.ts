@@ -2,10 +2,14 @@ import { IPAddress, MACAddress } from 'domain/shared/value-objects';
 import { DeviceModelId, LocationId } from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
 import { Device } from 'domain/device-inventory/aggregates';
-import { IDeviceRepository } from 'domain/device-inventory/repository';
+import {
+  IDeviceModelRepository,
+  IDeviceRepository
+} from 'domain/device-inventory/repository';
 import { DeviceOwnerType } from 'domain/device-inventory/enums';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
+import { parseIso8601Date } from 'application/shared/utils';
 import { CreateDeviceRequestDTO, DeviceResponseDTO } from '../dtos';
 import { DeviceMapper } from '../mappers';
 import {
@@ -21,6 +25,7 @@ export class CreateDeviceUseCase extends UseCase<
 > {
   constructor(
     private readonly deviceRepository: IDeviceRepository,
+    private readonly deviceModelRepository: IDeviceModelRepository,
     logger: ILogger
   ) {
     super(logger, 'CreateDeviceUseCase');
@@ -84,9 +89,25 @@ export class CreateDeviceUseCase extends UseCase<
       );
     }
 
+    const modelExistsResult = await this.deviceModelRepository.exists(
+      deviceModelIdResult.value
+    );
+    if (modelExistsResult.isFailure) {
+      return this.fail(
+        `Failed to verify device model: ${modelExistsResult.error}`
+      );
+    }
+    if (!modelExistsResult.value) {
+      return this.fail(
+        `Device model not found: ${data.deviceModelId.trim()}`
+      );
+    }
+
     let locationId: LocationId | null = null;
     if (data.locationId) {
-      const locationIdResult = LocationId.parse(data.locationId.trim());
+      const locationIdResult = LocationId.parse(
+        data.locationId.trim()
+      );
       if (locationIdResult.isFailure) {
         return this.fail(
           `Invalid locationId: ${locationIdResult.error}`
@@ -118,7 +139,9 @@ export class CreateDeviceUseCase extends UseCase<
 
     let serialNumber: SerialNumber | null = null;
     if (data.serialNumber) {
-      const serialNumberResult = SerialNumber.create(data.serialNumber);
+      const serialNumberResult = SerialNumber.create(
+        data.serialNumber
+      );
       if (serialNumberResult.isFailure) {
         return this.fail(serialNumberResult.error!);
       }
@@ -171,8 +194,8 @@ export class CreateDeviceUseCase extends UseCase<
 
     let installedDate: Date | null = null;
     if (data.installedDate) {
-      const parsed = new Date(data.installedDate);
-      if (isNaN(parsed.getTime())) {
+      const parsed = parseIso8601Date(data.installedDate);
+      if (parsed === null) {
         return this.fail(
           `Invalid installedDate: "${data.installedDate}". Must be a valid ISO 8601 date string.`
         );

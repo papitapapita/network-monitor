@@ -2,6 +2,7 @@
 
 import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { CreateLocationUseCase } from 'application/device-inventory/use-cases/CreateLocationUseCase';
+import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDeviceModelRepository';
 import { CreateDeviceUseCase } from 'application/device-inventory/use-cases/CreateDeviceUseCase';
 import { GetMapLocationsUseCase } from 'application/device-inventory/use-cases/GetMapLocationsUseCase';
 import { PrismaLocationRepository } from 'infrastructure/persistence/PrismaLocationRepository';
@@ -30,7 +31,11 @@ describe('GetMapLocationsUseCase — integration', () => {
     const deviceRepo = new PrismaDeviceRepository(prisma);
     const logger = new WinstonLogger();
     createLocation = new CreateLocationUseCase(locationRepo, logger);
-    createDevice = new CreateDeviceUseCase(deviceRepo, logger);
+    createDevice = new CreateDeviceUseCase(
+      deviceRepo,
+      new PrismaDeviceModelRepository(prisma),
+      logger
+    );
     useCase = new GetMapLocationsUseCase(locationRepo, deviceRepo, logger);
   });
 

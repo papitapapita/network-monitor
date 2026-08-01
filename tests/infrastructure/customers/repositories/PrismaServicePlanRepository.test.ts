@@ -13,6 +13,15 @@ import { ServicePlan } from '../../../../src/domain/customers';
 import { ServicePlanId } from '../../../../src/domain/shared/ids';
 import { EventDispatcher } from '../../../../src/domain/shared/core';
 
+// Shaped like a real Prisma error: the code lives on `code`, never in the
+// message text.
+function makePrismaError(code: string, message: string): Error {
+  const error = new Error(message);
+  (error as Error & { code: string }).code = code;
+  return error;
+}
+
+
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
 const NOW = new Date('2024-01-01T00:00:00.000Z');
 
@@ -89,7 +98,7 @@ describe('PrismaServicePlanRepository', () => {
 
     it('should return "already exists" on P2002', async () => {
       (prisma.servicePlan.upsert as any).mockRejectedValue(
-        new Error('P2002')
+        makePrismaError('P2002', 'Unique constraint failed')
       );
 
       const result = await repository.save(makePlan());
@@ -117,7 +126,7 @@ describe('PrismaServicePlanRepository', () => {
   describe('delete()', () => {
     it('should map P2003 to a referenced-by failure', async () => {
       (prisma.servicePlan.delete as any).mockRejectedValue(
-        new Error('P2003')
+        makePrismaError('P2003', 'Foreign key constraint failed')
       );
 
       const result = await repository.delete(

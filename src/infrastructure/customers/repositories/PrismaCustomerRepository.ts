@@ -4,6 +4,11 @@ import { CustomerId } from 'domain/shared/ids';
 import { Result, EventDispatcher } from 'domain/shared/core';
 import { ICustomerRepository } from 'domain/customers/repository';
 import { CustomerPrismaMapper } from '../mappers';
+import {
+  isForeignKeyViolation,
+  isRecordNotFound,
+  isUniqueViolation
+} from '../../persistence/prisma-errors';
 
 export class PrismaCustomerRepository implements ICustomerRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -31,7 +36,7 @@ export class PrismaCustomerRepository implements ICustomerRepository {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (errorMessage.includes('P2002')) {
+      if (isUniqueViolation(error)) {
         return Result.fail<Customer>(
           'A customer with this phone, email or cedula already exists'
         );
@@ -137,10 +142,10 @@ export class PrismaCustomerRepository implements ICustomerRepository {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (errorMessage.includes('P2025')) {
+      if (isRecordNotFound(error)) {
         return Result.fail<void>('Customer not found');
       }
-      if (errorMessage.includes('P2003')) {
+      if (isForeignKeyViolation(error)) {
         return Result.fail<void>(
           'Cannot delete a customer with contracted services'
         );
@@ -156,7 +161,9 @@ export class PrismaCustomerRepository implements ICustomerRepository {
     return this.countWhere({ id: id.toString() }, 'existence');
   }
 
-  public async existsByPhone(phone: string): Promise<Result<boolean>> {
+  public async existsByPhone(
+    phone: string
+  ): Promise<Result<boolean>> {
     return this.countWhere({ phone }, 'phone existence');
   }
 
@@ -166,7 +173,9 @@ export class PrismaCustomerRepository implements ICustomerRepository {
     return this.countWhere({ cedula }, 'cedula existence');
   }
 
-  public async existsByEmail(email: string): Promise<Result<boolean>> {
+  public async existsByEmail(
+    email: string
+  ): Promise<Result<boolean>> {
     return this.countWhere({ email }, 'email existence');
   }
 

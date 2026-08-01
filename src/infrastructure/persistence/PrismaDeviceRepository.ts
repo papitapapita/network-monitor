@@ -6,15 +6,14 @@ import {
   LocationId,
   DeviceModelId
 } from 'domain/shared/ids';
-import {
-  DeviceStatus,
-  DeviceCategory
-} from 'domain/device-inventory/value-objects';
-import { DeviceOwnerType } from 'domain/device-inventory/enums';
+import { DeviceStatus } from 'domain/device-inventory/value-objects';
 import { Result, EventDispatcher } from 'domain/shared/core';
-import { IDeviceRepository } from 'domain/device-inventory/repository';
+import {
+  DeviceFilters,
+  IDeviceRepository
+} from 'domain/device-inventory/repository';
 import { DeviceMapper } from '../mappers';
-import { isUniqueViolation } from './prisma-errors';
+import { isRecordNotFound, isUniqueViolation } from './prisma-errors';
 
 export class PrismaDeviceRepository implements IDeviceRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -118,7 +117,7 @@ export class PrismaDeviceRepository implements IDeviceRepository {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (errorMessage.includes('P2025')) {
+      if (isRecordNotFound(error)) {
         return Result.fail<void>('Device not found');
       }
 
@@ -370,70 +369,10 @@ export class PrismaDeviceRepository implements IDeviceRepository {
     }
   }
 
-  public async findByFilters(filters: {
-    status?: DeviceStatus;
-    category?: DeviceCategory;
-    owner?: DeviceOwnerType;
-    locationId?: LocationId;
-    deviceModelId?: DeviceModelId;
-    monitoringEnabled?: boolean;
-    search?: string;
-    sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'status';
-    sortOrder?: 'ASC' | 'DESC';
-    limit?: number;
-    offset?: number;
-  }): Promise<Result<Device[]>> {
+  public async findByFilters(
+    filters: DeviceFilters
+  ): Promise<Result<Device[]>> {
     try {
-      const where: any = {};
-
-      if (filters.status !== undefined) {
-        where.status = filters.status.toString();
-      }
-
-      if (filters.category !== undefined) {
-        where.category = filters.category.toString();
-      }
-
-      if (filters.owner !== undefined) {
-        where.owner = filters.owner.toString();
-      }
-
-      if (filters.locationId !== undefined) {
-        where.locationId = filters.locationId.toString();
-      }
-
-      if (filters.deviceModelId !== undefined) {
-        where.deviceModelId = filters.deviceModelId.toString();
-      }
-
-      if (filters.monitoringEnabled !== undefined) {
-        where.monitoringEnabled = filters.monitoringEnabled;
-      }
-
-      if (filters.search !== undefined) {
-        where.OR = [
-          { name: { contains: filters.search, mode: 'insensitive' } },
-          {
-            macAddress: {
-              contains: filters.search,
-              mode: 'insensitive'
-            }
-          },
-          {
-            ipAddress: {
-              contains: filters.search,
-              mode: 'insensitive'
-            }
-          },
-          {
-            serialNumber: {
-              contains: filters.search,
-              mode: 'insensitive'
-            }
-          }
-        ];
-      }
-
       const sortOrder = filters.sortOrder === 'ASC' ? 'asc' : 'desc';
       let orderBy: any = { createdAt: 'desc' };
 
@@ -442,7 +381,7 @@ export class PrismaDeviceRepository implements IDeviceRepository {
       }
 
       const rawRecords = await this.prisma.device.findMany({
-        where,
+        where: this.buildFilterWhere(filters),
         orderBy,
         take: filters.limit,
         skip: filters.offset
@@ -459,6 +398,80 @@ export class PrismaDeviceRepository implements IDeviceRepository {
         `Database error finding devices by filters: ${errorMessage}`
       );
     }
+  }
+
+  public async countByFilters(
+    filters: DeviceFilters
+  ): Promise<Result<number>> {
+    try {
+      const count = await this.prisma.device.count({
+        where: this.buildFilterWhere(filters)
+      });
+
+      return Result.ok<number>(count);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<number>(
+        `Database error counting devices by filters: ${errorMessage}`
+      );
+    }
+  }
+
+  // The page query and the total-count query must agree on what "matching"
+  // means, so both build their `where` here.
+  private buildFilterWhere(filters: DeviceFilters): any {
+    const where: any = {};
+
+    if (filters.status !== undefined) {
+      where.status = filters.status.toString();
+    }
+
+    if (filters.category !== undefined) {
+      where.category = filters.category.toString();
+    }
+
+    if (filters.owner !== undefined) {
+      where.owner = filters.owner.toString();
+    }
+
+    if (filters.locationId !== undefined) {
+      where.locationId = filters.locationId.toString();
+    }
+
+    if (filters.deviceModelId !== undefined) {
+      where.deviceModelId = filters.deviceModelId.toString();
+    }
+
+    if (filters.monitoringEnabled !== undefined) {
+      where.monitoringEnabled = filters.monitoringEnabled;
+    }
+
+    if (filters.search !== undefined) {
+      where.OR = [
+        { name: { contains: filters.search, mode: 'insensitive' } },
+        {
+          macAddress: {
+            contains: filters.search,
+            mode: 'insensitive'
+          }
+        },
+        {
+          ipAddress: {
+            contains: filters.search,
+            mode: 'insensitive'
+          }
+        },
+        {
+          serialNumber: {
+            contains: filters.search,
+            mode: 'insensitive'
+          }
+        }
+      ];
+    }
+
+    return where;
   }
 
   // ============================================================================

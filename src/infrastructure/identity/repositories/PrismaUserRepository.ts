@@ -5,6 +5,7 @@ import { User } from 'domain/identity/aggregates/User';
 import { UserEmail } from 'domain/identity/value-objects/UserEmail';
 import { IUserRepository } from 'domain/identity/repository/IUserRepository';
 import { UserPrismaMapper } from '../mappers/UserPrismaMapper';
+import { isUniqueViolation } from '../../persistence/prisma-errors';
 
 export class PrismaUserRepository implements IUserRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -31,8 +32,9 @@ export class PrismaUserRepository implements IUserRepository {
       });
       return Result.ok<User>(user);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      if (msg.includes('P2002')) {
+      const msg =
+        error instanceof Error ? error.message : String(error);
+      if (isUniqueViolation(error)) {
         return Result.fail<User>(
           'A user with this email already exists'
         );
@@ -55,7 +57,8 @@ export class PrismaUserRepository implements IUserRepository {
       }
       return Result.ok<User | null>(result.value);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg =
+        error instanceof Error ? error.message : String(error);
       return Result.fail<User | null>(
         `Database error finding user: ${msg}`
       );
@@ -78,7 +81,8 @@ export class PrismaUserRepository implements IUserRepository {
       }
       return Result.ok<User | null>(result.value);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg =
+        error instanceof Error ? error.message : String(error);
       return Result.fail<User | null>(
         `Database error finding user: ${msg}`
       );

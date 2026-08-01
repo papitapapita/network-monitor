@@ -84,7 +84,8 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
     existsByMacAddress: jest.fn(),
     existsByIpAddress: jest.fn(),
     findByLocationIds: jest.fn(),
-    findByFilters: jest.fn()
+    findByFilters: jest.fn(),
+    countByFilters: jest.fn()
   };
 }
 
@@ -640,6 +641,15 @@ describe('UpdateDeviceUseCase', () => {
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid installedDate');
       expect(result.error).toContain('not-a-date');
+    });
+
+    it('should reject a locale date string that new Date() would accept', async () => {
+      const result = await useCase.execute(
+        makeRequest({ installedDate: 'March 5, 2020' })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Invalid installedDate');
     });
 
     it('should succeed when installedDate is null (clear)', async () => {

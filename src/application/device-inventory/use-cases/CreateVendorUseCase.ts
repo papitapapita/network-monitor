@@ -46,6 +46,18 @@ export class CreateVendorUseCase extends UseCase<
       );
     }
 
+    const nameExists = await this.vendorRepository.existsByName(
+      data.name.trim()
+    );
+    if (nameExists.isFailure) {
+      return this.fail(nameExists.error!);
+    }
+    if (nameExists.value) {
+      return this.fail(
+        `A vendor with name "${data.name.trim()}" already exists`
+      );
+    }
+
     const vendorResult = Vendor.create({
       name: data.name.trim(),
       slug: data.slug.trim(),

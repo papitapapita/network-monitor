@@ -16,6 +16,15 @@ import {
 import { CustomerId } from '../../../../src/domain/shared/ids';
 import { EventDispatcher } from '../../../../src/domain/shared/core';
 
+// Shaped like a real Prisma error: the code lives on `code`, never in the
+// message text.
+function makePrismaError(code: string, message: string): Error {
+  const error = new Error(message);
+  (error as Error & { code: string }).code = code;
+  return error;
+}
+
+
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
 const NOW = new Date('2024-01-01T00:00:00.000Z');
 
@@ -88,7 +97,7 @@ describe('PrismaCustomerRepository', () => {
 
     it('should return an "already exists" failure on P2002', async () => {
       (prisma.customer.upsert as any).mockRejectedValue(
-        new Error('Unique constraint failed P2002')
+        makePrismaError('P2002', 'Unique constraint failed')
       );
 
       const result = await repository.save(customer);
@@ -157,7 +166,7 @@ describe('PrismaCustomerRepository', () => {
   describe('delete()', () => {
     it('should map P2025 to "not found"', async () => {
       (prisma.customer.delete as any).mockRejectedValue(
-        new Error('P2025 record not found')
+        makePrismaError('P2025', 'record not found')
       );
 
       const result = await repository.delete(
@@ -170,7 +179,7 @@ describe('PrismaCustomerRepository', () => {
 
     it('should map P2003 to a foreign-key failure', async () => {
       (prisma.customer.delete as any).mockRejectedValue(
-        new Error('P2003 foreign key constraint')
+        makePrismaError('P2003', 'foreign key constraint')
       );
 
       const result = await repository.delete(

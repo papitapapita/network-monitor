@@ -40,10 +40,12 @@ function makeVendorRepo(): jest.Mocked<IVendorRepository> {
     save: jest.fn(),
     findById: jest.fn(),
     findBySlug: jest.fn(),
+    findByName: jest.fn(),
     findAll: jest.fn(),
     delete: jest.fn(),
     exists: jest.fn(),
     existsBySlug: jest.fn(),
+    existsByName: jest.fn(),
     count: jest.fn()
   };
 }

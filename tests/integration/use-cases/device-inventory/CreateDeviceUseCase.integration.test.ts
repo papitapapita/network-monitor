@@ -1,4 +1,5 @@
 import { PrismaClient } from '../../../../src/generated/prisma/client';
+import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDeviceModelRepository';
 import { CreateDeviceUseCase } from 'application/device-inventory/use-cases/CreateDeviceUseCase';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
@@ -37,7 +38,11 @@ describe('CreateDeviceUseCase — integration', () => {
     // Wire use case with real infrastructure
     const repo = new PrismaDeviceRepository(prisma);
     const logger = new WinstonLogger();
-    useCase = new CreateDeviceUseCase(repo, logger);
+    useCase = new CreateDeviceUseCase(
+      repo,
+      new PrismaDeviceModelRepository(prisma),
+      logger
+    );
   });
 
   afterAll(async () => {
@@ -161,7 +166,7 @@ describe('CreateDeviceUseCase — integration', () => {
     expect(result.error).toMatch(/ownerType/i);
   });
 
-  it('fails with an unknown deviceModelId (FK violation)', async () => {
+  it('[DEV-066] fails with an unknown deviceModelId', async () => {
     const result = await useCase.execute({
       deviceModelId: GHOST_ID,
       name: 'Router',
@@ -169,6 +174,7 @@ describe('CreateDeviceUseCase — integration', () => {
     });
 
     expect(result.isFailure).toBe(true);
+    expect(result.error).toContain('Device model not found');
   });
 
   it('[DEV-047] fails on duplicate MAC address', async () => {

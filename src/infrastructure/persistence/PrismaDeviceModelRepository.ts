@@ -4,6 +4,7 @@ import { DeviceModelId, VendorId } from 'domain/shared/ids';
 import { Result, EventDispatcher } from 'domain/shared/core';
 import { IDeviceModelRepository } from 'domain/device-inventory/repository';
 import { DeviceModelMapper } from '../mappers';
+import { isRecordNotFound, isUniqueViolation } from './prisma-errors';
 
 export class PrismaDeviceModelRepository
   implements IDeviceModelRepository
@@ -54,7 +55,7 @@ export class PrismaDeviceModelRepository
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (errorMessage.includes('P2002')) {
+      if (isUniqueViolation(error)) {
         return Result.fail<DeviceModel>(
           'A device model with this name already exists for this vendor'
         );
@@ -169,7 +170,7 @@ export class PrismaDeviceModelRepository
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (errorMessage.includes('P2025')) {
+      if (isRecordNotFound(error)) {
         return Result.fail<void>('Device model not found');
       }
 

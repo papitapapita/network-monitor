@@ -93,6 +93,23 @@ describe('authorize middleware', () => {
       expect(mockNext).toHaveBeenCalledTimes(1);
     });
 
+    it('[DEV-144] should call next() when ADMIN requests manage-credentials', () => {
+      const { res } = createMockResponse();
+      const req = createMockRequest({
+        userId: 'u1',
+        email: 'admin@example.com',
+        role: 'ADMIN'
+      });
+
+      authorize('manage-credentials')(
+        req as Request,
+        res as Response,
+        mockNext
+      );
+
+      expect(mockNext).toHaveBeenCalledTimes(1);
+    });
+
     it('should call next() when OPERATOR requests create permission', () => {
       const { res } = createMockResponse();
       const req = createMockRequest({
@@ -191,6 +208,23 @@ describe('authorize middleware', () => {
       });
 
       authorize('update')(req as Request, res as Response, mockNext);
+
+      expect(statusMock).toHaveBeenCalledWith(403);
+    });
+
+    it('[DEV-144] should return 403 when OPERATOR requests manage-credentials', () => {
+      const { res, statusMock } = createMockResponse();
+      const req = createMockRequest({
+        userId: 'u2',
+        email: 'ops@example.com',
+        role: 'OPERATOR'
+      });
+
+      authorize('manage-credentials')(
+        req as Request,
+        res as Response,
+        mockNext
+      );
 
       expect(statusMock).toHaveBeenCalledWith(403);
     });

@@ -1,6 +1,7 @@
 // Source: src/application/device-inventory/use-cases/DeleteDeviceCredentialsUseCase.ts
 
 import { PrismaClient } from '../../../../src/generated/prisma/client';
+import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDeviceModelRepository';
 import { CreateDeviceUseCase } from 'application/device-inventory/use-cases/CreateDeviceUseCase';
 import { SetDeviceCredentialsUseCase } from 'application/device-inventory/use-cases/SetDeviceCredentialsUseCase';
 import { DeleteDeviceCredentialsUseCase } from 'application/device-inventory/use-cases/DeleteDeviceCredentialsUseCase';
@@ -35,7 +36,11 @@ describe('DeleteDeviceCredentialsUseCase — integration', () => {
     const deviceRepo = new PrismaDeviceRepository(prisma);
     const credentialsRepo = new PrismaDeviceCredentialsRepository(prisma);
     const logger = new WinstonLogger();
-    createDevice = new CreateDeviceUseCase(deviceRepo, logger);
+    createDevice = new CreateDeviceUseCase(
+      deviceRepo,
+      new PrismaDeviceModelRepository(prisma),
+      logger
+    );
     setCredentials = new SetDeviceCredentialsUseCase(
       deviceRepo,
       credentialsRepo,

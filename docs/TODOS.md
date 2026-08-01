@@ -212,24 +212,26 @@ _Main user-facing features still missing._
 - [ ] **Normalize timestamps** — use NTP for consistent log timestamps across devices
 
 - [ ] **Business rules catalogue — remaining contexts + CI** — finish `docs/business-rules/`
-  - Device Inventory is done: `DEV-001`–`DEV-143` (67 rules), every rule tagged in unit + integration tests, `npm run test:rules DEV` reports 67/67
+  - Device Inventory is done: `DEV-001`–`DEV-146` (72 rules), every rule tagged in unit + integration tests, `npm run test:rules DEV` reports 72/72
   - Remaining seven contexts, each its own file and ID prefix: `CUS` (customers), `BIL` (billing), `MON` (device-monitoring), `WLS` (wireless-monitoring), `NOT` (notifications), `IDN` (identity), `SHR` (shared kernel)
   - `WLS` is the big one — the 14 rule files in `src/domain/wireless-monitoring/services/rules/` are all Policy with hardcoded thresholds and hysteresis bands; overlaps with the "Define which alerts actually notify" item in Priority 3, and writing the rules down first would make that decision concrete
   - Wire `npm run test:rules` into CI once all contexts are written (until then run it scoped to a prefix — an unscoped run reports nothing for contexts with no rules declared)
   - ~20 rationales in `device-inventory.md` are marked `_(inferred)_` — reconstructed from code, not stated by the business. Worth a pass to confirm or correct; a wrong "why" justifies the wrong future change
 
-- [ ] **Triage the gaps found while writing the device-inventory rules** — see the "Known gaps" section of `docs/business-rules/device-inventory.md`. G-1, G-2, G-3, G-4, G-10 and G-11 were verified closed against the code and removed from that section; each rule now carries its own history (DEV-047/DEV-049, DEV-024, DEV-028, DEV-027, DEV-060, DEV-043)
-  - **G-6** credentials reuse the generic `update` permission, so any OPERATOR can set device passwords — the one left worth acting on
-  - **G-12** the `P2002` branch in eight other repositories matches on the error *message*, where Prisma never puts the code — so the clean duplicate message never fires. Found while putting the device repository on `error.code`; fix is `isUniqueViolation` from `src/infrastructure/persistence/prisma-errors.ts`, one line each
-  - **G-9** device creation never looks up `deviceModelId`, so a bad UUID surfaces as a raw Prisma FK error instead of `Device model not found` (the correction path, DEV-063, gets this right) — same shape as G-8, and both are one repository injection away
-  - **G-5** the `installedDate` error message promises ISO 8601 but the check accepts anything `new Date()` parses
-  - **G-7** filtered device listings load the full matching set and paginate in memory
-  - **G-8** `Vendor.name` is `@unique` in Prisma but unchecked in code, so a duplicate name surfaces as a raw Prisma error instead of a clean message
-
 - [ ] **Guard against rule-book drift** — the DeviceType / LocationType / DeviceCategory refactors each silently invalidated a written rule before anyone noticed
   - The coverage script will **not** catch this — it checks that a test cites a rule, never that the rule still describes the code. `DEV-024`, `DEV-043` and `DEV-091` all sat wrong for a while: the first two described a set the code had replaced, the third pointed at a deleted file
   - Line references (`Foo.ts:47`) rot fastest and are the least useful part to hand-maintain. Worth deciding whether they earn their keep, or whether anchoring on a symbol name is enough
   - Cheapest real check: assert that each set a rule enumerates matches the value object's exported list, so a recast fails a test instead of quietly ageing the prose
+
+- [ ] **Two route suites never authenticate, and one route file has no suite at all** — found while verifying the known-gaps work on 2026-08-01
+  - `tests/integration/device.routes.test.ts` and `location.routes.test.ts` send no `Authorization` header, so all 29 assertions in them get `401` instead of the status they expect. They predate `createAuthenticateMiddleware` covering `/api`; every other route suite already uses `seedAndGetToken` from `tests/integration/helpers/auth.ts`. Mechanical fix, but 29 tests have been reporting nothing since auth landed
+  - `credentials.routes.ts` has no integration suite, against the "one per route file, always" rule in `docs/rules/TESTING-INTEGRATION-STANDARD.md`. It is now also the only route file with a permission of its own (DEV-144), so the `403`-for-OPERATOR case has no HTTP-level test — only the middleware unit test
+  - Same shape as the `bill.routes` suite already tracked in the billing notes: a suite that exists is assumed to be covering something
+
+- [ ] **Rate limiter — make limits configurable and the store shared** — the two things the 2026-08-01 fix deliberately left alone
+  - Limits are module-level literals in `src/presentation/http/middleware/rateLimiter.ts`. Tuning one means editing and redeploying; dev and prod want different numbers (a developer clicking through a seeded list is not an attacker)
+  - The store is `express-rate-limit`'s default in-memory one, so counters are per-process and reset on restart. With more than one instance behind a load balancer the effective limit is `max × instances`, and it silently varies with how the balancer spreads requests — a Redis store fixes both; `docs/rules/PRESENTATION-MIDDLEWARE-STANDARD.md` already sketches one
+  - Prerequisite for anything that trusts `req.ip` for unauthenticated routes: Express `trust proxy` is not set anywhere, so behind a reverse proxy every request keys to the proxy's address. Only matters for the IP fallback path (login is not rate-limited today), but it is a footgun waiting for whoever adds a public endpoint
 
 - [ ] **OpenAPI spec + typed frontend client** — replace the hand-maintained `docs/BACKEND_API.md` with a generated contract
   - Generate `openapi.json` from Express controllers using `tsoa` or `zod-to-openapi`
@@ -264,6 +266,22 @@ _Main user-facing features still missing._
   - `npm run test:rules` — cross-checks the rule book against the suite; fails on a rule with no test **and** on a test citing an ID no rule declares. Device Inventory is at 63/63
   - The check found four rules nothing verified: `DEV-025`, `DEV-028`, `DEV-062` (an invariant), `DEV-129` (secrets in logs). Tests written for all four
   - The loose bullet list that used to sit at the bottom of this file is superseded by `device-inventory.md`, which carries the same rules plus rationale, IDs and enforcement anchors
+
+- [x] Device-inventory known gaps closed — G-5 through G-12 (2026-08-01)
+  - **G-8 / G-9** — the two "raw Prisma error where a sentence belongs" cases. `CreateVendorUseCase` / `UpdateVendorUseCase` now check `Vendor.name` against the `@unique` the schema always had (DEV-007, new `findByName` + `existsByName` on `IVendorRepository`); `CreateDeviceUseCase` takes `IDeviceModelRepository` and verifies the model exists before anything else, matching what the correction path already did (DEV-066)
+  - **G-6** — credential writes moved off the generic `update` permission onto a dedicated `manage-credentials`, ADMIN only (DEV-144). **This is the one judgment call in the batch**: OPERATORs can no longer set device passwords. If they should, granting it is one line in `ROLE_PERMISSIONS`
+  - **G-7** — filtered device listings paginate in SQL. `findByFilters` now receives `limit`/`offset` and a new `countByFilters` supplies the true total; both build their `where` from one private helper so page and count cannot drift (DEV-145)
+  - **G-5** — `installedDate` is checked against ISO 8601 for real, calendar included (`2024-02-31` no longer becomes 2 March). New `parseIso8601Date` helper in `application/shared/utils`, used by both device use cases (DEV-050 revised)
+  - **G-12** — every repository that branched on `errorMessage.includes('P2002')` now calls `isUniqueViolation(error)`. The `P2003` and `P2025` branches sitting beside them were broken identically and never fired either, so `isForeignKeyViolation` / `isRecordNotFound` were added and wired the same way. Nine repositories, plus their unit tests, which had encoded the bug by putting the code in the mocked error's *message*
+  - **G-13** stays open on purpose — it is a documented non-rule, not a defect. See its entry in `docs/business-rules/device-inventory.md`
+  - Rule book: `DEV-001`–`DEV-146`, 72 rules, `npm run test:rules DEV` reports 72/72
+
+- [x] Deleting more than ten objects in a row no longer 429s (2026-08-01)
+  - Not a batch-size cap — the `delete` rate limiter in `src/presentation/http/middleware/rateLimiter.ts` allowed 10 requests/minute, so the 11th deletion returned `429 Too many requests`. Raised to 60/min; `write` raised 20 → 60 for the same reason (bulk edits hit it one click at a time)
+  - Requests now key on the authenticated `userId`, falling back to `ipKeyGenerator(req.ip)`. Before, every operator behind one office NAT drew from a single shared budget. Safe because `createAuthenticateMiddleware` runs ahead of every rate-limited route (`src/presentation/http/routes/index.ts:51`)
+  - `max` → `limit` (the v7+ option name; `max` is deprecated in express-rate-limit 8)
+  - `read` (100/min) and `bulk-import` (5/hour) unchanged. Covered by `tests/presentation/http/middleware/rateLimiter.test.ts`
+  - Follow-ups deliberately not done here — see "Rate limiter — make limits configurable and the store shared" in Priority 5
 
 > **Business rules live in [`docs/business-rules/`](business-rules/README.md), not here.**
 > Any code change touching an invariant, validation or policy updates the matching

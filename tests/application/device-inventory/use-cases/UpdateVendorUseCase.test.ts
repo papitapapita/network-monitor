@@ -1,6 +1,13 @@
 // Source: src/application/device-inventory/use-cases/UpdateVendorUseCase.ts
 
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import {
+  describe,
+  it,
+  expect,
+  jest,
+  beforeEach,
+  afterEach
+} from '@jest/globals';
 import { UpdateVendorUseCase } from '../../../../src/application/device-inventory/use-cases/UpdateVendorUseCase';
 import { IVendorRepository } from '../../../../src/domain/device-inventory/repository/IVendorRepository';
 import { Vendor } from '../../../../src/domain/device-inventory/aggregates/Vendor';
@@ -39,16 +46,23 @@ function makeRepo(): jest.Mocked<IVendorRepository> {
     save: jest.fn(),
     findById: jest.fn(),
     findBySlug: jest.fn(),
+    findByName: jest.fn(),
     findAll: jest.fn(),
     delete: jest.fn(),
     exists: jest.fn(),
     existsBySlug: jest.fn(),
+    existsByName: jest.fn(),
     count: jest.fn()
   };
 }
 
 function makeVendor(
-  overrides: Partial<{ id: string; name: string; slug: string; description: string | null }> = {}
+  overrides: Partial<{
+    id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+  }> = {}
 ): Vendor {
   return Vendor.reconstitute(
     VendorId.parse(overrides.id ?? VALID_UUID).value!,
@@ -76,7 +90,10 @@ describe('UpdateVendorUseCase', () => {
 
     (repo.findById as any).mockResolvedValue(Result.ok(makeVendor()));
     (repo.findBySlug as any).mockResolvedValue(Result.ok(null));
-    (repo.save as any).mockImplementation(async (v: Vendor) => Result.ok(v));
+    (repo.findByName as any).mockResolvedValue(Result.ok(null));
+    (repo.save as any).mockImplementation(async (v: Vendor) =>
+      Result.ok(v)
+    );
   });
 
   afterEach(() => {
@@ -138,7 +155,9 @@ describe('UpdateVendorUseCase', () => {
     });
 
     it('should propagate a repository failure from findById', async () => {
-      (repo.findById as any).mockResolvedValue(Result.fail('Connection refused'));
+      (repo.findById as any).mockResolvedValue(
+        Result.fail('Connection refused')
+      );
 
       const result = await useCase.execute({ id: VALID_UUID });
 
@@ -149,28 +168,52 @@ describe('UpdateVendorUseCase', () => {
   // =========================================================================
   describe('[DEV-003] executeImpl — slug update', () => {
     it('should fail when the new slug is already taken by a different vendor', async () => {
-      const otherVendor = makeVendor({ id: OTHER_UUID, slug: 'ubiquiti' });
-      (repo.findBySlug as any).mockResolvedValue(Result.ok(otherVendor));
+      const otherVendor = makeVendor({
+        id: OTHER_UUID,
+        slug: 'ubiquiti'
+      });
+      (repo.findBySlug as any).mockResolvedValue(
+        Result.ok(otherVendor)
+      );
 
-      const result = await useCase.execute({ id: VALID_UUID, slug: 'ubiquiti' });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        slug: 'ubiquiti'
+      });
 
       expect(result.isFailure).toBe(true);
     });
 
     it('should include "already exists" in the error when slug is taken by another vendor', async () => {
-      const otherVendor = makeVendor({ id: OTHER_UUID, slug: 'ubiquiti' });
-      (repo.findBySlug as any).mockResolvedValue(Result.ok(otherVendor));
+      const otherVendor = makeVendor({
+        id: OTHER_UUID,
+        slug: 'ubiquiti'
+      });
+      (repo.findBySlug as any).mockResolvedValue(
+        Result.ok(otherVendor)
+      );
 
-      const result = await useCase.execute({ id: VALID_UUID, slug: 'ubiquiti' });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        slug: 'ubiquiti'
+      });
 
       expect(result.error).toContain('already exists');
     });
 
     it('should succeed when the slug belongs to the same vendor (no conflict)', async () => {
-      const sameVendor = makeVendor({ id: VALID_UUID, slug: 'mikrotik' });
-      (repo.findBySlug as any).mockResolvedValue(Result.ok(sameVendor));
+      const sameVendor = makeVendor({
+        id: VALID_UUID,
+        slug: 'mikrotik'
+      });
+      (repo.findBySlug as any).mockResolvedValue(
+        Result.ok(sameVendor)
+      );
 
-      const result = await useCase.execute({ id: VALID_UUID, slug: 'mikrotik' });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        slug: 'mikrotik'
+      });
 
       expect(result.isSuccess).toBe(true);
     });
@@ -178,15 +221,23 @@ describe('UpdateVendorUseCase', () => {
     it('should succeed when slug is not taken by any vendor', async () => {
       (repo.findBySlug as any).mockResolvedValue(Result.ok(null));
 
-      const result = await useCase.execute({ id: VALID_UUID, slug: 'new-slug' });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        slug: 'new-slug'
+      });
 
       expect(result.isSuccess).toBe(true);
     });
 
     it('should propagate findBySlug repository failure', async () => {
-      (repo.findBySlug as any).mockResolvedValue(Result.fail('DB error'));
+      (repo.findBySlug as any).mockResolvedValue(
+        Result.fail('DB error')
+      );
 
-      const result = await useCase.execute({ id: VALID_UUID, slug: 'ubiquiti' });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        slug: 'ubiquiti'
+      });
 
       expect(result.isFailure).toBe(true);
     });
@@ -195,38 +246,130 @@ describe('UpdateVendorUseCase', () => {
   // =========================================================================
   describe('executeImpl — name-only update', () => {
     it('should return isSuccess true when updating name only', async () => {
-      const result = await useCase.execute({ id: VALID_UUID, name: 'MikroTik Updated' });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        name: 'MikroTik Updated'
+      });
 
       expect(result.isSuccess).toBe(true);
     });
 
     it('should return a DTO with the updated name', async () => {
-      const result = await useCase.execute({ id: VALID_UUID, name: 'MikroTik Updated' });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        name: 'MikroTik Updated'
+      });
 
       expect(result.value!.name).toBe('MikroTik Updated');
     });
 
     it('should not call findBySlug when slug is not in the request', async () => {
-      await useCase.execute({ id: VALID_UUID, name: 'MikroTik Updated' });
+      await useCase.execute({
+        id: VALID_UUID,
+        name: 'MikroTik Updated'
+      });
 
       expect(repo.findBySlug).not.toHaveBeenCalled();
     });
   });
 
   // =========================================================================
+  describe('[DEV-007] executeImpl — name update', () => {
+    it('should fail when the new name is already taken by a different vendor', async () => {
+      const otherVendor = makeVendor({
+        id: OTHER_UUID,
+        name: 'Ubiquiti'
+      });
+      (repo.findByName as any).mockResolvedValue(
+        Result.ok(otherVendor)
+      );
+
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        name: 'Ubiquiti'
+      });
+
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('should include "already exists" in the error when name is taken by another vendor', async () => {
+      const otherVendor = makeVendor({
+        id: OTHER_UUID,
+        name: 'Ubiquiti'
+      });
+      (repo.findByName as any).mockResolvedValue(
+        Result.ok(otherVendor)
+      );
+
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        name: 'Ubiquiti'
+      });
+
+      expect(result.error).toContain('already exists');
+    });
+
+    it('should succeed when the name belongs to the same vendor (no conflict)', async () => {
+      const sameVendor = makeVendor({
+        id: VALID_UUID,
+        name: 'Mikrotik'
+      });
+      (repo.findByName as any).mockResolvedValue(
+        Result.ok(sameVendor)
+      );
+
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        name: 'Mikrotik'
+      });
+
+      expect(result.isSuccess).toBe(true);
+    });
+
+    it('should propagate findByName repository failure', async () => {
+      (repo.findByName as any).mockResolvedValue(
+        Result.fail('DB error')
+      );
+
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        name: 'Ubiquiti'
+      });
+
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('should not call findByName when name is not in the request', async () => {
+      await useCase.execute({ id: VALID_UUID, slug: 'new-slug' });
+
+      expect(repo.findByName).not.toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
   describe('executeImpl — save failure', () => {
     it('should fail when repository save returns a failure', async () => {
-      (repo.save as any).mockResolvedValue(Result.fail('Write failed'));
+      (repo.save as any).mockResolvedValue(
+        Result.fail('Write failed')
+      );
 
-      const result = await useCase.execute({ id: VALID_UUID, name: 'New Name' });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        name: 'New Name'
+      });
 
       expect(result.isFailure).toBe(true);
     });
 
     it('should include a descriptive message when save fails', async () => {
-      (repo.save as any).mockResolvedValue(Result.fail('Write failed'));
+      (repo.save as any).mockResolvedValue(
+        Result.fail('Write failed')
+      );
 
-      const result = await useCase.execute({ id: VALID_UUID, name: 'New Name' });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        name: 'New Name'
+      });
 
       expect(result.error).toContain('persist');
     });
@@ -241,13 +384,19 @@ describe('UpdateVendorUseCase', () => {
     });
 
     it('should return the correct id in the response DTO', async () => {
-      const result = await useCase.execute({ id: VALID_UUID, name: 'New Name' });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        name: 'New Name'
+      });
 
       expect(result.value!.id).toBe(VALID_UUID);
     });
 
     it('should return an updated slug in the DTO after slug update', async () => {
-      const result = await useCase.execute({ id: VALID_UUID, slug: 'new-slug' });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        slug: 'new-slug'
+      });
 
       expect(result.value!.slug).toBe('new-slug');
     });

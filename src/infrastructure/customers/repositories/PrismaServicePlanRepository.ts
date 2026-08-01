@@ -4,6 +4,11 @@ import { ServicePlanId } from 'domain/shared/ids';
 import { Result, EventDispatcher } from 'domain/shared/core';
 import { IServicePlanRepository } from 'domain/customers/repository';
 import { ServicePlanPrismaMapper } from '../mappers';
+import {
+  isForeignKeyViolation,
+  isRecordNotFound,
+  isUniqueViolation
+} from '../../persistence/prisma-errors';
 
 export class PrismaServicePlanRepository
   implements IServicePlanRepository
@@ -35,7 +40,7 @@ export class PrismaServicePlanRepository
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (errorMessage.includes('P2002')) {
+      if (isUniqueViolation(error)) {
         return Result.fail<ServicePlan>(
           'A service plan with this name already exists'
         );
@@ -129,10 +134,10 @@ export class PrismaServicePlanRepository
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (errorMessage.includes('P2025')) {
+      if (isRecordNotFound(error)) {
         return Result.fail<void>('Service plan not found');
       }
-      if (errorMessage.includes('P2003')) {
+      if (isForeignKeyViolation(error)) {
         return Result.fail<void>(
           'Cannot delete a service plan that is referenced by contracted services'
         );

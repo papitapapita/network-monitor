@@ -4,6 +4,7 @@ import { VendorId } from 'domain/shared/ids';
 import { Result, EventDispatcher } from 'domain/shared/core';
 import { IVendorRepository } from 'domain/device-inventory/repository';
 import { VendorMapper } from '../mappers';
+import { isRecordNotFound, isUniqueViolation } from './prisma-errors';
 
 export class PrismaVendorRepository implements IVendorRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -30,7 +31,7 @@ export class PrismaVendorRepository implements IVendorRepository {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (errorMessage.includes('P2002')) {
+      if (isUniqueViolation(error)) {
         return Result.fail<Vendor>(
           'A vendor with this name or slug already exists'
         );
@@ -96,6 +97,33 @@ export class PrismaVendorRepository implements IVendorRepository {
     }
   }
 
+  public async findByName(
+    name: string
+  ): Promise<Result<Vendor | null>> {
+    try {
+      const raw = await this.prisma.vendor.findUnique({
+        where: { name }
+      });
+
+      if (!raw) return Result.ok<Vendor | null>(null);
+
+      const domainResult = VendorMapper.toDomain(raw);
+      if (domainResult.isFailure) {
+        return Result.fail<Vendor | null>(
+          `Failed to map vendor: ${domainResult.error}`
+        );
+      }
+
+      return Result.ok<Vendor | null>(domainResult.value);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<Vendor | null>(
+        `Database error finding vendor by name: ${errorMessage}`
+      );
+    }
+  }
+
   public async findAll(
     limit?: number,
     offset?: number
@@ -139,7 +167,7 @@ export class PrismaVendorRepository implements IVendorRepository {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (errorMessage.includes('P2025')) {
+      if (isRecordNotFound(error)) {
         return Result.fail<void>('Vendor not found');
       }
 
@@ -175,6 +203,21 @@ export class PrismaVendorRepository implements IVendorRepository {
         error instanceof Error ? error.message : String(error);
       return Result.fail<boolean>(
         `Database error checking vendor slug existence: ${errorMessage}`
+      );
+    }
+  }
+
+  public async existsByName(name: string): Promise<Result<boolean>> {
+    try {
+      const count = await this.prisma.vendor.count({
+        where: { name }
+      });
+      return Result.ok<boolean>(count > 0);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<boolean>(
+        `Database error checking vendor name existence: ${errorMessage}`
       );
     }
   }

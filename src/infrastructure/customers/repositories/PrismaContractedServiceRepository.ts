@@ -10,6 +10,11 @@ import {
 import { Result, EventDispatcher } from 'domain/shared/core';
 import { IContractedServiceRepository } from 'domain/customers/repository';
 import { ContractedServicePrismaMapper } from '../mappers';
+import {
+  isForeignKeyViolation,
+  isRecordNotFound,
+  isUniqueViolation
+} from '../../persistence/prisma-errors';
 
 export class PrismaContractedServiceRepository
   implements IContractedServiceRepository
@@ -43,12 +48,12 @@ export class PrismaContractedServiceRepository
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (errorMessage.includes('P2002')) {
+      if (isUniqueViolation(error)) {
         return Result.fail<ContractedService>(
           'This device is already assigned to another contracted service'
         );
       }
-      if (errorMessage.includes('P2003')) {
+      if (isForeignKeyViolation(error)) {
         return Result.fail<ContractedService>(
           'Referenced customer, service plan or device does not exist'
         );
@@ -92,10 +97,12 @@ export class PrismaContractedServiceRepository
     customerId: CustomerId
   ): Promise<Result<ContractedService[]>> {
     try {
-      const rawRecords = await this.prisma.contractedService.findMany({
-        where: { customerId: customerId.toString() },
-        orderBy: { startDate: 'desc' }
-      });
+      const rawRecords = await this.prisma.contractedService.findMany(
+        {
+          where: { customerId: customerId.toString() },
+          orderBy: { startDate: 'desc' }
+        }
+      );
 
       return this.mapMany(rawRecords);
     } catch (error) {
@@ -111,10 +118,12 @@ export class PrismaContractedServiceRepository
     servicePlanId: ServicePlanId
   ): Promise<Result<ContractedService[]>> {
     try {
-      const rawRecords = await this.prisma.contractedService.findMany({
-        where: { servicePlanId: servicePlanId.toString() },
-        orderBy: { startDate: 'desc' }
-      });
+      const rawRecords = await this.prisma.contractedService.findMany(
+        {
+          where: { servicePlanId: servicePlanId.toString() },
+          orderBy: { startDate: 'desc' }
+        }
+      );
 
       return this.mapMany(rawRecords);
     } catch (error) {
@@ -130,10 +139,12 @@ export class PrismaContractedServiceRepository
     status: ContractedServiceStatus
   ): Promise<Result<ContractedService[]>> {
     try {
-      const rawRecords = await this.prisma.contractedService.findMany({
-        where: { status },
-        orderBy: { startDate: 'desc' }
-      });
+      const rawRecords = await this.prisma.contractedService.findMany(
+        {
+          where: { status },
+          orderBy: { startDate: 'desc' }
+        }
+      );
 
       return this.mapMany(rawRecords);
     } catch (error) {
@@ -178,11 +189,13 @@ export class PrismaContractedServiceRepository
     offset?: number
   ): Promise<Result<ContractedService[]>> {
     try {
-      const rawRecords = await this.prisma.contractedService.findMany({
-        take: limit,
-        skip: offset,
-        orderBy: { createdAt: 'desc' }
-      });
+      const rawRecords = await this.prisma.contractedService.findMany(
+        {
+          take: limit,
+          skip: offset,
+          orderBy: { createdAt: 'desc' }
+        }
+      );
 
       return this.mapMany(rawRecords);
     } catch (error) {
@@ -206,7 +219,7 @@ export class PrismaContractedServiceRepository
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (errorMessage.includes('P2025')) {
+      if (isRecordNotFound(error)) {
         return Result.fail<void>('Contracted service not found');
       }
 

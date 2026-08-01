@@ -84,6 +84,7 @@ function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
     existsByMacAddress: jest.fn(),
     existsByIpAddress: jest.fn(),
     findByFilters: jest.fn(),
+    countByFilters: jest.fn(),
     delete: jest.fn()
   } as unknown as jest.Mocked<IDeviceRepository>;
 }

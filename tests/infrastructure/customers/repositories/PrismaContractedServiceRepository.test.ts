@@ -18,6 +18,15 @@ import {
 } from '../../../../src/domain/shared/ids';
 import { EventDispatcher } from '../../../../src/domain/shared/core';
 
+// Shaped like a real Prisma error: the code lives on `code`, never in the
+// message text.
+function makePrismaError(code: string, message: string): Error {
+  const error = new Error(message);
+  (error as Error & { code: string }).code = code;
+  return error;
+}
+
+
 const CS_UUID = '550e8400-e29b-41d4-a716-446655440000';
 const CUSTOMER_UUID = '550e8400-e29b-41d4-a716-446655440001';
 const PLAN_UUID = '550e8400-e29b-41d4-a716-446655440002';
@@ -97,7 +106,7 @@ describe('PrismaContractedServiceRepository', () => {
 
     it('should map P2002 to a device-already-assigned failure', async () => {
       (prisma.contractedService.upsert as any).mockRejectedValue(
-        new Error('P2002')
+        makePrismaError('P2002', 'Unique constraint failed')
       );
 
       const result = await repository.save(makeService());
@@ -107,7 +116,7 @@ describe('PrismaContractedServiceRepository', () => {
 
     it('should map P2003 to a missing-reference failure', async () => {
       (prisma.contractedService.upsert as any).mockRejectedValue(
-        new Error('P2003')
+        makePrismaError('P2003', 'Foreign key constraint failed')
       );
 
       const result = await repository.save(makeService());

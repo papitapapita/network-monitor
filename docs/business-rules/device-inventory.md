@@ -124,6 +124,28 @@ optional.
 **Message:** `Vendor name is required` / `Vendor slug is required` (use case); `name is null or undefined` / `slug is null or undefined` (aggregate guards)
 **Tests:** `tests/domain/device-inventory/aggregates/Vendor.test.ts`, `tests/application/device-inventory/use-cases/CreateVendorUseCase.test.ts`
 
+### DEV-007 — Vendor names are unique
+
+**Type:** Invariant · **Status:** Active
+**Since:** 2026-08-01
+
+No two vendors may share a name. On update, a vendor may keep its own name —
+only a collision with a _different_ vendor is rejected. The comparison is exact:
+`Ubiquiti` and `ubiquiti` are two names, matching what the database constraint
+enforces. The slug (DEV-002) is what actually prevents that pair from becoming
+two vendors, since it is lowercase by construction.
+
+**Why:** The name is what operators pick equipment by. Two vendors carrying the
+same one makes the picker ambiguous exactly where the slug cannot help — a human
+reading a dropdown does not see slugs. The constraint existed in the database
+from the start; until 2026-08-01 nothing checked it in code, so a duplicate
+surfaced as a raw Prisma error instead of a sentence an operator could act on.
+
+**Enforced at:** `src/application/device-inventory/use-cases/CreateVendorUseCase.ts:49`, `UpdateVendorUseCase.ts:78`
+**Backed by:** `Vendor.name @unique` in `prisma/schema.prisma:47`
+**Message:** `A vendor with name "<name>" already exists`
+**Tests:** `tests/application/device-inventory/use-cases/CreateVendorUseCase.test.ts`, `UpdateVendorUseCase.test.ts`
+
 ---
 
 ## Device Model
@@ -520,17 +542,29 @@ ping, so the data would be silently wrong rather than absent.
 **Message:** `IP address "<value>" is already assigned to another device`
 **Note:** Same two-layer enforcement as DEV-047.
 
-### DEV-050 — An installation date must be a parseable date
+### DEV-050 — An installation date must be ISO 8601
 
 **Type:** Validation · **Status:** Active
-**Since:** 2026-07-28
+**Since:** 2026-07-28 · **Revised:** 2026-08-01
 
-Optional. Rejected if `new Date(value)` yields `Invalid Date`.
+Optional. Accepted forms are `YYYY-MM-DD` and `YYYY-MM-DDThh:mm[:ss[.sss]]` with
+an optional `Z` or `±hh:mm` offset. The calendar is checked too: `2024-02-31`
+and `2023-02-29` are rejected rather than rolled forward into the next month,
+as `new Date()` would.
 
-**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:176`, `UpdateDeviceUseCase.ts:128`
+**Why:** The date is entered by hand and read back as an ISO string, so anything
+the parser silently reinterprets — a locale form like `March 5, 2020`, or a day
+that does not exist in that month — stores a date nobody typed. Rejecting is
+cheap; a wrong installation date is discovered years later, if ever.
+
+Until 2026-08-01 the check was `!isNaN(new Date(v).getTime())`, which accepted
+both of those while the message promised ISO 8601 (was G-5). The HTTP layer
+already rejected non-ISO input via `z.string().datetime()`, so this only ever
+applied to callers that bypass the edge schema.
+
+**Enforced at:** `src/application/shared/utils/parseIso8601Date.ts`, called from `CreateDeviceUseCase.ts:196`, `UpdateDeviceUseCase.ts:127`
 **Message:** `Invalid installedDate: "<value>". Must be a valid ISO 8601 date string.`
-**Note:** The message promises ISO 8601 but the check is looser than that — see
-[G-5](#known-gaps).
+**Tests:** `tests/application/shared/utils/parseIso8601Date.test.ts`, `tests/application/device-inventory/use-cases/CreateDeviceUseCase.test.ts`
 
 ### DEV-051 — An installation date cannot be in the future
 
@@ -859,6 +893,29 @@ only stops the category moving any further.
 **Enforced at:** `src/application/device-inventory/use-cases/UpdateDeviceUseCase.ts:135-172`
 **Message:** `Cannot change the category of a device that has a wireless config. Delete the wireless config first, then recategorise the device.`
 **Tests:** `tests/application/device-inventory/use-cases/UpdateDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`
+
+### DEV-066 — A device's model must exist
+
+**Type:** Invariant · **Status:** Active
+**Since:** 2026-08-01
+
+Creation verifies that `deviceModelId` names a real device model before building
+the aggregate; DEV-063 does the same on the correction path. The check runs
+before any other lookup, so a request naming a missing model is rejected without
+spending a uniqueness query on its MAC or IP.
+
+**Why:** `deviceModelId` decides which collector polls the device (DEV-024),
+whether it may hold a wireless configuration (DEV-062) and which alert rules
+apply, so a device pointing at nothing is not a device the system can act on.
+The database already refuses the row — the check exists so the caller is told
+`Device model not found` instead of a raw Prisma foreign-key error naming a
+constraint they have never heard of. Until 2026-08-01 only the correction path
+checked, so the create path returned that raw error.
+
+**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:92`, `UpdateDeviceUseCase.ts:262`
+**Backed by:** `Device.deviceModelId` FK with `onDelete: Restrict` in `prisma/schema.prisma`
+**Message:** `Device model not found: <id>` / `Failed to verify device model: <error>`
+**Tests:** `tests/application/device-inventory/use-cases/CreateDeviceUseCase.test.ts`
 
 ---
 
@@ -1208,7 +1265,7 @@ means `401`.
 ### DEV-141 — Write access to the catalogue is role-gated
 
 **Type:** Policy · **Status:** Active
-**Since:** 2026-07-28
+**Since:** 2026-07-28 · **Revised:** 2026-08-01
 
 | Operation   | Permission | ADMIN | OPERATOR | VIEWER |
 | ----------- | ---------- | :---: | :------: | :----: |
@@ -1217,14 +1274,14 @@ means `401`.
 | Update      | `update`   |  ✅   |    ✅    |   ❌   |
 | Delete      | `delete`   |  ✅   |    ❌    |   ❌   |
 
-Applies uniformly to devices, device models, locations, vendors, credentials and
-network scanning.
+Applies uniformly to devices, device models, locations, vendors and network
+scanning. Credential writes are the one carve-out — see DEV-144.
 
 **Why:** Deletion is the only irreversible operation in the catalogue and the
 one that can strip records from equipment in the field, so it is held to
 administrators. Operators need create and update to do daily inventory work.
 
-**Enforced at:** `src/domain/identity/permissions/Permission.ts:11` (`ROLE_PERMISSIONS`), applied per route via `authorize(...)`
+**Enforced at:** `src/domain/identity/permissions/Permission.ts:12` (`ROLE_PERMISSIONS`), applied per route via `authorize(...)`
 
 **Note:** Credentials are gated by the same generic `update` / `read` / `delete`
 permissions as any other resource — an OPERATOR can set device passwords. See
@@ -1262,6 +1319,75 @@ meaningful. /31 and /32 are exempt because they have no reserved pair.
 **Enforced at:** `src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.ts:25`, `:50`
 **Message:** `segment is required`
 
+### DEV-144 — Setting or clearing device credentials is administrator-only
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-08-01
+
+`PUT` and `DELETE /api/devices/:id/credentials` require a dedicated
+`manage-credentials` permission, granted to ADMIN alone. `GET` stays on `read`
+(DEV-141) because the response is masked (DEV-129).
+
+**Why:** These endpoints write the passwords and SNMP keys that open the
+equipment itself. Under DEV-141 they sat behind the same `update` permission as
+renaming a device, so every OPERATOR could rewrite the credentials of any device
+— an escalation from "may edit inventory records" to "may take over the
+hardware" that nothing in the role name suggests (was G-6). A separate
+permission means widening that access later is a deliberate one-line grant
+rather than a side effect of who may edit a record.
+
+**Enforced at:** `src/domain/identity/permissions/Permission.ts` (`manage-credentials` in `ROLE_PERMISSIONS`), applied at `src/presentation/http/routes/credentials.routes.ts:22`, `:34`
+**Message:** `Forbidden` (HTTP 403)
+**Tests:** `tests/presentation/http/middleware/authorize.test.ts`, `tests/domain/identity/permissions/Permission.test.ts`
+
+### DEV-145 — Filtered listings paginate in the database
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-08-01
+
+A filtered device listing pushes `limit` and `offset` into the query and takes
+its `total` from a second count query over the same filters. The page and the
+count therefore agree on what "matching" means — both build their `where` from
+the same place — and `total` remains the size of the whole match, not of the
+page.
+
+**Why:** Until 2026-08-01 the filtered path loaded every matching device and
+sliced the array in memory (was G-7), so the cost of `GET /api/devices?status=ACTIVE`
+grew with the fleet no matter how small a page the caller asked for. DEV-142
+caps what is returned; this is what makes the cap also bound the work. The
+unfiltered path already paginated in SQL, so the two now behave the same way.
+
+**Enforced at:** `src/application/device-inventory/use-cases/ListDevicesUseCase.ts:152`, backed by `PrismaDeviceRepository.countByFilters`
+**Tests:** `tests/application/device-inventory/use-cases/ListDevicesUseCase.test.ts`, `tests/infrastructure/persistence/PrismaDeviceRepository.test.ts`
+
+### DEV-146 — Request rate is budgeted per user, per resource
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-08-01
+
+Each route carries one of four buckets: reads 100/min, writes 60/min, deletes
+60/min, bulk import 5/hour. The counter is keyed by the authenticated user id —
+IP only for unauthenticated callers — and each route file holds its own counter,
+so device deletes and vendor deletes do not draw on the same budget. Over the
+limit is `429`, `{ success: false, error: 'Too many requests' }`.
+
+**Why:** The limits exist to bound damage from a runaway client or a stolen
+token, not to pace human work — so they have to sit above what an operator
+clearing a batch of records actually does. The delete bucket was 10/min until
+2026-08-01, which an operator hit by deleting eleven things in a minute.
+
+Keying by user rather than IP is what makes the numbers mean anything: on a
+shared office address a per-IP budget is divided by however many people are
+working, so the effective limit changed with the staffing. It also stops one
+careless client from locking out everyone sitting behind the same router.
+
+**Consequence.** Counters live in memory, per process. With more than one
+instance behind a load balancer the effective limit is the bucket times the
+number of instances — see the Priority 5 item in `docs/TODOS.md`.
+
+**Enforced at:** `src/presentation/http/middleware/rateLimiter.ts`, applied per route via `createRateLimiter(...)`
+**Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`
+
 ---
 
 ## Known gaps
@@ -1270,48 +1396,17 @@ Discrepancies found while reconciling this document against the code. Each is a
 decision to make, not a bug report — recorded here so the rule book states what
 is true rather than what was intended.
 
-**G-5 — The installedDate message over-promises.**
-DEV-050 says "Must be a valid ISO 8601 date string" but the check is
-`!isNaN(new Date(v).getTime())`, which accepts `"March 5, 2020"` and other
-non-ISO forms. Either tighten the check or soften the message.
-
-**G-6 — Credentials use generic CRUD permissions.**
-DEV-141 gates credential writes behind the same `update` permission as renaming
-a device, so any OPERATOR can set device passwords. If credential management
-should be admin-only, it needs its own permission rather than reusing `update`.
-
-**G-7 — Filtered listings paginate in memory.**
-`findByFilters` takes no limit/offset, so `ListDevicesUseCase.listByFilters`
-loads every matching device and slices the array
-(`ListDevicesUseCase.ts:168`). Unfiltered listings paginate in SQL correctly.
-Fine at current fleet size; the shape of the problem is worth knowing before it
-matters.
-
-**G-8 — `Vendor.name` is unique in the database but unchecked in code.**
-`prisma/schema.prisma:47` marks it `@unique`, but `CreateVendorUseCase` only
-checks the slug. A duplicate vendor name surfaces as a raw Prisma error instead
-of the clean `A vendor with ... already exists` message that a duplicate slug
-produces. Either add the check (and a rule) or drop the constraint.
-
-**G-9 — Device creation does not check that the device model exists.**
-`CreateDeviceUseCase` parses `deviceModelId` but never looks it up, so a
-well-formed UUID for a non-existent model surfaces as a raw Prisma foreign-key
-error rather than the clean `Device model not found: <id>` that the correction
-path (DEV-063) returns. Same shape of problem as G-8. The fix is to inject
-`IDeviceModelRepository` into the create use case as well.
-
-**G-12 — Eight repositories test for `P2002` in the error message.**
-`PrismaCustomerRepository`, `PrismaServicePlanRepository`,
-`PrismaContractedServiceRepository`, `PrismaUserRepository`,
-`PrismaLocationRepository`, `PrismaVendorRepository`,
-`PrismaDeviceModelRepository` and `PrismaBillRepository` all branch on
-`errorMessage.includes('P2002')`. That string is never in a Prisma error
-message, so each falls through to its raw `Database error ...` wording instead
-of the clean duplicate message it meant to return. Found while putting the
-device repository on `error.code` (DEV-047, DEV-049); the one-line fix is
-`isUniqueViolation(error)` from
-`src/infrastructure/persistence/prisma-errors.ts`. Left alone here because the
-affected rules live in other contexts' rule books, which are not yet written.
+G-5 through G-12 were closed on 2026-08-01 and their history now lives on the
+rules themselves — DEV-050 (G-5), DEV-144 (G-6), DEV-145 (G-7), DEV-007 (G-8),
+DEV-066 (G-9). G-12 was an infrastructure defect with no rule of its own in this
+book: every repository that branched on `errorMessage.includes('P2002')` now
+calls `isUniqueViolation(error)` from
+`src/infrastructure/persistence/prisma-errors.ts`, and the `P2003` and `P2025`
+branches beside it — which were broken the same way, and never fired either —
+now call `isForeignKeyViolation` and `isRecordNotFound`. The clean duplicate,
+foreign-key and not-found messages those repositories always meant to return now
+actually reach the caller. The rules affected belong to contexts whose rule books
+are not yet written.
 
 **G-13 — A wireless category on a non-wireless model is legal, deliberately.**
 Nothing requires `category ∈ {WIRELESS_CPE, ACCESS_POINT}` to imply

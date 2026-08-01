@@ -5,6 +5,7 @@ import { LocationType } from 'domain/device-inventory/value-objects';
 import { Result, EventDispatcher } from 'domain/shared/core';
 import { ILocationRepository } from 'domain/device-inventory/repository';
 import { LocationMapper } from '../mappers';
+import { isRecordNotFound, isUniqueViolation } from './prisma-errors';
 
 export class PrismaLocationRepository implements ILocationRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -38,7 +39,7 @@ export class PrismaLocationRepository implements ILocationRepository {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (errorMessage.includes('P2002')) {
+      if (isUniqueViolation(error)) {
         return Result.fail<Location>(
           'A location with these unique values already exists'
         );
@@ -184,7 +185,7 @@ export class PrismaLocationRepository implements ILocationRepository {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (errorMessage.includes('P2025')) {
+      if (isRecordNotFound(error)) {
         return Result.fail<void>('Location not found');
       }
 

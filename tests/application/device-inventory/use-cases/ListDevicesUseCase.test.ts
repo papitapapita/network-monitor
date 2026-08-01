@@ -58,7 +58,8 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
     existsByMacAddress: jest.fn(),
     existsByIpAddress: jest.fn(),
     findByLocationIds: jest.fn(),
-    findByFilters: jest.fn()
+    findByFilters: jest.fn(),
+    countByFilters: jest.fn()
   };
 }
 
@@ -222,11 +223,12 @@ describe('ListDevicesUseCase', () => {
   });
 
   // =========================================================================
-  describe('with filters — in-memory pagination path', () => {
+  describe('with filters — DB-level pagination path', () => {
     beforeEach(() => {
       repo.findByFilters.mockResolvedValue(
         Result.ok(makeDevicePage(10))
       );
+      repo.countByFilters.mockResolvedValue(Result.ok(10));
     });
 
     it('should call findByFilters (not findAll) when a status filter is provided', async () => {
@@ -315,7 +317,7 @@ describe('ListDevicesUseCase', () => {
       expect(filters.sortOrder).toBe('ASC');
     });
 
-    it('should not pass limit/offset inside findByFilters (uses in-memory pagination)', async () => {
+    it('[DEV-145] should push limit/offset into findByFilters', async () => {
       await useCase.execute({
         status: 'ACTIVE',
         limit: 5,
@@ -323,14 +325,15 @@ describe('ListDevicesUseCase', () => {
       });
 
       const filters = repo.findByFilters.mock.calls[0][0];
-      expect(filters.limit).toBeUndefined();
-      expect(filters.offset).toBeUndefined();
+      expect(filters.limit).toBe(5);
+      expect(filters.offset).toBe(10);
     });
 
-    it('should apply in-memory pagination using the limit and offset', async () => {
+    it('[DEV-145] should return the page the repository returned, unsliced', async () => {
       repo.findByFilters.mockResolvedValue(
-        Result.ok(makeDevicePage(30))
+        Result.ok(makeDevicePage(10))
       );
+      repo.countByFilters.mockResolvedValue(Result.ok(30));
 
       const result = await useCase.execute({
         status: 'ACTIVE',
@@ -341,10 +344,11 @@ describe('ListDevicesUseCase', () => {
       expect(result.value!.devices).toHaveLength(10);
     });
 
-    it('should set total to the full result count before in-memory pagination', async () => {
+    it('[DEV-145] should take total from countByFilters, not from the page length', async () => {
       repo.findByFilters.mockResolvedValue(
-        Result.ok(makeDevicePage(30))
+        Result.ok(makeDevicePage(10))
       );
+      repo.countByFilters.mockResolvedValue(Result.ok(30));
 
       const result = await useCase.execute({
         status: 'ACTIVE',
@@ -355,10 +359,24 @@ describe('ListDevicesUseCase', () => {
       expect(result.value!.total).toBe(30);
     });
 
+    it('[DEV-145] should count without limit/offset so the total is the whole match', async () => {
+      await useCase.execute({
+        status: 'ACTIVE',
+        limit: 5,
+        offset: 10
+      });
+
+      const counted = repo.countByFilters.mock.calls[0][0];
+      expect(counted.limit).toBeUndefined();
+      expect(counted.offset).toBeUndefined();
+      expect(counted.status!.toString()).toBe('ACTIVE');
+    });
+
     it('should set hasMore to true when more filtered items remain', async () => {
       repo.findByFilters.mockResolvedValue(
-        Result.ok(makeDevicePage(30))
+        Result.ok(makeDevicePage(10))
       );
+      repo.countByFilters.mockResolvedValue(Result.ok(30));
 
       const result = await useCase.execute({
         status: 'ACTIVE',
@@ -371,8 +389,9 @@ describe('ListDevicesUseCase', () => {
 
     it('should set hasMore to false when all filtered items are covered', async () => {
       repo.findByFilters.mockResolvedValue(
-        Result.ok(makeDevicePage(15))
+        Result.ok(makeDevicePage(5))
       );
+      repo.countByFilters.mockResolvedValue(Result.ok(15));
 
       const result = await useCase.execute({
         status: 'ACTIVE',
@@ -394,8 +413,20 @@ describe('ListDevicesUseCase', () => {
       expect(result.error).toContain('query failed');
     });
 
+    it('should fail when countByFilters returns a repository error', async () => {
+      repo.countByFilters.mockResolvedValue(
+        Result.fail('count failed')
+      );
+
+      const result = await useCase.execute({ status: 'ACTIVE' });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('count failed');
+    });
+
     it('should return a successful Result for an empty filtered result', async () => {
       repo.findByFilters.mockResolvedValue(Result.ok([]));
+      repo.countByFilters.mockResolvedValue(Result.ok(0));
 
       const result = await useCase.execute({
         status: 'INVENTORY'
@@ -461,6 +492,7 @@ describe('ListDevicesUseCase', () => {
   describe('filter validation — case-insensitive enum values', () => {
     beforeEach(() => {
       repo.findByFilters.mockResolvedValue(Result.ok([]));
+      repo.countByFilters.mockResolvedValue(Result.ok(0));
     });
 
     it('should accept lowercase status values', async () => {

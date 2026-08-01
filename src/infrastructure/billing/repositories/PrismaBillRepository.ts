@@ -9,6 +9,10 @@ import { BillId, CustomerId } from 'domain/shared/ids';
 import { BillingPeriod } from 'domain/billing/value-objects';
 import { Result, EventDispatcher } from 'domain/shared/core';
 import { BillPrismaMapper } from '../mappers';
+import {
+  isForeignKeyViolation,
+  isUniqueViolation
+} from '../../persistence/prisma-errors';
 
 const DEFAULT_LIMIT = 20;
 const DEFAULT_OFFSET = 0;
@@ -46,12 +50,12 @@ export class PrismaBillRepository implements IBillRepository {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (errorMessage.includes('P2002')) {
+      if (isUniqueViolation(error)) {
         return Result.fail<Bill>(
           'A bill for this customer and period already exists'
         );
       }
-      if (errorMessage.includes('P2003')) {
+      if (isForeignKeyViolation(error)) {
         return Result.fail<Bill>(
           'Referenced customer does not exist'
         );

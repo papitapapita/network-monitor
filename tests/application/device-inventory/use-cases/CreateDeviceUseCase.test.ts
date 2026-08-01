@@ -2,7 +2,10 @@
 
 import { IPAddress, MACAddress } from 'domain/shared';
 import { CreateDeviceUseCase } from '../../../../src/application/device-inventory/use-cases';
-import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository';
+import {
+  IDeviceModelRepository,
+  IDeviceRepository
+} from '../../../../src/domain/device-inventory/repository';
 import { ILogger } from '../../../../src/application/shared/interfaces';
 import { Result } from '../../../../src/domain/shared/core';
 import { Device } from '../../../../src/domain/device-inventory/aggregates';
@@ -48,7 +51,21 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
     existsByMacAddress: jest.fn(),
     existsByIpAddress: jest.fn(),
     findByLocationIds: jest.fn(),
-    findByFilters: jest.fn()
+    findByFilters: jest.fn(),
+    countByFilters: jest.fn()
+  };
+}
+
+function makeModelRepo(): jest.Mocked<IDeviceModelRepository> {
+  return {
+    save: jest.fn(),
+    findById: jest.fn(),
+    findAll: jest.fn(),
+    findByVendor: jest.fn(),
+    delete: jest.fn(),
+    exists: jest.fn(),
+    existsByVendorAndModel: jest.fn(),
+    count: jest.fn()
   };
 }
 
@@ -73,13 +90,17 @@ function makeMinimalRequest(
 
 describe('CreateDeviceUseCase', () => {
   let repo: jest.Mocked<IDeviceRepository>;
+  let modelRepo: jest.Mocked<IDeviceModelRepository>;
   let logger: ILogger;
   let useCase: CreateDeviceUseCase;
 
   beforeEach(() => {
     repo = makeRepo();
+    modelRepo = makeModelRepo();
     logger = makeLogger();
-    useCase = new CreateDeviceUseCase(repo, logger);
+    useCase = new CreateDeviceUseCase(repo, modelRepo, logger);
+
+    modelRepo.exists.mockResolvedValue(Result.ok(true));
 
     // Default: no existing MAC or IP, save succeeds
     repo.existsByMacAddress.mockResolvedValue(Result.ok(false));
@@ -344,6 +365,54 @@ describe('CreateDeviceUseCase', () => {
   });
 
   // =========================================================================
+  describe('[DEV-066] executeImpl — device model lookup', () => {
+    it('should fail when the device model does not exist', async () => {
+      modelRepo.exists.mockResolvedValue(Result.ok(false));
+
+      const result = await useCase.execute(makeMinimalRequest());
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Device model not found');
+    });
+
+    it('should not save when the device model does not exist', async () => {
+      modelRepo.exists.mockResolvedValue(Result.ok(false));
+
+      await useCase.execute(makeMinimalRequest());
+
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('should propagate a repository failure from exists', async () => {
+      modelRepo.exists.mockResolvedValue(Result.fail('DB timeout'));
+
+      const result = await useCase.execute(makeMinimalRequest());
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Failed to verify device model');
+    });
+
+    it('should look the model up by the parsed id', async () => {
+      await useCase.execute(makeMinimalRequest());
+
+      expect(modelRepo.exists).toHaveBeenCalledTimes(1);
+      expect(modelRepo.exists.mock.calls[0][0].toString()).toBe(
+        VALID_DEVICE_MODEL_ID
+      );
+    });
+
+    it('should not check uniqueness of MAC before the model is verified', async () => {
+      modelRepo.exists.mockResolvedValue(Result.ok(false));
+
+      await useCase.execute(
+        makeMinimalRequest({ macAddress: 'AA:BB:CC:DD:EE:FF' })
+      );
+
+      expect(repo.existsByMacAddress).not.toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
   describe('[DEV-050] executeImpl — installedDate parsing', () => {
     it('should fail when installedDate is not a valid date string', async () => {
       const request = makeMinimalRequest({
@@ -364,6 +433,37 @@ describe('CreateDeviceUseCase', () => {
       const result = await useCase.execute(request);
 
       expect(result.isSuccess).toBe(true);
+    });
+
+    it('should accept a date-only ISO 8601 value', async () => {
+      const request = makeMinimalRequest({
+        installedDate: '2024-01-15'
+      });
+
+      const result = await useCase.execute(request);
+
+      expect(result.isSuccess).toBe(true);
+    });
+
+    it('should reject a locale date string that new Date() would accept', async () => {
+      const request = makeMinimalRequest({
+        installedDate: 'March 5, 2020'
+      });
+
+      const result = await useCase.execute(request);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Invalid installedDate');
+    });
+
+    it('should reject an ISO-shaped value that is not a real date', async () => {
+      const request = makeMinimalRequest({
+        installedDate: '2024-02-31'
+      });
+
+      const result = await useCase.execute(request);
+
+      expect(result.isFailure).toBe(true);
     });
 
     it('should succeed when installedDate is null', async () => {

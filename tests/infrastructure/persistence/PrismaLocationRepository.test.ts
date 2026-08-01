@@ -7,6 +7,15 @@ import { LocationId } from '../../../src/domain/shared/ids';
 import { LocationType } from '../../../src/domain/device-inventory/value-objects';
 import { Result, EventDispatcher } from '../../../src/domain/shared/core';
 
+// Shaped like a real Prisma error: the code lives on `code`, never in the
+// message text.
+function makePrismaError(code: string, message: string): Error {
+  const error = new Error(message);
+  (error as Error & { code: string }).code = code;
+  return error;
+}
+
+
 // ---------------------------------------------------------------------------
 // Module-level mocks
 // ---------------------------------------------------------------------------
@@ -197,7 +206,7 @@ describe('PrismaLocationRepository', () => {
     describe('Prisma P2002 unique constraint error', () => {
       it('should return a failed Result without throwing', async () => {
         prisma.location.upsert.mockRejectedValue(
-          new Error('Unique constraint failed on the fields: (`name`) P2002')
+          makePrismaError('P2002', 'Unique constraint failed on the fields: (`name`)')
         );
 
         const result = await repository.save(fakeLocation);
@@ -207,7 +216,7 @@ describe('PrismaLocationRepository', () => {
 
       it('should include a descriptive unique-constraint message in the error', async () => {
         prisma.location.upsert.mockRejectedValue(
-          new Error('Unique constraint failed P2002')
+          makePrismaError('P2002', 'Unique constraint failed')
         );
 
         const result = await repository.save(fakeLocation);
@@ -216,7 +225,7 @@ describe('PrismaLocationRepository', () => {
       });
 
       it('should not dispatch events when the upsert fails', async () => {
-        prisma.location.upsert.mockRejectedValue(new Error('P2002 violation'));
+        prisma.location.upsert.mockRejectedValue(makePrismaError('P2002', 'Unique constraint failed'));
 
         await repository.save(fakeLocation);
 
@@ -605,7 +614,7 @@ describe('PrismaLocationRepository', () => {
     describe('P2025 — record not found', () => {
       it('should return a failed Result when Prisma throws a P2025 error', async () => {
         prisma.location.delete.mockRejectedValue(
-          new Error('Record to delete does not exist P2025')
+          makePrismaError('P2025', 'Record to delete does not exist')
         );
 
         const result = await repository.delete(fakeLocationId);
@@ -615,7 +624,7 @@ describe('PrismaLocationRepository', () => {
 
       it('should return the message "Location not found" for P2025 errors', async () => {
         prisma.location.delete.mockRejectedValue(
-          new Error('P2025: Record not found')
+          makePrismaError('P2025', 'Record not found')
         );
 
         const result = await repository.delete(fakeLocationId);

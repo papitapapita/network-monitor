@@ -18,6 +18,14 @@ import {
   EventDispatcher
 } from '../../../src/domain/shared/core';
 
+// Shaped like a real Prisma error: the code lives on `code`, never in the
+// message text.
+function makePrismaError(code: string, message: string): Error {
+  const error = new Error(message);
+  (error as Error & { code: string }).code = code;
+  return error;
+}
+
 // ---------------------------------------------------------------------------
 // Module-level mocks
 // ---------------------------------------------------------------------------
@@ -527,7 +535,7 @@ describe('PrismaDeviceRepository', () => {
     describe('P2025 — record not found', () => {
       it('should return a failed Result for P2025 errors', async () => {
         prisma.device.delete.mockRejectedValue(
-          new Error('Record to delete does not exist P2025')
+          makePrismaError('P2025', 'Record to delete does not exist')
         );
 
         const result = await repository.delete(fakeDeviceId);
@@ -537,7 +545,7 @@ describe('PrismaDeviceRepository', () => {
 
       it('should return the message "Device not found" for P2025 errors', async () => {
         prisma.device.delete.mockRejectedValue(
-          new Error('P2025: Record not found')
+          makePrismaError('P2025', 'Record not found')
         );
 
         const result = await repository.delete(fakeDeviceId);
@@ -1363,6 +1371,61 @@ describe('PrismaDeviceRepository', () => {
 
         expect(result.error).toContain('query timeout');
       });
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-145] countByFilters()', () => {
+    it('should count with the same where clause findByFilters builds', async () => {
+      const status = DeviceStatus.createActive();
+      prisma.device.findMany.mockResolvedValue([]);
+      prisma.device.count.mockResolvedValue(0);
+
+      await repository.findByFilters({ status, search: 'router' });
+      await repository.countByFilters({ status, search: 'router' });
+
+      const found = prisma.device.findMany.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      const counted = prisma.device.count.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(counted.where).toEqual(found.where);
+    });
+
+    it('should not pass take or skip to count', async () => {
+      prisma.device.count.mockResolvedValue(0);
+
+      await repository.countByFilters({ limit: 10, offset: 20 });
+
+      const counted = prisma.device.count.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(counted.take).toBeUndefined();
+      expect(counted.skip).toBeUndefined();
+    });
+
+    it('should return the count', async () => {
+      prisma.device.count.mockResolvedValue(42);
+
+      const result = await repository.countByFilters({});
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value).toBe(42);
+    });
+
+    it('should return a failed Result when count throws', async () => {
+      prisma.device.count.mockRejectedValue(new Error('io error'));
+
+      const result = await repository.countByFilters({});
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'Database error counting devices by filters'
+      );
     });
   });
 });

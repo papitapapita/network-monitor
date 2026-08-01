@@ -1,4 +1,5 @@
 import { PrismaClient } from '../../../../src/generated/prisma/client';
+import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDeviceModelRepository';
 import { CreateDeviceUseCase } from 'application/device-inventory/use-cases/CreateDeviceUseCase';
 import { GetDeviceUseCase } from 'application/device-inventory/use-cases/GetDeviceUseCase';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
@@ -30,7 +31,11 @@ describe('GetDeviceUseCase — integration', () => {
 
     const repo = new PrismaDeviceRepository(prisma);
     const logger = new WinstonLogger();
-    createUseCase = new CreateDeviceUseCase(repo, logger);
+    createUseCase = new CreateDeviceUseCase(
+      repo,
+      new PrismaDeviceModelRepository(prisma),
+      logger
+    );
     getUseCase = new GetDeviceUseCase(repo, logger);
   });
 

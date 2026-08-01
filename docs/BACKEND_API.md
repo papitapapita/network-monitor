@@ -42,18 +42,28 @@ Missing or invalid tokens return `401`. Insufficient role returns `403`.
 
 | Role | Allowed operations |
 |------|--------------------|
-| `ADMIN` | read, create, update, delete, activate, bulk-import |
+| `ADMIN` | read, create, update, delete, activate, bulk-import, manage-credentials |
 | `OPERATOR` | read, create, update, activate, bulk-import |
 | `VIEWER` | read only |
 
-### Rate limits (per IP)
+`manage-credentials` gates writes to `/api/devices/:id/credentials` only — those
+endpoints carry device passwords and SNMP keys, so they are not covered by the
+generic `update` permission. Reading them stays on `read` because the response is
+masked.
+
+### Rate limits (per authenticated user)
 
 | Operation type | Limit |
 |----------------|-------|
 | Read (`GET`) | 100 / min |
-| Write (`POST`, `PATCH`, `PUT`) | 20 / min |
-| Delete (`DELETE`) | 10 / min |
+| Write (`POST`, `PATCH`, `PUT`) | 60 / min |
+| Delete (`DELETE`) | 60 / min |
 | Bulk import | 5 / hr |
+
+Counters are keyed by user id, falling back to IP for unauthenticated requests,
+so operators sharing one office address do not share a budget. Each resource
+has its own counter — 60 device deletes and 60 vendor deletes in the same minute
+is fine. Exceeding a bucket returns `429` with `{ success: false, error: 'Too many requests' }`.
 
 ---
 
@@ -331,7 +341,7 @@ Returns all locations that have coordinates, each with their nested devices. Int
 ## Devices `/api/devices`
 
 ### `POST /api/devices` — Create
-**Status:** 201
+**Status:** 201 | 400 | 404
 
 ```ts
 // Request body
@@ -352,9 +362,11 @@ Returns all locations that have coordinates, each with their nested devices. Int
 ```
 
 **Business rules:**
+- `deviceModelId` must name an existing device model — a well-formed UUID for a model that does not exist returns `404` with `Device model not found: <id>`
 - `INVENTORY` / `DAMAGED` status → at least one of `serialNumber` or `macAddress` required (status defaults to `INVENTORY`, so a minimal request must include at least one)
 - `COMMISSIONING` status → `ipAddress` required; `monitoringEnabled` is forced `true` regardless of what is sent
 - `ACTIVE` status → `ipAddress` and `locationId` required
+- `installedDate` must be ISO 8601 — `YYYY-MM-DD` or `YYYY-MM-DDThh:mm[:ss[.sss]]` with an optional `Z`/`±hh:mm` offset. Locale forms (`March 5, 2020`) and impossible dates (`2024-02-31`) are rejected, not reinterpreted
 
 ```ts
 // Response
@@ -392,6 +404,10 @@ sortOrder?:        'ASC' | 'DESC'  // default: DESC
   }
 }
 ```
+
+> `total` is the number of devices matching the filters, not the number returned
+> in `devices`. Filtered and unfiltered listings both paginate in the database,
+> so page size bounds the work the query does.
 
 ---
 
@@ -436,13 +452,16 @@ sortOrder?:        'ASC' | 'DESC'  // default: DESC
   macAddress?: string | null
   ipAddress?: string | null
   description?: string | null
-  installedDate?: string | null
+  installedDate?: string | null  // ISO 8601; null clears it
   monitoringEnabled?: boolean
 }
 
 // Response
 { success: true, data: DeviceDTO }
 ```
+
+`installedDate` follows the same ISO 8601 rule as create — locale forms and
+impossible calendar dates are rejected rather than reinterpreted.
 
 **`deviceModelId` — correcting a mis-registered model**
 
@@ -556,7 +575,8 @@ interface DeviceCredentialsResponseDTO {
 ---
 
 ### `PUT /api/devices/:id/credentials` — Set Credentials
-**Status:** 200 | 400 | 404
+**Status:** 200 | 400 | 403 | 404  
+**Roles:** ADMIN (`manage-credentials`)
 
 Upserts the credentials for the device. **HTTP credentials are the required pair** and are replaced on every call.
 
@@ -603,7 +623,8 @@ The SNMP fields are optional and **nothing polls them today** — all polling is
 ---
 
 ### `GET /api/devices/:id/credentials` — Get Credentials
-**Status:** 200 | 404
+**Status:** 200 | 404  
+**Roles:** ADMIN, OPERATOR, VIEWER (`read` — the response is masked)
 
 ```ts
 // Response — DeviceCredentialsResponseDTO (raw, no wrapper)
@@ -614,7 +635,8 @@ The SNMP fields are optional and **nothing polls them today** — all polling is
 ---
 
 ### `DELETE /api/devices/:id/credentials` — Delete Credentials
-**Status:** 204 | 404
+**Status:** 204 | 403 | 404  
+**Roles:** ADMIN (`manage-credentials`)
 
 ```ts
 // No request body
@@ -642,7 +664,9 @@ The SNMP fields are optional and **nothing polls them today** — all polling is
 { success: true, data: VendorDTO }
 ```
 
-> Returns 409 if a vendor with the same slug already exists.
+> Returns 409 if a vendor with the same slug **or the same name** already
+> exists. Name comparison is exact — `Ubiquiti` and `ubiquiti` are two names,
+> but their slugs would collide, so the pair is still rejected.
 
 ---
 
@@ -694,7 +718,8 @@ offset?: number  // ≥0, default 0
 { success: true, data: VendorDTO }
 ```
 
-> Returns 409 if the new slug is already taken by another vendor.
+> Returns 409 if the new slug or the new name is already taken by another
+> vendor. Submitting the vendor's own slug or name is not a conflict.
 
 ---
 

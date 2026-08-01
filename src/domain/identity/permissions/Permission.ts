@@ -6,7 +6,8 @@ export type Permission =
   | 'update'
   | 'delete'
   | 'activate'
-  | 'bulk-import';
+  | 'bulk-import'
+  | 'manage-credentials';
 
 export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   [UserRole.ADMIN]: [
@@ -15,7 +16,8 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'update',
     'delete',
     'activate',
-    'bulk-import'
+    'bulk-import',
+    'manage-credentials'
   ],
   [UserRole.OPERATOR]: [
     'read',

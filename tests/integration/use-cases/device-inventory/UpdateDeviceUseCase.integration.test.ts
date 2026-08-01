@@ -40,7 +40,11 @@ describe('UpdateDeviceUseCase — integration', () => {
       prisma
     );
     const logger = new WinstonLogger();
-    createUseCase = new CreateDeviceUseCase(repo, logger);
+    createUseCase = new CreateDeviceUseCase(
+      repo,
+      new PrismaDeviceModelRepository(prisma),
+      logger
+    );
     updateUseCase = new UpdateDeviceUseCase(
       repo,
       modelRepo,

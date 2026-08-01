@@ -6,6 +6,15 @@ import { VendorId } from '../../../src/domain/shared/ids/VendorId';
 import { Vendor } from '../../../src/domain/device-inventory/aggregates/Vendor';
 import { EventDispatcher } from '../../../src/domain/shared/core';
 
+// Shaped like a real Prisma error: the code lives on `code`, never in the
+// message text.
+function makePrismaError(code: string, message: string): Error {
+  const error = new Error(message);
+  (error as Error & { code: string }).code = code;
+  return error;
+}
+
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -118,7 +127,7 @@ describe('PrismaVendorRepository', () => {
     describe('Prisma P2002 unique constraint error', () => {
       it('should return isFailure=true when Prisma throws a P2002 error', async () => {
         (prisma.vendor.upsert as any).mockRejectedValue(
-          new Error('Unique constraint failed P2002')
+          makePrismaError('P2002', 'Unique constraint failed')
         );
 
         const result = await repository.save(vendor);
@@ -128,7 +137,7 @@ describe('PrismaVendorRepository', () => {
 
       it('should include "already exists" in the error message for P2002', async () => {
         (prisma.vendor.upsert as any).mockRejectedValue(
-          new Error('P2002 constraint')
+          makePrismaError('P2002', 'Unique constraint failed')
         );
 
         const result = await repository.save(vendor);
@@ -138,7 +147,7 @@ describe('PrismaVendorRepository', () => {
 
       it('should not dispatch events when upsert fails with P2002', async () => {
         (prisma.vendor.upsert as any).mockRejectedValue(
-          new Error('P2002 violation')
+          makePrismaError('P2002', 'Unique constraint failed')
         );
 
         await repository.save(vendor);
@@ -394,7 +403,7 @@ describe('PrismaVendorRepository', () => {
     describe('P2025 — record not found', () => {
       it('should return isFailure=true when Prisma throws a P2025 error', async () => {
         (prisma.vendor.delete as any).mockRejectedValue(
-          new Error('Record to delete does not exist P2025')
+          makePrismaError('P2025', 'Record to delete does not exist')
         );
 
         const result = await repository.delete(vendorId);
@@ -404,7 +413,7 @@ describe('PrismaVendorRepository', () => {
 
       it('should include "not found" in the error message for P2025', async () => {
         (prisma.vendor.delete as any).mockRejectedValue(
-          new Error('P2025: Record not found')
+          makePrismaError('P2025', 'Record not found')
         );
 
         const result = await repository.delete(vendorId);

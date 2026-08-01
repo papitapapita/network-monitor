@@ -50,7 +50,8 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
     existsByMacAddress: jest.fn(),
     existsByIpAddress: jest.fn(),
     findByLocationIds: jest.fn(),
-    findByFilters: jest.fn()
+    findByFilters: jest.fn(),
+    countByFilters: jest.fn()
   };
 }
 

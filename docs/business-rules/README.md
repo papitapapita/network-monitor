@@ -11,7 +11,7 @@ different document for a different audience.
 
 | Context | File | Rules |
 | --- | --- | --- |
-| Device Inventory | [device-inventory.md](device-inventory.md) | `DEV-001` … `DEV-143` |
+| Device Inventory | [device-inventory.md](device-inventory.md) | `DEV-001` … `DEV-146` |
 | Customers | _not yet written_ | `CUS-` |
 | Billing | _not yet written_ | `BIL-` |
 | Device Monitoring | _not yet written_ | `MON-` |

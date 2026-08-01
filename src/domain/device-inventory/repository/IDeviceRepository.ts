@@ -9,6 +9,20 @@ import { DeviceStatus, DeviceCategory } from '../value-objects';
 import { DeviceOwnerType } from '../enums';
 import { Device } from '../aggregates/Device';
 
+export interface DeviceFilters {
+  status?: DeviceStatus;
+  category?: DeviceCategory;
+  owner?: DeviceOwnerType;
+  locationId?: LocationId;
+  deviceModelId?: DeviceModelId;
+  monitoringEnabled?: boolean;
+  search?: string;
+  sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'status';
+  sortOrder?: 'ASC' | 'DESC';
+  limit?: number;
+  offset?: number;
+}
+
 export interface IDeviceRepository {
   save(device: Device): Promise<Result<Device>>; // dispatches domain events on success
   findById(id: DeviceId): Promise<Result<Device | null>>;
@@ -34,17 +48,6 @@ export interface IDeviceRepository {
   ): Promise<Result<boolean>>;
   existsByIpAddress(ipAddress: IPAddress): Promise<Result<boolean>>;
 
-  findByFilters(filters: {
-    status?: DeviceStatus;
-    category?: DeviceCategory;
-    owner?: DeviceOwnerType;
-    locationId?: LocationId;
-    deviceModelId?: DeviceModelId;
-    monitoringEnabled?: boolean;
-    search?: string;
-    sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'status';
-    sortOrder?: 'ASC' | 'DESC';
-    limit?: number;
-    offset?: number;
-  }): Promise<Result<Device[]>>;
+  findByFilters(filters: DeviceFilters): Promise<Result<Device[]>>;
+  countByFilters(filters: DeviceFilters): Promise<Result<number>>;
 }

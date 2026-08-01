@@ -481,6 +481,7 @@ export class DependencyContainer {
     // Initialize device use cases
     const createDeviceUseCase = new CreateDeviceUseCase(
       this.deviceRepository,
+      this.deviceModelRepository,
       this.logger
     );
     const getDeviceUseCase = new GetDeviceUseCase(
