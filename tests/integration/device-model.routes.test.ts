@@ -104,7 +104,7 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(res.status).toBe(403);
     });
 
-    it('[DEV-028] 201 — copies the vendor name and slug onto the model', async () => {
+    it('[DEV-028] 201 — returns the vendor name and slug with the new model', async () => {
       const res = await request(app)
         .post('/api/device-models')
         .set('Authorization', `Bearer ${adminToken}`)
@@ -371,7 +371,7 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(row!.model).toBe('hAP ac3');
     });
 
-    it('[DEV-028] 200 — refreshes vendorName and vendorSlug when the vendor changes', async () => {
+    it('[DEV-028] 200 — returns the new vendorName and vendorSlug when the vendor changes', async () => {
       const otherVendorId = await seedVendor(prisma, {
         name: 'Ubiquiti',
         slug: 'ubiquiti'

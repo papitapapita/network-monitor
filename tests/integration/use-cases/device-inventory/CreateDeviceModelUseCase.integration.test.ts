@@ -55,7 +55,7 @@ describe('CreateDeviceModelUseCase — integration', () => {
     expect(result.value.deviceType).toBe('ROUTERBOARD');
   });
 
-  it('[DEV-028] persists a copy of the vendor name and slug on the model row', async () => {
+  it('[DEV-028] reports the vendor name and slug of the row it linked to', async () => {
     const result = await useCase.execute({
       vendorId,
       model: 'hEX S',

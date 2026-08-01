@@ -3,6 +3,8 @@
 import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { UpdateVendorUseCase } from 'application/device-inventory/use-cases/UpdateVendorUseCase';
 import { PrismaVendorRepository } from 'infrastructure/persistence/PrismaVendorRepository';
+import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDeviceModelRepository';
+import { DeviceModelId } from 'domain/shared/ids';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import {
   setupDependencies,
@@ -14,6 +16,7 @@ describe('UpdateVendorUseCase — integration', () => {
   let container: DependencyContainer;
   let prisma: PrismaClient;
   let useCase: UpdateVendorUseCase;
+  let deviceModelRepository: PrismaDeviceModelRepository;
 
   beforeAll(async () => {
     container = await setupDependencies();
@@ -22,6 +25,7 @@ describe('UpdateVendorUseCase — integration', () => {
     const repo = new PrismaVendorRepository(prisma);
     const logger = new WinstonLogger();
     useCase = new UpdateVendorUseCase(repo, logger);
+    deviceModelRepository = new PrismaDeviceModelRepository(prisma);
   });
 
   afterAll(async () => {
@@ -67,6 +71,34 @@ describe('UpdateVendorUseCase — integration', () => {
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.description).toBeNull();
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // DEV-028 — the vendor name and slug device models carry
+  // ──────────────────────────────────────────────────────────────
+
+  it('[DEV-028] a rename reaches device models already pointing at the vendor', async () => {
+    const vendorId = await seedVendor(prisma, {
+      name: 'Old Name',
+      slug: 'old-slug'
+    });
+    const row = await prisma.deviceModel.create({
+      data: { vendorId, model: 'NanoBeam 5AC', deviceType: 'ANTENNA' }
+    });
+
+    const result = await useCase.execute({
+      id: vendorId,
+      name: 'New Name',
+      slug: 'new-slug'
+    });
+    expect(result.isSuccess).toBe(true);
+
+    const reloaded = await deviceModelRepository.findById(
+      DeviceModelId.parse(row.id).value
+    );
+
+    expect(reloaded.value!.vendorName).toBe('New Name');
+    expect(reloaded.value!.vendorSlug).toBe('new-slug');
   });
 
   // ──────────────────────────────────────────────────────────────

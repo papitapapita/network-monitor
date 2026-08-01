@@ -47,7 +47,7 @@ Required, non-empty, at most 100 characters, matching
 leading, trailing or doubled hyphens.
 
 **Why:** The slug is the stable machine identifier for a vendor: it appears in
-URLs and is denormalized onto every device model. Restricting it to a URL-safe
+URLs and on every device model of that vendor. Restricting it to a URL-safe
 alphabet means it never needs escaping, and forbidding uppercase prevents
 `Ubiquiti` and `ubiquiti` from being treated as two vendors.
 
@@ -63,7 +63,7 @@ No two vendors may share a slug. On update, a vendor may keep its own slug —
 only a collision with a _different_ vendor is rejected.
 
 **Why:** The slug identifies a vendor across the system. Two vendors sharing one
-would make the identifier ambiguous everywhere it is denormalized.
+would make the identifier ambiguous everywhere it is reported.
 
 **Enforced at:** `src/application/device-inventory/use-cases/CreateVendorUseCase.ts:44`, `UpdateVendorUseCase.ts:62`
 **Backed by:** `Vendor.slug @unique` in `prisma/schema.prisma:48`
@@ -108,9 +108,10 @@ name or a slug once created. DEV-001 and DEV-002 then govern the shape of each.
 
 **Why:** The pair is the whole of a vendor's identity, and the two halves are
 not interchangeable. The name is what a human reads in an equipment picker; the
-slug is what the system stores and links by, denormalized onto every device
-model (DEV-028). A vendor missing the name is unusable to operators, one missing
-the slug is unaddressable to the code — so neither can be optional.
+slug is what the system stores and links by, and both are reported on every
+device model of that vendor (DEV-028). A vendor missing the name is unusable to
+operators, one missing the slug is unaddressable to the code — so neither can be
+optional.
 
 **Enforced at:** `src/domain/device-inventory/aggregates/Vendor.ts:104` (`validateName` guard), `:124` (`validateSlug` guard); use case pre-check at `CreateVendorUseCase.ts:23-28`; HTTP fast-fail in `src/presentation/http/validation/vendor.schemas.ts:10-24`
 **Reached from:** `create`, `updateName`, `updateSlug`
@@ -145,7 +146,7 @@ time `create` runs, the value has already been through `DeviceType.create`.
 Checked on create and on any update that changes the vendor.
 
 **Why:** Prevents dangling references, and the lookup also supplies the vendor
-name and slug copied onto the model (DEV-028).
+name and slug the model reports until its next read (DEV-028).
 
 **Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceModelUseCase.ts:63`, `UpdateDeviceModelUseCase.ts:77`
 **Message:** `Vendor not found: <id>`

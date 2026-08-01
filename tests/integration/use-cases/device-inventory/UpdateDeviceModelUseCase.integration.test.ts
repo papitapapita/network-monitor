@@ -84,10 +84,10 @@ describe('UpdateDeviceModelUseCase — integration', () => {
   });
 
   // ──────────────────────────────────────────────────────────────
-  // DEV-028 — denormalised vendor name and slug
+  // DEV-028 — the vendor name and slug reported on the model
   // ──────────────────────────────────────────────────────────────
 
-  it('[DEV-028] refreshes the stored vendor name and slug when the vendor changes', async () => {
+  it('[DEV-028] reports the new vendor name and slug when the vendor changes', async () => {
     const otherVendorId = await seedVendor(prisma, {
       name: 'Ubiquiti',
       slug: 'ubiquiti'
