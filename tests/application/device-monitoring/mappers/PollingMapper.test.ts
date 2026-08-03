@@ -8,6 +8,7 @@ import { DeviceId } from 'domain/shared/ids/DeviceId';
 import { PollingConfigurationId } from 'domain/shared/ids/PollingConfigurationId';
 import { PollingInterval } from 'domain/device-monitoring/value-objects/PollingInterval';
 import { FailureThreshold } from 'domain/device-monitoring/value-objects/FailureThreshold';
+import { ReachabilityStatus } from 'domain/device-monitoring/value-objects/ReachabilityStatus';
 import { IPAddress } from 'domain/shared/value-objects/IPAddress';
 
 // ---------------------------------------------------------------------------
@@ -75,6 +76,7 @@ function makePollingConfig(overrides: {
 
 function makeDeviceState(overrides: {
   isOnline?: boolean;
+  status?: ReachabilityStatus;
   lastCheckedAt?: Date | null;
   consecutiveFailures?: number;
   lastLatencyMs?: number | null;
@@ -85,7 +87,11 @@ function makeDeviceState(overrides: {
     deviceId,
     {
       deviceId,
-      isOnline: overrides.isOnline ?? true,
+      status:
+        overrides.status ??
+        ((overrides.isOnline ?? true)
+          ? ReachabilityStatus.createUp()
+          : ReachabilityStatus.createDown()),
       lastSeen: overrides.lastSeen ?? FIXED_LAST_CHECKED,
       lastLatencyMs: overrides.lastLatencyMs ?? 25,
       consecutiveFailures: overrides.consecutiveFailures ?? 0,
@@ -211,6 +217,29 @@ describe('PollingMapper', () => {
         const dto = PollingMapper.toStatusDTO(config, state, ping);
 
         expect(dto.currentStatus).toBe('OFFLINE');
+      });
+
+      it('[MON-002] should set currentStatus to UNKNOWN for a stored UNKNOWN status, not just a missing row', () => {
+        const config = makePollingConfig();
+        const state = makeDeviceState({
+          status: ReachabilityStatus.createUnknown()
+        });
+        const ping = makePingRecord();
+
+        const dto = PollingMapper.toStatusDTO(config, state, ping);
+
+        expect(dto.currentStatus).toBe('UNKNOWN');
+      });
+
+      it('[MON-002] should report UNKNOWN rather than OFFLINE for a paused device that was down', () => {
+        const config = makePollingConfig();
+        const state = makeDeviceState({ isOnline: false });
+        state.markUnknown(FIXED_LAST_CHECKED);
+        const ping = makePingRecord();
+
+        const dto = PollingMapper.toStatusDTO(config, state, ping);
+
+        expect(dto.currentStatus).toBe('UNKNOWN');
       });
 
       it('should set consecutiveFailures from state.consecutiveFailures', () => {

@@ -6,6 +6,7 @@ import { EventDispatcher } from '../../../src/domain/shared/core/EventDispatcher
 import { DeviceState } from '../../../src/domain/device-monitoring/aggregates/DeviceState';
 import { DeviceId } from '../../../src/domain/shared/ids/DeviceId';
 import { DeviceStateProps } from '../../../src/domain/device-monitoring/props/DeviceStateProps';
+import { ReachabilityStatus } from '../../../src/domain/device-monitoring/value-objects/ReachabilityStatus';
 
 // ---------------------------------------------------------------------------
 // Module-level mocks
@@ -40,7 +41,7 @@ function makeFakePrismaRow(overrides: Record<string, unknown> = {}) {
   return {
     id:                  VALID_ROW_ID,
     deviceId:            VALID_DEVICE_UUID,
-    isOnline:            true,
+    status:              'UP',
     lastSeen:            FIXED_DATE,
     lastLatencyMs:       20,
     consecutiveFailures: 0,
@@ -54,7 +55,7 @@ function makeFakeDomainState(overrides: Partial<DeviceStateProps> = {}): DeviceS
   const deviceId = makeDeviceId();
   const props: DeviceStateProps = {
     deviceId,
-    isOnline:            true,
+    status:              ReachabilityStatus.createUp(),
     lastSeen:            FIXED_DATE,
     lastLatencyMs:       20,
     consecutiveFailures: 0,
@@ -65,10 +66,12 @@ function makeFakeDomainState(overrides: Partial<DeviceStateProps> = {}): DeviceS
   return DeviceState.reconstitute(deviceId, props);
 }
 
-function makeFakePersistenceData() {
+function makeFakePersistenceData(): ReturnType<
+  typeof DeviceStateMapper.toPersistence
+> {
   return {
     deviceId:            VALID_DEVICE_UUID,
-    isOnline:            true,
+    status:              'UP',
     lastSeen:            FIXED_DATE,
     lastLatencyMs:       20,
     consecutiveFailures: 0,

@@ -70,7 +70,17 @@ export class ExecutePollingCycleUseCase extends UseCase<
       );
     }
 
-    if (!forceExecution && !config.enabled) {
+    // Monitoring off means nobody is tracking this device, and forceExecution
+    // does not override that: a manual poll would write a real reading over the
+    // UNKNOWN state with nothing scheduled to ever correct it again. The
+    // scheduler never asks for a disabled device, so the skip below is
+    // defensive; the failure is the one a caller actually sees.
+    if (!config.enabled) {
+      if (forceExecution) {
+        return this.fail(
+          `Monitoring is disabled for device ${deviceId} — enable monitoring before polling it`
+        );
+      }
       return this.ok(
         PollingMapper.toSkippedResultDTO(deviceId.toString(), now)
       );
@@ -123,6 +133,23 @@ export class ExecutePollingCycleUseCase extends UseCase<
     }
     this.probeHealth.recordProbeExecuted(deviceId.toString());
 
+    // Monitoring can be turned off while this cycle is in flight — the attempt
+    // loop above runs for several seconds, and the suspend that clears the state
+    // is dispatched without being awaited. Re-read before writing anything, or
+    // this result resurrects the UNKNOWN status that was just set and can raise
+    // an outage alert for a device nobody is watching any more.
+    const recheckResult =
+      await this.pollingConfigRepo.findByDeviceId(deviceId);
+    if (
+      recheckResult.isSuccess &&
+      recheckResult.value &&
+      !recheckResult.value.enabled
+    ) {
+      return this.ok(
+        PollingMapper.toSkippedResultDTO(deviceId.toString(), now)
+      );
+    }
+
     // history sample only — losing it must not stop the state update below,
     // which is what drives alerting and scheduling
     const pingSaveResult = await this.pingResultRepo.save({
@@ -146,17 +173,10 @@ export class ExecutePollingCycleUseCase extends UseCase<
       );
     }
 
-    const isFirstPoll = stateResult.value === null;
-    const deviceState = isFirstPoll
-      ? DeviceState.createInitial(deviceId)
-      : stateResult.value!;
+    const deviceState =
+      stateResult.value ?? DeviceState.createInitial(deviceId);
 
-    deviceState.applyPingResult(
-      isReachable,
-      latencyMs,
-      now,
-      isFirstPoll
-    );
+    deviceState.applyPingResult(isReachable, latencyMs, now);
 
     // DeviceState save first: its repository dispatches domain events
     // (online/offline transitions). Config save is housekeeping only.

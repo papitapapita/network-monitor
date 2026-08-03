@@ -1,8 +1,9 @@
 import { DeviceId } from 'domain/shared/ids';
+import { ReachabilityStatus } from '../value-objects/ReachabilityStatus';
 
 export interface DeviceStateProps {
   readonly deviceId: DeviceId;
-  isOnline: boolean;
+  status: ReachabilityStatus;
   lastSeen: Date | null;
   lastLatencyMs: number | null;
   consecutiveFailures: number;

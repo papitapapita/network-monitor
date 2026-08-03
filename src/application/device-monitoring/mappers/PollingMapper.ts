@@ -74,11 +74,7 @@ export class PollingMapper {
       failuresBeforeDown: config.failuresBeforeDown.value,
       lastPolled: lastCheckedAt,
       nextScheduled,
-      currentStatus: state
-        ? state.isOnline
-          ? 'ONLINE'
-          : 'OFFLINE'
-        : 'UNKNOWN',
+      currentStatus: PollingMapper.toDeviceStatusLabel(state),
       lastResult: lastPing
         ? this.toPingResultDTO(
             lastPing,
@@ -189,13 +185,21 @@ export class PollingMapper {
           : null,
       // No live state: use ping reachability as the best available status indicator.
       deviceStatus: state
-        ? state.isOnline
-          ? 'ONLINE'
-          : 'OFFLINE'
+        ? PollingMapper.toDeviceStatusLabel(state)
         : ping.isReachable
           ? 'ONLINE'
           : 'OFFLINE'
     };
+  }
+
+  // The wire contract predates the three-valued domain status and is unchanged:
+  // UP/DOWN/UNKNOWN are reported as ONLINE/OFFLINE/UNKNOWN. A null state means
+  // no row yet, which is the same "nobody has looked" as a stored UNKNOWN.
+  private static toDeviceStatusLabel(
+    state: DeviceState | null
+  ): 'ONLINE' | 'OFFLINE' | 'UNKNOWN' {
+    if (!state || state.status.isUnknown()) return 'UNKNOWN';
+    return state.status.isUp() ? 'ONLINE' : 'OFFLINE';
   }
 
   private static toMetricsDTO(latencyMs: number): PollingMetricsDTO {

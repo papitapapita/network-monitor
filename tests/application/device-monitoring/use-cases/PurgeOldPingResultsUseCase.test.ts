@@ -45,7 +45,7 @@ describe('PurgeOldPingResultsUseCase', () => {
   describe('execute()', () => {
     // -----------------------------------------------------------------------
     describe('happy path', () => {
-      it('should call deleteOlderThan with the cutoff date computed from retentionDays', async () => {
+      it('[MON-040] should call deleteOlderThan with the cutoff date computed from retentionDays', async () => {
         const retentionDays = 30;
         const expectedCutoff = new Date(
           FIXED_TIMESTAMP - retentionDays * 86_400_000

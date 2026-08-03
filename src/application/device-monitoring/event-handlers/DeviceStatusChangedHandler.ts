@@ -1,13 +1,13 @@
 import { IHandle } from 'domain/shared/interfaces';
 import { DeviceStatusChangedEvent } from 'domain/device-inventory/events';
-import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
 import { ILogger } from 'application/shared/interfaces';
+import { SuspendDeviceMonitoringUseCase } from '../use-cases/SuspendDeviceMonitoringUseCase';
 
 export class DeviceStatusChangedHandler
   implements IHandle<DeviceStatusChangedEvent>
 {
   constructor(
-    private readonly pollingConfigRepo: IPollingConfigurationRepository,
+    private readonly suspendDeviceMonitoring: SuspendDeviceMonitoringUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -21,18 +21,15 @@ export class DeviceStatusChangedHandler
     const deviceId = event.aggregateId;
 
     try {
-      const result = await this.pollingConfigRepo.findByDeviceId(deviceId);
-      if (result.isFailure || !result.value) {
-        return;
+      const result =
+        await this.suspendDeviceMonitoring.execute(deviceId);
+      if (result.isFailure) {
+        this.logger.error(
+          '[DeviceStatusChangedHandler] Failed to suspend monitoring',
+          undefined,
+          { deviceId: deviceId.toString(), error: result.error }
+        );
       }
-
-      const config = result.value;
-      if (!config.enabled) {
-        return;
-      }
-
-      config.disable();
-      await this.pollingConfigRepo.save(config);
     } catch (error) {
       this.logger.error(
         '[DeviceStatusChangedHandler] Unexpected error',

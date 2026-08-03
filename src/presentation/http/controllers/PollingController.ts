@@ -157,6 +157,12 @@ export class PollingController {
   };
 
   private getErrorStatusCode(errorMessage: string): number {
+    // The device exists and the request is well formed; it is the device's
+    // current state that refuses the poll.
+    if (errorMessage.includes('Monitoring is disabled')) {
+      return 409;
+    }
+
     if (
       errorMessage.includes('not found') ||
       errorMessage.includes('No polling configuration')

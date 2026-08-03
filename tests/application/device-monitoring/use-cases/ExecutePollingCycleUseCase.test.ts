@@ -10,6 +10,7 @@ import { Result } from '../../../../src/domain/shared/core/Result';
 import { PollingConfiguration } from '../../../../src/domain/device-monitoring/entities/PollingConfiguration';
 import { PollingConfigurationId } from '../../../../src/domain/shared/ids/PollingConfigurationId';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
+import { ReachabilityStatus } from '../../../../src/domain/device-monitoring/value-objects/ReachabilityStatus';
 import { IPAddress } from '../../../../src/domain/shared/value-objects/IPAddress';
 import { PollingInterval } from '../../../../src/domain/device-monitoring/value-objects/PollingInterval';
 import { FailureThreshold } from '../../../../src/domain/device-monitoring/value-objects/FailureThreshold';
@@ -102,7 +103,7 @@ function makeDeviceState(
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const props: DeviceStateProps = {
     deviceId,
-    isOnline: true,
+    status: ReachabilityStatus.createUp(),
     lastSeen: FIXED_DATE,
     lastLatencyMs: 12,
     consecutiveFailures: 0,
@@ -251,10 +252,43 @@ describe('ExecutePollingCycleUseCase', () => {
   });
 
   // ===========================================================================
-  describe('executeImpl — forceExecution overrides disabled state', () => {
-    it('should proceed with ping when forceExecution is true even if polling is disabled', async () => {
+  describe('executeImpl — forceExecution does not override disabled monitoring', () => {
+    it('[MON-004] should fail rather than poll a device whose monitoring is off', async () => {
       configRepo.findByDeviceId.mockResolvedValue(
         Result.ok(makeConfig({ enabled: false }))
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ forceExecution: true })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Monitoring is disabled');
+    });
+
+    it('[MON-004] should not ping a device whose monitoring is off', async () => {
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig({ enabled: false }))
+      );
+
+      await useCase.execute(makeRequest({ forceExecution: true }));
+
+      expect(pingService.ping).not.toHaveBeenCalled();
+    });
+
+    it('[MON-004] should not write device state for a device whose monitoring is off', async () => {
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig({ enabled: false }))
+      );
+
+      await useCase.execute(makeRequest({ forceExecution: true }));
+
+      expect(deviceStateRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('should still poll normally when monitoring is enabled', async () => {
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig({ enabled: true }))
       );
       pingService.ping.mockResolvedValue(
         Result.ok({ isReachable: true, latencyMs: 10 })
@@ -269,6 +303,50 @@ describe('ExecutePollingCycleUseCase', () => {
 
       expect(result.isSuccess).toBe(true);
       expect(pingService.ping).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ===========================================================================
+  describe('executeImpl — monitoring turned off mid-cycle', () => {
+    // The attempt loop runs for seconds and the suspend that clears the state is
+    // dispatched without being awaited, so this race is reachable in production.
+    function arrangeDisabledMidCycle() {
+      configRepo.findByDeviceId
+        .mockResolvedValueOnce(Result.ok(makeConfig({ enabled: true })))
+        .mockResolvedValueOnce(Result.ok(makeConfig({ enabled: false })));
+      pingService.ping.mockResolvedValue(
+        Result.ok({ isReachable: false, latencyMs: null })
+      );
+      pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeDeviceState({ status: ReachabilityStatus.createUp() }))
+      );
+      deviceStateRepo.save.mockResolvedValue(Result.ok(makeDeviceState()));
+    }
+
+    it('[MON-002] should skip rather than resurrect the state cleared by the suspend', async () => {
+      arrangeDisabledMidCycle();
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.status).toBe('SKIPPED');
+    });
+
+    it('[MON-002] should not write device state when monitoring was turned off mid-cycle', async () => {
+      arrangeDisabledMidCycle();
+
+      await useCase.execute(makeRequest());
+
+      expect(deviceStateRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('[MON-002] should not record a ping sample when monitoring was turned off mid-cycle', async () => {
+      arrangeDisabledMidCycle();
+
+      await useCase.execute(makeRequest());
+
+      expect(pingResultRepo.save).not.toHaveBeenCalled();
     });
   });
 
@@ -334,10 +412,10 @@ describe('ExecutePollingCycleUseCase', () => {
       );
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
       deviceStateRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeDeviceState({ isOnline: true, consecutiveFailures: 0 }))
+        Result.ok(makeDeviceState({ status: ReachabilityStatus.createUp(), consecutiveFailures: 0 }))
       );
       deviceStateRepo.save.mockResolvedValue(
-        Result.ok(makeDeviceState({ isOnline: true, consecutiveFailures: 0 }))
+        Result.ok(makeDeviceState({ status: ReachabilityStatus.createUp(), consecutiveFailures: 0 }))
       );
     });
 
@@ -401,7 +479,7 @@ describe('ExecutePollingCycleUseCase', () => {
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
       deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
       deviceStateRepo.save.mockResolvedValue(
-        Result.ok(makeDeviceState({ isOnline: false, consecutiveFailures: 1 }))
+        Result.ok(makeDeviceState({ status: ReachabilityStatus.createDown(), consecutiveFailures: 1 }))
       );
 
       const result = await useCase.execute(makeRequest());
@@ -418,7 +496,7 @@ describe('ExecutePollingCycleUseCase', () => {
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
       deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
       deviceStateRepo.save.mockResolvedValue(
-        Result.ok(makeDeviceState({ isOnline: false }))
+        Result.ok(makeDeviceState({ status: ReachabilityStatus.createDown() }))
       );
 
       const result = await useCase.execute(makeRequest());
@@ -456,10 +534,10 @@ describe('ExecutePollingCycleUseCase', () => {
         .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }));
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
       deviceStateRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeDeviceState({ isOnline: true, consecutiveFailures: 0 }))
+        Result.ok(makeDeviceState({ status: ReachabilityStatus.createUp(), consecutiveFailures: 0 }))
       );
       deviceStateRepo.save.mockResolvedValue(
-        Result.ok(makeDeviceState({ isOnline: false, consecutiveFailures: 1 }))
+        Result.ok(makeDeviceState({ status: ReachabilityStatus.createDown(), consecutiveFailures: 1 }))
       );
 
       const result = await useCase.execute(makeRequest());
@@ -477,10 +555,10 @@ describe('ExecutePollingCycleUseCase', () => {
         .mockResolvedValueOnce(Result.ok({ isReachable: true, latencyMs: 22 }));
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
       deviceStateRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeDeviceState({ isOnline: false, consecutiveFailures: 1 }))
+        Result.ok(makeDeviceState({ status: ReachabilityStatus.createDown(), consecutiveFailures: 1 }))
       );
       deviceStateRepo.save.mockResolvedValue(
-        Result.ok(makeDeviceState({ isOnline: true, consecutiveFailures: 0 }))
+        Result.ok(makeDeviceState({ status: ReachabilityStatus.createUp(), consecutiveFailures: 0 }))
       );
 
       const result = await useCase.execute(makeRequest());
@@ -501,7 +579,7 @@ describe('ExecutePollingCycleUseCase', () => {
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
       deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
       deviceStateRepo.save.mockResolvedValue(
-        Result.ok(makeDeviceState({ isOnline: false, consecutiveFailures: 1 }))
+        Result.ok(makeDeviceState({ status: ReachabilityStatus.createDown(), consecutiveFailures: 1 }))
       );
 
       await useCase.execute(makeRequest());
@@ -519,7 +597,7 @@ describe('ExecutePollingCycleUseCase', () => {
         Result.ok({ isReachable: true, latencyMs: 15 })
       );
       deviceStateRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeDeviceState({ isOnline: true }))
+        Result.ok(makeDeviceState({ status: ReachabilityStatus.createUp() }))
       );
     });
 
@@ -632,7 +710,7 @@ describe('ExecutePollingCycleUseCase', () => {
     it('should not mark a reachable device as offline', async () => {
       pingService.ping.mockResolvedValue(Result.fail('spawn ENOENT'));
       deviceStateRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeDeviceState({ isOnline: true, consecutiveFailures: 0 }))
+        Result.ok(makeDeviceState({ status: ReachabilityStatus.createUp(), consecutiveFailures: 0 }))
       );
 
       await useCase.execute(makeRequest());

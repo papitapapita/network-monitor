@@ -1,6 +1,7 @@
 import { AggregateRoot } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 import { DeviceStateProps } from '../props';
+import { ReachabilityStatus } from '../value-objects';
 import {
   DeviceWentOfflineEvent,
   DeviceCameOnlineEvent
@@ -17,8 +18,13 @@ export class DeviceState extends AggregateRoot<
   get deviceId(): DeviceId {
     return this.props.deviceId;
   }
+  get status(): ReachabilityStatus {
+    return this.props.status;
+  }
+  // derived: callers that only care whether the device is answering right now
+  // should not have to reason about the third value
   get isOnline(): boolean {
-    return this.props.isOnline;
+    return this.props.status.isUp();
   }
   get lastSeen(): Date | null {
     return this.props.lastSeen;
@@ -33,13 +39,13 @@ export class DeviceState extends AggregateRoot<
     return this.props.lastCheckedAt;
   }
 
-  // isOnline: false represents "not yet observed", not a confirmed outage —
-  // applyPingResult relies on isFirstPoll to tell the two apart
+  // UNKNOWN, not DOWN: nothing has been observed yet, and applyPingResult reads
+  // that to know the first result is not a transition
   public static createInitial(deviceId: DeviceId): DeviceState {
     return new DeviceState(
       {
         deviceId,
-        isOnline: false,
+        status: ReachabilityStatus.createUnknown(),
         lastSeen: null,
         lastLatencyMs: null,
         consecutiveFailures: 0,
@@ -58,8 +64,10 @@ export class DeviceState extends AggregateRoot<
     return new DeviceState(props, id);
   }
 
-  // The probe could not be run at all, so reachability is unknown: record that
-  // an attempt happened without touching status, lastSeen or failure counts.
+  // The probe could not be run at all: record that an attempt happened without
+  // touching status, lastSeen or failure counts. Deliberately NOT a move to
+  // UNKNOWN — a local fault says nothing about the device, and demoting a
+  // known-DOWN device here would suppress the outage it is already in.
   // Advancing lastCheckedAt keeps the device on its normal schedule — leaving
   // it stale would make the scheduler re-queue the device on every tick.
   public applyPollFailure(checkedAt: Date): void {
@@ -67,38 +75,47 @@ export class DeviceState extends AggregateRoot<
     this.props.updatedAt = checkedAt;
   }
 
+  // Monitoring was turned off, so nobody is watching this device any more and
+  // its last reading must not be presented as current. lastSeen and the last
+  // latency survive: they are facts about the past, still true. Nulling
+  // lastCheckedAt makes the device due immediately if monitoring returns.
+  public markUnknown(at: Date): void {
+    this.props.status = ReachabilityStatus.createUnknown();
+    this.props.consecutiveFailures = 0;
+    this.props.lastCheckedAt = null;
+    this.props.updatedAt = at;
+  }
+
   // caller retries before calling this — isReachable is the definitive post-retry result
   public applyPingResult(
     isReachable: boolean,
     latencyMs: number | null,
-    checkedAt: Date,
-    isFirstPoll: boolean
+    checkedAt: Date
   ): void {
-    const previouslyOnline = this.props.isOnline;
+    const wasUnknown = this.props.status.isUnknown();
+    const wasUp = this.props.status.isUp();
 
     const newConsecutiveFailures = isReachable
       ? 0
       : this.props.consecutiveFailures + 1;
 
-    const newIsOnline = isReachable;
-
-    this.props.isOnline = newIsOnline;
+    this.props.status = isReachable
+      ? ReachabilityStatus.createUp()
+      : ReachabilityStatus.createDown();
     this.props.lastLatencyMs = latencyMs;
     this.props.consecutiveFailures = newConsecutiveFailures;
     this.props.lastCheckedAt = checkedAt;
     this.props.updatedAt = checkedAt;
     if (isReachable) this.props.lastSeen = checkedAt;
 
-    // On the first poll the previous state is unknown rather than offline, so a
-    // successful ping is not a recovery and must not raise CameOnline. A failed
-    // one is still a genuine outage — a device that is dead when first seen has
-    // to alert, or it would stay silent until its first recovery.
-    const cameOnline = isFirstPoll
-      ? false
-      : !previouslyOnline && newIsOnline;
-    const wentOffline = isFirstPoll
-      ? !newIsOnline
-      : previouslyOnline && !newIsOnline;
+    // From UNKNOWN the previous reachability was never observed, so a successful
+    // ping is not a recovery and must not raise CameOnline. A failed one is
+    // still a genuine outage — a device that is dead the first time it is seen
+    // has to alert, or it would stay silent until its first recovery.
+    const cameOnline = wasUnknown ? false : !wasUp && isReachable;
+    const wentOffline = wasUnknown
+      ? !isReachable
+      : wasUp && !isReachable;
 
     if (cameOnline) {
       this.addDomainEvent(

@@ -11,6 +11,7 @@ import { FailureThreshold } from '../../../../src/domain/device-monitoring/value
 import { DeviceName } from '../../../../src/domain/device-inventory/value-objects/DeviceName';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { DeviceMonitoringToggledEventProps } from '../../../../src/domain/device-inventory/props/DeviceMonitoringToggledEventProps';
+import { SuspendDeviceMonitoringUseCase } from '../../../../src/application/device-monitoring/use-cases/SuspendDeviceMonitoringUseCase';
 
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
 const VALID_CONFIG_UUID = '550e8400-e29b-41d4-a716-446655440002';
@@ -79,15 +80,23 @@ function makeEvent(
   });
 }
 
+function makeSuspendUseCase(): jest.Mocked<SuspendDeviceMonitoringUseCase> {
+  return {
+    execute: jest.fn().mockResolvedValue(Result.ok(undefined))
+  } as unknown as jest.Mocked<SuspendDeviceMonitoringUseCase>;
+}
+
 describe('DeviceMonitoringToggledHandler', () => {
   let repo: jest.Mocked<IPollingConfigurationRepository>;
+  let suspend: jest.Mocked<SuspendDeviceMonitoringUseCase>;
   let logger: jest.Mocked<ILogger>;
   let handler: DeviceMonitoringToggledHandler;
 
   beforeEach(() => {
     repo = makeRepo();
+    suspend = makeSuspendUseCase();
     logger = makeLogger();
-    handler = new DeviceMonitoringToggledHandler(repo, logger);
+    handler = new DeviceMonitoringToggledHandler(repo, suspend, logger);
   });
 
   afterEach(() => {
@@ -253,48 +262,50 @@ describe('DeviceMonitoringToggledHandler', () => {
     });
   });
 
-  describe('handle — monitoring disabled with an existing config', () => {
-    it('should call disable() and save the existing config', async () => {
-      const config = makeConfig({ enabled: true });
-      repo.findByDeviceId.mockResolvedValue(Result.ok(config));
-      repo.save.mockResolvedValue(Result.ok(config));
-
-      await handler.handle(
-        makeEvent({ monitoringEnabled: false })
-      );
-
-      expect(config.enabled).toBe(false);
-      expect(repo.save).toHaveBeenCalledTimes(1);
-      expect(repo.save).toHaveBeenCalledWith(config);
-    });
-
-    it('should persist the config with enabled=false after disabling', async () => {
-      const config = makeConfig({ enabled: true });
-      repo.findByDeviceId.mockResolvedValue(Result.ok(config));
-      repo.save.mockResolvedValue(Result.ok(config));
+  describe('handle — monitoring disabled', () => {
+    it('[MON-002] should delegate the whole transition to SuspendDeviceMonitoringUseCase', async () => {
+      repo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
 
       await handler.handle(makeEvent({ monitoringEnabled: false }));
 
-      const savedConfig = repo.save.mock.calls[0][0];
-      expect(savedConfig.enabled).toBe(false);
+      expect(suspend.execute).toHaveBeenCalledTimes(1);
+      expect(suspend.execute.mock.calls[0][0].toString()).toBe(
+        VALID_DEVICE_UUID
+      );
     });
-  });
 
-  describe('handle — monitoring disabled with no existing config', () => {
-    it('should not call save when findByDeviceId returns null and monitoring is disabled', async () => {
+    it('[MON-002] should not disable the config itself — one writer owns the transition', async () => {
+      repo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+
+      await handler.handle(makeEvent({ monitoringEnabled: false }));
+
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('should delegate even when the device has no polling config', async () => {
       repo.findByDeviceId.mockResolvedValue(Result.ok(null));
 
       await handler.handle(makeEvent({ monitoringEnabled: false }));
 
-      expect(repo.save).not.toHaveBeenCalled();
+      expect(suspend.execute).toHaveBeenCalledTimes(1);
     });
 
-    it('should not call save when findByDeviceId returns a failure and monitoring is disabled', async () => {
-      repo.findByDeviceId.mockResolvedValue(Result.fail('DB error'));
+    it('should log an error when the suspension fails', async () => {
+      repo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      suspend.execute.mockResolvedValue(Result.fail('DB unavailable'));
 
       await handler.handle(makeEvent({ monitoringEnabled: false }));
 
-      expect(repo.save).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not throw when the suspension rejects', async () => {
+      repo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      suspend.execute.mockRejectedValue(new Error('Fatal'));
+
+      await expect(
+        handler.handle(makeEvent({ monitoringEnabled: false }))
+      ).resolves.toBeUndefined();
     });
   });
 

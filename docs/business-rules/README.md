@@ -14,7 +14,7 @@ different document for a different audience.
 | Device Inventory | [device-inventory.md](device-inventory.md) | `DEV-001` … `DEV-146` |
 | Customers | _not yet written_ | `CUS-` |
 | Billing | _not yet written_ | `BIL-` |
-| Device Monitoring | _not yet written_ | `MON-` |
+| Device Monitoring | [device-monitoring.md](device-monitoring.md) | `MON-001` … `MON-040` |
 | Wireless Monitoring | _not yet written_ | `WLS-` |
 | Notifications | _not yet written_ | `NOT-` |
 | Identity & Access | _not yet written_ | `IDN-` |
@@ -184,7 +184,8 @@ Written so far:
 - [x] Rule IDs in device-inventory test names (unit + integration)
 - [x] `Since` / `Revised` dates on every device-inventory rule
 - [x] Coverage script — `npm run test:rules`
-- [ ] Remaining seven contexts
+- [x] `device-monitoring.md` — the reachability lifecycle (not yet the whole context)
+- [ ] Remaining six contexts
 - [ ] Wire `npm run test:rules` into CI
 
 Until the other contexts are written, run the check scoped to a prefix

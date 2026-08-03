@@ -205,12 +205,22 @@ model Device {
 // ============================================================================
 // Updated every ping cycle. This is what the dashboard reads.
 // One row per device. Overwritten, not appended.
+// UNKNOWN means nobody is watching: either the device has never been polled,
+// or monitoring was turned off and the last reading must not be shown as current.
 // ============================================================================
+
+enum ReachabilityStatus {
+  UP
+  DOWN
+  UNKNOWN
+
+  @@map("reachability_status")
+}
 
 model DeviceState {
   id                  String   @id @default(uuid()) @db.Uuid
   deviceId            String   @unique @map("device_id") @db.Uuid
-  isOnline            Boolean  @default(false) @map("is_online")
+  status              ReachabilityStatus @default(UNKNOWN)
   lastSeen            DateTime? @map("last_seen") @db.Timestamptz
   lastLatencyMs       Decimal? @map("last_latency_ms") @db.Decimal(8, 2)
   consecutiveFailures Int      @default(0) @map("consecutive_failures")

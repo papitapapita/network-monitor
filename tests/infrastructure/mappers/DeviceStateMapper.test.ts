@@ -4,6 +4,7 @@ import { DeviceStateMapper } from '../../../src/infrastructure/mappers/DeviceSta
 import { DeviceState } from '../../../src/domain/device-monitoring/aggregates/DeviceState';
 import { DeviceId } from '../../../src/domain/shared/ids/DeviceId';
 import { DeviceStateProps } from '../../../src/domain/device-monitoring/props/DeviceStateProps';
+import { ReachabilityStatus } from '../../../src/domain/device-monitoring/value-objects/ReachabilityStatus';
 
 // ---------------------------------------------------------------------------
 // Constants & Fixtures
@@ -17,7 +18,7 @@ const LATER_DATE        = new Date('2024-06-01T11:00:00.000Z');
 type RawRow = {
   id:                  string;
   deviceId:            string;
-  isOnline:            boolean;
+  status:              string;
   lastSeen:            Date | null;
   lastLatencyMs:       unknown;
   consecutiveFailures: number;
@@ -29,7 +30,7 @@ function makeRawRow(overrides: Partial<RawRow> = {}): RawRow {
   return {
     id:                  VALID_ROW_ID,
     deviceId:            VALID_DEVICE_UUID,
-    isOnline:            true,
+    status:              'UP',
     lastSeen:            FIXED_DATE,
     lastLatencyMs:       20,
     consecutiveFailures: 0,
@@ -47,7 +48,7 @@ function makeDomainState(overrides: Partial<DeviceStateProps> = {}): DeviceState
   const deviceId = makeDeviceId();
   const props: DeviceStateProps = {
     deviceId,
-    isOnline:            true,
+    status:              ReachabilityStatus.createUp(),
     lastSeen:            FIXED_DATE,
     lastLatencyMs:       20,
     consecutiveFailures: 0,
@@ -77,16 +78,22 @@ describe('DeviceStateMapper', () => {
         expect(state.deviceId.toString()).toBe(VALID_DEVICE_UUID);
       });
 
-      it('should map isOnline to true', () => {
-        const state = DeviceStateMapper.toDomain(makeRawRow({ isOnline: true }));
+      it('should map a stored UP to an UP status', () => {
+        const state = DeviceStateMapper.toDomain(makeRawRow({ status: 'UP' }));
 
-        expect(state.isOnline).toBe(true);
+        expect(state.status.isUp()).toBe(true);
       });
 
-      it('should map isOnline to false', () => {
-        const state = DeviceStateMapper.toDomain(makeRawRow({ isOnline: false }));
+      it('should map a stored DOWN to a DOWN status', () => {
+        const state = DeviceStateMapper.toDomain(makeRawRow({ status: 'DOWN' }));
 
-        expect(state.isOnline).toBe(false);
+        expect(state.status.isDown()).toBe(true);
+      });
+
+      it('[MON-001] should map a stored UNKNOWN to an UNKNOWN status', () => {
+        const state = DeviceStateMapper.toDomain(makeRawRow({ status: 'UNKNOWN' }));
+
+        expect(state.status.isUnknown()).toBe(true);
       });
 
       it('should map lastSeen when a date is provided', () => {
@@ -170,6 +177,22 @@ describe('DeviceStateMapper', () => {
           'clearly-invalid'
         );
       });
+
+      it('[MON-001] should throw on a status the domain does not recognise', () => {
+        const raw = makeRawRow({ status: 'ONLINE' });
+
+        expect(() => DeviceStateMapper.toDomain(raw)).toThrow(
+          'Data integrity violation: unrecognised ReachabilityStatus "ONLINE" in device_states'
+        );
+      });
+
+      it('[MON-001] should reject a status that only matches after normalising, so drift surfaces', () => {
+        const raw = makeRawRow({ status: 'up' });
+
+        expect(() => DeviceStateMapper.toDomain(raw)).toThrow(
+          'Data integrity violation'
+        );
+      });
     });
   });
 
@@ -184,20 +207,20 @@ describe('DeviceStateMapper', () => {
         expect(raw.deviceId).toBe(VALID_DEVICE_UUID);
       });
 
-      it('should serialize isOnline as true', () => {
-        const state = makeDomainState({ isOnline: true });
+      it('should serialize an UP status as the string UP', () => {
+        const state = makeDomainState({ status: ReachabilityStatus.createUp() });
 
         const raw = DeviceStateMapper.toPersistence(state);
 
-        expect(raw.isOnline).toBe(true);
+        expect(raw.status).toBe('UP');
       });
 
-      it('should serialize isOnline as false', () => {
-        const state = makeDomainState({ isOnline: false });
+      it('should serialize a DOWN status as the string DOWN', () => {
+        const state = makeDomainState({ status: ReachabilityStatus.createDown() });
 
         const raw = DeviceStateMapper.toPersistence(state);
 
-        expect(raw.isOnline).toBe(false);
+        expect(raw.status).toBe('DOWN');
       });
 
       it('should serialize lastSeen when set', () => {
@@ -268,12 +291,12 @@ describe('DeviceStateMapper', () => {
       expect(serialized.deviceId).toBe(VALID_DEVICE_UUID);
     });
 
-    it('should preserve isOnline through a round-trip', () => {
-      const raw         = makeRawRow({ isOnline: false });
+    it('should preserve status through a round-trip', () => {
+      const raw         = makeRawRow({ status: 'DOWN' });
       const state       = DeviceStateMapper.toDomain(raw);
       const serialized  = DeviceStateMapper.toPersistence(state);
 
-      expect(serialized.isOnline).toBe(false);
+      expect(serialized.status).toBe('DOWN');
     });
 
     it('should preserve lastSeen through a round-trip', () => {

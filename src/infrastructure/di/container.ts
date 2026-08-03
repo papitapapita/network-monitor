@@ -213,7 +213,8 @@ import {
   GetDevicePollingStatusUseCase,
   GetDevicePollingHistoryUseCase,
   CreateDevicePollingUseCase,
-  PurgeOldPingResultsUseCase
+  PurgeOldPingResultsUseCase,
+  SuspendDeviceMonitoringUseCase
 } from '../../application/device-monitoring/use-cases';
 import {
   PurgeOldWirelessSnapshotsUseCase,
@@ -611,6 +612,20 @@ export class DependencyContainer {
 
     const probeHealthReporter = new ProbeHealthReporter(this.logger);
 
+    // Hoisted: shared by the alert recorder below and by the monitoring
+    // suspension, which closes a device's open availability alert.
+    const resolveAlertUseCase = new ResolveAlertUseCase(
+      this.alertRepository,
+      this.logger
+    );
+
+    const suspendDeviceMonitoringUseCase =
+      new SuspendDeviceMonitoringUseCase(
+        this.pollingConfigRepository,
+        this.deviceStateRepository,
+        resolveAlertUseCase
+      );
+
     const executePollingCycleUseCase = new ExecutePollingCycleUseCase(
       this.pollingConfigRepository,
       this.pingResultRepository,
@@ -717,7 +732,7 @@ export class DependencyContainer {
     // this (via IAlertRecorder), independent of notification delivery.
     const alertRecorder = new AlertRecorder(
       new OpenAlertUseCase(this.alertRepository, this.logger),
-      new ResolveAlertUseCase(this.alertRepository, this.logger)
+      resolveAlertUseCase
     );
 
     // Initialize alert controller
@@ -960,7 +975,7 @@ export class DependencyContainer {
     EventDispatcher.register(
       DeviceStatusChangedEvent.name,
       new DeviceStatusChangedHandler(
-        this.pollingConfigRepository,
+        suspendDeviceMonitoringUseCase,
         this.logger
       )
     );
@@ -968,6 +983,7 @@ export class DependencyContainer {
       DeviceMonitoringToggledEvent.name,
       new DeviceMonitoringToggledHandler(
         this.pollingConfigRepository,
+        suspendDeviceMonitoringUseCase,
         this.logger
       )
     );

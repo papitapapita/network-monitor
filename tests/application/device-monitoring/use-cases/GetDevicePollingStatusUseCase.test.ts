@@ -9,6 +9,7 @@ import { Result } from '../../../../src/domain/shared/core/Result';
 import { PollingConfiguration } from '../../../../src/domain/device-monitoring/entities/PollingConfiguration';
 import { PollingConfigurationId } from '../../../../src/domain/shared/ids/PollingConfigurationId';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
+import { ReachabilityStatus } from '../../../../src/domain/device-monitoring/value-objects/ReachabilityStatus';
 import { IPAddress } from '../../../../src/domain/shared/value-objects/IPAddress';
 import { PollingInterval } from '../../../../src/domain/device-monitoring/value-objects/PollingInterval';
 import { FailureThreshold } from '../../../../src/domain/device-monitoring/value-objects/FailureThreshold';
@@ -86,7 +87,7 @@ function makeDeviceState(
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const props: DeviceStateProps = {
     deviceId,
-    isOnline: true,
+    status: ReachabilityStatus.createUp(),
     lastSeen: FIXED_DATE,
     lastLatencyMs: 10,
     consecutiveFailures: 0,
@@ -197,7 +198,7 @@ describe('GetDevicePollingStatusUseCase', () => {
     beforeEach(() => {
       configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig(true, 60)));
       deviceStateRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeDeviceState({ isOnline: true, consecutiveFailures: 0 }))
+        Result.ok(makeDeviceState({ status: ReachabilityStatus.createUp(), consecutiveFailures: 0 }))
       );
       pingResultRepo.findLatestByDevice.mockResolvedValue(
         Result.ok([makePingRecord()])
@@ -234,7 +235,7 @@ describe('GetDevicePollingStatusUseCase', () => {
       expect(result.value.failuresBeforeDown).toBe(3);
     });
 
-    it('should return ONLINE when the device state shows isOnline = true', async () => {
+    it('should return ONLINE when the stored status is UP', async () => {
       const result = await useCase.execute(makeRequest());
 
       expect(result.value.currentStatus).toBe('ONLINE');
@@ -272,16 +273,55 @@ describe('GetDevicePollingStatusUseCase', () => {
 
   // ===========================================================================
   describe('executeImpl — OFFLINE device state', () => {
-    it('should return OFFLINE when the device state shows isOnline = false', async () => {
+    it('should return OFFLINE when the stored status is DOWN', async () => {
       configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
       deviceStateRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeDeviceState({ isOnline: false }))
+        Result.ok(makeDeviceState({ status: ReachabilityStatus.createDown() }))
       );
       pingResultRepo.findLatestByDevice.mockResolvedValue(Result.ok([]));
 
       const result = await useCase.execute(makeRequest());
 
       expect(result.value.currentStatus).toBe('OFFLINE');
+    });
+  });
+
+  // ===========================================================================
+  describe('executeImpl — paused device state', () => {
+    it('[MON-002] should return UNKNOWN for a stored UNKNOWN status', async () => {
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig(false))
+      );
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(
+          makeDeviceState({ status: ReachabilityStatus.createUnknown() })
+        )
+      );
+      pingResultRepo.findLatestByDevice.mockResolvedValue(Result.ok([]));
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.value.currentStatus).toBe('UNKNOWN');
+    });
+
+    it('[MON-002] should report pollingEnabled false alongside the UNKNOWN status', async () => {
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig(false))
+      );
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(
+          makeDeviceState({
+            status: ReachabilityStatus.createUnknown(),
+            lastCheckedAt: null
+          })
+        )
+      );
+      pingResultRepo.findLatestByDevice.mockResolvedValue(Result.ok([]));
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.value.pollingEnabled).toBe(false);
+      expect(result.value.nextScheduled).toBeNull();
     });
   });
 

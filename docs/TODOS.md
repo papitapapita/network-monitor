@@ -88,6 +88,19 @@ _Main user-facing features still missing._
 
 ## Priority 3 — Monitoring Enhancements
 
+- [ ] **Turning monitoring off does not stop wireless/SNMP polling** — the two pipelines run on separate flags
+  - `Device.monitoringEnabled` governs ICMP only. The wireless orchestrator selects on `wireless_device_configs.enabled` (`PrismaWirelessDeviceConfigRepository.findAllDue`, `WHERE enabled = true`) and no handler links `DeviceMonitoringToggledEvent` to it
+  - Consequence: a device paused in the UI keeps collecting SNMP snapshots and keeps raising wireless alerts, which contradicts what the button appears to mean. MON-002 sets its ping reachability to UNKNOWN while wireless data keeps flowing
+  - Deliberately left as-is on 2026-08-03 when MON-002 was built — the decision was to keep the pipelines independent for now, not that the split is right
+  - Fix, when wanted: have the suspension also disable the device's `WirelessDeviceConfig`, and decide whether re-enabling monitoring restores it (it should, symmetrically with MON-020)
+
+- [ ] **Event dispatch is fire-and-forget, so a dead handler diverges silently** — no outbox, no retry
+  - `EventDispatcher.dispatch` does not await handlers and only reports rejections to a logger (`src/domain/shared/core/EventDispatcher.ts`); repositories call `dispatchEventsForAggregate` after the write has already committed
+  - Consequence: if a handler dies outright, the aggregate write stands and the reaction never happens — e.g. `devices.monitoring_enabled = false` commits while polling keeps running, with only a log line to show for it. Nothing detects or repairs it
+  - `SuspendDeviceMonitoringUseCase` mitigates the case it owns by ordering its writes so a partial failure self-heals (MON-002), and by being idempotent — but that is a local workaround, not a fix
+  - Real fix is a transactional outbox: persist events in the same transaction as the aggregate, dispatch from a worker with retries. Large enough to be its own project; it also supersedes the per-use-case ordering tricks
+  - Note that a plain DB transaction would not be enough on its own — no repository accepts a transaction client today, so that is a prerequisite either way
+
 - [ ] **Multi-vendor polling** — Mikrotik (RouterOS API) and Ubiquiti (UISP / SSH)
   - Currently only ICMP ping; vendor-specific collectors unlock richer metrics
   - Abstract behind `IVendorPoller` — V1 ping adapter already exists as reference

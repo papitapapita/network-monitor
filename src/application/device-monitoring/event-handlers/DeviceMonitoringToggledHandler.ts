@@ -9,12 +9,14 @@ import { PollingConfiguration } from 'domain/device-monitoring/entities';
 import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
 import { IPAddress } from 'domain/shared';
 import { ILogger } from 'application/shared/interfaces';
+import { SuspendDeviceMonitoringUseCase } from '../use-cases/SuspendDeviceMonitoringUseCase';
 
 export class DeviceMonitoringToggledHandler
   implements IHandle<DeviceMonitoringToggledEvent>
 {
   constructor(
     private readonly pollingConfigRepo: IPollingConfigurationRepository,
+    private readonly suspendDeviceMonitoring: SuspendDeviceMonitoringUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -65,9 +67,17 @@ export class DeviceMonitoringToggledHandler
           await this.pollingConfigRepo.save(existingConfig);
         }
       } else {
-        if (existingConfig) {
-          existingConfig.disable();
-          await this.pollingConfigRepo.save(existingConfig);
+        const suspendResult =
+          await this.suspendDeviceMonitoring.execute(deviceId);
+        if (suspendResult.isFailure) {
+          this.logger.error(
+            '[DeviceMonitoringToggledHandler] Failed to suspend monitoring',
+            undefined,
+            {
+              deviceId: deviceId.toString(),
+              error: suspendResult.error
+            }
+          );
         }
       }
     } catch (error) {
