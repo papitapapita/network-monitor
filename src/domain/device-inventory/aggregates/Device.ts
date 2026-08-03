@@ -219,11 +219,13 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
 
     const statusChanged = !this.props.status.equals(next.status);
 
-    // DEV-059: arriving at COMMISSIONING turns monitoring on, overriding an
-    // explicit false in the same request. DEV-058's "respect an explicit
-    // false" applies to creation only.
+    // DEV-059: arriving at COMMISSIONING turns monitoring on, but like DEV-058
+    // only when the caller expressed no preference — an explicit false in the
+    // same request is respected.
     const monitoringEnabled =
-      statusChanged && next.status.isCommissioning()
+      statusChanged &&
+      next.status.isCommissioning() &&
+      changes.monitoringEnabled === undefined
         ? true
         : next.monitoringEnabled;
 

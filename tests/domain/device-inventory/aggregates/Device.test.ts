@@ -1209,7 +1209,7 @@ describe('Device', () => {
       expect(device.status.toString()).toBe('DAMAGED');
     });
 
-    it('[DEV-059] should force monitoring on when moving into COMMISSIONING, overriding an explicit false', () => {
+    it('[DEV-059] should respect an explicit false when moving into COMMISSIONING', () => {
       const device = makeDevice({
         status: DeviceStatus.createInventory(),
         ipAddress: IPAddress.create('10.2.0.6').value,
@@ -1219,6 +1219,21 @@ describe('Device', () => {
       const result = device.applyChanges({
         status: DeviceStatus.createCommissioning(),
         monitoringEnabled: false
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.monitoringEnabled).toBe(false);
+    });
+
+    it('[DEV-059] should turn monitoring on when moving into COMMISSIONING without a stated preference', () => {
+      const device = makeDevice({
+        status: DeviceStatus.createInventory(),
+        ipAddress: IPAddress.create('10.2.0.8').value,
+        monitoringEnabled: false
+      });
+
+      const result = device.applyChanges({
+        status: DeviceStatus.createCommissioning()
       });
 
       expect(result.isSuccess).toBe(true);

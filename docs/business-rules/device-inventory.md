@@ -577,7 +577,7 @@ Compared against the moment of validation.
 plan. A future date is a typo, and it would distort age-based reporting on the
 fleet.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:573` (`Device.validateInstalledDate`)
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:575` (`Device.validateInstalledDate`)
 **Reached from:** `create`, and every later change via `applyChanges` (DEV-060)
 **Message:** `installedDate cannot be in the future`
 
@@ -586,7 +586,7 @@ fleet.
 **Type:** Validation · **Status:** Active
 **Since:** 2026-07-28
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:553` (`Device.validateDescription`)
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:555` (`Device.validateDescription`)
 **Message:** `Device description cannot exceed 500 characters`
 
 ### DEV-053 — An INVENTORY or DAMAGED device must have a serial number or a MAC address
@@ -601,7 +601,7 @@ a physical object on a shelf. Without a serial or a MAC there is no way to match
 the record to the box in your hand, so the row is untraceable stock. An ACTIVE
 device is exempt because its IP already identifies it.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:497` (`Device.validate`)
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:499` (`Device.validate`)
 **Reached from:** `create`, and every later change via `applyChanges` (DEV-060)
 **Message:** `A device with status <status> must have at least a serial number or MAC address`
 
@@ -612,9 +612,9 @@ device is exempt because its IP already identifies it.
 
 **Why:** ACTIVE means in service and monitored. Monitoring is ping-based, so a
 device with no IP cannot be polled — it would sit in the dashboard permanently
-green and never actually be checked. _(inferred)_
+green and never actually be checked.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:506`
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:508`
 **Reached from:** `create`, and every later change via `applyChanges` (DEV-060)
 **Message:** `An ACTIVE device must have an IP address assigned`
 
@@ -627,9 +627,9 @@ Also blocks _removing_ the location from a device that is already ACTIVE.
 
 **Why:** ACTIVE means installed and serving a customer. A technician dispatched
 to a fault needs somewhere to drive. A device with no location cannot be found
-in the field. _(inferred)_
+in the field.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:512`
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:514`
 **Reached from:** `create`, and every later change via `applyChanges` (DEV-060)
 **Message:** `An ACTIVE device must have a location assigned`
 
@@ -641,9 +641,9 @@ in the field. _(inferred)_
 **Why:** Commissioning is the stage where the unit is being brought up and
 watched to see whether it stays up. That requires reaching it. Note this is
 weaker than ACTIVE: no location is required yet, because a unit can be
-configured on the bench before it is installed. _(inferred)_
+configured on the bench before it is installed.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:518`
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:520`
 **Message:** `A COMMISSIONING device must have an IP address assigned`
 
 ### DEV-057 — Monitoring can only be enabled for ACTIVE or COMMISSIONING devices
@@ -655,7 +655,7 @@ configured on the bench before it is installed. _(inferred)_
 a warehouse unit or a broken one would generate a permanent stream of
 false-alarm outage alerts and train operators to ignore the dashboard.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:525`
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:527`
 **Reached from:** `create`, and every later change via `applyChanges` (DEV-060)
 **Message:** `Monitoring can only be enabled for ACTIVE or COMMISSIONING devices`
 
@@ -674,16 +674,25 @@ polling it yet.
 
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:108`
 
-### DEV-059 — Moving a device into COMMISSIONING turns monitoring on
+### DEV-059 — Moving a device into COMMISSIONING turns monitoring on by default
 
 **Type:** Policy · **Status:** Active
-**Since:** 2026-07-28
+**Since:** 2026-07-28 · **Revised:** 2026-08-03
 
-A status change into COMMISSIONING enables monitoring if it was off. Unlike
-DEV-058, this is not conditional on caller intent.
+A status change into COMMISSIONING enables monitoring if it was off — but, as in
+DEV-058, only when the caller expressed no preference. An **explicit
+`monitoringEnabled: false` in the same request is respected**, leaving the
+device commissioned with monitoring off.
 
 **Why:** Same reasoning as DEV-058, applied to units that reach commissioning by
-transition rather than at creation.
+transition rather than at creation — and the same exception, for the same
+reason: staging a device without polling it yet is legitimate, so the default
+must stay a default.
+
+Until 2026-08-03 the transition forced monitoring on unconditionally, silently
+discarding an explicit `false`. That made the two paths to COMMISSIONING behave
+differently for no stated reason, and made `PATCH { status: 'COMMISSIONING',
+monitoringEnabled: false }` return `200` with `monitoringEnabled: true`.
 
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:226` (`applyChanges` — the COMMISSIONING override)
 
@@ -723,7 +732,7 @@ field-by-field design:
   exactly as it was and raises no events, so a caller cannot end up with a
   located-but-not-activated device after a failed call.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:175` (`Device.applyChanges`), validation at `:486` (`Device.validate`)
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:175` (`Device.applyChanges`), validation at `:488` (`Device.validate`)
 **Reached from:** `create` validates the same way at construction; every later change goes through `applyChanges`
 **Called from:** `src/application/device-inventory/use-cases/UpdateDeviceUseCase.ts:280` — one call, after the use case has parsed and uniqueness-checked the incoming fields
 **Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts` (`applyChanges() — whole-state validation`), `tests/application/device-inventory/use-cases/UpdateDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`
@@ -745,7 +754,7 @@ or a rule tightening would make existing equipment unreadable rather than merely
 uneditable. The trade-off is that a row violating a current invariant loads
 silently — invalid state is caught on the next _write_, not on read.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:162`
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:164`
 
 ### DEV-062 — Only WIRELESS_CPE and ACCESS_POINT devices may hold a wireless configuration
 
@@ -761,7 +770,7 @@ present, matching category.
 with no radio there is nothing to read, so a config would schedule polls that
 can only fail.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:391`
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:393`
 **Reached from:** `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:62`
 **Message:** `Only WIRELESS_CPE and ACCESS_POINT devices can have a wireless config`
 
@@ -794,7 +803,7 @@ model is frozen and swapping in different hardware is a separate operation that
 retires the old record and links a new one — see the "Device activation
 workflow" item in [TODOS.md](../TODOS.md).
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:377` (`Device.correctDeviceModel`); model existence at `src/application/device-inventory/use-cases/UpdateDeviceUseCase.ts:234`
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:379` (`Device.correctDeviceModel`); model existence at `src/application/device-inventory/use-cases/UpdateDeviceUseCase.ts:234`
 **Reached from:** `UpdateDeviceUseCase` (`deviceModelId` on `PATCH /api/devices/:id`)
 **Message:** `Cannot change the device model of a device with status <status> — only an INVENTORY device may have its model corrected` / `Device model not found: <id>`
 **Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/application/device-inventory/use-cases/UpdateDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`
