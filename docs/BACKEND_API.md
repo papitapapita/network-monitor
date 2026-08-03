@@ -109,7 +109,7 @@ type DeviceOwner    = 'COMPANY' | 'CLIENT'
 type DeviceType     = 'ANTENNA' | 'OTHER' | 'RADIO' | 'ROUTER' | 'ROUTERBOARD' | 'SERVER' | 'SWITCH'
 type PollingStatus      = 'SUCCESS' | 'FAILED' | 'SKIPPED'
 type BillStatus         = 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELLED'
-type DeviceOnlineStatus = 'ONLINE' | 'OFFLINE' | 'UNKNOWN'
+type DeviceOnlineStatus = 'ONLINE' | 'OFFLINE' | 'UNKNOWN'  // UNKNOWN = not monitored / never polled — see "monitoring stopped"
 type AlertSeverity      = 'WARNING' | 'CRITICAL'
 type AlertStatus        = 'OPEN' | 'RESOLVED'
 ```
@@ -364,7 +364,7 @@ Returns all locations that have coordinates, each with their nested devices. Int
 **Business rules:**
 - `deviceModelId` must name an existing device model — a well-formed UUID for a model that does not exist returns `404` with `Device model not found: <id>`
 - `INVENTORY` / `DAMAGED` status → at least one of `serialNumber` or `macAddress` required (status defaults to `INVENTORY`, so a minimal request must include at least one)
-- `COMMISSIONING` status → `ipAddress` required; `monitoringEnabled` is forced `true` regardless of what is sent
+- `COMMISSIONING` status → `ipAddress` required; `monitoringEnabled` defaults to `true`, but an explicit `monitoringEnabled: false` in the same request is respected (staging a device without polling it yet is legitimate)
 - `ACTIVE` status → `ipAddress` and `locationId` required
 - `installedDate` must be ISO 8601 — `YYYY-MM-DD` or `YYYY-MM-DDThh:mm[:ss[.sss]]` with an optional `Z`/`±hh:mm` offset. Locale forms (`March 5, 2020`) and impossible dates (`2024-02-31`) are rejected, not reinterpreted
 
@@ -425,14 +425,36 @@ sortOrder?:        'ASC' | 'DESC'  // default: DESC
 
 | Transition | Requirements | Side effects |
 |------------|--------------|--------------|
-| any → `COMMISSIONING` | `ipAddress` must be set on the device | `monitoringEnabled` forced `true` |
+| any → `COMMISSIONING` | `ipAddress` must be set on the device | `monitoringEnabled` turned on **unless** the same request sends `monitoringEnabled: false` |
 | any → `ACTIVE` | `ipAddress` and `locationId` must both be set | — |
-| any → `DAMAGED` | — | polling automatically disabled |
-| any → `INVENTORY` | — | polling automatically disabled |
+| any → `DAMAGED` | — | monitoring stopped (see below) |
+| any → `INVENTORY` | — | monitoring stopped (see below) |
 
 `DAMAGED` is a side-state (e.g. hardware failure) and can be set from any status.
 
-> When transitioning to `DAMAGED` or `INVENTORY`, the backend automatically disables the device's polling config. There is no need to also send `monitoringEnabled: false`.
+> When transitioning to `DAMAGED` or `INVENTORY`, the backend stops monitoring the device automatically. There is no need to also send `monitoringEnabled: false`.
+
+<a id="stopping-monitoring"></a>
+**What "monitoring stopped" does (since 2026-08-03)**
+
+Every route that stops monitoring performs the same transition — the status
+change above, `PATCH /api/devices/:id` with `monitoringEnabled: false`, and
+`POST`/`PATCH /api/devices/:id/polling/config` with `enabled: false`:
+
+1. Polling stops. The polling config is **kept** (interval, failure threshold and IP survive), so re-enabling resumes with the same settings.
+2. **`currentStatus` becomes `UNKNOWN`.** The last reading is not left standing — nothing will poll the device again to correct it, so presenting it as current would be a lie. `consecutiveFailures` resets to `0`, `lastPolled` / `nextScheduled` become `null`.
+3. **`lastSeen` is kept**, so you can still show how stale the last real observation is.
+4. Any **open `device_unreachable` alert is resolved**, and **no resolution notification is sent** — the device was not fixed, it just stopped being watched.
+5. Ping history is untouched; only the 30-day retention purge removes it.
+
+> **Frontend:** `UNKNOWN` no longer means only "never polled". It now also means
+> "monitoring is off", which is the common case. Render it as a neutral/grey
+> "not monitored" state rather than a warning — and read `pollingEnabled` to tell
+> the two apart: `pollingEnabled: false` → paused; `pollingEnabled: true` with
+> `UNKNOWN` → enabled but not yet polled.
+>
+> On re-enabling, the device is picked up on the next scheduler tick (≤10 s) and
+> the first result does **not** raise a spurious "recovered" alert.
 
 ---
 
@@ -860,7 +882,7 @@ each listed device first, then send `isWireless: false`.
 > Error: `{ error: string }`.
 
 ### `POST /api/devices/:id/poll` — Trigger Manual Poll
-**Status:** 200 | 404
+**Status:** 200 | 404 | 409
 
 ```ts
 // No request body needed
@@ -875,6 +897,16 @@ each listed device first, then send `isWireless: false`.
   deviceStatus: DeviceOnlineStatus
 }
 ```
+
+> **⚠ Since 2026-08-03: a device whose monitoring is off cannot be polled on
+> demand.** It returns `409` `"Monitoring is disabled for device <id> — enable
+> monitoring before polling it"`. A manual poll would write a real reading over
+> the `UNKNOWN` state with nothing scheduled to correct it afterwards, and could
+> raise an outage alert for a device nobody is watching.
+>
+> **Frontend:** disable the "poll now" button when `pollingEnabled` is `false`
+> (from `GET /api/devices/:id/polling/status`) rather than letting the call fail;
+> on a `409`, offer "enable monitoring" instead of a retry.
 
 ---
 
@@ -902,6 +934,15 @@ each listed device first, then send `isWireless: false`.
   } | null
 }
 ```
+
+> `currentStatus: 'UNKNOWN'` means **nobody is watching this device** — either it
+> has never been polled, or monitoring was turned off (see
+> [What "monitoring stopped" does](#stopping-monitoring)). It is not an outage;
+> `'OFFLINE'` is. Use `pollingEnabled` to distinguish the two causes.
+>
+> While monitoring is off, `lastPolled` and `nextScheduled` are `null` and
+> `consecutiveFailures` is `0`, but `lastResult` still shows the last ping that
+> was actually taken — useful for "last checked N days ago" copy.
 
 ---
 
@@ -963,7 +1004,8 @@ offset?:   number   // ≥0
 }
 ```
 
-> Creates the polling config if none exists, or updates the existing one (upsert). The device must exist.
+> Creates the polling config if none exists, or updates the existing one (upsert). The device must exist.  
+> Sending `enabled: false` performs the full stop-monitoring transition — see [What "monitoring stopped" does](#stopping-monitoring).
 
 ---
 
@@ -980,6 +1022,11 @@ offset?:   number   // ≥0
 
 // Response: 204 No Content on success
 ```
+
+> `enabled: false` performs the full stop-monitoring transition — see
+> [What "monitoring stopped" does](#stopping-monitoring). Other fields in the same
+> request (`intervalSeconds`, `failuresBeforeDown`) are still applied and kept.  
+> `enabled: true` re-enables polling; it requires the config to have an IP address.
 
 ---
 

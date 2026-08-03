@@ -1,6 +1,7 @@
 import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { SuspendDeviceMonitoringUseCase } from 'application/device-monitoring/use-cases/SuspendDeviceMonitoringUseCase';
 import { ExecutePollingCycleUseCase } from 'application/device-monitoring/use-cases/ExecutePollingCycleUseCase';
+import { ConfigureDevicePollingUseCase } from 'application/device-monitoring/use-cases/ConfigureDevicePollingUseCase';
 import { ResolveAlertUseCase } from 'application/notifications/use-cases/ResolveAlertUseCase';
 import { PrismaPollingConfigurationRepository } from 'infrastructure/persistence/PrismaPollingConfigurationRepository';
 import { PrismaPingResultRepository } from 'infrastructure/persistence/PrismaPingResultRepository';
@@ -221,6 +222,51 @@ describe('SuspendDeviceMonitoringUseCase — integration', () => {
     expect(result.isSuccess).toBe(true);
     const state = await prisma.deviceState.findFirst({ where: { deviceId } });
     expect(state!.status).toBe('UNKNOWN');
+  });
+
+  // Every route that stops polling must reach the same transition — the
+  // polling-config endpoints write the config directly and once bypassed it.
+  it('[MON-002] blanks the state when polling is stopped through the config endpoint', async () => {
+    const repo = new PrismaPollingConfigurationRepository(prisma);
+    const logger = new WinstonLogger();
+    const configure = new ConfigureDevicePollingUseCase(
+      repo,
+      useCase,
+      logger
+    );
+    await pollingUseCase.execute({ deviceId, forceExecution: false });
+
+    const result = await configure.execute({ deviceId, enabled: false });
+
+    expect(result.isSuccess).toBe(true);
+    const state = await prisma.deviceState.findFirst({ where: { deviceId } });
+    expect(state!.status).toBe('UNKNOWN');
+    const config = await prisma.pollingConfiguration.findFirst({
+      where: { deviceId }
+    });
+    expect(config!.enabled).toBe(false);
+  });
+
+  it('[MON-002] keeps other config edits made in the same disabling request', async () => {
+    const repo = new PrismaPollingConfigurationRepository(prisma);
+    const logger = new WinstonLogger();
+    const configure = new ConfigureDevicePollingUseCase(
+      repo,
+      useCase,
+      logger
+    );
+
+    await configure.execute({
+      deviceId,
+      enabled: false,
+      intervalSeconds: 300
+    });
+
+    const config = await prisma.pollingConfiguration.findFirst({
+      where: { deviceId }
+    });
+    expect(config!.enabled).toBe(false);
+    expect(config!.pingIntervalSecs).toBe(300);
   });
 
   it('[MON-005] raises no recovery event when a paused device resumes reachable', async () => {

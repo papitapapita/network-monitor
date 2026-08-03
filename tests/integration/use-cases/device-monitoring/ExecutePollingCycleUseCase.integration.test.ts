@@ -15,6 +15,9 @@ import {
   seedMonitoredDevice
 } from '../../helpers/db';
 import { FakePingService } from '../../helpers/FakePingService';
+import { SuspendDeviceMonitoringUseCase } from 'application/device-monitoring/use-cases/SuspendDeviceMonitoringUseCase';
+import { ResolveAlertUseCase } from 'application/notifications/use-cases/ResolveAlertUseCase';
+import { PrismaAlertRepository } from 'infrastructure/persistence/PrismaAlertRepository';
 
 describe('ExecutePollingCycleUseCase — integration', () => {
   let container: DependencyContainer;
@@ -44,7 +47,16 @@ describe('ExecutePollingCycleUseCase — integration', () => {
       logger,
       0 // no delay between retries in tests
     );
-    configureUseCase = new ConfigureDevicePollingUseCase(pollingConfigRepo, logger);
+    const suspend = new SuspendDeviceMonitoringUseCase(
+      pollingConfigRepo,
+      deviceStateRepo,
+      new ResolveAlertUseCase(new PrismaAlertRepository(prisma), logger)
+    );
+    configureUseCase = new ConfigureDevicePollingUseCase(
+      pollingConfigRepo,
+      suspend,
+      logger
+    );
   });
 
   afterAll(async () => {

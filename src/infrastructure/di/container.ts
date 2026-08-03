@@ -637,6 +637,7 @@ export class DependencyContainer {
     );
     const configurePollingUseCase = new ConfigureDevicePollingUseCase(
       this.pollingConfigRepository,
+      suspendDeviceMonitoringUseCase,
       this.logger
     );
     const getPollingStatusUseCase = new GetDevicePollingStatusUseCase(
@@ -653,6 +654,7 @@ export class DependencyContainer {
     const createDevicePollingUseCase = new CreateDevicePollingUseCase(
       this.pollingConfigRepository,
       this.deviceRepository,
+      suspendDeviceMonitoringUseCase,
       this.logger
     );
 

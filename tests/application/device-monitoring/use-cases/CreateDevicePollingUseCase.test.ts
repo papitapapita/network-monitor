@@ -12,6 +12,7 @@ import { IPAddress } from '../../../../src/domain/shared/value-objects/IPAddress
 import { PollingInterval } from '../../../../src/domain/device-monitoring/value-objects/PollingInterval';
 import { FailureThreshold } from '../../../../src/domain/device-monitoring/value-objects/FailureThreshold';
 import { CreateDevicePollingDTO } from '../../../../src/application/device-monitoring/dtos/CreateDevicePollingDTO';
+import { SuspendDeviceMonitoringUseCase } from '../../../../src/application/device-monitoring/use-cases/SuspendDeviceMonitoringUseCase';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -95,6 +96,9 @@ describe('CreateDevicePollingUseCase', () => {
     useCase = new CreateDevicePollingUseCase(
       pollingConfigRepo,
       deviceRepo as unknown as IDeviceRepository,
+      {
+        execute: jest.fn().mockResolvedValue(Result.ok(undefined))
+      } as unknown as SuspendDeviceMonitoringUseCase,
       logger
     );
     deviceRepo.exists.mockResolvedValue(Result.ok(true));

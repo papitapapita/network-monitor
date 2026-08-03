@@ -12,6 +12,10 @@ import {
   seedMonitoredDevice,
   GHOST_ID
 } from '../../helpers/db';
+import { SuspendDeviceMonitoringUseCase } from 'application/device-monitoring/use-cases/SuspendDeviceMonitoringUseCase';
+import { ResolveAlertUseCase } from 'application/notifications/use-cases/ResolveAlertUseCase';
+import { PrismaAlertRepository } from 'infrastructure/persistence/PrismaAlertRepository';
+import { PrismaDeviceStateRepository } from 'infrastructure/persistence/PrismaDeviceStateRepository';
 
 describe('ConfigureDevicePollingUseCase — integration', () => {
   let container: DependencyContainer;
@@ -27,7 +31,12 @@ describe('ConfigureDevicePollingUseCase — integration', () => {
 
     const repo = new PrismaPollingConfigurationRepository(prisma);
     const logger = new WinstonLogger();
-    useCase = new ConfigureDevicePollingUseCase(repo, logger);
+    const suspend = new SuspendDeviceMonitoringUseCase(
+      repo,
+      new PrismaDeviceStateRepository(prisma),
+      new ResolveAlertUseCase(new PrismaAlertRepository(prisma), logger)
+    );
+    useCase = new ConfigureDevicePollingUseCase(repo, suspend, logger);
   });
 
   afterAll(async () => {

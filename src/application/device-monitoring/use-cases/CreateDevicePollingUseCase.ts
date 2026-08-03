@@ -15,6 +15,7 @@ import {
   PollingConfigurationDTO
 } from '../dtos';
 import { PollingMapper } from '../mappers';
+import { SuspendDeviceMonitoringUseCase } from './SuspendDeviceMonitoringUseCase';
 
 export class CreateDevicePollingUseCase extends UseCase<
   CreateDevicePollingDTO,
@@ -23,6 +24,7 @@ export class CreateDevicePollingUseCase extends UseCase<
   constructor(
     private readonly pollingConfigRepo: IPollingConfigurationRepository,
     private readonly deviceRepo: IDeviceRepository,
+    private readonly suspendDeviceMonitoring: SuspendDeviceMonitoringUseCase,
     logger: ILogger
   ) {
     super(logger, 'CreateDevicePollingUseCase');
@@ -203,6 +205,18 @@ export class CreateDevicePollingUseCase extends UseCase<
     const saveResult = await this.pollingConfigRepo.save(config);
     if (saveResult.isFailure) {
       return this.fail(`Failed to save config: ${saveResult.error}`);
+    }
+
+    // Same transition as turning monitoring off (MON-002) — blank the stored
+    // reachability and close the open alert rather than leaving a reading
+    // nothing will ever correct. The config is already disabled above, so this
+    // only completes the rest of the transition.
+    if (request.enabled === false) {
+      const suspendResult =
+        await this.suspendDeviceMonitoring.execute(config.deviceId);
+      if (suspendResult.isFailure) {
+        return this.fail(suspendResult.error);
+      }
     }
 
     return this.ok(PollingMapper.toDTO(saveResult.value));

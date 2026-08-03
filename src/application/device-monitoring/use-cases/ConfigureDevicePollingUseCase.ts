@@ -9,6 +9,7 @@ import { IPollingConfigurationRepository } from 'domain/device-monitoring/reposi
 import { ConfigureDevicePollingDTO } from '../dtos';
 import { DeviceId } from 'domain/shared';
 import { PollingMapper } from '../mappers';
+import { SuspendDeviceMonitoringUseCase } from './SuspendDeviceMonitoringUseCase';
 
 export class ConfigureDevicePollingUseCase extends UseCase<
   ConfigureDevicePollingDTO,
@@ -16,6 +17,7 @@ export class ConfigureDevicePollingUseCase extends UseCase<
 > {
   constructor(
     private readonly pollingConfigRepo: IPollingConfigurationRepository,
+    private readonly suspendDeviceMonitoring: SuspendDeviceMonitoringUseCase,
     logger: ILogger
   ) {
     super(logger, 'ConfigureDevicePollingUseCase');
@@ -88,20 +90,31 @@ export class ConfigureDevicePollingUseCase extends UseCase<
       }
     }
 
-    if (updates.enabled !== undefined) {
-      if (updates.enabled) {
-        const enableResult = config.enable();
-        if (enableResult.isFailure) {
-          return this.fail(enableResult.error);
-        }
-      } else {
-        config.disable();
+    if (updates.enabled === true) {
+      const enableResult = config.enable();
+      if (enableResult.isFailure) {
+        return this.fail(enableResult.error);
       }
     }
 
     const saveResult = await this.pollingConfigRepo.save(config);
     if (saveResult.isFailure) {
       return this.fail(`Failed to save config: ${saveResult.error}`);
+    }
+
+    // Stopping polling here is the same transition as turning monitoring off
+    // (MON-002), so it goes through the same writer: the stored reachability
+    // must not stay frozen at its last reading, and the open availability alert
+    // would otherwise never resolve. Runs after the save above so the interval
+    // and threshold changes in the same request are not lost.
+    if (updates.enabled === false) {
+      const suspendResult =
+        await this.suspendDeviceMonitoring.execute(
+          deviceIdResult.value
+        );
+      if (suspendResult.isFailure) {
+        return this.fail(suspendResult.error);
+      }
     }
 
     return this.ok(undefined);

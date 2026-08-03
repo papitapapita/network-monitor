@@ -64,9 +64,14 @@ count. `lastSeen` and the last measured latency are kept — they are facts abou
 the past and remain true. `lastCheckedAt` is cleared, which also makes the device
 due on the first scheduler tick after monitoring returns.
 
-The transition is reached from two places, both of which delegate to the same use
-case: the explicit toggle (`DeviceMonitoringToggledEvent`) and a status change
-into INVENTORY or DAMAGED (`DeviceStatusChangedEvent`).
+Every route that stops polling reaches this same transition, all four delegating
+to one use case: the explicit toggle (`DeviceMonitoringToggledEvent`), a status
+change into INVENTORY or DAMAGED (`DeviceStatusChangedEvent`), and the two
+polling-configuration endpoints that accept `enabled: false`
+(`ConfigureDevicePollingUseCase`, `CreateDevicePollingUseCase`). The rule is
+about the *effect* — polling stopped — not about which door it came through, so
+a path that only flipped the config flag would reintroduce the stale reading this
+rule exists to prevent.
 
 **Why:** Once polling stops, nothing will ever correct the stored reading, so the
 last value freezes and is shown as current indefinitely — a device paused while
@@ -81,7 +86,7 @@ a cycle runs for several seconds and the suspension is dispatched without being
 awaited.
 
 **Enforced at:** `src/domain/device-monitoring/aggregates/DeviceState.ts` (`markUnknown`); orchestrated by `src/application/device-monitoring/use-cases/SuspendDeviceMonitoringUseCase.ts`
-**Reached from:** `DeviceMonitoringToggledHandler` (monitoring off), `DeviceStatusChangedHandler` (INVENTORY or DAMAGED)
+**Reached from:** `DeviceMonitoringToggledHandler` (monitoring off), `DeviceStatusChangedHandler` (INVENTORY or DAMAGED), `ConfigureDevicePollingUseCase` and `CreateDevicePollingUseCase` (`enabled: false`)
 **Tests:** `tests/application/device-monitoring/use-cases/SuspendDeviceMonitoringUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/SuspendDeviceMonitoringUseCase.integration.test.ts`
 
 The suspension writes state, then the alert, then the configuration, and the

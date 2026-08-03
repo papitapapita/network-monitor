@@ -11,6 +11,7 @@ import { IPAddress } from '../../../../src/domain/shared/value-objects/IPAddress
 import { PollingInterval } from '../../../../src/domain/device-monitoring/value-objects/PollingInterval';
 import { FailureThreshold } from '../../../../src/domain/device-monitoring/value-objects/FailureThreshold';
 import { ConfigureDevicePollingDTO } from '../../../../src/application/device-monitoring/dtos/ConfigureDevicePollingDTO';
+import { SuspendDeviceMonitoringUseCase } from '../../../../src/application/device-monitoring/use-cases/SuspendDeviceMonitoringUseCase';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -80,12 +81,16 @@ function makeRequest(
 describe('ConfigureDevicePollingUseCase', () => {
   let repo: jest.Mocked<IPollingConfigurationRepository>;
   let logger: ILogger;
+  let suspend: jest.Mocked<SuspendDeviceMonitoringUseCase>;
   let useCase: ConfigureDevicePollingUseCase;
 
   beforeEach(() => {
     repo = makeRepo();
     logger = makeLogger();
-    useCase = new ConfigureDevicePollingUseCase(repo, logger);
+    suspend = {
+      execute: jest.fn().mockResolvedValue(Result.ok(undefined))
+    } as unknown as jest.Mocked<SuspendDeviceMonitoringUseCase>;
+    useCase = new ConfigureDevicePollingUseCase(repo, suspend, logger);
   });
 
   afterEach(() => {
@@ -267,7 +272,7 @@ describe('ConfigureDevicePollingUseCase', () => {
       expect(config.enabled).toBe(true);
     });
 
-    it('should disable the config when enabled is false', async () => {
+    it('[MON-002] should delegate to SuspendDeviceMonitoringUseCase when enabled is false', async () => {
       const config = makeConfig({ enabled: true });
       repo.findByDeviceId.mockResolvedValue(Result.ok(config));
       repo.save.mockResolvedValue(Result.ok(config));
@@ -275,7 +280,42 @@ describe('ConfigureDevicePollingUseCase', () => {
       const result = await useCase.execute(makeRequest({ enabled: false }));
 
       expect(result.isSuccess).toBe(true);
-      expect(config.enabled).toBe(false);
+      expect(suspend.execute).toHaveBeenCalledTimes(1);
+      expect(suspend.execute.mock.calls[0][0].toString()).toBe(
+        VALID_DEVICE_UUID
+      );
+    });
+
+    it('[MON-002] should not disable the config itself — one writer owns the transition', async () => {
+      const config = makeConfig({ enabled: true });
+      repo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      repo.save.mockResolvedValue(Result.ok(config));
+
+      await useCase.execute(makeRequest({ enabled: false }));
+
+      // the suspension performs the disable; this use case must not pre-empt it
+      expect(config.enabled).toBe(true);
+    });
+
+    it('should fail when the suspension fails', async () => {
+      const config = makeConfig({ enabled: true });
+      repo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      repo.save.mockResolvedValue(Result.ok(config));
+      suspend.execute.mockResolvedValue(Result.fail('alert store down'));
+
+      const result = await useCase.execute(makeRequest({ enabled: false }));
+
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('should not suspend when enabled is true', async () => {
+      const config = makeConfig({ enabled: false });
+      repo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      repo.save.mockResolvedValue(Result.ok(config));
+
+      await useCase.execute(makeRequest({ enabled: true }));
+
+      expect(suspend.execute).not.toHaveBeenCalled();
     });
 
     it('should not mutate enabled when enabled is not provided in the request', async () => {
