@@ -296,6 +296,83 @@ export async function seedActiveContractedService(
   return service.id;
 }
 
+/**
+ * Cleans the tickets bounded context in FK-safe order: tickets reference
+ * technicians, so they must go first. Call this before cleanCustomers() —
+ * tickets also reference customers.
+ */
+export async function cleanTickets(prisma: PrismaClient): Promise<void> {
+  await prisma.ticket.deleteMany();
+  await prisma.technician.deleteMany();
+}
+
+/** Upserts a test technician. Returns its UUID. */
+export async function seedTechnician(
+  prisma: PrismaClient,
+  overrides: {
+    fullName?: string;
+    phone?: string;
+    email?: string | null;
+    isActive?: boolean;
+  } = {}
+): Promise<string> {
+  const phone = overrides.phone ?? '+573001112233';
+  const technician = await prisma.technician.upsert({
+    where: { phone },
+    update: {},
+    create: {
+      fullName: overrides.fullName ?? 'Test Technician',
+      phone,
+      email: overrides.email ?? null,
+      isActive: overrides.isActive ?? true
+    }
+  });
+  return technician.id;
+}
+
+/**
+ * Creates a ticket directly via Prisma, bypassing the aggregate so a test can
+ * put one straight into any status. Returns its UUID.
+ */
+export async function seedTicket(
+  prisma: PrismaClient,
+  overrides: {
+    title?: string;
+    description?: string;
+    category?: 'CONNECTIVITY' | 'INSTALLATION' | 'HARDWARE_FAILURE' | 'MAINTENANCE' | 'RELOCATION' | 'OTHER';
+    priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+    status?: 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'CANCELLED';
+    customerId?: string | null;
+    deviceId?: string | null;
+    technicianId?: string | null;
+    scheduledFor?: Date | null;
+    origin?: 'MANUAL' | 'DEVICE_ALERT' | 'WIRELESS_ALERT';
+    originAlertId?: string | null;
+    assignedAt?: Date | null;
+  } = {}
+): Promise<string> {
+  const status = overrides.status ?? 'OPEN';
+  const ticket = await prisma.ticket.create({
+    data: {
+      title: overrides.title ?? 'Test ticket',
+      description: overrides.description ?? 'Something is broken.',
+      category: overrides.category ?? 'CONNECTIVITY',
+      priority: overrides.priority ?? 'NORMAL',
+      status,
+      customerId: overrides.customerId ?? null,
+      deviceId: overrides.deviceId ?? null,
+      technicianId: overrides.technicianId ?? null,
+      scheduledFor: overrides.scheduledFor ?? null,
+      origin: overrides.origin ?? 'MANUAL',
+      originAlertId: overrides.originAlertId ?? null,
+      assignedAt:
+        overrides.assignedAt ??
+        (status === 'OPEN' ? null : new Date())
+    }
+  });
+  return ticket.id;
+}
+
 /** Known-valid UUIDs that will never exist in the test DB */
 export const GHOST_ID = '00000000-0000-4000-8000-000000000001';
 export const INVALID_ID = 'not-a-uuid';

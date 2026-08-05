@@ -18,6 +18,7 @@ different document for a different audience.
 | Wireless Monitoring | _not yet written_ | `WLS-` |
 | Notifications | _not yet written_ | `NOT-` |
 | Identity & Access | _not yet written_ | `IDN-` |
+| Tickets | [tickets.md](tickets.md) | `TKT-001` … `TKT-114` |
 | Shared Kernel | _not yet written_ | `SHR-` |
 
 ## The three kinds of rule

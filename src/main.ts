@@ -52,9 +52,16 @@ async function bootstrap(): Promise<Server> {
   container.dataRetentionOrchestrator.start();
   container.suspensionReconciliationOrchestrator?.start();
 
-  // Error handling middleware
+  // Error handling middleware.
+  // Express identifies error handlers by arity: the `next` parameter must be
+  // declared or this runs as ordinary middleware and every argument shifts.
   app.use(
-    (err: Error, _req: express.Request, res: express.Response) => {
+    (
+      err: Error,
+      _req: express.Request,
+      res: express.Response,
+      _next: express.NextFunction
+    ) => {
       logger.error('Unhandled error', err);
       res.status(500).json({
         success: false,

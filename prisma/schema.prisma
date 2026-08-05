@@ -33,6 +33,8 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
+  technician Technician?
+
   @@map("users")
 }
 
@@ -195,6 +197,7 @@ model Device {
   wirelessAlertRecords         WirelessAlertRecord[]
   wirelessPollingConfiguration WirelessPollingConfiguration?
   contractedService            ContractedService?
+  tickets                      Ticket[]
 
   @@index([monitoringEnabled])
   @@map("devices")
@@ -473,6 +476,7 @@ model Customer {
 
   contractedServices ContractedService[]
   bills              Bill[]
+  tickets            Ticket[]
 
   @@map("customers")
 }
@@ -558,4 +562,117 @@ model BillLineItem {
 
   @@index([billId])
   @@map("bill_line_items")
+}
+
+// ============================================================================
+// TICKETS BOUNDED CONTEXT
+// ============================================================================
+// Field work orders. A ticket is the unit of work a technician is dispatched
+// to do: what broke, who to call, which device, and where to go.
+// ============================================================================
+
+enum TicketStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  CANCELLED
+
+  @@map("ticket_status")
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+
+  @@map("ticket_priority")
+}
+
+enum TicketCategory {
+  CONNECTIVITY
+  INSTALLATION
+  HARDWARE_FAILURE
+  MAINTENANCE
+  RELOCATION
+  OTHER
+
+  @@map("ticket_category")
+}
+
+enum TicketOrigin {
+  MANUAL
+  DEVICE_ALERT
+  WIRELESS_ALERT
+
+  @@map("ticket_origin")
+}
+
+model Technician {
+  id        String   @id @default(uuid()) @db.Uuid
+  fullName  String   @map("full_name") @db.VarChar(150)
+  phone     String   @unique @db.VarChar(20)
+  email     String?  @unique @db.VarChar(255)
+  userId    String?  @unique @map("user_id") @db.Uuid
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  tickets Ticket[]
+
+  @@index([isActive])
+  @@map("technicians")
+}
+
+model Ticket {
+  id          String         @id @default(uuid()) @db.Uuid
+  code        Int            @unique @default(autoincrement())
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority @default(NORMAL)
+  category    TicketCategory
+  title       String         @db.VarChar(150)
+  description String         @db.Text
+
+  customerId   String? @map("customer_id") @db.Uuid
+  deviceId     String? @map("device_id") @db.Uuid
+  technicianId String? @map("technician_id") @db.Uuid
+
+  // Address snapshot — captured at creation, never re-resolved. There is no
+  // customer address anywhere else in the schema, and a historical ticket must
+  // keep the address it was actually worked at.
+  addressStreet       String?  @map("address_street") @db.VarChar(255)
+  addressMunicipality String?  @map("address_municipality") @db.VarChar(100)
+  addressNeighborhood String?  @map("address_neighborhood") @db.VarChar(150)
+  addressReference    String?  @map("address_reference") @db.VarChar(255)
+  latitude            Decimal? @db.Decimal(10, 7)
+  longitude           Decimal? @db.Decimal(10, 7)
+
+  scheduledFor DateTime?    @map("scheduled_for") @db.Date
+  origin       TicketOrigin @default(MANUAL)
+  // Not a foreign key: points at alert_events or wireless_alert_records
+  // depending on `origin`, so the reference cannot be expressed as an FK.
+  originAlertId String?     @map("origin_alert_id") @db.Uuid
+
+  resolutionNotes String?   @map("resolution_notes") @db.Text
+  cancelReason    String?   @map("cancel_reason") @db.VarChar(255)
+  createdBy       String?   @map("created_by") @db.Uuid
+  assignedAt      DateTime? @map("assigned_at") @db.Timestamptz
+  startedAt       DateTime? @map("started_at") @db.Timestamptz
+  resolvedAt      DateTime? @map("resolved_at") @db.Timestamptz
+  cancelledAt     DateTime? @map("cancelled_at") @db.Timestamptz
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  customer   Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  device     Device?     @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  technician Technician? @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+
+  @@index([technicianId, scheduledFor])
+  @@index([status, scheduledFor])
+  @@index([customerId])
+  @@index([deviceId])
+  @@index([origin, originAlertId])
+  @@map("tickets")
 }

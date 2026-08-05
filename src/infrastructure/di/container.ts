@@ -41,7 +41,9 @@ import {
   ServicePlanController,
   ContractedServiceController,
   BillController,
-  EnforcementController
+  EnforcementController,
+  TicketController,
+  TechnicianController
 } from 'presentation/http/controllers';
 import {
   CreateCustomerUseCase,
@@ -131,6 +133,37 @@ import {
   RouterOsQueueService,
   SuspensionReconciliationOrchestrator
 } from '../service-enforcement';
+import {
+  PrismaTicketRepository,
+  PrismaTechnicianRepository
+} from '../tickets/repositories';
+import {
+  CustomerDirectoryAdapter,
+  DeviceDirectoryAdapter,
+  TicketOpenerAdapter,
+  TechnicianNotifierAdapter
+} from '../tickets/adapters';
+import {
+  CreateTicketUseCase,
+  GetTicketUseCase,
+  ListTicketsUseCase,
+  GetTechnicianDayUseCase,
+  UpdateTicketUseCase,
+  AssignTicketUseCase,
+  ScheduleTicketUseCase,
+  StartTicketUseCase,
+  ResolveTicketUseCase,
+  CancelTicketUseCase,
+  DeleteTicketUseCase,
+  OpenTicketFromAlertUseCase,
+  CreateTechnicianUseCase,
+  GetTechnicianUseCase,
+  ListTechniciansUseCase,
+  UpdateTechnicianUseCase,
+  DeleteTechnicianUseCase
+} from 'application/tickets/use-cases';
+import { TicketAssignedNotificationHandler } from 'application/tickets/event-handlers';
+import { TicketAssignedEvent } from 'domain/tickets/events';
 import { EnforcementRouterResolver } from 'application/service-enforcement/services';
 import {
   EnforceSuspensionUseCase,
@@ -249,6 +282,9 @@ export class DependencyContainer {
 
   // Billing
   public billRepository: PrismaBillRepository;
+  public ticketRepository: PrismaTicketRepository;
+  public technicianRepository: PrismaTechnicianRepository;
+  private ticketOpener: TicketOpenerAdapter;
 
   // Identity
   public tokenService: ITokenService;
@@ -265,6 +301,8 @@ export class DependencyContainer {
   public wirelessController: WirelessController;
   public credentialsController: CredentialsController;
   public customerController: CustomerController;
+  public ticketController: TicketController;
+  public technicianController: TechnicianController;
   public servicePlanController: ServicePlanController;
   public contractedServiceController: ContractedServiceController;
   public billController: BillController;
@@ -428,6 +466,97 @@ export class DependencyContainer {
       new MarkBillPaidUseCase(this.billRepository, this.logger),
       new MarkBillOverdueUseCase(this.billRepository, this.logger),
       new CancelBillUseCase(this.billRepository, this.logger),
+      this.logger
+    );
+
+    // =====================================
+    // TICKETS BOUNDED CONTEXT
+    // =====================================
+
+    this.ticketRepository = new PrismaTicketRepository(this.prisma);
+    this.technicianRepository = new PrismaTechnicianRepository(
+      this.prisma
+    );
+
+    // Anti-corruption reads onto customers and device-inventory: a work order
+    // needs a phone number and a device name, not those aggregates.
+    const customerDirectory = new CustomerDirectoryAdapter(
+      this.prisma
+    );
+    const deviceDirectory = new DeviceDirectoryAdapter(this.prisma);
+
+    // Built here rather than inline below because the notifications context
+    // needs it: OpenAlertUseCase turns a newly recorded alert into a ticket.
+    this.ticketOpener = new TicketOpenerAdapter(
+      new OpenTicketFromAlertUseCase(
+        this.ticketRepository,
+        customerDirectory,
+        deviceDirectory,
+        this.logger
+      )
+    );
+
+    this.ticketController = new TicketController(
+      new CreateTicketUseCase(
+        this.ticketRepository,
+        this.technicianRepository,
+        customerDirectory,
+        deviceDirectory,
+        this.logger
+      ),
+      new GetTicketUseCase(
+        this.ticketRepository,
+        this.technicianRepository,
+        customerDirectory,
+        deviceDirectory,
+        this.logger
+      ),
+      new ListTicketsUseCase(this.ticketRepository, this.logger),
+      new GetTechnicianDayUseCase(
+        this.ticketRepository,
+        this.technicianRepository,
+        customerDirectory,
+        deviceDirectory,
+        this.logger
+      ),
+      new UpdateTicketUseCase(
+        this.ticketRepository,
+        customerDirectory,
+        deviceDirectory,
+        this.logger
+      ),
+      new AssignTicketUseCase(
+        this.ticketRepository,
+        this.technicianRepository,
+        this.logger
+      ),
+      new ScheduleTicketUseCase(this.ticketRepository, this.logger),
+      new StartTicketUseCase(this.ticketRepository, this.logger),
+      new ResolveTicketUseCase(this.ticketRepository, this.logger),
+      new CancelTicketUseCase(this.ticketRepository, this.logger),
+      new DeleteTicketUseCase(this.ticketRepository, this.logger),
+      this.logger
+    );
+
+    this.technicianController = new TechnicianController(
+      new CreateTechnicianUseCase(
+        this.technicianRepository,
+        this.logger
+      ),
+      new GetTechnicianUseCase(this.technicianRepository, this.logger),
+      new ListTechniciansUseCase(
+        this.technicianRepository,
+        this.logger
+      ),
+      new UpdateTechnicianUseCase(
+        this.technicianRepository,
+        this.logger
+      ),
+      new DeleteTechnicianUseCase(
+        this.technicianRepository,
+        this.ticketRepository,
+        this.logger
+      ),
       this.logger
     );
 
@@ -733,7 +862,11 @@ export class DependencyContainer {
     // Recorder: any producer BC persists alerts into the shared list through
     // this (via IAlertRecorder), independent of notification delivery.
     const alertRecorder = new AlertRecorder(
-      new OpenAlertUseCase(this.alertRepository, this.logger),
+      new OpenAlertUseCase(
+        this.alertRepository,
+        this.logger,
+        this.ticketOpener
+      ),
       resolveAlertUseCase
     );
 
@@ -1058,6 +1191,17 @@ export class DependencyContainer {
         ContractedServiceStatusChangedEvent.name,
         new ContractedServiceSuspendedNotificationHandler(
           sendSuspensionNoticeUseCase,
+          this.logger
+        )
+      );
+
+      // Job notices ride the same WhatsApp sender, so they share its opt-in.
+      EventDispatcher.register(
+        TicketAssignedEvent.name,
+        new TicketAssignedNotificationHandler(
+          this.ticketRepository,
+          this.technicianRepository,
+          new TechnicianNotifierAdapter(whatsAppNotificationService),
           this.logger
         )
       );

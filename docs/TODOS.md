@@ -207,9 +207,10 @@ _Main user-facing features still missing._
   - Fields: `sourceType` (SOLAR, BATTERY, MAINS, GENERATOR, POE, OTHER), `backupEnergySource`, `powerConsumptionWatts`, `voltageV`, `currentA`
   - Relevant for tower/rooftop sites on solar or battery
 
-- [ ] **Maintenance log module**
-  - Models: `Technician` (`name`, `contactInfo`) and `DeviceMaintenanceLog` (`deviceId`, `technicianId`, `date`, `type`, `description`)
-  - Types: PREVENTIVE, CORRECTIVE, PREDICTIVE, EMERGENCY
+- [ ] **Maintenance log module** — _partly superseded by the Tickets context (2026-08-04)_
+  - `Technician` now lives in `domain/tickets` with `fullName` / `phone` / `email` and an optional `userId` link — do **not** add a second one here
+  - Still outstanding: `DeviceMaintenanceLog` (`deviceId`, `technicianId`, `date`, `type`, `description`), types PREVENTIVE / CORRECTIVE / PREDICTIVE / EMERGENCY
+  - Open question: a resolved ticket already records who did what and when, so the log may be a projection over `tickets` rather than a table of its own
   - Bounded context: Device Inventory
 
 - [ ] **Procurement module** — link hardware purchases to devices
@@ -272,6 +273,14 @@ _Main user-facing features still missing._
   - `SetDeviceCredentialsUseCase.beforeExecute` relaxed: `httpUsername` + `httpPassword` are the required pair; SNMP validation runs only when the request actually carries an SNMP field, and `snmpVersion` is required as soon as one is sent
   - Schema columns and the encryption path untouched. `extractCreateData` carries stored SNMP values forward when a request omits them (only an explicit `null` clears one), so an HTTP-only save cannot wipe keys that would be tedious to re-enter
   - Hiding the SNMP section in the credentials form is frontend-only work — tracked in the frontend repo's `TODOS.md`, to be re-enabled when "SNMP system metrics" (Priority 3) lands
+- [x] Tickets module — field work orders (2026-08-04)
+  - New `tickets` bounded context: `Ticket` aggregate owning the `OPEN → ASSIGNED → IN_PROGRESS → RESOLVED` machine (with `CANCELLED` reachable from any non-terminal state), plus a `Technician` aggregate with an optional `userId` link to `identity`
+  - **`GET /api/tickets/my-day?technicianId=&date=`** is the headline: a technician's tasks for a day, ordered most-urgent-first, each carrying the customer's name and phone, the suspected failure, the related device, and an address snapshot
+  - Address is snapshotted onto the ticket — there is still no customer address anywhere else, and a closed ticket must keep the address it was worked at. Revisit when the planned `ServiceInstallation` context lands
+  - Auto-opens tickets from alerts: `OpenAlertUseCase` calls the `ITicketOpener` port after recording a new alert, which covers both the ICMP device-down and the wireless pipelines because wireless alerts already funnel through `IAlertRecorder`. `Alert` raises no domain events, so this is the only available seam
+  - Deduped twice: one live ticket per alert id, and one per device — a device breaching five metrics is one site visit, not five jobs
+  - `UserRole` and `Permission` untouched. **Known gap:** `authorize()` has no resource-ownership check, so `/my-day` is a dispatcher view keyed by an explicit `technicianId`; `Technician.userId` is the seam for closing this
+  - Rule book at `docs/business-rules/tickets.md` — `TKT-001` … `TKT-114`, 39 rules, 100% test-cited
 - [x] Business rules catalogue — Device Inventory (2026-07-28)
   - `docs/business-rules/` — one file per bounded context, permanent `<CTX>-<NNN>` IDs, each rule tagged Invariant / Validation / Policy with its rationale, enforcement site, failure message and call paths
   - `device-inventory.md` — 63 rules (`DEV-001`–`DEV-143`) covering Vendor, DeviceModel, Device, Location, Credentials, and cross-cutting access/listing/discovery

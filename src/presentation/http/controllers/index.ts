@@ -14,3 +14,5 @@ export * from './ServicePlanController';
 export * from './ContractedServiceController';
 export * from './BillController';
 export * from './EnforcementController';
+export * from './TicketController';
+export * from './TechnicianController';

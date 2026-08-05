@@ -16,6 +16,8 @@ import { createServicePlanRoutes } from './service-plan.routes';
 import { createContractedServiceRoutes } from './contracted-service.routes';
 import { createEnforcementRoutes } from './enforcement.routes';
 import { createBillRoutes } from './bill.routes';
+import { createTicketRoutes } from './ticket.routes';
+import { createTechnicianRoutes } from './technician.routes';
 import {
   createAuditLogMiddleware,
   createAuthenticateMiddleware
@@ -126,6 +128,22 @@ export function setupRoutes(
 
   // Bills: /api/bills
   apiRouter.use('/bills', createBillRoutes(container.billController));
+
+  // =====================================
+  // TICKETS BOUNDED CONTEXT
+  // =====================================
+
+  // Tickets: /api/tickets, /api/tickets/my-day
+  apiRouter.use(
+    '/tickets',
+    createTicketRoutes(container.ticketController)
+  );
+
+  // Technicians: /api/technicians
+  apiRouter.use(
+    '/technicians',
+    createTechnicianRoutes(container.technicianController)
+  );
 
   // =====================================
   // DEVICE-MONITORING BOUNDED CONTEXT
