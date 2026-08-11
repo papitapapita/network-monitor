@@ -2,6 +2,7 @@
 
 import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDeviceModelRepository';
+import { PrismaLocationRepository } from 'infrastructure/persistence/PrismaLocationRepository';
 import { CreateDeviceUseCase } from 'application/device-inventory/use-cases/CreateDeviceUseCase';
 import { SetDeviceCredentialsUseCase } from 'application/device-inventory/use-cases/SetDeviceCredentialsUseCase';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
@@ -39,6 +40,7 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
     createDevice = new CreateDeviceUseCase(
       deviceRepo,
       new PrismaDeviceModelRepository(prisma),
+      new PrismaLocationRepository(prisma),
       logger
     );
     useCase = new SetDeviceCredentialsUseCase(

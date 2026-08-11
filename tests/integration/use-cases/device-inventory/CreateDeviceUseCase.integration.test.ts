@@ -1,5 +1,6 @@
 import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDeviceModelRepository';
+import { PrismaLocationRepository } from 'infrastructure/persistence/PrismaLocationRepository';
 import { CreateDeviceUseCase } from 'application/device-inventory/use-cases/CreateDeviceUseCase';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
@@ -41,6 +42,7 @@ describe('CreateDeviceUseCase — integration', () => {
     useCase = new CreateDeviceUseCase(
       repo,
       new PrismaDeviceModelRepository(prisma),
+      new PrismaLocationRepository(prisma),
       logger
     );
   });

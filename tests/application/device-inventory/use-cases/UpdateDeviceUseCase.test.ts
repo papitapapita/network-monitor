@@ -4,7 +4,8 @@ import { IPAddress, MACAddress } from 'domain/shared';
 import { UpdateDeviceUseCase } from '../../../../src/application/device-inventory/use-cases';
 import {
   IDeviceRepository,
-  IDeviceModelRepository
+  IDeviceModelRepository,
+  ILocationRepository
 } from '../../../../src/domain/device-inventory/repository';
 import { IWirelessDeviceConfigRepository } from '../../../../src/domain/wireless-monitoring/repository';
 import { WirelessDeviceConfig } from '../../../../src/domain/wireless-monitoring/aggregates';
@@ -64,6 +65,19 @@ function makeDeviceModelRepo(): jest.Mocked<IDeviceModelRepository> {
     delete: jest.fn(),
     exists: jest.fn(),
     existsByVendorAndModel: jest.fn(),
+    count: jest.fn()
+  };
+}
+
+function makeLocationRepo(): jest.Mocked<ILocationRepository> {
+  return {
+    save: jest.fn(),
+    findById: jest.fn(),
+    findAll: jest.fn(),
+    findByType: jest.fn(),
+    findAllWithCoordinates: jest.fn(),
+    delete: jest.fn(),
+    exists: jest.fn(),
     count: jest.fn()
   };
 }
@@ -188,6 +202,7 @@ function makeRequest(
 describe('UpdateDeviceUseCase', () => {
   let repo: jest.Mocked<IDeviceRepository>;
   let deviceModelRepo: jest.Mocked<IDeviceModelRepository>;
+  let locationRepo: jest.Mocked<ILocationRepository>;
   let wirelessConfigRepo: jest.Mocked<IWirelessDeviceConfigRepository>;
   let logger: ILogger;
   let useCase: UpdateDeviceUseCase;
@@ -195,11 +210,13 @@ describe('UpdateDeviceUseCase', () => {
   beforeEach(() => {
     repo = makeRepo();
     deviceModelRepo = makeDeviceModelRepo();
+    locationRepo = makeLocationRepo();
     wirelessConfigRepo = makeWirelessConfigRepo();
     logger = makeLogger();
     useCase = new UpdateDeviceUseCase(
       repo,
       deviceModelRepo,
+      locationRepo,
       wirelessConfigRepo,
       logger
     );
@@ -210,6 +227,7 @@ describe('UpdateDeviceUseCase', () => {
     repo.existsByIpAddress.mockResolvedValue(Result.ok(false));
     repo.save.mockImplementation(async (device) => Result.ok(device));
     deviceModelRepo.exists.mockResolvedValue(Result.ok(true));
+    locationRepo.exists.mockResolvedValue(Result.ok(true));
     wirelessConfigRepo.findByDeviceId.mockResolvedValue(
       Result.ok(null)
     );
@@ -365,7 +383,7 @@ describe('UpdateDeviceUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — location assignment', () => {
+  describe('[DEV-067] executeImpl — location assignment', () => {
     it('should succeed when locationId is a valid UUID string', async () => {
       const result = await useCase.execute(
         makeRequest({ locationId: VALID_LOCATION_ID })
@@ -407,6 +425,65 @@ describe('UpdateDeviceUseCase', () => {
 
       expect(result.isSuccess).toBe(true);
       expect(result.value!.locationId).toBeNull();
+    });
+
+    it('should not check location existence when locationId is undefined', async () => {
+      await useCase.execute(makeRequest({ locationId: undefined }));
+
+      expect(locationRepo.exists).not.toHaveBeenCalled();
+    });
+
+    it('should not check location existence when locationId is null', async () => {
+      await useCase.execute(makeRequest({ locationId: null }));
+
+      expect(locationRepo.exists).not.toHaveBeenCalled();
+    });
+
+    it('should fail when the new location does not exist', async () => {
+      locationRepo.exists.mockResolvedValue(Result.ok(false));
+
+      const result = await useCase.execute(
+        makeRequest({ locationId: VALID_LOCATION_ID })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Location not found');
+    });
+
+    it('should not save when the new location does not exist', async () => {
+      locationRepo.exists.mockResolvedValue(Result.ok(false));
+
+      await useCase.execute(
+        makeRequest({ locationId: VALID_LOCATION_ID })
+      );
+
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('should propagate a repository failure from exists', async () => {
+      locationRepo.exists.mockResolvedValue(Result.fail('DB timeout'));
+
+      const result = await useCase.execute(
+        makeRequest({ locationId: VALID_LOCATION_ID })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Failed to verify location');
+    });
+
+    it('should not re-check existence when resubmitting the device\'s own location', async () => {
+      repo.findById.mockResolvedValue(
+        Result.ok(
+          makePersistedDevice({ locationId: VALID_LOCATION_ID })
+        )
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ locationId: VALID_LOCATION_ID })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(locationRepo.exists).not.toHaveBeenCalled();
     });
   });
 

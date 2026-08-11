@@ -2,6 +2,7 @@
 
 import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDeviceModelRepository';
+import { PrismaLocationRepository } from 'infrastructure/persistence/PrismaLocationRepository';
 import { CreateDeviceUseCase } from 'application/device-inventory/use-cases/CreateDeviceUseCase';
 import { DeleteDeviceUseCase } from 'application/device-inventory/use-cases/DeleteDeviceUseCase';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
@@ -37,6 +38,7 @@ describe('DeleteDeviceUseCase — integration', () => {
     createUseCase = new CreateDeviceUseCase(
       repo,
       new PrismaDeviceModelRepository(prisma),
+      new PrismaLocationRepository(prisma),
       logger
     );
     deleteUseCase = new DeleteDeviceUseCase(repo, logger);

@@ -1,7 +1,8 @@
 import { IPAddress, MACAddress } from 'domain/shared';
 import {
   IDeviceRepository,
-  IDeviceModelRepository
+  IDeviceModelRepository,
+  ILocationRepository
 } from 'domain/device-inventory/repository';
 import { DeviceOwnerType } from 'domain/device-inventory/enums';
 import { DeviceChanges } from 'domain/device-inventory/props';
@@ -31,6 +32,7 @@ export class UpdateDeviceUseCase extends UseCase<
   constructor(
     private readonly deviceRepository: IDeviceRepository,
     private readonly deviceModelRepository: IDeviceModelRepository,
+    private readonly locationRepository: ILocationRepository,
     private readonly wirelessConfigRepository: IWirelessDeviceConfigRepository,
     logger: ILogger
   ) {
@@ -297,7 +299,24 @@ export class UpdateDeviceUseCase extends UseCase<
             `Invalid locationId: ${locationIdResult.error}`
           );
         }
-        updateFields.locationId = locationIdResult.value;
+        const newLocationId = locationIdResult.value;
+
+        if (!device.locationId?.equals(newLocationId)) {
+          const locationExistsResult =
+            await this.locationRepository.exists(newLocationId);
+          if (locationExistsResult.isFailure) {
+            return this.fail(
+              `Failed to verify location: ${locationExistsResult.error}`
+            );
+          }
+          if (!locationExistsResult.value) {
+            return this.fail(
+              `Location not found: ${data.locationId}`
+            );
+          }
+        }
+
+        updateFields.locationId = newLocationId;
       }
     }
 

@@ -20,6 +20,58 @@ Conventions, rule types and the ID scheme are in [README.md](README.md).
 Rationales marked _(inferred)_ were reconstructed from the code, not stated by
 the business. They are the ones to read critically.
 
+Every rule carries two extra fields. **Layer** names the layer that actually
+enforces it, so a rule sitting outside the domain is visible without opening the
+code. **Tests** lists the suites covering it — `_none_` means genuinely nothing
+covers it, which is a gap rather than an omission in this document.
+
+---
+
+## Layer coverage
+
+Where each rule is enforced today. The domain layer is where business rules
+belong, so the rows below it are the ones worth arguing about — not all of them
+are wrong, but each is a deliberate choice that should stay deliberate.
+
+| Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Domain**                            |    36 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144 |
+| **Application**                       |    28 | DEV-005, DEV-021, DEV-026, DEV-027, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-092, DEV-097, DEV-098, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145                                                                         |
+| **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                        |
+| **Infrastructure + Domain**           |     1 | DEV-028                                                                                                                                                                                                                                                                                                                            |
+| **Presentation**                      |     2 | DEV-140, DEV-146                                                                                                                                                                                                                                                                                                                   |
+
+**Half the book sits outside the domain, and most of it belongs there.** The
+three clusters are worth naming, because they are not the same kind of
+departure:
+
+- **Uniqueness rules** (DEV-003, DEV-007, DEV-022, DEV-047, DEV-049) cannot live
+  in an aggregate: no aggregate can see its siblings. They are enforced in the
+  use case and backed by a database constraint, which is the standard answer for
+  a cross-aggregate invariant, not a shortcut.
+- **Referential and deletion rules** (DEV-005, DEV-021, DEV-026, DEV-027,
+  DEV-065, DEV-066, DEV-067, DEV-097) span two aggregates for the same reason.
+  A domain service could hold them; a use case holding them is the pragmatic
+  equivalent.
+- **The credential rules** (DEV-120 – DEV-132) are deliberately outside the
+  domain, and the Device Credentials section says so: they are infrastructure
+  access secrets, not part of a device's identity.
+
+The genuine outliers are **DEV-044** (`ownerType` parsed inline in two use
+cases, though every sibling closed set is a value object — G-14) and
+**DEV-050** (`installedDate` is the only validated field with no value object
+of its own — G-15).
+
+**DEV-092 is not one of them**, despite looking like it. `CoordinatesProps`
+declares `latitude` and `longitude` as required non-optional numbers, so half a
+coordinate is unrepresentable in the domain — the invariant is enforced by the
+type, not by the use case. What `CreateLocationUseCase.ts:44` does is translate
+_two independently nullable request fields_ into one clean message before
+construction. That is boundary translation, which is the use case's job.
+
+DEV-141 and DEV-144 count as domain because `ROLE_PERMISSIONS` lives in
+`domain/identity` — the enforcement point is presentation middleware.
+
 ---
 
 ## Vendor
@@ -27,6 +79,7 @@ the business. They are the ones to read critically.
 ### DEV-001 — A vendor has a non-empty name of at most 100 characters
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 The name is trimmed before storage. Whitespace-only names are rejected.
@@ -38,10 +91,12 @@ column and keeps the picker from wrapping.
 **Enforced at:** `src/domain/device-inventory/aggregates/Vendor.ts:107` (`Vendor.validateName`)
 **Reached from:** `create`, `updateName`
 **Message:** `Vendor name cannot be empty` / `Vendor name cannot exceed 100 characters`
+**Tests:** `tests/domain/device-inventory/aggregates/Vendor.test.ts`, `tests/integration/use-cases/device-inventory/CreateVendorUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateVendorUseCase.integration.test.ts`, `tests/integration/vendor.routes.test.ts`
 
 ### DEV-002 — A vendor slug is lowercase letters, digits and hyphens only
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 Required, non-empty, at most 100 characters, matching
@@ -56,10 +111,12 @@ alphabet means it never needs escaping, and forbidding uppercase prevents
 **Enforced at:** `src/domain/device-inventory/aggregates/Vendor.ts:125` (`Vendor.validateSlug`)
 **Reached from:** `create`, `updateSlug`
 **Message:** `Vendor slug must contain only lowercase letters, digits, and hyphens (e.g. "tp-link")`
+**Tests:** `tests/domain/device-inventory/aggregates/Vendor.test.ts`, `tests/integration/use-cases/device-inventory/CreateVendorUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateVendorUseCase.integration.test.ts`, `tests/integration/vendor.routes.test.ts`
 
 ### DEV-003 — Vendor slugs are unique
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Application + database constraint (not in domain)
 **Since:** 2026-07-28
 
 No two vendors may share a slug. On update, a vendor may keep its own slug —
@@ -71,10 +128,12 @@ would make the identifier ambiguous everywhere it is reported.
 **Enforced at:** `src/application/device-inventory/use-cases/CreateVendorUseCase.ts:44`, `UpdateVendorUseCase.ts:62`
 **Backed by:** `Vendor.slug @unique` in `prisma/schema.prisma:48`
 **Message:** `A vendor with slug "<slug>" already exists`
+**Tests:** `tests/integration/use-cases/device-inventory/CreateVendorUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateVendorUseCase.integration.test.ts`, `tests/integration/vendor.routes.test.ts`
 
 ### DEV-004 — A vendor description is at most 500 characters
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 Optional; defaults to `null`.
@@ -85,10 +144,12 @@ document.
 **Enforced at:** `src/domain/device-inventory/aggregates/Vendor.ts:142` (`Vendor.validateDescription`)
 **Reached from:** `create`, `updateDescription`
 **Message:** `Vendor description cannot exceed 500 characters`
+**Tests:** `tests/domain/device-inventory/aggregates/Vendor.test.ts`, `tests/integration/use-cases/device-inventory/CreateVendorUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateVendorUseCase.integration.test.ts`, `tests/integration/vendor.routes.test.ts`
 
 ### DEV-005 — A vendor with device models cannot be deleted
 
 **Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 Deletion is refused while any device model references the vendor. The message
@@ -101,10 +162,12 @@ silently.
 
 **Enforced at:** `src/application/device-inventory/use-cases/DeleteVendorUseCase.ts:57`
 **Message:** `Cannot delete vendor: it has N device model(s) associated. Remove all device models first.`
+**Tests:** `tests/integration/use-cases/device-inventory/DeleteVendorUseCase.integration.test.ts`, `tests/integration/vendor.routes.test.ts`
 
 ### DEV-006 — A vendor requires both a name and a slug
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 Both are mandatory at creation. `null`, `undefined`, a non-string and a blank
@@ -122,11 +185,12 @@ optional.
 **Enforced at:** `src/domain/device-inventory/aggregates/Vendor.ts:104` (`validateName` guard), `:124` (`validateSlug` guard); use case pre-check at `CreateVendorUseCase.ts:23-28`; HTTP fast-fail in `src/presentation/http/validation/vendor.schemas.ts:10-24`
 **Reached from:** `create`, `updateName`, `updateSlug`
 **Message:** `Vendor name is required` / `Vendor slug is required` (use case); `name is null or undefined` / `slug is null or undefined` (aggregate guards)
-**Tests:** `tests/domain/device-inventory/aggregates/Vendor.test.ts`, `tests/application/device-inventory/use-cases/CreateVendorUseCase.test.ts`
+**Tests:** `tests/domain/device-inventory/aggregates/Vendor.test.ts`, `tests/application/device-inventory/use-cases/CreateVendorUseCase.test.ts`, `tests/integration/use-cases/device-inventory/CreateVendorUseCase.integration.test.ts`, `tests/integration/vendor.routes.test.ts`
 
 ### DEV-007 — Vendor names are unique
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Application + database constraint (not in domain)
 **Since:** 2026-08-01
 
 No two vendors may share a name. On update, a vendor may keep its own name —
@@ -144,7 +208,7 @@ surfaced as a raw Prisma error instead of a sentence an operator could act on.
 **Enforced at:** `src/application/device-inventory/use-cases/CreateVendorUseCase.ts:49`, `UpdateVendorUseCase.ts:78`
 **Backed by:** `Vendor.name @unique` in `prisma/schema.prisma:47`
 **Message:** `A vendor with name "<name>" already exists`
-**Tests:** `tests/application/device-inventory/use-cases/CreateVendorUseCase.test.ts`, `UpdateVendorUseCase.test.ts`
+**Tests:** `tests/application/device-inventory/use-cases/CreateVendorUseCase.test.ts`, `tests/application/device-inventory/use-cases/UpdateVendorUseCase.test.ts`
 
 ---
 
@@ -153,6 +217,7 @@ surfaced as a raw Prisma error instead of a sentence an operator could act on.
 ### DEV-020 — A device model requires a vendor, a model name and a device type
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 All three are mandatory at creation.
@@ -163,6 +228,7 @@ and which alert rules apply to units of this model.
 
 **Enforced at:** `src/domain/device-inventory/aggregates/DeviceModel.ts:153` (`DeviceModel.validate`), use case pre-checks at `CreateDeviceModelUseCase.ts:32-43`
 **Message:** `Vendor ID is required` / `Model name is required` / `Device type is required`
+**Tests:** `tests/domain/device-inventory/aggregates/DeviceModel.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceModelUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
 
 The shape of each is then governed by DEV-023 (model name) and DEV-024 (device
 type). The aggregate guard only checks that a `DeviceType` is present — by the
@@ -171,6 +237,7 @@ time `create` runs, the value has already been through `DeviceType.create`.
 ### DEV-021 — The vendor of a device model must exist
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 Checked on create and on any update that changes the vendor.
@@ -180,10 +247,12 @@ name and slug the model reports until its next read (DEV-028).
 
 **Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceModelUseCase.ts:63`, `UpdateDeviceModelUseCase.ts:77`
 **Message:** `Vendor not found: <id>`
+**Tests:** `tests/integration/use-cases/device-inventory/CreateDeviceModelUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceModelUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
 
 ### DEV-022 — A vendor cannot have two device models with the same name
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Application + database constraint (not in domain)
 **Since:** 2026-07-28
 
 Uniqueness is per vendor, on the trimmed model name. Two different vendors may
@@ -197,10 +266,12 @@ manufacturers all the time.
 **Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceModelUseCase.ts:78`
 **Backed by:** `@@unique([vendorId, model])` in `prisma/schema.prisma:88`
 **Message:** `A device model "<model>" already exists for this vendor`
+**Tests:** `tests/integration/use-cases/device-inventory/CreateDeviceModelUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
 
 ### DEV-023 — A model name is non-empty and at most 150 characters
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 Trimmed before storage.
@@ -210,10 +281,12 @@ Trimmed before storage.
 **Enforced at:** `src/domain/device-inventory/aggregates/DeviceModel.ts:170` (`validate`), `:88` (`updateModel`)
 **Reached from:** `create`, `updateModel`
 **Message:** `Model name cannot be empty` / `Model name cannot exceed 150 characters`
+**Tests:** `tests/domain/device-inventory/aggregates/DeviceModel.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceModelUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
 
 ### DEV-024 — A device type is one of seven values
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28 · **Revised:** 2026-07-29
 
 Required: `ANTENNA`, `OTHER`, `RADIO`, `ROUTER`, `ROUTERBOARD`, `SERVER`,
@@ -237,7 +310,7 @@ keeps the set from needing to grow for every unusual piece of hardware.
 **Enforced at:** `src/domain/device-inventory/value-objects/DeviceType.ts:31` (`DeviceType.create`)
 **Reached from:** `CreateDeviceModelUseCase.ts:52`, `UpdateDeviceModelUseCase.ts:99`; use case pre-check at `CreateDeviceModelUseCase.ts:38-43`; HTTP fast-fail in `src/presentation/http/validation/device-model.schemas.ts:61`, `:94`
 **Message:** `Device type cannot be empty` / `Invalid device type: "<value>". Must be one of: ANTENNA, OTHER, RADIO, ROUTER, ROUTERBOARD, SERVER, SWITCH`
-**Tests:** `tests/domain/device-inventory/value-objects/DeviceType.test.ts`
+**Tests:** `tests/domain/device-inventory/value-objects/DeviceType.test.ts`, `tests/domain/device-inventory/aggregates/DeviceModel.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceModelUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceModelUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
 
 A stored value is held to a stricter standard than an incoming one:
 `DeviceModelMapper.toDomain` checks `DeviceType.isValid` on the raw column with
@@ -250,6 +323,7 @@ the domain have drifted, which is a defect to surface rather than paper over.
 ### DEV-025 — A device model is non-wireless unless stated
 
 **Type:** Policy · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28 · **Revised:** 2026-07-29
 
 `isWireless` defaults to `false` when omitted.
@@ -266,11 +340,12 @@ extra collection machinery. Defaulting to off means a carelessly created model
 does not silently start wireless polling.
 
 **Enforced at:** `src/domain/device-inventory/aggregates/DeviceModel.ts:62` (`DeviceModel.create`)
-**Tests:** `tests/domain/device-inventory/aggregates/DeviceModel.test.ts`, `tests/application/device-inventory/mappers/DeviceModelMapper.test.ts`
+**Tests:** `tests/domain/device-inventory/aggregates/DeviceModel.test.ts`, `tests/application/device-inventory/mappers/DeviceModelMapper.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceModelUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
 
 ### DEV-026 — A device model with devices cannot be deleted
 
 **Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 **Why:** Same reasoning as DEV-005 — deleting the model would strip every unit
@@ -278,10 +353,12 @@ built on it of its identity. Reassignment must be an explicit decision.
 
 **Enforced at:** `src/application/device-inventory/use-cases/DeleteDeviceModelUseCase.ts:58`
 **Message:** `Cannot delete device model: it has N device(s) associated. Reassign or remove those devices first.`
+**Tests:** `tests/integration/use-cases/device-inventory/DeleteDeviceModelUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
 
 ### DEV-027 — `isWireless` cannot be turned off while any device on the model has a wireless configuration
 
 **Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28 · **Revised:** 2026-07-30
 
 An update changing `isWireless` from `true` to `false` is refused when any
@@ -295,7 +372,7 @@ To make the model non-wireless, delete those configurations first
 (`DELETE /api/devices/:id/wireless/config`), then set the flag.
 
 **Why:** A configuration carries operator-entered values — `linkCapacityKbps` or
-`clientsProvisionedLimit` (DEV-064) — that no cascade can preserve, because a
+`clientsProvisionedLimit` (WLS-004, WLS-005) — that no cascade can preserve, because a
 non-wireless model has nowhere to put them. This is the same data DEV-065
 refuses to discard one device at a time, so the model catalogue may not discard
 it wholesale: it would be inconsistent for a single device's category to be
@@ -325,6 +402,7 @@ still reported success.
 ### DEV-028 — A device model reports its vendor's name and slug
 
 **Type:** Policy · **Status:** Active
+**Layer:** Infrastructure + Domain (partly in domain)
 **Since:** 2026-07-28 · **Revised:** 2026-07-30
 
 Every device model response carries `vendorName` and `vendorSlug` alongside
@@ -342,7 +420,7 @@ join rather than a stored copy is what keeps it from ageing: the catalogue can
 never disagree with the vendor record it came from. _(inferred)_
 
 **Enforced at:** `src/infrastructure/mappers/DeviceModelMapper.ts:55` (`toDomain`), `src/domain/device-inventory/aggregates/DeviceModel.ts:131` (`updateVendor`)
-**Tests:** `tests/integration/use-cases/device-inventory/UpdateVendorUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceModelUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceModelUseCase.integration.test.ts`
+**Tests:** `tests/domain/device-inventory/aggregates/DeviceModel.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceModelUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceModelUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateVendorUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
 
 ---
 
@@ -351,6 +429,7 @@ never disagree with the vendor record it came from. _(inferred)_
 ### DEV-040 — A device requires a device model and a name
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 Everything else — location, category, owner, serial, MAC, IP, dates — is
@@ -362,20 +441,24 @@ registered on arrival, before it has been configured or installed.
 
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:92` (`Guard.combine` in `create`)
 **Message:** `deviceModelId is required` / `Device name is required`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
 
 ### DEV-041 — A device name is non-empty and at most 150 characters
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 Trimmed before storage.
 
 **Enforced at:** `src/domain/device-inventory/value-objects/DeviceName.ts:28`
 **Message:** `Device name cannot be empty` / `Device name cannot exceed 150 characters`
+**Tests:** `tests/domain/device-inventory/value-objects/DeviceName.test.ts`, `tests/domain/device-inventory/aggregates/Device.test.ts`
 
 ### DEV-042 — A device status is one of ACTIVE, COMMISSIONING, DAMAGED, INVENTORY
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 Input is trimmed and upper-cased. **INVENTORY is the default** when no status is
@@ -389,10 +472,12 @@ before it is deployed.
 **Enforced at:** `src/domain/device-inventory/value-objects/DeviceStatus.ts:43`
 **Default applied at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:104`
 **Message:** `Invalid device status: <value>. Must be one of: ACTIVE, COMMISSIONING, DAMAGED, INVENTORY`
+**Tests:** `tests/domain/device-inventory/value-objects/DeviceStatus.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
 
 ### DEV-043 — A device category, when set, is one of six deployment roles
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28 · **Revised:** 2026-07-29, 2026-08-01
 
 Optional (nullable). When present it must be one of `CPE`, `WIRELESS_CPE`,
@@ -412,12 +497,12 @@ better 400, not the authority. The Prisma `device_category` enum
 device type (DEV-024) answers **what kind of hardware it is** — both closed
 sets, for the same reason: behaviour branches on them. Only `WIRELESS_CPE` and
 `ACCESS_POINT` may hold a wireless configuration (DEV-062), and the wireless
-radio mode is derived from the category rather than asked for (DEV-064). `OTHER`
+radio mode is derived from the category rather than asked for (WLS-003). `OTHER`
 is the escape hatch that keeps the set from needing to grow for every oddity.
 
 **Enforced at:** `src/domain/device-inventory/value-objects/DeviceCategory.ts:47` (`DeviceCategory.create`)
 **Message:** `Device category cannot be empty` / `Invalid device category: <value>. Must be one of: CPE, WIRELESS_CPE, ACCESS_POINT, GATEWAY, AGGREGATION_SWITCH, OTHER`
-**Tests:** `tests/domain/device-inventory/value-objects/DeviceCategory.test.ts`, `tests/infrastructure/mappers/DeviceMapper.test.ts`
+**Tests:** `tests/domain/device-inventory/value-objects/DeviceCategory.test.ts`, `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/infrastructure/mappers/DeviceMapper.test.ts`
 
 A stored value is held to a stricter standard than an incoming one, exactly as
 DEV-024 and DEV-091 are: `DeviceMapper.toDomain` checks `DeviceCategory.isValid`
@@ -462,6 +547,7 @@ how they were found and corrected.
 ### DEV-044 — A device owner, when set, is COMPANY or CLIENT
 
 **Type:** Validation · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 Optional. Case-insensitive on input.
@@ -470,20 +556,24 @@ Optional. Case-insensitive on input.
 
 **Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:50`, `UpdateDeviceUseCase.ts:51`
 **Message:** `Invalid ownerType: "<value>". Must be one of: COMPANY, CLIENT`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
 
 ### DEV-045 — A serial number is non-empty and at most 100 characters
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 Optional; trimmed before storage.
 
 **Enforced at:** `src/domain/device-inventory/value-objects/SerialNumber.ts:28`
 **Message:** `Serial number cannot be empty` / `Serial number cannot exceed 100 characters`
+**Tests:** `tests/domain/device-inventory/value-objects/SerialNumber.test.ts`, `tests/domain/device-inventory/aggregates/Device.test.ts`
 
 ### DEV-046 — A MAC address is in colon or hyphen hex format
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 Accepts `AA:BB:CC:DD:EE:FF` or `AA-BB-CC-DD-EE-FF`. **Normalized to
@@ -496,10 +586,12 @@ spellings of one address would defeat the uniqueness check.
 
 **Enforced at:** `src/domain/shared/value-objects/MACAddress.ts:45`
 **Message:** `Invalid MAC address format: <value>. Must be in format AA:BB:CC:DD:EE:FF or AA-BB-CC-DD-EE-FF.`
+**Tests:** `tests/domain/shared/value-objects/MACAddress.test.ts`, `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
 
 ### DEV-047 — A MAC address belongs to at most one device
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Application + database constraint (not in domain)
 **Since:** 2026-07-28 · **Revised:** 2026-07-30
 
 Checked on create, and on update only when the value actually changes — so
@@ -513,10 +605,12 @@ make network scan results ambiguous about which record they matched.
 **Message:** `MAC address "<value>" is already assigned to another device`
 **Note:** The use case check is the normal path; the unique index catches
 concurrent writes that both clear it and reports the same message.
+**Tests:** `tests/integration/use-cases/device-inventory/CreateDeviceUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`
 
 ### DEV-048 — An IP address is a valid IPv4 or IPv6 address
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 Optional. IPv6 is lower-cased on storage; IPv4 is stored as written.
@@ -526,10 +620,12 @@ time, long after the operator who typed it has moved on.
 
 **Enforced at:** `src/domain/shared/value-objects/IPAddress.ts:53`
 **Message:** `Invalid IP address format: <value>. Must be a valid IPv4 or IPv6 address.`
+**Tests:** `tests/domain/shared/value-objects/IPAddress.test.ts`, `tests/domain/device-inventory/aggregates/Device.test.ts`
 
 ### DEV-049 — An IP address belongs to at most one device
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Application + database constraint (not in domain)
 **Since:** 2026-07-28 · **Revised:** 2026-07-30
 
 Same change-detection as DEV-047: a device may keep its own IP on update.
@@ -541,10 +637,12 @@ ping, so the data would be silently wrong rather than absent.
 **Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:166`, `UpdateDeviceUseCase.ts:204`, `prisma/schema.prisma:175` (unique index `devices_ip_address_key`)
 **Message:** `IP address "<value>" is already assigned to another device`
 **Note:** Same two-layer enforcement as DEV-047.
+**Tests:** `tests/integration/use-cases/device-inventory/CreateDeviceUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`
 
 ### DEV-050 — An installation date must be ISO 8601
 
 **Type:** Validation · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28 · **Revised:** 2026-08-01
 
 Optional. Accepted forms are `YYYY-MM-DD` and `YYYY-MM-DDThh:mm[:ss[.sss]]` with
@@ -569,6 +667,7 @@ applied to callers that bypass the edge schema.
 ### DEV-051 — An installation date cannot be in the future
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 Compared against the moment of validation.
@@ -580,18 +679,22 @@ fleet.
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:575` (`Device.validateInstalledDate`)
 **Reached from:** `create`, and every later change via `applyChanges` (DEV-060)
 **Message:** `installedDate cannot be in the future`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`
 
 ### DEV-052 — A device description is at most 500 characters
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:555` (`Device.validateDescription`)
 **Message:** `Device description cannot exceed 500 characters`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`
 
 ### DEV-053 — An INVENTORY or DAMAGED device must have a serial number or a MAC address
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 At least one of the two. Either satisfies the rule.
@@ -604,10 +707,12 @@ device is exempt because its IP already identifies it.
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:499` (`Device.validate`)
 **Reached from:** `create`, and every later change via `applyChanges` (DEV-060)
 **Message:** `A device with status <status> must have at least a serial number or MAC address`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`
 
 ### DEV-054 — An ACTIVE device must have an IP address
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 **Why:** ACTIVE means in service and monitored. Monitoring is ping-based, so a
@@ -617,10 +722,12 @@ green and never actually be checked.
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:508`
 **Reached from:** `create`, and every later change via `applyChanges` (DEV-060)
 **Message:** `An ACTIVE device must have an IP address assigned`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`
 
 ### DEV-055 — An ACTIVE device must have a location
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 Also blocks _removing_ the location from a device that is already ACTIVE.
@@ -632,10 +739,12 @@ in the field.
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:514`
 **Reached from:** `create`, and every later change via `applyChanges` (DEV-060)
 **Message:** `An ACTIVE device must have a location assigned`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`
 
 ### DEV-056 — A COMMISSIONING device must have an IP address
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 **Why:** Commissioning is the stage where the unit is being brought up and
@@ -645,10 +754,12 @@ configured on the bench before it is installed.
 
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:520`
 **Message:** `A COMMISSIONING device must have an IP address assigned`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`
 
 ### DEV-057 — Monitoring can only be enabled for ACTIVE or COMMISSIONING devices
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 **Why:** Those are the two states where the device is expected to answer. Polling
@@ -658,10 +769,12 @@ false-alarm outage alerts and train operators to ignore the dashboard.
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:527`
 **Reached from:** `create`, and every later change via `applyChanges` (DEV-060)
 **Message:** `Monitoring can only be enabled for ACTIVE or COMMISSIONING devices`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`
 
 ### DEV-058 — A new COMMISSIONING device gets monitoring on by default
 
 **Type:** Policy · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 Default applies only when the caller expresses no preference. An **explicit
@@ -673,10 +786,12 @@ and not a rule because there are legitimate reasons to stage a device without
 polling it yet.
 
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:108`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`
 
 ### DEV-059 — Moving a device into COMMISSIONING turns monitoring on by default
 
 **Type:** Policy · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28 · **Revised:** 2026-08-03
 
 A status change into COMMISSIONING enables monitoring if it was off — but, as in
@@ -695,10 +810,12 @@ differently for no stated reason, and made `PATCH { status: 'COMMISSIONING',
 monitoringEnabled: false }` return `200` with `monitoringEnabled: true`.
 
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:226` (`applyChanges` — the COMMISSIONING override)
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`
 
 ### DEV-060 — Status-dependent rules are validated against prospective state, not current state
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28 · **Revised:** 2026-07-29
 
 `Device.validate()` is the single source of truth for DEV-051 through DEV-057.
@@ -745,6 +862,7 @@ aspects that actually changed. An empty change set is a no-op: no validation, no
 ### DEV-061 — Devices loaded from the database bypass validation
 
 **Type:** Policy · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 `Device.reconstitute()` applies no rules.
@@ -755,10 +873,12 @@ uneditable. The trade-off is that a row violating a current invariant loads
 silently — invalid state is caught on the next _write_, not on read.
 
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:164`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`
 
 ### DEV-062 — Only WIRELESS_CPE and ACCESS_POINT devices may hold a wireless configuration
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28 · **Revised:** 2026-07-29
 
 Exposed as `device.canHaveWirelessConfig()`, which asks the category itself
@@ -770,13 +890,24 @@ present, matching category.
 with no radio there is nothing to read, so a config would schedule polls that
 can only fail.
 
+**This rule is enforced across two contexts and stays here.** The predicate is
+on the `Device` aggregate and is the device's own statement about itself, so
+Device Inventory owns it; the only caller is in Wireless Monitoring. The
+wireless book records it as a consumed rule rather than restating it. It is
+paired with [WLS-002](wireless-monitoring.md#wls-002--the-devices-model-must-be-marked-wireless-capable),
+which checks the *model*'s `isWireless` flag — category says what role the unit
+plays, `isWireless` says whether the hardware has a radio at all, and a
+configuration needs both.
+
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:393`
 **Reached from:** `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:62`
 **Message:** `Only WIRELESS_CPE and ACCESS_POINT devices can have a wireless config`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`
 
 ### DEV-063 — A device's model can only be corrected while it is INVENTORY
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-29
 
 `deviceModelId` is mandatory at creation (DEV-040) and thereafter changeable
@@ -818,47 +949,34 @@ because the device is still `INVENTORY` when the request arrives.
 
 ### DEV-064 — Wireless radio mode is derived from the device's category, never supplied
 
-**Type:** Policy · **Status:** Active
-**Since:** 2026-07-29 · **Revised:** 2026-07-30
+**Type:** Policy · **Status:** Superseded by `WLS-003`
+**Layer:** Application (not in domain)
+**Since:** 2026-07-29 · **Revised:** 2026-07-30 · **Superseded:** 2026-08-03
 
-When a wireless configuration is created, its `deviceType` (`STATION` or
-`ACCESS_POINT`) is computed from the device's category — `ACCESS_POINT` category
-→ `ACCESS_POINT` radio mode, otherwise `STATION`. Given DEV-062 has already
-narrowed the field to two categories, "otherwise" means `WIRELESS_CPE`. The HTTP
-schema no longer accepts a `deviceType` field; one sent anyway is stripped and
-ignored, not rejected.
+Moved to [wireless-monitoring.md](wireless-monitoring.md) as **WLS-003**. The
+`linkCapacityKbps` and `clientsProvisionedLimit` cross-checks this entry carried
+were split out with it, as **WLS-004** and **WLS-005**.
 
-**Why:** The category already encodes the distinction — an access point serves
-subscribers, a wireless CPE is the station end of that same link. Accepting it a
-second time as client input creates a value that can disagree with the category
-it duplicates, and there is no correct answer when it does. Deriving it removes
-the contradiction rather than adding a rule to detect it.
+**Why it was moved:** every line that enforces this rule is in
+`CreateWirelessConfigUseCase` and `wireless.schemas.ts`, and every test covering
+it is under `tests/application/wireless-monitoring/`. It was filed here because
+the deciding input — the device's category — is a device-inventory concept, but
+consuming a value is not owning a rule: if the wireless side went back to
+accepting `deviceType` as input tomorrow, nothing in Device Inventory would
+change.
 
-**Consequence.** The `linkCapacityKbps` / `clientsProvisionedLimit` cross-checks
-moved with it: they were a Zod `superRefine` against the submitted `deviceType`,
-and are now checked in the use case, where the derived value is known.
-`linkCapacityKbps` is `STATION`-only, `clientsProvisionedLimit` is
-`ACCESS_POINT`-only — so which of the two a device accepts is decided by its
-category, and correcting the category is what changes it.
+**Why it is still mentioned here:** adding a third device category changes what
+this rule derives. DEV-062 narrows the field to two, so "otherwise means
+`WIRELESS_CPE`" holds only while that stays true.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:70` (derivation), `:76-90` (cross-checks); `deviceType` dropped from `src/presentation/http/validation/wireless.schemas.ts:63`
-**Message:** `linkCapacityKbps can only be set for STATION devices` / `clientsProvisionedLimit can only be set for ACCESS_POINT devices`
-**Tests:** `tests/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.test.ts`, `tests/integration/wireless-config.routes.test.ts`
-
-**Note:** This rule is listed here rather than in the wireless-monitoring rule
-book because the deciding input is a device-inventory concept. `PATCH` still
-validates against the config's **stored** `deviceType`
-(`WirelessDeviceConfig.ts:140`, `:156`), which is that derived value — so the
-two paths agree.
-
-The derivation happens **once, at creation**, and is never revisited — which is
-why DEV-065 freezes the input it was derived from.
+**Reached from:** `POST /api/devices/:id/wireless-config`
 
 ---
 
 ### DEV-065 — A device's category cannot change while it has a wireless configuration
 
 **Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-30
 
 Once a wireless configuration exists for a device, `PATCH /api/devices/:id`
@@ -871,12 +989,21 @@ leave the category alone.
 To recategorise the device, delete its wireless configuration first
 (`DELETE /api/devices/:id/wireless/config`) and create a new one afterwards.
 
-**Why:** DEV-064 derives the config's radio mode from the category once, at
-creation, and nothing re-derives it. Letting the category move afterwards
-recreates precisely the contradiction DEV-064 exists to remove — a device
-categorised `ACCESS_POINT` holding a `STATION` config, still accepting
-`linkCapacityKbps`, still refusing `clientsProvisionedLimit`, and never
-engaging the AP collection path in the collector.
+**This rule is enforced across two contexts and stays here.** The refusal is
+written in `UpdateDeviceUseCase`, on a device-inventory request, about a
+device-inventory field — but it can only be decided by asking the wireless
+context whether a configuration exists, so `UpdateDeviceUseCase` depends on
+`IWirelessDeviceConfigRepository`. Neither side owns it alone; it is filed with
+the aggregate whose field it protects. Its wireless-side counterpart is
+[WLS-003](wireless-monitoring.md#wls-003--radio-mode-is-derived-from-the-devices-category-never-supplied).
+
+**Why:** WLS-003 (the former DEV-064) derives the config's radio mode from the
+category once, at creation, and nothing re-derives it. Letting the category move
+afterwards recreates precisely the contradiction WLS-003 exists to remove — a
+device categorised `ACCESS_POINT` holding a `STATION` config, still accepting
+`linkCapacityKbps` (WLS-004), still refusing `clientsProvisionedLimit`
+(WLS-005), and never engaging the AP collection path in the collector
+(WLS-050).
 
 Refusing is chosen over cascading because the cascade cannot be performed
 without data loss: which of `linkCapacityKbps` / `clientsProvisionedLimit` is
@@ -906,6 +1033,7 @@ only stops the category moving any further.
 ### DEV-066 — A device's model must exist
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-08-01
 
 Creation verifies that `deviceModelId` names a real device model before building
@@ -924,7 +1052,33 @@ checked, so the create path returned that raw error.
 **Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:92`, `UpdateDeviceUseCase.ts:262`
 **Backed by:** `Device.deviceModelId` FK with `onDelete: Restrict` in `prisma/schema.prisma`
 **Message:** `Device model not found: <id>` / `Failed to verify device model: <error>`
-**Tests:** `tests/application/device-inventory/use-cases/CreateDeviceUseCase.test.ts`
+**Tests:** `tests/application/device-inventory/use-cases/CreateDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceUseCase.integration.test.ts`
+
+### DEV-067 — A device's location, when set, must exist
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-11
+
+Location is optional (DEV-040), so this only runs when a `locationId` is
+actually supplied. Creation verifies it before building the aggregate;
+update verifies it only when the value actually changes — same
+change-detection as DEV-047/DEV-049, so resubmitting a device's own location is
+not re-checked.
+
+**Why:** Same reasoning as DEV-066, one layer down in the URL: a location the
+system cannot find is not a place a technician can be dispatched to. The
+column's FK is `onDelete: SetNull` rather than `Restrict` — deleting a
+location never blocks on its devices, it just clears the reference — but that
+asymmetry only protects the delete path. Nothing previously stopped a create
+or update from pointing at a location that never existed; it would fail as a
+raw Prisma foreign-key error instead of a sentence an operator could act on,
+exactly the gap DEV-066 closed for `deviceModelId` on 2026-08-01.
+
+**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:106-118`, `UpdateDeviceUseCase.ts:288-315`
+**Backed by:** `Device.locationId` FK in `prisma/schema.prisma:190`
+**Message:** `Location not found: <id>` / `Failed to verify location: <error>`
+**Tests:** `tests/application/device-inventory/use-cases/CreateDeviceUseCase.test.ts`, `tests/application/device-inventory/use-cases/UpdateDeviceUseCase.test.ts`
 
 ---
 
@@ -933,6 +1087,7 @@ checked, so the create path returned that raw error.
 ### DEV-090 — A location has a non-empty name of at most 150 characters
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 **Why:** The name is what operators search by and what appears on the map pin.
@@ -941,10 +1096,12 @@ _(inferred)_
 **Enforced at:** `src/domain/device-inventory/aggregates/Location.ts:183` (`Location.validateName`)
 **Reached from:** `create`, `updateName`
 **Message:** `Location name cannot be empty` / `Location name cannot exceed 150 characters`
+**Tests:** `tests/domain/device-inventory/aggregates/Location.test.ts`, `tests/integration/use-cases/device-inventory/CreateLocationUseCase.integration.test.ts`, `tests/integration/location.routes.test.ts`
 
 ### DEV-091 — A location type is one of six values
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 Required: `TOWER`, `DATACENTER`, `POINT_OF_PRESENCE`, `OFFICE`,
@@ -964,7 +1121,7 @@ forcing a deploy for every unusual site. _(inferred)_
 **Enforced at:** `src/domain/device-inventory/value-objects/LocationType.ts:29` (`LocationType.create`)
 **Reached from:** `CreateLocationUseCase.ts:56`, `UpdateLocationUseCase.ts:77`, `ListLocationsUseCase.ts:70` (type filter)
 **Message:** `Invalid location type: "<value>". Must be one of: TOWER, DATACENTER, POINT_OF_PRESENCE, OFFICE, CUSTOMER_PREMISES, OTHER`
-**Tests:** `tests/domain/device-inventory/value-objects/LocationType.test.ts`
+**Tests:** `tests/domain/device-inventory/value-objects/LocationType.test.ts`, `tests/domain/device-inventory/aggregates/Location.test.ts`, `tests/integration/use-cases/device-inventory/CreateLocationUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateLocationUseCase.integration.test.ts`, `tests/integration/location.routes.test.ts`
 
 A stored value is held to a stricter standard than an incoming one:
 `LocationMapper.toDomain` checks `LocationType.isValid` on the raw column with no
@@ -977,6 +1134,7 @@ domain have drifted, which is a defect to surface rather than paper over.
 ### DEV-092 — Latitude and longitude must be supplied together
 
 **Type:** Validation · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 Coordinates are optional, but half a coordinate is rejected. On update, passing
@@ -988,10 +1146,12 @@ meridian.
 
 **Enforced at:** `src/application/device-inventory/use-cases/CreateLocationUseCase.ts:44`, `UpdateLocationUseCase.ts:39`; structurally enforced by `CoordinatesProps`
 **Message:** `Both latitude and longitude must be provided together`
+**Tests:** `tests/integration/use-cases/device-inventory/UpdateLocationUseCase.integration.test.ts`, `tests/integration/location.routes.test.ts`
 
 ### DEV-093 — Coordinates are finite numbers in WGS-84 range
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 Latitude −90 to 90, longitude −180 to 180. Altitude is optional and unbounded
@@ -1004,10 +1164,12 @@ a point on Earth. The explicit finite check exists because `NaN` passes a naive
 
 **Enforced at:** `src/domain/device-inventory/value-objects/Coordinates.ts:43-88`
 **Message:** `latitude must be a finite number` / `longitude must be a finite number` / `altitude must be a finite number`, plus range messages from `Guard.inRange`
+**Tests:** `tests/domain/device-inventory/value-objects/Coordinates.test.ts`, `tests/integration/use-cases/device-inventory/UpdateLocationUseCase.integration.test.ts`
 
 ### DEV-094 — An address is all three parts or none
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 Street, municipality and neighborhood must be supplied together. Supplying any
@@ -1026,21 +1188,24 @@ site.
 **Enforced at:** `src/domain/device-inventory/value-objects/Address.ts:61` (`Address.createOptional`)
 **Reached from:** `Location.updateAddressFields` (`Location.ts:126`), `CreateLocationUseCase.ts:74`
 **Message:** `An address requires a street, municipality, and neighborhood`
-**Tests:** `tests/domain/device-inventory/value-objects/Address.test.ts`
+**Tests:** `tests/domain/device-inventory/value-objects/Address.test.ts`, `tests/domain/device-inventory/aggregates/Location.test.ts`, `tests/integration/use-cases/device-inventory/UpdateLocationUseCase.integration.test.ts`
 
 ### DEV-095 — Address parts are non-empty and length-capped
 
 **Type:** Validation · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 Street ≤ 255, municipality ≤ 100, neighborhood ≤ 150. All trimmed.
 
 **Enforced at:** `src/domain/device-inventory/value-objects/Address.ts:36-56` (`Address.create`, reached from `createOptional` — DEV-094)
 **Message:** `Street address cannot exceed 255 characters` (and the parallel messages for the other two)
+**Tests:** `tests/domain/device-inventory/value-objects/Address.test.ts`
 
 ### DEV-096 — A CUSTOMER_PREMISES location must be navigable
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28
 
 It must have coordinates **or** a complete address. Either satisfies the rule;
@@ -1055,10 +1220,12 @@ already know where their own towers and offices are.
 **Enforced at:** `src/domain/device-inventory/aggregates/Location.ts:204` (`Location.validateCustomerPremisesNavigability`)
 **Reached from:** `create`, `updateType`, `updateAddressFields` — each asks the type itself via `LocationType.isCustomerPremises()` rather than comparing against a constant
 **Message:** `A CUSTOMER_PREMISES location must have coordinates or a complete address (street, municipality, and neighborhood) so technicians can navigate to it`
+**Tests:** `tests/domain/device-inventory/aggregates/Location.test.ts`, `tests/domain/device-inventory/value-objects/LocationType.test.ts`
 
 ### DEV-097 — A location with devices assigned cannot be deleted
 
 **Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 **Why:** Deleting it would strip those devices of the answer to "where is it" —
@@ -1067,10 +1234,12 @@ moved first, deliberately.
 
 **Enforced at:** `src/application/device-inventory/use-cases/DeleteLocationUseCase.ts:57`
 **Message:** `Cannot delete location: it has N device(s) assigned. Reassign or remove those devices first.`
+**Tests:** `tests/integration/use-cases/device-inventory/DeleteLocationUseCase.integration.test.ts`, `tests/integration/location.routes.test.ts`
 
 ### DEV-098 — The map shows only locations with coordinates
 
 **Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 `GetMapLocationsUseCase` returns pins for locations that have coordinates.
@@ -1081,6 +1250,7 @@ current status.
 without geocoding, which the system does not do. _(inferred)_
 
 **Enforced at:** `src/application/device-inventory/use-cases/GetMapLocationsUseCase.ts:30`
+**Tests:** `tests/integration/use-cases/device-inventory/GetMapLocationsUseCase.integration.test.ts`
 
 ---
 
@@ -1093,6 +1263,7 @@ application layer.
 ### DEV-120 — HTTP username and password are required, together
 
 **Type:** Validation · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 Both must be present and non-blank on every save. There is no way to store one
@@ -1105,18 +1276,22 @@ failures later. See also DEV-122: SNMP is the optional pair.
 
 **Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:36`
 **Message:** `httpUsername and httpPassword are required`
+**Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
 ### DEV-121 — Credentials can only be set for a device that exists
 
 **Type:** Invariant · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 **Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:134`
 **Message:** `Device not found`
+**Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
 ### DEV-122 — SNMP is optional, but partial SNMP input is rejected
 
 **Type:** Validation · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 If **any** SNMP field is present, `snmpVersion` becomes mandatory and the
@@ -1129,18 +1304,22 @@ must not force every HTTP-only save to supply SNMP fields it does not have.
 
 **Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:48-56`
 **Message:** `snmpVersion is required when SNMP credentials are provided`
+**Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
 ### DEV-123 — SNMP version is 1, 2 or 3
 
 **Type:** Validation · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 **Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:66`
 **Message:** `snmpVersion must be 1, 2, or 3`
+**Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
 ### DEV-124 — SNMPv1 and v2 require a community string
 
 **Type:** Validation · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 **Why:** The community string is the entire authentication mechanism in these
@@ -1148,10 +1327,12 @@ versions. Without it there is no credential at all.
 
 **Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:73`
 **Message:** `snmpCommunity is required for SNMPv1 and SNMPv2`
+**Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
 ### DEV-125 — SNMPv3 requires an auth user, protocol and key
 
 **Type:** Validation · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 All three of `snmpV3AuthUser`, `snmpV3AuthProto`, `snmpV3AuthKey`.
@@ -1161,10 +1342,12 @@ three fields are one credential and any subset cannot authenticate.
 
 **Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:79-89`
 **Message:** `snmpV3AuthUser is required for SNMPv3` / `snmpV3AuthProto is required for SNMPv3` / `snmpV3AuthKey is required for SNMPv3`
+**Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
 ### DEV-126 — An SNMPv3 privacy protocol requires a privacy key
 
 **Type:** Validation · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 Privacy (encryption) is optional in v3; requesting it without a key is not.
@@ -1174,10 +1357,12 @@ no key would fail at connection time.
 
 **Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:94`
 **Message:** `snmpV3PrivKey is required when snmpV3PrivProto is set`
+**Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
 ### DEV-127 — Ports are between 1 and 65535, defaulting to 161 and 443
 
 **Type:** Validation · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 SNMP defaults to 161, HTTP to 443.
@@ -1187,10 +1372,12 @@ port and HTTPS, which is what the devices in the fleet listen on. _(inferred)_
 
 **Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:105`, `:112`; defaults in `DeviceCredentialsMapper.ts:69`, `:72`
 **Message:** `snmpPort must be between 1 and 65535` / `httpPort must be between 1 and 65535`
+**Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
 ### DEV-128 — Stored secrets are never returned; they are masked as `***`
 
 **Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 `snmpCommunity`, `snmpV3AuthKey`, `snmpV3PrivKey` and `httpPassword` come back
@@ -1204,10 +1391,12 @@ set" from "no password configured" — which changes what the form should show �
 without ever putting the secret on the wire.
 
 **Enforced at:** `src/application/device-inventory/mappers/DeviceCredentialsMapper.ts:8`
+**Tests:** `tests/integration/use-cases/device-inventory/GetDeviceCredentialsUseCase.integration.test.ts`
 
 ### DEV-129 — Secrets are redacted from logs
 
 **Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 `SetDeviceCredentialsUseCase` overrides `sanitizeForLogging` to replace the four
@@ -1218,10 +1407,12 @@ credential save would write plaintext passwords into the log files, which are
 retained and less protected than the database.
 
 **Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:168`
+**Tests:** _none_
 
 ### DEV-130 — A save replaces HTTP fields but preserves omitted SNMP fields
 
 **Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 HTTP username and password are taken from the request outright. SNMP fields are
@@ -1234,20 +1425,24 @@ would otherwise wipe SNMP keys that are tedious to re-enter and that nobody
 intended to touch. Honouring explicit `null` keeps deliberate clearing possible.
 
 **Enforced at:** `src/application/device-inventory/mappers/DeviceCredentialsMapper.ts:42` (`extractCreateData`)
+**Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
 ### DEV-131 — Reading credentials for a device with none configured is a failure
 
 **Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 Not an empty success.
 
 **Enforced at:** `src/application/device-inventory/use-cases/GetDeviceCredentialsUseCase.ts:50`
 **Message:** `No credentials configured for this device`
+**Tests:** `tests/integration/use-cases/device-inventory/GetDeviceCredentialsUseCase.integration.test.ts`
 
 ### DEV-132 — Deleting credentials succeeds whether or not any exist
 
 **Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 Idempotent, and does not check that the device exists.
@@ -1256,6 +1451,7 @@ Idempotent, and does not check that the device exists.
 is already true when there are none. _(inferred)_
 
 **Enforced at:** `src/application/device-inventory/use-cases/DeleteDeviceCredentialsUseCase.ts:39`
+**Tests:** `tests/integration/use-cases/device-inventory/DeleteDeviceCredentialsUseCase.integration.test.ts`
 
 ---
 
@@ -1264,16 +1460,19 @@ is already true when there are none. _(inferred)_
 ### DEV-140 — Every device inventory endpoint requires authentication
 
 **Type:** Policy · **Status:** Active
+**Layer:** Presentation (not in domain)
 **Since:** 2026-07-28
 
 All `/api` routes sit behind `createAuthenticateMiddleware`. No Bearer token
 means `401`.
 
 **Enforced at:** `src/presentation/http/routes/index.ts:51`
+**Tests:** `tests/integration/location.routes.test.ts`
 
 ### DEV-141 — Write access to the catalogue is role-gated
 
 **Type:** Policy · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-07-28 · **Revised:** 2026-08-01
 
 | Operation   | Permission | ADMIN | OPERATOR | VIEWER |
@@ -1291,6 +1490,7 @@ one that can strip records from equipment in the field, so it is held to
 administrators. Operators need create and update to do daily inventory work.
 
 **Enforced at:** `src/domain/identity/permissions/Permission.ts:12` (`ROLE_PERMISSIONS`), applied per route via `authorize(...)`
+**Tests:** `tests/domain/identity/permissions/Permission.test.ts`, `tests/integration/location.routes.test.ts`
 
 **Note:** Credentials are gated by the same generic `update` / `read` / `delete`
 permissions as any other resource — an OPERATOR can set device passwords. See
@@ -1299,6 +1499,7 @@ permissions as any other resource — an OPERATOR can set device passwords. See
 ### DEV-142 — Listings page at 20 per page, capped at 100
 
 **Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 `limit` defaults to 20 and is silently clamped to 100 — an over-large request is
@@ -1311,10 +1512,12 @@ instead of erroring. _(inferred)_
 **Enforced at:** `src/application/device-inventory/use-cases/ListDevicesUseCase.ts:18-19`
 **Note:** Filtered listings fetch the full matching set and paginate in memory —
 a known scaling limit, see [G-7](#known-gaps).
+**Tests:** `tests/integration/use-cases/device-inventory/ListDevicesUseCase.integration.test.ts`
 
 ### DEV-143 — A network scan requires a segment
 
 **Type:** Validation · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
 `segment` is required and non-blank. The response reports how many addresses
@@ -1327,10 +1530,12 @@ meaningful. /31 and /32 are exempt because they have no reserved pair.
 
 **Enforced at:** `src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.ts:25`, `:50`
 **Message:** `segment is required`
+**Tests:** `tests/integration/use-cases/device-inventory/ScanNetworkSegmentUseCase.integration.test.ts`
 
 ### DEV-144 — Setting or clearing device credentials is administrator-only
 
 **Type:** Policy · **Status:** Active
+**Layer:** Domain
 **Since:** 2026-08-01
 
 `PUT` and `DELETE /api/devices/:id/credentials` require a dedicated
@@ -1347,11 +1552,12 @@ rather than a side effect of who may edit a record.
 
 **Enforced at:** `src/domain/identity/permissions/Permission.ts` (`manage-credentials` in `ROLE_PERMISSIONS`), applied at `src/presentation/http/routes/credentials.routes.ts:22`, `:34`
 **Message:** `Forbidden` (HTTP 403)
-**Tests:** `tests/presentation/http/middleware/authorize.test.ts`, `tests/domain/identity/permissions/Permission.test.ts`
+**Tests:** `tests/domain/identity/permissions/Permission.test.ts`, `tests/presentation/http/middleware/authorize.test.ts`
 
 ### DEV-145 — Filtered listings paginate in the database
 
 **Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
 **Since:** 2026-08-01
 
 A filtered device listing pushes `limit` and `offset` into the query and takes
@@ -1372,6 +1578,7 @@ unfiltered path already paginated in SQL, so the two now behave the same way.
 ### DEV-146 — Request rate is budgeted per user, per resource
 
 **Type:** Policy · **Status:** Active
+**Layer:** Presentation (not in domain)
 **Since:** 2026-08-01
 
 Each route carries one of four buckets: reads 100/min, writes 60/min, deletes
@@ -1435,3 +1642,65 @@ every device must be re-categorised before a mis-flagged model can be corrected.
 The cost of the rule lands on the operator fixing a mistake, which is the wrong
 place for it. What actually needs protecting is the configuration data, and
 DEV-027 protects that directly.
+
+G-14 and G-15 came out of the layer audit on 2026-08-03; G-16 and G-17 out of
+the test audit the same day. Note that DEV-050 and DEV-007 each carried an
+earlier gap number — G-5 and G-8 — for unrelated defects that were closed on
+2026-08-01. These are new findings against the same rules, not reopenings.
+
+**G-14 — DEV-044 parses `ownerType` inline, in two places.**
+`CreateDeviceUseCase.ts:50` and `UpdateDeviceUseCase.ts:51` each read
+`Object.values(DeviceOwnerType)`, upper-case the incoming string and check
+membership themselves. The vocabulary does live in the domain
+(`src/domain/device-inventory/enums/DeviceOwnerType.ts`), but it is a plain
+TypeScript enum with no parser attached, and every other closed set in this
+context is a value object that owns its own parsing — `DeviceType` (DEV-024),
+`DeviceCategory` (DEV-043), `DeviceStatus` (DEV-042), `LocationType` (DEV-091).
+Those four cannot be bypassed, because the aggregate holds the value object
+rather than the raw value. `ownerType` can: `DeviceProps.ownerType` is typed
+`DeviceOwnerType | null`, and a caller that bypasses the two use cases has
+nothing standing between a bad string and the aggregate.
+
+The fix is a `DeviceOwnerType` value object shaped like the other four, which
+would also delete the duplicated check. It is filed rather than done because the
+duplication is currently harmless — the HTTP schemas fast-fail first, and both
+use cases do agree with each other today. The cost is paid by the third writer
+of devices, who has to know the check exists.
+
+**G-15 — DEV-050 validates `installedDate` outside the domain, unlike every
+other validated field.** `parseIso8601Date` lives in
+`src/application/shared/utils/` while its sibling DEV-051 — the future-date
+check on the same field — sits in `Device.validateInstalledDate`. So one field's
+validation is split across two layers.
+
+There is a real argument for leaving it: `DeviceProps.installedDate` is a
+`Date | null`, so by the time a value reaches the aggregate the string is
+already gone, and parsing a wire format is a boundary concern. The
+counter-argument is that this codebase does not otherwise draw the line there —
+`DeviceType.create(type: string)` takes a raw string and parses it inside the
+domain. Under that convention `installedDate` is simply the one validated field
+that never got a value object. Either answer is defensible; what is not
+defensible is the current split, where reading `Device` tells you only half of
+what the field accepts.
+
+**G-16 — DEV-007 has no integration test, though it is a uniqueness rule.**
+Vendor name uniqueness is covered only by
+`tests/application/device-inventory/use-cases/CreateVendorUseCase.test.ts` and
+`UpdateVendorUseCase.test.ts`, both of which mock the repository. The constraint
+the rule actually depends on is `Vendor.name @unique` in the database, and a
+mocked repository cannot exercise it — the tests verify the pre-check, not the
+guarantee. `docs/rules/TESTING-INTEGRATION-STANDARD.md` puts uniqueness
+explicitly in the category that gets a thorough integration suite, and DEV-003
+(slug uniqueness) has three. DEV-007 was added on 2026-08-01, later than its
+sibling, which is the likely reason it was missed.
+
+**G-17 — DEV-129 has no test of any kind.** The `sanitizeForLogging` override at
+`SetDeviceCredentialsUseCase.ts:168` is what keeps device passwords and SNMP
+keys out of the Winston logs, and nothing anywhere asserts that it does. It is
+the only rule in this book with `**Tests:** _none_`.
+
+The failure mode is why this one is worth more than its size suggests: if the
+override is dropped in a refactor, no test fails, no request errors, and no
+operator sees anything different. The evidence lands in log files — which
+DEV-129's own rationale notes are retained and less protected than the
+database — and it is found by reading them, if ever.

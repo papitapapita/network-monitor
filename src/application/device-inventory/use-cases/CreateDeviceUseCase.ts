@@ -4,7 +4,8 @@ import { Result } from 'domain/shared/core';
 import { Device } from 'domain/device-inventory/aggregates';
 import {
   IDeviceModelRepository,
-  IDeviceRepository
+  IDeviceRepository,
+  ILocationRepository
 } from 'domain/device-inventory/repository';
 import { DeviceOwnerType } from 'domain/device-inventory/enums';
 import { UseCase } from 'application/shared/core';
@@ -26,6 +27,7 @@ export class CreateDeviceUseCase extends UseCase<
   constructor(
     private readonly deviceRepository: IDeviceRepository,
     private readonly deviceModelRepository: IDeviceModelRepository,
+    private readonly locationRepository: ILocationRepository,
     logger: ILogger
   ) {
     super(logger, 'CreateDeviceUseCase');
@@ -114,6 +116,19 @@ export class CreateDeviceUseCase extends UseCase<
         );
       }
       locationId = locationIdResult.value;
+
+      const locationExistsResult =
+        await this.locationRepository.exists(locationId);
+      if (locationExistsResult.isFailure) {
+        return this.fail(
+          `Failed to verify location: ${locationExistsResult.error}`
+        );
+      }
+      if (!locationExistsResult.value) {
+        return this.fail(
+          `Location not found: ${data.locationId!.trim()}`
+        );
+      }
     }
 
     const nameResult = DeviceName.create(data.name);

@@ -3,6 +3,7 @@ import { CreateDeviceUseCase } from 'application/device-inventory/use-cases/Crea
 import { UpdateDeviceUseCase } from 'application/device-inventory/use-cases/UpdateDeviceUseCase';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
 import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDeviceModelRepository';
+import { PrismaLocationRepository } from 'infrastructure/persistence/PrismaLocationRepository';
 import { PrismaWirelessDeviceConfigRepository } from 'infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import {
@@ -36,6 +37,7 @@ describe('UpdateDeviceUseCase — integration', () => {
 
     const repo = new PrismaDeviceRepository(prisma);
     const modelRepo = new PrismaDeviceModelRepository(prisma);
+    const locationRepo = new PrismaLocationRepository(prisma);
     const wirelessConfigRepo = new PrismaWirelessDeviceConfigRepository(
       prisma
     );
@@ -43,11 +45,13 @@ describe('UpdateDeviceUseCase — integration', () => {
     createUseCase = new CreateDeviceUseCase(
       repo,
       new PrismaDeviceModelRepository(prisma),
+      locationRepo,
       logger
     );
     updateUseCase = new UpdateDeviceUseCase(
       repo,
       modelRepo,
+      locationRepo,
       wirelessConfigRepo,
       logger
     );

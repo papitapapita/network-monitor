@@ -612,6 +612,7 @@ export class DependencyContainer {
     const createDeviceUseCase = new CreateDeviceUseCase(
       this.deviceRepository,
       this.deviceModelRepository,
+      this.locationRepository,
       this.logger
     );
     const getDeviceUseCase = new GetDeviceUseCase(
@@ -625,6 +626,7 @@ export class DependencyContainer {
     const updateDeviceUseCase = new UpdateDeviceUseCase(
       this.deviceRepository,
       this.deviceModelRepository,
+      this.locationRepository,
       this.wirelessDeviceConfigRepository,
       this.logger
     );

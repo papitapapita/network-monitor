@@ -34,6 +34,7 @@ describe('GetMapLocationsUseCase — integration', () => {
     createDevice = new CreateDeviceUseCase(
       deviceRepo,
       new PrismaDeviceModelRepository(prisma),
+      locationRepo,
       logger
     );
     useCase = new GetMapLocationsUseCase(locationRepo, deviceRepo, logger);

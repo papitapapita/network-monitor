@@ -4,7 +4,8 @@ import { IPAddress, MACAddress } from 'domain/shared';
 import { CreateDeviceUseCase } from '../../../../src/application/device-inventory/use-cases';
 import {
   IDeviceModelRepository,
-  IDeviceRepository
+  IDeviceRepository,
+  ILocationRepository
 } from '../../../../src/domain/device-inventory/repository';
 import { ILogger } from '../../../../src/application/shared/interfaces';
 import { Result } from '../../../../src/domain/shared/core';
@@ -69,6 +70,19 @@ function makeModelRepo(): jest.Mocked<IDeviceModelRepository> {
   };
 }
 
+function makeLocationRepo(): jest.Mocked<ILocationRepository> {
+  return {
+    save: jest.fn(),
+    findById: jest.fn(),
+    findAll: jest.fn(),
+    findByType: jest.fn(),
+    findAllWithCoordinates: jest.fn(),
+    delete: jest.fn(),
+    exists: jest.fn(),
+    count: jest.fn()
+  };
+}
+
 /**
  * Minimal valid request DTO — satisfies all required fields.
  * Includes a serialNumber so the INVENTORY-status invariant
@@ -91,16 +105,24 @@ function makeMinimalRequest(
 describe('CreateDeviceUseCase', () => {
   let repo: jest.Mocked<IDeviceRepository>;
   let modelRepo: jest.Mocked<IDeviceModelRepository>;
+  let locationRepo: jest.Mocked<ILocationRepository>;
   let logger: ILogger;
   let useCase: CreateDeviceUseCase;
 
   beforeEach(() => {
     repo = makeRepo();
     modelRepo = makeModelRepo();
+    locationRepo = makeLocationRepo();
     logger = makeLogger();
-    useCase = new CreateDeviceUseCase(repo, modelRepo, logger);
+    useCase = new CreateDeviceUseCase(
+      repo,
+      modelRepo,
+      locationRepo,
+      logger
+    );
 
     modelRepo.exists.mockResolvedValue(Result.ok(true));
+    locationRepo.exists.mockResolvedValue(Result.ok(true));
 
     // Default: no existing MAC or IP, save succeeds
     repo.existsByMacAddress.mockResolvedValue(Result.ok(false));
@@ -413,6 +435,58 @@ describe('CreateDeviceUseCase', () => {
   });
 
   // =========================================================================
+  describe('[DEV-067] executeImpl — location lookup', () => {
+    it('should fail when the location does not exist', async () => {
+      locationRepo.exists.mockResolvedValue(Result.ok(false));
+
+      const result = await useCase.execute(
+        makeMinimalRequest({ locationId: VALID_LOCATION_ID })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Location not found');
+    });
+
+    it('should not save when the location does not exist', async () => {
+      locationRepo.exists.mockResolvedValue(Result.ok(false));
+
+      await useCase.execute(
+        makeMinimalRequest({ locationId: VALID_LOCATION_ID })
+      );
+
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('should propagate a repository failure from exists', async () => {
+      locationRepo.exists.mockResolvedValue(Result.fail('DB timeout'));
+
+      const result = await useCase.execute(
+        makeMinimalRequest({ locationId: VALID_LOCATION_ID })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Failed to verify location');
+    });
+
+    it('should look the location up by the parsed id', async () => {
+      await useCase.execute(
+        makeMinimalRequest({ locationId: VALID_LOCATION_ID })
+      );
+
+      expect(locationRepo.exists).toHaveBeenCalledTimes(1);
+      expect(locationRepo.exists.mock.calls[0][0].toString()).toBe(
+        VALID_LOCATION_ID
+      );
+    });
+
+    it('should not check the location when locationId is omitted', async () => {
+      await useCase.execute(makeMinimalRequest({ locationId: undefined }));
+
+      expect(locationRepo.exists).not.toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
   describe('[DEV-050] executeImpl — installedDate parsing', () => {
     it('should fail when installedDate is not a valid date string', async () => {
       const request = makeMinimalRequest({
@@ -609,7 +683,11 @@ describe('CreateDeviceUseCase', () => {
 
     it('should return a DTO with monitoringEnabled true when requested', async () => {
       const result = await useCase.execute(
-        makeMinimalRequest({ monitoringEnabled: true })
+        makeMinimalRequest({
+          monitoringEnabled: true,
+          status: 'COMMISSIONING',
+          ipAddress: '192.168.1.1'
+        })
       );
 
       expect(result.value!.monitoringEnabled).toBe(true);
