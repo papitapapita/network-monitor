@@ -61,9 +61,12 @@ export class AirOsHttpClient {
         '/status.cgi',
         reAuthResult.value
       );
-      if (retryResult.isFailure)
+      if (retryResult.isFailure) {
+        this.sessions.delete(ip);
         return Result.fail(retryResult.error!);
+      }
       if (retryResult.value.statusCode !== 200) {
+        this.sessions.delete(ip);
         return Result.fail(
           `status.cgi returned HTTP ${retryResult.value.statusCode} after re-auth`
         );
@@ -110,9 +113,12 @@ export class AirOsHttpClient {
         '/api/system/reboot',
         reAuthResult.value
       );
-      if (retryResult.isFailure)
+      if (retryResult.isFailure) {
+        this.sessions.delete(ip);
         return Result.fail(retryResult.error!);
+      }
       if (!this.isSuccess(retryResult.value.statusCode)) {
+        this.sessions.delete(ip);
         return Result.fail(
           `Reboot request returned HTTP ${retryResult.value.statusCode} after re-auth`
         );
@@ -135,8 +141,12 @@ export class AirOsHttpClient {
     return statusCode === 200 || statusCode === 201;
   }
 
+  // AirOS answers 403 — not 401 — when it rejects a cookie it no longer holds
+  // in its session table, and on a stale CSRF id. Both are cured by re-auth.
   private isSessionExpired(statusCode: number): boolean {
-    return statusCode === 401 || statusCode === 302;
+    return (
+      statusCode === 401 || statusCode === 403 || statusCode === 302
+    );
   }
 
   private async authenticate(

@@ -100,7 +100,7 @@ const AUTH_OK: FakeResponseOptions = {
   body: ''
 };
 
-describe('AirOsHttpClient', () => {
+describe('[WLS-040] [WLS-041] [WLS-042] [WLS-043] [WLS-044] [WLS-045] [WLS-046] [WLS-047] AirOsHttpClient', () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
@@ -268,6 +268,85 @@ describe('AirOsHttpClient', () => {
       const result = await client.fetchStatus(IP, PORT, CREDS);
 
       expect(result.isFailure).toBe(true);
+    });
+  });
+
+  // ===========================================================================
+  describe('fetchStatus — session expiry (403)', () => {
+    // AirOS rejects a cookie it no longer holds with 403, not 401. Treating
+    // that as fatal used to poison the session cache until a process restart.
+    function stubStatusCodes(statusCodes: number[]): () => number {
+      let authCallCount = 0;
+      let statusCallCount = 0;
+      (https.request as jest.Mock).mockImplementation(
+        (
+          opts: https.RequestOptions,
+          cb?: (res: EventEmitter & { statusCode?: number; headers: Record<string, unknown> }) => void
+        ) => {
+          const isAuth = (opts.path ?? '').includes('/api/auth');
+          if (isAuth) authCallCount++;
+          else statusCallCount++;
+          const statusCode = isAuth
+            ? 200
+            : (statusCodes[statusCallCount - 1] ??
+              statusCodes[statusCodes.length - 1]!);
+          const headers = isAuth
+            ? { 'set-cookie': [`${SESSION_COOKIE}; Path=/`] }
+            : {};
+          const body = isAuth ? '' : STATUS_BODY;
+          const req = new EventEmitter() as EventEmitter & { end: jest.Mock; write: jest.Mock; destroy: jest.Mock };
+          req.end = jest.fn().mockImplementation(() => {
+            if (cb) {
+              const res = new EventEmitter() as EventEmitter & { statusCode?: number; headers: Record<string, unknown> };
+              res.statusCode = statusCode;
+              res.headers = headers;
+              cb(res);
+              res.emit('data', Buffer.from(body));
+              res.emit('end');
+            }
+          });
+          req.write = jest.fn();
+          req.destroy = jest.fn();
+          return req;
+        }
+      );
+      return () => authCallCount;
+    }
+
+    it('should re-authenticate once and retry on 403 from status.cgi', async () => {
+      const authCalls = stubStatusCodes([403, 200]);
+
+      const client = new AirOsHttpClient();
+      const result = await client.fetchStatus(IP, PORT, CREDS);
+
+      expect(result.isSuccess).toBe(true);
+      expect(authCalls()).toBe(2);
+    });
+
+    it('should not keep serving a cookie the device rejected with 403', async () => {
+      const authCalls = stubStatusCodes([403]);
+
+      const client = new AirOsHttpClient();
+      const first = await client.fetchStatus(IP, PORT, CREDS);
+      const second = await client.fetchStatus(IP, PORT, CREDS);
+
+      expect(first.isFailure).toBe(true);
+      expect(second.isFailure).toBe(true);
+      // 2 auths per call — the cache must not survive a failed retry, otherwise
+      // the second call reuses the dead cookie and only re-auths once
+      expect(authCalls()).toBe(4);
+    });
+
+    it('should recover on the next poll after a 403 outage clears', async () => {
+      const authCalls = stubStatusCodes([403, 403, 200]);
+
+      const client = new AirOsHttpClient();
+      const first = await client.fetchStatus(IP, PORT, CREDS);
+      const second = await client.fetchStatus(IP, PORT, CREDS);
+
+      expect(first.isFailure).toBe(true);
+      expect(second.isSuccess).toBe(true);
+      expect(authCalls()).toBe(3);
     });
   });
 
@@ -453,6 +532,113 @@ describe('AirOsHttpClient', () => {
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Authentication failed');
+    });
+  });
+  // ===========================================================================
+  describe('[WLS-044] radio certificates', () => {
+    it('should disable certificate verification on every request', async () => {
+      stubRequest(AUTH_OK, { statusCode: 200, body: STATUS_BODY });
+      const client = new AirOsHttpClient();
+
+      await client.fetchStatus(IP, PORT, CREDS);
+
+      const calls = (https.request as jest.Mock).mock.calls;
+      expect(calls.length).toBeGreaterThan(0);
+      for (const [options] of calls) {
+        expect(options.rejectUnauthorized).toBe(false);
+      }
+    });
+  });
+
+  // ===========================================================================
+  describe('[WLS-045] request timeout', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('should fail with HTTPS_TIMEOUT naming host and port when the radio never answers', async () => {
+      (https.request as jest.Mock).mockImplementation(() => {
+        const req = new EventEmitter() as EventEmitter & {
+          end: jest.Mock;
+          write: jest.Mock;
+          destroy: jest.Mock;
+        };
+        req.end = jest.fn();
+        req.write = jest.fn();
+        req.destroy = jest.fn();
+        return req;
+      });
+
+      const client = new AirOsHttpClient(10_000);
+      const pending = client.fetchStatus(IP, PORT, CREDS);
+
+      jest.advanceTimersByTime(10_000);
+      const result = await pending;
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe(`HTTPS_TIMEOUT (${IP}:${PORT})`);
+    });
+
+    it('should destroy the socket when the deadline passes', async () => {
+      const destroy = jest.fn();
+      (https.request as jest.Mock).mockImplementation(() => {
+        const req = new EventEmitter() as EventEmitter & {
+          end: jest.Mock;
+          write: jest.Mock;
+          destroy: jest.Mock;
+        };
+        req.end = jest.fn();
+        req.write = jest.fn();
+        req.destroy = destroy;
+        return req;
+      });
+
+      const client = new AirOsHttpClient(5_000);
+      const pending = client.fetchStatus(IP, PORT, CREDS);
+
+      jest.advanceTimersByTime(5_000);
+      await pending;
+
+      expect(destroy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should ignore a socket error arriving after the timeout already settled', async () => {
+      let lastReq: EventEmitter | null = null;
+      (https.request as jest.Mock).mockImplementation(() => {
+        const req = new EventEmitter() as EventEmitter & {
+          end: jest.Mock;
+          write: jest.Mock;
+          destroy: jest.Mock;
+        };
+        req.end = jest.fn();
+        req.write = jest.fn();
+        // Node destroys asynchronously, so the error lands after the timeout
+        req.destroy = jest.fn();
+        lastReq = req;
+        return req;
+      });
+
+      const client = new AirOsHttpClient(1_000);
+      const pending = client.fetchStatus(IP, PORT, CREDS);
+
+      jest.advanceTimersByTime(1_000);
+      lastReq!.emit('error', new Error('socket hang up'));
+      const result = await pending;
+
+      expect(result.error).toBe(`HTTPS_TIMEOUT (${IP}:${PORT})`);
+    });
+
+    it('should not time out a request that answers in time', async () => {
+      stubRequest(AUTH_OK, { statusCode: 200, body: STATUS_BODY });
+      const client = new AirOsHttpClient(10_000);
+
+      const result = await client.fetchStatus(IP, PORT, CREDS);
+
+      expect(result.isSuccess).toBe(true);
     });
   });
 });
