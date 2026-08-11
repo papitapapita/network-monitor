@@ -409,7 +409,7 @@ describe('Device Routes — /api/devices', () => {
       expect(res.status).toBe(404);
     });
 
-    it('404 — returns not found for an unknown UUID', async () => {
+    it('[DEV-068] 404 — returns not found for an unknown UUID', async () => {
       const res = await request(app).delete(`/api/devices/${GHOST_ID}`);
 
       expect(res.status).toBe(404);

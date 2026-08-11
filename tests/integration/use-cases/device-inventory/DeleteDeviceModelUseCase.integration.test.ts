@@ -68,7 +68,7 @@ describe('DeleteDeviceModelUseCase — integration', () => {
   // Not found
   // ──────────────────────────────────────────────────────────────
 
-  it('fails with a not-found error when the device model does not exist (GHOST_ID)', async () => {
+  it('[DEV-029] fails with a not-found error when the device model does not exist (GHOST_ID)', async () => {
     const result = await useCase.execute({ id: GHOST_ID });
 
     expect(result.isFailure).toBe(true);

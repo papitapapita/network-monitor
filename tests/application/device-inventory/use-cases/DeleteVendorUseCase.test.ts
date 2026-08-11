@@ -138,7 +138,7 @@ describe('DeleteVendorUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — vendor lookup', () => {
+  describe('[DEV-008] executeImpl — vendor lookup', () => {
     it('should fail when findById returns null', async () => {
       (vendorRepo.findById as any).mockResolvedValue(Result.ok(null));
 

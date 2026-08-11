@@ -53,7 +53,7 @@ describe('DeleteVendorUseCase — integration', () => {
   // Not found
   // ──────────────────────────────────────────────────────────────
 
-  it('fails with a not-found error when the vendor does not exist (GHOST_ID)', async () => {
+  it('[DEV-008] fails with a not-found error when the vendor does not exist (GHOST_ID)', async () => {
     const result = await useCase.execute({ id: GHOST_ID });
 
     expect(result.isFailure).toBe(true);

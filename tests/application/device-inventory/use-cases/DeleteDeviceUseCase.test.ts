@@ -159,7 +159,7 @@ describe('DeleteDeviceUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — device lookup', () => {
+  describe('[DEV-068] executeImpl — device lookup', () => {
     it('should fail when findById returns Result.ok(null)', async () => {
       repo.findById.mockResolvedValue(Result.ok(null));
 
@@ -212,7 +212,7 @@ describe('DeleteDeviceUseCase', () => {
       expect(repo.delete).not.toHaveBeenCalled();
     });
 
-    it('should not call repo.delete when device is not found', async () => {
+    it('[DEV-068] should not call repo.delete when device is not found', async () => {
       repo.findById.mockResolvedValue(Result.ok(null));
 
       await useCase.execute(makeRequest());

@@ -432,7 +432,7 @@ describe('Vendor Routes — /api/vendors', () => {
       expect(check.status).toBe(404);
     });
 
-    it('404 — returns not found for GHOST_ID', async () => {
+    it('[DEV-008] 404 — returns not found for GHOST_ID', async () => {
       const res = await request(app)
         .delete(`/api/vendors/${GHOST_ID}`)
         .set('Authorization', `Bearer ${adminToken}`);

@@ -529,7 +529,7 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(check.status).toBe(404);
     });
 
-    it('404 — GHOST_ID not found', async () => {
+    it('[DEV-029] 404 — GHOST_ID not found', async () => {
       const res = await request(app)
         .delete(`/api/device-models/${GHOST_ID}`)
         .set('Authorization', `Bearer ${adminToken}`);

@@ -186,7 +186,7 @@ describe('DeleteDeviceModelUseCase', () => {
   });
 
   // =========================================================================
-  describe('executeImpl — device model lookup', () => {
+  describe('[DEV-029] executeImpl — device model lookup', () => {
     it('should fail when device model is not found', async () => {
       (deviceModelRepo.findById as any).mockResolvedValue(Result.ok(null));
 

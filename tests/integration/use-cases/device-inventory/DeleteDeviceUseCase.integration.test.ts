@@ -115,7 +115,7 @@ describe('DeleteDeviceUseCase — integration', () => {
     expect(remaining[0].id).toBe(survivor);
   });
 
-  it('is not idempotent — deleting twice fails the second time', async () => {
+  it('[DEV-068] is not idempotent — deleting twice fails the second time', async () => {
     const id = await createDevice();
 
     expect((await deleteUseCase.execute({ id })).isSuccess).toBe(true);
@@ -130,7 +130,7 @@ describe('DeleteDeviceUseCase — integration', () => {
   // Not found / validation failures
   // ──────────────────────────────────────────────────────────────
 
-  it('fails when the device does not exist (GHOST_ID)', async () => {
+  it('[DEV-068] fails when the device does not exist (GHOST_ID)', async () => {
     const result = await deleteUseCase.execute({ id: GHOST_ID });
 
     expect(result.isFailure).toBe(true);

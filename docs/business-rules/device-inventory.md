@@ -36,7 +36,7 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 | Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                |
 | ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Domain**                            |    36 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144 |
-| **Application**                       |    28 | DEV-005, DEV-021, DEV-026, DEV-027, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-092, DEV-097, DEV-098, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145                                                                         |
+| **Application**                       |    31 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-092, DEV-097, DEV-098, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145                                                                         |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                        |
 | **Infrastructure + Domain**           |     1 | DEV-028                                                                                                                                                                                                                                                                                                                            |
 | **Presentation**                      |     2 | DEV-140, DEV-146                                                                                                                                                                                                                                                                                                                   |
@@ -209,6 +209,20 @@ surfaced as a raw Prisma error instead of a sentence an operator could act on.
 **Backed by:** `Vendor.name @unique` in `prisma/schema.prisma:47`
 **Message:** `A vendor with name "<name>" already exists`
 **Tests:** `tests/application/device-inventory/use-cases/CreateVendorUseCase.test.ts`, `tests/application/device-inventory/use-cases/UpdateVendorUseCase.test.ts`
+
+### DEV-008 — Only an existing vendor can be deleted
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-11
+
+**Why:** Mirrors DEV-068 (only an existing device can be deleted) one
+aggregate over — a delete against an id nobody recognizes is a caller error,
+not a no-op, so it fails loudly instead of silently succeeding.
+
+**Enforced at:** `src/application/device-inventory/use-cases/DeleteVendorUseCase.ts:42-48`
+**Message:** `Vendor not found: <id>`
+**Tests:** `tests/application/device-inventory/use-cases/DeleteVendorUseCase.test.ts`, `tests/integration/use-cases/device-inventory/DeleteVendorUseCase.integration.test.ts`, `tests/integration/vendor.routes.test.ts`
 
 ---
 
@@ -421,6 +435,18 @@ never disagree with the vendor record it came from. _(inferred)_
 
 **Enforced at:** `src/infrastructure/mappers/DeviceModelMapper.ts:55` (`toDomain`), `src/domain/device-inventory/aggregates/DeviceModel.ts:131` (`updateVendor`)
 **Tests:** `tests/domain/device-inventory/aggregates/DeviceModel.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceModelUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceModelUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateVendorUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
+
+### DEV-029 — Only an existing device model can be deleted
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-11
+
+**Why:** Same reasoning as DEV-008/DEV-068, one aggregate over.
+
+**Enforced at:** `src/application/device-inventory/use-cases/DeleteDeviceModelUseCase.ts:42-49`
+**Message:** `Device model not found: <id>`
+**Tests:** `tests/application/device-inventory/use-cases/DeleteDeviceModelUseCase.test.ts`, `tests/integration/use-cases/device-inventory/DeleteDeviceModelUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
 
 ---
 
@@ -1079,6 +1105,25 @@ exactly the gap DEV-066 closed for `deviceModelId` on 2026-08-01.
 **Backed by:** `Device.locationId` FK in `prisma/schema.prisma:190`
 **Message:** `Location not found: <id>` / `Failed to verify location: <error>`
 **Tests:** `tests/application/device-inventory/use-cases/CreateDeviceUseCase.test.ts`, `tests/application/device-inventory/use-cases/UpdateDeviceUseCase.test.ts`
+
+### DEV-068 — Only an existing device can be deleted
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-11
+
+**Why:** Mirrors DEV-121 (credentials can only be *set* for a device that
+exists) on the other side of the same aggregate — a delete against an id
+nobody recognizes is a caller error, not a no-op, so it fails instead of
+silently succeeding. This is the opposite policy from DEV-132 (deleting
+credentials succeeds whether or not any exist): deleting a device is a real
+state change with cascade effects on its polling configuration, so unlike a
+credentials delete there is no idempotent "already gone" reading — the
+second delete of the same device must fail.
+
+**Enforced at:** `src/application/device-inventory/use-cases/DeleteDeviceUseCase.ts:41-48`
+**Message:** `Device not found: <id>`
+**Tests:** `tests/application/device-inventory/use-cases/DeleteDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/DeleteDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
 
 ---
 
