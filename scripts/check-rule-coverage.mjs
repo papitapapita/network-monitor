@@ -68,8 +68,13 @@ for (const file of walk(TESTS_DIR)) {
 // --- reconcile ------------------------------------------------------------
 const inScope = (id) => !prefix || id.startsWith(prefix + '-');
 
+// Retired rules stay *declared* so a citation left on an old ID is still
+// recognised, but drop out of the coverage denominator. Superseded ones are
+// carried by their successor's tests, under the successor's ID.
+const RETIRED = new Set(['Removed', 'Superseded']);
+
 const active = [...declared.entries()].filter(
-  ([id, r]) => inScope(id) && r.status !== 'Removed'
+  ([id, r]) => inScope(id) && !RETIRED.has(r.status)
 );
 const uncovered = active.filter(([id]) => !cited.has(id));
 const unknown = [...cited.keys()].filter((id) => inScope(id) && !declared.has(id));
