@@ -1,6 +1,6 @@
 import { PollingInterval } from '../../../../src/domain/wireless-monitoring/value-objects/PollingInterval';
 
-describe('PollingInterval (wireless-monitoring)', () => {
+describe('[WLS-006] PollingInterval (wireless-monitoring)', () => {
   describe('create(seconds)', () => {
     describe('valid input', () => {
       it('should succeed for a value inside the range', () => {

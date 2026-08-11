@@ -26,7 +26,7 @@ function makeEvent(
 
 // ---------------------------------------------------------------------------
 
-describe('WirelessSnapshotCreatedEvent', () => {
+describe('[WLS-122] WirelessSnapshotCreatedEvent', () => {
   let aggregateId: SnapshotId;
   let deviceId: DeviceId;
 

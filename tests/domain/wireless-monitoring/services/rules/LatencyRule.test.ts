@@ -50,7 +50,7 @@ function activeMap(...entries: Array<[string, 'WARNING' | 'CRITICAL']>): Map<str
   return m;
 }
 
-describe('LatencyRule', () => {
+describe('[WLS-086] LatencyRule', () => {
   let rule: LatencyRule;
 
   beforeEach(() => {

@@ -52,7 +52,7 @@ function activeMap(...entries: Array<[string, 'WARNING' | 'CRITICAL']>): Map<str
   return m;
 }
 
-describe('DistanceRule', () => {
+describe('[WLS-095] DistanceRule', () => {
   let rule: DistanceRule;
 
   beforeEach(() => {

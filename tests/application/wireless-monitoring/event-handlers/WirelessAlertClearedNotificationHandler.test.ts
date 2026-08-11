@@ -42,7 +42,7 @@ function makeEvent(
   });
 }
 
-describe('WirelessAlertClearedNotificationHandler', () => {
+describe('[WLS-123] WirelessAlertClearedNotificationHandler', () => {
   let publisher: jest.Mocked<IAlertPublisher>;
   let logger: jest.Mocked<ILogger>;
   let handler: WirelessAlertClearedNotificationHandler;

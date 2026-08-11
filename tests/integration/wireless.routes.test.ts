@@ -147,7 +147,7 @@ async function seedWirelessAlert(
 // Test suite
 // ─────────────────────────────────────────────────────────────
 
-describe('Wireless Routes — /api/devices/:id/wireless/* and /api/wireless/*', () => {
+describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wireless/* and /api/wireless/*', () => {
   let app: Application;
   let container: DependencyContainer;
   let prisma: PrismaClient;

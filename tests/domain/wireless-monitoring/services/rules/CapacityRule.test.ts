@@ -54,7 +54,7 @@ function activeMap(...entries: Array<[string, 'WARNING' | 'CRITICAL']>): Map<str
 
 // Floor values from source: 20 MHz → 50_000 kbps, 40 MHz → 100_000 kbps, 80 MHz → 200_000 kbps
 
-describe('CapacityRule', () => {
+describe('[WLS-094] CapacityRule', () => {
   let rule: CapacityRule;
 
   beforeEach(() => {

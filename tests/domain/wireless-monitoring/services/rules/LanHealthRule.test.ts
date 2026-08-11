@@ -52,7 +52,7 @@ function activeMap(...entries: Array<[string, 'WARNING' | 'CRITICAL']>): Map<str
   return m;
 }
 
-describe('LanHealthRule', () => {
+describe('[WLS-088] [WLS-089] [WLS-090] LanHealthRule', () => {
   let rule: LanHealthRule;
 
   beforeEach(() => {

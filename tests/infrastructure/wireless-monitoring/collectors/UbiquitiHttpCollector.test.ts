@@ -155,7 +155,7 @@ function makeFailingClient(error: string): jest.Mocked<AirOsHttpClient> {
 
 // ---------------------------------------------------------------------------
 
-describe('UbiquitiHttpCollector', () => {
+describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
 
   // ===========================================================================
   describe('collect — STATION mode', () => {

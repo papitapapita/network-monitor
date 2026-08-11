@@ -64,7 +64,7 @@ function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
 
 // ---------------------------------------------------------------------------
 
-describe('DeleteWirelessConfigUseCase', () => {
+describe('[WLS-011] DeleteWirelessConfigUseCase', () => {
   let configRepo: jest.Mocked<IWirelessDeviceConfigRepository>;
   let logger: jest.Mocked<ILogger>;
   let useCase: DeleteWirelessConfigUseCase;

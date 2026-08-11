@@ -52,7 +52,7 @@ function activeMap(...entries: Array<[string, 'WARNING' | 'CRITICAL']>): Map<str
   return m;
 }
 
-describe('CcqRule', () => {
+describe('[WLS-081] [WLS-085] CcqRule', () => {
   let rule: CcqRule;
 
   beforeEach(() => {

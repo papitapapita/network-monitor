@@ -68,7 +68,7 @@ function activeMap(...entries: Array<[string, 'WARNING' | 'CRITICAL']>): Map<str
   return m;
 }
 
-describe('ClientCountRule', () => {
+describe('[WLS-091] [WLS-092] ClientCountRule', () => {
   let rule: ClientCountRule;
 
   beforeEach(() => {

@@ -15,7 +15,7 @@ function makeRecord(): WirelessAlertRecord {
   ).value;
 }
 
-describe('WirelessAlertRecord — notification tracking', () => {
+describe('[WLS-120] [WLS-125] WirelessAlertRecord — notification tracking', () => {
   describe('open', () => {
     it('should start un-notified', () => {
       const record = makeRecord();

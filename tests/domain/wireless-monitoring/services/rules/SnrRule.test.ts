@@ -52,7 +52,7 @@ function activeMap(...entries: Array<[string, 'WARNING' | 'CRITICAL']>): Map<str
   return m;
 }
 
-describe('SnrRule', () => {
+describe('[WLS-081] [WLS-082] [WLS-084] SnrRule', () => {
   let rule: SnrRule;
 
   beforeEach(() => {

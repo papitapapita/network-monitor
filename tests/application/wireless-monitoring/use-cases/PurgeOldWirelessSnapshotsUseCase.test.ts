@@ -26,7 +26,7 @@ function makeRepo(): jest.Mocked<IWirelessSnapshotRepository> {
 
 // ---------------------------------------------------------------------------
 
-describe('PurgeOldWirelessSnapshotsUseCase', () => {
+describe('[WLS-160] PurgeOldWirelessSnapshotsUseCase', () => {
   let repo: jest.Mocked<IWirelessSnapshotRepository>;
   let useCase: PurgeOldWirelessSnapshotsUseCase;
   let dateSpy: jest.SpyInstance;

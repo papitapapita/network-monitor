@@ -137,7 +137,7 @@ function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
 
 // ---------------------------------------------------------------------------
 
-describe('CreateWirelessConfigUseCase', () => {
+describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWirelessConfigUseCase', () => {
   let deviceRepo: jest.Mocked<IDeviceRepository>;
   let deviceModelRepo: jest.Mocked<IDeviceModelRepository>;
   let configRepo: jest.Mocked<IWirelessDeviceConfigRepository>;
@@ -262,7 +262,7 @@ describe('CreateWirelessConfigUseCase', () => {
       expect(configRepo.findByDeviceId).not.toHaveBeenCalled();
     });
 
-    it('[DEV-064] should reject linkCapacityKbps on an access point', async () => {
+    it('[WLS-003] should reject linkCapacityKbps on an access point', async () => {
       deviceRepo.findById.mockResolvedValue(
         Result.ok(makeDevice(true, DeviceCategory.createAccessPoint()))
       );
@@ -276,7 +276,7 @@ describe('CreateWirelessConfigUseCase', () => {
       expect(result.error).toContain('linkCapacityKbps');
     });
 
-    it('[DEV-064] should reject clientsProvisionedLimit on a station', async () => {
+    it('[WLS-003] should reject clientsProvisionedLimit on a station', async () => {
       deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
 
       const result = await useCase.execute({
@@ -446,7 +446,7 @@ describe('CreateWirelessConfigUseCase', () => {
       expect(result.value.intervalSecs).toBe(3600);
     });
 
-    it('[DEV-064] should derive deviceType STATION from a WIRELESS_CPE device', async () => {
+    it('[WLS-003] should derive deviceType STATION from a WIRELESS_CPE device', async () => {
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID
       });
@@ -454,7 +454,7 @@ describe('CreateWirelessConfigUseCase', () => {
       expect(result.value.deviceType).toBe('STATION');
     });
 
-    it('[DEV-064] should derive deviceType ACCESS_POINT from an ACCESS_POINT device', async () => {
+    it('[WLS-003] should derive deviceType ACCESS_POINT from an ACCESS_POINT device', async () => {
       deviceRepo.findById.mockResolvedValue(
         Result.ok(
           makeDevice(true, DeviceCategory.createAccessPoint())

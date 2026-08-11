@@ -52,7 +52,7 @@ function activeMap(...entries: Array<[string, 'WARNING' | 'CRITICAL']>): Map<str
   return m;
 }
 
-describe('FirmwareRule', () => {
+describe('[WLS-097] FirmwareRule', () => {
   let rule: FirmwareRule;
 
   beforeEach(() => {

@@ -27,7 +27,7 @@ function makeEvent(
 
 // ---------------------------------------------------------------------------
 
-describe('WirelessAlertClearedEvent', () => {
+describe('[WLS-121] WirelessAlertClearedEvent', () => {
   let aggregateId: WirelessAlertRecordId;
   let deviceId: DeviceId;
 

@@ -82,7 +82,7 @@ function makeFullProps(overrides: Partial<WirelessMetricsProps> = {}): WirelessM
 
 // ---------------------------------------------------------------------------
 
-describe('WirelessMetrics', () => {
+describe('[WLS-060] [WLS-061] [WLS-062] [WLS-063] [WLS-064] WirelessMetrics', () => {
 
   // ===========================================================================
   describe('create()', () => {

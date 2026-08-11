@@ -52,7 +52,7 @@ function activeMap(...entries: Array<[string, 'WARNING' | 'CRITICAL']>): Map<str
   return m;
 }
 
-describe('IdentityChangeRule', () => {
+describe('[WLS-098] IdentityChangeRule', () => {
   let rule: IdentityChangeRule;
 
   beforeEach(() => {

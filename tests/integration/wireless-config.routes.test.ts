@@ -103,7 +103,7 @@ async function seedWiredDevice(
 // Test suite
 // ─────────────────────────────────────────────────────────────
 
-describe('Wireless Config Routes — /api/devices/:id/wireless/config', () => {
+describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /api/devices/:id/wireless/config', () => {
   let app: Application;
   let container: DependencyContainer;
   let prisma: PrismaClient;

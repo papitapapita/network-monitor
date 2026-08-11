@@ -47,7 +47,7 @@ function makeEvent(alerts: WirelessAlert[]): WirelessAlertTriggeredEvent {
   });
 }
 
-describe('WirelessAlertTriggeredAlertRecordHandler', () => {
+describe('[WLS-124] WirelessAlertTriggeredAlertRecordHandler', () => {
   let recorder: jest.Mocked<IAlertRecorder>;
   let logger: jest.Mocked<ILogger>;
   let handler: WirelessAlertTriggeredAlertRecordHandler;

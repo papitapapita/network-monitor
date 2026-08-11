@@ -47,7 +47,7 @@ function makeSuccessResponse(deviceId: string): PollWirelessDeviceResponseDTO {
 
 // ---------------------------------------------------------------------------
 
-describe('TriggerWirelessPollUseCase', () => {
+describe('[WLS-025] TriggerWirelessPollUseCase', () => {
   let orchestrator: jest.Mocked<IWirelessPollOrchestrator>;
   let logger: jest.Mocked<ILogger>;
   let useCase: TriggerWirelessPollUseCase;

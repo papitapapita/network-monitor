@@ -52,7 +52,7 @@ function activeMap(...entries: Array<[string, 'WARNING' | 'CRITICAL']>): Map<str
   return m;
 }
 
-describe('CpuMemoryRule', () => {
+describe('[WLS-081] [WLS-087] CpuMemoryRule', () => {
   let rule: CpuMemoryRule;
 
   beforeEach(() => {

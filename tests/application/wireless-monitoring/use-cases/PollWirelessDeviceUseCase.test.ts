@@ -249,9 +249,46 @@ function configureHappyPath(
   );
 }
 
+function makeHttpClient(overrides = {}) {
+  return {
+    macAddress: '11:22:33:44:55:66',
+    ipAddress: '10.0.0.5',
+    signalRxDbm: -62,
+    noiseFloorDbm: -92,
+    distanceM: 800,
+    uptimeSeconds: 3600,
+    txLatencyMs: 3,
+    dlLinkScore: 90,
+    ulLinkScore: 88,
+    dlCapacityKbps: 120_000,
+    ulCapacityKbps: 90_000,
+    dlCinr: 25,
+    ulCinr: 24,
+    txBytesTotal: 100n,
+    rxBytesTotal: 200n,
+    txPps: 10,
+    rxPps: 12,
+    remoteHostname: 'CPE-remote',
+    remotePlatform: 'NanoStation',
+    remoteVersion: 'WA.v8.7.5',
+    remoteCpuLoad: 20,
+    remoteTotalRam: 64_000,
+    remoteFreeRam: 30_000,
+    remoteSignal: -63,
+    remoteNoiseFloor: -92,
+    remoteTxPower: 20,
+    remoteTxThroughputKbps: 1000,
+    remoteRxThroughputKbps: 900,
+    remoteIpAddresses: ['10.0.0.5'],
+    dlAirtimePercent: 30,
+    ulAirtimePercent: 25,
+    ...overrides
+  };
+}
+
 // ---------------------------------------------------------------------------
 
-describe('PollWirelessDeviceUseCase', () => {
+describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', () => {
   let mocks: ReturnType<typeof makeMocks>;
   let useCase: PollWirelessDeviceUseCase;
 
@@ -959,6 +996,227 @@ describe('PollWirelessDeviceUseCase', () => {
 
       expect(result.isSuccess).toBe(true);
       expect(mocks.snapshotRepo.save).toHaveBeenCalledTimes(1);
+    });
+  });
+  describe('[WLS-022] concurrent polls of the same device', () => {
+    it('should skip a second poll while the first is still running', async () => {
+      configureHappyPath(mocks);
+
+      let releaseCollector: (v: unknown) => void = () => {};
+      mocks.httpCollector.collect.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            releaseCollector = () =>
+              resolve(Result.ok(makeHttpResult()));
+          })
+      );
+
+      const first = useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const second = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(second.isSuccess).toBe(true);
+      expect(second.value.skipped).toBe(true);
+      expect(second.value.metricsCollected).toBe(false);
+      expect(mocks.httpCollector.collect).toHaveBeenCalledTimes(1);
+
+      releaseCollector(undefined);
+      await first;
+    });
+
+    it('should allow a later poll once the first has finished', async () => {
+      configureHappyPath(mocks);
+
+      const first = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+      const second = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(first.value.skipped).toBeUndefined();
+      expect(second.value.skipped).toBeUndefined();
+      expect(mocks.httpCollector.collect).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('[WLS-051] remote access point linking', () => {
+    it('should look the remote AP up by the MAC the radio reported', async () => {
+      configureHappyPath(mocks);
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(
+        mocks.deviceRepo.findIdByMacAddress
+      ).toHaveBeenCalledWith('AA:BB:CC:DD:EE:FF');
+    });
+
+    it('should store the resolved device id on the snapshot', async () => {
+      configureHappyPath(mocks);
+      const apId = DeviceId.parse(
+        '550e8400-e29b-41d4-a716-4466554400ff'
+      ).value;
+      mocks.deviceRepo.findIdByMacAddress.mockResolvedValue(
+        Result.ok(apId)
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      const saved = mocks.snapshotRepo.save.mock.calls[0]![0];
+      expect(saved.remoteApDeviceId).toBe(apId);
+    });
+
+    it('should leave the link null when the MAC matches no device', async () => {
+      configureHappyPath(mocks);
+      mocks.deviceRepo.findIdByMacAddress.mockResolvedValue(
+        Result.ok(null)
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      const saved = mocks.snapshotRepo.save.mock.calls[0]![0];
+      expect(saved.remoteApDeviceId).toBeNull();
+    });
+
+    it('should not skip the lookup when the radio reports no remote AP MAC', async () => {
+      configureHappyPath(mocks);
+      mocks.httpCollector.collect.mockResolvedValue(
+        Result.ok(makeHttpResult({ remoteApMac: null }))
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(
+        mocks.deviceRepo.findIdByMacAddress
+      ).not.toHaveBeenCalled();
+    });
+
+    it('should still complete the poll when the AP lookup fails', async () => {
+      configureHappyPath(mocks);
+      mocks.deviceRepo.findIdByMacAddress.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isSuccess).toBe(true);
+      const saved = mocks.snapshotRepo.save.mock.calls[0]![0];
+      expect(saved.remoteApDeviceId).toBeNull();
+    });
+  });
+
+  describe('[WLS-065] [WLS-066] client entries on the snapshot', () => {
+    it('should store client entries for an ACCESS_POINT', async () => {
+      configureHappyPath(mocks, { deviceType: 'ACCESS_POINT' });
+      mocks.httpCollector.collect.mockResolvedValue(
+        Result.ok(makeHttpResult({ clients: [makeHttpClient()] }))
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      const saved = mocks.snapshotRepo.save.mock.calls[0]![0];
+      expect(saved.clients).toHaveLength(1);
+      expect(saved.clients[0]!.macAddress).toBe('11:22:33:44:55:66');
+    });
+
+    it('should store no client entries for a STATION even when the radio reports them', async () => {
+      configureHappyPath(mocks, { deviceType: 'STATION' });
+      mocks.httpCollector.collect.mockResolvedValue(
+        Result.ok(makeHttpResult({ clients: [makeHttpClient()] }))
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      const saved = mocks.snapshotRepo.save.mock.calls[0]![0];
+      expect(saved.clients).toHaveLength(0);
+    });
+
+    it('should drop an invalid client entry and keep the valid ones', async () => {
+      configureHappyPath(mocks, { deviceType: 'ACCESS_POINT' });
+      mocks.httpCollector.collect.mockResolvedValue(
+        Result.ok(
+          makeHttpResult({
+            clients: [
+              makeHttpClient({ macAddress: 'not-a-mac' }),
+              makeHttpClient()
+            ]
+          })
+        )
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isSuccess).toBe(true);
+      const saved = mocks.snapshotRepo.save.mock.calls[0]![0];
+      expect(saved.clients).toHaveLength(1);
+      expect(saved.clients[0]!.macAddress).toBe('11:22:33:44:55:66');
+    });
+  });
+
+  describe('[WLS-067] snapshot construction', () => {
+    it('should build a snapshot even when every optional metric is null', async () => {
+      configureHappyPath(mocks);
+      mocks.httpCollector.collect.mockResolvedValue(
+        Result.ok(
+          makeHttpResult({
+            deviceName: null,
+            firmwareVersion: null,
+            uptimeSeconds: null,
+            cpuLoadPercent: null,
+            memoryUsedPercent: null,
+            essid: null,
+            frequencyMhz: null,
+            channelWidthMhz: null,
+            noiseFloorDbm: null,
+            throughputTxBps: null,
+            throughputRxBps: null,
+            distanceM: null,
+            signalRxDbm: null,
+            latencyMs: null,
+            remoteApMac: null,
+            lanStatus: null,
+            lanSpeedMbps: null
+          })
+        )
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(mocks.snapshotRepo.save).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('[WLS-126] device name fallback', () => {
+    it('should fall back to "Equipo desconocido" when the radio reports no hostname', async () => {
+      configureHappyPath(mocks);
+      mocks.httpCollector.collect.mockResolvedValue(
+        Result.ok(makeHttpResult({ deviceName: null }))
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      const ctx = mocks.alertEvaluator.evaluate.mock.calls[0]![2];
+      expect(ctx.deviceName).toBe('Equipo desconocido');
+    });
+
+    it('should use the reported hostname when there is one', async () => {
+      configureHappyPath(mocks);
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      const ctx = mocks.alertEvaluator.evaluate.mock.calls[0]![2];
+      expect(ctx.deviceName).toBe('CPE-001');
     });
   });
 });

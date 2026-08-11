@@ -60,7 +60,7 @@ function makeAlertRecord(
 
 // ---------------------------------------------------------------------------
 
-describe('GetWirelessAlertHistoryUseCase', () => {
+describe('[WLS-142] GetWirelessAlertHistoryUseCase', () => {
   let alertRecordRepo: jest.Mocked<IWirelessAlertRecordRepository>;
   let logger: jest.Mocked<ILogger>;
   let useCase: GetWirelessAlertHistoryUseCase;

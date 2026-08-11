@@ -24,7 +24,7 @@ function makeEvent(
 
 // ---------------------------------------------------------------------------
 
-describe('WirelessDeviceConfigToggledEvent', () => {
+describe('[WLS-008] WirelessDeviceConfigToggledEvent', () => {
   let aggregateId: WirelessDeviceConfigId;
   let deviceId: DeviceId;
 

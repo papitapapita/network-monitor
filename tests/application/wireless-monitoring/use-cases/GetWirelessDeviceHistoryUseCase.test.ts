@@ -71,7 +71,7 @@ function makeSnapshot(snapshotUuid: string, collectedAt: Date): WirelessSnapshot
 
 // ---------------------------------------------------------------------------
 
-describe('GetWirelessDeviceHistoryUseCase', () => {
+describe('[WLS-142] GetWirelessDeviceHistoryUseCase', () => {
   let snapshotRepo: jest.Mocked<IWirelessSnapshotRepository>;
   let logger: jest.Mocked<ILogger>;
   let useCase: GetWirelessDeviceHistoryUseCase;

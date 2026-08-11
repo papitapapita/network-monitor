@@ -30,7 +30,7 @@ function makeRepo(): jest.Mocked<IWirelessAlertRecordRepository> {
 
 // ---------------------------------------------------------------------------
 
-describe('PurgeOldWirelessAlertRecordsUseCase', () => {
+describe('[WLS-161] PurgeOldWirelessAlertRecordsUseCase', () => {
   let repo: jest.Mocked<IWirelessAlertRecordRepository>;
   let useCase: PurgeOldWirelessAlertRecordsUseCase;
   let dateSpy: jest.SpyInstance;

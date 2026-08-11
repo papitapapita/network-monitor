@@ -108,7 +108,7 @@ function makeClient(macAddress: string): WirelessClientEntry {
 
 // ---------------------------------------------------------------------------
 
-describe('GetWirelessClientsUseCase', () => {
+describe('[WLS-140] [WLS-141] GetWirelessClientsUseCase', () => {
   let snapshotRepo: jest.Mocked<IWirelessSnapshotRepository>;
   let logger: jest.Mocked<ILogger>;
   let useCase: GetWirelessClientsUseCase;

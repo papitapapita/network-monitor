@@ -52,7 +52,7 @@ function activeMap(...entries: Array<[string, 'WARNING' | 'CRITICAL']>): Map<str
   return m;
 }
 
-describe('ClockSyncRule', () => {
+describe('[WLS-096] ClockSyncRule', () => {
   let rule: ClockSyncRule;
 
   beforeEach(() => {

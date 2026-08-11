@@ -120,7 +120,7 @@ function makeUseCase() {
 
 // ---------------------------------------------------------------------------
 
-describe('RebootWirelessDeviceUseCase', () => {
+describe('[WLS-024] RebootWirelessDeviceUseCase', () => {
   describe('Happy Path', () => {
     it('should reboot the device and return the acknowledgement', async () => {
       const {

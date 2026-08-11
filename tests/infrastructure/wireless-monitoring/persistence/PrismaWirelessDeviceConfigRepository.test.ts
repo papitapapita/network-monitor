@@ -66,7 +66,7 @@ const makeRawRow = () => ({
   max_link_distance_m: null,
 });
 
-describe('PrismaWirelessDeviceConfigRepository', () => {
+describe('[WLS-020] [WLS-021] PrismaWirelessDeviceConfigRepository', () => {
   let prismaMock: ReturnType<typeof createMockPrisma>;
   let repository: PrismaWirelessDeviceConfigRepository;
 

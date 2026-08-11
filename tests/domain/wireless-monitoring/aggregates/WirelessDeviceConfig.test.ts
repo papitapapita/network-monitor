@@ -37,7 +37,7 @@ function makeConfig(
 }
 
 // ---------------------------------------------------------------------------
-describe('WirelessDeviceConfig', () => {
+describe('[WLS-008] WirelessDeviceConfig', () => {
   // =========================================================================
   describe('create()', () => {
     describe('when given valid minimal props', () => {

@@ -57,7 +57,7 @@ function makeActiveAlert(): WirelessAlertRecord {
   ).value;
 }
 
-describe('ThroughputSaturationRule', () => {
+describe('[WLS-093] ThroughputSaturationRule', () => {
   let rule: ThroughputSaturationRule;
 
   beforeEach(() => {

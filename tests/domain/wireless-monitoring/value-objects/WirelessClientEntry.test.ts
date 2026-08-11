@@ -87,7 +87,7 @@ function makeFullProps(
 
 // ---------------------------------------------------------------------------
 
-describe('WirelessClientEntry', () => {
+describe('[WLS-060] [WLS-063] [WLS-064] WirelessClientEntry', () => {
 
   // ===========================================================================
   describe('create()', () => {
