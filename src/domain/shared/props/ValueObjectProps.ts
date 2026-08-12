@@ -5,5 +5,7 @@
  * not by identity.
  */
 export interface ValueObjectProps {
+  // Value Object prop shapes are heterogeneous by design; this is the shared kernel's intentional escape hatch.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [index: string]: any;
 }

@@ -1,4 +1,7 @@
-import { PrismaClient } from 'generated/prisma/client';
+import {
+  PrismaClient,
+  UserRole as PrismaUserRole
+} from 'generated/prisma/client';
 import { Result } from 'domain/shared/core';
 import { UserId } from 'domain/shared/ids';
 import { User } from 'domain/identity/aggregates/User';
@@ -19,14 +22,14 @@ export class PrismaUserRepository implements IUserRepository {
           id: data.id,
           email: data.email,
           passwordHash: data.passwordHash,
-          role: data.role as any,
+          role: data.role as PrismaUserRole,
           createdAt: data.createdAt,
           updatedAt: data.updatedAt
         },
         update: {
           email: data.email,
           passwordHash: data.passwordHash,
-          role: data.role as any,
+          role: data.role as PrismaUserRole,
           updatedAt: data.updatedAt
         }
       });
@@ -49,7 +52,7 @@ export class PrismaUserRepository implements IUserRepository {
         where: { id: id.toString() }
       });
       if (!raw) return Result.ok<User | null>(null);
-      const result = UserPrismaMapper.toDomain(raw as any);
+      const result = UserPrismaMapper.toDomain(raw);
       if (result.isFailure) {
         return Result.fail<User | null>(
           `Failed to map user: ${result.error}`
@@ -73,7 +76,7 @@ export class PrismaUserRepository implements IUserRepository {
         where: { email: email.toString() }
       });
       if (!raw) return Result.ok<User | null>(null);
-      const result = UserPrismaMapper.toDomain(raw as any);
+      const result = UserPrismaMapper.toDomain(raw);
       if (result.isFailure) {
         return Result.fail<User | null>(
           `Failed to map user: ${result.error}`

@@ -11,7 +11,10 @@ export abstract class EventDispatcher {
   private static handlersMap: Map<string, IHandle<IDomainEvent>[]> =
     new Map();
 
-  private static markedAggregates: AggregateRoot<any, any>[] = [];
+  private static markedAggregates: AggregateRoot<
+    unknown,
+    UniqueEntityID
+  >[] = [];
 
   // The domain layer cannot depend on ILogger, so composition root injects a
   // reporter instead. Defaults to a no-op: handler failures are already
@@ -56,10 +59,9 @@ export abstract class EventDispatcher {
     this.markedAggregates.splice(index, 1);
   }
 
-  private static findMarkedAggregateByID<
-    K,
-    KID extends UniqueEntityID
-  >(id: KID): AggregateRoot<K, KID> | undefined {
+  private static findMarkedAggregateByID(
+    id: UniqueEntityID
+  ): AggregateRoot<unknown, UniqueEntityID> | undefined {
     return this.markedAggregates.find((aggregate) =>
       aggregate.id.equals(id)
     );

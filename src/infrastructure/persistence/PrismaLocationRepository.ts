@@ -1,4 +1,7 @@
-import { PrismaClient } from 'generated/prisma/client';
+import {
+  PrismaClient,
+  LocationType as PrismaLocationType
+} from 'generated/prisma/client';
 import { Location } from 'domain/device-inventory/aggregates';
 import { LocationId } from 'domain/shared/ids';
 import { LocationType } from 'domain/device-inventory/value-objects';
@@ -118,7 +121,7 @@ export class PrismaLocationRepository implements ILocationRepository {
     try {
       // Prisma's generated type expects enum literal, not string — string cast required
       const rawRecords = await this.prisma.location.findMany({
-        where: { type: type.value as any },
+        where: { type: type.value as PrismaLocationType },
         orderBy: { name: 'asc' }
       });
 

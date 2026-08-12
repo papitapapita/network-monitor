@@ -1,7 +1,7 @@
 import getVendorImport from 'mac-oui-lookup';
 // mac-oui-lookup ships as CJS with a .default re-export; normalise at import time.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getVendor: (mac: string) => string | null =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (getVendorImport as any).default ?? getVendorImport;
 import { IPingService } from 'application/device-monitoring/interfaces';
 import {

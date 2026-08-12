@@ -1,5 +1,5 @@
 import { Result } from 'domain/shared';
-import { IUseCase, ILogger } from '../interfaces';
+import { IUseCase, ILogger, LogContext } from '../interfaces';
 
 /**
  * UseCase Abstract Base Class
@@ -213,7 +213,7 @@ export abstract class UseCase<Request, Response>
    * @param context - Optional context for logging
    * @returns Failed Result
    */
-  protected fail<T>(message: string, context?: any): Result<T> {
+  protected fail<T>(message: string, context?: LogContext): Result<T> {
     this.logger.debug(
       `UseCase validation/business rule failed: ${message}`,
       context
