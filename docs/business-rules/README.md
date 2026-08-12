@@ -222,27 +222,140 @@ One block may carry several IDs when it exercises more than one rule:
 describe('[DEV-054] [DEV-055] ACTIVE status invariant', () => { … });
 ```
 
-### Coverage check
+## Checking coverage
+
+`scripts/check-rule-coverage.mjs` parses every rule ID out of the files in this
+directory, greps `tests/` for `[ID]` citations, and reconciles the two lists.
+This is a walkthrough of using it — the full flag reference is below.
+
+### 1. Run the basic check
 
 ```bash
 npm run test:rules          # all contexts
-npm run test:rules DEV      # one context
-npm run test:rules -- --json
+npm run test:rules DEV      # one context (aliases exist: test:rules:dev, :cus, :bil, …)
 ```
 
-The script (`scripts/check-rule-coverage.mjs`) parses every rule ID out of these
-files, greps `tests/` for `[ID]` citations, and exits non-zero when either side
-is unmatched:
+Output looks like this (real run, device-inventory context):
 
-- **a rule with no test** — the rule book claims something nothing verifies
-- **a test citing an unknown ID** — a typo, or an ID left behind by a deleted
-  rule
+```
+Business rule coverage (DEV): 94/94 rules have at least one test (100%)
 
-Rules marked `Status: Removed` or `Status: Superseded` are excluded, so retiring
-a rule does not require deleting its tests in the same commit — and a superseded
-rule is not reported as uncovered once its tests cite the successor ID. Both stay
-_declared_, so a citation left on an old ID is still recognised rather than
-flagged as unknown.
+Every rule is backed by at least one test.
+```
+
+When something is missing, the same run instead lists it:
+
+```
+Rules with NO test (3):
+  DEV-091  Validation  A location type is one of two values
+           └─ device-inventory.md
+
+Test IDs matching no declared rule (1):
+  DEV-999  cited in tests/domain/device-inventory/aggregates/Device.test.ts
+```
+
+The first block is a rule the book claims and nothing verifies — go add or tag
+a test. The second is a citation with no matching rule — usually a typo in the
+`[ID]`, or a leftover from a rule that was renumbered instead of retired (IDs
+are never reused — see [Rule IDs](#rule-ids)). Either case exits non-zero, which
+is what would gate CI once the six untagged contexts catch up (see
+[Adoption](#adoption)).
+
+`Status: Removed` and `Status: Superseded` rules are skipped in both directions:
+retiring a rule doesn't require deleting its tests in the same commit, and a
+superseded rule stops being reported once its tests cite the successor ID.
+
+### 2. Ask where the coverage actually lives
+
+"At least one test" hides *which* test. Not every layer is obligated to carry
+one — only the domain layer is expected to have exhaustive unit coverage (see
+[Testing](../../CLAUDE.md#testing)); application, infrastructure and
+presentation get unit tests selectively. But most rules, whichever layer
+enforces them, end up genuinely exercised end-to-end in an integration test —
+so a rule that only a unit test touches is worth a second look. `--by-group`
+shows that split:
+
+```bash
+npm run test:rules:groups          # all contexts
+npm run test:rules:groups -- DEV   # one context
+npm run test:rules -- --by-group --json   # machine-readable
+```
+
+Real output for the device-inventory context:
+
+```
+Business rule coverage (DEV): 94/94 rules have at least one test (100%)
+
+By test group:
+  unit                      88/94  (94%)
+  integration (use-case)    66/94  (70%)
+  integration (route)       33/94  (35%)
+  any integration           68/94  (72%)
+
+Rules with NO integration test — use-case or route (26):
+  DEV-051  Invariant  An installation date cannot be in the future
+           └─ unit only: tests/domain/device-inventory/aggregates/Device.test.ts
+  DEV-146  Policy     Request rate is budgeted per user, per resource
+           └─ unit only: tests/presentation/http/middleware/rateLimiter.test.ts
+  …
+```
+
+`unit` collapses `tests/domain`, `tests/application`, `tests/infrastructure` and
+`tests/presentation` into one bucket rather than grading each layer separately —
+grading infrastructure/presentation against a unit-coverage bar nobody set would
+just make them look perpetually short. `integration (use-case)` and
+`integration (route)` are `tests/integration/use-cases/` and the route suites
+directly under `tests/integration/`, reported separately since they catch
+different things (a use case's own logic vs. the HTTP surface — auth, RBAC,
+validation, envelope — in front of it).
+
+`--by-group` never changes the exit code. A unit-only rule is a visible gap to
+weigh case by case — some rules (pure value-object formatting, for instance)
+are legitimately fine with only a unit test — not a broken build.
+
+### 3. Close a gap
+
+Pick a rule from the `Rules with NO integration test` list, find the
+integration suite that owns its use case or route (`tests/integration/use-cases/<context>/<Name>.integration.test.ts`
+or `tests/integration/<resource>.routes.test.ts` — see
+[Integration tests](../../CLAUDE.md#integration-tests) for which one applies),
+add a case that exercises the rule, and tag its `describe`/`it` with the rule's
+`[ID]`:
+
+```ts
+it('[DEV-051] rejects an installedDate in the future', async () => { … });
+```
+
+Re-run `npm run test:rules:groups -- DEV` and the rule moves out of the gap
+list.
+
+### 4. Machine-readable output
+
+`--json` (with or without `--by-group`) is for tooling — CI summaries,
+dashboards, whatever needs the numbers rather than the formatted report:
+
+```json
+{
+  "total": 94,
+  "covered": 94,
+  "uncovered": [],
+  "unknown": [],
+  "byGroup": {
+    "unit": 88,
+    "integration (use-case)": 66,
+    "integration (route)": 33,
+    "any integration": 68
+  },
+  "noIntegrationTest": [
+    { "id": "DEV-007", "title": "Vendor names are unique", "file": "device-inventory.md",
+      "existingTests": ["tests/application/device-inventory/use-cases/CreateVendorUseCase.test.ts", "…"] }
+  ]
+}
+```
+
+`--json` always includes `byGroup` and `noIntegrationTest` — computing them is
+cheap, so `--by-group` only controls whether the *text* report prints the
+breakdown; JSON consumers get it either way.
 
 ## Keeping this honest
 
