@@ -408,12 +408,11 @@ describe('validateRequest middleware', () => {
   });
 
   // =========================================================================
-  describe('when an unexpected non-Zod error is thrown (→ HTTP 500)', () => {
-    it('should return 500 when the schema throws a generic Error', async () => {
+  describe('when an unexpected non-Zod error is thrown (→ delegated to next())', () => {
+    it('should call next(error) when the schema throws a generic Error', async () => {
+      const error = new Error('Unexpected crash');
       const schema = {
-        parseAsync: jest
-          .fn()
-          .mockRejectedValue(new Error('Unexpected crash'))
+        parseAsync: jest.fn().mockRejectedValue(error)
       } as unknown as ReturnType<typeof z.object>;
       const mockReq = createMockRequest();
       const { res, statusMock, jsonMock } = createMockResponse();
@@ -424,43 +423,15 @@ describe('validateRequest middleware', () => {
         mockNext
       );
 
-      expect(mockNext).not.toHaveBeenCalled();
-      expect(statusMock).toHaveBeenCalledWith(500);
-      expect(jsonMock).toHaveBeenCalledWith({
-        success: false,
-        error: 'Internal server error during validation'
-      });
+      expect(mockNext).toHaveBeenCalledWith(error);
+      expect(statusMock).not.toHaveBeenCalled();
+      expect(jsonMock).not.toHaveBeenCalled();
     });
 
-    it('should return 500 when the schema throws a TypeError', async () => {
+    it('should call next(error) when the schema throws a TypeError', async () => {
+      const error = new TypeError('Cannot read property of undefined');
       const schema = {
-        parseAsync: jest
-          .fn()
-          .mockRejectedValue(
-            new TypeError('Cannot read property of undefined')
-          )
-      } as unknown as ReturnType<typeof z.object>;
-      const mockReq = createMockRequest();
-      const { res, statusMock, jsonMock } = createMockResponse();
-
-      await validateRequest(schema)(
-        mockReq as Request,
-        res as Response,
-        mockNext
-      );
-
-      expect(statusMock).toHaveBeenCalledWith(500);
-      expect(jsonMock).toHaveBeenCalledWith({
-        success: false,
-        error: 'Internal server error during validation'
-      });
-    });
-
-    it('should return 500 and not call next() on unexpected error', async () => {
-      const schema = {
-        parseAsync: jest
-          .fn()
-          .mockRejectedValue(new Error('DB timeout'))
+        parseAsync: jest.fn().mockRejectedValue(error)
       } as unknown as ReturnType<typeof z.object>;
       const mockReq = createMockRequest();
       const { res } = createMockResponse();
@@ -471,19 +442,17 @@ describe('validateRequest middleware', () => {
         mockNext
       );
 
-      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockNext).toHaveBeenCalledWith(error);
     });
 
-    it('should return 500 with the generic error message (no internal details exposed)', async () => {
+    it('should not respond directly on an unexpected error', async () => {
       const schema = {
         parseAsync: jest
           .fn()
-          .mockRejectedValue(
-            new Error('SELECT * FROM users; -- sensitive')
-          )
+          .mockRejectedValue(new Error('DB timeout'))
       } as unknown as ReturnType<typeof z.object>;
       const mockReq = createMockRequest();
-      const { res, jsonMock } = createMockResponse();
+      const { res, statusMock, jsonMock } = createMockResponse();
 
       await validateRequest(schema)(
         mockReq as Request,
@@ -491,16 +460,25 @@ describe('validateRequest middleware', () => {
         mockNext
       );
 
-      // The sensitive message must not be forwarded to the client
-      expect(jsonMock).toHaveBeenCalledWith({
-        success: false,
-        error: 'Internal server error during validation'
-      });
-      expect(jsonMock).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: expect.stringContaining('SELECT')
-        })
+      expect(statusMock).not.toHaveBeenCalled();
+      expect(jsonMock).not.toHaveBeenCalled();
+    });
+
+    it('should forward the original error to next() unmodified', async () => {
+      const error = new Error('SELECT * FROM users; -- sensitive');
+      const schema = {
+        parseAsync: jest.fn().mockRejectedValue(error)
+      } as unknown as ReturnType<typeof z.object>;
+      const mockReq = createMockRequest();
+      const { res } = createMockResponse();
+
+      await validateRequest(schema)(
+        mockReq as Request,
+        res as Response,
+        mockNext
       );
+
+      expect(mockNext).toHaveBeenCalledWith(error);
     });
   });
 });
