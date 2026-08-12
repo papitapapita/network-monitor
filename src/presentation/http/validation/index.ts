@@ -4,6 +4,7 @@ export * from './device-model.schemas';
 export * from './vendor.schemas';
 export * from './polling.schemas';
 export * from './wireless.schemas';
+export * from './wireless-stream.schemas';
 export * from './alert.schemas';
 export * from './scan.schemas';
 export * from './auth.schemas';

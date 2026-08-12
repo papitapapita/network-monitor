@@ -104,6 +104,7 @@ describe('[WLS-140] GetWirelessDeviceStatusUseCase', () => {
       save: jest.fn(),
       findById: jest.fn(),
       findLatestByDevice: jest.fn(),
+      findLatestForAllDevices: jest.fn(),
       findHistoryByDevice: jest.fn(),
       deleteOlderThan: jest.fn()
     };

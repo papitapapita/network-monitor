@@ -17,11 +17,13 @@ _These block or constrain everything else. Do in order._
 
 _Main user-facing features still missing._
 
-- [ ] **Live throughput view** — real-time bandwidth consumption per device/link for support and capacity planning
+- [x] **Live throughput view** — real-time bandwidth consumption per device/link for support and capacity planning — **done 2026-08-12**
 
-  - Surface `throughputTxBps` / `throughputRxBps` from `WirelessSnapshot` via SSE or a polling endpoint
-  - Show as % of `linkCapacityBps` (already stored on `WirelessPollingConfiguration`) for utilisation context
-  - Useful for confirming a customer is actually saturating their plan in real time
+  - `GET /api/devices/:id/wireless/throughput/stream` (one device) and `GET /api/wireless/throughput/stream` (whole fleet), both SSE. Rules WLS-146 – WLS-150; shapes in `docs/BACKEND_API.md`
+  - Utilisation is against `linkCapacityKbps` on `WirelessDeviceConfig` — note the field is **Kbps**, not Bps as this item originally said, and `WirelessPollingConfiguration` is the Prisma model name, not the aggregate
+  - Pushed off `WirelessSnapshotCreatedEvent`, so a stream is exactly as live as the device's `intervalSecs` — which defaults to **3600**. Readings carry `ageSeconds` + `stale`; a genuinely live view means lowering the interval or driving `POST .../wireless/poll` from the UI
+  - **This landed the shared SSE hub** (`SseBroadcaster`, `IEventStreamHub`, `createStreamAuthenticateMiddleware`) that the two items below were waiting on. Each now reduces to a channel name plus an event handler — no new transport work
+  - Frontend `EventSource` client is still to build
 
 - [ ] **Clear alerts — all types, not just wireless** — allow operators to manually clear (acknowledge) any active alert
 
@@ -34,9 +36,10 @@ _Main user-facing features still missing._
 
 - [ ] **Real-time alerts via SSE** — push alerts to the browser without manual reload
 
-  - `GET /alerts/stream` endpoint; keep a `clients` Set; push to all connected clients on alert fire
-  - Frontend: `new EventSource('/alerts/stream')` — reconnects automatically
-  - Steps: (1) endpoint + clients Set, (2) wire `send(alert)` at alert creation, (3) frontend EventSource listener
+  - **The transport already exists** — the live throughput view landed `SseBroadcaster` (`src/infrastructure/realtime/`), the `IEventStreamHub` port, `createStreamAuthenticateMiddleware` for `?token=`, and the shutdown wiring. Do not build a second `clients` Set
+  - Steps reduce to: (1) an `alerts:*` channel + a route on the stream router, (2) an `AlertEvent`-raised handler calling `hub.publish`, (3) frontend `EventSource` listener
+  - Copy the shape of `WirelessSnapshotCreatedThroughputHandler` — including its skip-when-nobody-is-subscribed check
+  - Frontend: `new EventSource('/api/alerts/stream?token=…')` — reconnects automatically
 
 - [ ] **Address on network devices** — add physical address to Device
 
@@ -57,8 +60,8 @@ _Main user-facing features still missing._
 
   - Wire a handler for `DeviceLocationAssignedEvent` — currently raised in `Device.assignLocation` (`src/domain/device-inventory/aggregates/Device.ts`) but has no registered consumer in `container.ts`
   - Push a lightweight "changed" signal only (not the full pin payload); frontend re-fetches `GET /api/locations/map` when the operator clicks refresh
-  - Delivery mechanism: reuse the SSE pattern from "Real-time alerts via SSE" below if that lands first (`clients` Set + broadcast); otherwise a small dedicated `GET /locations/stream` endpoint
-  - Prerequisite: none — can be built ahead of the SSE alerts item, whichever lands first should establish the shared SSE broadcast helper
+  - Delivery mechanism: the shared `IEventStreamHub` / `SseBroadcaster` established by the live throughput view — add a `locations:changed` channel and a route on `wireless-stream.routes.ts`'s sibling, no new transport
+  - Prerequisite: none — the SSE spine both this and the alerts item were waiting on is in place
 
 - [ ] **Reject or flag an HTTP credential port of 80** — a stale client can still silently write a port AirOS collection cannot use
 

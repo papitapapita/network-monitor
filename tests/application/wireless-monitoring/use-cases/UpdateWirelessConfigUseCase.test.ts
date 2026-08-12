@@ -70,6 +70,7 @@ function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
     exists: jest.fn(),
     findByDeviceId: jest.fn(),
     findAllDue: jest.fn(),
+    findAll: jest.fn(),
   };
 }
 

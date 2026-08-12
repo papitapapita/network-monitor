@@ -12,3 +12,5 @@ export * from './CreateWirelessConfigUseCase';
 export * from './GetWirelessConfigUseCase';
 export * from './UpdateWirelessConfigUseCase';
 export * from './DeleteWirelessConfigUseCase';
+export * from './GetWirelessThroughputUseCase';
+export * from './GetFleetWirelessThroughputUseCase';

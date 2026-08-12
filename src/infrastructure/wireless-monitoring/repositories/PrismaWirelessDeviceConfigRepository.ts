@@ -125,6 +125,26 @@ export class PrismaWirelessDeviceConfigRepository
     }
   }
 
+  async findAll(): Promise<Result<WirelessDeviceConfig[]>> {
+    try {
+      const raws =
+        await this.prisma.wirelessPollingConfiguration.findMany();
+      return Result.ok(
+        raws.map((r) =>
+          WirelessDeviceConfigPrismaMapper.toDomain(
+            r as Parameters<
+              typeof WirelessDeviceConfigPrismaMapper.toDomain
+            >[0]
+          )
+        )
+      );
+    } catch (error) {
+      return Result.fail(
+        `Database error listing wireless polling configs: ${(error as Error).message}`
+      );
+    }
+  }
+
   async findAllDue(
     now: Date
   ): Promise<Result<WirelessDeviceConfig[]>> {

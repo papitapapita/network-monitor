@@ -135,6 +135,7 @@ function makeMocks() {
     findByDeviceId: jest.fn(),
     save: jest.fn(),
     findAllDue: jest.fn(),
+    findAll: jest.fn(),
     delete: jest.fn(),
     findById: jest.fn(),
     exists: jest.fn()
@@ -144,6 +145,7 @@ function makeMocks() {
     save: jest.fn(),
     findById: jest.fn(),
     findLatestByDevice: jest.fn(),
+    findLatestForAllDevices: jest.fn(),
     findHistoryByDevice: jest.fn(),
     deleteOlderThan: jest.fn()
   };

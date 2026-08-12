@@ -1556,6 +1556,142 @@ overwriting credentials is neither. _(inferred)_
 **Reached from:** `POST /api/devices/:id/wireless/reboot`
 **Tests:** `tests/integration/wireless.routes.test.ts`
 
+### WLS-146 — Live throughput is pushed on each stored poll, never on a timer
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-12
+
+The two throughput endpoints are Server-Sent Event streams, not request/response
+reads. A subscriber receives the current reading immediately on connect, then
+one `throughput` frame per snapshot the poller stores for a device it is
+watching. Nothing polls the database on the client's behalf — the push is driven
+by `WirelessSnapshotCreatedEvent`, which every stored snapshot already raises.
+
+The fleet stream's opening frame is different in kind from the ones that follow:
+`throughput-snapshot` carries the whole fleet, and every later frame is a
+single-device `throughput` delta on the same channel.
+
+Nothing is read from the database when no one is subscribed. The handler checks
+the connected-client count first and returns before touching a repository.
+
+**Why:** Throughput only changes when a poll stores a new value, so a client
+polling faster than the interval would re-read the same row and a client polling
+slower would miss readings. Pushing on the event makes the stream exactly as
+fast as the data, whatever the interval is set to. Sending deltas rather than a
+replacement fleet list keeps a hundred-device dashboard from re-transmitting a
+hundred rows because one radio reported. _(inferred)_
+
+**Enforced at:** `src/application/wireless-monitoring/event-handlers/WirelessSnapshotCreatedThroughputHandler.ts`, `src/presentation/http/controllers/WirelessStreamController.ts`
+**Reached from:** `GET /api/devices/:id/wireless/throughput/stream`, `GET /api/wireless/throughput/stream`
+**Tests:** `tests/application/wireless-monitoring/event-handlers/WirelessSnapshotCreatedThroughputHandler.test.ts`, `tests/presentation/http/controllers/WirelessStreamController.test.ts`, `tests/integration/wireless-stream.routes.test.ts`
+
+### WLS-147 — Utilisation is only reported when a link capacity is configured
+
+**Type:** Validation · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-12
+
+`utilisationPercent` is `(txBps + rxBps) / (linkCapacityKbps × 1000) × 100`,
+rounded to two decimals. It is `null` whenever `linkCapacityKbps` is unset or
+either throughput leg was not collected. Because `linkCapacityKbps` may only be
+set on a `STATION` (WLS-004), an `ACCESS_POINT` always reports `null` here —
+that is correct, not missing data.
+
+The reading itself is still returned in every one of those cases; only the
+percentage is withheld.
+
+**Why:** A saturation figure is a comparison against what the customer pays for,
+and there is no such number until an operator records the plan. Inventing a
+denominator — the radio's negotiated airMAX capacity, say — would answer a
+different question and answer it as though it were this one. The raw bits per
+second are useful on their own, so withholding them too would be worse than
+withholding the ratio. _(inferred)_
+
+This is the same numerator WLS-093 uses to fire the 80% saturation alert, so a
+stream showing 85% and an open saturation alert always agree.
+
+**Enforced at:** `src/application/wireless-monitoring/mappers/WirelessThroughputMapper.ts`, via `WirelessMetrics.getLinkUtilizationPercent`
+**Reached from:** both throughput streams
+**Tests:** `tests/application/wireless-monitoring/mappers/WirelessThroughputMapper.test.ts`
+
+### WLS-148 — A throughput reading carries its age and is stale past two intervals
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-12
+
+Every reading reports `collectedAt`, `ageSeconds`, and a `stale` flag. `stale`
+is true once `ageSeconds` exceeds twice the device's configured `intervalSecs`,
+and always true when the device has no configuration at all. `ageSeconds` is
+never negative — a radio whose clock runs ahead reports `0`.
+
+**Why:** "Live" here means as live as the poll interval allows, and that
+defaults to an hour. A reading with no age attached invites a support agent to
+read a stale number as the current one and tell a customer their link is idle
+during an outage. Two intervals rather than one is the threshold because a
+single missed cycle is an ordinary transient — a timeout, a busy radio — while
+two consistently means collection has stopped.
+
+Missing configuration counts as stale because nothing is scheduled to refresh
+that snapshot ever again. _(inferred)_
+
+**Enforced at:** `src/application/wireless-monitoring/mappers/WirelessThroughputMapper.ts`
+**Reached from:** both throughput streams
+**Tests:** `tests/application/wireless-monitoring/mappers/WirelessThroughputMapper.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetWirelessThroughputUseCase.integration.test.ts`
+
+### WLS-149 — Stream connections may authenticate by query token
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation (not in domain)
+**Since:** 2026-08-12
+
+The two stream routes accept `?token=<jwt>` as well as `Authorization: Bearer`.
+Every other route in the system remains header-only.
+
+The scoping is per route, not per router. Both streams are mounted above the
+global authenticate middleware and attach their own guard in the route
+definition itself — attaching it with `router.use` instead would apply it to
+every `/api` request, because the stream router mounts at `/`.
+
+**Why:** The browser `EventSource` API has no way to set a request header, so a
+stream is simply unreachable from the frontend without this. The usual objection
+to tokens in URLs is that they end up in access logs; both request loggers here
+print `req.path`, which excludes the query string, so they do not.
+
+The alternative — a cookie — would have meant introducing cookie auth to a
+system that is otherwise entirely Bearer-based, for two endpoints. _(inferred)_
+
+**Enforced at:** `src/presentation/http/middleware/authenticateStream.ts`, wired per route in `src/presentation/http/routes/wireless-stream.routes.ts`
+**Reached from:** `GET /api/devices/:id/wireless/throughput/stream`, `GET /api/wireless/throughput/stream`
+**Message:** `Authentication required` / `Invalid token`
+**Tests:** `tests/integration/wireless-stream.routes.test.ts`
+
+### WLS-150 — Streams are capped by connection count, not rate-limited
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation (not in domain)
+**Since:** 2026-08-12
+
+Neither stream route carries `createRateLimiter`. Instead one user may hold at
+most `SSE_MAX_CONNECTIONS_PER_USER` streams (default 5) and the process at most
+`SSE_MAX_CONNECTIONS` (default 200). Exceeding either is a `429`. Both streams
+require only `read`, so every role including VIEWER can open one.
+
+**Why:** `express-rate-limit` counts requests per window, which is the wrong
+unit for a connection that is opened once and held for hours — a single stream
+consuming a socket indefinitely never trips it, and a browser reconnecting after
+a network blip trivially could. Sockets and file descriptors are the resource
+actually at risk, so they are what is counted.
+
+The per-user cap is the one that matters in practice: a few dashboard tabs are
+legitimate, dozens are a leaking reconnect loop. _(inferred)_
+
+**Enforced at:** `src/presentation/http/controllers/WirelessStreamController.ts`, `src/presentation/http/routes/wireless-stream.routes.ts`
+**Reached from:** both throughput streams
+**Message:** `Too many streams`
+**Tests:** `tests/presentation/http/controllers/WirelessStreamController.test.ts`
+
 ---
 
 ## Retention

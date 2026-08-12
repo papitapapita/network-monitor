@@ -39,6 +39,10 @@ Authorization: Bearer <token>
 
 Missing or invalid tokens return `401`. Insufficient role returns `403`.
 
+> **SSE exception:** the two wireless throughput streams also accept
+> `?token=<jwt>`, because the browser `EventSource` API cannot set headers. No
+> other endpoint does.
+
 ### Roles
 
 | Role       | Allowed operations                                                      |
@@ -65,6 +69,11 @@ Counters are keyed by user id, falling back to IP for unauthenticated requests,
 so operators sharing one office address do not share a budget. Each resource
 has its own counter — 60 device deletes and 60 vendor deletes in the same minute
 is fine. Exceeding a bucket returns `429` with `{ success: false, error: 'Too many requests' }`.
+
+SSE streams are not rate-limited — a connection held open for hours is the wrong
+thing to count per minute. They are capped by concurrency instead: 5 streams per
+user and 200 per server, exceeding either returns `429` with
+`{ error: 'Too many streams' }`.
 
 ---
 
@@ -1517,6 +1526,19 @@ interface WirelessStatusDTO {
   clients: WirelessClientDTO[];
 }
 
+interface WirelessThroughputDTO {
+  deviceId: string; // UUID
+  deviceType: WirelessDeviceType;
+  collectedAt: string; // ISO 8601 — when the radio was read, not when you asked
+  ageSeconds: number; // age of the reading; never negative
+  stale: boolean; // ageSeconds > 2 × the device's intervalSecs, or no config
+  throughputTxBps: number | null;
+  throughputRxBps: number | null;
+  throughputTotalBps: number | null; // null if either leg is null
+  linkCapacityKbps: number | null; // the provisioned plan; STATION-only
+  utilisationPercent: number | null; // 2dp; null without a capacity, so always null for an AP
+}
+
 interface WirelessAlertDTO {
   id: string; // UUID
   deviceId: string; // UUID
@@ -1725,6 +1747,83 @@ limit?: number // 1–1000
 
 > Returns the connected client list from the most recent snapshot (AP devices only).  
 > Returns 404 if no snapshot exists for this device.
+
+---
+
+### `GET /api/devices/:id/wireless/throughput/stream` — Live Throughput (SSE)
+
+**Status:** 200 (`text/event-stream`) | 400 | 401 | 404 | 429
+
+A Server-Sent Events stream, not a JSON endpoint. Errors are still plain JSON —
+the failure path runs before any stream header is written, so a 404 looks like
+every other 404 here.
+
+**Authentication.** These two routes accept `?token=<jwt>` in addition to
+`Authorization: Bearer` — the browser `EventSource` API cannot set headers.
+Every other route in this document remains header-only.
+
+```js
+const es = new EventSource(
+  `/api/devices/${deviceId}/wireless/throughput/stream?token=${jwt}`
+);
+es.addEventListener('throughput', (e) => render(JSON.parse(e.data)));
+```
+
+The first `throughput` event arrives immediately with the current reading; each
+later one arrives when the poller stores a new snapshot for this device. There
+is no fixed cadence — it tracks the device's `intervalSecs`.
+
+```
+retry: 5000
+
+event: throughput
+data: {"deviceId":"…","deviceType":"STATION","collectedAt":"2026-08-12T10:00:00.000Z",
+       "ageSeconds":12,"stale":false,"throughputTxBps":8000000,"throughputRxBps":2000000,
+       "throughputTotalBps":10000000,"linkCapacityKbps":50000,"utilisationPercent":20}
+
+: ping
+```
+
+> `: ping` comment frames arrive every 15s to keep proxies from reaping an idle
+> connection. `retry: 5000` tells `EventSource` to reconnect after 5s.
+
+Returns 404 when the device has never been polled — there is no reading to
+stream. Returns 429 once a user holds 5 concurrent streams, or the server holds
+200; the body is `{ "error": "Too many streams" }`.
+
+---
+
+### `GET /api/wireless/throughput/stream` — Live Fleet Throughput (SSE)
+
+**Status:** 200 (`text/event-stream`) | 401 | 429
+
+Same transport and authentication as the per-device stream. **The opening frame
+has a different event name and a different shape from the ones that follow:**
+
+| Order       | Event                 | Payload                                          |
+| ----------- | --------------------- | ------------------------------------------------ |
+| First only  | `throughput-snapshot` | `{ devices: WirelessThroughputDTO[], total }`     |
+| Every later | `throughput`          | A single `WirelessThroughputDTO` for one device   |
+
+> A client that assumes a full list on every frame will render wrong. Seed state
+> from `throughput-snapshot`, then upsert each `throughput` delta by `deviceId`.
+
+```js
+const es = new EventSource(`/api/wireless/throughput/stream?token=${jwt}`);
+const fleet = new Map();
+
+es.addEventListener('throughput-snapshot', (e) => {
+  for (const d of JSON.parse(e.data).devices) fleet.set(d.deviceId, d);
+});
+es.addEventListener('throughput', (e) => {
+  const d = JSON.parse(e.data);
+  fleet.set(d.deviceId, d);
+});
+```
+
+Devices that have never been polled are absent — a row of nulls would read as
+idle rather than unknown. An empty fleet is `{ "devices": [], "total": 0 }`, not
+a 404.
 
 ---
 

@@ -58,6 +58,7 @@ function makeMocks() {
     findByDeviceId: jest.fn(),
     save: jest.fn(),
     findAllDue: jest.fn().mockResolvedValue(Result.ok([])),
+    findAll: jest.fn(),
     delete: jest.fn(),
     findById: jest.fn(),
     exists: jest.fn()

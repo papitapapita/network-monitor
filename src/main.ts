@@ -16,9 +16,10 @@ const ALLOWED_ORIGINS = (
   .split(',')
   .map((o) => o.trim());
 
+const logger = new WinstonLogger();
+
 async function bootstrap(): Promise<Server> {
   const app: Application = express();
-  const logger = new WinstonLogger();
 
   // Middleware
   app.use(helmet());
@@ -87,6 +88,9 @@ async function bootstrap(): Promise<Server> {
   // Graceful shutdown
   process.on('SIGTERM', () => {
     logger.info('SIGTERM received, closing server...');
+    // server.close() waits for open connections, and an SSE stream never
+    // closes on its own — end them first or shutdown hangs indefinitely.
+    container.eventStreamHub.closeAll();
     server.close(async () => {
       await container.pollingOrchestrator.stop();
       await container.wirelessPollingOrchestrator.stop();
@@ -102,6 +106,9 @@ async function bootstrap(): Promise<Server> {
 }
 
 bootstrap().catch((error) => {
-  console.error('Failed to start server:', error);
+  logger.error(
+    'Failed to start server',
+    error instanceof Error ? error : new Error(String(error))
+  );
   process.exit(1);
 });

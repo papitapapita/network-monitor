@@ -36,6 +36,7 @@ import {
   AlertController,
   ScanController,
   WirelessController,
+  WirelessStreamController,
   CredentialsController,
   CustomerController,
   ServicePlanController,
@@ -106,6 +107,8 @@ import {
   RebootWirelessDeviceUseCase,
   CreateWirelessConfigUseCase,
   GetWirelessConfigUseCase,
+  GetWirelessThroughputUseCase,
+  GetFleetWirelessThroughputUseCase,
   UpdateWirelessConfigUseCase,
   DeleteWirelessConfigUseCase
 } from 'application/wireless-monitoring/use-cases';
@@ -211,12 +214,16 @@ import {
 import {
   WirelessAlertClearedNotificationHandler,
   WirelessAlertTriggeredAlertRecordHandler,
-  WirelessAlertClearedAlertRecordHandler
+  WirelessAlertClearedAlertRecordHandler,
+  DeviceDeletedWirelessConfigHandler,
+  WirelessSnapshotCreatedThroughputHandler
 } from 'application/wireless-monitoring/event-handlers';
 import {
   WirelessAlertClearedEvent,
-  WirelessAlertTriggeredEvent
+  WirelessAlertTriggeredEvent,
+  WirelessSnapshotCreatedEvent
 } from 'domain/wireless-monitoring/events';
+import { SseBroadcaster } from '../realtime/SseBroadcaster';
 
 // Use Cases
 import {
@@ -304,6 +311,7 @@ export class DependencyContainer {
   public alertController: AlertController;
   public scanController: ScanController;
   public wirelessController: WirelessController;
+  public wirelessStreamController: WirelessStreamController;
   public credentialsController: CredentialsController;
   public customerController: CustomerController;
   public ticketController: TicketController;
@@ -323,6 +331,9 @@ export class DependencyContainer {
 
   // Admin
   public adminController: AdminController;
+
+  // SSE hub (lifecycle managed by main.ts — open streams block shutdown)
+  public eventStreamHub: SseBroadcaster;
 
   constructor() {
     // Initialize infrastructure
@@ -1035,6 +1046,29 @@ export class DependencyContainer {
       this.logger
     );
 
+    // Live throughput (SSE)
+    this.eventStreamHub = new SseBroadcaster(this.logger);
+
+    const getWirelessThroughputUseCase =
+      new GetWirelessThroughputUseCase(
+        this.wirelessSnapshotRepository,
+        this.wirelessDeviceConfigRepository,
+        this.logger
+      );
+    const getFleetWirelessThroughputUseCase =
+      new GetFleetWirelessThroughputUseCase(
+        this.wirelessSnapshotRepository,
+        this.wirelessDeviceConfigRepository,
+        this.logger
+      );
+
+    this.wirelessStreamController = new WirelessStreamController(
+      getWirelessThroughputUseCase,
+      getFleetWirelessThroughputUseCase,
+      this.eventStreamHub,
+      this.logger
+    );
+
     // =====================================
     // DEVICE CREDENTIALS (device-inventory BC)
     // =====================================
@@ -1177,6 +1211,16 @@ export class DependencyContainer {
         this.logger
       )
     );
+    // ICMP polling already stands down through the monitoring-toggled event
+    // that softDelete raises. Wireless does not — its orchestrator selects on
+    // its own `enabled` flag, so a deleted device would keep being polled.
+    EventDispatcher.register(
+      DeviceDeletedEvent.name,
+      new DeviceDeletedWirelessConfigHandler(
+        this.wirelessDeviceConfigRepository,
+        this.logger
+      )
+    );
     EventDispatcher.register(
       DeviceWentOfflineEvent.name,
       new DeviceWentOfflineNotificationHandler(
@@ -1218,6 +1262,18 @@ export class DependencyContainer {
         )
       );
     }
+
+    // Every stored poll feeds the live throughput streams. The handler
+    // short-circuits when nobody is subscribed, so this costs nothing idle.
+    EventDispatcher.register(
+      WirelessSnapshotCreatedEvent.name,
+      new WirelessSnapshotCreatedThroughputHandler(
+        this.wirelessSnapshotRepository,
+        this.wirelessDeviceConfigRepository,
+        this.eventStreamHub,
+        this.logger
+      )
+    );
 
     // WhatsApp suspension notices are optional — existing deployments
     // without the env vars must keep booting.

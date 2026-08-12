@@ -79,6 +79,45 @@ export class PrismaWirelessSnapshotRepository
     }
   }
 
+  /**
+   * Newest snapshot per device.
+   *
+   * Two steps on purpose. Prisma's `distinct` does not compile to Postgres
+   * `DISTINCT ON` — it emits a plain ORDER BY and deduplicates in the query
+   * engine, which would drag the whole retention window into memory to return
+   * one row per device. The raw pass narrows to the winning ids against the
+   * [device_id, collected_at DESC] index, then the second fetches those rows
+   * by primary key so the existing mapper still does the hydration.
+   */
+  async findLatestForAllDevices(): Promise<Result<WirelessSnapshot[]>> {
+    try {
+      const latest = await this.prisma.$queryRaw<{ id: string }[]>`
+        SELECT DISTINCT ON (device_id) id
+        FROM wireless_snapshots
+        ORDER BY device_id, collected_at DESC
+      `;
+      if (latest.length === 0) return Result.ok([]);
+
+      const raws = await this.prisma.wirelessSnapshot.findMany({
+        where: { id: { in: latest.map((r) => r.id) } }
+      });
+
+      return Result.ok(
+        raws.map((r) =>
+          WirelessSnapshotPrismaMapper.toDomain(
+            r as unknown as Parameters<
+              typeof WirelessSnapshotPrismaMapper.toDomain
+            >[0]
+          )
+        )
+      );
+    } catch (error) {
+      return Result.fail(
+        `Database error finding latest wireless snapshots: ${(error as Error).message}`
+      );
+    }
+  }
+
   async findHistoryByDevice(
     deviceId: DeviceId,
     from: Date,

@@ -18,4 +18,5 @@ export interface IWirelessDeviceConfigRepository {
   ): Promise<Result<WirelessDeviceConfig | null>>;
   // used by the polling scheduler to select devices due for a poll cycle
   findAllDue(now: Date): Promise<Result<WirelessDeviceConfig[]>>;
+  findAll(): Promise<Result<WirelessDeviceConfig[]>>;
 }

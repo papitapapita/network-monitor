@@ -8,6 +8,7 @@ import { createPollingRoutes } from './polling.routes';
 import { createAlertRoutes } from './alert.routes';
 import { createScanRoutes } from './scan.routes';
 import { createWirelessRoutes } from './wireless.routes';
+import { createWirelessStreamRoutes } from './wireless-stream.routes';
 import { createCredentialsRoutes } from './credentials.routes';
 import { createAuthRoutes } from './auth.routes';
 import { createAdminRoutes } from './admin.routes';
@@ -43,6 +44,22 @@ export function setupRoutes(
   // =====================================
 
   apiRouter.use('/auth', createAuthRoutes(container.authController));
+
+  // =====================================
+  // SSE STREAMS — authenticated, but not by the global middleware
+  // =====================================
+
+  // Mounted above the Bearer-only guard because EventSource cannot send
+  // headers. The router attaches its own audit log and stream authentication
+  // per route, so neither reaches the routes registered below it.
+  apiRouter.use(
+    '/',
+    createWirelessStreamRoutes(
+      container.wirelessStreamController,
+      container.tokenService,
+      container.getLogger()
+    )
+  );
 
   // =====================================
   // GLOBAL MIDDLEWARE — all routes below require a valid JWT

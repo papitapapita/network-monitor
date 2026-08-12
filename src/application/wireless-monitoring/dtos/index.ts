@@ -16,3 +16,5 @@ export * from './RebootWirelessDeviceResponseDTO';
 export * from './WirelessConfigResponseDTO';
 export * from './CreateWirelessConfigRequestDTO';
 export * from './UpdateWirelessConfigRequestDTO';
+export * from './WirelessThroughputDTO';
+export * from './GetWirelessThroughputRequestDTO';

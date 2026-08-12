@@ -10,6 +10,8 @@ export interface IWirelessSnapshotRepository {
   findLatestByDevice(
     deviceId: DeviceId
   ): Promise<Result<WirelessSnapshot | null>>;
+  // one row per device — the fleet-wide live view, not a paged listing
+  findLatestForAllDevices(): Promise<Result<WirelessSnapshot[]>>;
   findHistoryByDevice(
     deviceId: DeviceId,
     from: Date,
