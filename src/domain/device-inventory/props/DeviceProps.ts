@@ -1,4 +1,8 @@
-import { DeviceModelId, LocationId } from 'domain/shared/ids';
+import {
+  DeviceId,
+  DeviceModelId,
+  LocationId
+} from 'domain/shared/ids';
 import { IPAddress, MACAddress } from 'domain/shared/value-objects';
 import {
   DeviceName,
@@ -29,6 +33,14 @@ export interface DeviceProps {
   installedDate: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt: Date | null;
+  deletedBy: string | null;
+
+  // Replacement lineage. Only replacesDeviceId is stored; replacedByDeviceId
+  // is read back off the unique index on it, so the two cannot disagree.
+  replacedAt: Date | null;
+  replacesDeviceId: DeviceId | null;
+  replacedByDeviceId: DeviceId | null;
 
   // Monitoring
   monitoringEnabled: boolean;

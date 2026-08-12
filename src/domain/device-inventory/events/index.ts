@@ -4,3 +4,6 @@ export * from './DeviceLocationAssignedEvent';
 export * from './DeviceMonitoringToggledEvent';
 export * from './DeviceDetailsUpdatedEvent';
 export * from './DeviceModelCorrectedEvent';
+export * from './DeviceDeletedEvent';
+export * from './DeviceRestoredEvent';
+export * from './DeviceReplacedEvent';

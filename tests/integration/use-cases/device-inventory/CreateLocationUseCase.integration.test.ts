@@ -73,7 +73,7 @@ describe('CreateLocationUseCase — integration', () => {
   // Validation failures
   // ──────────────────────────────────────────────────────────────
 
-  it('[DEV-090] fails when name is empty', async () => {
+  it('[DEV-099] fails when name is empty', async () => {
     const result = await useCase.execute({
       name: '',
       type: 'TOWER'
@@ -81,6 +81,16 @@ describe('CreateLocationUseCase — integration', () => {
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/name/i);
+  });
+
+  it('[DEV-099] fails when type is empty', async () => {
+    const result = await useCase.execute({
+      name: 'Bad Location',
+      type: ''
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/type/i);
   });
 
   it('[DEV-091] fails when type is an invalid enum value', async () => {

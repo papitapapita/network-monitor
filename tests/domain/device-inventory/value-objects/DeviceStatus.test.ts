@@ -34,6 +34,13 @@ describe('DeviceStatus', () => {
         expect(result.value.value).toBe('INVENTORY');
       });
 
+      it('should succeed for DECOMMISSIONED', () => {
+        const result = DeviceStatus.create('DECOMMISSIONED');
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.value).toBe('DECOMMISSIONED');
+      });
+
       it('should normalise lowercase input to uppercase', () => {
         const result = DeviceStatus.create('active');
 
@@ -106,13 +113,6 @@ describe('DeviceStatus', () => {
         expect(result.error).toContain('UNKNOWN_STATUS');
       });
 
-      it('should fail for removed DECOMMISSIONED status', () => {
-        const result = DeviceStatus.create('DECOMMISSIONED');
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('Invalid device status');
-      });
-
       it('should fail for removed MAINTENANCE status', () => {
         const result = DeviceStatus.create('MAINTENANCE');
 
@@ -127,6 +127,7 @@ describe('DeviceStatus', () => {
         expect(result.error).toContain('ACTIVE');
         expect(result.error).toContain('COMMISSIONING');
         expect(result.error).toContain('DAMAGED');
+        expect(result.error).toContain('DECOMMISSIONED');
         expect(result.error).toContain('INVENTORY');
       });
     });
@@ -148,6 +149,12 @@ describe('DeviceStatus', () => {
 
     it('createInventory() should return an INVENTORY status', () => {
       expect(DeviceStatus.createInventory().value).toBe('INVENTORY');
+    });
+
+    it('createDecommissioned() should return a DECOMMISSIONED status', () => {
+      expect(DeviceStatus.createDecommissioned().value).toBe(
+        'DECOMMISSIONED'
+      );
     });
   });
 
@@ -181,6 +188,34 @@ describe('DeviceStatus', () => {
     it('isDamaged() should return true only for DAMAGED', () => {
       expect(DeviceStatus.createDamaged().isDamaged()).toBe(true);
       expect(DeviceStatus.createActive().isDamaged()).toBe(false);
+      expect(
+        DeviceStatus.createDecommissioned().isDamaged()
+      ).toBe(false);
+    });
+
+    it('isDecommissioned() should return true only for DECOMMISSIONED', () => {
+      expect(
+        DeviceStatus.createDecommissioned().isDecommissioned()
+      ).toBe(true);
+      expect(DeviceStatus.createDamaged().isDecommissioned()).toBe(
+        false
+      );
+      expect(DeviceStatus.createActive().isDecommissioned()).toBe(
+        false
+      );
+    });
+
+    // [DEV-078] The set a replacement may retire the outgoing unit into.
+    it('isRetired() should be true for the three out-of-service statuses', () => {
+      expect(DeviceStatus.createInventory().isRetired()).toBe(true);
+      expect(DeviceStatus.createDamaged().isRetired()).toBe(true);
+      expect(
+        DeviceStatus.createDecommissioned().isRetired()
+      ).toBe(true);
+      expect(DeviceStatus.createActive().isRetired()).toBe(false);
+      expect(
+        DeviceStatus.createCommissioning().isRetired()
+      ).toBe(false);
     });
 
     it('isInInventory() should return true only for INVENTORY', () => {

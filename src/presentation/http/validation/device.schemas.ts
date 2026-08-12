@@ -9,6 +9,9 @@ import { z } from 'zod';
  * - GET    /api/devices/:id    (getDeviceByIdSchema)
  * - PATCH  /api/devices/:id    (updateDeviceSchema)
  * - DELETE /api/devices/:id    (deleteDeviceSchema)
+ * - POST   /api/devices/:id/restore  (restoreDeviceSchema)
+ * - POST   /api/devices/:id/replace  (replaceDeviceSchema)
+ * - DELETE /api/devices/:id/purge    (permanentlyDeleteDeviceSchema)
  */
 
 // =====================================
@@ -18,7 +21,22 @@ import { z } from 'zod';
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const DEVICE_STATUSES = ['INVENTORY', 'ACTIVE', 'DAMAGED', 'COMMISSIONING'] as const;
+const DEVICE_STATUSES = [
+  'INVENTORY',
+  'ACTIVE',
+  'DAMAGED',
+  'DECOMMISSIONED',
+  'COMMISSIONING'
+] as const;
+
+// Where a replaced unit may land. Deliberately not the full status set: a
+// replacement takes the outgoing box out of service, so ACTIVE and
+// COMMISSIONING are not offers.
+const RETIRED_STATUSES = [
+  'INVENTORY',
+  'DAMAGED',
+  'DECOMMISSIONED'
+] as const;
 
 const DEVICE_CATEGORIES = [
   'CPE',
@@ -35,7 +53,9 @@ const SORT_BY_VALUES = [
   'createdAt',
   'updatedAt',
   'name',
-  'status'
+  'status',
+  // Most-recently-deleted-first is the natural order for the recycle bin.
+  'deletedAt'
 ] as const;
 
 // =====================================
@@ -215,6 +235,23 @@ export const listDevicesSchema = z.object({
       .transform((v) => v === 'true')
       .optional(),
 
+    // The recycle-bin switch. Omitted behaves exactly as it always has, so no
+    // existing caller changes behaviour.
+    //   false (default) → live devices only
+    //   true            → deleted devices only
+    //   any             → both
+    //
+    // Validated here, mapped to the domain vocabulary in the controller.
+    // A .transform() would be dead code: validateRequest discards the parsed
+    // output and the handler reads the raw query string.
+    deleted: z
+      .enum(['true', 'false', 'any'], {
+        error: () => ({
+          message: 'deleted must be true, false or any'
+        })
+      })
+      .optional(),
+
     search: z.string().trim().optional(),
 
     sortBy: z.enum(SORT_BY_VALUES).optional(),
@@ -352,6 +389,116 @@ export const deleteDeviceSchema = z.object({
 });
 
 // =====================================
+// RESTORE SCHEMA
+// =====================================
+
+/**
+ * Schema for POST /api/devices/:id/restore
+ *
+ * Validates that :id is a UUID v4. No request body is expected.
+ */
+export const restoreDeviceSchema = z.object({
+  params: z.object({
+    id: z
+      .string()
+      .regex(UUID_REGEX, 'Invalid device ID (must be a UUID v4)')
+  })
+});
+
+// =====================================
+// PERMANENT DELETE SCHEMA
+// =====================================
+
+/**
+ * Schema for DELETE /api/devices/:id/purge
+ *
+ * Validates that :id is a UUID v4. No request body is expected.
+ */
+export const permanentlyDeleteDeviceSchema = z.object({
+  params: z.object({
+    id: z
+      .string()
+      .regex(UUID_REGEX, 'Invalid device ID (must be a UUID v4)')
+  })
+});
+
+// =====================================
+// REPLACE SCHEMA
+// =====================================
+
+/**
+ * Schema for POST /api/devices/:id/replace
+ *
+ * :id is the unit being replaced. The body describes the replacement hardware
+ * and names where the outgoing unit is retired to.
+ *
+ * At least one of serialNumber / macAddress is required: the retired statuses
+ * all demand an identifier, and the replacement is a different physical box
+ * with its own.
+ */
+export const replaceDeviceSchema = z.object({
+  params: z.object({
+    id: z
+      .string()
+      .regex(UUID_REGEX, 'Invalid device ID (must be a UUID v4)')
+  }),
+
+  body: z
+    .object({
+      deviceModelId: z
+        .string()
+        .regex(UUID_REGEX, 'deviceModelId must be a valid UUID v4'),
+
+      retiredStatus: z.enum(RETIRED_STATUSES, {
+        error: () => ({
+          message: `retiredStatus must be one of: ${RETIRED_STATUSES.join(', ')}`
+        })
+      }),
+
+      name: z
+        .string()
+        .min(1, 'Device name cannot be empty')
+        .max(150, 'Device name cannot exceed 150 characters')
+        .trim()
+        .optional(),
+
+      serialNumber: z
+        .string()
+        .max(100, 'Serial number cannot exceed 100 characters')
+        .trim()
+        .optional(),
+
+      macAddress: z
+        .string()
+        .regex(
+          /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$|^([0-9A-Fa-f]{2}-){5}[0-9A-Fa-f]{2}$/,
+          'macAddress must be in format AA:BB:CC:DD:EE:FF or AA-BB-CC-DD-EE-FF'
+        )
+        .optional(),
+
+      description: z.string().trim().optional(),
+
+      installedDate: z
+        .string()
+        .datetime({
+          message:
+            'installedDate must be a valid ISO 8601 date string'
+        })
+        .optional()
+    })
+    .refine(
+      (body) =>
+        body.serialNumber !== undefined ||
+        body.macAddress !== undefined,
+      {
+        message:
+          'The replacement device must have at least a serial number or MAC address',
+        path: ['serialNumber']
+      }
+    )
+});
+
+// =====================================
 // TYPE EXPORTS
 // =====================================
 
@@ -372,4 +519,16 @@ export type UpdateDeviceParams = z.infer<
 >['params'];
 export type DeleteDeviceParams = z.infer<
   typeof deleteDeviceSchema
+>['params'];
+export type RestoreDeviceParams = z.infer<
+  typeof restoreDeviceSchema
+>['params'];
+export type PermanentlyDeleteDeviceParams = z.infer<
+  typeof permanentlyDeleteDeviceSchema
+>['params'];
+export type ReplaceDeviceInput = z.infer<
+  typeof replaceDeviceSchema
+>['body'];
+export type ReplaceDeviceParams = z.infer<
+  typeof replaceDeviceSchema
 >['params'];

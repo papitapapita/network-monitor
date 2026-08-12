@@ -43,7 +43,7 @@ export class PrismaDeviceModelRepository
         );
       }
 
-      const domainResult = DeviceModelMapper.toDomain(raw as any);
+      const domainResult = DeviceModelMapper.toDomain(raw);
       if (domainResult.isFailure) {
         return Result.fail<DeviceModel>(
           `Failed to map device model: ${domainResult.error}`
@@ -78,7 +78,7 @@ export class PrismaDeviceModelRepository
 
       if (!raw) return Result.ok<DeviceModel | null>(null);
 
-      const domainResult = DeviceModelMapper.toDomain(raw as any);
+      const domainResult = DeviceModelMapper.toDomain(raw);
       if (domainResult.isFailure) {
         return Result.fail<DeviceModel | null>(
           `Failed to map device model: ${domainResult.error}`
@@ -109,7 +109,7 @@ export class PrismaDeviceModelRepository
 
       const deviceModels: DeviceModel[] = [];
       for (const raw of rawRecords) {
-        const domainResult = DeviceModelMapper.toDomain(raw as any);
+        const domainResult = DeviceModelMapper.toDomain(raw);
         if (domainResult.isFailure) {
           return Result.fail<DeviceModel[]>(
             `Failed to map device model: ${domainResult.error}`
@@ -140,7 +140,7 @@ export class PrismaDeviceModelRepository
 
       const deviceModels: DeviceModel[] = [];
       for (const raw of rawRecords) {
-        const domainResult = DeviceModelMapper.toDomain(raw as any);
+        const domainResult = DeviceModelMapper.toDomain(raw);
         if (domainResult.isFailure) {
           return Result.fail<DeviceModel[]>(
             `Failed to map device model: ${domainResult.error}`

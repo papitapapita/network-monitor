@@ -33,7 +33,20 @@ export class DeviceMapper {
         : null,
       monitoringEnabled: device.monitoringEnabled,
       createdAt: device.createdAt.toISOString(),
-      updatedAt: device.updatedAt.toISOString()
+      updatedAt: device.updatedAt.toISOString(),
+      deletedAt: device.deletedAt
+        ? device.deletedAt.toISOString()
+        : null,
+      deletedBy: device.deletedBy,
+      replacedAt: device.replacedAt
+        ? device.replacedAt.toISOString()
+        : null,
+      replacesDeviceId: device.replacesDeviceId
+        ? device.replacesDeviceId.toString()
+        : null,
+      replacedByDeviceId: device.replacedByDeviceId
+        ? device.replacedByDeviceId.toString()
+        : null
     };
   }
 

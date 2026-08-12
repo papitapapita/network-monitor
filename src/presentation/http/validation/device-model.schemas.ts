@@ -119,6 +119,17 @@ export const deleteDeviceModelSchema = z.object({
         UUID_REGEX,
         'Invalid device model ID (must be a UUID v4)'
       )
+  }),
+
+  query: z.object({
+    // Validated as a raw string and converted in the controller —
+    // validateRequest discards the parsed output, so a .transform() here would
+    // never reach the handler.
+    purgeBinnedDevices: z
+      .enum(['true', 'false'], {
+        message: 'purgeBinnedDevices must be "true" or "false"'
+      })
+      .optional()
   })
 });
 

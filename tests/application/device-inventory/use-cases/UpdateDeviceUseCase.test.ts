@@ -99,6 +99,8 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
     existsByIpAddress: jest.fn(),
     findByLocationIds: jest.fn(),
     findByFilters: jest.fn(),
+    findByIdIncludingDeleted: jest.fn(),
+    findDeletedBefore: jest.fn(),
     countByFilters: jest.fn()
   };
 }
@@ -110,7 +112,8 @@ function makeWirelessConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> 
     delete: jest.fn(),
     exists: jest.fn(),
     findByDeviceId: jest.fn(),
-    findAllDue: jest.fn()
+    findAllDue: jest.fn(),
+    findAll: jest.fn()
   };
 }
 
@@ -309,7 +312,7 @@ describe('UpdateDeviceUseCase', () => {
       expect(result.error).toContain('Invalid device ID');
     });
 
-    it('should fail when device is not found (findById returns null)', async () => {
+    it('[DEV-069] should fail when device is not found (findById returns null)', async () => {
       repo.findById.mockResolvedValue(Result.ok(null));
 
       const result = await useCase.execute(makeRequest());

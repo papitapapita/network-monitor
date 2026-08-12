@@ -7,7 +7,14 @@ export interface ListDevicesQueryDTO {
   locationId?: string;
   deviceModelId?: string;
   monitoringEnabled?: boolean;
+  // 'only' is the recycle-bin view. Absent means live devices only.
+  deleted?: 'exclude' | 'only' | 'any';
   search?: string;
-  sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'status';
+  sortBy?:
+    | 'createdAt'
+    | 'updatedAt'
+    | 'name'
+    | 'status'
+    | 'deletedAt';
   sortOrder?: 'ASC' | 'DESC';
 }

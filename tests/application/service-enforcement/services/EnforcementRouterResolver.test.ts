@@ -38,6 +38,8 @@ function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
     existsByIpAddress: jest.fn(),
     findByLocationIds: jest.fn(),
     findByFilters: jest.fn(),
+    findByIdIncludingDeleted: jest.fn(),
+    findDeletedBefore: jest.fn(),
     countByFilters: jest.fn()
   };
 }

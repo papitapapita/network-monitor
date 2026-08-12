@@ -100,7 +100,7 @@ describe('CreateLocationUseCase', () => {
   // =========================================================================
   describe('beforeExecute — input validation', () => {
     // -----------------------------------------------------------------------
-    describe('[DEV-090] name validation', () => {
+    describe('[DEV-099] name validation', () => {
       it('should fail when name is an empty string', async () => {
         const result = await useCase.execute(
           makeMinimalDTO({ name: '' })
@@ -128,7 +128,7 @@ describe('CreateLocationUseCase', () => {
 
     // -----------------------------------------------------------------------
     describe('[DEV-091] type validation', () => {
-      it('should fail when type is an empty string', async () => {
+      it('[DEV-099] should fail when type is an empty string', async () => {
         const result = await useCase.execute(
           makeMinimalDTO({ type: '' })
         );
@@ -467,7 +467,7 @@ describe('CreateLocationUseCase', () => {
       expect(result.error).toContain('DB connection error');
     });
 
-    it('should return failure when name exceeds 150 characters', async () => {
+    it('[DEV-090] should return failure when name exceeds 150 characters', async () => {
       const longName = 'A'.repeat(151);
 
       const result = await useCase.execute(

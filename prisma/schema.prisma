@@ -138,6 +138,7 @@ enum DeviceStatus {
   ACTIVE
   COMMISSIONING
   DAMAGED
+  DECOMMISSIONED
   INVENTORY
 
   @@map("device_status")
@@ -172,15 +173,27 @@ model Device {
 
   //Identity
   name             String  @db.VarChar(150)
-  serialNumber     String? @map("serial_number") @db.VarChar(100) 
-  macAddress       String? @unique @map("mac_address") @db.VarChar(17)
-  ipAddress        String? @unique @map("ip_address") @db.VarChar(45)
+  serialNumber     String? @map("serial_number") @db.VarChar(100)
+  // Uniqueness is a PARTIAL index (`WHERE deleted_at IS NULL`), declared in
+  // migration 20260811120000 — Prisma's DSL cannot express one, so `@unique`
+  // is deliberately absent here. A soft-deleted unit must release its address
+  // so a replacement can take it.
+  macAddress       String? @map("mac_address") @db.VarChar(17)
+  ipAddress        String? @map("ip_address") @db.VarChar(45)
   description      String?   @db.Text
 
   // Lifecycle
   installedDate DateTime? @map("installed_at") @db.Timestamptz
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz
+  deletedBy     String?   @map("deleted_by") @db.Uuid
+
+  // Replacement lineage. Only `replacesDeviceId` is stored — it is @unique, so
+  // `replacedBy` is its back-reference rather than a second column that could
+  // drift out of step with it.
+  replacedAt       DateTime? @map("replaced_at") @db.Timestamptz
+  replacesDeviceId String?   @unique @map("replaces_device_id") @db.Uuid
 
   // Monitoring
   monitoringEnabled Boolean @default(true) @map("monitoring_enabled")
@@ -188,6 +201,8 @@ model Device {
   // Relations
   deviceModel                  DeviceModel                   @relation(fields: [deviceModelId], references: [id], onDelete: Restrict)
   location                     Location?                     @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  replaces                     Device?                       @relation("DeviceReplacement", fields: [replacesDeviceId], references: [id], onDelete: SetNull)
+  replacedBy                   Device?                       @relation("DeviceReplacement")
   pollingConfiguration         PollingConfiguration?
   deviceState                  DeviceState?
   pingResults                  PingResult[]
@@ -200,6 +215,7 @@ model Device {
   tickets                      Ticket[]
 
   @@index([monitoringEnabled])
+  @@index([deletedAt])
   @@map("devices")
 }
 

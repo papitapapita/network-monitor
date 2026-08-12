@@ -4,6 +4,7 @@ import {
   PurgeOldWirelessSnapshotsUseCase,
   PurgeOldWirelessAlertRecordsUseCase
 } from 'application/wireless-monitoring/use-cases';
+import { PurgeDeletedDevicesUseCase } from 'application/device-inventory/use-cases';
 import { ILogger } from 'application/shared/interfaces';
 
 interface RetentionConfig {
@@ -11,6 +12,9 @@ interface RetentionConfig {
   wirelessSnapshotRetentionDays: number;
   alertRetentionDays: number;
   wirelessAlertRecordRetentionDays: number;
+  // Grace period, not a retention window: how long a soft-deleted device stays
+  // restorable before it is removed for good.
+  deletedDeviceGraceDays: number;
   checkIntervalMs?: number;
 }
 
@@ -24,6 +28,7 @@ export class DataRetentionOrchestrator {
     private readonly purgeOldAlerts: PurgeOldAlertsUseCase,
     private readonly purgeOldWirelessSnapshots: PurgeOldWirelessSnapshotsUseCase,
     private readonly purgeOldWirelessAlertRecords: PurgeOldWirelessAlertRecordsUseCase,
+    private readonly purgeDeletedDevices: PurgeDeletedDevicesUseCase,
     private readonly config: RetentionConfig,
     private readonly logger: ILogger
   ) {
@@ -42,7 +47,8 @@ export class DataRetentionOrchestrator {
         this.config.wirelessSnapshotRetentionDays,
       alertRetentionDays: this.config.alertRetentionDays,
       wirelessAlertRecordRetentionDays:
-        this.config.wirelessAlertRecordRetentionDays
+        this.config.wirelessAlertRecordRetentionDays,
+      deletedDeviceGraceDays: this.config.deletedDeviceGraceDays
     });
 
     void this.runPurge();
@@ -79,11 +85,19 @@ export class DataRetentionOrchestrator {
       ),
       this.purgeOldWirelessAlertRecords.execute(
         this.config.wirelessAlertRecordRetentionDays
+      ),
+      this.purgeDeletedDevices.execute(
+        this.config.deletedDeviceGraceDays
       )
     ]);
 
-    const [pingResult, alertResult, snapshotResult, wirelessAlertResult] =
-      results;
+    const [
+      pingResult,
+      alertResult,
+      snapshotResult,
+      wirelessAlertResult,
+      deletedDeviceResult
+    ] = results;
 
     if (pingResult.isFailure) {
       this.logger.error(
@@ -109,6 +123,12 @@ export class DataRetentionOrchestrator {
         new Error(wirelessAlertResult.error)
       );
     }
+    if (deletedDeviceResult.isFailure) {
+      this.logger.error(
+        '[DataRetentionOrchestrator] Failed to purge deleted devices',
+        new Error(deletedDeviceResult.error)
+      );
+    }
 
     this.logger.info('[DataRetentionOrchestrator] Purge complete', {
       pingResultsDeleted: pingResult.isSuccess
@@ -120,6 +140,9 @@ export class DataRetentionOrchestrator {
         : 0,
       wirelessAlertRecordsDeleted: wirelessAlertResult.isSuccess
         ? wirelessAlertResult.value
+        : 0,
+      deletedDevicesPurged: deletedDeviceResult.isSuccess
+        ? deletedDeviceResult.value
         : 0
     });
   }

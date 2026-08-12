@@ -35,10 +35,13 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 
 | Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                |
 | ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Domain**                            |    36 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144 |
-| **Application**                       |    31 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-092, DEV-097, DEV-098, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145                                                                         |
+| **Domain**                            |    39 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-083, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144 |
+| **Application**                       |    40 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145 |
+| **Application + Domain**              |     4 | DEV-070, DEV-074, DEV-078, DEV-079                                                                                                                                                                                                                                                                                                 |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                        |
+| **Domain + database constraint**      |     1 | DEV-082                                                                                                                                                                                                                                                                                                                            |
 | **Infrastructure + Domain**           |     1 | DEV-028                                                                                                                                                                                                                                                                                                                            |
+| **Infrastructure + Application**      |     2 | DEV-072, DEV-084                                                                                                                                                                                                                                                                                                                   |
 | **Presentation**                      |     2 | DEV-140, DEV-146                                                                                                                                                                                                                                                                                                                   |
 
 **Half the book sits outside the domain, and most of it belongs there.** The
@@ -365,6 +368,9 @@ does not silently start wireless polling.
 **Why:** Same reasoning as DEV-005 — deleting the model would strip every unit
 built on it of its identity. Reassignment must be an explicit decision.
 
+This counts **live** devices only. Devices sitting in the recycle bin still hold
+the foreign key but do not block on this rule; DEV-030 handles them.
+
 **Enforced at:** `src/application/device-inventory/use-cases/DeleteDeviceModelUseCase.ts:58`
 **Message:** `Cannot delete device model: it has N device(s) associated. Reassign or remove those devices first.`
 **Tests:** `tests/integration/use-cases/device-inventory/DeleteDeviceModelUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
@@ -431,7 +437,7 @@ reassigned it.
 vendor label belongs on every row a caller lists — making clients resolve
 `vendorId` themselves would mean an extra request per row. Serving it off the
 join rather than a stored copy is what keeps it from ageing: the catalogue can
-never disagree with the vendor record it came from. _(inferred)_
+never disagree with the vendor record it came from.
 
 **Enforced at:** `src/infrastructure/mappers/DeviceModelMapper.ts:55` (`toDomain`), `src/domain/device-inventory/aggregates/DeviceModel.ts:131` (`updateVendor`)
 **Tests:** `tests/domain/device-inventory/aggregates/DeviceModel.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceModelUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceModelUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateVendorUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
@@ -446,6 +452,48 @@ never disagree with the vendor record it came from. _(inferred)_
 
 **Enforced at:** `src/application/device-inventory/use-cases/DeleteDeviceModelUseCase.ts:42-49`
 **Message:** `Device model not found: <id>`
+**Tests:** `tests/application/device-inventory/use-cases/DeleteDeviceModelUseCase.test.ts`, `tests/integration/use-cases/device-inventory/DeleteDeviceModelUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
+
+### DEV-030 — A device model whose only devices are in the recycle bin is deleted only on confirmation
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-12
+
+DEV-026 counts live devices, so a model whose every remaining unit has been
+soft-deleted (DEV-070) reads as unused. It is not: the tombstones still hold the
+foreign key. Deleting the model is refused, and the message names how many
+devices are in the bin and how to proceed.
+
+Repeating the request with `purgeBinnedDevices=true` permanently removes those
+devices — with the full cascade of DEV-077 — and then the model. The
+confirmation covers only the bin: a **live** device still refuses under DEV-026,
+whatever the flag says, and nothing is purged on a refused request.
+
+**Why:** Two things could go wrong here and the rule closes both.
+
+Without the check the delete reaches Postgres and dies on
+`devices_device_model_id_fkey` (`ON DELETE RESTRICT`), which surfaces as a
+database error — the operator is told the server broke when in fact a rule
+stopped them. Naming the tombstones turns an accident into a decision.
+
+Cascading silently would be worse. The devices in the bin are inside their
+seven-day window and a restore is still expected to work (DEV-074); destroying
+them because someone tidied the model catalogue would take the undo away
+without ever mentioning it. So the destruction is opt-in, in the same spirit as
+DEV-027: put the price in front of the operator rather than paying it for them.
+
+Purging is safe at this point for the same reason the scheduled purge is —
+nothing reaches the bin without clearing the live-contracted-service (DEV-075)
+and open-ticket (DEV-076) guards first. The confirmation buys time, not a
+bypass.
+
+**Consequence.** A model cannot be deleted the instant its last device is
+deleted, without an explicit second step. Waiting out the grace period is the
+other route: once DEV-077 has purged the devices, the plain delete succeeds.
+
+**Enforced at:** `src/application/device-inventory/use-cases/DeleteDeviceModelUseCase.ts:74` (`purgeBinnedDevices`)
+**Message:** `Cannot delete device model: it has N device(s) in the recycle bin. Retry with purgeBinnedDevices=true to remove them permanently along with the model.` → `409`
 **Tests:** `tests/application/device-inventory/use-cases/DeleteDeviceModelUseCase.test.ts`, `tests/integration/use-cases/device-inventory/DeleteDeviceModelUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
 
 ---
@@ -481,23 +529,39 @@ Trimmed before storage.
 **Message:** `Device name cannot be empty` / `Device name cannot exceed 150 characters`
 **Tests:** `tests/domain/device-inventory/value-objects/DeviceName.test.ts`, `tests/domain/device-inventory/aggregates/Device.test.ts`
 
-### DEV-042 — A device status is one of ACTIVE, COMMISSIONING, DAMAGED, INVENTORY
+### DEV-042 — A device status is one of ACTIVE, COMMISSIONING, DAMAGED, DECOMMISSIONED, INVENTORY
 
 **Type:** Validation · **Status:** Active
 **Layer:** Domain
-**Since:** 2026-07-28
+**Since:** 2026-07-28 · **Revised:** 2026-08-12
 
 Input is trimmed and upper-cased. **INVENTORY is the default** when no status is
 given.
 
-**Why:** These four are the lifecycle of a unit as the business tracks it:
-sitting in the warehouse, being installed, in service, or broken. INVENTORY is
-the default because that is where equipment enters the business — it is bought
-before it is deployed.
+**Why:** These five are the lifecycle of a unit as the business tracks it:
+sitting in the warehouse, being installed, in service, broken, or retired for
+good. INVENTORY is the default because that is where equipment enters the
+business — it is bought before it is deployed.
 
-**Enforced at:** `src/domain/device-inventory/value-objects/DeviceStatus.ts:43`
+Three of them — INVENTORY, DAMAGED, DECOMMISSIONED — form the **retired set**
+(DEV-078): the unit is off the network, so none of them polls and each demands
+an identifier (DEV-053).
+
+**History — DECOMMISSIONED was removed on 2026-05-09 and restored on
+2026-08-12.** Migration `20260509000000_refine_device_status_and_category`
+dropped it and remapped its rows to DAMAGED, on the reasoning that a status
+nobody set was noise. Hardware replacement gave it a caller: a swap is not
+always a failure. When an antenna is upgraded the outgoing unit still works and
+belongs back in INVENTORY; when it is obsolete it is neither broken nor stock.
+Folding that third case into DAMAGED made "broken" mean two different things,
+and the lineage link was the only way to tell them apart. Restored by
+`20260811120000_device_soft_delete_and_replacement` via `ALTER TYPE … ADD
+VALUE`, so no existing row was touched — units remapped to DAMAGED in 2026-05
+stay DAMAGED.
+
+**Enforced at:** `src/domain/device-inventory/value-objects/DeviceStatus.ts` (`DeviceStatus.create`)
 **Default applied at:** `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts:104`
-**Message:** `Invalid device status: <value>. Must be one of: ACTIVE, COMMISSIONING, DAMAGED, INVENTORY`
+**Message:** `Invalid device status: <value>. Must be one of: ACTIVE, COMMISSIONING, DAMAGED, DECOMMISSIONED, INVENTORY`
 **Tests:** `tests/domain/device-inventory/value-objects/DeviceStatus.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
 
 ### DEV-043 — A device category, when set, is one of six deployment roles
@@ -717,20 +781,26 @@ fleet.
 **Message:** `Device description cannot exceed 500 characters`
 **Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`
 
-### DEV-053 — An INVENTORY or DAMAGED device must have a serial number or a MAC address
+### DEV-053 — A retired device must have a serial number or a MAC address
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain
-**Since:** 2026-07-28
+**Since:** 2026-07-28 · **Revised:** 2026-08-12
 
-At least one of the two. Either satisfies the rule.
+Applies to every status in the retired set — INVENTORY, DAMAGED,
+DECOMMISSIONED. At least one of the two identifiers. Either satisfies the rule.
 
-**Why:** These are the two states where the unit is _not_ on the network — it is
-a physical object on a shelf. Without a serial or a MAC there is no way to match
+**Why:** These are the states where the unit is _not_ on the network — it is a
+physical object on a shelf. Without a serial or a MAC there is no way to match
 the record to the box in your hand, so the row is untraceable stock. An ACTIVE
 device is exempt because its IP already identifies it.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:499` (`Device.validate`)
+Revised on 2026-08-12 only to follow DEV-042: the check now asks
+`DeviceStatus.isRetired()` rather than naming INVENTORY and DAMAGED, so adding
+DECOMMISSIONED extended it automatically. That is deliberate — a set the code
+enumerates in one place cannot drift from the rule that depends on it.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`Device.validate`, via `Device.requiresIdentifier`)
 **Reached from:** `create`, and every later change via `applyChanges` (DEV-060)
 **Message:** `A device with status <status> must have at least a serial number or MAC address`
 **Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`
@@ -921,7 +991,7 @@ on the `Device` aggregate and is the device's own statement about itself, so
 Device Inventory owns it; the only caller is in Wireless Monitoring. The
 wireless book records it as a consumed rule rather than restating it. It is
 paired with [WLS-002](wireless-monitoring.md#wls-002--the-devices-model-must-be-marked-wireless-capable),
-which checks the *model*'s `isWireless` flag — category says what role the unit
+which checks the _model_'s `isWireless` flag — category says what role the unit
 plays, `isWireless` says whether the hardware has a radio at all, and a
 configuration needs both.
 
@@ -957,8 +1027,8 @@ none of that history can exist yet (monitoring is impossible there, DEV-057), so
 a correction cannot retroactively re-attribute collected data to hardware that
 never produced it. Once a unit has been ACTIVE, COMMISSIONING or DAMAGED, the
 model is frozen and swapping in different hardware is a separate operation that
-retires the old record and links a new one — see the "Device activation
-workflow" item in [TODOS.md](../TODOS.md).
+retires the old record and links a new one — that operation now exists, see
+DEV-078.
 
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:379` (`Device.correctDeviceModel`); model existence at `src/application/device-inventory/use-cases/UpdateDeviceUseCase.ts:234`
 **Reached from:** `UpdateDeviceUseCase` (`deviceModelId` on `PATCH /api/devices/:id`)
@@ -1112,7 +1182,7 @@ exactly the gap DEV-066 closed for `deviceModelId` on 2026-08-01.
 **Layer:** Application (not in domain)
 **Since:** 2026-08-11
 
-**Why:** Mirrors DEV-121 (credentials can only be *set* for a device that
+**Why:** Mirrors DEV-121 (credentials can only be _set_ for a device that
 exists) on the other side of the same aggregate — a delete against an id
 nobody recognizes is a caller error, not a no-op, so it fails instead of
 silently succeeding. This is the opposite policy from DEV-132 (deleting
@@ -1121,9 +1191,519 @@ state change with cascade effects on its polling configuration, so unlike a
 credentials delete there is no idempotent "already gone" reading — the
 second delete of the same device must fail.
 
-**Enforced at:** `src/application/device-inventory/use-cases/DeleteDeviceUseCase.ts:41-48`
+**Still true now that deleting is soft (DEV-070).** The lookup runs through
+`findById`, which excludes tombstones (DEV-072), so a second delete of the same
+device reads as "not found" and fails for exactly the same reason it did when
+the delete was permanent. The caller cannot tell the two cases apart, and does
+not need to.
+
+**Enforced at:** `src/application/device-inventory/use-cases/DeleteDeviceUseCase.ts` (`executeImpl`, the `findById` null check)
 **Message:** `Device not found: <id>`
 **Tests:** `tests/application/device-inventory/use-cases/DeleteDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/DeleteDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
+
+### DEV-069 — Only an existing device can be updated
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-11
+
+**Why:** Same reasoning as DEV-068, one operation over: a `PATCH` against an id
+nobody recognizes is a caller error, not a no-op, so it fails loudly instead of
+validating and applying changes to nothing.
+
+**Enforced at:** `src/application/device-inventory/use-cases/UpdateDeviceUseCase.ts:94-102`
+**Message:** `Device not found: <id>`
+**Tests:** `tests/application/device-inventory/use-cases/UpdateDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
+
+### DEV-070 — Deleting a device is reversible for seven days, then permanent
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application + Domain
+**Since:** 2026-08-12
+
+`DELETE /api/devices/:id` stamps `deletedAt` and `deletedBy` instead of removing
+the row. The device disappears from every read path (DEV-072) but its collected
+history survives. A restore inside the grace period undoes it (DEV-074); once
+the period lapses the retention job removes the row for good (DEV-077). The
+grace period defaults to 7 days and is set by `DEVICE_DELETE_GRACE_DAYS`.
+
+Deleting twice still fails (DEV-068) — the second attempt cannot see the first
+one's tombstone.
+
+**Why:** A hard delete cascaded away every `pingResult`, `alertEvent`,
+`wirelessSnapshot`, `deviceState` and credential the unit had ever produced, and
+set the customer's `ContractedService.deviceId` to null on the way out. All of
+that from one click, with nothing to undo it. Operators delete the wrong row;
+months of link-quality history is not something to lose to a misclick.
+
+Seven days is chosen to be longer than a weekend plus a working day, so a
+mistake noticed on Monday is still fixable. It is deliberately not forever: the
+whole point of the delete is that the row eventually stops costing anything, and
+an unbounded tombstone table is just a slower leak.
+
+`deletedBy` records the authenticated user id, so the tombstone says who as well
+as when.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`Device.softDelete`); orchestrated by `src/application/device-inventory/use-cases/DeleteDeviceUseCase.ts`
+**Message:** `Device is already deleted`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/application/device-inventory/use-cases/DeleteDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/DeleteDeviceUseCase.integration.test.ts`
+
+### DEV-071 — Deleting a device stops monitoring it
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-08-12
+
+`softDelete` forces `monitoringEnabled` to false and raises
+`DeviceMonitoringToggledEvent` alongside `DeviceDeletedEvent`. Monitoring can
+never be on for a deleted device — `Device.validate` refuses the combination
+outright, so no other path can reintroduce it.
+
+**Why:** Deleting is also a decision to stop watching. Leaving the flag on would
+keep the ICMP orchestrator polling an address the operator has written off, and
+would raise device-down alerts for something nobody can see in the UI to
+acknowledge.
+
+Doing it inside `softDelete` rather than asking the caller to send
+`monitoringEnabled: false` separately is what actually makes the polling
+pipeline react: `DeviceMonitoringToggledHandler` is the only consumer that
+suspends polling, and it is driven by that event. See also
+[MON-002](device-monitoring.md) for what "monitoring stopped" does downstream.
+
+Wireless polling does **not** follow the same flag — it selects on
+`wireless_polling_configurations.enabled` — so it is disabled separately off
+`DeviceDeletedEvent` (DEV-072).
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`Device.softDelete` and `Device.validate`)
+**Reached from:** `softDelete`
+**Message:** `Monitoring cannot be enabled for a deleted device`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/application/device-inventory/use-cases/DeleteDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/DeleteDeviceUseCase.integration.test.ts`
+
+### DEV-072 — A deleted device is invisible to every read path
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Infrastructure (repository) + Application
+**Since:** 2026-08-12
+
+Every finder on `IDeviceRepository` excludes rows with a `deletedAt`. `GET
+/api/devices/:id` answers `404`, listings omit it and do not count it in
+`total`, and the MAC and IP uniqueness checks ignore it. Two methods deliberately
+see tombstones, and say so in their names: `findByIdIncludingDeleted` (restore)
+and `findDeletedBefore` (purge).
+
+The MAC and IP unique indexes are **partial** — `WHERE deleted_at IS NULL` — so
+a deleted device releases its addresses for reuse rather than holding them
+hostage until the purge runs.
+
+The device's wireless configuration is disabled off `DeviceDeletedEvent`, since
+the wireless orchestrator selects on its own `enabled` flag and would otherwise
+keep collecting snapshots for a device nobody can see.
+
+**Why:** "Soft delete" is only honest if the device is genuinely gone from the
+operator's point of view. A tombstone that still appears in a listing, still
+blocks an IP address, or still gets polled is not a deleted device — it is a
+bug with a nicer name.
+
+Putting the predicate in the repository rather than in each use case is what
+makes that hold by default: `buildFilterWhere` is shared by the page query and
+the count query, so the two cannot disagree about what "matching" means.
+
+**Enforced at:** `src/infrastructure/persistence/PrismaDeviceRepository.ts` (the `LIVE` predicate, applied by every finder); partial indexes in `prisma/migrations/20260811120000_device_soft_delete_and_replacement/migration.sql`; `src/application/wireless-monitoring/event-handlers/DeviceDeletedWirelessConfigHandler.ts`
+**Message:** `Device not found: <id>`
+**Tests:** `tests/integration/use-cases/device-inventory/DeleteDeviceUseCase.integration.test.ts`, `tests/application/wireless-monitoring/event-handlers/DeviceDeletedWirelessConfigHandler.test.ts`, `tests/infrastructure/persistence/PrismaDeviceRepository.test.ts`
+
+### DEV-073 — A deleted device cannot be modified
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-08-12
+
+`applyChanges` refuses on the first line when `deletedAt` is set, so every
+mutator built on it — `changeStatus`, `assignLocation`, `updateDetails`,
+`enableMonitoring`, `correctDeviceModel` — refuses too. `markReplaced` refuses
+separately (DEV-083).
+
+**Why:** A tombstone is a record of what the device was when it was deleted. If
+a `PATCH` could rewrite it, a restore inside the grace period would hand back a
+device that had silently changed while it was invisible, and the audit trail
+would describe a state that never existed in service.
+
+In practice `PATCH` returns `404` before reaching the aggregate (DEV-072), so
+this is defence in depth rather than the primary gate — but the aggregate is
+where the rule belongs, because it must also hold for callers that load a
+tombstone deliberately.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`Device.applyChanges`)
+**Reached from:** every mutator except `restore`
+**Message:** `Cannot modify a deleted device — restore it first`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`
+
+### DEV-074 — A deleted device can be restored only inside the grace period
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain + Application
+**Since:** 2026-08-12
+
+`POST /api/devices/:id/restore` clears `deletedAt` and `deletedBy`. It refuses
+if the device is not deleted, and refuses once `deletedAt` is more than the
+grace period old. **Monitoring stays off** — restoring does not resume polling.
+
+Requires the `delete` permission (ADMIN), not `update`: restoring is the inverse
+of deleting, so the same authority governs both.
+
+**Why:** The grace period is the promise the delete makes, and a restore that
+worked past it would be a lie — the purge either has already taken the row or is
+about to on the next daily sweep, so the device would silently vanish again.
+Refusing with a clear message is better than handing back something that does
+not survive the night.
+
+Monitoring stays off because coming back from a deletion is not the same as
+being put back in service. The operator deleted this device on purpose; bringing
+the record back is a smaller decision than resuming polling, and silently
+restarting alerts for a device someone had written off is the wrong default. Re-
+enabling is one explicit `PATCH`.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`Device.restore`); `src/application/device-inventory/use-cases/RestoreDeviceUseCase.ts`
+**Message:** `Cannot restore a device whose <N>-day grace period expired` / `Cannot restore a device that is not deleted`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/application/device-inventory/use-cases/RestoreDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/RestoreDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
+
+### DEV-075 — A device carrying a live contracted service cannot be deleted
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-12
+
+The delete is refused when a `ContractedService` points at the device in any
+status other than `CANCELLED` — so `PENDING`, `ACTIVE` and `SUSPENDED` all
+block. The message names the offending status. A cancelled service is history
+and does not block.
+
+**Why:** `ContractedService.deviceId` is `ON DELETE SET NULL`, so the purge at
+the end of the grace period would detach the customer's service from its
+equipment without an error, a log line, or anything a person would notice. The
+billing link would simply be gone.
+
+Checking at delete time rather than at purge time is the deliberate half of this
+rule. The purge runs unattended a week later; refusing there would leave rows
+that can never die and nobody watching to find out why. Refusing at the moment
+the operator asks puts the decision in front of the person who can act on it —
+cancel the service, or keep the device.
+
+**Enforced at:** `src/application/device-inventory/use-cases/DeleteDeviceUseCase.ts` (`guardAgainstLiveContract`)
+**Reached from:** `DELETE /api/devices/:id`
+**Message:** `Cannot delete a device with a live contracted service (status <status>). Cancel the service first.`
+**Tests:** `tests/application/device-inventory/use-cases/DeleteDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/DeleteDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
+
+### DEV-076 — A device with open tickets cannot be deleted
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-12
+
+The delete is refused while any non-terminal ticket references the device —
+`OPEN`, `ASSIGNED` or `IN_PROGRESS` (see [TKT](tickets.md)). `RESOLVED` and
+`CANCELLED` do not block. The message names how many are in the way. Tickets for
+other devices are irrelevant.
+
+**Why:** An open ticket is unfinished field work whose subject is this device. A
+technician has it on their day sheet; `Ticket.deviceId` is `ON DELETE SET NULL`,
+so purging the device would leave them holding a job that points at nothing,
+with the address and the fault description intact but no equipment record to
+match them to.
+
+Resolving or cancelling the ticket first is not busywork — it is the operator
+stating what happened to the job, which is exactly the information the deleted
+device can no longer supply.
+
+**Enforced at:** `src/application/device-inventory/use-cases/DeleteDeviceUseCase.ts` (`guardAgainstOpenTickets`)
+**Reached from:** `DELETE /api/devices/:id`
+**Message:** `Cannot delete a device with <N> open ticket(s). Resolve or cancel them first.`
+**Tests:** `tests/application/device-inventory/use-cases/DeleteDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/DeleteDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
+
+### DEV-077 — A device past its grace period is removed permanently, with its history
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-12
+
+A daily job hard-deletes every device whose `deletedAt` is older than the grace
+period, cascading to its `pingResults`, `alertEvents`, `wirelessSnapshots`,
+`wirelessAlertRecords`, `deviceState`, `deviceCredentials`,
+`pollingConfiguration` and `wirelessPollingConfiguration`. A device that was the
+lineage ancestor of a replacement leaves its successor's `replacesDeviceId`
+null rather than blocking (`ON DELETE SET NULL`). One failing row is logged and
+skipped; the rest of the batch still runs.
+
+The job runs **unguarded**: it does not re-check the contracted-service or
+ticket conditions.
+
+**Why:** The cascade is the point, not a side effect. Retention exists so that
+data for equipment that no longer exists stops costing storage and stops
+appearing in queries; keeping a device's snapshots after the device is gone
+would be keeping the expensive half of the record and discarding the cheap one.
+
+It runs unguarded because DEV-075 and DEV-076 already refused the delete a week
+earlier. Anything that reaches the purge was cleared for removal by a person at
+the time they asked. Re-checking here would convert a decided deletion into a
+row that quietly never dies, with no one watching the job to notice — the worst
+of both policies.
+
+Skipping a failed row rather than aborting the batch matters because there is no
+transaction around the loop: one device with an unexpected constraint must not
+strand every other device behind it indefinitely.
+
+**Enforced at:** `src/application/device-inventory/use-cases/PurgeDeletedDevicesUseCase.ts`; scheduled by `src/infrastructure/retention/DataRetentionOrchestrator.ts`
+**Reached from:** the retention orchestrator only — there is no HTTP surface
+**Tests:** `tests/application/device-inventory/use-cases/PurgeDeletedDevicesUseCase.test.ts`, `tests/integration/use-cases/device-inventory/PurgeDeletedDevicesUseCase.integration.test.ts`
+
+### DEV-078 — Replacing a unit retires it into a status the caller chooses
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application + Domain
+**Since:** 2026-08-12
+
+`POST /api/devices/:id/replace` creates a new `Device` for the replacement
+hardware and retires `:id` into `retiredStatus`, which is **required** and must
+be one of the retired set: `INVENTORY`, `DAMAGED`, `DECOMMISSIONED`. `ACTIVE`
+and `COMMISSIONING` are refused. The replacement inherits the retired unit's
+location, category and owner, and defaults its name; it must carry at least a
+serial number or a MAC address of its own.
+
+The endpoint requires the `activate` permission (ADMIN and OPERATOR).
+
+**Why:** A `Device` row is one physical unit. Every metric hangs off its id, so
+editing `deviceModelId` in place would retroactively re-attribute months of
+readings to hardware that never produced them — which is exactly why DEV-063
+refuses it. Replacement is the operation that closes the gap DEV-063 leaves
+open, by creating a second row instead of rewriting the first.
+
+**The retired status is the caller's because the system cannot infer it.** A
+swap is not always a failure. A damaged unit is `DAMAGED`; an antenna upgraded
+for a more powerful model is still working and belongs back in `INVENTORY` as
+stock; a unit that is obsolete rather than broken is `DECOMMISSIONED`. Picking
+one of those for the operator would mean guessing why the swap happened, and
+guessing wrong makes the fleet's condition report fiction.
+
+Requiring an identifier on the replacement is DEV-053 arriving early: whichever
+retired status the caller picks, the outgoing unit needs one, and the incoming
+box is different hardware with its own.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`Device.markReplaced`); `src/application/device-inventory/use-cases/ReplaceDeviceUseCase.ts` (`beforeExecute`); route schema in `src/presentation/http/validation/device.schemas.ts`
+**Message:** `Cannot retire a replaced device as <status> — must be one of: DAMAGED, DECOMMISSIONED, INVENTORY` / `The replacement device must have at least a serial number or MAC address`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/domain/device-inventory/value-objects/DeviceStatus.test.ts`, `tests/application/device-inventory/use-cases/ReplaceDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ReplaceDeviceUseCase.integration.test.ts`
+
+### DEV-079 — A replacement takes over the retired unit's IP address
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application + Domain
+**Since:** 2026-08-12
+
+`markReplaced` clears the retired unit's `ipAddress` and stops its monitoring;
+the replacement is created with the released address. A replacement that
+inherited an address starts in `COMMISSIONING`; one that did not starts in
+`INVENTORY`. The retired unit is saved before the replacement is created.
+
+**Why:** The address belongs to the job, not to the box. A CPE at a customer's
+house keeps its address across a hardware swap, because that is what the rest of
+the network — routing, the enforcement queues, the customer's service — is
+pointing at.
+
+The write order is not incidental. Both rows are live, and the unique index on
+`ip_address` is scoped to live rows (DEV-072), so creating the replacement first
+would collide with the address the retired unit has not yet given up.
+
+The starting status is keyed off the inherited address rather than off the
+retired unit's old status, because by the time the replacement is built
+`markReplaced` has already rewritten that field. A unit with an address is being
+installed; one without is a box on a shelf — and both readings satisfy the
+status invariants (DEV-054, DEV-056) without a special case.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`Device.markReplaced`); `src/application/device-inventory/use-cases/ReplaceDeviceUseCase.ts`
+**Reached from:** `POST /api/devices/:id/replace`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/application/device-inventory/use-cases/ReplaceDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ReplaceDeviceUseCase.integration.test.ts`
+
+### DEV-080 — A replacement inherits the retired unit's credentials and contracted service
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-12
+
+`DeviceCredentials` are copied to the replacement and then deleted from the
+retired unit — in that order. `ContractedService.deviceId` is re-pointed via
+`ContractedService.assignDevice`. The response reports whether each actually
+moved. If either fails after the replacement exists, the whole call fails with a
+message saying so.
+
+**Why:** Both links are `1:1` and both are invisible when they break.
+`ContractedService.deviceId` is `@unique`, so the customer's service can only
+point at one device; leaving it on the retired unit means the billing and
+enforcement pipelines act on a box that is no longer installed. Credentials are
+worse to lose than to move — re-entering an AirOS password per site is exactly
+the tedium that makes operators skip the swap and edit the row instead.
+
+Copy-then-delete rather than move: the retired unit's row is the only surviving
+copy of the credentials until the write lands, so deleting first would risk
+losing them to a failure in between.
+
+**Known limitation:** no repository accepts a transaction client, so these
+writes are not atomic with the two device saves. The order is chosen so a
+partial failure is recoverable and a retry is safe, and a failure after the
+replacement exists is reported rather than swallowed — but a crash between steps
+can still leave the credentials copied and the contract not. The real fix is the
+transactional-outbox item in [TODOS.md](../TODOS.md), which this rule does not
+attempt to pre-empt.
+
+**Enforced at:** `src/application/device-inventory/use-cases/ReplaceDeviceUseCase.ts`
+**Reached from:** `POST /api/devices/:id/replace`
+**Message:** `Replacement created but credentials could not be transferred: <error>` / `Replacement created but the contracted service could not be re-pointed: <error>`
+**Tests:** `tests/application/device-inventory/use-cases/ReplaceDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ReplaceDeviceUseCase.integration.test.ts`
+
+### DEV-081 — A non-wireless replacement ends the retired unit's wireless polling
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-12
+
+When the retired unit had a `WirelessPollingConfiguration` and the replacement's
+model is not `isWireless`, the configuration is deleted and the response says
+so. When the replacement is also wireless the configuration is left alone. A
+failure to delete is logged and does not fail the replacement.
+
+**Why:** The configuration describes a radio. If the replacement has no radio,
+copying it forward would schedule AirOS polls against hardware that cannot
+answer, and every wireless rule downstream would evaluate against nothing.
+
+The orchestrator has to do this explicitly because DEV-027 deliberately stopped
+cascading. That rule now _refuses_ to make a model non-wireless while configs
+exist, rather than deleting them — so nothing removes the config on the
+operator's behalf, and the replacement is the one place that knows the old and
+new radio capability at the same time.
+
+Reporting it in the response rather than doing it silently matters: the operator
+needs to know their wireless monitoring stopped, and why. A failure to delete is
+logged rather than fatal because the replacement itself has already succeeded —
+an orphaned config is a smaller problem than a half-done swap.
+
+**Enforced at:** `src/application/device-inventory/use-cases/ReplaceDeviceUseCase.ts`
+**Reached from:** `POST /api/devices/:id/replace`
+**Tests:** `tests/application/device-inventory/use-cases/ReplaceDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ReplaceDeviceUseCase.integration.test.ts`
+
+### DEV-082 — A device can be replaced at most once, and the lineage has one source of truth
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain + database constraint
+**Since:** 2026-08-12
+
+Only `replacesDeviceId` is stored, on the replacement's row, and it is `@unique`
+with an `ON DELETE SET NULL` self-reference. `replacedByDeviceId` is read back
+off that index rather than stored. Replacing a unit that already has a successor
+is refused.
+
+**Why:** Storing both directions invites them to disagree, and a lineage chain
+that contradicts itself is worse than no lineage at all — it is the record that
+answers "is this the same CPE the customer has had since March, or a different
+box?", and a wrong answer there re-attributes history to the wrong hardware.
+One column plus the unique index makes the second direction a derivation rather
+than a claim.
+
+The uniqueness is what enforces "at most once" at the database level: two
+replacements naming the same predecessor cannot both exist. The aggregate check
+gives the operator a sentence instead of a constraint violation.
+
+`SET NULL` rather than `RESTRICT` on the self-reference so that purging a
+retired unit at the end of its grace period (DEV-077) breaks the chain instead
+of the delete. Losing the link when the ancestor's record is gone is honest —
+there is nothing left to point at.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`Device.markReplaced`); `devices_replaces_device_id_key` in `prisma/migrations/20260811120000_device_soft_delete_and_replacement/migration.sql`
+**Message:** `Device has already been replaced`
+**Tests:** `tests/application/device-inventory/use-cases/ReplaceDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ReplaceDeviceUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/PurgeDeletedDevicesUseCase.integration.test.ts`
+
+### DEV-083 — A deleted device cannot be replaced
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-08-12
+
+`markReplaced` refuses when `deletedAt` is set. In practice the use case fails
+earlier with `Device not found`, because `findById` excludes tombstones
+(DEV-072).
+
+**Why:** Replacement inherits from the retired unit — its location, its
+category, its owner, its IP, its credentials and its customer's service. A
+deleted device has already had its monitoring stopped and is days away from
+being purged along with all of it. Building a new device on top of a record
+scheduled for destruction would produce a replacement whose ancestor vanishes,
+and whose inherited links were copied from something the operator had already
+written off.
+
+Restore first if the swap is genuine; the two operations are deliberately
+separate decisions.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`Device.markReplaced`)
+**Message:** `Cannot replace a deleted device`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/application/device-inventory/use-cases/ReplaceDeviceUseCase.test.ts`
+
+### DEV-084 — Deleted devices are listable as a recycle bin
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application + Infrastructure (repository)
+**Since:** 2026-08-12
+
+`GET /api/devices` takes a `deleted` filter with three states: absent or
+`false` returns live devices only (the default everywhere), `true` returns
+tombstones only, `any` returns both. The bin rows carry `deletedAt` and
+`deletedBy`, and `sortBy=deletedAt` orders them most-recently-deleted first.
+Reading the bin needs only the `read` permission; acting on it needs more
+(DEV-074, DEV-085).
+
+**Why:** Soft delete is only useful if the operator can find what they deleted.
+DEV-070 made deletion reversible for seven days, but without a listing the only
+way to exercise that was to already hold the device id — which meant the undo
+had to be an inline toast the user might miss, and a device deleted yesterday
+was unrecoverable in practice even though the row was still sitting there. The
+grace period existed and could not be used.
+
+The filter is one tri-state knob rather than two booleans because
+`includeDeleted` and `deletedOnly` could be set to a combination that means
+nothing. It routes through the filtered query path deliberately: the unfiltered
+listing calls `findAll`/`count`, which hard-code the live predicate, so a flag
+that did not force the filtered path would silently do nothing.
+
+`any` exists for callers that genuinely want the whole table and is the only
+way a tombstone and a live device appear on the same page — which is why it is
+not the default for anything.
+
+**Enforced at:** `src/infrastructure/persistence/PrismaDeviceRepository.ts` (`buildFilterWhere`); `src/application/device-inventory/use-cases/ListDevicesUseCase.ts` (`hasActiveFilters`); `src/presentation/http/validation/device.schemas.ts`
+**Message:** `deleted must be true, false or any`
+**Tests:** `tests/integration/use-cases/device-inventory/ListDevicesUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/PermanentlyDeleteDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
+
+### DEV-085 — A device can only be permanently deleted from the recycle bin
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-12
+
+`DELETE /api/devices/:id/purge` removes a device and its whole cascade
+immediately, without waiting out the grace period — the "empty the bin" action.
+It refuses unless the device has already been soft-deleted. ADMIN only.
+
+**Why:** This is the same destruction the scheduled purge performs (DEV-077),
+just on demand, so it must enter through the same door. A live device reaching
+it directly would skip **both** delete guards — the live contracted service
+(DEV-075) and the open tickets (DEV-076) — and destroy in one call exactly what
+those rules exist to protect. Requiring the device to be in the bin means it has
+already passed them.
+
+It is a separate endpoint rather than a flag on `DELETE /api/devices/:id`
+because the two have opposite risk profiles: one is reversible for a week, the
+other is immediate and total. A boolean would make the destructive reading of a
+familiar verb one typo away.
+
+**Enforced at:** `src/application/device-inventory/use-cases/PermanentlyDeleteDeviceUseCase.ts`
+**Reached from:** `DELETE /api/devices/:id/purge`
+**Message:** `Cannot permanently delete a device that is not in the recycle bin. Delete it first.`
+**Tests:** `tests/application/device-inventory/use-cases/PermanentlyDeleteDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/PermanentlyDeleteDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
 
 ---
 
@@ -1136,7 +1716,6 @@ second delete of the same device must fail.
 **Since:** 2026-07-28
 
 **Why:** The name is what operators search by and what appears on the map pin.
-_(inferred)_
 
 **Enforced at:** `src/domain/device-inventory/aggregates/Location.ts:183` (`Location.validateName`)
 **Reached from:** `create`, `updateName`
@@ -1296,6 +1875,27 @@ without geocoding, which the system does not do. _(inferred)_
 
 **Enforced at:** `src/application/device-inventory/use-cases/GetMapLocationsUseCase.ts:30`
 **Tests:** `tests/integration/use-cases/device-inventory/GetMapLocationsUseCase.integration.test.ts`
+
+### DEV-099 — A location requires a name and a type
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-11
+
+Distinct from DEV-090/DEV-091: those govern what a *supplied* name or type must
+look like (length, closed set); this one governs whether the field was supplied
+at all. `LocationProps.name` and `.type` are non-optional in the domain, so
+`Location.create` can never see a missing one — the presence check has to
+happen earlier, in `CreateLocationUseCase.beforeExecute`, before either value
+reaches a value object or the aggregate.
+
+**Why:** Same minimum as DEV-040 for a device: a name and a type are what make
+a location row meaningful — what to call it, and what kind of site it is.
+Everything else (address, coordinates) is optional at creation.
+
+**Enforced at:** `src/application/device-inventory/use-cases/CreateLocationUseCase.ts:31-37`
+**Message:** `Location name is required` / `Location type is required`
+**Tests:** `tests/application/device-inventory/use-cases/CreateLocationUseCase.test.ts`, `tests/integration/use-cases/device-inventory/CreateLocationUseCase.integration.test.ts`, `tests/integration/location.routes.test.ts`
 
 ---
 

@@ -118,7 +118,8 @@ export class DeviceModelController {
   ): Promise<void> => {
     try {
       const result = await this.deleteUseCase.execute({
-        id: req.params.id
+        id: req.params.id,
+        purgeBinnedDevices: req.query.purgeBinnedDevices === 'true'
       });
 
       if (result.isFailure) {

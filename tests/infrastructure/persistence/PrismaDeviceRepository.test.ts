@@ -418,7 +418,7 @@ describe('PrismaDeviceRepository', () => {
     // -----------------------------------------------------------------------
     describe('record not found', () => {
       it('should return Result.ok(null) when Prisma returns null', async () => {
-        prisma.device.findUnique.mockResolvedValue(null);
+        prisma.device.findFirst.mockResolvedValue(null);
 
         const result = await repository.findById(fakeDeviceId);
 
@@ -427,7 +427,7 @@ describe('PrismaDeviceRepository', () => {
       });
 
       it('should not call DeviceMapper.toDomain when no record is found', async () => {
-        prisma.device.findUnique.mockResolvedValue(null);
+        prisma.device.findFirst.mockResolvedValue(null);
 
         await repository.findById(fakeDeviceId);
 
@@ -437,21 +437,24 @@ describe('PrismaDeviceRepository', () => {
 
     // -----------------------------------------------------------------------
     describe('record found — mapping succeeds', () => {
-      it('should call prisma.device.findUnique with the stringified id', async () => {
-        prisma.device.findUnique.mockResolvedValue(
+      // findFirst, not findUnique: a soft-deleted device must read as absent,
+      // and deletedAt is not part of the primary key.
+      it('should call prisma.device.findFirst with the stringified id and the tombstone predicate', async () => {
+        prisma.device.findFirst.mockResolvedValue(
           makeFakePrismaRow()
         );
 
         await repository.findById(fakeDeviceId);
 
-        expect(prisma.device.findUnique).toHaveBeenCalledWith({
-          where: { id: fakeDeviceId.toString() }
+        expect(prisma.device.findFirst).toHaveBeenCalledWith({
+          where: { id: fakeDeviceId.toString(), deletedAt: null },
+          include: { replacedBy: { select: { id: true } } }
         });
       });
 
       it('should call DeviceMapper.toDomain with the raw row', async () => {
         const rawRow = makeFakePrismaRow();
-        prisma.device.findUnique.mockResolvedValue(rawRow);
+        prisma.device.findFirst.mockResolvedValue(rawRow);
 
         await repository.findById(fakeDeviceId);
 
@@ -461,7 +464,7 @@ describe('PrismaDeviceRepository', () => {
       });
 
       it('should return Result.ok containing the mapped Device', async () => {
-        prisma.device.findUnique.mockResolvedValue(
+        prisma.device.findFirst.mockResolvedValue(
           makeFakePrismaRow()
         );
 
@@ -475,7 +478,7 @@ describe('PrismaDeviceRepository', () => {
     // -----------------------------------------------------------------------
     describe('database error', () => {
       it('should return a failed Result when Prisma throws', async () => {
-        prisma.device.findUnique.mockRejectedValue(
+        prisma.device.findFirst.mockRejectedValue(
           new Error('DB timeout')
         );
 
@@ -485,7 +488,7 @@ describe('PrismaDeviceRepository', () => {
       });
 
       it('should prefix the error with "Database error finding device"', async () => {
-        prisma.device.findUnique.mockRejectedValue(
+        prisma.device.findFirst.mockRejectedValue(
           new Error('network failure')
         );
 
@@ -497,7 +500,7 @@ describe('PrismaDeviceRepository', () => {
       });
 
       it('should include the original message in the error', async () => {
-        prisma.device.findUnique.mockRejectedValue(
+        prisma.device.findFirst.mockRejectedValue(
           new Error('network failure')
         );
 
@@ -602,7 +605,7 @@ describe('PrismaDeviceRepository', () => {
         await repository.exists(fakeDeviceId);
 
         expect(prisma.device.count).toHaveBeenCalledWith({
-          where: { id: fakeDeviceId.toString() }
+          where: { id: fakeDeviceId.toString(), deletedAt: null }
         });
       });
 
@@ -808,7 +811,7 @@ describe('PrismaDeviceRepository', () => {
 
       expect(prisma.device.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { locationId: VALID_UUID_3 }
+          where: { locationId: VALID_UUID_3, deletedAt: null }
         })
       );
     });
@@ -846,7 +849,7 @@ describe('PrismaDeviceRepository', () => {
 
       expect(prisma.device.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { deviceModelId: VALID_UUID_2 }
+          where: { deviceModelId: VALID_UUID_2, deletedAt: null }
         })
       );
     });
@@ -905,7 +908,8 @@ describe('PrismaDeviceRepository', () => {
       await repository.findByMacAddress(mac);
 
       expect(prisma.device.findFirst).toHaveBeenCalledWith({
-        where: { macAddress: 'AA:BB:CC:DD:EE:FF' }
+        where: { macAddress: 'AA:BB:CC:DD:EE:FF', deletedAt: null },
+        include: { replacedBy: { select: { id: true } } }
       });
     });
 
@@ -951,7 +955,8 @@ describe('PrismaDeviceRepository', () => {
       await repository.findByIpAddress(ip);
 
       expect(prisma.device.findFirst).toHaveBeenCalledWith({
-        where: { ipAddress: '192.168.1.1' }
+        where: { ipAddress: '192.168.1.1', deletedAt: null },
+        include: { replacedBy: { select: { id: true } } }
       });
     });
 
@@ -978,7 +983,7 @@ describe('PrismaDeviceRepository', () => {
 
       expect(prisma.device.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { status: 'ACTIVE' }
+          where: { status: 'ACTIVE', deletedAt: null }
         })
       );
     });
@@ -1035,7 +1040,7 @@ describe('PrismaDeviceRepository', () => {
       await repository.existsByMacAddress(mac);
 
       expect(prisma.device.count).toHaveBeenCalledWith({
-        where: { macAddress: 'AA:BB:CC:DD:EE:FF' }
+        where: { macAddress: 'AA:BB:CC:DD:EE:FF', deletedAt: null }
       });
     });
 
@@ -1079,7 +1084,7 @@ describe('PrismaDeviceRepository', () => {
       await repository.existsByIpAddress(ip);
 
       expect(prisma.device.count).toHaveBeenCalledWith({
-        where: { ipAddress: '10.0.0.1' }
+        where: { ipAddress: '10.0.0.1', deletedAt: null }
       });
     });
 
@@ -1105,7 +1110,7 @@ describe('PrismaDeviceRepository', () => {
 
         const call = prisma.device.findMany.mock
           .calls[0][0] as Record<string, unknown>;
-        expect(call.where).toEqual({ status: 'ACTIVE' });
+        expect(call.where).toEqual({ status: 'ACTIVE', deletedAt: null });
       });
 
       it('should build where with only owner when only owner filter is provided', async () => {
@@ -1117,7 +1122,7 @@ describe('PrismaDeviceRepository', () => {
 
         const call = prisma.device.findMany.mock
           .calls[0][0] as Record<string, unknown>;
-        expect(call.where).toEqual({ owner: 'CLIENT' });
+        expect(call.where).toEqual({ owner: 'CLIENT', deletedAt: null });
       });
 
       it('should build where with only monitoringEnabled when provided', async () => {
@@ -1127,7 +1132,10 @@ describe('PrismaDeviceRepository', () => {
 
         const call = prisma.device.findMany.mock
           .calls[0][0] as Record<string, unknown>;
-        expect(call.where).toEqual({ monitoringEnabled: true });
+        expect(call.where).toEqual({
+          monitoringEnabled: true,
+          deletedAt: null
+        });
       });
 
       it('should build where with locationId string when provided', async () => {
@@ -1138,7 +1146,10 @@ describe('PrismaDeviceRepository', () => {
 
         const call = prisma.device.findMany.mock
           .calls[0][0] as Record<string, unknown>;
-        expect(call.where).toEqual({ locationId: VALID_UUID_3 });
+        expect(call.where).toEqual({
+          locationId: VALID_UUID_3,
+          deletedAt: null
+        });
       });
 
       it('should build where with deviceModelId string when provided', async () => {
@@ -1149,7 +1160,10 @@ describe('PrismaDeviceRepository', () => {
 
         const call = prisma.device.findMany.mock
           .calls[0][0] as Record<string, unknown>;
-        expect(call.where).toEqual({ deviceModelId: VALID_UUID_2 });
+        expect(call.where).toEqual({
+          deviceModelId: VALID_UUID_2,
+          deletedAt: null
+        });
       });
 
       it('should build where with category string when provided', async () => {
@@ -1160,7 +1174,7 @@ describe('PrismaDeviceRepository', () => {
 
         const call = prisma.device.findMany.mock
           .calls[0][0] as Record<string, unknown>;
-        expect(call.where).toEqual({ category: 'CPE' });
+        expect(call.where).toEqual({ category: 'CPE', deletedAt: null });
       });
 
       it('should combine multiple filters in a single where object', async () => {
@@ -1178,7 +1192,8 @@ describe('PrismaDeviceRepository', () => {
         expect(call.where).toEqual({
           status: 'ACTIVE',
           owner: 'COMPANY',
-          monitoringEnabled: false
+          monitoringEnabled: false,
+          deletedAt: null
         });
       });
 
@@ -1208,6 +1223,7 @@ describe('PrismaDeviceRepository', () => {
         const call = prisma.device.findMany.mock
           .calls[0][0] as Record<string, Record<string, unknown>>;
         expect(call.where).toEqual({
+          deletedAt: null,
           OR: [
             { name: { contains: 'router', mode: 'insensitive' } },
             {

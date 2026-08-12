@@ -71,7 +71,7 @@ describe('Location Routes — /api/locations', () => {
       });
     });
 
-    it('[DEV-090] 400 — rejects missing name', async () => {
+    it('[DEV-099] 400 — rejects missing name', async () => {
       const res = await request(app)
         .post('/api/locations')
         .set('Authorization', `Bearer ${token}`)
@@ -80,7 +80,7 @@ describe('Location Routes — /api/locations', () => {
       expect(res.status).toBe(400);
     });
 
-    it('[DEV-091] 400 — rejects missing type', async () => {
+    it('[DEV-099] 400 — rejects missing type', async () => {
       const res = await request(app)
         .post('/api/locations')
         .set('Authorization', `Bearer ${token}`)
@@ -256,7 +256,12 @@ describe('Location Routes — /api/locations', () => {
       const res = await request(app)
         .patch(`/api/locations/${id}`)
         .set('Authorization', `Bearer ${token}`)
-        .send({ name: 'Office HQ Renamed', municipality: 'Bogotá' });
+        .send({
+          name: 'Office HQ Renamed',
+          address: 'Av. Central 100',
+          municipality: 'Bogotá',
+          neighborhood: 'Chapinero'
+        });
 
       expect(res.status).toBe(200);
       expect(res.body.data.name).toBe('Office HQ Renamed');
@@ -268,13 +273,19 @@ describe('Location Routes — /api/locations', () => {
       const create = await request(app)
         .post('/api/locations')
         .set('Authorization', `Bearer ${token}`)
-        .send({ name: 'POP Site', type: 'POINT_OF_PRESENCE', municipality: 'Medellín' });
+        .send({
+          name: 'POP Site',
+          type: 'POINT_OF_PRESENCE',
+          address: 'Calle 10',
+          municipality: 'Medellín',
+          neighborhood: 'Poblado'
+        });
       const id = create.body.data.id as string;
 
       const res = await request(app)
         .patch(`/api/locations/${id}`)
         .set('Authorization', `Bearer ${token}`)
-        .send({ municipality: null });
+        .send({ address: null, municipality: null, neighborhood: null });
 
       expect(res.status).toBe(200);
       expect(res.body.data.municipality).toBeNull();

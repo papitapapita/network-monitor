@@ -26,7 +26,18 @@ import {
 // Fixtures
 // ---------------------------------------------------------------------------
 
-type CreateDeviceProps = Omit<DeviceProps, 'createdAt' | 'updatedAt'>;
+// Mirrors what Device.create accepts: the timestamps and the tombstone/lineage
+// fields are the aggregate's to set, never the caller's.
+type CreateDeviceProps = Omit<
+  DeviceProps,
+  | 'createdAt'
+  | 'updatedAt'
+  | 'deletedAt'
+  | 'deletedBy'
+  | 'replacedAt'
+  | 'replacesDeviceId'
+  | 'replacedByDeviceId'
+>;
 
 /**
  * Default base props: INVENTORY status with a serialNumber so the
@@ -2350,6 +2361,357 @@ describe('Device', () => {
 
       // updatedAt should remain the reconstituted value because no mutation occurred
       expect(device.updatedAt).toEqual(now);
+    });
+  });
+  // =========================================================================
+  // Soft delete, restore, and replacement lineage
+  // =========================================================================
+
+  describe('[DEV-070] softDelete()', () => {
+    it('should stamp deletedAt and deletedBy', () => {
+      const device = makeDevice();
+      const at = new Date('2026-08-11T10:00:00Z');
+
+      const result = device.softDelete('user-1', at);
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.isDeleted()).toBe(true);
+      expect(device.deletedAt).toEqual(at);
+      expect(device.deletedBy).toBe('user-1');
+    });
+
+    it('should accept a null actor', () => {
+      const device = makeDevice();
+
+      device.softDelete(null);
+
+      expect(device.deletedBy).toBeNull();
+    });
+
+    it('should raise DeviceDeletedEvent', () => {
+      const device = makeDevice();
+      device.clearEvents();
+
+      device.softDelete('user-1');
+
+      const names = device.domainEvents.map((e) => e.constructor.name);
+      expect(names).toContain('DeviceDeletedEvent');
+    });
+
+    it('should refuse a second delete', () => {
+      const device = makeDevice();
+      device.softDelete(null);
+
+      const result = device.softDelete(null);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('already deleted');
+    });
+  });
+
+  describe('[DEV-071] softDelete() stops monitoring', () => {
+    it('should turn monitoring off', () => {
+      const device = makeDevice({
+        status: DeviceStatus.createCommissioning(),
+        ipAddress: IPAddress.create('10.0.0.9').value,
+        monitoringEnabled: true
+      });
+
+      device.softDelete(null);
+
+      expect(device.monitoringEnabled).toBe(false);
+    });
+
+    it('should raise DeviceMonitoringToggledEvent so the polling pipeline reacts', () => {
+      const device = makeDevice({
+        status: DeviceStatus.createCommissioning(),
+        ipAddress: IPAddress.create('10.0.0.9').value,
+        monitoringEnabled: true
+      });
+      device.clearEvents();
+
+      device.softDelete(null);
+
+      const toggled = device.domainEvents.find(
+        (e) => e.constructor.name === 'DeviceMonitoringToggledEvent'
+      );
+      expect(toggled).toBeDefined();
+    });
+
+    it('should not raise a monitoring event when monitoring was already off', () => {
+      const device = makeDevice({ monitoringEnabled: false });
+      device.clearEvents();
+
+      device.softDelete(null);
+
+      const names = device.domainEvents.map((e) => e.constructor.name);
+      expect(names).not.toContain('DeviceMonitoringToggledEvent');
+    });
+  });
+
+  describe('[DEV-073] a deleted device rejects every mutation', () => {
+    it('should refuse applyChanges', () => {
+      const device = makeDevice();
+      device.softDelete(null);
+
+      const result = device.updateDetails({
+        description: 'anything'
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Cannot modify a deleted device');
+    });
+
+    it('should refuse a status change', () => {
+      const device = makeDevice();
+      device.softDelete(null);
+
+      const result = device.changeStatus(
+        DeviceStatus.createDamaged()
+      );
+
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('should leave the field unchanged after a refused mutation', () => {
+      const device = makeDevice({ description: 'original' });
+      device.softDelete(null);
+
+      device.updateDetails({ description: 'overwritten' });
+
+      expect(device.description).toBe('original');
+    });
+  });
+
+  describe('[DEV-074] restore()', () => {
+    it('should clear the tombstone inside the grace period', () => {
+      const device = makeDevice();
+      const deletedAt = new Date('2026-08-01T00:00:00Z');
+      device.softDelete('user-1', deletedAt);
+
+      const result = device.restore(
+        new Date('2026-08-06T00:00:00Z'),
+        7
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.isDeleted()).toBe(false);
+      expect(device.deletedAt).toBeNull();
+      expect(device.deletedBy).toBeNull();
+    });
+
+    it('should refuse once the grace period has expired', () => {
+      const device = makeDevice();
+      device.softDelete(null, new Date('2026-08-01T00:00:00Z'));
+
+      const result = device.restore(
+        new Date('2026-08-09T00:00:01Z'),
+        7
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('grace period expired');
+      expect(device.isDeleted()).toBe(true);
+    });
+
+    it('should allow a restore exactly on the boundary', () => {
+      const device = makeDevice();
+      device.softDelete(null, new Date('2026-08-01T00:00:00Z'));
+
+      const result = device.restore(
+        new Date('2026-08-08T00:00:00Z'),
+        7
+      );
+
+      expect(result.isSuccess).toBe(true);
+    });
+
+    it('should refuse to restore a device that is not deleted', () => {
+      const device = makeDevice();
+
+      const result = device.restore();
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('not deleted');
+    });
+
+    it('should leave monitoring off — restoring is not returning to service', () => {
+      const device = makeDevice({
+        status: DeviceStatus.createCommissioning(),
+        ipAddress: IPAddress.create('10.0.0.9').value,
+        monitoringEnabled: true
+      });
+      device.softDelete(null);
+
+      device.restore();
+
+      expect(device.monitoringEnabled).toBe(false);
+    });
+
+    it('should raise DeviceRestoredEvent', () => {
+      const device = makeDevice();
+      device.softDelete(null);
+      device.clearEvents();
+
+      device.restore();
+
+      const names = device.domainEvents.map((e) => e.constructor.name);
+      expect(names).toContain('DeviceRestoredEvent');
+    });
+  });
+
+  describe('[DEV-078] [DEV-079] markReplaced()', () => {
+    function makeReplaceable(): Device {
+      return makeDevice({
+        status: DeviceStatus.createActive(),
+        ipAddress: IPAddress.create('10.0.0.5').value,
+        locationId: LocationId.create(),
+        monitoringEnabled: true
+      });
+    }
+
+    it.each([
+      ['INVENTORY', () => DeviceStatus.createInventory()],
+      ['DAMAGED', () => DeviceStatus.createDamaged()],
+      ['DECOMMISSIONED', () => DeviceStatus.createDecommissioned()]
+    ])('should retire the unit into %s', (label, make) => {
+      const device = makeReplaceable();
+
+      const result = device.markReplaced(make());
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.status.toString()).toBe(label);
+    });
+
+    it.each([
+      ['ACTIVE', () => DeviceStatus.createActive()],
+      ['COMMISSIONING', () => DeviceStatus.createCommissioning()]
+    ])('should refuse to retire into %s', (_label, make) => {
+      const device = makeReplaceable();
+
+      const result = device.markReplaced(make());
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('must be one of');
+    });
+
+    it('[DEV-079] should release the IP address for the successor', () => {
+      const device = makeReplaceable();
+
+      device.markReplaced(DeviceStatus.createInventory());
+
+      expect(device.ipAddress).toBeNull();
+    });
+
+    it('should stamp replacedAt', () => {
+      const device = makeReplaceable();
+      const at = new Date('2026-08-11T12:00:00Z');
+
+      device.markReplaced(DeviceStatus.createInventory(), at);
+
+      expect(device.replacedAt).toEqual(at);
+    });
+
+    it('should stop monitoring', () => {
+      const device = makeReplaceable();
+
+      device.markReplaced(DeviceStatus.createInventory());
+
+      expect(device.monitoringEnabled).toBe(false);
+    });
+
+    it('should raise DeviceReplacedEvent carrying the released IP', () => {
+      const device = makeReplaceable();
+      device.clearEvents();
+
+      device.markReplaced(DeviceStatus.createInventory());
+
+      const event = device.domainEvents.find(
+        (e) => e.constructor.name === 'DeviceReplacedEvent'
+      ) as unknown as {
+        releasedIpAddress: { toString(): string } | null;
+      };
+      expect(event).toBeDefined();
+      expect(event.releasedIpAddress?.toString()).toBe('10.0.0.5');
+    });
+
+    it('should raise DeviceStatusChangedEvent when the status actually moves', () => {
+      const device = makeReplaceable();
+      device.clearEvents();
+
+      device.markReplaced(DeviceStatus.createInventory());
+
+      const names = device.domainEvents.map((e) => e.constructor.name);
+      expect(names).toContain('DeviceStatusChangedEvent');
+    });
+
+    it('[DEV-083] should refuse to replace a deleted device', () => {
+      const device = makeReplaceable();
+      device.softDelete(null);
+
+      const result = device.markReplaced(
+        DeviceStatus.createInventory()
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Cannot replace a deleted device');
+    });
+
+    it('should refuse when the retired state would break an invariant', () => {
+      // No serial and no MAC: every retired status demands an identifier.
+      const device = makeDevice({
+        status: DeviceStatus.createActive(),
+        serialNumber: null,
+        macAddress: null,
+        ipAddress: IPAddress.create('10.0.0.6').value,
+        locationId: LocationId.create()
+      });
+
+      const result = device.markReplaced(
+        DeviceStatus.createInventory()
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('serial number or MAC address');
+    });
+  });
+
+  describe('[DEV-053] DECOMMISSIONED requires an identifier', () => {
+    it('should refuse a DECOMMISSIONED device with neither serial nor MAC', () => {
+      const result = Device.create(
+        makeProps({
+          status: DeviceStatus.createDecommissioned(),
+          serialNumber: null,
+          macAddress: null
+        })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('serial number or MAC address');
+    });
+
+    it('should accept a DECOMMISSIONED device with a serial number', () => {
+      const result = Device.create(
+        makeProps({
+          status: DeviceStatus.createDecommissioned()
+        })
+      );
+
+      expect(result.isSuccess).toBe(true);
+    });
+  });
+
+  describe('[DEV-057] monitoring cannot be on for a DECOMMISSIONED device', () => {
+    it('should refuse the combination', () => {
+      const result = Device.create(
+        makeProps({
+          status: DeviceStatus.createDecommissioned(),
+          monitoringEnabled: true
+        })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Monitoring can only be enabled');
     });
   });
 });

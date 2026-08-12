@@ -212,6 +212,7 @@ export class LocationController {
       errorMessage.includes('Invalid') ||
       errorMessage.includes('invalid') ||
       errorMessage.includes('required') ||
+      errorMessage.includes('requires') ||
       errorMessage.includes('cannot be empty') ||
       errorMessage.includes('must be') ||
       errorMessage.includes('must not exceed') ||

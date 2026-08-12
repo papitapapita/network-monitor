@@ -4,26 +4,8 @@
 
 _These block or constrain everything else. Do in order._
 
-- [ ] **Device activation workflow** — full lifecycle + soft-delete + replacement
-
-  - COMMISSIONING status implemented: INVENTORY → COMMISSIONING (IP required, monitoring auto-on) → ACTIVE (IP + location required)
-  - Soft-delete: `deletedAt` / `deletedBy` + 7-day grace period before hard removal
-  - Emit `DeviceDeletedEvent` on soft-delete so the polling and notification pipelines can react (no such event exists yet)
-  - Scope: schema migration + domain invariant (monitoring only runs on `ACTIVE` and `COMMISSIONING` devices)
-  - **Hardware replacement — `ReplaceDeviceUseCase`** (the remaining half of "device model change"; the correction half shipped as DEV-063)
-    - The problem: a unit gets damaged and is swapped for a physically different box, often of a **different model**. That is not an update to the `Device` row — a `Device` is one physical unit, and `pingResults` / `wirelessSnapshots` / `alertEvents` / `deviceState` all hang off its id. Editing `deviceModelId` in place would retroactively re-attribute months of metrics to hardware that never produced them, with no record that a swap happened. DEV-063 therefore restricts model corrections to `INVENTORY` devices, which deliberately leaves this case with **no path at all** today
-    - Interim workaround for operators: retire the old device (→ `DAMAGED`) and create a new one by hand. Loses the lineage link and requires manually re-pointing credentials and the contracted service
-    - Schema: `replacesDeviceId` / `replacedByDeviceId` self-relation on `Device` + `replacedAt`. Without the lineage link a replacement is indistinguishable from an unrelated device appearing, and the dashboard cannot say "this CPE, current unit since March" while keeping the old unit's history on the old row
-    - Orchestration (this is what makes it a use case and not something an operator can do correctly by hand):
-      1. old device → `DAMAGED` (note: there is no `DECOMMISSIONED` status — decide whether replacement needs one, since `DAMAGED` also means "broken but still ours")
-      2. create the new `Device` with the new model, inheriting location, category, owner, and the IP released by the old unit
-      3. re-point `DeviceCredentials` (1:1) and `ContractedService.deviceId` (1:1 `@unique`, `prisma/schema.prisma:491`) to the new device — miss this and the customer's billing link silently detaches
-      4. emit `DeviceReplacedEvent`
-    - Wireless: if old and new models differ in `isWireless`, the old unit's `WirelessPollingConfiguration` must not be copied blindly — a non-wireless replacement should end wireless polling. Nothing does this for you: DEV-027 now _refuses_ to make a model non-wireless while configs exist rather than deleting them, so the orchestrator has to delete the old unit's config explicitly and say so in its result
-    - Testing: no HTTP-only surface covers an orchestrator, so per `docs/rules/TESTING-INTEGRATION-STANDARD.md` this needs a thorough integration suite of its own — lineage, credential/contract transfer, IP handover, and the wireless-mismatch case
-    - Also worth deciding here: whether `POST /api/devices/:id/replace` or a top-level `POST /api/devices/replacements` better reflects that the operation creates a new aggregate
-
 - [ ] **Status & capability guards** — centralise eligibility checks in a `DeviceEligibilityService`
+  - Partly delivered by the device activation workflow (2026-08-12): soft-deleted devices are already excluded from every read path and have their ICMP and wireless polling stopped, and `DECOMMISSIONED` now suspends monitoring like the other retired statuses. What is left is the *centralisation* — those checks live in `Device.validate`, `DeviceStatusChangedHandler` and the repository's `LIVE` predicate rather than in one named service
   - Only `ACTIVE`, non-deleted, non-replaced devices are polled (ping, SNMP, wireless)
   - Wireless polling requires `isWireless = true`; SNMP polling requires valid `DeviceCredentials`
   - Alerts and notifications must check device state at dispatch time (device may have been deleted between poll and notify)
@@ -220,13 +202,21 @@ _Main user-facing features still missing._
   - Prerequisite: confirm Device-to-Device is enough (no separate AccessPoint/RadioAntenna entity needed)
   - Unlocks: link-health dashboard, link-level alerting
 
+- [ ] **Link feasibility / line-of-sight calculator** — far future; tells an operator whether a wireless link between two points is physically possible given the terrain in between (the feature UISP's Design Center has)
+
+  - Needs three inputs per endpoint, only one of which exists today: site elevation (`Location.altitude` — already modeled, inferred client-side from lat/lng, editable), installation/mounting height (antenna height above the site — not modeled anywhere; belongs on the device or its wireless config, not `Location`, since two radios at one site can be mounted at different heights), and a terrain elevation profile sampled along the path between the two endpoints — a mountain in the middle is invisible if the check only looks at both ends, so this needs an external elevation/DEM API, not just the two endpoints' own altitude
+  - Once the profile exists, feasibility is standard Fresnel-zone/line-of-sight geometry against `siteElevation + mountHeight` at each end
+  - Overlaps "Link model" above — that item represents the link itself (throughput, signal, distance); this one decides whether a link should exist in the first place
+  - Prerequisite: pick and budget for an elevation/DEM data source (SRTM, Open-Elevation, Google Elevation API, …) — the one piece here with no existing local data source
+  - No schema or domain work planned yet; parked until prioritized
+
 - [ ] **Notification severity tiers by device type** — emit higher-severity alerts for infrastructure devices to reduce noise from downstream disconnections
 
   - When an AP goes down every station under it appears offline; suppress those station-level notifications and escalate the AP alert instead
   - Severity map (highest → lowest): Provider link down → Backhaul down → PoE switch down → AP/Antenna down → Station/client disconnected
   - `NotificationSeverity` enum: `CRITICAL` (backhaul / provider), `HIGH` (AP / antenna), `MEDIUM` (PoE switch), `LOW` (station / client)
   - `DeviceWentOfflineNotificationHandler`: resolve severity from device role/type before dispatching; downstream station alerts are demoted or suppressed when the parent AP alert is already active
-  - Prerequisite: device activation workflow; network topology (to know which stations belong to which AP)
+  - Prerequisite: ~~device activation workflow~~ (done 2026-08-12); network topology (to know which stations belong to which AP)
 
 - [ ] **Network topology & notification suppression** — prevent alert storms when an upstream device fails
   - Topology is a strict parent-pointer tree: `Provider → RouterBoard → Backhaul → Distribution Switch → Hex PoE → Antenna → Clients/Nodes`
@@ -236,7 +226,7 @@ _Main user-facing features still missing._
   - Cascade check order per `DeviceWentOfflineNotificationHandler`: (1) is the AP offline? (2) is the PoE switch offline? (3) is the backhaul offline? (4) is the provider link down? — first match wins as root cause
   - Suppression cascades naturally: one upstream failure silences all descendants in a single hop check per device
   - RouterBoard is the topology root (ISPs / provider links are upstream of it but modelled as provider-type devices, not managed infrastructure)
-  - Prerequisite: device activation workflow (only `ACTIVE` devices participate in topology); notification severity tiers (above)
+  - Prerequisite: ~~device activation workflow~~ (done 2026-08-12 — `ACTIVE` is now cleanly separable from retired and soft-deleted units); notification severity tiers (above)
 
 ---
 
@@ -307,11 +297,25 @@ _Main user-facing features still missing._
   - `<details>` caveat worth weighing before committing: browser Ctrl+F does not find text inside a collapsed block, and wrapping 72 rules in HTML adds noise to every future diff. Folding only the `Tests:` lists and `Enforced at:`/`Reached from:` block avoids both
   - Overlaps the drift item above — the highest-value half of this is a checker that parses the doc and fails when an `Enforced at:` or `Tests:` path no longer exists, which is what makes the doc JSDoc-like in the way that matters
 
-- [ ] **Two route suites never authenticate, and one route file has no suite at all** — found while verifying the known-gaps work on 2026-08-01
+- [ ] **One route file has no integration suite at all** — found while verifying the known-gaps work on 2026-08-01; the authentication half was fixed 2026-08-12 (`device.routes.test.ts` now seeds an ADMIN token in `beforeEach` and every request sets `Authorization`; `location.routes.test.ts` turned out to already authenticate throughout — that part of this note was stale)
 
-  - `tests/integration/device.routes.test.ts` and `location.routes.test.ts` send no `Authorization` header, so all 29 assertions in them get `401` instead of the status they expect. They predate `createAuthenticateMiddleware` covering `/api`; every other route suite already uses `seedAndGetToken` from `tests/integration/helpers/auth.ts`. Mechanical fix, but 29 tests have been reporting nothing since auth landed
   - `credentials.routes.ts` has no integration suite, against the "one per route file, always" rule in `docs/rules/TESTING-INTEGRATION-STANDARD.md`. It is now also the only route file with a permission of its own (DEV-144), so the `403`-for-OPERATOR case has no HTTP-level test — only the middleware unit test
   - Same shape as the `bill.routes` suite already tracked in the billing notes: a suite that exists is assumed to be covering something
+
+- [ ] **Test harness has no catch-all 404, production does** — found 2026-08-11 while confirming unmatched-route behavior
+
+  - `src/main.ts:75-80` registers `app.use((_req, res) => res.status(404).json({ success: false, error: 'Not found' }))` after the routers and the error handler, so a genuinely nonexistent path in production correctly returns a JSON `404` — same status as a resource-not-found, generic message
+  - `tests/integration/helpers/createTestApp.ts` mirrors the error handler but never registers that catch-all, so the same request in a route-test suite falls through to Express's own default handler instead: an HTML `404`, not the JSON envelope. Nothing exercises this today either way
+  - Fix, when picked up: add the same catch-all to `createTestApp.ts`, then add one route test per suite (or a single shared one) asserting the JSON shape for an unmatched path
+  - Left as-is for now — frontend only needs the status code, which is already correct in production
+
+- [ ] **`validateRequest` throws away the parsed output, so every `.transform()` in a schema is dead code** — found 2026-08-12 while adding the recycle-bin filter
+
+  - `src/presentation/http/middleware/validateRequest.ts` calls `schema.parseAsync({ body, query, params })` purely for its throw/don't-throw behaviour and never assigns the result back, so handlers always read the **raw** `req.query` / `req.body`
+  - Consequence: a `.transform()` in a schema silently does nothing. `listDevicesSchema.monitoringEnabled` transforms `'true'` → `true` and it works only because `DeviceController.list` redoes the same conversion by hand. The `deleted` filter added on 2026-08-12 hit this and now maps in the controller too, matching the existing convention
+  - The trap is that the schema *looks* like it is doing the work, so the next person to add a transform will assume it landed. It fails silently, not loudly
+  - Fix is not just "assign it back": Express 5 makes `req.query` a getter-only accessor, so the middleware would need to stash the parsed value somewhere else (e.g. `req.validated`) and every handler would have to read from there — a change touching every route, which is why it was not done inline
+  - Cheapest interim guard: a lint rule or a test asserting no schema in `src/presentation/http/validation/` uses `.transform()`, so the dead code cannot be added again unnoticed
 
 - [ ] **Rate limiter — make limits configurable and the store shared** — the two things the 2026-08-01 fix deliberately left alone
 
@@ -334,6 +338,20 @@ _Main user-facing features still missing._
 ---
 
 ## Done
+
+- [x] Device activation workflow — soft-delete + hardware replacement (2026-08-12)
+
+  - **The COMMISSIONING half was already built** — `DeviceStatus`, the Prisma enum, `Device.validate` and DEV-056/058/059 all predate this work. What was missing was reversible deletion and a path for swapping physical hardware
+  - **Soft delete.** `DELETE /api/devices/:id` now stamps `deletedAt`/`deletedBy` instead of removing the row (DEV-070). The device vanishes from every read path — `findById`, listings, counts, MAC/IP uniqueness — via a single `LIVE` predicate in `PrismaDeviceRepository` (DEV-072), and `applyChanges` refuses to mutate a tombstone (DEV-073). `POST /api/devices/:id/restore` undoes it inside a 7-day grace period (DEV-074, `DEVICE_DELETE_GRACE_DAYS`); `PurgeDeletedDevicesUseCase` on the existing `DataRetentionOrchestrator` hard-deletes past it (DEV-077)
+  - **Two guards at delete time, not purge time** (DEV-075, DEV-076): a device with a non-`CANCELLED` `ContractedService` or any open ticket cannot be deleted at all. Both links are `ON DELETE SET NULL`, so the purge would otherwise detach a customer's billing or a technician's job with no error. Refusing a week earlier puts it in front of the person who can act; the purge itself runs unguarded on purpose
+  - **MAC/IP uniqueness became partial** (`WHERE deleted_at IS NULL`) — hand-written SQL, since Prisma's DSL cannot express it. A tombstone releases its addresses immediately instead of holding them until the purge
+  - **`DECOMMISSIONED` is back** (DEV-042). It was removed on 2026-05-09 and remapped to `DAMAGED`; replacement gave it a real caller, since an upgraded-but-working unit belongs in `INVENTORY` and an obsolete one is neither that nor broken. Re-added with `ALTER TYPE … ADD VALUE`, so no existing row moved
+  - **`POST /api/devices/:id/replace`** (DEV-078…DEV-083). One call retires the old unit into a **caller-chosen** status, creates the replacement on the new model inheriting location/category/owner, hands over the IP, moves the credentials, re-points the contracted service, and deletes the wireless config when the new model has no radio. Lineage is **one stored column** (`replacesDeviceId`, `@unique`, `SET NULL`) with the reverse direction read off the index, so the two cannot disagree
+  - `DeviceDeletedEvent` / `DeviceRestoredEvent` / `DeviceReplacedEvent` added. Soft-delete also raises `DeviceMonitoringToggledEvent`, which is what actually stops ICMP polling; wireless polling does **not** follow that flag, so a new `DeviceDeletedWirelessConfigHandler` disables the wireless config off `DeviceDeletedEvent`
+  - **Recycle bin** (DEV-084, DEV-085), added straight after the above when the frontend found it had no way to list what it had deleted: `GET /api/devices?deleted=true|false|any` exposes the bin (`read`), `POST /:id/restore` puts one back, and `DELETE /:id/purge` empties it one device at a time (`delete`, ADMIN). Purge refuses anything not already in the bin, so it cannot be a back door around the two delete guards. `sortBy=deletedAt` added for most-recently-deleted-first
+  - Rule book: `DEV-070`–`DEV-085` added, `DEV-042`/`DEV-053`/`DEV-063`/`DEV-068` revised. `npm run test:rules:dev` reports **93/93**
+  - **Known limitation, deliberately not fixed here:** no repository accepts a transaction client, so the replacement's five writes are not atomic. They are ordered so a partial failure is recoverable and a retry is idempotent, and a failure after the new device exists is reported rather than swallowed — the same local workaround `SuspendDeviceMonitoringUseCase` uses for MON-002. The real fix is the transactional-outbox item in Priority 3
+  - Also not fixed here: `tests/integration/device.routes.test.ts` still sends no `Authorization` header on its **pre-existing** 29 assertions (tracked in Priority 5). The new lifecycle route tests in that file do authenticate
 
 - [x] CI pipeline — `.github/workflows/ci.yml` (2026-08-11)
 

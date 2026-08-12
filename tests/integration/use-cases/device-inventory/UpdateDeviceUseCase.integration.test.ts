@@ -420,7 +420,7 @@ describe('UpdateDeviceUseCase — integration', () => {
     expect(result.value.category).toBe('GATEWAY');
   });
 
-  it('fails when the device does not exist', async () => {
+  it('[DEV-069] fails when the device does not exist', async () => {
     const result = await updateUseCase.execute({
       id: GHOST_ID,
       name: 'Ghost Update'

@@ -3,6 +3,9 @@ import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDe
 import { PrismaLocationRepository } from 'infrastructure/persistence/PrismaLocationRepository';
 import { CreateDeviceUseCase } from 'application/device-inventory/use-cases/CreateDeviceUseCase';
 import { ListDevicesUseCase } from 'application/device-inventory/use-cases/ListDevicesUseCase';
+import { DeleteDeviceUseCase } from 'application/device-inventory/use-cases/DeleteDeviceUseCase';
+import { PrismaContractedServiceRepository } from 'infrastructure/customers';
+import { PrismaTicketRepository } from 'infrastructure/tickets/repositories';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import {
@@ -20,6 +23,7 @@ describe('ListDevicesUseCase — integration', () => {
   let prisma: PrismaClient;
   let createUseCase: CreateDeviceUseCase;
   let listUseCase: ListDevicesUseCase;
+  let deleteUseCase: DeleteDeviceUseCase;
   let deviceModelId: string;
   let locationId: string;
 
@@ -37,6 +41,12 @@ describe('ListDevicesUseCase — integration', () => {
       logger
     );
     listUseCase = new ListDevicesUseCase(repo, logger);
+    deleteUseCase = new DeleteDeviceUseCase(
+      repo,
+      new PrismaContractedServiceRepository(prisma),
+      new PrismaTicketRepository(prisma),
+      logger
+    );
   });
 
   afterAll(async () => {
@@ -222,5 +232,167 @@ describe('ListDevicesUseCase — integration', () => {
     const result = await listUseCase.execute({ category: 'SUPERCORE' as any });
 
     expect(result.isFailure).toBe(true);
+  });
+  // ──────────────────────────────────────────────────────────────
+  // [DEV-084] The recycle bin — listing deleted devices
+  // ──────────────────────────────────────────────────────────────
+
+  describe('[DEV-084] deleted filter', () => {
+    async function seedOneLiveOneDeleted(): Promise<{
+      live: string;
+      deleted: string;
+    }> {
+      const live = await createUseCase
+        .execute({
+          deviceModelId,
+          name: 'Live Router',
+          ownerType: 'COMPANY',
+          serialNumber: 'SN-LIVE-001'
+        })
+        .then((r) => r.value.id);
+      const deleted = await createUseCase
+        .execute({
+          deviceModelId,
+          name: 'Binned Router',
+          ownerType: 'COMPANY',
+          serialNumber: 'SN-BIN-001'
+        })
+        .then((r) => r.value.id);
+      await deleteUseCase.execute({ id: deleted });
+      return { live, deleted };
+    }
+
+    it('omits deleted devices by default', async () => {
+      const { live } = await seedOneLiveOneDeleted();
+
+      const result = await listUseCase.execute({});
+
+      expect(result.value.total).toBe(1);
+      expect(result.value.devices.map((d) => d.id)).toEqual([live]);
+    });
+
+    it("'only' returns just the bin", async () => {
+      const { deleted } = await seedOneLiveOneDeleted();
+
+      const result = await listUseCase.execute({ deleted: 'only' });
+
+      expect(result.value.total).toBe(1);
+      expect(result.value.devices.map((d) => d.id)).toEqual([
+        deleted
+      ]);
+      expect(result.value.devices[0].deletedAt).not.toBeNull();
+    });
+
+    it("'any' returns both", async () => {
+      await seedOneLiveOneDeleted();
+
+      const result = await listUseCase.execute({ deleted: 'any' });
+
+      expect(result.value.total).toBe(2);
+    });
+
+    it("'exclude' behaves like the default", async () => {
+      const { live } = await seedOneLiveOneDeleted();
+
+      const result = await listUseCase.execute({
+        deleted: 'exclude'
+      });
+
+      expect(result.value.total).toBe(1);
+      expect(result.value.devices.map((d) => d.id)).toEqual([live]);
+    });
+
+    // The unfiltered path uses findAll/count, which hard-code the live
+    // predicate — so the flag has to route through the filtered path or it
+    // would silently do nothing.
+    it("'only' works with no other filter present", async () => {
+      const { deleted } = await seedOneLiveOneDeleted();
+
+      const result = await listUseCase.execute({ deleted: 'only' });
+
+      expect(result.value.devices.map((d) => d.id)).toEqual([
+        deleted
+      ]);
+    });
+
+    it('reports who deleted it and when', async () => {
+      const actor = '11111111-1111-4111-8111-111111111111';
+      const id = await createUseCase
+        .execute({
+          deviceModelId,
+          name: 'Binned Router',
+          ownerType: 'COMPANY',
+          serialNumber: 'SN-BIN-002'
+        })
+        .then((r) => r.value.id);
+      await deleteUseCase.execute({ id, deletedBy: actor });
+
+      const result = await listUseCase.execute({ deleted: 'only' });
+
+      expect(result.value.devices[0].deletedBy).toBe(actor);
+      expect(result.value.devices[0].deletedAt).not.toBeNull();
+    });
+
+    it('sorts the bin most-recently-deleted first', async () => {
+      const first = await createUseCase
+        .execute({
+          deviceModelId,
+          name: 'Binned First',
+          ownerType: 'COMPANY',
+          serialNumber: 'SN-BIN-A'
+        })
+        .then((r) => r.value.id);
+      await deleteUseCase.execute({ id: first });
+
+      const second = await createUseCase
+        .execute({
+          deviceModelId,
+          name: 'Binned Second',
+          ownerType: 'COMPANY',
+          serialNumber: 'SN-BIN-B'
+        })
+        .then((r) => r.value.id);
+      await deleteUseCase.execute({ id: second });
+
+      const result = await listUseCase.execute({
+        deleted: 'only',
+        sortBy: 'deletedAt',
+        sortOrder: 'DESC'
+      });
+
+      expect(result.value.devices.map((d) => d.id)).toEqual([
+        second,
+        first
+      ]);
+    });
+
+    it('combines with other filters', async () => {
+      const id = await createUseCase
+        .execute({
+          deviceModelId,
+          name: 'Binned Searchable',
+          ownerType: 'CLIENT',
+          serialNumber: 'SN-BIN-C'
+        })
+        .then((r) => r.value.id);
+      await deleteUseCase.execute({ id });
+      const otherId = await createUseCase
+        .execute({
+          deviceModelId,
+          name: 'Binned Other',
+          ownerType: 'COMPANY',
+          serialNumber: 'SN-BIN-D'
+        })
+        .then((r) => r.value.id);
+      await deleteUseCase.execute({ id: otherId });
+
+      const result = await listUseCase.execute({
+        deleted: 'only',
+        owner: 'CLIENT'
+      });
+
+      expect(result.value.total).toBe(1);
+      expect(result.value.devices[0].id).toBe(id);
+    });
   });
 });

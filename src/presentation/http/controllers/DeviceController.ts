@@ -1,12 +1,19 @@
 import { Request, Response } from 'express';
 import { ILogger } from 'application/shared/interfaces';
-import { CreateDeviceInput, UpdateDeviceInput } from '../validation';
+import {
+  CreateDeviceInput,
+  UpdateDeviceInput,
+  ReplaceDeviceInput
+} from '../validation';
 import {
   CreateDeviceUseCase,
   GetDeviceUseCase,
   ListDevicesUseCase,
   UpdateDeviceUseCase,
-  DeleteDeviceUseCase
+  DeleteDeviceUseCase,
+  RestoreDeviceUseCase,
+  ReplaceDeviceUseCase,
+  PermanentlyDeleteDeviceUseCase
 } from 'application/device-inventory/use-cases';
 
 export class DeviceController {
@@ -16,6 +23,9 @@ export class DeviceController {
     private readonly listUseCase: ListDevicesUseCase,
     private readonly updateUseCase: UpdateDeviceUseCase,
     private readonly deleteUseCase: DeleteDeviceUseCase,
+    private readonly restoreUseCase: RestoreDeviceUseCase,
+    private readonly replaceUseCase: ReplaceDeviceUseCase,
+    private readonly permanentlyDeleteUseCase: PermanentlyDeleteDeviceUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -74,12 +84,14 @@ export class DeviceController {
           q.monitoringEnabled != null
             ? q.monitoringEnabled === 'true'
             : undefined,
+        deleted: this.parseDeletedFilter(q.deleted),
         search: q.search,
         sortBy: q.sortBy as
           | 'createdAt'
           | 'updatedAt'
           | 'name'
           | 'status'
+          | 'deletedAt'
           | undefined,
         sortOrder: q.sortOrder as 'ASC' | 'DESC' | undefined
       });
@@ -153,6 +165,30 @@ export class DeviceController {
   ): Promise<void> => {
     try {
       const result = await this.deleteUseCase.execute({
+        id: req.params.id,
+        deletedBy: req.user?.userId ?? null
+      });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public permanentlyDelete = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.permanentlyDeleteUseCase.execute({
         id: req.params.id
       });
 
@@ -170,6 +206,67 @@ export class DeviceController {
     }
   };
 
+  public restore = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.restoreUseCase.execute({
+        id: req.params.id
+      });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(200).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public replace = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const body = req.body as ReplaceDeviceInput;
+
+      const result = await this.replaceUseCase.execute({
+        id: req.params.id,
+        ...body
+      });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
+        return;
+      }
+
+      // 201: the operation's headline outcome is a new Device aggregate.
+      res.status(201).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  // The schema validates the raw value; the mapping to the domain vocabulary
+  // happens here because validateRequest does not hand the parsed output on.
+  private parseDeletedFilter(
+    value: string | undefined
+  ): 'exclude' | 'only' | 'any' | undefined {
+    if (value === undefined) return undefined;
+    if (value === 'true') return 'only';
+    if (value === 'any') return 'any';
+    return 'exclude';
+  }
+
   private getErrorStatusCode(errorMessage: string): number {
     if (errorMessage.includes('not found')) {
       return 404;
@@ -183,7 +280,9 @@ export class DeviceController {
       errorMessage.includes('must be') ||
       errorMessage.includes('must have') ||
       errorMessage.includes('must not exceed') ||
-      errorMessage.includes('already assigned') ||
+      // Broader than 'already assigned' so the lifecycle conflicts land here
+      // too — 'already deleted', 'already been replaced'.
+      errorMessage.includes('already') ||
       errorMessage.includes('Cannot ') ||
       errorMessage.includes('Failed to persist')
     ) {

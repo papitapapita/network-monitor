@@ -14,4 +14,9 @@ export interface DeviceResponseDTO {
   monitoringEnabled: boolean;
   createdAt: string;
   updatedAt: string;
+  deletedAt: string | null;
+  deletedBy: string | null;
+  replacedAt: string | null;
+  replacesDeviceId: string | null;
+  replacedByDeviceId: string | null;
 }

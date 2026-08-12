@@ -51,7 +51,10 @@ function makeDeviceModel(): DeviceModel {
   });
 }
 
-function makeDevice(deviceUuid: string): Device {
+function makeDevice(
+  deviceUuid: string,
+  deletedAt: Date | null = null
+): Device {
   const id = DeviceId.parse(deviceUuid).value!;
   const modelId = DeviceModelId.parse(VALID_UUID).value!;
   const status = DeviceStatus.reconstitute(DeviceStatus.ACTIVE);
@@ -71,7 +74,8 @@ function makeDevice(deviceUuid: string): Device {
     installedDate: null,
     createdAt: NOW,
     updatedAt: NOW,
-    monitoringEnabled: false
+    monitoringEnabled: false,
+    deletedAt
   });
 }
 
@@ -105,6 +109,8 @@ function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
     existsByIpAddress: jest.fn(),
     findByLocationIds: jest.fn(),
     findByFilters: jest.fn(),
+    findByIdIncludingDeleted: jest.fn(),
+    findDeletedBefore: jest.fn(),
     countByFilters: jest.fn()
   } as any;
 }
@@ -137,6 +143,8 @@ describe('DeleteDeviceModelUseCase', () => {
 
     (deviceModelRepo.findById as any).mockResolvedValue(Result.ok(makeDeviceModel()));
     (deviceRepo.findByDeviceModel as any).mockResolvedValue(Result.ok([]));
+    (deviceRepo.findByFilters as any).mockResolvedValue(Result.ok([]));
+    (deviceRepo.delete as any).mockResolvedValue(Result.ok(undefined));
     (deviceModelRepo.delete as any).mockResolvedValue(Result.ok(undefined));
   });
 
@@ -275,6 +283,126 @@ describe('DeleteDeviceModelUseCase', () => {
       await useCase.execute({ id: VALID_UUID });
 
       expect(deviceModelRepo.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-030] executeImpl — devices in the recycle bin', () => {
+    function binHolds(...devices: Device[]): void {
+      (deviceRepo.findByFilters as any).mockResolvedValue(
+        Result.ok(devices)
+      );
+    }
+
+    it('should ask the bin only for tombstones on this model', async () => {
+      await useCase.execute({ id: VALID_UUID });
+
+      const filters = (deviceRepo.findByFilters as any).mock.calls[0][0];
+      expect(filters.deleted).toBe('only');
+      expect(filters.deviceModelId.toString()).toBe(VALID_UUID);
+    });
+
+    it('should refuse without confirmation and name the count', async () => {
+      binHolds(makeDevice(DEVICE_UUID_1, NOW));
+
+      const result = await useCase.execute({ id: VALID_UUID });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Cannot delete device model');
+      expect(result.error).toContain('1 device(s) in the recycle bin');
+      expect(result.error).toContain('purgeBinnedDevices=true');
+    });
+
+    it('should leave both the devices and the model alone when refused', async () => {
+      binHolds(makeDevice(DEVICE_UUID_1, NOW));
+
+      await useCase.execute({ id: VALID_UUID });
+
+      expect(deviceRepo.delete).not.toHaveBeenCalled();
+      expect(deviceModelRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('should refuse when purgeBinnedDevices is explicitly false', async () => {
+      binHolds(makeDevice(DEVICE_UUID_1, NOW));
+
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        purgeBinnedDevices: false
+      });
+
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('should purge every binned device once confirmed, then delete the model', async () => {
+      binHolds(
+        makeDevice(DEVICE_UUID_1, NOW),
+        makeDevice(DEVICE_UUID_2, NOW)
+      );
+
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        purgeBinnedDevices: true
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(deviceRepo.delete).toHaveBeenCalledTimes(2);
+      expect(
+        (deviceRepo.delete as any).mock.calls.map((c: any[]) =>
+          c[0].toString()
+        )
+      ).toEqual([DEVICE_UUID_1, DEVICE_UUID_2]);
+      expect(deviceModelRepo.delete).toHaveBeenCalledTimes(1);
+    });
+
+    // Half a purge would leave the model delete to fail on the FK anyway, so
+    // stopping is what keeps the reported error the real one.
+    it('should stop and report when a purge fails, without deleting the model', async () => {
+      binHolds(
+        makeDevice(DEVICE_UUID_1, NOW),
+        makeDevice(DEVICE_UUID_2, NOW)
+      );
+      (deviceRepo.delete as any).mockResolvedValue(
+        Result.fail('Row is referenced elsewhere')
+      );
+
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        purgeBinnedDevices: true
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Row is referenced elsewhere');
+      expect(deviceRepo.delete).toHaveBeenCalledTimes(1);
+      expect(deviceModelRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('should propagate a failure loading the bin', async () => {
+      (deviceRepo.findByFilters as any).mockResolvedValue(
+        Result.fail('Device DB timeout')
+      );
+
+      const result = await useCase.execute({ id: VALID_UUID });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Device DB timeout');
+      expect(deviceModelRepo.delete).not.toHaveBeenCalled();
+    });
+
+    // DEV-026 comes first: a live device is not something a confirmation can
+    // wave through.
+    it('should still refuse a live device even with confirmation', async () => {
+      (deviceRepo.findByDeviceModel as any).mockResolvedValue(
+        Result.ok([makeDevice(DEVICE_UUID_1)])
+      );
+
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        purgeBinnedDevices: true
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Reassign or remove');
+      expect(deviceRepo.delete).not.toHaveBeenCalled();
     });
   });
 

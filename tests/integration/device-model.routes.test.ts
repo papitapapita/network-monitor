@@ -561,6 +561,58 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(row).not.toBeNull();
     });
 
+    it('[DEV-030] 409 — returns 409 when the model has devices in the recycle bin', async () => {
+      const deviceId = await seedDevice(prisma, modelId, {
+        name: 'Binned Device',
+        serialNumber: 'SN-BINNED'
+      });
+      await prisma.device.update({
+        where: { id: deviceId },
+        data: { deletedAt: new Date() }
+      });
+
+      const res = await request(app)
+        .delete(`/api/device-models/${modelId}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toMatch(/recycle bin/i);
+
+      const row = await prisma.deviceModel.findUnique({ where: { id: modelId } });
+      expect(row).not.toBeNull();
+    });
+
+    it('[DEV-030] 204 — purges the bin and the model when confirmed', async () => {
+      const deviceId = await seedDevice(prisma, modelId, {
+        name: 'Binned Device',
+        serialNumber: 'SN-BINNED-2'
+      });
+      await prisma.device.update({
+        where: { id: deviceId },
+        data: { deletedAt: new Date() }
+      });
+
+      const res = await request(app)
+        .delete(`/api/device-models/${modelId}?purgeBinnedDevices=true`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(204);
+      expect(
+        await prisma.device.findUnique({ where: { id: deviceId } })
+      ).toBeNull();
+      expect(
+        await prisma.deviceModel.findUnique({ where: { id: modelId } })
+      ).toBeNull();
+    });
+
+    it('400 — rejects a purgeBinnedDevices value that is not true or false', async () => {
+      const res = await request(app)
+        .delete(`/api/device-models/${modelId}?purgeBinnedDevices=yes`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(400);
+    });
+
     it('401 — rejects an unauthenticated request', async () => {
       const res = await request(app).delete(`/api/device-models/${modelId}`);
 

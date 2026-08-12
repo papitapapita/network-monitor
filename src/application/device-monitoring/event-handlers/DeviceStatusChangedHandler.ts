@@ -14,7 +14,9 @@ export class DeviceStatusChangedHandler
   public async handle(event: DeviceStatusChangedEvent): Promise<void> {
     const { newStatus } = event;
 
-    if (!newStatus.isInInventory() && !newStatus.isDamaged()) {
+    // Every retired status — INVENTORY, DAMAGED, DECOMMISSIONED — means the
+    // unit is off the network, so nothing should still be pinging it.
+    if (!newStatus.isRetired()) {
       return;
     }
 

@@ -7,6 +7,9 @@ import { GetDeviceUseCase } from '../../../../src/application/device-inventory/u
 import { ListDevicesUseCase } from '../../../../src/application/device-inventory/use-cases/ListDevicesUseCase';
 import { UpdateDeviceUseCase } from '../../../../src/application/device-inventory/use-cases/UpdateDeviceUseCase';
 import { DeleteDeviceUseCase } from '../../../../src/application/device-inventory/use-cases/DeleteDeviceUseCase';
+import { RestoreDeviceUseCase } from '../../../../src/application/device-inventory/use-cases/RestoreDeviceUseCase';
+import { ReplaceDeviceUseCase } from '../../../../src/application/device-inventory/use-cases/ReplaceDeviceUseCase';
+import { PermanentlyDeleteDeviceUseCase } from '../../../../src/application/device-inventory/use-cases/PermanentlyDeleteDeviceUseCase';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
@@ -60,6 +63,15 @@ const createMockUpdateUseCase = () =>
 
 const createMockDeleteUseCase = () =>
   ({ execute: jest.fn() }) as unknown as DeleteDeviceUseCase;
+
+const createMockRestoreUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as RestoreDeviceUseCase;
+
+const createMockReplaceUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as ReplaceDeviceUseCase;
+
+const createMockPermanentlyDeleteUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as PermanentlyDeleteDeviceUseCase;
 
 const createMockLogger = (): jest.Mocked<ILogger> => ({
   info: jest.fn(),
@@ -132,6 +144,9 @@ describe('DeviceController', () => {
   let mockListUseCase: ListDevicesUseCase;
   let mockUpdateUseCase: UpdateDeviceUseCase;
   let mockDeleteUseCase: DeleteDeviceUseCase;
+  let mockRestoreUseCase: RestoreDeviceUseCase;
+  let mockReplaceUseCase: ReplaceDeviceUseCase;
+  let mockPermanentlyDeleteUseCase: PermanentlyDeleteDeviceUseCase;
   let mockLogger: jest.Mocked<ILogger>;
 
   beforeEach(() => {
@@ -140,6 +155,9 @@ describe('DeviceController', () => {
     mockListUseCase = createMockListUseCase();
     mockUpdateUseCase = createMockUpdateUseCase();
     mockDeleteUseCase = createMockDeleteUseCase();
+    mockRestoreUseCase = createMockRestoreUseCase();
+    mockReplaceUseCase = createMockReplaceUseCase();
+    mockPermanentlyDeleteUseCase = createMockPermanentlyDeleteUseCase();
     mockLogger = createMockLogger();
 
     controller = new DeviceController(
@@ -148,6 +166,9 @@ describe('DeviceController', () => {
       mockListUseCase,
       mockUpdateUseCase,
       mockDeleteUseCase,
+      mockRestoreUseCase,
+      mockReplaceUseCase,
+      mockPermanentlyDeleteUseCase,
       mockLogger
     );
   });

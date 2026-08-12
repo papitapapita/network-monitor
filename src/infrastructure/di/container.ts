@@ -178,7 +178,8 @@ import {
   DeviceCreatedEvent,
   DeviceStatusChangedEvent,
   DeviceMonitoringToggledEvent,
-  DeviceDetailsUpdatedEvent
+  DeviceDetailsUpdatedEvent,
+  DeviceDeletedEvent
 } from 'domain/device-inventory/events';
 import {
   DeviceWentOfflineEvent,
@@ -228,6 +229,10 @@ import {
   ListDevicesUseCase,
   UpdateDeviceUseCase,
   DeleteDeviceUseCase,
+  RestoreDeviceUseCase,
+  ReplaceDeviceUseCase,
+  PermanentlyDeleteDeviceUseCase,
+  PurgeDeletedDevicesUseCase,
   GetDeviceModelUseCase,
   ListDeviceModelsUseCase,
   CreateVendorUseCase,
@@ -353,6 +358,11 @@ export class DependencyContainer {
     this.alertRepository = new PrismaAlertRepository(this.prisma);
     this.wirelessDeviceConfigRepository =
       new PrismaWirelessDeviceConfigRepository(this.prisma);
+    // Sits with the other persistence repositories rather than down in the
+    // wireless block: ReplaceDeviceUseCase needs it to move credentials onto
+    // the new unit, and that is constructed well before wireless.
+    this.deviceCredentialsRepository =
+      new PrismaDeviceCredentialsRepository(this.prisma);
 
     // =====================================
     // CUSTOMERS BOUNDED CONTEXT
@@ -608,6 +618,14 @@ export class DependencyContainer {
       this.logger
     );
 
+    // How long a soft-deleted device stays restorable. Read once here because
+    // both halves need to agree: RestoreDeviceUseCase refuses past it, and the
+    // retention orchestrator hard-deletes past it.
+    const deletedDeviceGraceDays = parseInt(
+      process.env.DEVICE_DELETE_GRACE_DAYS ?? '7',
+      10
+    );
+
     // Initialize device use cases
     const createDeviceUseCase = new CreateDeviceUseCase(
       this.deviceRepository,
@@ -632,6 +650,26 @@ export class DependencyContainer {
     );
     const deleteDeviceUseCase = new DeleteDeviceUseCase(
       this.deviceRepository,
+      this.contractedServiceRepository,
+      this.ticketRepository,
+      this.logger
+    );
+    const restoreDeviceUseCase = new RestoreDeviceUseCase(
+      this.deviceRepository,
+      this.logger,
+      deletedDeviceGraceDays
+    );
+    const permanentlyDeleteDeviceUseCase =
+      new PermanentlyDeleteDeviceUseCase(
+        this.deviceRepository,
+        this.logger
+      );
+    const replaceDeviceUseCase = new ReplaceDeviceUseCase(
+      this.deviceRepository,
+      this.deviceModelRepository,
+      this.deviceCredentialsRepository,
+      this.contractedServiceRepository,
+      this.wirelessDeviceConfigRepository,
       this.logger
     );
 
@@ -702,6 +740,9 @@ export class DependencyContainer {
       listDevicesUseCase,
       updateDeviceUseCase,
       deleteDeviceUseCase,
+      restoreDeviceUseCase,
+      replaceDeviceUseCase,
+      permanentlyDeleteDeviceUseCase,
       this.logger
     );
 
@@ -888,8 +929,6 @@ export class DependencyContainer {
       new PrismaWirelessSnapshotRepository(this.prisma);
     this.wirelessAlertRecordRepository =
       new PrismaWirelessAlertRecordRepository(this.prisma);
-    this.deviceCredentialsRepository =
-      new PrismaDeviceCredentialsRepository(this.prisma);
 
     const airOsHttpClient = new AirOsHttpClient(10_000, this.logger);
     const httpCollector = new UbiquitiHttpCollector(airOsHttpClient);
@@ -1050,6 +1089,11 @@ export class DependencyContainer {
       new PurgeOldWirelessAlertRecordsUseCase(
         this.wirelessAlertRecordRepository
       );
+    const purgeDeletedDevicesUseCase =
+      new PurgeDeletedDevicesUseCase(
+        this.deviceRepository,
+        this.logger
+      );
 
     const retentionConfig = {
       pingResultRetentionDays: parseInt(
@@ -1067,7 +1111,8 @@ export class DependencyContainer {
       wirelessAlertRecordRetentionDays: parseInt(
         process.env.WIRELESS_ALERT_RECORD_RETENTION_DAYS ?? '90',
         10
-      )
+      ),
+      deletedDeviceGraceDays
     };
 
     const triggerDataRetentionUseCase =
@@ -1089,6 +1134,7 @@ export class DependencyContainer {
       purgeOldAlertsUseCase,
       purgeOldWirelessSnapshotsUseCase,
       purgeOldWirelessAlertRecordsUseCase,
+      purgeDeletedDevicesUseCase,
       retentionConfig,
       this.logger
     );

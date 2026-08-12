@@ -60,6 +60,14 @@ export class DeleteDeviceModelUseCase extends UseCase<
       );
     }
 
+    const binnedResult = await this.purgeBinnedDevices(
+      deviceModelId,
+      request.purgeBinnedDevices === true
+    );
+    if (binnedResult.isFailure) {
+      return this.fail(binnedResult.error!);
+    }
+
     const deleteResult =
       await this.deviceModelRepository.delete(deviceModelId);
     if (deleteResult.isFailure) {
@@ -67,5 +75,52 @@ export class DeleteDeviceModelUseCase extends UseCase<
     }
 
     return this.ok(undefined);
+  }
+
+  // DEV-026 only sees live devices, so a model whose last units are in the
+  // recycle bin looks free to delete — and then the FK on devices.device_model_id
+  // (ON DELETE RESTRICT) refuses, which the caller would read as a server fault.
+  // Surface the tombstones instead, and empty them only when asked to.
+  //
+  // Purging here is safe for the same reason PurgeDeletedDevicesUseCase is:
+  // nothing reaches the bin without clearing the live-contract and open-ticket
+  // guards in DeleteDeviceUseCase first.
+  private async purgeBinnedDevices(
+    deviceModelId: DeviceModelId,
+    confirmed: boolean
+  ): Promise<Result<void>> {
+    const binnedResult = await this.deviceRepository.findByFilters({
+      deviceModelId,
+      deleted: 'only'
+    });
+    if (binnedResult.isFailure) {
+      return Result.fail(
+        `Failed to load deleted devices for the model check: ${binnedResult.error}`
+      );
+    }
+
+    const binned = binnedResult.value;
+    if (binned.length === 0) {
+      return Result.ok<void>();
+    }
+
+    if (!confirmed) {
+      return Result.fail(
+        `Cannot delete device model: it has ${binned.length} device(s) in the recycle bin. Retry with purgeBinnedDevices=true to remove them permanently along with the model.`
+      );
+    }
+
+    for (const device of binned) {
+      const purgeResult = await this.deviceRepository.delete(
+        device.id
+      );
+      if (purgeResult.isFailure) {
+        return Result.fail(
+          `Cannot delete device model: failed to purge deleted device ${device.id.toString()}: ${purgeResult.error}`
+        );
+      }
+    }
+
+    return Result.ok<void>();
   }
 }

@@ -19,7 +19,10 @@ import {
   DeviceLocationAssignedEvent,
   DeviceMonitoringToggledEvent,
   DeviceDetailsUpdatedEvent,
-  DeviceModelCorrectedEvent
+  DeviceModelCorrectedEvent,
+  DeviceDeletedEvent,
+  DeviceRestoredEvent,
+  DeviceReplacedEvent
 } from '../events';
 
 export class Device extends AggregateRoot<DeviceProps, DeviceId> {
@@ -83,11 +86,45 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     return this.props.monitoringEnabled;
   }
 
+  get deletedAt(): Date | null {
+    return this.props.deletedAt;
+  }
+
+  get deletedBy(): string | null {
+    return this.props.deletedBy;
+  }
+
+  get replacedAt(): Date | null {
+    return this.props.replacedAt;
+  }
+
+  get replacesDeviceId(): DeviceId | null {
+    return this.props.replacesDeviceId;
+  }
+
+  get replacedByDeviceId(): DeviceId | null {
+    return this.props.replacedByDeviceId;
+  }
+
   public static create(
     props: Omit<
       DeviceProps,
-      'createdAt' | 'updatedAt' | 'monitoringEnabled'
-    > & { monitoringEnabled?: boolean }
+      | 'createdAt'
+      | 'updatedAt'
+      | 'monitoringEnabled'
+      | 'deletedAt'
+      | 'deletedBy'
+      | 'replacedAt'
+      | 'replacesDeviceId'
+      | 'replacedByDeviceId'
+    > & {
+      monitoringEnabled?: boolean;
+      // Set only by ReplaceDeviceUseCase — a unit created as the successor of
+      // a retired one carries the link from birth, so the lineage is never in
+      // a half-written state.
+      replacesDeviceId?: DeviceId | null;
+      replacedAt?: Date | null;
+    }
   ): Result<Device> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(
@@ -115,7 +152,8 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       locationId: props.locationId ?? null,
       monitoringEnabled,
       description: props.description ?? null,
-      installedDate: props.installedDate ?? null
+      installedDate: props.installedDate ?? null,
+      deletedAt: null
     });
 
     if (validationResult.isFailure) {
@@ -138,7 +176,12 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
         installedDate: props.installedDate ?? null,
         monitoringEnabled,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
+        deletedAt: null,
+        deletedBy: null,
+        replacedAt: props.replacedAt ?? null,
+        replacesDeviceId: props.replacesDeviceId ?? null,
+        replacedByDeviceId: null
       },
       id
     );
@@ -158,12 +201,43 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     return Result.ok<Device>(device);
   }
 
-  // bypasses validation — for repository use only
+  // bypasses validation — for repository use only.
+  //
+  // The tombstone and lineage fields are optional because their absence has an
+  // unambiguous meaning: never deleted, never replaced. That is exactly what a
+  // row written before migration 20260811120000 carries.
   public static reconstitute(
     id: DeviceId,
-    props: DeviceProps
+    props: Omit<
+      DeviceProps,
+      | 'deletedAt'
+      | 'deletedBy'
+      | 'replacedAt'
+      | 'replacesDeviceId'
+      | 'replacedByDeviceId'
+    > &
+      Partial<
+        Pick<
+          DeviceProps,
+          | 'deletedAt'
+          | 'deletedBy'
+          | 'replacedAt'
+          | 'replacesDeviceId'
+          | 'replacedByDeviceId'
+        >
+      >
   ): Device {
-    return new Device(props, id);
+    return new Device(
+      {
+        ...props,
+        deletedAt: props.deletedAt ?? null,
+        deletedBy: props.deletedBy ?? null,
+        replacedAt: props.replacedAt ?? null,
+        replacesDeviceId: props.replacesDeviceId ?? null,
+        replacedByDeviceId: props.replacedByDeviceId ?? null
+      },
+      id
+    );
   }
 
   // The single mutation path. Every field a caller may change arrives together,
@@ -173,6 +247,15 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
   // its fields happen to be listed in. The narrower mutators below are thin
   // wrappers over this one; none of them re-implements a rule.
   public applyChanges(changes: DeviceChanges): Result<void> {
+    // A tombstone is not editable. Without this every mutator below would
+    // happily rewrite a device the operator has already deleted, and the
+    // change would reappear if the device were later restored.
+    if (this.isDeleted()) {
+      return Result.fail<void>(
+        'Cannot modify a deleted device — restore it first'
+      );
+    }
+
     if (changes.ownerType !== undefined) {
       const guardResult = Guard.againstNullOrUndefined(
         changes.ownerType,
@@ -242,7 +325,8 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       locationId: next.locationId,
       monitoringEnabled,
       description: next.description,
-      installedDate: next.installedDate
+      installedDate: next.installedDate,
+      deletedAt: this.props.deletedAt
     });
 
     if (validationResult.isFailure) {
@@ -354,7 +438,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
           aggregateId: this.id,
           deviceName: this.props.name,
           monitoringEnabled,
-          ipAddress: this.props.ipAddress as IPAddress,
+          ipAddress: this.props.ipAddress,
           dateTimeOccurred: now
         })
       );
@@ -399,6 +483,232 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
 
   public updateDetails(fields: DeviceChanges): Result<void> {
     return this.applyChanges(fields);
+  }
+
+  public isDeleted(): boolean {
+    return this.props.deletedAt !== null;
+  }
+
+  public isReplaced(): boolean {
+    return this.props.replacedByDeviceId !== null;
+  }
+
+  // Reversible removal. The row and every metric hanging off it survive; the
+  // device simply stops existing as far as every read path is concerned, until
+  // either a restore brings it back or the grace period runs out and the purge
+  // takes it for good.
+  public softDelete(
+    deletedBy: string | null,
+    now: Date = new Date()
+  ): Result<void> {
+    if (this.isDeleted()) {
+      return Result.fail<void>('Device is already deleted');
+    }
+
+    const guardResult = Guard.isDate(now, 'now');
+    if (!guardResult.succeeded) {
+      return Result.fail<void>(guardResult.message!);
+    }
+
+    // Deleting is also a decision to stop watching. Doing it here rather than
+    // asking the caller to send monitoringEnabled: false separately is what
+    // makes the polling pipeline react — the toggle event is its only trigger.
+    const monitoringWasOn = this.props.monitoringEnabled;
+
+    this.props.deletedAt = now;
+    this.props.deletedBy = deletedBy;
+    this.props.monitoringEnabled = false;
+    this.touch();
+
+    this.addDomainEvent(
+      new DeviceDeletedEvent({
+        aggregateId: this.id,
+        deviceName: this.props.name,
+        status: this.props.status,
+        deletedBy,
+        deletedAt: now,
+        dateTimeOccurred: now
+      })
+    );
+
+    if (monitoringWasOn) {
+      this.addDomainEvent(
+        new DeviceMonitoringToggledEvent({
+          aggregateId: this.id,
+          deviceName: this.props.name,
+          monitoringEnabled: false,
+          ipAddress: this.props.ipAddress,
+          dateTimeOccurred: now
+        })
+      );
+    }
+
+    return Result.ok<void>();
+  }
+
+  // Monitoring deliberately stays off. Coming back from a deletion is not the
+  // same as being put back in service — the operator re-enables polling once
+  // they have decided the device belongs on the network again.
+  public restore(
+    now: Date = new Date(),
+    graceDays: number = Device.DELETE_GRACE_DAYS
+  ): Result<void> {
+    const deletedAt = this.props.deletedAt;
+
+    if (deletedAt === null) {
+      return Result.fail<void>(
+        'Cannot restore a device that is not deleted'
+      );
+    }
+
+    const guardResult = Guard.isDate(now, 'now');
+    if (!guardResult.succeeded) {
+      return Result.fail<void>(guardResult.message!);
+    }
+
+    if (Device.graceExpired(deletedAt, now, graceDays)) {
+      return Result.fail<void>(
+        `Cannot restore a device whose ${graceDays}-day grace period expired`
+      );
+    }
+
+    this.props.deletedAt = null;
+    this.props.deletedBy = null;
+    this.touch();
+
+    this.addDomainEvent(
+      new DeviceRestoredEvent({
+        aggregateId: this.id,
+        deviceName: this.props.name,
+        status: this.props.status,
+        deletedAt,
+        dateTimeOccurred: now
+      })
+    );
+
+    return Result.ok<void>();
+  }
+
+  // Retires this unit because different hardware has taken over its job. The
+  // IP goes with the job, not the box, so it is released here for the
+  // successor to claim — which is also what keeps the partial unique index on
+  // ip_address satisfied when both rows are live.
+  //
+  // `retiredStatus` is the caller's: a failed unit is DAMAGED, an upgraded one
+  // that still works goes back to INVENTORY, one that is done for good is
+  // DECOMMISSIONED. Nothing here can tell those apart.
+  public markReplaced(
+    retiredStatus: DeviceStatus,
+    now: Date = new Date()
+  ): Result<void> {
+    if (this.isDeleted()) {
+      return Result.fail<void>('Cannot replace a deleted device');
+    }
+
+    if (this.isReplaced()) {
+      return Result.fail<void>(
+        'Device has already been replaced'
+      );
+    }
+
+    const guardResult = Guard.combine([
+      Guard.againstNullOrUndefined(retiredStatus, 'retiredStatus'),
+      Guard.isDate(now, 'now')
+    ]);
+    if (!guardResult.succeeded) {
+      return Result.fail<void>(guardResult.message!);
+    }
+
+    if (!retiredStatus.isRetired()) {
+      return Result.fail<void>(
+        `Cannot retire a replaced device as ${retiredStatus.toString()} — must be one of: ${DeviceStatus.retiredStatuses().join(', ')}`
+      );
+    }
+
+    const previousStatus = this.props.status;
+    const releasedIpAddress = this.props.ipAddress;
+    const monitoringWasOn = this.props.monitoringEnabled;
+
+    const validationResult = Device.validate({
+      status: retiredStatus,
+      serialNumber: this.props.serialNumber,
+      macAddress: this.props.macAddress,
+      ipAddress: null,
+      locationId: this.props.locationId,
+      monitoringEnabled: false,
+      description: this.props.description,
+      installedDate: this.props.installedDate,
+      deletedAt: null
+    });
+
+    if (validationResult.isFailure) {
+      return Result.fail<void>(validationResult.error);
+    }
+
+    this.props.status = retiredStatus;
+    this.props.ipAddress = null;
+    this.props.monitoringEnabled = false;
+    this.props.replacedAt = now;
+    this.touch();
+
+    this.addDomainEvent(
+      new DeviceReplacedEvent({
+        aggregateId: this.id,
+        deviceName: this.props.name,
+        retiredStatus,
+        previousDeviceModelId: this.props.deviceModelId,
+        releasedIpAddress,
+        replacedAt: now,
+        dateTimeOccurred: now
+      })
+    );
+
+    if (!previousStatus.equals(retiredStatus)) {
+      this.addDomainEvent(
+        new DeviceStatusChangedEvent({
+          aggregateId: this.id,
+          deviceName: this.props.name,
+          previousStatus,
+          newStatus: retiredStatus,
+          dateTimeOccurred: now
+        })
+      );
+    }
+
+    if (monitoringWasOn) {
+      this.addDomainEvent(
+        new DeviceMonitoringToggledEvent({
+          aggregateId: this.id,
+          deviceName: this.props.name,
+          monitoringEnabled: false,
+          ipAddress: null,
+          dateTimeOccurred: now
+        })
+      );
+    }
+
+    return Result.ok<void>();
+  }
+
+  public graceExpiredAt(
+    now: Date,
+    graceDays: number = Device.DELETE_GRACE_DAYS
+  ): boolean {
+    if (this.props.deletedAt === null) {
+      return false;
+    }
+    return Device.graceExpired(this.props.deletedAt, now, graceDays);
+  }
+
+  public static readonly DELETE_GRACE_DAYS = 7;
+
+  private static graceExpired(
+    deletedAt: Date,
+    now: Date,
+    graceDays: number
+  ): boolean {
+    const graceMs = graceDays * 24 * 60 * 60 * 1000;
+    return now.getTime() - deletedAt.getTime() > graceMs;
   }
 
   private static readonly DETAIL_FIELDS = [
@@ -477,8 +787,10 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     this.props.updatedAt = new Date();
   }
 
+  // Every retired status needs one: a unit that is not on the network can only
+  // be told apart from its shelf-mates by something written on the box.
   private static requiresIdentifier(status: DeviceStatus): boolean {
-    return status.isInInventory() || status.isDamaged();
+    return status.isRetired();
   }
 
   // Single source of truth for status-dependent invariants — every
@@ -494,7 +806,14 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     monitoringEnabled: boolean;
     description: string | null;
     installedDate: Date | null;
+    deletedAt: Date | null;
   }): Result<void> {
+    if (state.monitoringEnabled && state.deletedAt !== null) {
+      return Result.fail<void>(
+        'Monitoring cannot be enabled for a deleted device'
+      );
+    }
+
     if (
       Device.requiresIdentifier(state.status) &&
       !state.serialNumber &&

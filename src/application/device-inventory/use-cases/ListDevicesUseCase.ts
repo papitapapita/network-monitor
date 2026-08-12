@@ -51,6 +51,7 @@ export class ListDevicesUseCase extends UseCase<
       request.locationId != null ||
       request.deviceModelId != null ||
       request.monitoringEnabled != null ||
+      request.deleted != null ||
       request.search != null
     );
   }
@@ -152,6 +153,7 @@ export class ListDevicesUseCase extends UseCase<
       locationId: locationIdFilter,
       deviceModelId: deviceModelIdFilter,
       monitoringEnabled: request.monitoringEnabled,
+      deleted: request.deleted,
       search: request.search,
       sortBy: request.sortBy,
       sortOrder: request.sortOrder

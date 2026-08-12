@@ -6,6 +6,10 @@ export interface DeviceMonitoringToggledEventProps {
   readonly aggregateId: DeviceId;
   readonly deviceName: DeviceName;
   readonly monitoringEnabled: boolean;
-  readonly ipAddress: IPAddress;
+  // Nullable: monitoring going *off* can coincide with the IP being cleared —
+  // a replacement releases the retired unit's address in the same step. When
+  // monitoring goes on the IP is always present (ACTIVE/COMMISSIONING require
+  // one), which is what the enable path relies on.
+  readonly ipAddress: IPAddress | null;
   readonly dateTimeOccurred: Date;
 }

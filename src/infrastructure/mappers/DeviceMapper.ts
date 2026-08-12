@@ -19,7 +19,7 @@ import {
   DeviceOwnerType as PrismaDeviceOwnerType
 } from 'generated/prisma/client';
 
-type PrismaDeviceRecord = {
+export type PrismaDeviceRecord = {
   id: string;
   deviceModelId: string;
   locationId: string | null;
@@ -35,6 +35,13 @@ type PrismaDeviceRecord = {
   createdAt: Date;
   updatedAt: Date;
   monitoringEnabled: boolean;
+  deletedAt?: Date | null;
+  deletedBy?: string | null;
+  replacedAt?: Date | null;
+  replacesDeviceId?: string | null;
+  // Populated from the `replacedBy` back-relation, not a stored column. Reads
+  // that don't ask for it leave the successor link null rather than wrong.
+  replacedBy?: { id: string } | null;
 };
 
 type DevicePersistenceData = {
@@ -53,6 +60,10 @@ type DevicePersistenceData = {
   createdAt: Date;
   updatedAt: Date;
   monitoringEnabled: boolean;
+  deletedAt: Date | null;
+  deletedBy: string | null;
+  replacedAt: Date | null;
+  replacesDeviceId: string | null;
 };
 
 export class DeviceMapper {
@@ -94,6 +105,28 @@ export class DeviceMapper {
         ? this.mapCategoryFromPrisma(raw.category)
         : null;
 
+    let replacesDeviceId: DeviceId | null = null;
+    if (raw.replacesDeviceId != null) {
+      const parsed = DeviceId.parse(raw.replacesDeviceId);
+      if (parsed.isFailure) {
+        return Result.fail<Device>(
+          `Invalid replaces device ID: ${parsed.error}`
+        );
+      }
+      replacesDeviceId = parsed.value;
+    }
+
+    let replacedByDeviceId: DeviceId | null = null;
+    if (raw.replacedBy != null) {
+      const parsed = DeviceId.parse(raw.replacedBy.id);
+      if (parsed.isFailure) {
+        return Result.fail<Device>(
+          `Invalid replaced-by device ID: ${parsed.error}`
+        );
+      }
+      replacedByDeviceId = parsed.value;
+    }
+
     const device = Device.reconstitute(deviceIdResult.value, {
       deviceModelId: deviceModelIdResult.value,
       locationId,
@@ -117,7 +150,12 @@ export class DeviceMapper {
       installedDate: raw.installedDate ?? null,
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt,
-      monitoringEnabled: raw.monitoringEnabled
+      monitoringEnabled: raw.monitoringEnabled,
+      deletedAt: raw.deletedAt ?? null,
+      deletedBy: raw.deletedBy ?? null,
+      replacedAt: raw.replacedAt ?? null,
+      replacesDeviceId,
+      replacedByDeviceId
     });
 
     return Result.ok<Device>(device);
@@ -141,7 +179,13 @@ export class DeviceMapper {
       installedDate: device.installedDate ?? null,
       createdAt: device.createdAt,
       updatedAt: device.updatedAt,
-      monitoringEnabled: device.monitoringEnabled
+      monitoringEnabled: device.monitoringEnabled,
+      deletedAt: device.deletedAt,
+      deletedBy: device.deletedBy,
+      replacedAt: device.replacedAt,
+      // replacedByDeviceId is deliberately absent: it is the back-reference of
+      // this column on the successor's row, not a column of its own.
+      replacesDeviceId: device.replacesDeviceId?.toString() ?? null
     };
   }
 

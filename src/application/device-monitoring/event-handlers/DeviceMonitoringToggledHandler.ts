@@ -32,6 +32,17 @@ export class DeviceMonitoringToggledHandler
 
       if (event.monitoringEnabled) {
         if (!existingConfig) {
+          // Monitoring can only be on for ACTIVE or COMMISSIONING devices, and
+          // both require an IP — so this is unreachable rather than a case to
+          // handle. Bail loudly instead of creating a config that can't poll.
+          if (!event.ipAddress) {
+            this.logger.error(
+              '[DeviceMonitoringToggledHandler] Monitoring enabled with no IP address',
+              undefined,
+              { deviceId: deviceId.toString() }
+            );
+            return;
+          }
           await this.createConfig(deviceId, event.ipAddress);
         } else {
           if (event.ipAddress) {

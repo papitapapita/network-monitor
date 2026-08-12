@@ -5,6 +5,7 @@ import { PurgeOldPingResultsUseCase } from '../../../src/application/device-moni
 import { PurgeOldAlertsUseCase } from '../../../src/application/notifications/use-cases/PurgeOldAlertsUseCase';
 import { PurgeOldWirelessSnapshotsUseCase } from '../../../src/application/wireless-monitoring/use-cases/PurgeOldWirelessSnapshotsUseCase';
 import { PurgeOldWirelessAlertRecordsUseCase } from '../../../src/application/wireless-monitoring/use-cases/PurgeOldWirelessAlertRecordsUseCase';
+import { PurgeDeletedDevicesUseCase } from '../../../src/application/device-inventory/use-cases/PurgeDeletedDevicesUseCase';
 import { ILogger } from '../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../src/domain/shared/core/Result';
 
@@ -28,6 +29,10 @@ function makePurgeAlertRecords(): jest.Mocked<PurgeOldWirelessAlertRecordsUseCas
   return { execute: jest.fn() } as unknown as jest.Mocked<PurgeOldWirelessAlertRecordsUseCase>;
 }
 
+function makePurgeDeletedDevices(): jest.Mocked<PurgeDeletedDevicesUseCase> {
+  return { execute: jest.fn() } as unknown as jest.Mocked<PurgeDeletedDevicesUseCase>;
+}
+
 function makeLogger(): jest.Mocked<ILogger> {
   return {
     debug: jest.fn(),
@@ -45,6 +50,7 @@ interface OrchestratorFixture {
   purgeAlerts: jest.Mocked<PurgeOldAlertsUseCase>;
   purgeSnapshots: jest.Mocked<PurgeOldWirelessSnapshotsUseCase>;
   purgeAlertRecords: jest.Mocked<PurgeOldWirelessAlertRecordsUseCase>;
+  purgeDeletedDevices: jest.Mocked<PurgeDeletedDevicesUseCase>;
   logger: jest.Mocked<ILogger>;
   orchestrator: DataRetentionOrchestrator;
 }
@@ -54,29 +60,41 @@ function makeOrchestrator(checkIntervalMs = 1_000): OrchestratorFixture {
   const purgeAlerts = makePurgeAlerts();
   const purgeSnapshots = makePurgeSnapshots();
   const purgeAlertRecords = makePurgeAlertRecords();
+  const purgeDeletedDevices = makePurgeDeletedDevices();
   const logger = makeLogger();
 
   purgePing.execute.mockResolvedValue(Result.ok(0));
   purgeAlerts.execute.mockResolvedValue(Result.ok(0));
   purgeSnapshots.execute.mockResolvedValue(Result.ok(0));
   purgeAlertRecords.execute.mockResolvedValue(Result.ok(0));
+  purgeDeletedDevices.execute.mockResolvedValue(Result.ok(0));
 
   const orchestrator = new DataRetentionOrchestrator(
     purgePing,
     purgeAlerts,
     purgeSnapshots,
     purgeAlertRecords,
+    purgeDeletedDevices,
     {
       pingResultRetentionDays: 30,
       alertRetentionDays: 90,
       wirelessSnapshotRetentionDays: 7,
       wirelessAlertRecordRetentionDays: 60,
+      deletedDeviceGraceDays: 7,
       checkIntervalMs
     },
     logger
   );
 
-  return { purgePing, purgeAlerts, purgeSnapshots, purgeAlertRecords, logger, orchestrator };
+  return {
+    purgePing,
+    purgeAlerts,
+    purgeSnapshots,
+    purgeAlertRecords,
+    purgeDeletedDevices,
+    logger,
+    orchestrator
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -342,12 +360,20 @@ describe('DataRetentionOrchestrator', () => {
   // =========================================================================
   describe('success logging', () => {
     it('should log purge complete with the deleted counts after a successful run', async () => {
-      const { purgePing, purgeAlerts, purgeSnapshots, purgeAlertRecords, logger, orchestrator } =
-        makeOrchestrator(60_000);
+      const {
+        purgePing,
+        purgeAlerts,
+        purgeSnapshots,
+        purgeAlertRecords,
+        purgeDeletedDevices,
+        logger,
+        orchestrator
+      } = makeOrchestrator(60_000);
       purgePing.execute.mockResolvedValue(Result.ok(10));
       purgeAlerts.execute.mockResolvedValue(Result.ok(5));
       purgeSnapshots.execute.mockResolvedValue(Result.ok(20));
       purgeAlertRecords.execute.mockResolvedValue(Result.ok(3));
+      purgeDeletedDevices.execute.mockResolvedValue(Result.ok(2));
 
       orchestrator.start();
       await Promise.resolve();
@@ -359,7 +385,8 @@ describe('DataRetentionOrchestrator', () => {
           pingResultsDeleted: 10,
           alertsDeleted: 5,
           wirelessSnapshotsDeleted: 20,
-          wirelessAlertRecordsDeleted: 3
+          wirelessAlertRecordsDeleted: 3,
+          deletedDevicesPurged: 2
         }
       );
     });

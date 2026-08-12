@@ -115,7 +115,8 @@ type DeviceStatus =
   | 'INVENTORY'
   | 'COMMISSIONING'
   | 'ACTIVE'
-  | 'DAMAGED';
+  | 'DAMAGED'
+  | 'DECOMMISSIONED';
 type DeviceCategory =
   | 'CPE'
   | 'WIRELESS_CPE'
@@ -207,6 +208,17 @@ interface DeviceDTO {
   monitoringEnabled: boolean;
   createdAt: string;
   updatedAt: string;
+
+  // Soft delete. Always null on anything you can fetch — a deleted device is
+  // absent from every listing and 404s on GET. They are here because the
+  // restore endpoint returns the record it just brought back.
+  deletedAt: string | null; // ISO 8601
+  deletedBy: string | null; // UUID of the user who deleted it
+
+  // Replacement lineage. Both directions are readable; only one is stored.
+  replacedAt: string | null; // when this unit took over from its predecessor
+  replacesDeviceId: string | null; // the unit this one replaced
+  replacedByDeviceId: string | null; // the unit that replaced this one
 }
 
 interface VendorDTO {
@@ -411,7 +423,7 @@ Returns all locations that have coordinates, each with their nested devices. Int
 **Business rules:**
 
 - `deviceModelId` must name an existing device model — a well-formed UUID for a model that does not exist returns `404` with `Device model not found: <id>`
-- `INVENTORY` / `DAMAGED` status → at least one of `serialNumber` or `macAddress` required (status defaults to `INVENTORY`, so a minimal request must include at least one)
+- `INVENTORY` / `DAMAGED` / `DECOMMISSIONED` status → at least one of `serialNumber` or `macAddress` required (status defaults to `INVENTORY`, so a minimal request must include at least one)
 - `COMMISSIONING` status → `ipAddress` required; `monitoringEnabled` defaults to `true`, but an explicit `monitoringEnabled: false` in the same request is respected (staging a device without polling it yet is legitimate)
 - `ACTIVE` status → `ipAddress` and `locationId` required
 - `installedDate` must be ISO 8601 — `YYYY-MM-DD` or `YYYY-MM-DDThh:mm[:ss[.sss]]` with an optional `Z`/`±hh:mm` offset. Locale forms (`March 5, 2020`) and impossible dates (`2024-02-31`) are rejected, not reinterpreted
@@ -437,8 +449,9 @@ owner?:            DeviceOwner
 locationId?:       string          // UUID
 deviceModelId?:    string          // UUID
 monitoringEnabled?: 'true' | 'false'
+deleted?:          'true' | 'false' | 'any'   // default: 'false' — see below
 search?:           string          // free-text
-sortBy?:           'createdAt' | 'updatedAt' | 'name' | 'status'  // default: createdAt
+sortBy?:           'createdAt' | 'updatedAt' | 'name' | 'status' | 'deletedAt'  // default: createdAt
 sortOrder?:        'ASC' | 'DESC'  // default: DESC
 
 // Response
@@ -458,6 +471,27 @@ sortOrder?:        'ASC' | 'DESC'  // default: DESC
 > in `devices`. Filtered and unfiltered listings both paginate in the database,
 > so page size bounds the work the query does.
 
+**`deleted` — the recycle bin.** Soft-deleted devices are hidden from every
+listing unless you ask for them:
+
+| Value              | Returns                                          |
+| ------------------ | ------------------------------------------------ |
+| omitted or `false` | live devices only — unchanged from before        |
+| `true`             | **deleted devices only** — this is the bin       |
+| `any`              | both; the only way a tombstone and a live device share a page |
+
+Bin rows carry `deletedAt` and `deletedBy`. Pair it with
+`sortBy=deletedAt&sortOrder=DESC` for most-recently-deleted first. It combines
+with every other filter, so `?deleted=true&owner=CLIENT` is a customer-scoped
+bin.
+
+Needs only the `read` permission — seeing the bin is not the same as acting on
+it. Restoring takes `delete` (ADMIN), and so does emptying.
+
+```
+GET /api/devices?deleted=true&sortBy=deletedAt&sortOrder=DESC
+```
+
 ---
 
 ### `GET /api/devices/:id` — Get by ID
@@ -473,14 +507,28 @@ sortOrder?:        'ASC' | 'DESC'  // default: DESC
 
 **Device status lifecycle:**
 
-| Transition            | Requirements                                  | Side effects                                                                               |
-| --------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| any → `COMMISSIONING` | `ipAddress` must be set on the device         | `monitoringEnabled` turned on **unless** the same request sends `monitoringEnabled: false` |
-| any → `ACTIVE`        | `ipAddress` and `locationId` must both be set | —                                                                                          |
-| any → `DAMAGED`       | —                                             | monitoring stopped (see below)                                                             |
-| any → `INVENTORY`     | —                                             | monitoring stopped (see below)                                                             |
+| Transition              | Requirements                                  | Side effects                                                                               |
+| ----------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| any → `COMMISSIONING`   | `ipAddress` must be set on the device         | `monitoringEnabled` turned on **unless** the same request sends `monitoringEnabled: false` |
+| any → `ACTIVE`          | `ipAddress` and `locationId` must both be set | —                                                                                          |
+| any → `DAMAGED`         | `serialNumber` or `macAddress` must be set    | monitoring stopped (see below)                                                             |
+| any → `DECOMMISSIONED`  | `serialNumber` or `macAddress` must be set    | monitoring stopped (see below)                                                             |
+| any → `INVENTORY`       | `serialNumber` or `macAddress` must be set    | monitoring stopped (see below)                                                             |
 
 `DAMAGED` is a side-state (e.g. hardware failure) and can be set from any status.
+
+**`INVENTORY`, `DAMAGED` and `DECOMMISSIONED` are the _retired_ statuses** — the
+unit is off the network, so none of them polls and each needs an identifier you
+can read off the box. They are also the only values
+[`POST /api/devices/:id/replace`](#post-apidevicesidreplace--replace-hardware)
+accepts for the outgoing unit.
+
+> ⚠ **New status (2026-08-12): `DECOMMISSIONED`.** It means "retired for good" —
+> as opposed to `DAMAGED` ("broken, still ours") and `INVENTORY` ("working,
+> back in stock"). Add it to any status picker or filter. It existed before
+> 2026-05-09, was removed, and is back because hardware replacement needs to
+> distinguish an upgraded-but-working unit from a failed one. No existing row
+> changed status: units remapped to `DAMAGED` in May stay `DAMAGED`.
 
 > When transitioning to `DAMAGED` or `INVENTORY`, the backend stops monitoring the device automatically. There is no need to also send `monitoringEnabled: false`.
 
@@ -543,7 +591,7 @@ replacement. It is accepted **only while the device's status is `INVENTORY`** �
 the one status in which the unit has never been polled, so no collected metric
 can end up attributed to the wrong hardware.
 
-- Device is `ACTIVE`, `COMMISSIONING` or `DAMAGED` → `400` `"Cannot change the device model of a device with status <status> — only an INVENTORY device may have its model corrected"`
+- Device is `ACTIVE`, `COMMISSIONING`, `DAMAGED` or `DECOMMISSIONED` → `400` `"Cannot change the device model of a device with status <status> — only an INVENTORY device may have its model corrected"`
 - Target model does not exist → `404` `"Device model not found: <id>"`
 - Sending the model the device **already has** is a no-op that succeeds in any
   status — so a UI that PATCHes the whole form back is safe.
@@ -553,9 +601,12 @@ can end up attributed to the wrong hardware.
 
 > **Frontend:** show the model picker as editable only on `INVENTORY` devices; on
 > any other status render it read-only. Replacing a unit with different hardware
-> is not this endpoint — that path does not exist yet (a device is one physical
-> box, and its metric history belongs to that box). For now, retire the old
-> device and create a new one.
+> is not this endpoint — a device is one physical box, and its metric history
+> belongs to that box. Use
+> [`POST /api/devices/:id/replace`](#post-apidevicesidreplace--replace-hardware),
+> which creates the new unit, links the two, and carries the IP, credentials and
+> contracted service across. **(Changed 2026-08-12 — this used to say the path
+> did not exist. Stop telling operators to retire and re-create by hand.)**
 
 **`category` — frozen while a wireless config exists**
 
@@ -605,7 +656,7 @@ that got its location but not its status.
 
 ---
 
-### `DELETE /api/devices/:id` — Delete
+### `DELETE /api/devices/:id` — Delete (soft)
 
 **Status:** 204 | 400 | 404
 
@@ -615,8 +666,165 @@ that got its location but not its status.
 // Response: 204 No Content (no body)
 ```
 
-> Permanently removes the device. Returns 400 if the id is not a valid UUID v4, 404 if no device exists with that id.
+**Since 2026-08-12 this is a soft delete.** The device disappears from every
+read path immediately — `GET /api/devices/:id` returns `404`, listings omit it
+and do not count it in `total` — but the row and all its collected history
+(pings, alerts, wireless snapshots, credentials) survive for a **7-day grace
+period**. Within that window
+[`POST /api/devices/:id/restore`](#post-apidevicesidrestore--restore-a-deleted-device)
+brings it back. After it, a daily job removes the row permanently and everything
+hanging off it goes with it.
 
+**Business rules:**
+
+- The device must exist and not already be deleted → otherwise `404` `"Device not found: <id>"`. Deleting twice still fails; the second call cannot see the first one's tombstone
+- A **live contracted service** blocks the delete → `400` `"Cannot delete a device with a live contracted service (status <status>). Cancel the service first."`. Any status except `CANCELLED` counts as live, so `PENDING`, `ACTIVE` and `SUSPENDED` all block
+- **Open tickets** block the delete → `400` `"Cannot delete a device with <N> open ticket(s). Resolve or cancel them first."`. `RESOLVED` and `CANCELLED` tickets do not block
+- Monitoring is turned off automatically — see [stopping monitoring](#stopping-monitoring). There is no need to also send `monitoringEnabled: false`
+- The device's MAC and IP addresses are **released immediately** and can be reassigned to another device, without waiting for the grace period to lapse
+- `400` if the id is not a valid UUID v4
+
+> **Frontend:** the two guards are the ones worth surfacing well — both are `400`
+> with an actionable sentence naming what is in the way. Neither is a validation
+> error the user can fix in the delete dialog; both need them to go elsewhere
+> first (cancel the service, close the tickets). Consider offering a link rather
+> than just the message.
+>
+> **Build a recycle-bin view, not an undo toast.** `GET /api/devices?deleted=true`
+> lists everything in the bin with `deletedAt` and `deletedBy`; from there
+> `POST /:id/restore` puts one back and `DELETE /:id/purge` removes it for good.
+> Nothing needs to hold onto an id after the delete. A toast with an inline undo
+> is still a nice touch, but it is no longer the only way back.
+
+---
+
+### `POST /api/devices/:id/restore` — Restore a deleted device
+
+**Status:** 200 | 400 | 403 | 404
+
+```ts
+// No request body
+
+// Response
+{ success: true, data: DeviceDTO }
+```
+
+Undoes a soft delete. Requires the **`delete`** permission (ADMIN only) —
+restoring is the inverse of deleting, so the same authority governs both.
+
+**Business rules:**
+
+- Only inside the grace period → past it, `400` `"Cannot restore a device whose 7-day grace period expired"`. There is no recovery after that; the row is gone or about to be
+- The device must actually be deleted → otherwise `400` `"Cannot restore a device that is not deleted"`
+- Unknown id → `404` `"Device not found: <id>"`
+- **Monitoring stays off.** The restored device comes back with `monitoringEnabled: false` regardless of what it had before
+
+> **Frontend:** the restored device is not polling. If the user expects it back
+> in service, they need a second action — `PATCH { monitoringEnabled: true }`,
+> plus a status change if it was retired. Say so in the success message rather
+> than letting them discover it from a grey status pill later.
+
+---
+
+### `DELETE /api/devices/:id/purge` — Empty the bin (permanent)
+
+**Status:** 204 | 400 | 403 | 404
+
+```ts
+// No request body
+
+// Response: 204 No Content (no body)
+```
+
+Removes a device that is **already in the recycle bin**, now, instead of
+waiting out the grace period. Requires the **`delete`** permission (ADMIN).
+
+This is the same destruction the nightly retention job performs, on demand.
+Every ping result, alert, wireless snapshot, credential and polling
+configuration belonging to the device goes with it. **There is no undo.**
+
+**Business rules:**
+
+- The device must already be soft-deleted → otherwise `400` `"Cannot permanently delete a device that is not in the recycle bin. Delete it first."`. This is deliberate: routing everything through `DELETE /api/devices/:id` first is what guarantees the live-contracted-service and open-ticket guards were applied
+- Unknown id → `404` `"Device not found: <id>"`
+- `400` if the id is not a valid UUID v4
+
+> **Frontend:** this is the destructive twin of restore, so treat it that way —
+> a confirmation step naming the device, and wording that says the history goes
+> too. "Empty the whole bin" is this call per device; there is no bulk endpoint
+> yet, and the `delete` rate limiter allows 60/minute, so a very large bin needs
+> throttling or a bulk endpoint (ask the backend for one if you hit it).
+---
+
+### `POST /api/devices/:id/replace` — Replace hardware
+
+**Status:** 201 | 400 | 403 | 404
+
+`:id` is the unit **being replaced**. Use this whenever a physical box is swapped
+for a different one — a failure, or an upgrade. It is not
+`PATCH { deviceModelId }`: a device record is one physical unit, and every
+metric hangs off its id, so editing the model in place would retroactively
+re-attribute months of readings to hardware that never produced them.
+
+Requires the **`activate`** permission (ADMIN and OPERATOR).
+
+```ts
+// Request body
+{
+  deviceModelId: string   // required, UUID — the replacement's model
+  retiredStatus: string   // required, INVENTORY | DAMAGED | DECOMMISSIONED
+  name?: string           // defaults to the retired unit's name
+  serialNumber?: string   // at least one of serialNumber / macAddress required
+  macAddress?: string
+  description?: string
+  installedDate?: string  // ISO 8601, defaults to now
+}
+```
+
+```ts
+// Response
+{
+  success: true,
+  data: {
+    retiredDevice: DeviceDTO
+    newDevice: DeviceDTO
+    wirelessConfigRemoved: boolean
+    credentialsTransferred: boolean
+    contractedServiceTransferred: boolean
+  }
+}
+```
+
+**What it does, in one call:**
+
+1. Retires `:id` into `retiredStatus` and **releases its IP address**
+2. Creates a new device on `deviceModelId`, inheriting the retired unit's
+   **location, category and owner**, and taking over the released IP.
+   It starts in `COMMISSIONING` if it inherited an address, `INVENTORY` if not
+3. Links the two — `newDevice.replacesDeviceId` and
+   `retiredDevice.replacedByDeviceId`
+4. Moves `DeviceCredentials` onto the new unit
+5. Re-points the customer's `ContractedService` at the new unit
+6. Deletes the retired unit's wireless config **if the new model is not
+   wireless** — reported as `wirelessConfigRemoved`
+
+**Business rules:**
+
+- `retiredStatus` is **required** and must be one of `INVENTORY`, `DAMAGED`, `DECOMMISSIONED` → otherwise `400`. This is deliberately the caller's choice: a swap is not always a failure. An upgraded antenna that still works belongs back in `INVENTORY`; a failed one is `DAMAGED`; an obsolete one is `DECOMMISSIONED`
+- At least one of `serialNumber` / `macAddress` → otherwise `400` `"The replacement device must have at least a serial number or MAC address"`. It is a different physical box with its own
+- A device can be replaced **at most once** → `400` `"Device has already been replaced"`. To model a chain of swaps, replace the most recent unit
+- A deleted device cannot be replaced → `404` (it is invisible to reads)
+- Unknown `deviceModelId` → `404` `"Device model not found: <id>"`. Nothing is retired when this fails
+
+> **Frontend:** the retired unit keeps all of its history and the new one starts
+> empty — that is the point. A device detail page can follow
+> `replacesDeviceId` / `replacedByDeviceId` to offer "previous unit" /
+> "current unit" navigation, which is what makes "this CPE, current box since
+> March" answerable.
+>
+> Surface `wirelessConfigRemoved: true` prominently — it means wireless
+> monitoring for that site has stopped because the new hardware has no radio,
+> and nothing will re-create the config automatically.
 ---
 
 ## Device Credentials `/api/devices/:id/credentials`
@@ -931,14 +1139,47 @@ each listed device first, then send `isWireless: false`.
 
 ### `DELETE /api/device-models/:id` — Delete
 
-**Status:** 204 | 404 | 409
+**Status:** 204 | 400 | 404 | 409
 
 ```ts
+// Query (optional)
+?purgeBinnedDevices=true
+
 // No request body
 // Response: 204 No Content
 ```
 
-> Returns 409 if devices are assigned to this model. Reassign or remove those devices first.
+**Query parameters**
+
+| Param                | Type              | Default | Meaning                                                                  |
+| -------------------- | ----------------- | ------- | ------------------------------------------------------------------------ |
+| `purgeBinnedDevices` | `'true' \| 'false'` | `false` | Permanently delete the model's soft-deleted devices along with the model. |
+
+**Business rules:** DEV-026, DEV-029, DEV-030.
+
+> Returns 409 if **live** devices are assigned to this model. Reassign or remove those devices first.
+
+**Two-step confirmation for deleted devices.** Soft-deleted devices (see
+`DELETE /api/devices/:id`) still belong to the model even though they no longer
+appear in any listing. Deleting a model whose only remaining devices are in the
+recycle bin returns 409:
+
+```
+Cannot delete device model: it has 2 device(s) in the recycle bin.
+Retry with purgeBinnedDevices=true to remove them permanently along with the model.
+```
+
+Show a confirmation dialog, then repeat the same request with
+`?purgeBinnedDevices=true`. That permanently destroys those devices and all
+their history — pings, alerts, snapshots, credentials, configs — and their
+7-day restore window with it. To list exactly what would be destroyed before
+asking, call `GET /api/devices?deleted=true&deviceModelId=<id>`.
+
+The flag never overrides the live-device rule: a model with a live device is
+still 409 with the "Reassign or remove" message, and nothing is purged.
+
+The alternative is to wait — once the grace period expires and the scheduled
+purge removes those devices, the plain delete succeeds with no flag.
 
 ---
 
