@@ -94,6 +94,34 @@ export class PollWirelessDeviceUseCase
     now: Date,
     request: PollWirelessDeviceRequestDTO
   ): Promise<Result<PollWirelessDeviceResponseDTO>> {
+    // Asked of the device itself rather than of the config's `enabled` flag,
+    // which only reflects what an event handler managed to write. forceExecution
+    // does not override it: a deleted or retired radio is not something a manual
+    // poll should reach either.
+    const ineligibleReason =
+      await this.deviceRepo.findWirelessIneligibilityReason(deviceId);
+    if (ineligibleReason.isFailure) {
+      return this.fail(
+        `Failed to check device eligibility: ${ineligibleReason.error}`
+      );
+    }
+    if (ineligibleReason.value !== null) {
+      if (request.forceExecution) {
+        return this.fail(
+          `Cannot poll device — ${ineligibleReason.value}`
+        );
+      }
+      return this.ok({
+        deviceId: request.deviceId,
+        collectedAt: now.toISOString(),
+        metricsCollected: false,
+        alertsTriggered: 0,
+        alertsCleared: 0,
+        collectionMethod: 'http_api',
+        skipped: true
+      });
+    }
+
     const configResult =
       await this.wirelessDeviceConfigRepo.findByDeviceId(deviceId);
     if (configResult.isFailure) {

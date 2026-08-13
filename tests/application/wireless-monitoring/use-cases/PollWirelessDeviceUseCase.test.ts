@@ -175,7 +175,11 @@ function makeMocks() {
   };
 
   const deviceRepo: jest.Mocked<IDeviceRepository> = {
-    findIdByMacAddress: jest.fn().mockResolvedValue(Result.ok(null))
+    findIdByMacAddress: jest.fn().mockResolvedValue(Result.ok(null)),
+    // null = eligible; individual tests override to assert suppression
+    findWirelessIneligibilityReason: jest
+      .fn()
+      .mockResolvedValue(Result.ok(null))
   };
 
   const alertPublisher: jest.Mocked<IAlertPublisher> = {
@@ -374,6 +378,55 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
       expect(mocks.credentialsRepo.findByDeviceId).not.toHaveBeenCalled();
+    });
+  });
+
+  // ===========================================================================
+  describe('[DEV-088] executeImpl — device eligibility', () => {
+    it('should skip a scheduled poll when the device is not eligible', async () => {
+      mocks.deviceRepo.findWirelessIneligibilityReason.mockResolvedValue(
+        Result.ok('Device has been deleted')
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.skipped).toBe(true);
+      expect(mocks.httpCollector.collect).not.toHaveBeenCalled();
+      expect(
+        mocks.wirelessDeviceConfigRepo.findByDeviceId
+      ).not.toHaveBeenCalled();
+    });
+
+    // forceExecution overrides the config's enabled flag, never this.
+    it('should fail a forced poll of an ineligible device', async () => {
+      mocks.deviceRepo.findWirelessIneligibilityReason.mockResolvedValue(
+        Result.ok('Device is DAMAGED and is not polled')
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID,
+        forceExecution: true
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('DAMAGED');
+      expect(mocks.httpCollector.collect).not.toHaveBeenCalled();
+    });
+
+    it('should fail when the eligibility check itself fails', async () => {
+      mocks.deviceRepo.findWirelessIneligibilityReason.mockResolvedValue(
+        Result.fail('DB error')
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('eligibility');
     });
   });
 

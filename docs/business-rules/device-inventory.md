@@ -35,9 +35,9 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 
 | Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                |
 | ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Domain**                            |    39 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-083, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144 |
-| **Application**                       |    40 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145 |
-| **Application + Domain**              |     4 | DEV-070, DEV-074, DEV-078, DEV-079                                                                                                                                                                                                                                                                                                 |
+| **Domain**                            |    41 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144 |
+| **Application**                       |    41 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145 |
+| **Application + Domain**              |     5 | DEV-070, DEV-074, DEV-078, DEV-079, DEV-087                                                                                                                                                                                                                                                                                        |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                        |
 | **Domain + database constraint**      |     1 | DEV-082                                                                                                                                                                                                                                                                                                                            |
 | **Infrastructure + Domain**           |     1 | DEV-028                                                                                                                                                                                                                                                                                                                            |
@@ -1704,6 +1704,154 @@ familiar verb one typo away.
 **Reached from:** `DELETE /api/devices/:id/purge`
 **Message:** `Cannot permanently delete a device that is not in the recycle bin. Delete it first.`
 **Tests:** `tests/application/device-inventory/use-cases/PermanentlyDeleteDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/PermanentlyDeleteDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
+
+---
+
+### DEV-086 — Only a live, in-service device is polled
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-08-13
+
+A device is eligible for polling when it is not deleted, not replaced, its
+status is `ACTIVE` or `COMMISSIONING`, and monitoring is enabled.
+`COMMISSIONING` is included deliberately — see DEV-058/DEV-059; a unit is
+monitored while it is being installed, not only once someone marks it `ACTIVE`.
+
+**Why:** Every stop-polling path in the system works by flipping a flag from an
+event handler, and event dispatch is fire-and-forget over an already-committed
+write. A flag that never got flipped is a cached answer nothing invalidates, so
+a device can keep being polled long after it was deleted or retired. Naming the
+rule once, against the aggregate, gives callers a check that cannot go stale.
+
+Enforced in two places on purpose. `ExecutePollingCycleUseCase` re-reads the
+device and asks `canPoll` before probing — that is the authority. The ICMP
+`findAllDue` query *also* filters on `deleted_at IS NULL AND status IN
+('ACTIVE', 'COMMISSIONING')`, so an ineligible device is never selected in the
+first place.
+
+**Why the duplication is deliberate:** the SQL filter is an optimisation, not
+the rule. It keeps the scheduler from waking up once per tick for devices it
+will only discard, but it cannot express the whole predicate (`monitoringEnabled`
+is already covered by `pc.enabled`, and replacement is only visible through the
+retired status). If the two ever disagree, the use case wins — it is the one
+that runs against the aggregate. A change to this rule must touch both.
+
+**Enforced at:** `src/domain/device-inventory/services/DeviceEligibilityService.ts` (`canPoll`), called from `src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.ts`; pre-filtered in `src/infrastructure/persistence/PrismaPollingConfigurationRepository.ts` (`findAllDue`)
+**Reached from:** the polling orchestrator's tick, and `POST /api/devices/:id/polling/execute` (`forceExecution` does **not** override it — it turns the silent skip into a `400`)
+**Message:** `Device is <STATUS> and is not polled` / `Device has monitoring disabled` / `the device no longer exists`
+**Tests:** `tests/domain/device-inventory/services/DeviceEligibilityService.test.ts`, `tests/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.test.ts`
+
+---
+
+### DEV-087 — A deleted, replaced or retired device raises no new alert
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application + Domain
+**Since:** 2026-08-13
+
+Checked at alert-dispatch time, not at poll time: the device is re-read from
+the repository the moment an alert is about to be recorded, and a deleted,
+replaced or retired device is skipped. Deliberately **not** gated on
+`monitoringEnabled` — that flag is the stale cache this rule routes around, and
+an alert already in flight when monitoring was switched off is still true.
+
+Only the alert-**opening** paths are gated. Resolution stays ungated so an alert
+raised while the device was live can still be closed; gating it too would strand
+the alert permanently `OPEN` on a device no read path can see.
+
+**Why:** A device can be deleted between the poll that failed and the
+notification that reports it. The wireless path is the costly one — it reaches
+`ITicketOpener`, so a suppressed-too-late alert becomes a work order carrying a
+customer's name, phone and address, and a technician is dispatched to a customer
+who cancelled. Investigating it then hits a 404, because every read path already
+hides the device.
+
+**Enforced at:** `src/domain/device-inventory/services/DeviceEligibilityService.ts` (`canAlert`), called from `SendDeviceDownAlertUseCase` and `OpenAlertUseCase`
+**Reached from:** `DeviceWentOfflineEvent` → `SendDeviceDownAlertUseCase`; `WirelessAlertTriggeredEvent` → `AlertRecorder` → `OpenAlertUseCase`
+**Message:** `Device has been deleted` / `Device has been replaced by newer hardware` / `Device is <STATUS> and is not alerted on`
+**Tests:** `tests/domain/device-inventory/services/DeviceEligibilityService.test.ts`, `tests/application/notifications/use-cases/SendDeviceDownAlertUseCase.test.ts`, `tests/application/notifications/use-cases/OpenAlertUseCase.test.ts`, `tests/integration/use-cases/notifications/SendDeviceDownAlertUseCase.integration.test.ts`, `tests/integration/use-cases/notifications/SendDeviceRecoveryAlertUseCase.integration.test.ts`
+
+---
+
+### DEV-088 — Wireless polling additionally requires a radio-capable device
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-08-13
+
+On top of DEV-086, a device is eligible for wireless polling only when its
+category is `WIRELESS_CPE` or `ACCESS_POINT` (DEV-062).
+
+**Why:** The two eligibility questions differ by exactly one term, and writing
+that term twice is how they drift. Note this checks the device's *category*, not
+`DeviceModel.isWireless` — the model lives in a second aggregate, and pulling it
+in would force a repository into a domain service. `CreateWirelessConfigUseCase`
+already checks the model at config-creation time; re-checking it per poll is
+tracked separately.
+
+`PollWirelessDeviceUseCase` reaches this through its own narrow port
+(`application/wireless-monitoring/interfaces/IDeviceRepository`), which returns
+the *reason* rather than the `Device`. That keeps device-inventory's aggregate
+out of wireless-monitoring; `WirelessDeviceRepositoryAdapter` is where the two
+contexts meet. The wireless `findAllDue` pre-filters on deletion and status like
+DEV-086, but **not** on category — a config only exists for a radio-capable
+device (WLS-002), so the SQL would be filtering on something already guaranteed.
+
+**Enforced at:** `src/domain/device-inventory/services/DeviceEligibilityService.ts` (`canPollWireless`), applied in `src/infrastructure/wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter.ts`; pre-filtered in `src/infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository.ts` (`findAllDue`)
+**Reached from:** the wireless polling orchestrator's tick, and `POST /api/devices/:id/wireless/poll` (`forceExecution` does **not** override it)
+**Message:** `Only WIRELESS_CPE and ACCESS_POINT devices can be polled for wireless metrics`
+**Tests:** `tests/domain/device-inventory/services/DeviceEligibilityService.test.ts`, `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
+
+---
+
+### DEV-089 — Retiring a device stops its wireless polling, and only commissioning resumes it
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-08-13
+
+Moving a device into any retired status (`INVENTORY`, `DAMAGED`,
+`DECOMMISSIONED`) disables its `WirelessDeviceConfig`. Only one transition turns
+it back on: **arriving at `COMMISSIONING`**, mirroring what DEV-059 does for
+ICMP monitoring. Every other return to service — including retired → `ACTIVE`,
+and restoring from the recycle bin — leaves polling off for an operator to
+enable deliberately, exactly as `Device.restore()` leaves `monitoringEnabled`
+false. The config is **disabled, never deleted**, so the interval and link
+capacity survive the round trip and resuming is one click.
+
+Enabling is guarded at the API too: `UpdateWirelessConfigUseCase` refuses
+`enabled: true` for a device that fails `canPollWireless` (DEV-088). Only that
+direction is guarded — disabling is always allowed, and every other field stays
+editable on a retired device, since correcting an IP on something in the
+workshop is harmless.
+
+**Why:** Two independent flags govern polling. `DeviceStatusChangedHandler` →
+`SuspendDeviceMonitoringUseCase` only touches `polling_configurations` (ICMP);
+the wireless orchestrator selects on `wireless_polling_configurations.enabled`,
+and nothing linked that flag to device status. A radio marked `DAMAGED` kept
+being HTTP-polled and kept writing snapshots — silently, since it is invisible
+in every device read path.
+
+**Why resuming is so narrow:** wireless follows ICMP rather than inventing its
+own lifecycle. `softDelete()` turns `monitoringEnabled` off and `restore()` does
+not turn it back on, so ICMP polling stays off after a restore; a device moved
+straight from retired to `ACTIVE` likewise keeps `monitoringEnabled: false`.
+Re-enabling wireless in either case would have the two pipelines disagree about
+whether a device is being watched — the exact split this rule exists to close.
+Only `COMMISSIONING` re-enables because that is the one transition the aggregate
+itself treats as "this unit is going back into service" (DEV-059).
+
+A consequence worth stating: an operator who deliberately disabled wireless
+polling and then commissions the device will find it enabled again. The config
+records no reason for being off, so the handler cannot tell its own change from
+theirs. Distinguishing them needs a flag on `WirelessDeviceConfig`; until then
+the narrow trigger keeps the blast radius to one transition.
+
+**Enforced at:** `src/application/wireless-monitoring/event-handlers/DeviceStatusChangedWirelessConfigHandler.ts`; enabling additionally guarded in `src/application/wireless-monitoring/use-cases/UpdateWirelessConfigUseCase.ts`
+**Reached from:** `DeviceStatusChangedEvent` (see DEV-072 for the deletion leg), and `PATCH /api/devices/:id/wireless/config`
+**Message:** `Cannot enable wireless polling — <reason>` (the event handler logs rather than surfacing a failure)
+**Tests:** `tests/application/wireless-monitoring/event-handlers/DeviceStatusChangedWirelessConfigHandler.test.ts`, `tests/application/wireless-monitoring/use-cases/UpdateWirelessConfigUseCase.test.ts`
 
 ---
 

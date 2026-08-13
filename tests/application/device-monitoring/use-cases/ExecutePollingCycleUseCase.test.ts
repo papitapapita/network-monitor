@@ -17,6 +17,16 @@ import { FailureThreshold } from '../../../../src/domain/device-monitoring/value
 import { ExecutePollingCycleDTO } from '../../../../src/application/device-monitoring/dtos/ExecutePollingCycleDTO';
 import { DeviceState } from '../../../../src/domain/device-monitoring/aggregates/DeviceState';
 import { DeviceStateProps } from '../../../../src/domain/device-monitoring/props/DeviceStateProps';
+import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository';
+import {
+  Device,
+  DeviceEligibilityService,
+  DeviceName,
+  DeviceOwnerType,
+  DeviceStatus,
+  SerialNumber
+} from '../../../../src/domain/device-inventory';
+import { DeviceModelId } from '../../../../src/domain/shared';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -66,6 +76,36 @@ function makeDeviceStateRepo(): jest.Mocked<IDeviceStateRepository> {
   return {
     findByDeviceId: jest.fn(),
     save: jest.fn()
+  };
+}
+
+// The eligibility service is pure, so the real one is used rather than a
+// mock — only the device it reads is faked.
+function makeDevice(
+  overrides: Partial<Parameters<typeof Device.reconstitute>[1]> = {}
+): Device {
+  return Device.reconstitute(DeviceId.parse(VALID_DEVICE_UUID).value, {
+    deviceModelId: DeviceModelId.create(),
+    name: DeviceName.create('Core-Router-01').value,
+    status: DeviceStatus.createActive(),
+    ownerType: DeviceOwnerType.COMPANY,
+    locationId: null,
+    category: null,
+    serialNumber: SerialNumber.create('SN-DEFAULT').value,
+    macAddress: null,
+    ipAddress: null,
+    description: null,
+    installedDate: null,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    monitoringEnabled: true,
+    ...overrides
+  });
+}
+
+function makeDeviceRepo(device: Device | null = makeDevice()) {
+  return {
+    findById: jest.fn().mockResolvedValue(Result.ok(device))
   };
 }
 
@@ -130,6 +170,7 @@ describe('ExecutePollingCycleUseCase', () => {
   let pingResultRepo: jest.Mocked<IPingResultRepository>;
   let deviceStateRepo: jest.Mocked<IDeviceStateRepository>;
   let pingService: jest.Mocked<IPingService>;
+  let deviceRepo: ReturnType<typeof makeDeviceRepo>;
   let logger: ILogger;
   let useCase: ExecutePollingCycleUseCase;
 
@@ -138,12 +179,15 @@ describe('ExecutePollingCycleUseCase', () => {
     pingResultRepo = makePingResultRepo();
     deviceStateRepo = makeDeviceStateRepo();
     pingService = makePingService();
+    deviceRepo = makeDeviceRepo();
     logger = makeLogger();
     useCase = new ExecutePollingCycleUseCase(
       configRepo,
       pingResultRepo,
       deviceStateRepo,
       pingService,
+      deviceRepo as unknown as IDeviceRepository,
+      new DeviceEligibilityService(),
       logger,
       0 // no delay between retries in tests
     );
@@ -186,6 +230,95 @@ describe('ExecutePollingCycleUseCase', () => {
   });
 
   // ===========================================================================
+  describe('[DEV-086] executeImpl — device eligibility', () => {
+    function useCaseWithDevice(device: Device | null) {
+      return new ExecutePollingCycleUseCase(
+        configRepo,
+        pingResultRepo,
+        deviceStateRepo,
+        pingService,
+        makeDeviceRepo(device) as unknown as IDeviceRepository,
+        new DeviceEligibilityService(),
+        logger,
+        0
+      );
+    }
+
+    it('should skip a scheduled poll when the device no longer exists', async () => {
+      const result = await useCaseWithDevice(null).execute(makeRequest());
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.status).toBe('SKIPPED');
+      expect(pingService.ping).not.toHaveBeenCalled();
+      expect(configRepo.findByDeviceId).not.toHaveBeenCalled();
+    });
+
+    it('should skip a scheduled poll when the device is retired', async () => {
+      const retired = makeDevice({
+        status: DeviceStatus.createDamaged()
+      });
+
+      const result = await useCaseWithDevice(retired).execute(
+        makeRequest()
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.status).toBe('SKIPPED');
+      expect(pingService.ping).not.toHaveBeenCalled();
+    });
+
+    // Same shape as the disabled-monitoring guard: force does not override the
+    // check, it just turns the silent skip into an answer the caller can read.
+    it('should fail a forced poll of an ineligible device', async () => {
+      const result = await useCaseWithDevice(null).execute(
+        makeRequest({ forceExecution: true })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('no longer exists');
+      expect(pingService.ping).not.toHaveBeenCalled();
+    });
+
+    it('should fail when the device lookup itself fails', async () => {
+      const broken = new ExecutePollingCycleUseCase(
+        configRepo,
+        pingResultRepo,
+        deviceStateRepo,
+        pingService,
+        {
+          findById: jest.fn().mockResolvedValue(Result.fail('DB error'))
+        } as unknown as IDeviceRepository,
+        new DeviceEligibilityService(),
+        logger,
+        0
+      );
+
+      const result = await broken.execute(makeRequest());
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Failed to load device');
+    });
+
+    it('should poll a COMMISSIONING device', async () => {
+      const commissioning = makeDevice({
+        status: DeviceStatus.createCommissioning()
+      });
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+      pingService.ping.mockResolvedValue(
+        Result.ok({ isReachable: true, latencyMs: 10 })
+      );
+
+      const result = await useCaseWithDevice(commissioning).execute(
+        makeRequest()
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(pingService.ping).toHaveBeenCalled();
+    });
+  });
+
   describe('executeImpl — polling config lookup', () => {
     it('should fail when the config repository returns a failure', async () => {
       configRepo.findByDeviceId.mockResolvedValue(Result.fail('DB error'));
@@ -754,6 +887,8 @@ describe('ExecutePollingCycleUseCase', () => {
         pingResultRepo,
         deviceStateRepo,
         pingService,
+        deviceRepo as unknown as IDeviceRepository,
+        new DeviceEligibilityService(),
         logger,
         0,
         probeHealth
@@ -779,6 +914,8 @@ describe('ExecutePollingCycleUseCase', () => {
         pingResultRepo,
         deviceStateRepo,
         pingService,
+        deviceRepo as unknown as IDeviceRepository,
+        new DeviceEligibilityService(),
         logger,
         0,
         probeHealth

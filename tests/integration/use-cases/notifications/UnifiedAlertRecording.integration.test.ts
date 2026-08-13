@@ -2,7 +2,9 @@ import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { OpenAlertUseCase } from 'application/notifications/use-cases/OpenAlertUseCase';
 import { ResolveAlertUseCase } from 'application/notifications/use-cases/ResolveAlertUseCase';
 import { PrismaAlertRepository } from 'infrastructure/persistence/PrismaAlertRepository';
+import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
+import { DeviceEligibilityService } from 'domain/device-inventory/services';
 import { AlertSeverity } from 'domain/shared/enums';
 import {
   cleanDatabase,
@@ -23,7 +25,12 @@ describe('Unified alert recording — integration', () => {
     deviceModelId = await seedDeviceModel(prisma);
     const repo = new PrismaAlertRepository(prisma);
     const logger = new WinstonLogger();
-    openAlert = new OpenAlertUseCase(repo, logger);
+    openAlert = new OpenAlertUseCase(
+      repo,
+      new PrismaDeviceRepository(prisma),
+      new DeviceEligibilityService(),
+      logger
+    );
     resolveAlert = new ResolveAlertUseCase(repo, logger);
   });
 

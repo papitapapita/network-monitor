@@ -184,6 +184,7 @@ import {
   DeviceDetailsUpdatedEvent,
   DeviceDeletedEvent
 } from 'domain/device-inventory/events';
+import { DeviceEligibilityService } from 'domain/device-inventory/services';
 import {
   DeviceWentOfflineEvent,
   DeviceCameOnlineEvent
@@ -216,6 +217,7 @@ import {
   WirelessAlertTriggeredAlertRecordHandler,
   WirelessAlertClearedAlertRecordHandler,
   DeviceDeletedWirelessConfigHandler,
+  DeviceStatusChangedWirelessConfigHandler,
   WirelessSnapshotCreatedThroughputHandler
 } from 'application/wireless-monitoring/event-handlers';
 import {
@@ -564,7 +566,10 @@ export class DependencyContainer {
         this.technicianRepository,
         this.logger
       ),
-      new GetTechnicianUseCase(this.technicianRepository, this.logger),
+      new GetTechnicianUseCase(
+        this.technicianRepository,
+        this.logger
+      ),
       new ListTechniciansUseCase(
         this.technicianRepository,
         this.logger
@@ -809,11 +814,17 @@ export class DependencyContainer {
         resolveAlertUseCase
       );
 
+    // Shared by every guard that has to ask "may we act on this device?" —
+    // the polling cycles, the wireless adapter and the alert use cases below.
+    const deviceEligibilityService = new DeviceEligibilityService();
+
     const executePollingCycleUseCase = new ExecutePollingCycleUseCase(
       this.pollingConfigRepository,
       this.pingResultRepository,
       this.deviceStateRepository,
       pingService,
+      this.deviceRepository,
+      deviceEligibilityService,
       this.logger,
       undefined,
       probeHealthReporter
@@ -877,6 +888,8 @@ export class DependencyContainer {
     const sendDeviceDownAlertUseCase = new SendDeviceDownAlertUseCase(
       this.alertRepository,
       this.pollingConfigRepository,
+      this.deviceRepository,
+      deviceEligibilityService,
       alertPublisher,
       this.logger
     );
@@ -918,6 +931,8 @@ export class DependencyContainer {
     const alertRecorder = new AlertRecorder(
       new OpenAlertUseCase(
         this.alertRepository,
+        this.deviceRepository,
+        deviceEligibilityService,
         this.logger,
         this.ticketOpener
       ),
@@ -959,7 +974,8 @@ export class DependencyContainer {
       new LatencyRule()
     ]);
     const wirelessDeviceRepo = new WirelessDeviceRepositoryAdapter(
-      this.deviceRepository
+      this.deviceRepository,
+      deviceEligibilityService
     );
 
     const pollWirelessDeviceUseCase = new PollWirelessDeviceUseCase(
@@ -1023,6 +1039,7 @@ export class DependencyContainer {
     const updateWirelessConfigUseCase =
       new UpdateWirelessConfigUseCase(
         this.wirelessDeviceConfigRepository,
+        wirelessDeviceRepo,
         this.logger
       );
     const deleteWirelessConfigUseCase =
@@ -1123,11 +1140,10 @@ export class DependencyContainer {
       new PurgeOldWirelessAlertRecordsUseCase(
         this.wirelessAlertRecordRepository
       );
-    const purgeDeletedDevicesUseCase =
-      new PurgeDeletedDevicesUseCase(
-        this.deviceRepository,
-        this.logger
-      );
+    const purgeDeletedDevicesUseCase = new PurgeDeletedDevicesUseCase(
+      this.deviceRepository,
+      this.logger
+    );
 
     const retentionConfig = {
       pingResultRetentionDays: parseInt(
@@ -1217,6 +1233,17 @@ export class DependencyContainer {
     EventDispatcher.register(
       DeviceDeletedEvent.name,
       new DeviceDeletedWirelessConfigHandler(
+        this.wirelessDeviceConfigRepository,
+        this.logger
+      )
+    );
+    // Same split for retirement: SuspendDeviceMonitoringUseCase only disables
+    // the ICMP configuration, so without this a DAMAGED radio keeps being
+    // wireless-polled. Both of these run in the enabling direction too, so a
+    // unit coming back into service resumes where it left off.
+    EventDispatcher.register(
+      DeviceStatusChangedEvent.name,
+      new DeviceStatusChangedWirelessConfigHandler(
         this.wirelessDeviceConfigRepository,
         this.logger
       )

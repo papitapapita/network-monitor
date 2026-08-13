@@ -151,21 +151,24 @@ export class PrismaWirelessDeviceConfigRepository
     try {
       const records = await this.prisma.$queryRaw<RawPollingConfig[]>`
         SELECT
-          id,
-          device_id,
-          ip_address,
-          enabled,
-          interval_secs,
-          device_type,
-          link_capacity_kbps,
-          clients_provisioned_limit,
-          last_polled_at
-        FROM wireless_polling_configurations
-        WHERE enabled = true
-          AND ip_address IS NOT NULL
+          wpc.id,
+          wpc.device_id,
+          wpc.ip_address,
+          wpc.enabled,
+          wpc.interval_secs,
+          wpc.device_type,
+          wpc.link_capacity_kbps,
+          wpc.clients_provisioned_limit,
+          wpc.last_polled_at
+        FROM wireless_polling_configurations wpc
+        JOIN devices d ON d.id = wpc.device_id
+        WHERE wpc.enabled = true
+          AND wpc.ip_address IS NOT NULL
+          AND d.deleted_at IS NULL
+          AND d.status IN ('ACTIVE', 'COMMISSIONING')
           AND (
-            last_polled_at IS NULL
-            OR last_polled_at + (interval_secs || ' seconds')::interval <= ${now}
+            wpc.last_polled_at IS NULL
+            OR wpc.last_polled_at + (wpc.interval_secs || ' seconds')::interval <= ${now}
           )
       `;
 

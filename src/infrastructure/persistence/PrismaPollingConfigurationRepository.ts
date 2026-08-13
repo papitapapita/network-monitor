@@ -66,9 +66,12 @@ export class PrismaPollingConfigurationRepository
         SELECT pc.id, pc.device_id, pc.ip_address, pc.enabled,
                pc.interval_seconds, pc.failures_before_down, pc.last_polled_at
         FROM polling_configurations pc
+        JOIN devices d ON d.id = pc.device_id
         LEFT JOIN device_states ds ON ds.device_id = pc.device_id
         WHERE pc.enabled = true
           AND pc.ip_address IS NOT NULL
+          AND d.deleted_at IS NULL
+          AND d.status IN ('ACTIVE', 'COMMISSIONING')
           AND (
             ds.last_checked_at IS NULL
             OR ds.last_checked_at + (pc.interval_seconds || ' seconds')::interval <= ${now}

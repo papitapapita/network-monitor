@@ -6,6 +6,7 @@ import { PrismaAlertRepository } from 'infrastructure/persistence/PrismaAlertRep
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
 import { PrismaPollingConfigurationRepository } from 'infrastructure/persistence/PrismaPollingConfigurationRepository';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
+import { DeviceEligibilityService } from 'domain/device-inventory/services';
 import {
   cleanDatabase,
   createTestPrisma,
@@ -38,6 +39,8 @@ describe('SendDeviceDownAlertUseCase — integration', () => {
     useCase = new SendDeviceDownAlertUseCase(
       alertRepo,
       pollingConfigRepo,
+      deviceRepo,
+      new DeviceEligibilityService(),
       alertPublisher,
       logger
     );
@@ -67,10 +70,10 @@ describe('SendDeviceDownAlertUseCase — integration', () => {
     });
 
     expect(result.isSuccess).toBe(true);
-    expect(result.value.severity).toBe('CRITICAL');
-    expect(result.value.status).toBe('OPEN');
-    expect(result.value.deviceId).toBe(deviceId);
-    expect(result.value.notifiedAt).not.toBeNull();
+    expect(result.value!.severity).toBe('CRITICAL');
+    expect(result.value!.status).toBe('OPEN');
+    expect(result.value!.deviceId).toBe(deviceId);
+    expect(result.value!.notifiedAt).not.toBeNull();
 
     const row = await prisma.alertEvent.findFirst({ where: { deviceId } });
     expect(row).not.toBeNull();
@@ -114,9 +117,9 @@ describe('SendDeviceDownAlertUseCase — integration', () => {
     });
 
     expect(result.isSuccess).toBe(true);
-    expect(result.value.status).toBe('OPEN');
+    expect(result.value!.status).toBe('OPEN');
     // notifiedAt must be null because send failed
-    expect(result.value.notifiedAt).toBeNull();
+    expect(result.value!.notifiedAt).toBeNull();
 
     const row = await prisma.alertEvent.findFirst({ where: { deviceId } });
     expect(row).not.toBeNull();
@@ -138,7 +141,7 @@ describe('SendDeviceDownAlertUseCase — integration', () => {
     });
 
     expect(second.isSuccess).toBe(true);
-    expect(second.value.id).toBe(first.value.id);
+    expect(second.value!.id).toBe(first.value!.id);
     // No second notification sent for the duplicate call
     expect(fakeNotification.callCount).toBe(0);
 
@@ -167,6 +170,70 @@ describe('SendDeviceDownAlertUseCase — integration', () => {
     expect(result.isSuccess).toBe(true);
     // No polling config → no IP folded into the body detail
     expect(fakeNotification.lastMessage!.body).not.toContain('IP:');
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Device eligibility at dispatch time
+  // ──────────────────────────────────────────────────────────────
+
+  // A poll can still be in flight for a device that was deleted or retired
+  // between the poll and the notification — the polling config is disabled by
+  // a fire-and-forget event handler that may never have run.
+  it('[DEV-087] suppresses the alert for a soft-deleted device', async () => {
+    await prisma.device.update({
+      where: { id: deviceId },
+      data: { deletedAt: new Date(), deletedBy: 'operator' }
+    });
+
+    const result = await useCase.execute({
+      deviceId,
+      consecutiveFailures: 3,
+      occurredAt: new Date()
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value).toBeNull();
+    expect(fakeNotification.callCount).toBe(0);
+
+    const rows = await prisma.alertEvent.findMany({ where: { deviceId } });
+    expect(rows).toHaveLength(0);
+  });
+
+  it('[DEV-087] suppresses the alert for a retired device', async () => {
+    await prisma.device.update({
+      where: { id: deviceId },
+      data: { status: 'DAMAGED', serialNumber: 'SN-RETIRED-1' }
+    });
+
+    const result = await useCase.execute({
+      deviceId,
+      consecutiveFailures: 3,
+      occurredAt: new Date()
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value).toBeNull();
+
+    const rows = await prisma.alertEvent.findMany({ where: { deviceId } });
+    expect(rows).toHaveLength(0);
+  });
+
+  // The flag is the stale cache this guard routes around, so it must not be
+  // what the guard consults.
+  it('[DEV-087] still alerts for an ACTIVE device with monitoring switched off', async () => {
+    await prisma.device.update({
+      where: { id: deviceId },
+      data: { monitoringEnabled: false }
+    });
+
+    const result = await useCase.execute({
+      deviceId,
+      consecutiveFailures: 3,
+      occurredAt: new Date()
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value).not.toBeNull();
   });
 
   // ──────────────────────────────────────────────────────────────

@@ -6,8 +6,63 @@ import { Alert } from '../../../../src/domain/notifications/aggregates/Alert';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
 import { OpenAlertDTO } from '../../../../src/application/notifications/dtos/OpenAlertDTO';
+import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository';
+import {
+  Device,
+  DeviceEligibilityService,
+  DeviceName,
+  DeviceOwnerType,
+  DeviceStatus,
+  SerialNumber
+} from '../../../../src/domain/device-inventory';
+import { DeviceModelId } from '../../../../src/domain/shared';
 
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440080';
+
+// The eligibility service is pure, so the real one is used rather than a
+// mock — only the device it reads is faked.
+function makeDevice(
+  overrides: Partial<Parameters<typeof Device.reconstitute>[1]> = {}
+): Device {
+  return Device.reconstitute(DeviceId.parse(VALID_DEVICE_UUID).value, {
+    deviceModelId: DeviceModelId.create(),
+    name: DeviceName.create('CPE-Vargas').value,
+    status: DeviceStatus.createActive(),
+    ownerType: DeviceOwnerType.COMPANY,
+    locationId: null,
+    category: null,
+    serialNumber: SerialNumber.create('SN-DEFAULT').value,
+    macAddress: null,
+    ipAddress: null,
+    description: null,
+    installedDate: null,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    monitoringEnabled: true,
+    ...overrides
+  });
+}
+
+function makeDeviceRepo(device: Device | null = makeDevice()) {
+  return {
+    findById: jest.fn().mockResolvedValue(Result.ok(device))
+  };
+}
+
+function makeUseCase(
+  repo: IAlertRepository,
+  logger: ILogger,
+  ticketOpener?: { openFromAlert: jest.Mock },
+  deviceRepo = makeDeviceRepo()
+): OpenAlertUseCase {
+  return new OpenAlertUseCase(
+    repo,
+    deviceRepo as unknown as IDeviceRepository,
+    new DeviceEligibilityService(),
+    logger,
+    ticketOpener
+  );
+}
 
 function makeLogger(): ILogger {
   return {
@@ -59,7 +114,7 @@ describe('OpenAlertUseCase', () => {
 
   beforeEach(() => {
     repo = makeAlertRepo();
-    useCase = new OpenAlertUseCase(repo, makeLogger());
+    useCase = makeUseCase(repo, makeLogger());
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -106,6 +161,75 @@ describe('OpenAlertUseCase', () => {
     expect(result.error).toContain('Failed to save alert');
   });
 
+  describe('[DEV-087] device eligibility at dispatch time', () => {
+    it('should record nothing when the device has been deleted', async () => {
+      const logger = makeLogger();
+      const useCaseWithTombstone = makeUseCase(
+        repo,
+        logger,
+        undefined,
+        makeDeviceRepo(null)
+      );
+
+      const result = await useCaseWithTombstone.execute(makeRequest());
+
+      expect(result.isSuccess).toBe(true);
+      expect(repo.save).not.toHaveBeenCalled();
+      expect(repo.findOpenByDeviceAndType).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalled();
+    });
+
+    it('should record nothing when the device has been retired', async () => {
+      const retired = makeDevice({
+        status: DeviceStatus.createDamaged()
+      });
+      const useCaseWithRetired = makeUseCase(
+        repo,
+        makeLogger(),
+        undefined,
+        makeDeviceRepo(retired)
+      );
+
+      const result = await useCaseWithRetired.execute(makeRequest());
+
+      expect(result.isSuccess).toBe(true);
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('should fail when the device cannot be loaded', async () => {
+      const brokenRepo = {
+        findById: jest.fn().mockResolvedValue(Result.fail('db down'))
+      };
+      const useCaseWithBrokenRepo = makeUseCase(
+        repo,
+        makeLogger(),
+        undefined,
+        brokenRepo
+      );
+
+      const result = await useCaseWithBrokenRepo.execute(makeRequest());
+
+      expect(result.isFailure).toBe(true);
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('should not open a ticket for an ineligible device', async () => {
+      const ticketOpener = {
+        openFromAlert: jest.fn().mockResolvedValue(Result.ok())
+      };
+      const useCaseWithTombstone = makeUseCase(
+        repo,
+        makeLogger(),
+        ticketOpener,
+        makeDeviceRepo(null)
+      );
+
+      await useCaseWithTombstone.execute(makeRequest());
+
+      expect(ticketOpener.openFromAlert).not.toHaveBeenCalled();
+    });
+  });
+
   // `Alert` raises no domain events, so this hook is the only seam where a
   // newly recorded alert becomes a work order.
   describe('ticket hook', () => {
@@ -117,7 +241,7 @@ describe('OpenAlertUseCase', () => {
         openFromAlert: jest.fn().mockResolvedValue(Result.ok())
       };
       logger = makeLogger();
-      useCase = new OpenAlertUseCase(repo, logger, ticketOpener);
+      useCase = makeUseCase(repo, logger, ticketOpener);
     });
 
     it('[TKT-113] opens a ticket for a newly recorded alert', async () => {
@@ -209,7 +333,7 @@ describe('OpenAlertUseCase', () => {
     });
 
     it('records the alert normally when no ticket opener is wired in', async () => {
-      const withoutTickets = new OpenAlertUseCase(repo, makeLogger());
+      const withoutTickets = makeUseCase(repo, makeLogger());
 
       const result = await withoutTickets.execute(makeRequest());
 

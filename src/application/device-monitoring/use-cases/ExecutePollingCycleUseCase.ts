@@ -1,6 +1,8 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
+import { IDeviceRepository } from 'domain/device-inventory/repository';
+import { IDeviceEligibilityService } from 'domain/device-inventory/services';
 import { DeviceState } from 'domain/device-monitoring/aggregates';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
@@ -28,6 +30,8 @@ export class ExecutePollingCycleUseCase extends UseCase<
     private readonly pingResultRepo: IPingResultRepository,
     private readonly deviceStateRepo: IDeviceStateRepository,
     private readonly pingService: IPingService,
+    private readonly deviceRepo: IDeviceRepository,
+    private readonly eligibility: IDeviceEligibilityService,
     logger: ILogger,
     private readonly retryDelayMs: number = 1_000,
     private readonly probeHealth: IProbeHealthReporter = NullProbeHealthReporter
@@ -54,6 +58,27 @@ export class ExecutePollingCycleUseCase extends UseCase<
     const deviceId = deviceIdResult.value;
     const { forceExecution = false } = request;
     const now = new Date();
+
+    // Asked of the device itself rather than of the polling config's `enabled`
+    // flag, which only reflects what an event handler managed to write. Same
+    // shape as that guard: forceExecution does not override it — a deleted or
+    // retired unit is not something a manual poll should reach either — but it
+    // does turn the silent skip into an answer the caller can read.
+    const ineligibleReason =
+      await this.findIneligibilityReason(deviceId);
+    if (ineligibleReason.isFailure) {
+      return this.fail(ineligibleReason.error);
+    }
+    if (ineligibleReason.value !== null) {
+      if (forceExecution) {
+        return this.fail(
+          `Cannot poll device ${deviceId} — ${ineligibleReason.value}`
+        );
+      }
+      return this.ok(
+        PollingMapper.toSkippedResultDTO(deviceId.toString(), now)
+      );
+    }
 
     const configResult =
       await this.pollingConfigRepo.findByDeviceId(deviceId);
@@ -211,6 +236,26 @@ export class ExecutePollingCycleUseCase extends UseCase<
         timestamp: now
       })
     );
+  }
+
+  // Returns null when the device may be polled, or the reason it may not.
+  private async findIneligibilityReason(
+    deviceId: DeviceId
+  ): Promise<Result<string | null>> {
+    const deviceResult = await this.deviceRepo.findById(deviceId);
+    if (deviceResult.isFailure) {
+      return Result.fail(
+        `Failed to load device: ${deviceResult.error}`
+      );
+    }
+
+    // findById hides soft-deleted rows, so a tombstone arrives as null.
+    if (deviceResult.value === null) {
+      return Result.ok('the device no longer exists');
+    }
+
+    const decision = this.eligibility.canPoll(deviceResult.value);
+    return Result.ok(decision.eligible ? null : decision.message);
   }
 
   // The probe never ran, so device status is unknown and must not be rewritten.

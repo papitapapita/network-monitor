@@ -222,8 +222,17 @@ current value back is not that. Emitting on every write would make the event
 stream unusable for anything that reacts to the transition.
 
 **Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts:92` (`enable`), `:108` (`disable`)
-**Reached from:** `UpdateWirelessConfigUseCase.ts:229`
+**Reached from:** `UpdateWirelessConfigUseCase.ts:229`, and since 2026-08-13 two
+device-inventory event handlers in this context —
+`DeviceDeletedWirelessConfigHandler` (DEV-072) and
+`DeviceStatusChangedWirelessConfigHandler` (DEV-089)
 **Tests:** `tests/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.test.ts`, `tests/domain/wireless-monitoring/events/WirelessDeviceConfigToggled.test.ts`
+
+**Related:** the `enabled` flag is no longer set only by an operator. Retiring a
+device disables it, and commissioning one re-enables it, per
+[DEV-089](device-inventory.md) — the idempotence above is what makes those
+handlers safe to re-run after a failed dispatch. Enabling through this use case
+is now guarded on device eligibility (DEV-088/DEV-089); disabling never is.
 
 ### WLS-009 — The polling IP address is the configuration's, not the device's
 

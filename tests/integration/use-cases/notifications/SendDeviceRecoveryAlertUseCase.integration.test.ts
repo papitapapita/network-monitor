@@ -7,6 +7,7 @@ import { PrismaAlertRepository } from 'infrastructure/persistence/PrismaAlertRep
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
 import { PrismaPollingConfigurationRepository } from 'infrastructure/persistence/PrismaPollingConfigurationRepository';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
+import { DeviceEligibilityService } from 'domain/device-inventory/services';
 import {
   cleanDatabase,
   createTestPrisma,
@@ -40,6 +41,8 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
     downUseCase = new SendDeviceDownAlertUseCase(
       alertRepo,
       pollingConfigRepo,
+      deviceRepo,
+      new DeviceEligibilityService(),
       alertPublisher,
       logger
     );
@@ -76,7 +79,7 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
     fakeNotification.reset();
 
     // Resolve 5 minutes after the alert's actual startedAt
-    const alertStartedAt = new Date(downResult.value.startedAt);
+    const alertStartedAt = new Date(downResult.value!.startedAt);
     const recoveredAt = new Date(alertStartedAt.getTime() + 300 * 1000);
 
     const result = await recoveryUseCase.execute({
@@ -106,7 +109,7 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
     fakeNotification.reset();
 
     // Resolve 1 hour after the alert's actual startedAt
-    const alertStartedAt = new Date(downResult.value.startedAt);
+    const alertStartedAt = new Date(downResult.value!.startedAt);
     const recoveredAt = new Date(alertStartedAt.getTime() + 3600 * 1000);
 
     await recoveryUseCase.execute({
@@ -188,6 +191,35 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
     const msg = fakeNotification.lastMessage!;
     // null latency renders as N/A in the body detail
     expect(msg.body).toContain('N/A');
+  });
+
+  // Only the alert-opening path is gated on device eligibility. Gating this
+  // one too would strand an alert raised while the device was still live:
+  // permanently OPEN on a device no read path can see.
+  it('[DEV-087] still resolves an alert opened before the device was deleted', async () => {
+    const downResult = await downUseCase.execute({
+      deviceId,
+      consecutiveFailures: 3,
+      occurredAt: new Date()
+    });
+    expect(downResult.value).not.toBeNull();
+
+    await prisma.device.update({
+      where: { id: deviceId },
+      data: { deletedAt: new Date(), deletedBy: 'operator' }
+    });
+
+    const result = await recoveryUseCase.execute({
+      deviceId,
+      latencyMs: 12,
+      occurredAt: new Date()
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.status).toBe('RESOLVED');
+
+    const row = await prisma.alertEvent.findFirst({ where: { deviceId } });
+    expect(row!.resolvedAt).not.toBeNull();
   });
 
   // ──────────────────────────────────────────────────────────────

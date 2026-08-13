@@ -4,8 +4,13 @@ import { Alert } from 'domain/notifications/aggregates';
 import { AlertSeverity } from 'domain/shared/enums';
 import { IAlertRepository } from 'domain/notifications/repository';
 import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
+import { IDeviceRepository } from 'domain/device-inventory/repository';
+import { IDeviceEligibilityService } from 'domain/device-inventory/services';
 import { UseCase } from 'application/shared/core';
-import { ILogger, IAlertPublisher } from 'application/shared/interfaces';
+import {
+  ILogger,
+  IAlertPublisher
+} from 'application/shared/interfaces';
 import { AlertMapper } from '../mappers';
 import { AlertResponseDTO, SendDeviceDownAlertDTO } from '../dtos';
 
@@ -15,11 +20,13 @@ const ALERT_TYPE = 'device_unreachable';
 
 export class SendDeviceDownAlertUseCase extends UseCase<
   SendDeviceDownAlertDTO,
-  AlertResponseDTO
+  AlertResponseDTO | null
 > {
   constructor(
     private readonly alertRepository: IAlertRepository,
     private readonly pollingConfigRepository: IPollingConfigurationRepository,
+    private readonly deviceRepository: IDeviceRepository,
+    private readonly eligibility: IDeviceEligibilityService,
     private readonly alertPublisher: IAlertPublisher,
     logger: ILogger
   ) {
@@ -40,12 +47,20 @@ export class SendDeviceDownAlertUseCase extends UseCase<
 
   protected async executeImpl(
     request: SendDeviceDownAlertDTO
-  ): Promise<Result<AlertResponseDTO>> {
+  ): Promise<Result<AlertResponseDTO | null>> {
     const deviceIdResult = DeviceId.parse(request.deviceId);
     if (deviceIdResult.isFailure) {
       return this.fail(`Invalid device ID: ${deviceIdResult.error}`);
     }
     const deviceId = deviceIdResult.value;
+
+    const eligible = await this.isDeviceStillAlertable(deviceId);
+    if (eligible.isFailure) {
+      return this.fail(eligible.error);
+    }
+    if (!eligible.value) {
+      return this.ok(null);
+    }
 
     const existingResult =
       await this.alertRepository.findOpenByDeviceAndType(
@@ -112,6 +127,47 @@ export class SendDeviceDownAlertUseCase extends UseCase<
     }
 
     return this.ok(AlertMapper.toDTO(saveResult.value));
+  }
+
+  // Polling selects devices off a flag an event handler was supposed to have
+  // cleared, and dispatch is fire-and-forget — so a poll can still fail for a
+  // device that was deleted or retired days ago. Re-reading the aggregate at
+  // dispatch time is the check that cannot go stale. Only the opening path is
+  // gated; recovery stays open so an alert raised while the device was live
+  // can still be resolved.
+  private async isDeviceStillAlertable(
+    deviceId: DeviceId
+  ): Promise<Result<boolean>> {
+    const deviceResult =
+      await this.deviceRepository.findById(deviceId);
+    if (deviceResult.isFailure) {
+      return Result.fail(
+        `Failed to load device for alert: ${deviceResult.error}`
+      );
+    }
+
+    // findById hides soft-deleted rows, so a tombstone arrives as null.
+    if (deviceResult.value === null) {
+      this.logger.warn(
+        'Suppressed a device-down alert for a device that no longer exists',
+        { deviceId: deviceId.toString() }
+      );
+      return Result.ok(false);
+    }
+
+    const decision = this.eligibility.canAlert(deviceResult.value);
+    if (!decision.eligible) {
+      this.logger.warn(
+        'Suppressed a device-down alert for an ineligible device',
+        {
+          deviceId: deviceId.toString(),
+          reason: decision.reason
+        }
+      );
+      return Result.ok(false);
+    }
+
+    return Result.ok(true);
   }
 
   private async resolveIpAddress(

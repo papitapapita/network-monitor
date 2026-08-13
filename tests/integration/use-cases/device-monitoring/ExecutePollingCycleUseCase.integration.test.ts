@@ -5,6 +5,8 @@ import { PrismaPollingConfigurationRepository } from 'infrastructure/persistence
 import { PrismaPingResultRepository } from 'infrastructure/persistence/PrismaPingResultRepository';
 import { PrismaDeviceStateRepository } from 'infrastructure/persistence/PrismaDeviceStateRepository';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
+import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
+import { DeviceEligibilityService } from 'domain/device-inventory/services';
 import {
   setupDependencies,
   DependencyContainer
@@ -44,6 +46,8 @@ describe('ExecutePollingCycleUseCase — integration', () => {
       pingResultRepo,
       deviceStateRepo,
       fakePing,
+      new PrismaDeviceRepository(prisma),
+      new DeviceEligibilityService(),
       logger,
       0 // no delay between retries in tests
     );

@@ -8,6 +8,8 @@ import { PrismaPingResultRepository } from 'infrastructure/persistence/PrismaPin
 import { PrismaDeviceStateRepository } from 'infrastructure/persistence/PrismaDeviceStateRepository';
 import { PrismaAlertRepository } from 'infrastructure/persistence/PrismaAlertRepository';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
+import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
+import { DeviceEligibilityService } from 'domain/device-inventory/services';
 import { DeviceId } from 'domain/shared/ids/DeviceId';
 import {
   setupDependencies,
@@ -47,6 +49,8 @@ describe('SuspendDeviceMonitoringUseCase — integration', () => {
       pingResultRepo,
       deviceStateRepo,
       fakePing,
+      new PrismaDeviceRepository(prisma),
+      new DeviceEligibilityService(),
       logger,
       0
     );

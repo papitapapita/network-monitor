@@ -74,17 +74,33 @@ function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
   };
 }
 
+// null = eligible; tests override to assert the enable guard.
+function makeDeviceRepo(ineligibleReason: string | null = null) {
+  return {
+    findIdByMacAddress: jest.fn().mockResolvedValue(Result.ok(null)),
+    findWirelessIneligibilityReason: jest
+      .fn()
+      .mockResolvedValue(Result.ok(ineligibleReason))
+  };
+}
+
 // ---------------------------------------------------------------------------
 
 describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
   let configRepo: jest.Mocked<IWirelessDeviceConfigRepository>;
+  let deviceRepo: ReturnType<typeof makeDeviceRepo>;
   let logger: jest.Mocked<ILogger>;
   let useCase: UpdateWirelessConfigUseCase;
 
   beforeEach(() => {
     configRepo = makeConfigRepo();
+    deviceRepo = makeDeviceRepo();
     logger = makeLogger();
-    useCase = new UpdateWirelessConfigUseCase(configRepo, logger);
+    useCase = new UpdateWirelessConfigUseCase(
+      configRepo,
+      deviceRepo,
+      logger
+    );
   });
 
   afterEach(() => {
@@ -266,6 +282,99 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.enabled).toBe(true);
+    });
+  });
+
+  // ===========================================================================
+  // ===========================================================================
+  describe('[DEV-089] executeImpl — enabling requires an eligible device', () => {
+    function useCaseWithBlocker(reason: string | null) {
+      deviceRepo = makeDeviceRepo(reason);
+      return new UpdateWirelessConfigUseCase(
+        configRepo,
+        deviceRepo,
+        logger
+      );
+    }
+
+    it('should refuse to enable polling on a retired device', async () => {
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig({ enabled: false }))
+      );
+      const guarded = useCaseWithBlocker(
+        'Device is DAMAGED and is not polled'
+      );
+
+      const result = await guarded.execute({
+        deviceId: VALID_DEVICE_UUID,
+        enabled: true
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Cannot enable wireless polling');
+      expect(configRepo.save).not.toHaveBeenCalled();
+    });
+
+    // Turning polling off must never be blocked — that direction is always safe.
+    it('should allow disabling polling on a retired device', async () => {
+      const config = makeConfig({ enabled: true });
+      configRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      configRepo.save.mockResolvedValue(Result.ok(config));
+      const guarded = useCaseWithBlocker(
+        'Device is DAMAGED and is not polled'
+      );
+
+      const result = await guarded.execute({
+        deviceId: VALID_DEVICE_UUID,
+        enabled: false
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(configRepo.save).toHaveBeenCalledTimes(1);
+    });
+
+    // Other fields stay editable — correcting an IP in the workshop is harmless.
+    it('should not consult eligibility when enabled is not being set', async () => {
+      const config = makeConfig();
+      configRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      configRepo.save.mockResolvedValue(Result.ok(config));
+      const guarded = useCaseWithBlocker(
+        'Device is DAMAGED and is not polled'
+      );
+
+      const result = await guarded.execute({
+        deviceId: VALID_DEVICE_UUID,
+        intervalSecs: 120
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(
+        deviceRepo.findWirelessIneligibilityReason
+      ).not.toHaveBeenCalled();
+    });
+
+    it('should fail when the eligibility check itself fails', async () => {
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig({ enabled: false }))
+      );
+      deviceRepo = makeDeviceRepo();
+      deviceRepo.findWirelessIneligibilityReason.mockResolvedValue(
+        Result.fail('DB error')
+      );
+      const guarded = new UpdateWirelessConfigUseCase(
+        configRepo,
+        deviceRepo,
+        logger
+      );
+
+      const result = await guarded.execute({
+        deviceId: VALID_DEVICE_UUID,
+        enabled: true
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('eligibility');
+      expect(configRepo.save).not.toHaveBeenCalled();
     });
   });
 

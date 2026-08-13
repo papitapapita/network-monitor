@@ -12,6 +12,16 @@ import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
 import { SendDeviceDownAlertDTO } from '../../../../src/application/notifications/dtos/SendDeviceDownAlertDTO';
 import { PollingConfiguration } from '../../../../src/domain/device-monitoring/entities/PollingConfiguration';
+import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository';
+import {
+  Device,
+  DeviceEligibilityService,
+  DeviceName,
+  DeviceOwnerType,
+  DeviceStatus,
+  SerialNumber
+} from '../../../../src/domain/device-inventory';
+import { DeviceModelId } from '../../../../src/domain/shared';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -92,6 +102,36 @@ function makeOpenAlert(): Alert {
   });
 }
 
+// The eligibility service is pure, so the real one is used rather than a
+// mock — only the device it reads is faked.
+function makeDevice(
+  overrides: Partial<Parameters<typeof Device.reconstitute>[1]> = {}
+): Device {
+  return Device.reconstitute(DeviceId.parse(VALID_DEVICE_UUID).value, {
+    deviceModelId:     DeviceModelId.create(),
+    name:              DeviceName.create('CPE-Vargas').value,
+    status:            DeviceStatus.createActive(),
+    ownerType:         DeviceOwnerType.COMPANY,
+    locationId:        null,
+    category:          null,
+    serialNumber:      SerialNumber.create('SN-DEFAULT').value,
+    macAddress:        null,
+    ipAddress:         null,
+    description:       null,
+    installedDate:     null,
+    createdAt:         FIXED_DATE,
+    updatedAt:         FIXED_DATE,
+    monitoringEnabled: true,
+    ...overrides
+  });
+}
+
+function makeDeviceRepo(device: Device | null = makeDevice()) {
+  return {
+    findById: jest.fn().mockResolvedValue(Result.ok(device))
+  };
+}
+
 /** Minimal fake polling config stub (only the field the use case reads). */
 function makePollingConfig(ip = '192.168.1.1'): PollingConfiguration {
   return { ipAddress: { value: ip } } as unknown as PollingConfiguration;
@@ -103,20 +143,30 @@ describe('SendDeviceDownAlertUseCase', () => {
   let alertRepo:         jest.Mocked<IAlertRepository>;
   let pollingConfigRepo: jest.Mocked<IPollingConfigurationRepository>;
   let alertPublisher:    jest.Mocked<IAlertPublisher>;
+  let deviceRepo:        ReturnType<typeof makeDeviceRepo>;
   let logger:            ILogger;
   let useCase:           SendDeviceDownAlertUseCase;
+
+  function buildUseCase(
+    repo = deviceRepo
+  ): SendDeviceDownAlertUseCase {
+    return new SendDeviceDownAlertUseCase(
+      alertRepo,
+      pollingConfigRepo,
+      repo as unknown as IDeviceRepository,
+      new DeviceEligibilityService(),
+      alertPublisher,
+      logger
+    );
+  }
 
   beforeEach(() => {
     alertRepo         = makeAlertRepo();
     pollingConfigRepo = makePollingConfigRepo();
     alertPublisher    = makeAlertPublisher();
+    deviceRepo        = makeDeviceRepo();
     logger            = makeLogger();
-    useCase = new SendDeviceDownAlertUseCase(
-      alertRepo,
-      pollingConfigRepo,
-      alertPublisher,
-      logger
-    );
+    useCase = buildUseCase();
   });
 
   afterEach(() => {
@@ -166,6 +216,53 @@ describe('SendDeviceDownAlertUseCase', () => {
   });
 
   // ===========================================================================
+  describe('[DEV-087] executeImpl — device eligibility at dispatch time', () => {
+    it('should suppress the alert when the device has been deleted', async () => {
+      const suppressed = buildUseCase(makeDeviceRepo(null));
+
+      const result = await suppressed.execute(makeRequest());
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value).toBeNull();
+      expect(alertRepo.save).not.toHaveBeenCalled();
+      expect(alertPublisher.publish).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalled();
+    });
+
+    it('should suppress the alert when the device has been retired', async () => {
+      const suppressed = buildUseCase(
+        makeDeviceRepo(makeDevice({ status: DeviceStatus.createDamaged() }))
+      );
+
+      const result = await suppressed.execute(makeRequest());
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value).toBeNull();
+      expect(alertRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('should not even look for an existing alert when suppressed', async () => {
+      const suppressed = buildUseCase(makeDeviceRepo(null));
+
+      await suppressed.execute(makeRequest());
+
+      expect(alertRepo.findOpenByDeviceAndType).not.toHaveBeenCalled();
+    });
+
+    it('should fail when the device lookup itself fails', async () => {
+      const broken = buildUseCase({
+        findById: jest.fn().mockResolvedValue(Result.fail('db down'))
+      });
+
+      const result = await broken.execute(makeRequest());
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Failed to load device for alert');
+      expect(alertRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  // ===========================================================================
   describe('executeImpl — existing open alert', () => {
     it('should return the existing open alert DTO without creating a new one', async () => {
       const existing = makeOpenAlert();
@@ -173,7 +270,7 @@ describe('SendDeviceDownAlertUseCase', () => {
 
       const result = await useCase.execute(makeRequest());
       expect(result.isSuccess).toBe(true);
-      expect(result.value.id).toBe(VALID_ALERT_UUID);
+      expect(result.value?.id).toBe(VALID_ALERT_UUID);
     });
 
     it('should not call alertRepository.save when an open alert already exists', async () => {
@@ -207,7 +304,7 @@ describe('SendDeviceDownAlertUseCase', () => {
     it('should return a successful DTO with status OPEN', async () => {
       const result = await useCase.execute(makeRequest());
       expect(result.isSuccess).toBe(true);
-      expect(result.value.status).toBe('OPEN');
+      expect(result.value?.status).toBe('OPEN');
     });
 
     it('should call alertRepository.save exactly once', async () => {

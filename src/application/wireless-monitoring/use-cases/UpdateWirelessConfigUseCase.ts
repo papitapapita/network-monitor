@@ -5,6 +5,7 @@ import { PollingInterval } from 'domain/wireless-monitoring/value-objects';
 import { IWirelessDeviceConfigRepository } from 'domain/wireless-monitoring/repository';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
+import { IDeviceRepository } from '../interfaces';
 import {
   UpdateWirelessConfigRequestDTO,
   WirelessConfigResponseDTO
@@ -17,6 +18,7 @@ export class UpdateWirelessConfigUseCase extends UseCase<
 > {
   constructor(
     private readonly configRepo: IWirelessDeviceConfigRepository,
+    private readonly deviceRepo: IDeviceRepository,
     logger: ILogger
   ) {
     super(logger, 'UpdateWirelessConfigUseCase');
@@ -67,6 +69,25 @@ export class UpdateWirelessConfigUseCase extends UseCase<
 
     // enable/disable use domain methods so the toggle event is raised
     if (updates.enabled === true) {
+      // Only the enabling direction is guarded. Turning polling off is always
+      // allowed, and every other field stays editable on a retired device —
+      // correcting an IP on something in the workshop is harmless. Without
+      // this, a form that PATCHes the whole config back would silently undo
+      // the suspension a retirement had applied (DEV-089).
+      const ineligibleReason =
+        await this.deviceRepo.findWirelessIneligibilityReason(
+          deviceId
+        );
+      if (ineligibleReason.isFailure) {
+        return this.fail(
+          `Failed to check device eligibility: ${ineligibleReason.error}`
+        );
+      }
+      if (ineligibleReason.value !== null) {
+        return this.fail(
+          `Cannot enable wireless polling — ${ineligibleReason.value}`
+        );
+      }
       config.enable();
     } else if (updates.enabled === false) {
       config.disable();
