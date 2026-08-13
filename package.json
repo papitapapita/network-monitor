@@ -13,6 +13,7 @@
     "start": "node --env-file=.env.production dist/main.js",
     "test": "jest",
     "test:watch": "jest --watch",
+    "test:timing": "RUN_TIMING_TESTS=true jest tests/application/shared/core/UseCase.test.ts",
     "test:rules": "node scripts/check-rule-coverage.mjs",
     "test:rules:groups": "node scripts/check-rule-coverage.mjs --by-group",
     "test:rules:dev": "node scripts/check-rule-coverage.mjs DEV",
