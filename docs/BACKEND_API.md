@@ -554,6 +554,25 @@ change above, `PATCH /api/devices/:id` with `monitoringEnabled: false`, and
 4. Any **open `device_unreachable` alert is resolved**, and **no resolution notification is sent** — the device was not fixed, it just stopped being watched.
 5. Ping history is untouched; only the 30-day retention purge removes it.
 
+**Wireless polling follows the _status_ trigger only (since 2026-08-13).** Moving
+a device to a retired status now also disables its `WirelessDeviceConfig`, so
+`GET /api/devices/:id/wireless/config` will report an `enabled: false` you did
+not set. The config is disabled, never deleted, so `intervalSecs` and
+`linkCapacityKbps` survive and resuming is one `PATCH`.
+
+Resuming is deliberately narrow, matching ICMP: **only a move to
+`COMMISSIONING` turns wireless polling back on.** Restoring a device from the
+recycle bin does not, and neither does going straight from a retired status to
+`ACTIVE` — the same as `monitoringEnabled`, which `restore()` leaves off. After
+either, the operator turns polling back on explicitly.
+
+> ⚠ The other two triggers in this section do **not** touch wireless.
+> `PATCH /api/devices/:id` with `monitoringEnabled: false` and
+> `PATCH /api/devices/:id/polling/config` with `enabled: false` stop ICMP only —
+> an `ACTIVE` device paused in the UI keeps collecting wireless snapshots. To
+> stop wireless explicitly, send `PATCH /api/devices/:id/wireless/config` with
+> `enabled: false`.
+
 > **Frontend:** `UNKNOWN` no longer means only "never polled". It now also means
 > "monitoring is off", which is the common case. Render it as a neutral/grey
 > "not monitored" state rather than a warning — and read `pollingEnabled` to tell
@@ -1384,6 +1403,8 @@ interface AlertDTO {
 > `details` is a free-form JSON bag, easy to render but not queryable server-side — filter/sort in the frontend, don't expect a backend query param for its inner keys.  
 > **Not the same as `/api/devices/:id/wireless/alerts`** (`WirelessAlertDTO`): those remain the live, per-poll wireless view. This `/api/alerts` list is the **persisted, cross-context record** — a wireless problem appears in both.
 
+> **No new alerts are recorded for a device that is deleted, replaced or retired (since 2026-08-13).** The device is re-read at the moment the alert would be written, so a device deleted between the failed poll and the notification produces no alert row, no notification and no ticket. Existing alerts are unaffected: one opened while the device was still live can still be resolved and will keep appearing here. Expect fewer rows after a deletion, not a gap in history.
+
 ### `GET /api/alerts` — List
 
 **Status:** 200
@@ -1673,6 +1694,8 @@ there rather than assuming it.
 ```
 
 > Returns 404 if no config exists for this device — use `POST` to create it first.  
+> **`enabled` is not yours alone (since 2026-08-13).** The backend turns it off when the device is retired or deleted, and back on when the device is commissioned — see [What "monitoring stopped" does](#stopping-monitoring). A toggle bound to this field can therefore change without the operator touching it; re-read the config after any status change rather than assuming your last write still holds.  
+> **`enabled: true` returns `400` for a device that cannot be polled** — deleted, replaced, retired, or not a `WIRELESS_CPE`/`ACCESS_POINT`. The message names the reason. `enabled: false` is never blocked, and every other field stays editable on a retired device, so a "save" that PATCHes the whole config back will fail rather than silently undoing a retirement.  
 > The STATION / ACCESS_POINT check here runs against the config's **stored** `deviceType` — the value derived from the device's category at creation. The two can no longer drift apart: while this config exists, `PATCH /api/devices/:id` refuses to change the device's category at all. If the role really changed, delete this config, recategorise the device, then create it again.
 
 ---
