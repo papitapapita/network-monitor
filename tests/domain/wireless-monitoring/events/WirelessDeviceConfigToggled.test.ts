@@ -2,7 +2,10 @@
 
 import { WirelessDeviceConfigToggledEvent } from '../../../../src/domain/wireless-monitoring/events/WirelessDeviceConfigToggled';
 import { WirelessDeviceConfigToggledEventProps } from '../../../../src/domain/wireless-monitoring/props/WirelessDeviceConfigToggledEventProps';
-import { WirelessDeviceConfigId, DeviceId } from '../../../../src/domain/shared/ids';
+import {
+  WirelessDeviceConfigId,
+  DeviceId
+} from '../../../../src/domain/shared/ids';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -18,7 +21,7 @@ function makeEvent(
     deviceId: DeviceId.create(),
     enabled: true,
     dateTimeOccurred: FIXED_DATE,
-    ...overrides,
+    ...overrides
   });
 }
 
@@ -36,7 +39,11 @@ describe('[WLS-008] WirelessDeviceConfigToggledEvent', () => {
   // -------------------------------------------------------------------------
   describe('constructor', () => {
     it('should create an event with all props accessible via getters', () => {
-      const event = makeEvent({ aggregateId, deviceId, enabled: true });
+      const event = makeEvent({
+        aggregateId,
+        deviceId,
+        enabled: true
+      });
 
       expect(event.aggregateId).toBe(aggregateId);
       expect(event.deviceId).toBe(deviceId);
@@ -51,7 +58,9 @@ describe('[WLS-008] WirelessDeviceConfigToggledEvent', () => {
       const event = makeEvent();
 
       expect(
-        Object.isFrozen((event as unknown as { props: unknown }).props)
+        Object.isFrozen(
+          (event as unknown as { props: unknown }).props
+        )
       ).toBe(true);
     });
 
@@ -59,7 +68,9 @@ describe('[WLS-008] WirelessDeviceConfigToggledEvent', () => {
       const event = makeEvent({ enabled: true });
 
       expect(() => {
-        (event as unknown as { props: { enabled: boolean } }).props.enabled = false;
+        (
+          event as unknown as { props: { enabled: boolean } }
+        ).props.enabled = false;
       }).toThrow();
     });
 
@@ -67,7 +78,9 @@ describe('[WLS-008] WirelessDeviceConfigToggledEvent', () => {
       const event = makeEvent();
 
       expect(() => {
-        (event as unknown as { props: Record<string, unknown> }).props.extra = 'value';
+        (
+          event as unknown as { props: Record<string, unknown> }
+        ).props.extra = 'value';
       }).toThrow();
     });
 
@@ -76,7 +89,7 @@ describe('[WLS-008] WirelessDeviceConfigToggledEvent', () => {
         aggregateId: WirelessDeviceConfigId.create(),
         deviceId: DeviceId.create(),
         enabled: true,
-        dateTimeOccurred: FIXED_DATE,
+        dateTimeOccurred: FIXED_DATE
       };
       const event = new WirelessDeviceConfigToggledEvent(props);
 
@@ -151,7 +164,9 @@ describe('[WLS-008] WirelessDeviceConfigToggledEvent', () => {
     it('should contain the event class name', () => {
       const event = makeEvent();
 
-      expect(event.toString()).toContain('WirelessDeviceConfigToggledEvent');
+      expect(event.toString()).toContain(
+        'WirelessDeviceConfigToggledEvent'
+      );
     });
 
     it('should contain the aggregate ID string value', () => {
@@ -191,7 +206,9 @@ describe('[WLS-008] WirelessDeviceConfigToggledEvent', () => {
       const event1 = makeEvent({ dateTimeOccurred: earlier });
       const event2 = makeEvent({ dateTimeOccurred: later });
 
-      expect(event2.dateTimeOccurred.getTime()).toBeGreaterThan(event1.dateTimeOccurred.getTime());
+      expect(event2.dateTimeOccurred.getTime()).toBeGreaterThan(
+        event1.dateTimeOccurred.getTime()
+      );
     });
   });
 });

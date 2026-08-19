@@ -98,12 +98,16 @@ describe('PrismaDeviceModelRepository', () => {
 
       it('should map vendorName from the vendor join', async () => {
         prisma.deviceModel.findUnique.mockResolvedValue(
-          makeRawRow({ vendor: { name: 'Ubiquiti', slug: 'ubiquiti' } })
+          makeRawRow({
+            vendor: { name: 'Ubiquiti', slug: 'ubiquiti' }
+          })
         );
 
         const result = await repository.findById(validId);
 
-        expect((result.value as DeviceModel).vendorName).toBe('Ubiquiti');
+        expect((result.value as DeviceModel).vendorName).toBe(
+          'Ubiquiti'
+        );
       });
 
       it('should map the raw row model field', async () => {
@@ -113,7 +117,9 @@ describe('PrismaDeviceModelRepository', () => {
 
         const result = await repository.findById(validId);
 
-        expect((result.value as DeviceModel).model).toBe('UniFi Switch 24');
+        expect((result.value as DeviceModel).model).toBe(
+          'UniFi Switch 24'
+        );
       });
 
       it('should map the raw row deviceType field', async () => {

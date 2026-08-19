@@ -8,20 +8,23 @@ import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 // ---------------------------------------------------------------------------
 
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
-const FIXED_DATE        = new Date('2024-06-01T10:00:00.000Z');
+const FIXED_DATE = new Date('2024-06-01T10:00:00.000Z');
 
 function makeDeviceId(): DeviceId {
   return DeviceId.parse(VALID_DEVICE_UUID).value;
 }
 
-function makeEvent(overrides: {
-  aggregateId?:      DeviceId;
-  latencyMs?:        number | null;
-  dateTimeOccurred?: Date;
-} = {}): DeviceCameOnlineEvent {
+function makeEvent(
+  overrides: {
+    aggregateId?: DeviceId;
+    latencyMs?: number | null;
+    dateTimeOccurred?: Date;
+  } = {}
+): DeviceCameOnlineEvent {
   return new DeviceCameOnlineEvent({
-    aggregateId:      overrides.aggregateId      ?? makeDeviceId(),
-    latencyMs:        overrides.latencyMs        !== undefined ? overrides.latencyMs : 15,
+    aggregateId: overrides.aggregateId ?? makeDeviceId(),
+    latencyMs:
+      overrides.latencyMs !== undefined ? overrides.latencyMs : 15,
     dateTimeOccurred: overrides.dateTimeOccurred ?? FIXED_DATE
   });
 }
@@ -29,12 +32,11 @@ function makeEvent(overrides: {
 // ---------------------------------------------------------------------------
 
 describe('DeviceCameOnlineEvent', () => {
-
   // ===========================================================================
   describe('getters', () => {
     it('should return the aggregateId supplied in props', () => {
       const deviceId = makeDeviceId();
-      const event    = makeEvent({ aggregateId: deviceId });
+      const event = makeEvent({ aggregateId: deviceId });
 
       expect(event.aggregateId).toBe(deviceId);
     });
@@ -72,7 +74,9 @@ describe('DeviceCameOnlineEvent', () => {
     it('should return the exact timestamp set in props', () => {
       const event = makeEvent({ dateTimeOccurred: FIXED_DATE });
 
-      expect(event.dateTimeOccurred.getTime()).toBe(FIXED_DATE.getTime());
+      expect(event.dateTimeOccurred.getTime()).toBe(
+        FIXED_DATE.getTime()
+      );
     });
   });
 

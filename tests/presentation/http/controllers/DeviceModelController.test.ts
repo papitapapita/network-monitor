@@ -78,7 +78,11 @@ const createMockResponse = (): {
 } => {
   const jsonMock = jest.fn();
   const statusMock = jest.fn().mockReturnValue({ json: jsonMock });
-  return { res: { status: statusMock, json: jsonMock }, statusMock, jsonMock };
+  return {
+    res: { status: statusMock, json: jsonMock },
+    statusMock,
+    jsonMock
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -189,7 +193,10 @@ describe('DeviceModelController', () => {
         await controller.list(mockReq as Request, res as Response);
 
         expect(mockListUseCase.execute).toHaveBeenCalledWith(
-          expect.objectContaining({ limit: undefined, offset: undefined })
+          expect.objectContaining({
+            limit: undefined,
+            offset: undefined
+          })
         );
       });
     });
@@ -221,7 +228,9 @@ describe('DeviceModelController', () => {
         const mockReq = createMockRequest({ query: {} });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockListUseCase.execute as jest.Mock).mockRejectedValue(thrownError);
+        (mockListUseCase.execute as jest.Mock).mockRejectedValue(
+          thrownError
+        );
 
         await controller.list(mockReq as Request, res as Response);
 
@@ -244,7 +253,9 @@ describe('DeviceModelController', () => {
     // -----------------------------------------------------------------------
     describe('Happy Path', () => {
       it('should return 200 with success: true and data when model is found', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -261,7 +272,9 @@ describe('DeviceModelController', () => {
       });
 
       it('should pass req.params.id to the use case', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res } = createMockResponse();
 
         (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -270,14 +283,18 @@ describe('DeviceModelController', () => {
 
         await controller.getById(mockReq as Request, res as Response);
 
-        expect(mockGetUseCase.execute).toHaveBeenCalledWith({ id: VALID_UUID });
+        expect(mockGetUseCase.execute).toHaveBeenCalledWith({
+          id: VALID_UUID
+        });
       });
     });
 
     // -----------------------------------------------------------------------
     describe('Error Path — 404', () => {
       it('should return 404 when the use case fails with "not found"', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res, statusMock } = createMockResponse();
 
         (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -295,7 +312,11 @@ describe('DeviceModelController', () => {
   describe('create (POST /api/device-models)', () => {
     it('should return 201 with success: true on successful create', async () => {
       const mockReq = createMockRequest({
-        body: { vendorId: VENDOR_UUID, model: 'RB760iGS', deviceType: 'ROUTER' }
+        body: {
+          vendorId: VENDOR_UUID,
+          model: 'RB760iGS',
+          deviceType: 'ROUTER'
+        }
       });
       const { res, statusMock, jsonMock } = createMockResponse();
 
@@ -317,7 +338,9 @@ describe('DeviceModelController', () => {
       const { res, statusMock } = createMockResponse();
 
       (mockCreateUseCase.execute as jest.Mock).mockResolvedValue(
-        Result.fail('A device model "RB760iGS" already exists for this vendor')
+        Result.fail(
+          'A device model "RB760iGS" already exists for this vendor'
+        )
       );
 
       await controller.create(mockReq as Request, res as Response);
@@ -329,9 +352,13 @@ describe('DeviceModelController', () => {
   // =========================================================================
   describe('delete (DELETE /api/device-models/:id)', () => {
     it('should return 204 on successful delete', async () => {
-      const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+      const mockReq = createMockRequest({
+        params: { id: VALID_UUID }
+      });
       const sendMock = jest.fn();
-      const res = { status: jest.fn().mockReturnValue({ send: sendMock }) } as any;
+      const res = {
+        status: jest.fn().mockReturnValue({ send: sendMock })
+      } as any;
 
       (mockDeleteUseCase.execute as jest.Mock).mockResolvedValue(
         Result.ok(undefined)
@@ -343,11 +370,15 @@ describe('DeviceModelController', () => {
     });
 
     it('should return 409 when device model has associated devices', async () => {
-      const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+      const mockReq = createMockRequest({
+        params: { id: VALID_UUID }
+      });
       const { res, statusMock } = createMockResponse();
 
       (mockDeleteUseCase.execute as jest.Mock).mockResolvedValue(
-        Result.fail('Cannot delete device model: it has 3 device(s) associated.')
+        Result.fail(
+          'Cannot delete device model: it has 3 device(s) associated.'
+        )
       );
 
       await controller.delete(mockReq as Request, res as Response);

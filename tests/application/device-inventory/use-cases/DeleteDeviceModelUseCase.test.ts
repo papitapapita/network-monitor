@@ -14,7 +14,11 @@ import { IDeviceRepository } from '../../../../src/domain/device-inventory/repos
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { DeviceModel } from '../../../../src/domain/device-inventory/aggregates/DeviceModel';
 import { Device } from '../../../../src/domain/device-inventory/aggregates/Device';
-import { DeviceModelId, VendorId, DeviceId } from '../../../../src/domain/shared/ids';
+import {
+  DeviceModelId,
+  VendorId,
+  DeviceId
+} from '../../../../src/domain/shared/ids';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import {
   DeviceName,
@@ -39,16 +43,19 @@ const NOW = new Date('2024-01-01T00:00:00.000Z');
 // ---------------------------------------------------------------------------
 
 function makeDeviceModel(): DeviceModel {
-  return DeviceModel.reconstitute(DeviceModelId.parse(VALID_UUID).value!, {
-    vendorId: VendorId.parse(VENDOR_UUID).value!,
-    vendorName: 'Mikrotik',
-    vendorSlug: 'mikrotik',
-    model: 'RB760iGS',
-    deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
-    isWireless: false,
-    createdAt: NOW,
-    updatedAt: NOW
-  });
+  return DeviceModel.reconstitute(
+    DeviceModelId.parse(VALID_UUID).value!,
+    {
+      vendorId: VendorId.parse(VENDOR_UUID).value!,
+      vendorName: 'Mikrotik',
+      vendorSlug: 'mikrotik',
+      model: 'RB760iGS',
+      deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
+      isWireless: false,
+      createdAt: NOW,
+      updatedAt: NOW
+    }
+  );
 }
 
 function makeDevice(
@@ -139,13 +146,27 @@ describe('DeleteDeviceModelUseCase', () => {
     deviceModelRepo = makeDeviceModelRepo();
     deviceRepo = makeDeviceRepo();
     logger = makeLogger();
-    useCase = new DeleteDeviceModelUseCase(deviceModelRepo, deviceRepo, logger);
+    useCase = new DeleteDeviceModelUseCase(
+      deviceModelRepo,
+      deviceRepo,
+      logger
+    );
 
-    (deviceModelRepo.findById as any).mockResolvedValue(Result.ok(makeDeviceModel()));
-    (deviceRepo.findByDeviceModel as any).mockResolvedValue(Result.ok([]));
-    (deviceRepo.findByFilters as any).mockResolvedValue(Result.ok([]));
-    (deviceRepo.delete as any).mockResolvedValue(Result.ok(undefined));
-    (deviceModelRepo.delete as any).mockResolvedValue(Result.ok(undefined));
+    (deviceModelRepo.findById as any).mockResolvedValue(
+      Result.ok(makeDeviceModel())
+    );
+    (deviceRepo.findByDeviceModel as any).mockResolvedValue(
+      Result.ok([])
+    );
+    (deviceRepo.findByFilters as any).mockResolvedValue(
+      Result.ok([])
+    );
+    (deviceRepo.delete as any).mockResolvedValue(
+      Result.ok(undefined)
+    );
+    (deviceModelRepo.delete as any).mockResolvedValue(
+      Result.ok(undefined)
+    );
   });
 
   afterEach(() => {
@@ -196,7 +217,9 @@ describe('DeleteDeviceModelUseCase', () => {
   // =========================================================================
   describe('[DEV-029] executeImpl — device model lookup', () => {
     it('should fail when device model is not found', async () => {
-      (deviceModelRepo.findById as any).mockResolvedValue(Result.ok(null));
+      (deviceModelRepo.findById as any).mockResolvedValue(
+        Result.ok(null)
+      );
 
       const result = await useCase.execute({ id: VALID_UUID });
 
@@ -217,7 +240,9 @@ describe('DeleteDeviceModelUseCase', () => {
     });
 
     it('should not call findByDeviceModel when device model is not found', async () => {
-      (deviceModelRepo.findById as any).mockResolvedValue(Result.ok(null));
+      (deviceModelRepo.findById as any).mockResolvedValue(
+        Result.ok(null)
+      );
 
       await useCase.execute({ id: VALID_UUID });
 
@@ -297,7 +322,8 @@ describe('DeleteDeviceModelUseCase', () => {
     it('should ask the bin only for tombstones on this model', async () => {
       await useCase.execute({ id: VALID_UUID });
 
-      const filters = (deviceRepo.findByFilters as any).mock.calls[0][0];
+      const filters = (deviceRepo.findByFilters as any).mock
+        .calls[0][0];
       expect(filters.deleted).toBe('only');
       expect(filters.deviceModelId.toString()).toBe(VALID_UUID);
     });
@@ -309,7 +335,9 @@ describe('DeleteDeviceModelUseCase', () => {
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Cannot delete device model');
-      expect(result.error).toContain('1 device(s) in the recycle bin');
+      expect(result.error).toContain(
+        '1 device(s) in the recycle bin'
+      );
       expect(result.error).toContain('purgeBinnedDevices=true');
     });
 
@@ -412,7 +440,8 @@ describe('DeleteDeviceModelUseCase', () => {
       await useCase.execute({ id: VALID_UUID });
 
       expect(deviceModelRepo.delete).toHaveBeenCalledTimes(1);
-      const calledWith = (deviceModelRepo.delete as any).mock.calls[0][0];
+      const calledWith = (deviceModelRepo.delete as any).mock
+        .calls[0][0];
       expect(calledWith).toBeInstanceOf(DeviceModelId);
       expect(calledWith.toString()).toBe(VALID_UUID);
     });
@@ -425,7 +454,9 @@ describe('DeleteDeviceModelUseCase', () => {
       const result = await useCase.execute({ id: VALID_UUID });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Foreign key constraint violated');
+      expect(result.error).toContain(
+        'Foreign key constraint violated'
+      );
     });
 
     it('should not call delete when findByDeviceModel returns a failure', async () => {

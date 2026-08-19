@@ -1,4 +1,8 @@
-import { ContractedServiceId, ServicePlanId, DeviceId } from 'domain/shared/ids';
+import {
+  ContractedServiceId,
+  ServicePlanId,
+  DeviceId
+} from 'domain/shared/ids';
 import {
   ContractedService,
   ContractedServiceStatus
@@ -107,9 +111,8 @@ export class UpdateContractedServiceUseCase extends UseCase<
       if (cancelled.isFailure) return this.fail(cancelled.error!);
     }
 
-    const saveResult = await this.contractedServiceRepository.save(
-      service
-    );
+    const saveResult =
+      await this.contractedServiceRepository.save(service);
     if (saveResult.isFailure) {
       return this.fail(
         `Failed to persist contracted service: ${saveResult.error}`
@@ -125,7 +128,9 @@ export class UpdateContractedServiceUseCase extends UseCase<
   ): Promise<Result<void>> {
     const planIdResult = ServicePlanId.parse(rawServicePlanId.trim());
     if (planIdResult.isFailure) {
-      return Result.fail(`Invalid servicePlanId: ${planIdResult.error}`);
+      return Result.fail(
+        `Invalid servicePlanId: ${planIdResult.error}`
+      );
     }
 
     const planExists = await this.servicePlanRepository.exists(
@@ -133,7 +138,9 @@ export class UpdateContractedServiceUseCase extends UseCase<
     );
     if (planExists.isFailure) return Result.fail(planExists.error!);
     if (!planExists.value) {
-      return Result.fail(`Service plan not found: ${rawServicePlanId}`);
+      return Result.fail(
+        `Service plan not found: ${rawServicePlanId}`
+      );
     }
 
     return service.changePlan(planIdResult.value);

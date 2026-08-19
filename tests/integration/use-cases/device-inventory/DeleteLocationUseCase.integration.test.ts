@@ -28,7 +28,11 @@ describe('DeleteLocationUseCase — integration', () => {
     const locationRepo = new PrismaLocationRepository(prisma);
     const deviceRepo = new PrismaDeviceRepository(prisma);
     const logger = new WinstonLogger();
-    useCase = new DeleteLocationUseCase(locationRepo, deviceRepo, logger);
+    useCase = new DeleteLocationUseCase(
+      locationRepo,
+      deviceRepo,
+      logger
+    );
   });
 
   afterAll(async () => {

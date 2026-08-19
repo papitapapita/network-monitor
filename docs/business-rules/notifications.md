@@ -737,14 +737,14 @@ reported total will stop after one page.
 **Since:** 2026-08-05 · **Revised:** 2026-08-13
 
 | Endpoint                                 | Permission |
-| ----------------------------------------- | ---------- |
+| ---------------------------------------- | ---------- |
 | `GET /api/alerts`, `GET /api/alerts/:id` | `read`     |
 | `POST /api/alerts/:id/clear`             | `update`   |
 | `POST /api/alerts/clear`                 | `update`   |
 | `DELETE /api/alerts/:id`                 | `delete`   |
 | `DELETE /api/alerts`                     | `delete`   |
 
-There is still no endpoint that *creates* an alert — only the monitoring loops
+There is still no endpoint that _creates_ an alert — only the monitoring loops
 open one. `NOT-037`/`NOT-038` are the client-facing exception to "never
 resolved by hand": clearing was added because an operator manually
 acknowledging a fault is a real workflow, and it reaches `Alert.resolve()`

@@ -37,7 +37,11 @@ describe('GetMapLocationsUseCase — integration', () => {
       locationRepo,
       logger
     );
-    useCase = new GetMapLocationsUseCase(locationRepo, deviceRepo, logger);
+    useCase = new GetMapLocationsUseCase(
+      locationRepo,
+      deviceRepo,
+      logger
+    );
   });
 
   afterAll(async () => {

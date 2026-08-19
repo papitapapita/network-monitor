@@ -52,7 +52,9 @@ describe('DeviceName', () => {
       });
 
       it('should fail when name is undefined', () => {
-        const result = DeviceName.create(undefined as unknown as string);
+        const result = DeviceName.create(
+          undefined as unknown as string
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('name');

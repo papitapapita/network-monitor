@@ -3,7 +3,10 @@ import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import { CustomerMapper } from '../mappers';
-import { ListCustomersQueryDTO, CustomerListResponseDTO } from '../dtos';
+import {
+  ListCustomersQueryDTO,
+  CustomerListResponseDTO
+} from '../dtos';
 
 export class ListCustomersUseCase extends UseCase<
   ListCustomersQueryDTO,

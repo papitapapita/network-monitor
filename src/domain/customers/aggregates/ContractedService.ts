@@ -75,7 +75,10 @@ export class ContractedService extends AggregateRoot<
     const deviceId = props.deviceId ?? null;
 
     // An ACTIVE service must be bonded to a device.
-    if (status === ContractedServiceStatus.ACTIVE && deviceId === null) {
+    if (
+      status === ContractedServiceStatus.ACTIVE &&
+      deviceId === null
+    ) {
       return Result.fail<ContractedService>(
         'Cannot create an ACTIVE contracted service without a device assigned'
       );

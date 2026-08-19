@@ -34,7 +34,10 @@ export class CreateContractedServiceUseCase extends UseCase<
   protected async beforeExecute(
     request: CreateContractedServiceRequestDTO
   ): Promise<Result<void> | null> {
-    if (!request.customerId || request.customerId.trim().length === 0) {
+    if (
+      !request.customerId ||
+      request.customerId.trim().length === 0
+    ) {
       return Result.fail('customerId is required');
     }
     if (
@@ -53,7 +56,9 @@ export class CreateContractedServiceUseCase extends UseCase<
       request.customerId.trim()
     );
     if (customerIdResult.isFailure) {
-      return this.fail(`Invalid customerId: ${customerIdResult.error}`);
+      return this.fail(
+        `Invalid customerId: ${customerIdResult.error}`
+      );
     }
 
     const servicePlanIdResult = ServicePlanId.parse(

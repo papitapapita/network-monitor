@@ -165,7 +165,9 @@ describe('ContractedServiceId', () => {
       });
 
       it('should return a failure Result for a partial UUID', () => {
-        const result = ContractedServiceId.parse('c5228bee-15a8-420c');
+        const result = ContractedServiceId.parse(
+          'c5228bee-15a8-420c'
+        );
 
         expect(result.isFailure).toBe(true);
       });
@@ -232,7 +234,8 @@ describe('ContractedServiceId', () => {
     });
 
     it('should return false when compared to a different UniqueEntityID subclass with the same UUID', () => {
-      const contractedServiceId = ContractedServiceId.parse(VALID_UUID_A).value;
+      const contractedServiceId =
+        ContractedServiceId.parse(VALID_UUID_A).value;
       const testId = TestID.withUuid(VALID_UUID_A);
 
       expect(contractedServiceId.equals(testId)).toBe(false);
@@ -301,7 +304,8 @@ describe('ContractedServiceId', () => {
 
     it('should allow the parsed ID to be compared with a created ID sharing the same UUID', () => {
       const parsedId = ContractedServiceId.parse(VALID_UUID_A).value;
-      const secondParsedId = ContractedServiceId.parse(VALID_UUID_A).value;
+      const secondParsedId =
+        ContractedServiceId.parse(VALID_UUID_A).value;
 
       expect(parsedId.equals(secondParsedId)).toBe(true);
     });

@@ -9,7 +9,12 @@ import {
   setupDependencies,
   DependencyContainer
 } from 'infrastructure/di/container';
-import { cleanCatalog, seedVendor, GHOST_ID, INVALID_ID } from '../../helpers/db';
+import {
+  cleanCatalog,
+  seedVendor,
+  GHOST_ID,
+  INVALID_ID
+} from '../../helpers/db';
 
 describe('CreateDeviceModelUseCase — integration', () => {
   let container: DependencyContainer;
@@ -24,7 +29,11 @@ describe('CreateDeviceModelUseCase — integration', () => {
     const deviceModelRepo = new PrismaDeviceModelRepository(prisma);
     const vendorRepo = new PrismaVendorRepository(prisma);
     const logger = new WinstonLogger();
-    useCase = new CreateDeviceModelUseCase(deviceModelRepo, vendorRepo, logger);
+    useCase = new CreateDeviceModelUseCase(
+      deviceModelRepo,
+      vendorRepo,
+      logger
+    );
   });
 
   afterAll(async () => {
@@ -33,7 +42,10 @@ describe('CreateDeviceModelUseCase — integration', () => {
 
   beforeEach(async () => {
     await cleanCatalog(prisma);
-    vendorId = await seedVendor(prisma, { name: 'MikroTik', slug: 'mikrotik' });
+    vendorId = await seedVendor(prisma, {
+      name: 'MikroTik',
+      slug: 'mikrotik'
+    });
   });
 
   // ──────────────────────────────────────────────────────────────
@@ -111,9 +123,17 @@ describe('CreateDeviceModelUseCase — integration', () => {
   // ──────────────────────────────────────────────────────────────
 
   it('[DEV-022] fails when the same vendorId and model already exist', async () => {
-    await useCase.execute({ vendorId, model: 'hAP ac3', deviceType: 'ROUTER' });
+    await useCase.execute({
+      vendorId,
+      model: 'hAP ac3',
+      deviceType: 'ROUTER'
+    });
 
-    const second = await useCase.execute({ vendorId, model: 'hAP ac3', deviceType: 'ROUTER' });
+    const second = await useCase.execute({
+      vendorId,
+      model: 'hAP ac3',
+      deviceType: 'ROUTER'
+    });
 
     expect(second.isFailure).toBe(true);
     expect(second.error).toMatch(/already exists/i);

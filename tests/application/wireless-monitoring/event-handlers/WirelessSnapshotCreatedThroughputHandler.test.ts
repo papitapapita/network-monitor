@@ -170,7 +170,9 @@ describe('[WLS-146] WirelessSnapshotCreatedThroughputHandler', () => {
   });
 
   it('publishes the reading to both the device and fleet channels', async () => {
-    snapshotRepo.findById.mockResolvedValue(Result.ok(makeSnapshot()));
+    snapshotRepo.findById.mockResolvedValue(
+      Result.ok(makeSnapshot())
+    );
     configRepo.findByDeviceId.mockResolvedValue(
       Result.ok(makeConfig())
     );
@@ -229,7 +231,9 @@ describe('[WLS-146] WirelessSnapshotCreatedThroughputHandler', () => {
         Result.fail('connection reset')
       );
 
-      await expect(handler.handle(makeEvent())).resolves.not.toThrow();
+      await expect(
+        handler.handle(makeEvent())
+      ).resolves.not.toThrow();
 
       expect(hub.publish).not.toHaveBeenCalled();
       expect(logger.warn).toHaveBeenCalled();
@@ -261,7 +265,9 @@ describe('[WLS-146] WirelessSnapshotCreatedThroughputHandler', () => {
     it('swallows an unexpected throw', async () => {
       snapshotRepo.findById.mockRejectedValue(new Error('boom'));
 
-      await expect(handler.handle(makeEvent())).resolves.not.toThrow();
+      await expect(
+        handler.handle(makeEvent())
+      ).resolves.not.toThrow();
 
       expect(logger.error).toHaveBeenCalled();
     });

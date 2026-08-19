@@ -116,7 +116,9 @@ export async function readSseStream(
       req.on('error', reject);
     });
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) =>
+      server.close(() => resolve())
+    );
   }
 }
 

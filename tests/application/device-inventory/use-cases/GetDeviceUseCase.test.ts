@@ -5,9 +5,15 @@ import { IDeviceRepository } from '../../../../src/domain/device-inventory/repos
 import { ILogger } from '../../../../src/application/shared/interfaces';
 import { Result } from '../../../../src/domain/shared/core';
 import { Device } from '../../../../src/domain/device-inventory/aggregates';
-import { DeviceName, DeviceStatus } from '../../../../src/domain/device-inventory/value-objects';
+import {
+  DeviceName,
+  DeviceStatus
+} from '../../../../src/domain/device-inventory/value-objects';
 import { DeviceOwnerType } from '../../../../src/domain/device-inventory/enums';
-import { DeviceId, DeviceModelId } from '../../../../src/domain/shared/ids';
+import {
+  DeviceId,
+  DeviceModelId
+} from '../../../../src/domain/shared/ids';
 import { GetDeviceRequestDTO } from '../../../../src/application/device-inventory/dtos';
 
 // ---------------------------------------------------------------------------
@@ -66,7 +72,9 @@ function makePersistedDevice(
   const status = DeviceStatus.reconstitute(
     overrides.status ?? DeviceStatus.INVENTORY
   );
-  const name = DeviceName.reconstitute(overrides.name ?? 'Core-Router-01');
+  const name = DeviceName.reconstitute(
+    overrides.name ?? 'Core-Router-01'
+  );
 
   return Device.reconstitute(id, {
     deviceModelId: modelId as unknown as DeviceModelId,
@@ -121,7 +129,9 @@ describe('GetDeviceUseCase', () => {
     });
 
     it('should fail when id is whitespace only', async () => {
-      const result = await useCase.execute(makeRequest({ id: '   ' }));
+      const result = await useCase.execute(
+        makeRequest({ id: '   ' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Device ID is required');
@@ -137,7 +147,9 @@ describe('GetDeviceUseCase', () => {
   // =========================================================================
   describe('executeImpl — ID parsing', () => {
     it('should fail when id is not a valid UUID', async () => {
-      const result = await useCase.execute(makeRequest({ id: 'not-a-uuid' }));
+      const result = await useCase.execute(
+        makeRequest({ id: 'not-a-uuid' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid device ID');
@@ -177,7 +189,9 @@ describe('GetDeviceUseCase', () => {
     });
 
     it('should fail when findById returns a failure Result', async () => {
-      repo.findById.mockResolvedValue(Result.fail('DB connection lost'));
+      repo.findById.mockResolvedValue(
+        Result.fail('DB connection lost')
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -212,7 +226,9 @@ describe('GetDeviceUseCase', () => {
 
     it('should return a DeviceResponseDTO with the correct status', async () => {
       repo.findById.mockResolvedValue(
-        Result.ok(makePersistedDevice({ status: DeviceStatus.INVENTORY }))
+        Result.ok(
+          makePersistedDevice({ status: DeviceStatus.INVENTORY })
+        )
       );
 
       const result = await useCase.execute(makeRequest());

@@ -15,7 +15,9 @@ interface ServicePlanRecord {
 }
 
 export class ServicePlanPrismaMapper {
-  public static toDomain(raw: ServicePlanRecord): Result<ServicePlan> {
+  public static toDomain(
+    raw: ServicePlanRecord
+  ): Result<ServicePlan> {
     const idResult = ServicePlanId.parse(raw.id);
     if (idResult.isFailure) {
       return Result.fail<ServicePlan>(

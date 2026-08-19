@@ -18,7 +18,7 @@ import { UpdateLocationRequestDTO } from '../../../../src/application/device-inv
 // ---------------------------------------------------------------------------
 
 const VALID_LOCATION_ID = '550e8400-e29b-41d4-a716-446655440000';
-const NOW               = new Date('2024-06-01T00:00:00.000Z');
+const NOW = new Date('2024-06-01T00:00:00.000Z');
 
 // ---------------------------------------------------------------------------
 // Stub factories
@@ -42,7 +42,7 @@ function makeRepo(): jest.Mocked<ILocationRepository> {
     findById: jest.fn(),
     findAll: jest.fn(),
     findByType: jest.fn(),
-      findAllWithCoordinates: jest.fn(),
+    findAllWithCoordinates: jest.fn(),
     delete: jest.fn(),
     exists: jest.fn(),
     count: jest.fn()
@@ -63,7 +63,7 @@ function makePersistedLocation(
   } = {}
 ): Location {
   const id = LocationId.parse(VALID_LOCATION_ID).value;
-  const street       = overrides.address      ?? 'Carrera 80 # 75-32';
+  const street = overrides.address ?? 'Carrera 80 # 75-32';
   const municipality = overrides.municipality ?? 'Medellín';
   const neighborhood = overrides.neighborhood ?? 'Robledo';
   const addressVO =
@@ -72,9 +72,11 @@ function makePersistedLocation(
       : Address.reconstitute({ street, municipality, neighborhood });
 
   return Location.reconstitute(id, {
-    name:        overrides.name ?? 'Torre Norte',
-    type:        LocationType.reconstitute(overrides.type ?? LocationType.TOWER),
-    address:     addressVO,
+    name: overrides.name ?? 'Torre Norte',
+    type: LocationType.reconstitute(
+      overrides.type ?? LocationType.TOWER
+    ),
+    address: addressVO,
     coordinates: overrides.hasOwnProperty('coordinates')
       ? overrides.coordinates
       : null,
@@ -98,13 +100,17 @@ describe('UpdateLocationUseCase', () => {
   let useCase: UpdateLocationUseCase;
 
   beforeEach(() => {
-    repo   = makeRepo();
+    repo = makeRepo();
     logger = makeLogger();
     useCase = new UpdateLocationUseCase(repo, logger);
 
     // Default happy-path mocks
-    repo.findById.mockResolvedValue(Result.ok(makePersistedLocation()));
-    repo.save.mockImplementation(async (location) => Result.ok(location));
+    repo.findById.mockResolvedValue(
+      Result.ok(makePersistedLocation())
+    );
+    repo.save.mockImplementation(async (location) =>
+      Result.ok(location)
+    );
   });
 
   afterEach(() => {
@@ -121,7 +127,9 @@ describe('UpdateLocationUseCase', () => {
     });
 
     it('should fail when id is whitespace only', async () => {
-      const result = await useCase.execute(makeRequest({ id: '   ' }));
+      const result = await useCase.execute(
+        makeRequest({ id: '   ' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Location ID is required');
@@ -206,7 +214,9 @@ describe('UpdateLocationUseCase', () => {
     });
 
     it('should fail when findById returns a failure Result', async () => {
-      repo.findById.mockResolvedValue(Result.fail('DB connection lost'));
+      repo.findById.mockResolvedValue(
+        Result.fail('DB connection lost')
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -229,13 +239,17 @@ describe('UpdateLocationUseCase', () => {
     it('should fail when name exceeds 150 characters', async () => {
       const longName = 'A'.repeat(151);
 
-      const result = await useCase.execute(makeRequest({ name: longName }));
+      const result = await useCase.execute(
+        makeRequest({ name: longName })
+      );
 
       expect(result.isFailure).toBe(true);
     });
 
     it('should not change name when name is undefined', async () => {
-      const result = await useCase.execute(makeRequest({ name: undefined }));
+      const result = await useCase.execute(
+        makeRequest({ name: undefined })
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value!.name).toBe('Torre Norte');
@@ -254,7 +268,9 @@ describe('UpdateLocationUseCase', () => {
     });
 
     it('should not change type when type is undefined', async () => {
-      const result = await useCase.execute(makeRequest({ type: undefined }));
+      const result = await useCase.execute(
+        makeRequest({ type: undefined })
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value!.type).toBe(LocationType.TOWER);
@@ -295,7 +311,7 @@ describe('UpdateLocationUseCase', () => {
         makeRequest({
           municipality: 'Cali',
           neighborhood: 'Granada',
-          address:       'Av. 6N # 25-41'
+          address: 'Av. 6N # 25-41'
         })
       );
 
@@ -315,7 +331,11 @@ describe('UpdateLocationUseCase', () => {
 
     it('should succeed when all address fields are cleared to null together', async () => {
       const result = await useCase.execute(
-        makeRequest({ address: null, municipality: null, neighborhood: null })
+        makeRequest({
+          address: null,
+          municipality: null,
+          neighborhood: null
+        })
       );
 
       expect(result.isSuccess).toBe(true);
@@ -352,7 +372,10 @@ describe('UpdateLocationUseCase', () => {
       repo.findById.mockResolvedValue(
         Result.ok(
           makePersistedLocation({
-            coordinates: Coordinates.reconstitute({ latitude: 6.2442, longitude: -75.5812 })
+            coordinates: Coordinates.reconstitute({
+              latitude: 6.2442,
+              longitude: -75.5812
+            })
           })
         )
       );
@@ -368,7 +391,11 @@ describe('UpdateLocationUseCase', () => {
 
     it('should succeed when altitude is provided alongside lat and lon', async () => {
       const result = await useCase.execute(
-        makeRequest({ latitude: 6.2442, longitude: -75.5812, altitude: 1540 })
+        makeRequest({
+          latitude: 6.2442,
+          longitude: -75.5812,
+          altitude: 1540
+        })
       );
 
       expect(result.isSuccess).toBe(true);
@@ -463,7 +490,9 @@ describe('UpdateLocationUseCase', () => {
     it('should return createdAt as an ISO 8601 string', async () => {
       const result = await useCase.execute(makeRequest());
 
-      expect(result.value!.createdAt).toBe('2024-06-01T00:00:00.000Z');
+      expect(result.value!.createdAt).toBe(
+        '2024-06-01T00:00:00.000Z'
+      );
     });
 
     it('should return null latitude and longitude when location has no coordinates', async () => {

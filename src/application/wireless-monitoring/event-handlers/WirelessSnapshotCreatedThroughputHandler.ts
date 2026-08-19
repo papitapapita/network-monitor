@@ -4,7 +4,10 @@ import {
   IWirelessSnapshotRepository,
   IWirelessDeviceConfigRepository
 } from 'domain/wireless-monitoring/repository';
-import { ILogger, IEventStreamHub } from 'application/shared/interfaces';
+import {
+  ILogger,
+  IEventStreamHub
+} from 'application/shared/interfaces';
 import { WirelessThroughputMapper } from '../mappers';
 import {
   THROUGHPUT_EVENT,
@@ -50,8 +53,9 @@ export class WirelessSnapshotCreatedThroughputHandler
         return;
       }
 
-      const configResult =
-        await this.configRepo.findByDeviceId(event.deviceId);
+      const configResult = await this.configRepo.findByDeviceId(
+        event.deviceId
+      );
       if (configResult.isFailure) {
         this.logger.warn(
           'WirelessSnapshotCreatedThroughputHandler: config unavailable',

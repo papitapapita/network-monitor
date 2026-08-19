@@ -43,12 +43,15 @@ function makeDeviceId(): DeviceId {
   return DeviceId.parse(VALID_DEVICE_UUID).value;
 }
 
-function makeConfig(ipRaw: string | null = ORIGINAL_IP): PollingConfiguration {
+function makeConfig(
+  ipRaw: string | null = ORIGINAL_IP
+): PollingConfiguration {
   return PollingConfiguration.reconstitute(
     PollingConfigurationId.parse(VALID_CONFIG_UUID).value,
     {
       deviceId: makeDeviceId(),
-      ipAddress: ipRaw !== null ? IPAddress.reconstitute(ipRaw) : null,
+      ipAddress:
+        ipRaw !== null ? IPAddress.reconstitute(ipRaw) : null,
       interval: PollingInterval.create(60).value,
       failuresBeforeDown: FailureThreshold.create(3).value,
       enabled: true
@@ -84,7 +87,9 @@ describe('DeviceIPAddressChangedHandler', () => {
 
   describe('handle — no-op when ipAddress is not in updatedFields', () => {
     it('should return without calling the repository when ipAddress is absent from updatedFields', async () => {
-      const event = makeEvent({ name: DeviceName.reconstitute('New Name') });
+      const event = makeEvent({
+        name: DeviceName.reconstitute('New Name')
+      });
 
       await handler.handle(event);
 
@@ -111,9 +116,13 @@ describe('DeviceIPAddressChangedHandler', () => {
 
   describe('handle — no-op when no PollingConfiguration exists for the device', () => {
     it('should not call save when the repository returns a failure result', async () => {
-      repo.findByDeviceId.mockResolvedValue(Result.fail('DB unavailable'));
+      repo.findByDeviceId.mockResolvedValue(
+        Result.fail('DB unavailable')
+      );
 
-      const event = makeEvent({ ipAddress: IPAddress.reconstitute(NEW_IP) });
+      const event = makeEvent({
+        ipAddress: IPAddress.reconstitute(NEW_IP)
+      });
 
       await handler.handle(event);
 
@@ -123,7 +132,9 @@ describe('DeviceIPAddressChangedHandler', () => {
     it('should not call save when findByDeviceId returns a null value', async () => {
       repo.findByDeviceId.mockResolvedValue(Result.ok(null));
 
-      const event = makeEvent({ ipAddress: IPAddress.reconstitute(NEW_IP) });
+      const event = makeEvent({
+        ipAddress: IPAddress.reconstitute(NEW_IP)
+      });
 
       await handler.handle(event);
 
@@ -137,7 +148,9 @@ describe('DeviceIPAddressChangedHandler', () => {
       repo.findByDeviceId.mockResolvedValue(Result.ok(config));
       repo.save.mockResolvedValue(Result.ok(config));
 
-      const event = makeEvent({ ipAddress: IPAddress.reconstitute(NEW_IP) });
+      const event = makeEvent({
+        ipAddress: IPAddress.reconstitute(NEW_IP)
+      });
 
       await handler.handle(event);
 
@@ -165,7 +178,9 @@ describe('DeviceIPAddressChangedHandler', () => {
       repo.findByDeviceId.mockResolvedValue(Result.ok(config));
       repo.save.mockResolvedValue(Result.ok(config));
 
-      const event = makeEvent({ ipAddress: IPAddress.reconstitute(NEW_IP) });
+      const event = makeEvent({
+        ipAddress: IPAddress.reconstitute(NEW_IP)
+      });
 
       await handler.handle(event);
 
@@ -218,9 +233,13 @@ describe('DeviceIPAddressChangedHandler', () => {
 
   describe('handle — error resilience', () => {
     it('should not throw when findByDeviceId rejects unexpectedly', async () => {
-      repo.findByDeviceId.mockRejectedValue(new Error('Unexpected DB crash'));
+      repo.findByDeviceId.mockRejectedValue(
+        new Error('Unexpected DB crash')
+      );
 
-      const event = makeEvent({ ipAddress: IPAddress.reconstitute(NEW_IP) });
+      const event = makeEvent({
+        ipAddress: IPAddress.reconstitute(NEW_IP)
+      });
 
       await expect(handler.handle(event)).resolves.toBeUndefined();
     });
@@ -230,7 +249,9 @@ describe('DeviceIPAddressChangedHandler', () => {
       repo.findByDeviceId.mockResolvedValue(Result.ok(config));
       repo.save.mockRejectedValue(new Error('Network timeout'));
 
-      const event = makeEvent({ ipAddress: IPAddress.reconstitute(NEW_IP) });
+      const event = makeEvent({
+        ipAddress: IPAddress.reconstitute(NEW_IP)
+      });
 
       await expect(handler.handle(event)).resolves.toBeUndefined();
     });
@@ -238,7 +259,9 @@ describe('DeviceIPAddressChangedHandler', () => {
     it('should log the error when an unexpected exception is thrown', async () => {
       repo.findByDeviceId.mockRejectedValue(new Error('Disk full'));
 
-      const event = makeEvent({ ipAddress: IPAddress.reconstitute(NEW_IP) });
+      const event = makeEvent({
+        ipAddress: IPAddress.reconstitute(NEW_IP)
+      });
 
       await handler.handle(event);
 
@@ -249,7 +272,9 @@ describe('DeviceIPAddressChangedHandler', () => {
       const thrown = new Error('Disk full');
       repo.findByDeviceId.mockRejectedValue(thrown);
 
-      const event = makeEvent({ ipAddress: IPAddress.reconstitute(NEW_IP) });
+      const event = makeEvent({
+        ipAddress: IPAddress.reconstitute(NEW_IP)
+      });
 
       await handler.handle(event);
 
@@ -259,7 +284,9 @@ describe('DeviceIPAddressChangedHandler', () => {
     it('should include the device ID in the error log payload', async () => {
       repo.findByDeviceId.mockRejectedValue(new Error('Fatal error'));
 
-      const event = makeEvent({ ipAddress: IPAddress.reconstitute(NEW_IP) });
+      const event = makeEvent({
+        ipAddress: IPAddress.reconstitute(NEW_IP)
+      });
 
       await handler.handle(event);
 

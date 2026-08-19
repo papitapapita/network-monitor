@@ -51,7 +51,11 @@ const createMockResponse = (): {
 } => {
   const jsonMock = jest.fn();
   const statusMock = jest.fn().mockReturnValue({ json: jsonMock });
-  return { res: { status: statusMock, json: jsonMock }, statusMock, jsonMock };
+  return {
+    res: { status: statusMock, json: jsonMock },
+    statusMock,
+    jsonMock
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -340,7 +344,9 @@ describe('ScanController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockScanUseCase.execute as jest.Mock).mockRejectedValue(thrownError);
+        (mockScanUseCase.execute as jest.Mock).mockRejectedValue(
+          thrownError
+        );
 
         await controller.scan(mockReq as Request, res as Response);
 
@@ -357,7 +363,9 @@ describe('ScanController', () => {
       });
 
       it('should not leak sensitive error details in the response body', async () => {
-        const sensitiveError = new Error('SELECT * FROM devices; -- injected');
+        const sensitiveError = new Error(
+          'SELECT * FROM devices; -- injected'
+        );
         const mockReq = createMockRequest({
           body: { segment: '192.168.1.0/24' }
         });
@@ -406,7 +414,9 @@ describe('ScanController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockScanUseCase.execute as jest.Mock).mockRejectedValue(null);
+        (mockScanUseCase.execute as jest.Mock).mockRejectedValue(
+          null
+        );
 
         await controller.scan(mockReq as Request, res as Response);
 

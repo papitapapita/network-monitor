@@ -87,7 +87,11 @@ const createMockResponse = (): {
 } => {
   const jsonMock = jest.fn();
   const statusMock = jest.fn().mockReturnValue({ json: jsonMock });
-  return { res: { status: statusMock, json: jsonMock }, statusMock, jsonMock };
+  return {
+    res: { status: statusMock, json: jsonMock },
+    statusMock,
+    jsonMock
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -405,7 +409,9 @@ describe('LocationController', () => {
       });
 
       it('should return the generic "Internal server error" message (no details leaked)', async () => {
-        const sensitiveError = new Error('SELECT * FROM locations; -- injected');
+        const sensitiveError = new Error(
+          'SELECT * FROM locations; -- injected'
+        );
         const mockReq = createMockRequest({ body: validBody });
         const { res, jsonMock } = createMockResponse();
 
@@ -448,7 +454,9 @@ describe('LocationController', () => {
         const mockReq = createMockRequest({ body: validBody });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockCreateUseCase.execute as jest.Mock).mockRejectedValue(null);
+        (mockCreateUseCase.execute as jest.Mock).mockRejectedValue(
+          null
+        );
 
         await controller.create(mockReq as Request, res as Response);
 
@@ -558,7 +566,9 @@ describe('LocationController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 400 Bad Request', () => {
       it('should return 400 when the use case fails with "Invalid" type filter', async () => {
-        const mockReq = createMockRequest({ query: { type: 'UNKNOWN' } });
+        const mockReq = createMockRequest({
+          query: { type: 'UNKNOWN' }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockListUseCase.execute as jest.Mock).mockResolvedValue(
@@ -595,7 +605,9 @@ describe('LocationController', () => {
         const mockReq = createMockRequest({ query: {} });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockListUseCase.execute as jest.Mock).mockRejectedValue(thrownError);
+        (mockListUseCase.execute as jest.Mock).mockRejectedValue(
+          thrownError
+        );
 
         await controller.list(mockReq as Request, res as Response);
 
@@ -618,7 +630,9 @@ describe('LocationController', () => {
     // -----------------------------------------------------------------------
     describe('Happy Path', () => {
       it('should return 200 with success: true and data when location is found', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -635,7 +649,9 @@ describe('LocationController', () => {
       });
 
       it('should pass req.params.id to the use case', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res } = createMockResponse();
 
         (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -653,7 +669,9 @@ describe('LocationController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 404 Not Found', () => {
       it('should return 404 when the use case fails with "not found"', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -673,7 +691,9 @@ describe('LocationController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 400 Bad Request', () => {
       it('should return 400 when the use case fails with "Invalid" ID format', async () => {
-        const mockReq = createMockRequest({ params: { id: 'bad-id' } });
+        const mockReq = createMockRequest({
+          params: { id: 'bad-id' }
+        });
         const { res, statusMock } = createMockResponse();
 
         (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -689,7 +709,9 @@ describe('LocationController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 500 Internal Server Error', () => {
       it('should return 500 when the use case fails with an unrecognised message', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res, statusMock } = createMockResponse();
 
         (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -703,10 +725,14 @@ describe('LocationController', () => {
 
       it('should return 500 and log when the use case throws', async () => {
         const thrownError = new Error('Unexpected error');
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetUseCase.execute as jest.Mock).mockRejectedValue(thrownError);
+        (mockGetUseCase.execute as jest.Mock).mockRejectedValue(
+          thrownError
+        );
 
         await controller.getById(mockReq as Request, res as Response);
 
@@ -733,7 +759,9 @@ describe('LocationController', () => {
 
     it('should prioritise "not found" over "Invalid" when both appear in the message', async () => {
       // "not found" is checked first in the implementation
-      const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+      const mockReq = createMockRequest({
+        params: { id: VALID_UUID }
+      });
       const { res, statusMock } = createMockResponse();
 
       (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -779,7 +807,9 @@ describe('LocationController', () => {
       const mockReq = createMockRequest({ body: {} });
       const { res } = createMockResponse();
 
-      (mockCreateUseCase.execute as jest.Mock).mockRejectedValue(error);
+      (mockCreateUseCase.execute as jest.Mock).mockRejectedValue(
+        error
+      );
 
       await controller.create(mockReq as Request, res as Response);
 
@@ -844,7 +874,10 @@ describe('LocationController', () => {
         await controller.update(mockReq as Request, res as Response);
 
         expect(mockUpdateUseCase.execute).toHaveBeenCalledWith(
-          expect.objectContaining({ id: VALID_UUID, name: 'Torre Norte Revised' })
+          expect.objectContaining({
+            id: VALID_UUID,
+            name: 'Torre Norte Revised'
+          })
         );
       });
 
@@ -1034,7 +1067,9 @@ describe('LocationController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockUpdateUseCase.execute as jest.Mock).mockRejectedValue(thrownError);
+        (mockUpdateUseCase.execute as jest.Mock).mockRejectedValue(
+          thrownError
+        );
 
         await controller.update(mockReq as Request, res as Response);
 
@@ -1051,7 +1086,9 @@ describe('LocationController', () => {
       });
 
       it('should not leak sensitive error details in the response body', async () => {
-        const sensitiveError = new Error('SELECT * FROM locations; -- injected');
+        const sensitiveError = new Error(
+          'SELECT * FROM locations; -- injected'
+        );
         const mockReq = createMockRequest({
           params: { id: VALID_UUID },
           body: {}

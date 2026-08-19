@@ -8,7 +8,9 @@ import {
  * A real scan sweeps a CIDR with ICMP, so it must never run in a test.
  * Call setHosts() to control what the scan reports back.
  */
-export class FakeNetworkScannerService implements INetworkScannerService {
+export class FakeNetworkScannerService
+  implements INetworkScannerService
+{
   private _hosts: DiscoveredHost[] = [];
   public lastCidr: string | null = null;
   public callCount = 0;

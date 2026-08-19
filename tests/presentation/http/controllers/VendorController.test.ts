@@ -56,8 +56,15 @@ const createMockResponse = (): {
 } => {
   const jsonMock = jest.fn();
   const sendMock = jest.fn();
-  const statusMock = jest.fn().mockReturnValue({ json: jsonMock, send: sendMock });
-  return { res: { status: statusMock, json: jsonMock, send: sendMock }, statusMock, jsonMock, sendMock };
+  const statusMock = jest
+    .fn()
+    .mockReturnValue({ json: jsonMock, send: sendMock });
+  return {
+    res: { status: statusMock, json: jsonMock, send: sendMock },
+    statusMock,
+    jsonMock,
+    sendMock
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -138,7 +145,9 @@ describe('VendorController', () => {
       });
 
       it('should convert limit and offset query strings to numbers before passing to use case', async () => {
-        const mockReq = createMockRequest({ query: { limit: '10', offset: '5' } });
+        const mockReq = createMockRequest({
+          query: { limit: '10', offset: '5' }
+        });
         const { res } = createMockResponse();
 
         (mockListUseCase.execute as jest.Mock).mockResolvedValue(
@@ -163,7 +172,10 @@ describe('VendorController', () => {
         await controller.list(mockReq as Request, res as Response);
 
         expect(mockListUseCase.execute).toHaveBeenCalledWith(
-          expect.objectContaining({ limit: undefined, offset: undefined })
+          expect.objectContaining({
+            limit: undefined,
+            offset: undefined
+          })
         );
       });
     });
@@ -195,7 +207,9 @@ describe('VendorController', () => {
         const mockReq = createMockRequest({ query: {} });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockListUseCase.execute as jest.Mock).mockRejectedValue(thrownError);
+        (mockListUseCase.execute as jest.Mock).mockRejectedValue(
+          thrownError
+        );
 
         await controller.list(mockReq as Request, res as Response);
 
@@ -218,7 +232,9 @@ describe('VendorController', () => {
     // -----------------------------------------------------------------------
     describe('happy path', () => {
       it('should return 200 with success: true and data when vendor is found', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -235,7 +251,9 @@ describe('VendorController', () => {
       });
 
       it('should pass req.params.id to the use case', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res } = createMockResponse();
 
         (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -244,14 +262,18 @@ describe('VendorController', () => {
 
         await controller.getById(mockReq as Request, res as Response);
 
-        expect(mockGetUseCase.execute).toHaveBeenCalledWith({ id: VALID_UUID });
+        expect(mockGetUseCase.execute).toHaveBeenCalledWith({
+          id: VALID_UUID
+        });
       });
     });
 
     // -----------------------------------------------------------------------
     describe('error path — 404', () => {
       it('should return 404 when the use case fails with "not found"', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -300,7 +322,9 @@ describe('VendorController', () => {
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockCreateUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('A vendor with this name or slug already exists')
+          Result.fail(
+            'A vendor with this name or slug already exists'
+          )
         );
 
         await controller.create(mockReq as Request, res as Response);
@@ -410,7 +434,9 @@ describe('VendorController', () => {
         const { res, statusMock } = createMockResponse();
 
         (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('A vendor with this name or slug already exists')
+          Result.fail(
+            'A vendor with this name or slug already exists'
+          )
         );
 
         await controller.update(mockReq as Request, res as Response);
@@ -425,7 +451,9 @@ describe('VendorController', () => {
     // -----------------------------------------------------------------------
     describe('happy path', () => {
       it('should return 204 on successful delete', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res, statusMock, sendMock } = createMockResponse();
 
         (mockDeleteUseCase.execute as jest.Mock).mockResolvedValue(
@@ -442,11 +470,15 @@ describe('VendorController', () => {
     // -----------------------------------------------------------------------
     describe('error path — 409 conflict', () => {
       it('should return 409 when the use case fails with "Cannot delete vendor"', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockDeleteUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('Cannot delete vendor: it has associated device models')
+          Result.fail(
+            'Cannot delete vendor: it has associated device models'
+          )
         );
 
         await controller.delete(mockReq as Request, res as Response);
@@ -454,7 +486,8 @@ describe('VendorController', () => {
         expect(statusMock).toHaveBeenCalledWith(409);
         expect(jsonMock).toHaveBeenCalledWith({
           success: false,
-          error: 'Cannot delete vendor: it has associated device models'
+          error:
+            'Cannot delete vendor: it has associated device models'
         });
       });
     });
@@ -462,7 +495,9 @@ describe('VendorController', () => {
     // -----------------------------------------------------------------------
     describe('error path — 404', () => {
       it('should return 404 when the use case fails with "not found"', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockDeleteUseCase.execute as jest.Mock).mockResolvedValue(

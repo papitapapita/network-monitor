@@ -6,7 +6,11 @@ import request from 'supertest';
 import { Application } from 'express';
 import { PrismaClient } from '../../src/generated/prisma/client';
 import { createTestApp } from './helpers/createTestApp';
-import { cleanDatabase, seedDeviceModel, seedMonitoredDevice } from './helpers/db';
+import {
+  cleanDatabase,
+  seedDeviceModel,
+  seedMonitoredDevice
+} from './helpers/db';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
 import { seedAndGetToken } from './helpers/auth';
 
@@ -42,7 +46,9 @@ describe('Admin Routes — POST /api/admin/data-retention/purge', () => {
   // ─────────────────────────────────────────────────────────────
 
   it('401 — rejects request with no token', async () => {
-    const res = await request(app).post('/api/admin/data-retention/purge');
+    const res = await request(app).post(
+      '/api/admin/data-retention/purge'
+    );
 
     expect(res.status).toBe(401);
     expect(res.body.success).toBe(false);
@@ -155,7 +161,9 @@ describe('Admin Routes — POST /api/admin/data-retention/purge', () => {
     expect(res.body.data.pingResultsDeleted).toBeGreaterThan(0);
     expect(res.body.data.alertsDeleted).toBeGreaterThan(0);
     expect(res.body.data.wirelessSnapshotsDeleted).toBeGreaterThan(0);
-    expect(res.body.data.wirelessAlertRecordsDeleted).toBeGreaterThan(0);
+    expect(res.body.data.wirelessAlertRecordsDeleted).toBeGreaterThan(
+      0
+    );
   });
 
   // ─────────────────────────────────────────────────────────────

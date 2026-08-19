@@ -56,9 +56,8 @@ export class DeleteDeviceUseCase extends UseCase<
       return this.fail<void>(`Device not found: ${request.id}`);
     }
 
-    const contractGuard = await this.guardAgainstLiveContract(
-      deviceId
-    );
+    const contractGuard =
+      await this.guardAgainstLiveContract(deviceId);
     if (contractGuard.isFailure) {
       return this.fail<void>(contractGuard.error!);
     }
@@ -68,9 +67,7 @@ export class DeleteDeviceUseCase extends UseCase<
       return this.fail<void>(ticketGuard.error!);
     }
 
-    const deleteResult = device.softDelete(
-      request.deletedBy ?? null
-    );
+    const deleteResult = device.softDelete(request.deletedBy ?? null);
     if (deleteResult.isFailure) {
       return this.fail<void>(deleteResult.error);
     }

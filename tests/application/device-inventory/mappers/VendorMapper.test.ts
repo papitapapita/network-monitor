@@ -33,7 +33,10 @@ function makeVendor(
     {
       name: overrides.name ?? 'Mikrotik',
       slug: overrides.slug ?? 'mikrotik',
-      description: overrides.description !== undefined ? overrides.description : null,
+      description:
+        overrides.description !== undefined
+          ? overrides.description
+          : null,
       createdAt: overrides.createdAt ?? CREATED_AT,
       updatedAt: overrides.updatedAt ?? UPDATED_AT
     }
@@ -57,7 +60,9 @@ describe('VendorMapper', () => {
       });
 
       it('should map vendor id to the correct UUID string', () => {
-        const dto = VendorMapper.toDTO(makeVendor({ id: VALID_UUID }));
+        const dto = VendorMapper.toDTO(
+          makeVendor({ id: VALID_UUID })
+        );
 
         expect(dto.id).toBe(VALID_UUID);
       });
@@ -65,25 +70,33 @@ describe('VendorMapper', () => {
 
     describe('scalar field mapping', () => {
       it('should map name correctly', () => {
-        const dto = VendorMapper.toDTO(makeVendor({ name: 'Ubiquiti' }));
+        const dto = VendorMapper.toDTO(
+          makeVendor({ name: 'Ubiquiti' })
+        );
 
         expect(dto.name).toBe('Ubiquiti');
       });
 
       it('should map slug correctly', () => {
-        const dto = VendorMapper.toDTO(makeVendor({ slug: 'ubiquiti' }));
+        const dto = VendorMapper.toDTO(
+          makeVendor({ slug: 'ubiquiti' })
+        );
 
         expect(dto.slug).toBe('ubiquiti');
       });
 
       it('should map description when it has a value', () => {
-        const dto = VendorMapper.toDTO(makeVendor({ description: 'Networking vendor' }));
+        const dto = VendorMapper.toDTO(
+          makeVendor({ description: 'Networking vendor' })
+        );
 
         expect(dto.description).toBe('Networking vendor');
       });
 
       it('should preserve description as null when vendor has no description', () => {
-        const dto = VendorMapper.toDTO(makeVendor({ description: null }));
+        const dto = VendorMapper.toDTO(
+          makeVendor({ description: null })
+        );
 
         expect(dto.description).toBeNull();
       });
@@ -91,13 +104,17 @@ describe('VendorMapper', () => {
 
     describe('date mapping', () => {
       it('should map createdAt as an ISO 8601 string', () => {
-        const dto = VendorMapper.toDTO(makeVendor({ createdAt: CREATED_AT }));
+        const dto = VendorMapper.toDTO(
+          makeVendor({ createdAt: CREATED_AT })
+        );
 
         expect(dto.createdAt).toBe(CREATED_AT.toISOString());
       });
 
       it('should map updatedAt as an ISO 8601 string', () => {
-        const dto = VendorMapper.toDTO(makeVendor({ updatedAt: UPDATED_AT }));
+        const dto = VendorMapper.toDTO(
+          makeVendor({ updatedAt: UPDATED_AT })
+        );
 
         expect(dto.updatedAt).toBe(UPDATED_AT.toISOString());
       });
@@ -106,7 +123,9 @@ describe('VendorMapper', () => {
         const dto = VendorMapper.toDTO(makeVendor());
 
         expect(() => new Date(dto.createdAt)).not.toThrow();
-        expect(new Date(dto.createdAt).toISOString()).toBe(dto.createdAt);
+        expect(new Date(dto.createdAt).toISOString()).toBe(
+          dto.createdAt
+        );
       });
     });
 
@@ -115,9 +134,14 @@ describe('VendorMapper', () => {
         const dto = VendorMapper.toDTO(makeVendor());
         const keys = Object.keys(dto).sort();
 
-        expect(keys).toEqual(
-          ['createdAt', 'description', 'id', 'name', 'slug', 'updatedAt']
-        );
+        expect(keys).toEqual([
+          'createdAt',
+          'description',
+          'id',
+          'name',
+          'slug',
+          'updatedAt'
+        ]);
       });
     });
   });
@@ -126,7 +150,12 @@ describe('VendorMapper', () => {
   describe('toListDTO', () => {
     describe('pagination metadata', () => {
       it('should include the provided total in the response', () => {
-        const result = VendorMapper.toListDTO([makeVendor()], 50, 10, 0);
+        const result = VendorMapper.toListDTO(
+          [makeVendor()],
+          50,
+          10,
+          0
+        );
 
         expect(result.total).toBe(50);
       });
@@ -158,7 +187,12 @@ describe('VendorMapper', () => {
 
     describe('hasMore calculation', () => {
       it('should set hasMore to true when more items exist after the current page', () => {
-        const result = VendorMapper.toListDTO([makeVendor()], 5, 1, 0);
+        const result = VendorMapper.toListDTO(
+          [makeVendor()],
+          5,
+          1,
+          0
+        );
 
         expect(result.hasMore).toBe(true);
       });
@@ -211,7 +245,10 @@ describe('VendorMapper', () => {
       });
 
       it('should return vendor DTOs with string ids', () => {
-        const result = VendorMapper.toListDTO([makeVendor({ id: VALID_UUID })], 1);
+        const result = VendorMapper.toListDTO(
+          [makeVendor({ id: VALID_UUID })],
+          1
+        );
 
         expect(result.vendors[0].id).toBe(VALID_UUID);
       });

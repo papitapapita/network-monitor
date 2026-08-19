@@ -21,7 +21,7 @@ import { Result } from '../../../../src/domain/shared/core/Result';
 
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
 const VALID_CONFIG_UUID = '550e8400-e29b-41d4-a716-446655440002';
-const FIXED_DATE        = new Date('2024-06-01T10:00:00.000Z');
+const FIXED_DATE = new Date('2024-06-01T10:00:00.000Z');
 
 function makeDeviceId(): DeviceId {
   return DeviceId.parse(VALID_DEVICE_UUID).value;
@@ -50,7 +50,9 @@ function makeResolveAlert(): jest.Mocked<ResolveAlertUseCase> {
   } as unknown as jest.Mocked<ResolveAlertUseCase>;
 }
 
-function makeState(overrides: Partial<DeviceStateProps> = {}): DeviceState {
+function makeState(
+  overrides: Partial<DeviceStateProps> = {}
+): DeviceState {
   const deviceId = makeDeviceId();
   return DeviceState.reconstitute(deviceId, {
     deviceId,
@@ -95,10 +97,18 @@ describe('SuspendDeviceMonitoringUseCase', () => {
       resolveAlert
     );
 
-    stateRepo.findByDeviceId.mockResolvedValue(Result.ok(makeState()));
-    stateRepo.save.mockImplementation((s) => Promise.resolve(Result.ok(s)));
-    configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
-    configRepo.save.mockImplementation((c) => Promise.resolve(Result.ok(c)));
+    stateRepo.findByDeviceId.mockResolvedValue(
+      Result.ok(makeState())
+    );
+    stateRepo.save.mockImplementation((s) =>
+      Promise.resolve(Result.ok(s))
+    );
+    configRepo.findByDeviceId.mockResolvedValue(
+      Result.ok(makeConfig())
+    );
+    configRepo.save.mockImplementation((c) =>
+      Promise.resolve(Result.ok(c))
+    );
   });
 
   afterEach(() => {
@@ -108,7 +118,9 @@ describe('SuspendDeviceMonitoringUseCase', () => {
   // ===========================================================================
   describe('the device state', () => {
     it('[MON-002] should mark the state UNKNOWN', async () => {
-      const state = makeState({ status: ReachabilityStatus.createDown() });
+      const state = makeState({
+        status: ReachabilityStatus.createDown()
+      });
       stateRepo.findByDeviceId.mockResolvedValue(Result.ok(state));
 
       await useCase.execute(makeDeviceId());
@@ -136,7 +148,9 @@ describe('SuspendDeviceMonitoringUseCase', () => {
     });
 
     it('should fail when the state cannot be loaded', async () => {
-      stateRepo.findByDeviceId.mockResolvedValue(Result.fail('DB down'));
+      stateRepo.findByDeviceId.mockResolvedValue(
+        Result.fail('DB down')
+      );
 
       const result = await useCase.execute(makeDeviceId());
 
@@ -169,7 +183,9 @@ describe('SuspendDeviceMonitoringUseCase', () => {
     });
 
     it('should fail when the alert cannot be resolved', async () => {
-      resolveAlert.execute.mockResolvedValue(Result.fail('alert store down'));
+      resolveAlert.execute.mockResolvedValue(
+        Result.fail('alert store down')
+      );
 
       const result = await useCase.execute(makeDeviceId());
 
@@ -247,7 +263,9 @@ describe('SuspendDeviceMonitoringUseCase', () => {
     it('should leave polling enabled when the alert write fails', async () => {
       const config = makeConfig(true);
       configRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
-      resolveAlert.execute.mockResolvedValue(Result.fail('alert store down'));
+      resolveAlert.execute.mockResolvedValue(
+        Result.fail('alert store down')
+      );
 
       await useCase.execute(makeDeviceId());
 
@@ -259,7 +277,9 @@ describe('SuspendDeviceMonitoringUseCase', () => {
   // ===========================================================================
   describe('idempotency', () => {
     it('should succeed when run twice over an already-suspended device', async () => {
-      const state = makeState({ status: ReachabilityStatus.createUnknown() });
+      const state = makeState({
+        status: ReachabilityStatus.createUnknown()
+      });
       stateRepo.findByDeviceId.mockResolvedValue(Result.ok(state));
       configRepo.findByDeviceId.mockResolvedValue(
         Result.ok(makeConfig(false))

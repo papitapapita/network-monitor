@@ -191,14 +191,17 @@ describe('ticket.schemas', () => {
     it.each([
       ['getTicketByIdSchema', getTicketByIdSchema],
       ['deleteTicketSchema', deleteTicketSchema]
-    ])('%s accepts a UUID and rejects anything else', (_name, schema) => {
-      expect(schema.safeParse({ params: { id: UUID } }).success).toBe(
-        true
-      );
-      expect(
-        schema.safeParse({ params: { id: 'not-a-uuid' } }).success
-      ).toBe(false);
-    });
+    ])(
+      '%s accepts a UUID and rejects anything else',
+      (_name, schema) => {
+        expect(
+          schema.safeParse({ params: { id: UUID } }).success
+        ).toBe(true);
+        expect(
+          schema.safeParse({ params: { id: 'not-a-uuid' } }).success
+        ).toBe(false);
+      }
+    );
   });
 
   describe('listTicketsSchema', () => {

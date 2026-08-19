@@ -12,5 +12,4 @@ process.env.JWT_SECRET ??= 'test-jwt-secret';
 
 // AES-256-GCM key for device credential encryption at rest — must be 64 hex
 // chars. Fixed so encrypted rows stay readable across runs.
-process.env.DEVICE_CREDENTIALS_KEY ??=
-  '0'.repeat(63) + '1';
+process.env.DEVICE_CREDENTIALS_KEY ??= '0'.repeat(63) + '1';

@@ -90,11 +90,21 @@ describe('CreateDeviceModelUseCase', () => {
     deviceModelRepo = makeDeviceModelRepo();
     vendorRepo = makeVendorRepo();
     logger = makeLogger();
-    useCase = new CreateDeviceModelUseCase(deviceModelRepo, vendorRepo, logger);
+    useCase = new CreateDeviceModelUseCase(
+      deviceModelRepo,
+      vendorRepo,
+      logger
+    );
 
-    (vendorRepo.findById as any).mockResolvedValue(Result.ok(makeVendor()));
-    (deviceModelRepo.existsByVendorAndModel as any).mockResolvedValue(Result.ok(false));
-    (deviceModelRepo.save as any).mockImplementation(async (m: DeviceModel) => Result.ok(m));
+    (vendorRepo.findById as any).mockResolvedValue(
+      Result.ok(makeVendor())
+    );
+    (deviceModelRepo.existsByVendorAndModel as any).mockResolvedValue(
+      Result.ok(false)
+    );
+    (deviceModelRepo.save as any).mockImplementation(
+      async (m: DeviceModel) => Result.ok(m)
+    );
   });
 
   afterEach(() => {
@@ -170,10 +180,16 @@ describe('CreateDeviceModelUseCase', () => {
     });
 
     it('should not call any repository method when beforeExecute fails', async () => {
-      await useCase.execute({ vendorId: '', model: 'RB760iGS', deviceType: 'ROUTER' });
+      await useCase.execute({
+        vendorId: '',
+        model: 'RB760iGS',
+        deviceType: 'ROUTER'
+      });
 
       expect(vendorRepo.findById).not.toHaveBeenCalled();
-      expect(deviceModelRepo.existsByVendorAndModel).not.toHaveBeenCalled();
+      expect(
+        deviceModelRepo.existsByVendorAndModel
+      ).not.toHaveBeenCalled();
       expect(deviceModelRepo.save).not.toHaveBeenCalled();
     });
   });
@@ -219,7 +235,9 @@ describe('CreateDeviceModelUseCase', () => {
     });
 
     it('should propagate repository failure from vendorRepository.findById', async () => {
-      (vendorRepo.findById as any).mockResolvedValue(Result.fail('DB connection lost'));
+      (vendorRepo.findById as any).mockResolvedValue(
+        Result.fail('DB connection lost')
+      );
 
       const result = await useCase.execute({
         vendorId: VENDOR_UUID,
@@ -235,7 +253,9 @@ describe('CreateDeviceModelUseCase', () => {
   // =========================================================================
   describe('[DEV-022] executeImpl — model uniqueness check', () => {
     it('should fail when the model already exists for this vendor', async () => {
-      (deviceModelRepo.existsByVendorAndModel as any).mockResolvedValue(Result.ok(true));
+      (
+        deviceModelRepo.existsByVendorAndModel as any
+      ).mockResolvedValue(Result.ok(true));
 
       const result = await useCase.execute({
         vendorId: VENDOR_UUID,
@@ -249,9 +269,9 @@ describe('CreateDeviceModelUseCase', () => {
     });
 
     it('should propagate repository failure from existsByVendorAndModel', async () => {
-      (deviceModelRepo.existsByVendorAndModel as any).mockResolvedValue(
-        Result.fail('DB timeout')
-      );
+      (
+        deviceModelRepo.existsByVendorAndModel as any
+      ).mockResolvedValue(Result.fail('DB timeout'));
 
       const result = await useCase.execute({
         vendorId: VENDOR_UUID,
@@ -264,7 +284,9 @@ describe('CreateDeviceModelUseCase', () => {
     });
 
     it('should not call save when the model already exists', async () => {
-      (deviceModelRepo.existsByVendorAndModel as any).mockResolvedValue(Result.ok(true));
+      (
+        deviceModelRepo.existsByVendorAndModel as any
+      ).mockResolvedValue(Result.ok(true));
 
       await useCase.execute({
         vendorId: VENDOR_UUID,
@@ -290,7 +312,9 @@ describe('CreateDeviceModelUseCase', () => {
       });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Failed to persist device model');
+      expect(result.error).toContain(
+        'Failed to persist device model'
+      );
       expect(result.error).toContain('Unique constraint violated');
     });
 
@@ -396,7 +420,8 @@ describe('CreateDeviceModelUseCase', () => {
         deviceType: 'ROUTER'
       });
 
-      const savedArg: DeviceModel = (deviceModelRepo.save as any).mock.calls[0][0];
+      const savedArg: DeviceModel = (deviceModelRepo.save as any).mock
+        .calls[0][0];
       expect(savedArg.model).toBe('RB760iGS');
     });
   });

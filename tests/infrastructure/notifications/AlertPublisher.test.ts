@@ -7,7 +7,9 @@ import { Result } from '../../../src/domain/shared/core/Result';
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440070';
 const FIXED_DATE = new Date('2024-06-01T10:00:00.000Z');
 
-function makeUseCase(): jest.Mocked<Pick<SendAlertNotificationUseCase, 'execute'>> {
+function makeUseCase(): jest.Mocked<
+  Pick<SendAlertNotificationUseCase, 'execute'>
+> {
   return { execute: jest.fn().mockResolvedValue(Result.ok()) };
 }
 
@@ -27,7 +29,9 @@ function makeNotification(
 }
 
 describe('AlertPublisher', () => {
-  let useCase: jest.Mocked<Pick<SendAlertNotificationUseCase, 'execute'>>;
+  let useCase: jest.Mocked<
+    Pick<SendAlertNotificationUseCase, 'execute'>
+  >;
   let publisher: AlertPublisher;
 
   beforeEach(() => {
@@ -57,7 +61,10 @@ describe('AlertPublisher', () => {
 
   it('should carry a resolved WARNING through unchanged', async () => {
     await publisher.publish(
-      makeNotification({ severity: AlertSeverity.WARNING, resolved: true })
+      makeNotification({
+        severity: AlertSeverity.WARNING,
+        resolved: true
+      })
     );
 
     expect(useCase.execute).toHaveBeenCalledWith(
@@ -75,7 +82,9 @@ describe('AlertPublisher', () => {
   });
 
   it('should propagate a failure from the renderer', async () => {
-    useCase.execute.mockResolvedValue(Result.fail('Telegram API error'));
+    useCase.execute.mockResolvedValue(
+      Result.fail('Telegram API error')
+    );
     const result = await publisher.publish(makeNotification());
     expect(result.isFailure).toBe(true);
     expect(result.error).toContain('Telegram API error');

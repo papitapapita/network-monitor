@@ -212,7 +212,9 @@ describe('DeviceProvisionedHandler', () => {
     it('should not call save when PollingConfiguration.create returns a failure', async () => {
       const createSpy = jest
         .spyOn(PollingConfiguration, 'create')
-        .mockReturnValueOnce(Result.fail('Simulated entity creation failure'));
+        .mockReturnValueOnce(
+          Result.fail('Simulated entity creation failure')
+        );
 
       await handler.handle(makeEvent());
 
@@ -224,7 +226,9 @@ describe('DeviceProvisionedHandler', () => {
     it('should log an error when PollingConfiguration.create returns a failure', async () => {
       const createSpy = jest
         .spyOn(PollingConfiguration, 'create')
-        .mockReturnValueOnce(Result.fail('Simulated entity creation failure'));
+        .mockReturnValueOnce(
+          Result.fail('Simulated entity creation failure')
+        );
 
       await handler.handle(makeEvent());
 
@@ -236,11 +240,14 @@ describe('DeviceProvisionedHandler', () => {
     it('should include the device ID in the error log when PollingConfiguration.create fails', async () => {
       const createSpy = jest
         .spyOn(PollingConfiguration, 'create')
-        .mockReturnValueOnce(Result.fail('Simulated entity creation failure'));
+        .mockReturnValueOnce(
+          Result.fail('Simulated entity creation failure')
+        );
 
       await handler.handle(makeEvent());
 
-      const context = (logger.error as jest.Mock).mock.calls[0][2] as {
+      const context = (logger.error as jest.Mock).mock
+        .calls[0][2] as {
         deviceId: string;
       };
       expect(context.deviceId).toBe(VALID_DEVICE_UUID);
@@ -255,7 +262,8 @@ describe('DeviceProvisionedHandler', () => {
 
       await handler.handle(makeEvent());
 
-      const context = (logger.error as jest.Mock).mock.calls[0][2] as {
+      const context = (logger.error as jest.Mock).mock
+        .calls[0][2] as {
         error: string;
       };
       expect(context.error).toContain('Missing required field');
@@ -268,7 +276,9 @@ describe('DeviceProvisionedHandler', () => {
     it('should not throw when save rejects unexpectedly', async () => {
       repo.save.mockRejectedValue(new Error('DB connection lost'));
 
-      await expect(handler.handle(makeEvent())).resolves.toBeUndefined();
+      await expect(
+        handler.handle(makeEvent())
+      ).resolves.toBeUndefined();
     });
 
     it('should log the error when save throws an unexpected exception', async () => {
@@ -284,7 +294,8 @@ describe('DeviceProvisionedHandler', () => {
 
       await handler.handle(makeEvent());
 
-      const context = (logger.error as jest.Mock).mock.calls[0][2] as {
+      const context = (logger.error as jest.Mock).mock
+        .calls[0][2] as {
         deviceId: string;
       };
       expect(context.deviceId).toBe(VALID_DEVICE_UUID);
@@ -295,7 +306,8 @@ describe('DeviceProvisionedHandler', () => {
 
       await handler.handle(makeEvent());
 
-      const err = (logger.error as jest.Mock).mock.calls[0][1] as Error;
+      const err = (logger.error as jest.Mock).mock
+        .calls[0][1] as Error;
       expect(err?.message).toBe('Connection reset');
     });
 
@@ -312,7 +324,9 @@ describe('DeviceProvisionedHandler', () => {
     it('should handle a Promise rejection during save gracefully when config creation succeeds', async () => {
       repo.save.mockRejectedValue(new Error('Transaction timeout'));
 
-      await expect(handler.handle(makeEvent())).resolves.toBeUndefined();
+      await expect(
+        handler.handle(makeEvent())
+      ).resolves.toBeUndefined();
     });
   });
 

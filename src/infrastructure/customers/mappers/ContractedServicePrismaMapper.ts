@@ -38,7 +38,9 @@ export class ContractedServicePrismaMapper {
       );
     }
 
-    const servicePlanIdResult = ServicePlanId.parse(raw.servicePlanId);
+    const servicePlanIdResult = ServicePlanId.parse(
+      raw.servicePlanId
+    );
     if (servicePlanIdResult.isFailure) {
       return Result.fail<ContractedService>(
         `Invalid service plan id: ${servicePlanIdResult.error}`
@@ -84,7 +86,9 @@ export class ContractedServicePrismaMapper {
       customerId: service.customerId.toString(),
       servicePlanId: service.servicePlanId.toString(),
       deviceId:
-        service.deviceId !== null ? service.deviceId.toString() : null,
+        service.deviceId !== null
+          ? service.deviceId.toString()
+          : null,
       status: this.mapStatusToPrisma(service.status),
       startDate: service.startDate,
       createdAt: service.createdAt,

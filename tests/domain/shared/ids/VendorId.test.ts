@@ -117,7 +117,9 @@ describe('VendorId', () => {
 
         expect(result.isSuccess).toBe(true);
         // UUID.parse normalises to lowercase internally
-        expect(result.value.toValue()).toBe(VALID_UUID_A.toLowerCase());
+        expect(result.value.toValue()).toBe(
+          VALID_UUID_A.toLowerCase()
+        );
       });
     });
 
@@ -144,7 +146,9 @@ describe('VendorId', () => {
       });
 
       it('should return a failure Result for a UUID missing its hyphens', () => {
-        const result = VendorId.parse('c5228bee15a8420ca5ca39d209f944e5');
+        const result = VendorId.parse(
+          'c5228bee15a8420ca5ca39d209f944e5'
+        );
 
         expect(result.isFailure).toBe(true);
       });
@@ -238,13 +242,17 @@ describe('VendorId', () => {
     it('should return false when compared to null', () => {
       const id = VendorId.parse(VALID_UUID_A).value;
 
-      expect(id.equals(null as unknown as UniqueEntityID)).toBe(false);
+      expect(id.equals(null as unknown as UniqueEntityID)).toBe(
+        false
+      );
     });
 
     it('should return false when compared to undefined', () => {
       const id = VendorId.parse(VALID_UUID_A).value;
 
-      expect(id.equals(undefined as unknown as UniqueEntityID)).toBe(false);
+      expect(id.equals(undefined as unknown as UniqueEntityID)).toBe(
+        false
+      );
     });
 
     it('should be reflexive — an ID equals itself', () => {

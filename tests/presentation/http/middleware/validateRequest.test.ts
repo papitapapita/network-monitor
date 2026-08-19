@@ -60,7 +60,9 @@ describe('validateRequest middleware', () => {
         params: z.object({}),
         query: z.object({})
       });
-      const mockReq = createMockRequest({ body: { name: 'Torre Norte' } });
+      const mockReq = createMockRequest({
+        body: { name: 'Torre Norte' }
+      });
       const { res, statusMock } = createMockResponse();
 
       await validateRequest(schema)(
@@ -141,7 +143,9 @@ describe('validateRequest middleware', () => {
   describe('when a ZodError occurs (validation failure → HTTP 400)', () => {
     it('should return 400 and not call next() when a required body field is missing', async () => {
       const schema = z.object({
-        body: z.object({ name: z.string().min(1, 'Name is required') }),
+        body: z.object({
+          name: z.string().min(1, 'Name is required')
+        }),
         params: z.object({}),
         query: z.object({})
       });
@@ -177,7 +181,9 @@ describe('validateRequest middleware', () => {
         params: z.object({}),
         query: z.object({})
       });
-      const mockReq = createMockRequest({ body: { email: 'not-an-email' } });
+      const mockReq = createMockRequest({
+        body: { email: 'not-an-email' }
+      });
       const { res, jsonMock } = createMockResponse();
 
       await validateRequest(schema)(
@@ -204,7 +210,9 @@ describe('validateRequest middleware', () => {
         params: z.object({}),
         query: z.object({})
       });
-      const mockReq = createMockRequest({ body: { count: 'not-a-number' } });
+      const mockReq = createMockRequest({
+        body: { count: 'not-a-number' }
+      });
       const { res, jsonMock } = createMockResponse();
 
       await validateRequest(schema)(
@@ -264,7 +272,9 @@ describe('validateRequest middleware', () => {
         params: z.object({ id: z.string().uuid('Invalid UUID') }),
         query: z.object({})
       });
-      const mockReq = createMockRequest({ params: { id: 'not-a-uuid' } });
+      const mockReq = createMockRequest({
+        params: { id: 'not-a-uuid' }
+      });
       const { res, statusMock, jsonMock } = createMockResponse();
 
       await validateRequest(schema)(
@@ -354,7 +364,9 @@ describe('validateRequest middleware', () => {
         params: z.object({}),
         query: z.object({})
       });
-      const mockReq = createMockRequest({ body: null as unknown as object });
+      const mockReq = createMockRequest({
+        body: null as unknown as object
+      });
       const { res, statusMock } = createMockResponse();
 
       await validateRequest(schema)(
@@ -429,7 +441,9 @@ describe('validateRequest middleware', () => {
     });
 
     it('should call next(error) when the schema throws a TypeError', async () => {
-      const error = new TypeError('Cannot read property of undefined');
+      const error = new TypeError(
+        'Cannot read property of undefined'
+      );
       const schema = {
         parseAsync: jest.fn().mockRejectedValue(error)
       } as unknown as ReturnType<typeof z.object>;

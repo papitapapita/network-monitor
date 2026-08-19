@@ -27,7 +27,8 @@ function makeRaw(overrides: Record<string, unknown> = {}) {
 describe('ContractedServicePrismaMapper', () => {
   describe('toDomain()', () => {
     it('should map a full record', () => {
-      const result = ContractedServicePrismaMapper.toDomain(makeRaw());
+      const result =
+        ContractedServicePrismaMapper.toDomain(makeRaw());
       expect(result.isSuccess).toBe(true);
       expect(result.value.status).toBe(
         ContractedServiceStatus.ACTIVE
@@ -61,9 +62,8 @@ describe('ContractedServicePrismaMapper', () => {
 
   describe('toPersistence()', () => {
     it('should round-trip through toDomain', () => {
-      const service = ContractedServicePrismaMapper.toDomain(
-        makeRaw()
-      ).value;
+      const service =
+        ContractedServicePrismaMapper.toDomain(makeRaw()).value;
       const data =
         ContractedServicePrismaMapper.toPersistence(service);
       expect(data).toEqual(makeRaw());

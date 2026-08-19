@@ -16,7 +16,9 @@ function makePhone(value = '3001234567'): PhoneNumber {
 }
 
 function validProps(
-  overrides: Partial<Omit<CustomerProps, 'createdAt' | 'updatedAt'>> = {}
+  overrides: Partial<
+    Omit<CustomerProps, 'createdAt' | 'updatedAt'>
+  > = {}
 ): Omit<CustomerProps, 'createdAt' | 'updatedAt'> {
   return {
     fullName: 'Juan Perez',

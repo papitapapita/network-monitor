@@ -11,7 +11,9 @@ export class DeviceIPAddressChangedHandler
     private readonly logger: ILogger
   ) {}
 
-  public async handle(event: DeviceDetailsUpdatedEvent): Promise<void> {
+  public async handle(
+    event: DeviceDetailsUpdatedEvent
+  ): Promise<void> {
     if (!('ipAddress' in event.updatedFields)) {
       return;
     }

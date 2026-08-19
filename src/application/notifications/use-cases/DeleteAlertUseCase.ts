@@ -5,7 +5,10 @@ import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import { DeleteAlertDTO } from '../dtos';
 
-export class DeleteAlertUseCase extends UseCase<DeleteAlertDTO, void> {
+export class DeleteAlertUseCase extends UseCase<
+  DeleteAlertDTO,
+  void
+> {
   constructor(
     private readonly alertRepository: IAlertRepository,
     logger: ILogger
@@ -29,9 +32,7 @@ export class DeleteAlertUseCase extends UseCase<DeleteAlertDTO, void> {
       return this.fail('Alert not found');
     }
     if (found.value.isOpen) {
-      return this.fail(
-        'Cannot delete an alert that is still open'
-      );
+      return this.fail('Cannot delete an alert that is still open');
     }
 
     const deleteResult = await this.alertRepository.deleteById(

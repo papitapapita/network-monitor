@@ -22,7 +22,9 @@ type PrismaVendorRecord = {
   updatedAt: Date;
 };
 
-function makeRaw(overrides: Partial<PrismaVendorRecord> = {}): PrismaVendorRecord {
+function makeRaw(
+  overrides: Partial<PrismaVendorRecord> = {}
+): PrismaVendorRecord {
   return {
     id: VALID_UUID,
     name: 'Mikrotik',
@@ -34,16 +36,21 @@ function makeRaw(overrides: Partial<PrismaVendorRecord> = {}): PrismaVendorRecor
   };
 }
 
-function makeVendor(overrides: Partial<{
-  name: string;
-  slug: string;
-  description: string | null;
-}> = {}): Vendor {
+function makeVendor(
+  overrides: Partial<{
+    name: string;
+    slug: string;
+    description: string | null;
+  }> = {}
+): Vendor {
   const id = VendorId.parse(VALID_UUID).value!;
   return Vendor.reconstitute(id, {
     name: overrides.name ?? 'Mikrotik',
     slug: overrides.slug ?? 'mikrotik',
-    description: overrides.description !== undefined ? overrides.description : 'Network equipment manufacturer',
+    description:
+      overrides.description !== undefined
+        ? overrides.description
+        : 'Network equipment manufacturer',
     createdAt: NOW,
     updatedAt: UPDATED
   });
@@ -93,11 +100,15 @@ describe('VendorMapper', () => {
       });
 
       it('should map description when it is a non-null string', () => {
-        const raw = makeRaw({ description: 'Enterprise networking gear' });
+        const raw = makeRaw({
+          description: 'Enterprise networking gear'
+        });
 
         const result = VendorMapper.toDomain(raw);
 
-        expect(result.value!.description).toBe('Enterprise networking gear');
+        expect(result.value!.description).toBe(
+          'Enterprise networking gear'
+        );
       });
 
       it('should map description as null when raw description is null', () => {
@@ -190,7 +201,9 @@ describe('VendorMapper', () => {
       });
 
       it('should serialize description when it is a non-null string', () => {
-        const vendor = makeVendor({ description: 'Enterprise solutions' });
+        const vendor = makeVendor({
+          description: 'Enterprise solutions'
+        });
 
         const data = VendorMapper.toPersistence(vendor);
 
@@ -229,7 +242,14 @@ describe('VendorMapper', () => {
         const data = VendorMapper.toPersistence(vendor);
 
         expect(Object.keys(data).sort()).toEqual(
-          ['createdAt', 'description', 'id', 'name', 'slug', 'updatedAt'].sort()
+          [
+            'createdAt',
+            'description',
+            'id',
+            'name',
+            'slug',
+            'updatedAt'
+          ].sort()
         );
       });
     });
@@ -243,7 +263,9 @@ describe('VendorMapper', () => {
       const domainResult = VendorMapper.toDomain(raw);
       expect(domainResult.isSuccess).toBe(true);
 
-      const serialized = VendorMapper.toPersistence(domainResult.value!);
+      const serialized = VendorMapper.toPersistence(
+        domainResult.value!
+      );
 
       expect(serialized.id).toBe(raw.id);
       expect(serialized.name).toBe(raw.name);
@@ -255,7 +277,9 @@ describe('VendorMapper', () => {
       const raw = makeRaw({ description: null });
 
       const domainResult = VendorMapper.toDomain(raw);
-      const serialized = VendorMapper.toPersistence(domainResult.value!);
+      const serialized = VendorMapper.toPersistence(
+        domainResult.value!
+      );
 
       expect(serialized.description).toBeNull();
     });
@@ -264,7 +288,9 @@ describe('VendorMapper', () => {
       const raw = makeRaw();
 
       const domainResult = VendorMapper.toDomain(raw);
-      const serialized = VendorMapper.toPersistence(domainResult.value!);
+      const serialized = VendorMapper.toPersistence(
+        domainResult.value!
+      );
 
       expect(serialized.createdAt).toEqual(NOW);
       expect(serialized.updatedAt).toEqual(UPDATED);

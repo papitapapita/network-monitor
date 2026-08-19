@@ -164,7 +164,9 @@ describe('MACAddress', () => {
       });
 
       it('should fail for undefined', () => {
-        const result = MACAddress.create(undefined as unknown as string);
+        const result = MACAddress.create(
+          undefined as unknown as string
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('MAC address');
@@ -252,7 +254,9 @@ describe('MACAddress', () => {
     it('should return false for undefined', () => {
       const mac = MACAddress.create('AA:BB:CC:DD:EE:FF').value;
 
-      expect(mac.equals(undefined as unknown as MACAddress)).toBe(false);
+      expect(mac.equals(undefined as unknown as MACAddress)).toBe(
+        false
+      );
     });
   });
 

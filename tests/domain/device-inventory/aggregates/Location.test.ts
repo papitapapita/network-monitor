@@ -76,7 +76,9 @@ describe('Location', () => {
 
       it('should expose the provided type', () => {
         const result = Location.create(
-          validProps({ type: LocationType.reconstitute(LocationType.DATACENTER) })
+          validProps({
+            type: LocationType.reconstitute(LocationType.DATACENTER)
+          })
         );
 
         expect(result.value.type.value).toBe(LocationType.DATACENTER);
@@ -129,7 +131,11 @@ describe('Location', () => {
         const coords = makeCoords(6.2442, -75.5812, 1495);
         const result = Location.create(
           validProps({
-            address: makeAddress('Calle 10 # 43-28', 'Medellín', 'El Poblado'),
+            address: makeAddress(
+              'Calle 10 # 43-28',
+              'Medellín',
+              'El Poblado'
+            ),
             coordinates: coords
           })
         );
@@ -248,12 +254,20 @@ describe('Location', () => {
 
         const cpResult = Location.create(
           validProps({
-            type: LocationType.reconstitute(LocationType.CUSTOMER_PREMISES),
-            address: makeAddress('123 Main St', 'Some City', 'Some Neighborhood')
+            type: LocationType.reconstitute(
+              LocationType.CUSTOMER_PREMISES
+            ),
+            address: makeAddress(
+              '123 Main St',
+              'Some City',
+              'Some Neighborhood'
+            )
           })
         );
         expect(cpResult.isSuccess).toBe(true);
-        expect(cpResult.value.type.value).toBe(LocationType.CUSTOMER_PREMISES);
+        expect(cpResult.value.type.value).toBe(
+          LocationType.CUSTOMER_PREMISES
+        );
       });
     });
 
@@ -458,7 +472,9 @@ describe('Location', () => {
 
   // =========================================================================
   describe('updateType()', () => {
-    function makeLocation(type: string = LocationType.TOWER): Location {
+    function makeLocation(
+      type: string = LocationType.TOWER
+    ): Location {
       return Location.create(
         validProps({ type: LocationType.reconstitute(type) })
       ).value;
@@ -467,14 +483,18 @@ describe('Location', () => {
     describe('happy path', () => {
       it('should return a successful Result when type is valid', () => {
         const location = makeLocation(LocationType.TOWER);
-        const result = location.updateType(LocationType.reconstitute(LocationType.OFFICE));
+        const result = location.updateType(
+          LocationType.reconstitute(LocationType.OFFICE)
+        );
 
         expect(result.isSuccess).toBe(true);
       });
 
       it('should update the type', () => {
         const location = makeLocation(LocationType.TOWER);
-        location.updateType(LocationType.reconstitute(LocationType.DATACENTER));
+        location.updateType(
+          LocationType.reconstitute(LocationType.DATACENTER)
+        );
 
         expect(location.type.value).toBe(LocationType.DATACENTER);
       });
@@ -484,7 +504,9 @@ describe('Location', () => {
           validProps({ updatedAt: BASE_DATE })
         ).value;
         const before = new Date();
-        location.updateType(LocationType.reconstitute(LocationType.OFFICE));
+        location.updateType(
+          LocationType.reconstitute(LocationType.OFFICE)
+        );
         const after = new Date();
 
         expect(location.updatedAt.getTime()).toBeGreaterThanOrEqual(
@@ -500,7 +522,9 @@ describe('Location', () => {
       it('should return a successful Result without emitting an event', () => {
         const location = makeLocation(LocationType.TOWER);
         location.clearEvents();
-        const result = location.updateType(LocationType.reconstitute(LocationType.TOWER));
+        const result = location.updateType(
+          LocationType.reconstitute(LocationType.TOWER)
+        );
 
         expect(result.isSuccess).toBe(true);
         expect(location.domainEvents.length).toBe(0);
@@ -542,7 +566,11 @@ describe('Location', () => {
     function makeLocation(): Location {
       return Location.create(
         validProps({
-          address: makeAddress('Initial Address', 'Initial City', 'Initial Neighborhood')
+          address: makeAddress(
+            'Initial Address',
+            'Initial City',
+            'Initial Neighborhood'
+          )
         })
       ).value;
     }
@@ -609,7 +637,11 @@ describe('Location', () => {
       it('should update updatedAt timestamp', () => {
         const location = Location.create(
           validProps({
-            address: makeAddress('Initial St', 'Initial City', 'Initial Hood'),
+            address: makeAddress(
+              'Initial St',
+              'Initial City',
+              'Initial Hood'
+            ),
             updatedAt: BASE_DATE
           })
         ).value;
@@ -842,7 +874,11 @@ describe('Location', () => {
       const result = Location.create({
         name: 'Torre Norte',
         type: LocationType.reconstitute(LocationType.TOWER),
-        address: makeAddress('Carrera 80 # 75-32', 'Medellín', 'Robledo'),
+        address: makeAddress(
+          'Carrera 80 # 75-32',
+          'Medellín',
+          'Robledo'
+        ),
         coordinates: makeCoords(6.281, -75.598, 1540),
         createdAt: BASE_DATE,
         updatedAt: BASE_DATE

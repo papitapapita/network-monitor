@@ -237,7 +237,11 @@ describe('authorize middleware', () => {
         role: 'OPERATOR'
       });
 
-      authorize('create', 'delete')(req as Request, res as Response, mockNext);
+      authorize('create', 'delete')(
+        req as Request,
+        res as Response,
+        mockNext
+      );
 
       expect(statusMock).toHaveBeenCalledWith(403);
     });

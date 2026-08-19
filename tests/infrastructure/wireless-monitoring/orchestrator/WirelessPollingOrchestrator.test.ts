@@ -50,7 +50,9 @@ function uuidAt(n: number): string {
 }
 
 function makeConfigs(count: number): WirelessDeviceConfig[] {
-  return Array.from({ length: count }, (_, i) => makeConfig(uuidAt(i)));
+  return Array.from({ length: count }, (_, i) =>
+    makeConfig(uuidAt(i))
+  );
 }
 
 function makeMocks() {
@@ -94,7 +96,10 @@ describe('[WLS-023] [WLS-026] [WLS-027] WirelessPollingOrchestrator', () => {
   });
 
   function makeOrchestrator(
-    config: { checkIntervalMs?: number; maxConcurrentPolls?: number } = {}
+    config: {
+      checkIntervalMs?: number;
+      maxConcurrentPolls?: number;
+    } = {}
   ): WirelessPollingOrchestrator {
     return new WirelessPollingOrchestrator(
       mocks.repo,
@@ -126,7 +131,9 @@ describe('[WLS-023] [WLS-026] [WLS-027] WirelessPollingOrchestrator', () => {
     });
 
     it('should keep ticking on the configured interval', async () => {
-      const orchestrator = makeOrchestrator({ checkIntervalMs: 10_000 });
+      const orchestrator = makeOrchestrator({
+        checkIntervalMs: 10_000
+      });
 
       orchestrator.start();
       await drain();
@@ -139,7 +146,9 @@ describe('[WLS-023] [WLS-026] [WLS-027] WirelessPollingOrchestrator', () => {
     });
 
     it('should stop ticking after stop', async () => {
-      const orchestrator = makeOrchestrator({ checkIntervalMs: 10_000 });
+      const orchestrator = makeOrchestrator({
+        checkIntervalMs: 10_000
+      });
 
       orchestrator.start();
       await drain();
@@ -149,19 +158,25 @@ describe('[WLS-023] [WLS-026] [WLS-027] WirelessPollingOrchestrator', () => {
       jest.advanceTimersByTime(30_000);
       await drain();
 
-      expect(mocks.repo.findAllDue).toHaveBeenCalledTimes(callsAtStop);
+      expect(mocks.repo.findAllDue).toHaveBeenCalledTimes(
+        callsAtStop
+      );
       expect(orchestrator.isActive()).toBe(false);
     });
   });
 
   describe('[WLS-023] concurrency ceiling', () => {
     it('should dispatch no more than maxConcurrentPolls in one tick', async () => {
-      mocks.repo.findAllDue.mockResolvedValue(Result.ok(makeConfigs(25)));
+      mocks.repo.findAllDue.mockResolvedValue(
+        Result.ok(makeConfigs(25))
+      );
       // never resolves, so every dispatched poll stays in flight
       mocks.pollUseCase.execute.mockImplementation(
         () => new Promise(() => {})
       );
-      const orchestrator = makeOrchestrator({ maxConcurrentPolls: 10 });
+      const orchestrator = makeOrchestrator({
+        maxConcurrentPolls: 10
+      });
 
       orchestrator.start();
       await drain();
@@ -170,11 +185,15 @@ describe('[WLS-023] [WLS-026] [WLS-027] WirelessPollingOrchestrator', () => {
     });
 
     it('should honour a custom ceiling', async () => {
-      mocks.repo.findAllDue.mockResolvedValue(Result.ok(makeConfigs(25)));
+      mocks.repo.findAllDue.mockResolvedValue(
+        Result.ok(makeConfigs(25))
+      );
       mocks.pollUseCase.execute.mockImplementation(
         () => new Promise(() => {})
       );
-      const orchestrator = makeOrchestrator({ maxConcurrentPolls: 3 });
+      const orchestrator = makeOrchestrator({
+        maxConcurrentPolls: 3
+      });
 
       orchestrator.start();
       await drain();
@@ -183,7 +202,9 @@ describe('[WLS-023] [WLS-026] [WLS-027] WirelessPollingOrchestrator', () => {
     });
 
     it('should not dispatch a device that is already being polled', async () => {
-      mocks.repo.findAllDue.mockResolvedValue(Result.ok(makeConfigs(2)));
+      mocks.repo.findAllDue.mockResolvedValue(
+        Result.ok(makeConfigs(2))
+      );
       mocks.pollUseCase.execute.mockImplementation(
         () => new Promise(() => {})
       );
@@ -204,7 +225,9 @@ describe('[WLS-023] [WLS-026] [WLS-027] WirelessPollingOrchestrator', () => {
     });
 
     it('should dispatch the overflow on a later tick once slots free up', async () => {
-      mocks.repo.findAllDue.mockResolvedValue(Result.ok(makeConfigs(15)));
+      mocks.repo.findAllDue.mockResolvedValue(
+        Result.ok(makeConfigs(15))
+      );
       const orchestrator = makeOrchestrator({
         checkIntervalMs: 10_000,
         maxConcurrentPolls: 10
@@ -223,9 +246,13 @@ describe('[WLS-023] [WLS-026] [WLS-027] WirelessPollingOrchestrator', () => {
     });
 
     it('should release a device slot after its poll throws', async () => {
-      mocks.repo.findAllDue.mockResolvedValue(Result.ok(makeConfigs(1)));
+      mocks.repo.findAllDue.mockResolvedValue(
+        Result.ok(makeConfigs(1))
+      );
       mocks.pollUseCase.execute.mockRejectedValue(new Error('boom'));
-      const orchestrator = makeOrchestrator({ checkIntervalMs: 10_000 });
+      const orchestrator = makeOrchestrator({
+        checkIntervalMs: 10_000
+      });
 
       orchestrator.start();
       await drain();
@@ -240,7 +267,9 @@ describe('[WLS-023] [WLS-026] [WLS-027] WirelessPollingOrchestrator', () => {
   describe('[WLS-026] database in recovery', () => {
     it('should stay silent when findAllDue fails with 57P03', async () => {
       mocks.repo.findAllDue.mockResolvedValue(
-        Result.fail('db error 57P03: the database system is starting up')
+        Result.fail(
+          'db error 57P03: the database system is starting up'
+        )
       );
       const orchestrator = makeOrchestrator();
 
@@ -264,7 +293,9 @@ describe('[WLS-023] [WLS-026] [WLS-027] WirelessPollingOrchestrator', () => {
 
     it('should keep ticking after a 57P03 failure', async () => {
       mocks.repo.findAllDue.mockResolvedValue(Result.fail('57P03'));
-      const orchestrator = makeOrchestrator({ checkIntervalMs: 10_000 });
+      const orchestrator = makeOrchestrator({
+        checkIntervalMs: 10_000
+      });
 
       orchestrator.start();
       await drain();
@@ -276,11 +307,15 @@ describe('[WLS-023] [WLS-026] [WLS-027] WirelessPollingOrchestrator', () => {
     });
 
     it('should recover and poll once the database comes back', async () => {
-      mocks.repo.findAllDue.mockResolvedValueOnce(Result.fail('57P03'));
+      mocks.repo.findAllDue.mockResolvedValueOnce(
+        Result.fail('57P03')
+      );
       mocks.repo.findAllDue.mockResolvedValue(
         Result.ok(makeConfigs(1))
       );
-      const orchestrator = makeOrchestrator({ checkIntervalMs: 10_000 });
+      const orchestrator = makeOrchestrator({
+        checkIntervalMs: 10_000
+      });
 
       orchestrator.start();
       await drain();
@@ -293,9 +328,13 @@ describe('[WLS-023] [WLS-026] [WLS-027] WirelessPollingOrchestrator', () => {
     });
 
     it('should not let an unexpected throw from the repository stop the loop', async () => {
-      mocks.repo.findAllDue.mockRejectedValueOnce(new Error('kaboom'));
+      mocks.repo.findAllDue.mockRejectedValueOnce(
+        new Error('kaboom')
+      );
       mocks.repo.findAllDue.mockResolvedValue(Result.ok([]));
-      const orchestrator = makeOrchestrator({ checkIntervalMs: 10_000 });
+      const orchestrator = makeOrchestrator({
+        checkIntervalMs: 10_000
+      });
 
       orchestrator.start();
       await drain();
@@ -321,7 +360,9 @@ describe('[WLS-023] [WLS-026] [WLS-027] WirelessPollingOrchestrator', () => {
     });
 
     it('should wait for an in-flight poll before returning', async () => {
-      mocks.repo.findAllDue.mockResolvedValue(Result.ok(makeConfigs(1)));
+      mocks.repo.findAllDue.mockResolvedValue(
+        Result.ok(makeConfigs(1))
+      );
       let releasePoll: () => void = () => {};
       mocks.pollUseCase.execute.mockImplementation(
         () =>
@@ -351,7 +392,9 @@ describe('[WLS-023] [WLS-026] [WLS-027] WirelessPollingOrchestrator', () => {
     });
 
     it('should give up after 30 seconds and stop anyway', async () => {
-      mocks.repo.findAllDue.mockResolvedValue(Result.ok(makeConfigs(1)));
+      mocks.repo.findAllDue.mockResolvedValue(
+        Result.ok(makeConfigs(1))
+      );
       mocks.pollUseCase.execute.mockImplementation(
         () => new Promise(() => {})
       );

@@ -1,10 +1,18 @@
-import { Customer, PhoneNumber, Cedula, EmailAddress } from 'domain/customers';
+import {
+  Customer,
+  PhoneNumber,
+  Cedula,
+  EmailAddress
+} from 'domain/customers';
 import { ICustomerRepository } from 'domain/customers/repository';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import { CustomerMapper } from '../mappers';
-import { CreateCustomerRequestDTO, CustomerResponseDTO } from '../dtos';
+import {
+  CreateCustomerRequestDTO,
+  CustomerResponseDTO
+} from '../dtos';
 
 export class CreateCustomerUseCase extends UseCase<
   CreateCustomerRequestDTO,
@@ -80,7 +88,9 @@ export class CreateCustomerUseCase extends UseCase<
       customerResult.value
     );
     if (saveResult.isFailure) {
-      return this.fail(`Failed to persist customer: ${saveResult.error}`);
+      return this.fail(
+        `Failed to persist customer: ${saveResult.error}`
+      );
     }
 
     return this.ok(CustomerMapper.toDTO(saveResult.value));
@@ -105,7 +115,8 @@ export class CreateCustomerUseCase extends UseCase<
       const emailExists = await this.customerRepository.existsByEmail(
         email.toString()
       );
-      if (emailExists.isFailure) return Result.fail(emailExists.error!);
+      if (emailExists.isFailure)
+        return Result.fail(emailExists.error!);
       if (emailExists.value) {
         return Result.fail(
           `A customer with email "${email.toString()}" already exists`
@@ -114,9 +125,10 @@ export class CreateCustomerUseCase extends UseCase<
     }
 
     if (cedula !== null) {
-      const cedulaExists = await this.customerRepository.existsByCedula(
-        cedula.toString()
-      );
+      const cedulaExists =
+        await this.customerRepository.existsByCedula(
+          cedula.toString()
+        );
       if (cedulaExists.isFailure)
         return Result.fail(cedulaExists.error!);
       if (cedulaExists.value) {

@@ -7,7 +7,11 @@ import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { Location } from '../../../../src/domain/device-inventory/aggregates/Location';
 import { Device } from '../../../../src/domain/device-inventory/aggregates/Device';
-import { LocationId, DeviceId, DeviceModelId } from '../../../../src/domain/shared/ids';
+import {
+  LocationId,
+  DeviceId,
+  DeviceModelId
+} from '../../../../src/domain/shared/ids';
 import {
   DeviceName,
   DeviceStatus,
@@ -98,7 +102,9 @@ function makeLogger(): jest.Mocked<ILogger> {
     error: jest.fn(),
     debug: jest.fn(),
     fatal: jest.fn(),
-    child: jest.fn().mockReturnThis() as jest.Mocked<ILogger>['child'],
+    child: jest
+      .fn()
+      .mockReturnThis() as jest.Mocked<ILogger>['child'],
     setLevel: jest.fn()
   };
 }

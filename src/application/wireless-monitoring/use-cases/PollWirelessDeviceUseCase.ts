@@ -13,7 +13,10 @@ import {
   EvaluationContext
 } from 'domain/wireless-monitoring';
 import { UseCase } from 'application/shared/core';
-import { ILogger, IAlertPublisher } from 'application/shared/interfaces';
+import {
+  ILogger,
+  IAlertPublisher
+} from 'application/shared/interfaces';
 import {
   IUbiquitiHttpCollector,
   HttpCredentials,

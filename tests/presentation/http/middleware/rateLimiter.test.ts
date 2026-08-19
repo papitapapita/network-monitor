@@ -1,6 +1,11 @@
 // Source: src/presentation/http/middleware/rateLimiter.ts
 
-import express, { Express, Request, Response, NextFunction } from 'express';
+import express, {
+  Express,
+  Request,
+  Response,
+  NextFunction
+} from 'express';
 import request from 'supertest';
 import { createRateLimiter } from '../../../../src/presentation/http/middleware/rateLimiter';
 
@@ -12,13 +17,21 @@ const makeApp = (userId?: string): Express => {
   const app = express();
   app.use((req: Request, _res: Response, next: NextFunction) => {
     if (userId) {
-      req.user = { userId, email: 'operator@isp.test', role: 'ADMIN' };
+      req.user = {
+        userId,
+        email: 'operator@isp.test',
+        role: 'ADMIN'
+      };
     }
     next();
   });
-  app.delete('/things/:id', createRateLimiter('delete'), (_req, res) => {
-    res.status(204).send();
-  });
+  app.delete(
+    '/things/:id',
+    createRateLimiter('delete'),
+    (_req, res) => {
+      res.status(204).send();
+    }
+  );
   return app;
 };
 
@@ -65,9 +78,13 @@ describe('createRateLimiter', () => {
         };
         next();
       });
-      app.delete('/things/:id', createRateLimiter('delete'), (_req, res) => {
-        res.status(204).send();
-      });
+      app.delete(
+        '/things/:id',
+        createRateLimiter('delete'),
+        (_req, res) => {
+          res.status(204).send();
+        }
+      );
 
       await deleteTimes(app, 60);
       currentUserId = 'user-2';

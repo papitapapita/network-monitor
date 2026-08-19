@@ -27,7 +27,12 @@ export interface DeviceFilters {
   // until something explicitly asks for tombstones.
   deleted?: DeletedFilter;
   search?: string;
-  sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'status' | 'deletedAt';
+  sortBy?:
+    | 'createdAt'
+    | 'updatedAt'
+    | 'name'
+    | 'status'
+    | 'deletedAt';
   sortOrder?: 'ASC' | 'DESC';
   limit?: number;
   offset?: number;

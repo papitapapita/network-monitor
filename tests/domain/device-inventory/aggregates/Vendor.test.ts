@@ -1,6 +1,9 @@
 // Source: src/domain/device-inventory/aggregates/Vendor.ts
 
-import { Vendor, VendorProps } from '../../../../src/domain/device-inventory';
+import {
+  Vendor,
+  VendorProps
+} from '../../../../src/domain/device-inventory';
 import { VendorId } from '../../../../src/domain/shared';
 
 // ---------------------------------------------------------------------------
@@ -20,7 +23,9 @@ function makeProps(
   };
 }
 
-function makeVendor(overrides: Partial<CreateVendorProps> = {}): Vendor {
+function makeVendor(
+  overrides: Partial<CreateVendorProps> = {}
+): Vendor {
   const result = Vendor.create(makeProps(overrides));
   if (result.isFailure) {
     throw new Error(`makeVendor: ${result.error}`);
@@ -150,7 +155,9 @@ describe('Vendor', () => {
       });
 
       it('should succeed when name is exactly 100 characters', () => {
-        const result = Vendor.create(makeProps({ name: 'A'.repeat(100) }));
+        const result = Vendor.create(
+          makeProps({ name: 'A'.repeat(100) })
+        );
 
         expect(result.isSuccess).toBe(true);
       });
@@ -190,7 +197,9 @@ describe('Vendor', () => {
       });
 
       it('should succeed when slug is exactly 100 characters', () => {
-        const result = Vendor.create(makeProps({ slug: 'a'.repeat(100) }));
+        const result = Vendor.create(
+          makeProps({ slug: 'a'.repeat(100) })
+        );
 
         expect(result.isSuccess).toBe(true);
       });
@@ -211,13 +220,17 @@ describe('Vendor', () => {
       });
 
       it('should succeed for a slug with digits', () => {
-        const result = Vendor.create(makeProps({ slug: 'vendor123' }));
+        const result = Vendor.create(
+          makeProps({ slug: 'vendor123' })
+        );
 
         expect(result.isSuccess).toBe(true);
       });
 
       it('should succeed for a slug mixing letters, digits and hyphens', () => {
-        const result = Vendor.create(makeProps({ slug: 'vendor-1-inc' }));
+        const result = Vendor.create(
+          makeProps({ slug: 'vendor-1-inc' })
+        );
 
         expect(result.isSuccess).toBe(true);
       });
@@ -260,7 +273,9 @@ describe('Vendor', () => {
       });
 
       it('should fail for a slug with special characters', () => {
-        const result = Vendor.create(makeProps({ slug: 'cisco@net' }));
+        const result = Vendor.create(
+          makeProps({ slug: 'cisco@net' })
+        );
 
         expect(result.isFailure).toBe(true);
       });
@@ -286,7 +301,9 @@ describe('Vendor', () => {
       });
 
       it('should succeed when description is null', () => {
-        const result = Vendor.create(makeProps({ description: null }));
+        const result = Vendor.create(
+          makeProps({ description: null })
+        );
 
         expect(result.isSuccess).toBe(true);
       });
@@ -424,7 +441,9 @@ describe('Vendor', () => {
 
       it('should fail when newName is undefined', () => {
         const vendor = makeVendor();
-        const result = vendor.updateName(undefined as unknown as string);
+        const result = vendor.updateName(
+          undefined as unknown as string
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('name');
@@ -534,7 +553,9 @@ describe('Vendor', () => {
 
       it('should fail when newSlug is undefined', () => {
         const vendor = makeVendor();
-        const result = vendor.updateSlug(undefined as unknown as string);
+        const result = vendor.updateSlug(
+          undefined as unknown as string
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('slug');
@@ -606,7 +627,9 @@ describe('Vendor', () => {
     describe('happy path', () => {
       it('should return a successful Result when given a valid description', () => {
         const vendor = makeVendor({ description: null });
-        const result = vendor.updateDescription('A leading networking vendor');
+        const result = vendor.updateDescription(
+          'A leading networking vendor'
+        );
 
         expect(result.isSuccess).toBe(true);
       });
@@ -615,11 +638,15 @@ describe('Vendor', () => {
         const vendor = makeVendor({ description: null });
         vendor.updateDescription('A leading networking vendor');
 
-        expect(vendor.description).toBe('A leading networking vendor');
+        expect(vendor.description).toBe(
+          'A leading networking vendor'
+        );
       });
 
       it('should allow setting description to null', () => {
-        const vendor = makeVendor({ description: 'Some description' });
+        const vendor = makeVendor({
+          description: 'Some description'
+        });
         const result = vendor.updateDescription(null);
 
         expect(result.isSuccess).toBe(true);
@@ -651,7 +678,9 @@ describe('Vendor', () => {
     // -----------------------------------------------------------------------
     describe('no-op when description is unchanged', () => {
       it('should return a successful Result and emit no events when value is the same string', () => {
-        const vendor = makeVendor({ description: 'Same description' });
+        const vendor = makeVendor({
+          description: 'Same description'
+        });
         vendor.clearEvents();
         const result = vendor.updateDescription('Same description');
 
@@ -669,7 +698,9 @@ describe('Vendor', () => {
       });
 
       it('should not change updatedAt when the value is the same', () => {
-        const vendor = makeVendor({ description: 'Same description' });
+        const vendor = makeVendor({
+          description: 'Same description'
+        });
         const updatedAtBefore = vendor.updatedAt;
         vendor.updateDescription('Same description');
 

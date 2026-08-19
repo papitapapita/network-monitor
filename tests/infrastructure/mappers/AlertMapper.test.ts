@@ -11,9 +11,9 @@ import { AlertSeverity } from '../../../src/domain/shared/enums/AlertSeverity';
 const VALID_UUID_1 = '550e8400-e29b-41d4-a716-446655440000';
 const VALID_UUID_2 = '550e8400-e29b-41d4-a716-446655440001';
 
-const STARTED_AT           = new Date('2024-01-01T00:00:00.000Z');
-const RESOLVED_AT          = new Date('2024-01-01T00:05:00.000Z');
-const NOTIFIED_AT          = new Date('2024-01-01T00:00:30.000Z');
+const STARTED_AT = new Date('2024-01-01T00:00:00.000Z');
+const RESOLVED_AT = new Date('2024-01-01T00:05:00.000Z');
+const NOTIFIED_AT = new Date('2024-01-01T00:00:30.000Z');
 const RECOVERY_NOTIFIED_AT = new Date('2024-01-01T00:05:10.000Z');
 
 // ---------------------------------------------------------------------------
@@ -168,7 +168,9 @@ describe('AlertMapper', () => {
 
         const alert = AlertMapper.toDomain(raw);
 
-        expect(alert.recoveryNotifiedAt).toEqual(RECOVERY_NOTIFIED_AT);
+        expect(alert.recoveryNotifiedAt).toEqual(
+          RECOVERY_NOTIFIED_AT
+        );
       });
 
       it('should compute durationSecs from startedAt and resolvedAt', () => {
@@ -199,7 +201,9 @@ describe('AlertMapper', () => {
       it('should include the invalid alertId value in the error message', () => {
         const raw = makeRawAlertRecord({ id: 'bad-alert-id' });
 
-        expect(() => AlertMapper.toDomain(raw)).toThrow('bad-alert-id');
+        expect(() => AlertMapper.toDomain(raw)).toThrow(
+          'bad-alert-id'
+        );
       });
 
       it('should throw when alertId is an empty string', () => {
@@ -226,9 +230,13 @@ describe('AlertMapper', () => {
       });
 
       it('should include the invalid deviceId value in the error message', () => {
-        const raw = makeRawAlertRecord({ deviceId: 'clearly-invalid' });
+        const raw = makeRawAlertRecord({
+          deviceId: 'clearly-invalid'
+        });
 
-        expect(() => AlertMapper.toDomain(raw)).toThrow('clearly-invalid');
+        expect(() => AlertMapper.toDomain(raw)).toThrow(
+          'clearly-invalid'
+        );
       });
 
       it('should throw when deviceId is an empty string', () => {
@@ -347,7 +355,6 @@ describe('AlertMapper', () => {
 
         expect(raw.recoveryNotifiedAt).toEqual(RECOVERY_NOTIFIED_AT);
       });
-
     });
 
     // -----------------------------------------------------------------------
@@ -408,7 +415,9 @@ describe('AlertMapper', () => {
       });
 
       it('should reproduce severity after a round-trip', () => {
-        const originalRaw = makeRawAlertRecord({ severity: 'CRITICAL' });
+        const originalRaw = makeRawAlertRecord({
+          severity: 'CRITICAL'
+        });
 
         const serialized = AlertMapper.toPersistence(
           AlertMapper.toDomain(originalRaw)

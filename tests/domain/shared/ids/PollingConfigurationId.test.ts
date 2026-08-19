@@ -59,7 +59,9 @@ describe('PollingConfigurationId', () => {
       });
 
       it('should parse a second distinct valid UUID', () => {
-        const result = PollingConfigurationId.parse(ANOTHER_VALID_UUID);
+        const result = PollingConfigurationId.parse(
+          ANOTHER_VALID_UUID
+        );
 
         expect(result.isSuccess).toBe(true);
         expect(result.value.toString()).toBe(ANOTHER_VALID_UUID);
@@ -86,7 +88,9 @@ describe('PollingConfigurationId', () => {
       });
 
       it('should fail for a UUID with a missing segment', () => {
-        const result = PollingConfigurationId.parse('550e8400-e29b-41d4-a716');
+        const result = PollingConfigurationId.parse(
+          '550e8400-e29b-41d4-a716'
+        );
 
         expect(result.isFailure).toBe(true);
       });
@@ -104,7 +108,9 @@ describe('PollingConfigurationId', () => {
 
     it('should return false for two IDs created from different UUID strings', () => {
       const id1 = PollingConfigurationId.parse(VALID_UUID).value;
-      const id2 = PollingConfigurationId.parse(ANOTHER_VALID_UUID).value;
+      const id2 = PollingConfigurationId.parse(
+        ANOTHER_VALID_UUID
+      ).value;
 
       expect(id1.equals(id2)).toBe(false);
     });

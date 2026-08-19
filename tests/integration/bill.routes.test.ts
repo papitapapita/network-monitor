@@ -47,7 +47,11 @@ describe('Bill Routes — /api/bills', () => {
       name: 'Test Plan 50/10',
       monthlyPrice: 80000
     });
-    await seedActiveContractedService(prisma, customerId, servicePlanId);
+    await seedActiveContractedService(
+      prisma,
+      customerId,
+      servicePlanId
+    );
   });
 
   async function generateBill(body: {

@@ -55,7 +55,8 @@ export class GetMapLocationsUseCase extends UseCase<
 
     const pins: MapPinDTO[] = locations.map((location) => {
       const coords = location.coordinates!;
-      const devices = devicesByLocation.get(location.id.toString()) ?? [];
+      const devices =
+        devicesByLocation.get(location.id.toString()) ?? [];
 
       const deviceDTOs: MapPinDeviceDTO[] = devices.map((d) => ({
         id: d.id.toString(),

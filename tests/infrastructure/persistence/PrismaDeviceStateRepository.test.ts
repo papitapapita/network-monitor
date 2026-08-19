@@ -14,15 +14,17 @@ import { ReachabilityStatus } from '../../../src/domain/device-monitoring/value-
 
 jest.mock('../../../src/infrastructure/mappers/DeviceStateMapper');
 
-const MockedMapper = DeviceStateMapper as jest.Mocked<typeof DeviceStateMapper>;
+const MockedMapper = DeviceStateMapper as jest.Mocked<
+  typeof DeviceStateMapper
+>;
 
 // ---------------------------------------------------------------------------
 // Constants & Fixtures
 // ---------------------------------------------------------------------------
 
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
-const VALID_ROW_ID      = 'db-row-uuid-001';
-const FIXED_DATE        = new Date('2024-06-01T10:00:00.000Z');
+const VALID_ROW_ID = 'db-row-uuid-001';
+const FIXED_DATE = new Date('2024-06-01T10:00:00.000Z');
 
 function makeDeviceId(): DeviceId {
   return DeviceId.parse(VALID_DEVICE_UUID).value;
@@ -32,35 +34,37 @@ function makeFakePrismaClient() {
   return {
     deviceState: {
       findUnique: jest.fn(),
-      upsert:     jest.fn()
+      upsert: jest.fn()
     }
   };
 }
 
 function makeFakePrismaRow(overrides: Record<string, unknown> = {}) {
   return {
-    id:                  VALID_ROW_ID,
-    deviceId:            VALID_DEVICE_UUID,
-    status:              'UP',
-    lastSeen:            FIXED_DATE,
-    lastLatencyMs:       20,
+    id: VALID_ROW_ID,
+    deviceId: VALID_DEVICE_UUID,
+    status: 'UP',
+    lastSeen: FIXED_DATE,
+    lastLatencyMs: 20,
     consecutiveFailures: 0,
-    lastCheckedAt:       FIXED_DATE,
-    updatedAt:           FIXED_DATE,
+    lastCheckedAt: FIXED_DATE,
+    updatedAt: FIXED_DATE,
     ...overrides
   };
 }
 
-function makeFakeDomainState(overrides: Partial<DeviceStateProps> = {}): DeviceState {
+function makeFakeDomainState(
+  overrides: Partial<DeviceStateProps> = {}
+): DeviceState {
   const deviceId = makeDeviceId();
   const props: DeviceStateProps = {
     deviceId,
-    status:              ReachabilityStatus.createUp(),
-    lastSeen:            FIXED_DATE,
-    lastLatencyMs:       20,
+    status: ReachabilityStatus.createUp(),
+    lastSeen: FIXED_DATE,
+    lastLatencyMs: 20,
     consecutiveFailures: 0,
-    lastCheckedAt:       FIXED_DATE,
-    updatedAt:           FIXED_DATE,
+    lastCheckedAt: FIXED_DATE,
+    updatedAt: FIXED_DATE,
     ...overrides
   };
   return DeviceState.reconstitute(deviceId, props);
@@ -70,35 +74,41 @@ function makeFakePersistenceData(): ReturnType<
   typeof DeviceStateMapper.toPersistence
 > {
   return {
-    deviceId:            VALID_DEVICE_UUID,
-    status:              'UP',
-    lastSeen:            FIXED_DATE,
-    lastLatencyMs:       20,
+    deviceId: VALID_DEVICE_UUID,
+    status: 'UP',
+    lastSeen: FIXED_DATE,
+    lastLatencyMs: 20,
     consecutiveFailures: 0,
-    lastCheckedAt:       FIXED_DATE
+    lastCheckedAt: FIXED_DATE
   };
 }
 
 // ---------------------------------------------------------------------------
 
 describe('PrismaDeviceStateRepository', () => {
-  let prisma:      ReturnType<typeof makeFakePrismaClient>;
-  let repo:        PrismaDeviceStateRepository;
-  let fakeState:   DeviceState;
-  let markSpy:     jest.SpyInstance;
+  let prisma: ReturnType<typeof makeFakePrismaClient>;
+  let repo: PrismaDeviceStateRepository;
+  let fakeState: DeviceState;
+  let markSpy: jest.SpyInstance;
   let dispatchSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    prisma    = makeFakePrismaClient();
+    prisma = makeFakePrismaClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    repo      = new PrismaDeviceStateRepository(prisma as any);
+    repo = new PrismaDeviceStateRepository(prisma as any);
     fakeState = makeFakeDomainState();
 
     MockedMapper.toDomain.mockReturnValue(fakeState);
-    MockedMapper.toPersistence.mockReturnValue(makeFakePersistenceData());
+    MockedMapper.toPersistence.mockReturnValue(
+      makeFakePersistenceData()
+    );
 
-    markSpy     = jest.spyOn(EventDispatcher, 'markAggregateForDispatch').mockImplementation(() => undefined);
-    dispatchSpy = jest.spyOn(EventDispatcher, 'dispatchEventsForAggregate').mockImplementation(() => undefined);
+    markSpy = jest
+      .spyOn(EventDispatcher, 'markAggregateForDispatch')
+      .mockImplementation(() => undefined);
+    dispatchSpy = jest
+      .spyOn(EventDispatcher, 'dispatchEventsForAggregate')
+      .mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -109,7 +119,9 @@ describe('PrismaDeviceStateRepository', () => {
   // ===========================================================================
   describe('findByDeviceId()', () => {
     it('should call prisma.deviceState.findUnique with the correct deviceId string', async () => {
-      prisma.deviceState.findUnique.mockResolvedValue(makeFakePrismaRow());
+      prisma.deviceState.findUnique.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
       await repo.findByDeviceId(makeDeviceId());
 
@@ -119,7 +131,9 @@ describe('PrismaDeviceStateRepository', () => {
     });
 
     it('should return a successful Result when a record exists', async () => {
-      prisma.deviceState.findUnique.mockResolvedValue(makeFakePrismaRow());
+      prisma.deviceState.findUnique.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
       const result = await repo.findByDeviceId(makeDeviceId());
 
@@ -127,7 +141,9 @@ describe('PrismaDeviceStateRepository', () => {
     });
 
     it('should delegate mapping to DeviceStateMapper.toDomain', async () => {
-      prisma.deviceState.findUnique.mockResolvedValue(makeFakePrismaRow());
+      prisma.deviceState.findUnique.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
       await repo.findByDeviceId(makeDeviceId());
 
@@ -135,7 +151,9 @@ describe('PrismaDeviceStateRepository', () => {
     });
 
     it('should return the DeviceState produced by the mapper', async () => {
-      prisma.deviceState.findUnique.mockResolvedValue(makeFakePrismaRow());
+      prisma.deviceState.findUnique.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
       const result = await repo.findByDeviceId(makeDeviceId());
 
@@ -160,7 +178,9 @@ describe('PrismaDeviceStateRepository', () => {
     });
 
     it('should return a failed Result when Prisma throws', async () => {
-      prisma.deviceState.findUnique.mockRejectedValue(new Error('Connection refused'));
+      prisma.deviceState.findUnique.mockRejectedValue(
+        new Error('Connection refused')
+      );
 
       const result = await repo.findByDeviceId(makeDeviceId());
 
@@ -168,7 +188,9 @@ describe('PrismaDeviceStateRepository', () => {
     });
 
     it('should include "findByDeviceId failed" in the error message on Prisma error', async () => {
-      prisma.deviceState.findUnique.mockRejectedValue(new Error('DB timeout'));
+      prisma.deviceState.findUnique.mockRejectedValue(
+        new Error('DB timeout')
+      );
 
       const result = await repo.findByDeviceId(makeDeviceId());
 
@@ -176,7 +198,9 @@ describe('PrismaDeviceStateRepository', () => {
     });
 
     it('should propagate the original Prisma error message within the failure', async () => {
-      prisma.deviceState.findUnique.mockRejectedValue(new Error('network error'));
+      prisma.deviceState.findUnique.mockRejectedValue(
+        new Error('network error')
+      );
 
       const result = await repo.findByDeviceId(makeDeviceId());
 
@@ -187,15 +211,21 @@ describe('PrismaDeviceStateRepository', () => {
   // ===========================================================================
   describe('save()', () => {
     it('should call DeviceStateMapper.toPersistence with the DeviceState', async () => {
-      prisma.deviceState.upsert.mockResolvedValue(makeFakePrismaRow());
+      prisma.deviceState.upsert.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
       await repo.save(fakeState);
 
-      expect(MockedMapper.toPersistence).toHaveBeenCalledWith(fakeState);
+      expect(MockedMapper.toPersistence).toHaveBeenCalledWith(
+        fakeState
+      );
     });
 
     it('should call EventDispatcher.markAggregateForDispatch with the DeviceState', async () => {
-      prisma.deviceState.upsert.mockResolvedValue(makeFakePrismaRow());
+      prisma.deviceState.upsert.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
       await repo.save(fakeState);
 
@@ -216,7 +246,9 @@ describe('PrismaDeviceStateRepository', () => {
     });
 
     it('should call prisma.deviceState.upsert with the correct where clause', async () => {
-      prisma.deviceState.upsert.mockResolvedValue(makeFakePrismaRow());
+      prisma.deviceState.upsert.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
       await repo.save(fakeState);
 
@@ -228,7 +260,9 @@ describe('PrismaDeviceStateRepository', () => {
     });
 
     it('should call prisma.deviceState.upsert exactly once', async () => {
-      prisma.deviceState.upsert.mockResolvedValue(makeFakePrismaRow());
+      prisma.deviceState.upsert.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
       await repo.save(fakeState);
 
@@ -236,7 +270,9 @@ describe('PrismaDeviceStateRepository', () => {
     });
 
     it('should call EventDispatcher.dispatchEventsForAggregate with the aggregate id', async () => {
-      prisma.deviceState.upsert.mockResolvedValue(makeFakePrismaRow());
+      prisma.deviceState.upsert.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
       await repo.save(fakeState);
 
@@ -246,10 +282,16 @@ describe('PrismaDeviceStateRepository', () => {
     it('should call markAggregateForDispatch before dispatchEventsForAggregate', async () => {
       const callOrder: string[] = [];
 
-      markSpy.mockImplementation(() => { callOrder.push('mark'); });
-      dispatchSpy.mockImplementation(() => { callOrder.push('dispatch'); });
+      markSpy.mockImplementation(() => {
+        callOrder.push('mark');
+      });
+      dispatchSpy.mockImplementation(() => {
+        callOrder.push('dispatch');
+      });
 
-      prisma.deviceState.upsert.mockResolvedValue(makeFakePrismaRow());
+      prisma.deviceState.upsert.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
       await repo.save(fakeState);
 
@@ -257,7 +299,9 @@ describe('PrismaDeviceStateRepository', () => {
     });
 
     it('should return a successful Result on save', async () => {
-      prisma.deviceState.upsert.mockResolvedValue(makeFakePrismaRow());
+      prisma.deviceState.upsert.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
       const result = await repo.save(fakeState);
 
@@ -265,7 +309,9 @@ describe('PrismaDeviceStateRepository', () => {
     });
 
     it('should return the same DeviceState instance that was passed in', async () => {
-      prisma.deviceState.upsert.mockResolvedValue(makeFakePrismaRow());
+      prisma.deviceState.upsert.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
       const result = await repo.save(fakeState);
 
@@ -273,7 +319,9 @@ describe('PrismaDeviceStateRepository', () => {
     });
 
     it('should return a failed Result when Prisma throws', async () => {
-      prisma.deviceState.upsert.mockRejectedValue(new Error('Foreign key violation'));
+      prisma.deviceState.upsert.mockRejectedValue(
+        new Error('Foreign key violation')
+      );
 
       const result = await repo.save(fakeState);
 
@@ -281,7 +329,9 @@ describe('PrismaDeviceStateRepository', () => {
     });
 
     it('should include "save failed" in the error message on Prisma error', async () => {
-      prisma.deviceState.upsert.mockRejectedValue(new Error('Unique constraint'));
+      prisma.deviceState.upsert.mockRejectedValue(
+        new Error('Unique constraint')
+      );
 
       const result = await repo.save(fakeState);
 
@@ -289,7 +339,9 @@ describe('PrismaDeviceStateRepository', () => {
     });
 
     it('should propagate the original Prisma error message within the failure', async () => {
-      prisma.deviceState.upsert.mockRejectedValue(new Error('deadlock detected'));
+      prisma.deviceState.upsert.mockRejectedValue(
+        new Error('deadlock detected')
+      );
 
       const result = await repo.save(fakeState);
 
@@ -297,7 +349,9 @@ describe('PrismaDeviceStateRepository', () => {
     });
 
     it('should not call dispatchEventsForAggregate when Prisma throws', async () => {
-      prisma.deviceState.upsert.mockRejectedValue(new Error('DB down'));
+      prisma.deviceState.upsert.mockRejectedValue(
+        new Error('DB down')
+      );
 
       await repo.save(fakeState);
 

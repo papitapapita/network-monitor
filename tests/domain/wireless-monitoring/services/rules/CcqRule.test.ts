@@ -11,24 +11,50 @@ const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
 
 function makeNullProps(): WirelessMetricsProps {
   return {
-    signalRxDbm: null, signalTxDbm: null, noiseFloorDbm: null, snrDb: null,
-    ccqPercent: null, frequencyMhz: null,
-    channelWidthMhz: null, throughputTxBps: null,
-    throughputRxBps: null, lanStatus: null, lanSpeedMbps: null, lanDuplex: null,
-    uptimeSeconds: null, cpuLoadPercent: null, memoryUsedPercent: null,
-    clientsConnected: null, throughputTxPps: null,
-    throughputRxPps: null, firmwareVersion: null, deviceName: null,
-    remoteApMac: null, remoteApName: null, remoteApIp: null,
-    distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
-    deviceTimeEpoch: null, macAddress: null, deviceModel: null, ssid: null,
+    signalRxDbm: null,
+    signalTxDbm: null,
+    noiseFloorDbm: null,
+    snrDb: null,
+    ccqPercent: null,
+    frequencyMhz: null,
+    channelWidthMhz: null,
+    throughputTxBps: null,
+    throughputRxBps: null,
+    lanStatus: null,
+    lanSpeedMbps: null,
+    lanDuplex: null,
+    uptimeSeconds: null,
+    cpuLoadPercent: null,
+    memoryUsedPercent: null,
+    clientsConnected: null,
+    throughputTxPps: null,
+    throughputRxPps: null,
+    firmwareVersion: null,
+    deviceName: null,
+    remoteApMac: null,
+    remoteApName: null,
+    remoteApIp: null,
+    distanceM: null,
+    latencyMs: null,
+    capacityTxKbps: null,
+    capacityRxKbps: null,
+    deviceTimeEpoch: null,
+    macAddress: null,
+    deviceModel: null,
+    ssid: null
   };
 }
 
-function makeMetrics(overrides: Partial<WirelessMetricsProps> = {}): WirelessMetrics {
-  return WirelessMetrics.create({ ...makeNullProps(), ...overrides }).value;
+function makeMetrics(
+  overrides: Partial<WirelessMetricsProps> = {}
+): WirelessMetrics {
+  return WirelessMetrics.create({ ...makeNullProps(), ...overrides })
+    .value;
 }
 
-function makeContext(overrides: Partial<EvaluationContext> = {}): EvaluationContext {
+function makeContext(
+  overrides: Partial<EvaluationContext> = {}
+): EvaluationContext {
   return {
     deviceName: 'CPE-001',
     deviceModel: null,
@@ -36,15 +62,27 @@ function makeContext(overrides: Partial<EvaluationContext> = {}): EvaluationCont
     clientsProvisionedLimit: null,
     previousMetrics: null,
     collectedAt: new Date(),
-    ...overrides,
+    ...overrides
   };
 }
 
-function makeActiveAlert(metric: string, severity: 'WARNING' | 'CRITICAL' = 'WARNING'): WirelessAlertRecord {
-  return WirelessAlertRecord.open(DeviceId.parse(DEVICE_UUID).value, metric, severity, -70, -72, 'test').value;
+function makeActiveAlert(
+  metric: string,
+  severity: 'WARNING' | 'CRITICAL' = 'WARNING'
+): WirelessAlertRecord {
+  return WirelessAlertRecord.open(
+    DeviceId.parse(DEVICE_UUID).value,
+    metric,
+    severity,
+    -70,
+    -72,
+    'test'
+  ).value;
 }
 
-function activeMap(...entries: Array<[string, 'WARNING' | 'CRITICAL']>): Map<string, WirelessAlertRecord> {
+function activeMap(
+  ...entries: Array<[string, 'WARNING' | 'CRITICAL']>
+): Map<string, WirelessAlertRecord> {
   const m = new Map<string, WirelessAlertRecord>();
   for (const [metric, sev] of entries) {
     m.set(`${metric}:${sev}`, makeActiveAlert(metric, sev));
@@ -62,40 +100,68 @@ describe('[WLS-081] [WLS-085] CcqRule', () => {
   describe('device model guard', () => {
     it('should return [] when deviceModel is null', () => {
       const metrics = makeMetrics({ ccqPercent: 60 });
-      const result = rule.evaluate(metrics, makeContext({ deviceModel: null }), new Map());
+      const result = rule.evaluate(
+        metrics,
+        makeContext({ deviceModel: null }),
+        new Map()
+      );
       expect(result).toHaveLength(0);
     });
 
     it('should return [] when deviceModel is an AC-series device (LiteBeam AC)', () => {
       const metrics = makeMetrics({ ccqPercent: 60 });
-      const result = rule.evaluate(metrics, makeContext({ deviceModel: 'LiteBeam AC' }), new Map());
+      const result = rule.evaluate(
+        metrics,
+        makeContext({ deviceModel: 'LiteBeam AC' }),
+        new Map()
+      );
       expect(result).toHaveLength(0);
     });
 
     it('should return [] when deviceModel is an AC-series device (NanoBeam AC)', () => {
       const metrics = makeMetrics({ ccqPercent: 60 });
-      const result = rule.evaluate(metrics, makeContext({ deviceModel: 'NanoBeam AC' }), new Map());
+      const result = rule.evaluate(
+        metrics,
+        makeContext({ deviceModel: 'NanoBeam AC' }),
+        new Map()
+      );
       expect(result).toHaveLength(0);
     });
 
     it('should evaluate when deviceModel matches M-series pattern (Rocket M5)', () => {
       const metrics = makeMetrics({ ccqPercent: 60 });
-      const result = rule.evaluate(metrics, makeContext({ deviceModel: 'Rocket M5' }), new Map());
-      const decision = result.find(d => d.action === 'OPEN' && d.severity === 'WARNING');
+      const result = rule.evaluate(
+        metrics,
+        makeContext({ deviceModel: 'Rocket M5' }),
+        new Map()
+      );
+      const decision = result.find(
+        (d) => d.action === 'OPEN' && d.severity === 'WARNING'
+      );
       expect(decision).toBeDefined();
     });
 
     it('should evaluate when deviceModel matches M-series pattern (NanoStation M2)', () => {
       const metrics = makeMetrics({ ccqPercent: 60 });
-      const result = rule.evaluate(metrics, makeContext({ deviceModel: 'NanoStation M2' }), new Map());
-      const decision = result.find(d => d.action === 'OPEN' && d.severity === 'WARNING');
+      const result = rule.evaluate(
+        metrics,
+        makeContext({ deviceModel: 'NanoStation M2' }),
+        new Map()
+      );
+      const decision = result.find(
+        (d) => d.action === 'OPEN' && d.severity === 'WARNING'
+      );
       expect(decision).toBeDefined();
     });
 
     it('should evaluate when deviceModel matches M900 pattern', () => {
       const metrics = makeMetrics({ ccqPercent: 60 });
-      const result = rule.evaluate(metrics, makeContext({ deviceModel: 'Bullet M900' }), new Map());
-      expect(result.some(d => d.action === 'OPEN')).toBe(true);
+      const result = rule.evaluate(
+        metrics,
+        makeContext({ deviceModel: 'Bullet M900' }),
+        new Map()
+      );
+      expect(result.some((d) => d.action === 'OPEN')).toBe(true);
     });
   });
 
@@ -104,14 +170,24 @@ describe('[WLS-081] [WLS-085] CcqRule', () => {
 
     it('should return [] when ccqPercent is null', () => {
       const metrics = makeMetrics({ ccqPercent: null });
-      const result = rule.evaluate(metrics, mSeriesContext, new Map());
+      const result = rule.evaluate(
+        metrics,
+        mSeriesContext,
+        new Map()
+      );
       expect(result).toHaveLength(0);
     });
 
     it('should emit OPEN WARNING when ccqPercent is below 75% and no active alert', () => {
       const metrics = makeMetrics({ ccqPercent: 70 });
-      const result = rule.evaluate(metrics, mSeriesContext, new Map());
-      const decision = result.find(d => d.severity === 'WARNING' && d.action === 'OPEN');
+      const result = rule.evaluate(
+        metrics,
+        mSeriesContext,
+        new Map()
+      );
+      const decision = result.find(
+        (d) => d.severity === 'WARNING' && d.action === 'OPEN'
+      );
       expect(decision).toBeDefined();
       expect(decision!.metric).toBe('ccq_percent');
       expect(decision!.currentValue).toBe(70);
@@ -120,8 +196,14 @@ describe('[WLS-081] [WLS-085] CcqRule', () => {
 
     it('should emit OPEN CRITICAL when ccqPercent is below 50% and no active alert', () => {
       const metrics = makeMetrics({ ccqPercent: 40 });
-      const result = rule.evaluate(metrics, mSeriesContext, new Map());
-      const decision = result.find(d => d.severity === 'CRITICAL' && d.action === 'OPEN');
+      const result = rule.evaluate(
+        metrics,
+        mSeriesContext,
+        new Map()
+      );
+      const decision = result.find(
+        (d) => d.severity === 'CRITICAL' && d.action === 'OPEN'
+      );
       expect(decision).toBeDefined();
       expect(decision!.threshold).toBe(50);
     });
@@ -130,7 +212,7 @@ describe('[WLS-081] [WLS-085] CcqRule', () => {
       const metrics = makeMetrics({ ccqPercent: 80 });
       const alerts = activeMap(['ccq_percent', 'WARNING']);
       const result = rule.evaluate(metrics, mSeriesContext, alerts);
-      const decision = result.find(d => d.severity === 'WARNING');
+      const decision = result.find((d) => d.severity === 'WARNING');
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('CLEAR');
     });
@@ -139,7 +221,7 @@ describe('[WLS-081] [WLS-085] CcqRule', () => {
       const metrics = makeMetrics({ ccqPercent: 60 });
       const alerts = activeMap(['ccq_percent', 'CRITICAL']);
       const result = rule.evaluate(metrics, mSeriesContext, alerts);
-      const decision = result.find(d => d.severity === 'CRITICAL');
+      const decision = result.find((d) => d.severity === 'CRITICAL');
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('CLEAR');
     });
@@ -148,7 +230,7 @@ describe('[WLS-081] [WLS-085] CcqRule', () => {
       const metrics = makeMetrics({ ccqPercent: 65 });
       const alerts = activeMap(['ccq_percent', 'WARNING']);
       const result = rule.evaluate(metrics, mSeriesContext, alerts);
-      const opens = result.filter(d => d.action === 'OPEN');
+      const opens = result.filter((d) => d.action === 'OPEN');
       expect(opens).toHaveLength(0);
     });
 
@@ -161,8 +243,12 @@ describe('[WLS-081] [WLS-085] CcqRule', () => {
 
     it('should not emit OPEN when ccqPercent is exactly at 75% (boundary is exclusive)', () => {
       const metrics = makeMetrics({ ccqPercent: 75 });
-      const result = rule.evaluate(metrics, mSeriesContext, new Map());
-      const opens = result.filter(d => d.action === 'OPEN');
+      const result = rule.evaluate(
+        metrics,
+        mSeriesContext,
+        new Map()
+      );
+      const opens = result.filter((d) => d.action === 'OPEN');
       expect(opens).toHaveLength(0);
     });
   });

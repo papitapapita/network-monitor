@@ -60,7 +60,9 @@ describe('Coordinates', () => {
       });
 
       it('should accept zero altitude', () => {
-        const result = Coordinates.create(validProps({ altitude: 0 }));
+        const result = Coordinates.create(
+          validProps({ altitude: 0 })
+        );
 
         expect(result.isSuccess).toBe(true);
         expect(result.value.altitude).toBe(0);
@@ -160,7 +162,9 @@ describe('Coordinates', () => {
       });
 
       it('should accept latitude at the boundary value of 90', () => {
-        const result = Coordinates.create(validProps({ latitude: 90 }));
+        const result = Coordinates.create(
+          validProps({ latitude: 90 })
+        );
 
         expect(result.isSuccess).toBe(true);
         expect(result.value.latitude).toBe(90);
@@ -176,7 +180,9 @@ describe('Coordinates', () => {
       });
 
       it('should accept latitude of 0', () => {
-        const result = Coordinates.create(validProps({ latitude: 0 }));
+        const result = Coordinates.create(
+          validProps({ latitude: 0 })
+        );
 
         expect(result.isSuccess).toBe(true);
         expect(result.value.latitude).toBe(0);
@@ -325,7 +331,9 @@ describe('Coordinates', () => {
 
       it('should accept null altitude (treated as absent)', () => {
         const result = Coordinates.create(
-          validProps({ altitude: null as unknown as number | undefined })
+          validProps({
+            altitude: null as unknown as number | undefined
+          })
         );
 
         expect(result.isSuccess).toBe(true);
@@ -458,7 +466,11 @@ describe('Coordinates', () => {
 
     it('should return "lat, lon, altm" when altitude is present', () => {
       const coords = Coordinates.create(
-        validProps({ latitude: 6.2442, longitude: -75.5812, altitude: 1495 })
+        validProps({
+          latitude: 6.2442,
+          longitude: -75.5812,
+          altitude: 1495
+        })
       ).value;
 
       expect(coords.toString()).toBe('6.2442, -75.5812, 1495m');
@@ -482,7 +494,11 @@ describe('Coordinates', () => {
 
     it('should return consistent results across multiple calls', () => {
       const coords = Coordinates.create(
-        validProps({ latitude: 51.5074, longitude: -0.1278, altitude: 15 })
+        validProps({
+          latitude: 51.5074,
+          longitude: -0.1278,
+          altitude: 15
+        })
       ).value;
 
       expect(coords.toString()).toBe(coords.toString());
@@ -502,10 +518,18 @@ describe('Coordinates', () => {
   describe('equals() — ValueObject structural equality', () => {
     it('should return true for two instances with identical props', () => {
       const a = Coordinates.create(
-        validProps({ latitude: 6.2442, longitude: -75.5812, altitude: 1495 })
+        validProps({
+          latitude: 6.2442,
+          longitude: -75.5812,
+          altitude: 1495
+        })
       ).value;
       const b = Coordinates.create(
-        validProps({ latitude: 6.2442, longitude: -75.5812, altitude: 1495 })
+        validProps({
+          latitude: 6.2442,
+          longitude: -75.5812,
+          altitude: 1495
+        })
       ).value;
 
       expect(a.equals(b)).toBe(true);
@@ -523,21 +547,31 @@ describe('Coordinates', () => {
     });
 
     it('should return false when longitude differs', () => {
-      const a = Coordinates.create(validProps({ longitude: -75.5812 })).value;
-      const b = Coordinates.create(validProps({ longitude: -75.5813 })).value;
+      const a = Coordinates.create(
+        validProps({ longitude: -75.5812 })
+      ).value;
+      const b = Coordinates.create(
+        validProps({ longitude: -75.5813 })
+      ).value;
 
       expect(a.equals(b)).toBe(false);
     });
 
     it('should return false when altitude differs', () => {
-      const a = Coordinates.create(validProps({ altitude: 1000 })).value;
-      const b = Coordinates.create(validProps({ altitude: 2000 })).value;
+      const a = Coordinates.create(
+        validProps({ altitude: 1000 })
+      ).value;
+      const b = Coordinates.create(
+        validProps({ altitude: 2000 })
+      ).value;
 
       expect(a.equals(b)).toBe(false);
     });
 
     it('should return false when one has altitude and the other does not', () => {
-      const a = Coordinates.create(validProps({ altitude: 1000 })).value;
+      const a = Coordinates.create(
+        validProps({ altitude: 1000 })
+      ).value;
       const b = Coordinates.create(validProps()).value;
 
       expect(a.equals(b)).toBe(false);
@@ -552,9 +586,9 @@ describe('Coordinates', () => {
     it('should return false when compared to undefined', () => {
       const a = Coordinates.create(validProps()).value;
 
-      expect(
-        a.equals(undefined as unknown as Coordinates)
-      ).toBe(false);
+      expect(a.equals(undefined as unknown as Coordinates)).toBe(
+        false
+      );
     });
   });
 
@@ -590,7 +624,10 @@ describe('Coordinates', () => {
     });
 
     it('should represent coordinates on the Prime Meridian and Equator', () => {
-      const result = Coordinates.create({ latitude: 0, longitude: 0 });
+      const result = Coordinates.create({
+        latitude: 0,
+        longitude: 0
+      });
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.latitude).toBe(0);
@@ -599,14 +636,20 @@ describe('Coordinates', () => {
     });
 
     it('should represent the North Pole coordinates', () => {
-      const result = Coordinates.create({ latitude: 90, longitude: 0 });
+      const result = Coordinates.create({
+        latitude: 90,
+        longitude: 0
+      });
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.latitude).toBe(90);
     });
 
     it('should represent the South Pole coordinates', () => {
-      const result = Coordinates.create({ latitude: -90, longitude: 0 });
+      const result = Coordinates.create({
+        latitude: -90,
+        longitude: 0
+      });
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.latitude).toBe(-90);

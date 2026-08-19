@@ -34,9 +34,16 @@ describe('ConfigureDevicePollingUseCase — integration', () => {
     const suspend = new SuspendDeviceMonitoringUseCase(
       repo,
       new PrismaDeviceStateRepository(prisma),
-      new ResolveAlertUseCase(new PrismaAlertRepository(prisma), logger)
+      new ResolveAlertUseCase(
+        new PrismaAlertRepository(prisma),
+        logger
+      )
     );
-    useCase = new ConfigureDevicePollingUseCase(repo, suspend, logger);
+    useCase = new ConfigureDevicePollingUseCase(
+      repo,
+      suspend,
+      logger
+    );
   });
 
   afterAll(async () => {

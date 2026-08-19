@@ -74,9 +74,7 @@ describe('[DEV-072] DeviceDeletedWirelessConfigHandler', () => {
 
   it('should disable an enabled wireless config', async () => {
     const config = makeConfig(true);
-    repo.findByDeviceId.mockResolvedValue(
-      Result.ok(config as never)
-    );
+    repo.findByDeviceId.mockResolvedValue(Result.ok(config as never));
 
     await handler.handle(makeEvent());
 
@@ -94,9 +92,7 @@ describe('[DEV-072] DeviceDeletedWirelessConfigHandler', () => {
 
   it('should do nothing when the config is already disabled', async () => {
     const config = makeConfig(false);
-    repo.findByDeviceId.mockResolvedValue(
-      Result.ok(config as never)
-    );
+    repo.findByDeviceId.mockResolvedValue(Result.ok(config as never));
 
     await handler.handle(makeEvent());
 

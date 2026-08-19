@@ -77,7 +77,9 @@ function makeGenerateBillUseCase(): jest.Mocked<GenerateBillUseCase> {
   } as unknown as jest.Mocked<GenerateBillUseCase>;
 }
 
-function makeActiveService(customerId: CustomerId): ContractedService {
+function makeActiveService(
+  customerId: CustomerId
+): ContractedService {
   return ContractedService.create({
     customerId,
     servicePlanId: ServicePlanId.create(),
@@ -130,9 +132,14 @@ describe('GenerateBillsForPeriodUseCase', () => {
   });
 
   it('should succeed with empty arrays when there are no active contracted services', async () => {
-    (serviceRepo.findByStatus as any).mockResolvedValue(Result.ok([]));
+    (serviceRepo.findByStatus as any).mockResolvedValue(
+      Result.ok([])
+    );
 
-    const result = await useCase.execute({ year: YEAR, month: MONTH });
+    const result = await useCase.execute({
+      year: YEAR,
+      month: MONTH
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value).toEqual({
@@ -156,7 +163,10 @@ describe('GenerateBillsForPeriodUseCase', () => {
       Result.ok(makeBillDTO(customerId.toString()))
     );
 
-    const result = await useCase.execute({ year: YEAR, month: MONTH });
+    const result = await useCase.execute({
+      year: YEAR,
+      month: MONTH
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.generated).toHaveLength(1);
@@ -192,7 +202,10 @@ describe('GenerateBillsForPeriodUseCase', () => {
       return Result.ok(makeBillDTO(req.customerId));
     });
 
-    const result = await useCase.execute({ year: YEAR, month: MONTH });
+    const result = await useCase.execute({
+      year: YEAR,
+      month: MONTH
+    });
 
     expect(result.isSuccess).toBe(true);
     const dto = result.value;

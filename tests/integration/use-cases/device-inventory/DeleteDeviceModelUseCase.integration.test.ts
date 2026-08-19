@@ -30,7 +30,11 @@ describe('DeleteDeviceModelUseCase — integration', () => {
     const deviceModelRepo = new PrismaDeviceModelRepository(prisma);
     const deviceRepo = new PrismaDeviceRepository(prisma);
     const logger = new WinstonLogger();
-    useCase = new DeleteDeviceModelUseCase(deviceModelRepo, deviceRepo, logger);
+    useCase = new DeleteDeviceModelUseCase(
+      deviceModelRepo,
+      deviceRepo,
+      logger
+    );
   });
 
   afterAll(async () => {
@@ -39,7 +43,10 @@ describe('DeleteDeviceModelUseCase — integration', () => {
 
   beforeEach(async () => {
     await cleanCatalog(prisma);
-    vendorId = await seedVendor(prisma, { name: 'Ubiquiti', slug: 'ubiquiti' });
+    vendorId = await seedVendor(prisma, {
+      name: 'Ubiquiti',
+      slug: 'ubiquiti'
+    });
 
     const model = await prisma.deviceModel.create({
       data: {
@@ -60,7 +67,9 @@ describe('DeleteDeviceModelUseCase — integration', () => {
 
     expect(result.isSuccess).toBe(true);
 
-    const row = await prisma.deviceModel.findUnique({ where: { id: deviceModelId } });
+    const row = await prisma.deviceModel.findUnique({
+      where: { id: deviceModelId }
+    });
     expect(row).toBeNull();
   });
 

@@ -92,15 +92,18 @@ export abstract class EventDispatcher {
       .push(handler as IHandle<IDomainEvent>);
   }
 
-  public static clearHandlers(): void { // for testing
+  public static clearHandlers(): void {
+    // for testing
     this.handlersMap = new Map();
   }
 
-  public static clearMarkedAggregates(): void { // for testing
+  public static clearMarkedAggregates(): void {
+    // for testing
     this.markedAggregates = [];
   }
 
-  public static clearErrorReporter(): void { // for testing
+  public static clearErrorReporter(): void {
+    // for testing
     this.errorReporter = () => {};
   }
 

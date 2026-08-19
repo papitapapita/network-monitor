@@ -86,7 +86,10 @@ describe('ListDevicesUseCase — integration', () => {
       serialNumber: 'SN-B-001'
     });
 
-    const result = await listUseCase.execute({ limit: 20, offset: 0 });
+    const result = await listUseCase.execute({
+      limit: 20,
+      offset: 0
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.devices).toHaveLength(2);
@@ -223,13 +226,17 @@ describe('ListDevicesUseCase — integration', () => {
   // ──────────────────────────────────────────────────────────────
 
   it('fails when status filter is an invalid enum value', async () => {
-    const result = await listUseCase.execute({ status: 'BROKEN' as any });
+    const result = await listUseCase.execute({
+      status: 'BROKEN' as any
+    });
 
     expect(result.isFailure).toBe(true);
   });
 
   it('fails when category filter is an invalid enum value', async () => {
-    const result = await listUseCase.execute({ category: 'SUPERCORE' as any });
+    const result = await listUseCase.execute({
+      category: 'SUPERCORE' as any
+    });
 
     expect(result.isFailure).toBe(true);
   });

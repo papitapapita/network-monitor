@@ -9,7 +9,10 @@ export class AuthController {
     private readonly logger: ILogger
   ) {}
 
-  public login = async (req: Request, res: Response): Promise<void> => {
+  public login = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const body = req.body as LoginInput;
 
@@ -27,7 +30,10 @@ export class AuthController {
 
       res.status(200).json({ success: true, data: result.value });
     } catch (error) {
-      this.logger.error('Unexpected error in AuthController', error as Error);
+      this.logger.error(
+        'Unexpected error in AuthController',
+        error as Error
+      );
       res
         .status(500)
         .json({ success: false, error: 'Internal server error' });

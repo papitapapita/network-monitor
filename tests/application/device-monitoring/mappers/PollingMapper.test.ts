@@ -29,39 +29,47 @@ const FIXED_TIMESTAMP = new Date('2024-06-01T11:00:00.000Z');
 
 function makeDeviceId(): DeviceId {
   const result = DeviceId.parse(DEVICE_UUID);
-  if (result.isFailure) throw new Error(`Test setup: ${result.error}`);
+  if (result.isFailure)
+    throw new Error(`Test setup: ${result.error}`);
   return result.value;
 }
 
-function makePollingConfig(overrides: {
-  enabled?: boolean;
-  intervalSeconds?: number;
-  failureCount?: number;
-  ipAddress?: string | null;
-} = {}): PollingConfiguration {
+function makePollingConfig(
+  overrides: {
+    enabled?: boolean;
+    intervalSeconds?: number;
+    failureCount?: number;
+    ipAddress?: string | null;
+  } = {}
+): PollingConfiguration {
   const deviceId = makeDeviceId();
   const configId = PollingConfigurationId.parse(CONFIG_UUID);
-  if (configId.isFailure) throw new Error(`Test setup: ${configId.error}`);
+  if (configId.isFailure)
+    throw new Error(`Test setup: ${configId.error}`);
 
   const intervalSeconds = overrides.intervalSeconds ?? 60;
   const failureCount = overrides.failureCount ?? 3;
 
   const interval = PollingInterval.create(intervalSeconds);
-  if (interval.isFailure) throw new Error(`Test setup: ${interval.error}`);
+  if (interval.isFailure)
+    throw new Error(`Test setup: ${interval.error}`);
 
   const threshold = FailureThreshold.create(failureCount);
-  if (threshold.isFailure) throw new Error(`Test setup: ${threshold.error}`);
+  if (threshold.isFailure)
+    throw new Error(`Test setup: ${threshold.error}`);
 
   let ipAddress: IPAddress | null = null;
   if (overrides.ipAddress !== undefined) {
     if (overrides.ipAddress !== null) {
       const ipResult = IPAddress.create(overrides.ipAddress);
-      if (ipResult.isFailure) throw new Error(`Test setup: ${ipResult.error}`);
+      if (ipResult.isFailure)
+        throw new Error(`Test setup: ${ipResult.error}`);
       ipAddress = ipResult.value;
     }
   } else {
     const ipResult = IPAddress.create(TEST_IP);
-    if (ipResult.isFailure) throw new Error(`Test setup: ${ipResult.error}`);
+    if (ipResult.isFailure)
+      throw new Error(`Test setup: ${ipResult.error}`);
     ipAddress = ipResult.value;
   }
 
@@ -74,46 +82,49 @@ function makePollingConfig(overrides: {
   });
 }
 
-function makeDeviceState(overrides: {
-  isOnline?: boolean;
-  status?: ReachabilityStatus;
-  lastCheckedAt?: Date | null;
-  consecutiveFailures?: number;
-  lastLatencyMs?: number | null;
-  lastSeen?: Date | null;
-} = {}): DeviceState {
+function makeDeviceState(
+  overrides: {
+    isOnline?: boolean;
+    status?: ReachabilityStatus;
+    lastCheckedAt?: Date | null;
+    consecutiveFailures?: number;
+    lastLatencyMs?: number | null;
+    lastSeen?: Date | null;
+  } = {}
+): DeviceState {
   const deviceId = makeDeviceId();
-  return DeviceState.reconstitute(
+  return DeviceState.reconstitute(deviceId, {
     deviceId,
-    {
-      deviceId,
-      status:
-        overrides.status ??
-        ((overrides.isOnline ?? true)
-          ? ReachabilityStatus.createUp()
-          : ReachabilityStatus.createDown()),
-      lastSeen: overrides.lastSeen ?? FIXED_LAST_CHECKED,
-      lastLatencyMs: overrides.lastLatencyMs ?? 25,
-      consecutiveFailures: overrides.consecutiveFailures ?? 0,
-      lastCheckedAt: overrides.lastCheckedAt !== undefined
+    status:
+      overrides.status ??
+      ((overrides.isOnline ?? true)
+        ? ReachabilityStatus.createUp()
+        : ReachabilityStatus.createDown()),
+    lastSeen: overrides.lastSeen ?? FIXED_LAST_CHECKED,
+    lastLatencyMs: overrides.lastLatencyMs ?? 25,
+    consecutiveFailures: overrides.consecutiveFailures ?? 0,
+    lastCheckedAt:
+      overrides.lastCheckedAt !== undefined
         ? overrides.lastCheckedAt
         : FIXED_LAST_CHECKED,
-      updatedAt: FIXED_LAST_CHECKED
-    }
-  );
+    updatedAt: FIXED_LAST_CHECKED
+  });
 }
 
-function makePingRecord(overrides: {
-  id?: string;
-  isReachable?: boolean;
-  latencyMs?: number | null;
-  checkedAt?: Date;
-} = {}): PingResultRecord {
+function makePingRecord(
+  overrides: {
+    id?: string;
+    isReachable?: boolean;
+    latencyMs?: number | null;
+    checkedAt?: Date;
+  } = {}
+): PingResultRecord {
   return {
     id: overrides.id ?? PING_RECORD_ID,
     deviceId: makeDeviceId(),
     isReachable: overrides.isReachable ?? true,
-    latencyMs: overrides.latencyMs !== undefined ? overrides.latencyMs : 42,
+    latencyMs:
+      overrides.latencyMs !== undefined ? overrides.latencyMs : 42,
     checkedAt: overrides.checkedAt ?? FIXED_PING_CHECKED_AT
   };
 }
@@ -177,7 +188,9 @@ describe('PollingMapper', () => {
 
       it('should set lastPolled to state.lastCheckedAt', () => {
         const config = makePollingConfig();
-        const state = makeDeviceState({ lastCheckedAt: FIXED_LAST_CHECKED });
+        const state = makeDeviceState({
+          lastCheckedAt: FIXED_LAST_CHECKED
+        });
         const ping = makePingRecord();
 
         const dto = PollingMapper.toStatusDTO(config, state, ping);
@@ -188,7 +201,9 @@ describe('PollingMapper', () => {
       it('should calculate nextScheduled as lastCheckedAt plus intervalSeconds in milliseconds', () => {
         const intervalSeconds = 60;
         const config = makePollingConfig({ intervalSeconds });
-        const state = makeDeviceState({ lastCheckedAt: FIXED_LAST_CHECKED });
+        const state = makeDeviceState({
+          lastCheckedAt: FIXED_LAST_CHECKED
+        });
         const ping = makePingRecord();
 
         const dto = PollingMapper.toStatusDTO(config, state, ping);
@@ -267,7 +282,9 @@ describe('PollingMapper', () => {
         expect(dto.lastResult).not.toBeNull();
         expect(dto.lastResult?.id).toBe(PING_RECORD_ID);
         expect(dto.lastResult?.deviceId).toBe(DEVICE_UUID);
-        expect(dto.lastResult?.timestamp).toEqual(FIXED_PING_CHECKED_AT);
+        expect(dto.lastResult?.timestamp).toEqual(
+          FIXED_PING_CHECKED_AT
+        );
         expect(dto.lastResult?.status).toBe('SUCCESS');
         expect(dto.lastResult?.metrics).toEqual({ latencyMs: 42 });
         expect(dto.lastResult?.deviceStatus).toBe('ONLINE');
@@ -276,7 +293,10 @@ describe('PollingMapper', () => {
       it('should derive lastResult.deviceStatus from state when state is present', () => {
         const config = makePollingConfig();
         const state = makeDeviceState({ isOnline: false });
-        const ping = makePingRecord({ isReachable: true, latencyMs: 10 });
+        const ping = makePingRecord({
+          isReachable: true,
+          latencyMs: 10
+        });
 
         const dto = PollingMapper.toStatusDTO(config, state, ping);
 
@@ -325,7 +345,10 @@ describe('PollingMapper', () => {
 
       it('should still populate lastResult from lastPing when state is null', () => {
         const config = makePollingConfig();
-        const ping = makePingRecord({ isReachable: true, latencyMs: 55 });
+        const ping = makePingRecord({
+          isReachable: true,
+          latencyMs: 55
+        });
 
         const dto = PollingMapper.toStatusDTO(config, null, ping);
 
@@ -344,7 +367,10 @@ describe('PollingMapper', () => {
 
       it('should set lastResult.deviceStatus to OFFLINE from ping when isReachable is false and state is null', () => {
         const config = makePollingConfig();
-        const ping = makePingRecord({ isReachable: false, latencyMs: null });
+        const ping = makePingRecord({
+          isReachable: false,
+          latencyMs: null
+        });
 
         const dto = PollingMapper.toStatusDTO(config, null, ping);
 
@@ -376,7 +402,11 @@ describe('PollingMapper', () => {
     // ------------------------------------------------------------------------
     describe('when both state and lastPing are null', () => {
       it('should produce a fully null/zero/UNKNOWN DTO', () => {
-        const config = makePollingConfig({ intervalSeconds: 30, failureCount: 2, enabled: false });
+        const config = makePollingConfig({
+          intervalSeconds: 30,
+          failureCount: 2,
+          enabled: false
+        });
 
         const dto = PollingMapper.toStatusDTO(config, null, null);
 
@@ -420,7 +450,10 @@ describe('PollingMapper', () => {
       it('should set lastResult.status to FAILED for an unreachable ping', () => {
         const config = makePollingConfig();
         const state = makeDeviceState({ isOnline: false });
-        const ping = makePingRecord({ isReachable: false, latencyMs: null });
+        const ping = makePingRecord({
+          isReachable: false,
+          latencyMs: null
+        });
 
         const dto = PollingMapper.toStatusDTO(config, state, ping);
 
@@ -430,7 +463,10 @@ describe('PollingMapper', () => {
       it('should set lastResult.metrics to null for an unreachable ping', () => {
         const config = makePollingConfig();
         const state = makeDeviceState({ isOnline: false });
-        const ping = makePingRecord({ isReachable: false, latencyMs: null });
+        const ping = makePingRecord({
+          isReachable: false,
+          latencyMs: null
+        });
 
         const dto = PollingMapper.toStatusDTO(config, state, ping);
 
@@ -444,51 +480,80 @@ describe('PollingMapper', () => {
     // ------------------------------------------------------------------------
     describe('happy path', () => {
       it('should map deviceId to the provided string', () => {
-        const dto = PollingMapper.toSkippedResultDTO(DEVICE_UUID, FIXED_TIMESTAMP);
+        const dto = PollingMapper.toSkippedResultDTO(
+          DEVICE_UUID,
+          FIXED_TIMESTAMP
+        );
 
         expect(dto.deviceId).toBe(DEVICE_UUID);
       });
 
       it('should set status to SKIPPED', () => {
-        const dto = PollingMapper.toSkippedResultDTO(DEVICE_UUID, FIXED_TIMESTAMP);
+        const dto = PollingMapper.toSkippedResultDTO(
+          DEVICE_UUID,
+          FIXED_TIMESTAMP
+        );
 
         expect(dto.status).toBe('SKIPPED');
       });
 
       it('should set a non-empty message', () => {
-        const dto = PollingMapper.toSkippedResultDTO(DEVICE_UUID, FIXED_TIMESTAMP);
+        const dto = PollingMapper.toSkippedResultDTO(
+          DEVICE_UUID,
+          FIXED_TIMESTAMP
+        );
 
         expect(typeof dto.message).toBe('string');
         expect(dto.message.length).toBeGreaterThan(0);
       });
 
       it('should set message to the canonical disabled-polling sentence', () => {
-        const dto = PollingMapper.toSkippedResultDTO(DEVICE_UUID, FIXED_TIMESTAMP);
+        const dto = PollingMapper.toSkippedResultDTO(
+          DEVICE_UUID,
+          FIXED_TIMESTAMP
+        );
 
-        expect(dto.message).toBe('Polling is disabled for this device');
+        expect(dto.message).toBe(
+          'Polling is disabled for this device'
+        );
       });
 
       it('should preserve the provided timestamp', () => {
-        const dto = PollingMapper.toSkippedResultDTO(DEVICE_UUID, FIXED_TIMESTAMP);
+        const dto = PollingMapper.toSkippedResultDTO(
+          DEVICE_UUID,
+          FIXED_TIMESTAMP
+        );
 
         expect(dto.timestamp).toEqual(FIXED_TIMESTAMP);
       });
 
       it('should set metrics to null', () => {
-        const dto = PollingMapper.toSkippedResultDTO(DEVICE_UUID, FIXED_TIMESTAMP);
+        const dto = PollingMapper.toSkippedResultDTO(
+          DEVICE_UUID,
+          FIXED_TIMESTAMP
+        );
 
         expect(dto.metrics).toBeNull();
       });
 
       it('should set deviceStatus to UNKNOWN', () => {
-        const dto = PollingMapper.toSkippedResultDTO(DEVICE_UUID, FIXED_TIMESTAMP);
+        const dto = PollingMapper.toSkippedResultDTO(
+          DEVICE_UUID,
+          FIXED_TIMESTAMP
+        );
 
         expect(dto.deviceStatus).toBe('UNKNOWN');
       });
 
       it('should produce the same output given the same inputs (pure transformation)', () => {
-        const dto1 = PollingMapper.toSkippedResultDTO(DEVICE_UUID, FIXED_TIMESTAMP);
-        const dto2 = PollingMapper.toSkippedResultDTO(DEVICE_UUID, FIXED_TIMESTAMP);
+        const dto1 = PollingMapper.toSkippedResultDTO(
+          DEVICE_UUID,
+          FIXED_TIMESTAMP
+        );
+        const dto2 = PollingMapper.toSkippedResultDTO(
+          DEVICE_UUID,
+          FIXED_TIMESTAMP
+        );
 
         expect(dto1).toEqual(dto2);
       });
@@ -683,7 +748,9 @@ describe('PollingMapper', () => {
     // ------------------------------------------------------------------------
     describe('happy path — page with mixed reachable and unreachable records', () => {
       it('should map deviceId to the provided string', () => {
-        const page = [makePingRecord({ isReachable: true, latencyMs: 50 })];
+        const page = [
+          makePingRecord({ isReachable: true, latencyMs: 50 })
+        ];
 
         const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
 
@@ -723,7 +790,9 @@ describe('PollingMapper', () => {
       });
 
       it('should set result.status to SUCCESS for a reachable record', () => {
-        const page = [makePingRecord({ isReachable: true, latencyMs: 20 })];
+        const page = [
+          makePingRecord({ isReachable: true, latencyMs: 20 })
+        ];
 
         const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
 
@@ -731,7 +800,9 @@ describe('PollingMapper', () => {
       });
 
       it('should set result.status to FAILED for an unreachable record', () => {
-        const page = [makePingRecord({ isReachable: false, latencyMs: null })];
+        const page = [
+          makePingRecord({ isReachable: false, latencyMs: null })
+        ];
 
         const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
 
@@ -739,7 +810,9 @@ describe('PollingMapper', () => {
       });
 
       it('should populate result.metrics for a reachable record with latency', () => {
-        const page = [makePingRecord({ isReachable: true, latencyMs: 77 })];
+        const page = [
+          makePingRecord({ isReachable: true, latencyMs: 77 })
+        ];
 
         const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
 
@@ -747,7 +820,9 @@ describe('PollingMapper', () => {
       });
 
       it('should set result.metrics to null for an unreachable record', () => {
-        const page = [makePingRecord({ isReachable: false, latencyMs: null })];
+        const page = [
+          makePingRecord({ isReachable: false, latencyMs: null })
+        ];
 
         const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
 
@@ -793,7 +868,9 @@ describe('PollingMapper', () => {
 
       it('should compute successRate based on totalCount, not page length', () => {
         // 1 success out of 4 total = 25%
-        const page = [makePingRecord({ isReachable: true, latencyMs: 30 })];
+        const page = [
+          makePingRecord({ isReachable: true, latencyMs: 30 })
+        ];
 
         const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 4);
 
@@ -886,7 +963,9 @@ describe('PollingMapper', () => {
       });
 
       it('should set averageResponseTime to 0 when no reachable records exist', () => {
-        const page = [makePingRecord({ isReachable: false, latencyMs: null })];
+        const page = [
+          makePingRecord({ isReachable: false, latencyMs: null })
+        ];
 
         const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
 
@@ -894,7 +973,9 @@ describe('PollingMapper', () => {
       });
 
       it('should set minResponseTime to 0 when no reachable records exist', () => {
-        const page = [makePingRecord({ isReachable: false, latencyMs: null })];
+        const page = [
+          makePingRecord({ isReachable: false, latencyMs: null })
+        ];
 
         const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
 
@@ -902,7 +983,9 @@ describe('PollingMapper', () => {
       });
 
       it('should set maxResponseTime to 0 when no reachable records exist', () => {
-        const page = [makePingRecord({ isReachable: false, latencyMs: null })];
+        const page = [
+          makePingRecord({ isReachable: false, latencyMs: null })
+        ];
 
         const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
 
@@ -941,7 +1024,9 @@ describe('PollingMapper', () => {
     // ------------------------------------------------------------------------
     describe('edge case — single record in page', () => {
       it('should compute averageResponseTime equal to minResponseTime equal to maxResponseTime for a single record', () => {
-        const page = [makePingRecord({ isReachable: true, latencyMs: 123 })];
+        const page = [
+          makePingRecord({ isReachable: true, latencyMs: 123 })
+        ];
 
         const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
 
@@ -1021,9 +1106,15 @@ describe('PollingMapper', () => {
       });
 
       it('should produce identical output on repeated calls with the same input (pure transformation)', () => {
-        const config = makePollingConfig({ intervalSeconds: 30, failureCount: 2, enabled: true });
+        const config = makePollingConfig({
+          intervalSeconds: 30,
+          failureCount: 2,
+          enabled: true
+        });
 
-        expect(PollingMapper.toDTO(config)).toEqual(PollingMapper.toDTO(config));
+        expect(PollingMapper.toDTO(config)).toEqual(
+          PollingMapper.toDTO(config)
+        );
       });
     });
   });
@@ -1033,7 +1124,9 @@ describe('PollingMapper', () => {
     // ------------------------------------------------------------------------
     describe('required fields', () => {
       it('should pass deviceId through as-is', () => {
-        const result = PollingMapper.extractCreateData({ deviceId: DEVICE_UUID });
+        const result = PollingMapper.extractCreateData({
+          deviceId: DEVICE_UUID
+        });
 
         expect(result.deviceId).toBe(DEVICE_UUID);
       });
@@ -1042,25 +1135,33 @@ describe('PollingMapper', () => {
     // ------------------------------------------------------------------------
     describe('optional fields — absent', () => {
       it('should default ipAddress to null when absent', () => {
-        const result = PollingMapper.extractCreateData({ deviceId: DEVICE_UUID });
+        const result = PollingMapper.extractCreateData({
+          deviceId: DEVICE_UUID
+        });
 
         expect(result.ipAddress).toBeNull();
       });
 
       it('should default intervalSeconds to null when absent', () => {
-        const result = PollingMapper.extractCreateData({ deviceId: DEVICE_UUID });
+        const result = PollingMapper.extractCreateData({
+          deviceId: DEVICE_UUID
+        });
 
         expect(result.intervalSeconds).toBeNull();
       });
 
       it('should default failuresBeforeDown to null when absent', () => {
-        const result = PollingMapper.extractCreateData({ deviceId: DEVICE_UUID });
+        const result = PollingMapper.extractCreateData({
+          deviceId: DEVICE_UUID
+        });
 
         expect(result.failuresBeforeDown).toBeNull();
       });
 
       it('should default enabled to null when absent', () => {
-        const result = PollingMapper.extractCreateData({ deviceId: DEVICE_UUID });
+        const result = PollingMapper.extractCreateData({
+          deviceId: DEVICE_UUID
+        });
 
         expect(result.enabled).toBeNull();
       });
@@ -1129,7 +1230,9 @@ describe('PollingMapper', () => {
     // ------------------------------------------------------------------------
     describe('when no fields are provided', () => {
       it('should return an empty object', () => {
-        const result = PollingMapper.extractUpdateData({ deviceId: DEVICE_UUID });
+        const result = PollingMapper.extractUpdateData({
+          deviceId: DEVICE_UUID
+        });
 
         expect(result).toEqual({});
       });
@@ -1192,19 +1295,25 @@ describe('PollingMapper', () => {
     // ------------------------------------------------------------------------
     describe('when fields are absent', () => {
       it('should omit intervalSeconds when undefined', () => {
-        const result = PollingMapper.extractUpdateData({ deviceId: DEVICE_UUID });
+        const result = PollingMapper.extractUpdateData({
+          deviceId: DEVICE_UUID
+        });
 
         expect('intervalSeconds' in result).toBe(false);
       });
 
       it('should omit failuresBeforeDown when undefined', () => {
-        const result = PollingMapper.extractUpdateData({ deviceId: DEVICE_UUID });
+        const result = PollingMapper.extractUpdateData({
+          deviceId: DEVICE_UUID
+        });
 
         expect('failuresBeforeDown' in result).toBe(false);
       });
 
       it('should omit enabled when undefined', () => {
-        const result = PollingMapper.extractUpdateData({ deviceId: DEVICE_UUID });
+        const result = PollingMapper.extractUpdateData({
+          deviceId: DEVICE_UUID
+        });
 
         expect('enabled' in result).toBe(false);
       });
@@ -1218,7 +1327,9 @@ describe('PollingMapper', () => {
     });
 
     it('should expose toSkippedResultDTO as a static method', () => {
-      expect(typeof PollingMapper.toSkippedResultDTO).toBe('function');
+      expect(typeof PollingMapper.toSkippedResultDTO).toBe(
+        'function'
+      );
     });
 
     it('should expose toPollResultDTO as a static method', () => {
@@ -1243,8 +1354,14 @@ describe('PollingMapper', () => {
 
     it('should produce identical output on repeated calls with the same inputs (deterministic)', () => {
       const config = makePollingConfig({ intervalSeconds: 60 });
-      const state = makeDeviceState({ isOnline: true, consecutiveFailures: 0 });
-      const ping = makePingRecord({ isReachable: true, latencyMs: 20 });
+      const state = makeDeviceState({
+        isOnline: true,
+        consecutiveFailures: 0
+      });
+      const ping = makePingRecord({
+        isReachable: true,
+        latencyMs: 20
+      });
 
       const dto1 = PollingMapper.toStatusDTO(config, state, ping);
       const dto2 = PollingMapper.toStatusDTO(config, state, ping);

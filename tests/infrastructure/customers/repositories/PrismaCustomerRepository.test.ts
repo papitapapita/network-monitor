@@ -24,7 +24,6 @@ function makePrismaError(code: string, message: string): Error {
   return error;
 }
 
-
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
 const NOW = new Date('2024-01-01T00:00:00.000Z');
 
@@ -131,7 +130,9 @@ describe('PrismaCustomerRepository', () => {
     });
 
     it('should map the found record', async () => {
-      (prisma.customer.findUnique as any).mockResolvedValue(makeRaw());
+      (prisma.customer.findUnique as any).mockResolvedValue(
+        makeRaw()
+      );
 
       const result = await repository.findById(
         CustomerId.parse(VALID_UUID).value
@@ -143,7 +144,9 @@ describe('PrismaCustomerRepository', () => {
 
   describe('findByPhone()', () => {
     it('should query by the phone unique key', async () => {
-      (prisma.customer.findUnique as any).mockResolvedValue(makeRaw());
+      (prisma.customer.findUnique as any).mockResolvedValue(
+        makeRaw()
+      );
 
       await repository.findByPhone('3001234567');
 

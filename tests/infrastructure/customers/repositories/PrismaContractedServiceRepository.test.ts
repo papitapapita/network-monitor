@@ -26,7 +26,6 @@ function makePrismaError(code: string, message: string): Error {
   return error;
 }
 
-
 const CS_UUID = '550e8400-e29b-41d4-a716-446655440000';
 const CUSTOMER_UUID = '550e8400-e29b-41d4-a716-446655440001';
 const PLAN_UUID = '550e8400-e29b-41d4-a716-446655440002';
@@ -135,9 +134,9 @@ describe('PrismaContractedServiceRepository', () => {
         DeviceId.parse(DEVICE_UUID).value
       );
 
-      expect(prisma.contractedService.findUnique).toHaveBeenCalledWith(
-        { where: { deviceId: DEVICE_UUID } }
-      );
+      expect(
+        prisma.contractedService.findUnique
+      ).toHaveBeenCalledWith({ where: { deviceId: DEVICE_UUID } });
     });
 
     it('should return null when no service owns the device', async () => {

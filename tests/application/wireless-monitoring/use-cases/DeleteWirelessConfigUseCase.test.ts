@@ -28,7 +28,7 @@ function makeLogger(): jest.Mocked<ILogger> {
     error: jest.fn(),
     fatal: jest.fn(),
     setLevel: jest.fn(),
-    child: jest.fn(),
+    child: jest.fn()
   };
   child.child.mockReturnValue(child);
   return child;
@@ -46,7 +46,7 @@ function makeConfig(): WirelessDeviceConfig {
       deviceType: 'STATION',
       linkCapacityKbps: null,
       clientsProvisionedLimit: null,
-      lastPolledAt: null,
+      lastPolledAt: null
     }
   );
 }
@@ -59,7 +59,7 @@ function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
     exists: jest.fn(),
     findByDeviceId: jest.fn(),
     findAllDue: jest.fn(),
-    findAll: jest.fn(),
+    findAll: jest.fn()
   };
 }
 
@@ -107,7 +107,9 @@ describe('[WLS-011] DeleteWirelessConfigUseCase', () => {
   // ===========================================================================
   describe('executeImpl — device ID parsing', () => {
     it('should fail when deviceId is not a valid UUID', async () => {
-      const result = await useCase.execute({ deviceId: 'not-a-uuid' });
+      const result = await useCase.execute({
+        deviceId: 'not-a-uuid'
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid device ID');
@@ -123,9 +125,13 @@ describe('[WLS-011] DeleteWirelessConfigUseCase', () => {
   // ===========================================================================
   describe('executeImpl — config lookup', () => {
     it('should fail when configRepo.findByDeviceId returns a failure', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.fail('DB error'));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.fail('DB error')
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
     });
@@ -133,10 +139,14 @@ describe('[WLS-011] DeleteWirelessConfigUseCase', () => {
     it('should fail when no config exists for the device', async () => {
       configRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Wireless config not found for device');
+      expect(result.error).toContain(
+        'Wireless config not found for device'
+      );
     });
 
     it('should NOT call configRepo.delete when config is not found', async () => {
@@ -160,16 +170,24 @@ describe('[WLS-011] DeleteWirelessConfigUseCase', () => {
   // ===========================================================================
   describe('executeImpl — deletion', () => {
     it('should fail when configRepo.delete returns a failure', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
-      configRepo.delete.mockResolvedValue(Result.fail('Constraint violation'));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+      configRepo.delete.mockResolvedValue(
+        Result.fail('Constraint violation')
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
     });
 
     it('should call configRepo.delete with the parsed deviceId', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
       configRepo.delete.mockResolvedValue(Result.ok(undefined));
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
@@ -179,7 +197,9 @@ describe('[WLS-011] DeleteWirelessConfigUseCase', () => {
     });
 
     it('should call configRepo.delete exactly once when config exists', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
       configRepo.delete.mockResolvedValue(Result.ok(undefined));
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
@@ -191,10 +211,14 @@ describe('[WLS-011] DeleteWirelessConfigUseCase', () => {
   // ===========================================================================
   describe('executeImpl — happy path', () => {
     it('should return a successful Result when deletion succeeds', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
       configRepo.delete.mockResolvedValue(Result.ok(undefined));
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isSuccess).toBe(true);
     });

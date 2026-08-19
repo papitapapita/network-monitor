@@ -10,7 +10,10 @@ import {
 } from '@jest/globals';
 import { UpdateCustomerUseCase } from '../../../../src/application/customers/use-cases/UpdateCustomerUseCase';
 import { ICustomerRepository } from '../../../../src/domain/customers/repository';
-import { Customer, PhoneNumber } from '../../../../src/domain/customers';
+import {
+  Customer,
+  PhoneNumber
+} from '../../../../src/domain/customers';
 import { CustomerId } from '../../../../src/domain/shared/ids';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';

@@ -2,7 +2,10 @@
 
 import { WirelessAlertClearedEvent } from '../../../../src/domain/wireless-monitoring/events/WirelessAlertCleared';
 import { WirelessAlertClearedEventProps } from '../../../../src/domain/wireless-monitoring/props/WirelessAlertClearedEventProps';
-import { WirelessAlertRecordId, DeviceId } from '../../../../src/domain/shared/ids';
+import {
+  WirelessAlertRecordId,
+  DeviceId
+} from '../../../../src/domain/shared/ids';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -21,7 +24,7 @@ function makeEvent(
     severity: 'WARNING',
     clearedAt: FIXED_CLEARED,
     dateTimeOccurred: FIXED_DATE,
-    ...overrides,
+    ...overrides
   });
 }
 
@@ -56,7 +59,9 @@ describe('[WLS-121] WirelessAlertClearedEvent', () => {
       const event = makeEvent();
 
       expect(
-        Object.isFrozen((event as unknown as { props: unknown }).props)
+        Object.isFrozen(
+          (event as unknown as { props: unknown }).props
+        )
       ).toBe(true);
     });
 
@@ -64,7 +69,9 @@ describe('[WLS-121] WirelessAlertClearedEvent', () => {
       const event = makeEvent();
 
       expect(() => {
-        (event as unknown as { props: { metric: string } }).props.metric = 'ccq';
+        (
+          event as unknown as { props: { metric: string } }
+        ).props.metric = 'ccq';
       }).toThrow();
     });
 
@@ -72,7 +79,9 @@ describe('[WLS-121] WirelessAlertClearedEvent', () => {
       const event = makeEvent();
 
       expect(() => {
-        (event as unknown as { props: Record<string, unknown> }).props.extra = 'value';
+        (
+          event as unknown as { props: Record<string, unknown> }
+        ).props.extra = 'value';
       }).toThrow();
     });
 
@@ -83,7 +92,7 @@ describe('[WLS-121] WirelessAlertClearedEvent', () => {
         metric: 'ccq',
         severity: 'WARNING',
         clearedAt: FIXED_CLEARED,
-        dateTimeOccurred: FIXED_DATE,
+        dateTimeOccurred: FIXED_DATE
       };
       const event = new WirelessAlertClearedEvent(props);
 
@@ -168,7 +177,10 @@ describe('[WLS-121] WirelessAlertClearedEvent', () => {
     });
 
     it('should be independent from dateTimeOccurred', () => {
-      const event = makeEvent({ clearedAt: FIXED_CLEARED, dateTimeOccurred: FIXED_DATE });
+      const event = makeEvent({
+        clearedAt: FIXED_CLEARED,
+        dateTimeOccurred: FIXED_DATE
+      });
 
       expect(event.clearedAt).not.toBe(event.dateTimeOccurred);
       expect(event.clearedAt).toBe(FIXED_CLEARED);
@@ -222,8 +234,14 @@ describe('[WLS-121] WirelessAlertClearedEvent', () => {
     it('should not share state between two events', () => {
       const id1 = WirelessAlertRecordId.create();
       const id2 = WirelessAlertRecordId.create();
-      const event1 = makeEvent({ aggregateId: id1, severity: 'WARNING' });
-      const event2 = makeEvent({ aggregateId: id2, severity: 'CRITICAL' });
+      const event1 = makeEvent({
+        aggregateId: id1,
+        severity: 'WARNING'
+      });
+      const event2 = makeEvent({
+        aggregateId: id2,
+        severity: 'CRITICAL'
+      });
 
       expect(event1.aggregateId).not.toBe(event2.aggregateId);
       expect(event1.severity).not.toBe(event2.severity);
@@ -235,7 +253,9 @@ describe('[WLS-121] WirelessAlertClearedEvent', () => {
       const event1 = makeEvent({ clearedAt: earlier });
       const event2 = makeEvent({ clearedAt: later });
 
-      expect(event2.clearedAt.getTime()).toBeGreaterThan(event1.clearedAt.getTime());
+      expect(event2.clearedAt.getTime()).toBeGreaterThan(
+        event1.clearedAt.getTime()
+      );
     });
   });
 });

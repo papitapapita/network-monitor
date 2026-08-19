@@ -37,7 +37,7 @@ function makeLogger(): jest.Mocked<ILogger> {
     error: jest.fn(),
     fatal: jest.fn(),
     setLevel: jest.fn(),
-    child: jest.fn(),
+    child: jest.fn()
   };
   child.child.mockReturnValue(child);
   return child;
@@ -68,7 +68,7 @@ function makeDevice(
     installedDate: null,
     createdAt: new Date('2024-01-01T00:00:00.000Z'),
     updatedAt: new Date('2024-01-01T00:00:00.000Z'),
-    monitoringEnabled: false,
+    monitoringEnabled: false
   });
 }
 
@@ -85,7 +85,7 @@ function makeConfig(): WirelessDeviceConfig {
       pollingInterval: PollingInterval.reconstitute(3600),
       linkCapacityKbps: null,
       clientsProvisionedLimit: null,
-      lastPolledAt: null,
+      lastPolledAt: null
     }
   );
 }
@@ -99,7 +99,7 @@ function makeDeviceModelRepo(): jest.Mocked<IDeviceModelRepository> {
     delete: jest.fn(),
     exists: jest.fn(),
     existsByVendorAndModel: jest.fn(),
-    count: jest.fn(),
+    count: jest.fn()
   } as any;
 }
 
@@ -122,7 +122,7 @@ function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
     findByFilters: jest.fn(),
     findByIdIncludingDeleted: jest.fn(),
     findDeletedBefore: jest.fn(),
-    countByFilters: jest.fn(),
+    countByFilters: jest.fn()
   };
 }
 
@@ -134,7 +134,7 @@ function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
     exists: jest.fn(),
     findByDeviceId: jest.fn(),
     findAllDue: jest.fn(),
-    findAll: jest.fn(),
+    findAll: jest.fn()
   };
 }
 
@@ -171,7 +171,7 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
   describe('beforeExecute — request validation', () => {
     it('should fail when deviceId is empty', async () => {
       const result = await useCase.execute({
-        deviceId: '',
+        deviceId: ''
       });
 
       expect(result.isFailure).toBe(true);
@@ -180,7 +180,7 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
 
     it('should fail when deviceId is whitespace only', async () => {
       const result = await useCase.execute({
-        deviceId: '   ',
+        deviceId: '   '
       });
 
       expect(result.isFailure).toBe(true);
@@ -199,7 +199,7 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
   describe('executeImpl — device ID parsing', () => {
     it('should fail when deviceId is not a valid UUID', async () => {
       const result = await useCase.execute({
-        deviceId: 'not-a-uuid',
+        deviceId: 'not-a-uuid'
       });
 
       expect(result.isFailure).toBe(true);
@@ -219,7 +219,7 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
       deviceRepo.findById.mockResolvedValue(Result.fail('DB error'));
 
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
       });
 
       expect(result.isFailure).toBe(true);
@@ -230,7 +230,7 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
       deviceRepo.findById.mockResolvedValue(Result.ok(null));
 
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
       });
 
       expect(result.isFailure).toBe(true);
@@ -247,10 +247,12 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
     });
 
     it('should fail when the device is not wireless-capable', async () => {
-      deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice(false)));
+      deviceRepo.findById.mockResolvedValue(
+        Result.ok(makeDevice(false))
+      );
 
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
       });
 
       expect(result.isFailure).toBe(true);
@@ -258,7 +260,9 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
     });
 
     it('should NOT call configRepo when device is not wireless-capable', async () => {
-      deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice(false)));
+      deviceRepo.findById.mockResolvedValue(
+        Result.ok(makeDevice(false))
+      );
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
@@ -267,7 +271,9 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
 
     it('[WLS-003] should reject linkCapacityKbps on an access point', async () => {
       deviceRepo.findById.mockResolvedValue(
-        Result.ok(makeDevice(true, DeviceCategory.createAccessPoint()))
+        Result.ok(
+          makeDevice(true, DeviceCategory.createAccessPoint())
+        )
       );
 
       const result = await useCase.execute({
@@ -298,7 +304,7 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
       );
 
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
       });
 
       expect(result.isFailure).toBe(true);
@@ -321,10 +327,12 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
   describe('executeImpl — duplicate config check', () => {
     it('should fail when a config already exists for the device', async () => {
       deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
 
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
       });
 
       expect(result.isFailure).toBe(true);
@@ -333,10 +341,12 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
 
     it('should fail when configRepo.findByDeviceId returns a failure', async () => {
       deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
-      configRepo.findByDeviceId.mockResolvedValue(Result.fail('DB timeout'));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.fail('DB timeout')
+      );
 
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
       });
 
       expect(result.isFailure).toBe(true);
@@ -351,7 +361,7 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        ipAddress: 'not-an-ip',
+        ipAddress: 'not-an-ip'
       });
 
       expect(result.isFailure).toBe(true);
@@ -361,11 +371,13 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
     it('should NOT fail when ipAddress is null', async () => {
       deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
       configRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
-      configRepo.save.mockImplementation((c) => Promise.resolve(Result.ok(c)));
+      configRepo.save.mockImplementation((c) =>
+        Promise.resolve(Result.ok(c))
+      );
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        ipAddress: null,
+        ipAddress: null
       });
 
       expect(result.isSuccess).toBe(true);
@@ -374,10 +386,12 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
     it('should NOT fail when ipAddress is omitted', async () => {
       deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
       configRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
-      configRepo.save.mockImplementation((c) => Promise.resolve(Result.ok(c)));
+      configRepo.save.mockImplementation((c) =>
+        Promise.resolve(Result.ok(c))
+      );
 
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
       });
 
       expect(result.isSuccess).toBe(true);
@@ -392,7 +406,7 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
       configRepo.save.mockResolvedValue(Result.fail('Write failed'));
 
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
       });
 
       expect(result.isFailure).toBe(true);
@@ -401,7 +415,9 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
     it('should call configRepo.save exactly once on the happy path', async () => {
       deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
       configRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
-      configRepo.save.mockImplementation((c) => Promise.resolve(Result.ok(c)));
+      configRepo.save.mockImplementation((c) =>
+        Promise.resolve(Result.ok(c))
+      );
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
@@ -414,12 +430,14 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
     beforeEach(() => {
       deviceRepo.findById.mockResolvedValue(Result.ok(makeDevice()));
       configRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
-      configRepo.save.mockImplementation((c) => Promise.resolve(Result.ok(c)));
+      configRepo.save.mockImplementation((c) =>
+        Promise.resolve(Result.ok(c))
+      );
     });
 
     it('should return a successful Result', async () => {
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
       });
 
       expect(result.isSuccess).toBe(true);
@@ -427,7 +445,7 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
 
     it('should include the deviceId in the response DTO', async () => {
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
       });
 
       expect(result.value.deviceId).toBe(VALID_DEVICE_UUID);
@@ -435,7 +453,7 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
 
     it('should default enabled to true when not provided', async () => {
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
       });
 
       expect(result.value.enabled).toBe(true);
@@ -443,7 +461,7 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
 
     it('should default intervalSecs to 3600 when not provided', async () => {
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
       });
 
       expect(result.value.intervalSecs).toBe(3600);
@@ -474,7 +492,7 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
     it('should include the provided ipAddress in the response', async () => {
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        ipAddress: '10.0.0.5',
+        ipAddress: '10.0.0.5'
       });
 
       expect(result.value.ipAddress).toBe('10.0.0.5');
@@ -482,7 +500,7 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
 
     it('should set ipAddress to null in the response when not provided', async () => {
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
       });
 
       expect(result.value.ipAddress).toBeNull();
@@ -490,7 +508,7 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
 
     it('should set lastPolledAt to null for a newly created config', async () => {
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
       });
 
       expect(result.value.lastPolledAt).toBeNull();
@@ -499,7 +517,7 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
     it('should use the provided enabled value when supplied', async () => {
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        enabled: false,
+        enabled: false
       });
 
       expect(result.value.enabled).toBe(false);
@@ -508,7 +526,7 @@ describe('[WLS-001] [WLS-002] [WLS-003] [WLS-004] [WLS-005] [WLS-007] CreateWire
     it('should use the provided intervalSecs when supplied', async () => {
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        intervalSecs: 60,
+        intervalSecs: 60
       });
 
       expect(result.value.intervalSecs).toBe(60);

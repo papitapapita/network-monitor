@@ -282,7 +282,8 @@ describe('ServicePlanId', () => {
   // -------------------------------------------------------------------------
   describe('Result integration', () => {
     it('should return a properly formed Result on a successful parse', () => {
-      const result: Result<ServicePlanId> = ServicePlanId.parse(VALID_UUID_A);
+      const result: Result<ServicePlanId> =
+        ServicePlanId.parse(VALID_UUID_A);
 
       expect(result.isSuccess).toBe(true);
       expect(result.isFailure).toBe(false);
@@ -290,7 +291,8 @@ describe('ServicePlanId', () => {
     });
 
     it('should return a properly formed Result on a failed parse', () => {
-      const result: Result<ServicePlanId> = ServicePlanId.parse('bad-id');
+      const result: Result<ServicePlanId> =
+        ServicePlanId.parse('bad-id');
 
       expect(result.isFailure).toBe(true);
       expect(result.isSuccess).toBe(false);

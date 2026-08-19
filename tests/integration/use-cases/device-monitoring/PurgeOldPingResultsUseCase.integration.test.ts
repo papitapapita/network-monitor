@@ -46,7 +46,9 @@ describe('PurgeOldPingResultsUseCase — integration', () => {
   // Fixtures
   // ──────────────────────────────────────────────────────────────
 
-  async function seedPingResultAgeDays(ageDays: number): Promise<void> {
+  async function seedPingResultAgeDays(
+    ageDays: number
+  ): Promise<void> {
     await prisma.pingResult.create({
       data: {
         deviceId,
@@ -186,9 +188,11 @@ describe('PurgeOldPingResultsUseCase — integration', () => {
     const device = await prisma.device.findUnique({
       where: { id: deviceId }
     });
-    const pollingConfig = await prisma.pollingConfiguration.findFirst({
-      where: { deviceId }
-    });
+    const pollingConfig = await prisma.pollingConfiguration.findFirst(
+      {
+        where: { deviceId }
+      }
+    );
     expect(device).not.toBeNull();
     expect(pollingConfig).not.toBeNull();
   });

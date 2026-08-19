@@ -42,13 +42,17 @@ describe('ListDeviceModelsUseCase — integration', () => {
     const result = await useCase.execute({});
 
     expect(result.isSuccess).toBe(true);
-    expect(result.value.deviceModels.length).toBeGreaterThanOrEqual(1);
+    expect(result.value.deviceModels.length).toBeGreaterThanOrEqual(
+      1
+    );
     expect(result.value.total).toBeGreaterThanOrEqual(1);
     expect(result.value.limit).toBeDefined();
     expect(result.value.offset).toBeDefined();
     expect(result.value.hasMore).toBeDefined();
 
-    const mikrotik = result.value.deviceModels.find((m) => m.vendorName === 'MikroTik');
+    const mikrotik = result.value.deviceModels.find(
+      (m) => m.vendorName === 'MikroTik'
+    );
     expect(mikrotik).toBeDefined();
     expect(mikrotik!.model).toBe('RB4011iGS+');
   });
@@ -66,7 +70,10 @@ describe('ListDeviceModelsUseCase — integration', () => {
     const total = all.value.total;
 
     if (total >= 2) {
-      const withOffset = await useCase.execute({ limit: 100, offset: 1 });
+      const withOffset = await useCase.execute({
+        limit: 100,
+        offset: 1
+      });
       expect(withOffset.value.deviceModels).toHaveLength(total - 1);
     }
   });

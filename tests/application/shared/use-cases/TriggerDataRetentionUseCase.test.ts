@@ -16,19 +16,27 @@ import { Result } from '../../../../src/domain/shared/core/Result';
 // ---------------------------------------------------------------------------
 
 function makePurgePingResults(): jest.Mocked<PurgeOldPingResultsUseCase> {
-  return { execute: jest.fn() } as unknown as jest.Mocked<PurgeOldPingResultsUseCase>;
+  return {
+    execute: jest.fn()
+  } as unknown as jest.Mocked<PurgeOldPingResultsUseCase>;
 }
 
 function makePurgeAlerts(): jest.Mocked<PurgeOldAlertsUseCase> {
-  return { execute: jest.fn() } as unknown as jest.Mocked<PurgeOldAlertsUseCase>;
+  return {
+    execute: jest.fn()
+  } as unknown as jest.Mocked<PurgeOldAlertsUseCase>;
 }
 
 function makePurgeSnapshots(): jest.Mocked<PurgeOldWirelessSnapshotsUseCase> {
-  return { execute: jest.fn() } as unknown as jest.Mocked<PurgeOldWirelessSnapshotsUseCase>;
+  return {
+    execute: jest.fn()
+  } as unknown as jest.Mocked<PurgeOldWirelessSnapshotsUseCase>;
 }
 
 function makePurgeAlertRecords(): jest.Mocked<PurgeOldWirelessAlertRecordsUseCase> {
-  return { execute: jest.fn() } as unknown as jest.Mocked<PurgeOldWirelessAlertRecordsUseCase>;
+  return {
+    execute: jest.fn()
+  } as unknown as jest.Mocked<PurgeOldWirelessAlertRecordsUseCase>;
 }
 
 function makeConfig(
@@ -202,7 +210,9 @@ describe('TriggerDataRetentionUseCase', () => {
         const result = await useCase.execute();
 
         expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('Wireless snapshots purge failed');
+        expect(result.error).toContain(
+          'Wireless snapshots purge failed'
+        );
         expect(result.error).toContain('snapshot table locked');
       });
     });
@@ -220,7 +230,9 @@ describe('TriggerDataRetentionUseCase', () => {
         const result = await useCase.execute();
 
         expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('Wireless alert records purge failed');
+        expect(result.error).toContain(
+          'Wireless alert records purge failed'
+        );
         expect(result.error).toContain('alert record I/O error');
       });
     });
@@ -228,7 +240,9 @@ describe('TriggerDataRetentionUseCase', () => {
     // -----------------------------------------------------------------------
     describe('config propagation', () => {
       it('should forward a custom pingResultRetentionDays to purgePing', async () => {
-        const customConfig = makeConfig({ pingResultRetentionDays: 14 });
+        const customConfig = makeConfig({
+          pingResultRetentionDays: 14
+        });
         const customUseCase = new TriggerDataRetentionUseCase(
           purgePing,
           purgeAlerts,

@@ -28,7 +28,9 @@ export async function getToken(
     .post('/api/auth/login')
     .send({ email, password });
   if (res.status !== 200) {
-    throw new Error(`Login failed (${res.status}): ${JSON.stringify(res.body)}`);
+    throw new Error(
+      `Login failed (${res.status}): ${JSON.stringify(res.body)}`
+    );
   }
   return res.body.data.token as string;
 }

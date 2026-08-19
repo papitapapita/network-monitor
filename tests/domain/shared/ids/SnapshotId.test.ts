@@ -109,7 +109,9 @@ describe('SnapshotId', () => {
         const result = SnapshotId.parse(upperCaseUuid);
 
         expect(result.isSuccess).toBe(true);
-        expect(result.value.toValue()).toBe(VALID_UUID_A.toLowerCase());
+        expect(result.value.toValue()).toBe(
+          VALID_UUID_A.toLowerCase()
+        );
       });
     });
 
@@ -136,7 +138,9 @@ describe('SnapshotId', () => {
       });
 
       it('should return a failure Result for a UUID missing its hyphens', () => {
-        const result = SnapshotId.parse('f47ac10b58cc4372a5670e02b2c3d479');
+        const result = SnapshotId.parse(
+          'f47ac10b58cc4372a5670e02b2c3d479'
+        );
 
         expect(result.isFailure).toBe(true);
       });
@@ -230,13 +234,17 @@ describe('SnapshotId', () => {
     it('should return false when compared to null', () => {
       const id = SnapshotId.parse(VALID_UUID_A).value;
 
-      expect(id.equals(null as unknown as UniqueEntityID)).toBe(false);
+      expect(id.equals(null as unknown as UniqueEntityID)).toBe(
+        false
+      );
     });
 
     it('should return false when compared to undefined', () => {
       const id = SnapshotId.parse(VALID_UUID_A).value;
 
-      expect(id.equals(undefined as unknown as UniqueEntityID)).toBe(false);
+      expect(id.equals(undefined as unknown as UniqueEntityID)).toBe(
+        false
+      );
     });
 
     it('should be reflexive — an ID equals itself', () => {
@@ -267,7 +275,8 @@ describe('SnapshotId', () => {
   // -------------------------------------------------------------------------
   describe('Result integration', () => {
     it('should return a properly formed Result on a successful parse', () => {
-      const result: Result<SnapshotId> = SnapshotId.parse(VALID_UUID_A);
+      const result: Result<SnapshotId> =
+        SnapshotId.parse(VALID_UUID_A);
 
       expect(result.isSuccess).toBe(true);
       expect(result.isFailure).toBe(false);

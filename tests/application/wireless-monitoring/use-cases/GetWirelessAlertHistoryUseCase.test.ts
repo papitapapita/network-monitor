@@ -4,7 +4,10 @@ import { GetWirelessAlertHistoryUseCase } from '../../../../src/application/wire
 import { IWirelessAlertRecordRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessAlertRecordRepository';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
-import { DeviceId, WirelessAlertRecordId } from '../../../../src/domain/shared/ids';
+import {
+  DeviceId,
+  WirelessAlertRecordId
+} from '../../../../src/domain/shared/ids';
 import { WirelessAlertRecord } from '../../../../src/domain/wireless-monitoring';
 
 // ---------------------------------------------------------------------------
@@ -27,7 +30,7 @@ function makeLogger(): jest.Mocked<ILogger> {
     error: jest.fn(),
     fatal: jest.fn(),
     setLevel: jest.fn(),
-    child: jest.fn(),
+    child: jest.fn()
   };
   child.child.mockReturnValue(child);
   return child;
@@ -41,21 +44,18 @@ function makeAlertRecord(
 ): WirelessAlertRecord {
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const alertId = WirelessAlertRecordId.parse(alertUuid).value;
-  return WirelessAlertRecord.reconstitute(
-    alertId,
-    {
-      deviceId,
-      metric: 'signal_rx_dbm',
-      severity: 'WARNING',
-      threshold: -70,
-      lastValue: -65,
-      message: 'Signal recovered',
-      notifiedAt: null,
-      triggeredAt,
-      clearedAt,
-      isActive,
-    }
-  );
+  return WirelessAlertRecord.reconstitute(alertId, {
+    deviceId,
+    metric: 'signal_rx_dbm',
+    severity: 'WARNING',
+    threshold: -70,
+    lastValue: -65,
+    message: 'Signal recovered',
+    notifiedAt: null,
+    triggeredAt,
+    clearedAt,
+    isActive
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -72,14 +72,17 @@ describe('[WLS-142] GetWirelessAlertHistoryUseCase', () => {
       exists: jest.fn(),
       findActiveByDeviceMetricAndSeverity: jest.fn(),
       findAllActiveByDevice: jest.fn(),
-    findActiveUnnotifiedByDevice: jest.fn(),
+      findActiveUnnotifiedByDevice: jest.fn(),
       findAllActive: jest.fn(),
       findHistoryByDevice: jest.fn(),
       deleteClearedOlderThan: jest.fn()
     };
 
     logger = makeLogger();
-    useCase = new GetWirelessAlertHistoryUseCase(alertRecordRepo, logger);
+    useCase = new GetWirelessAlertHistoryUseCase(
+      alertRecordRepo,
+      logger
+    );
   });
 
   afterEach(() => {
@@ -105,14 +108,18 @@ describe('[WLS-142] GetWirelessAlertHistoryUseCase', () => {
     it('should NOT call alertRecordRepo when beforeExecute fails', async () => {
       await useCase.execute({ deviceId: '' });
 
-      expect(alertRecordRepo.findHistoryByDevice).not.toHaveBeenCalled();
+      expect(
+        alertRecordRepo.findHistoryByDevice
+      ).not.toHaveBeenCalled();
     });
   });
 
   // ===========================================================================
   describe('executeImpl — device ID parsing', () => {
     it('should fail when deviceId is not a valid UUID', async () => {
-      const result = await useCase.execute({ deviceId: 'not-a-uuid' });
+      const result = await useCase.execute({
+        deviceId: 'not-a-uuid'
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid device ID');
@@ -122,43 +129,55 @@ describe('[WLS-142] GetWirelessAlertHistoryUseCase', () => {
   // ===========================================================================
   describe('executeImpl — default from/to date handling', () => {
     it('should use epoch (new Date(0)) as from when from is not provided', async () => {
-      alertRecordRepo.findHistoryByDevice.mockResolvedValue(Result.ok([]));
+      alertRecordRepo.findHistoryByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      const calledFrom = alertRecordRepo.findHistoryByDevice.mock.calls[0][1];
+      const calledFrom =
+        alertRecordRepo.findHistoryByDevice.mock.calls[0][1];
       expect(calledFrom.getTime()).toBe(new Date(0).getTime());
     });
 
     it('should use a recent date as to when to is not provided', async () => {
       const before = Date.now();
-      alertRecordRepo.findHistoryByDevice.mockResolvedValue(Result.ok([]));
+      alertRecordRepo.findHistoryByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
       const after = Date.now();
-      const calledTo = alertRecordRepo.findHistoryByDevice.mock.calls[0][2] as Date;
+      const calledTo = alertRecordRepo.findHistoryByDevice.mock
+        .calls[0][2] as Date;
       expect(calledTo.getTime()).toBeGreaterThanOrEqual(before);
       expect(calledTo.getTime()).toBeLessThanOrEqual(after);
     });
 
     it('should use the provided from date when supplied', async () => {
-      alertRecordRepo.findHistoryByDevice.mockResolvedValue(Result.ok([]));
+      alertRecordRepo.findHistoryByDevice.mockResolvedValue(
+        Result.ok([])
+      );
       const from = new Date('2023-06-01T00:00:00.000Z');
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID, from });
 
-      const calledFrom = alertRecordRepo.findHistoryByDevice.mock.calls[0][1];
+      const calledFrom =
+        alertRecordRepo.findHistoryByDevice.mock.calls[0][1];
       expect(calledFrom).toEqual(from);
     });
 
     it('should use the provided to date when supplied', async () => {
-      alertRecordRepo.findHistoryByDevice.mockResolvedValue(Result.ok([]));
+      alertRecordRepo.findHistoryByDevice.mockResolvedValue(
+        Result.ok([])
+      );
       const to = new Date('2024-06-01T00:00:00.000Z');
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID, to });
 
-      const calledTo = alertRecordRepo.findHistoryByDevice.mock.calls[0][2];
+      const calledTo =
+        alertRecordRepo.findHistoryByDevice.mock.calls[0][2];
       expect(calledTo).toEqual(to);
     });
   });
@@ -166,20 +185,29 @@ describe('[WLS-142] GetWirelessAlertHistoryUseCase', () => {
   // ===========================================================================
   describe('executeImpl — limit parameter forwarding', () => {
     it('should pass limit to the repository when provided', async () => {
-      alertRecordRepo.findHistoryByDevice.mockResolvedValue(Result.ok([]));
+      alertRecordRepo.findHistoryByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
-      await useCase.execute({ deviceId: VALID_DEVICE_UUID, limit: 25 });
+      await useCase.execute({
+        deviceId: VALID_DEVICE_UUID,
+        limit: 25
+      });
 
-      const calledLimit = alertRecordRepo.findHistoryByDevice.mock.calls[0][3];
+      const calledLimit =
+        alertRecordRepo.findHistoryByDevice.mock.calls[0][3];
       expect(calledLimit).toBe(25);
     });
 
     it('should pass undefined limit to the repository when not provided', async () => {
-      alertRecordRepo.findHistoryByDevice.mockResolvedValue(Result.ok([]));
+      alertRecordRepo.findHistoryByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      const calledLimit = alertRecordRepo.findHistoryByDevice.mock.calls[0][3];
+      const calledLimit =
+        alertRecordRepo.findHistoryByDevice.mock.calls[0][3];
       expect(calledLimit).toBeUndefined();
     });
   });
@@ -187,9 +215,13 @@ describe('[WLS-142] GetWirelessAlertHistoryUseCase', () => {
   // ===========================================================================
   describe('executeImpl — repository failure', () => {
     it('should fail when alertRecordRepo.findHistoryByDevice returns a failure', async () => {
-      alertRecordRepo.findHistoryByDevice.mockResolvedValue(Result.fail('DB timeout'));
+      alertRecordRepo.findHistoryByDevice.mockResolvedValue(
+        Result.fail('DB timeout')
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Failed to load alert history');
@@ -199,17 +231,25 @@ describe('[WLS-142] GetWirelessAlertHistoryUseCase', () => {
   // ===========================================================================
   describe('executeImpl — happy path response shape', () => {
     it('should return a successful Result', async () => {
-      alertRecordRepo.findHistoryByDevice.mockResolvedValue(Result.ok([]));
+      alertRecordRepo.findHistoryByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isSuccess).toBe(true);
     });
 
     it('should return an empty array when no historical alerts exist', async () => {
-      alertRecordRepo.findHistoryByDevice.mockResolvedValue(Result.ok([]));
+      alertRecordRepo.findHistoryByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value).toHaveLength(0);
     });
@@ -217,69 +257,116 @@ describe('[WLS-142] GetWirelessAlertHistoryUseCase', () => {
     it('should return mapped DTOs for each alert record', async () => {
       const alerts = [
         makeAlertRecord(ALERT_UUID),
-        makeAlertRecord(ALERT_UUID_2),
+        makeAlertRecord(ALERT_UUID_2)
       ];
-      alertRecordRepo.findHistoryByDevice.mockResolvedValue(Result.ok(alerts));
+      alertRecordRepo.findHistoryByDevice.mockResolvedValue(
+        Result.ok(alerts)
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value).toHaveLength(2);
     });
 
     it('should map each alert to a DTO with the correct id', async () => {
       const alert = makeAlertRecord(ALERT_UUID);
-      alertRecordRepo.findHistoryByDevice.mockResolvedValue(Result.ok([alert]));
+      alertRecordRepo.findHistoryByDevice.mockResolvedValue(
+        Result.ok([alert])
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value[0].id).toBe(ALERT_UUID);
     });
 
     it('should map each alert to a DTO with the correct deviceId', async () => {
       const alert = makeAlertRecord(ALERT_UUID);
-      alertRecordRepo.findHistoryByDevice.mockResolvedValue(Result.ok([alert]));
+      alertRecordRepo.findHistoryByDevice.mockResolvedValue(
+        Result.ok([alert])
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value[0].deviceId).toBe(VALID_DEVICE_UUID);
     });
 
     it('should map alert clearedAt to an ISO string when set', async () => {
       const clearedAt = new Date('2024-01-01T01:00:00.000Z');
-      const alert = makeAlertRecord(ALERT_UUID, false, new Date('2024-01-01T00:00:00.000Z'), clearedAt);
-      alertRecordRepo.findHistoryByDevice.mockResolvedValue(Result.ok([alert]));
+      const alert = makeAlertRecord(
+        ALERT_UUID,
+        false,
+        new Date('2024-01-01T00:00:00.000Z'),
+        clearedAt
+      );
+      alertRecordRepo.findHistoryByDevice.mockResolvedValue(
+        Result.ok([alert])
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
-      expect(result.value[0].clearedAt).toBe('2024-01-01T01:00:00.000Z');
+      expect(result.value[0].clearedAt).toBe(
+        '2024-01-01T01:00:00.000Z'
+      );
     });
 
     it('should map alert clearedAt to null when not set', async () => {
-      const alert = makeAlertRecord(ALERT_UUID, true, new Date('2024-01-01T00:00:00.000Z'), null);
-      alertRecordRepo.findHistoryByDevice.mockResolvedValue(Result.ok([alert]));
+      const alert = makeAlertRecord(
+        ALERT_UUID,
+        true,
+        new Date('2024-01-01T00:00:00.000Z'),
+        null
+      );
+      alertRecordRepo.findHistoryByDevice.mockResolvedValue(
+        Result.ok([alert])
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value[0].clearedAt).toBeNull();
     });
 
     it('should preserve alert ordering from the repository', async () => {
-      const alert1 = makeAlertRecord(ALERT_UUID, false, new Date('2024-01-01T00:00:00.000Z'));
-      const alert2 = makeAlertRecord(ALERT_UUID_2, false, new Date('2024-01-02T00:00:00.000Z'));
-      alertRecordRepo.findHistoryByDevice.mockResolvedValue(Result.ok([alert1, alert2]));
+      const alert1 = makeAlertRecord(
+        ALERT_UUID,
+        false,
+        new Date('2024-01-01T00:00:00.000Z')
+      );
+      const alert2 = makeAlertRecord(
+        ALERT_UUID_2,
+        false,
+        new Date('2024-01-02T00:00:00.000Z')
+      );
+      alertRecordRepo.findHistoryByDevice.mockResolvedValue(
+        Result.ok([alert1, alert2])
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value[0].id).toBe(ALERT_UUID);
       expect(result.value[1].id).toBe(ALERT_UUID_2);
     });
 
     it('should call findHistoryByDevice with the parsed deviceId', async () => {
-      alertRecordRepo.findHistoryByDevice.mockResolvedValue(Result.ok([]));
+      alertRecordRepo.findHistoryByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      const calledWith = alertRecordRepo.findHistoryByDevice.mock.calls[0][0];
+      const calledWith =
+        alertRecordRepo.findHistoryByDevice.mock.calls[0][0];
       expect(calledWith.toString()).toBe(VALID_DEVICE_UUID);
     });
   });

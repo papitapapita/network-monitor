@@ -5,7 +5,10 @@ import { LocationMapper } from '../../../src/infrastructure/mappers/LocationMapp
 import { Location } from '../../../src/domain/device-inventory/aggregates';
 import { LocationId } from '../../../src/domain/shared/ids';
 import { LocationType } from '../../../src/domain/device-inventory/value-objects';
-import { Result, EventDispatcher } from '../../../src/domain/shared/core';
+import {
+  Result,
+  EventDispatcher
+} from '../../../src/domain/shared/core';
 
 // Shaped like a real Prisma error: the code lives on `code`, never in the
 // message text.
@@ -14,7 +17,6 @@ function makePrismaError(code: string, message: string): Error {
   (error as Error & { code: string }).code = code;
   return error;
 }
-
 
 // ---------------------------------------------------------------------------
 // Module-level mocks
@@ -27,7 +29,9 @@ jest.mock('../../../src/infrastructure/mappers/LocationMapper');
 // Typed alias for the mocked LocationMapper
 // ---------------------------------------------------------------------------
 
-const MockedLocationMapper = LocationMapper as jest.Mocked<typeof LocationMapper>;
+const MockedLocationMapper = LocationMapper as jest.Mocked<
+  typeof LocationMapper
+>;
 
 // ---------------------------------------------------------------------------
 // Helpers — fake Prisma client and fake Location domain objects
@@ -56,7 +60,9 @@ function makeFakePrismaClient(): {
   };
 }
 
-function makeFakePrismaRow(id = VALID_UUID_1): Record<string, unknown> {
+function makeFakePrismaRow(
+  id = VALID_UUID_1
+): Record<string, unknown> {
   return {
     id,
     name: 'Tower Alpha',
@@ -84,7 +90,9 @@ function makeFakeLocation(id = VALID_UUID_1): Location {
   });
 }
 
-function makeFakePersistenceData(id = VALID_UUID_1): Record<string, unknown> {
+function makeFakePersistenceData(
+  id = VALID_UUID_1
+): Record<string, unknown> {
   return {
     id,
     name: 'Tower Alpha',
@@ -127,9 +135,13 @@ describe('PrismaLocationRepository', () => {
       .mockImplementation(() => undefined);
 
     // Default: toPersistence returns well-formed data
-    MockedLocationMapper.toPersistence.mockReturnValue(fakePersistenceData as never);
+    MockedLocationMapper.toPersistence.mockReturnValue(
+      fakePersistenceData as never
+    );
     // Default: toDomain returns the fakeLocation wrapped in Result.ok
-    MockedLocationMapper.toDomain.mockReturnValue(Result.ok(fakeLocation));
+    MockedLocationMapper.toDomain.mockReturnValue(
+      Result.ok(fakeLocation)
+    );
   });
 
   afterEach(() => {
@@ -144,7 +156,9 @@ describe('PrismaLocationRepository', () => {
 
         await repository.save(fakeLocation);
 
-        expect(MockedLocationMapper.toPersistence).toHaveBeenCalledWith(fakeLocation);
+        expect(
+          MockedLocationMapper.toPersistence
+        ).toHaveBeenCalledWith(fakeLocation);
       });
 
       it('should call prisma.location.upsert with the persistence data', async () => {
@@ -166,10 +180,8 @@ describe('PrismaLocationRepository', () => {
 
         await repository.save(fakeLocation);
 
-        const upsertCall = prisma.location.upsert.mock.calls[0][0] as Record<
-          string,
-          Record<string, unknown>
-        >;
+        const upsertCall = prisma.location.upsert.mock
+          .calls[0][0] as Record<string, Record<string, unknown>>;
         expect(upsertCall.update).toEqual(
           expect.objectContaining({
             name: fakePersistenceData.name,
@@ -206,7 +218,10 @@ describe('PrismaLocationRepository', () => {
     describe('Prisma P2002 unique constraint error', () => {
       it('should return a failed Result without throwing', async () => {
         prisma.location.upsert.mockRejectedValue(
-          makePrismaError('P2002', 'Unique constraint failed on the fields: (`name`)')
+          makePrismaError(
+            'P2002',
+            'Unique constraint failed on the fields: (`name`)'
+          )
         );
 
         const result = await repository.save(fakeLocation);
@@ -221,11 +236,15 @@ describe('PrismaLocationRepository', () => {
 
         const result = await repository.save(fakeLocation);
 
-        expect(result.error).toContain('unique values already exists');
+        expect(result.error).toContain(
+          'unique values already exists'
+        );
       });
 
       it('should not dispatch events when the upsert fails', async () => {
-        prisma.location.upsert.mockRejectedValue(makePrismaError('P2002', 'Unique constraint failed'));
+        prisma.location.upsert.mockRejectedValue(
+          makePrismaError('P2002', 'Unique constraint failed')
+        );
 
         await repository.save(fakeLocation);
 
@@ -252,11 +271,15 @@ describe('PrismaLocationRepository', () => {
 
         const result = await repository.save(fakeLocation);
 
-        expect(result.error).toContain('Database error saving location');
+        expect(result.error).toContain(
+          'Database error saving location'
+        );
       });
 
       it('should handle non-Error throwables gracefully', async () => {
-        prisma.location.upsert.mockRejectedValue('unexpected string error');
+        prisma.location.upsert.mockRejectedValue(
+          'unexpected string error'
+        );
 
         const result = await repository.save(fakeLocation);
 
@@ -270,7 +293,9 @@ describe('PrismaLocationRepository', () => {
   describe('findById()', () => {
     describe('record found — mapping succeeds', () => {
       it('should call prisma.location.findUnique with the stringified id', async () => {
-        prisma.location.findUnique.mockResolvedValue(makeFakePrismaRow());
+        prisma.location.findUnique.mockResolvedValue(
+          makeFakePrismaRow()
+        );
 
         await repository.findById(fakeLocationId);
 
@@ -285,11 +310,15 @@ describe('PrismaLocationRepository', () => {
 
         await repository.findById(fakeLocationId);
 
-        expect(MockedLocationMapper.toDomain).toHaveBeenCalledWith(rawRow);
+        expect(MockedLocationMapper.toDomain).toHaveBeenCalledWith(
+          rawRow
+        );
       });
 
       it('should return a successful Result containing the mapped Location', async () => {
-        prisma.location.findUnique.mockResolvedValue(makeFakePrismaRow());
+        prisma.location.findUnique.mockResolvedValue(
+          makeFakePrismaRow()
+        );
 
         const result = await repository.findById(fakeLocationId);
 
@@ -319,7 +348,9 @@ describe('PrismaLocationRepository', () => {
 
     describe('mapping failure', () => {
       it('should return a failed Result when LocationMapper.toDomain fails', async () => {
-        prisma.location.findUnique.mockResolvedValue(makeFakePrismaRow());
+        prisma.location.findUnique.mockResolvedValue(
+          makeFakePrismaRow()
+        );
         MockedLocationMapper.toDomain.mockReturnValue(
           Result.fail('Invalid location ID: bad-uuid')
         );
@@ -330,7 +361,9 @@ describe('PrismaLocationRepository', () => {
       });
 
       it('should include "Failed to map location" prefix in the error', async () => {
-        prisma.location.findUnique.mockResolvedValue(makeFakePrismaRow());
+        prisma.location.findUnique.mockResolvedValue(
+          makeFakePrismaRow()
+        );
         MockedLocationMapper.toDomain.mockReturnValue(
           Result.fail('mapping went wrong')
         );
@@ -344,7 +377,9 @@ describe('PrismaLocationRepository', () => {
 
     describe('database error', () => {
       it('should return a failed Result when Prisma throws', async () => {
-        prisma.location.findUnique.mockRejectedValue(new Error('DB timeout'));
+        prisma.location.findUnique.mockRejectedValue(
+          new Error('DB timeout')
+        );
 
         const result = await repository.findById(fakeLocationId);
 
@@ -359,7 +394,9 @@ describe('PrismaLocationRepository', () => {
 
         const result = await repository.findById(fakeLocationId);
 
-        expect(result.error).toContain('Database error finding location');
+        expect(result.error).toContain(
+          'Database error finding location'
+        );
       });
     });
   });
@@ -368,7 +405,9 @@ describe('PrismaLocationRepository', () => {
   describe('findAll()', () => {
     describe('success — returns mapped list', () => {
       it('should call prisma.location.findMany with orderBy name asc', async () => {
-        prisma.location.findMany.mockResolvedValue([makeFakePrismaRow()]);
+        prisma.location.findMany.mockResolvedValue([
+          makeFakePrismaRow()
+        ]);
 
         await repository.findAll();
 
@@ -402,10 +441,8 @@ describe('PrismaLocationRepository', () => {
 
         await repository.findAll();
 
-        const call = prisma.location.findMany.mock.calls[0][0] as Record<
-          string,
-          unknown
-        >;
+        const call = prisma.location.findMany.mock
+          .calls[0][0] as Record<string, unknown>;
         expect(call.take).toBeUndefined();
         expect(call.skip).toBeUndefined();
       });
@@ -454,7 +491,9 @@ describe('PrismaLocationRepository', () => {
       });
 
       it('should include "Failed to map location" prefix in the error', async () => {
-        prisma.location.findMany.mockResolvedValue([makeFakePrismaRow()]);
+        prisma.location.findMany.mockResolvedValue([
+          makeFakePrismaRow()
+        ]);
         MockedLocationMapper.toDomain.mockReturnValue(
           Result.fail('bad data integrity')
         );
@@ -479,11 +518,15 @@ describe('PrismaLocationRepository', () => {
       });
 
       it('should prefix the error with "Database error finding all locations"', async () => {
-        prisma.location.findMany.mockRejectedValue(new Error('io error'));
+        prisma.location.findMany.mockRejectedValue(
+          new Error('io error')
+        );
 
         const result = await repository.findAll();
 
-        expect(result.error).toContain('Database error finding all locations');
+        expect(result.error).toContain(
+          'Database error finding all locations'
+        );
       });
     });
   });
@@ -492,9 +535,13 @@ describe('PrismaLocationRepository', () => {
   describe('findByType()', () => {
     describe('success — returns filtered list', () => {
       it('should call prisma.location.findMany with the given type in the where clause', async () => {
-        prisma.location.findMany.mockResolvedValue([makeFakePrismaRow()]);
+        prisma.location.findMany.mockResolvedValue([
+          makeFakePrismaRow()
+        ]);
 
-        await repository.findByType(LocationType.reconstitute(LocationType.TOWER));
+        await repository.findByType(
+          LocationType.reconstitute(LocationType.TOWER)
+        );
 
         expect(prisma.location.findMany).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -505,10 +552,16 @@ describe('PrismaLocationRepository', () => {
       });
 
       it('should return a successful Result with the mapped locations', async () => {
-        prisma.location.findMany.mockResolvedValue([makeFakePrismaRow()]);
-        MockedLocationMapper.toDomain.mockReturnValue(Result.ok(fakeLocation));
+        prisma.location.findMany.mockResolvedValue([
+          makeFakePrismaRow()
+        ]);
+        MockedLocationMapper.toDomain.mockReturnValue(
+          Result.ok(fakeLocation)
+        );
 
-        const result = await repository.findByType(LocationType.reconstitute(LocationType.TOWER));
+        const result = await repository.findByType(
+          LocationType.reconstitute(LocationType.TOWER)
+        );
 
         expect(result.isSuccess).toBe(true);
         expect(result.value).toHaveLength(1);
@@ -518,7 +571,9 @@ describe('PrismaLocationRepository', () => {
       it('should return a successful Result with an empty array when no matching records exist', async () => {
         prisma.location.findMany.mockResolvedValue([]);
 
-        const result = await repository.findByType(LocationType.reconstitute(LocationType.DATACENTER));
+        const result = await repository.findByType(
+          LocationType.reconstitute(LocationType.DATACENTER)
+        );
 
         expect(result.isSuccess).toBe(true);
         expect(result.value).toHaveLength(0);
@@ -552,12 +607,16 @@ describe('PrismaLocationRepository', () => {
 
     describe('mapping failure', () => {
       it('should return a failed Result when LocationMapper.toDomain fails for any record', async () => {
-        prisma.location.findMany.mockResolvedValue([makeFakePrismaRow()]);
+        prisma.location.findMany.mockResolvedValue([
+          makeFakePrismaRow()
+        ]);
         MockedLocationMapper.toDomain.mockReturnValue(
           Result.fail('corrupt type record')
         );
 
-        const result = await repository.findByType(LocationType.reconstitute(LocationType.TOWER));
+        const result = await repository.findByType(
+          LocationType.reconstitute(LocationType.TOWER)
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('Failed to map location');
@@ -571,16 +630,22 @@ describe('PrismaLocationRepository', () => {
           new Error('query timeout')
         );
 
-        const result = await repository.findByType(LocationType.reconstitute(LocationType.OFFICE));
+        const result = await repository.findByType(
+          LocationType.reconstitute(LocationType.OFFICE)
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('query timeout');
       });
 
       it('should prefix the error with "Database error finding locations by type"', async () => {
-        prisma.location.findMany.mockRejectedValue(new Error('io error'));
+        prisma.location.findMany.mockRejectedValue(
+          new Error('io error')
+        );
 
-        const result = await repository.findByType(LocationType.reconstitute(LocationType.OTHER));
+        const result = await repository.findByType(
+          LocationType.reconstitute(LocationType.OTHER)
+        );
 
         expect(result.error).toContain(
           'Database error finding locations by type'
@@ -642,15 +707,21 @@ describe('PrismaLocationRepository', () => {
         const result = await repository.delete(fakeLocationId);
 
         expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('foreign key constraint violation');
+        expect(result.error).toContain(
+          'foreign key constraint violation'
+        );
       });
 
       it('should prefix the error with "Database error deleting location"', async () => {
-        prisma.location.delete.mockRejectedValue(new Error('disk full'));
+        prisma.location.delete.mockRejectedValue(
+          new Error('disk full')
+        );
 
         const result = await repository.delete(fakeLocationId);
 
-        expect(result.error).toContain('Database error deleting location');
+        expect(result.error).toContain(
+          'Database error deleting location'
+        );
       });
     });
   });
@@ -702,7 +773,9 @@ describe('PrismaLocationRepository', () => {
       });
 
       it('should prefix the error with "Database error checking location existence"', async () => {
-        prisma.location.count.mockRejectedValue(new Error('socket hang up'));
+        prisma.location.count.mockRejectedValue(
+          new Error('socket hang up')
+        );
 
         const result = await repository.exists(fakeLocationId);
 
@@ -760,7 +833,9 @@ describe('PrismaLocationRepository', () => {
 
         const result = await repository.count();
 
-        expect(result.error).toContain('Database error counting locations');
+        expect(result.error).toContain(
+          'Database error counting locations'
+        );
       });
     });
   });

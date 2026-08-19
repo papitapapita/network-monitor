@@ -59,7 +59,9 @@ describe('SerialNumber', () => {
       });
 
       it('should fail when serial is undefined', () => {
-        const result = SerialNumber.create(undefined as unknown as string);
+        const result = SerialNumber.create(
+          undefined as unknown as string
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('serialNumber');

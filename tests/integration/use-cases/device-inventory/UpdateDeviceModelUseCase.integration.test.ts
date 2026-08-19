@@ -34,7 +34,8 @@ describe('UpdateDeviceModelUseCase — integration', () => {
     const deviceModelRepo = new PrismaDeviceModelRepository(prisma);
     const vendorRepo = new PrismaVendorRepository(prisma);
     const deviceRepo = new PrismaDeviceRepository(prisma);
-    const wirelessConfigRepo = new PrismaWirelessDeviceConfigRepository(prisma);
+    const wirelessConfigRepo =
+      new PrismaWirelessDeviceConfigRepository(prisma);
     const logger = new WinstonLogger();
     useCase = new UpdateDeviceModelUseCase(
       deviceModelRepo,
@@ -51,7 +52,10 @@ describe('UpdateDeviceModelUseCase — integration', () => {
 
   beforeEach(async () => {
     await cleanCatalog(prisma);
-    vendorId = await seedVendor(prisma, { name: 'MikroTik', slug: 'mikrotik' });
+    vendorId = await seedVendor(prisma, {
+      name: 'MikroTik',
+      slug: 'mikrotik'
+    });
 
     const model = await prisma.deviceModel.create({
       data: {
@@ -68,7 +72,10 @@ describe('UpdateDeviceModelUseCase — integration', () => {
   // ──────────────────────────────────────────────────────────────
 
   it('updates the model name and result.value.model matches the new name', async () => {
-    const result = await useCase.execute({ id: deviceModelId, model: 'hAP ac3' });
+    const result = await useCase.execute({
+      id: deviceModelId,
+      model: 'hAP ac3'
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.model).toBe('hAP ac3');
@@ -76,7 +83,10 @@ describe('UpdateDeviceModelUseCase — integration', () => {
   });
 
   it('[DEV-024] updates the deviceType and result.value.deviceType matches the new type', async () => {
-    const result = await useCase.execute({ id: deviceModelId, deviceType: 'ROUTER' });
+    const result = await useCase.execute({
+      id: deviceModelId,
+      deviceType: 'ROUTER'
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.deviceType).toBe('ROUTER');
@@ -147,10 +157,15 @@ describe('UpdateDeviceModelUseCase — integration', () => {
     const modelId = await seedWirelessDeviceModel(prisma);
     await seedConfiguredDevices(modelId, 2);
 
-    const result = await useCase.execute({ id: modelId, isWireless: false });
+    const result = await useCase.execute({
+      id: modelId,
+      isWireless: false
+    });
 
     expect(result.isFailure).toBe(true);
-    expect(result.error).toMatch(/Cannot mark device model as non-wireless/);
+    expect(result.error).toMatch(
+      /Cannot mark device model as non-wireless/
+    );
     expect(result.error).toContain('2 device(s)');
   });
 
@@ -191,7 +206,10 @@ describe('UpdateDeviceModelUseCase — integration', () => {
     await seedConfiguredDevices(modelId, 2);
     await prisma.wirelessPollingConfiguration.deleteMany();
 
-    const result = await useCase.execute({ id: modelId, isWireless: false });
+    const result = await useCase.execute({
+      id: modelId,
+      isWireless: false
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.isWireless).toBe(false);
@@ -208,7 +226,10 @@ describe('UpdateDeviceModelUseCase — integration', () => {
       serialNumber: 'SN-UNCONFIGURED'
     });
 
-    const result = await useCase.execute({ id: modelId, isWireless: false });
+    const result = await useCase.execute({
+      id: modelId,
+      isWireless: false
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.isWireless).toBe(false);
@@ -226,7 +247,10 @@ describe('UpdateDeviceModelUseCase — integration', () => {
     });
     await seedConfiguredDevices(otherModel.id, 1);
 
-    const result = await useCase.execute({ id: modelId, isWireless: false });
+    const result = await useCase.execute({
+      id: modelId,
+      isWireless: false
+    });
 
     expect(result.isSuccess).toBe(true);
     await expect(
@@ -253,21 +277,30 @@ describe('UpdateDeviceModelUseCase — integration', () => {
   // ──────────────────────────────────────────────────────────────
 
   it('fails with a not-found error when the device model does not exist (GHOST_ID)', async () => {
-    const result = await useCase.execute({ id: GHOST_ID, model: 'GhostModel' });
+    const result = await useCase.execute({
+      id: GHOST_ID,
+      model: 'GhostModel'
+    });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/not found/i);
   });
 
   it('fails with an invalid-id error when the id is malformed (INVALID_ID)', async () => {
-    const result = await useCase.execute({ id: INVALID_ID, model: 'Whatever' });
+    const result = await useCase.execute({
+      id: INVALID_ID,
+      model: 'Whatever'
+    });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/invalid device model id/i);
   });
 
   it('fails when the id is empty', async () => {
-    const result = await useCase.execute({ id: '   ', model: 'Whatever' });
+    const result = await useCase.execute({
+      id: '   ',
+      model: 'Whatever'
+    });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/required/i);

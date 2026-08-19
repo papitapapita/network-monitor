@@ -35,7 +35,9 @@ describe('[WLS-160] PurgeOldWirelessSnapshotsUseCase', () => {
   beforeEach(() => {
     repo = makeRepo();
     useCase = new PurgeOldWirelessSnapshotsUseCase(repo);
-    dateSpy = jest.spyOn(Date, 'now').mockReturnValue(FIXED_TIMESTAMP);
+    dateSpy = jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(FIXED_TIMESTAMP);
   });
 
   afterEach(() => {
@@ -56,7 +58,9 @@ describe('[WLS-160] PurgeOldWirelessSnapshotsUseCase', () => {
 
         await useCase.execute(retentionDays);
 
-        expect(repo.deleteOlderThan).toHaveBeenCalledWith(expectedCutoff);
+        expect(repo.deleteOlderThan).toHaveBeenCalledWith(
+          expectedCutoff
+        );
       });
 
       it('should call deleteOlderThan exactly once', async () => {
@@ -91,7 +95,9 @@ describe('[WLS-160] PurgeOldWirelessSnapshotsUseCase', () => {
 
         await useCase.execute(1);
 
-        expect(repo.deleteOlderThan).toHaveBeenCalledWith(expectedCutoff);
+        expect(repo.deleteOlderThan).toHaveBeenCalledWith(
+          expectedCutoff
+        );
       });
 
       it('should compute the correct cutoff for a 365-day retention window', async () => {
@@ -102,7 +108,9 @@ describe('[WLS-160] PurgeOldWirelessSnapshotsUseCase', () => {
 
         await useCase.execute(365);
 
-        expect(repo.deleteOlderThan).toHaveBeenCalledWith(expectedCutoff);
+        expect(repo.deleteOlderThan).toHaveBeenCalledWith(
+          expectedCutoff
+        );
       });
     });
 
@@ -120,9 +128,13 @@ describe('[WLS-160] PurgeOldWirelessSnapshotsUseCase', () => {
       });
 
       it('should not swallow a rejection thrown by the repository', async () => {
-        repo.deleteOlderThan.mockRejectedValue(new Error('disk full'));
+        repo.deleteOlderThan.mockRejectedValue(
+          new Error('disk full')
+        );
 
-        await expect(useCase.execute(30)).rejects.toThrow('disk full');
+        await expect(useCase.execute(30)).rejects.toThrow(
+          'disk full'
+        );
       });
     });
   });

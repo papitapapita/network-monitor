@@ -37,7 +37,10 @@ export class User extends AggregateRoot<UserProps, UserId> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(props.email, 'email'),
       Guard.againstNullOrUndefined(props.role, 'role'),
-      Guard.againstNullOrUndefined(props.passwordHash, 'passwordHash'),
+      Guard.againstNullOrUndefined(
+        props.passwordHash,
+        'passwordHash'
+      ),
       Guard.isString(props.passwordHash, 'passwordHash')
     ]);
 

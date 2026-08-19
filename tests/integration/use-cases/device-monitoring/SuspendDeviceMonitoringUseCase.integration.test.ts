@@ -37,7 +37,8 @@ describe('SuspendDeviceMonitoringUseCase — integration', () => {
     prisma = container.getPrisma();
     deviceModelId = await seedDeviceModel(prisma);
 
-    const pollingConfigRepo = new PrismaPollingConfigurationRepository(prisma);
+    const pollingConfigRepo =
+      new PrismaPollingConfigurationRepository(prisma);
     const pingResultRepo = new PrismaPingResultRepository(prisma);
     const deviceStateRepo = new PrismaDeviceStateRepository(prisma);
     const logger = new WinstonLogger();
@@ -86,7 +87,9 @@ describe('SuspendDeviceMonitoringUseCase — integration', () => {
     const result = await useCase.execute(id());
 
     expect(result.isSuccess).toBe(true);
-    const state = await prisma.deviceState.findFirst({ where: { deviceId } });
+    const state = await prisma.deviceState.findFirst({
+      where: { deviceId }
+    });
     expect(state!.status).toBe('UNKNOWN');
   });
 
@@ -96,18 +99,24 @@ describe('SuspendDeviceMonitoringUseCase — integration', () => {
 
     await useCase.execute(id());
 
-    const state = await prisma.deviceState.findFirst({ where: { deviceId } });
+    const state = await prisma.deviceState.findFirst({
+      where: { deviceId }
+    });
     expect(state!.status).toBe('UNKNOWN');
     expect(state!.consecutiveFailures).toBe(0);
   });
 
   it('[MON-002] keeps lastSeen, so the pause does not erase when the device was last reachable', async () => {
     await pollingUseCase.execute({ deviceId, forceExecution: false });
-    const before = await prisma.deviceState.findFirst({ where: { deviceId } });
+    const before = await prisma.deviceState.findFirst({
+      where: { deviceId }
+    });
 
     await useCase.execute(id());
 
-    const after = await prisma.deviceState.findFirst({ where: { deviceId } });
+    const after = await prisma.deviceState.findFirst({
+      where: { deviceId }
+    });
     expect(after!.lastSeen).toEqual(before!.lastSeen);
     expect(after!.lastSeen).not.toBeNull();
   });
@@ -117,7 +126,9 @@ describe('SuspendDeviceMonitoringUseCase — integration', () => {
 
     await useCase.execute(id());
 
-    const state = await prisma.deviceState.findFirst({ where: { deviceId } });
+    const state = await prisma.deviceState.findFirst({
+      where: { deviceId }
+    });
     expect(state!.lastCheckedAt).toBeNull();
   });
 
@@ -125,7 +136,9 @@ describe('SuspendDeviceMonitoringUseCase — integration', () => {
     const result = await useCase.execute(id());
 
     expect(result.isSuccess).toBe(true);
-    const state = await prisma.deviceState.findFirst({ where: { deviceId } });
+    const state = await prisma.deviceState.findFirst({
+      where: { deviceId }
+    });
     expect(state).toBeNull();
   });
 
@@ -151,7 +164,9 @@ describe('SuspendDeviceMonitoringUseCase — integration', () => {
 
     await useCase.execute(id());
 
-    const pings = await prisma.pingResult.findMany({ where: { deviceId } });
+    const pings = await prisma.pingResult.findMany({
+      where: { deviceId }
+    });
     expect(pings).toHaveLength(1);
   });
 
@@ -162,7 +177,9 @@ describe('SuspendDeviceMonitoringUseCase — integration', () => {
 
     const due = await repo.findAllDue(new Date());
     expect(due.isSuccess).toBe(true);
-    expect(due.value.map((c) => c.deviceId.toString())).not.toContain(deviceId);
+    expect(due.value.map((c) => c.deviceId.toString())).not.toContain(
+      deviceId
+    );
   });
 
   // ──────────────────────────────────────────────────────────────
@@ -183,7 +200,9 @@ describe('SuspendDeviceMonitoringUseCase — integration', () => {
 
     await useCase.execute(id());
 
-    const alert = await prisma.alertEvent.findFirst({ where: { deviceId } });
+    const alert = await prisma.alertEvent.findFirst({
+      where: { deviceId }
+    });
     expect(alert!.resolvedAt).not.toBeNull();
   });
 
@@ -203,7 +222,9 @@ describe('SuspendDeviceMonitoringUseCase — integration', () => {
 
     await useCase.execute(id());
 
-    const alert = await prisma.alertEvent.findFirst({ where: { deviceId } });
+    const alert = await prisma.alertEvent.findFirst({
+      where: { deviceId }
+    });
     expect(alert!.resolvedAt).toEqual(resolvedAt);
   });
 
@@ -224,7 +245,9 @@ describe('SuspendDeviceMonitoringUseCase — integration', () => {
     const result = await useCase.execute(id());
 
     expect(result.isSuccess).toBe(true);
-    const state = await prisma.deviceState.findFirst({ where: { deviceId } });
+    const state = await prisma.deviceState.findFirst({
+      where: { deviceId }
+    });
     expect(state!.status).toBe('UNKNOWN');
   });
 
@@ -240,10 +263,15 @@ describe('SuspendDeviceMonitoringUseCase — integration', () => {
     );
     await pollingUseCase.execute({ deviceId, forceExecution: false });
 
-    const result = await configure.execute({ deviceId, enabled: false });
+    const result = await configure.execute({
+      deviceId,
+      enabled: false
+    });
 
     expect(result.isSuccess).toBe(true);
-    const state = await prisma.deviceState.findFirst({ where: { deviceId } });
+    const state = await prisma.deviceState.findFirst({
+      where: { deviceId }
+    });
     expect(state!.status).toBe('UNKNOWN');
     const config = await prisma.pollingConfiguration.findFirst({
       where: { deviceId }
@@ -286,9 +314,13 @@ describe('SuspendDeviceMonitoringUseCase — integration', () => {
     // A CameOnline would have opened no alert, but a spurious recovery would
     // have resolved one; the real signal is that the device is simply UP again
     // with no alert churn.
-    const state = await prisma.deviceState.findFirst({ where: { deviceId } });
+    const state = await prisma.deviceState.findFirst({
+      where: { deviceId }
+    });
     expect(state!.status).toBe('UP');
-    const alerts = await prisma.alertEvent.findMany({ where: { deviceId } });
+    const alerts = await prisma.alertEvent.findMany({
+      where: { deviceId }
+    });
     expect(alerts).toHaveLength(0);
   });
 
@@ -303,7 +335,9 @@ describe('SuspendDeviceMonitoringUseCase — integration', () => {
     fakePing.setResult({ isReachable: false, latencyMs: null });
     await pollingUseCase.execute({ deviceId, forceExecution: false });
 
-    const state = await prisma.deviceState.findFirst({ where: { deviceId } });
+    const state = await prisma.deviceState.findFirst({
+      where: { deviceId }
+    });
     expect(state!.status).toBe('DOWN');
     expect(state!.consecutiveFailures).toBe(1);
   });

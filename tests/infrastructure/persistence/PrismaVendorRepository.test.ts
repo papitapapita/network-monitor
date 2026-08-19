@@ -1,6 +1,13 @@
 // Source: src/infrastructure/persistence/PrismaVendorRepository.ts
 
-import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  jest
+} from '@jest/globals';
 import { PrismaVendorRepository } from '../../../src/infrastructure/persistence/PrismaVendorRepository';
 import { VendorId } from '../../../src/domain/shared/ids/VendorId';
 import { Vendor } from '../../../src/domain/device-inventory/aggregates/Vendor';
@@ -13,7 +20,6 @@ function makePrismaError(code: string, message: string): Error {
   (error as Error & { code: string }).code = code;
   return error;
 }
-
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -185,7 +191,9 @@ describe('PrismaVendorRepository', () => {
     // -----------------------------------------------------------------------
     describe('record found', () => {
       it('should call prisma.vendor.findUnique with the correct where clause (no include)', async () => {
-        (prisma.vendor.findUnique as any).mockResolvedValue(makeRawRow());
+        (prisma.vendor.findUnique as any).mockResolvedValue(
+          makeRawRow()
+        );
 
         await repository.findById(vendorId);
 
@@ -195,7 +203,9 @@ describe('PrismaVendorRepository', () => {
       });
 
       it('should return isSuccess=true when the record exists', async () => {
-        (prisma.vendor.findUnique as any).mockResolvedValue(makeRawRow());
+        (prisma.vendor.findUnique as any).mockResolvedValue(
+          makeRawRow()
+        );
 
         const result = await repository.findById(vendorId);
 
@@ -264,7 +274,9 @@ describe('PrismaVendorRepository', () => {
     // -----------------------------------------------------------------------
     describe('record found', () => {
       it('should call prisma.vendor.findUnique with where slug', async () => {
-        (prisma.vendor.findUnique as any).mockResolvedValue(makeRawRow());
+        (prisma.vendor.findUnique as any).mockResolvedValue(
+          makeRawRow()
+        );
 
         await repository.findBySlug('mikrotik');
 
@@ -274,7 +286,9 @@ describe('PrismaVendorRepository', () => {
       });
 
       it('should return isSuccess=true when a vendor with the slug exists', async () => {
-        (prisma.vendor.findUnique as any).mockResolvedValue(makeRawRow());
+        (prisma.vendor.findUnique as any).mockResolvedValue(
+          makeRawRow()
+        );
 
         const result = await repository.findBySlug('mikrotik');
 
@@ -333,7 +347,9 @@ describe('PrismaVendorRepository', () => {
       });
 
       it('should return a successful Result containing an array of mapped Vendor aggregates', async () => {
-        (prisma.vendor.findMany as any).mockResolvedValue([makeRawRow()]);
+        (prisma.vendor.findMany as any).mockResolvedValue([
+          makeRawRow()
+        ]);
 
         const result = await repository.findAll();
 
@@ -553,7 +569,9 @@ describe('PrismaVendorRepository', () => {
       });
 
       it('should include the original error message in the failure', async () => {
-        (prisma.vendor.count as any).mockRejectedValue(new Error('timeout'));
+        (prisma.vendor.count as any).mockRejectedValue(
+          new Error('timeout')
+        );
 
         const result = await repository.count();
 

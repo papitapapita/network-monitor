@@ -17,7 +17,11 @@ import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { DeviceModel } from '../../../../src/domain/device-inventory/aggregates/DeviceModel';
 import { DeviceType } from '../../../../src/domain/device-inventory/value-objects';
 import { Vendor } from '../../../../src/domain/device-inventory/aggregates/Vendor';
-import { DeviceModelId, VendorId, DeviceId } from '../../../../src/domain/shared/ids';
+import {
+  DeviceModelId,
+  VendorId,
+  DeviceId
+} from '../../../../src/domain/shared/ids';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
 // ---------------------------------------------------------------------------
@@ -33,7 +37,9 @@ const NOW = new Date('2024-01-01T00:00:00.000Z');
 // Factories
 // ---------------------------------------------------------------------------
 
-function makeVendor(overrides: { name?: string; slug?: string } = {}): Vendor {
+function makeVendor(
+  overrides: { name?: string; slug?: string } = {}
+): Vendor {
   return Vendor.reconstitute(VendorId.parse(VENDOR_UUID).value!, {
     name: overrides.name ?? 'Mikrotik',
     slug: overrides.slug ?? 'mikrotik',
@@ -44,26 +50,32 @@ function makeVendor(overrides: { name?: string; slug?: string } = {}): Vendor {
 }
 
 function makeOtherVendor(): Vendor {
-  return Vendor.reconstitute(VendorId.parse(OTHER_VENDOR_UUID).value!, {
-    name: 'Ubiquiti',
-    slug: 'ubiquiti',
-    description: null,
-    createdAt: NOW,
-    updatedAt: NOW
-  });
+  return Vendor.reconstitute(
+    VendorId.parse(OTHER_VENDOR_UUID).value!,
+    {
+      name: 'Ubiquiti',
+      slug: 'ubiquiti',
+      description: null,
+      createdAt: NOW,
+      updatedAt: NOW
+    }
+  );
 }
 
 function makeDeviceModel(): DeviceModel {
-  return DeviceModel.reconstitute(DeviceModelId.parse(VALID_UUID).value!, {
-    vendorId: VendorId.parse(VENDOR_UUID).value!,
-    vendorName: 'Mikrotik',
-    vendorSlug: 'mikrotik',
-    model: 'RB760iGS',
-    deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
-    isWireless: false,
-    createdAt: NOW,
-    updatedAt: NOW
-  });
+  return DeviceModel.reconstitute(
+    DeviceModelId.parse(VALID_UUID).value!,
+    {
+      vendorId: VendorId.parse(VENDOR_UUID).value!,
+      vendorName: 'Mikrotik',
+      vendorSlug: 'mikrotik',
+      model: 'RB760iGS',
+      deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
+      isWireless: false,
+      createdAt: NOW,
+      updatedAt: NOW
+    }
+  );
 }
 
 function makeDeviceModelRepo(): jest.Mocked<IDeviceModelRepository> {
@@ -98,7 +110,7 @@ function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
     findByFilters: jest.fn(),
     findByIdIncludingDeleted: jest.fn(),
     findDeletedBefore: jest.fn(),
-    countByFilters: jest.fn(),
+    countByFilters: jest.fn()
   } as any;
 }
 
@@ -110,7 +122,7 @@ function makeWirelessConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> 
     exists: jest.fn(),
     findByDeviceId: jest.fn(),
     findAllDue: jest.fn(),
-    findAll: jest.fn(),
+    findAll: jest.fn()
   };
 }
 
@@ -165,9 +177,15 @@ describe('UpdateDeviceModelUseCase', () => {
       logger
     );
 
-    (deviceModelRepo.findById as any).mockResolvedValue(Result.ok(makeDeviceModel()));
-    (vendorRepo.findById as any).mockResolvedValue(Result.ok(makeVendor()));
-    (deviceModelRepo.save as any).mockImplementation(async (m: DeviceModel) => Result.ok(m));
+    (deviceModelRepo.findById as any).mockResolvedValue(
+      Result.ok(makeDeviceModel())
+    );
+    (vendorRepo.findById as any).mockResolvedValue(
+      Result.ok(makeVendor())
+    );
+    (deviceModelRepo.save as any).mockImplementation(
+      async (m: DeviceModel) => Result.ok(m)
+    );
   });
 
   afterEach(() => {
@@ -217,7 +235,9 @@ describe('UpdateDeviceModelUseCase', () => {
   // =========================================================================
   describe('executeImpl — device model lookup', () => {
     it('should fail when device model is not found', async () => {
-      (deviceModelRepo.findById as any).mockResolvedValue(Result.ok(null));
+      (deviceModelRepo.findById as any).mockResolvedValue(
+        Result.ok(null)
+      );
 
       const result = await useCase.execute({ id: VALID_UUID });
 
@@ -241,7 +261,10 @@ describe('UpdateDeviceModelUseCase', () => {
   // =========================================================================
   describe('[DEV-021] executeImpl — vendor change', () => {
     it('should fail when vendorId is not a valid UUID', async () => {
-      const result = await useCase.execute({ id: VALID_UUID, vendorId: 'bad-uuid' });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        vendorId: 'bad-uuid'
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid vendor ID');
@@ -261,7 +284,9 @@ describe('UpdateDeviceModelUseCase', () => {
     });
 
     it('should propagate repository failure from vendorRepository.findById', async () => {
-      (vendorRepo.findById as any).mockResolvedValue(Result.fail('Vendor DB error'));
+      (vendorRepo.findById as any).mockResolvedValue(
+        Result.fail('Vendor DB error')
+      );
 
       const result = await useCase.execute({
         id: VALID_UUID,
@@ -273,7 +298,9 @@ describe('UpdateDeviceModelUseCase', () => {
     });
 
     it('should update vendorName and vendorSlug in the returned DTO when vendor changes', async () => {
-      (vendorRepo.findById as any).mockResolvedValue(Result.ok(makeOtherVendor()));
+      (vendorRepo.findById as any).mockResolvedValue(
+        Result.ok(makeOtherVendor())
+      );
 
       const result = await useCase.execute({
         id: VALID_UUID,
@@ -295,7 +322,10 @@ describe('UpdateDeviceModelUseCase', () => {
   // =========================================================================
   describe('[DEV-023] executeImpl — model update', () => {
     it('should fail when the new model is an empty string', async () => {
-      const result = await useCase.execute({ id: VALID_UUID, model: '' });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        model: ''
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('empty');
@@ -304,7 +334,10 @@ describe('UpdateDeviceModelUseCase', () => {
     it('should fail when the new model exceeds 150 characters', async () => {
       const longModel = 'A'.repeat(151);
 
-      const result = await useCase.execute({ id: VALID_UUID, model: longModel });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        model: longModel
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('150');
@@ -372,7 +405,9 @@ describe('UpdateDeviceModelUseCase', () => {
       const result = await useCase.execute({ id: VALID_UUID });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Failed to persist device model');
+      expect(result.error).toContain(
+        'Failed to persist device model'
+      );
       expect(result.error).toContain('Unique constraint violated');
     });
 
@@ -396,16 +431,19 @@ describe('UpdateDeviceModelUseCase', () => {
     const DEVICE_UUID_2 = '550e8400-e29b-41d4-a716-446655440011';
 
     function makeWirelessDeviceModel(): DeviceModel {
-      return DeviceModel.reconstitute(DeviceModelId.parse(VALID_UUID).value!, {
-        vendorId: VendorId.parse(VENDOR_UUID).value!,
-        vendorName: 'Ubiquiti',
-        vendorSlug: 'ubiquiti',
-        model: 'LiteBeam 5AC',
-        deviceType: DeviceType.reconstitute(DeviceType.ANTENNA),
-        isWireless: true,
-        createdAt: NOW,
-        updatedAt: NOW
-      });
+      return DeviceModel.reconstitute(
+        DeviceModelId.parse(VALID_UUID).value!,
+        {
+          vendorId: VendorId.parse(VENDOR_UUID).value!,
+          vendorName: 'Ubiquiti',
+          vendorSlug: 'ubiquiti',
+          model: 'LiteBeam 5AC',
+          deviceType: DeviceType.reconstitute(DeviceType.ANTENNA),
+          isWireless: true,
+          createdAt: NOW,
+          updatedAt: NOW
+        }
+      );
     }
 
     function makeConfig(): object {
@@ -414,7 +452,9 @@ describe('UpdateDeviceModelUseCase', () => {
 
     function withDevices(...uuids: string[]): void {
       (deviceRepo.findByDeviceModel as any).mockResolvedValue(
-        Result.ok(uuids.map((u) => ({ id: DeviceId.parse(u).value! })))
+        Result.ok(
+          uuids.map((u) => ({ id: DeviceId.parse(u).value! }))
+        )
       );
     }
 
@@ -422,8 +462,12 @@ describe('UpdateDeviceModelUseCase', () => {
       (deviceModelRepo.findById as any).mockResolvedValue(
         Result.ok(makeWirelessDeviceModel())
       );
-      (deviceRepo.findByDeviceModel as any).mockResolvedValue(Result.ok([]));
-      (wirelessConfigRepo.findByDeviceId as any).mockResolvedValue(Result.ok(null));
+      (deviceRepo.findByDeviceModel as any).mockResolvedValue(
+        Result.ok([])
+      );
+      (wirelessConfigRepo.findByDeviceId as any).mockResolvedValue(
+        Result.ok(null)
+      );
     });
 
     it('should call findByDeviceModel when isWireless flips true → false', async () => {
@@ -439,7 +483,9 @@ describe('UpdateDeviceModelUseCase', () => {
     });
 
     it('should not call findByDeviceModel when isWireless flips false → true', async () => {
-      (deviceModelRepo.findById as any).mockResolvedValue(Result.ok(makeDeviceModel()));
+      (deviceModelRepo.findById as any).mockResolvedValue(
+        Result.ok(makeDeviceModel())
+      );
 
       await useCase.execute({ id: VALID_UUID, isWireless: true });
 
@@ -447,7 +493,9 @@ describe('UpdateDeviceModelUseCase', () => {
     });
 
     it('should not call findByDeviceModel when isWireless is resubmitted as false on a non-wireless model', async () => {
-      (deviceModelRepo.findById as any).mockResolvedValue(Result.ok(makeDeviceModel()));
+      (deviceModelRepo.findById as any).mockResolvedValue(
+        Result.ok(makeDeviceModel())
+      );
 
       await useCase.execute({ id: VALID_UUID, isWireless: false });
 
@@ -459,26 +507,46 @@ describe('UpdateDeviceModelUseCase', () => {
 
       await useCase.execute({ id: VALID_UUID, isWireless: false });
 
-      expect(wirelessConfigRepo.findByDeviceId).toHaveBeenCalledTimes(2);
-      expect((wirelessConfigRepo.findByDeviceId as any).mock.calls[0][0].toString()).toBe(DEVICE_UUID_1);
-      expect((wirelessConfigRepo.findByDeviceId as any).mock.calls[1][0].toString()).toBe(DEVICE_UUID_2);
+      expect(wirelessConfigRepo.findByDeviceId).toHaveBeenCalledTimes(
+        2
+      );
+      expect(
+        (
+          wirelessConfigRepo.findByDeviceId as any
+        ).mock.calls[0][0].toString()
+      ).toBe(DEVICE_UUID_1);
+      expect(
+        (
+          wirelessConfigRepo.findByDeviceId as any
+        ).mock.calls[1][0].toString()
+      ).toBe(DEVICE_UUID_2);
     });
 
     it('should succeed when no device on the model has a wireless config', async () => {
       withDevices(DEVICE_UUID_1, DEVICE_UUID_2);
 
-      const result = await useCase.execute({ id: VALID_UUID, isWireless: false });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        isWireless: false
+      });
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.isWireless).toBe(false);
     });
 
     it('should not look up any config when no devices use the model', async () => {
-      (deviceRepo.findByDeviceModel as any).mockResolvedValue(Result.ok([]));
+      (deviceRepo.findByDeviceModel as any).mockResolvedValue(
+        Result.ok([])
+      );
 
-      const result = await useCase.execute({ id: VALID_UUID, isWireless: false });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        isWireless: false
+      });
 
-      expect(wirelessConfigRepo.findByDeviceId).not.toHaveBeenCalled();
+      expect(
+        wirelessConfigRepo.findByDeviceId
+      ).not.toHaveBeenCalled();
       expect(result.isSuccess).toBe(true);
     });
 
@@ -488,10 +556,15 @@ describe('UpdateDeviceModelUseCase', () => {
         .mockResolvedValueOnce(Result.ok(makeConfig()))
         .mockResolvedValueOnce(Result.ok(null));
 
-      const result = await useCase.execute({ id: VALID_UUID, isWireless: false });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        isWireless: false
+      });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Cannot mark device model as non-wireless');
+      expect(result.error).toContain(
+        'Cannot mark device model as non-wireless'
+      );
     });
 
     it('should report how many devices still hold a config', async () => {
@@ -500,7 +573,10 @@ describe('UpdateDeviceModelUseCase', () => {
         Result.ok(makeConfig())
       );
 
-      const result = await useCase.execute({ id: VALID_UUID, isWireless: false });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        isWireless: false
+      });
 
       expect(result.error).toContain('2 device(s)');
     });
@@ -548,7 +624,10 @@ describe('UpdateDeviceModelUseCase', () => {
         Result.fail('DB error')
       );
 
-      const result = await useCase.execute({ id: VALID_UUID, isWireless: false });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        isWireless: false
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('DB error');
@@ -568,12 +647,21 @@ describe('UpdateDeviceModelUseCase', () => {
       withDevices(DEVICE_UUID_1, DEVICE_UUID_2);
       (wirelessConfigRepo.findByDeviceId as any)
         .mockResolvedValueOnce(Result.ok(null))
-        .mockResolvedValueOnce(Result.fail('Database error reading wireless polling config'));
+        .mockResolvedValueOnce(
+          Result.fail(
+            'Database error reading wireless polling config'
+          )
+        );
 
-      const result = await useCase.execute({ id: VALID_UUID, isWireless: false });
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        isWireless: false
+      });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Database error reading wireless polling config');
+      expect(result.error).toContain(
+        'Database error reading wireless polling config'
+      );
       expect(deviceModelRepo.save).not.toHaveBeenCalled();
     });
   });
@@ -593,7 +681,9 @@ describe('UpdateDeviceModelUseCase', () => {
     });
 
     it('should return a DTO reflecting all three updated fields when all are provided', async () => {
-      (vendorRepo.findById as any).mockResolvedValue(Result.ok(makeOtherVendor()));
+      (vendorRepo.findById as any).mockResolvedValue(
+        Result.ok(makeOtherVendor())
+      );
 
       const result = await useCase.execute({
         id: VALID_UUID,

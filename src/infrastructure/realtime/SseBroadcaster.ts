@@ -95,10 +95,14 @@ export class SseBroadcaster implements IEventStreamHub {
     try {
       client.write(frame);
     } catch (error) {
-      this.logger.warn('[SseBroadcaster] Dropping unwritable client', {
-        channel,
-        error: error instanceof Error ? error.message : String(error)
-      });
+      this.logger.warn(
+        '[SseBroadcaster] Dropping unwritable client',
+        {
+          channel,
+          error:
+            error instanceof Error ? error.message : String(error)
+        }
+      );
       this.unsubscribe(channel, client);
     }
   }

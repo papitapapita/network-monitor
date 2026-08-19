@@ -1,6 +1,9 @@
 import { IHandle } from 'domain/shared/interfaces';
 import { WirelessAlertClearedEvent } from 'domain/wireless-monitoring/events';
-import { ILogger, IAlertRecorder } from 'application/shared/interfaces';
+import {
+  ILogger,
+  IAlertRecorder
+} from 'application/shared/interfaces';
 
 /**
  * Resolves the corresponding alert in the shared alert store when a wireless

@@ -37,7 +37,9 @@ function makeSuspendUseCase(): jest.Mocked<SuspendDeviceMonitoringUseCase> {
   } as unknown as jest.Mocked<SuspendDeviceMonitoringUseCase>;
 }
 
-function makeEvent(newStatus: DeviceStatus): DeviceStatusChangedEvent {
+function makeEvent(
+  newStatus: DeviceStatus
+): DeviceStatusChangedEvent {
   return new DeviceStatusChangedEvent({
     aggregateId: makeDeviceId(),
     deviceName: DeviceName.reconstitute('Core-Router-01'),
@@ -91,7 +93,9 @@ describe('DeviceStatusChangedHandler', () => {
     });
 
     it('should do nothing when a device moves to COMMISSIONING', async () => {
-      await handler.handle(makeEvent(DeviceStatus.createCommissioning()));
+      await handler.handle(
+        makeEvent(DeviceStatus.createCommissioning())
+      );
 
       expect(suspend.execute).not.toHaveBeenCalled();
     });
@@ -100,7 +104,9 @@ describe('DeviceStatusChangedHandler', () => {
   // ===========================================================================
   describe('error resilience', () => {
     it('should log an error when the suspension fails', async () => {
-      suspend.execute.mockResolvedValue(Result.fail('DB unavailable'));
+      suspend.execute.mockResolvedValue(
+        Result.fail('DB unavailable')
+      );
 
       await handler.handle(makeEvent(DeviceStatus.createInventory()));
 
@@ -108,11 +114,14 @@ describe('DeviceStatusChangedHandler', () => {
     });
 
     it('should include the device id in the failure log payload', async () => {
-      suspend.execute.mockResolvedValue(Result.fail('DB unavailable'));
+      suspend.execute.mockResolvedValue(
+        Result.fail('DB unavailable')
+      );
 
       await handler.handle(makeEvent(DeviceStatus.createInventory()));
 
-      const context = (logger.error as jest.Mock).mock.calls[0][2] as {
+      const context = (logger.error as jest.Mock).mock
+        .calls[0][2] as {
         deviceId: string;
       };
       expect(context.deviceId).toBe(VALID_DEVICE_UUID);
@@ -131,7 +140,8 @@ describe('DeviceStatusChangedHandler', () => {
 
       await handler.handle(makeEvent(DeviceStatus.createDamaged()));
 
-      const context = (logger.error as jest.Mock).mock.calls[0][2] as {
+      const context = (logger.error as jest.Mock).mock
+        .calls[0][2] as {
         newStatus: string;
       };
       expect(context.newStatus).toBe('DAMAGED');

@@ -29,7 +29,11 @@ describe('createVendorSchema', () => {
 
     it('should accept a body with a non-null description', () => {
       const result = createVendorSchema.safeParse({
-        body: { name: 'Mikrotik', slug: 'mikrotik', description: 'Network gear' }
+        body: {
+          name: 'Mikrotik',
+          slug: 'mikrotik',
+          description: 'Network gear'
+        }
       });
 
       expect(result.success).toBe(true);
@@ -37,7 +41,11 @@ describe('createVendorSchema', () => {
 
     it('should accept description: null', () => {
       const result = createVendorSchema.safeParse({
-        body: { name: 'Mikrotik', slug: 'mikrotik', description: null }
+        body: {
+          name: 'Mikrotik',
+          slug: 'mikrotik',
+          description: null
+        }
       });
 
       expect(result.success).toBe(true);
@@ -118,7 +126,11 @@ describe('createVendorSchema', () => {
   describe('validation errors — description', () => {
     it('should reject when description exceeds 500 characters', () => {
       const result = createVendorSchema.safeParse({
-        body: { name: 'Mikrotik', slug: 'mikrotik', description: 'D'.repeat(501) }
+        body: {
+          name: 'Mikrotik',
+          slug: 'mikrotik',
+          description: 'D'.repeat(501)
+        }
       });
 
       expect(result.success).toBe(false);
@@ -161,7 +173,11 @@ describe('updateVendorSchema', () => {
     it('should accept a body with all three fields', () => {
       const result = updateVendorSchema.safeParse({
         params: { id: VALID_UUID },
-        body: { name: 'New Name', slug: 'new-name', description: 'desc' }
+        body: {
+          name: 'New Name',
+          slug: 'new-name',
+          description: 'desc'
+        }
       });
 
       expect(result.success).toBe(true);

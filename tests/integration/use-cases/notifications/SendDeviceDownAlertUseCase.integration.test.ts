@@ -29,12 +29,17 @@ describe('SendDeviceDownAlertUseCase — integration', () => {
 
     const alertRepo = new PrismaAlertRepository(prisma);
     const deviceRepo = new PrismaDeviceRepository(prisma);
-    const pollingConfigRepo = new PrismaPollingConfigurationRepository(prisma);
+    const pollingConfigRepo =
+      new PrismaPollingConfigurationRepository(prisma);
     const logger = new WinstonLogger();
 
     fakeNotification = new FakeNotificationService();
     const alertPublisher = new AlertPublisher(
-      new SendAlertNotificationUseCase(deviceRepo, fakeNotification, logger)
+      new SendAlertNotificationUseCase(
+        deviceRepo,
+        fakeNotification,
+        logger
+      )
     );
     useCase = new SendDeviceDownAlertUseCase(
       alertRepo,
@@ -75,7 +80,9 @@ describe('SendDeviceDownAlertUseCase — integration', () => {
     expect(result.value!.deviceId).toBe(deviceId);
     expect(result.value!.notifiedAt).not.toBeNull();
 
-    const row = await prisma.alertEvent.findFirst({ where: { deviceId } });
+    const row = await prisma.alertEvent.findFirst({
+      where: { deviceId }
+    });
     expect(row).not.toBeNull();
     expect(row!.resolvedAt).toBeNull();
     expect(row!.notifiedAt).not.toBeNull();
@@ -83,7 +90,11 @@ describe('SendDeviceDownAlertUseCase — integration', () => {
 
   it('sends a notification with correct metadata', async () => {
     const occurredAt = new Date('2025-06-01T10:00:00Z');
-    await useCase.execute({ deviceId, consecutiveFailures: 5, occurredAt });
+    await useCase.execute({
+      deviceId,
+      consecutiveFailures: 5,
+      occurredAt
+    });
 
     expect(fakeNotification.callCount).toBe(1);
     const msg = fakeNotification.lastMessage!;
@@ -121,7 +132,9 @@ describe('SendDeviceDownAlertUseCase — integration', () => {
     // notifiedAt must be null because send failed
     expect(result.value!.notifiedAt).toBeNull();
 
-    const row = await prisma.alertEvent.findFirst({ where: { deviceId } });
+    const row = await prisma.alertEvent.findFirst({
+      where: { deviceId }
+    });
     expect(row).not.toBeNull();
     expect(row!.notifiedAt).toBeNull();
   });
@@ -145,7 +158,9 @@ describe('SendDeviceDownAlertUseCase — integration', () => {
     // No second notification sent for the duplicate call
     expect(fakeNotification.callCount).toBe(0);
 
-    const rows = await prisma.alertEvent.findMany({ where: { deviceId } });
+    const rows = await prisma.alertEvent.findMany({
+      where: { deviceId }
+    });
     expect(rows).toHaveLength(1);
   });
 
@@ -195,7 +210,9 @@ describe('SendDeviceDownAlertUseCase — integration', () => {
     expect(result.value).toBeNull();
     expect(fakeNotification.callCount).toBe(0);
 
-    const rows = await prisma.alertEvent.findMany({ where: { deviceId } });
+    const rows = await prisma.alertEvent.findMany({
+      where: { deviceId }
+    });
     expect(rows).toHaveLength(0);
   });
 
@@ -214,7 +231,9 @@ describe('SendDeviceDownAlertUseCase — integration', () => {
     expect(result.isSuccess).toBe(true);
     expect(result.value).toBeNull();
 
-    const rows = await prisma.alertEvent.findMany({ where: { deviceId } });
+    const rows = await prisma.alertEvent.findMany({
+      where: { deviceId }
+    });
     expect(rows).toHaveLength(0);
   });
 

@@ -2,12 +2,15 @@
 
 import { PrismaWirelessSnapshotRepository } from '../../../../src/infrastructure/wireless-monitoring/repositories/PrismaWirelessSnapshotRepository';
 import { EventDispatcher } from 'domain/shared/core';
-import { WirelessSnapshot, WirelessMetrics } from 'domain/wireless-monitoring';
+import {
+  WirelessSnapshot,
+  WirelessMetrics
+} from 'domain/wireless-monitoring';
 import { DeviceId } from 'domain/shared';
 import { SnapshotId } from 'domain/shared/ids';
 import type { PrismaClient } from '../../../../src/generated/prisma/client';
 
-const DEVICE_UUID   = 'f149790a-58f0-479a-8534-b0b01e9942bb';
+const DEVICE_UUID = 'f149790a-58f0-479a-8534-b0b01e9942bb';
 const SNAPSHOT_UUID = 'd39d887e-e307-484c-b4c4-bdcb55572201';
 
 // Minimal Prisma delegate shape used by the repository — typed as `unknown`
@@ -18,29 +21,57 @@ const createMockPrisma = () => ({
     findUnique: jest.fn(),
     findFirst: jest.fn(),
     findMany: jest.fn(),
-    deleteMany: jest.fn(),
-  },
+    deleteMany: jest.fn()
+  }
 });
 
 const buildDomainSnapshot = (): WirelessSnapshot => {
   const deviceId = DeviceId.parse(DEVICE_UUID).value;
   const snapshotId = SnapshotId.parse(SNAPSHOT_UUID).value;
   const metrics = WirelessMetrics.reconstitute({
-    signalRxDbm: -65, signalTxDbm: null, noiseFloorDbm: -95, snrDb: null,
-    ccqPercent: 98, frequencyMhz: 5180, channelWidthMhz: null,
-    throughputTxBps: null, throughputRxBps: null, throughputTxPps: null,
-    throughputRxPps: null, lanStatus: 'UP', lanSpeedMbps: 100, lanDuplex: null,
-    uptimeSeconds: 3600, cpuLoadPercent: null, memoryUsedPercent: null,
-    firmwareVersion: 'XW.v8.7.1', deviceName: 'ubnt-cpe', remoteApMac: null,
-    remoteApName: null, remoteApIp: null, distanceM: null, latencyMs: null,
-    capacityTxKbps: null, capacityRxKbps: null, deviceTimeEpoch: null,
-    clientsConnected: 2, macAddress: null, deviceModel: null, ssid: null,
+    signalRxDbm: -65,
+    signalTxDbm: null,
+    noiseFloorDbm: -95,
+    snrDb: null,
+    ccqPercent: 98,
+    frequencyMhz: 5180,
+    channelWidthMhz: null,
+    throughputTxBps: null,
+    throughputRxBps: null,
+    throughputTxPps: null,
+    throughputRxPps: null,
+    lanStatus: 'UP',
+    lanSpeedMbps: 100,
+    lanDuplex: null,
+    uptimeSeconds: 3600,
+    cpuLoadPercent: null,
+    memoryUsedPercent: null,
+    firmwareVersion: 'XW.v8.7.1',
+    deviceName: 'ubnt-cpe',
+    remoteApMac: null,
+    remoteApName: null,
+    remoteApIp: null,
+    distanceM: null,
+    latencyMs: null,
+    capacityTxKbps: null,
+    capacityRxKbps: null,
+    deviceTimeEpoch: null,
+    clientsConnected: 2,
+    macAddress: null,
+    deviceModel: null,
+    ssid: null
   });
 
-  return WirelessSnapshot.reconstitute(
-    snapshotId,
-    { deviceId, deviceType: 'STATION', collectedAt: new Date('2024-01-01T12:00:00Z'), collectionMethod: 'snmp', metrics, clients: [], alerts: [], remoteApDeviceId: null }
-  );
+  return WirelessSnapshot.reconstitute(snapshotId, {
+    deviceId,
+    deviceType: 'STATION',
+    collectedAt: new Date('2024-01-01T12:00:00Z'),
+    collectionMethod: 'snmp',
+    metrics,
+    clients: [],
+    alerts: [],
+    remoteApDeviceId: null
+  });
 };
 
 const makePrismaRow = () => ({
@@ -81,7 +112,7 @@ const makePrismaRow = () => ({
   clientsJson: null,
   macAddress: null,
   deviceModel: null,
-  ssid: null,
+  ssid: null
 });
 
 describe('PrismaWirelessSnapshotRepository', () => {
@@ -95,9 +126,14 @@ describe('PrismaWirelessSnapshotRepository', () => {
     EventDispatcher.clearHandlers();
     EventDispatcher.clearMarkedAggregates();
     prismaMock = createMockPrisma();
-    repository = new PrismaWirelessSnapshotRepository(prismaMock as unknown as PrismaClient);
+    repository = new PrismaWirelessSnapshotRepository(
+      prismaMock as unknown as PrismaClient
+    );
     spyMark = jest.spyOn(EventDispatcher, 'markAggregateForDispatch');
-    spyDispatch = jest.spyOn(EventDispatcher, 'dispatchEventsForAggregate');
+    spyDispatch = jest.spyOn(
+      EventDispatcher,
+      'dispatchEventsForAggregate'
+    );
   });
 
   afterEach(() => {
@@ -111,9 +147,15 @@ describe('PrismaWirelessSnapshotRepository', () => {
 
       const result = await repository.save(snapshot);
 
-      expect(prismaMock.wirelessSnapshot.create).toHaveBeenCalledTimes(1);
-      const createArg = prismaMock.wirelessSnapshot.create.mock.calls[0][0] as { data: Record<string, unknown> };
-      expect(createArg.data).toMatchObject({ id: SNAPSHOT_UUID, deviceId: DEVICE_UUID });
+      expect(
+        prismaMock.wirelessSnapshot.create
+      ).toHaveBeenCalledTimes(1);
+      const createArg = prismaMock.wirelessSnapshot.create.mock
+        .calls[0][0] as { data: Record<string, unknown> };
+      expect(createArg.data).toMatchObject({
+        id: SNAPSHOT_UUID,
+        deviceId: DEVICE_UUID
+      });
       expect(result.isSuccess).toBe(true);
     });
 
@@ -137,10 +179,12 @@ describe('PrismaWirelessSnapshotRepository', () => {
 
     it('should dispatch events after create, not before', async () => {
       const callOrder: string[] = [];
-      prismaMock.wirelessSnapshot.create.mockImplementation(async () => {
-        callOrder.push('create');
-        return {};
-      });
+      prismaMock.wirelessSnapshot.create.mockImplementation(
+        async () => {
+          callOrder.push('create');
+          return {};
+        }
+      );
       spyDispatch.mockImplementation(() => {
         callOrder.push('dispatch');
       });
@@ -151,17 +195,23 @@ describe('PrismaWirelessSnapshotRepository', () => {
     });
 
     it('should return a failed Result when prisma.wirelessSnapshot.create throws', async () => {
-      prismaMock.wirelessSnapshot.create.mockRejectedValue(new Error('connection refused'));
+      prismaMock.wirelessSnapshot.create.mockRejectedValue(
+        new Error('connection refused')
+      );
 
       const result = await repository.save(buildDomainSnapshot());
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Database error saving wireless snapshot');
+      expect(result.error).toContain(
+        'Database error saving wireless snapshot'
+      );
       expect(result.error).toContain('connection refused');
     });
 
     it('should not call dispatchEventsForAggregate when create throws', async () => {
-      prismaMock.wirelessSnapshot.create.mockRejectedValue(new Error('DB error'));
+      prismaMock.wirelessSnapshot.create.mockRejectedValue(
+        new Error('DB error')
+      );
 
       await repository.save(buildDomainSnapshot());
 
@@ -180,7 +230,9 @@ describe('PrismaWirelessSnapshotRepository', () => {
 
   describe('findById', () => {
     it('should return a domain aggregate wrapped in a successful Result when the record is found', async () => {
-      prismaMock.wirelessSnapshot.findUnique.mockResolvedValue(makePrismaRow());
+      prismaMock.wirelessSnapshot.findUnique.mockResolvedValue(
+        makePrismaRow()
+      );
       const id = SnapshotId.parse(SNAPSHOT_UUID).value;
 
       const result = await repository.findById(id);
@@ -196,8 +248,10 @@ describe('PrismaWirelessSnapshotRepository', () => {
 
       await repository.findById(id);
 
-      expect(prismaMock.wirelessSnapshot.findUnique).toHaveBeenCalledWith({
-        where: { id: SNAPSHOT_UUID },
+      expect(
+        prismaMock.wirelessSnapshot.findUnique
+      ).toHaveBeenCalledWith({
+        where: { id: SNAPSHOT_UUID }
       });
     });
 
@@ -212,13 +266,17 @@ describe('PrismaWirelessSnapshotRepository', () => {
     });
 
     it('should return a failed Result when prisma throws', async () => {
-      prismaMock.wirelessSnapshot.findUnique.mockRejectedValue(new Error('query failed'));
+      prismaMock.wirelessSnapshot.findUnique.mockRejectedValue(
+        new Error('query failed')
+      );
       const id = SnapshotId.parse(SNAPSHOT_UUID).value;
 
       const result = await repository.findById(id);
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Database error finding wireless snapshot by id');
+      expect(result.error).toContain(
+        'Database error finding wireless snapshot by id'
+      );
     });
   });
 
@@ -229,14 +287,18 @@ describe('PrismaWirelessSnapshotRepository', () => {
 
       await repository.findLatestByDevice(deviceId);
 
-      expect(prismaMock.wirelessSnapshot.findFirst).toHaveBeenCalledWith({
+      expect(
+        prismaMock.wirelessSnapshot.findFirst
+      ).toHaveBeenCalledWith({
         where: { deviceId: DEVICE_UUID },
-        orderBy: { collectedAt: 'desc' },
+        orderBy: { collectedAt: 'desc' }
       });
     });
 
     it('should return the most recent snapshot as a domain aggregate on success', async () => {
-      prismaMock.wirelessSnapshot.findFirst.mockResolvedValue(makePrismaRow());
+      prismaMock.wirelessSnapshot.findFirst.mockResolvedValue(
+        makePrismaRow()
+      );
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
 
       const result = await repository.findLatestByDevice(deviceId);
@@ -257,13 +319,17 @@ describe('PrismaWirelessSnapshotRepository', () => {
     });
 
     it('should return a failed Result when prisma throws', async () => {
-      prismaMock.wirelessSnapshot.findFirst.mockRejectedValue(new Error('timeout'));
+      prismaMock.wirelessSnapshot.findFirst.mockRejectedValue(
+        new Error('timeout')
+      );
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
 
       const result = await repository.findLatestByDevice(deviceId);
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Database error finding wireless snapshot');
+      expect(result.error).toContain(
+        'Database error finding wireless snapshot'
+      );
     });
   });
 
@@ -276,30 +342,49 @@ describe('PrismaWirelessSnapshotRepository', () => {
 
       await repository.findHistoryByDevice(deviceId, from, to);
 
-      expect(prismaMock.wirelessSnapshot.findMany).toHaveBeenCalledWith({
-        where: { deviceId: DEVICE_UUID, collectedAt: { gte: from, lte: to } },
-        orderBy: { collectedAt: 'desc' },
+      expect(
+        prismaMock.wirelessSnapshot.findMany
+      ).toHaveBeenCalledWith({
+        where: {
+          deviceId: DEVICE_UUID,
+          collectedAt: { gte: from, lte: to }
+        },
+        orderBy: { collectedAt: 'desc' }
       });
     });
 
     it('should return an array of domain aggregates when records exist', async () => {
-      prismaMock.wirelessSnapshot.findMany.mockResolvedValue([makePrismaRow()]);
+      prismaMock.wirelessSnapshot.findMany.mockResolvedValue([
+        makePrismaRow()
+      ]);
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
 
-      const result = await repository.findHistoryByDevice(deviceId, new Date(), new Date());
+      const result = await repository.findHistoryByDevice(
+        deviceId,
+        new Date(),
+        new Date()
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value).toHaveLength(1);
     });
 
     it('should return a failed Result when prisma throws', async () => {
-      prismaMock.wirelessSnapshot.findMany.mockRejectedValue(new Error('DB error'));
+      prismaMock.wirelessSnapshot.findMany.mockRejectedValue(
+        new Error('DB error')
+      );
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
 
-      const result = await repository.findHistoryByDevice(deviceId, new Date(), new Date());
+      const result = await repository.findHistoryByDevice(
+        deviceId,
+        new Date(),
+        new Date()
+      );
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Database error finding wireless history');
+      expect(result.error).toContain(
+        'Database error finding wireless history'
+      );
     });
   });
 
@@ -309,17 +394,23 @@ describe('PrismaWirelessSnapshotRepository', () => {
     // -----------------------------------------------------------------------
     describe('happy path', () => {
       it('should call prisma.wirelessSnapshot.deleteMany with a lt filter on collectedAt', async () => {
-        prismaMock.wirelessSnapshot.deleteMany.mockResolvedValue({ count: 15 });
+        prismaMock.wirelessSnapshot.deleteMany.mockResolvedValue({
+          count: 15
+        });
 
         await repository.deleteOlderThan(CUTOFF_DATE);
 
-        expect(prismaMock.wirelessSnapshot.deleteMany).toHaveBeenCalledWith({
-          where: { collectedAt: { lt: CUTOFF_DATE } },
+        expect(
+          prismaMock.wirelessSnapshot.deleteMany
+        ).toHaveBeenCalledWith({
+          where: { collectedAt: { lt: CUTOFF_DATE } }
         });
       });
 
       it('should return Result.ok with the number of deleted snapshots', async () => {
-        prismaMock.wirelessSnapshot.deleteMany.mockResolvedValue({ count: 15 });
+        prismaMock.wirelessSnapshot.deleteMany.mockResolvedValue({
+          count: 15
+        });
 
         const result = await repository.deleteOlderThan(CUTOFF_DATE);
 
@@ -328,7 +419,9 @@ describe('PrismaWirelessSnapshotRepository', () => {
       });
 
       it('should return Result.ok(0) when no snapshots are older than the cutoff', async () => {
-        prismaMock.wirelessSnapshot.deleteMany.mockResolvedValue({ count: 0 });
+        prismaMock.wirelessSnapshot.deleteMany.mockResolvedValue({
+          count: 0
+        });
 
         const result = await repository.deleteOlderThan(CUTOFF_DATE);
 
@@ -337,11 +430,15 @@ describe('PrismaWirelessSnapshotRepository', () => {
       });
 
       it('should call deleteMany exactly once', async () => {
-        prismaMock.wirelessSnapshot.deleteMany.mockResolvedValue({ count: 5 });
+        prismaMock.wirelessSnapshot.deleteMany.mockResolvedValue({
+          count: 5
+        });
 
         await repository.deleteOlderThan(CUTOFF_DATE);
 
-        expect(prismaMock.wirelessSnapshot.deleteMany).toHaveBeenCalledTimes(1);
+        expect(
+          prismaMock.wirelessSnapshot.deleteMany
+        ).toHaveBeenCalledTimes(1);
       });
     });
 

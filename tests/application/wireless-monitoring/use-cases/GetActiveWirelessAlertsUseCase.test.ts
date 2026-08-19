@@ -4,7 +4,10 @@ import { GetActiveWirelessAlertsUseCase } from '../../../../src/application/wire
 import { IWirelessAlertRecordRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessAlertRecordRepository';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
-import { DeviceId, WirelessAlertRecordId } from '../../../../src/domain/shared/ids';
+import {
+  DeviceId,
+  WirelessAlertRecordId
+} from '../../../../src/domain/shared/ids';
 import { WirelessAlertRecord } from '../../../../src/domain/wireless-monitoring';
 
 // ---------------------------------------------------------------------------
@@ -28,7 +31,7 @@ function makeLogger(): jest.Mocked<ILogger> {
     error: jest.fn(),
     fatal: jest.fn(),
     setLevel: jest.fn(),
-    child: jest.fn(),
+    child: jest.fn()
   };
   child.child.mockReturnValue(child);
   return child;
@@ -41,21 +44,18 @@ function makeAlertRecord(
 ): WirelessAlertRecord {
   const deviceId = DeviceId.parse(deviceUuid).value;
   const alertId = WirelessAlertRecordId.parse(alertUuid).value;
-  return WirelessAlertRecord.reconstitute(
-    alertId,
-    {
-      deviceId,
-      metric,
-      severity: 'WARNING',
-      threshold: -70,
-      lastValue: -75,
-      message: 'Signal below threshold',
-      notifiedAt: null,
-      triggeredAt: new Date('2024-01-01T00:00:00.000Z'),
-      clearedAt: null,
-      isActive: true,
-    }
-  );
+  return WirelessAlertRecord.reconstitute(alertId, {
+    deviceId,
+    metric,
+    severity: 'WARNING',
+    threshold: -70,
+    lastValue: -75,
+    message: 'Signal below threshold',
+    notifiedAt: null,
+    triggeredAt: new Date('2024-01-01T00:00:00.000Z'),
+    clearedAt: null,
+    isActive: true
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -72,14 +72,17 @@ describe('[WLS-144] GetActiveWirelessAlertsUseCase', () => {
       exists: jest.fn(),
       findActiveByDeviceMetricAndSeverity: jest.fn(),
       findAllActiveByDevice: jest.fn(),
-    findActiveUnnotifiedByDevice: jest.fn(),
+      findActiveUnnotifiedByDevice: jest.fn(),
       findAllActive: jest.fn(),
       findHistoryByDevice: jest.fn(),
       deleteClearedOlderThan: jest.fn()
     };
 
     logger = makeLogger();
-    useCase = new GetActiveWirelessAlertsUseCase(alertRecordRepo, logger);
+    useCase = new GetActiveWirelessAlertsUseCase(
+      alertRecordRepo,
+      logger
+    );
   });
 
   afterEach(() => {
@@ -92,22 +95,30 @@ describe('[WLS-144] GetActiveWirelessAlertsUseCase', () => {
   // ===========================================================================
   describe('executeImpl — with deviceId provided (device-scoped query)', () => {
     it('should fail when deviceId is provided but is not a valid UUID', async () => {
-      const result = await useCase.execute({ deviceId: 'not-a-uuid' });
+      const result = await useCase.execute({
+        deviceId: 'not-a-uuid'
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid device ID');
     });
 
     it('should call alertRecordRepo.findAllActiveByDevice when a valid deviceId is provided', async () => {
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([]));
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      expect(alertRecordRepo.findAllActiveByDevice).toHaveBeenCalledTimes(1);
+      expect(
+        alertRecordRepo.findAllActiveByDevice
+      ).toHaveBeenCalledTimes(1);
     });
 
     it('should NOT call alertRecordRepo.findAllActive when deviceId is provided', async () => {
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([]));
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
@@ -115,27 +126,38 @@ describe('[WLS-144] GetActiveWirelessAlertsUseCase', () => {
     });
 
     it('should call findAllActiveByDevice with the parsed deviceId', async () => {
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([]));
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      const calledWith = alertRecordRepo.findAllActiveByDevice.mock.calls[0][0];
+      const calledWith =
+        alertRecordRepo.findAllActiveByDevice.mock.calls[0][0];
       expect(calledWith.toString()).toBe(VALID_DEVICE_UUID);
     });
 
     it('should fail when findAllActiveByDevice returns a failure', async () => {
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.fail('DB error'));
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.fail('DB error')
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Failed to load active alerts');
     });
 
     it('should return an empty array when the device has no active alerts', async () => {
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([]));
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isSuccess).toBe(true);
       expect(result.value).toHaveLength(0);
@@ -143,39 +165,75 @@ describe('[WLS-144] GetActiveWirelessAlertsUseCase', () => {
 
     it('should return mapped DTOs for each active alert', async () => {
       const alerts = [
-        makeAlertRecord(ALERT_UUID, VALID_DEVICE_UUID, 'signal_rx_dbm'),
-        makeAlertRecord(ALERT_UUID_2, VALID_DEVICE_UUID, 'cpu_load_percent'),
+        makeAlertRecord(
+          ALERT_UUID,
+          VALID_DEVICE_UUID,
+          'signal_rx_dbm'
+        ),
+        makeAlertRecord(
+          ALERT_UUID_2,
+          VALID_DEVICE_UUID,
+          'cpu_load_percent'
+        )
       ];
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok(alerts));
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok(alerts)
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value).toHaveLength(2);
     });
 
     it('should map each alert to a DTO with the correct id', async () => {
-      const alert = makeAlertRecord(ALERT_UUID, VALID_DEVICE_UUID, 'signal_rx_dbm');
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([alert]));
+      const alert = makeAlertRecord(
+        ALERT_UUID,
+        VALID_DEVICE_UUID,
+        'signal_rx_dbm'
+      );
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([alert])
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value[0].id).toBe(ALERT_UUID);
     });
 
     it('should map each alert to a DTO with the correct deviceId', async () => {
-      const alert = makeAlertRecord(ALERT_UUID, VALID_DEVICE_UUID, 'signal_rx_dbm');
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([alert]));
+      const alert = makeAlertRecord(
+        ALERT_UUID,
+        VALID_DEVICE_UUID,
+        'signal_rx_dbm'
+      );
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([alert])
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value[0].deviceId).toBe(VALID_DEVICE_UUID);
     });
 
     it('should map each alert to a DTO with isActive=true', async () => {
-      const alert = makeAlertRecord(ALERT_UUID, VALID_DEVICE_UUID, 'signal_rx_dbm');
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([alert]));
+      const alert = makeAlertRecord(
+        ALERT_UUID,
+        VALID_DEVICE_UUID,
+        'signal_rx_dbm'
+      );
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([alert])
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value[0].isActive).toBe(true);
     });
@@ -196,7 +254,9 @@ describe('[WLS-144] GetActiveWirelessAlertsUseCase', () => {
 
       await useCase.execute({});
 
-      expect(alertRecordRepo.findAllActiveByDevice).not.toHaveBeenCalled();
+      expect(
+        alertRecordRepo.findAllActiveByDevice
+      ).not.toHaveBeenCalled();
     });
 
     it('should call alertRecordRepo.findAllActive when deviceId is undefined', async () => {
@@ -208,7 +268,9 @@ describe('[WLS-144] GetActiveWirelessAlertsUseCase', () => {
     });
 
     it('should fail when findAllActive returns a failure', async () => {
-      alertRecordRepo.findAllActive.mockResolvedValue(Result.fail('DB timeout'));
+      alertRecordRepo.findAllActive.mockResolvedValue(
+        Result.fail('DB timeout')
+      );
 
       const result = await useCase.execute({});
 
@@ -227,10 +289,20 @@ describe('[WLS-144] GetActiveWirelessAlertsUseCase', () => {
 
     it('should return mapped DTOs for all active alerts across devices', async () => {
       const alerts = [
-        makeAlertRecord(ALERT_UUID, VALID_DEVICE_UUID, 'signal_rx_dbm'),
-        makeAlertRecord(ALERT_UUID_2, VALID_DEVICE_UUID_2, 'cpu_load_percent'),
+        makeAlertRecord(
+          ALERT_UUID,
+          VALID_DEVICE_UUID,
+          'signal_rx_dbm'
+        ),
+        makeAlertRecord(
+          ALERT_UUID_2,
+          VALID_DEVICE_UUID_2,
+          'cpu_load_percent'
+        )
       ];
-      alertRecordRepo.findAllActive.mockResolvedValue(Result.ok(alerts));
+      alertRecordRepo.findAllActive.mockResolvedValue(
+        Result.ok(alerts)
+      );
 
       const result = await useCase.execute({});
 
@@ -238,9 +310,19 @@ describe('[WLS-144] GetActiveWirelessAlertsUseCase', () => {
     });
 
     it('should preserve alert ordering from the repository', async () => {
-      const alert1 = makeAlertRecord(ALERT_UUID, VALID_DEVICE_UUID, 'signal_rx_dbm');
-      const alert2 = makeAlertRecord(ALERT_UUID_2, VALID_DEVICE_UUID_2, 'cpu_load_percent');
-      alertRecordRepo.findAllActive.mockResolvedValue(Result.ok([alert1, alert2]));
+      const alert1 = makeAlertRecord(
+        ALERT_UUID,
+        VALID_DEVICE_UUID,
+        'signal_rx_dbm'
+      );
+      const alert2 = makeAlertRecord(
+        ALERT_UUID_2,
+        VALID_DEVICE_UUID_2,
+        'cpu_load_percent'
+      );
+      alertRecordRepo.findAllActive.mockResolvedValue(
+        Result.ok([alert1, alert2])
+      );
 
       const result = await useCase.execute({});
 

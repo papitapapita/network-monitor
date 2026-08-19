@@ -51,10 +51,18 @@ describe('ListAlertsUseCase — integration', () => {
 
   it('returns all alerts ordered newest-first', async () => {
     await prisma.alertEvent.create({
-      data: { deviceId, severity: 'CRITICAL', startedAt: new Date('2025-06-01T08:00:00Z') }
+      data: {
+        deviceId,
+        severity: 'CRITICAL',
+        startedAt: new Date('2025-06-01T08:00:00Z')
+      }
     });
     await prisma.alertEvent.create({
-      data: { deviceId, severity: 'CRITICAL', startedAt: new Date('2025-06-01T10:00:00Z') }
+      data: {
+        deviceId,
+        severity: 'CRITICAL',
+        startedAt: new Date('2025-06-01T10:00:00Z')
+      }
     });
 
     const result = await useCase.execute({});
@@ -62,11 +70,15 @@ describe('ListAlertsUseCase — integration', () => {
     expect(result.isSuccess).toBe(true);
     expect(result.value.alerts).toHaveLength(2);
     const [first, second] = result.value.alerts;
-    expect(new Date(first.startedAt) >= new Date(second.startedAt)).toBe(true);
+    expect(
+      new Date(first.startedAt) >= new Date(second.startedAt)
+    ).toBe(true);
   });
 
   it('returns correct DTO shape for an open alert', async () => {
-    await prisma.alertEvent.create({ data: { deviceId, severity: 'CRITICAL' } });
+    await prisma.alertEvent.create({
+      data: { deviceId, severity: 'CRITICAL' }
+    });
 
     const result = await useCase.execute({});
 
@@ -100,9 +112,15 @@ describe('ListAlertsUseCase — integration', () => {
   // ──────────────────────────────────────────────────────────────
 
   it('returns only alerts belonging to the specified device', async () => {
-    const other = await seedMonitoredDevice(prisma, deviceModelId, '10.0.0.1');
+    const other = await seedMonitoredDevice(
+      prisma,
+      deviceModelId,
+      '10.0.0.1'
+    );
 
-    await prisma.alertEvent.create({ data: { deviceId, severity: 'CRITICAL' } });
+    await prisma.alertEvent.create({
+      data: { deviceId, severity: 'CRITICAL' }
+    });
     await prisma.alertEvent.create({
       data: { deviceId: other.deviceId, severity: 'CRITICAL' }
     });
@@ -142,7 +160,9 @@ describe('ListAlertsUseCase — integration', () => {
   it('respects limit parameter', async () => {
     await Promise.all(
       Array.from({ length: 5 }).map(() =>
-        prisma.alertEvent.create({ data: { deviceId, severity: 'CRITICAL' } })
+        prisma.alertEvent.create({
+          data: { deviceId, severity: 'CRITICAL' }
+        })
       )
     );
 
@@ -178,7 +198,9 @@ describe('ListAlertsUseCase — integration', () => {
   it('returns correct limit and offset in the response envelope', async () => {
     await Promise.all(
       Array.from({ length: 3 }).map(() =>
-        prisma.alertEvent.create({ data: { deviceId, severity: 'CRITICAL' } })
+        prisma.alertEvent.create({
+          data: { deviceId, severity: 'CRITICAL' }
+        })
       )
     );
 

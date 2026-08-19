@@ -23,7 +23,11 @@ describe('DeleteVendorUseCase — integration', () => {
     const vendorRepo = new PrismaVendorRepository(prisma);
     const deviceModelRepo = new PrismaDeviceModelRepository(prisma);
     const logger = new WinstonLogger();
-    useCase = new DeleteVendorUseCase(vendorRepo, deviceModelRepo, logger);
+    useCase = new DeleteVendorUseCase(
+      vendorRepo,
+      deviceModelRepo,
+      logger
+    );
   });
 
   afterAll(async () => {
@@ -45,7 +49,9 @@ describe('DeleteVendorUseCase — integration', () => {
 
     expect(result.isSuccess).toBe(true);
 
-    const row = await prisma.vendor.findUnique({ where: { id: vendorId } });
+    const row = await prisma.vendor.findUnique({
+      where: { id: vendorId }
+    });
     expect(row).toBeNull();
   });
 
@@ -65,7 +71,10 @@ describe('DeleteVendorUseCase — integration', () => {
   // ──────────────────────────────────────────────────────────────
 
   it('[DEV-005] fails with a "Cannot delete" error when the vendor has associated device models', async () => {
-    const vendorId = await seedVendor(prisma, { name: 'Locked Vendor', slug: 'locked-vendor' });
+    const vendorId = await seedVendor(prisma, {
+      name: 'Locked Vendor',
+      slug: 'locked-vendor'
+    });
 
     await prisma.deviceModel.create({
       data: {

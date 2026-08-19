@@ -68,11 +68,14 @@ export class LocationMapper {
     } = {};
     if (dto.name !== undefined) updates.name = dto.name;
     if (dto.type !== undefined) updates.type = dto.type;
-    if (dto.municipality !== undefined) updates.municipality = dto.municipality;
-    if (dto.neighborhood !== undefined) updates.neighborhood = dto.neighborhood;
+    if (dto.municipality !== undefined)
+      updates.municipality = dto.municipality;
+    if (dto.neighborhood !== undefined)
+      updates.neighborhood = dto.neighborhood;
     if (dto.address !== undefined) updates.address = dto.address;
     if (dto.latitude !== undefined) updates.latitude = dto.latitude;
-    if (dto.longitude !== undefined) updates.longitude = dto.longitude;
+    if (dto.longitude !== undefined)
+      updates.longitude = dto.longitude;
     if (dto.altitude !== undefined) updates.altitude = dto.altitude;
     return updates;
   }

@@ -4,7 +4,10 @@ import { WirelessAlertTriggeredEvent } from '../../../../src/domain/wireless-mon
 import { WirelessAlertTriggeredEventProps } from '../../../../src/domain/wireless-monitoring/props/WirelessAlertTriggeredEventProps';
 import { WirelessAlert } from '../../../../src/domain/wireless-monitoring/value-objects/WirelessAlert';
 import { WirelessAlertProps } from '../../../../src/domain/wireless-monitoring/props/WirelessAlertProps';
-import { SnapshotId, DeviceId } from '../../../../src/domain/shared/ids';
+import {
+  SnapshotId,
+  DeviceId
+} from '../../../../src/domain/shared/ids';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -12,7 +15,9 @@ import { SnapshotId, DeviceId } from '../../../../src/domain/shared/ids';
 
 const FIXED_DATE = new Date('2026-03-10T08:00:00.000Z');
 
-function makeAlertProps(overrides: Partial<WirelessAlertProps> = {}): WirelessAlertProps {
+function makeAlertProps(
+  overrides: Partial<WirelessAlertProps> = {}
+): WirelessAlertProps {
   return {
     metric: 'signalRxDbm',
     severity: 'WARNING',
@@ -20,11 +25,13 @@ function makeAlertProps(overrides: Partial<WirelessAlertProps> = {}): WirelessAl
     currentValue: -75,
     message: 'Signal has dropped below the warning threshold.',
     triggeredAt: new Date('2026-03-10T07:55:00.000Z'),
-    ...overrides,
+    ...overrides
   };
 }
 
-function makeAlert(overrides: Partial<WirelessAlertProps> = {}): WirelessAlert {
+function makeAlert(
+  overrides: Partial<WirelessAlertProps> = {}
+): WirelessAlert {
   return WirelessAlert.create(makeAlertProps(overrides)).value;
 }
 
@@ -36,7 +43,7 @@ function makeEvent(
     deviceId: DeviceId.create(),
     alerts: [makeAlert()],
     dateTimeOccurred: FIXED_DATE,
-    ...overrides,
+    ...overrides
   });
 }
 
@@ -70,7 +77,9 @@ describe('[WLS-122] WirelessAlertTriggeredEvent', () => {
       const event = makeEvent();
 
       expect(
-        Object.isFrozen((event as unknown as { props: unknown }).props)
+        Object.isFrozen(
+          (event as unknown as { props: unknown }).props
+        )
       ).toBe(true);
     });
 
@@ -78,7 +87,9 @@ describe('[WLS-122] WirelessAlertTriggeredEvent', () => {
       const event = makeEvent();
 
       expect(() => {
-        (event as unknown as { props: { alerts: WirelessAlert[] } }).props.alerts = [];
+        (
+          event as unknown as { props: { alerts: WirelessAlert[] } }
+        ).props.alerts = [];
       }).toThrow();
     });
 
@@ -86,7 +97,9 @@ describe('[WLS-122] WirelessAlertTriggeredEvent', () => {
       const event = makeEvent();
 
       expect(() => {
-        (event as unknown as { props: Record<string, unknown> }).props.extra = 'value';
+        (
+          event as unknown as { props: Record<string, unknown> }
+        ).props.extra = 'value';
       }).toThrow();
     });
   });
@@ -125,7 +138,11 @@ describe('[WLS-122] WirelessAlertTriggeredEvent', () => {
     });
 
     it('should expose alert properties when a single alert is present', () => {
-      const alert = makeAlert({ metric: 'ccq', severity: 'CRITICAL', currentValue: 40 });
+      const alert = makeAlert({
+        metric: 'ccq',
+        severity: 'CRITICAL',
+        currentValue: 40
+      });
       const event = makeEvent({ alerts: [alert] });
 
       expect(event.alerts).toHaveLength(1);
@@ -138,7 +155,7 @@ describe('[WLS-122] WirelessAlertTriggeredEvent', () => {
       const alerts = [
         makeAlert({ metric: 'signalRxDbm', severity: 'WARNING' }),
         makeAlert({ metric: 'ccq', severity: 'CRITICAL' }),
-        makeAlert({ metric: 'noiseFloor', severity: 'WARNING' }),
+        makeAlert({ metric: 'noiseFloor', severity: 'WARNING' })
       ];
       const event = makeEvent({ alerts });
 
@@ -172,7 +189,9 @@ describe('[WLS-122] WirelessAlertTriggeredEvent', () => {
     it('should contain the event class name', () => {
       const event = makeEvent();
 
-      expect(event.toString()).toContain('WirelessAlertTriggeredEvent');
+      expect(event.toString()).toContain(
+        'WirelessAlertTriggeredEvent'
+      );
     });
 
     it('should contain the aggregate ID string value', () => {
@@ -200,7 +219,10 @@ describe('[WLS-122] WirelessAlertTriggeredEvent', () => {
       const id1 = SnapshotId.create();
       const id2 = SnapshotId.create();
       const alerts1 = [makeAlert({ metric: 'signalRxDbm' })];
-      const alerts2 = [makeAlert({ metric: 'ccq' }), makeAlert({ metric: 'noiseFloor' })];
+      const alerts2 = [
+        makeAlert({ metric: 'ccq' }),
+        makeAlert({ metric: 'noiseFloor' })
+      ];
       const event1 = makeEvent({ aggregateId: id1, alerts: alerts1 });
       const event2 = makeEvent({ aggregateId: id2, alerts: alerts2 });
 

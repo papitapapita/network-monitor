@@ -249,7 +249,9 @@ describe('getDeviceModelByIdSchema', () => {
 
       expect(result.success).toBe(false);
       if (!result.success) {
-        const messages = result.error.issues.map((i) => i.message).join(' ');
+        const messages = result.error.issues
+          .map((i) => i.message)
+          .join(' ');
         expect(messages.toLowerCase()).toContain('uuid');
       }
     });
@@ -271,7 +273,11 @@ describe('createDeviceModelSchema', () => {
   describe('happy path', () => {
     it('should accept a valid body with vendorId, model, and deviceType', () => {
       const result = createDeviceModelSchema.safeParse({
-        body: { vendorId: VALID_UUID, model: 'RB760iGS', deviceType: 'ROUTER' }
+        body: {
+          vendorId: VALID_UUID,
+          model: 'RB760iGS',
+          deviceType: 'ROUTER'
+        }
       });
 
       expect(result.success).toBe(true);
@@ -279,7 +285,11 @@ describe('createDeviceModelSchema', () => {
 
     it('should accept deviceType ANTENNA', () => {
       const result = createDeviceModelSchema.safeParse({
-        body: { vendorId: VALID_UUID, model: 'AM-9M13', deviceType: 'ANTENNA' }
+        body: {
+          vendorId: VALID_UUID,
+          model: 'AM-9M13',
+          deviceType: 'ANTENNA'
+        }
       });
 
       expect(result.success).toBe(true);
@@ -287,7 +297,11 @@ describe('createDeviceModelSchema', () => {
 
     it('should accept deviceType OTHER', () => {
       const result = createDeviceModelSchema.safeParse({
-        body: { vendorId: VALID_UUID, model: 'SomeModel', deviceType: 'OTHER' }
+        body: {
+          vendorId: VALID_UUID,
+          model: 'SomeModel',
+          deviceType: 'OTHER'
+        }
       });
 
       expect(result.success).toBe(true);
@@ -295,7 +309,11 @@ describe('createDeviceModelSchema', () => {
 
     it('should accept deviceType RADIO', () => {
       const result = createDeviceModelSchema.safeParse({
-        body: { vendorId: VALID_UUID, model: 'LHG 5', deviceType: 'RADIO' }
+        body: {
+          vendorId: VALID_UUID,
+          model: 'LHG 5',
+          deviceType: 'RADIO'
+        }
       });
 
       expect(result.success).toBe(true);
@@ -303,7 +321,11 @@ describe('createDeviceModelSchema', () => {
 
     it('should accept deviceType ROUTERBOARD', () => {
       const result = createDeviceModelSchema.safeParse({
-        body: { vendorId: VALID_UUID, model: 'RB951G-2HnD', deviceType: 'ROUTERBOARD' }
+        body: {
+          vendorId: VALID_UUID,
+          model: 'RB951G-2HnD',
+          deviceType: 'ROUTERBOARD'
+        }
       });
 
       expect(result.success).toBe(true);
@@ -311,7 +333,11 @@ describe('createDeviceModelSchema', () => {
 
     it('should accept deviceType SERVER', () => {
       const result = createDeviceModelSchema.safeParse({
-        body: { vendorId: VALID_UUID, model: 'PowerEdge R740', deviceType: 'SERVER' }
+        body: {
+          vendorId: VALID_UUID,
+          model: 'PowerEdge R740',
+          deviceType: 'SERVER'
+        }
       });
 
       expect(result.success).toBe(true);
@@ -319,7 +345,11 @@ describe('createDeviceModelSchema', () => {
 
     it('should accept deviceType SWITCH', () => {
       const result = createDeviceModelSchema.safeParse({
-        body: { vendorId: VALID_UUID, model: 'CRS326', deviceType: 'SWITCH' }
+        body: {
+          vendorId: VALID_UUID,
+          model: 'CRS326',
+          deviceType: 'SWITCH'
+        }
       });
 
       expect(result.success).toBe(true);
@@ -338,7 +368,11 @@ describe('createDeviceModelSchema', () => {
 
     it('should reject when vendorId is not a UUID', () => {
       const result = createDeviceModelSchema.safeParse({
-        body: { vendorId: 'not-a-uuid', model: 'RB760iGS', deviceType: 'ROUTER' }
+        body: {
+          vendorId: 'not-a-uuid',
+          model: 'RB760iGS',
+          deviceType: 'ROUTER'
+        }
       });
 
       expect(result.success).toBe(false);
@@ -349,7 +383,11 @@ describe('createDeviceModelSchema', () => {
   describe('validation errors — model', () => {
     it('should reject when model is an empty string', () => {
       const result = createDeviceModelSchema.safeParse({
-        body: { vendorId: VALID_UUID, model: '', deviceType: 'ROUTER' }
+        body: {
+          vendorId: VALID_UUID,
+          model: '',
+          deviceType: 'ROUTER'
+        }
       });
 
       expect(result.success).toBe(false);
@@ -357,7 +395,11 @@ describe('createDeviceModelSchema', () => {
 
     it('should reject when model exceeds 150 characters', () => {
       const result = createDeviceModelSchema.safeParse({
-        body: { vendorId: VALID_UUID, model: 'M'.repeat(151), deviceType: 'ROUTER' }
+        body: {
+          vendorId: VALID_UUID,
+          model: 'M'.repeat(151),
+          deviceType: 'ROUTER'
+        }
       });
 
       expect(result.success).toBe(false);
@@ -376,7 +418,11 @@ describe('createDeviceModelSchema', () => {
 
     it('should reject when deviceType is an unrecognised value', () => {
       const result = createDeviceModelSchema.safeParse({
-        body: { vendorId: VALID_UUID, model: 'RB760iGS', deviceType: 'INVALID' }
+        body: {
+          vendorId: VALID_UUID,
+          model: 'RB760iGS',
+          deviceType: 'INVALID'
+        }
       });
 
       expect(result.success).toBe(false);
@@ -419,7 +465,11 @@ describe('updateDeviceModelSchema', () => {
     it('should accept a body with all three fields', () => {
       const result = updateDeviceModelSchema.safeParse({
         params: { id: VALID_UUID },
-        body: { vendorId: VALID_UUID, model: 'CRS326', deviceType: 'SWITCH' }
+        body: {
+          vendorId: VALID_UUID,
+          model: 'CRS326',
+          deviceType: 'SWITCH'
+        }
       });
 
       expect(result.success).toBe(true);

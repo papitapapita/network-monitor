@@ -57,7 +57,10 @@ describe('Device Model Routes — /api/device-models', () => {
 
   beforeEach(async () => {
     await cleanCatalog(prisma);
-    vendorId = await seedVendor(prisma, { name: 'MikroTik', slug: 'mikrotik' });
+    vendorId = await seedVendor(prisma, {
+      name: 'MikroTik',
+      slug: 'mikrotik'
+    });
     modelId = await seedModel();
   });
 
@@ -70,7 +73,11 @@ describe('Device Model Routes — /api/device-models', () => {
       const res = await request(app)
         .post('/api/device-models')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ vendorId, model: 'UniFi AP AC Pro', deviceType: 'RADIO' });
+        .send({
+          vendorId,
+          model: 'UniFi AP AC Pro',
+          deviceType: 'RADIO'
+        });
 
       expect(res.status).toBe(201);
       expect(res.body.success).toBe(true);
@@ -129,7 +136,12 @@ describe('Device Model Routes — /api/device-models', () => {
       const res = await request(app)
         .post('/api/device-models')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ vendorId, model: 'LHG 5', deviceType: 'ANTENNA', isWireless: true });
+        .send({
+          vendorId,
+          model: 'LHG 5',
+          deviceType: 'ANTENNA',
+          isWireless: true
+        });
 
       expect(res.status).toBe(201);
       expect(res.body.data.isWireless).toBe(true);
@@ -167,7 +179,11 @@ describe('Device Model Routes — /api/device-models', () => {
       const res = await request(app)
         .post('/api/device-models')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ vendorId: INVALID_ID, model: 'UniFi AP', deviceType: 'RADIO' });
+        .send({
+          vendorId: INVALID_ID,
+          model: 'UniFi AP',
+          deviceType: 'RADIO'
+        });
 
       expect(res.status).toBe(400);
     });
@@ -176,7 +192,11 @@ describe('Device Model Routes — /api/device-models', () => {
       const res = await request(app)
         .post('/api/device-models')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ vendorId, model: 'A'.repeat(150), deviceType: 'SWITCH' });
+        .send({
+          vendorId,
+          model: 'A'.repeat(150),
+          deviceType: 'SWITCH'
+        });
 
       expect(res.status).toBe(201);
     });
@@ -199,7 +219,11 @@ describe('Device Model Routes — /api/device-models', () => {
       const res = await request(app)
         .post('/api/device-models')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ vendorId, model: 'UniFi AP', deviceType: 'INVALID_TYPE' });
+        .send({
+          vendorId,
+          model: 'UniFi AP',
+          deviceType: 'INVALID_TYPE'
+        });
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
@@ -209,7 +233,11 @@ describe('Device Model Routes — /api/device-models', () => {
       const res = await request(app)
         .post('/api/device-models')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ vendorId: GHOST_ID, model: 'UniFi AP', deviceType: 'RADIO' });
+        .send({
+          vendorId: GHOST_ID,
+          model: 'UniFi AP',
+          deviceType: 'RADIO'
+        });
 
       expect(res.status).toBe(404);
       expect(res.body.success).toBe(false);
@@ -219,7 +247,11 @@ describe('Device Model Routes — /api/device-models', () => {
       const res = await request(app)
         .post('/api/device-models')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ vendorId, model: 'RB4011iGS+', deviceType: 'ROUTERBOARD' });
+        .send({
+          vendorId,
+          model: 'RB4011iGS+',
+          deviceType: 'ROUTERBOARD'
+        });
 
       expect(res.status).toBe(409);
       expect(res.body.success).toBe(false);
@@ -234,7 +266,11 @@ describe('Device Model Routes — /api/device-models', () => {
       const res = await request(app)
         .post('/api/device-models')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ vendorId: otherVendorId, model: 'RB4011iGS+', deviceType: 'ROUTERBOARD' });
+        .send({
+          vendorId: otherVendorId,
+          model: 'RB4011iGS+',
+          deviceType: 'ROUTERBOARD'
+        });
 
       expect(res.status).toBe(201);
     });
@@ -346,7 +382,9 @@ describe('Device Model Routes — /api/device-models', () => {
     });
 
     it('401 — rejects an unauthenticated request', async () => {
-      const res = await request(app).get(`/api/device-models/${modelId}`);
+      const res = await request(app).get(
+        `/api/device-models/${modelId}`
+      );
 
       expect(res.status).toBe(401);
     });
@@ -367,7 +405,9 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(res.body.data.model).toBe('hAP ac3');
       expect(res.body.data.deviceType).toBe('ROUTERBOARD');
 
-      const row = await prisma.deviceModel.findUnique({ where: { id: modelId } });
+      const row = await prisma.deviceModel.findUnique({
+        where: { id: modelId }
+      });
       expect(row!.model).toBe('hAP ac3');
     });
 
@@ -407,7 +447,9 @@ describe('Device Model Routes — /api/device-models', () => {
         .send({ isWireless: false });
 
       expect(res.status).toBe(409);
-      expect(res.body.error).toMatch(/Cannot mark device model as non-wireless/);
+      expect(res.body.error).toMatch(
+        /Cannot mark device model as non-wireless/
+      );
       await expect(
         prisma.wirelessPollingConfiguration.count()
       ).resolves.toBe(1);
@@ -557,7 +599,9 @@ describe('Device Model Routes — /api/device-models', () => {
 
       expect(res.status).toBe(409);
 
-      const row = await prisma.deviceModel.findUnique({ where: { id: modelId } });
+      const row = await prisma.deviceModel.findUnique({
+        where: { id: modelId }
+      });
       expect(row).not.toBeNull();
     });
 
@@ -578,7 +622,9 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(res.status).toBe(409);
       expect(res.body.error).toMatch(/recycle bin/i);
 
-      const row = await prisma.deviceModel.findUnique({ where: { id: modelId } });
+      const row = await prisma.deviceModel.findUnique({
+        where: { id: modelId }
+      });
       expect(row).not.toBeNull();
     });
 
@@ -593,7 +639,9 @@ describe('Device Model Routes — /api/device-models', () => {
       });
 
       const res = await request(app)
-        .delete(`/api/device-models/${modelId}?purgeBinnedDevices=true`)
+        .delete(
+          `/api/device-models/${modelId}?purgeBinnedDevices=true`
+        )
         .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(204);
@@ -601,20 +649,26 @@ describe('Device Model Routes — /api/device-models', () => {
         await prisma.device.findUnique({ where: { id: deviceId } })
       ).toBeNull();
       expect(
-        await prisma.deviceModel.findUnique({ where: { id: modelId } })
+        await prisma.deviceModel.findUnique({
+          where: { id: modelId }
+        })
       ).toBeNull();
     });
 
     it('400 — rejects a purgeBinnedDevices value that is not true or false', async () => {
       const res = await request(app)
-        .delete(`/api/device-models/${modelId}?purgeBinnedDevices=yes`)
+        .delete(
+          `/api/device-models/${modelId}?purgeBinnedDevices=yes`
+        )
         .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
 
     it('401 — rejects an unauthenticated request', async () => {
-      const res = await request(app).delete(`/api/device-models/${modelId}`);
+      const res = await request(app).delete(
+        `/api/device-models/${modelId}`
+      );
 
       expect(res.status).toBe(401);
     });

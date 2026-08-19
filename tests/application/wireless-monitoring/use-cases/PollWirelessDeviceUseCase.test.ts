@@ -1,12 +1,21 @@
 // Source: src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts
 
 import { PollWirelessDeviceUseCase } from '../../../../src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase';
-import { AlertDecision, IWirelessAlertEvaluator } from '../../../../src/domain/wireless-monitoring/services/IWirelessAlertEvaluator';
+import {
+  AlertDecision,
+  IWirelessAlertEvaluator
+} from '../../../../src/domain/wireless-monitoring/services/IWirelessAlertEvaluator';
 import { IWirelessDeviceConfigRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessDeviceConfigRepository';
 import { IWirelessSnapshotRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessSnapshotRepository';
 import { IWirelessAlertRecordRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessAlertRecordRepository';
-import { IDeviceCredentialsRepository, DecryptedCredentials } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceCredentialsRepository';
-import { IUbiquitiHttpCollector, HttpCollectionResult } from '../../../../src/application/wireless-monitoring/interfaces/IUbiquitiHttpCollector';
+import {
+  IDeviceCredentialsRepository,
+  DecryptedCredentials
+} from '../../../../src/application/wireless-monitoring/interfaces/IDeviceCredentialsRepository';
+import {
+  IUbiquitiHttpCollector,
+  HttpCollectionResult
+} from '../../../../src/application/wireless-monitoring/interfaces/IUbiquitiHttpCollector';
 import { IDeviceRepository } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceRepository';
 import { IAlertPublisher } from '../../../../src/application/shared/interfaces/IAlertPublisher';
 import { WirelessDeviceConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig';
@@ -52,25 +61,37 @@ function makeDeviceId(): DeviceId {
   return DeviceId.parse(VALID_DEVICE_UUID).value;
 }
 
-function makePollingConfig(overrides: {
-  enabled?: boolean;
-  deviceType?: 'STATION' | 'ACCESS_POINT';
-  linkCapacityKbps?: number | null;
-  clientsProvisionedLimit?: number | null;
-  ipAddress?: IPAddress | null;
-} = {}): WirelessDeviceConfig {
+function makePollingConfig(
+  overrides: {
+    enabled?: boolean;
+    deviceType?: 'STATION' | 'ACCESS_POINT';
+    linkCapacityKbps?: number | null;
+    clientsProvisionedLimit?: number | null;
+    ipAddress?: IPAddress | null;
+  } = {}
+): WirelessDeviceConfig {
   const ipResult = IPAddress.create(VALID_IP);
   return WirelessDeviceConfig.reconstitute(
     WirelessDeviceConfigId.create(),
     {
       deviceId: makeDeviceId(),
-      ipAddress: overrides.ipAddress !== undefined ? overrides.ipAddress : ipResult.value,
-      enabled: overrides.enabled !== undefined ? overrides.enabled : true,
+      ipAddress:
+        overrides.ipAddress !== undefined
+          ? overrides.ipAddress
+          : ipResult.value,
+      enabled:
+        overrides.enabled !== undefined ? overrides.enabled : true,
       pollingInterval: PollingInterval.reconstitute(60),
       deviceType: overrides.deviceType ?? 'STATION',
-      linkCapacityKbps: overrides.linkCapacityKbps !== undefined ? overrides.linkCapacityKbps : null,
-      clientsProvisionedLimit: overrides.clientsProvisionedLimit !== undefined ? overrides.clientsProvisionedLimit : null,
-      lastPolledAt: null,
+      linkCapacityKbps:
+        overrides.linkCapacityKbps !== undefined
+          ? overrides.linkCapacityKbps
+          : null,
+      clientsProvisionedLimit:
+        overrides.clientsProvisionedLimit !== undefined
+          ? overrides.clientsProvisionedLimit
+          : null,
+      lastPolledAt: null
     }
   );
 }
@@ -91,7 +112,9 @@ function makeCredentials(): DecryptedCredentials {
   };
 }
 
-function makeHttpResult(overrides: Partial<HttpCollectionResult> = {}): HttpCollectionResult {
+function makeHttpResult(
+  overrides: Partial<HttpCollectionResult> = {}
+): HttpCollectionResult {
   return {
     deviceName: 'CPE-001',
     firmwareVersion: 'WA.v8.7.5',
@@ -131,15 +154,16 @@ function makeHttpResult(overrides: Partial<HttpCollectionResult> = {}): HttpColl
 // ---------------------------------------------------------------------------
 
 function makeMocks() {
-  const wirelessDeviceConfigRepo: jest.Mocked<IWirelessDeviceConfigRepository> = {
-    findByDeviceId: jest.fn(),
-    save: jest.fn(),
-    findAllDue: jest.fn(),
-    findAll: jest.fn(),
-    delete: jest.fn(),
-    findById: jest.fn(),
-    exists: jest.fn()
-  };
+  const wirelessDeviceConfigRepo: jest.Mocked<IWirelessDeviceConfigRepository> =
+    {
+      findByDeviceId: jest.fn(),
+      save: jest.fn(),
+      findAllDue: jest.fn(),
+      findAll: jest.fn(),
+      delete: jest.fn(),
+      findById: jest.fn(),
+      exists: jest.fn()
+    };
 
   const snapshotRepo: jest.Mocked<IWirelessSnapshotRepository> = {
     save: jest.fn(),
@@ -150,17 +174,18 @@ function makeMocks() {
     deleteOlderThan: jest.fn()
   };
 
-  const alertRecordRepo: jest.Mocked<IWirelessAlertRecordRepository> = {
-    save: jest.fn(),
-    findById: jest.fn(),
-    exists: jest.fn(),
-    findActiveByDeviceMetricAndSeverity: jest.fn(),
-    findAllActiveByDevice: jest.fn(),
-    findActiveUnnotifiedByDevice: jest.fn(),
-    findAllActive: jest.fn(),
-    findHistoryByDevice: jest.fn(),
-    deleteClearedOlderThan: jest.fn()
-  };
+  const alertRecordRepo: jest.Mocked<IWirelessAlertRecordRepository> =
+    {
+      save: jest.fn(),
+      findById: jest.fn(),
+      exists: jest.fn(),
+      findActiveByDeviceMetricAndSeverity: jest.fn(),
+      findAllActiveByDevice: jest.fn(),
+      findActiveUnnotifiedByDevice: jest.fn(),
+      findAllActive: jest.fn(),
+      findHistoryByDevice: jest.fn(),
+      deleteClearedOlderThan: jest.fn()
+    };
 
   const credentialsRepo: jest.Mocked<IDeviceCredentialsRepository> = {
     findByDeviceId: jest.fn()
@@ -201,7 +226,9 @@ function makeMocks() {
   };
 }
 
-function makeUseCase(mocks: ReturnType<typeof makeMocks>): PollWirelessDeviceUseCase {
+function makeUseCase(
+  mocks: ReturnType<typeof makeMocks>
+): PollWirelessDeviceUseCase {
   return new PollWirelessDeviceUseCase(
     mocks.wirelessDeviceConfigRepo,
     mocks.snapshotRepo,
@@ -228,9 +255,15 @@ function configureHappyPath(
     deviceType: options.deviceType ?? 'STATION'
   });
 
-  mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
-  mocks.wirelessDeviceConfigRepo.save.mockResolvedValue(Result.ok(config));
-  mocks.credentialsRepo.findByDeviceId.mockResolvedValue(Result.ok(makeCredentials()));
+  mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
+    Result.ok(config)
+  );
+  mocks.wirelessDeviceConfigRepo.save.mockResolvedValue(
+    Result.ok(config)
+  );
+  mocks.credentialsRepo.findByDeviceId.mockResolvedValue(
+    Result.ok(makeCredentials())
+  );
 
   mocks.httpCollector.collect.mockResolvedValue(
     options.httpFails
@@ -238,11 +271,15 @@ function configureHappyPath(
       : Result.ok(makeHttpResult())
   );
 
-  mocks.alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([]));
+  mocks.alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+    Result.ok([])
+  );
   mocks.alertRecordRepo.findActiveUnnotifiedByDevice.mockResolvedValue(
     Result.ok([])
   );
-  mocks.snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(null));
+  mocks.snapshotRepo.findLatestByDevice.mockResolvedValue(
+    Result.ok(null)
+  );
   mocks.alertEvaluator.evaluate.mockReturnValue([]);
   mocks.snapshotRepo.save.mockImplementation((snapshot) =>
     Promise.resolve(Result.ok(snapshot))
@@ -326,14 +363,18 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
     it('should NOT call any repository when beforeExecute fails', async () => {
       await useCase.execute({ deviceId: '' });
 
-      expect(mocks.wirelessDeviceConfigRepo.findByDeviceId).not.toHaveBeenCalled();
+      expect(
+        mocks.wirelessDeviceConfigRepo.findByDeviceId
+      ).not.toHaveBeenCalled();
     });
   });
 
   // ===========================================================================
   describe('executeImpl — device ID parsing', () => {
     it('should fail when deviceId is not a valid UUID', async () => {
-      const result = await useCase.execute({ deviceId: 'not-a-valid-uuid' });
+      const result = await useCase.execute({
+        deviceId: 'not-a-valid-uuid'
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid device ID');
@@ -342,7 +383,9 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
     it('should NOT call wirelessDeviceConfigRepo when deviceId is not a valid UUID', async () => {
       await useCase.execute({ deviceId: 'bad-id' });
 
-      expect(mocks.wirelessDeviceConfigRepo.findByDeviceId).not.toHaveBeenCalled();
+      expect(
+        mocks.wirelessDeviceConfigRepo.findByDeviceId
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -353,10 +396,14 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
         Result.fail('DB connection error')
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Failed to load wireless polling config');
+      expect(result.error).toContain(
+        'Failed to load wireless polling config'
+      );
     });
 
     it('should fail when no config exists for the device', async () => {
@@ -364,10 +411,14 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
         Result.ok(null)
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('No wireless polling configuration found');
+      expect(result.error).toContain(
+        'No wireless polling configuration found'
+      );
     });
 
     it('should NOT call credentialsRepo when config is not found', async () => {
@@ -377,7 +428,9 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      expect(mocks.credentialsRepo.findByDeviceId).not.toHaveBeenCalled();
+      expect(
+        mocks.credentialsRepo.findByDeviceId
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -438,7 +491,9 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
         Result.ok(config)
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.skipped).toBe(true);
@@ -465,7 +520,9 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
         Result.ok(config)
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.metricsCollected).toBe(false);
     });
@@ -506,7 +563,9 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
         Result.fail('Vault unavailable')
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Failed to load credentials');
@@ -517,12 +576,18 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
         Result.ok(config)
       );
-      mocks.credentialsRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
+      mocks.credentialsRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('No credentials configured for device');
+      expect(result.error).toContain(
+        'No credentials configured for device'
+      );
     });
   });
 
@@ -537,10 +602,14 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
         Result.ok(makeCredentials())
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Device has no IP address configured');
+      expect(result.error).toContain(
+        'Device has no IP address configured'
+      );
     });
   });
 
@@ -549,7 +618,9 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
     it('should always set collectionMethod to "http_api"', async () => {
       configureHappyPath(mocks);
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.collectionMethod).toBe('http_api');
@@ -558,7 +629,9 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
     it('should fail when HTTP collector fails', async () => {
       configureHappyPath(mocks, { httpFails: true });
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Failed to collect metrics');
@@ -604,7 +677,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
           severity: 'WARNING',
           currentValue: -72,
           threshold: -70,
-          message: 'a',
+          message: 'a'
         },
         {
           metric: 'cpu_load_percent',
@@ -612,7 +685,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
           severity: 'WARNING',
           currentValue: 85,
           threshold: 80,
-          message: 'b',
+          message: 'b'
         }
       ];
       mocks.alertEvaluator.evaluate.mockReturnValue(openDecisions);
@@ -631,7 +704,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
           severity: 'WARNING',
           currentValue: -72,
           threshold: -70,
-          message: 'a',
+          message: 'a'
         },
         {
           metric: 'cpu_load_percent',
@@ -639,12 +712,14 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
           severity: 'WARNING',
           currentValue: 85,
           threshold: 80,
-          message: 'b',
+          message: 'b'
         }
       ];
       mocks.alertEvaluator.evaluate.mockReturnValue(openDecisions);
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.alertsTriggered).toBe(2);
     });
@@ -657,14 +732,16 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
         severity: 'WARNING',
         currentValue: -72,
         threshold: -70,
-        message: 'Signal weak',
+        message: 'Signal weak'
       };
       mocks.alertEvaluator.evaluate.mockReturnValue([openDecision]);
       mocks.alertRecordRepo.save.mockResolvedValueOnce(
         Result.fail('DB constraint')
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isSuccess).toBe(true);
       expect(mocks.logger.error).toHaveBeenCalled();
@@ -697,9 +774,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      expect(mocks.alertPublisher.publish).toHaveBeenCalledTimes(
-        2
-      );
+      expect(mocks.alertPublisher.publish).toHaveBeenCalledTimes(2);
     });
 
     it('should persist the delivery timestamp after a successful send', async () => {
@@ -806,7 +881,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
         severity: 'WARNING',
         currentValue: -65,
         threshold: -70,
-        message: 'Signal recovered',
+        message: 'Signal recovered'
       };
       mocks.alertEvaluator.evaluate.mockReturnValue([clearDecision]);
 
@@ -838,7 +913,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
         severity: 'CRITICAL',
         currentValue: 13,
         threshold: 10,
-        message: 'SNR recovered',
+        message: 'SNR recovered'
       };
       mocks.alertEvaluator.evaluate.mockReturnValue([clearDecision]);
 
@@ -870,7 +945,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
         severity: 'WARNING',
         currentValue: -65,
         threshold: -70,
-        message: 'Signal recovered',
+        message: 'Signal recovered'
       };
       mocks.alertEvaluator.evaluate.mockReturnValue([clearDecision]);
 
@@ -900,11 +975,13 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
         severity: 'WARNING',
         currentValue: -65,
         threshold: -70,
-        message: 'Signal recovered',
+        message: 'Signal recovered'
       };
       mocks.alertEvaluator.evaluate.mockReturnValue([clearDecision]);
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.alertsCleared).toBe(1);
     });
@@ -921,7 +998,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
         severity: 'WARNING',
         currentValue: -65,
         threshold: -70,
-        message: 'Signal recovered',
+        message: 'Signal recovered'
       };
       mocks.alertEvaluator.evaluate.mockReturnValue([clearDecision]);
 
@@ -946,14 +1023,20 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      expect(mocks.wirelessDeviceConfigRepo.save).toHaveBeenCalledTimes(1);
+      expect(
+        mocks.wirelessDeviceConfigRepo.save
+      ).toHaveBeenCalledTimes(1);
     });
 
     it('should log an error but still succeed when snapshotRepo.save fails', async () => {
       configureHappyPath(mocks);
-      mocks.snapshotRepo.save.mockResolvedValue(Result.fail('Storage full'));
+      mocks.snapshotRepo.save.mockResolvedValue(
+        Result.fail('Storage full')
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isSuccess).toBe(true);
       expect(mocks.logger.error).toHaveBeenCalled();
@@ -965,7 +1048,9 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
         Result.fail('Concurrent modification')
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isSuccess).toBe(true);
       expect(mocks.logger.error).toHaveBeenCalled();
@@ -977,7 +1062,9 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
     it('should return a successful Result', async () => {
       configureHappyPath(mocks);
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isSuccess).toBe(true);
     });
@@ -985,7 +1072,9 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
     it('should set metricsCollected to true', async () => {
       configureHappyPath(mocks);
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.metricsCollected).toBe(true);
     });
@@ -993,7 +1082,9 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
     it('should echo the deviceId in the response', async () => {
       configureHappyPath(mocks);
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.deviceId).toBe(VALID_DEVICE_UUID);
     });
@@ -1001,7 +1092,9 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
     it('should include a valid ISO 8601 collectedAt string', async () => {
       configureHappyPath(mocks);
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(new Date(result.value.collectedAt).toISOString()).toBe(
         result.value.collectedAt
@@ -1011,7 +1104,9 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
     it('should report zero alertsTriggered and alertsCleared when evaluator returns no decisions', async () => {
       configureHappyPath(mocks);
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.alertsTriggered).toBe(0);
       expect(result.value.alertsCleared).toBe(0);
@@ -1020,7 +1115,9 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
     it('should not set skipped on a successful poll', async () => {
       configureHappyPath(mocks);
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.skipped).toBeUndefined();
     });
@@ -1031,10 +1128,14 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
     it('should compute snrDb as signalRxDbm minus noiseFloorDbm when both are present', async () => {
       configureHappyPath(mocks);
       mocks.httpCollector.collect.mockResolvedValue(
-        Result.ok(makeHttpResult({ signalRxDbm: -65, noiseFloorDbm: -90 }))
+        Result.ok(
+          makeHttpResult({ signalRxDbm: -65, noiseFloorDbm: -90 })
+        )
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isSuccess).toBe(true);
     });
@@ -1043,11 +1144,16 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       configureHappyPath(mocks);
       mocks.httpCollector.collect.mockResolvedValue(
         Result.ok(
-          makeHttpResult({ cpuLoadPercent: 75, memoryUsedPercent: 80 })
+          makeHttpResult({
+            cpuLoadPercent: 75,
+            memoryUsedPercent: 80
+          })
         )
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isSuccess).toBe(true);
       expect(mocks.snapshotRepo.save).toHaveBeenCalledTimes(1);

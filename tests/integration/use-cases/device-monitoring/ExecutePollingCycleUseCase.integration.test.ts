@@ -35,7 +35,8 @@ describe('ExecutePollingCycleUseCase — integration', () => {
     prisma = container.getPrisma();
     deviceModelId = await seedDeviceModel(prisma);
 
-    const pollingConfigRepo = new PrismaPollingConfigurationRepository(prisma);
+    const pollingConfigRepo =
+      new PrismaPollingConfigurationRepository(prisma);
     const pingResultRepo = new PrismaPingResultRepository(prisma);
     const deviceStateRepo = new PrismaDeviceStateRepository(prisma);
     const logger = new WinstonLogger();
@@ -54,7 +55,10 @@ describe('ExecutePollingCycleUseCase — integration', () => {
     const suspend = new SuspendDeviceMonitoringUseCase(
       pollingConfigRepo,
       deviceStateRepo,
-      new ResolveAlertUseCase(new PrismaAlertRepository(prisma), logger)
+      new ResolveAlertUseCase(
+        new PrismaAlertRepository(prisma),
+        logger
+      )
     );
     configureUseCase = new ConfigureDevicePollingUseCase(
       pollingConfigRepo,
@@ -79,17 +83,24 @@ describe('ExecutePollingCycleUseCase — integration', () => {
   // ──────────────────────────────────────────────────────────────
 
   it('saves a ping result and marks device ONLINE when reachable', async () => {
-    const result = await useCase.execute({ deviceId, forceExecution: true });
+    const result = await useCase.execute({
+      deviceId,
+      forceExecution: true
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.status).toBe('SUCCESS');
     expect(result.value.deviceStatus).toBe('ONLINE');
 
-    const pingResults = await prisma.pingResult.findMany({ where: { deviceId } });
+    const pingResults = await prisma.pingResult.findMany({
+      where: { deviceId }
+    });
     expect(pingResults).toHaveLength(1);
     expect(pingResults[0].isReachable).toBe(true);
 
-    const state = await prisma.deviceState.findFirst({ where: { deviceId } });
+    const state = await prisma.deviceState.findFirst({
+      where: { deviceId }
+    });
     expect(state).not.toBeNull();
     expect(state!.status).toBe('UP');
   });
@@ -100,13 +111,18 @@ describe('ExecutePollingCycleUseCase — integration', () => {
 
     // One poll with all retries failing immediately marks the device offline
     fakePing.setResult({ isReachable: false, latencyMs: null });
-    const result = await useCase.execute({ deviceId, forceExecution: true });
+    const result = await useCase.execute({
+      deviceId,
+      forceExecution: true
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.status).toBe('FAILED');
     expect(result.value.deviceStatus).toBe('OFFLINE');
 
-    const state = await prisma.deviceState.findFirst({ where: { deviceId } });
+    const state = await prisma.deviceState.findFirst({
+      where: { deviceId }
+    });
     expect(state!.status).toBe('DOWN');
     expect(state!.consecutiveFailures).toBe(1);
   });
@@ -118,12 +134,17 @@ describe('ExecutePollingCycleUseCase — integration', () => {
 
     // Now recover
     fakePing.setResult({ isReachable: true, latencyMs: 5 });
-    const result = await useCase.execute({ deviceId, forceExecution: true });
+    const result = await useCase.execute({
+      deviceId,
+      forceExecution: true
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.deviceStatus).toBe('ONLINE');
 
-    const state = await prisma.deviceState.findFirst({ where: { deviceId } });
+    const state = await prisma.deviceState.findFirst({
+      where: { deviceId }
+    });
     expect(state!.status).toBe('UP');
     expect(state!.consecutiveFailures).toBe(0);
   });
@@ -131,25 +152,35 @@ describe('ExecutePollingCycleUseCase — integration', () => {
   it('skips execution when polling is disabled and forceExecution is false', async () => {
     await configureUseCase.execute({ deviceId, enabled: false });
 
-    const result = await useCase.execute({ deviceId, forceExecution: false });
+    const result = await useCase.execute({
+      deviceId,
+      forceExecution: false
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.status).toBe('SKIPPED');
 
     // No ping results should be created
-    const pingResults = await prisma.pingResult.findMany({ where: { deviceId } });
+    const pingResults = await prisma.pingResult.findMany({
+      where: { deviceId }
+    });
     expect(pingResults).toHaveLength(0);
   });
 
   it('[MON-004] refuses to execute when disabled, even with forceExecution', async () => {
     await configureUseCase.execute({ deviceId, enabled: false });
 
-    const result = await useCase.execute({ deviceId, forceExecution: true });
+    const result = await useCase.execute({
+      deviceId,
+      forceExecution: true
+    });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toContain('Monitoring is disabled');
 
-    const pingResults = await prisma.pingResult.findMany({ where: { deviceId } });
+    const pingResults = await prisma.pingResult.findMany({
+      where: { deviceId }
+    });
     expect(pingResults).toHaveLength(0);
   });
 

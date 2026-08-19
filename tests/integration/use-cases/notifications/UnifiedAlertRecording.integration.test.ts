@@ -44,7 +44,10 @@ describe('Unified alert recording — integration', () => {
     deviceId = seeded.deviceId;
   });
 
-  function wirelessInput(type: string, details: Record<string, unknown>) {
+  function wirelessInput(
+    type: string,
+    details: Record<string, unknown>
+  ) {
     return {
       deviceId,
       severity: AlertSeverity.CRITICAL,
@@ -64,25 +67,42 @@ describe('Unified alert recording — integration', () => {
       })
     );
 
-    const row = await prisma.alertEvent.findFirst({ where: { deviceId } });
+    const row = await prisma.alertEvent.findFirst({
+      where: { deviceId }
+    });
     expect(row).not.toBeNull();
     expect(row!.source).toBe('Enlace inalámbrico');
     expect(row!.type).toBe('wireless:signal_rx_dbm:CRITICAL');
-    expect(row!.details).toMatchObject({ metric: 'signal_rx_dbm', currentValue: -83 });
+    expect(row!.details).toMatchObject({
+      metric: 'signal_rx_dbm',
+      currentValue: -83
+    });
   });
 
   it('is idempotent per (device, type) — re-opening does not duplicate', async () => {
-    const input = wirelessInput('wireless:signal_rx_dbm:CRITICAL', { metric: 'signal_rx_dbm' });
+    const input = wirelessInput('wireless:signal_rx_dbm:CRITICAL', {
+      metric: 'signal_rx_dbm'
+    });
     await openAlert.execute(input);
     await openAlert.execute(input);
 
-    const rows = await prisma.alertEvent.findMany({ where: { deviceId } });
+    const rows = await prisma.alertEvent.findMany({
+      where: { deviceId }
+    });
     expect(rows).toHaveLength(1);
   });
 
   it('lets a device hold several open alerts of different types at once', async () => {
-    await openAlert.execute(wirelessInput('wireless:signal_rx_dbm:CRITICAL', { metric: 'signal_rx_dbm' }));
-    await openAlert.execute(wirelessInput('wireless:throughput:WARNING', { metric: 'throughput' }));
+    await openAlert.execute(
+      wirelessInput('wireless:signal_rx_dbm:CRITICAL', {
+        metric: 'signal_rx_dbm'
+      })
+    );
+    await openAlert.execute(
+      wirelessInput('wireless:throughput:WARNING', {
+        metric: 'throughput'
+      })
+    );
 
     const open = await prisma.alertEvent.findMany({
       where: { deviceId, resolvedAt: null }
@@ -95,8 +115,16 @@ describe('Unified alert recording — integration', () => {
   });
 
   it('resolves only the matching type, leaving the other open', async () => {
-    await openAlert.execute(wirelessInput('wireless:signal_rx_dbm:CRITICAL', { metric: 'signal_rx_dbm' }));
-    await openAlert.execute(wirelessInput('wireless:throughput:WARNING', { metric: 'throughput' }));
+    await openAlert.execute(
+      wirelessInput('wireless:signal_rx_dbm:CRITICAL', {
+        metric: 'signal_rx_dbm'
+      })
+    );
+    await openAlert.execute(
+      wirelessInput('wireless:throughput:WARNING', {
+        metric: 'throughput'
+      })
+    );
 
     await resolveAlert.execute({
       deviceId,

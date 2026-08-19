@@ -7,42 +7,39 @@ import { WirelessAlertMapper } from 'application/wireless-monitoring/mappers';
 // Fixtures
 // ---------------------------------------------------------------------------
 
-const ALERT_UUID   = '550e8400-e29b-41d4-a716-446655440000';
-const DEVICE_UUID  = '550e8400-e29b-41d4-a716-446655440001';
+const ALERT_UUID = '550e8400-e29b-41d4-a716-446655440000';
+const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
 const TRIGGERED_AT = new Date('2024-01-01T00:00:00.000Z');
-const CLEARED_AT   = new Date('2024-01-01T06:00:00.000Z');
+const CLEARED_AT = new Date('2024-01-01T06:00:00.000Z');
 
 function makeAlertRecord(
   overrides: Partial<{
-    severity:    'WARNING' | 'CRITICAL';
-    metric:      string;
-    threshold:   number;
-    lastValue:   number;
-    message:     string;
+    severity: 'WARNING' | 'CRITICAL';
+    metric: string;
+    threshold: number;
+    lastValue: number;
+    message: string;
     triggeredAt: Date;
-    clearedAt:   Date | null;
-    isActive:    boolean;
+    clearedAt: Date | null;
+    isActive: boolean;
   }> = {}
 ): WirelessAlertRecord {
-  const id       = WirelessAlertRecordId.parse(ALERT_UUID).value!;
+  const id = WirelessAlertRecordId.parse(ALERT_UUID).value!;
   const deviceId = DeviceId.parse(DEVICE_UUID).value!;
 
-  return WirelessAlertRecord.reconstitute(
-    id,
-    {
-      deviceId,
-      metric:      'signalRxDbm',
-      severity:    'WARNING',
-      threshold:   -70,
-      lastValue:   -75,
-      message:     'Signal below threshold',
-      notifiedAt: null,
-      triggeredAt: TRIGGERED_AT,
-      clearedAt:   null,
-      isActive:    true,
-      ...overrides,
-    }
-  );
+  return WirelessAlertRecord.reconstitute(id, {
+    deviceId,
+    metric: 'signalRxDbm',
+    severity: 'WARNING',
+    threshold: -70,
+    lastValue: -75,
+    message: 'Signal below threshold',
+    notifiedAt: null,
+    triggeredAt: TRIGGERED_AT,
+    clearedAt: null,
+    isActive: true,
+    ...overrides
+  });
 }
 
 function makeClearedAlertRecord(): WirelessAlertRecord {
@@ -95,7 +92,9 @@ describe('WirelessAlertMapper', () => {
       });
 
       it('should pass message through unchanged', () => {
-        const record = makeAlertRecord({ message: 'Signal below threshold' });
+        const record = makeAlertRecord({
+          message: 'Signal below threshold'
+        });
 
         const dto = WirelessAlertMapper.toDTO(record);
 
@@ -111,7 +110,10 @@ describe('WirelessAlertMapper', () => {
       });
 
       it('should map isActive to true for an active alert', () => {
-        const record = makeAlertRecord({ isActive: true, clearedAt: null });
+        const record = makeAlertRecord({
+          isActive: true,
+          clearedAt: null
+        });
 
         const dto = WirelessAlertMapper.toDTO(record);
 
@@ -206,7 +208,10 @@ describe('WirelessAlertMapper', () => {
       });
 
       it('should map lastValue equal to threshold correctly', () => {
-        const record = makeAlertRecord({ threshold: -70, lastValue: -70 });
+        const record = makeAlertRecord({
+          threshold: -70,
+          lastValue: -70
+        });
 
         const dto = WirelessAlertMapper.toDTO(record);
 
@@ -223,7 +228,9 @@ describe('WirelessAlertMapper', () => {
 
     it('should produce identical output on repeated calls with the same record (deterministic)', () => {
       const record = makeAlertRecord();
-      expect(WirelessAlertMapper.toDTO(record)).toEqual(WirelessAlertMapper.toDTO(record));
+      expect(WirelessAlertMapper.toDTO(record)).toEqual(
+        WirelessAlertMapper.toDTO(record)
+      );
     });
   });
 });

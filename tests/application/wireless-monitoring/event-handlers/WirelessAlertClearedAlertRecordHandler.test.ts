@@ -1,7 +1,10 @@
 import { WirelessAlertClearedAlertRecordHandler } from '../../../../src/application/wireless-monitoring/event-handlers/WirelessAlertClearedAlertRecordHandler';
 import { IAlertRecorder } from '../../../../src/application/shared/interfaces/IAlertRecorder';
 import { WirelessAlertClearedEvent } from '../../../../src/domain/wireless-monitoring/events/WirelessAlertCleared';
-import { DeviceId, WirelessAlertRecordId } from '../../../../src/domain/shared/ids';
+import {
+  DeviceId,
+  WirelessAlertRecordId
+} from '../../../../src/domain/shared/ids';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 
@@ -17,8 +20,11 @@ function makeRecorder(): jest.Mocked<IAlertRecorder> {
 
 function makeLogger(): jest.Mocked<ILogger> {
   return {
-    info: jest.fn(), warn: jest.fn(), error: jest.fn(),
-    debug: jest.fn(), child: jest.fn().mockReturnThis()
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+    child: jest.fn().mockReturnThis()
   } as unknown as jest.Mocked<ILogger>;
 }
 
@@ -44,7 +50,10 @@ describe('[WLS-124] WirelessAlertClearedAlertRecordHandler', () => {
   beforeEach(() => {
     recorder = makeRecorder();
     logger = makeLogger();
-    handler = new WirelessAlertClearedAlertRecordHandler(recorder, logger);
+    handler = new WirelessAlertClearedAlertRecordHandler(
+      recorder,
+      logger
+    );
   });
 
   it('should resolve the matching typed alert', async () => {

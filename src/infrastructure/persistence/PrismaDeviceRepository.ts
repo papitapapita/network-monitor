@@ -479,7 +479,8 @@ export class PrismaDeviceRepository implements IDeviceRepository {
     }
 
     if (filters.category !== undefined) {
-      where.category = filters.category.toString() as PrismaDeviceCategory;
+      where.category =
+        filters.category.toString() as PrismaDeviceCategory;
     }
 
     if (filters.owner !== undefined) {

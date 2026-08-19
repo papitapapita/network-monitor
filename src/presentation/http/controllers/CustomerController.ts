@@ -36,7 +36,10 @@ export class CustomerController {
     }
   };
 
-  public list = async (req: Request, res: Response): Promise<void> => {
+  public list = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const result = await this.listUseCase.execute({
         limit: req.query.limit ? Number(req.query.limit) : undefined,

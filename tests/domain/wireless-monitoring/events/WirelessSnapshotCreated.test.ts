@@ -2,7 +2,10 @@
 
 import { WirelessSnapshotCreatedEvent } from '../../../../src/domain/wireless-monitoring/events/WirelessSnapshotCreated';
 import { WirelessSnapshotCreatedEventProps } from '../../../../src/domain/wireless-monitoring/props/WirelessSnapshotCreatedEventProps';
-import { SnapshotId, DeviceId } from '../../../../src/domain/shared/ids';
+import {
+  SnapshotId,
+  DeviceId
+} from '../../../../src/domain/shared/ids';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -20,7 +23,7 @@ function makeEvent(
     deviceType: 'STATION',
     collectedAt: FIXED_COLLECTED,
     dateTimeOccurred: FIXED_DATE,
-    ...overrides,
+    ...overrides
   });
 }
 
@@ -54,7 +57,9 @@ describe('[WLS-122] WirelessSnapshotCreatedEvent', () => {
       const event = makeEvent();
 
       expect(
-        Object.isFrozen((event as unknown as { props: unknown }).props)
+        Object.isFrozen(
+          (event as unknown as { props: unknown }).props
+        )
       ).toBe(true);
     });
 
@@ -62,7 +67,9 @@ describe('[WLS-122] WirelessSnapshotCreatedEvent', () => {
       const event = makeEvent();
 
       expect(() => {
-        (event as unknown as { props: { deviceType: string } }).props.deviceType = 'ACCESS_POINT';
+        (
+          event as unknown as { props: { deviceType: string } }
+        ).props.deviceType = 'ACCESS_POINT';
       }).toThrow();
     });
 
@@ -70,7 +77,9 @@ describe('[WLS-122] WirelessSnapshotCreatedEvent', () => {
       const event = makeEvent();
 
       expect(() => {
-        (event as unknown as { props: Record<string, unknown> }).props.extra = 'value';
+        (
+          event as unknown as { props: Record<string, unknown> }
+        ).props.extra = 'value';
       }).toThrow();
     });
 
@@ -80,7 +89,7 @@ describe('[WLS-122] WirelessSnapshotCreatedEvent', () => {
         deviceId: DeviceId.create(),
         deviceType: 'STATION',
         collectedAt: FIXED_COLLECTED,
-        dateTimeOccurred: FIXED_DATE,
+        dateTimeOccurred: FIXED_DATE
       };
       const event = new WirelessSnapshotCreatedEvent(props);
 
@@ -150,7 +159,10 @@ describe('[WLS-122] WirelessSnapshotCreatedEvent', () => {
     });
 
     it('should be independent from dateTimeOccurred', () => {
-      const event = makeEvent({ collectedAt: FIXED_COLLECTED, dateTimeOccurred: FIXED_DATE });
+      const event = makeEvent({
+        collectedAt: FIXED_COLLECTED,
+        dateTimeOccurred: FIXED_DATE
+      });
 
       expect(event.collectedAt).not.toBe(event.dateTimeOccurred);
     });
@@ -176,7 +188,9 @@ describe('[WLS-122] WirelessSnapshotCreatedEvent', () => {
     it('should contain the event class name', () => {
       const event = makeEvent();
 
-      expect(event.toString()).toContain('WirelessSnapshotCreatedEvent');
+      expect(event.toString()).toContain(
+        'WirelessSnapshotCreatedEvent'
+      );
     });
 
     it('should contain the aggregate ID string value', () => {
@@ -203,8 +217,14 @@ describe('[WLS-122] WirelessSnapshotCreatedEvent', () => {
     it('should not share state between two events', () => {
       const id1 = SnapshotId.create();
       const id2 = SnapshotId.create();
-      const event1 = makeEvent({ aggregateId: id1, deviceType: 'STATION' });
-      const event2 = makeEvent({ aggregateId: id2, deviceType: 'ACCESS_POINT' });
+      const event1 = makeEvent({
+        aggregateId: id1,
+        deviceType: 'STATION'
+      });
+      const event2 = makeEvent({
+        aggregateId: id2,
+        deviceType: 'ACCESS_POINT'
+      });
 
       expect(event1.aggregateId).not.toBe(event2.aggregateId);
       expect(event1.deviceType).not.toBe(event2.deviceType);
@@ -216,7 +236,9 @@ describe('[WLS-122] WirelessSnapshotCreatedEvent', () => {
       const event1 = makeEvent({ collectedAt: earlier });
       const event2 = makeEvent({ collectedAt: later });
 
-      expect(event2.collectedAt.getTime()).toBeGreaterThan(event1.collectedAt.getTime());
+      expect(event2.collectedAt.getTime()).toBeGreaterThan(
+        event1.collectedAt.getTime()
+      );
     });
   });
 });

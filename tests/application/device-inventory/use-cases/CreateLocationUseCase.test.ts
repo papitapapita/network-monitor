@@ -38,14 +38,18 @@ function makePersistedLocation(
   const id = LocationId.parse(VALID_UUID).value;
   return Location.reconstitute(id, {
     name: overrides.name ?? 'Torre Norte',
-    type: LocationType.reconstitute(overrides.type ?? LocationType.TOWER),
+    type: LocationType.reconstitute(
+      overrides.type ?? LocationType.TOWER
+    ),
     address: Address.reconstitute({
       street: 'Carrera 80 # 75-32',
       municipality: 'Medellín',
       neighborhood: 'Robledo'
     }),
     coordinates:
-      overrides.coordinates !== undefined ? overrides.coordinates : null,
+      overrides.coordinates !== undefined
+        ? overrides.coordinates
+        : null,
     createdAt: NOW,
     updatedAt: NOW
   });

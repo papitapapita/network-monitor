@@ -23,9 +23,9 @@ function makeDeviceRepo(
   name = 'Antena Cliente 42'
 ): jest.Mocked<Pick<IDeviceRepository, 'findById'>> {
   return {
-    findById: jest.fn().mockResolvedValue(
-      Result.ok({ name: { value: name } })
-    )
+    findById: jest
+      .fn()
+      .mockResolvedValue(Result.ok({ name: { value: name } }))
   } as unknown as jest.Mocked<Pick<IDeviceRepository, 'findById'>>;
 }
 
@@ -174,9 +174,7 @@ describe('SendAlertNotificationUseCase', () => {
     });
 
     it('should include the metric as the subject line', async () => {
-      await useCase.execute(
-        makeRequest({ subject: 'lan_status' })
-      );
+      await useCase.execute(makeRequest({ subject: 'lan_status' }));
 
       const message = notificationService.send.mock.calls[0][0];
       expect(message.body).toContain('lan\\_status');

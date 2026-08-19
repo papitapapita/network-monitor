@@ -49,7 +49,8 @@ export class VendorMapper {
     } = {};
     if (dto.name !== undefined) updates.name = dto.name;
     if (dto.slug !== undefined) updates.slug = dto.slug;
-    if (dto.description !== undefined) updates.description = dto.description;
+    if (dto.description !== undefined)
+      updates.description = dto.description;
     return updates;
   }
 }

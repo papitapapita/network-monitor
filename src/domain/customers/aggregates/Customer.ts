@@ -2,11 +2,17 @@ import { AggregateRoot, Result, Guard } from 'domain/shared/core';
 import { CustomerId } from 'domain/shared/ids';
 import { PhoneNumber, Cedula, EmailAddress } from '../value-objects';
 import { CustomerProps } from '../props';
-import { CustomerCreatedEvent, CustomerUpdatedEvent } from '../events';
+import {
+  CustomerCreatedEvent,
+  CustomerUpdatedEvent
+} from '../events';
 
 const MAX_NAME_LENGTH = 150;
 
-export class Customer extends AggregateRoot<CustomerProps, CustomerId> {
+export class Customer extends AggregateRoot<
+  CustomerProps,
+  CustomerId
+> {
   private constructor(props: CustomerProps, id: CustomerId) {
     super(props, id);
   }
@@ -102,7 +108,10 @@ export class Customer extends AggregateRoot<CustomerProps, CustomerId> {
   }
 
   public changePhone(newPhone: PhoneNumber): Result<void> {
-    const guardResult = Guard.againstNullOrUndefined(newPhone, 'phone');
+    const guardResult = Guard.againstNullOrUndefined(
+      newPhone,
+      'phone'
+    );
     if (!guardResult.succeeded) {
       return Result.fail<void>(guardResult.message!);
     }

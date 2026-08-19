@@ -59,7 +59,9 @@ describe('UserRole', () => {
       });
 
       it('should fail when role is undefined', () => {
-        const result = UserRole.create(undefined as unknown as string);
+        const result = UserRole.create(
+          undefined as unknown as string
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('role');
@@ -116,7 +118,9 @@ describe('UserRole', () => {
     });
 
     it('should bypass validation and accept an arbitrary string', () => {
-      expect(() => UserRole.reconstitute('LEGACY_ROLE')).not.toThrow();
+      expect(() =>
+        UserRole.reconstitute('LEGACY_ROLE')
+      ).not.toThrow();
     });
   });
 
@@ -128,7 +132,9 @@ describe('UserRole', () => {
       });
 
       it('should return false for OPERATOR', () => {
-        expect(UserRole.reconstitute('OPERATOR').isAdmin()).toBe(false);
+        expect(UserRole.reconstitute('OPERATOR').isAdmin()).toBe(
+          false
+        );
       });
 
       it('should return false for VIEWER', () => {
@@ -138,15 +144,21 @@ describe('UserRole', () => {
 
     describe('isOperator()', () => {
       it('should return true only for OPERATOR role', () => {
-        expect(UserRole.reconstitute('OPERATOR').isOperator()).toBe(true);
+        expect(UserRole.reconstitute('OPERATOR').isOperator()).toBe(
+          true
+        );
       });
 
       it('should return false for ADMIN', () => {
-        expect(UserRole.reconstitute('ADMIN').isOperator()).toBe(false);
+        expect(UserRole.reconstitute('ADMIN').isOperator()).toBe(
+          false
+        );
       });
 
       it('should return false for VIEWER', () => {
-        expect(UserRole.reconstitute('VIEWER').isOperator()).toBe(false);
+        expect(UserRole.reconstitute('VIEWER').isOperator()).toBe(
+          false
+        );
       });
     });
 
@@ -160,7 +172,9 @@ describe('UserRole', () => {
       });
 
       it('should return false for OPERATOR', () => {
-        expect(UserRole.reconstitute('OPERATOR').isViewer()).toBe(false);
+        expect(UserRole.reconstitute('OPERATOR').isViewer()).toBe(
+          false
+        );
       });
     });
   });

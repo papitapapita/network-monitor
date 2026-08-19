@@ -294,18 +294,18 @@ The EventDispatcher maintains an internal map of event types to handlers, a list
 
 This table summarizes all 10 domain core classes, their primary responsibility, and which classes they depend on.
 
-| Class | File | Responsibility | Depends On | Used By |
-|-------|------|-----------------|-----------|---------|
-| Result | Result.ts | Explicit success/failure representation; immutable outcome envelope | None | Guard, UUID, UniqueEntityID, all validation |
-| Guard | Guard.ts | Input and state validation; no exceptions thrown | None | Domain entities, value objects, use cases |
-| UUID | UUID.ts | Validate and generate RFC 4122 identifiers; immutable UUID wrapper | Result | UniqueEntityID |
-| ValueObject | ValueObject.ts | Immutable domain concept with no separate identity; equality by properties | None | Identifier, and all domain value objects |
-| Identifier | Identifier.ts | Type-safe wrapper for primitive ID values; immutable | ValueObject | UniqueEntityID, and all domain identifiers |
-| UniqueEntityID | UniqueEntityID.ts | Entity identification with automatic UUID generation; never changes | Identifier, UUID | Entity, AggregateRoot |
-| Entity | Entity.ts | Identifiable domain object; equality by ID not properties | UniqueEntityID | AggregateRoot, all concrete domain entities |
-| AggregateRoot | AggregateRoot.ts | Coordinated entity with domain event tracking; enforces invariants | Entity | Concrete aggregates like NetworkDevice |
-| DomainEvent | DomainEvent.ts | Immutable record of significant business action; past tense | UniqueEntityID | AggregateRoot, EventDispatcher |
-| EventDispatcher | EventDispatcher.ts | Central registry for event handlers; publishes events after persistence | AggregateRoot, DomainEvent | Application services |
+| Class           | File               | Responsibility                                                             | Depends On                 | Used By                                     |
+| --------------- | ------------------ | -------------------------------------------------------------------------- | -------------------------- | ------------------------------------------- |
+| Result          | Result.ts          | Explicit success/failure representation; immutable outcome envelope        | None                       | Guard, UUID, UniqueEntityID, all validation |
+| Guard           | Guard.ts           | Input and state validation; no exceptions thrown                           | None                       | Domain entities, value objects, use cases   |
+| UUID            | UUID.ts            | Validate and generate RFC 4122 identifiers; immutable UUID wrapper         | Result                     | UniqueEntityID                              |
+| ValueObject     | ValueObject.ts     | Immutable domain concept with no separate identity; equality by properties | None                       | Identifier, and all domain value objects    |
+| Identifier      | Identifier.ts      | Type-safe wrapper for primitive ID values; immutable                       | ValueObject                | UniqueEntityID, and all domain identifiers  |
+| UniqueEntityID  | UniqueEntityID.ts  | Entity identification with automatic UUID generation; never changes        | Identifier, UUID           | Entity, AggregateRoot                       |
+| Entity          | Entity.ts          | Identifiable domain object; equality by ID not properties                  | UniqueEntityID             | AggregateRoot, all concrete domain entities |
+| AggregateRoot   | AggregateRoot.ts   | Coordinated entity with domain event tracking; enforces invariants         | Entity                     | Concrete aggregates like NetworkDevice      |
+| DomainEvent     | DomainEvent.ts     | Immutable record of significant business action; past tense                | UniqueEntityID             | AggregateRoot, EventDispatcher              |
+| EventDispatcher | EventDispatcher.ts | Central registry for event handlers; publishes events after persistence    | AggregateRoot, DomainEvent | Application services                        |
 
 ### Dependency Flow Summary
 

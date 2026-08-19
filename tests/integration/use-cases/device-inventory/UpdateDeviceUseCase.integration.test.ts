@@ -38,9 +38,8 @@ describe('UpdateDeviceUseCase — integration', () => {
     const repo = new PrismaDeviceRepository(prisma);
     const modelRepo = new PrismaDeviceModelRepository(prisma);
     const locationRepo = new PrismaLocationRepository(prisma);
-    const wirelessConfigRepo = new PrismaWirelessDeviceConfigRepository(
-      prisma
-    );
+    const wirelessConfigRepo =
+      new PrismaWirelessDeviceConfigRepository(prisma);
     const logger = new WinstonLogger();
     createUseCase = new CreateDeviceUseCase(
       repo,
@@ -67,7 +66,9 @@ describe('UpdateDeviceUseCase — integration', () => {
     locationId = await seedLocation(prisma);
   });
 
-  async function createDevice(overrides: Record<string, unknown> = {}): Promise<string> {
+  async function createDevice(
+    overrides: Record<string, unknown> = {}
+  ): Promise<string> {
     const result = await createUseCase.execute({
       deviceModelId,
       name: 'Test Device',
@@ -86,7 +87,10 @@ describe('UpdateDeviceUseCase — integration', () => {
   it('updates the device name', async () => {
     const id = await createDevice();
 
-    const result = await updateUseCase.execute({ id, name: 'Updated Router' });
+    const result = await updateUseCase.execute({
+      id,
+      name: 'Updated Router'
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.name).toBe('Updated Router');
@@ -94,9 +98,15 @@ describe('UpdateDeviceUseCase — integration', () => {
 
   it('updates the device status from INVENTORY to ACTIVE', async () => {
     // Domain rules: activating needs both an IP address and a location
-    const id = await createDevice({ ipAddress: '10.1.0.1', locationId });
+    const id = await createDevice({
+      ipAddress: '10.1.0.1',
+      locationId
+    });
 
-    const result = await updateUseCase.execute({ id, status: 'ACTIVE' });
+    const result = await updateUseCase.execute({
+      id,
+      status: 'ACTIVE'
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.status).toBe('ACTIVE');
@@ -154,10 +164,15 @@ describe('UpdateDeviceUseCase — integration', () => {
   it('[DEV-055] fails to activate a device that has no location', async () => {
     const id = await createDevice({ ipAddress: '10.1.0.2' });
 
-    const result = await updateUseCase.execute({ id, status: 'ACTIVE' });
+    const result = await updateUseCase.execute({
+      id,
+      status: 'ACTIVE'
+    });
 
     expect(result.isFailure).toBe(true);
-    expect(result.error).toMatch(/ACTIVE device must have a location/i);
+    expect(result.error).toMatch(
+      /ACTIVE device must have a location/i
+    );
   });
 
   it('assigns a location to the device', async () => {
@@ -172,7 +187,10 @@ describe('UpdateDeviceUseCase — integration', () => {
   it('unassigns the location by passing null', async () => {
     const id = await createDevice({ locationId });
 
-    const result = await updateUseCase.execute({ id, locationId: null });
+    const result = await updateUseCase.execute({
+      id,
+      locationId: null
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.locationId).toBeNull();
@@ -207,7 +225,10 @@ describe('UpdateDeviceUseCase — integration', () => {
     const mac = 'AA:BB:CC:DD:EE:01';
     const id = await createDevice({ macAddress: mac });
 
-    const result = await updateUseCase.execute({ id, macAddress: mac });
+    const result = await updateUseCase.execute({
+      id,
+      macAddress: mac
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.macAddress).toBe(mac);
@@ -217,23 +238,29 @@ describe('UpdateDeviceUseCase — integration', () => {
   // Uniqueness and validation failures
   // ──────────────────────────────────────────────────────────────
 
-  it('[DEV-047] fails when updating MAC to another device\'s MAC', async () => {
+  it("[DEV-047] fails when updating MAC to another device's MAC", async () => {
     const mac = 'AA:BB:CC:DD:EE:02';
     await createDevice({ macAddress: mac, name: 'First Device' });
     const secondId = await createDevice({ name: 'Second Device' });
 
-    const result = await updateUseCase.execute({ id: secondId, macAddress: mac });
+    const result = await updateUseCase.execute({
+      id: secondId,
+      macAddress: mac
+    });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/MAC address/i);
   });
 
-  it('[DEV-049] fails when updating IP to another device\'s IP', async () => {
+  it("[DEV-049] fails when updating IP to another device's IP", async () => {
     const ip = '10.200.0.1';
     await createDevice({ ipAddress: ip, name: 'First Device' });
     const secondId = await createDevice({ name: 'Second Device' });
 
-    const result = await updateUseCase.execute({ id: secondId, ipAddress: ip });
+    const result = await updateUseCase.execute({
+      id: secondId,
+      ipAddress: ip
+    });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/IP address/i);
@@ -242,7 +269,10 @@ describe('UpdateDeviceUseCase — integration', () => {
   it('[DEV-042] fails with an invalid status enum', async () => {
     const id = await createDevice();
 
-    const result = await updateUseCase.execute({ id, status: 'EXPLODED' as any });
+    const result = await updateUseCase.execute({
+      id,
+      status: 'EXPLODED' as any
+    });
 
     expect(result.isFailure).toBe(true);
   });
@@ -297,7 +327,7 @@ describe('UpdateDeviceUseCase — integration', () => {
     expect(result.error).toMatch(/Device model not found/i);
   });
 
-  it('[DEV-063] accepts the device\'s own model unchanged while ACTIVE', async () => {
+  it("[DEV-063] accepts the device's own model unchanged while ACTIVE", async () => {
     const id = await createDevice({
       ipAddress: '10.60.0.2',
       locationId,
@@ -357,7 +387,9 @@ describe('UpdateDeviceUseCase — integration', () => {
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/wireless config/i);
 
-    const persisted = await prisma.device.findUnique({ where: { id } });
+    const persisted = await prisma.device.findUnique({
+      where: { id }
+    });
     expect(persisted!.category).toBe('WIRELESS_CPE');
   });
 
@@ -366,16 +398,20 @@ describe('UpdateDeviceUseCase — integration', () => {
 
     await updateUseCase.execute({ id, category: 'ACCESS_POINT' });
 
-    const config = await prisma.wirelessPollingConfiguration.findUnique({
-      where: { deviceId: id }
-    });
+    const config =
+      await prisma.wirelessPollingConfiguration.findUnique({
+        where: { deviceId: id }
+      });
     expect(config!.deviceType).toBe('STATION');
   });
 
   it('[DEV-065] refuses to clear the category while a wireless config exists', async () => {
     const id = await createWirelessDevice('ACCESS_POINT');
 
-    const result = await updateUseCase.execute({ id, category: null });
+    const result = await updateUseCase.execute({
+      id,
+      category: null
+    });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/wireless config/i);

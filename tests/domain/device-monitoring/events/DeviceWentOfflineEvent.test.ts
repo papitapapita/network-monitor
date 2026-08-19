@@ -8,33 +8,34 @@ import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 // ---------------------------------------------------------------------------
 
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
-const FIXED_DATE        = new Date('2024-06-01T10:00:00.000Z');
+const FIXED_DATE = new Date('2024-06-01T10:00:00.000Z');
 
 function makeDeviceId(): DeviceId {
   return DeviceId.parse(VALID_DEVICE_UUID).value;
 }
 
-function makeEvent(overrides: {
-  aggregateId?:        DeviceId;
-  consecutiveFailures?: number;
-  dateTimeOccurred?:   Date;
-} = {}): DeviceWentOfflineEvent {
+function makeEvent(
+  overrides: {
+    aggregateId?: DeviceId;
+    consecutiveFailures?: number;
+    dateTimeOccurred?: Date;
+  } = {}
+): DeviceWentOfflineEvent {
   return new DeviceWentOfflineEvent({
-    aggregateId:         overrides.aggregateId        ?? makeDeviceId(),
+    aggregateId: overrides.aggregateId ?? makeDeviceId(),
     consecutiveFailures: overrides.consecutiveFailures ?? 3,
-    dateTimeOccurred:    overrides.dateTimeOccurred    ?? FIXED_DATE
+    dateTimeOccurred: overrides.dateTimeOccurred ?? FIXED_DATE
   });
 }
 
 // ---------------------------------------------------------------------------
 
 describe('DeviceWentOfflineEvent', () => {
-
   // ===========================================================================
   describe('getters', () => {
     it('should return the aggregateId supplied in props', () => {
       const deviceId = makeDeviceId();
-      const event    = makeEvent({ aggregateId: deviceId });
+      const event = makeEvent({ aggregateId: deviceId });
 
       expect(event.aggregateId).toBe(deviceId);
     });
@@ -67,7 +68,9 @@ describe('DeviceWentOfflineEvent', () => {
       const event = makeEvent({ dateTimeOccurred: FIXED_DATE });
 
       // The base class freezes a shallow copy of props, so we compare by value
-      expect(event.dateTimeOccurred.getTime()).toBe(FIXED_DATE.getTime());
+      expect(event.dateTimeOccurred.getTime()).toBe(
+        FIXED_DATE.getTime()
+      );
     });
   });
 

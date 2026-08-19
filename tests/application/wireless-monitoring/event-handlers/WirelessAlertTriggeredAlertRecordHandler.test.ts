@@ -2,7 +2,10 @@ import { WirelessAlertTriggeredAlertRecordHandler } from '../../../../src/applic
 import { IAlertRecorder } from '../../../../src/application/shared/interfaces/IAlertRecorder';
 import { WirelessAlertTriggeredEvent } from '../../../../src/domain/wireless-monitoring/events/WirelessAlertTriggered';
 import { WirelessAlert } from '../../../../src/domain/wireless-monitoring/value-objects/WirelessAlert';
-import { DeviceId, SnapshotId } from '../../../../src/domain/shared/ids';
+import {
+  DeviceId,
+  SnapshotId
+} from '../../../../src/domain/shared/ids';
 import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
@@ -19,8 +22,11 @@ function makeRecorder(): jest.Mocked<IAlertRecorder> {
 
 function makeLogger(): jest.Mocked<ILogger> {
   return {
-    info: jest.fn(), warn: jest.fn(), error: jest.fn(),
-    debug: jest.fn(), child: jest.fn().mockReturnThis()
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+    child: jest.fn().mockReturnThis()
   } as unknown as jest.Mocked<ILogger>;
 }
 
@@ -38,7 +44,9 @@ function makeAlert(
   }).value;
 }
 
-function makeEvent(alerts: WirelessAlert[]): WirelessAlertTriggeredEvent {
+function makeEvent(
+  alerts: WirelessAlert[]
+): WirelessAlertTriggeredEvent {
   return new WirelessAlertTriggeredEvent({
     aggregateId: SnapshotId.create(),
     deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
@@ -55,11 +63,19 @@ describe('[WLS-124] WirelessAlertTriggeredAlertRecordHandler', () => {
   beforeEach(() => {
     recorder = makeRecorder();
     logger = makeLogger();
-    handler = new WirelessAlertTriggeredAlertRecordHandler(recorder, logger);
+    handler = new WirelessAlertTriggeredAlertRecordHandler(
+      recorder,
+      logger
+    );
   });
 
   it('should record one alert per triggered wireless alert', async () => {
-    await handler.handle(makeEvent([makeAlert('CRITICAL'), makeAlert('WARNING', 'throughput')]));
+    await handler.handle(
+      makeEvent([
+        makeAlert('CRITICAL'),
+        makeAlert('WARNING', 'throughput')
+      ])
+    );
     expect(recorder.open).toHaveBeenCalledTimes(2);
   });
 

@@ -1,7 +1,10 @@
 // Source: src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.ts
 
 import { ScanNetworkSegmentUseCase } from '../../../../src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase';
-import { INetworkScannerService, DiscoveredHost } from '../../../../src/application/device-inventory/interfaces';
+import {
+  INetworkScannerService,
+  DiscoveredHost
+} from '../../../../src/application/device-inventory/interfaces';
 import { ILogger } from '../../../../src/application/shared/interfaces';
 import { ScanNetworkSegmentRequestDTO } from '../../../../src/application/device-inventory/dtos';
 
@@ -25,7 +28,9 @@ function makeScanner(): jest.Mocked<INetworkScannerService> {
   return { scan: jest.fn() };
 }
 
-function makeHost(overrides: Partial<DiscoveredHost> = {}): DiscoveredHost {
+function makeHost(
+  overrides: Partial<DiscoveredHost> = {}
+): DiscoveredHost {
   return {
     ipAddress: '192.168.1.1',
     latencyMs: 2,
@@ -63,14 +68,18 @@ describe('ScanNetworkSegmentUseCase', () => {
   // =========================================================================
   describe('[DEV-143] beforeExecute — validation', () => {
     it('should fail when segment is an empty string', async () => {
-      const result = await useCase.execute(makeRequest({ segment: '' }));
+      const result = await useCase.execute(
+        makeRequest({ segment: '' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('segment is required');
     });
 
     it('should fail when segment is whitespace only', async () => {
-      const result = await useCase.execute(makeRequest({ segment: '   ' }));
+      const result = await useCase.execute(
+        makeRequest({ segment: '   ' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('segment is required');
@@ -86,7 +95,9 @@ describe('ScanNetworkSegmentUseCase', () => {
   // =========================================================================
   describe('executeImpl — scanner invocation', () => {
     it('should call scanner.scan with the trimmed segment', async () => {
-      await useCase.execute(makeRequest({ segment: '  192.168.1.0/24  ' }));
+      await useCase.execute(
+        makeRequest({ segment: '  192.168.1.0/24  ' })
+      );
 
       expect(scanner.scan).toHaveBeenCalledTimes(1);
       expect(scanner.scan).toHaveBeenCalledWith('192.168.1.0/24');

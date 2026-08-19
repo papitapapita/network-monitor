@@ -29,35 +29,46 @@ function makeLogger(): jest.Mocked<ILogger> {
     error: jest.fn(),
     fatal: jest.fn(),
     setLevel: jest.fn(),
-    child: jest.fn(),
+    child: jest.fn()
   };
   child.child.mockReturnValue(child);
   return child;
 }
 
-function makeConfig(overrides: {
-  enabled?: boolean;
-  ipAddress?: IPAddress | null;
-  pollingInterval?: PollingInterval;
-  deviceType?: 'STATION' | 'ACCESS_POINT';
-  linkCapacityKbps?: number | null;
-  clientsProvisionedLimit?: number | null;
-} = {}): WirelessDeviceConfig {
+function makeConfig(
+  overrides: {
+    enabled?: boolean;
+    ipAddress?: IPAddress | null;
+    pollingInterval?: PollingInterval;
+    deviceType?: 'STATION' | 'ACCESS_POINT';
+    linkCapacityKbps?: number | null;
+    clientsProvisionedLimit?: number | null;
+  } = {}
+): WirelessDeviceConfig {
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   return WirelessDeviceConfig.reconstitute(
     WirelessDeviceConfigId.parse(CONFIG_UUID).value,
     {
       deviceId,
-      ipAddress: overrides.ipAddress !== undefined ? overrides.ipAddress : null,
-      enabled: overrides.enabled !== undefined ? overrides.enabled : true,
-      pollingInterval: overrides.pollingInterval ?? PollingInterval.reconstitute(3600),
+      ipAddress:
+        overrides.ipAddress !== undefined
+          ? overrides.ipAddress
+          : null,
+      enabled:
+        overrides.enabled !== undefined ? overrides.enabled : true,
+      pollingInterval:
+        overrides.pollingInterval ??
+        PollingInterval.reconstitute(3600),
       deviceType: overrides.deviceType ?? 'STATION',
-      linkCapacityKbps: overrides.linkCapacityKbps !== undefined ? overrides.linkCapacityKbps : null,
+      linkCapacityKbps:
+        overrides.linkCapacityKbps !== undefined
+          ? overrides.linkCapacityKbps
+          : null,
       clientsProvisionedLimit:
         overrides.clientsProvisionedLimit !== undefined
           ? overrides.clientsProvisionedLimit
           : null,
-      lastPolledAt: null,
+      lastPolledAt: null
     }
   );
 }
@@ -70,7 +81,7 @@ function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
     exists: jest.fn(),
     findByDeviceId: jest.fn(),
     findAllDue: jest.fn(),
-    findAll: jest.fn(),
+    findAll: jest.fn()
   };
 }
 
@@ -133,7 +144,9 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
   // ===========================================================================
   describe('executeImpl — device ID parsing', () => {
     it('should fail when deviceId is not a valid UUID', async () => {
-      const result = await useCase.execute({ deviceId: 'not-a-uuid' });
+      const result = await useCase.execute({
+        deviceId: 'not-a-uuid'
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid device ID');
@@ -149,9 +162,13 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
   // ===========================================================================
   describe('executeImpl — config loading', () => {
     it('should fail when configRepo.findByDeviceId returns a failure', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.fail('DB error'));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.fail('DB error')
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
     });
@@ -159,10 +176,14 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
     it('should fail when no config exists for the device', async () => {
       configRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Wireless config not found for device');
+      expect(result.error).toContain(
+        'Wireless config not found for device'
+      );
     });
 
     it('should call configRepo.findByDeviceId with the parsed deviceId', async () => {
@@ -178,7 +199,9 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
   // ===========================================================================
   describe('executeImpl — ipAddress update branches', () => {
     beforeEach(() => {
-      configRepo.save.mockImplementation((c) => Promise.resolve(Result.ok(c)));
+      configRepo.save.mockImplementation((c) =>
+        Promise.resolve(Result.ok(c))
+      );
     });
 
     it('should NOT update ipAddress when ipAddress is undefined (skip)', async () => {
@@ -188,7 +211,7 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
       );
 
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
         // ipAddress intentionally omitted
       });
 
@@ -204,7 +227,7 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        ipAddress: null,
+        ipAddress: null
       });
 
       expect(result.isSuccess).toBe(true);
@@ -212,11 +235,13 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
     });
 
     it('should set a new ipAddress when a valid string is provided', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        ipAddress: '10.0.0.99',
+        ipAddress: '10.0.0.99'
       });
 
       expect(result.isSuccess).toBe(true);
@@ -224,11 +249,13 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
     });
 
     it('should fail when an invalid IP string is provided', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        ipAddress: 'not-an-ip',
+        ipAddress: 'not-an-ip'
       });
 
       expect(result.isFailure).toBe(true);
@@ -239,7 +266,9 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
   // ===========================================================================
   describe('executeImpl — enabled toggle branches', () => {
     beforeEach(() => {
-      configRepo.save.mockImplementation((c) => Promise.resolve(Result.ok(c)));
+      configRepo.save.mockImplementation((c) =>
+        Promise.resolve(Result.ok(c))
+      );
     });
 
     it('should enable the config when enabled is true', async () => {
@@ -249,7 +278,7 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        enabled: true,
+        enabled: true
       });
 
       expect(result.isSuccess).toBe(true);
@@ -263,7 +292,7 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        enabled: false,
+        enabled: false
       });
 
       expect(result.isSuccess).toBe(true);
@@ -276,7 +305,7 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
       );
 
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
         // enabled intentionally omitted
       });
 
@@ -311,7 +340,9 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
       });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Cannot enable wireless polling');
+      expect(result.error).toContain(
+        'Cannot enable wireless polling'
+      );
       expect(configRepo.save).not.toHaveBeenCalled();
     });
 
@@ -381,15 +412,19 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
   // ===========================================================================
   describe('executeImpl — intervalSecs update', () => {
     beforeEach(() => {
-      configRepo.save.mockImplementation((c) => Promise.resolve(Result.ok(c)));
+      configRepo.save.mockImplementation((c) =>
+        Promise.resolve(Result.ok(c))
+      );
     });
 
     it('should update intervalSecs when a valid value is provided', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        intervalSecs: 120,
+        intervalSecs: 120
       });
 
       expect(result.isSuccess).toBe(true);
@@ -398,11 +433,15 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
 
     it('should NOT update intervalSecs when undefined (skip)', async () => {
       configRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeConfig({ pollingInterval: PollingInterval.reconstitute(3600) }))
+        Result.ok(
+          makeConfig({
+            pollingInterval: PollingInterval.reconstitute(3600)
+          })
+        )
       );
 
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
         // intervalSecs intentionally omitted
       });
 
@@ -411,11 +450,13 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
     });
 
     it('should fail when intervalSecs is 0 (domain validation failure)', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        intervalSecs: 0,
+        intervalSecs: 0
       });
 
       expect(result.isFailure).toBe(true);
@@ -423,11 +464,13 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
     });
 
     it('should fail when intervalSecs is negative', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        intervalSecs: -1,
+        intervalSecs: -1
       });
 
       expect(result.isFailure).toBe(true);
@@ -437,15 +480,19 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
   // ===========================================================================
   describe('executeImpl — linkCapacityKbps update', () => {
     beforeEach(() => {
-      configRepo.save.mockImplementation((c) => Promise.resolve(Result.ok(c)));
+      configRepo.save.mockImplementation((c) =>
+        Promise.resolve(Result.ok(c))
+      );
     });
 
     it('should update linkCapacityKbps when a value is provided', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        linkCapacityKbps: 50_000_000,
+        linkCapacityKbps: 50_000_000
       });
 
       expect(result.isSuccess).toBe(true);
@@ -459,7 +506,7 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        linkCapacityKbps: null,
+        linkCapacityKbps: null
       });
 
       expect(result.isSuccess).toBe(true);
@@ -472,7 +519,7 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
       );
 
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
         // linkCapacityKbps intentionally omitted
       });
 
@@ -484,7 +531,9 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
   // ===========================================================================
   describe('executeImpl — clientsProvisionedLimit update', () => {
     beforeEach(() => {
-      configRepo.save.mockImplementation((c) => Promise.resolve(Result.ok(c)));
+      configRepo.save.mockImplementation((c) =>
+        Promise.resolve(Result.ok(c))
+      );
     });
 
     it('should update clientsProvisionedLimit when a value is provided', async () => {
@@ -494,7 +543,7 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        clientsProvisionedLimit: 20,
+        clientsProvisionedLimit: 20
       });
 
       expect(result.isSuccess).toBe(true);
@@ -503,12 +552,17 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
 
     it('should clear clientsProvisionedLimit when null is provided', async () => {
       configRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeConfig({ deviceType: 'ACCESS_POINT', clientsProvisionedLimit: 20 }))
+        Result.ok(
+          makeConfig({
+            deviceType: 'ACCESS_POINT',
+            clientsProvisionedLimit: 20
+          })
+        )
       );
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        clientsProvisionedLimit: null,
+        clientsProvisionedLimit: null
       });
 
       expect(result.isSuccess).toBe(true);
@@ -517,11 +571,16 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
 
     it('should NOT update clientsProvisionedLimit when undefined (skip)', async () => {
       configRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeConfig({ deviceType: 'ACCESS_POINT', clientsProvisionedLimit: 20 }))
+        Result.ok(
+          makeConfig({
+            deviceType: 'ACCESS_POINT',
+            clientsProvisionedLimit: 20
+          })
+        )
       );
 
       const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID,
+        deviceId: VALID_DEVICE_UUID
         // clientsProvisionedLimit intentionally omitted
       });
 
@@ -533,22 +592,31 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
   // ===========================================================================
   describe('executeImpl — persistence', () => {
     it('should fail when configRepo.save returns a failure', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
       configRepo.save.mockResolvedValue(Result.fail('Write failed'));
 
       const result = await useCase.execute({
         deviceId: VALID_DEVICE_UUID,
-        enabled: false,
+        enabled: false
       });
 
       expect(result.isFailure).toBe(true);
     });
 
     it('should call configRepo.save exactly once on the happy path', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
-      configRepo.save.mockImplementation((c) => Promise.resolve(Result.ok(c)));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+      configRepo.save.mockImplementation((c) =>
+        Promise.resolve(Result.ok(c))
+      );
 
-      await useCase.execute({ deviceId: VALID_DEVICE_UUID, enabled: false });
+      await useCase.execute({
+        deviceId: VALID_DEVICE_UUID,
+        enabled: false
+      });
 
       expect(configRepo.save).toHaveBeenCalledTimes(1);
     });
@@ -557,19 +625,31 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
   // ===========================================================================
   describe('executeImpl — happy path (no-op update)', () => {
     it('should return a successful Result when no fields are changed', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
-      configRepo.save.mockImplementation((c) => Promise.resolve(Result.ok(c)));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+      configRepo.save.mockImplementation((c) =>
+        Promise.resolve(Result.ok(c))
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isSuccess).toBe(true);
     });
 
     it('should include the deviceId in the response when no fields are changed', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
-      configRepo.save.mockImplementation((c) => Promise.resolve(Result.ok(c)));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+      configRepo.save.mockImplementation((c) =>
+        Promise.resolve(Result.ok(c))
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.deviceId).toBe(VALID_DEVICE_UUID);
     });

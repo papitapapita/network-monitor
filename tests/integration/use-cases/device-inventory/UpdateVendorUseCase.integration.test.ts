@@ -41,9 +41,15 @@ describe('UpdateVendorUseCase — integration', () => {
   // ──────────────────────────────────────────────────────────────
 
   it('updates the vendor name only, leaving slug unchanged', async () => {
-    const vendorId = await seedVendor(prisma, { name: 'Old Name', slug: 'old-name' });
+    const vendorId = await seedVendor(prisma, {
+      name: 'Old Name',
+      slug: 'old-name'
+    });
 
-    const result = await useCase.execute({ id: vendorId, name: 'New Name' });
+    const result = await useCase.execute({
+      id: vendorId,
+      name: 'New Name'
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.name).toBe('New Name');
@@ -51,9 +57,15 @@ describe('UpdateVendorUseCase — integration', () => {
   });
 
   it('updates the vendor slug only, leaving name unchanged', async () => {
-    const vendorId = await seedVendor(prisma, { name: 'Stable Name', slug: 'old-slug' });
+    const vendorId = await seedVendor(prisma, {
+      name: 'Stable Name',
+      slug: 'old-slug'
+    });
 
-    const result = await useCase.execute({ id: vendorId, slug: 'new-slug' });
+    const result = await useCase.execute({
+      id: vendorId,
+      slug: 'new-slug'
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.slug).toBe('new-slug');
@@ -67,7 +79,10 @@ describe('UpdateVendorUseCase — integration', () => {
       description: 'Old description'
     });
 
-    const result = await useCase.execute({ id: vendorId, description: null });
+    const result = await useCase.execute({
+      id: vendorId,
+      description: null
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.description).toBeNull();
@@ -107,9 +122,15 @@ describe('UpdateVendorUseCase — integration', () => {
 
   it('[DEV-003] fails when the new slug is already taken by another vendor', async () => {
     await seedVendor(prisma, { name: 'Alpha', slug: 'alpha-vendor' });
-    const betaId = await seedVendor(prisma, { name: 'Beta', slug: 'beta-vendor' });
+    const betaId = await seedVendor(prisma, {
+      name: 'Beta',
+      slug: 'beta-vendor'
+    });
 
-    const result = await useCase.execute({ id: betaId, slug: 'alpha-vendor' });
+    const result = await useCase.execute({
+      id: betaId,
+      slug: 'alpha-vendor'
+    });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/already exists/i);
@@ -120,7 +141,10 @@ describe('UpdateVendorUseCase — integration', () => {
   // ──────────────────────────────────────────────────────────────
 
   it('fails with a not-found error when the vendor does not exist (GHOST_ID)', async () => {
-    const result = await useCase.execute({ id: GHOST_ID, name: 'Ghost' });
+    const result = await useCase.execute({
+      id: GHOST_ID,
+      name: 'Ghost'
+    });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/not found/i);
@@ -131,7 +155,10 @@ describe('UpdateVendorUseCase — integration', () => {
   // ──────────────────────────────────────────────────────────────
 
   it('[DEV-001] fails when the new name is empty or exceeds 100 characters', async () => {
-    const vendorId = await seedVendor(prisma, { name: 'Keep Me', slug: 'keep-me' });
+    const vendorId = await seedVendor(prisma, {
+      name: 'Keep Me',
+      slug: 'keep-me'
+    });
 
     for (const name of ['', '   ', 'A'.repeat(101)]) {
       const result = await useCase.execute({ id: vendorId, name });
@@ -139,12 +166,17 @@ describe('UpdateVendorUseCase — integration', () => {
       expect(result.isFailure).toBe(true);
     }
 
-    const row = await prisma.vendor.findUnique({ where: { id: vendorId } });
+    const row = await prisma.vendor.findUnique({
+      where: { id: vendorId }
+    });
     expect(row!.name).toBe('Keep Me');
   });
 
   it('[DEV-002] fails when the new slug is not lowercase letters, digits and hyphens', async () => {
-    const vendorId = await seedVendor(prisma, { name: 'Keep Me', slug: 'keep-me' });
+    const vendorId = await seedVendor(prisma, {
+      name: 'Keep Me',
+      slug: 'keep-me'
+    });
 
     for (const slug of ['Bad-Slug', 'bad slug', 'bad_slug']) {
       const result = await useCase.execute({ id: vendorId, slug });
@@ -152,7 +184,9 @@ describe('UpdateVendorUseCase — integration', () => {
       expect(result.isFailure).toBe(true);
     }
 
-    const row = await prisma.vendor.findUnique({ where: { id: vendorId } });
+    const row = await prisma.vendor.findUnique({
+      where: { id: vendorId }
+    });
     expect(row!.slug).toBe('keep-me');
   });
 
@@ -171,7 +205,9 @@ describe('UpdateVendorUseCase — integration', () => {
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/500/);
 
-    const row = await prisma.vendor.findUnique({ where: { id: vendorId } });
+    const row = await prisma.vendor.findUnique({
+      where: { id: vendorId }
+    });
     expect(row!.description).toBe('Original');
   });
 });

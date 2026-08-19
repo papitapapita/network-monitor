@@ -8,7 +8,9 @@ import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440050';
 const FIXED_DATE = new Date('2024-06-01T10:00:00.000Z');
 
-function makeUseCase(): jest.Mocked<Pick<SendDeviceDownAlertUseCase, 'execute'>> {
+function makeUseCase(): jest.Mocked<
+  Pick<SendDeviceDownAlertUseCase, 'execute'>
+> {
   return { execute: jest.fn() };
 }
 
@@ -27,7 +29,10 @@ function makeDeviceId(): DeviceId {
 }
 
 function makeEvent(
-  overrides: { consecutiveFailures?: number; dateTimeOccurred?: Date } = {}
+  overrides: {
+    consecutiveFailures?: number;
+    dateTimeOccurred?: Date;
+  } = {}
 ): DeviceWentOfflineEvent {
   return new DeviceWentOfflineEvent({
     aggregateId: makeDeviceId(),
@@ -53,7 +58,9 @@ const STUB_ALERT_DTO = {
 };
 
 describe('DeviceWentOfflineNotificationHandler', () => {
-  let useCase: jest.Mocked<Pick<SendDeviceDownAlertUseCase, 'execute'>>;
+  let useCase: jest.Mocked<
+    Pick<SendDeviceDownAlertUseCase, 'execute'>
+  >;
   let logger: jest.Mocked<ILogger>;
   let handler: DeviceWentOfflineNotificationHandler;
 
@@ -73,7 +80,10 @@ describe('DeviceWentOfflineNotificationHandler', () => {
   describe('handle — happy path', () => {
     it('should call sendDeviceDownAlertUseCase.execute with the correct payload', async () => {
       useCase.execute.mockResolvedValue(Result.ok(STUB_ALERT_DTO));
-      const event = makeEvent({ consecutiveFailures: 5, dateTimeOccurred: FIXED_DATE });
+      const event = makeEvent({
+        consecutiveFailures: 5,
+        dateTimeOccurred: FIXED_DATE
+      });
 
       await handler.handle(event);
 
@@ -88,13 +98,17 @@ describe('DeviceWentOfflineNotificationHandler', () => {
     it('should resolve without throwing when use case succeeds', async () => {
       useCase.execute.mockResolvedValue(Result.ok(STUB_ALERT_DTO));
 
-      await expect(handler.handle(makeEvent())).resolves.toBeUndefined();
+      await expect(
+        handler.handle(makeEvent())
+      ).resolves.toBeUndefined();
     });
   });
 
   describe('handle — use case returns failure', () => {
     it('should log an error when the use case returns a failure result', async () => {
-      useCase.execute.mockResolvedValue(Result.fail('Repo unavailable'));
+      useCase.execute.mockResolvedValue(
+        Result.fail('Repo unavailable')
+      );
 
       await handler.handle(makeEvent());
 
@@ -102,18 +116,25 @@ describe('DeviceWentOfflineNotificationHandler', () => {
     });
 
     it('should include the error in the logger.error call context', async () => {
-      useCase.execute.mockResolvedValue(Result.fail('Repo unavailable'));
+      useCase.execute.mockResolvedValue(
+        Result.fail('Repo unavailable')
+      );
 
       await handler.handle(makeEvent());
 
-      const context = (logger.error as jest.Mock).mock.calls[0][2] as { error: string };
+      const context = (logger.error as jest.Mock).mock
+        .calls[0][2] as { error: string };
       expect(context.error).toBe('Repo unavailable');
     });
 
     it('should not throw when the use case returns a failure result', async () => {
-      useCase.execute.mockResolvedValue(Result.fail('Something failed'));
+      useCase.execute.mockResolvedValue(
+        Result.fail('Something failed')
+      );
 
-      await expect(handler.handle(makeEvent())).resolves.toBeUndefined();
+      await expect(
+        handler.handle(makeEvent())
+      ).resolves.toBeUndefined();
     });
   });
 
@@ -129,7 +150,9 @@ describe('DeviceWentOfflineNotificationHandler', () => {
     it('should not rethrow when the use case throws an unexpected error', async () => {
       useCase.execute.mockRejectedValue(new Error('Fatal crash'));
 
-      await expect(handler.handle(makeEvent())).resolves.toBeUndefined();
+      await expect(
+        handler.handle(makeEvent())
+      ).resolves.toBeUndefined();
     });
 
     it('should pass the error to logger.error on unexpected throw', async () => {

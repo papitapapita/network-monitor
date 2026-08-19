@@ -10,9 +10,9 @@ import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity
 // ---------------------------------------------------------------------------
 
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
-const VALID_ALERT_UUID  = '550e8400-e29b-41d4-a716-446655440002';
+const VALID_ALERT_UUID = '550e8400-e29b-41d4-a716-446655440002';
 
-const STARTED_AT  = new Date('2024-06-01T10:00:00.000Z');
+const STARTED_AT = new Date('2024-06-01T10:00:00.000Z');
 const RESOLVED_AT = new Date('2024-06-01T10:01:40.000Z'); // 100 seconds later
 
 function makeDeviceId(): DeviceId {
@@ -53,15 +53,24 @@ function reconstituteAlert(
   } = {}
 ): Alert {
   return Alert.reconstitute(makeAlertId(), {
-    deviceId:            overrides.deviceId            ?? makeDeviceId(),
-    severity:            overrides.severity            ?? AlertSeverity.WARNING,
-    source:              'Disponibilidad',
-    type:                'device_unreachable',
-    description:         'Sin conexión',
-    startedAt:           overrides.startedAt           ?? STARTED_AT,
-    resolvedAt:          overrides.resolvedAt          !== undefined ? overrides.resolvedAt          : null,
-    notifiedAt:          overrides.notifiedAt          !== undefined ? overrides.notifiedAt          : null,
-    recoveryNotifiedAt:  overrides.recoveryNotifiedAt  !== undefined ? overrides.recoveryNotifiedAt  : null
+    deviceId: overrides.deviceId ?? makeDeviceId(),
+    severity: overrides.severity ?? AlertSeverity.WARNING,
+    source: 'Disponibilidad',
+    type: 'device_unreachable',
+    description: 'Sin conexión',
+    startedAt: overrides.startedAt ?? STARTED_AT,
+    resolvedAt:
+      overrides.resolvedAt !== undefined
+        ? overrides.resolvedAt
+        : null,
+    notifiedAt:
+      overrides.notifiedAt !== undefined
+        ? overrides.notifiedAt
+        : null,
+    recoveryNotifiedAt:
+      overrides.recoveryNotifiedAt !== undefined
+        ? overrides.recoveryNotifiedAt
+        : null
   });
 }
 
@@ -73,14 +82,26 @@ describe('Alert', () => {
     // -------------------------------------------------------------------------
     describe('when given valid arguments', () => {
       it('should return a successful Result', () => {
-        const result = Alert.open(makeDeviceId(), AlertSeverity.WARNING, 'Disponibilidad', 'device_unreachable', 'Sin conexión');
+        const result = Alert.open(
+          makeDeviceId(),
+          AlertSeverity.WARNING,
+          'Disponibilidad',
+          'device_unreachable',
+          'Sin conexión'
+        );
 
         expect(result.isSuccess).toBe(true);
         expect(result.isFailure).toBe(false);
       });
 
       it('should return an Alert instance', () => {
-        const result = Alert.open(makeDeviceId(), AlertSeverity.WARNING, 'Disponibilidad', 'device_unreachable', 'Sin conexión');
+        const result = Alert.open(
+          makeDeviceId(),
+          AlertSeverity.WARNING,
+          'Disponibilidad',
+          'device_unreachable',
+          'Sin conexión'
+        );
 
         expect(result.value).toBeInstanceOf(Alert);
       });
@@ -93,13 +114,19 @@ describe('Alert', () => {
       });
 
       it('should set the provided severity to WARNING', () => {
-        const alert = openAlert(makeDeviceId(), AlertSeverity.WARNING);
+        const alert = openAlert(
+          makeDeviceId(),
+          AlertSeverity.WARNING
+        );
 
         expect(alert.severity).toBe(AlertSeverity.WARNING);
       });
 
       it('should set the provided severity to CRITICAL', () => {
-        const alert = openAlert(makeDeviceId(), AlertSeverity.CRITICAL);
+        const alert = openAlert(
+          makeDeviceId(),
+          AlertSeverity.CRITICAL
+        );
 
         expect(alert.severity).toBe(AlertSeverity.CRITICAL);
       });
@@ -149,38 +176,66 @@ describe('Alert', () => {
 
       it('should set startedAt to a Date close to the current time', () => {
         const before = new Date();
-        const alert  = openAlert();
-        const after  = new Date();
+        const alert = openAlert();
+        const after = new Date();
 
-        expect(alert.startedAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
-        expect(alert.startedAt.getTime()).toBeLessThanOrEqual(after.getTime());
+        expect(alert.startedAt.getTime()).toBeGreaterThanOrEqual(
+          before.getTime()
+        );
+        expect(alert.startedAt.getTime()).toBeLessThanOrEqual(
+          after.getTime()
+        );
       });
     });
 
     // -------------------------------------------------------------------------
     describe('when deviceId is null or undefined', () => {
       it('should return a failure Result when deviceId is null', () => {
-        const result = Alert.open(null as unknown as DeviceId, AlertSeverity.WARNING, 'Disponibilidad', 'device_unreachable', 'Sin conexión');
+        const result = Alert.open(
+          null as unknown as DeviceId,
+          AlertSeverity.WARNING,
+          'Disponibilidad',
+          'device_unreachable',
+          'Sin conexión'
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.isSuccess).toBe(false);
       });
 
       it('should return a failure Result when deviceId is undefined', () => {
-        const result = Alert.open(undefined as unknown as DeviceId, AlertSeverity.WARNING, 'Disponibilidad', 'device_unreachable', 'Sin conexión');
+        const result = Alert.open(
+          undefined as unknown as DeviceId,
+          AlertSeverity.WARNING,
+          'Disponibilidad',
+          'device_unreachable',
+          'Sin conexión'
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.isSuccess).toBe(false);
       });
 
       it('should include "deviceId" in the error message when null', () => {
-        const result = Alert.open(null as unknown as DeviceId, AlertSeverity.WARNING, 'Disponibilidad', 'device_unreachable', 'Sin conexión');
+        const result = Alert.open(
+          null as unknown as DeviceId,
+          AlertSeverity.WARNING,
+          'Disponibilidad',
+          'device_unreachable',
+          'Sin conexión'
+        );
 
         expect(result.error).toContain('deviceId');
       });
 
       it('should include "deviceId" in the error message when undefined', () => {
-        const result = Alert.open(undefined as unknown as DeviceId, AlertSeverity.WARNING, 'Disponibilidad', 'device_unreachable', 'Sin conexión');
+        const result = Alert.open(
+          undefined as unknown as DeviceId,
+          AlertSeverity.WARNING,
+          'Disponibilidad',
+          'device_unreachable',
+          'Sin conexión'
+        );
 
         expect(result.error).toContain('deviceId');
       });
@@ -197,15 +252,15 @@ describe('Alert', () => {
 
     it('should preserve the supplied AlertId', () => {
       const alertId = makeAlertId();
-      const alert   = Alert.reconstitute(alertId, {
-        deviceId:           makeDeviceId(),
-        severity:           AlertSeverity.WARNING,
-        source:             'Disponibilidad',
-        type:               'device_unreachable',
-        description:        'Sin conexión',
-        startedAt:          STARTED_AT,
-        resolvedAt:         null,
-        notifiedAt:         null,
+      const alert = Alert.reconstitute(alertId, {
+        deviceId: makeDeviceId(),
+        severity: AlertSeverity.WARNING,
+        source: 'Disponibilidad',
+        type: 'device_unreachable',
+        description: 'Sin conexión',
+        startedAt: STARTED_AT,
+        resolvedAt: null,
+        notifiedAt: null,
         recoveryNotifiedAt: null
       });
 
@@ -219,7 +274,9 @@ describe('Alert', () => {
     });
 
     it('should preserve severity', () => {
-      const alert = reconstituteAlert({ severity: AlertSeverity.CRITICAL });
+      const alert = reconstituteAlert({
+        severity: AlertSeverity.CRITICAL
+      });
 
       expect(alert.severity).toBe(AlertSeverity.CRITICAL);
     });
@@ -258,7 +315,7 @@ describe('Alert', () => {
     it('should preserve a non-null recoveryNotifiedAt', () => {
       const recoveryNotifiedAt = new Date('2024-06-01T10:02:00.000Z');
       const alert = reconstituteAlert({
-        resolvedAt:         RESOLVED_AT,
+        resolvedAt: RESOLVED_AT,
         recoveryNotifiedAt
       });
 
@@ -299,7 +356,7 @@ describe('Alert', () => {
   // ===========================================================================
   describe('markNotified()', () => {
     it('should return a successful Result on the first call', () => {
-      const alert  = openAlert();
+      const alert = openAlert();
       const result = alert.markNotified();
 
       expect(result.isSuccess).toBe(true);
@@ -307,14 +364,18 @@ describe('Alert', () => {
     });
 
     it('should set notifiedAt to a Date close to the current time', () => {
-      const alert  = openAlert();
+      const alert = openAlert();
       const before = new Date();
       alert.markNotified();
       const after = new Date();
 
       expect(alert.notifiedAt).not.toBeNull();
-      expect(alert.notifiedAt!.getTime()).toBeGreaterThanOrEqual(before.getTime());
-      expect(alert.notifiedAt!.getTime()).toBeLessThanOrEqual(after.getTime());
+      expect(alert.notifiedAt!.getTime()).toBeGreaterThanOrEqual(
+        before.getTime()
+      );
+      expect(alert.notifiedAt!.getTime()).toBeLessThanOrEqual(
+        after.getTime()
+      );
     });
 
     it('should return a failure Result on the second call', () => {
@@ -358,7 +419,7 @@ describe('Alert', () => {
   // ===========================================================================
   describe('resolve()', () => {
     it('should return a successful Result when the alert is open', () => {
-      const alert  = openAlert();
+      const alert = openAlert();
       const result = alert.resolve(RESOLVED_AT);
 
       expect(result.isSuccess).toBe(true);
@@ -388,9 +449,9 @@ describe('Alert', () => {
     });
 
     it('should floor the duration when milliseconds do not divide evenly', () => {
-      const startedAt  = new Date('2024-06-01T10:00:00.000Z');
+      const startedAt = new Date('2024-06-01T10:00:00.000Z');
       const resolvedAt = new Date('2024-06-01T10:00:01.999Z'); // 1.999 s → floor → 1
-      const alert      = reconstituteAlert({ startedAt });
+      const alert = reconstituteAlert({ startedAt });
       alert.resolve(resolvedAt);
 
       expect(alert.durationSecs).toBe(1);
@@ -398,7 +459,7 @@ describe('Alert', () => {
 
     it('should set durationSecs to 0 when resolved immediately (same timestamp)', () => {
       const instant = new Date('2024-06-01T10:00:00.000Z');
-      const alert   = reconstituteAlert({ startedAt: instant });
+      const alert = reconstituteAlert({ startedAt: instant });
       alert.resolve(instant);
 
       expect(alert.durationSecs).toBe(0);
@@ -455,8 +516,12 @@ describe('Alert', () => {
         const after = new Date();
 
         expect(alert.recoveryNotifiedAt).not.toBeNull();
-        expect(alert.recoveryNotifiedAt!.getTime()).toBeGreaterThanOrEqual(before.getTime());
-        expect(alert.recoveryNotifiedAt!.getTime()).toBeLessThanOrEqual(after.getTime());
+        expect(
+          alert.recoveryNotifiedAt!.getTime()
+        ).toBeGreaterThanOrEqual(before.getTime());
+        expect(
+          alert.recoveryNotifiedAt!.getTime()
+        ).toBeLessThanOrEqual(after.getTime());
       });
 
       it('should return a failure Result on the second call', () => {
@@ -495,7 +560,7 @@ describe('Alert', () => {
     // -------------------------------------------------------------------------
     describe('when the alert is still open (not yet resolved)', () => {
       it('should return a failure Result', () => {
-        const alert  = openAlert();
+        const alert = openAlert();
         const result = alert.markRecoveryNotified();
 
         expect(result.isFailure).toBe(true);
@@ -503,7 +568,7 @@ describe('Alert', () => {
       });
 
       it('should include "open alert" in the error message', () => {
-        const alert  = openAlert();
+        const alert = openAlert();
         const result = alert.markRecoveryNotified();
 
         expect(result.error).toMatch(/open alert/i);

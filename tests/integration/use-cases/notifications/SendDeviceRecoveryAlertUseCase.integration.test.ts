@@ -31,12 +31,17 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
 
     const alertRepo = new PrismaAlertRepository(prisma);
     const deviceRepo = new PrismaDeviceRepository(prisma);
-    const pollingConfigRepo = new PrismaPollingConfigurationRepository(prisma);
+    const pollingConfigRepo =
+      new PrismaPollingConfigurationRepository(prisma);
     const logger = new WinstonLogger();
 
     fakeNotification = new FakeNotificationService();
     const alertPublisher = new AlertPublisher(
-      new SendAlertNotificationUseCase(deviceRepo, fakeNotification, logger)
+      new SendAlertNotificationUseCase(
+        deviceRepo,
+        fakeNotification,
+        logger
+      )
     );
     downUseCase = new SendDeviceDownAlertUseCase(
       alertRepo,
@@ -80,7 +85,9 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
 
     // Resolve 5 minutes after the alert's actual startedAt
     const alertStartedAt = new Date(downResult.value!.startedAt);
-    const recoveredAt = new Date(alertStartedAt.getTime() + 300 * 1000);
+    const recoveredAt = new Date(
+      alertStartedAt.getTime() + 300 * 1000
+    );
 
     const result = await recoveryUseCase.execute({
       deviceId,
@@ -94,7 +101,9 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
     expect(result.value.recoveryNotifiedAt).not.toBeNull();
     expect(result.value.durationSecs).toBe(300);
 
-    const row = await prisma.alertEvent.findFirst({ where: { deviceId } });
+    const row = await prisma.alertEvent.findFirst({
+      where: { deviceId }
+    });
     expect(row!.resolvedAt).not.toBeNull();
     expect(row!.recoveryNotifiedAt).not.toBeNull();
   });
@@ -110,7 +119,9 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
 
     // Resolve 1 hour after the alert's actual startedAt
     const alertStartedAt = new Date(downResult.value!.startedAt);
-    const recoveredAt = new Date(alertStartedAt.getTime() + 3600 * 1000);
+    const recoveredAt = new Date(
+      alertStartedAt.getTime() + 3600 * 1000
+    );
 
     await recoveryUseCase.execute({
       deviceId,
@@ -168,7 +179,9 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
     // recoveryNotifiedAt must be null because send failed
     expect(result.value.recoveryNotifiedAt).toBeNull();
 
-    const row = await prisma.alertEvent.findFirst({ where: { deviceId } });
+    const row = await prisma.alertEvent.findFirst({
+      where: { deviceId }
+    });
     expect(row!.resolvedAt).not.toBeNull();
     expect(row!.recoveryNotifiedAt).toBeNull();
   });
@@ -218,7 +231,9 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
     expect(result.isSuccess).toBe(true);
     expect(result.value.status).toBe('RESOLVED');
 
-    const row = await prisma.alertEvent.findFirst({ where: { deviceId } });
+    const row = await prisma.alertEvent.findFirst({
+      where: { deviceId }
+    });
     expect(row!.resolvedAt).not.toBeNull();
   });
 

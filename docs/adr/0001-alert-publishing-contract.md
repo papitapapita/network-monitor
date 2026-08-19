@@ -16,7 +16,7 @@ bounded contexts. Before this decision the paths were inconsistent:
 - **Wireless monitoring** owned a bespoke outbound port (`IWirelessAlertNotifier`)
   and an infrastructure adapter translating to the single renderer
   (`SendAlertNotificationUseCase`). Clean — no context imported another.
-- **Device availability** (down / recovery) lived *inside* `application/notifications`,
+- **Device availability** (down / recovery) lived _inside_ `application/notifications`,
   imported `domain/device-monitoring` events directly, and each use case
   formatted its own Telegram message and called `INotificationService.send()`
   directly — bypassing the single renderer.
@@ -40,9 +40,10 @@ Adopt **"Option B": each context decides _what_ to alert; everyone delegates
 _how_ to deliver to one shared capability.** Concretely:
 
 1. **Split WHAT from HOW.**
-   - *WHAT* (which condition, which severity, which wording) stays in each
+
+   - _WHAT_ (which condition, which severity, which wording) stays in each
      producing context — it is that context's ubiquitous language.
-   - *HOW* (formatting, escaping, channel, delivery) is a single generic
+   - _HOW_ (formatting, escaping, channel, delivery) is a single generic
      capability every context shares.
 
 2. **Shared vocabulary.** Promote `AlertSeverity` to the shared kernel
@@ -54,8 +55,13 @@ _how_ to deliver to one shared capability.** Concretely:
 
    ```ts
    interface AlertNotification {
-     deviceId: string; severity: AlertSeverity; source: string;
-     subject: string; detail: string; occurredAt: Date; resolved: boolean;
+     deviceId: string;
+     severity: AlertSeverity;
+     source: string;
+     subject: string;
+     detail: string;
+     occurredAt: Date;
+     resolved: boolean;
    }
    interface IAlertPublisher {
      publish(notification: AlertNotification): Promise<Result<void>>;
@@ -94,6 +100,7 @@ or `domain/<bc>` folder (only `domain/shared`).
 ## Consequences
 
 **Positive**
+
 - Adding a future producer (billing, latency, …) is an O(1) copy of the pattern:
   a handler that maps its own event to the envelope + a one-line container wire.
   No Notifications edit.
@@ -102,6 +109,7 @@ or `domain/<bc>` folder (only `domain/shared`).
 - Contexts stay decoupled; the ACL lives in exactly one infra file.
 
 **Negative / accepted trade-offs**
+
 - Device down/recovery messages now render through the generic template
   (`🔴 ALERTA CRÍTICA …`) instead of their previous bespoke layout
   (`🔴 DISPOSITIVO FUERA DE LÍNEA`). **No information is lost** — consecutive
@@ -119,9 +127,10 @@ or `domain/<bc>` folder (only `domain/shared`).
 wireless and device down/recovery converged onto `IAlertPublisher`.
 
 **Out of scope (deliberately not built):**
+
 - **Moving the `Alert` aggregate** into device-monitoring. Device availability
   still keeps its `Alert` lifecycle (dedup, open/resolve) inside Notifications;
-  only its *delivery* now goes through the port.
+  only its _delivery_ now goes through the port.
 - **Suspension notices** — customer-facing WhatsApp via `ICustomerNotificationService`,
   a different channel and audience, not an operational alert.
 - **A reliability sweep for `Alert`.** Device-down retry behavior is unchanged:
@@ -131,7 +140,7 @@ wireless and device down/recovery converged onto `IAlertPublisher`.
   in `GET /api/alerts`; converging delivery does not change that.
 - **The remaining direct cross-context imports.** The device-availability and
   suspension handlers still import other contexts' domain events directly. This
-  decision stops *propagating* that pattern (new producers use the port); it does
+  decision stops _propagating_ that pattern (new producers use the port); it does
   not retro-eliminate the existing instances.
 
 ## Alternatives considered
@@ -143,7 +152,7 @@ wireless and device down/recovery converged onto `IAlertPublisher`.
 - **A per-context port each** (like the original `IWirelessAlertNotifier`, one
   per producer). Rejected: the envelope is already neutral, so per-context ports
   are boilerplate ×N with no added expressiveness. Producers keep their language
-  in the *handler's mapping*, not in a bespoke port type.
+  in the _handler's mapping_, not in a bespoke port type.
 - **Reuse `SendAlertNotificationDTO` as the port payload.** Rejected: it is
   owned by `application/notifications`; using it in the shared port would make
   `application/shared` import a context-owned type — the exact leak avoided here.

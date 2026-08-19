@@ -4,7 +4,10 @@ import { LocationMapper } from '../../../src/infrastructure/mappers/LocationMapp
 import { Location } from '../../../src/domain/device-inventory/aggregates';
 import { LocationId } from '../../../src/domain/shared/ids';
 import { LocationType } from '../../../src/domain/device-inventory/value-objects';
-import { Address, Coordinates } from '../../../src/domain/device-inventory/value-objects';
+import {
+  Address,
+  Coordinates
+} from '../../../src/domain/device-inventory/value-objects';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -33,21 +36,29 @@ function makeRawLocation(
   } as Parameters<typeof LocationMapper.toDomain>[0];
 }
 
-function makeLocationDomain(overrides: {
-  name?: string;
-  type?: string;
-  municipality?: string | null;
-  neighborhood?: string | null;
-  address?: string | null;
-  coordinates?: Coordinates | null;
-} = {}): Location {
+function makeLocationDomain(
+  overrides: {
+    name?: string;
+    type?: string;
+    municipality?: string | null;
+    neighborhood?: string | null;
+    address?: string | null;
+    coordinates?: Coordinates | null;
+  } = {}
+): Location {
   const id = LocationId.parse(VALID_UUID).value;
   const street =
-    overrides.address !== undefined ? overrides.address : 'Carrera 80 # 75-32';
+    overrides.address !== undefined
+      ? overrides.address
+      : 'Carrera 80 # 75-32';
   const municipality =
-    overrides.municipality !== undefined ? overrides.municipality : 'Medellín';
+    overrides.municipality !== undefined
+      ? overrides.municipality
+      : 'Medellín';
   const neighborhood =
-    overrides.neighborhood !== undefined ? overrides.neighborhood : 'Robledo';
+    overrides.neighborhood !== undefined
+      ? overrides.neighborhood
+      : 'Robledo';
   const addressVO =
     street === null || municipality === null || neighborhood === null
       ? null
@@ -55,16 +66,29 @@ function makeLocationDomain(overrides: {
 
   return Location.reconstitute(id, {
     name: overrides.name ?? 'Torre Norte',
-    type: LocationType.reconstitute(overrides.type ?? LocationType.TOWER),
+    type: LocationType.reconstitute(
+      overrides.type ?? LocationType.TOWER
+    ),
     address: addressVO,
-    coordinates: overrides.coordinates !== undefined ? overrides.coordinates : null,
+    coordinates:
+      overrides.coordinates !== undefined
+        ? overrides.coordinates
+        : null,
     createdAt: BASE_DATE,
     updatedAt: UPDATED_DATE
   });
 }
 
-function makeCoordinates(lat: number, lon: number, alt?: number): Coordinates {
-  return Coordinates.reconstitute({ latitude: lat, longitude: lon, altitude: alt });
+function makeCoordinates(
+  lat: number,
+  lon: number,
+  alt?: number
+): Coordinates {
+  return Coordinates.reconstitute({
+    latitude: lat,
+    longitude: lon,
+    altitude: alt
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -131,7 +155,10 @@ describe('LocationMapper', () => {
       });
 
       it('should set coordinates to null when latitude and longitude are null', () => {
-        const raw = makeRawLocation({ latitude: null, longitude: null });
+        const raw = makeRawLocation({
+          latitude: null,
+          longitude: null
+        });
 
         const result = LocationMapper.toDomain(raw);
 
@@ -139,7 +166,10 @@ describe('LocationMapper', () => {
       });
 
       it('should set coordinates to null when latitude is null but longitude is not', () => {
-        const raw = makeRawLocation({ latitude: null, longitude: -75.5812 });
+        const raw = makeRawLocation({
+          latitude: null,
+          longitude: -75.5812
+        });
 
         const result = LocationMapper.toDomain(raw);
 
@@ -147,7 +177,10 @@ describe('LocationMapper', () => {
       });
 
       it('should set coordinates to null when longitude is null but latitude is not', () => {
-        const raw = makeRawLocation({ latitude: 6.2442, longitude: null });
+        const raw = makeRawLocation({
+          latitude: 6.2442,
+          longitude: null
+        });
 
         const result = LocationMapper.toDomain(raw);
 
@@ -214,7 +247,10 @@ describe('LocationMapper', () => {
     // -----------------------------------------------------------------------
     describe('happy path — raw record with coordinates', () => {
       it('should set coordinates when latitude and longitude are numeric', () => {
-        const raw = makeRawLocation({ latitude: 6.2442, longitude: -75.5812 });
+        const raw = makeRawLocation({
+          latitude: 6.2442,
+          longitude: -75.5812
+        });
 
         const result = LocationMapper.toDomain(raw);
 
@@ -224,7 +260,10 @@ describe('LocationMapper', () => {
       });
 
       it('should coerce latitude and longitude from strings using Number()', () => {
-        const raw = makeRawLocation({ latitude: '6.2442', longitude: '-75.5812' });
+        const raw = makeRawLocation({
+          latitude: '6.2442',
+          longitude: '-75.5812'
+        });
 
         const result = LocationMapper.toDomain(raw);
 
@@ -392,7 +431,9 @@ describe('LocationMapper', () => {
       });
 
       it('should serialize neighborhood correctly', () => {
-        const location = makeLocationDomain({ neighborhood: 'El Centro' });
+        const location = makeLocationDomain({
+          neighborhood: 'El Centro'
+        });
 
         const raw = LocationMapper.toPersistence(location);
 
@@ -408,7 +449,9 @@ describe('LocationMapper', () => {
       });
 
       it('should serialize address correctly', () => {
-        const location = makeLocationDomain({ address: 'Calle 10 # 43-28' });
+        const location = makeLocationDomain({
+          address: 'Calle 10 # 43-28'
+        });
 
         const raw = LocationMapper.toPersistence(location);
 
@@ -576,7 +619,9 @@ describe('LocationMapper', () => {
       const domainResult = LocationMapper.toDomain(originalRaw);
       expect(domainResult.isSuccess).toBe(true);
 
-      const serialized = LocationMapper.toPersistence(domainResult.value);
+      const serialized = LocationMapper.toPersistence(
+        domainResult.value
+      );
 
       expect(serialized.id).toBe(originalRaw.id);
       expect(serialized.name).toBe(originalRaw.name);
@@ -594,7 +639,9 @@ describe('LocationMapper', () => {
       });
 
       const domainResult = LocationMapper.toDomain(originalRaw);
-      const serialized = LocationMapper.toPersistence(domainResult.value);
+      const serialized = LocationMapper.toPersistence(
+        domainResult.value
+      );
 
       expect(serialized.latitude).toBe(4.7109);
       expect(serialized.longitude).toBe(-74.0721);
@@ -609,7 +656,9 @@ describe('LocationMapper', () => {
       });
 
       const domainResult = LocationMapper.toDomain(originalRaw);
-      const serialized = LocationMapper.toPersistence(domainResult.value);
+      const serialized = LocationMapper.toPersistence(
+        domainResult.value
+      );
 
       expect(serialized.latitude).toBeNull();
       expect(serialized.longitude).toBeNull();
@@ -631,7 +680,9 @@ describe('LocationMapper', () => {
         const domainResult = LocationMapper.toDomain(raw);
         expect(domainResult.isSuccess).toBe(true);
 
-        const serialized = LocationMapper.toPersistence(domainResult.value);
+        const serialized = LocationMapper.toPersistence(
+          domainResult.value
+        );
         expect(serialized.type).toBe(type);
       }
     });

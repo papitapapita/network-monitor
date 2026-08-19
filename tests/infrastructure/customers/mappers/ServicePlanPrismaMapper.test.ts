@@ -34,7 +34,10 @@ describe('ServicePlanPrismaMapper', () => {
 
     it('should normalize a Prisma Decimal price to a number', () => {
       // Prisma Decimal stringifies to its numeric value; Number() relies on that.
-      const decimal = { toNumber: () => 80000, toString: () => '80000' };
+      const decimal = {
+        toNumber: () => 80000,
+        toString: () => '80000'
+      };
       const result = ServicePlanPrismaMapper.toDomain(
         makeRaw({ monthlyPrice: decimal })
       );

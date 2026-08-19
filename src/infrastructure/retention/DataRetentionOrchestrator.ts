@@ -131,9 +131,7 @@ export class DataRetentionOrchestrator {
     }
 
     this.logger.info('[DataRetentionOrchestrator] Purge complete', {
-      pingResultsDeleted: pingResult.isSuccess
-        ? pingResult.value
-        : 0,
+      pingResultsDeleted: pingResult.isSuccess ? pingResult.value : 0,
       alertsDeleted: alertResult.isSuccess ? alertResult.value : 0,
       wirelessSnapshotsDeleted: snapshotResult.isSuccess
         ? snapshotResult.value

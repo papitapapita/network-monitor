@@ -37,7 +37,10 @@ describe('CreateVendorUseCase — integration', () => {
   // ──────────────────────────────────────────────────────────────
 
   it('creates a vendor successfully and returns id, name, and slug', async () => {
-    const result = await useCase.execute({ name: 'Ubiquiti', slug: 'ubiquiti' });
+    const result = await useCase.execute({
+      name: 'Ubiquiti',
+      slug: 'ubiquiti'
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.id).toBeDefined();
@@ -54,15 +57,22 @@ describe('CreateVendorUseCase — integration', () => {
     });
 
     expect(result.isSuccess).toBe(true);
-    expect(result.value.description).toBe('Networking equipment manufacturer');
+    expect(result.value.description).toBe(
+      'Networking equipment manufacturer'
+    );
   });
 
   it('persists the vendor in the database', async () => {
-    const result = await useCase.execute({ name: 'Cisco', slug: 'cisco' });
+    const result = await useCase.execute({
+      name: 'Cisco',
+      slug: 'cisco'
+    });
 
     expect(result.isSuccess).toBe(true);
 
-    const row = await prisma.vendor.findUnique({ where: { id: result.value.id } });
+    const row = await prisma.vendor.findUnique({
+      where: { id: result.value.id }
+    });
     expect(row).not.toBeNull();
     expect(row!.name).toBe('Cisco');
     expect(row!.slug).toBe('cisco');
@@ -73,9 +83,15 @@ describe('CreateVendorUseCase — integration', () => {
   // ──────────────────────────────────────────────────────────────
 
   it('[DEV-003] fails with isFailure=true when slug already exists', async () => {
-    await useCase.execute({ name: 'First Vendor', slug: 'duplicate-slug' });
+    await useCase.execute({
+      name: 'First Vendor',
+      slug: 'duplicate-slug'
+    });
 
-    const second = await useCase.execute({ name: 'Second Vendor', slug: 'duplicate-slug' });
+    const second = await useCase.execute({
+      name: 'Second Vendor',
+      slug: 'duplicate-slug'
+    });
 
     expect(second.isFailure).toBe(true);
     expect(second.error).toMatch(/already exists/i);
@@ -86,14 +102,20 @@ describe('CreateVendorUseCase — integration', () => {
   // ──────────────────────────────────────────────────────────────
 
   it('[DEV-001] fails with isFailure=true when name is empty', async () => {
-    const result = await useCase.execute({ name: '', slug: 'valid-slug' });
+    const result = await useCase.execute({
+      name: '',
+      slug: 'valid-slug'
+    });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/name/i);
   });
 
   it('[DEV-002] fails with isFailure=true when slug is empty', async () => {
-    const result = await useCase.execute({ name: 'Valid Name', slug: '' });
+    const result = await useCase.execute({
+      name: 'Valid Name',
+      slug: ''
+    });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/slug/i);
@@ -118,13 +140,18 @@ describe('CreateVendorUseCase — integration', () => {
 
     expect(result.isSuccess).toBe(true);
 
-    const row = await prisma.vendor.findUnique({ where: { id: result.value.id } });
+    const row = await prisma.vendor.findUnique({
+      where: { id: result.value.id }
+    });
     expect(row!.name).toHaveLength(100);
   });
 
   it('[DEV-002] fails when the slug is not lowercase letters, digits and hyphens', async () => {
     for (const slug of ['Bad-Slug', 'bad slug', 'bad_slug']) {
-      const result = await useCase.execute({ name: 'Valid Name', slug });
+      const result = await useCase.execute({
+        name: 'Valid Name',
+        slug
+      });
 
       expect(result.isFailure).toBe(true);
     }
@@ -153,7 +180,9 @@ describe('CreateVendorUseCase — integration', () => {
 
     expect(result.isSuccess).toBe(true);
 
-    const row = await prisma.vendor.findUnique({ where: { id: result.value.id } });
+    const row = await prisma.vendor.findUnique({
+      where: { id: result.value.id }
+    });
     expect(row!.description).toHaveLength(500);
   });
 

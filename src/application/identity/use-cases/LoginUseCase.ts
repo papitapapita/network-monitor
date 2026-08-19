@@ -24,7 +24,10 @@ export class LoginUseCase extends UseCase<
 
   protected sanitizeForLogging(data: unknown): unknown {
     if (data && typeof data === 'object' && 'password' in data) {
-      const { password: _omit, ...safe } = data as Record<string, unknown>;
+      const { password: _omit, ...safe } = data as Record<
+        string,
+        unknown
+      >;
       return safe;
     }
     return data;

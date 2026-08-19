@@ -2,7 +2,13 @@ import request from 'supertest';
 import { Application } from 'express';
 import { PrismaClient } from '../../src/generated/prisma/client';
 import { createTestApp } from './helpers/createTestApp';
-import { cleanDatabase, seedLocation, seedDeviceModel, GHOST_ID, INVALID_ID } from './helpers/db';
+import {
+  cleanDatabase,
+  seedLocation,
+  seedDeviceModel,
+  GHOST_ID,
+  INVALID_ID
+} from './helpers/db';
 import { seedAndGetToken } from './helpers/auth';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
 
@@ -102,7 +108,11 @@ describe('Location Routes — /api/locations', () => {
       const res = await request(app)
         .post('/api/locations')
         .set('Authorization', `Bearer ${token}`)
-        .send({ name: 'Tower Norte', type: 'TOWER', latitude: -23.55 });
+        .send({
+          name: 'Tower Norte',
+          type: 'TOWER',
+          latitude: -23.55
+        });
 
       expect(res.status).toBe(400);
     });
@@ -111,7 +121,11 @@ describe('Location Routes — /api/locations', () => {
       const res = await request(app)
         .post('/api/locations')
         .set('Authorization', `Bearer ${token}`)
-        .send({ name: 'Tower Norte', type: 'TOWER', longitude: -46.63 });
+        .send({
+          name: 'Tower Norte',
+          type: 'TOWER',
+          longitude: -46.63
+        });
 
       expect(res.status).toBe(400);
     });
@@ -285,7 +299,11 @@ describe('Location Routes — /api/locations', () => {
       const res = await request(app)
         .patch(`/api/locations/${id}`)
         .set('Authorization', `Bearer ${token}`)
-        .send({ address: null, municipality: null, neighborhood: null });
+        .send({
+          address: null,
+          municipality: null,
+          neighborhood: null
+        });
 
       expect(res.status).toBe(200);
       expect(res.body.data.municipality).toBeNull();
@@ -398,7 +416,11 @@ describe('Location Routes — /api/locations', () => {
 
     it('[DEV-141] 403 — VIEWER cannot delete a location', async () => {
       const locationId = await seedLocation(prisma);
-      const viewerToken = await seedAndGetToken(app, prisma, 'VIEWER');
+      const viewerToken = await seedAndGetToken(
+        app,
+        prisma,
+        'VIEWER'
+      );
 
       const res = await request(app)
         .delete(`/api/locations/${locationId}`)

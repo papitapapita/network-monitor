@@ -89,7 +89,9 @@ export class PrismaWirelessSnapshotRepository
    * [device_id, collected_at DESC] index, then the second fetches those rows
    * by primary key so the existing mapper still does the hydration.
    */
-  async findLatestForAllDevices(): Promise<Result<WirelessSnapshot[]>> {
+  async findLatestForAllDevices(): Promise<
+    Result<WirelessSnapshot[]>
+  > {
     try {
       const latest = await this.prisma.$queryRaw<{ id: string }[]>`
         SELECT DISTINCT ON (device_id) id

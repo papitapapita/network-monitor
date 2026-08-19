@@ -66,21 +66,27 @@ describe('DeviceCategory', () => {
     // -----------------------------------------------------------------------
     describe('null / undefined / type validation', () => {
       it('should fail when category is null', () => {
-        const result = DeviceCategory.create(null as unknown as string);
+        const result = DeviceCategory.create(
+          null as unknown as string
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('category');
       });
 
       it('should fail when category is undefined', () => {
-        const result = DeviceCategory.create(undefined as unknown as string);
+        const result = DeviceCategory.create(
+          undefined as unknown as string
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('category');
       });
 
       it('should fail when category is not a string', () => {
-        const result = DeviceCategory.create(123 as unknown as string);
+        const result = DeviceCategory.create(
+          123 as unknown as string
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('category');
@@ -205,7 +211,9 @@ describe('DeviceCategory', () => {
     });
 
     it('should bypass validation (no error for arbitrary string)', () => {
-      expect(() => DeviceCategory.reconstitute('LEGACY_CAT')).not.toThrow();
+      expect(() =>
+        DeviceCategory.reconstitute('LEGACY_CAT')
+      ).not.toThrow();
     });
   });
 
@@ -217,9 +225,9 @@ describe('DeviceCategory', () => {
     });
 
     it('isAccessPoint() should return true only for ACCESS_POINT', () => {
-      expect(
-        DeviceCategory.createAccessPoint().isAccessPoint()
-      ).toBe(true);
+      expect(DeviceCategory.createAccessPoint().isAccessPoint()).toBe(
+        true
+      );
       expect(DeviceCategory.createCpe().isAccessPoint()).toBe(false);
     });
 
@@ -232,9 +240,9 @@ describe('DeviceCategory', () => {
       expect(
         DeviceCategory.createAggregationSwitch().isAggregationSwitch()
       ).toBe(true);
-      expect(
-        DeviceCategory.createCpe().isAggregationSwitch()
-      ).toBe(false);
+      expect(DeviceCategory.createCpe().isAggregationSwitch()).toBe(
+        false
+      );
     });
 
     it('isOther() should return true only for OTHER', () => {
@@ -268,7 +276,9 @@ describe('DeviceCategory', () => {
     });
 
     it('should return "Other" for OTHER', () => {
-      expect(DeviceCategory.createOther().getDisplayName()).toBe('Other');
+      expect(DeviceCategory.createOther().getDisplayName()).toBe(
+        'Other'
+      );
     });
   });
 

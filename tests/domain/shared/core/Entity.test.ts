@@ -83,7 +83,10 @@ class TestEntity extends Entity<TestProps, TestID> {
     super(props, id);
   }
 
-  public static create(props: TestProps, id?: TestID): Result<TestEntity> {
+  public static create(
+    props: TestProps,
+    id?: TestID
+  ): Result<TestEntity> {
     const entityId = id ?? TestID.create().value;
     return Result.ok<TestEntity>(new TestEntity(props, entityId));
   }
@@ -116,7 +119,9 @@ class AnotherEntity extends Entity<AnotherProps, TestID> {
     id?: TestID
   ): Result<AnotherEntity> {
     const entityId = id ?? TestID.create().value;
-    return Result.ok<AnotherEntity>(new AnotherEntity(props, entityId));
+    return Result.ok<AnotherEntity>(
+      new AnotherEntity(props, entityId)
+    );
   }
 
   get label(): string {
@@ -131,7 +136,9 @@ class AnotherEntity extends Entity<AnotherProps, TestID> {
 /** Unwraps a Result or throws, keeping test setup failures clearly identifiable. */
 function unwrap<T>(result: Result<T>, context: string): T {
   if (result.isFailure) {
-    throw new Error(`Test setup failed [${context}]: ${result.error}`);
+    throw new Error(
+      `Test setup failed [${context}]: ${result.error}`
+    );
   }
   return result.value;
 }
@@ -142,7 +149,10 @@ function makeTestID(uuid?: string): TestID {
     : unwrap(TestID.create(), 'makeTestID auto');
 }
 
-function makeEntity(props: TestProps = { name: 'Alice', age: 30 }, id?: TestID): TestEntity {
+function makeEntity(
+  props: TestProps = { name: 'Alice', age: 30 },
+  id?: TestID
+): TestEntity {
   return unwrap(TestEntity.create(props, id), 'makeEntity');
 }
 
@@ -163,8 +173,12 @@ class OtherEntity extends Entity<OtherProps, OtherID> {
     super(props, id);
   }
 
-  public static create(props: OtherProps, id?: OtherID): Result<OtherEntity> {
-    const entityId = id ?? unwrap(OtherID.create(), 'OtherEntity auto id');
+  public static create(
+    props: OtherProps,
+    id?: OtherID
+  ): Result<OtherEntity> {
+    const entityId =
+      id ?? unwrap(OtherID.create(), 'OtherEntity auto id');
     return Result.ok<OtherEntity>(new OtherEntity(props, entityId));
   }
 
@@ -271,7 +285,9 @@ describe('Entity', () => {
 
         // null is cast because the method signature accepts undefined but not
         // null; the implementation defends against it explicitly.
-        expect(entity.equals(null as unknown as TestEntity)).toBe(false);
+        expect(entity.equals(null as unknown as TestEntity)).toBe(
+          false
+        );
       });
 
       it('should return false when called with undefined', () => {
@@ -303,7 +319,10 @@ describe('Entity', () => {
       it('should return true even when the two instances carry different props but share the same ID', () => {
         const sharedId = makeTestID(VALID_UUID_A);
         const e1 = makeEntity({ name: 'Alice', age: 30 }, sharedId);
-        const e2 = makeEntity({ name: 'Different Name', age: 99 }, sharedId);
+        const e2 = makeEntity(
+          { name: 'Different Name', age: 99 },
+          sharedId
+        );
 
         expect(e1.equals(e2)).toBe(true);
       });
@@ -316,8 +335,14 @@ describe('Entity', () => {
       });
 
       it('should return false for two instances created with distinct explicit UUIDs', () => {
-        const e1 = makeEntity({ name: 'Alice', age: 30 }, makeTestID(VALID_UUID_A));
-        const e2 = makeEntity({ name: 'Alice', age: 30 }, makeTestID(VALID_UUID_B));
+        const e1 = makeEntity(
+          { name: 'Alice', age: 30 },
+          makeTestID(VALID_UUID_A)
+        );
+        const e2 = makeEntity(
+          { name: 'Alice', age: 30 },
+          makeTestID(VALID_UUID_B)
+        );
 
         expect(e1.equals(e2)).toBe(false);
       });
@@ -329,7 +354,9 @@ describe('Entity', () => {
         const entity = makeEntity();
         const plainObject = { id: entity.id };
 
-        expect(entity.equals(plainObject as unknown as TestEntity)).toBe(false);
+        expect(
+          entity.equals(plainObject as unknown as TestEntity)
+        ).toBe(false);
       });
 
       it('should return false when compared with a plain object that has matching id and props shapes', () => {
@@ -337,19 +364,25 @@ describe('Entity', () => {
         const entity = makeEntity({ name: 'Alice', age: 30 }, id);
         const imposter = { id, props: { name: 'Alice', age: 30 } };
 
-        expect(entity.equals(imposter as unknown as TestEntity)).toBe(false);
+        expect(entity.equals(imposter as unknown as TestEntity)).toBe(
+          false
+        );
       });
 
       it('should return false when compared with a number primitive', () => {
         const entity = makeEntity();
 
-        expect(entity.equals(42 as unknown as TestEntity)).toBe(false);
+        expect(entity.equals(42 as unknown as TestEntity)).toBe(
+          false
+        );
       });
 
       it('should return false when compared with a string primitive', () => {
         const entity = makeEntity();
 
-        expect(entity.equals(VALID_UUID_A as unknown as TestEntity)).toBe(false);
+        expect(
+          entity.equals(VALID_UUID_A as unknown as TestEntity)
+        ).toBe(false);
       });
     });
 
@@ -391,7 +424,10 @@ describe('Entity', () => {
         // The outer Entity type (TestEntity vs AnotherEntity) does not matter
         // because Entity.isEntity() only checks instanceof Entity.
         const sharedId = makeTestID(VALID_UUID_A);
-        const testEntity = makeEntity({ name: 'Alice', age: 30 }, sharedId);
+        const testEntity = makeEntity(
+          { name: 'Alice', age: 30 },
+          sharedId
+        );
         const anotherEntity = unwrap(
           AnotherEntity.create({ label: 'X' }, sharedId),
           'anotherEntity'
@@ -410,9 +446,15 @@ describe('Entity', () => {
         // equal because they are instances of different classes.
         // Consequently the two Entity instances must also be unequal.
         const testId = makeTestID(VALID_UUID_A);
-        const otherId = unwrap(OtherID.create(VALID_UUID_A), 'OtherID for cross-type test');
+        const otherId = unwrap(
+          OtherID.create(VALID_UUID_A),
+          'OtherID for cross-type test'
+        );
 
-        const testEntity = makeEntity({ name: 'Alice', age: 30 }, testId);
+        const testEntity = makeEntity(
+          { name: 'Alice', age: 30 },
+          testId
+        );
         const otherEntity = unwrap(
           OtherEntity.create({ code: 'X-001' }, otherId),
           'otherEntity cross-type'

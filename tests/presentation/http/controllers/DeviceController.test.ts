@@ -71,7 +71,9 @@ const createMockReplaceUseCase = () =>
   ({ execute: jest.fn() }) as unknown as ReplaceDeviceUseCase;
 
 const createMockPermanentlyDeleteUseCase = () =>
-  ({ execute: jest.fn() }) as unknown as PermanentlyDeleteDeviceUseCase;
+  ({
+    execute: jest.fn()
+  }) as unknown as PermanentlyDeleteDeviceUseCase;
 
 const createMockLogger = (): jest.Mocked<ILogger> => ({
   info: jest.fn(),
@@ -99,7 +101,11 @@ const createMockResponse = (): {
 } => {
   const jsonMock = jest.fn();
   const statusMock = jest.fn().mockReturnValue({ json: jsonMock });
-  return { res: { status: statusMock, json: jsonMock }, statusMock, jsonMock };
+  return {
+    res: { status: statusMock, json: jsonMock },
+    statusMock,
+    jsonMock
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -157,7 +163,8 @@ describe('DeviceController', () => {
     mockDeleteUseCase = createMockDeleteUseCase();
     mockRestoreUseCase = createMockRestoreUseCase();
     mockReplaceUseCase = createMockReplaceUseCase();
-    mockPermanentlyDeleteUseCase = createMockPermanentlyDeleteUseCase();
+    mockPermanentlyDeleteUseCase =
+      createMockPermanentlyDeleteUseCase();
     mockLogger = createMockLogger();
 
     controller = new DeviceController(
@@ -379,7 +386,8 @@ describe('DeviceController', () => {
         expect(statusMock).toHaveBeenCalledWith(400);
         expect(jsonMock).toHaveBeenCalledWith({
           success: false,
-          error: 'MAC address "AA:BB:CC:DD:EE:FF" is already assigned to another device'
+          error:
+            'MAC address "AA:BB:CC:DD:EE:FF" is already assigned to another device'
         });
       });
 
@@ -439,7 +447,9 @@ describe('DeviceController', () => {
         const mockReq = createMockRequest({ body: validBody });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockCreateUseCase.execute as jest.Mock).mockRejectedValue(thrownError);
+        (mockCreateUseCase.execute as jest.Mock).mockRejectedValue(
+          thrownError
+        );
 
         await controller.create(mockReq as Request, res as Response);
 
@@ -456,7 +466,9 @@ describe('DeviceController', () => {
       });
 
       it('should not leak sensitive error details in the response body', async () => {
-        const sensitiveError = new Error('SELECT * FROM devices; -- injected');
+        const sensitiveError = new Error(
+          'SELECT * FROM devices; -- injected'
+        );
         const mockReq = createMockRequest({ body: validBody });
         const { res, jsonMock } = createMockResponse();
 
@@ -499,7 +511,9 @@ describe('DeviceController', () => {
         const mockReq = createMockRequest({ body: validBody });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockCreateUseCase.execute as jest.Mock).mockRejectedValue(null);
+        (mockCreateUseCase.execute as jest.Mock).mockRejectedValue(
+          null
+        );
 
         await controller.create(mockReq as Request, res as Response);
 
@@ -570,7 +584,11 @@ describe('DeviceController', () => {
 
       it('should forward status, category, and owner filter params to the use case', async () => {
         const mockReq = createMockRequest({
-          query: { status: 'ACTIVE', category: 'GATEWAY', owner: 'COMPANY' }
+          query: {
+            status: 'ACTIVE',
+            category: 'GATEWAY',
+            owner: 'COMPANY'
+          }
         });
         const { res } = createMockResponse();
 
@@ -759,7 +777,9 @@ describe('DeviceController', () => {
         const mockReq = createMockRequest({ query: {} });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockListUseCase.execute as jest.Mock).mockRejectedValue(thrownError);
+        (mockListUseCase.execute as jest.Mock).mockRejectedValue(
+          thrownError
+        );
 
         await controller.list(mockReq as Request, res as Response);
 
@@ -782,7 +802,9 @@ describe('DeviceController', () => {
     // -----------------------------------------------------------------------
     describe('Happy Path', () => {
       it('should return 200 with success: true and data when device is found', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -799,7 +821,9 @@ describe('DeviceController', () => {
       });
 
       it('should pass req.params.id to the use case', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res } = createMockResponse();
 
         (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -808,14 +832,18 @@ describe('DeviceController', () => {
 
         await controller.getById(mockReq as Request, res as Response);
 
-        expect(mockGetUseCase.execute).toHaveBeenCalledWith({ id: VALID_UUID });
+        expect(mockGetUseCase.execute).toHaveBeenCalledWith({
+          id: VALID_UUID
+        });
       });
     });
 
     // -----------------------------------------------------------------------
     describe('Error Path — 404 Not Found', () => {
       it('should return 404 when the use case fails with "not found"', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -835,7 +863,9 @@ describe('DeviceController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 400 Bad Request', () => {
       it('should return 400 when the use case fails with "Invalid" ID format', async () => {
-        const mockReq = createMockRequest({ params: { id: 'bad-id' } });
+        const mockReq = createMockRequest({
+          params: { id: 'bad-id' }
+        });
         const { res, statusMock } = createMockResponse();
 
         (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -851,7 +881,9 @@ describe('DeviceController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 500 Internal Server Error', () => {
       it('should return 500 when the use case fails with an unrecognised message', async () => {
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res, statusMock } = createMockResponse();
 
         (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -865,10 +897,14 @@ describe('DeviceController', () => {
 
       it('should return 500 and log when the use case throws', async () => {
         const thrownError = new Error('Unexpected error');
-        const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetUseCase.execute as jest.Mock).mockRejectedValue(thrownError);
+        (mockGetUseCase.execute as jest.Mock).mockRejectedValue(
+          thrownError
+        );
 
         await controller.getById(mockReq as Request, res as Response);
 
@@ -889,7 +925,9 @@ describe('DeviceController', () => {
   // =========================================================================
   describe('getErrorStatusCode (exercised through all endpoint methods)', () => {
     it('should prioritise "not found" over "Invalid" when both appear in the message', async () => {
-      const mockReq = createMockRequest({ params: { id: VALID_UUID } });
+      const mockReq = createMockRequest({
+        params: { id: VALID_UUID }
+      });
       const { res, statusMock } = createMockResponse();
 
       (mockGetUseCase.execute as jest.Mock).mockResolvedValue(
@@ -935,7 +973,9 @@ describe('DeviceController', () => {
       const mockReq = createMockRequest({ body: {} });
       const { res } = createMockResponse();
 
-      (mockCreateUseCase.execute as jest.Mock).mockRejectedValue(error);
+      (mockCreateUseCase.execute as jest.Mock).mockRejectedValue(
+        error
+      );
 
       await controller.create(mockReq as Request, res as Response);
 
@@ -1002,7 +1042,10 @@ describe('DeviceController', () => {
         await controller.update(mockReq as Request, res as Response);
 
         expect(mockUpdateUseCase.execute).toHaveBeenCalledWith(
-          expect.objectContaining({ id: VALID_UUID, status: 'ACTIVE' })
+          expect.objectContaining({
+            id: VALID_UUID,
+            status: 'ACTIVE'
+          })
         );
       });
 
@@ -1192,7 +1235,9 @@ describe('DeviceController', () => {
         const { res, statusMock } = createMockResponse();
 
         (mockUpdateUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('Status must be one of: INVENTORY, ACTIVE, MAINTENANCE, DAMAGED, DECOMMISSIONED')
+          Result.fail(
+            'Status must be one of: INVENTORY, ACTIVE, MAINTENANCE, DAMAGED, DECOMMISSIONED'
+          )
         );
 
         await controller.update(mockReq as Request, res as Response);
@@ -1234,7 +1279,9 @@ describe('DeviceController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockUpdateUseCase.execute as jest.Mock).mockRejectedValue(thrownError);
+        (mockUpdateUseCase.execute as jest.Mock).mockRejectedValue(
+          thrownError
+        );
 
         await controller.update(mockReq as Request, res as Response);
 
@@ -1251,7 +1298,9 @@ describe('DeviceController', () => {
       });
 
       it('should not leak sensitive error details in the response body', async () => {
-        const sensitiveError = new Error('SELECT * FROM devices; -- injected');
+        const sensitiveError = new Error(
+          'SELECT * FROM devices; -- injected'
+        );
         const mockReq = createMockRequest({
           params: { id: VALID_UUID },
           body: {}

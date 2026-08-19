@@ -12,7 +12,10 @@ import { ListDeviceModelsUseCase } from '../../../../src/application/device-inve
 import { IDeviceModelRepository } from '../../../../src/domain/device-inventory/repository/IDeviceModelRepository';
 import { DeviceModel } from '../../../../src/domain/device-inventory/aggregates/DeviceModel';
 import { DeviceType } from '../../../../src/domain/device-inventory/value-objects';
-import { DeviceModelId, VendorId } from '../../../../src/domain/shared/ids';
+import {
+  DeviceModelId,
+  VendorId
+} from '../../../../src/domain/shared/ids';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
@@ -23,25 +26,26 @@ import { Result } from '../../../../src/domain/shared/core/Result';
 const VENDOR_UUID = '550e8400-e29b-41d4-a716-446655440001';
 const NOW = new Date('2024-01-01T00:00:00.000Z');
 
-function makeDeviceModel(id: string = '550e8400-e29b-41d4-a716-446655440000'): DeviceModel {
-  return DeviceModel.reconstitute(
-    DeviceModelId.parse(id).value!,
-    {
-      vendorId: VendorId.parse(VENDOR_UUID).value!,
-      vendorName: 'Mikrotik',
-      vendorSlug: 'mikrotik',
-      model: 'RB760iGS',
-      deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
-      isWireless: false,
-      createdAt: NOW,
-      updatedAt: NOW
-    }
-  );
+function makeDeviceModel(
+  id: string = '550e8400-e29b-41d4-a716-446655440000'
+): DeviceModel {
+  return DeviceModel.reconstitute(DeviceModelId.parse(id).value!, {
+    vendorId: VendorId.parse(VENDOR_UUID).value!,
+    vendorName: 'Mikrotik',
+    vendorSlug: 'mikrotik',
+    model: 'RB760iGS',
+    deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
+    isWireless: false,
+    createdAt: NOW,
+    updatedAt: NOW
+  });
 }
 
 function makeModelPage(count: number): DeviceModel[] {
   return Array.from({ length: count }, (_, i) =>
-    makeDeviceModel(`550e8400-e29b-41d4-a716-44665544${String(i).padStart(4, '0')}`)
+    makeDeviceModel(
+      `550e8400-e29b-41d4-a716-44665544${String(i).padStart(4, '0')}`
+    )
   );
 }
 
@@ -90,7 +94,9 @@ describe('ListDeviceModelsUseCase', () => {
   // =========================================================================
   describe('happy path', () => {
     it('should return a paginated list of device models', async () => {
-      (repo.findAll as any).mockResolvedValue(Result.ok(makeModelPage(3)));
+      (repo.findAll as any).mockResolvedValue(
+        Result.ok(makeModelPage(3))
+      );
       (repo.count as any).mockResolvedValue(Result.ok(3));
 
       const result = await useCase.execute({});
@@ -101,7 +107,9 @@ describe('ListDeviceModelsUseCase', () => {
     });
 
     it('should pass limit and offset to repository', async () => {
-      (repo.findAll as any).mockResolvedValue(Result.ok(makeModelPage(5)));
+      (repo.findAll as any).mockResolvedValue(
+        Result.ok(makeModelPage(5))
+      );
       (repo.count as any).mockResolvedValue(Result.ok(20));
 
       await useCase.execute({ limit: 5, offset: 10 });
@@ -128,7 +136,9 @@ describe('ListDeviceModelsUseCase', () => {
     });
 
     it('should return hasMore=true when more pages exist', async () => {
-      (repo.findAll as any).mockResolvedValue(Result.ok(makeModelPage(20)));
+      (repo.findAll as any).mockResolvedValue(
+        Result.ok(makeModelPage(20))
+      );
       (repo.count as any).mockResolvedValue(Result.ok(50));
 
       const result = await useCase.execute({ limit: 20, offset: 0 });
@@ -137,7 +147,9 @@ describe('ListDeviceModelsUseCase', () => {
     });
 
     it('should return hasMore=false on the last page', async () => {
-      (repo.findAll as any).mockResolvedValue(Result.ok(makeModelPage(5)));
+      (repo.findAll as any).mockResolvedValue(
+        Result.ok(makeModelPage(5))
+      );
       (repo.count as any).mockResolvedValue(Result.ok(25));
 
       const result = await useCase.execute({ limit: 20, offset: 20 });
@@ -149,7 +161,9 @@ describe('ListDeviceModelsUseCase', () => {
   // =========================================================================
   describe('error handling', () => {
     it('should propagate findAll repository failures', async () => {
-      (repo.findAll as any).mockResolvedValue(Result.fail('DB error'));
+      (repo.findAll as any).mockResolvedValue(
+        Result.fail('DB error')
+      );
 
       const result = await useCase.execute({});
 

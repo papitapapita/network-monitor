@@ -109,7 +109,9 @@ describe('WirelessAlertRecordId', () => {
         const result = WirelessAlertRecordId.parse(upperCaseUuid);
 
         expect(result.isSuccess).toBe(true);
-        expect(result.value.toValue()).toBe(VALID_UUID_A.toLowerCase());
+        expect(result.value.toValue()).toBe(
+          VALID_UUID_A.toLowerCase()
+        );
       });
     });
 
@@ -144,19 +146,25 @@ describe('WirelessAlertRecordId', () => {
       });
 
       it('should return a failure Result for a UUID with leading whitespace', () => {
-        const result = WirelessAlertRecordId.parse(` ${VALID_UUID_A}`);
+        const result = WirelessAlertRecordId.parse(
+          ` ${VALID_UUID_A}`
+        );
 
         expect(result.isFailure).toBe(true);
       });
 
       it('should return a failure Result for a UUID with trailing whitespace', () => {
-        const result = WirelessAlertRecordId.parse(`${VALID_UUID_A} `);
+        const result = WirelessAlertRecordId.parse(
+          `${VALID_UUID_A} `
+        );
 
         expect(result.isFailure).toBe(true);
       });
 
       it('should return a failure Result for a partial UUID', () => {
-        const result = WirelessAlertRecordId.parse('c9f8e7d6-b5a4-4c3d');
+        const result = WirelessAlertRecordId.parse(
+          'c9f8e7d6-b5a4-4c3d'
+        );
 
         expect(result.isFailure).toBe(true);
       });
@@ -223,7 +231,8 @@ describe('WirelessAlertRecordId', () => {
     });
 
     it('should return false when compared to a different UniqueEntityID subclass with the same UUID', () => {
-      const alertRecordId = WirelessAlertRecordId.parse(VALID_UUID_A).value;
+      const alertRecordId =
+        WirelessAlertRecordId.parse(VALID_UUID_A).value;
       const testId = TestID.withUuid(VALID_UUID_A);
 
       expect(alertRecordId.equals(testId)).toBe(false);
@@ -232,13 +241,17 @@ describe('WirelessAlertRecordId', () => {
     it('should return false when compared to null', () => {
       const id = WirelessAlertRecordId.parse(VALID_UUID_A).value;
 
-      expect(id.equals(null as unknown as UniqueEntityID)).toBe(false);
+      expect(id.equals(null as unknown as UniqueEntityID)).toBe(
+        false
+      );
     });
 
     it('should return false when compared to undefined', () => {
       const id = WirelessAlertRecordId.parse(VALID_UUID_A).value;
 
-      expect(id.equals(undefined as unknown as UniqueEntityID)).toBe(false);
+      expect(id.equals(undefined as unknown as UniqueEntityID)).toBe(
+        false
+      );
     });
 
     it('should be reflexive — an ID equals itself', () => {
@@ -287,8 +300,10 @@ describe('WirelessAlertRecordId', () => {
     });
 
     it('should allow two IDs parsed from the same UUID to be considered equal', () => {
-      const parsedId = WirelessAlertRecordId.parse(VALID_UUID_A).value;
-      const secondParsedId = WirelessAlertRecordId.parse(VALID_UUID_A).value;
+      const parsedId =
+        WirelessAlertRecordId.parse(VALID_UUID_A).value;
+      const secondParsedId =
+        WirelessAlertRecordId.parse(VALID_UUID_A).value;
 
       expect(parsedId.equals(secondParsedId)).toBe(true);
     });

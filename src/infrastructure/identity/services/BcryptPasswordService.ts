@@ -8,7 +8,10 @@ export class BcryptPasswordService implements IPasswordService {
     return bcrypt.hash(plain, COST);
   }
 
-  public async compare(plain: string, hash: string): Promise<boolean> {
+  public async compare(
+    plain: string,
+    hash: string
+  ): Promise<boolean> {
     return bcrypt.compare(plain, hash);
   }
 }

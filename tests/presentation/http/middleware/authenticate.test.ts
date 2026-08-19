@@ -152,7 +152,9 @@ describe('createAuthenticateMiddleware', () => {
   // =========================================================================
   describe('when tokenService.verify returns a failure', () => {
     it('should return 401 when token verification fails', () => {
-      tokenService.verify.mockReturnValue(Result.fail('token expired'));
+      tokenService.verify.mockReturnValue(
+        Result.fail('token expired')
+      );
       const { res, statusMock, jsonMock } = createMockResponse();
       const req = createMockRequest({
         headers: { authorization: 'Bearer expired.jwt.here' }
@@ -169,7 +171,9 @@ describe('createAuthenticateMiddleware', () => {
     });
 
     it('should not call next() when token is invalid', () => {
-      tokenService.verify.mockReturnValue(Result.fail('invalid signature'));
+      tokenService.verify.mockReturnValue(
+        Result.fail('invalid signature')
+      );
       const { res } = createMockResponse();
       const req = createMockRequest({
         headers: { authorization: 'Bearer bad.token' }
@@ -191,7 +195,9 @@ describe('createAuthenticateMiddleware', () => {
 
       middleware(req as Request, res as Response, mockNext);
 
-      expect(tokenService.verify).toHaveBeenCalledWith('my.jwt.value');
+      expect(tokenService.verify).toHaveBeenCalledWith(
+        'my.jwt.value'
+      );
     });
   });
 
@@ -247,7 +253,9 @@ describe('createAuthenticateMiddleware', () => {
 
       middleware(req as Request, res as Response, mockNext);
 
-      expect(tokenService.verify).toHaveBeenCalledWith('header.payload.sig');
+      expect(tokenService.verify).toHaveBeenCalledWith(
+        'header.payload.sig'
+      );
     });
   });
 });

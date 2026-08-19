@@ -1,6 +1,13 @@
 // Source: src/application/device-inventory/use-cases/DeleteVendorUseCase.ts
 
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import {
+  describe,
+  it,
+  expect,
+  jest,
+  beforeEach,
+  afterEach
+} from '@jest/globals';
 import { DeleteVendorUseCase } from '../../../../src/application/device-inventory/use-cases/DeleteVendorUseCase';
 import { IVendorRepository } from '../../../../src/domain/device-inventory/repository/IVendorRepository';
 import { IDeviceModelRepository } from '../../../../src/domain/device-inventory/repository/IDeviceModelRepository';
@@ -64,7 +71,12 @@ function makeDeviceModelRepo(): jest.Mocked<IDeviceModelRepository> {
 }
 
 function makeVendor(
-  overrides: Partial<{ id: string; name: string; slug: string; description: string | null }> = {}
+  overrides: Partial<{
+    id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+  }> = {}
 ): Vendor {
   return Vendor.reconstitute(
     VendorId.parse(overrides.id ?? VALID_UUID).value!,
@@ -90,11 +102,21 @@ describe('DeleteVendorUseCase', () => {
     vendorRepo = makeVendorRepo();
     deviceModelRepo = makeDeviceModelRepo();
     logger = makeLogger();
-    useCase = new DeleteVendorUseCase(vendorRepo, deviceModelRepo, logger);
+    useCase = new DeleteVendorUseCase(
+      vendorRepo,
+      deviceModelRepo,
+      logger
+    );
 
-    (vendorRepo.findById as any).mockResolvedValue(Result.ok(makeVendor()));
-    (deviceModelRepo.findByVendor as any).mockResolvedValue(Result.ok([]));
-    (vendorRepo.delete as any).mockResolvedValue(Result.ok(undefined));
+    (vendorRepo.findById as any).mockResolvedValue(
+      Result.ok(makeVendor())
+    );
+    (deviceModelRepo.findByVendor as any).mockResolvedValue(
+      Result.ok([])
+    );
+    (vendorRepo.delete as any).mockResolvedValue(
+      Result.ok(undefined)
+    );
   });
 
   afterEach(() => {
@@ -156,7 +178,9 @@ describe('DeleteVendorUseCase', () => {
     });
 
     it('should propagate a findById repository failure', async () => {
-      (vendorRepo.findById as any).mockResolvedValue(Result.fail('Timeout'));
+      (vendorRepo.findById as any).mockResolvedValue(
+        Result.fail('Timeout')
+      );
 
       const result = await useCase.execute({ id: VALID_UUID });
 
@@ -168,7 +192,9 @@ describe('DeleteVendorUseCase', () => {
   describe('[DEV-005] executeImpl — device model guard', () => {
     it('should fail when vendor has associated device models', async () => {
       const fakeModel = {} as DeviceModel;
-      (deviceModelRepo.findByVendor as any).mockResolvedValue(Result.ok([fakeModel]));
+      (deviceModelRepo.findByVendor as any).mockResolvedValue(
+        Result.ok([fakeModel])
+      );
 
       const result = await useCase.execute({ id: VALID_UUID });
 
@@ -177,7 +203,9 @@ describe('DeleteVendorUseCase', () => {
 
     it('should include "Cannot delete vendor" in the error when device models exist', async () => {
       const fakeModel = {} as DeviceModel;
-      (deviceModelRepo.findByVendor as any).mockResolvedValue(Result.ok([fakeModel]));
+      (deviceModelRepo.findByVendor as any).mockResolvedValue(
+        Result.ok([fakeModel])
+      );
 
       const result = await useCase.execute({ id: VALID_UUID });
 
@@ -186,7 +214,9 @@ describe('DeleteVendorUseCase', () => {
 
     it('should include the device model count in the error message', async () => {
       const fakeModels = [{} as DeviceModel, {} as DeviceModel];
-      (deviceModelRepo.findByVendor as any).mockResolvedValue(Result.ok(fakeModels));
+      (deviceModelRepo.findByVendor as any).mockResolvedValue(
+        Result.ok(fakeModels)
+      );
 
       const result = await useCase.execute({ id: VALID_UUID });
 
@@ -194,7 +224,9 @@ describe('DeleteVendorUseCase', () => {
     });
 
     it('should propagate a findByVendor repository failure', async () => {
-      (deviceModelRepo.findByVendor as any).mockResolvedValue(Result.fail('DB error'));
+      (deviceModelRepo.findByVendor as any).mockResolvedValue(
+        Result.fail('DB error')
+      );
 
       const result = await useCase.execute({ id: VALID_UUID });
 
@@ -203,7 +235,9 @@ describe('DeleteVendorUseCase', () => {
 
     it('should not call delete when device models exist', async () => {
       const fakeModel = {} as DeviceModel;
-      (deviceModelRepo.findByVendor as any).mockResolvedValue(Result.ok([fakeModel]));
+      (deviceModelRepo.findByVendor as any).mockResolvedValue(
+        Result.ok([fakeModel])
+      );
 
       await useCase.execute({ id: VALID_UUID });
 
@@ -214,7 +248,9 @@ describe('DeleteVendorUseCase', () => {
   // =========================================================================
   describe('executeImpl — delete operation', () => {
     it('should fail when repository delete returns a failure', async () => {
-      (vendorRepo.delete as any).mockResolvedValue(Result.fail('FK constraint'));
+      (vendorRepo.delete as any).mockResolvedValue(
+        Result.fail('FK constraint')
+      );
 
       const result = await useCase.execute({ id: VALID_UUID });
 
@@ -222,7 +258,9 @@ describe('DeleteVendorUseCase', () => {
     });
 
     it('should carry the repository error message on delete failure', async () => {
-      (vendorRepo.delete as any).mockResolvedValue(Result.fail('FK constraint'));
+      (vendorRepo.delete as any).mockResolvedValue(
+        Result.fail('FK constraint')
+      );
 
       const result = await useCase.execute({ id: VALID_UUID });
 

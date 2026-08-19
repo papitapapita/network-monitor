@@ -8,7 +8,9 @@ import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440060';
 const FIXED_DATE = new Date('2024-06-01T10:01:40.000Z');
 
-function makeUseCase(): jest.Mocked<Pick<SendDeviceRecoveryAlertUseCase, 'execute'>> {
+function makeUseCase(): jest.Mocked<
+  Pick<SendDeviceRecoveryAlertUseCase, 'execute'>
+> {
   return { execute: jest.fn() };
 }
 
@@ -27,11 +29,15 @@ function makeDeviceId(): DeviceId {
 }
 
 function makeEvent(
-  overrides: { latencyMs?: number | null; dateTimeOccurred?: Date } = {}
+  overrides: {
+    latencyMs?: number | null;
+    dateTimeOccurred?: Date;
+  } = {}
 ): DeviceCameOnlineEvent {
   return new DeviceCameOnlineEvent({
     aggregateId: makeDeviceId(),
-    latencyMs: overrides.latencyMs !== undefined ? overrides.latencyMs : 12,
+    latencyMs:
+      overrides.latencyMs !== undefined ? overrides.latencyMs : 12,
     dateTimeOccurred: overrides.dateTimeOccurred ?? FIXED_DATE
   });
 }
@@ -53,7 +59,9 @@ const STUB_ALERT_DTO = {
 };
 
 describe('DeviceCameOnlineNotificationHandler', () => {
-  let useCase: jest.Mocked<Pick<SendDeviceRecoveryAlertUseCase, 'execute'>>;
+  let useCase: jest.Mocked<
+    Pick<SendDeviceRecoveryAlertUseCase, 'execute'>
+  >;
   let logger: jest.Mocked<ILogger>;
   let handler: DeviceCameOnlineNotificationHandler;
 
@@ -73,7 +81,10 @@ describe('DeviceCameOnlineNotificationHandler', () => {
   describe('handle — happy path', () => {
     it('should call sendDeviceRecoveryAlertUseCase.execute with the correct payload', async () => {
       useCase.execute.mockResolvedValue(Result.ok(STUB_ALERT_DTO));
-      const event = makeEvent({ latencyMs: 20, dateTimeOccurred: FIXED_DATE });
+      const event = makeEvent({
+        latencyMs: 20,
+        dateTimeOccurred: FIXED_DATE
+      });
 
       await handler.handle(event);
 
@@ -88,7 +99,9 @@ describe('DeviceCameOnlineNotificationHandler', () => {
     it('should resolve without throwing when use case succeeds', async () => {
       useCase.execute.mockResolvedValue(Result.ok(STUB_ALERT_DTO));
 
-      await expect(handler.handle(makeEvent())).resolves.toBeUndefined();
+      await expect(
+        handler.handle(makeEvent())
+      ).resolves.toBeUndefined();
     });
 
     it('should pass null latencyMs when event carries no latency data', async () => {
@@ -105,7 +118,9 @@ describe('DeviceCameOnlineNotificationHandler', () => {
 
   describe('handle — use case returns failure', () => {
     it('should log an error when the use case returns a failure result', async () => {
-      useCase.execute.mockResolvedValue(Result.fail('No open alert found'));
+      useCase.execute.mockResolvedValue(
+        Result.fail('No open alert found')
+      );
 
       await handler.handle(makeEvent());
 
@@ -113,24 +128,33 @@ describe('DeviceCameOnlineNotificationHandler', () => {
     });
 
     it('should include the error in the logger.error call context', async () => {
-      useCase.execute.mockResolvedValue(Result.fail('No open alert found'));
+      useCase.execute.mockResolvedValue(
+        Result.fail('No open alert found')
+      );
 
       await handler.handle(makeEvent());
 
-      const context = (logger.error as jest.Mock).mock.calls[0][2] as { error: string };
+      const context = (logger.error as jest.Mock).mock
+        .calls[0][2] as { error: string };
       expect(context.error).toBe('No open alert found');
     });
 
     it('should not throw when the use case returns a failure result', async () => {
-      useCase.execute.mockResolvedValue(Result.fail('Recovery skipped'));
+      useCase.execute.mockResolvedValue(
+        Result.fail('Recovery skipped')
+      );
 
-      await expect(handler.handle(makeEvent())).resolves.toBeUndefined();
+      await expect(
+        handler.handle(makeEvent())
+      ).resolves.toBeUndefined();
     });
   });
 
   describe('handle — unexpected exception', () => {
     it('should log an error when the use case throws unexpectedly', async () => {
-      useCase.execute.mockRejectedValue(new Error('Unexpected crash'));
+      useCase.execute.mockRejectedValue(
+        new Error('Unexpected crash')
+      );
 
       await handler.handle(makeEvent());
 
@@ -138,9 +162,13 @@ describe('DeviceCameOnlineNotificationHandler', () => {
     });
 
     it('should not rethrow when the use case throws an unexpected error', async () => {
-      useCase.execute.mockRejectedValue(new Error('Unexpected crash'));
+      useCase.execute.mockRejectedValue(
+        new Error('Unexpected crash')
+      );
 
-      await expect(handler.handle(makeEvent())).resolves.toBeUndefined();
+      await expect(
+        handler.handle(makeEvent())
+      ).resolves.toBeUndefined();
     });
 
     it('should pass the error to logger.error on unexpected throw', async () => {

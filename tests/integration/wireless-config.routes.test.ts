@@ -139,7 +139,10 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     await cleanDatabase(prisma);
 
     plainDeviceId = await seedPlainDevice(prisma, wirelessModelId);
-    configuredDeviceId = await seedDeviceWithConfig(prisma, wirelessModelId);
+    configuredDeviceId = await seedDeviceWithConfig(
+      prisma,
+      wirelessModelId
+    );
     wiredDeviceId = await seedWiredDevice(prisma, wiredModelId);
     apDeviceId = await seedAccessPointDevice(prisma, wirelessModelId);
   });

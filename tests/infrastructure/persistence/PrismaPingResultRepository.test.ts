@@ -84,9 +84,13 @@ describe('PrismaPingResultRepository', () => {
     });
 
     it('should save null latencyMs when isReachable is false', async () => {
-      prisma.pingResult.create.mockResolvedValue(makeFakePrismaRow({ latencyMs: null }));
+      prisma.pingResult.create.mockResolvedValue(
+        makeFakePrismaRow({ latencyMs: null })
+      );
 
-      await repo.save(makeCreateInput({ isReachable: false, latencyMs: null }));
+      await repo.save(
+        makeCreateInput({ isReachable: false, latencyMs: null })
+      );
 
       const data = prisma.pingResult.create.mock.calls[0][0].data;
       expect(data.latencyMs).toBeNull();
@@ -101,7 +105,9 @@ describe('PrismaPingResultRepository', () => {
     });
 
     it('should return a failed Result when Prisma throws', async () => {
-      prisma.pingResult.create.mockRejectedValue(new Error('Constraint error'));
+      prisma.pingResult.create.mockRejectedValue(
+        new Error('Constraint error')
+      );
 
       const result = await repo.save(makeCreateInput());
 
@@ -193,7 +199,9 @@ describe('PrismaPingResultRepository', () => {
     });
 
     it('should return a failed Result when Prisma throws', async () => {
-      prisma.pingResult.findMany.mockRejectedValue(new Error('DB error'));
+      prisma.pingResult.findMany.mockRejectedValue(
+        new Error('DB error')
+      );
 
       const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
       const result = await repo.findLatestByDevice(deviceId, 10);
@@ -221,7 +229,8 @@ describe('PrismaPingResultRepository', () => {
 
     beforeEach(() => {
       prisma.$transaction.mockImplementation(
-        (ops: [Promise<unknown>, Promise<unknown>]) => Promise.all(ops)
+        (ops: [Promise<unknown>, Promise<unknown>]) =>
+          Promise.all(ops)
       );
     });
 
@@ -236,9 +245,14 @@ describe('PrismaPingResultRepository', () => {
     });
 
     it('should return a successful Result with records and total', async () => {
-      prisma.pingResult.findMany.mockResolvedValue([makeFakePrismaRow()]);
+      prisma.pingResult.findMany.mockResolvedValue([
+        makeFakePrismaRow()
+      ]);
       prisma.pingResult.count.mockResolvedValue(1);
-      prisma.$transaction.mockResolvedValue([[makeFakePrismaRow()], 1]);
+      prisma.$transaction.mockResolvedValue([
+        [makeFakePrismaRow()],
+        1
+      ]);
 
       const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
       const result = await repo.findByDevice(deviceId, baseFilters);
@@ -307,7 +321,9 @@ describe('PrismaPingResultRepository', () => {
     });
 
     it('should return a failed Result when Prisma throws', async () => {
-      prisma.$transaction.mockRejectedValue(new Error('Transaction failed'));
+      prisma.$transaction.mockRejectedValue(
+        new Error('Transaction failed')
+      );
 
       const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
       const result = await repo.findByDevice(deviceId, baseFilters);

@@ -1,6 +1,13 @@
 // Source: src/application/device-inventory/use-cases/GetVendorUseCase.ts
 
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import {
+  describe,
+  it,
+  expect,
+  jest,
+  beforeEach,
+  afterEach
+} from '@jest/globals';
 import { GetVendorUseCase } from '../../../../src/application/device-inventory/use-cases/GetVendorUseCase';
 import { IVendorRepository } from '../../../../src/domain/device-inventory/repository/IVendorRepository';
 import { Vendor } from '../../../../src/domain/device-inventory/aggregates/Vendor';
@@ -49,7 +56,12 @@ function makeRepo(): jest.Mocked<IVendorRepository> {
 }
 
 function makeVendor(
-  overrides: Partial<{ id: string; name: string; slug: string; description: string | null }> = {}
+  overrides: Partial<{
+    id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+  }> = {}
 ): Vendor {
   return Vendor.reconstitute(
     VendorId.parse(overrides.id ?? VALID_UUID).value!,
@@ -151,7 +163,9 @@ describe('GetVendorUseCase', () => {
     });
 
     it('should propagate a repository failure from findById', async () => {
-      (repo.findById as any).mockResolvedValue(Result.fail('DB timeout'));
+      (repo.findById as any).mockResolvedValue(
+        Result.fail('DB timeout')
+      );
 
       const result = await useCase.execute({ id: VALID_UUID });
 
@@ -159,7 +173,9 @@ describe('GetVendorUseCase', () => {
     });
 
     it('should carry the repository error message through on findById failure', async () => {
-      (repo.findById as any).mockResolvedValue(Result.fail('DB timeout'));
+      (repo.findById as any).mockResolvedValue(
+        Result.fail('DB timeout')
+      );
 
       const result = await useCase.execute({ id: VALID_UUID });
 
@@ -182,7 +198,9 @@ describe('GetVendorUseCase', () => {
     });
 
     it('should return a DTO with the correct name', async () => {
-      (repo.findById as any).mockResolvedValue(Result.ok(makeVendor({ name: 'Ubiquiti' })));
+      (repo.findById as any).mockResolvedValue(
+        Result.ok(makeVendor({ name: 'Ubiquiti' }))
+      );
 
       const result = await useCase.execute({ id: VALID_UUID });
 
@@ -190,7 +208,9 @@ describe('GetVendorUseCase', () => {
     });
 
     it('should return a DTO with the correct slug', async () => {
-      (repo.findById as any).mockResolvedValue(Result.ok(makeVendor({ slug: 'ubiquiti' })));
+      (repo.findById as any).mockResolvedValue(
+        Result.ok(makeVendor({ slug: 'ubiquiti' }))
+      );
 
       const result = await useCase.execute({ id: VALID_UUID });
 

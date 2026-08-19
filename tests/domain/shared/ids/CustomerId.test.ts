@@ -282,7 +282,8 @@ describe('CustomerId', () => {
   // -------------------------------------------------------------------------
   describe('Result integration', () => {
     it('should return a properly formed Result on a successful parse', () => {
-      const result: Result<CustomerId> = CustomerId.parse(VALID_UUID_A);
+      const result: Result<CustomerId> =
+        CustomerId.parse(VALID_UUID_A);
 
       expect(result.isSuccess).toBe(true);
       expect(result.isFailure).toBe(false);

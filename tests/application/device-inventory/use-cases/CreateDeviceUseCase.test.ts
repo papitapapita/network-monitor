@@ -460,7 +460,9 @@ describe('CreateDeviceUseCase', () => {
     });
 
     it('should propagate a repository failure from exists', async () => {
-      locationRepo.exists.mockResolvedValue(Result.fail('DB timeout'));
+      locationRepo.exists.mockResolvedValue(
+        Result.fail('DB timeout')
+      );
 
       const result = await useCase.execute(
         makeMinimalRequest({ locationId: VALID_LOCATION_ID })
@@ -482,7 +484,9 @@ describe('CreateDeviceUseCase', () => {
     });
 
     it('should not check the location when locationId is omitted', async () => {
-      await useCase.execute(makeMinimalRequest({ locationId: undefined }));
+      await useCase.execute(
+        makeMinimalRequest({ locationId: undefined })
+      );
 
       expect(locationRepo.exists).not.toHaveBeenCalled();
     });

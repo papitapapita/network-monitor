@@ -3,7 +3,10 @@ import { DeviceId } from 'domain/shared/ids';
 import { IAlertRepository } from 'domain/notifications/repository';
 import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
 import { UseCase } from 'application/shared/core';
-import { ILogger, IAlertPublisher } from 'application/shared/interfaces';
+import {
+  ILogger,
+  IAlertPublisher
+} from 'application/shared/interfaces';
 import { AlertMapper } from '../mappers';
 import {
   AlertResponseDTO,

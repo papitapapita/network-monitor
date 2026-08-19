@@ -27,7 +27,9 @@ describe('createDeviceSchema', () => {
   // -------------------------------------------------------------------------
   describe('happy path', () => {
     it('should accept a minimal valid body with only required fields', () => {
-      const result = createDeviceSchema.safeParse({ body: validCreateBody });
+      const result = createDeviceSchema.safeParse({
+        body: validCreateBody
+      });
 
       expect(result.success).toBe(true);
     });
@@ -54,11 +56,7 @@ describe('createDeviceSchema', () => {
     });
 
     it('should accept all valid status values', () => {
-      const statuses = [
-        'INVENTORY',
-        'ACTIVE',
-        'DAMAGED'
-      ] as const;
+      const statuses = ['INVENTORY', 'ACTIVE', 'DAMAGED'] as const;
 
       for (const status of statuses) {
         const result = createDeviceSchema.safeParse({
@@ -502,32 +500,36 @@ describe('listDevicesSchema', () => {
     });
 
     it('should accept limit at its minimum boundary of 1', () => {
-      const result = listDevicesSchema.safeParse({ query: { limit: '1' } });
+      const result = listDevicesSchema.safeParse({
+        query: { limit: '1' }
+      });
 
       expect(result.success).toBe(true);
     });
 
     it('should accept limit at its maximum boundary of 300', () => {
-      const result = listDevicesSchema.safeParse({ query: { limit: '300' } });
+      const result = listDevicesSchema.safeParse({
+        query: { limit: '300' }
+      });
 
       expect(result.success).toBe(true);
     });
 
     it('should accept offset of 0', () => {
-      const result = listDevicesSchema.safeParse({ query: { offset: '0' } });
+      const result = listDevicesSchema.safeParse({
+        query: { offset: '0' }
+      });
 
       expect(result.success).toBe(true);
     });
 
     it('should accept all valid status filter values', () => {
-      const statuses = [
-        'INVENTORY',
-        'ACTIVE',
-        'DAMAGED'
-      ] as const;
+      const statuses = ['INVENTORY', 'ACTIVE', 'DAMAGED'] as const;
 
       for (const status of statuses) {
-        const result = listDevicesSchema.safeParse({ query: { status } });
+        const result = listDevicesSchema.safeParse({
+          query: { status }
+        });
         expect(result.success).toBe(true);
       }
     });
@@ -543,7 +545,9 @@ describe('listDevicesSchema', () => {
       ] as const;
 
       for (const category of categories) {
-        const result = listDevicesSchema.safeParse({ query: { category } });
+        const result = listDevicesSchema.safeParse({
+          query: { category }
+        });
         expect(result.success).toBe(true);
       }
     });
@@ -552,7 +556,9 @@ describe('listDevicesSchema', () => {
       const owners = ['COMPANY', 'CLIENT'] as const;
 
       for (const owner of owners) {
-        const result = listDevicesSchema.safeParse({ query: { owner } });
+        const result = listDevicesSchema.safeParse({
+          query: { owner }
+        });
         expect(result.success).toBe(true);
       }
     });
@@ -581,7 +587,9 @@ describe('listDevicesSchema', () => {
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.query.monitoringEnabled).toBe(true);
-        expect(typeof result.data.query.monitoringEnabled).toBe('boolean');
+        expect(typeof result.data.query.monitoringEnabled).toBe(
+          'boolean'
+        );
       }
     });
 
@@ -593,7 +601,9 @@ describe('listDevicesSchema', () => {
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.query.monitoringEnabled).toBe(false);
-        expect(typeof result.data.query.monitoringEnabled).toBe('boolean');
+        expect(typeof result.data.query.monitoringEnabled).toBe(
+          'boolean'
+        );
       }
     });
 
@@ -606,14 +616,18 @@ describe('listDevicesSchema', () => {
       ] as const;
 
       for (const sortBy of sortByValues) {
-        const result = listDevicesSchema.safeParse({ query: { sortBy } });
+        const result = listDevicesSchema.safeParse({
+          query: { sortBy }
+        });
         expect(result.success).toBe(true);
       }
     });
 
     it('should accept sortOrder ASC and DESC', () => {
       for (const sortOrder of ['ASC', 'DESC'] as const) {
-        const result = listDevicesSchema.safeParse({ query: { sortOrder } });
+        const result = listDevicesSchema.safeParse({
+          query: { sortOrder }
+        });
         expect(result.success).toBe(true);
       }
     });
@@ -650,7 +664,9 @@ describe('listDevicesSchema', () => {
   // -------------------------------------------------------------------------
   describe('limit validation', () => {
     it('should fail when limit is 0 (below minimum of 1)', () => {
-      const result = listDevicesSchema.safeParse({ query: { limit: '0' } });
+      const result = listDevicesSchema.safeParse({
+        query: { limit: '0' }
+      });
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -663,7 +679,9 @@ describe('listDevicesSchema', () => {
     });
 
     it('should fail when limit is 301 (above maximum of 300)', () => {
-      const result = listDevicesSchema.safeParse({ query: { limit: '301' } });
+      const result = listDevicesSchema.safeParse({
+        query: { limit: '301' }
+      });
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -676,7 +694,9 @@ describe('listDevicesSchema', () => {
     });
 
     it('should fail when limit is a non-numeric string', () => {
-      const result = listDevicesSchema.safeParse({ query: { limit: 'abc' } });
+      const result = listDevicesSchema.safeParse({
+        query: { limit: 'abc' }
+      });
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -689,13 +709,17 @@ describe('listDevicesSchema', () => {
     });
 
     it('should fail when limit is a decimal string', () => {
-      const result = listDevicesSchema.safeParse({ query: { limit: '10.5' } });
+      const result = listDevicesSchema.safeParse({
+        query: { limit: '10.5' }
+      });
 
       expect(result.success).toBe(false);
     });
 
     it('should fail when limit is a negative number string', () => {
-      const result = listDevicesSchema.safeParse({ query: { limit: '-1' } });
+      const result = listDevicesSchema.safeParse({
+        query: { limit: '-1' }
+      });
 
       expect(result.success).toBe(false);
     });
@@ -704,7 +728,9 @@ describe('listDevicesSchema', () => {
   // -------------------------------------------------------------------------
   describe('offset validation', () => {
     it('should fail when offset is a non-numeric string', () => {
-      const result = listDevicesSchema.safeParse({ query: { offset: 'xyz' } });
+      const result = listDevicesSchema.safeParse({
+        query: { offset: 'xyz' }
+      });
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -717,7 +743,9 @@ describe('listDevicesSchema', () => {
     });
 
     it('should fail when offset is a decimal string', () => {
-      const result = listDevicesSchema.safeParse({ query: { offset: '2.5' } });
+      const result = listDevicesSchema.safeParse({
+        query: { offset: '2.5' }
+      });
 
       expect(result.success).toBe(false);
     });
@@ -940,7 +968,9 @@ describe('getDeviceByIdSchema', () => {
     });
 
     it('should fail when id is an empty string', () => {
-      const result = getDeviceByIdSchema.safeParse({ params: { id: '' } });
+      const result = getDeviceByIdSchema.safeParse({
+        params: { id: '' }
+      });
 
       expect(result.success).toBe(false);
     });
@@ -1041,11 +1071,7 @@ describe('updateDeviceSchema', () => {
     });
 
     it('should accept all valid status values', () => {
-      const statuses = [
-        'INVENTORY',
-        'ACTIVE',
-        'DAMAGED'
-      ] as const;
+      const statuses = ['INVENTORY', 'ACTIVE', 'DAMAGED'] as const;
 
       for (const status of statuses) {
         const result = updateDeviceSchema.safeParse({

@@ -46,13 +46,13 @@ cascade delete actually cascades. That is what this standard covers.
 
 A single layer cannot give both guarantees cheaply:
 
-| Question                                            | Answered by     |
-| --------------------------------------------------- | --------------- |
-| "Is the endpoint reachable, authorized, and shaped right?" | Route test      |
-| "Does this business rule hold against real data?"   | Use case test   |
-| "Does this aggregate reject invalid state?"         | Unit test       |
+| Question                                                   | Answered by   |
+| ---------------------------------------------------------- | ------------- |
+| "Is the endpoint reachable, authorized, and shaped right?" | Route test    |
+| "Does this business rule hold against real data?"          | Use case test |
+| "Does this aggregate reject invalid state?"                | Unit test     |
 
-Writing one test per use case *and* one per endpoint duplicates ~70% of the
+Writing one test per use case _and_ one per endpoint duplicates ~70% of the
 assertions. This standard splits them by **what can break**, not by what exists.
 
 ---
@@ -153,7 +153,7 @@ scheduled jobs that have no endpoint at all.
 The rule is deliberately mechanical: one file per use case, named after it. A
 judgment-based rule ("only if it's interesting") leaves gaps that nobody notices
 until a refactor breaks something silently, and it makes the audit ambiguous —
-you cannot tell a use case that *needs* no test from one that was *forgotten*.
+you cannot tell a use case that _needs_ no test from one that was _forgotten_.
 With a 1:1 rule, coverage is a `find` command:
 
 ```bash
@@ -164,7 +164,7 @@ for f in $(find src/application -path "*/use-cases/*UseCase.ts" | grep -v "/shar
 done
 ```
 
-The triggers below no longer decide *whether* to write the file — they decide **how
+The triggers below no longer decide _whether_ to write the file — they decide **how
 much depth the file needs**. A use case hitting several triggers deserves a thorough
 suite; a thin pass-through can be short, but it still exists and still proves the
 round trip works.
@@ -241,15 +241,15 @@ tests/integration/
 
 **Rules:**
 
-| Thing              | Pattern                                  | Example                                      |
-| ------------------ | ---------------------------------------- | -------------------------------------------- |
-| Route test file    | `<resource>.routes.test.ts`              | `vendor.routes.test.ts`                       |
-| Use case test file | `<UseCaseName>.integration.test.ts`      | `CreateVendorUseCase.integration.test.ts`     |
-| Route describe     | `'<Resource> Routes — /api/<resource>'`  | `'Vendor Routes — /api/vendors'`              |
-| Use case describe  | `'<UseCaseName> — integration'`          | `'CreateVendorUseCase — integration'`         |
-| Nested describe    | `'<METHOD> /api/<path>'`                 | `'POST /api/vendors'`                         |
-| Route `it`         | `'<status> — <behavior>'`                | `'403 — rejects VIEWER creating a vendor'`    |
-| Use case `it`      | Plain behavioral sentence                | `'fails when the slug already exists'`        |
+| Thing              | Pattern                                 | Example                                    |
+| ------------------ | --------------------------------------- | ------------------------------------------ |
+| Route test file    | `<resource>.routes.test.ts`             | `vendor.routes.test.ts`                    |
+| Use case test file | `<UseCaseName>.integration.test.ts`     | `CreateVendorUseCase.integration.test.ts`  |
+| Route describe     | `'<Resource> Routes — /api/<resource>'` | `'Vendor Routes — /api/vendors'`           |
+| Use case describe  | `'<UseCaseName> — integration'`         | `'CreateVendorUseCase — integration'`      |
+| Nested describe    | `'<METHOD> /api/<path>'`                | `'POST /api/vendors'`                      |
+| Route `it`         | `'<status> — <behavior>'`               | `'403 — rejects VIEWER creating a vendor'` |
+| Use case `it`      | Plain behavioral sentence               | `'fails when the slug already exists'`     |
 
 Every file opens with a `// Source:` comment naming the file under test.
 
@@ -269,7 +269,12 @@ import { Application } from 'express';
 import { PrismaClient } from '../../src/generated/prisma/client';
 import { createTestApp } from './helpers/createTestApp';
 import { seedAndGetToken } from './helpers/auth';
-import { cleanCatalog, seedVendor, GHOST_ID, INVALID_ID } from './helpers/db';
+import {
+  cleanCatalog,
+  seedVendor,
+  GHOST_ID,
+  INVALID_ID
+} from './helpers/db';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
 
 describe('Vendor Routes — /api/vendors', () => {
@@ -303,7 +308,10 @@ describe('Vendor Routes — /api/vendors', () => {
 
       expect(res.status).toBe(201);
       expect(res.body.success).toBe(true);
-      expect(res.body.data).toMatchObject({ name: 'Ubiquiti', slug: 'ubiquiti' });
+      expect(res.body.data).toMatchObject({
+        name: 'Ubiquiti',
+        slug: 'ubiquiti'
+      });
     });
 
     it('401 — rejects an unauthenticated request', async () => {
@@ -369,7 +377,10 @@ import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { CreateVendorUseCase } from 'application/device-inventory/use-cases/CreateVendorUseCase';
 import { PrismaVendorRepository } from 'infrastructure/persistence/PrismaVendorRepository';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
-import { setupDependencies, DependencyContainer } from 'infrastructure/di/container';
+import {
+  setupDependencies,
+  DependencyContainer
+} from 'infrastructure/di/container';
 import { cleanCatalog, seedVendor } from '../../helpers/db';
 
 describe('CreateVendorUseCase — integration', () => {
@@ -395,11 +406,16 @@ describe('CreateVendorUseCase — integration', () => {
   });
 
   it('persists a vendor and returns its id', async () => {
-    const result = await useCase.execute({ name: 'MikroTik', slug: 'mikrotik' });
+    const result = await useCase.execute({
+      name: 'MikroTik',
+      slug: 'mikrotik'
+    });
 
     expect(result.isSuccess).toBe(true);
 
-    const row = await prisma.vendor.findUnique({ where: { slug: 'mikrotik' } });
+    const row = await prisma.vendor.findUnique({
+      where: { slug: 'mikrotik' }
+    });
     expect(row).not.toBeNull();
     expect(row!.name).toBe('MikroTik');
   });
@@ -407,7 +423,10 @@ describe('CreateVendorUseCase — integration', () => {
   it('fails when the slug already exists', async () => {
     await seedVendor(prisma, { slug: 'mikrotik' });
 
-    const result = await useCase.execute({ name: 'Other', slug: 'mikrotik' });
+    const result = await useCase.execute({
+      name: 'Other',
+      slug: 'mikrotik'
+    });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/already exists/i);
@@ -428,12 +447,12 @@ files need.
 
 ### Naming
 
-| Prefix     | Meaning                                                   | Example                      |
-| ---------- | --------------------------------------------------------- | ---------------------------- |
-| `clean*`   | Deletes rows in FK-safe order. Returns `void`.             | `cleanCatalog(prisma)`       |
-| `seed*`    | Upserts or creates a fixture. Returns the id.              | `seedVendor(prisma)`         |
-| `waitFor*` | Polls until an async side effect lands, or throws.         | `waitForPollingConfig(...)`  |
-| `Fake*`    | Controllable in-memory implementation of an outbound port. | `FakePingService`            |
+| Prefix     | Meaning                                                    | Example                     |
+| ---------- | ---------------------------------------------------------- | --------------------------- |
+| `clean*`   | Deletes rows in FK-safe order. Returns `void`.             | `cleanCatalog(prisma)`      |
+| `seed*`    | Upserts or creates a fixture. Returns the id.              | `seedVendor(prisma)`        |
+| `waitFor*` | Polls until an async side effect lands, or throws.         | `waitForPollingConfig(...)` |
+| `Fake*`    | Controllable in-memory implementation of an outbound port. | `FakePingService`           |
 
 ### Rules
 
@@ -464,14 +483,14 @@ afterAll    → container.disconnect()
 ```
 
 **Migrations are not optional.** The suite runs against `network_monitor_test`, which
-is a *separate database from dev*. Running `prisma migrate dev` in your normal shell
+is a _separate database from dev_. Running `prisma migrate dev` in your normal shell
 does **not** migrate it. Before blaming a failure on the code:
 
 ```bash
 set -a; . ./.env.test; set +a; npx prisma migrate status
 ```
 
-A schema drift shows up as `column <x> of relation <y> does not exist` in *every*
+A schema drift shows up as `column <x> of relation <y> does not exist` in _every_
 suite that seeds that table — a broad, uniform failure across unrelated contexts is
 almost always drift, not a regression.
 

@@ -97,7 +97,9 @@ describe('[WLS-123] WirelessAlertClearedNotificationHandler', () => {
 
   describe('handle — resilience', () => {
     it('should log an error when the publisher returns a failure', async () => {
-      publisher.publish.mockResolvedValue(Result.fail('telegram down'));
+      publisher.publish.mockResolvedValue(
+        Result.fail('telegram down')
+      );
 
       await handler.handle(makeEvent('CRITICAL'));
 

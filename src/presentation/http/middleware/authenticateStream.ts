@@ -33,7 +33,9 @@ export function createStreamAuthenticateMiddleware(
     const result = tokenService.verify(token);
 
     if (result.isFailure) {
-      res.status(401).json({ success: false, error: 'Invalid token' });
+      res
+        .status(401)
+        .json({ success: false, error: 'Invalid token' });
       return;
     }
 

@@ -11,24 +11,50 @@ const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
 
 function makeNullProps(): WirelessMetricsProps {
   return {
-    signalRxDbm: null, signalTxDbm: null, noiseFloorDbm: null, snrDb: null,
-    ccqPercent: null, frequencyMhz: null,
-    channelWidthMhz: null, throughputTxBps: null,
-    throughputRxBps: null, lanStatus: null, lanSpeedMbps: null, lanDuplex: null,
-    uptimeSeconds: null, cpuLoadPercent: null, memoryUsedPercent: null,
-    clientsConnected: null, throughputTxPps: null,
-    throughputRxPps: null, firmwareVersion: null, deviceName: null,
-    remoteApMac: null, remoteApName: null, remoteApIp: null,
-    distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
-    deviceTimeEpoch: null, macAddress: null, deviceModel: null, ssid: null,
+    signalRxDbm: null,
+    signalTxDbm: null,
+    noiseFloorDbm: null,
+    snrDb: null,
+    ccqPercent: null,
+    frequencyMhz: null,
+    channelWidthMhz: null,
+    throughputTxBps: null,
+    throughputRxBps: null,
+    lanStatus: null,
+    lanSpeedMbps: null,
+    lanDuplex: null,
+    uptimeSeconds: null,
+    cpuLoadPercent: null,
+    memoryUsedPercent: null,
+    clientsConnected: null,
+    throughputTxPps: null,
+    throughputRxPps: null,
+    firmwareVersion: null,
+    deviceName: null,
+    remoteApMac: null,
+    remoteApName: null,
+    remoteApIp: null,
+    distanceM: null,
+    latencyMs: null,
+    capacityTxKbps: null,
+    capacityRxKbps: null,
+    deviceTimeEpoch: null,
+    macAddress: null,
+    deviceModel: null,
+    ssid: null
   };
 }
 
-function makeMetrics(overrides: Partial<WirelessMetricsProps> = {}): WirelessMetrics {
-  return WirelessMetrics.create({ ...makeNullProps(), ...overrides }).value;
+function makeMetrics(
+  overrides: Partial<WirelessMetricsProps> = {}
+): WirelessMetrics {
+  return WirelessMetrics.create({ ...makeNullProps(), ...overrides })
+    .value;
 }
 
-function makeContext(overrides: Partial<EvaluationContext> = {}): EvaluationContext {
+function makeContext(
+  overrides: Partial<EvaluationContext> = {}
+): EvaluationContext {
   return {
     deviceName: 'CPE-001',
     deviceModel: null,
@@ -36,15 +62,27 @@ function makeContext(overrides: Partial<EvaluationContext> = {}): EvaluationCont
     clientsProvisionedLimit: null,
     previousMetrics: null,
     collectedAt: new Date(),
-    ...overrides,
+    ...overrides
   };
 }
 
-function makeActiveAlert(metric: string, severity: 'WARNING' | 'CRITICAL' = 'WARNING'): WirelessAlertRecord {
-  return WirelessAlertRecord.open(DeviceId.parse(DEVICE_UUID).value, metric, severity, -70, -72, 'test').value;
+function makeActiveAlert(
+  metric: string,
+  severity: 'WARNING' | 'CRITICAL' = 'WARNING'
+): WirelessAlertRecord {
+  return WirelessAlertRecord.open(
+    DeviceId.parse(DEVICE_UUID).value,
+    metric,
+    severity,
+    -70,
+    -72,
+    'test'
+  ).value;
 }
 
-function activeMap(...entries: Array<[string, 'WARNING' | 'CRITICAL']>): Map<string, WirelessAlertRecord> {
+function activeMap(
+  ...entries: Array<[string, 'WARNING' | 'CRITICAL']>
+): Map<string, WirelessAlertRecord> {
   const m = new Map<string, WirelessAlertRecord>();
   for (const [metric, sev] of entries) {
     m.set(`${metric}:${sev}`, makeActiveAlert(metric, sev));
@@ -63,14 +101,19 @@ describe('[WLS-081] [WLS-082] [WLS-083] SignalStrengthRule', () => {
     it('should return [] when signalRxDbm is null', () => {
       const metrics = makeMetrics({ signalRxDbm: null });
       const result = rule.evaluate(metrics, makeContext(), new Map());
-      const rxDecisions = result.filter(d => d.metric === 'signal_rx_dbm');
+      const rxDecisions = result.filter(
+        (d) => d.metric === 'signal_rx_dbm'
+      );
       expect(rxDecisions).toHaveLength(0);
     });
 
     it('should emit OPEN WARNING when signal is below -70 dBm and no active alert', () => {
       const metrics = makeMetrics({ signalRxDbm: -72 });
       const result = rule.evaluate(metrics, makeContext(), new Map());
-      const decision = result.find(d => d.metric === 'signal_rx_dbm' && d.severity === 'WARNING');
+      const decision = result.find(
+        (d) =>
+          d.metric === 'signal_rx_dbm' && d.severity === 'WARNING'
+      );
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('OPEN');
       expect(decision!.currentValue).toBe(-72);
@@ -80,7 +123,10 @@ describe('[WLS-081] [WLS-082] [WLS-083] SignalStrengthRule', () => {
     it('should emit OPEN CRITICAL when signal is below -80 dBm and no active alert', () => {
       const metrics = makeMetrics({ signalRxDbm: -82 });
       const result = rule.evaluate(metrics, makeContext(), new Map());
-      const decision = result.find(d => d.metric === 'signal_rx_dbm' && d.severity === 'CRITICAL');
+      const decision = result.find(
+        (d) =>
+          d.metric === 'signal_rx_dbm' && d.severity === 'CRITICAL'
+      );
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('OPEN');
       expect(decision!.currentValue).toBe(-82);
@@ -91,7 +137,10 @@ describe('[WLS-081] [WLS-082] [WLS-083] SignalStrengthRule', () => {
       const metrics = makeMetrics({ signalRxDbm: -65 });
       const alerts = activeMap(['signal_rx_dbm', 'WARNING']);
       const result = rule.evaluate(metrics, makeContext(), alerts);
-      const decision = result.find(d => d.metric === 'signal_rx_dbm' && d.severity === 'WARNING');
+      const decision = result.find(
+        (d) =>
+          d.metric === 'signal_rx_dbm' && d.severity === 'WARNING'
+      );
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('CLEAR');
     });
@@ -100,7 +149,10 @@ describe('[WLS-081] [WLS-082] [WLS-083] SignalStrengthRule', () => {
       const metrics = makeMetrics({ signalRxDbm: -76 });
       const alerts = activeMap(['signal_rx_dbm', 'CRITICAL']);
       const result = rule.evaluate(metrics, makeContext(), alerts);
-      const decision = result.find(d => d.metric === 'signal_rx_dbm' && d.severity === 'CRITICAL');
+      const decision = result.find(
+        (d) =>
+          d.metric === 'signal_rx_dbm' && d.severity === 'CRITICAL'
+      );
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('CLEAR');
     });
@@ -109,7 +161,9 @@ describe('[WLS-081] [WLS-082] [WLS-083] SignalStrengthRule', () => {
       const metrics = makeMetrics({ signalRxDbm: -75 });
       const alerts = activeMap(['signal_rx_dbm', 'WARNING']);
       const result = rule.evaluate(metrics, makeContext(), alerts);
-      const opens = result.filter(d => d.metric === 'signal_rx_dbm' && d.action === 'OPEN');
+      const opens = result.filter(
+        (d) => d.metric === 'signal_rx_dbm' && d.action === 'OPEN'
+      );
       expect(opens).toHaveLength(0);
     });
 
@@ -117,14 +171,22 @@ describe('[WLS-081] [WLS-082] [WLS-083] SignalStrengthRule', () => {
       const metrics = makeMetrics({ signalRxDbm: -69 });
       const alerts = activeMap(['signal_rx_dbm', 'WARNING']);
       const result = rule.evaluate(metrics, makeContext(), alerts);
-      const decision = result.find(d => d.metric === 'signal_rx_dbm' && d.severity === 'WARNING');
+      const decision = result.find(
+        (d) =>
+          d.metric === 'signal_rx_dbm' && d.severity === 'WARNING'
+      );
       expect(decision).toBeUndefined();
     });
 
     it('should not emit OPEN WARNING when signal is exactly at -70 dBm (boundary is exclusive)', () => {
       const metrics = makeMetrics({ signalRxDbm: -70 });
       const result = rule.evaluate(metrics, makeContext(), new Map());
-      const decision = result.find(d => d.metric === 'signal_rx_dbm' && d.severity === 'WARNING' && d.action === 'OPEN');
+      const decision = result.find(
+        (d) =>
+          d.metric === 'signal_rx_dbm' &&
+          d.severity === 'WARNING' &&
+          d.action === 'OPEN'
+      );
       expect(decision).toBeUndefined();
     });
   });
@@ -133,14 +195,19 @@ describe('[WLS-081] [WLS-082] [WLS-083] SignalStrengthRule', () => {
     it('should return [] when signalTxDbm is null', () => {
       const metrics = makeMetrics({ signalTxDbm: null });
       const result = rule.evaluate(metrics, makeContext(), new Map());
-      const txDecisions = result.filter(d => d.metric === 'signal_tx_dbm');
+      const txDecisions = result.filter(
+        (d) => d.metric === 'signal_tx_dbm'
+      );
       expect(txDecisions).toHaveLength(0);
     });
 
     it('should emit OPEN WARNING when Tx signal is below -70 dBm and no active alert', () => {
       const metrics = makeMetrics({ signalTxDbm: -73 });
       const result = rule.evaluate(metrics, makeContext(), new Map());
-      const decision = result.find(d => d.metric === 'signal_tx_dbm' && d.severity === 'WARNING');
+      const decision = result.find(
+        (d) =>
+          d.metric === 'signal_tx_dbm' && d.severity === 'WARNING'
+      );
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('OPEN');
       expect(decision!.threshold).toBe(-70);
@@ -149,7 +216,10 @@ describe('[WLS-081] [WLS-082] [WLS-083] SignalStrengthRule', () => {
     it('should emit OPEN CRITICAL when Tx signal is below -80 dBm and no active alert', () => {
       const metrics = makeMetrics({ signalTxDbm: -81 });
       const result = rule.evaluate(metrics, makeContext(), new Map());
-      const decision = result.find(d => d.metric === 'signal_tx_dbm' && d.severity === 'CRITICAL');
+      const decision = result.find(
+        (d) =>
+          d.metric === 'signal_tx_dbm' && d.severity === 'CRITICAL'
+      );
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('OPEN');
       expect(decision!.threshold).toBe(-80);
@@ -159,26 +229,45 @@ describe('[WLS-081] [WLS-082] [WLS-083] SignalStrengthRule', () => {
       const metrics = makeMetrics({ signalTxDbm: -60 });
       const alerts = activeMap(['signal_tx_dbm', 'WARNING']);
       const result = rule.evaluate(metrics, makeContext(), alerts);
-      const decision = result.find(d => d.metric === 'signal_tx_dbm' && d.severity === 'WARNING');
+      const decision = result.find(
+        (d) =>
+          d.metric === 'signal_tx_dbm' && d.severity === 'WARNING'
+      );
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('CLEAR');
     });
 
     it('should not emit OPEN CRITICAL when CRITICAL alert is already active and breach continues', () => {
       const metrics = makeMetrics({ signalTxDbm: -85 });
-      const alerts = activeMap(['signal_tx_dbm', 'WARNING'], ['signal_tx_dbm', 'CRITICAL']);
+      const alerts = activeMap(
+        ['signal_tx_dbm', 'WARNING'],
+        ['signal_tx_dbm', 'CRITICAL']
+      );
       const result = rule.evaluate(metrics, makeContext(), alerts);
-      const opens = result.filter(d => d.metric === 'signal_tx_dbm' && d.action === 'OPEN');
+      const opens = result.filter(
+        (d) => d.metric === 'signal_tx_dbm' && d.action === 'OPEN'
+      );
       expect(opens).toHaveLength(0);
     });
   });
 
   describe('multi-metric independence', () => {
     it('should evaluate both signal_rx_dbm and signal_tx_dbm independently', () => {
-      const metrics = makeMetrics({ signalRxDbm: -72, signalTxDbm: -71 });
+      const metrics = makeMetrics({
+        signalRxDbm: -72,
+        signalTxDbm: -71
+      });
       const result = rule.evaluate(metrics, makeContext(), new Map());
-      expect(result.filter(d => d.metric === 'signal_rx_dbm' && d.action === 'OPEN')).toHaveLength(1);
-      expect(result.filter(d => d.metric === 'signal_tx_dbm' && d.action === 'OPEN')).toHaveLength(1);
+      expect(
+        result.filter(
+          (d) => d.metric === 'signal_rx_dbm' && d.action === 'OPEN'
+        )
+      ).toHaveLength(1);
+      expect(
+        result.filter(
+          (d) => d.metric === 'signal_tx_dbm' && d.action === 'OPEN'
+        )
+      ).toHaveLength(1);
     });
   });
 });

@@ -54,14 +54,23 @@ function makeConfig(
     ipAddress?: string | null;
   } = {}
 ): PollingConfiguration {
-  const rawIp = overrides.ipAddress !== undefined ? overrides.ipAddress : '10.0.0.1';
+  const rawIp =
+    overrides.ipAddress !== undefined
+      ? overrides.ipAddress
+      : '10.0.0.1';
   return PollingConfiguration.create(
     {
       deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
-      ipAddress: rawIp !== null ? IPAddress.reconstitute(rawIp) : null,
-      interval: PollingInterval.create(overrides.intervalSeconds ?? 60).value,
-      failuresBeforeDown: FailureThreshold.create(overrides.thresholdCount ?? 3).value,
-      enabled: overrides.enabled !== undefined ? overrides.enabled : true
+      ipAddress:
+        rawIp !== null ? IPAddress.reconstitute(rawIp) : null,
+      interval: PollingInterval.create(
+        overrides.intervalSeconds ?? 60
+      ).value,
+      failuresBeforeDown: FailureThreshold.create(
+        overrides.thresholdCount ?? 3
+      ).value,
+      enabled:
+        overrides.enabled !== undefined ? overrides.enabled : true
     },
     PollingConfigurationId.parse(VALID_CONFIG_UUID).value
   ).value;
@@ -90,7 +99,11 @@ describe('ConfigureDevicePollingUseCase', () => {
     suspend = {
       execute: jest.fn().mockResolvedValue(Result.ok(undefined))
     } as unknown as jest.Mocked<SuspendDeviceMonitoringUseCase>;
-    useCase = new ConfigureDevicePollingUseCase(repo, suspend, logger);
+    useCase = new ConfigureDevicePollingUseCase(
+      repo,
+      suspend,
+      logger
+    );
   });
 
   afterEach(() => {
@@ -100,14 +113,18 @@ describe('ConfigureDevicePollingUseCase', () => {
   // ===========================================================================
   describe('beforeExecute — input validation', () => {
     it('should fail when deviceId is an empty string', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: '' }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: '' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Device ID is required');
     });
 
     it('should fail when deviceId is whitespace only', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: '   ' }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: '   ' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Device ID is required');
@@ -117,7 +134,9 @@ describe('ConfigureDevicePollingUseCase', () => {
   // ===========================================================================
   describe('executeImpl — device ID parsing', () => {
     it('should fail when deviceId is not a valid UUID', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: 'not-a-uuid' }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: 'not-a-uuid' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid Device ID');
@@ -127,7 +146,9 @@ describe('ConfigureDevicePollingUseCase', () => {
   // ===========================================================================
   describe('executeImpl — repository interactions', () => {
     it('should fail when the repository returns a failure', async () => {
-      repo.findByDeviceId.mockResolvedValue(Result.fail('DB connection lost'));
+      repo.findByDeviceId.mockResolvedValue(
+        Result.fail('DB connection lost')
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -141,7 +162,9 @@ describe('ConfigureDevicePollingUseCase', () => {
       const result = await useCase.execute(makeRequest());
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('No polling configuration found');
+      expect(result.error).toContain(
+        'No polling configuration found'
+      );
     });
 
     it('should call findByDeviceId with the parsed DeviceId', async () => {
@@ -169,9 +192,13 @@ describe('ConfigureDevicePollingUseCase', () => {
     it('should fail when save returns a failure', async () => {
       const config = makeConfig();
       repo.findByDeviceId.mockResolvedValue(Result.ok(config));
-      repo.save.mockResolvedValue(Result.fail('Constraint violation'));
+      repo.save.mockResolvedValue(
+        Result.fail('Constraint violation')
+      );
 
-      const result = await useCase.execute(makeRequest({ intervalSeconds: 120 }));
+      const result = await useCase.execute(
+        makeRequest({ intervalSeconds: 120 })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Failed to save config');
@@ -185,7 +212,9 @@ describe('ConfigureDevicePollingUseCase', () => {
       repo.findByDeviceId.mockResolvedValue(Result.ok(config));
       repo.save.mockResolvedValue(Result.ok(config));
 
-      const result = await useCase.execute(makeRequest({ intervalSeconds: 300 }));
+      const result = await useCase.execute(
+        makeRequest({ intervalSeconds: 300 })
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(config.interval.seconds).toBe(300);
@@ -195,7 +224,9 @@ describe('ConfigureDevicePollingUseCase', () => {
       const config = makeConfig();
       repo.findByDeviceId.mockResolvedValue(Result.ok(config));
 
-      const result = await useCase.execute(makeRequest({ intervalSeconds: 0 }));
+      const result = await useCase.execute(
+        makeRequest({ intervalSeconds: 0 })
+      );
 
       expect(result.isFailure).toBe(true);
     });
@@ -266,7 +297,9 @@ describe('ConfigureDevicePollingUseCase', () => {
       repo.findByDeviceId.mockResolvedValue(Result.ok(config));
       repo.save.mockResolvedValue(Result.ok(config));
 
-      const result = await useCase.execute(makeRequest({ enabled: true }));
+      const result = await useCase.execute(
+        makeRequest({ enabled: true })
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(config.enabled).toBe(true);
@@ -277,7 +310,9 @@ describe('ConfigureDevicePollingUseCase', () => {
       repo.findByDeviceId.mockResolvedValue(Result.ok(config));
       repo.save.mockResolvedValue(Result.ok(config));
 
-      const result = await useCase.execute(makeRequest({ enabled: false }));
+      const result = await useCase.execute(
+        makeRequest({ enabled: false })
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(suspend.execute).toHaveBeenCalledTimes(1);
@@ -301,9 +336,13 @@ describe('ConfigureDevicePollingUseCase', () => {
       const config = makeConfig({ enabled: true });
       repo.findByDeviceId.mockResolvedValue(Result.ok(config));
       repo.save.mockResolvedValue(Result.ok(config));
-      suspend.execute.mockResolvedValue(Result.fail('alert store down'));
+      suspend.execute.mockResolvedValue(
+        Result.fail('alert store down')
+      );
 
-      const result = await useCase.execute(makeRequest({ enabled: false }));
+      const result = await useCase.execute(
+        makeRequest({ enabled: false })
+      );
 
       expect(result.isFailure).toBe(true);
     });

@@ -88,7 +88,6 @@ function makeFullProps(
 // ---------------------------------------------------------------------------
 
 describe('[WLS-060] [WLS-063] [WLS-064] WirelessClientEntry', () => {
-
   // ===========================================================================
   describe('create()', () => {
     describe('when props are valid', () => {
@@ -169,7 +168,9 @@ describe('[WLS-060] [WLS-063] [WLS-064] WirelessClientEntry', () => {
 
       it('should fail when macAddress is undefined', () => {
         const result = WirelessClientEntry.create(
-          makeMinimalProps({ macAddress: undefined as unknown as string })
+          makeMinimalProps({
+            macAddress: undefined as unknown as string
+          })
         );
 
         expect(result.isFailure).toBe(true);
@@ -314,7 +315,10 @@ describe('[WLS-060] [WLS-063] [WLS-064] WirelessClientEntry', () => {
 
       it('should succeed when both airtime fields are null', () => {
         const result = WirelessClientEntry.create(
-          makeMinimalProps({ dlAirtimePercent: null, ulAirtimePercent: null })
+          makeMinimalProps({
+            dlAirtimePercent: null,
+            ulAirtimePercent: null
+          })
         );
 
         expect(result.isSuccess).toBe(true);
@@ -395,7 +399,9 @@ describe('[WLS-060] [WLS-063] [WLS-064] WirelessClientEntry', () => {
       expect(entry.txBytesTotal).toBe(props.txBytesTotal);
       expect(entry.rxBytesTotal).toBe(props.rxBytesTotal);
       expect(entry.remoteHostname).toBe(props.remoteHostname);
-      expect(entry.remoteIpAddresses).toEqual(props.remoteIpAddresses);
+      expect(entry.remoteIpAddresses).toEqual(
+        props.remoteIpAddresses
+      );
     });
   });
 
@@ -438,11 +444,16 @@ describe('[WLS-060] [WLS-063] [WLS-064] WirelessClientEntry', () => {
         makeFullProps({ remoteIpAddresses: ['10.0.0.1', '10.0.0.2'] })
       ).value;
 
-      expect(entry.remoteIpAddresses).toEqual(['10.0.0.1', '10.0.0.2']);
+      expect(entry.remoteIpAddresses).toEqual([
+        '10.0.0.1',
+        '10.0.0.2'
+      ]);
     });
 
     it('should return null for every optional getter when fields are null', () => {
-      const entry = WirelessClientEntry.create(makeMinimalProps()).value;
+      const entry = WirelessClientEntry.create(
+        makeMinimalProps()
+      ).value;
 
       expect(entry.ipAddress).toBeNull();
       expect(entry.signalRxDbm).toBeNull();
@@ -478,7 +489,9 @@ describe('[WLS-060] [WLS-063] [WLS-064] WirelessClientEntry', () => {
     });
 
     it('should return null for both airtime getters when not set', () => {
-      const entry = WirelessClientEntry.create(makeMinimalProps()).value;
+      const entry = WirelessClientEntry.create(
+        makeMinimalProps()
+      ).value;
 
       expect(entry.dlAirtimePercent).toBeNull();
       expect(entry.ulAirtimePercent).toBeNull();
@@ -528,7 +541,9 @@ describe('[WLS-060] [WLS-063] [WLS-064] WirelessClientEntry', () => {
     });
 
     it('should return null when both are null', () => {
-      const entry = WirelessClientEntry.create(makeMinimalProps()).value;
+      const entry = WirelessClientEntry.create(
+        makeMinimalProps()
+      ).value;
 
       expect(entry.getSnr()).toBeNull();
     });
@@ -537,8 +552,10 @@ describe('[WLS-060] [WLS-063] [WLS-064] WirelessClientEntry', () => {
   // ===========================================================================
   describe('equals()', () => {
     it('should return true for two entries with identical props', () => {
-      const entryA = WirelessClientEntry.create(makeFullProps()).value;
-      const entryB = WirelessClientEntry.create(makeFullProps()).value;
+      const entryA =
+        WirelessClientEntry.create(makeFullProps()).value;
+      const entryB =
+        WirelessClientEntry.create(makeFullProps()).value;
 
       expect(entryA.equals(entryB)).toBe(true);
     });
@@ -566,13 +583,19 @@ describe('[WLS-060] [WLS-063] [WLS-064] WirelessClientEntry', () => {
     });
 
     it('should return false for null', () => {
-      const entry = WirelessClientEntry.create(makeMinimalProps()).value;
+      const entry = WirelessClientEntry.create(
+        makeMinimalProps()
+      ).value;
 
-      expect(entry.equals(null as unknown as WirelessClientEntry)).toBe(false);
+      expect(
+        entry.equals(null as unknown as WirelessClientEntry)
+      ).toBe(false);
     });
 
     it('should return false for undefined', () => {
-      const entry = WirelessClientEntry.create(makeMinimalProps()).value;
+      const entry = WirelessClientEntry.create(
+        makeMinimalProps()
+      ).value;
 
       expect(
         entry.equals(undefined as unknown as WirelessClientEntry)
@@ -583,13 +606,17 @@ describe('[WLS-060] [WLS-063] [WLS-064] WirelessClientEntry', () => {
   // ===========================================================================
   describe('immutability', () => {
     it('should be frozen after creation via create()', () => {
-      const entry = WirelessClientEntry.create(makeMinimalProps()).value;
+      const entry = WirelessClientEntry.create(
+        makeMinimalProps()
+      ).value;
 
       expect(Object.isFrozen(entry)).toBe(true);
     });
 
     it('should be frozen after creation via reconstitute()', () => {
-      const entry = WirelessClientEntry.reconstitute(makeMinimalProps());
+      const entry = WirelessClientEntry.reconstitute(
+        makeMinimalProps()
+      );
 
       expect(Object.isFrozen(entry)).toBe(true);
     });

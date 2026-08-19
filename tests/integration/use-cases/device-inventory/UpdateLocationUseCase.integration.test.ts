@@ -7,10 +7,7 @@ import {
   setupDependencies,
   DependencyContainer
 } from 'infrastructure/di/container';
-import {
-  cleanDatabase,
-  GHOST_ID
-} from '../../helpers/db';
+import { cleanDatabase, GHOST_ID } from '../../helpers/db';
 
 describe('UpdateLocationUseCase — integration', () => {
   let container: DependencyContainer;
@@ -36,7 +33,9 @@ describe('UpdateLocationUseCase — integration', () => {
     await cleanDatabase(prisma);
   });
 
-  async function createLocation(overrides: Record<string, unknown> = {}): Promise<string> {
+  async function createLocation(
+    overrides: Record<string, unknown> = {}
+  ): Promise<string> {
     const result = await createUseCase.execute({
       name: 'Test Location',
       type: 'TOWER',
@@ -53,7 +52,10 @@ describe('UpdateLocationUseCase — integration', () => {
   it('updates the location name', async () => {
     const id = await createLocation();
 
-    const result = await updateUseCase.execute({ id, name: 'Updated Tower' });
+    const result = await updateUseCase.execute({
+      id,
+      name: 'Updated Tower'
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.name).toBe('Updated Tower');
@@ -62,7 +64,10 @@ describe('UpdateLocationUseCase — integration', () => {
   it('updates the location type', async () => {
     const id = await createLocation();
 
-    const result = await updateUseCase.execute({ id, type: 'DATACENTER' });
+    const result = await updateUseCase.execute({
+      id,
+      type: 'DATACENTER'
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.type).toBe('DATACENTER');
@@ -105,7 +110,10 @@ describe('UpdateLocationUseCase — integration', () => {
   it('[DEV-091] fails when type is an invalid enum value', async () => {
     const id = await createLocation();
 
-    const result = await updateUseCase.execute({ id, type: 'ROOFTOP' as any });
+    const result = await updateUseCase.execute({
+      id,
+      type: 'ROOFTOP' as any
+    });
 
     expect(result.isFailure).toBe(true);
   });
@@ -113,7 +121,10 @@ describe('UpdateLocationUseCase — integration', () => {
   it('[DEV-092] fails when only one of latitude/longitude is provided', async () => {
     const id = await createLocation();
 
-    const result = await updateUseCase.execute({ id, latitude: -23.5 });
+    const result = await updateUseCase.execute({
+      id,
+      latitude: -23.5
+    });
 
     expect(result.isFailure).toBe(true);
   });

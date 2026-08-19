@@ -7,9 +7,7 @@ export class PurgeOldPingResultsUseCase {
   ) {}
 
   async execute(retentionDays: number): Promise<Result<number>> {
-    const cutoff = new Date(
-      Date.now() - retentionDays * 86_400_000
-    );
+    const cutoff = new Date(Date.now() - retentionDays * 86_400_000);
     return this.pingResultRepo.deleteOlderThan(cutoff);
   }
 }

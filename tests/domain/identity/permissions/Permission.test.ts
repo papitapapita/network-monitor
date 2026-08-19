@@ -46,7 +46,8 @@ describe('ROLE_PERMISSIONS', () => {
 
   // =========================================================================
   describe('OPERATOR permissions', () => {
-    const operatorPerms: Permission[] = ROLE_PERMISSIONS[UserRole.OPERATOR];
+    const operatorPerms: Permission[] =
+      ROLE_PERMISSIONS[UserRole.OPERATOR];
 
     it('should grant exactly 5 permissions', () => {
       expect(operatorPerms).toHaveLength(5);
@@ -83,7 +84,8 @@ describe('ROLE_PERMISSIONS', () => {
 
   // =========================================================================
   describe('VIEWER permissions', () => {
-    const viewerPerms: Permission[] = ROLE_PERMISSIONS[UserRole.VIEWER];
+    const viewerPerms: Permission[] =
+      ROLE_PERMISSIONS[UserRole.VIEWER];
 
     it('should grant exactly 1 permission', () => {
       expect(viewerPerms).toHaveLength(1);

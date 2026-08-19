@@ -202,7 +202,9 @@ describe('DeleteDeviceUseCase — integration', () => {
   it('[DEV-068] is not idempotent — deleting twice fails the second time', async () => {
     const id = await createDevice();
 
-    expect((await deleteUseCase.execute({ id })).isSuccess).toBe(true);
+    expect((await deleteUseCase.execute({ id })).isSuccess).toBe(
+      true
+    );
 
     const second = await deleteUseCase.execute({ id });
 

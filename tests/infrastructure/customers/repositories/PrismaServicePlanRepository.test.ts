@@ -21,7 +21,6 @@ function makePrismaError(code: string, message: string): Error {
   return error;
 }
 
-
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
 const NOW = new Date('2024-01-01T00:00:00.000Z');
 
@@ -111,7 +110,10 @@ describe('PrismaServicePlanRepository', () => {
     it('should map a Decimal price found in the row', async () => {
       (prisma.servicePlan.findUnique as any).mockResolvedValue(
         makeRaw({
-          monthlyPrice: { toNumber: () => 80000, toString: () => '80000' }
+          monthlyPrice: {
+            toNumber: () => 80000,
+            toString: () => '80000'
+          }
         })
       );
 

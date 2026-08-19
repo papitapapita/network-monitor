@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import { VendorController } from '../controllers';
-import { validateRequest, authorize, createRateLimiter } from '../middleware';
+import {
+  validateRequest,
+  authorize,
+  createRateLimiter
+} from '../middleware';
 import {
   createVendorSchema,
   updateVendorSchema,

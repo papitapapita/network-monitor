@@ -35,7 +35,9 @@ describe('DeleteDeviceCredentialsUseCase — integration', () => {
     deviceModelId = await seedDeviceModel(prisma);
 
     const deviceRepo = new PrismaDeviceRepository(prisma);
-    const credentialsRepo = new PrismaDeviceCredentialsRepository(prisma);
+    const credentialsRepo = new PrismaDeviceCredentialsRepository(
+      prisma
+    );
     const logger = new WinstonLogger();
     createDevice = new CreateDeviceUseCase(
       deviceRepo,
@@ -48,7 +50,10 @@ describe('DeleteDeviceCredentialsUseCase — integration', () => {
       credentialsRepo,
       logger
     );
-    useCase = new DeleteDeviceCredentialsUseCase(credentialsRepo, logger);
+    useCase = new DeleteDeviceCredentialsUseCase(
+      credentialsRepo,
+      logger
+    );
   });
 
   afterAll(async () => {
@@ -124,7 +129,7 @@ describe('DeleteDeviceCredentialsUseCase — integration', () => {
     expect(result.isSuccess).toBe(true);
   });
 
-  it('does not touch another device\'s credentials', async () => {
+  it("does not touch another device's credentials", async () => {
     const other = await createDevice.execute({
       deviceModelId,
       name: 'Other Device',

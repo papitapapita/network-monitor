@@ -33,7 +33,9 @@ function makeValidCreateProps(
   };
 }
 
-function makeUserProps(overrides: Partial<UserProps> = {}): UserProps {
+function makeUserProps(
+  overrides: Partial<UserProps> = {}
+): UserProps {
   const now = new Date('2024-01-01T00:00:00.000Z');
   return {
     email: makeEmail(),
@@ -69,7 +71,9 @@ describe('User', () => {
         const email = makeEmail('alice@example.com');
         const result = User.create(makeValidCreateProps({ email }));
 
-        expect(result.value.email.toString()).toBe('alice@example.com');
+        expect(result.value.email.toString()).toBe(
+          'alice@example.com'
+        );
       });
 
       it('should expose the provided role through the role getter', () => {
@@ -92,9 +96,9 @@ describe('User', () => {
         const result = User.create(makeValidCreateProps());
         const after = new Date();
 
-        expect(result.value.createdAt.getTime()).toBeGreaterThanOrEqual(
-          before.getTime()
-        );
+        expect(
+          result.value.createdAt.getTime()
+        ).toBeGreaterThanOrEqual(before.getTime());
         expect(result.value.createdAt.getTime()).toBeLessThanOrEqual(
           after.getTime()
         );
@@ -120,7 +124,9 @@ describe('User', () => {
     describe('validation failures', () => {
       it('should return Result.fail when email is null', () => {
         const result = User.create(
-          makeValidCreateProps({ email: null as unknown as UserEmail })
+          makeValidCreateProps({
+            email: null as unknown as UserEmail
+          })
         );
 
         expect(result.isFailure).toBe(true);
@@ -159,7 +165,9 @@ describe('User', () => {
       });
 
       it('should return Result.fail when passwordHash is an empty string', () => {
-        const result = User.create(makeValidCreateProps({ passwordHash: '' }));
+        const result = User.create(
+          makeValidCreateProps({ passwordHash: '' })
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('passwordHash');
@@ -190,7 +198,9 @@ describe('User', () => {
 
     it('should expose email from the provided props', () => {
       const id = UserId.create();
-      const props = makeUserProps({ email: makeEmail('repo@example.com') });
+      const props = makeUserProps({
+        email: makeEmail('repo@example.com')
+      });
 
       const user = User.reconstitute(id, props);
 

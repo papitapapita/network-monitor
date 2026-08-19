@@ -154,9 +154,7 @@ describe('[DEV-085] PermanentlyDeleteDeviceUseCase', () => {
       const result = await useCase.execute({ id: VALID_DEVICE_ID });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain(
-        'not in the recycle bin'
-      );
+      expect(result.error).toContain('not in the recycle bin');
       expect(repo.delete).not.toHaveBeenCalled();
     });
 

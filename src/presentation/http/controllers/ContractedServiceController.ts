@@ -36,7 +36,10 @@ export class ContractedServiceController {
     }
   };
 
-  public list = async (req: Request, res: Response): Promise<void> => {
+  public list = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const result = await this.listUseCase.execute({
         customerId: req.query.customerId

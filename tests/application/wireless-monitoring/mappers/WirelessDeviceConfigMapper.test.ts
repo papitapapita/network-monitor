@@ -14,9 +14,9 @@ import {
 // Constants
 // ---------------------------------------------------------------------------
 
-const CONFIG_UUID  = '550e8400-e29b-41d4-a716-446655440020';
-const DEVICE_UUID  = '550e8400-e29b-41d4-a716-446655440021';
-const LAST_POLLED  = new Date('2024-06-01T12:00:00.000Z');
+const CONFIG_UUID = '550e8400-e29b-41d4-a716-446655440020';
+const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440021';
+const LAST_POLLED = new Date('2024-06-01T12:00:00.000Z');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -24,29 +24,33 @@ const LAST_POLLED  = new Date('2024-06-01T12:00:00.000Z');
 
 function makeConfig(
   overrides: Partial<{
-    id:                      WirelessDeviceConfigId;
-    deviceId:                DeviceId;
-    ipAddress:               IPAddress | null;
-    enabled:                 boolean;
-    pollingInterval:         PollingInterval;
-    deviceType:              'STATION' | 'ACCESS_POINT';
-    linkCapacityKbps:         number | null;
+    id: WirelessDeviceConfigId;
+    deviceId: DeviceId;
+    ipAddress: IPAddress | null;
+    enabled: boolean;
+    pollingInterval: PollingInterval;
+    deviceType: 'STATION' | 'ACCESS_POINT';
+    linkCapacityKbps: number | null;
     clientsProvisionedLimit: number | null;
-    lastPolledAt:            Date | null;
+    lastPolledAt: Date | null;
   }> = {}
 ): WirelessDeviceConfig {
-  const id       = overrides.id       ?? WirelessDeviceConfigId.parse(CONFIG_UUID).value!;
-  const deviceId = overrides.deviceId ?? DeviceId.parse(DEVICE_UUID).value!;
+  const id =
+    overrides.id ?? WirelessDeviceConfigId.parse(CONFIG_UUID).value!;
+  const deviceId =
+    overrides.deviceId ?? DeviceId.parse(DEVICE_UUID).value!;
 
   return WirelessDeviceConfig.reconstitute(id, {
     deviceId,
-    ipAddress:               overrides.ipAddress               ?? null,
-    enabled:                 overrides.enabled                 ?? true,
-    pollingInterval:         overrides.pollingInterval         ?? PollingInterval.reconstitute(60),
-    deviceType:              overrides.deviceType              ?? 'STATION',
-    linkCapacityKbps:         overrides.linkCapacityKbps         ?? null,
-    clientsProvisionedLimit: overrides.clientsProvisionedLimit ?? null,
-    lastPolledAt:            overrides.lastPolledAt            ?? null
+    ipAddress: overrides.ipAddress ?? null,
+    enabled: overrides.enabled ?? true,
+    pollingInterval:
+      overrides.pollingInterval ?? PollingInterval.reconstitute(60),
+    deviceType: overrides.deviceType ?? 'STATION',
+    linkCapacityKbps: overrides.linkCapacityKbps ?? null,
+    clientsProvisionedLimit:
+      overrides.clientsProvisionedLimit ?? null,
+    lastPolledAt: overrides.lastPolledAt ?? null
   });
 }
 
@@ -72,7 +76,7 @@ describe('WirelessDeviceConfigMapper', () => {
     });
 
     it('should map ipAddress to the IP string value when present', () => {
-      const ip     = IPAddress.reconstitute('10.0.0.1');
+      const ip = IPAddress.reconstitute('10.0.0.1');
       const config = makeConfig({ ipAddress: ip });
 
       const dto = WirelessDeviceConfigMapper.toDTO(config);
@@ -105,7 +109,9 @@ describe('WirelessDeviceConfigMapper', () => {
     });
 
     it('should pass intervalSecs through unchanged', () => {
-      const config = makeConfig({ pollingInterval: PollingInterval.reconstitute(300) });
+      const config = makeConfig({
+        pollingInterval: PollingInterval.reconstitute(300)
+      });
 
       const dto = WirelessDeviceConfigMapper.toDTO(config);
 
@@ -177,122 +183,177 @@ describe('WirelessDeviceConfigMapper', () => {
     });
 
     it('should produce identical output on repeated calls with the same config (pure)', () => {
-      const config = makeConfig({ ipAddress: IPAddress.reconstitute('192.168.1.1'), lastPolledAt: LAST_POLLED });
+      const config = makeConfig({
+        ipAddress: IPAddress.reconstitute('192.168.1.1'),
+        lastPolledAt: LAST_POLLED
+      });
 
-      expect(WirelessDeviceConfigMapper.toDTO(config)).toEqual(WirelessDeviceConfigMapper.toDTO(config));
+      expect(WirelessDeviceConfigMapper.toDTO(config)).toEqual(
+        WirelessDeviceConfigMapper.toDTO(config)
+      );
     });
   });
 
   // ===========================================================================
   describe('extractCreateData()', () => {
     it('should pass deviceId through as-is', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
+      const dto: CreateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID
+      };
 
-      const result = WirelessDeviceConfigMapper.extractCreateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractCreateData(dto);
 
       expect(result.deviceId).toBe(DEVICE_UUID);
     });
 
     it('should pass ipAddress through when provided as a string', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, ipAddress: '10.0.0.5' };
+      const dto: CreateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID,
+        ipAddress: '10.0.0.5'
+      };
 
-      const result = WirelessDeviceConfigMapper.extractCreateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractCreateData(dto);
 
       expect(result.ipAddress).toBe('10.0.0.5');
     });
 
     it('should default ipAddress to null when omitted', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
+      const dto: CreateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID
+      };
 
-      const result = WirelessDeviceConfigMapper.extractCreateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractCreateData(dto);
 
       expect(result.ipAddress).toBeNull();
     });
 
     it('should pass ipAddress as null when explicitly null', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, ipAddress: null };
+      const dto: CreateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID,
+        ipAddress: null
+      };
 
-      const result = WirelessDeviceConfigMapper.extractCreateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractCreateData(dto);
 
       expect(result.ipAddress).toBeNull();
     });
 
     it('should pass intervalSecs through when provided', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, intervalSecs: 300 };
+      const dto: CreateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID,
+        intervalSecs: 300
+      };
 
-      const result = WirelessDeviceConfigMapper.extractCreateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractCreateData(dto);
 
       expect(result.intervalSecs).toBe(300);
     });
 
     it('should default intervalSecs to null when omitted', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
+      const dto: CreateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID
+      };
 
-      const result = WirelessDeviceConfigMapper.extractCreateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractCreateData(dto);
 
       expect(result.intervalSecs).toBeNull();
     });
 
     it('should pass enabled true through unchanged', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, enabled: true };
+      const dto: CreateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID,
+        enabled: true
+      };
 
-      const result = WirelessDeviceConfigMapper.extractCreateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractCreateData(dto);
 
       expect(result.enabled).toBe(true);
     });
 
     it('should pass enabled false through unchanged', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, enabled: false };
+      const dto: CreateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID,
+        enabled: false
+      };
 
-      const result = WirelessDeviceConfigMapper.extractCreateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractCreateData(dto);
 
       expect(result.enabled).toBe(false);
     });
 
     it('should default enabled to null when omitted', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
+      const dto: CreateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID
+      };
 
-      const result = WirelessDeviceConfigMapper.extractCreateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractCreateData(dto);
 
       expect(result.enabled).toBeNull();
     });
 
     it('should pass linkCapacityKbps through when provided', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, linkCapacityKbps: 50000000 };
+      const dto: CreateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID,
+        linkCapacityKbps: 50000000
+      };
 
-      const result = WirelessDeviceConfigMapper.extractCreateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractCreateData(dto);
 
       expect(result.linkCapacityKbps).toBe(50000000);
     });
 
     it('should default linkCapacityKbps to null when omitted', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
+      const dto: CreateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID
+      };
 
-      const result = WirelessDeviceConfigMapper.extractCreateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractCreateData(dto);
 
       expect(result.linkCapacityKbps).toBeNull();
     });
 
     it('should pass linkCapacityKbps as null when explicitly null', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, linkCapacityKbps: null };
+      const dto: CreateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID,
+        linkCapacityKbps: null
+      };
 
-      const result = WirelessDeviceConfigMapper.extractCreateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractCreateData(dto);
 
       expect(result.linkCapacityKbps).toBeNull();
     });
 
     it('should pass clientsProvisionedLimit through when provided', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, clientsProvisionedLimit: 20 };
+      const dto: CreateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID,
+        clientsProvisionedLimit: 20
+      };
 
-      const result = WirelessDeviceConfigMapper.extractCreateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractCreateData(dto);
 
       expect(result.clientsProvisionedLimit).toBe(20);
     });
 
     it('should default clientsProvisionedLimit to null when omitted', () => {
-      const dto: CreateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
+      const dto: CreateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID
+      };
 
-      const result = WirelessDeviceConfigMapper.extractCreateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractCreateData(dto);
 
       expect(result.clientsProvisionedLimit).toBeNull();
     });
@@ -301,142 +362,197 @@ describe('WirelessDeviceConfigMapper', () => {
   // ===========================================================================
   describe('extractUpdateData()', () => {
     it('should return an empty object when no optional fields are provided', () => {
-      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
+      const dto: UpdateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID
+      };
 
-      const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractUpdateData(dto);
 
       expect(result).toEqual({});
     });
 
     it('should include ipAddress when provided as a string', () => {
-      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, ipAddress: '10.0.0.9' };
+      const dto: UpdateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID,
+        ipAddress: '10.0.0.9'
+      };
 
-      const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractUpdateData(dto);
 
       expect(result.ipAddress).toBe('10.0.0.9');
     });
 
     it('should include ipAddress when explicitly null (clearing the field)', () => {
-      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, ipAddress: null };
+      const dto: UpdateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID,
+        ipAddress: null
+      };
 
-      const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractUpdateData(dto);
 
       expect(result.ipAddress).toBeNull();
     });
 
     it('should not include ipAddress key when omitted', () => {
-      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
+      const dto: UpdateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID
+      };
 
-      const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractUpdateData(dto);
 
       expect('ipAddress' in result).toBe(false);
     });
 
     it('should include intervalSecs when provided', () => {
-      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, intervalSecs: 120 };
+      const dto: UpdateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID,
+        intervalSecs: 120
+      };
 
-      const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractUpdateData(dto);
 
       expect(result.intervalSecs).toBe(120);
     });
 
     it('should not include intervalSecs key when omitted', () => {
-      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
+      const dto: UpdateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID
+      };
 
-      const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractUpdateData(dto);
 
       expect('intervalSecs' in result).toBe(false);
     });
 
     it('should include enabled when true', () => {
-      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, enabled: true };
+      const dto: UpdateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID,
+        enabled: true
+      };
 
-      const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractUpdateData(dto);
 
       expect(result.enabled).toBe(true);
     });
 
     it('should include enabled when false', () => {
-      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, enabled: false };
+      const dto: UpdateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID,
+        enabled: false
+      };
 
-      const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractUpdateData(dto);
 
       expect(result.enabled).toBe(false);
     });
 
     it('should not include enabled key when omitted', () => {
-      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
+      const dto: UpdateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID
+      };
 
-      const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractUpdateData(dto);
 
       expect('enabled' in result).toBe(false);
     });
 
     it('should include linkCapacityKbps when provided as a number', () => {
-      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, linkCapacityKbps: 75000000 };
+      const dto: UpdateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID,
+        linkCapacityKbps: 75000000
+      };
 
-      const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractUpdateData(dto);
 
       expect(result.linkCapacityKbps).toBe(75000000);
     });
 
     it('should include linkCapacityKbps when explicitly null', () => {
-      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, linkCapacityKbps: null };
+      const dto: UpdateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID,
+        linkCapacityKbps: null
+      };
 
-      const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractUpdateData(dto);
 
       expect(result.linkCapacityKbps).toBeNull();
     });
 
     it('should not include linkCapacityKbps key when omitted', () => {
-      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
+      const dto: UpdateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID
+      };
 
-      const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractUpdateData(dto);
 
       expect('linkCapacityKbps' in result).toBe(false);
     });
 
     it('should include clientsProvisionedLimit when provided as a number', () => {
-      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, clientsProvisionedLimit: 30 };
+      const dto: UpdateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID,
+        clientsProvisionedLimit: 30
+      };
 
-      const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractUpdateData(dto);
 
       expect(result.clientsProvisionedLimit).toBe(30);
     });
 
     it('should include clientsProvisionedLimit when explicitly null', () => {
-      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID, clientsProvisionedLimit: null };
+      const dto: UpdateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID,
+        clientsProvisionedLimit: null
+      };
 
-      const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractUpdateData(dto);
 
       expect(result.clientsProvisionedLimit).toBeNull();
     });
 
     it('should not include clientsProvisionedLimit key when omitted', () => {
-      const dto: UpdateWirelessConfigRequestDTO = { deviceId: DEVICE_UUID };
+      const dto: UpdateWirelessConfigRequestDTO = {
+        deviceId: DEVICE_UUID
+      };
 
-      const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractUpdateData(dto);
 
       expect('clientsProvisionedLimit' in result).toBe(false);
     });
 
     it('should include all five fields when all are provided', () => {
       const dto: UpdateWirelessConfigRequestDTO = {
-        deviceId:                DEVICE_UUID,
-        ipAddress:               '10.0.0.1',
-        intervalSecs:            180,
-        enabled:                 false,
-        linkCapacityKbps:         25000000,
+        deviceId: DEVICE_UUID,
+        ipAddress: '10.0.0.1',
+        intervalSecs: 180,
+        enabled: false,
+        linkCapacityKbps: 25000000,
         clientsProvisionedLimit: 10
       };
 
-      const result = WirelessDeviceConfigMapper.extractUpdateData(dto);
+      const result =
+        WirelessDeviceConfigMapper.extractUpdateData(dto);
 
       expect(result).toEqual({
-        ipAddress:               '10.0.0.1',
-        intervalSecs:            180,
-        enabled:                 false,
-        linkCapacityKbps:         25000000,
+        ipAddress: '10.0.0.1',
+        intervalSecs: 180,
+        enabled: false,
+        linkCapacityKbps: 25000000,
         clientsProvisionedLimit: 10
       });
     });
@@ -445,21 +561,31 @@ describe('WirelessDeviceConfigMapper', () => {
   // ===========================================================================
   describe('mapper compliance', () => {
     it('should expose toDTO as a static method', () => {
-      expect(typeof WirelessDeviceConfigMapper.toDTO).toBe('function');
+      expect(typeof WirelessDeviceConfigMapper.toDTO).toBe(
+        'function'
+      );
     });
 
     it('should expose extractCreateData as a static method', () => {
-      expect(typeof WirelessDeviceConfigMapper.extractCreateData).toBe('function');
+      expect(
+        typeof WirelessDeviceConfigMapper.extractCreateData
+      ).toBe('function');
     });
 
     it('should expose extractUpdateData as a static method', () => {
-      expect(typeof WirelessDeviceConfigMapper.extractUpdateData).toBe('function');
+      expect(
+        typeof WirelessDeviceConfigMapper.extractUpdateData
+      ).toBe('function');
     });
 
     it('should produce identical output on repeated toDTO calls with the same config (pure)', () => {
-      const config = makeConfig({ pollingInterval: PollingInterval.reconstitute(120) });
+      const config = makeConfig({
+        pollingInterval: PollingInterval.reconstitute(120)
+      });
 
-      expect(WirelessDeviceConfigMapper.toDTO(config)).toEqual(WirelessDeviceConfigMapper.toDTO(config));
+      expect(WirelessDeviceConfigMapper.toDTO(config)).toEqual(
+        WirelessDeviceConfigMapper.toDTO(config)
+      );
     });
   });
 });

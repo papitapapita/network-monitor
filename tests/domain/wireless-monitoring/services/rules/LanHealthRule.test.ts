@@ -11,24 +11,50 @@ const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
 
 function makeNullProps(): WirelessMetricsProps {
   return {
-    signalRxDbm: null, signalTxDbm: null, noiseFloorDbm: null, snrDb: null,
-    ccqPercent: null, frequencyMhz: null,
-    channelWidthMhz: null, throughputTxBps: null,
-    throughputRxBps: null, lanStatus: null, lanSpeedMbps: null, lanDuplex: null,
-    uptimeSeconds: null, cpuLoadPercent: null, memoryUsedPercent: null,
-    clientsConnected: null, throughputTxPps: null,
-    throughputRxPps: null, firmwareVersion: null, deviceName: null,
-    remoteApMac: null, remoteApName: null, remoteApIp: null,
-    distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
-    deviceTimeEpoch: null, macAddress: null, deviceModel: null, ssid: null,
+    signalRxDbm: null,
+    signalTxDbm: null,
+    noiseFloorDbm: null,
+    snrDb: null,
+    ccqPercent: null,
+    frequencyMhz: null,
+    channelWidthMhz: null,
+    throughputTxBps: null,
+    throughputRxBps: null,
+    lanStatus: null,
+    lanSpeedMbps: null,
+    lanDuplex: null,
+    uptimeSeconds: null,
+    cpuLoadPercent: null,
+    memoryUsedPercent: null,
+    clientsConnected: null,
+    throughputTxPps: null,
+    throughputRxPps: null,
+    firmwareVersion: null,
+    deviceName: null,
+    remoteApMac: null,
+    remoteApName: null,
+    remoteApIp: null,
+    distanceM: null,
+    latencyMs: null,
+    capacityTxKbps: null,
+    capacityRxKbps: null,
+    deviceTimeEpoch: null,
+    macAddress: null,
+    deviceModel: null,
+    ssid: null
   };
 }
 
-function makeMetrics(overrides: Partial<WirelessMetricsProps> = {}): WirelessMetrics {
-  return WirelessMetrics.create({ ...makeNullProps(), ...overrides }).value;
+function makeMetrics(
+  overrides: Partial<WirelessMetricsProps> = {}
+): WirelessMetrics {
+  return WirelessMetrics.create({ ...makeNullProps(), ...overrides })
+    .value;
 }
 
-function makeContext(overrides: Partial<EvaluationContext> = {}): EvaluationContext {
+function makeContext(
+  overrides: Partial<EvaluationContext> = {}
+): EvaluationContext {
   return {
     deviceName: 'CPE-001',
     deviceModel: null,
@@ -36,15 +62,27 @@ function makeContext(overrides: Partial<EvaluationContext> = {}): EvaluationCont
     clientsProvisionedLimit: null,
     previousMetrics: null,
     collectedAt: new Date(),
-    ...overrides,
+    ...overrides
   };
 }
 
-function makeActiveAlert(metric: string, severity: 'WARNING' | 'CRITICAL' = 'WARNING'): WirelessAlertRecord {
-  return WirelessAlertRecord.open(DeviceId.parse(DEVICE_UUID).value, metric, severity, -70, -72, 'test').value;
+function makeActiveAlert(
+  metric: string,
+  severity: 'WARNING' | 'CRITICAL' = 'WARNING'
+): WirelessAlertRecord {
+  return WirelessAlertRecord.open(
+    DeviceId.parse(DEVICE_UUID).value,
+    metric,
+    severity,
+    -70,
+    -72,
+    'test'
+  ).value;
 }
 
-function activeMap(...entries: Array<[string, 'WARNING' | 'CRITICAL']>): Map<string, WirelessAlertRecord> {
+function activeMap(
+  ...entries: Array<[string, 'WARNING' | 'CRITICAL']>
+): Map<string, WirelessAlertRecord> {
   const m = new Map<string, WirelessAlertRecord>();
   for (const [metric, sev] of entries) {
     m.set(`${metric}:${sev}`, makeActiveAlert(metric, sev));
@@ -63,14 +101,16 @@ describe('[WLS-088] [WLS-089] [WLS-090] LanHealthRule', () => {
     it('should return [] for lan_status when lanStatus is null', () => {
       const metrics = makeMetrics({ lanStatus: null });
       const result = rule.evaluate(metrics, makeContext(), new Map());
-      const lanStatusDecisions = result.filter(d => d.metric === 'lan_status');
+      const lanStatusDecisions = result.filter(
+        (d) => d.metric === 'lan_status'
+      );
       expect(lanStatusDecisions).toHaveLength(0);
     });
 
     it('should emit OPEN CRITICAL when lanStatus is DOWN and no active alert', () => {
       const metrics = makeMetrics({ lanStatus: 'DOWN' });
       const result = rule.evaluate(metrics, makeContext(), new Map());
-      const decision = result.find(d => d.metric === 'lan_status');
+      const decision = result.find((d) => d.metric === 'lan_status');
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('OPEN');
       expect(decision!.severity).toBe('CRITICAL');
@@ -81,7 +121,7 @@ describe('[WLS-088] [WLS-089] [WLS-090] LanHealthRule', () => {
       const metrics = makeMetrics({ lanStatus: 'UP' });
       const alerts = activeMap(['lan_status', 'CRITICAL']);
       const result = rule.evaluate(metrics, makeContext(), alerts);
-      const decision = result.find(d => d.metric === 'lan_status');
+      const decision = result.find((d) => d.metric === 'lan_status');
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('CLEAR');
       expect(decision!.severity).toBe('CRITICAL');
@@ -92,14 +132,18 @@ describe('[WLS-088] [WLS-089] [WLS-090] LanHealthRule', () => {
       const metrics = makeMetrics({ lanStatus: 'DOWN' });
       const alerts = activeMap(['lan_status', 'CRITICAL']);
       const result = rule.evaluate(metrics, makeContext(), alerts);
-      const opens = result.filter(d => d.metric === 'lan_status' && d.action === 'OPEN');
+      const opens = result.filter(
+        (d) => d.metric === 'lan_status' && d.action === 'OPEN'
+      );
       expect(opens).toHaveLength(0);
     });
 
     it('should not emit any decision when lanStatus is UP and no active alert exists', () => {
       const metrics = makeMetrics({ lanStatus: 'UP' });
       const result = rule.evaluate(metrics, makeContext(), new Map());
-      const lanStatusDecisions = result.filter(d => d.metric === 'lan_status');
+      const lanStatusDecisions = result.filter(
+        (d) => d.metric === 'lan_status'
+      );
       expect(lanStatusDecisions).toHaveLength(0);
     });
   });
@@ -108,14 +152,18 @@ describe('[WLS-088] [WLS-089] [WLS-090] LanHealthRule', () => {
     it('should return [] for lan_speed_mbps when lanSpeedMbps is null', () => {
       const metrics = makeMetrics({ lanSpeedMbps: null });
       const result = rule.evaluate(metrics, makeContext(), new Map());
-      const speedDecisions = result.filter(d => d.metric === 'lan_speed_mbps');
+      const speedDecisions = result.filter(
+        (d) => d.metric === 'lan_speed_mbps'
+      );
       expect(speedDecisions).toHaveLength(0);
     });
 
     it('should emit OPEN WARNING when lanSpeedMbps is at or below 10 Mbps and no active alert', () => {
       const metrics = makeMetrics({ lanSpeedMbps: 10 });
       const result = rule.evaluate(metrics, makeContext(), new Map());
-      const decision = result.find(d => d.metric === 'lan_speed_mbps');
+      const decision = result.find(
+        (d) => d.metric === 'lan_speed_mbps'
+      );
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('OPEN');
       expect(decision!.severity).toBe('WARNING');
@@ -126,7 +174,9 @@ describe('[WLS-088] [WLS-089] [WLS-090] LanHealthRule', () => {
     it('should emit OPEN WARNING when lanSpeedMbps is below 10 Mbps and no active alert', () => {
       const metrics = makeMetrics({ lanSpeedMbps: 5 });
       const result = rule.evaluate(metrics, makeContext(), new Map());
-      const decision = result.find(d => d.metric === 'lan_speed_mbps');
+      const decision = result.find(
+        (d) => d.metric === 'lan_speed_mbps'
+      );
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('OPEN');
     });
@@ -135,7 +185,9 @@ describe('[WLS-088] [WLS-089] [WLS-090] LanHealthRule', () => {
       const metrics = makeMetrics({ lanSpeedMbps: 1000 });
       const alerts = activeMap(['lan_speed_mbps', 'WARNING']);
       const result = rule.evaluate(metrics, makeContext(), alerts);
-      const decision = result.find(d => d.metric === 'lan_speed_mbps');
+      const decision = result.find(
+        (d) => d.metric === 'lan_speed_mbps'
+      );
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('CLEAR');
     });
@@ -144,7 +196,9 @@ describe('[WLS-088] [WLS-089] [WLS-090] LanHealthRule', () => {
       const metrics = makeMetrics({ lanSpeedMbps: 5 });
       const alerts = activeMap(['lan_speed_mbps', 'WARNING']);
       const result = rule.evaluate(metrics, makeContext(), alerts);
-      const opens = result.filter(d => d.metric === 'lan_speed_mbps' && d.action === 'OPEN');
+      const opens = result.filter(
+        (d) => d.metric === 'lan_speed_mbps' && d.action === 'OPEN'
+      );
       expect(opens).toHaveLength(0);
     });
 
@@ -152,7 +206,9 @@ describe('[WLS-088] [WLS-089] [WLS-090] LanHealthRule', () => {
       const metrics = makeMetrics({ lanSpeedMbps: 100 });
       const alerts = activeMap(['lan_speed_mbps', 'WARNING']);
       const result = rule.evaluate(metrics, makeContext(), alerts);
-      const speedDecisions = result.filter(d => d.metric === 'lan_speed_mbps');
+      const speedDecisions = result.filter(
+        (d) => d.metric === 'lan_speed_mbps'
+      );
       expect(speedDecisions).toHaveLength(0);
     });
   });
@@ -160,32 +216,56 @@ describe('[WLS-088] [WLS-089] [WLS-090] LanHealthRule', () => {
   describe('lan_duplex_changed (change-based)', () => {
     it('should return [] when previousMetrics is null', () => {
       const metrics = makeMetrics({ lanDuplex: 'HALF' });
-      const result = rule.evaluate(metrics, makeContext({ previousMetrics: null }), new Map());
-      const duplexDecisions = result.filter(d => d.metric === 'lan_duplex_changed');
+      const result = rule.evaluate(
+        metrics,
+        makeContext({ previousMetrics: null }),
+        new Map()
+      );
+      const duplexDecisions = result.filter(
+        (d) => d.metric === 'lan_duplex_changed'
+      );
       expect(duplexDecisions).toHaveLength(0);
     });
 
     it('should return [] when current lanDuplex is null', () => {
       const prev = makeMetrics({ lanDuplex: 'FULL' });
       const metrics = makeMetrics({ lanDuplex: null });
-      const result = rule.evaluate(metrics, makeContext({ previousMetrics: prev }), new Map());
-      const duplexDecisions = result.filter(d => d.metric === 'lan_duplex_changed');
+      const result = rule.evaluate(
+        metrics,
+        makeContext({ previousMetrics: prev }),
+        new Map()
+      );
+      const duplexDecisions = result.filter(
+        (d) => d.metric === 'lan_duplex_changed'
+      );
       expect(duplexDecisions).toHaveLength(0);
     });
 
     it('should return [] when previous lanDuplex is null', () => {
       const prev = makeMetrics({ lanDuplex: null });
       const metrics = makeMetrics({ lanDuplex: 'HALF' });
-      const result = rule.evaluate(metrics, makeContext({ previousMetrics: prev }), new Map());
-      const duplexDecisions = result.filter(d => d.metric === 'lan_duplex_changed');
+      const result = rule.evaluate(
+        metrics,
+        makeContext({ previousMetrics: prev }),
+        new Map()
+      );
+      const duplexDecisions = result.filter(
+        (d) => d.metric === 'lan_duplex_changed'
+      );
       expect(duplexDecisions).toHaveLength(0);
     });
 
     it('should emit OPEN WARNING when duplex mode changes and no active alert', () => {
       const prev = makeMetrics({ lanDuplex: 'FULL' });
       const metrics = makeMetrics({ lanDuplex: 'HALF' });
-      const result = rule.evaluate(metrics, makeContext({ previousMetrics: prev }), new Map());
-      const decision = result.find(d => d.metric === 'lan_duplex_changed');
+      const result = rule.evaluate(
+        metrics,
+        makeContext({ previousMetrics: prev }),
+        new Map()
+      );
+      const decision = result.find(
+        (d) => d.metric === 'lan_duplex_changed'
+      );
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('OPEN');
       expect(decision!.severity).toBe('WARNING');
@@ -196,8 +276,14 @@ describe('[WLS-088] [WLS-089] [WLS-090] LanHealthRule', () => {
       const prev = makeMetrics({ lanDuplex: 'FULL' });
       const metrics = makeMetrics({ lanDuplex: 'FULL' });
       const alerts = activeMap(['lan_duplex_changed', 'WARNING']);
-      const result = rule.evaluate(metrics, makeContext({ previousMetrics: prev }), alerts);
-      const decision = result.find(d => d.metric === 'lan_duplex_changed');
+      const result = rule.evaluate(
+        metrics,
+        makeContext({ previousMetrics: prev }),
+        alerts
+      );
+      const decision = result.find(
+        (d) => d.metric === 'lan_duplex_changed'
+      );
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('CLEAR');
     });
@@ -206,8 +292,15 @@ describe('[WLS-088] [WLS-089] [WLS-090] LanHealthRule', () => {
       const prev = makeMetrics({ lanDuplex: 'FULL' });
       const metrics = makeMetrics({ lanDuplex: 'HALF' });
       const alerts = activeMap(['lan_duplex_changed', 'WARNING']);
-      const result = rule.evaluate(metrics, makeContext({ previousMetrics: prev }), alerts);
-      const opens = result.filter(d => d.metric === 'lan_duplex_changed' && d.action === 'OPEN');
+      const result = rule.evaluate(
+        metrics,
+        makeContext({ previousMetrics: prev }),
+        alerts
+      );
+      const opens = result.filter(
+        (d) =>
+          d.metric === 'lan_duplex_changed' && d.action === 'OPEN'
+      );
       expect(opens).toHaveLength(0);
     });
   });

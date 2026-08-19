@@ -7,7 +7,10 @@ import {
   ITokenService,
   TokenPayload
 } from '../../../../src/application/identity/interfaces/ITokenService';
-import { ILogger, LogContext } from '../../../../src/application/shared/interfaces/ILogger';
+import {
+  ILogger,
+  LogContext
+} from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { User } from '../../../../src/domain/identity/aggregates/User';
 import { UserEmail } from '../../../../src/domain/identity/value-objects/UserEmail';
@@ -27,7 +30,9 @@ function makeLogger(): ILogger {
     warn: jest.fn(),
     error: jest.fn(),
     fatal: jest.fn(),
-    child: jest.fn().mockReturnThis() as (context: LogContext) => ILogger,
+    child: jest.fn().mockReturnThis() as (
+      context: LogContext
+    ) => ILogger,
     setLevel: jest.fn()
   };
 }
@@ -150,7 +155,11 @@ describe('LoginUseCase', () => {
     });
 
     it('should call passwordService.compare with the plain password and stored hash', async () => {
-      const user = makeUser('alice@example.com', 'OPERATOR', '$2b$10$stored');
+      const user = makeUser(
+        'alice@example.com',
+        'OPERATOR',
+        '$2b$10$stored'
+      );
       userRepo.findByEmail.mockResolvedValue(Result.ok(user));
       passwordService.compare.mockResolvedValue(true);
       tokenService.sign.mockReturnValue('tok');
@@ -169,7 +178,9 @@ describe('LoginUseCase', () => {
       passwordService.compare.mockResolvedValue(true);
       tokenService.sign.mockReturnValue('tok');
 
-      await useCase.execute(makeRequest({ email: 'alice@example.com' }));
+      await useCase.execute(
+        makeRequest({ email: 'alice@example.com' })
+      );
 
       expect(userRepo.findByEmail).toHaveBeenCalledTimes(1);
       const calledWith = userRepo.findByEmail.mock.calls[0][0];
@@ -236,7 +247,8 @@ describe('LoginUseCase', () => {
 
       userRepo.findByEmail.mockResolvedValue(Result.ok(makeUser()));
       passwordService.compare.mockResolvedValue(false);
-      const wrongPasswordResult = await useCase.execute(makeRequest());
+      const wrongPasswordResult =
+        await useCase.execute(makeRequest());
 
       expect(missingUserResult.error).toBe(wrongPasswordResult.error);
     });
@@ -256,9 +268,7 @@ describe('LoginUseCase', () => {
     });
 
     it('should not call passwordService when repository fails', async () => {
-      userRepo.findByEmail.mockResolvedValue(
-        Result.fail('timeout')
-      );
+      userRepo.findByEmail.mockResolvedValue(Result.fail('timeout'));
 
       await useCase.execute(makeRequest());
 
@@ -291,11 +301,15 @@ describe('LoginUseCase', () => {
       passwordService.compare.mockResolvedValue(true);
       tokenService.sign.mockReturnValue('tok');
 
-      await useCase.execute(makeRequest({ password: 'super-secret' }));
+      await useCase.execute(
+        makeRequest({ password: 'super-secret' })
+      );
 
       const infoMock = (logger.info as jest.Mock).mock;
       const loggedRequests = infoMock.calls
-        .map(([, ctx]: [string, Record<string, unknown>]) => ctx?.request)
+        .map(
+          ([, ctx]: [string, Record<string, unknown>]) => ctx?.request
+        )
         .filter(Boolean);
 
       for (const req of loggedRequests) {

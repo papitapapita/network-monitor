@@ -164,7 +164,6 @@ describe('[WLS-008] WirelessDeviceConfig', () => {
         expect(result.error).toContain('pollingInterval');
       });
     });
-
   });
 
   // =========================================================================

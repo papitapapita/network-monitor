@@ -170,7 +170,9 @@ describe('[WLS-146] WirelessStreamController', () => {
         getThroughput.execute.mockResolvedValue(
           Result.fail('No wireless data found for device')
         );
-        const req = createMockRequest({ params: { id: DEVICE_UUID } });
+        const req = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         await controller.streamDeviceThroughput(req, res);
@@ -199,7 +201,9 @@ describe('[WLS-146] WirelessStreamController', () => {
         getThroughput.execute.mockResolvedValue(
           Result.fail('Failed to load wireless throughput: reset')
         );
-        const req = createMockRequest({ params: { id: DEVICE_UUID } });
+        const req = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock } = createMockResponse();
 
         await controller.streamDeviceThroughput(req, res);
@@ -209,7 +213,9 @@ describe('[WLS-146] WirelessStreamController', () => {
 
       it('answers 500 when the use case throws', async () => {
         getThroughput.execute.mockRejectedValue(new Error('boom'));
-        const req = createMockRequest({ params: { id: DEVICE_UUID } });
+        const req = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock } = createMockResponse();
 
         await controller.streamDeviceThroughput(req, res);
@@ -300,7 +306,9 @@ describe('[WLS-146] WirelessStreamController', () => {
     it('frees the slot when a stream closes', async () => {
       const requests: (Request & EventEmitter)[] = [];
       for (let i = 0; i < 5; i++) {
-        const req = createMockRequest({ params: { id: DEVICE_UUID } });
+        const req = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         requests.push(req);
         await openDeviceStream(req);
       }

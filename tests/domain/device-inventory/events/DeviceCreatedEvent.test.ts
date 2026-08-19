@@ -7,7 +7,10 @@ import {
   DeviceStatus,
   DeviceOwnerType
 } from '../../../../src/domain/device-inventory';
-import { DeviceId, UniqueEntityID } from '../../../../src/domain/shared';
+import {
+  DeviceId,
+  UniqueEntityID
+} from '../../../../src/domain/shared';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -56,7 +59,9 @@ describe('DeviceCreatedEvent', () => {
       const event = new DeviceCreatedEvent(makeEventProps());
 
       expect(
-        Object.isFrozen((event as unknown as { props: unknown }).props)
+        Object.isFrozen(
+          (event as unknown as { props: unknown }).props
+        )
       ).toBe(true);
     });
 
@@ -78,7 +83,9 @@ describe('DeviceCreatedEvent', () => {
 
       expect(() => {
         (
-          event as unknown as { props: { ownerType: DeviceOwnerType } }
+          event as unknown as {
+            props: { ownerType: DeviceOwnerType };
+          }
         ).props.ownerType = DeviceOwnerType.CLIENT;
       }).toThrow();
     });
@@ -87,8 +94,9 @@ describe('DeviceCreatedEvent', () => {
       const event = new DeviceCreatedEvent(makeEventProps());
 
       expect(() => {
-        (event as unknown as { props: Record<string, unknown> }).props.extra =
-          'value';
+        (
+          event as unknown as { props: Record<string, unknown> }
+        ).props.extra = 'value';
       }).toThrow();
     });
 
@@ -96,8 +104,9 @@ describe('DeviceCreatedEvent', () => {
       const event = new DeviceCreatedEvent(makeEventProps());
 
       expect(() => {
-        delete (event as unknown as { props: Record<string, unknown> }).props
-          .ownerType;
+        delete (
+          event as unknown as { props: Record<string, unknown> }
+        ).props.ownerType;
       }).toThrow();
     });
   });
@@ -205,7 +214,9 @@ describe('DeviceCreatedEvent', () => {
       ];
 
       for (const status of statuses) {
-        const event = new DeviceCreatedEvent(makeEventProps({ status }));
+        const event = new DeviceCreatedEvent(
+          makeEventProps({ status })
+        );
 
         expect(event.status.value).toBe(status.value);
       }
@@ -274,10 +285,16 @@ describe('DeviceCreatedEvent', () => {
       const id1 = DeviceId.create();
       const id2 = DeviceId.create();
       const event1 = new DeviceCreatedEvent(
-        makeEventProps({ aggregateId: id1, ownerType: DeviceOwnerType.COMPANY })
+        makeEventProps({
+          aggregateId: id1,
+          ownerType: DeviceOwnerType.COMPANY
+        })
       );
       const event2 = new DeviceCreatedEvent(
-        makeEventProps({ aggregateId: id2, ownerType: DeviceOwnerType.CLIENT })
+        makeEventProps({
+          aggregateId: id2,
+          ownerType: DeviceOwnerType.CLIENT
+        })
       );
 
       expect(event1.aggregateId).not.toBe(event2.aggregateId);

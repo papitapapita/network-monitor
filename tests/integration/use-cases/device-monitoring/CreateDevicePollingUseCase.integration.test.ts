@@ -47,13 +47,17 @@ describe('CreateDevicePollingUseCase — integration', () => {
     prisma = container.getPrisma();
     deviceModelId = await seedDeviceModel(prisma);
 
-    const pollingConfigRepo = new PrismaPollingConfigurationRepository(prisma);
+    const pollingConfigRepo =
+      new PrismaPollingConfigurationRepository(prisma);
     const deviceRepo = new PrismaDeviceRepository(prisma);
     const logger = new WinstonLogger();
     const suspend = new SuspendDeviceMonitoringUseCase(
       pollingConfigRepo,
       new PrismaDeviceStateRepository(prisma),
-      new ResolveAlertUseCase(new PrismaAlertRepository(prisma), logger)
+      new ResolveAlertUseCase(
+        new PrismaAlertRepository(prisma),
+        logger
+      )
     );
     useCase = new CreateDevicePollingUseCase(
       pollingConfigRepo,
@@ -98,7 +102,10 @@ describe('CreateDevicePollingUseCase — integration', () => {
     });
 
     it('creates config with provided intervalSeconds', async () => {
-      const result = await useCase.execute({ deviceId, intervalSeconds: 300 });
+      const result = await useCase.execute({
+        deviceId,
+        intervalSeconds: 300
+      });
 
       expect(result.isSuccess).toBe(true);
 
@@ -109,7 +116,10 @@ describe('CreateDevicePollingUseCase — integration', () => {
     });
 
     it('creates config with provided failuresBeforeDown', async () => {
-      const result = await useCase.execute({ deviceId, failuresBeforeDown: 7 });
+      const result = await useCase.execute({
+        deviceId,
+        failuresBeforeDown: 7
+      });
 
       expect(result.isSuccess).toBe(true);
 
@@ -120,7 +130,10 @@ describe('CreateDevicePollingUseCase — integration', () => {
     });
 
     it('creates config with provided ipAddress', async () => {
-      const result = await useCase.execute({ deviceId, ipAddress: '10.0.0.5' });
+      const result = await useCase.execute({
+        deviceId,
+        ipAddress: '10.0.0.5'
+      });
 
       expect(result.isSuccess).toBe(true);
 
@@ -131,7 +144,10 @@ describe('CreateDevicePollingUseCase — integration', () => {
     });
 
     it('creates config with enabled=false', async () => {
-      const result = await useCase.execute({ deviceId, enabled: false });
+      const result = await useCase.execute({
+        deviceId,
+        enabled: false
+      });
 
       expect(result.isSuccess).toBe(true);
 
@@ -184,7 +200,10 @@ describe('CreateDevicePollingUseCase — integration', () => {
     });
 
     it('updates the interval when intervalSeconds is provided', async () => {
-      const result = await useCase.execute({ deviceId, intervalSeconds: 180 });
+      const result = await useCase.execute({
+        deviceId,
+        intervalSeconds: 180
+      });
 
       expect(result.isSuccess).toBe(true);
 
@@ -195,7 +214,10 @@ describe('CreateDevicePollingUseCase — integration', () => {
     });
 
     it('updates the failure threshold', async () => {
-      const result = await useCase.execute({ deviceId, failuresBeforeDown: 8 });
+      const result = await useCase.execute({
+        deviceId,
+        failuresBeforeDown: 8
+      });
 
       expect(result.isSuccess).toBe(true);
 
@@ -206,7 +228,10 @@ describe('CreateDevicePollingUseCase — integration', () => {
     });
 
     it('disables polling', async () => {
-      const result = await useCase.execute({ deviceId, enabled: false });
+      const result = await useCase.execute({
+        deviceId,
+        enabled: false
+      });
 
       expect(result.isSuccess).toBe(true);
 
@@ -219,7 +244,10 @@ describe('CreateDevicePollingUseCase — integration', () => {
     it('re-enables polling after disabling', async () => {
       await useCase.execute({ deviceId, enabled: false });
 
-      const result = await useCase.execute({ deviceId, enabled: true });
+      const result = await useCase.execute({
+        deviceId,
+        enabled: true
+      });
 
       expect(result.isSuccess).toBe(true);
 
@@ -262,7 +290,10 @@ describe('CreateDevicePollingUseCase — integration', () => {
     });
 
     it('rejects clearing the ipAddress while polling stays enabled', async () => {
-      const result = await useCase.execute({ deviceId, ipAddress: null });
+      const result = await useCase.execute({
+        deviceId,
+        ipAddress: null
+      });
 
       expect(result.isFailure).toBe(true);
 
@@ -333,7 +364,10 @@ describe('CreateDevicePollingUseCase — integration', () => {
     it('fails when intervalSeconds is out of range (0)', async () => {
       const deviceId = await seedBareDevice(prisma, deviceModelId);
 
-      const result = await useCase.execute({ deviceId, intervalSeconds: 0 });
+      const result = await useCase.execute({
+        deviceId,
+        intervalSeconds: 0
+      });
 
       expect(result.isFailure).toBe(true);
     });

@@ -8,7 +8,10 @@ export interface ICustomerRepository {
   findByPhone(phone: string): Promise<Result<Customer | null>>;
   findByCedula(cedula: string): Promise<Result<Customer | null>>;
   findByEmail(email: string): Promise<Result<Customer | null>>;
-  findAll(limit?: number, offset?: number): Promise<Result<Customer[]>>;
+  findAll(
+    limit?: number,
+    offset?: number
+  ): Promise<Result<Customer[]>>;
   delete(id: CustomerId): Promise<Result<void>>;
   exists(id: CustomerId): Promise<Result<boolean>>;
   existsByPhone(phone: string): Promise<Result<boolean>>;

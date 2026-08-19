@@ -11,12 +11,12 @@ import { ReachabilityStatus } from '../../../../src/domain/device-monitoring/val
 // Constants & Fixtures
 // ---------------------------------------------------------------------------
 
-const VALID_DEVICE_UUID    = '550e8400-e29b-41d4-a716-446655440001';
-const FIXED_DATE           = new Date('2024-06-01T10:00:00.000Z');
-const LATER_DATE           = new Date('2024-06-01T11:00:00.000Z');
+const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
+const FIXED_DATE = new Date('2024-06-01T10:00:00.000Z');
+const LATER_DATE = new Date('2024-06-01T11:00:00.000Z');
 
-const UP      = () => ReachabilityStatus.createUp();
-const DOWN    = () => ReachabilityStatus.createDown();
+const UP = () => ReachabilityStatus.createUp();
+const DOWN = () => ReachabilityStatus.createDown();
 const UNKNOWN = () => ReachabilityStatus.createUnknown();
 
 function makeDeviceId(): DeviceId {
@@ -24,20 +24,24 @@ function makeDeviceId(): DeviceId {
 }
 
 /** Build a fully-populated props object, used with reconstitute(). */
-function makeStateProps(overrides: Partial<DeviceStateProps> = {}): DeviceStateProps {
+function makeStateProps(
+  overrides: Partial<DeviceStateProps> = {}
+): DeviceStateProps {
   return {
-    deviceId:             makeDeviceId(),
-    status:               UP(),
-    lastSeen:             FIXED_DATE,
-    lastLatencyMs:        20,
-    consecutiveFailures:  0,
-    lastCheckedAt:        FIXED_DATE,
-    updatedAt:            FIXED_DATE,
+    deviceId: makeDeviceId(),
+    status: UP(),
+    lastSeen: FIXED_DATE,
+    lastLatencyMs: 20,
+    consecutiveFailures: 0,
+    lastCheckedAt: FIXED_DATE,
+    updatedAt: FIXED_DATE,
     ...overrides
   };
 }
 
-function makeState(overrides: Partial<DeviceStateProps> = {}): DeviceState {
+function makeState(
+  overrides: Partial<DeviceStateProps> = {}
+): DeviceState {
   const props = makeStateProps(overrides);
   return DeviceState.reconstitute(props.deviceId, props);
 }
@@ -45,7 +49,6 @@ function makeState(overrides: Partial<DeviceStateProps> = {}): DeviceState {
 // ---------------------------------------------------------------------------
 
 describe('DeviceState', () => {
-
   // ===========================================================================
   describe('createInitial()', () => {
     it('should return a DeviceState instance', () => {
@@ -92,14 +95,14 @@ describe('DeviceState', () => {
 
     it('should use the supplied deviceId as its aggregate id', () => {
       const deviceId = makeDeviceId();
-      const state    = DeviceState.createInitial(deviceId);
+      const state = DeviceState.createInitial(deviceId);
 
       expect(state.id.toString()).toBe(VALID_DEVICE_UUID);
     });
 
     it('should expose the supplied deviceId via the deviceId getter', () => {
       const deviceId = makeDeviceId();
-      const state    = DeviceState.createInitial(deviceId);
+      const state = DeviceState.createInitial(deviceId);
 
       expect(state.deviceId.toString()).toBe(VALID_DEVICE_UUID);
     });
@@ -160,7 +163,6 @@ describe('DeviceState', () => {
 
       expect(state.lastCheckedAt).toEqual(FIXED_DATE);
     });
-
   });
 
   // ===========================================================================
@@ -197,7 +199,10 @@ describe('DeviceState', () => {
     });
 
     it('[MON-002] should reset consecutiveFailures, so a resumed device does not continue an old count', () => {
-      const state = makeState({ status: DOWN(), consecutiveFailures: 7 });
+      const state = makeState({
+        status: DOWN(),
+        consecutiveFailures: 7
+      });
 
       state.markUnknown(LATER_DATE);
 
@@ -237,7 +242,10 @@ describe('DeviceState', () => {
     });
 
     it('should be idempotent', () => {
-      const state = makeState({ status: UP(), consecutiveFailures: 3 });
+      const state = makeState({
+        status: UP(),
+        consecutiveFailures: 3
+      });
 
       state.markUnknown(LATER_DATE);
       state.markUnknown(LATER_DATE);
@@ -312,7 +320,10 @@ describe('DeviceState', () => {
     // -------------------------------------------------------------------------
     describe('successful ping (isReachable = true)', () => {
       it('should set the status to UP', () => {
-        const state = makeState({ status: DOWN(), consecutiveFailures: 2 });
+        const state = makeState({
+          status: DOWN(),
+          consecutiveFailures: 2
+        });
 
         state.applyPingResult(true, 15, LATER_DATE);
 
@@ -320,7 +331,10 @@ describe('DeviceState', () => {
       });
 
       it('should reset consecutiveFailures to 0', () => {
-        const state = makeState({ status: UP(), consecutiveFailures: 2 });
+        const state = makeState({
+          status: UP(),
+          consecutiveFailures: 2
+        });
 
         state.applyPingResult(true, 15, LATER_DATE);
 
@@ -363,7 +377,10 @@ describe('DeviceState', () => {
     // -------------------------------------------------------------------------
     describe('failed ping (isReachable = false)', () => {
       it('should set the status to DOWN immediately, regardless of previous state', () => {
-        const state = makeState({ status: UP(), consecutiveFailures: 0 });
+        const state = makeState({
+          status: UP(),
+          consecutiveFailures: 0
+        });
 
         state.applyPingResult(false, null, LATER_DATE);
 
@@ -371,7 +388,10 @@ describe('DeviceState', () => {
       });
 
       it('should increment consecutiveFailures by 1', () => {
-        const state = makeState({ status: UP(), consecutiveFailures: 1 });
+        const state = makeState({
+          status: UP(),
+          consecutiveFailures: 1
+        });
 
         state.applyPingResult(false, null, LATER_DATE);
 
@@ -379,7 +399,10 @@ describe('DeviceState', () => {
       });
 
       it('should NOT update lastSeen when ping fails', () => {
-        const state = makeState({ status: UP(), lastSeen: FIXED_DATE });
+        const state = makeState({
+          status: UP(),
+          lastSeen: FIXED_DATE
+        });
 
         state.applyPingResult(false, null, LATER_DATE);
 
@@ -398,7 +421,10 @@ describe('DeviceState', () => {
     // -------------------------------------------------------------------------
     describe('domain event — online → offline transition', () => {
       it('should raise a DeviceWentOfflineEvent when the device transitions from online to offline', () => {
-        const state = makeState({ status: UP(), consecutiveFailures: 0 });
+        const state = makeState({
+          status: UP(),
+          consecutiveFailures: 0
+        });
 
         state.applyPingResult(false, null, LATER_DATE);
 
@@ -408,7 +434,10 @@ describe('DeviceState', () => {
       });
 
       it('should attach the correct consecutiveFailures to the DeviceWentOfflineEvent', () => {
-        const state = makeState({ status: UP(), consecutiveFailures: 2 });
+        const state = makeState({
+          status: UP(),
+          consecutiveFailures: 2
+        });
 
         state.applyPingResult(false, null, LATER_DATE);
 
@@ -417,7 +446,10 @@ describe('DeviceState', () => {
       });
 
       it('should attach the checkedAt timestamp to the DeviceWentOfflineEvent', () => {
-        const state = makeState({ status: UP(), consecutiveFailures: 0 });
+        const state = makeState({
+          status: UP(),
+          consecutiveFailures: 0
+        });
 
         state.applyPingResult(false, null, LATER_DATE);
 
@@ -426,7 +458,10 @@ describe('DeviceState', () => {
       });
 
       it('should attach the aggregate id to the DeviceWentOfflineEvent', () => {
-        const state = makeState({ status: UP(), consecutiveFailures: 0 });
+        const state = makeState({
+          status: UP(),
+          consecutiveFailures: 0
+        });
 
         state.applyPingResult(false, null, LATER_DATE);
 
@@ -438,7 +473,10 @@ describe('DeviceState', () => {
     // -------------------------------------------------------------------------
     describe('domain event — offline → online transition', () => {
       it('should raise a DeviceCameOnlineEvent when the device transitions from offline to online', () => {
-        const state = makeState({ status: DOWN(), consecutiveFailures: 3 });
+        const state = makeState({
+          status: DOWN(),
+          consecutiveFailures: 3
+        });
 
         state.applyPingResult(true, 12, LATER_DATE);
 
@@ -448,7 +486,10 @@ describe('DeviceState', () => {
       });
 
       it('should attach the latencyMs to the DeviceCameOnlineEvent', () => {
-        const state = makeState({ status: DOWN(), consecutiveFailures: 3 });
+        const state = makeState({
+          status: DOWN(),
+          consecutiveFailures: 3
+        });
 
         state.applyPingResult(true, 55, LATER_DATE);
 
@@ -457,7 +498,10 @@ describe('DeviceState', () => {
       });
 
       it('should attach null latencyMs to the DeviceCameOnlineEvent when no latency is reported', () => {
-        const state = makeState({ status: DOWN(), consecutiveFailures: 3 });
+        const state = makeState({
+          status: DOWN(),
+          consecutiveFailures: 3
+        });
 
         state.applyPingResult(true, null, LATER_DATE);
 
@@ -466,7 +510,10 @@ describe('DeviceState', () => {
       });
 
       it('should attach the checkedAt timestamp to the DeviceCameOnlineEvent', () => {
-        const state = makeState({ status: DOWN(), consecutiveFailures: 3 });
+        const state = makeState({
+          status: DOWN(),
+          consecutiveFailures: 3
+        });
 
         state.applyPingResult(true, 12, LATER_DATE);
 
@@ -475,7 +522,10 @@ describe('DeviceState', () => {
       });
 
       it('should attach the aggregate id to the DeviceCameOnlineEvent', () => {
-        const state = makeState({ status: DOWN(), consecutiveFailures: 3 });
+        const state = makeState({
+          status: DOWN(),
+          consecutiveFailures: 3
+        });
 
         state.applyPingResult(true, 12, LATER_DATE);
 
@@ -487,7 +537,10 @@ describe('DeviceState', () => {
     // -------------------------------------------------------------------------
     describe('no domain event raised — steady state', () => {
       it('should not raise any event when the device was already online and ping succeeds', () => {
-        const state = makeState({ status: UP(), consecutiveFailures: 0 });
+        const state = makeState({
+          status: UP(),
+          consecutiveFailures: 0
+        });
 
         state.applyPingResult(true, 10, LATER_DATE);
 
@@ -495,7 +548,10 @@ describe('DeviceState', () => {
       });
 
       it('should not raise any event when the device was already offline and ping fails again', () => {
-        const state = makeState({ status: DOWN(), consecutiveFailures: 3 });
+        const state = makeState({
+          status: DOWN(),
+          consecutiveFailures: 3
+        });
 
         state.applyPingResult(false, null, LATER_DATE);
 
@@ -509,7 +565,10 @@ describe('DeviceState', () => {
     // monitoring was turned off and back on.
     describe('previous status UNKNOWN — reachability was never observed', () => {
       it('[MON-005] should NOT raise DeviceCameOnlineEvent when a reachable poll follows UNKNOWN', () => {
-        const state = makeState({ status: UNKNOWN(), consecutiveFailures: 0 });
+        const state = makeState({
+          status: UNKNOWN(),
+          consecutiveFailures: 0
+        });
 
         state.applyPingResult(true, 10, LATER_DATE);
 
@@ -535,13 +594,18 @@ describe('DeviceState', () => {
       });
 
       it('[MON-005] should raise DeviceWentOfflineEvent for a paused device that resumes unreachable', () => {
-        const state = makeState({ status: UP(), consecutiveFailures: 0 });
+        const state = makeState({
+          status: UP(),
+          consecutiveFailures: 0
+        });
         state.markUnknown(FIXED_DATE);
 
         state.applyPingResult(false, null, LATER_DATE);
 
         expect(state.domainEvents).toHaveLength(1);
-        expect(state.domainEvents[0]).toBeInstanceOf(DeviceWentOfflineEvent);
+        expect(state.domainEvents[0]).toBeInstanceOf(
+          DeviceWentOfflineEvent
+        );
       });
 
       it('should report a single consecutive failure on a first-poll outage', () => {
@@ -554,7 +618,10 @@ describe('DeviceState', () => {
       });
 
       it('should still move to UP when reachable', () => {
-        const state = makeState({ status: UNKNOWN(), consecutiveFailures: 0 });
+        const state = makeState({
+          status: UNKNOWN(),
+          consecutiveFailures: 0
+        });
 
         state.applyPingResult(true, 10, LATER_DATE);
 
@@ -562,7 +629,10 @@ describe('DeviceState', () => {
       });
 
       it('should still move to DOWN when unreachable', () => {
-        const state = makeState({ status: UNKNOWN(), consecutiveFailures: 0 });
+        const state = makeState({
+          status: UNKNOWN(),
+          consecutiveFailures: 0
+        });
 
         state.applyPingResult(false, null, LATER_DATE);
 
@@ -570,7 +640,10 @@ describe('DeviceState', () => {
       });
 
       it('should still update consecutiveFailures correctly', () => {
-        const state = makeState({ status: UNKNOWN(), consecutiveFailures: 2 });
+        const state = makeState({
+          status: UNKNOWN(),
+          consecutiveFailures: 2
+        });
 
         state.applyPingResult(false, null, LATER_DATE);
 

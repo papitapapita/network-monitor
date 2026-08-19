@@ -29,13 +29,15 @@ function makeLogger(): jest.Mocked<ILogger> {
     error: jest.fn(),
     fatal: jest.fn(),
     setLevel: jest.fn(),
-    child: jest.fn(),
+    child: jest.fn()
   };
   child.child.mockReturnValue(child);
   return child;
 }
 
-function makeConfig(overrides: { ipAddress?: string | null } = {}): WirelessDeviceConfig {
+function makeConfig(
+  overrides: { ipAddress?: string | null } = {}
+): WirelessDeviceConfig {
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const ipAddress =
     overrides.ipAddress != null
@@ -51,7 +53,7 @@ function makeConfig(overrides: { ipAddress?: string | null } = {}): WirelessDevi
       deviceType: 'STATION',
       linkCapacityKbps: null,
       clientsProvisionedLimit: null,
-      lastPolledAt: null,
+      lastPolledAt: null
     }
   );
 }
@@ -64,7 +66,7 @@ function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
     exists: jest.fn(),
     findByDeviceId: jest.fn(),
     findAllDue: jest.fn(),
-    findAll: jest.fn(),
+    findAll: jest.fn()
   };
 }
 
@@ -111,7 +113,9 @@ describe('[WLS-011] GetWirelessConfigUseCase', () => {
   // ===========================================================================
   describe('executeImpl — device ID parsing', () => {
     it('should fail when deviceId is not a valid UUID', async () => {
-      const result = await useCase.execute({ deviceId: 'not-a-uuid' });
+      const result = await useCase.execute({
+        deviceId: 'not-a-uuid'
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid device ID');
@@ -127,9 +131,13 @@ describe('[WLS-011] GetWirelessConfigUseCase', () => {
   // ===========================================================================
   describe('executeImpl — config loading', () => {
     it('should fail when configRepo.findByDeviceId returns a failure', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.fail('DB timeout'));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.fail('DB timeout')
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
     });
@@ -137,10 +145,14 @@ describe('[WLS-011] GetWirelessConfigUseCase', () => {
     it('should fail when no config exists for the device', async () => {
       configRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Wireless config not found for device');
+      expect(result.error).toContain(
+        'Wireless config not found for device'
+      );
     });
 
     it('should call configRepo.findByDeviceId with the parsed deviceId', async () => {
@@ -156,25 +168,37 @@ describe('[WLS-011] GetWirelessConfigUseCase', () => {
   // ===========================================================================
   describe('executeImpl — happy path response shape', () => {
     it('should return a successful Result when config is found', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isSuccess).toBe(true);
     });
 
     it('should include the id in the response', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.id).toBe(CONFIG_UUID);
     });
 
     it('should include the deviceId in the response', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.deviceId).toBe(VALID_DEVICE_UUID);
     });
@@ -184,7 +208,9 @@ describe('[WLS-011] GetWirelessConfigUseCase', () => {
         Result.ok(makeConfig({ ipAddress: '10.0.0.1' }))
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.ipAddress).toBe('10.0.0.1');
     });
@@ -194,31 +220,45 @@ describe('[WLS-011] GetWirelessConfigUseCase', () => {
         Result.ok(makeConfig({ ipAddress: null }))
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.ipAddress).toBeNull();
     });
 
     it('should include the correct deviceType in the response', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.deviceType).toBe('STATION');
     });
 
     it('should include enabled in the response', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.enabled).toBe(true);
     });
 
     it('should include lastPolledAt as null when never polled', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.lastPolledAt).toBeNull();
     });

@@ -4,7 +4,10 @@ import { GetWirelessClientsUseCase } from '../../../../src/application/wireless-
 import { IWirelessSnapshotRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessSnapshotRepository';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
-import { DeviceId, SnapshotId } from '../../../../src/domain/shared/ids';
+import {
+  DeviceId,
+  SnapshotId
+} from '../../../../src/domain/shared/ids';
 import { WirelessSnapshot } from '../../../../src/domain/wireless-monitoring';
 import { WirelessMetrics } from '../../../../src/domain/wireless-monitoring/value-objects/WirelessMetrics';
 import { WirelessClientEntry } from '../../../../src/domain/wireless-monitoring/value-objects/WirelessClientEntry';
@@ -28,7 +31,7 @@ function makeLogger(): jest.Mocked<ILogger> {
     error: jest.fn(),
     fatal: jest.fn(),
     setLevel: jest.fn(),
-    child: jest.fn(),
+    child: jest.fn()
   };
   child.child.mockReturnValue(child);
   return child;
@@ -36,16 +39,37 @@ function makeLogger(): jest.Mocked<ILogger> {
 
 function makeNullMetrics(): WirelessMetrics {
   return WirelessMetrics.reconstitute({
-    signalRxDbm: null, signalTxDbm: null, noiseFloorDbm: null, snrDb: null,
-    ccqPercent: null, frequencyMhz: null,
-    channelWidthMhz: null, throughputTxBps: null,
-    throughputRxBps: null, throughputTxPps: null, throughputRxPps: null,
-    lanStatus: null, lanSpeedMbps: null, lanDuplex: null, uptimeSeconds: null,
-    cpuLoadPercent: null, memoryUsedPercent: null, firmwareVersion: null,
-    deviceName: null, remoteApMac: null, remoteApName: null, remoteApIp: null,
-    distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
-    deviceTimeEpoch: null, clientsConnected: null,
-    macAddress: null, deviceModel: null, ssid: null,
+    signalRxDbm: null,
+    signalTxDbm: null,
+    noiseFloorDbm: null,
+    snrDb: null,
+    ccqPercent: null,
+    frequencyMhz: null,
+    channelWidthMhz: null,
+    throughputTxBps: null,
+    throughputRxBps: null,
+    throughputTxPps: null,
+    throughputRxPps: null,
+    lanStatus: null,
+    lanSpeedMbps: null,
+    lanDuplex: null,
+    uptimeSeconds: null,
+    cpuLoadPercent: null,
+    memoryUsedPercent: null,
+    firmwareVersion: null,
+    deviceName: null,
+    remoteApMac: null,
+    remoteApName: null,
+    remoteApIp: null,
+    distanceM: null,
+    latencyMs: null,
+    capacityTxKbps: null,
+    capacityRxKbps: null,
+    deviceTimeEpoch: null,
+    clientsConnected: null,
+    macAddress: null,
+    deviceModel: null,
+    ssid: null
   });
 }
 
@@ -55,19 +79,16 @@ function makeSnapshot(
 ): WirelessSnapshot {
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const snapshotId = SnapshotId.parse(SNAPSHOT_UUID).value;
-  return WirelessSnapshot.reconstitute(
-    snapshotId,
-    {
-      deviceId,
-      deviceType,
-      collectedAt: new Date('2024-01-01T00:00:00.000Z'),
-      collectionMethod: 'http_api',
-      metrics: makeNullMetrics(),
-      clients,
-      alerts: [],
-      remoteApDeviceId: null,
-    }
-  );
+  return WirelessSnapshot.reconstitute(snapshotId, {
+    deviceId,
+    deviceType,
+    collectedAt: new Date('2024-01-01T00:00:00.000Z'),
+    collectionMethod: 'http_api',
+    metrics: makeNullMetrics(),
+    clients,
+    alerts: [],
+    remoteApDeviceId: null
+  });
 }
 
 function makeClient(macAddress: string): WirelessClientEntry {
@@ -102,7 +123,7 @@ function makeClient(macAddress: string): WirelessClientEntry {
     remoteRxThroughputKbps: null,
     remoteIpAddresses: [],
     dlAirtimePercent: null,
-    ulAirtimePercent: null,
+    ulAirtimePercent: null
   });
 }
 
@@ -157,7 +178,9 @@ describe('[WLS-140] [WLS-141] GetWirelessClientsUseCase', () => {
   // ===========================================================================
   describe('executeImpl — device ID parsing', () => {
     it('should fail when deviceId is not a valid UUID', async () => {
-      const result = await useCase.execute({ deviceId: 'not-a-uuid' });
+      const result = await useCase.execute({
+        deviceId: 'not-a-uuid'
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid device ID');
@@ -167,38 +190,58 @@ describe('[WLS-140] [WLS-141] GetWirelessClientsUseCase', () => {
   // ===========================================================================
   describe('executeImpl — snapshot loading', () => {
     it('should fail when snapshotRepo returns a failure', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.fail('DB timeout'));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.fail('DB timeout')
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Failed to load wireless snapshot');
+      expect(result.error).toContain(
+        'Failed to load wireless snapshot'
+      );
     });
 
     it('should fail when no snapshot exists for the device', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(null));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(null)
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('No wireless data found for device');
+      expect(result.error).toContain(
+        'No wireless data found for device'
+      );
     });
   });
 
   // ===========================================================================
   describe('executeImpl — CPE device type rejection', () => {
     it('should fail when the device is a CPE', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot('STATION')));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(makeSnapshot('STATION'))
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
     });
 
     it('should include NOT_AP in the error message when device is a CPE', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot('STATION')));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(makeSnapshot('STATION'))
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.error).toContain('NOT_AP');
     });
@@ -211,7 +254,9 @@ describe('[WLS-140] [WLS-141] GetWirelessClientsUseCase', () => {
         Result.ok(makeSnapshot('ACCESS_POINT'))
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isSuccess).toBe(true);
     });
@@ -221,7 +266,9 @@ describe('[WLS-140] [WLS-141] GetWirelessClientsUseCase', () => {
         Result.ok(makeSnapshot('ACCESS_POINT'))
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.deviceId).toBe(VALID_DEVICE_UUID);
     });
@@ -231,9 +278,13 @@ describe('[WLS-140] [WLS-141] GetWirelessClientsUseCase', () => {
         Result.ok(makeSnapshot('ACCESS_POINT'))
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
-      expect(result.value.collectedAt).toBe('2024-01-01T00:00:00.000Z');
+      expect(result.value.collectedAt).toBe(
+        '2024-01-01T00:00:00.000Z'
+      );
     });
 
     it('should return an empty clients array when snapshot has no clients', async () => {
@@ -241,18 +292,25 @@ describe('[WLS-140] [WLS-141] GetWirelessClientsUseCase', () => {
         Result.ok(makeSnapshot('ACCESS_POINT', []))
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.clients).toHaveLength(0);
     });
 
     it('should return the correct number of clients when the snapshot has clients', async () => {
-      const clients = [makeClient('AA:BB:CC:DD:EE:FF'), makeClient('11:22:33:44:55:66')];
+      const clients = [
+        makeClient('AA:BB:CC:DD:EE:FF'),
+        makeClient('11:22:33:44:55:66')
+      ];
       snapshotRepo.findLatestByDevice.mockResolvedValue(
         Result.ok(makeSnapshot('ACCESS_POINT', clients))
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.clients).toHaveLength(2);
     });
@@ -263,21 +321,34 @@ describe('[WLS-140] [WLS-141] GetWirelessClientsUseCase', () => {
         Result.ok(makeSnapshot('ACCESS_POINT', clients))
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
-      expect(result.value.clients[0].macAddress).toBe('AA:BB:CC:DD:EE:FF');
+      expect(result.value.clients[0].macAddress).toBe(
+        'AA:BB:CC:DD:EE:FF'
+      );
     });
 
     it('should preserve client ordering from the snapshot', async () => {
-      const clients = [makeClient('AA:BB:CC:DD:EE:FF'), makeClient('11:22:33:44:55:66')];
+      const clients = [
+        makeClient('AA:BB:CC:DD:EE:FF'),
+        makeClient('11:22:33:44:55:66')
+      ];
       snapshotRepo.findLatestByDevice.mockResolvedValue(
         Result.ok(makeSnapshot('ACCESS_POINT', clients))
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
-      expect(result.value.clients[0].macAddress).toBe('AA:BB:CC:DD:EE:FF');
-      expect(result.value.clients[1].macAddress).toBe('11:22:33:44:55:66');
+      expect(result.value.clients[0].macAddress).toBe(
+        'AA:BB:CC:DD:EE:FF'
+      );
+      expect(result.value.clients[1].macAddress).toBe(
+        '11:22:33:44:55:66'
+      );
     });
   });
 });

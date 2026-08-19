@@ -2,8 +2,8 @@
 
 import { describe, it, expect } from '@jest/globals';
 import { LocationMapper } from '../../../../src/application/device-inventory/mappers/LocationMapper';
-import { Location }       from '../../../../src/domain/device-inventory/aggregates/Location';
-import { LocationId }     from '../../../../src/domain/shared/ids';
+import { Location } from '../../../../src/domain/device-inventory/aggregates/Location';
+import { LocationId } from '../../../../src/domain/shared/ids';
 import {
   Address,
   Coordinates,
@@ -14,42 +14,63 @@ import {
 // Fixtures
 // ---------------------------------------------------------------------------
 
-const VALID_UUID   = '550e8400-e29b-41d4-a716-446655440000';
-const BASE_DATE    = new Date('2024-01-01T00:00:00.000Z');
+const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
+const BASE_DATE = new Date('2024-01-01T00:00:00.000Z');
 const UPDATED_DATE = new Date('2024-06-15T12:00:00.000Z');
 
-function makeLocationDomain(overrides: {
-  name?:         string;
-  type?:         string;
-  municipality?: string | null;
-  neighborhood?: string | null;
-  address?:      string | null;
-  coordinates?:  Coordinates | null;
-} = {}): Location {
+function makeLocationDomain(
+  overrides: {
+    name?: string;
+    type?: string;
+    municipality?: string | null;
+    neighborhood?: string | null;
+    address?: string | null;
+    coordinates?: Coordinates | null;
+  } = {}
+): Location {
   const id = LocationId.parse(VALID_UUID).value;
   const street =
-    overrides.address !== undefined ? overrides.address : 'Carrera 80 # 75-32';
+    overrides.address !== undefined
+      ? overrides.address
+      : 'Carrera 80 # 75-32';
   const municipality =
-    overrides.municipality !== undefined ? overrides.municipality : 'Medellín';
+    overrides.municipality !== undefined
+      ? overrides.municipality
+      : 'Medellín';
   const neighborhood =
-    overrides.neighborhood !== undefined ? overrides.neighborhood : 'Robledo';
+    overrides.neighborhood !== undefined
+      ? overrides.neighborhood
+      : 'Robledo';
   const addressVO =
     street === null || municipality === null || neighborhood === null
       ? null
       : Address.reconstitute({ street, municipality, neighborhood });
 
   return Location.reconstitute(id, {
-    name:        overrides.name ?? 'Torre Norte',
-    type:        LocationType.reconstitute(overrides.type ?? LocationType.TOWER),
-    address:     addressVO,
-    coordinates: overrides.coordinates !== undefined ? overrides.coordinates : null,
-    createdAt:   BASE_DATE,
-    updatedAt:   UPDATED_DATE
+    name: overrides.name ?? 'Torre Norte',
+    type: LocationType.reconstitute(
+      overrides.type ?? LocationType.TOWER
+    ),
+    address: addressVO,
+    coordinates:
+      overrides.coordinates !== undefined
+        ? overrides.coordinates
+        : null,
+    createdAt: BASE_DATE,
+    updatedAt: UPDATED_DATE
   });
 }
 
-function makeCoordinates(lat: number, lon: number, alt?: number): Coordinates {
-  return Coordinates.reconstitute({ latitude: lat, longitude: lon, altitude: alt });
+function makeCoordinates(
+  lat: number,
+  lon: number,
+  alt?: number
+): Coordinates {
+  return Coordinates.reconstitute({
+    latitude: lat,
+    longitude: lon,
+    altitude: alt
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -71,7 +92,9 @@ describe('LocationMapper (application layer)', () => {
     // -----------------------------------------------------------------------
     describe('primitive fields', () => {
       it('should map the name field', () => {
-        const location = makeLocationDomain({ name: 'POP Site Alpha' });
+        const location = makeLocationDomain({
+          name: 'POP Site Alpha'
+        });
 
         const dto = LocationMapper.toDTO(location);
 
@@ -79,7 +102,9 @@ describe('LocationMapper (application layer)', () => {
       });
 
       it('should map the type as a string', () => {
-        const location = makeLocationDomain({ type: LocationType.DATACENTER });
+        const location = makeLocationDomain({
+          type: LocationType.DATACENTER
+        });
 
         const dto = LocationMapper.toDTO(location);
 
@@ -90,12 +115,12 @@ describe('LocationMapper (application layer)', () => {
     // -----------------------------------------------------------------------
     describe('LocationType string representation', () => {
       const typeMatrix: Array<[string, string]> = [
-        [LocationType.TOWER,              'TOWER'],
-        [LocationType.DATACENTER,         'DATACENTER'],
-        [LocationType.POINT_OF_PRESENCE,  'POINT_OF_PRESENCE'],
-        [LocationType.OFFICE,             'OFFICE'],
-        [LocationType.CUSTOMER_PREMISES,  'CUSTOMER_PREMISES'],
-        [LocationType.OTHER,              'OTHER']
+        [LocationType.TOWER, 'TOWER'],
+        [LocationType.DATACENTER, 'DATACENTER'],
+        [LocationType.POINT_OF_PRESENCE, 'POINT_OF_PRESENCE'],
+        [LocationType.OFFICE, 'OFFICE'],
+        [LocationType.CUSTOMER_PREMISES, 'CUSTOMER_PREMISES'],
+        [LocationType.OTHER, 'OTHER']
       ];
 
       for (const [domainType, expectedString] of typeMatrix) {
@@ -112,7 +137,9 @@ describe('LocationMapper (application layer)', () => {
     // -----------------------------------------------------------------------
     describe('address fields', () => {
       it('should map municipality when set', () => {
-        const location = makeLocationDomain({ municipality: 'Bogotá' });
+        const location = makeLocationDomain({
+          municipality: 'Bogotá'
+        });
 
         const dto = LocationMapper.toDTO(location);
 
@@ -128,7 +155,9 @@ describe('LocationMapper (application layer)', () => {
       });
 
       it('should map neighborhood when set', () => {
-        const location = makeLocationDomain({ neighborhood: 'Chapinero' });
+        const location = makeLocationDomain({
+          neighborhood: 'Chapinero'
+        });
 
         const dto = LocationMapper.toDTO(location);
 
@@ -144,7 +173,9 @@ describe('LocationMapper (application layer)', () => {
       });
 
       it('should map address when set', () => {
-        const location = makeLocationDomain({ address: 'Calle 26 # 69-76' });
+        const location = makeLocationDomain({
+          address: 'Calle 26 # 69-76'
+        });
 
         const dto = LocationMapper.toDTO(location);
 
@@ -286,7 +317,9 @@ describe('LocationMapper (application layer)', () => {
 
         const dto = LocationMapper.toDTO(location);
 
-        expect(new Date(dto.createdAt).toISOString()).toBe(dto.createdAt);
+        expect(new Date(dto.createdAt).toISOString()).toBe(
+          dto.createdAt
+        );
       });
 
       it('should produce an updatedAt value that round-trips through Date.parse', () => {
@@ -294,7 +327,9 @@ describe('LocationMapper (application layer)', () => {
 
         const dto = LocationMapper.toDTO(location);
 
-        expect(new Date(dto.updatedAt).toISOString()).toBe(dto.updatedAt);
+        expect(new Date(dto.updatedAt).toISOString()).toBe(
+          dto.updatedAt
+        );
       });
     });
   });
@@ -376,7 +411,10 @@ describe('LocationMapper (application layer)', () => {
     // -----------------------------------------------------------------------
     describe('hasMore flag', () => {
       it('should be true when offset + count < total', () => {
-        const locations = [makeLocationDomain(), makeLocationDomain()];
+        const locations = [
+          makeLocationDomain(),
+          makeLocationDomain()
+        ];
 
         const result = LocationMapper.toListDTO(locations, 10, 2, 0);
 
@@ -384,7 +422,10 @@ describe('LocationMapper (application layer)', () => {
       });
 
       it('should be false when offset + count equals total', () => {
-        const locations = [makeLocationDomain(), makeLocationDomain()];
+        const locations = [
+          makeLocationDomain(),
+          makeLocationDomain()
+        ];
 
         const result = LocationMapper.toListDTO(locations, 2, 2, 0);
 
@@ -393,7 +434,11 @@ describe('LocationMapper (application layer)', () => {
 
       it('should be false when offset + count exceeds total', () => {
         // Edge case: if somehow more items are returned than available
-        const locations = [makeLocationDomain(), makeLocationDomain(), makeLocationDomain()];
+        const locations = [
+          makeLocationDomain(),
+          makeLocationDomain(),
+          makeLocationDomain()
+        ];
 
         const result = LocationMapper.toListDTO(locations, 2, 3, 0);
 
@@ -409,10 +454,18 @@ describe('LocationMapper (application layer)', () => {
       });
 
       it('should be false when on the last page', () => {
-        const locations = [makeLocationDomain(), makeLocationDomain()];
+        const locations = [
+          makeLocationDomain(),
+          makeLocationDomain()
+        ];
 
         // offset=18, count=2, total=20 → 18+2 = 20, not less than 20
-        const result = LocationMapper.toListDTO(locations, 20, 20, 18);
+        const result = LocationMapper.toListDTO(
+          locations,
+          20,
+          20,
+          18
+        );
 
         expect(result.hasMore).toBe(false);
       });

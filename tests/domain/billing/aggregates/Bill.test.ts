@@ -160,7 +160,9 @@ describe('Bill', () => {
       const bill = reconstituteBill(BillStatus.PAID);
       const result = bill.markPaid();
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Cannot mark a PAID bill as paid');
+      expect(result.error).toContain(
+        'Cannot mark a PAID bill as paid'
+      );
     });
 
     it('should fail from CANCELLED (terminal)', () => {

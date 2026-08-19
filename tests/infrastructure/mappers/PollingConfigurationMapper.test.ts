@@ -26,7 +26,9 @@ type RawRecord = {
   lastPolledAt: Date | null;
 };
 
-function makeRawRecord(overrides: Partial<RawRecord> = {}): RawRecord {
+function makeRawRecord(
+  overrides: Partial<RawRecord> = {}
+): RawRecord {
   return {
     id: VALID_ID,
     deviceId: VALID_DEVICE_ID,
@@ -47,19 +49,22 @@ function makeEntity(
     thresholdCount?: number;
   } = {}
 ): PollingConfiguration {
-  const rawIp = overrides.ipAddress !== undefined ? overrides.ipAddress : TEST_IP;
+  const rawIp =
+    overrides.ipAddress !== undefined ? overrides.ipAddress : TEST_IP;
   return PollingConfiguration.reconstitute(
     PollingConfigurationId.parse(VALID_ID).value,
     {
       deviceId: DeviceId.parse(VALID_DEVICE_ID).value,
-      ipAddress: rawIp !== null ? IPAddress.reconstitute(rawIp) : null,
+      ipAddress:
+        rawIp !== null ? IPAddress.reconstitute(rawIp) : null,
       interval: PollingInterval.reconstitute({
         seconds: overrides.intervalSeconds ?? 60
       }),
       failuresBeforeDown: FailureThreshold.reconstitute({
         count: overrides.thresholdCount ?? 3
       }),
-      enabled: overrides.enabled !== undefined ? overrides.enabled : true
+      enabled:
+        overrides.enabled !== undefined ? overrides.enabled : true
     }
   );
 }
@@ -163,39 +168,44 @@ describe('PollingConfigurationMapper', () => {
       it('should throw when deviceId is not a valid UUID', () => {
         const raw = makeRawRecord({ deviceId: 'not-a-uuid' });
 
-        expect(() => PollingConfigurationMapper.toDomain(raw)).toThrow(
-          'Data integrity violation'
-        );
+        expect(() =>
+          PollingConfigurationMapper.toDomain(raw)
+        ).toThrow('Data integrity violation');
       });
 
       it('should throw with the invalid deviceId in the error message', () => {
         const raw = makeRawRecord({ deviceId: 'bad-device-id' });
 
-        expect(() => PollingConfigurationMapper.toDomain(raw)).toThrow(
-          'bad-device-id'
-        );
+        expect(() =>
+          PollingConfigurationMapper.toDomain(raw)
+        ).toThrow('bad-device-id');
       });
 
       it('should throw when id is not a valid UUID', () => {
         const raw = makeRawRecord({ id: 'not-a-uuid' });
 
-        expect(() => PollingConfigurationMapper.toDomain(raw)).toThrow(
-          'Data integrity violation'
-        );
+        expect(() =>
+          PollingConfigurationMapper.toDomain(raw)
+        ).toThrow('Data integrity violation');
       });
 
       it('should throw with the invalid id in the error message', () => {
         const raw = makeRawRecord({ id: 'bad-config-id' });
 
-        expect(() => PollingConfigurationMapper.toDomain(raw)).toThrow(
-          'bad-config-id'
-        );
+        expect(() =>
+          PollingConfigurationMapper.toDomain(raw)
+        ).toThrow('bad-config-id');
       });
 
       it('should throw when both id and deviceId are invalid', () => {
-        const raw = makeRawRecord({ id: 'bad', deviceId: 'also-bad' });
+        const raw = makeRawRecord({
+          id: 'bad',
+          deviceId: 'also-bad'
+        });
 
-        expect(() => PollingConfigurationMapper.toDomain(raw)).toThrow();
+        expect(() =>
+          PollingConfigurationMapper.toDomain(raw)
+        ).toThrow();
       });
     });
   });
@@ -226,7 +236,6 @@ describe('PollingConfigurationMapper', () => {
 
         expect(raw.ipAddress).toBe(TEST_IP);
       });
-
 
       it('should serialize ipAddress as null when not set', () => {
         const entity = makeEntity({ ipAddress: null });
@@ -276,7 +285,8 @@ describe('PollingConfigurationMapper', () => {
       const raw = makeRawRecord();
 
       const entity = PollingConfigurationMapper.toDomain(raw);
-      const serialized = PollingConfigurationMapper.toPersistence(entity);
+      const serialized =
+        PollingConfigurationMapper.toPersistence(entity);
 
       expect(serialized.id).toBe(raw.id);
       expect(serialized.deviceId).toBe(raw.deviceId);
@@ -286,7 +296,8 @@ describe('PollingConfigurationMapper', () => {
       const raw = makeRawRecord({ ipAddress: '172.16.0.1' });
 
       const entity = PollingConfigurationMapper.toDomain(raw);
-      const serialized = PollingConfigurationMapper.toPersistence(entity);
+      const serialized =
+        PollingConfigurationMapper.toPersistence(entity);
 
       expect(serialized.ipAddress).toBe('172.16.0.1');
     });
@@ -295,7 +306,8 @@ describe('PollingConfigurationMapper', () => {
       const raw = makeRawRecord({ ipAddress: null });
 
       const entity = PollingConfigurationMapper.toDomain(raw);
-      const serialized = PollingConfigurationMapper.toPersistence(entity);
+      const serialized =
+        PollingConfigurationMapper.toPersistence(entity);
 
       expect(serialized.ipAddress).toBeNull();
     });
@@ -304,7 +316,8 @@ describe('PollingConfigurationMapper', () => {
       const raw = makeRawRecord({ enabled: false });
 
       const entity = PollingConfigurationMapper.toDomain(raw);
-      const serialized = PollingConfigurationMapper.toPersistence(entity);
+      const serialized =
+        PollingConfigurationMapper.toPersistence(entity);
 
       expect(serialized.enabled).toBe(false);
     });
@@ -313,7 +326,8 @@ describe('PollingConfigurationMapper', () => {
       const raw = makeRawRecord({ pingIntervalSecs: 3600 });
 
       const entity = PollingConfigurationMapper.toDomain(raw);
-      const serialized = PollingConfigurationMapper.toPersistence(entity);
+      const serialized =
+        PollingConfigurationMapper.toPersistence(entity);
 
       expect(serialized.pingIntervalSecs).toBe(3600);
     });
@@ -322,7 +336,8 @@ describe('PollingConfigurationMapper', () => {
       const raw = makeRawRecord({ failuresBeforeDown: 10 });
 
       const entity = PollingConfigurationMapper.toDomain(raw);
-      const serialized = PollingConfigurationMapper.toPersistence(entity);
+      const serialized =
+        PollingConfigurationMapper.toPersistence(entity);
 
       expect(serialized.failuresBeforeDown).toBe(10);
     });
@@ -342,10 +357,16 @@ describe('PollingConfigurationMapper', () => {
       const recovered = PollingConfigurationMapper.toDomain(raw);
 
       expect(recovered.id.toString()).toBe(original.id.toString());
-      expect(recovered.deviceId.toString()).toBe(original.deviceId.toString());
-      expect(recovered.ipAddress?.value).toBe(original.ipAddress?.value);
+      expect(recovered.deviceId.toString()).toBe(
+        original.deviceId.toString()
+      );
+      expect(recovered.ipAddress?.value).toBe(
+        original.ipAddress?.value
+      );
       expect(recovered.enabled).toBe(original.enabled);
-      expect(recovered.interval.seconds).toBe(original.interval.seconds);
+      expect(recovered.interval.seconds).toBe(
+        original.interval.seconds
+      );
       expect(recovered.failuresBeforeDown.value).toBe(
         original.failuresBeforeDown.value
       );

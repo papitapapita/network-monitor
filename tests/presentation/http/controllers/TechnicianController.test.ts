@@ -129,7 +129,10 @@ describe('TechnicianController', () => {
     remove.execute.mockResolvedValue(Result.ok(undefined));
     const res = makeResponse();
 
-    await controller.delete(makeRequest({ params: { id: 'x' } }), res);
+    await controller.delete(
+      makeRequest({ params: { id: 'x' } }),
+      res
+    );
 
     expect(res.status).toHaveBeenCalledWith(204);
     expect(res.send).toHaveBeenCalled();

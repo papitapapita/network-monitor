@@ -10,12 +10,12 @@ import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity
 // Constants
 // ---------------------------------------------------------------------------
 
-const VALID_ALERT_UUID  = '550e8400-e29b-41d4-a716-446655440010';
+const VALID_ALERT_UUID = '550e8400-e29b-41d4-a716-446655440010';
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440011';
 
-const STARTED_AT           = new Date('2024-06-01T10:00:00.000Z');
-const RESOLVED_AT          = new Date('2024-06-01T10:01:40.000Z');
-const NOTIFIED_AT          = new Date('2024-06-01T10:00:05.000Z');
+const STARTED_AT = new Date('2024-06-01T10:00:00.000Z');
+const RESOLVED_AT = new Date('2024-06-01T10:01:40.000Z');
+const NOTIFIED_AT = new Date('2024-06-01T10:00:05.000Z');
 const RECOVERY_NOTIFIED_AT = new Date('2024-06-01T10:01:45.000Z');
 
 // ---------------------------------------------------------------------------
@@ -32,28 +32,28 @@ function makeDeviceId(): DeviceId {
 
 function makeOpenAlert(): Alert {
   return Alert.reconstitute(makeAlertId(), {
-    deviceId:           makeDeviceId(),
-    severity:           AlertSeverity.CRITICAL,
-    source:             'Disponibilidad',
-    type:               'device_unreachable',
-    description:        'Sin conexión',
-    startedAt:          STARTED_AT,
-    resolvedAt:         null,
-    notifiedAt:         null,
+    deviceId: makeDeviceId(),
+    severity: AlertSeverity.CRITICAL,
+    source: 'Disponibilidad',
+    type: 'device_unreachable',
+    description: 'Sin conexión',
+    startedAt: STARTED_AT,
+    resolvedAt: null,
+    notifiedAt: null,
     recoveryNotifiedAt: null
   });
 }
 
 function makeResolvedAlert(): Alert {
   return Alert.reconstitute(makeAlertId(), {
-    deviceId:           makeDeviceId(),
-    severity:           AlertSeverity.CRITICAL,
-    source:             'Disponibilidad',
-    type:               'device_unreachable',
-    description:        'Sin conexión',
-    startedAt:          STARTED_AT,
-    resolvedAt:         RESOLVED_AT,
-    notifiedAt:         NOTIFIED_AT,
+    deviceId: makeDeviceId(),
+    severity: AlertSeverity.CRITICAL,
+    source: 'Disponibilidad',
+    type: 'device_unreachable',
+    description: 'Sin conexión',
+    startedAt: STARTED_AT,
+    resolvedAt: RESOLVED_AT,
+    notifiedAt: NOTIFIED_AT,
     recoveryNotifiedAt: RECOVERY_NOTIFIED_AT
   });
 }
@@ -206,7 +206,9 @@ describe('AlertMapper', () => {
         const dto = AlertMapper.toDTO(alert);
 
         // assert
-        expect(dto.recoveryNotifiedAt).toBe(RECOVERY_NOTIFIED_AT.toISOString());
+        expect(dto.recoveryNotifiedAt).toBe(
+          RECOVERY_NOTIFIED_AT.toISOString()
+        );
       });
 
       it('should map durationSecs', () => {
@@ -260,7 +262,7 @@ describe('AlertMapper', () => {
 
     it('should map each alert through toDTO', () => {
       // arrange
-      const open     = makeOpenAlert();
+      const open = makeOpenAlert();
       const resolved = makeResolvedAlert();
 
       // act
@@ -308,7 +310,9 @@ describe('AlertMapper', () => {
 
     it('should produce identical output on repeated calls with the same alert (deterministic)', () => {
       const alert = makeOpenAlert();
-      expect(AlertMapper.toDTO(alert)).toEqual(AlertMapper.toDTO(alert));
+      expect(AlertMapper.toDTO(alert)).toEqual(
+        AlertMapper.toDTO(alert)
+      );
     });
   });
 });

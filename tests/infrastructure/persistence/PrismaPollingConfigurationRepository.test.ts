@@ -13,7 +13,9 @@ import { FailureThreshold } from '../../../src/domain/device-monitoring/value-ob
 // Module-level mocks
 // ---------------------------------------------------------------------------
 
-jest.mock('../../../src/infrastructure/mappers/PollingConfigurationMapper');
+jest.mock(
+  '../../../src/infrastructure/mappers/PollingConfigurationMapper'
+);
 
 const MockedMapper = PollingConfigurationMapper as jest.Mocked<
   typeof PollingConfigurationMapper
@@ -93,7 +95,9 @@ describe('PrismaPollingConfigurationRepository', () => {
     fakeEntity = makeFakeDomainEntity();
 
     MockedMapper.toDomain.mockReturnValue(fakeEntity);
-    MockedMapper.toPersistence.mockReturnValue(makeFakePersistenceData());
+    MockedMapper.toPersistence.mockReturnValue(
+      makeFakePersistenceData()
+    );
   });
 
   afterEach(() => {
@@ -103,20 +107,28 @@ describe('PrismaPollingConfigurationRepository', () => {
   // ===========================================================================
   describe('findById()', () => {
     it('should call prisma.pollingConfiguration.findUnique with the id string', async () => {
-      prisma.pollingConfiguration.findUnique.mockResolvedValue(makeFakePrismaRow());
+      prisma.pollingConfiguration.findUnique.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
-      const id = PollingConfigurationId.parse(VALID_CONFIG_UUID).value;
+      const id =
+        PollingConfigurationId.parse(VALID_CONFIG_UUID).value;
       await repo.findById(id);
 
-      expect(prisma.pollingConfiguration.findUnique).toHaveBeenCalledWith({
+      expect(
+        prisma.pollingConfiguration.findUnique
+      ).toHaveBeenCalledWith({
         where: { id: VALID_CONFIG_UUID }
       });
     });
 
     it('should return a successful Result containing the mapped entity', async () => {
-      prisma.pollingConfiguration.findUnique.mockResolvedValue(makeFakePrismaRow());
+      prisma.pollingConfiguration.findUnique.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
-      const id = PollingConfigurationId.parse(VALID_CONFIG_UUID).value;
+      const id =
+        PollingConfigurationId.parse(VALID_CONFIG_UUID).value;
       const result = await repo.findById(id);
 
       expect(result.isSuccess).toBe(true);
@@ -126,7 +138,8 @@ describe('PrismaPollingConfigurationRepository', () => {
     it('should return a successful Result with null when the record is not found', async () => {
       prisma.pollingConfiguration.findUnique.mockResolvedValue(null);
 
-      const id = PollingConfigurationId.parse(VALID_CONFIG_UUID).value;
+      const id =
+        PollingConfigurationId.parse(VALID_CONFIG_UUID).value;
       const result = await repo.findById(id);
 
       expect(result.isSuccess).toBe(true);
@@ -136,7 +149,8 @@ describe('PrismaPollingConfigurationRepository', () => {
     it('should not call toDomain when the record is not found', async () => {
       prisma.pollingConfiguration.findUnique.mockResolvedValue(null);
 
-      const id = PollingConfigurationId.parse(VALID_CONFIG_UUID).value;
+      const id =
+        PollingConfigurationId.parse(VALID_CONFIG_UUID).value;
       await repo.findById(id);
 
       expect(MockedMapper.toDomain).not.toHaveBeenCalled();
@@ -147,29 +161,38 @@ describe('PrismaPollingConfigurationRepository', () => {
         new Error('Connection refused')
       );
 
-      const id = PollingConfigurationId.parse(VALID_CONFIG_UUID).value;
+      const id =
+        PollingConfigurationId.parse(VALID_CONFIG_UUID).value;
       const result = await repo.findById(id);
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Database error finding polling config');
+      expect(result.error).toContain(
+        'Database error finding polling config'
+      );
     });
   });
 
   // ===========================================================================
   describe('findByDeviceId()', () => {
     it('should call prisma.pollingConfiguration.findUnique with the deviceId string', async () => {
-      prisma.pollingConfiguration.findUnique.mockResolvedValue(makeFakePrismaRow());
+      prisma.pollingConfiguration.findUnique.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
       const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
       await repo.findByDeviceId(deviceId);
 
-      expect(prisma.pollingConfiguration.findUnique).toHaveBeenCalledWith({
+      expect(
+        prisma.pollingConfiguration.findUnique
+      ).toHaveBeenCalledWith({
         where: { deviceId: VALID_DEVICE_UUID }
       });
     });
 
     it('should return a successful Result with the mapped entity', async () => {
-      prisma.pollingConfiguration.findUnique.mockResolvedValue(makeFakePrismaRow());
+      prisma.pollingConfiguration.findUnique.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
       const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
       const result = await repo.findByDeviceId(deviceId);
@@ -197,7 +220,9 @@ describe('PrismaPollingConfigurationRepository', () => {
       const result = await repo.findByDeviceId(deviceId);
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Database error finding polling config');
+      expect(result.error).toContain(
+        'Database error finding polling config'
+      );
     });
   });
 
@@ -262,34 +287,47 @@ describe('PrismaPollingConfigurationRepository', () => {
       const result = await repo.findAllDue(FIXED_DATE);
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Database error finding due polling configs');
+      expect(result.error).toContain(
+        'Database error finding due polling configs'
+      );
     });
   });
 
   // ===========================================================================
   describe('save()', () => {
     it('should call toPersistence with the entity', async () => {
-      prisma.pollingConfiguration.upsert.mockResolvedValue(makeFakePrismaRow());
+      prisma.pollingConfiguration.upsert.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
       await repo.save(fakeEntity);
 
-      expect(MockedMapper.toPersistence).toHaveBeenCalledWith(fakeEntity);
+      expect(MockedMapper.toPersistence).toHaveBeenCalledWith(
+        fakeEntity
+      );
     });
 
     it('should call prisma.pollingConfiguration.upsert with create and update data', async () => {
-      prisma.pollingConfiguration.upsert.mockResolvedValue(makeFakePrismaRow());
+      prisma.pollingConfiguration.upsert.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
       await repo.save(fakeEntity);
 
-      expect(prisma.pollingConfiguration.upsert).toHaveBeenCalledTimes(1);
-      const call = prisma.pollingConfiguration.upsert.mock.calls[0][0];
+      expect(
+        prisma.pollingConfiguration.upsert
+      ).toHaveBeenCalledTimes(1);
+      const call =
+        prisma.pollingConfiguration.upsert.mock.calls[0][0];
       expect(call.where).toEqual({ deviceId: VALID_DEVICE_UUID });
       expect(call.create.id).toBe(VALID_CONFIG_UUID);
       expect(call.update).toBeDefined();
     });
 
     it('should return a successful Result containing the same entity', async () => {
-      prisma.pollingConfiguration.upsert.mockResolvedValue(makeFakePrismaRow());
+      prisma.pollingConfiguration.upsert.mockResolvedValue(
+        makeFakePrismaRow()
+      );
 
       const result = await repo.save(fakeEntity);
 
@@ -305,7 +343,9 @@ describe('PrismaPollingConfigurationRepository', () => {
       const result = await repo.save(fakeEntity);
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Database error saving polling config');
+      expect(result.error).toContain(
+        'Database error saving polling config'
+      );
     });
   });
 
@@ -317,9 +357,11 @@ describe('PrismaPollingConfigurationRepository', () => {
       const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
       await repo.delete(deviceId);
 
-      expect(prisma.pollingConfiguration.delete).toHaveBeenCalledWith({
-        where: { deviceId: VALID_DEVICE_UUID }
-      });
+      expect(prisma.pollingConfiguration.delete).toHaveBeenCalledWith(
+        {
+          where: { deviceId: VALID_DEVICE_UUID }
+        }
+      );
     });
 
     it('should return a successful Result on successful deletion', async () => {
@@ -340,7 +382,9 @@ describe('PrismaPollingConfigurationRepository', () => {
       const result = await repo.delete(deviceId);
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Database error deleting polling config');
+      expect(result.error).toContain(
+        'Database error deleting polling config'
+      );
     });
   });
 });

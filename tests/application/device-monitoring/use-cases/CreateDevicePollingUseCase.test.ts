@@ -47,7 +47,9 @@ function makeRepo(): jest.Mocked<IPollingConfigurationRepository> {
   };
 }
 
-function makeDeviceRepo(): jest.Mocked<Pick<IDeviceRepository, 'exists'>> {
+function makeDeviceRepo(): jest.Mocked<
+  Pick<IDeviceRepository, 'exists'>
+> {
   return { exists: jest.fn() };
 }
 
@@ -59,15 +61,24 @@ function makeConfig(
     ipAddress?: string | null;
   } = {}
 ): PollingConfiguration {
-  const rawIp = overrides.ipAddress !== undefined ? overrides.ipAddress : '10.0.0.1';
+  const rawIp =
+    overrides.ipAddress !== undefined
+      ? overrides.ipAddress
+      : '10.0.0.1';
   return PollingConfiguration.reconstitute(
     PollingConfigurationId.parse(VALID_CONFIG_UUID).value,
     {
       deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
-      ipAddress: rawIp !== null ? IPAddress.reconstitute(rawIp) : null,
-      interval: PollingInterval.create(overrides.intervalSeconds ?? 60).value,
-      failuresBeforeDown: FailureThreshold.create(overrides.thresholdCount ?? 3).value,
-      enabled: overrides.enabled !== undefined ? overrides.enabled : true
+      ipAddress:
+        rawIp !== null ? IPAddress.reconstitute(rawIp) : null,
+      interval: PollingInterval.create(
+        overrides.intervalSeconds ?? 60
+      ).value,
+      failuresBeforeDown: FailureThreshold.create(
+        overrides.thresholdCount ?? 3
+      ).value,
+      enabled:
+        overrides.enabled !== undefined ? overrides.enabled : true
     }
   );
 }
@@ -111,14 +122,18 @@ describe('CreateDevicePollingUseCase', () => {
   // ===========================================================================
   describe('beforeExecute — input validation', () => {
     it('should fail when deviceId is an empty string', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: '' }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: '' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Device ID is required');
     });
 
     it('should fail when deviceId is whitespace only', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: '   ' }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: '   ' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Device ID is required');
@@ -128,7 +143,9 @@ describe('CreateDevicePollingUseCase', () => {
   // ===========================================================================
   describe('executeImpl — device ID parsing', () => {
     it('should fail when deviceId is not a valid UUID', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: 'not-a-uuid' }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: 'not-a-uuid' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid Device ID');
@@ -138,7 +155,9 @@ describe('CreateDevicePollingUseCase', () => {
   // ===========================================================================
   describe('executeImpl — device existence check', () => {
     it('should fail when deviceRepo.exists returns a failure', async () => {
-      deviceRepo.exists.mockResolvedValue(Result.fail('DB connection lost'));
+      deviceRepo.exists.mockResolvedValue(
+        Result.fail('DB connection lost')
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -178,8 +197,12 @@ describe('CreateDevicePollingUseCase', () => {
     });
 
     it('should fail when save returns a failure in the CREATE branch', async () => {
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
-      pollingConfigRepo.save.mockResolvedValue(Result.fail('Constraint violation'));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
+      pollingConfigRepo.save.mockResolvedValue(
+        Result.fail('Constraint violation')
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -189,10 +212,16 @@ describe('CreateDevicePollingUseCase', () => {
 
     it('should fail when save returns a failure in the UPDATE branch', async () => {
       const config = makeConfig();
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
-      pollingConfigRepo.save.mockResolvedValue(Result.fail('Constraint violation'));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
+      pollingConfigRepo.save.mockResolvedValue(
+        Result.fail('Constraint violation')
+      );
 
-      const result = await useCase.execute(makeRequest({ intervalSeconds: 120 }));
+      const result = await useCase.execute(
+        makeRequest({ intervalSeconds: 120 })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Failed to save config');
@@ -202,8 +231,12 @@ describe('CreateDevicePollingUseCase', () => {
   // ===========================================================================
   describe('executeImpl — CREATE branch (no existing config)', () => {
     beforeEach(() => {
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
-      pollingConfigRepo.save.mockImplementation(async (cfg) => Result.ok(cfg));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
+      pollingConfigRepo.save.mockImplementation(async (cfg) =>
+        Result.ok(cfg)
+      );
     });
 
     it('should create a config with defaults when no optional fields are provided', async () => {
@@ -217,7 +250,9 @@ describe('CreateDevicePollingUseCase', () => {
     });
 
     it('should reject an explicit enabled:true when no ipAddress is provided', async () => {
-      const result = await useCase.execute(makeRequest({ enabled: true }));
+      const result = await useCase.execute(
+        makeRequest({ enabled: true })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('IP address');
@@ -233,53 +268,69 @@ describe('CreateDevicePollingUseCase', () => {
     });
 
     it('should create a config with provided intervalSeconds', async () => {
-      const result = await useCase.execute(makeRequest({ intervalSeconds: 120 }));
+      const result = await useCase.execute(
+        makeRequest({ intervalSeconds: 120 })
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.intervalSeconds).toBe(120);
     });
 
     it('should create a config with provided failuresBeforeDown', async () => {
-      const result = await useCase.execute(makeRequest({ failuresBeforeDown: 5 }));
+      const result = await useCase.execute(
+        makeRequest({ failuresBeforeDown: 5 })
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.failuresBeforeDown).toBe(5);
     });
 
     it('should create a config with provided ipAddress', async () => {
-      const result = await useCase.execute(makeRequest({ ipAddress: '192.168.1.10' }));
+      const result = await useCase.execute(
+        makeRequest({ ipAddress: '192.168.1.10' })
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.ipAddress).toBe('192.168.1.10');
     });
 
     it('should create a config with enabled=false when provided', async () => {
-      const result = await useCase.execute(makeRequest({ enabled: false }));
+      const result = await useCase.execute(
+        makeRequest({ enabled: false })
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.enabled).toBe(false);
     });
 
     it('should fail when intervalSeconds is invalid (0)', async () => {
-      const result = await useCase.execute(makeRequest({ intervalSeconds: 0 }));
+      const result = await useCase.execute(
+        makeRequest({ intervalSeconds: 0 })
+      );
 
       expect(result.isFailure).toBe(true);
     });
 
     it('should fail when failuresBeforeDown is 0', async () => {
-      const result = await useCase.execute(makeRequest({ failuresBeforeDown: 0 }));
+      const result = await useCase.execute(
+        makeRequest({ failuresBeforeDown: 0 })
+      );
 
       expect(result.isFailure).toBe(true);
     });
 
     it('should fail when failuresBeforeDown exceeds the maximum', async () => {
-      const result = await useCase.execute(makeRequest({ failuresBeforeDown: 101 }));
+      const result = await useCase.execute(
+        makeRequest({ failuresBeforeDown: 101 })
+      );
 
       expect(result.isFailure).toBe(true);
     });
 
     it('should fail when ipAddress is an invalid IP string', async () => {
-      const result = await useCase.execute(makeRequest({ ipAddress: 'not-an-ip' }));
+      const result = await useCase.execute(
+        makeRequest({ ipAddress: 'not-an-ip' })
+      );
 
       expect(result.isFailure).toBe(true);
     });
@@ -304,10 +355,14 @@ describe('CreateDevicePollingUseCase', () => {
   describe('executeImpl — UPDATE branch (config already exists)', () => {
     it('should update interval when intervalSeconds is provided', async () => {
       const config = makeConfig({ intervalSeconds: 60 });
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
       pollingConfigRepo.save.mockResolvedValue(Result.ok(config));
 
-      const result = await useCase.execute(makeRequest({ intervalSeconds: 300 }));
+      const result = await useCase.execute(
+        makeRequest({ intervalSeconds: 300 })
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(config.interval.seconds).toBe(300);
@@ -315,10 +370,14 @@ describe('CreateDevicePollingUseCase', () => {
 
     it('should update threshold when failuresBeforeDown is provided', async () => {
       const config = makeConfig({ thresholdCount: 3 });
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
       pollingConfigRepo.save.mockResolvedValue(Result.ok(config));
 
-      const result = await useCase.execute(makeRequest({ failuresBeforeDown: 10 }));
+      const result = await useCase.execute(
+        makeRequest({ failuresBeforeDown: 10 })
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(config.failuresBeforeDown.value).toBe(10);
@@ -326,10 +385,14 @@ describe('CreateDevicePollingUseCase', () => {
 
     it('should enable polling when enabled=true is provided', async () => {
       const config = makeConfig({ enabled: false });
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
       pollingConfigRepo.save.mockResolvedValue(Result.ok(config));
 
-      const result = await useCase.execute(makeRequest({ enabled: true }));
+      const result = await useCase.execute(
+        makeRequest({ enabled: true })
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(config.enabled).toBe(true);
@@ -337,10 +400,14 @@ describe('CreateDevicePollingUseCase', () => {
 
     it('should disable polling when enabled=false is provided', async () => {
       const config = makeConfig({ enabled: true });
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
       pollingConfigRepo.save.mockResolvedValue(Result.ok(config));
 
-      const result = await useCase.execute(makeRequest({ enabled: false }));
+      const result = await useCase.execute(
+        makeRequest({ enabled: false })
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(config.enabled).toBe(false);
@@ -348,17 +415,26 @@ describe('CreateDevicePollingUseCase', () => {
 
     it('should update ipAddress when a non-null string is provided', async () => {
       const config = makeConfig({ ipAddress: '10.0.0.1' });
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
       pollingConfigRepo.save.mockResolvedValue(Result.ok(config));
 
-      await useCase.execute(makeRequest({ ipAddress: '192.168.1.99' }));
+      await useCase.execute(
+        makeRequest({ ipAddress: '192.168.1.99' })
+      );
 
       expect(config.ipAddress?.value).toBe('192.168.1.99');
     });
 
     it('should set ipAddress to null when ipAddress is explicitly null on a disabled config', async () => {
-      const config = makeConfig({ ipAddress: '10.0.0.1', enabled: false });
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      const config = makeConfig({
+        ipAddress: '10.0.0.1',
+        enabled: false
+      });
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
       pollingConfigRepo.save.mockResolvedValue(Result.ok(config));
 
       await useCase.execute(makeRequest({ ipAddress: null }));
@@ -367,8 +443,13 @@ describe('CreateDevicePollingUseCase', () => {
     });
 
     it('should clear the ipAddress when the same request also disables polling', async () => {
-      const config = makeConfig({ ipAddress: '10.0.0.1', enabled: true });
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      const config = makeConfig({
+        ipAddress: '10.0.0.1',
+        enabled: true
+      });
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
       pollingConfigRepo.save.mockResolvedValue(Result.ok(config));
 
       const result = await useCase.execute(
@@ -381,11 +462,18 @@ describe('CreateDevicePollingUseCase', () => {
     });
 
     it('should fail when clearing the ipAddress of an enabled config', async () => {
-      const config = makeConfig({ ipAddress: '10.0.0.1', enabled: true });
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      const config = makeConfig({
+        ipAddress: '10.0.0.1',
+        enabled: true
+      });
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
       pollingConfigRepo.save.mockResolvedValue(Result.ok(config));
 
-      const result = await useCase.execute(makeRequest({ ipAddress: null }));
+      const result = await useCase.execute(
+        makeRequest({ ipAddress: null })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('IP address');
@@ -394,7 +482,9 @@ describe('CreateDevicePollingUseCase', () => {
 
     it('should not update interval when intervalSeconds is absent', async () => {
       const config = makeConfig({ intervalSeconds: 60 });
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
       pollingConfigRepo.save.mockResolvedValue(Result.ok(config));
 
       await useCase.execute(makeRequest({ failuresBeforeDown: 5 }));
@@ -404,7 +494,9 @@ describe('CreateDevicePollingUseCase', () => {
 
     it('should not update threshold when failuresBeforeDown is absent', async () => {
       const config = makeConfig({ thresholdCount: 3 });
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
       pollingConfigRepo.save.mockResolvedValue(Result.ok(config));
 
       await useCase.execute(makeRequest({ intervalSeconds: 120 }));
@@ -414,7 +506,9 @@ describe('CreateDevicePollingUseCase', () => {
 
     it('should not mutate enabled when enabled is absent', async () => {
       const config = makeConfig({ enabled: true });
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
       pollingConfigRepo.save.mockResolvedValue(Result.ok(config));
 
       await useCase.execute(makeRequest({ intervalSeconds: 120 }));
@@ -424,11 +518,16 @@ describe('CreateDevicePollingUseCase', () => {
 
     it('should not update ipAddress when the ipAddress key is absent from the request', async () => {
       const config = makeConfig({ ipAddress: '10.0.0.1' });
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
       pollingConfigRepo.save.mockResolvedValue(Result.ok(config));
 
       // Request has no 'ipAddress' key at all
-      await useCase.execute({ deviceId: VALID_DEVICE_UUID, intervalSeconds: 120 });
+      await useCase.execute({
+        deviceId: VALID_DEVICE_UUID,
+        intervalSeconds: 120
+      });
 
       expect(config.ipAddress?.value).toBe('10.0.0.1');
     });
@@ -440,7 +539,9 @@ describe('CreateDevicePollingUseCase', () => {
         enabled: false,
         ipAddress: '10.0.0.1'
       });
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
       pollingConfigRepo.save.mockResolvedValue(Result.ok(config));
 
       const result = await useCase.execute(
@@ -461,10 +562,14 @@ describe('CreateDevicePollingUseCase', () => {
 
     it('should return a PollingConfigurationDTO on success', async () => {
       const config = makeConfig();
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(config));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
       pollingConfigRepo.save.mockResolvedValue(Result.ok(config));
 
-      const result = await useCase.execute(makeRequest({ intervalSeconds: 120 }));
+      const result = await useCase.execute(
+        makeRequest({ intervalSeconds: 120 })
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(typeof result.value.id).toBe('string');

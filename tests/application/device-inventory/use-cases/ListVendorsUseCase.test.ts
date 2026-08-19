@@ -1,6 +1,13 @@
 // Source: src/application/device-inventory/use-cases/ListVendorsUseCase.ts
 
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import {
+  describe,
+  it,
+  expect,
+  jest,
+  beforeEach,
+  afterEach
+} from '@jest/globals';
 import { ListVendorsUseCase } from '../../../../src/application/device-inventory/use-cases/ListVendorsUseCase';
 import { IVendorRepository } from '../../../../src/domain/device-inventory/repository/IVendorRepository';
 import { Vendor } from '../../../../src/domain/device-inventory/aggregates/Vendor';
@@ -49,7 +56,12 @@ function makeRepo(): jest.Mocked<IVendorRepository> {
 }
 
 function makeVendor(
-  overrides: Partial<{ id: string; name: string; slug: string; description: string | null }> = {}
+  overrides: Partial<{
+    id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+  }> = {}
 ): Vendor {
   return Vendor.reconstitute(
     VendorId.parse(overrides.id ?? VALID_UUID).value!,
@@ -75,7 +87,9 @@ describe('ListVendorsUseCase', () => {
     logger = makeLogger();
     useCase = new ListVendorsUseCase(repo, logger);
 
-    (repo.findAll as any).mockResolvedValue(Result.ok([makeVendor()]));
+    (repo.findAll as any).mockResolvedValue(
+      Result.ok([makeVendor()])
+    );
     (repo.count as any).mockResolvedValue(Result.ok(1));
   });
 
@@ -127,25 +141,37 @@ describe('ListVendorsUseCase', () => {
     it('should cap limit at 100 when a value exceeding 100 is given', async () => {
       await useCase.execute({ limit: 999 });
 
-      expect(repo.findAll).toHaveBeenCalledWith(100, expect.any(Number));
+      expect(repo.findAll).toHaveBeenCalledWith(
+        100,
+        expect.any(Number)
+      );
     });
 
     it('should pass the provided limit to findAll when within bounds', async () => {
       await useCase.execute({ limit: 50 });
 
-      expect(repo.findAll).toHaveBeenCalledWith(50, expect.any(Number));
+      expect(repo.findAll).toHaveBeenCalledWith(
+        50,
+        expect.any(Number)
+      );
     });
 
     it('should default offset to 0 when not provided', async () => {
       await useCase.execute({});
 
-      expect(repo.findAll).toHaveBeenCalledWith(expect.any(Number), 0);
+      expect(repo.findAll).toHaveBeenCalledWith(
+        expect.any(Number),
+        0
+      );
     });
 
     it('should pass the provided offset to findAll', async () => {
       await useCase.execute({ offset: 40 });
 
-      expect(repo.findAll).toHaveBeenCalledWith(expect.any(Number), 40);
+      expect(repo.findAll).toHaveBeenCalledWith(
+        expect.any(Number),
+        40
+      );
     });
 
     it('should include the effective limit in the response DTO', async () => {
@@ -164,7 +190,9 @@ describe('ListVendorsUseCase', () => {
   // =========================================================================
   describe('executeImpl — hasMore calculation', () => {
     it('should set hasMore to true when more items exist beyond the current page', async () => {
-      (repo.findAll as any).mockResolvedValue(Result.ok([makeVendor()]));
+      (repo.findAll as any).mockResolvedValue(
+        Result.ok([makeVendor()])
+      );
       (repo.count as any).mockResolvedValue(Result.ok(5));
 
       const result = await useCase.execute({ limit: 1, offset: 0 });
@@ -196,7 +224,9 @@ describe('ListVendorsUseCase', () => {
   // =========================================================================
   describe('executeImpl — repository failures', () => {
     it('should fail when findAll returns a failure', async () => {
-      (repo.findAll as any).mockResolvedValue(Result.fail('DB error'));
+      (repo.findAll as any).mockResolvedValue(
+        Result.fail('DB error')
+      );
 
       const result = await useCase.execute({});
 
@@ -204,7 +234,9 @@ describe('ListVendorsUseCase', () => {
     });
 
     it('should carry the findAll error message through on failure', async () => {
-      (repo.findAll as any).mockResolvedValue(Result.fail('DB error'));
+      (repo.findAll as any).mockResolvedValue(
+        Result.fail('DB error')
+      );
 
       const result = await useCase.execute({});
 
@@ -212,7 +244,9 @@ describe('ListVendorsUseCase', () => {
     });
 
     it('should fail when count returns a failure', async () => {
-      (repo.count as any).mockResolvedValue(Result.fail('Count query failed'));
+      (repo.count as any).mockResolvedValue(
+        Result.fail('Count query failed')
+      );
 
       const result = await useCase.execute({});
 
@@ -220,7 +254,9 @@ describe('ListVendorsUseCase', () => {
     });
 
     it('should carry the count error message through on failure', async () => {
-      (repo.count as any).mockResolvedValue(Result.fail('Count query failed'));
+      (repo.count as any).mockResolvedValue(
+        Result.fail('Count query failed')
+      );
 
       const result = await useCase.execute({});
 
@@ -228,7 +264,9 @@ describe('ListVendorsUseCase', () => {
     });
 
     it('should not call count when findAll fails', async () => {
-      (repo.findAll as any).mockResolvedValue(Result.fail('DB error'));
+      (repo.findAll as any).mockResolvedValue(
+        Result.fail('DB error')
+      );
 
       await useCase.execute({});
 

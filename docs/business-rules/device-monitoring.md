@@ -8,11 +8,11 @@ Conventions, rule types and the ID scheme are in [README.md](README.md).
 
 **ID ranges**
 
-| Range                 | Subject                                 |
-| --------------------- | --------------------------------------- |
-| `MON-001` – `MON-019` | Reachability state                      |
-| `MON-020` – `MON-039` | Polling configuration and scheduling    |
-| `MON-040` – `MON-059` | Ping history and retention              |
+| Range                 | Subject                              |
+| --------------------- | ------------------------------------ |
+| `MON-001` – `MON-019` | Reachability state                   |
+| `MON-020` – `MON-039` | Polling configuration and scheduling |
+| `MON-040` – `MON-059` | Ping history and retention           |
 
 This file covers the reachability lifecycle only. The rules that decide **which**
 devices may be monitored at all live with the device itself — see DEV-057
@@ -69,7 +69,7 @@ to one use case: the explicit toggle (`DeviceMonitoringToggledEvent`), a status
 change into INVENTORY or DAMAGED (`DeviceStatusChangedEvent`), and the two
 polling-configuration endpoints that accept `enabled: false`
 (`ConfigureDevicePollingUseCase`, `CreateDevicePollingUseCase`). The rule is
-about the *effect* — polling stopped — not about which door it came through, so
+about the _effect_ — polling stopped — not about which door it came through, so
 a path that only flipped the config flag would reintroduce the stale reading this
 rule exists to prevent.
 
@@ -106,7 +106,7 @@ WhatsApp or e-mail resolution notice is sent.
 
 **Why:** The alert is only ever closed by observing a recovery, and no poll will
 run again to observe one, so it would stay open forever. `PurgeOldAlertsUseCase`
-deletes only *resolved* alerts, so the row would also become unpurgeable — a
+deletes only _resolved_ alerts, so the row would also become unpurgeable — a
 permanent entry in the alert list and in the database. Notifying would be worse
 than silent: "✅ Alerta resuelta" for a device that was never fixed, only stopped
 being watched, is good news that did not happen.

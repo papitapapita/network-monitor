@@ -171,7 +171,9 @@ describe('TicketController', () => {
 
     it('coerces limit and offset to numbers', async () => {
       list.execute.mockResolvedValue(Result.ok({ tickets: [] }));
-      const req = makeRequest({ query: { limit: '25', offset: '5' } });
+      const req = makeRequest({
+        query: { limit: '25', offset: '5' }
+      });
 
       await controller.list(req, makeResponse());
 

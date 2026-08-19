@@ -25,7 +25,7 @@ describe('CredentialsEncryption', () => {
 
       const parts = ciphertext.split(':');
       expect(parts).toHaveLength(3);
-      parts.forEach(part => expect(part.length).toBeGreaterThan(0));
+      parts.forEach((part) => expect(part.length).toBeGreaterThan(0));
     });
 
     it('should produce different ciphertexts for the same plaintext due to random IVs', () => {
@@ -61,9 +61,9 @@ describe('CredentialsEncryption', () => {
 
   describe('decrypt', () => {
     it('should throw when the ciphertext does not contain exactly three colon-separated parts', () => {
-      expect(() => CredentialsEncryption.decrypt('onlytwoparts:here')).toThrow(
-        'Invalid ciphertext format'
-      );
+      expect(() =>
+        CredentialsEncryption.decrypt('onlytwoparts:here')
+      ).toThrow('Invalid ciphertext format');
     });
 
     it('should throw when the auth tag has been tampered with (bit-flip)', () => {

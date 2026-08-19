@@ -20,7 +20,9 @@ export class DeviceMonitoringToggledHandler
     private readonly logger: ILogger
   ) {}
 
-  public async handle(event: DeviceMonitoringToggledEvent): Promise<void> {
+  public async handle(
+    event: DeviceMonitoringToggledEvent
+  ): Promise<void> {
     const deviceId = event.aggregateId;
 
     try {

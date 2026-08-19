@@ -11,7 +11,9 @@ import { DataRetentionSummary } from '../../../../src/application/shared/use-cas
 // Factories
 // ---------------------------------------------------------------------------
 
-function makeUseCase(): jest.Mocked<Pick<TriggerDataRetentionUseCase, 'execute'>> {
+function makeUseCase(): jest.Mocked<
+  Pick<TriggerDataRetentionUseCase, 'execute'>
+> {
   return { execute: jest.fn() };
 }
 
@@ -31,7 +33,10 @@ const createMockResponse = () => {
   const jsonMock = jest.fn();
   const statusMock = jest.fn().mockReturnValue({ json: jsonMock });
   return {
-    res: { status: statusMock, json: jsonMock } as unknown as Response,
+    res: {
+      status: statusMock,
+      json: jsonMock
+    } as unknown as Response,
     statusMock,
     jsonMock
   };
@@ -52,7 +57,9 @@ function makeSummary(
 // ---------------------------------------------------------------------------
 
 describe('AdminController', () => {
-  let useCase: jest.Mocked<Pick<TriggerDataRetentionUseCase, 'execute'>>;
+  let useCase: jest.Mocked<
+    Pick<TriggerDataRetentionUseCase, 'execute'>
+  >;
   let logger: jest.Mocked<ILogger>;
   let controller: AdminController;
 
@@ -106,7 +113,10 @@ describe('AdminController', () => {
         await controller.purgeStaleData(fakeReq, res);
 
         expect(statusMock).toHaveBeenCalledWith(200);
-        expect(jsonMock).toHaveBeenCalledWith({ success: true, data: summary });
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: true,
+          data: summary
+        });
       });
 
       it('should not call logger.error on a successful run', async () => {
@@ -174,7 +184,9 @@ describe('AdminController', () => {
     // -----------------------------------------------------------------------
     describe('failure path — use case throws an unexpected exception', () => {
       it('should respond with status 500 when the use case throws', async () => {
-        useCase.execute.mockRejectedValue(new Error('unexpected crash'));
+        useCase.execute.mockRejectedValue(
+          new Error('unexpected crash')
+        );
         const { res, statusMock } = createMockResponse();
 
         await controller.purgeStaleData(fakeReq, res);
@@ -183,7 +195,9 @@ describe('AdminController', () => {
       });
 
       it('should respond with the generic internal server error message', async () => {
-        useCase.execute.mockRejectedValue(new Error('unexpected crash'));
+        useCase.execute.mockRejectedValue(
+          new Error('unexpected crash')
+        );
         const { res, statusMock, jsonMock } = createMockResponse();
 
         await controller.purgeStaleData(fakeReq, res);
@@ -196,7 +210,9 @@ describe('AdminController', () => {
       });
 
       it('should call logger.error with the unexpected error message', async () => {
-        useCase.execute.mockRejectedValue(new Error('unexpected crash'));
+        useCase.execute.mockRejectedValue(
+          new Error('unexpected crash')
+        );
         const { res } = createMockResponse();
 
         await controller.purgeStaleData(fakeReq, res);
@@ -217,7 +233,9 @@ describe('AdminController', () => {
         await controller.purgeStaleData(fakeReq, res);
 
         expect(jsonMock).not.toHaveBeenCalledWith(
-          expect.objectContaining({ error: 'sensitive internal detail' })
+          expect.objectContaining({
+            error: 'sensitive internal detail'
+          })
         );
       });
     });

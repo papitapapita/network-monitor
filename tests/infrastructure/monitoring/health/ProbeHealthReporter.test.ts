@@ -122,11 +122,20 @@ describe('ProbeHealthReporter', () => {
       jest.useFakeTimers();
       try {
         jest.setSystemTime(new Date('2026-07-22T10:00:00.000Z'));
-        reporter.recordProbeExecutionFailure(DEVICE_A, 'spawn ENOENT');
-        reporter.recordProbeExecutionFailure(DEVICE_B, 'spawn ENOENT');
+        reporter.recordProbeExecutionFailure(
+          DEVICE_A,
+          'spawn ENOENT'
+        );
+        reporter.recordProbeExecutionFailure(
+          DEVICE_B,
+          'spawn ENOENT'
+        );
 
         jest.setSystemTime(new Date('2026-07-22T10:05:00.000Z'));
-        reporter.recordProbeExecutionFailure(DEVICE_C, 'spawn ENOENT');
+        reporter.recordProbeExecutionFailure(
+          DEVICE_C,
+          'spawn ENOENT'
+        );
 
         expect(logger.error).not.toHaveBeenCalled();
       } finally {

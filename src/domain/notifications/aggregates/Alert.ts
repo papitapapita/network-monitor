@@ -51,7 +51,9 @@ export class Alert extends AggregateRoot<AlertProps, AlertId> {
   get durationSecs(): number | null {
     if (!this.props.resolvedAt) return null;
     return Math.floor(
-      (this.props.resolvedAt.getTime() - this.props.startedAt.getTime()) / 1000
+      (this.props.resolvedAt.getTime() -
+        this.props.startedAt.getTime()) /
+        1000
     );
   }
 

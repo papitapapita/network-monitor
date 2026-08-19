@@ -42,15 +42,15 @@
 
 ### Repository Implementation vs Repository Interface:
 
-| Aspect                | Repository Implementation          | Repository Interface              |
-| --------------------- | ---------------------------------- | --------------------------------- |
-| **Layer**             | Infrastructure                     | Domain                            |
-| **Purpose**           | How to persist (technical)         | What to persist (business)        |
-| **Dependencies**      | Database, ORM, mappers, events     | Domain types only                 |
-| **Error Handling**    | Returns `Result.fail()` for ALL errors | Returns `Result<T>` signature  |
-| **Concrete/Abstract** | Concrete implementation            | Abstract interface                |
-| **Knowledge**         | Knows about DB, tables, schemas    | Knows only domain concepts        |
-| **Testing**           | Integration tests (real DB)        | Mocked in unit tests              |
+| Aspect                | Repository Implementation              | Repository Interface          |
+| --------------------- | -------------------------------------- | ----------------------------- |
+| **Layer**             | Infrastructure                         | Domain                        |
+| **Purpose**           | How to persist (technical)             | What to persist (business)    |
+| **Dependencies**      | Database, ORM, mappers, events         | Domain types only             |
+| **Error Handling**    | Returns `Result.fail()` for ALL errors | Returns `Result<T>` signature |
+| **Concrete/Abstract** | Concrete implementation                | Abstract interface            |
+| **Knowledge**         | Knows about DB, tables, schemas        | Knows only domain concepts    |
+| **Testing**           | Integration tests (real DB)            | Mocked in unit tests          |
 
 ---
 
@@ -250,7 +250,9 @@
 ```typescript
 // 1. Infrastructure layer creates concrete implementation
 const prismaClient = new PrismaClient();
-const networkDeviceRepository = new PrismaNetworkDeviceRepository(prismaClient);
+const networkDeviceRepository = new PrismaNetworkDeviceRepository(
+  prismaClient
+);
 
 // 2. Dependency injection container registers implementation against interface
 container.register<INetworkDeviceRepository>(
@@ -317,7 +319,9 @@ import { NetworkDeviceMapper } from '@/infrastructure/mappers/NetworkDeviceMappe
  * - Manages database connections and transactions
  * - Handles Prisma-specific error codes
  */
-export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
+export class PrismaNetworkDeviceRepository
+  implements INetworkDeviceRepository
+{
   constructor(private readonly prisma: PrismaClient) {}
 
   /**
@@ -330,9 +334,12 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
    * @param device - Network device aggregate to save
    * @returns Result<NetworkDevice> - Saved device or error
    */
-  public async save(device: NetworkDevice): Promise<Result<NetworkDevice>> {
+  public async save(
+    device: NetworkDevice
+  ): Promise<Result<NetworkDevice>> {
     try {
-      const persistenceData = NetworkDeviceMapper.toPersistence(device);
+      const persistenceData =
+        NetworkDeviceMapper.toPersistence(device);
 
       await this.prisma.$transaction(async (tx) => {
         const exists = await tx.networkDevice.findUnique({
@@ -452,7 +459,8 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
 
       const devices: NetworkDevice[] = [];
       for (const deviceData of devicesData) {
-        const deviceOrError = NetworkDeviceMapper.toDomain(deviceData);
+        const deviceOrError =
+          NetworkDeviceMapper.toDomain(deviceData);
 
         if (deviceOrError.isFailure) {
           return Result.fail<NetworkDevice[]>(
@@ -614,16 +622,24 @@ Each repository handles exactly one aggregate type:
 
 ```typescript
 // ✅ GOOD - Repository handles one aggregate
-export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
+export class PrismaNetworkDeviceRepository
+  implements INetworkDeviceRepository
+{
   // Only NetworkDevice operations
   async save(device: NetworkDevice): Promise<Result<NetworkDevice>> {}
-  async findById(id: NetworkDeviceId): Promise<Result<NetworkDevice | null>> {}
+  async findById(
+    id: NetworkDeviceId
+  ): Promise<Result<NetworkDevice | null>> {}
 }
 
 // ❌ BAD - Repository handles multiple aggregates
 export class PrismaDeviceAndResultRepository {
-  async saveDevice(device: NetworkDevice): Promise<Result<NetworkDevice>> {}
-  async saveResult(result: PollingResult): Promise<Result<PollingResult>> {}
+  async saveDevice(
+    device: NetworkDevice
+  ): Promise<Result<NetworkDevice>> {}
+  async saveResult(
+    result: PollingResult
+  ): Promise<Result<PollingResult>> {}
   // Mixing different aggregates!
 }
 ```
@@ -634,7 +650,9 @@ Implementation changes don't affect domain model:
 
 ```typescript
 // ✅ GOOD - Domain doesn't know about Prisma
-export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
+export class PrismaNetworkDeviceRepository
+  implements INetworkDeviceRepository
+{
   private prisma: PrismaClient; // Infrastructure detail
 
   async save(device: NetworkDevice): Promise<Result<NetworkDevice>> {
@@ -645,8 +663,12 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
 }
 
 // ❌ BAD - Exposing infrastructure to domain
-export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
-  async save(device: NetworkDevice): Promise<Result<PrismaNetworkDevice>> {
+export class PrismaNetworkDeviceRepository
+  implements INetworkDeviceRepository
+{
+  async save(
+    device: NetworkDevice
+  ): Promise<Result<PrismaNetworkDevice>> {
     // Returns Prisma type - leaks infrastructure!
   }
 }
@@ -705,9 +727,11 @@ Good repository implementations remain stable when:
 
 ```typescript
 // ✅ GOOD
-export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {}
+export class PrismaNetworkDeviceRepository
+  implements INetworkDeviceRepository {}
 export class PrismaOrderRepository implements IOrderRepository {}
-export class TypeORMCustomerRepository implements ICustomerRepository {}
+export class TypeORMCustomerRepository
+  implements ICustomerRepository {}
 export class MongoDBProductRepository implements IProductRepository {}
 
 // ❌ BAD
@@ -739,24 +763,34 @@ Follow the interface exactly — no deviation:
 
 ```typescript
 // ✅ GOOD - Exact interface implementation
-export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
+export class PrismaNetworkDeviceRepository
+  implements INetworkDeviceRepository
+{
   // Interface defines: save
   async save(device: NetworkDevice): Promise<Result<NetworkDevice>> {}
 
   // Interface defines: findById
-  async findById(id: NetworkDeviceId): Promise<Result<NetworkDevice | null>> {}
+  async findById(
+    id: NetworkDeviceId
+  ): Promise<Result<NetworkDevice | null>> {}
 
   // Interface defines: delete
   async delete(id: NetworkDeviceId): Promise<Result<void>> {}
 }
 
 // ❌ BAD - Different method names
-export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
+export class PrismaNetworkDeviceRepository
+  implements INetworkDeviceRepository
+{
   // Interface says "save", implementation says "persist"
-  async persist(device: NetworkDevice): Promise<Result<NetworkDevice>> {}
+  async persist(
+    device: NetworkDevice
+  ): Promise<Result<NetworkDevice>> {}
 
   // Interface says "findById", implementation says "getById"
-  async getById(id: NetworkDeviceId): Promise<Result<NetworkDevice | null>> {}
+  async getById(
+    id: NetworkDeviceId
+  ): Promise<Result<NetworkDevice | null>> {}
 }
 ```
 
@@ -778,7 +812,9 @@ export class PrismaOrderRepository implements IOrderRepository {
     // Transaction wrapper
   }
 
-  private async loadOrderItems(orderId: string): Promise<OrderItemData[]> {
+  private async loadOrderItems(
+    orderId: string
+  ): Promise<OrderItemData[]> {
     // Helper query
   }
 
@@ -817,8 +853,12 @@ return Result.fail('Device not found');
 return Result.fail('Referenced entity does not exist');
 
 // Infrastructure error - prefixed with "Database error: ..."
-return Result.fail(`Database error saving network device: ${errorMessage}`);
-return Result.fail(`Database error finding network device: ${errorMessage}`);
+return Result.fail(
+  `Database error saving network device: ${errorMessage}`
+);
+return Result.fail(
+  `Database error finding network device: ${errorMessage}`
+);
 ```
 
 The controller can then classify errors for HTTP status codes without relying on fragile string matching for business errors:
@@ -833,7 +873,9 @@ The controller can then classify errors for HTTP status codes without relying on
 These are **expected** errors that are part of normal business operations:
 
 ```typescript
-export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
+export class PrismaNetworkDeviceRepository
+  implements INetworkDeviceRepository
+{
   async save(device: NetworkDevice): Promise<Result<NetworkDevice>> {
     try {
       // ... save logic ...
@@ -874,12 +916,12 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
 
 **Common Prisma Error Codes (Business Errors):**
 
-| Code   | Meaning                      | Message style            |
-| ------ | ---------------------------- | ------------------------ |
-| P2002  | Unique constraint violation  | `"X already exists"`     |
-| P2003  | Foreign key constraint fail  | `"Referenced X does not exist"` |
-| P2004  | Constraint failed on DB      | `"Data violates constraints"` |
-| P2025  | Record not found (delete)    | `"X not found"`          |
+| Code  | Meaning                     | Message style                   |
+| ----- | --------------------------- | ------------------------------- |
+| P2002 | Unique constraint violation | `"X already exists"`            |
+| P2003 | Foreign key constraint fail | `"Referenced X does not exist"` |
+| P2004 | Constraint failed on DB     | `"Data violates constraints"`   |
+| P2025 | Record not found (delete)   | `"X not found"`                 |
 
 ### Infrastructure Errors → `Result.fail()` with "Database error: ..." prefix
 
@@ -908,14 +950,14 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
 
 **Common Prisma Error Codes (Infrastructure Errors):**
 
-| Code   | Meaning                   | Message style                                 |
-| ------ | ------------------------- | --------------------------------------------- |
-| P1000  | Authentication failed     | `"Database error: ..."` |
-| P1001  | Cannot reach DB server    | `"Database error: ..."` |
-| P1002  | DB server unreachable     | `"Database error: ..."` |
-| P1008  | Operations timed out      | `"Database error: ..."` |
-| P1009  | Database doesn't exist    | `"Database error: ..."` |
-| P1010  | Access denied             | `"Database error: ..."` |
+| Code  | Meaning                | Message style           |
+| ----- | ---------------------- | ----------------------- |
+| P1000 | Authentication failed  | `"Database error: ..."` |
+| P1001 | Cannot reach DB server | `"Database error: ..."` |
+| P1002 | DB server unreachable  | `"Database error: ..."` |
+| P1008 | Operations timed out   | `"Database error: ..."` |
+| P1009 | Database doesn't exist | `"Database error: ..."` |
+| P1010 | Access denied          | `"Database error: ..."` |
 
 ### Data Mapping Errors — Data Integrity (Not Business Errors)
 
@@ -952,7 +994,9 @@ async findById(id: NetworkDeviceId): Promise<Result<NetworkDevice | null>> {
 ### Error Classification Helper:
 
 ```typescript
-export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
+export class PrismaNetworkDeviceRepository
+  implements INetworkDeviceRepository
+{
   /**
    * Converts a Prisma error into a typed Result.fail() message.
    * Business errors use domain language; infrastructure errors use "Database error:" prefix.
@@ -982,7 +1026,9 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
     // Infrastructure errors — "Database error:" prefix
     const errorMessage =
       error instanceof Error ? error.message : String(error);
-    return Result.fail<T>(`Database error ${context}: ${errorMessage}`);
+    return Result.fail<T>(
+      `Database error ${context}: ${errorMessage}`
+    );
   }
 
   async save(device: NetworkDevice): Promise<Result<NetworkDevice>> {
@@ -1008,7 +1054,9 @@ export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
 Most operations are naturally transactional with a single Prisma call:
 
 ```typescript
-export class PrismaNetworkDeviceRepository implements INetworkDeviceRepository {
+export class PrismaNetworkDeviceRepository
+  implements INetworkDeviceRepository
+{
   async save(device: NetworkDevice): Promise<Result<NetworkDevice>> {
     try {
       await this.prisma.networkDevice.upsert({
@@ -1126,15 +1174,18 @@ export class PlaceOrderUseCase {
 ### Transaction Best Practices:
 
 1. **Keep Transactions Short**
+
    - Only include necessary operations
    - Avoid long-running queries in transactions
    - Release locks quickly
 
 2. **One Aggregate Per Transaction (Typically)**
+
    - Most operations = single aggregate = single transaction
    - Cross-aggregate operations need careful consideration
 
 3. **Dispatch Events AFTER `$transaction` Resolves**
+
    - Never dispatch inside the transaction callback
    - The callback runs BEFORE the commit — events dispatched there may fire on rolled-back data
    - Dispatch immediately after the `await this.prisma.$transaction(...)` call
@@ -1241,14 +1292,17 @@ EventDispatcher.dispatchEventsForAggregate(payment.id);
 ### Event Dispatching Best Practices:
 
 1. **After Database Commit Only**
+
    - Never dispatch before persistence succeeds
    - Never dispatch inside a `$transaction` callback
 
 2. **Transaction-Aware**
+
    - Skip dispatching if an external transaction is in progress
    - Let the transaction owner dispatch after commit
 
 3. **Handle Failures Gracefully**
+
    - If dispatch fails, log the error
    - Do not fail the overall operation (persistence already succeeded)
    - Consider retry mechanisms for critical events
@@ -1268,7 +1322,10 @@ Repository implementations require **integration tests** (with real database):
 ```typescript
 import { PrismaClient } from '@prisma/client';
 import { PrismaNetworkDeviceRepository } from '@/infrastructure/repositories/PrismaNetworkDeviceRepository';
-import { NetworkDevice, NetworkDeviceId } from '@/domain/aggregates/NetworkDevice';
+import {
+  NetworkDevice,
+  NetworkDeviceId
+} from '@/domain/aggregates/NetworkDevice';
 import { IPAddress } from '@/domain/value-objects/IPAddress';
 import { MACAddress } from '@/domain/value-objects/MACAddress';
 
@@ -1302,7 +1359,9 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
     describe('when creating new device', () => {
       it('should persist device to database', async () => {
         const ipAddress = IPAddress.create('192.168.1.100').value;
-        const macAddress = MACAddress.create('00:11:22:33:44:55').value;
+        const macAddress = MACAddress.create(
+          '00:11:22:33:44:55'
+        ).value;
 
         const deviceResult = NetworkDevice.create({
           name: 'Test Device',
@@ -1422,7 +1481,9 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
 
       expect(findResult.isSuccess).toBe(true);
       expect(findResult.value?.pollingConfiguration).toBeDefined();
-      expect(findResult.value?.pollingConfiguration.enabled).toBe(true);
+      expect(findResult.value?.pollingConfiguration.enabled).toBe(
+        true
+      );
     });
   });
 
@@ -1463,7 +1524,8 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
         const device = NetworkDevice.create({
           name: `Device ${i}`,
           ipAddress: IPAddress.create(`192.168.1.${i}`).value,
-          macAddress: MACAddress.create(`00:11:22:33:44:${i}${i}`).value,
+          macAddress: MACAddress.create(`00:11:22:33:44:${i}${i}`)
+            .value,
           deviceType: 'ROUTER'
         }).value;
 
@@ -1561,7 +1623,9 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
     it('should return Result.fail() on database failure', async () => {
       // Simulate a disconnected client
       const badRepository = new PrismaNetworkDeviceRepository(
-        new PrismaClient({ datasources: { db: { url: 'postgresql://invalid' } } })
+        new PrismaClient({
+          datasources: { db: { url: 'postgresql://invalid' } }
+        })
       );
 
       const device = NetworkDevice.create({
@@ -1584,6 +1648,7 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
 ### Test Coverage Requirements:
 
 1. **CRUD Operations**:
+
    - Create (new entity)
    - Update (existing entity)
    - Read by ID
@@ -1592,22 +1657,26 @@ describe('PrismaNetworkDeviceRepository (Integration)', () => {
    - Exists
 
 2. **Business Error Scenarios**:
+
    - Duplicate key violations → `Result.fail()` with domain message
    - Foreign key violations → `Result.fail()` with domain message
    - Not found scenarios → `Result.ok(null)` or `Result.fail("X not found")`
    - Constraint violations → `Result.fail()` with domain message
 
 3. **Aggregate Loading**:
+
    - Complete aggregate with children
    - Nested relationships
    - Lazy vs eager loading
 
 4. **Edge Cases**:
+
    - Empty results (valid scenario → `Result.ok([])`)
    - Null returns (`Result.ok(null)`)
    - Pagination boundaries
 
 5. **Transaction Behavior**:
+
    - Multiple operations succeed together
    - Rollback on failure
    - Event dispatching after commit (not inside callback)
@@ -1653,7 +1722,9 @@ export class PrismaCustomerRepository implements ICustomerRepository {
     } catch (error: any) {
       if (error.code === 'P2002') {
         const field = error.meta?.target?.[0] || 'field';
-        return Result.fail<Customer>(`Customer ${field} already exists`);
+        return Result.fail<Customer>(
+          `Customer ${field} already exists`
+        );
       }
 
       const errorMessage =
@@ -1897,7 +1968,10 @@ export class PrismaOrderRepository implements IOrderRepository {
 import { PrismaClient, Prisma } from '@prisma/client';
 import { Result } from '@/shared/core/Result';
 import { IInventoryRepository } from '@/domain/repositories/IInventoryRepository';
-import { Inventory, InventoryId } from '@/domain/aggregates/Inventory';
+import {
+  Inventory,
+  InventoryId
+} from '@/domain/aggregates/Inventory';
 import { ProductId } from '@/domain/aggregates/Product';
 import { InventoryMapper } from '@/infrastructure/mappers/InventoryMapper';
 import { EventDispatcher } from '@/domain/events/EventDispatcher';
@@ -1912,7 +1986,9 @@ type PrismaTransaction = Omit<
  * Prisma implementation of IInventoryRepository.
  * Supports explicit transaction context for use case-controlled transactions.
  */
-export class PrismaInventoryRepository implements IInventoryRepository {
+export class PrismaInventoryRepository
+  implements IInventoryRepository
+{
   constructor(private readonly prisma: PrismaClient) {}
 
   /**
@@ -1942,7 +2018,9 @@ export class PrismaInventoryRepository implements IInventoryRepository {
       return Result.ok(inventory);
     } catch (error: any) {
       if (error.code === 'P2002') {
-        return Result.fail<Inventory>('Product already has inventory');
+        return Result.fail<Inventory>(
+          'Product already has inventory'
+        );
       }
 
       const errorMessage =

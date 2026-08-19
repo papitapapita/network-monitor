@@ -22,9 +22,15 @@ export class Address extends ValueObject<AddressProps> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(props.street, 'street'),
       Guard.isString(props.street, 'street'),
-      Guard.againstNullOrUndefined(props.municipality, 'municipality'),
+      Guard.againstNullOrUndefined(
+        props.municipality,
+        'municipality'
+      ),
       Guard.isString(props.municipality, 'municipality'),
-      Guard.againstNullOrUndefined(props.neighborhood, 'neighborhood'),
+      Guard.againstNullOrUndefined(
+        props.neighborhood,
+        'neighborhood'
+      ),
       Guard.isString(props.neighborhood, 'neighborhood')
     ]);
     if (!guardResult.succeeded) {
@@ -36,7 +42,9 @@ export class Address extends ValueObject<AddressProps> {
       return Result.fail<Address>('Street address cannot be empty');
     }
     if (street.length > 255) {
-      return Result.fail<Address>('Street address cannot exceed 255 characters');
+      return Result.fail<Address>(
+        'Street address cannot exceed 255 characters'
+      );
     }
 
     const municipality = props.municipality.trim();
@@ -44,7 +52,9 @@ export class Address extends ValueObject<AddressProps> {
       return Result.fail<Address>('Municipality cannot be empty');
     }
     if (municipality.length > 100) {
-      return Result.fail<Address>('Municipality cannot exceed 100 characters');
+      return Result.fail<Address>(
+        'Municipality cannot exceed 100 characters'
+      );
     }
 
     const neighborhood = props.neighborhood.trim();
@@ -52,10 +62,14 @@ export class Address extends ValueObject<AddressProps> {
       return Result.fail<Address>('Neighborhood cannot be empty');
     }
     if (neighborhood.length > 150) {
-      return Result.fail<Address>('Neighborhood cannot exceed 150 characters');
+      return Result.fail<Address>(
+        'Neighborhood cannot exceed 150 characters'
+      );
     }
 
-    return Result.ok<Address>(new Address({ street, municipality, neighborhood }));
+    return Result.ok<Address>(
+      new Address({ street, municipality, neighborhood })
+    );
   }
 
   public static createOptional(props: {
@@ -65,11 +79,19 @@ export class Address extends ValueObject<AddressProps> {
   }): Result<Address | null> {
     const { street, municipality, neighborhood } = props;
 
-    if (street === null && municipality === null && neighborhood === null) {
+    if (
+      street === null &&
+      municipality === null &&
+      neighborhood === null
+    ) {
       return Result.ok<Address | null>(null);
     }
 
-    if (street === null || municipality === null || neighborhood === null) {
+    if (
+      street === null ||
+      municipality === null ||
+      neighborhood === null
+    ) {
       return Result.fail<Address | null>(
         'An address requires a street, municipality, and neighborhood'
       );

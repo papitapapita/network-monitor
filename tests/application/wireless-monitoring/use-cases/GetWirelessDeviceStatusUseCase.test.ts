@@ -5,10 +5,14 @@ import { IWirelessSnapshotRepository } from '../../../../src/domain/wireless-mon
 import { IWirelessAlertRecordRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessAlertRecordRepository';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
-import { DeviceId, SnapshotId, WirelessAlertRecordId } from '../../../../src/domain/shared/ids';
+import {
+  DeviceId,
+  SnapshotId,
+  WirelessAlertRecordId
+} from '../../../../src/domain/shared/ids';
 import {
   WirelessSnapshot,
-  WirelessAlertRecord,
+  WirelessAlertRecord
 } from '../../../../src/domain/wireless-monitoring';
 import { WirelessMetrics } from '../../../../src/domain/wireless-monitoring/value-objects/WirelessMetrics';
 
@@ -32,7 +36,7 @@ function makeLogger(): jest.Mocked<ILogger> {
     error: jest.fn(),
     fatal: jest.fn(),
     setLevel: jest.fn(),
-    child: jest.fn(),
+    child: jest.fn()
   };
   child.child.mockReturnValue(child);
   return child;
@@ -40,55 +44,72 @@ function makeLogger(): jest.Mocked<ILogger> {
 
 function makeNullMetrics(): WirelessMetrics {
   return WirelessMetrics.reconstitute({
-    signalRxDbm: null, signalTxDbm: null, noiseFloorDbm: null, snrDb: null,
-    ccqPercent: null, frequencyMhz: null,
-    channelWidthMhz: null, throughputTxBps: null,
-    throughputRxBps: null, throughputTxPps: null, throughputRxPps: null,
-    lanStatus: null, lanSpeedMbps: null, lanDuplex: null, uptimeSeconds: null,
-    cpuLoadPercent: null, memoryUsedPercent: null, firmwareVersion: null,
-    deviceName: null, remoteApMac: null, remoteApName: null, remoteApIp: null,
-    distanceM: null, latencyMs: null, capacityTxKbps: null, capacityRxKbps: null,
-    deviceTimeEpoch: null, clientsConnected: null,
-    macAddress: null, deviceModel: null, ssid: null,
+    signalRxDbm: null,
+    signalTxDbm: null,
+    noiseFloorDbm: null,
+    snrDb: null,
+    ccqPercent: null,
+    frequencyMhz: null,
+    channelWidthMhz: null,
+    throughputTxBps: null,
+    throughputRxBps: null,
+    throughputTxPps: null,
+    throughputRxPps: null,
+    lanStatus: null,
+    lanSpeedMbps: null,
+    lanDuplex: null,
+    uptimeSeconds: null,
+    cpuLoadPercent: null,
+    memoryUsedPercent: null,
+    firmwareVersion: null,
+    deviceName: null,
+    remoteApMac: null,
+    remoteApName: null,
+    remoteApIp: null,
+    distanceM: null,
+    latencyMs: null,
+    capacityTxKbps: null,
+    capacityRxKbps: null,
+    deviceTimeEpoch: null,
+    clientsConnected: null,
+    macAddress: null,
+    deviceModel: null,
+    ssid: null
   });
 }
 
-function makeSnapshot(deviceType: 'STATION' | 'ACCESS_POINT' = 'STATION'): WirelessSnapshot {
+function makeSnapshot(
+  deviceType: 'STATION' | 'ACCESS_POINT' = 'STATION'
+): WirelessSnapshot {
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const snapshotId = SnapshotId.parse(SNAPSHOT_UUID).value;
-  return WirelessSnapshot.reconstitute(
-    snapshotId,
-    {
-      deviceId,
-      deviceType,
-      collectedAt: new Date('2024-01-01T00:00:00.000Z'),
-      collectionMethod: 'snmp',
-      metrics: makeNullMetrics(),
-      clients: [],
-      alerts: [],
-      remoteApDeviceId: null,
-    }
-  );
+  return WirelessSnapshot.reconstitute(snapshotId, {
+    deviceId,
+    deviceType,
+    collectedAt: new Date('2024-01-01T00:00:00.000Z'),
+    collectionMethod: 'snmp',
+    metrics: makeNullMetrics(),
+    clients: [],
+    alerts: [],
+    remoteApDeviceId: null
+  });
 }
 
 function makeAlertRecord(): WirelessAlertRecord {
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
   const alertId = WirelessAlertRecordId.parse(ALERT_UUID).value;
-  return WirelessAlertRecord.reconstitute(
-    alertId,
-    {
-      deviceId,
-      metric: 'signal_rx_dbm',
-      severity: 'WARNING',
-      threshold: -70,
-      lastValue: -75,
-      message: 'Signal below threshold',
-      notifiedAt: null,
-      triggeredAt: new Date('2024-01-01T00:00:00.000Z'),
-      clearedAt: null,
-      isActive: true,
-    }
-  );
+  return WirelessAlertRecord.reconstitute(alertId, {
+    deviceId,
+    metric: 'signal_rx_dbm',
+    severity: 'WARNING',
+    threshold: -70,
+    lastValue: -75,
+    message: 'Signal below threshold',
+    notifiedAt: null,
+    triggeredAt: new Date('2024-01-01T00:00:00.000Z'),
+    clearedAt: null,
+    isActive: true
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -115,14 +136,18 @@ describe('[WLS-140] GetWirelessDeviceStatusUseCase', () => {
       exists: jest.fn(),
       findActiveByDeviceMetricAndSeverity: jest.fn(),
       findAllActiveByDevice: jest.fn(),
-    findActiveUnnotifiedByDevice: jest.fn(),
+      findActiveUnnotifiedByDevice: jest.fn(),
       findAllActive: jest.fn(),
       findHistoryByDevice: jest.fn(),
       deleteClearedOlderThan: jest.fn()
     };
 
     logger = makeLogger();
-    useCase = new GetWirelessDeviceStatusUseCase(snapshotRepo, alertRecordRepo, logger);
+    useCase = new GetWirelessDeviceStatusUseCase(
+      snapshotRepo,
+      alertRecordRepo,
+      logger
+    );
   });
 
   afterEach(() => {
@@ -155,7 +180,9 @@ describe('[WLS-140] GetWirelessDeviceStatusUseCase', () => {
   // ===========================================================================
   describe('executeImpl — device ID parsing', () => {
     it('should fail when deviceId is not a valid UUID', async () => {
-      const result = await useCase.execute({ deviceId: 'not-a-uuid' });
+      const result = await useCase.execute({
+        deviceId: 'not-a-uuid'
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid device ID');
@@ -165,31 +192,50 @@ describe('[WLS-140] GetWirelessDeviceStatusUseCase', () => {
   // ===========================================================================
   describe('executeImpl — snapshot loading', () => {
     it('should fail when snapshotRepo returns a failure', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.fail('DB timeout'));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.fail('DB timeout')
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Failed to load wireless snapshot');
+      expect(result.error).toContain(
+        'Failed to load wireless snapshot'
+      );
     });
 
     it('should fail when no snapshot exists for the device', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(null));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(null)
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('No wireless data found for device');
+      expect(result.error).toContain(
+        'No wireless data found for device'
+      );
     });
 
     it('should call snapshotRepo.findLatestByDevice with the parsed deviceId', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot()));
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([]));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(makeSnapshot())
+      );
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      expect(snapshotRepo.findLatestByDevice).toHaveBeenCalledTimes(1);
-      const calledWith = snapshotRepo.findLatestByDevice.mock.calls[0][0];
+      expect(snapshotRepo.findLatestByDevice).toHaveBeenCalledTimes(
+        1
+      );
+      const calledWith =
+        snapshotRepo.findLatestByDevice.mock.calls[0][0];
       expect(calledWith.toString()).toBe(VALID_DEVICE_UUID);
     });
   });
@@ -197,21 +243,34 @@ describe('[WLS-140] GetWirelessDeviceStatusUseCase', () => {
   // ===========================================================================
   describe('executeImpl — active alerts loading', () => {
     it('should call alertRecordRepo.findAllActiveByDevice with the parsed deviceId', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot()));
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([]));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(makeSnapshot())
+      );
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      expect(alertRecordRepo.findAllActiveByDevice).toHaveBeenCalledTimes(1);
-      const calledWith = alertRecordRepo.findAllActiveByDevice.mock.calls[0][0];
+      expect(
+        alertRecordRepo.findAllActiveByDevice
+      ).toHaveBeenCalledTimes(1);
+      const calledWith =
+        alertRecordRepo.findAllActiveByDevice.mock.calls[0][0];
       expect(calledWith.toString()).toBe(VALID_DEVICE_UUID);
     });
 
     it('should use an empty alerts array when alertRecordRepo fails', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot()));
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.fail('DB unreachable'));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(makeSnapshot())
+      );
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.fail('DB unreachable')
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.activeAlerts).toHaveLength(0);
@@ -221,58 +280,98 @@ describe('[WLS-140] GetWirelessDeviceStatusUseCase', () => {
   // ===========================================================================
   describe('executeImpl — happy path response shape', () => {
     it('should return a successful Result', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot()));
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([]));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(makeSnapshot())
+      );
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isSuccess).toBe(true);
     });
 
     it('should include the deviceId in the response', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot()));
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([]));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(makeSnapshot())
+      );
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.deviceId).toBe(VALID_DEVICE_UUID);
     });
 
     it('should include collectedAt as an ISO string', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot()));
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([]));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(makeSnapshot())
+      );
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
-      expect(result.value.collectedAt).toBe('2024-01-01T00:00:00.000Z');
+      expect(result.value.collectedAt).toBe(
+        '2024-01-01T00:00:00.000Z'
+      );
     });
 
     it('should include the deviceType in the response', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot('ACCESS_POINT')));
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([]));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(makeSnapshot('ACCESS_POINT'))
+      );
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.deviceType).toBe('ACCESS_POINT');
     });
 
     it('should include an empty activeAlerts array when no active alerts exist', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot()));
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([]));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(makeSnapshot())
+      );
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.activeAlerts).toHaveLength(0);
     });
 
     it('should map active alerts into the response', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(makeSnapshot()));
-      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(Result.ok([makeAlertRecord()]));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(makeSnapshot())
+      );
+      alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([makeAlertRecord()])
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.activeAlerts).toHaveLength(1);
-      expect(result.value.activeAlerts[0].metric).toBe('signal_rx_dbm');
+      expect(result.value.activeAlerts[0].metric).toBe(
+        'signal_rx_dbm'
+      );
     });
   });
 });

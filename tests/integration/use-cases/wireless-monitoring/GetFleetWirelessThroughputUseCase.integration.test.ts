@@ -200,7 +200,11 @@ describe('GetFleetWirelessThroughputUseCase — integration', () => {
     await seedConfig(fresh, 10_000, 60);
     await seedConfig(old, 10_000, 60);
     await seedSnapshot(fresh, 1_000_000);
-    await seedSnapshot(old, 1_000_000, new Date(Date.now() - 600_000));
+    await seedSnapshot(
+      old,
+      1_000_000,
+      new Date(Date.now() - 600_000)
+    );
 
     const result = await useCase.execute();
 

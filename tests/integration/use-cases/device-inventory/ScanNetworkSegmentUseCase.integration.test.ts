@@ -10,7 +10,10 @@ describe('ScanNetworkSegmentUseCase — integration', () => {
 
   beforeAll(() => {
     scanner = new FakeNetworkScannerService();
-    useCase = new ScanNetworkSegmentUseCase(scanner, new WinstonLogger());
+    useCase = new ScanNetworkSegmentUseCase(
+      scanner,
+      new WinstonLogger()
+    );
   });
 
   beforeEach(() => {
@@ -37,7 +40,9 @@ describe('ScanNetworkSegmentUseCase — integration', () => {
       }
     ]);
 
-    const result = await useCase.execute({ segment: '192.168.1.0/24' });
+    const result = await useCase.execute({
+      segment: '192.168.1.0/24'
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.segment).toBe('192.168.1.0/24');
@@ -61,7 +66,9 @@ describe('ScanNetworkSegmentUseCase — integration', () => {
   it('succeeds with zero responsive hosts', async () => {
     scanner.setHosts([]);
 
-    const result = await useCase.execute({ segment: '192.168.99.0/24' });
+    const result = await useCase.execute({
+      segment: '192.168.99.0/24'
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.responsiveCount).toBe(0);
@@ -89,7 +96,9 @@ describe('ScanNetworkSegmentUseCase — integration', () => {
   // ──────────────────────────────────────────────────────────────
 
   it('[DEV-143] excludes network and broadcast addresses for a /24', async () => {
-    const result = await useCase.execute({ segment: '192.168.1.0/24' });
+    const result = await useCase.execute({
+      segment: '192.168.1.0/24'
+    });
 
     expect(result.value.scannedCount).toBe(254);
   });

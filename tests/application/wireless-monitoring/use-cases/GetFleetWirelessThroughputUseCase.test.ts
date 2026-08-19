@@ -245,7 +245,9 @@ describe('[WLS-146] GetFleetWirelessThroughputUseCase', () => {
       const result = await useCase.execute();
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Failed to load fleet throughput');
+      expect(result.error).toContain(
+        'Failed to load fleet throughput'
+      );
       expect(configRepo.findAll).not.toHaveBeenCalled();
     });
 

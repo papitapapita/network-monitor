@@ -6,7 +6,12 @@ import { Application } from 'express';
 import { PrismaClient } from '../../src/generated/prisma/client';
 import { createTestApp } from './helpers/createTestApp';
 import { seedAndGetToken } from './helpers/auth';
-import { cleanCatalog, seedVendor, GHOST_ID, INVALID_ID } from './helpers/db';
+import {
+  cleanCatalog,
+  seedVendor,
+  GHOST_ID,
+  INVALID_ID
+} from './helpers/db';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
 
 describe('Vendor Routes — /api/vendors', () => {
@@ -53,7 +58,9 @@ describe('Vendor Routes — /api/vendors', () => {
       expect(res.body.data.createdAt).toBeDefined();
       expect(res.body.data.updatedAt).toBeDefined();
 
-      const row = await prisma.vendor.findUnique({ where: { slug: 'ubiquiti' } });
+      const row = await prisma.vendor.findUnique({
+        where: { slug: 'ubiquiti' }
+      });
       expect(row!.name).toBe('Ubiquiti');
     });
 
@@ -61,7 +68,11 @@ describe('Vendor Routes — /api/vendors', () => {
       const res = await request(app)
         .post('/api/vendors')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'TP-Link', slug: 'tp-link', description: 'Networking gear' });
+        .send({
+          name: 'TP-Link',
+          slug: 'tp-link',
+          description: 'Networking gear'
+        });
 
       expect(res.status).toBe(201);
       expect(res.body.data.description).toBe('Networking gear');
@@ -135,7 +146,11 @@ describe('Vendor Routes — /api/vendors', () => {
       const res = await request(app)
         .post('/api/vendors')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Verbose', slug: 'verbose', description: 'D'.repeat(500) });
+        .send({
+          name: 'Verbose',
+          slug: 'verbose',
+          description: 'D'.repeat(500)
+        });
 
       expect(res.status).toBe(201);
     });
@@ -144,7 +159,11 @@ describe('Vendor Routes — /api/vendors', () => {
       const res = await request(app)
         .post('/api/vendors')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'Verbose', slug: 'too-verbose', description: 'D'.repeat(501) });
+        .send({
+          name: 'Verbose',
+          slug: 'too-verbose',
+          description: 'D'.repeat(501)
+        });
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
@@ -196,7 +215,10 @@ describe('Vendor Routes — /api/vendors', () => {
 
   describe('GET /api/vendors', () => {
     it('200 — returns a list including the seeded vendor', async () => {
-      await seedVendor(prisma, { name: 'MikroTik', slug: 'mikrotik' });
+      await seedVendor(prisma, {
+        name: 'MikroTik',
+        slug: 'mikrotik'
+      });
 
       const res = await request(app)
         .get('/api/vendors')
@@ -253,7 +275,10 @@ describe('Vendor Routes — /api/vendors', () => {
 
   describe('GET /api/vendors/:id', () => {
     it('200 — returns the vendor by id', async () => {
-      const vendorId = await seedVendor(prisma, { name: 'Juniper', slug: 'juniper' });
+      const vendorId = await seedVendor(prisma, {
+        name: 'Juniper',
+        slug: 'juniper'
+      });
 
       const res = await request(app)
         .get(`/api/vendors/${vendorId}`)
@@ -296,7 +321,10 @@ describe('Vendor Routes — /api/vendors', () => {
 
   describe('PUT /api/vendors/:id', () => {
     it('200 — updates the vendor name', async () => {
-      const vendorId = await seedVendor(prisma, { name: 'Old Name', slug: 'old-name' });
+      const vendorId = await seedVendor(prisma, {
+        name: 'Old Name',
+        slug: 'old-name'
+      });
 
       const res = await request(app)
         .put(`/api/vendors/${vendorId}`)
@@ -307,7 +335,9 @@ describe('Vendor Routes — /api/vendors', () => {
       expect(res.body.data.name).toBe('New Name');
       expect(res.body.data.slug).toBe('old-name');
 
-      const row = await prisma.vendor.findUnique({ where: { id: vendorId } });
+      const row = await prisma.vendor.findUnique({
+        where: { id: vendorId }
+      });
       expect(row!.name).toBe('New Name');
     });
 
@@ -350,8 +380,14 @@ describe('Vendor Routes — /api/vendors', () => {
     });
 
     it('[DEV-003] 409 — slug conflict returns 409', async () => {
-      await seedVendor(prisma, { name: 'First', slug: 'first-vendor' });
-      const secondId = await seedVendor(prisma, { name: 'Second', slug: 'second-vendor' });
+      await seedVendor(prisma, {
+        name: 'First',
+        slug: 'first-vendor'
+      });
+      const secondId = await seedVendor(prisma, {
+        name: 'Second',
+        slug: 'second-vendor'
+      });
 
       const res = await request(app)
         .put(`/api/vendors/${secondId}`)
@@ -463,14 +499,18 @@ describe('Vendor Routes — /api/vendors', () => {
 
       expect(res.status).toBe(409);
 
-      const row = await prisma.vendor.findUnique({ where: { id: vendorId } });
+      const row = await prisma.vendor.findUnique({
+        where: { id: vendorId }
+      });
       expect(row).not.toBeNull();
     });
 
     it('401 — rejects an unauthenticated request', async () => {
       const vendorId = await seedVendor(prisma);
 
-      const res = await request(app).delete(`/api/vendors/${vendorId}`);
+      const res = await request(app).delete(
+        `/api/vendors/${vendorId}`
+      );
 
       expect(res.status).toBe(401);
     });

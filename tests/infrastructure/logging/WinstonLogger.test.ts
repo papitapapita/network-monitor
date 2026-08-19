@@ -1,52 +1,59 @@
 // Source: src/infrastructure/logging/WinstonLogger.ts
 
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach
+} from '@jest/globals';
 
 // ---------------------------------------------------------------------------
 // Winston mock — must be declared before any import that pulls in winston
 // ---------------------------------------------------------------------------
 
-const mockDebug  = jest.fn();
-const mockInfo   = jest.fn();
-const mockWarn   = jest.fn();
-const mockError  = jest.fn();
-const mockAdd    = jest.fn();
+const mockDebug = jest.fn();
+const mockInfo = jest.fn();
+const mockWarn = jest.fn();
+const mockError = jest.fn();
+const mockAdd = jest.fn();
 
 // Mutable reference so tests can inspect the level property
 const mockWinstonLogger = {
-  debug:  mockDebug,
-  info:   mockInfo,
-  warn:   mockWarn,
-  error:  mockError,
-  add:    mockAdd,
-  level:  'info'
+  debug: mockDebug,
+  info: mockInfo,
+  warn: mockWarn,
+  error: mockError,
+  add: mockAdd,
+  level: 'info'
 };
 
-const mockCreateLogger  = jest.fn(() => mockWinstonLogger);
-const mockConsoleCtor   = jest.fn();
-const mockFileCtor      = jest.fn();
-const mockTimestamp     = jest.fn(() => ({}));
-const mockErrors        = jest.fn(() => ({}));
-const mockJson          = jest.fn(() => ({}));
-const mockColorize      = jest.fn(() => ({}));
-const mockPrintf        = jest.fn(() => ({}));
-const mockCombine       = jest.fn(() => ({}));
+const mockCreateLogger = jest.fn(() => mockWinstonLogger);
+const mockConsoleCtor = jest.fn();
+const mockFileCtor = jest.fn();
+const mockTimestamp = jest.fn(() => ({}));
+const mockErrors = jest.fn(() => ({}));
+const mockJson = jest.fn(() => ({}));
+const mockColorize = jest.fn(() => ({}));
+const mockPrintf = jest.fn(() => ({}));
+const mockCombine = jest.fn(() => ({}));
 
 jest.mock('winston', () => ({
   __esModule: true,
   default: {
     createLogger: mockCreateLogger,
     format: {
-      combine:   mockCombine,
+      combine: mockCombine,
       timestamp: mockTimestamp,
-      errors:    mockErrors,
-      json:      mockJson,
-      colorize:  mockColorize,
-      printf:    mockPrintf
+      errors: mockErrors,
+      json: mockJson,
+      colorize: mockColorize,
+      printf: mockPrintf
     },
     transports: {
       Console: mockConsoleCtor,
-      File:    mockFileCtor
+      File: mockFileCtor
     }
   }
 }));
@@ -56,7 +63,7 @@ jest.mock('winston', () => ({
 // ---------------------------------------------------------------------------
 
 import { WinstonLogger } from '../../../src/infrastructure/logging/WinstonLogger';
-import { LogLevel }      from '../../../src/application/shared/interfaces/ILogger';
+import { LogLevel } from '../../../src/application/shared/interfaces/ILogger';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -64,7 +71,9 @@ import { LogLevel }      from '../../../src/application/shared/interfaces/ILogge
 
 const originalNodeEnv = process.env.NODE_ENV;
 
-function makeLogger(context: Record<string, unknown> = {}): WinstonLogger {
+function makeLogger(
+  context: Record<string, unknown> = {}
+): WinstonLogger {
   return new WinstonLogger(context);
 }
 
@@ -97,21 +106,33 @@ describe('WinstonLogger', () => {
         const ctx = { service: 'api', version: '1.0' };
         makeLogger(ctx);
 
-        const callArg = (mockCreateLogger.mock.calls as unknown as Array<Array<Record<string, unknown>>>)[0][0];
+        const callArg = (
+          mockCreateLogger.mock.calls as unknown as Array<
+            Array<Record<string, unknown>>
+          >
+        )[0][0];
         expect(callArg.defaultMeta).toEqual(ctx);
       });
 
       it('should pass an empty object as defaultMeta when no context is provided', () => {
         makeLogger();
 
-        const callArg = (mockCreateLogger.mock.calls as unknown as Array<Array<Record<string, unknown>>>)[0][0];
+        const callArg = (
+          mockCreateLogger.mock.calls as unknown as Array<
+            Array<Record<string, unknown>>
+          >
+        )[0][0];
         expect(callArg.defaultMeta).toEqual({});
       });
 
       it('should include exactly one Console transport in non-production', () => {
         makeLogger();
 
-        const callArg = (mockCreateLogger.mock.calls as unknown as Array<Array<Record<string, unknown>>>)[0][0];
+        const callArg = (
+          mockCreateLogger.mock.calls as unknown as Array<
+            Array<Record<string, unknown>>
+          >
+        )[0][0];
         const transports = callArg.transports as unknown[];
         expect(transports).toHaveLength(1);
       });
@@ -144,7 +165,10 @@ describe('WinstonLogger', () => {
         makeLogger();
 
         expect(mockFileCtor).toHaveBeenCalledWith(
-          expect.objectContaining({ filename: 'logs/error.log', level: 'error' })
+          expect.objectContaining({
+            filename: 'logs/error.log',
+            level: 'error'
+          })
         );
       });
 
@@ -172,7 +196,10 @@ describe('WinstonLogger', () => {
       const logger = makeLogger();
       logger.debug('debug message');
 
-      expect(mockDebug).toHaveBeenCalledWith('debug message', expect.any(Object));
+      expect(mockDebug).toHaveBeenCalledWith(
+        'debug message',
+        expect.any(Object)
+      );
     });
 
     it('should merge the instance context into the log call', () => {
@@ -201,7 +228,10 @@ describe('WinstonLogger', () => {
 
       expect(mockDebug).toHaveBeenCalledWith(
         'trace event',
-        expect.objectContaining({ service: 'worker', requestId: 'abc' })
+        expect.objectContaining({
+          service: 'worker',
+          requestId: 'abc'
+        })
       );
     });
   });
@@ -212,7 +242,10 @@ describe('WinstonLogger', () => {
       const logger = makeLogger();
       logger.info('info message');
 
-      expect(mockInfo).toHaveBeenCalledWith('info message', expect.any(Object));
+      expect(mockInfo).toHaveBeenCalledWith(
+        'info message',
+        expect.any(Object)
+      );
     });
 
     it('should merge the instance context into the log call', () => {
@@ -242,7 +275,10 @@ describe('WinstonLogger', () => {
       const logger = makeLogger();
       logger.warn('warn message');
 
-      expect(mockWarn).toHaveBeenCalledWith('warn message', expect.any(Object));
+      expect(mockWarn).toHaveBeenCalledWith(
+        'warn message',
+        expect.any(Object)
+      );
     });
 
     it('should merge the instance context into the log call', () => {
@@ -288,8 +324,8 @@ describe('WinstonLogger', () => {
         expect.objectContaining({
           error: {
             message: 'disk full',
-            stack:   err.stack,
-            name:    'Error'
+            stack: err.stack,
+            name: 'Error'
           }
         })
       );
@@ -337,7 +373,9 @@ describe('WinstonLogger', () => {
 
     it('should merge the call-site context into the log call', () => {
       const logger = makeLogger();
-      logger.error('handler failed', undefined, { route: '/devices' });
+      logger.error('handler failed', undefined, {
+        route: '/devices'
+      });
 
       expect(mockError).toHaveBeenCalledWith(
         'handler failed',
@@ -378,8 +416,8 @@ describe('WinstonLogger', () => {
         expect.objectContaining({
           error: {
             message: 'out of memory',
-            stack:   err.stack,
-            name:    'Error'
+            stack: err.stack,
+            name: 'Error'
           }
         })
       );
@@ -420,14 +458,14 @@ describe('WinstonLogger', () => {
   describe('child()', () => {
     it('should return a new WinstonLogger instance', () => {
       const parent = makeLogger({ service: 'api' });
-      const child  = parent.child({ requestId: 'xyz' });
+      const child = parent.child({ requestId: 'xyz' });
 
       expect(child).toBeInstanceOf(WinstonLogger);
     });
 
     it('should not return the same instance as the parent', () => {
       const parent = makeLogger({ service: 'api' });
-      const child  = parent.child({ requestId: 'xyz' });
+      const child = parent.child({ requestId: 'xyz' });
 
       expect(child).not.toBe(parent);
     });
@@ -447,7 +485,11 @@ describe('WinstonLogger', () => {
 
       parent.child({ requestId: 'xyz' });
 
-      const callArg = (mockCreateLogger.mock.calls as unknown as Array<Array<Record<string, unknown>>>)[0][0];
+      const callArg = (
+        mockCreateLogger.mock.calls as unknown as Array<
+          Array<Record<string, unknown>>
+        >
+      )[0][0];
       expect(callArg.defaultMeta).toEqual(
         expect.objectContaining({ service: 'api' })
       );
@@ -459,7 +501,11 @@ describe('WinstonLogger', () => {
 
       parent.child({ requestId: 'xyz' });
 
-      const callArg = (mockCreateLogger.mock.calls as unknown as Array<Array<Record<string, unknown>>>)[0][0];
+      const callArg = (
+        mockCreateLogger.mock.calls as unknown as Array<
+          Array<Record<string, unknown>>
+        >
+      )[0][0];
       expect(callArg.defaultMeta).toEqual(
         expect.objectContaining({ requestId: 'xyz' })
       );
@@ -467,7 +513,7 @@ describe('WinstonLogger', () => {
 
     it('should have the merged context appear in subsequent log calls on the child', () => {
       const parent = makeLogger({ service: 'api' });
-      const child  = parent.child({ requestId: 'xyz' });
+      const child = parent.child({ requestId: 'xyz' });
       jest.clearAllMocks();
 
       child.info('request received');
@@ -480,7 +526,7 @@ describe('WinstonLogger', () => {
 
     it('should allow child context to override parent context for the same key', () => {
       const parent = makeLogger({ service: 'api' });
-      const child  = parent.child({ service: 'worker' });
+      const child = parent.child({ service: 'worker' });
       jest.clearAllMocks();
 
       child.info('processing');

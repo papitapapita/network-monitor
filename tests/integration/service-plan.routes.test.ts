@@ -128,7 +128,9 @@ describe('Service Plan Routes — /api/service-plans', () => {
 
   describe('PUT /api/service-plans/:id', () => {
     it('200 — deactivates a plan', async () => {
-      const id = await seedServicePlan(prisma, { name: 'To Disable' });
+      const id = await seedServicePlan(prisma, {
+        name: 'To Disable'
+      });
       const res = await request(app)
         .put(`/api/service-plans/${id}`)
         .set('Authorization', auth())
@@ -139,7 +141,9 @@ describe('Service Plan Routes — /api/service-plans', () => {
 
     it('409 — rejects a name owned by another plan', async () => {
       await seedServicePlan(prisma, { name: 'Existing Name' });
-      const id = await seedServicePlan(prisma, { name: 'Other Name' });
+      const id = await seedServicePlan(prisma, {
+        name: 'Other Name'
+      });
       const res = await request(app)
         .put(`/api/service-plans/${id}`)
         .set('Authorization', auth())

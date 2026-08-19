@@ -32,13 +32,17 @@ describe('GetDevicePollingHistoryUseCase — integration', () => {
     prisma = container.getPrisma();
     deviceModelId = await seedDeviceModel(prisma);
 
-    const pollingConfigRepo = new PrismaPollingConfigurationRepository(prisma);
+    const pollingConfigRepo =
+      new PrismaPollingConfigurationRepository(prisma);
     const pingResultRepo = new PrismaPingResultRepository(prisma);
     const deviceStateRepo = new PrismaDeviceStateRepository(prisma);
     const logger = new WinstonLogger();
 
     fakePing = new FakePingService();
-    historyUseCase = new GetDevicePollingHistoryUseCase(pingResultRepo, logger);
+    historyUseCase = new GetDevicePollingHistoryUseCase(
+      pingResultRepo,
+      logger
+    );
     executeUseCase = new ExecutePollingCycleUseCase(
       pollingConfigRepo,
       pingResultRepo,
@@ -75,7 +79,10 @@ describe('GetDevicePollingHistoryUseCase — integration', () => {
 
   it('returns all polling results after N cycles', async () => {
     for (let i = 0; i < 5; i++) {
-      await executeUseCase.execute({ deviceId, forceExecution: true });
+      await executeUseCase.execute({
+        deviceId,
+        forceExecution: true
+      });
     }
 
     const result = await historyUseCase.execute({ deviceId });
@@ -87,7 +94,10 @@ describe('GetDevicePollingHistoryUseCase — integration', () => {
 
   it('applies pagination via limit and offset', async () => {
     for (let i = 0; i < 6; i++) {
-      await executeUseCase.execute({ deviceId, forceExecution: true });
+      await executeUseCase.execute({
+        deviceId,
+        forceExecution: true
+      });
     }
 
     const page1 = await historyUseCase.execute({
@@ -122,7 +132,9 @@ describe('GetDevicePollingHistoryUseCase — integration', () => {
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.totalCount).toBe(2);
-    expect(result.value.results.every((r) => r.status === 'SUCCESS')).toBe(true);
+    expect(
+      result.value.results.every((r) => r.status === 'SUCCESS')
+    ).toBe(true);
   });
 
   it('filters by FAILED status (unreachable only)', async () => {
@@ -140,14 +152,19 @@ describe('GetDevicePollingHistoryUseCase — integration', () => {
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.totalCount).toBe(2);
-    expect(result.value.results.every((r) => r.status === 'FAILED')).toBe(true);
+    expect(
+      result.value.results.every((r) => r.status === 'FAILED')
+    ).toBe(true);
   });
 
   it('filters by date range', async () => {
     const before = new Date();
 
     for (let i = 0; i < 3; i++) {
-      await executeUseCase.execute({ deviceId, forceExecution: true });
+      await executeUseCase.execute({
+        deviceId,
+        forceExecution: true
+      });
     }
 
     const after = new Date();

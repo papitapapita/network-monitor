@@ -10,12 +10,17 @@ import { DeviceCredentials } from 'application/device-inventory/interfaces/IDevi
 import type { PrismaClient } from '../../../../src/generated/prisma/client';
 
 // Jest.mock must be hoisted before imports.
-jest.mock('../../../../src/infrastructure/crypto/CredentialsEncryption', () => ({
-  CredentialsEncryption: {
-    encrypt: jest.fn((plaintext: string) => `enc:${plaintext}`),
-    decrypt: jest.fn((ciphertext: string) => ciphertext.replace(/^enc:/, '')),
-  },
-}));
+jest.mock(
+  '../../../../src/infrastructure/crypto/CredentialsEncryption',
+  () => ({
+    CredentialsEncryption: {
+      encrypt: jest.fn((plaintext: string) => `enc:${plaintext}`),
+      decrypt: jest.fn((ciphertext: string) =>
+        ciphertext.replace(/^enc:/, '')
+      )
+    }
+  })
+);
 
 // Import the mocked module AFTER jest.mock so we can access the mock functions
 import { CredentialsEncryption } from '../../../../src/infrastructure/crypto/CredentialsEncryption';
@@ -29,11 +34,13 @@ const createMockPrisma = () => ({
   deviceCredentials: {
     findUnique: jest.fn(),
     upsert: jest.fn(),
-    deleteMany: jest.fn(),
-  },
+    deleteMany: jest.fn()
+  }
 });
 
-const makeDecryptedCredentials = (overrides: Partial<DeviceCredentials> = {}): DeviceCredentials => ({
+const makeDecryptedCredentials = (
+  overrides: Partial<DeviceCredentials> = {}
+): DeviceCredentials => ({
   snmpVersion: 2,
   snmpCommunity: 'public',
   snmpV3AuthUser: null,
@@ -45,7 +52,7 @@ const makeDecryptedCredentials = (overrides: Partial<DeviceCredentials> = {}): D
   httpPassword: 'secret',
   snmpPort: 161,
   httpPort: 80,
-  ...overrides,
+  ...overrides
 });
 
 const makePrismaRow = () => ({
@@ -60,7 +67,7 @@ const makePrismaRow = () => ({
   httpUsername: 'ubnt',
   httpPassword: 'enc:secret',
   snmpPort: 161,
-  httpPort: 80,
+  httpPort: 80
 });
 
 describe('PrismaDeviceCredentialsRepository', () => {
@@ -70,19 +77,24 @@ describe('PrismaDeviceCredentialsRepository', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prismaMock = createMockPrisma();
-    repository = new PrismaDeviceCredentialsRepository(prismaMock as unknown as PrismaClient);
+    repository = new PrismaDeviceCredentialsRepository(
+      prismaMock as unknown as PrismaClient
+    );
   });
 
   describe('save', () => {
     it('should encrypt snmpCommunity before persisting', async () => {
       prismaMock.deviceCredentials.upsert.mockResolvedValue({});
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
-      const credentials = makeDecryptedCredentials({ snmpCommunity: 'myCommunity' });
+      const credentials = makeDecryptedCredentials({
+        snmpCommunity: 'myCommunity'
+      });
 
       await repository.save(deviceId, credentials);
 
       expect(mockEncrypt).toHaveBeenCalledWith('myCommunity');
-      const arg = prismaMock.deviceCredentials.upsert.mock.calls[0][0] as {
+      const arg = prismaMock.deviceCredentials.upsert.mock
+        .calls[0][0] as {
         create: Record<string, unknown>;
         update: Record<string, unknown>;
       };
@@ -93,12 +105,15 @@ describe('PrismaDeviceCredentialsRepository', () => {
     it('should encrypt httpPassword before persisting', async () => {
       prismaMock.deviceCredentials.upsert.mockResolvedValue({});
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
-      const credentials = makeDecryptedCredentials({ httpPassword: 'myPassword' });
+      const credentials = makeDecryptedCredentials({
+        httpPassword: 'myPassword'
+      });
 
       await repository.save(deviceId, credentials);
 
       expect(mockEncrypt).toHaveBeenCalledWith('myPassword');
-      const arg = prismaMock.deviceCredentials.upsert.mock.calls[0][0] as {
+      const arg = prismaMock.deviceCredentials.upsert.mock
+        .calls[0][0] as {
         create: Record<string, unknown>;
       };
       expect(arg.create['httpPassword']).toBe('enc:myPassword');
@@ -115,12 +130,13 @@ describe('PrismaDeviceCredentialsRepository', () => {
         snmpV3AuthKey: 'authKey123',
         snmpV3PrivProto: 'AES',
         snmpV3PrivKey: 'privKey123',
-        httpPassword: null,
+        httpPassword: null
       });
 
       await repository.save(deviceId, credentials);
 
-      const arg = prismaMock.deviceCredentials.upsert.mock.calls[0][0] as {
+      const arg = prismaMock.deviceCredentials.upsert.mock
+        .calls[0][0] as {
         create: Record<string, unknown>;
       };
       expect(arg.create['snmpV3AuthKey']).toBe('enc:authKey123');
@@ -130,11 +146,15 @@ describe('PrismaDeviceCredentialsRepository', () => {
     it('should persist null for snmpCommunity when the credential is null', async () => {
       prismaMock.deviceCredentials.upsert.mockResolvedValue({});
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
-      const credentials = makeDecryptedCredentials({ snmpCommunity: null, httpPassword: null });
+      const credentials = makeDecryptedCredentials({
+        snmpCommunity: null,
+        httpPassword: null
+      });
 
       await repository.save(deviceId, credentials);
 
-      const arg = prismaMock.deviceCredentials.upsert.mock.calls[0][0] as {
+      const arg = prismaMock.deviceCredentials.upsert.mock
+        .calls[0][0] as {
         create: Record<string, unknown>;
       };
       expect(arg.create['snmpCommunity']).toBeNull();
@@ -148,7 +168,8 @@ describe('PrismaDeviceCredentialsRepository', () => {
 
       await repository.save(deviceId, makeDecryptedCredentials());
 
-      const arg = prismaMock.deviceCredentials.upsert.mock.calls[0][0] as {
+      const arg = prismaMock.deviceCredentials.upsert.mock
+        .calls[0][0] as {
         where: Record<string, unknown>;
       };
       expect(arg.where).toEqual({ deviceId: DEVICE_UUID });
@@ -158,20 +179,30 @@ describe('PrismaDeviceCredentialsRepository', () => {
       prismaMock.deviceCredentials.upsert.mockResolvedValue({});
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
 
-      const result = await repository.save(deviceId, makeDecryptedCredentials());
+      const result = await repository.save(
+        deviceId,
+        makeDecryptedCredentials()
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value).toBeUndefined();
     });
 
     it('should return a failed Result when prisma.deviceCredentials.upsert throws', async () => {
-      prismaMock.deviceCredentials.upsert.mockRejectedValue(new Error('FK constraint'));
+      prismaMock.deviceCredentials.upsert.mockRejectedValue(
+        new Error('FK constraint')
+      );
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
 
-      const result = await repository.save(deviceId, makeDecryptedCredentials());
+      const result = await repository.save(
+        deviceId,
+        makeDecryptedCredentials()
+      );
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Database error saving credentials');
+      expect(result.error).toContain(
+        'Database error saving credentials'
+      );
     });
   });
 
@@ -182,8 +213,10 @@ describe('PrismaDeviceCredentialsRepository', () => {
 
       await repository.findByDeviceId(deviceId);
 
-      expect(prismaMock.deviceCredentials.findUnique).toHaveBeenCalledWith({
-        where: { deviceId: DEVICE_UUID },
+      expect(
+        prismaMock.deviceCredentials.findUnique
+      ).toHaveBeenCalledWith({
+        where: { deviceId: DEVICE_UUID }
       });
     });
 
@@ -198,7 +231,9 @@ describe('PrismaDeviceCredentialsRepository', () => {
     });
 
     it('should decrypt snmpCommunity before returning the domain credentials', async () => {
-      prismaMock.deviceCredentials.findUnique.mockResolvedValue(makePrismaRow());
+      prismaMock.deviceCredentials.findUnique.mockResolvedValue(
+        makePrismaRow()
+      );
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
 
       const result = await repository.findByDeviceId(deviceId);
@@ -209,7 +244,9 @@ describe('PrismaDeviceCredentialsRepository', () => {
     });
 
     it('should decrypt httpPassword before returning the domain credentials', async () => {
-      prismaMock.deviceCredentials.findUnique.mockResolvedValue(makePrismaRow());
+      prismaMock.deviceCredentials.findUnique.mockResolvedValue(
+        makePrismaRow()
+      );
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
 
       const result = await repository.findByDeviceId(deviceId);
@@ -224,7 +261,7 @@ describe('PrismaDeviceCredentialsRepository', () => {
         snmpCommunity: null,
         httpPassword: null,
         snmpV3AuthKey: null,
-        snmpV3PrivKey: null,
+        snmpV3PrivKey: null
       });
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
 
@@ -236,7 +273,9 @@ describe('PrismaDeviceCredentialsRepository', () => {
     });
 
     it('should return all non-sensitive credential fields unmutated', async () => {
-      prismaMock.deviceCredentials.findUnique.mockResolvedValue(makePrismaRow());
+      prismaMock.deviceCredentials.findUnique.mockResolvedValue(
+        makePrismaRow()
+      );
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
 
       const result = await repository.findByDeviceId(deviceId);
@@ -257,7 +296,7 @@ describe('PrismaDeviceCredentialsRepository', () => {
         snmpV3AuthKey: 'enc:authKey123',
         snmpV3PrivProto: 'AES',
         snmpV3PrivKey: 'enc:privKey123',
-        httpPassword: null,
+        httpPassword: null
       });
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
 
@@ -268,24 +307,34 @@ describe('PrismaDeviceCredentialsRepository', () => {
     });
 
     it('should return a failed Result when CredentialsEncryption.decrypt throws', async () => {
-      prismaMock.deviceCredentials.findUnique.mockResolvedValue(makePrismaRow());
-      mockDecrypt.mockImplementationOnce(() => { throw new Error('decryption failed'); });
+      prismaMock.deviceCredentials.findUnique.mockResolvedValue(
+        makePrismaRow()
+      );
+      mockDecrypt.mockImplementationOnce(() => {
+        throw new Error('decryption failed');
+      });
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
 
       const result = await repository.findByDeviceId(deviceId);
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Database error finding credentials');
+      expect(result.error).toContain(
+        'Database error finding credentials'
+      );
     });
 
     it('should return a failed Result when prisma.deviceCredentials.findUnique throws', async () => {
-      prismaMock.deviceCredentials.findUnique.mockRejectedValue(new Error('connection lost'));
+      prismaMock.deviceCredentials.findUnique.mockRejectedValue(
+        new Error('connection lost')
+      );
       const deviceId = DeviceId.parse(DEVICE_UUID).value;
 
       const result = await repository.findByDeviceId(deviceId);
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Database error finding credentials');
+      expect(result.error).toContain(
+        'Database error finding credentials'
+      );
     });
   });
 });

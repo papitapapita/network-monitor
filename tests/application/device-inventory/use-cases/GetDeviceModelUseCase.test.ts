@@ -13,7 +13,10 @@ import { IDeviceModelRepository } from '../../../../src/domain/device-inventory/
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { DeviceModel } from '../../../../src/domain/device-inventory/aggregates/DeviceModel';
 import { DeviceType } from '../../../../src/domain/device-inventory/value-objects';
-import { DeviceModelId, VendorId } from '../../../../src/domain/shared/ids';
+import {
+  DeviceModelId,
+  VendorId
+} from '../../../../src/domain/shared/ids';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
 // ---------------------------------------------------------------------------

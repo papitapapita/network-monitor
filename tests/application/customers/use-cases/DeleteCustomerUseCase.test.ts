@@ -104,7 +104,9 @@ describe('DeleteCustomerUseCase', () => {
     (serviceRepo.findByCustomerId as any).mockResolvedValue(
       Result.ok([])
     );
-    (customerRepo.delete as any).mockResolvedValue(Result.ok(undefined));
+    (customerRepo.delete as any).mockResolvedValue(
+      Result.ok(undefined)
+    );
   });
 
   afterEach(() => {

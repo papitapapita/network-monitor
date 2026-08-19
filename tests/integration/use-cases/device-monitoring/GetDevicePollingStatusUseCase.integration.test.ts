@@ -33,7 +33,8 @@ describe('GetDevicePollingStatusUseCase — integration', () => {
     prisma = container.getPrisma();
     deviceModelId = await seedDeviceModel(prisma);
 
-    const pollingConfigRepo = new PrismaPollingConfigurationRepository(prisma);
+    const pollingConfigRepo =
+      new PrismaPollingConfigurationRepository(prisma);
     const pingResultRepo = new PrismaPingResultRepository(prisma);
     const deviceStateRepo = new PrismaDeviceStateRepository(prisma);
     const logger = new WinstonLogger();
@@ -100,7 +101,9 @@ describe('GetDevicePollingStatusUseCase — integration', () => {
   // ──────────────────────────────────────────────────────────────
 
   it('fails when no polling configuration exists for the device', async () => {
-    const result = await statusUseCase.execute({ deviceId: GHOST_ID });
+    const result = await statusUseCase.execute({
+      deviceId: GHOST_ID
+    });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/no polling configuration/i);

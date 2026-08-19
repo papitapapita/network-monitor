@@ -8,7 +8,12 @@ import {
   setupDependencies,
   DependencyContainer
 } from 'infrastructure/di/container';
-import { cleanCatalog, seedVendor, GHOST_ID, INVALID_ID } from '../../helpers/db';
+import {
+  cleanCatalog,
+  seedVendor,
+  GHOST_ID,
+  INVALID_ID
+} from '../../helpers/db';
 
 describe('GetVendorUseCase — integration', () => {
   let container: DependencyContainer;
@@ -37,7 +42,10 @@ describe('GetVendorUseCase — integration', () => {
   // ──────────────────────────────────────────────────────────────
 
   it('retrieves a vendor by ID and the name matches the seeded vendor', async () => {
-    const vendorId = await seedVendor(prisma, { name: 'MikroTik', slug: 'mikrotik' });
+    const vendorId = await seedVendor(prisma, {
+      name: 'MikroTik',
+      slug: 'mikrotik'
+    });
 
     const result = await useCase.execute({ id: vendorId });
 

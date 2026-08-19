@@ -92,10 +92,12 @@
    - Pure function (no side effects)
 
 6. **Group Related Routes**
+
    - One route file per resource/aggregate
    - All routes for same base path in one file
 
 7. **Route Grouping/Prefixing (Versioning)**
+
    - Routes MUST NOT define their own global prefix (e.g., `/api/v1`)
    - The main application entry point mounts routers on versioned prefixes
    - This enables supporting multiple API versions simultaneously as bounded contexts evolve
@@ -103,24 +105,34 @@
 
    ```typescript
    // ✅ Good: Route factory has no version prefix
-   export function createNetworkDeviceRoutes(controller: NetworkDeviceController): Router {
+   export function createNetworkDeviceRoutes(
+     controller: NetworkDeviceController
+   ): Router {
      const router = Router();
-     router.get('/', controller.list);      // Just '/', not '/api/v1/network-devices'
+     router.get('/', controller.list); // Just '/', not '/api/v1/network-devices'
      router.get('/:id', controller.getById);
      return router;
    }
 
    // ✅ Good: Main app mounts with version prefix
    // app.ts or main.ts
-   app.use('/api/v1/network-devices', createNetworkDeviceRoutes(v1Controller));
-   app.use('/api/v2/network-devices', createNetworkDeviceRoutes(v2Controller));
+   app.use(
+     '/api/v1/network-devices',
+     createNetworkDeviceRoutes(v1Controller)
+   );
+   app.use(
+     '/api/v2/network-devices',
+     createNetworkDeviceRoutes(v2Controller)
+   );
    ```
 
    ```typescript
    // ❌ Bad: Route factory defines global prefix
-   export function createNetworkDeviceRoutes(controller: NetworkDeviceController): Router {
+   export function createNetworkDeviceRoutes(
+     controller: NetworkDeviceController
+   ): Router {
      const router = Router();
-     router.get('/api/v1/network-devices', controller.list);  // ❌ Hardcoded prefix
+     router.get('/api/v1/network-devices', controller.list); // ❌ Hardcoded prefix
      return router;
    }
    ```

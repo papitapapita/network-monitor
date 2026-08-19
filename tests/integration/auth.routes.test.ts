@@ -62,7 +62,12 @@ describe('Auth Routes — /api/auth', () => {
     });
 
     it('200 — preserves OPERATOR role in response', async () => {
-      await seedUser(prisma, 'operator@test.local', 'op-pass', 'OPERATOR');
+      await seedUser(
+        prisma,
+        'operator@test.local',
+        'op-pass',
+        'OPERATOR'
+      );
 
       const res = await request(app)
         .post('/api/auth/login')
@@ -267,7 +272,11 @@ describe('Auth Routes — /api/auth', () => {
         .send({ name: 'Target Location', type: 'TOWER' });
       const id = create.body.data.id as string;
 
-      const viewerToken = await seedAndGetToken(app, prisma, 'VIEWER');
+      const viewerToken = await seedAndGetToken(
+        app,
+        prisma,
+        'VIEWER'
+      );
 
       const res = await request(app)
         .patch(`/api/locations/${id}`)

@@ -43,13 +43,17 @@ function makeConfig(
     thresholdCount?: number;
   } = {}
 ): PollingConfiguration {
-  const rawIp = overrides.ipAddress !== undefined ? overrides.ipAddress : TEST_IP;
+  const rawIp =
+    overrides.ipAddress !== undefined ? overrides.ipAddress : TEST_IP;
   return PollingConfiguration.create(
     {
       deviceId: makeDeviceId(),
-      ipAddress: rawIp !== null ? IPAddress.reconstitute(rawIp) : null,
+      ipAddress:
+        rawIp !== null ? IPAddress.reconstitute(rawIp) : null,
       interval: makeInterval(overrides.intervalSeconds ?? 60),
-      failuresBeforeDown: makeThreshold(overrides.thresholdCount ?? 3),
+      failuresBeforeDown: makeThreshold(
+        overrides.thresholdCount ?? 3
+      ),
       enabled: overrides.enabled ?? rawIp !== null
     },
     makeConfigId()
@@ -191,13 +195,16 @@ describe('PollingConfiguration', () => {
   // ===========================================================================
   describe('reconstitute()', () => {
     it('should build a PollingConfiguration directly without Result wrapping', () => {
-      const config = PollingConfiguration.reconstitute(makeConfigId(), {
-        deviceId: makeDeviceId(),
-        ipAddress: makeIPAddress(),
-        interval: makeInterval(),
-        failuresBeforeDown: makeThreshold(),
-        enabled: true
-      });
+      const config = PollingConfiguration.reconstitute(
+        makeConfigId(),
+        {
+          deviceId: makeDeviceId(),
+          ipAddress: makeIPAddress(),
+          interval: makeInterval(),
+          failuresBeforeDown: makeThreshold(),
+          enabled: true
+        }
+      );
 
       expect(config).toBeInstanceOf(PollingConfiguration);
     });
@@ -207,13 +214,16 @@ describe('PollingConfiguration', () => {
       const interval = makeInterval(300);
       const threshold = makeThreshold(5);
 
-      const config = PollingConfiguration.reconstitute(makeConfigId(), {
-        deviceId,
-        ipAddress: makeIPAddress(),
-        interval,
-        failuresBeforeDown: threshold,
-        enabled: false
-      });
+      const config = PollingConfiguration.reconstitute(
+        makeConfigId(),
+        {
+          deviceId,
+          ipAddress: makeIPAddress(),
+          interval,
+          failuresBeforeDown: threshold,
+          enabled: false
+        }
+      );
 
       expect(config.deviceId).toBe(deviceId);
       expect(config.interval).toBe(interval);
@@ -290,7 +300,9 @@ describe('PollingConfiguration', () => {
     it('should fail when null is passed as the new interval', () => {
       const config = makeConfig();
 
-      const result = config.updateInterval(null as unknown as PollingInterval);
+      const result = config.updateInterval(
+        null as unknown as PollingInterval
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('interval');
@@ -351,7 +363,10 @@ describe('PollingConfiguration', () => {
     });
 
     it('should allow setting the IP address to null while disabled', () => {
-      const config = makeConfig({ ipAddress: TEST_IP, enabled: false });
+      const config = makeConfig({
+        ipAddress: TEST_IP,
+        enabled: false
+      });
 
       const result = config.updateIpAddress(null);
 
@@ -360,7 +375,10 @@ describe('PollingConfiguration', () => {
     });
 
     it('should fail when clearing the IP address while enabled', () => {
-      const config = makeConfig({ ipAddress: TEST_IP, enabled: true });
+      const config = makeConfig({
+        ipAddress: TEST_IP,
+        enabled: true
+      });
 
       const result = config.updateIpAddress(null);
 
@@ -369,7 +387,10 @@ describe('PollingConfiguration', () => {
     });
 
     it('should keep the previous IP address when clearing is rejected', () => {
-      const config = makeConfig({ ipAddress: TEST_IP, enabled: true });
+      const config = makeConfig({
+        ipAddress: TEST_IP,
+        enabled: true
+      });
 
       config.updateIpAddress(null);
 
@@ -377,7 +398,10 @@ describe('PollingConfiguration', () => {
     });
 
     it('should allow clearing and re-setting the IP address', () => {
-      const config = makeConfig({ ipAddress: TEST_IP, enabled: false });
+      const config = makeConfig({
+        ipAddress: TEST_IP,
+        enabled: false
+      });
 
       config.updateIpAddress(null);
       config.updateIpAddress(makeIPAddress('172.16.0.1'));

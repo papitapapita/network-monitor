@@ -49,7 +49,12 @@ const staStatusBody = {
           rx: { cinr: 22 },
           tx: { cinr: 18 }
         },
-        stats: { tx_bytes: 1000000, rx_bytes: 500000, tx_pps: 100, rx_pps: 50 },
+        stats: {
+          tx_bytes: 1000000,
+          rx_bytes: 500000,
+          tx_pps: 100,
+          rx_pps: 50
+        },
         remote: {
           hostname: 'tower-ap',
           platform: 'Rocket 5AC Lite',
@@ -71,7 +76,12 @@ const staStatusBody = {
   interfaces: [
     {
       ifname: 'eth0',
-      status: { speed: 100, plugged: true, tx_bytes: 2000000, rx_bytes: 1000000 }
+      status: {
+        speed: 100,
+        plugged: true,
+        tx_bytes: 2000000,
+        rx_bytes: 1000000
+      }
     },
     {
       ifname: 'ath0',
@@ -109,8 +119,18 @@ const apStatusBody = {
         tx_latency: 5,
         dl_linkscore: 85,
         ul_linkscore: 80,
-        airmax: { downlink_capacity: 30000, uplink_capacity: 10000, rx: { cinr: 18 }, tx: { cinr: 15 } },
-        stats: { tx_bytes: 500000, rx_bytes: 250000, tx_pps: 80, rx_pps: 40 },
+        airmax: {
+          downlink_capacity: 30000,
+          uplink_capacity: 10000,
+          rx: { cinr: 18 },
+          tx: { cinr: 15 }
+        },
+        stats: {
+          tx_bytes: 500000,
+          rx_bytes: 250000,
+          tx_pps: 80,
+          rx_pps: 40
+        },
         remote: {
           hostname: 'cpe-a',
           platform: 'LiteBeam 5AC',
@@ -132,7 +152,12 @@ const apStatusBody = {
   interfaces: [
     {
       ifname: 'eth0',
-      status: { speed: 1000, plugged: true, tx_bytes: 5000000, rx_bytes: 2000000 }
+      status: {
+        speed: 1000,
+        plugged: true,
+        tx_bytes: 5000000,
+        rx_bytes: 2000000
+      }
     }
   ]
 };
@@ -147,7 +172,9 @@ function makeClient(body: unknown): jest.Mocked<AirOsHttpClient> {
   } as unknown as jest.Mocked<AirOsHttpClient>;
 }
 
-function makeFailingClient(error: string): jest.Mocked<AirOsHttpClient> {
+function makeFailingClient(
+  error: string
+): jest.Mocked<AirOsHttpClient> {
   return {
     fetchStatus: jest.fn().mockResolvedValue(Result.fail(error))
   } as unknown as jest.Mocked<AirOsHttpClient>;
@@ -156,13 +183,18 @@ function makeFailingClient(error: string): jest.Mocked<AirOsHttpClient> {
 // ---------------------------------------------------------------------------
 
 describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
-
   // ===========================================================================
   describe('collect — STATION mode', () => {
     it('should return success with parsed device fields', async () => {
-      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
+      const collector = new UbiquitiHttpCollector(
+        makeClient(staStatusBody)
+      );
 
-      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
 
       expect(result.isSuccess).toBe(true);
       const d = result.value;
@@ -174,9 +206,15 @@ describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
     });
 
     it('should parse wireless radio fields', async () => {
-      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
+      const collector = new UbiquitiHttpCollector(
+        makeClient(staStatusBody)
+      );
 
-      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
 
       const d = result.value;
       expect(d.essid).toBe('ISP-5G');
@@ -187,59 +225,101 @@ describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
     });
 
     it('should convert throughput from kbps to bps', async () => {
-      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
+      const collector = new UbiquitiHttpCollector(
+        makeClient(staStatusBody)
+      );
 
-      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
 
       expect(result.value.throughputTxBps).toBe(5_000_000);
       expect(result.value.throughputRxBps).toBe(3_000_000);
     });
 
     it('should extract signalRxDbm from sta[0].signal in STA mode', async () => {
-      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
+      const collector = new UbiquitiHttpCollector(
+        makeClient(staStatusBody)
+      );
 
-      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
 
       expect(result.value.signalRxDbm).toBe(-65);
     });
 
     it('should extract latencyMs from sta[0].tx_latency in STA mode', async () => {
-      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
+      const collector = new UbiquitiHttpCollector(
+        makeClient(staStatusBody)
+      );
 
-      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
 
       expect(result.value.latencyMs).toBe(4);
     });
 
     it('should extract remoteApMac and remoteApName from sta[0] in STA mode', async () => {
-      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
+      const collector = new UbiquitiHttpCollector(
+        makeClient(staStatusBody)
+      );
 
-      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
 
       expect(result.value.remoteApMac).toBe('AA:BB:CC:DD:EE:FF');
       expect(result.value.remoteApName).toBe('tower-ap');
     });
 
     it('should return empty clients array in STA mode', async () => {
-      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
+      const collector = new UbiquitiHttpCollector(
+        makeClient(staStatusBody)
+      );
 
-      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
 
       expect(result.value.clients).toEqual([]);
     });
 
     it('should set clientsConnected to null in STA mode', async () => {
-      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
+      const collector = new UbiquitiHttpCollector(
+        makeClient(staStatusBody)
+      );
 
-      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
 
       expect(result.value.clientsConnected).toBeNull();
     });
 
     it('should parse LAN status from eth0.status.plugged', async () => {
-      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
+      const collector = new UbiquitiHttpCollector(
+        makeClient(staStatusBody)
+      );
 
-      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
 
       expect(result.value.lanStatus).toBe('UP');
       expect(result.value.lanSpeedMbps).toBe(100);
@@ -250,7 +330,11 @@ describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
       body.interfaces[0].status.plugged = false;
       const collector = new UbiquitiHttpCollector(makeClient(body));
 
-      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
 
       expect(result.value.lanStatus).toBe('DOWN');
     });
@@ -259,17 +343,29 @@ describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
   // ===========================================================================
   describe('collect — ACCESS_POINT mode', () => {
     it('should return clientsConnected from wireless.count', async () => {
-      const collector = new UbiquitiHttpCollector(makeClient(apStatusBody));
+      const collector = new UbiquitiHttpCollector(
+        makeClient(apStatusBody)
+      );
 
-      const result = await collector.collect('192.168.1.1', credentials, 'ACCESS_POINT');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'ACCESS_POINT'
+      );
 
       expect(result.value.clientsConnected).toBe(3);
     });
 
     it('should populate clients array from wireless.sta', async () => {
-      const collector = new UbiquitiHttpCollector(makeClient(apStatusBody));
+      const collector = new UbiquitiHttpCollector(
+        makeClient(apStatusBody)
+      );
 
-      const result = await collector.collect('192.168.1.1', credentials, 'ACCESS_POINT');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'ACCESS_POINT'
+      );
 
       expect(result.value.clients).toHaveLength(1);
       const c = result.value.clients[0]!;
@@ -280,9 +376,15 @@ describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
     });
 
     it('should parse all client detail fields', async () => {
-      const collector = new UbiquitiHttpCollector(makeClient(apStatusBody));
+      const collector = new UbiquitiHttpCollector(
+        makeClient(apStatusBody)
+      );
 
-      const result = await collector.collect('192.168.1.1', credentials, 'ACCESS_POINT');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'ACCESS_POINT'
+      );
 
       const c = result.value.clients[0]!;
       expect(c.txLatencyMs).toBe(5);
@@ -299,9 +401,15 @@ describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
     });
 
     it('should parse remote device fields on each client', async () => {
-      const collector = new UbiquitiHttpCollector(makeClient(apStatusBody));
+      const collector = new UbiquitiHttpCollector(
+        makeClient(apStatusBody)
+      );
 
-      const result = await collector.collect('192.168.1.1', credentials, 'ACCESS_POINT');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'ACCESS_POINT'
+      );
 
       const c = result.value.clients[0]!;
       expect(c.remoteHostname).toBe('cpe-a');
@@ -314,9 +422,15 @@ describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
     });
 
     it('should set signalRxDbm to null in AP mode (no aggregate signal)', async () => {
-      const collector = new UbiquitiHttpCollector(makeClient(apStatusBody));
+      const collector = new UbiquitiHttpCollector(
+        makeClient(apStatusBody)
+      );
 
-      const result = await collector.collect('192.168.1.1', credentials, 'ACCESS_POINT');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'ACCESS_POINT'
+      );
 
       expect(result.value.signalRxDbm).toBeNull();
     });
@@ -329,7 +443,11 @@ describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
       body.wireless.chanbw = 0;
       const collector = new UbiquitiHttpCollector(makeClient(body));
 
-      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
 
       expect(result.value.channelWidthMhz).toBeNull();
     });
@@ -339,15 +457,25 @@ describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
       body.host.totalram = 0;
       const collector = new UbiquitiHttpCollector(makeClient(body));
 
-      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
 
       expect(result.value.memoryUsedPercent).toBeNull();
     });
 
     it('should return null ccqPercent when ccq field is absent', async () => {
-      const collector = new UbiquitiHttpCollector(makeClient(staStatusBody));
+      const collector = new UbiquitiHttpCollector(
+        makeClient(staStatusBody)
+      );
 
-      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
 
       expect(result.value.ccqPercent).toBeNull();
     });
@@ -357,7 +485,11 @@ describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
       body.wireless.mode = 'unknown-mode';
       const collector = new UbiquitiHttpCollector(makeClient(body));
 
-      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
 
       expect(result.value.mode).toBeNull();
     });
@@ -367,7 +499,11 @@ describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
       body.interfaces = [];
       const collector = new UbiquitiHttpCollector(makeClient(body));
 
-      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
 
       expect(result.value.lanStatus).toBeNull();
     });
@@ -380,7 +516,11 @@ describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
         makeFailingClient('HTTPS_TIMEOUT')
       );
 
-      const result = await collector.collect('192.168.1.1', credentials, 'STATION');
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toBe('HTTPS_TIMEOUT');

@@ -9,18 +9,18 @@ different document for a different audience.
 
 ## Contents
 
-| Context             | File                                                 | Rules                 |
-| ------------------- | ---------------------------------------------------- | --------------------- |
-| Device Inventory    | [device-inventory.md](device-inventory.md)           | `DEV-001` … `DEV-146` |
-| Customers           | [customers.md](customers.md)                         | `CUS-001` … `CUS-140` |
-| Billing             | [billing.md](billing.md)                             | `BIL-001` … `BIL-141` |
-| Device Monitoring   | [device-monitoring.md](device-monitoring.md)         | `MON-001` … `MON-040` |
-| Wireless Monitoring | [wireless-monitoring.md](wireless-monitoring.md)     | `WLS-001` … `WLS-161` |
-| Service Enforcement | [service-enforcement.md](service-enforcement.md)     | `SVC-001` … `SVC-120` |
-| Notifications       | [notifications.md](notifications.md)                 | `NOT-001` … `NOT-151` |
-| Identity & Access   | [identity.md](identity.md)                           | `IDN-001` … `IDN-123` |
-| Tickets             | [tickets.md](tickets.md)                             | `TKT-001` … `TKT-114` |
-| Shared Kernel       | [shared.md](shared.md)                               | `SHR-001` … `SHR-104` |
+| Context             | File                                             | Rules                 |
+| ------------------- | ------------------------------------------------ | --------------------- |
+| Device Inventory    | [device-inventory.md](device-inventory.md)       | `DEV-001` … `DEV-146` |
+| Customers           | [customers.md](customers.md)                     | `CUS-001` … `CUS-140` |
+| Billing             | [billing.md](billing.md)                         | `BIL-001` … `BIL-141` |
+| Device Monitoring   | [device-monitoring.md](device-monitoring.md)     | `MON-001` … `MON-040` |
+| Wireless Monitoring | [wireless-monitoring.md](wireless-monitoring.md) | `WLS-001` … `WLS-161` |
+| Service Enforcement | [service-enforcement.md](service-enforcement.md) | `SVC-001` … `SVC-120` |
+| Notifications       | [notifications.md](notifications.md)             | `NOT-001` … `NOT-151` |
+| Identity & Access   | [identity.md](identity.md)                       | `IDN-001` … `IDN-123` |
+| Tickets             | [tickets.md](tickets.md)                         | `TKT-001` … `TKT-114` |
+| Shared Kernel       | [shared.md](shared.md)                           | `SHR-001` … `SHR-104` |
 
 Every context now has a file. Two conventions settled while filling them in:
 
@@ -267,7 +267,7 @@ superseded rule stops being reported once its tests cite the successor ID.
 
 ### 2. Ask where the coverage actually lives
 
-"At least one test" hides *which* test. Not every layer is obligated to carry
+"At least one test" hides _which_ test. Not every layer is obligated to carry
 one — only the domain layer is expected to have exhaustive unit coverage (see
 [Testing](../../CLAUDE.md#testing)); application, infrastructure and
 presentation get unit tests selectively. But most rules, whichever layer
@@ -347,14 +347,21 @@ dashboards, whatever needs the numbers rather than the formatted report:
     "any integration": 68
   },
   "noIntegrationTest": [
-    { "id": "DEV-007", "title": "Vendor names are unique", "file": "device-inventory.md",
-      "existingTests": ["tests/application/device-inventory/use-cases/CreateVendorUseCase.test.ts", "…"] }
+    {
+      "id": "DEV-007",
+      "title": "Vendor names are unique",
+      "file": "device-inventory.md",
+      "existingTests": [
+        "tests/application/device-inventory/use-cases/CreateVendorUseCase.test.ts",
+        "…"
+      ]
+    }
   ]
 }
 ```
 
 `--json` always includes `byGroup` and `noIntegrationTest` — computing them is
-cheap, so `--by-group` only controls whether the *text* report prints the
+cheap, so `--by-group` only controls whether the _text_ report prints the
 breakdown; JSON consumers get it either way.
 
 ## Keeping this honest

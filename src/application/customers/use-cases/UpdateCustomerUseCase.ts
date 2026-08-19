@@ -10,7 +10,10 @@ import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import { CustomerMapper } from '../mappers';
-import { UpdateCustomerRequestDTO, CustomerResponseDTO } from '../dtos';
+import {
+  UpdateCustomerRequestDTO,
+  CustomerResponseDTO
+} from '../dtos';
 
 export class UpdateCustomerUseCase extends UseCase<
   UpdateCustomerRequestDTO,
@@ -127,7 +130,9 @@ export class UpdateCustomerUseCase extends UseCase<
 
     const saveResult = await this.customerRepository.save(customer);
     if (saveResult.isFailure) {
-      return this.fail(`Failed to persist customer: ${saveResult.error}`);
+      return this.fail(
+        `Failed to persist customer: ${saveResult.error}`
+      );
     }
 
     return this.ok(CustomerMapper.toDTO(saveResult.value));

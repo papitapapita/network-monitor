@@ -44,7 +44,9 @@ describe('ListVendorsUseCase — integration', () => {
     expect(result.isSuccess).toBe(true);
     expect(result.value.vendors.length).toBeGreaterThanOrEqual(1);
 
-    const mikrotik = result.value.vendors.find((v) => v.name === 'MikroTik');
+    const mikrotik = result.value.vendors.find(
+      (v) => v.name === 'MikroTik'
+    );
     expect(mikrotik).toBeDefined();
   });
 

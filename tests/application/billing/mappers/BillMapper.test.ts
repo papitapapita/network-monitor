@@ -74,7 +74,9 @@ describe('BillMapper.toDTO', () => {
   });
 
   it('should represent the period as a "YYYY-MM" string', () => {
-    const bill = makeBill({ period: BillingPeriod.create(2024, 1).value });
+    const bill = makeBill({
+      period: BillingPeriod.create(2024, 1).value
+    });
     const dto = BillMapper.toDTO(bill);
     expect(dto.period).toBe('2024-01');
   });
@@ -95,7 +97,10 @@ describe('BillMapper.toDTO', () => {
   });
 
   it('should serialize paidAt as an ISO string when the bill is paid', () => {
-    const bill = makeBill({ status: BillStatus.PAID, paidAt: PAID_AT });
+    const bill = makeBill({
+      status: BillStatus.PAID,
+      paidAt: PAID_AT
+    });
     const dto = BillMapper.toDTO(bill);
     expect(dto.paidAt).toBe(PAID_AT.toISOString());
   });

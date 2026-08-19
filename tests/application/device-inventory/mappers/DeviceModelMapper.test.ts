@@ -3,7 +3,10 @@
 import { DeviceModelMapper } from '../../../../src/application/device-inventory/mappers/DeviceModelMapper';
 import { DeviceModel } from '../../../../src/domain/device-inventory/aggregates/DeviceModel';
 import { DeviceType } from '../../../../src/domain/device-inventory/value-objects';
-import { DeviceModelId, VendorId } from '../../../../src/domain/shared/ids';
+import {
+  DeviceModelId,
+  VendorId
+} from '../../../../src/domain/shared/ids';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -30,21 +33,18 @@ function makeDeviceModel(
   const idStr = overrides.id ?? VALID_UUID;
   const vendorIdStr = overrides.vendorId ?? VENDOR_UUID;
 
-  return DeviceModel.reconstitute(
-    DeviceModelId.parse(idStr).value!,
-    {
-      vendorId: VendorId.parse(vendorIdStr).value!,
-      vendorName: overrides.vendorName ?? 'Mikrotik',
-      vendorSlug: overrides.vendorSlug ?? 'mikrotik',
-      model: overrides.model ?? 'RB760iGS',
-      deviceType: DeviceType.reconstitute(
-        overrides.deviceType ?? 'ROUTER'
-      ),
-      isWireless: overrides.isWireless ?? false,
-      createdAt: overrides.createdAt ?? BASE_DATE,
-      updatedAt: overrides.updatedAt ?? UPDATED_DATE
-    }
-  );
+  return DeviceModel.reconstitute(DeviceModelId.parse(idStr).value!, {
+    vendorId: VendorId.parse(vendorIdStr).value!,
+    vendorName: overrides.vendorName ?? 'Mikrotik',
+    vendorSlug: overrides.vendorSlug ?? 'mikrotik',
+    model: overrides.model ?? 'RB760iGS',
+    deviceType: DeviceType.reconstitute(
+      overrides.deviceType ?? 'ROUTER'
+    ),
+    isWireless: overrides.isWireless ?? false,
+    createdAt: overrides.createdAt ?? BASE_DATE,
+    updatedAt: overrides.updatedAt ?? UPDATED_DATE
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -67,25 +67,33 @@ describe('DeviceModelMapper', () => {
       });
 
       it('should map vendorName as a string', () => {
-        const dto = DeviceModelMapper.toDTO(makeDeviceModel({ vendorName: 'Ubiquiti' }));
+        const dto = DeviceModelMapper.toDTO(
+          makeDeviceModel({ vendorName: 'Ubiquiti' })
+        );
 
         expect(dto.vendorName).toBe('Ubiquiti');
       });
 
       it('should map vendorSlug as a string', () => {
-        const dto = DeviceModelMapper.toDTO(makeDeviceModel({ vendorSlug: 'ubiquiti' }));
+        const dto = DeviceModelMapper.toDTO(
+          makeDeviceModel({ vendorSlug: 'ubiquiti' })
+        );
 
         expect(dto.vendorSlug).toBe('ubiquiti');
       });
 
       it('should map model as a string', () => {
-        const dto = DeviceModelMapper.toDTO(makeDeviceModel({ model: 'UniFi AP AC Pro' }));
+        const dto = DeviceModelMapper.toDTO(
+          makeDeviceModel({ model: 'UniFi AP AC Pro' })
+        );
 
         expect(dto.model).toBe('UniFi AP AC Pro');
       });
 
       it('should map deviceType as a string', () => {
-        const dto = DeviceModelMapper.toDTO(makeDeviceModel({ deviceType: 'SWITCH' }));
+        const dto = DeviceModelMapper.toDTO(
+          makeDeviceModel({ deviceType: 'SWITCH' })
+        );
 
         expect(dto.deviceType).toBe('SWITCH');
       });
@@ -106,7 +114,17 @@ describe('DeviceModelMapper', () => {
         const dto = DeviceModelMapper.toDTO(makeDeviceModel());
 
         expect(Object.keys(dto).sort()).toEqual(
-          ['id', 'vendorId', 'vendorName', 'vendorSlug', 'model', 'deviceType', 'isWireless', 'createdAt', 'updatedAt'].sort()
+          [
+            'id',
+            'vendorId',
+            'vendorName',
+            'vendorSlug',
+            'model',
+            'deviceType',
+            'isWireless',
+            'createdAt',
+            'updatedAt'
+          ].sort()
         );
       });
     });
@@ -121,7 +139,10 @@ describe('DeviceModelMapper', () => {
 
       it('should produce the same ISO string when createdAt equals updatedAt', () => {
         const dto = DeviceModelMapper.toDTO(
-          makeDeviceModel({ createdAt: BASE_DATE, updatedAt: BASE_DATE })
+          makeDeviceModel({
+            createdAt: BASE_DATE,
+            updatedAt: BASE_DATE
+          })
         );
 
         expect(dto.createdAt).toBe(dto.updatedAt);
@@ -133,26 +154,43 @@ describe('DeviceModelMapper', () => {
   describe('toListDTO()', () => {
     function makeModelPage(count: number): DeviceModel[] {
       return Array.from({ length: count }, (_, i) =>
-        makeDeviceModel({ id: `550e8400-e29b-41d4-a716-${String(i).padStart(12, '0')}` })
+        makeDeviceModel({
+          id: `550e8400-e29b-41d4-a716-${String(i).padStart(12, '0')}`
+        })
       );
     }
 
     // -----------------------------------------------------------------------
     describe('pagination metadata', () => {
       it('should include total count in the response', () => {
-        const dto = DeviceModelMapper.toListDTO(makeModelPage(5), 42, 20, 0);
+        const dto = DeviceModelMapper.toListDTO(
+          makeModelPage(5),
+          42,
+          20,
+          0
+        );
 
         expect(dto.total).toBe(42);
       });
 
       it('should include limit in the response', () => {
-        const dto = DeviceModelMapper.toListDTO(makeModelPage(5), 42, 20, 0);
+        const dto = DeviceModelMapper.toListDTO(
+          makeModelPage(5),
+          42,
+          20,
+          0
+        );
 
         expect(dto.limit).toBe(20);
       });
 
       it('should include offset in the response', () => {
-        const dto = DeviceModelMapper.toListDTO(makeModelPage(5), 42, 20, 20);
+        const dto = DeviceModelMapper.toListDTO(
+          makeModelPage(5),
+          42,
+          20,
+          20
+        );
 
         expect(dto.offset).toBe(20);
       });
@@ -173,19 +211,34 @@ describe('DeviceModelMapper', () => {
     // -----------------------------------------------------------------------
     describe('hasMore flag', () => {
       it('should be true when there are more items beyond the current page', () => {
-        const dto = DeviceModelMapper.toListDTO(makeModelPage(20), 50, 20, 0);
+        const dto = DeviceModelMapper.toListDTO(
+          makeModelPage(20),
+          50,
+          20,
+          0
+        );
 
         expect(dto.hasMore).toBe(true);
       });
 
       it('should be false when the current page covers all remaining items', () => {
-        const dto = DeviceModelMapper.toListDTO(makeModelPage(10), 30, 20, 20);
+        const dto = DeviceModelMapper.toListDTO(
+          makeModelPage(10),
+          30,
+          20,
+          20
+        );
 
         expect(dto.hasMore).toBe(false);
       });
 
       it('should be false when total equals page size', () => {
-        const dto = DeviceModelMapper.toListDTO(makeModelPage(20), 20, 20, 0);
+        const dto = DeviceModelMapper.toListDTO(
+          makeModelPage(20),
+          20,
+          20,
+          0
+        );
 
         expect(dto.hasMore).toBe(false);
       });

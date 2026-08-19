@@ -13,7 +13,9 @@ export class ContractedServiceMapper {
       customerId: service.customerId.toString(),
       servicePlanId: service.servicePlanId.toString(),
       deviceId:
-        service.deviceId !== null ? service.deviceId.toString() : null,
+        service.deviceId !== null
+          ? service.deviceId.toString()
+          : null,
       status: service.status,
       startDate: service.startDate.toISOString(),
       createdAt: service.createdAt.toISOString(),

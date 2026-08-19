@@ -126,7 +126,9 @@ export class PrismaPollingConfigurationRepository
 
       return Result.ok(entity);
     } catch (error) {
-      return Result.fail(`Database error saving polling config: ${(error as Error).message}`);
+      return Result.fail(
+        `Database error saving polling config: ${(error as Error).message}`
+      );
     }
   }
 

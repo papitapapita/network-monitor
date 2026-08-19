@@ -102,13 +102,20 @@ export class DeviceMapper {
       updates.deviceModelId = dto.deviceModelId;
     if (dto.status !== undefined) updates.status = dto.status;
     if (dto.category !== undefined) updates.category = dto.category;
-    if (dto.ownerType !== undefined) updates.ownerType = dto.ownerType;
-    if (dto.locationId !== undefined) updates.locationId = dto.locationId;
-    if (dto.serialNumber !== undefined) updates.serialNumber = dto.serialNumber;
-    if (dto.macAddress !== undefined) updates.macAddress = dto.macAddress;
-    if (dto.ipAddress !== undefined) updates.ipAddress = dto.ipAddress;
-    if (dto.description !== undefined) updates.description = dto.description;
-    if (dto.installedDate !== undefined) updates.installedDate = dto.installedDate;
+    if (dto.ownerType !== undefined)
+      updates.ownerType = dto.ownerType;
+    if (dto.locationId !== undefined)
+      updates.locationId = dto.locationId;
+    if (dto.serialNumber !== undefined)
+      updates.serialNumber = dto.serialNumber;
+    if (dto.macAddress !== undefined)
+      updates.macAddress = dto.macAddress;
+    if (dto.ipAddress !== undefined)
+      updates.ipAddress = dto.ipAddress;
+    if (dto.description !== undefined)
+      updates.description = dto.description;
+    if (dto.installedDate !== undefined)
+      updates.installedDate = dto.installedDate;
     if (dto.monitoringEnabled !== undefined) {
       updates.monitoringEnabled = dto.monitoringEnabled;
     }

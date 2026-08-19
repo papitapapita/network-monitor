@@ -39,7 +39,10 @@ export const updateServicePlanSchema = z.object({
   params: z.object({
     id: z
       .string()
-      .regex(UUID_REGEX, 'Invalid service plan ID (must be a UUID v4)')
+      .regex(
+        UUID_REGEX,
+        'Invalid service plan ID (must be a UUID v4)'
+      )
   }),
   body: z
     .object({
@@ -59,7 +62,10 @@ export const getServicePlanByIdSchema = z.object({
   params: z.object({
     id: z
       .string()
-      .regex(UUID_REGEX, 'Invalid service plan ID (must be a UUID v4)')
+      .regex(
+        UUID_REGEX,
+        'Invalid service plan ID (must be a UUID v4)'
+      )
   })
 });
 
@@ -67,7 +73,10 @@ export const deleteServicePlanSchema = z.object({
   params: z.object({
     id: z
       .string()
-      .regex(UUID_REGEX, 'Invalid service plan ID (must be a UUID v4)')
+      .regex(
+        UUID_REGEX,
+        'Invalid service plan ID (must be a UUID v4)'
+      )
   })
 });
 

@@ -25,11 +25,17 @@ function stubRequest(
   (https.request as jest.Mock).mockImplementation(
     (
       options: https.RequestOptions,
-      callback?: (res: EventEmitter & { statusCode?: number; headers: Record<string, unknown> }) => void
+      callback?: (
+        res: EventEmitter & {
+          statusCode?: number;
+          headers: Record<string, unknown>;
+        }
+      ) => void
     ) => {
       callCount++;
       const isAuth = (options.path ?? '').includes('/api/auth');
-      const opts = isAuth || statusOpts === undefined ? authOpts : statusOpts;
+      const opts =
+        isAuth || statusOpts === undefined ? authOpts : statusOpts;
       if (!isAuth && statusOpts !== undefined) {
         // second+ call is for status.cgi
       }
@@ -124,19 +130,32 @@ describe('[WLS-040] [WLS-041] [WLS-042] [WLS-043] [WLS-044] [WLS-045] [WLS-046] 
       (https.request as jest.Mock).mockImplementation(
         (
           opts: https.RequestOptions,
-          cb?: (res: EventEmitter & { statusCode?: number; headers: Record<string, unknown> }) => void
+          cb?: (
+            res: EventEmitter & {
+              statusCode?: number;
+              headers: Record<string, unknown>;
+            }
+          ) => void
         ) => {
           paths.push(opts.path ?? '');
           const isAuth = (opts.path ?? '').includes('/api/auth');
           const fakeOpts = isAuth
             ? AUTH_OK
             : { statusCode: 200, body: STATUS_BODY };
-          const req = new EventEmitter() as EventEmitter & { end: jest.Mock; write: jest.Mock; destroy: jest.Mock };
+          const req = new EventEmitter() as EventEmitter & {
+            end: jest.Mock;
+            write: jest.Mock;
+            destroy: jest.Mock;
+          };
           req.end = jest.fn().mockImplementation(() => {
             if (cb) {
-              const res = new EventEmitter() as EventEmitter & { statusCode?: number; headers: Record<string, unknown> };
+              const res = new EventEmitter() as EventEmitter & {
+                statusCode?: number;
+                headers: Record<string, unknown>;
+              };
               res.statusCode = fakeOpts.statusCode;
-              res.headers = (fakeOpts as FakeResponseOptions).headers ?? {};
+              res.headers =
+                (fakeOpts as FakeResponseOptions).headers ?? {};
               cb(res);
               res.emit('data', Buffer.from(fakeOpts.body ?? ''));
               res.emit('end');
@@ -160,19 +179,32 @@ describe('[WLS-040] [WLS-041] [WLS-042] [WLS-043] [WLS-044] [WLS-045] [WLS-046] 
       (https.request as jest.Mock).mockImplementation(
         (
           opts: https.RequestOptions,
-          cb?: (res: EventEmitter & { statusCode?: number; headers: Record<string, unknown> }) => void
+          cb?: (
+            res: EventEmitter & {
+              statusCode?: number;
+              headers: Record<string, unknown>;
+            }
+          ) => void
         ) => {
           const isAuth = (opts.path ?? '').includes('/api/auth');
           if (isAuth) authCallCount++;
           const fakeOpts = isAuth
             ? AUTH_OK
             : { statusCode: 200, body: STATUS_BODY };
-          const req = new EventEmitter() as EventEmitter & { end: jest.Mock; write: jest.Mock; destroy: jest.Mock };
+          const req = new EventEmitter() as EventEmitter & {
+            end: jest.Mock;
+            write: jest.Mock;
+            destroy: jest.Mock;
+          };
           req.end = jest.fn().mockImplementation(() => {
             if (cb) {
-              const res = new EventEmitter() as EventEmitter & { statusCode?: number; headers: Record<string, unknown> };
+              const res = new EventEmitter() as EventEmitter & {
+                statusCode?: number;
+                headers: Record<string, unknown>;
+              };
               res.statusCode = fakeOpts.statusCode;
-              res.headers = (fakeOpts as FakeResponseOptions).headers ?? {};
+              res.headers =
+                (fakeOpts as FakeResponseOptions).headers ?? {};
               cb(res);
               res.emit('data', Buffer.from(fakeOpts.body ?? ''));
               res.emit('end');
@@ -200,18 +232,36 @@ describe('[WLS-040] [WLS-041] [WLS-042] [WLS-043] [WLS-044] [WLS-045] [WLS-046] 
       (https.request as jest.Mock).mockImplementation(
         (
           opts: https.RequestOptions,
-          cb?: (res: EventEmitter & { statusCode?: number; headers: Record<string, unknown> }) => void
+          cb?: (
+            res: EventEmitter & {
+              statusCode?: number;
+              headers: Record<string, unknown>;
+            }
+          ) => void
         ) => {
           const isAuth = (opts.path ?? '').includes('/api/auth');
           if (isAuth) authCallCount++;
           else statusCallCount++;
-          const statusCode = isAuth ? 200 : statusCallCount === 1 ? 401 : 200;
-          const headers = isAuth ? { 'set-cookie': [`${SESSION_COOKIE}; Path=/`] } : {};
+          const statusCode = isAuth
+            ? 200
+            : statusCallCount === 1
+              ? 401
+              : 200;
+          const headers = isAuth
+            ? { 'set-cookie': [`${SESSION_COOKIE}; Path=/`] }
+            : {};
           const body = isAuth ? '' : STATUS_BODY;
-          const req = new EventEmitter() as EventEmitter & { end: jest.Mock; write: jest.Mock; destroy: jest.Mock };
+          const req = new EventEmitter() as EventEmitter & {
+            end: jest.Mock;
+            write: jest.Mock;
+            destroy: jest.Mock;
+          };
           req.end = jest.fn().mockImplementation(() => {
             if (cb) {
-              const res = new EventEmitter() as EventEmitter & { statusCode?: number; headers: Record<string, unknown> };
+              const res = new EventEmitter() as EventEmitter & {
+                statusCode?: number;
+                headers: Record<string, unknown>;
+              };
               res.statusCode = statusCode;
               res.headers = headers;
               cb(res);
@@ -237,20 +287,35 @@ describe('[WLS-040] [WLS-041] [WLS-042] [WLS-043] [WLS-044] [WLS-045] [WLS-046] 
       (https.request as jest.Mock).mockImplementation(
         (
           opts: https.RequestOptions,
-          cb?: (res: EventEmitter & { statusCode?: number; headers: Record<string, unknown> }) => void
+          cb?: (
+            res: EventEmitter & {
+              statusCode?: number;
+              headers: Record<string, unknown>;
+            }
+          ) => void
         ) => {
           const isAuth = (opts.path ?? '').includes('/api/auth');
           if (isAuth) authCallCount++;
           const statusCode = isAuth
-            ? authCallCount === 1 ? 200 : 401
+            ? authCallCount === 1
+              ? 200
+              : 401
             : 401;
-          const headers = isAuth && authCallCount === 1
-            ? { 'set-cookie': [`${SESSION_COOKIE}; Path=/`] }
-            : {};
-          const req = new EventEmitter() as EventEmitter & { end: jest.Mock; write: jest.Mock; destroy: jest.Mock };
+          const headers =
+            isAuth && authCallCount === 1
+              ? { 'set-cookie': [`${SESSION_COOKIE}; Path=/`] }
+              : {};
+          const req = new EventEmitter() as EventEmitter & {
+            end: jest.Mock;
+            write: jest.Mock;
+            destroy: jest.Mock;
+          };
           req.end = jest.fn().mockImplementation(() => {
             if (cb) {
-              const res = new EventEmitter() as EventEmitter & { statusCode?: number; headers: Record<string, unknown> };
+              const res = new EventEmitter() as EventEmitter & {
+                statusCode?: number;
+                headers: Record<string, unknown>;
+              };
               res.statusCode = statusCode;
               res.headers = headers;
               cb(res);
@@ -281,7 +346,12 @@ describe('[WLS-040] [WLS-041] [WLS-042] [WLS-043] [WLS-044] [WLS-045] [WLS-046] 
       (https.request as jest.Mock).mockImplementation(
         (
           opts: https.RequestOptions,
-          cb?: (res: EventEmitter & { statusCode?: number; headers: Record<string, unknown> }) => void
+          cb?: (
+            res: EventEmitter & {
+              statusCode?: number;
+              headers: Record<string, unknown>;
+            }
+          ) => void
         ) => {
           const isAuth = (opts.path ?? '').includes('/api/auth');
           if (isAuth) authCallCount++;
@@ -294,10 +364,17 @@ describe('[WLS-040] [WLS-041] [WLS-042] [WLS-043] [WLS-044] [WLS-045] [WLS-046] 
             ? { 'set-cookie': [`${SESSION_COOKIE}; Path=/`] }
             : {};
           const body = isAuth ? '' : STATUS_BODY;
-          const req = new EventEmitter() as EventEmitter & { end: jest.Mock; write: jest.Mock; destroy: jest.Mock };
+          const req = new EventEmitter() as EventEmitter & {
+            end: jest.Mock;
+            write: jest.Mock;
+            destroy: jest.Mock;
+          };
           req.end = jest.fn().mockImplementation(() => {
             if (cb) {
-              const res = new EventEmitter() as EventEmitter & { statusCode?: number; headers: Record<string, unknown> };
+              const res = new EventEmitter() as EventEmitter & {
+                statusCode?: number;
+                headers: Record<string, unknown>;
+              };
               res.statusCode = statusCode;
               res.headers = headers;
               cb(res);
@@ -386,7 +463,10 @@ describe('[WLS-040] [WLS-041] [WLS-042] [WLS-043] [WLS-044] [WLS-045] [WLS-046] 
     });
 
     it('should fail when status.cgi response emits an error mid-body', async () => {
-      stubRequest(AUTH_OK, { statusCode: 200, emitError: 'socket hang up' });
+      stubRequest(AUTH_OK, {
+        statusCode: 200,
+        emitError: 'socket hang up'
+      });
 
       const client = new AirOsHttpClient();
       const result = await client.fetchStatus(IP, PORT, CREDS);
@@ -421,7 +501,12 @@ describe('[WLS-040] [WLS-041] [WLS-042] [WLS-043] [WLS-044] [WLS-045] [WLS-046] 
       (https.request as jest.Mock).mockImplementation(
         (
           opts: https.RequestOptions,
-          cb?: (res: EventEmitter & { statusCode?: number; headers: Record<string, unknown> }) => void
+          cb?: (
+            res: EventEmitter & {
+              statusCode?: number;
+              headers: Record<string, unknown>;
+            }
+          ) => void
         ) => {
           requests.push(opts);
           const isAuth = (opts.path ?? '').includes('/api/auth');
@@ -438,10 +523,17 @@ describe('[WLS-040] [WLS-041] [WLS-042] [WLS-043] [WLS-044] [WLS-045] [WLS-046] 
               options.rebootStatusCodes?.[rebootCallCount] ?? 200;
             rebootCallCount++;
           }
-          const req = new EventEmitter() as EventEmitter & { end: jest.Mock; write: jest.Mock; destroy: jest.Mock };
+          const req = new EventEmitter() as EventEmitter & {
+            end: jest.Mock;
+            write: jest.Mock;
+            destroy: jest.Mock;
+          };
           req.end = jest.fn().mockImplementation(() => {
             if (cb) {
-              const res = new EventEmitter() as EventEmitter & { statusCode?: number; headers: Record<string, unknown> };
+              const res = new EventEmitter() as EventEmitter & {
+                statusCode?: number;
+                headers: Record<string, unknown>;
+              };
               res.statusCode = statusCode;
               res.headers = headers;
               cb(res);
@@ -489,7 +581,9 @@ describe('[WLS-040] [WLS-041] [WLS-042] [WLS-043] [WLS-044] [WLS-045] [WLS-046] 
     });
 
     it('should re-authenticate once and retry when reboot returns 401', async () => {
-      const { requests } = stubReboot({ rebootStatusCodes: [401, 200] });
+      const { requests } = stubReboot({
+        rebootStatusCodes: [401, 200]
+      });
 
       const client = new AirOsHttpClient();
       const result = await client.reboot(IP, PORT, CREDS);

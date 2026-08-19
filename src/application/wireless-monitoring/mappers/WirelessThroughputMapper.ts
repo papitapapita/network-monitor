@@ -16,7 +16,9 @@ export class WirelessThroughputMapper {
 
     const ageSeconds = Math.max(
       0,
-      Math.round((now.getTime() - snapshot.collectedAt.getTime()) / 1000)
+      Math.round(
+        (now.getTime() - snapshot.collectedAt.getTime()) / 1000
+      )
     );
 
     const throughputTotalBps =
@@ -33,7 +35,8 @@ export class WirelessThroughputMapper {
       stale:
         config === null
           ? true
-          : ageSeconds > config.pollingInterval.seconds * STALE_INTERVALS,
+          : ageSeconds >
+            config.pollingInterval.seconds * STALE_INTERVALS,
       throughputTxBps: m.throughputTxBps,
       throughputRxBps: m.throughputRxBps,
       throughputTotalBps,

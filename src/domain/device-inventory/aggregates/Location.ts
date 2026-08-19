@@ -3,7 +3,10 @@ import { LocationId } from 'domain/shared/ids';
 import { Address, Coordinates, LocationType } from '../value-objects';
 import { LocationProps } from '../props';
 
-export class Location extends AggregateRoot<LocationProps, LocationId> {
+export class Location extends AggregateRoot<
+  LocationProps,
+  LocationId
+> {
   private constructor(props: LocationProps, id: LocationId) {
     super(props, id);
   }
@@ -64,7 +67,10 @@ export class Location extends AggregateRoot<LocationProps, LocationId> {
     return Result.ok<Location>(location);
   }
 
-  public static reconstitute(id: LocationId, props: LocationProps): Location {
+  public static reconstitute(
+    id: LocationId,
+    props: LocationProps
+  ): Location {
     return new Location(props, id);
   }
 
@@ -128,7 +134,8 @@ export class Location extends AggregateRoot<LocationProps, LocationId> {
       municipality,
       neighborhood
     });
-    if (addressResult.isFailure) return Result.fail<void>(addressResult.error);
+    if (addressResult.isFailure)
+      return Result.fail<void>(addressResult.error);
 
     const newAddressVO = addressResult.value;
 
@@ -137,13 +144,16 @@ export class Location extends AggregateRoot<LocationProps, LocationId> {
         address: newAddressVO,
         coordinates: this.props.coordinates ?? null
       });
-      if (cpResult.isFailure) return Result.fail<void>(cpResult.error);
+      if (cpResult.isFailure)
+        return Result.fail<void>(cpResult.error);
     }
 
     const current = this.props.address;
     const unchanged =
       (current === null && newAddressVO === null) ||
-      (current !== null && newAddressVO !== null && current.equals(newAddressVO));
+      (current !== null &&
+        newAddressVO !== null &&
+        current.equals(newAddressVO));
 
     if (unchanged) return Result.ok<void>();
 
@@ -153,7 +163,9 @@ export class Location extends AggregateRoot<LocationProps, LocationId> {
     return Result.ok<void>();
   }
 
-  public updateCoordinates(coordinates: Coordinates | null): Result<void> {
+  public updateCoordinates(
+    coordinates: Coordinates | null
+  ): Result<void> {
     const previousCoordinates = this.props.coordinates;
     const previousStr = previousCoordinates
       ? previousCoordinates.toString()
@@ -195,7 +207,9 @@ export class Location extends AggregateRoot<LocationProps, LocationId> {
     }
 
     if (name.length > 150) {
-      return Result.fail<void>('Location name cannot exceed 150 characters');
+      return Result.fail<void>(
+        'Location name cannot exceed 150 characters'
+      );
     }
 
     return Result.ok<void>();
@@ -214,7 +228,10 @@ export class Location extends AggregateRoot<LocationProps, LocationId> {
   }
 
   private static validate(props: LocationProps): Result<void> {
-    const guardResult = Guard.againstNullOrUndefined(props.type, 'type');
+    const guardResult = Guard.againstNullOrUndefined(
+      props.type,
+      'type'
+    );
     if (!guardResult.succeeded) {
       return Result.fail<void>(guardResult.message!);
     }

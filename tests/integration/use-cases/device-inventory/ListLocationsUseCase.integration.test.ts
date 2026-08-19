@@ -50,7 +50,10 @@ describe('ListLocationsUseCase — integration', () => {
     await createUseCase.execute({ name: 'Tower A', type: 'TOWER' });
     await createUseCase.execute({ name: 'Office B', type: 'OFFICE' });
 
-    const result = await listUseCase.execute({ limit: 20, offset: 0 });
+    const result = await listUseCase.execute({
+      limit: 20,
+      offset: 0
+    });
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.locations).toHaveLength(2);
@@ -67,12 +70,17 @@ describe('ListLocationsUseCase — integration', () => {
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.locations).toHaveLength(2);
-    expect(result.value.locations.every((l) => l.type === 'TOWER')).toBe(true);
+    expect(
+      result.value.locations.every((l) => l.type === 'TOWER')
+    ).toBe(true);
   });
 
   it('applies pagination via limit and offset', async () => {
     for (let i = 1; i <= 4; i++) {
-      await createUseCase.execute({ name: `Location ${i}`, type: 'OFFICE' });
+      await createUseCase.execute({
+        name: `Location ${i}`,
+        type: 'OFFICE'
+      });
     }
 
     const page1 = await listUseCase.execute({ limit: 2, offset: 0 });

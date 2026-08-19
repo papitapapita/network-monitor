@@ -183,7 +183,9 @@ describe('DeleteDeviceUseCase', () => {
     });
 
     it('should fail when id is whitespace only', async () => {
-      const result = await useCase.execute(makeRequest({ id: '   ' }));
+      const result = await useCase.execute(
+        makeRequest({ id: '   ' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Device ID is required');

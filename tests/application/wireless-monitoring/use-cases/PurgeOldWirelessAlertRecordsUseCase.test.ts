@@ -38,7 +38,9 @@ describe('[WLS-161] PurgeOldWirelessAlertRecordsUseCase', () => {
   beforeEach(() => {
     repo = makeRepo();
     useCase = new PurgeOldWirelessAlertRecordsUseCase(repo);
-    dateSpy = jest.spyOn(Date, 'now').mockReturnValue(FIXED_TIMESTAMP);
+    dateSpy = jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(FIXED_TIMESTAMP);
   });
 
   afterEach(() => {

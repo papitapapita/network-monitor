@@ -464,7 +464,9 @@ describe('UpdateDeviceUseCase', () => {
     });
 
     it('should propagate a repository failure from exists', async () => {
-      locationRepo.exists.mockResolvedValue(Result.fail('DB timeout'));
+      locationRepo.exists.mockResolvedValue(
+        Result.fail('DB timeout')
+      );
 
       const result = await useCase.execute(
         makeRequest({ locationId: VALID_LOCATION_ID })
@@ -474,7 +476,7 @@ describe('UpdateDeviceUseCase', () => {
       expect(result.error).toContain('Failed to verify location');
     });
 
-    it('should not re-check existence when resubmitting the device\'s own location', async () => {
+    it("should not re-check existence when resubmitting the device's own location", async () => {
       repo.findById.mockResolvedValue(
         Result.ok(
           makePersistedDevice({ locationId: VALID_LOCATION_ID })

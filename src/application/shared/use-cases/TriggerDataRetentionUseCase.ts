@@ -30,22 +30,28 @@ export class TriggerDataRetentionUseCase {
   ) {}
 
   async execute(): Promise<Result<DataRetentionSummary>> {
-    const [pingResult, alertResult, snapshotResult, wirelessAlertResult] =
-      await Promise.all([
-        this.purgeOldPingResults.execute(
-          this.config.pingResultRetentionDays
-        ),
-        this.purgeOldAlerts.execute(this.config.alertRetentionDays),
-        this.purgeOldWirelessSnapshots.execute(
-          this.config.wirelessSnapshotRetentionDays
-        ),
-        this.purgeOldWirelessAlertRecords.execute(
-          this.config.wirelessAlertRecordRetentionDays
-        )
-      ]);
+    const [
+      pingResult,
+      alertResult,
+      snapshotResult,
+      wirelessAlertResult
+    ] = await Promise.all([
+      this.purgeOldPingResults.execute(
+        this.config.pingResultRetentionDays
+      ),
+      this.purgeOldAlerts.execute(this.config.alertRetentionDays),
+      this.purgeOldWirelessSnapshots.execute(
+        this.config.wirelessSnapshotRetentionDays
+      ),
+      this.purgeOldWirelessAlertRecords.execute(
+        this.config.wirelessAlertRecordRetentionDays
+      )
+    ]);
 
     if (pingResult.isFailure) {
-      return Result.fail(`Ping results purge failed: ${pingResult.error}`);
+      return Result.fail(
+        `Ping results purge failed: ${pingResult.error}`
+      );
     }
     if (alertResult.isFailure) {
       return Result.fail(`Alerts purge failed: ${alertResult.error}`);

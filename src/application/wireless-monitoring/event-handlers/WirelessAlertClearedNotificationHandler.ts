@@ -1,7 +1,10 @@
 import { IHandle } from 'domain/shared/interfaces';
 import { AlertSeverity } from 'domain/shared/enums';
 import { WirelessAlertClearedEvent } from 'domain/wireless-monitoring/events';
-import { ILogger, IAlertPublisher } from 'application/shared/interfaces';
+import {
+  ILogger,
+  IAlertPublisher
+} from 'application/shared/interfaces';
 
 const SOURCE = 'Enlace inalámbrico';
 

@@ -1,4 +1,10 @@
-import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+import {
+  describe,
+  it,
+  expect,
+  jest,
+  beforeEach
+} from '@jest/globals';
 import { GetMapLocationsUseCase } from '../../../../src/application/device-inventory/use-cases/GetMapLocationsUseCase';
 import { ILocationRepository } from '../../../../src/domain/device-inventory/repository/ILocationRepository';
 import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository/IDeviceRepository';
@@ -39,10 +45,15 @@ const NOW = new Date('2024-01-01T00:00:00.000Z');
 // Fixtures
 // ---------------------------------------------------------------------------
 
-function makeLocation(id: string, overrides: { type?: string } = {}): Location {
+function makeLocation(
+  id: string,
+  overrides: { type?: string } = {}
+): Location {
   return Location.reconstitute(LocationId.parse(id).value, {
     name: `Location-${id.slice(-4)}`,
-    type: LocationType.reconstitute(overrides.type ?? LocationType.TOWER),
+    type: LocationType.reconstitute(
+      overrides.type ?? LocationType.TOWER
+    ),
     address: Address.reconstitute({
       street: 'Carrera 80 # 75-32',
       municipality: 'Medellín',
@@ -60,7 +71,9 @@ function makeLocation(id: string, overrides: { type?: string } = {}): Location {
 function makeDevice(id: string, locationId: string | null): Device {
   return Device.reconstitute(DeviceId.parse(id).value, {
     deviceModelId: DeviceModelId.parse(MODEL_ID).value,
-    locationId: locationId ? LocationId.parse(locationId).value : null,
+    locationId: locationId
+      ? LocationId.parse(locationId).value
+      : null,
     status: DeviceStatus.reconstitute(DeviceStatus.ACTIVE),
     category: null,
     ownerType: DeviceOwnerType.COMPANY,
@@ -83,7 +96,9 @@ function makeLogger(): ILogger {
     warn: jest.fn(),
     error: jest.fn(),
     fatal: jest.fn(),
-    child: jest.fn().mockReturnThis() as jest.Mocked<ILogger>['child'],
+    child: jest
+      .fn()
+      .mockReturnThis() as jest.Mocked<ILogger>['child'],
     setLevel: jest.fn()
   };
 }
@@ -215,7 +230,9 @@ describe('GetMapLocationsUseCase', () => {
     });
 
     it('should populate pin coordinates and metadata from location', async () => {
-      const loc = makeLocation(LOC_ID_1, { type: LocationType.POINT_OF_PRESENCE });
+      const loc = makeLocation(LOC_ID_1, {
+        type: LocationType.POINT_OF_PRESENCE
+      });
       locationRepo.findAllWithCoordinates.mockResolvedValue(
         Result.ok([loc])
       );

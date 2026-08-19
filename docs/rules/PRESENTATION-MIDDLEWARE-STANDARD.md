@@ -41,25 +41,25 @@
 
 ### Middleware vs Controller:
 
-| Aspect              | Middleware                       | Controller                      |
-| ------------------- | -------------------------------- | ------------------------------- |
-| **Purpose**         | Cross-cutting concerns           | Request/response coordination   |
-| **Scope**           | Multiple routes                  | Single resource                 |
-| **Business Logic**  | NONE                             | NONE (delegates to use cases)   |
-| **Request Flow**    | Intercepts, may short-circuit    | Terminates request              |
-| **Response**        | May modify or pass through       | Always sends final response     |
-| **Examples**        | Auth, validation, logging, CORS  | CRUD operations, actions        |
-| **Execution Order** | Before controller                | After all middleware pass       |
+| Aspect              | Middleware                      | Controller                    |
+| ------------------- | ------------------------------- | ----------------------------- |
+| **Purpose**         | Cross-cutting concerns          | Request/response coordination |
+| **Scope**           | Multiple routes                 | Single resource               |
+| **Business Logic**  | NONE                            | NONE (delegates to use cases) |
+| **Request Flow**    | Intercepts, may short-circuit   | Terminates request            |
+| **Response**        | May modify or pass through      | Always sends final response   |
+| **Examples**        | Auth, validation, logging, CORS | CRUD operations, actions      |
+| **Execution Order** | Before controller               | After all middleware pass     |
 
 ### Middleware vs Domain Services:
 
-| Aspect             | Middleware (Presentation)          | Domain Service (Domain)          |
-| ------------------ | ---------------------------------- | -------------------------------- |
-| **Layer**          | Presentation                       | Domain                           |
-| **Purpose**        | HTTP-level concerns                | Business logic operations        |
-| **Knowledge**      | HTTP, Express, Headers, Cookies    | Domain entities, business rules  |
-| **Dependencies**   | Request/Response, Logger           | Repositories, other services     |
-| **Examples**       | Request validation, auth header    | Calculate device health score    |
+| Aspect           | Middleware (Presentation)       | Domain Service (Domain)         |
+| ---------------- | ------------------------------- | ------------------------------- |
+| **Layer**        | Presentation                    | Domain                          |
+| **Purpose**      | HTTP-level concerns             | Business logic operations       |
+| **Knowledge**    | HTTP, Express, Headers, Cookies | Domain entities, business rules |
+| **Dependencies** | Request/Response, Logger        | Repositories, other services    |
+| **Examples**     | Request validation, auth header | Calculate device health score   |
 
 ---
 
@@ -466,7 +466,10 @@ export const createErrorHandler = (logger: ILogger) => {
     res.status(500).json({
       success: false,
       error: 'Internal server error',
-      ...(isDevelopment && { details: error.message, stack: error.stack })
+      ...(isDevelopment && {
+        details: error.message,
+        stack: error.stack
+      })
     });
   };
 };
@@ -484,13 +487,21 @@ Each middleware handles exactly ONE cross-cutting concern.
 
 ```typescript
 // ✅ Separate middleware for each concern
-export const addRequestId = (req: Request, res: Response, next: NextFunction) => {
+export const addRequestId = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   (req as any).requestId = crypto.randomUUID();
   res.setHeader('X-Request-Id', (req as any).requestId);
   next();
 };
 
-export const logRequest = (req: Request, res: Response, next: NextFunction) => {
+export const logRequest = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   logger.info('Request received', {
     method: req.method,
     path: req.path,
@@ -499,7 +510,11 @@ export const logRequest = (req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
-export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
+export const authenticate = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   // ... authentication logic only
 };
@@ -555,12 +570,12 @@ Build complex behavior by composing simple middleware.
 // ✅ Compose simple middleware
 router.post(
   '/devices',
-  addRequestId,           // 1. Add tracing
-  logRequest,             // 2. Log request
-  authenticate,           // 3. Verify auth
-  authorize('admin'),     // 4. Check permissions
+  addRequestId, // 1. Add tracing
+  logRequest, // 2. Log request
+  authenticate, // 3. Verify auth
+  authorize('admin'), // 4. Check permissions
   validateRequest(schema), // 5. Validate body
-  controller.create       // 6. Handle request
+  controller.create // 6. Handle request
 );
 
 // Each middleware can be tested independently
@@ -648,7 +663,8 @@ export const authenticate = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '') || '';
+    const token =
+      req.headers.authorization?.replace('Bearer ', '') || '';
     const decoded = await verifyToken(token);
     (req as any).user = decoded;
     next();
@@ -703,14 +719,21 @@ export const validateDevice = async (
   next: NextFunction
 ) => {
   // ❌ Business rule: Check if IP is already in use
-  const existingDevice = await deviceRepository.findByIp(req.body.ipAddress);
+  const existingDevice = await deviceRepository.findByIp(
+    req.body.ipAddress
+  );
   if (existingDevice) {
     return res.status(409).json({ error: 'IP already exists' });
   }
 
   // ❌ Business rule: Check if device can be activated
-  if (req.body.status === 'ACTIVE' && !canDeviceBeActivated(req.body)) {
-    return res.status(400).json({ error: 'Device cannot be activated' });
+  if (
+    req.body.status === 'ACTIVE' &&
+    !canDeviceBeActivated(req.body)
+  ) {
+    return res
+      .status(400)
+      .json({ error: 'Device cannot be activated' });
   }
 
   // ❌ Business calculation
@@ -763,7 +786,11 @@ export const createRateLimiter = (options: RateLimitOptions) => {
 let requestCount = 0; // ❌ Global state
 const requestTimes: number[] = []; // ❌ Global state
 
-export const rateLimiter = (req: Request, res: Response, next: NextFunction) => {
+export const rateLimiter = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   requestCount++; // ❌ Modifying shared state
   requestTimes.push(Date.now()); // ❌ Memory leak
 
@@ -932,8 +959,16 @@ export const validateRequest = (schema: ZodSchema) => {
   "success": false,
   "error": "Validation failed",
   "details": [
-    { "field": "body.ipAddress", "message": "Invalid IP format", "code": "invalid_string" },
-    { "field": "body.name", "message": "Name is required", "code": "invalid_type" }
+    {
+      "field": "body.ipAddress",
+      "message": "Invalid IP format",
+      "code": "invalid_string"
+    },
+    {
+      "field": "body.name",
+      "message": "Name is required",
+      "code": "invalid_type"
+    }
   ]
 }
 ```
@@ -1039,7 +1074,10 @@ export const createRateLimiter = (options: RateLimitOptions) => {
 
     // Set rate limit headers
     res.setHeader('X-RateLimit-Limit', maxRequests);
-    res.setHeader('X-RateLimit-Remaining', Math.max(0, maxRequests - count));
+    res.setHeader(
+      'X-RateLimit-Remaining',
+      Math.max(0, maxRequests - count)
+    );
 
     if (count > maxRequests) {
       const ttl = await redis.ttl(key);
@@ -1109,14 +1147,14 @@ interface ErrorResponse {
 }
 ```
 
-| Status | When to Use               | Error Message Examples                  |
-| ------ | ------------------------- | --------------------------------------- |
-| 400    | Validation failed         | "Validation failed", "Invalid format"   |
-| 401    | Not authenticated         | "Authorization required", "Token expired" |
-| 403    | Not authorized            | "Insufficient permissions"              |
-| 404    | Route not found           | "Endpoint not found"                    |
-| 429    | Rate limit exceeded       | "Too many requests"                     |
-| 500    | Unexpected server error   | "Internal server error"                 |
+| Status | When to Use             | Error Message Examples                    |
+| ------ | ----------------------- | ----------------------------------------- |
+| 400    | Validation failed       | "Validation failed", "Invalid format"     |
+| 401    | Not authenticated       | "Authorization required", "Token expired" |
+| 403    | Not authorized          | "Insufficient permissions"                |
+| 404    | Route not found         | "Endpoint not found"                      |
+| 429    | Rate limit exceeded     | "Too many requests"                       |
+| 500    | Unexpected server error | "Internal server error"                   |
 
 ---
 
@@ -1169,7 +1207,11 @@ describe('validateRequest middleware', () => {
       mockReq.body = { name: 'Test' };
 
       const middleware = validateRequest(schema);
-      await middleware(mockReq as Request, mockRes as Response, mockNext);
+      await middleware(
+        mockReq as Request,
+        mockRes as Response,
+        mockNext
+      );
 
       expect(mockNext).toHaveBeenCalledTimes(1);
       expect(mockNext).toHaveBeenCalledWith();
@@ -1188,7 +1230,11 @@ describe('validateRequest middleware', () => {
       mockReq.body = { name: '' };
 
       const middleware = validateRequest(schema);
-      await middleware(mockReq as Request, mockRes as Response, mockNext);
+      await middleware(
+        mockReq as Request,
+        mockRes as Response,
+        mockNext
+      );
 
       expect(mockNext).not.toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(400);
@@ -1215,7 +1261,11 @@ describe('validateRequest middleware', () => {
       mockReq.body = {};
 
       const middleware = validateRequest(schema);
-      await middleware(mockReq as Request, mockRes as Response, mockNext);
+      await middleware(
+        mockReq as Request,
+        mockRes as Response,
+        mockNext
+      );
 
       expect(statusMock).toHaveBeenCalledWith(400);
     });
@@ -1229,7 +1279,11 @@ describe('validateRequest middleware', () => {
       } as any;
 
       const middleware = validateRequest(schema);
-      await middleware(mockReq as Request, mockRes as Response, mockNext);
+      await middleware(
+        mockReq as Request,
+        mockRes as Response,
+        mockNext
+      );
 
       expect(mockNext).toHaveBeenCalledWith(error);
     });
@@ -1270,7 +1324,11 @@ describe('authenticate middleware', () => {
 
   describe('when no authorization header', () => {
     it('should return 401', async () => {
-      await authenticate(mockReq as Request, mockRes as Response, mockNext);
+      await authenticate(
+        mockReq as Request,
+        mockRes as Response,
+        mockNext
+      );
 
       expect(statusMock).toHaveBeenCalledWith(401);
       expect(jsonMock).toHaveBeenCalledWith({
@@ -1285,7 +1343,11 @@ describe('authenticate middleware', () => {
     it('should return 401 for non-Bearer token', async () => {
       mockReq.headers = { authorization: 'Basic abc123' };
 
-      await authenticate(mockReq as Request, mockRes as Response, mockNext);
+      await authenticate(
+        mockReq as Request,
+        mockRes as Response,
+        mockNext
+      );
 
       expect(statusMock).toHaveBeenCalledWith(401);
       expect(jsonMock).toHaveBeenCalledWith({
@@ -1306,7 +1368,11 @@ describe('authenticate middleware', () => {
         role: 'admin'
       });
 
-      await authenticate(mockReq as Request, mockRes as Response, mockNext);
+      await authenticate(
+        mockReq as Request,
+        mockRes as Response,
+        mockNext
+      );
 
       expect((mockReq as any).user).toEqual({
         id: 'user-123',
@@ -1318,13 +1384,19 @@ describe('authenticate middleware', () => {
 
   describe('when expired token', () => {
     it('should return 401', async () => {
-      mockReq.headers = { authorization: 'Bearer expired.token.here' };
+      mockReq.headers = {
+        authorization: 'Bearer expired.token.here'
+      };
 
-      jest.spyOn(tokenService, 'verify').mockRejectedValue(
-        new Error('Token expired')
+      jest
+        .spyOn(tokenService, 'verify')
+        .mockRejectedValue(new Error('Token expired'));
+
+      await authenticate(
+        mockReq as Request,
+        mockRes as Response,
+        mockNext
       );
-
-      await authenticate(mockReq as Request, mockRes as Response, mockNext);
 
       expect(statusMock).toHaveBeenCalledWith(401);
       expect(jsonMock).toHaveBeenCalledWith({
@@ -1437,16 +1509,19 @@ describe('Middleware Integration Tests', () => {
 ### Coverage Requirements
 
 1. **Happy Path Tests**
+
    - Valid input passes through
    - `next()` called without arguments
    - Request properties attached correctly
 
 2. **Error Path Tests**
+
    - Missing required data → appropriate status code
    - Invalid format → clear error message
    - Unexpected errors → passed to `next(error)`
 
 3. **Edge Case Tests**
+
    - Empty strings
    - Null/undefined values
    - Boundary values
@@ -1812,7 +1887,8 @@ export const createErrorHandler = (logger: ILogger) => {
 
     res.status(statusCode).json({
       success: false,
-      error: statusCode === 500 ? 'Internal server error' : error.message,
+      error:
+        statusCode === 500 ? 'Internal server error' : error.message,
       requestId: req.requestId,
       ...(isDevelopment && {
         details: error.message,
@@ -1874,7 +1950,7 @@ export const createErrorHandler = (logger: ILogger) => {
 - [ ] Tests for error paths (various failure scenarios)
 - [ ] Tests for edge cases (empty values, malformed input)
 - [ ] Integration tests for middleware chains
-- [ ] >90% code coverage
+- [ ] > 90% code coverage
 
 ### Code Quality
 

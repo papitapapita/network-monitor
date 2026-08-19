@@ -10,7 +10,10 @@ import { ResolveAlertDTO } from '../dtos';
  * Idempotent: a no-op if none is open. Producers call this when their
  * condition clears so the unified alert list reflects the resolution.
  */
-export class ResolveAlertUseCase extends UseCase<ResolveAlertDTO, void> {
+export class ResolveAlertUseCase extends UseCase<
+  ResolveAlertDTO,
+  void
+> {
   constructor(
     private readonly alertRepository: IAlertRepository,
     logger: ILogger
@@ -40,7 +43,9 @@ export class ResolveAlertUseCase extends UseCase<ResolveAlertDTO, void> {
       return this.ok(undefined);
     }
 
-    const resolveResult = openResult.value.resolve(request.resolvedAt);
+    const resolveResult = openResult.value.resolve(
+      request.resolvedAt
+    );
     if (resolveResult.isFailure) {
       return this.fail(resolveResult.error);
     }

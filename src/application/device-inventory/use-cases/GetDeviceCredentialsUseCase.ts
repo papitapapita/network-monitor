@@ -51,7 +51,10 @@ export class GetDeviceCredentialsUseCase extends UseCase<
     }
 
     return this.ok(
-      DeviceCredentialsMapper.toDTO(request.deviceId.trim(), result.value)
+      DeviceCredentialsMapper.toDTO(
+        request.deviceId.trim(),
+        result.value
+      )
     );
   }
 }

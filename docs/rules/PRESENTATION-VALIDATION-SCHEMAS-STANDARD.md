@@ -41,17 +41,17 @@
 
 ### Validation Schemas vs Domain Validation:
 
-| Aspect                 | Validation Schemas (Presentation) | Domain Validation (Domain)        |
-| ---------------------- | --------------------------------- | --------------------------------- |
-| **Layer**              | Presentation                      | Domain                            |
-| **Purpose**            | HTTP request structure validation | Business rule validation          |
-| **Examples**           | "IP must match regex"             | "IP must not be in private range" |
-|                        | "Name cannot be empty"            | "Name must be unique"             |
-|                        | "Port must be 1-65535"            | "Device must be online to poll"   |
-| **When**               | BEFORE use case execution         | DURING domain logic               |
-| **Error Response**     | 400 Bad Request                   | 400/409 with domain error         |
-| **Technology**         | Zod schemas                       | Value object validation           |
-| **Knows About**        | HTTP, JSON                        | Business rules                    |
+| Aspect             | Validation Schemas (Presentation) | Domain Validation (Domain)        |
+| ------------------ | --------------------------------- | --------------------------------- |
+| **Layer**          | Presentation                      | Domain                            |
+| **Purpose**        | HTTP request structure validation | Business rule validation          |
+| **Examples**       | "IP must match regex"             | "IP must not be in private range" |
+|                    | "Name cannot be empty"            | "Name must be unique"             |
+|                    | "Port must be 1-65535"            | "Device must be online to poll"   |
+| **When**           | BEFORE use case execution         | DURING domain logic               |
+| **Error Response** | 400 Bad Request                   | 400/409 with domain error         |
+| **Technology**     | Zod schemas                       | Value object validation           |
+| **Knows About**    | HTTP, JSON                        | Business rules                    |
 
 ---
 
@@ -495,7 +495,10 @@ const orderItemSchema = z.object({
   price: z
     .number()
     .min(0, 'Price must be non-negative')
-    .refine((val) => Number.isFinite(val), 'Price must be a valid number')
+    .refine(
+      (val) => Number.isFinite(val),
+      'Price must be a valid number'
+    )
 });
 
 export const createOrderSchema = z.object({
@@ -515,7 +518,9 @@ export const createOrderSchema = z.object({
       street: z.string().min(1).max(255),
       city: z.string().min(1).max(100),
       state: z.string().length(2, 'State must be 2 characters'),
-      zipCode: z.string().regex(/^\d{5}(-\d{4})?$/, 'Invalid ZIP code')
+      zipCode: z
+        .string()
+        .regex(/^\d{5}(-\d{4})?$/, 'Invalid ZIP code')
     }),
 
     notes: z
@@ -526,7 +531,9 @@ export const createOrderSchema = z.object({
   })
 });
 
-export type CreateOrderInput = z.infer<typeof createOrderSchema>['body'];
+export type CreateOrderInput = z.infer<
+  typeof createOrderSchema
+>['body'];
 ```
 
 ---
@@ -578,13 +585,11 @@ export const createNetworkDeviceSchema = z.object({
         return !existing;
       }, 'IP address already exists'), // ❌ Business rule
 
-    deviceType: z
-      .string()
-      .refine(async (type) => {
-        // ❌ BAD: Business logic in schema
-        const device = await getDeviceByType(type);
-        return device.isActive;
-      }, 'Device type must be active') // ❌ Business rule
+    deviceType: z.string().refine(async (type) => {
+      // ❌ BAD: Business logic in schema
+      const device = await getDeviceByType(type);
+      return device.isActive;
+    }, 'Device type must be active') // ❌ Business rule
   })
 });
 ```
@@ -618,8 +623,14 @@ export const createNetworkDeviceSchema = z.object({
 
 export const updateNetworkDeviceSchema = z.object({
   body: z.object({
-    ipAddress: z.string().regex(IP_ADDRESS_REGEX, 'Invalid IP').optional(),
-    macAddress: z.string().regex(MAC_ADDRESS_REGEX, 'Invalid MAC').optional()
+    ipAddress: z
+      .string()
+      .regex(IP_ADDRESS_REGEX, 'Invalid IP')
+      .optional(),
+    macAddress: z
+      .string()
+      .regex(MAC_ADDRESS_REGEX, 'Invalid MAC')
+      .optional()
   })
 });
 ```
@@ -630,13 +641,16 @@ export const updateNetworkDeviceSchema = z.object({
 // ❌ Duplicated regex patterns
 export const createSchema = z.object({
   body: z.object({
-    ipAddress: z.string().regex(/^(?:(?:25[0-5]|...).$/,'Invalid IP')
+    ipAddress: z.string().regex(/^(?:(?:25[0-5]|...).$/, 'Invalid IP')
   })
 });
 
 export const updateSchema = z.object({
   body: z.object({
-    ipAddress: z.string().regex(/^(?:(?:25[0-5]|...).$/,'Invalid IP').optional()
+    ipAddress: z
+      .string()
+      .regex(/^(?:(?:25[0-5]|...).$/, 'Invalid IP')
+      .optional()
     // ❌ Same regex duplicated
   })
 });
@@ -961,6 +975,7 @@ export const createDeviceSchema = z.object({
 ### Test Structure
 
 Validation schemas should be tested to ensure:
+
 1. Valid data passes
 2. Invalid data fails with correct errors
 3. Transformations work correctly
@@ -1014,7 +1029,9 @@ describe('Network Device Validation Schemas', () => {
 
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.errors[0].message).toContain('Invalid IP');
+        expect(result.error.errors[0].message).toContain(
+          'Invalid IP'
+        );
       }
     });
 
@@ -1033,7 +1050,9 @@ describe('Network Device Validation Schemas', () => {
 
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.errors[0].message).toContain('cannot be empty');
+        expect(result.error.errors[0].message).toContain(
+          'cannot be empty'
+        );
       }
     });
 
@@ -1121,7 +1140,9 @@ describe('Network Device Validation Schemas', () => {
 
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.errors[0].message).toContain('At least one field');
+        expect(result.error.errors[0].message).toContain(
+          'At least one field'
+        );
       }
     });
 
@@ -1174,7 +1195,9 @@ describe('Network Device Validation Schemas', () => {
 
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.errors[0].message).toContain('between 1 and 100');
+        expect(result.error.errors[0].message).toContain(
+          'between 1 and 100'
+        );
       }
     });
 
@@ -1242,14 +1265,19 @@ See your actual implementation in `src/presentation/http/validation/network-devi
 ```typescript
 import { z } from 'zod';
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // Reusable nested schema
 const addressSchema = z.object({
   street: z.string().min(1).max(255),
   city: z.string().min(1).max(100),
-  state: z.string().length(2, 'State must be 2 characters (e.g., "CA")'),
-  zipCode: z.string().regex(/^\d{5}(-\d{4})?$/, 'Invalid ZIP code format')
+  state: z
+    .string()
+    .length(2, 'State must be 2 characters (e.g., "CA")'),
+  zipCode: z
+    .string()
+    .regex(/^\d{5}(-\d{4})?$/, 'Invalid ZIP code format')
 });
 
 const orderItemSchema = z.object({
@@ -1274,7 +1302,9 @@ export const createOrderSchema = z.object({
   })
 });
 
-export type CreateOrderInput = z.infer<typeof createOrderSchema>['body'];
+export type CreateOrderInput = z.infer<
+  typeof createOrderSchema
+>['body'];
 ```
 
 ---
@@ -1375,7 +1405,7 @@ export const createRadioDeviceSchema = z.object({
 - [ ] Required field validation works
 - [ ] Optional field validation works
 - [ ] Custom refinements tested
-- [ ] >90% code coverage
+- [ ] > 90% code coverage
 
 ---
 

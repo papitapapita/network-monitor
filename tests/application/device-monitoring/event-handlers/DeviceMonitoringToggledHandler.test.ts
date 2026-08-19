@@ -54,15 +54,19 @@ function makeConfig(
   } = {}
 ): PollingConfiguration {
   const rawIp =
-    overrides.ipAddress !== undefined ? overrides.ipAddress : DEVICE_IP;
+    overrides.ipAddress !== undefined
+      ? overrides.ipAddress
+      : DEVICE_IP;
   return PollingConfiguration.reconstitute(
     PollingConfigurationId.parse(VALID_CONFIG_UUID).value,
     {
       deviceId: makeDeviceId(),
-      ipAddress: rawIp !== null ? IPAddress.reconstitute(rawIp) : null,
+      ipAddress:
+        rawIp !== null ? IPAddress.reconstitute(rawIp) : null,
       interval: PollingInterval.create(60).value,
       failuresBeforeDown: FailureThreshold.create(3).value,
-      enabled: overrides.enabled !== undefined ? overrides.enabled : true
+      enabled:
+        overrides.enabled !== undefined ? overrides.enabled : true
     }
   );
 }
@@ -96,7 +100,11 @@ describe('DeviceMonitoringToggledHandler', () => {
     repo = makeRepo();
     suspend = makeSuspendUseCase();
     logger = makeLogger();
-    handler = new DeviceMonitoringToggledHandler(repo, suspend, logger);
+    handler = new DeviceMonitoringToggledHandler(
+      repo,
+      suspend,
+      logger
+    );
   });
 
   afterEach(() => {
@@ -183,7 +191,9 @@ describe('DeviceMonitoringToggledHandler', () => {
     });
 
     it('should also create a config when findByDeviceId returns a failure result', async () => {
-      repo.findByDeviceId.mockResolvedValue(Result.fail('DB read error'));
+      repo.findByDeviceId.mockResolvedValue(
+        Result.fail('DB read error')
+      );
       repo.save.mockResolvedValue(Result.ok(makeConfig()));
 
       await handler.handle(makeEvent({ monitoringEnabled: true }));
@@ -206,7 +216,10 @@ describe('DeviceMonitoringToggledHandler', () => {
     });
 
     it('should update the IP address when the event carries a new one', async () => {
-      const config = makeConfig({ enabled: false, ipAddress: '10.0.0.1' });
+      const config = makeConfig({
+        enabled: false,
+        ipAddress: '10.0.0.1'
+      });
       repo.findByDeviceId.mockResolvedValue(Result.ok(config));
       repo.save.mockResolvedValue(Result.ok(config));
 
@@ -220,15 +233,18 @@ describe('DeviceMonitoringToggledHandler', () => {
     });
 
     it('should not overwrite the IP address when the event carries a falsy ipAddress', async () => {
-      const config = makeConfig({ enabled: false, ipAddress: '10.0.0.1' });
+      const config = makeConfig({
+        enabled: false,
+        ipAddress: '10.0.0.1'
+      });
       repo.findByDeviceId.mockResolvedValue(Result.ok(config));
       repo.save.mockResolvedValue(Result.ok(config));
 
       // Exercise the falsy ipAddress branch by stubbing the event getter.
       const event = makeEvent({ monitoringEnabled: true });
-      jest.spyOn(event, 'ipAddress', 'get').mockReturnValue(
-        null as unknown as IPAddress
-      );
+      jest
+        .spyOn(event, 'ipAddress', 'get')
+        .mockReturnValue(null as unknown as IPAddress);
 
       await handler.handle(event);
 
@@ -250,9 +266,9 @@ describe('DeviceMonitoringToggledHandler', () => {
       repo.findByDeviceId.mockResolvedValue(Result.ok(config));
 
       const event = makeEvent({ monitoringEnabled: true });
-      jest.spyOn(event, 'ipAddress', 'get').mockReturnValue(
-        null as unknown as IPAddress
-      );
+      jest
+        .spyOn(event, 'ipAddress', 'get')
+        .mockReturnValue(null as unknown as IPAddress);
 
       await handler.handle(event);
 
@@ -292,7 +308,9 @@ describe('DeviceMonitoringToggledHandler', () => {
 
     it('should log an error when the suspension fails', async () => {
       repo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
-      suspend.execute.mockResolvedValue(Result.fail('DB unavailable'));
+      suspend.execute.mockResolvedValue(
+        Result.fail('DB unavailable')
+      );
 
       await handler.handle(makeEvent({ monitoringEnabled: false }));
 
@@ -315,7 +333,9 @@ describe('DeviceMonitoringToggledHandler', () => {
 
       const createSpy = jest
         .spyOn(PollingConfiguration, 'create')
-        .mockReturnValueOnce(Result.fail('Simulated creation failure'));
+        .mockReturnValueOnce(
+          Result.fail('Simulated creation failure')
+        );
 
       await handler.handle(makeEvent({ monitoringEnabled: true }));
 
@@ -330,11 +350,14 @@ describe('DeviceMonitoringToggledHandler', () => {
 
       const createSpy = jest
         .spyOn(PollingConfiguration, 'create')
-        .mockReturnValueOnce(Result.fail('Simulated creation failure'));
+        .mockReturnValueOnce(
+          Result.fail('Simulated creation failure')
+        );
 
       await handler.handle(makeEvent({ monitoringEnabled: true }));
 
-      const context = (logger.error as jest.Mock).mock.calls[0][2] as {
+      const context = (logger.error as jest.Mock).mock
+        .calls[0][2] as {
         deviceId: string;
       };
       expect(context.deviceId).toBe(VALID_DEVICE_UUID);
@@ -363,7 +386,9 @@ describe('DeviceMonitoringToggledHandler', () => {
     });
 
     it('should log the error when an unexpected exception is thrown', async () => {
-      repo.findByDeviceId.mockRejectedValue(new Error('Network timeout'));
+      repo.findByDeviceId.mockRejectedValue(
+        new Error('Network timeout')
+      );
 
       await handler.handle(makeEvent({ monitoringEnabled: true }));
 
@@ -375,7 +400,8 @@ describe('DeviceMonitoringToggledHandler', () => {
 
       await handler.handle(makeEvent({ monitoringEnabled: true }));
 
-      const context = (logger.error as jest.Mock).mock.calls[0][2] as {
+      const context = (logger.error as jest.Mock).mock
+        .calls[0][2] as {
         deviceId: string;
       };
       expect(context.deviceId).toBe(VALID_DEVICE_UUID);
@@ -386,7 +412,8 @@ describe('DeviceMonitoringToggledHandler', () => {
 
       await handler.handle(makeEvent({ monitoringEnabled: false }));
 
-      const context = (logger.error as jest.Mock).mock.calls[0][2] as {
+      const context = (logger.error as jest.Mock).mock
+        .calls[0][2] as {
         monitoringEnabled: boolean;
       };
       expect(context.monitoringEnabled).toBe(false);
@@ -394,7 +421,9 @@ describe('DeviceMonitoringToggledHandler', () => {
 
     it('should not throw when save rejects during first-time config creation', async () => {
       repo.findByDeviceId.mockResolvedValue(Result.ok(null));
-      repo.save.mockRejectedValue(new Error('Transaction rolled back'));
+      repo.save.mockRejectedValue(
+        new Error('Transaction rolled back')
+      );
 
       await expect(
         handler.handle(makeEvent({ monitoringEnabled: true }))

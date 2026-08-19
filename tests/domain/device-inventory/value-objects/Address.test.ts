@@ -9,7 +9,9 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function validProps(overrides: Partial<AddressProps> = {}): AddressProps {
+function validProps(
+  overrides: Partial<AddressProps> = {}
+): AddressProps {
   return {
     street: '123 Main Street',
     municipality: 'Medellín',
@@ -206,7 +208,9 @@ describe('Address', () => {
       });
 
       it('should fail when municipality is an empty string', () => {
-        const result = Address.create(validProps({ municipality: '' }));
+        const result = Address.create(
+          validProps({ municipality: '' })
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('cannot be empty');
@@ -261,7 +265,9 @@ describe('Address', () => {
       });
 
       it('should fail when neighborhood is an empty string', () => {
-        const result = Address.create(validProps({ neighborhood: '' }));
+        const result = Address.create(
+          validProps({ neighborhood: '' })
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('cannot be empty');
@@ -373,8 +379,12 @@ describe('Address', () => {
     });
 
     it('should return false when street differs', () => {
-      const a = Address.create(validProps({ street: 'Street A' })).value;
-      const b = Address.create(validProps({ street: 'Street B' })).value;
+      const a = Address.create(
+        validProps({ street: 'Street A' })
+      ).value;
+      const b = Address.create(
+        validProps({ street: 'Street B' })
+      ).value;
 
       expect(a.equals(b)).toBe(false);
     });
@@ -470,9 +480,21 @@ describe('Address', () => {
 
     describe('when the fields are partially supplied', () => {
       const partials = [
-        { street: '123 Main Street', municipality: null, neighborhood: null },
-        { street: null, municipality: 'Medellín', neighborhood: null },
-        { street: null, municipality: null, neighborhood: 'El Poblado' },
+        {
+          street: '123 Main Street',
+          municipality: null,
+          neighborhood: null
+        },
+        {
+          street: null,
+          municipality: 'Medellín',
+          neighborhood: null
+        },
+        {
+          street: null,
+          municipality: null,
+          neighborhood: 'El Poblado'
+        },
         {
           street: '123 Main Street',
           municipality: 'Medellín',

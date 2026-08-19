@@ -123,13 +123,17 @@ describe('DeviceDetailsUpdatedEvent', () => {
       );
 
       expect(event.updatedFields.name).toBe(updatedName);
-      expect(event.updatedFields.description).toBe('Updated description');
+      expect(event.updatedFields.description).toBe(
+        'Updated description'
+      );
       expect(event.updatedFields.category).toBe(category);
       expect(event.updatedFields.serialNumber).toBe(serialNumber);
       expect(event.updatedFields.macAddress).toBe(mac);
       expect(event.updatedFields.ipAddress).toBe(ip);
       expect(event.updatedFields.installedDate).toBe(installedDate);
-      expect(event.updatedFields.ownerType).toBe(DeviceOwnerType.CLIENT);
+      expect(event.updatedFields.ownerType).toBe(
+        DeviceOwnerType.CLIENT
+      );
     });
   });
 
@@ -207,7 +211,9 @@ describe('DeviceDetailsUpdatedEvent', () => {
         makeEventProps({ aggregateId })
       );
 
-      expect(event.aggregateId.toString()).toBe(aggregateId.toString());
+      expect(event.aggregateId.toString()).toBe(
+        aggregateId.toString()
+      );
     });
   });
 
@@ -327,7 +333,9 @@ describe('DeviceDetailsUpdatedEvent', () => {
       it('should carry a string description when provided', () => {
         const event = new DeviceDetailsUpdatedEvent(
           makeEventProps({
-            updatedFields: { description: 'Core router for building A' }
+            updatedFields: {
+              description: 'Core router for building A'
+            }
           })
         );
 
@@ -346,7 +354,9 @@ describe('DeviceDetailsUpdatedEvent', () => {
 
       it('should be undefined when description is not part of the update', () => {
         const event = new DeviceDetailsUpdatedEvent(
-          makeEventProps({ updatedFields: { name: makeDeviceName() } })
+          makeEventProps({
+            updatedFields: { name: makeDeviceName() }
+          })
         );
 
         expect(event.updatedFields.description).toBeUndefined();
@@ -398,7 +408,9 @@ describe('DeviceDetailsUpdatedEvent', () => {
             makeEventProps({ updatedFields: { category } })
           );
 
-          expect(event.updatedFields.category?.value).toBe(category.value);
+          expect(event.updatedFields.category?.value).toBe(
+            category.value
+          );
         }
       });
     });
@@ -471,12 +483,16 @@ describe('DeviceDetailsUpdatedEvent', () => {
         );
 
         expect(event.updatedFields.ipAddress).toBe(ip);
-        expect(event.updatedFields.ipAddress?.value).toBe('192.168.1.50');
+        expect(event.updatedFields.ipAddress?.value).toBe(
+          '192.168.1.50'
+        );
         expect(event.updatedFields.ipAddress?.isIPv4()).toBe(true);
       });
 
       it('should carry the updated IPv6 IPAddress value object when provided', () => {
-        const ip = IPAddress.create('2001:0db8:85a3::8a2e:0370:7334').value;
+        const ip = IPAddress.create(
+          '2001:0db8:85a3::8a2e:0370:7334'
+        ).value;
         const event = new DeviceDetailsUpdatedEvent(
           makeEventProps({ updatedFields: { ipAddress: ip } })
         );
@@ -538,7 +554,9 @@ describe('DeviceDetailsUpdatedEvent', () => {
           })
         );
 
-        expect(event.updatedFields.ownerType).toBe(DeviceOwnerType.COMPANY);
+        expect(event.updatedFields.ownerType).toBe(
+          DeviceOwnerType.COMPANY
+        );
       });
 
       it('should carry CLIENT ownerType when provided', () => {
@@ -548,7 +566,9 @@ describe('DeviceDetailsUpdatedEvent', () => {
           })
         );
 
-        expect(event.updatedFields.ownerType).toBe(DeviceOwnerType.CLIENT);
+        expect(event.updatedFields.ownerType).toBe(
+          DeviceOwnerType.CLIENT
+        );
       });
 
       it('should be undefined when ownerType is not part of the update', () => {
@@ -590,7 +610,9 @@ describe('DeviceDetailsUpdatedEvent', () => {
           })
         );
 
-        expect(event.updatedFields.description).toBe('New description');
+        expect(event.updatedFields.description).toBe(
+          'New description'
+        );
         expect(event.updatedFields.category).toBe(category);
         expect(event.updatedFields.name).toBeUndefined();
       });
@@ -658,13 +680,17 @@ describe('DeviceDetailsUpdatedEvent', () => {
         );
 
         expect(event.updatedFields.name).toBe(updatedName);
-        expect(event.updatedFields.description).toBe('Complete update');
+        expect(event.updatedFields.description).toBe(
+          'Complete update'
+        );
         expect(event.updatedFields.category).toBe(category);
         expect(event.updatedFields.serialNumber).toBe(serialNumber);
         expect(event.updatedFields.macAddress).toBe(mac);
         expect(event.updatedFields.ipAddress).toBe(ip);
         expect(event.updatedFields.installedDate).toBe(installedDate);
-        expect(event.updatedFields.ownerType).toBe(DeviceOwnerType.COMPANY);
+        expect(event.updatedFields.ownerType).toBe(
+          DeviceOwnerType.COMPANY
+        );
       });
     });
   });
@@ -692,7 +718,9 @@ describe('DeviceDetailsUpdatedEvent', () => {
         makeEventProps({ aggregateId, dateTimeOccurred })
       );
 
-      expect(event.toString()).toContain(dateTimeOccurred.toISOString());
+      expect(event.toString()).toContain(
+        dateTimeOccurred.toISOString()
+      );
     });
 
     it('should return a consistent string across multiple calls', () => {
@@ -731,7 +759,9 @@ describe('DeviceDetailsUpdatedEvent', () => {
       expect(event1.aggregateId.toString()).not.toBe(
         event2.aggregateId.toString()
       );
-      expect(event1.deviceName.value).not.toBe(event2.deviceName.value);
+      expect(event1.deviceName.value).not.toBe(
+        event2.deviceName.value
+      );
       expect(event1.updatedFields.description).not.toBe(
         event2.updatedFields.description
       );
@@ -803,7 +833,9 @@ describe('DeviceDetailsUpdatedEvent', () => {
         })
       );
 
-      expect(event.updatedFields.ownerType).toBe(DeviceOwnerType.CLIENT);
+      expect(event.updatedFields.ownerType).toBe(
+        DeviceOwnerType.CLIENT
+      );
     });
 
     it('should represent clearing an installation date', () => {
@@ -828,7 +860,9 @@ describe('DeviceDetailsUpdatedEvent', () => {
         })
       );
 
-      expect(event.updatedFields.ipAddress?.value).toBe('192.168.100.5');
+      expect(event.updatedFields.ipAddress?.value).toBe(
+        '192.168.100.5'
+      );
       expect(event.updatedFields.macAddress?.value).toBe(
         'DE:AD:BE:EF:00:01'
       );

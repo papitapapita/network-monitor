@@ -38,12 +38,12 @@
 
 ### [Component] vs [Related Component]:
 
-| Aspect         | [Component]     | [Related Component] |
-| -------------- | --------------- | ------------------- |
-| **[Aspect 1]** | [Description]   | [Description]       |
-| **[Aspect 2]** | [Description]   | [Description]       |
-| **[Aspect 3]** | [Description]   | [Description]       |
-| **[Aspect 4]** | [Description]   | [Description]       |
+| Aspect         | [Component]   | [Related Component] |
+| -------------- | ------------- | ------------------- |
+| **[Aspect 1]** | [Description] | [Description]       |
+| **[Aspect 2]** | [Description] | [Description]       |
+| **[Aspect 3]** | [Description] | [Description]       |
+| **[Aspect 4]** | [Description] | [Description]       |
 
 ---
 

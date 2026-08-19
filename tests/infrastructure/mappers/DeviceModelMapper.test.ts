@@ -4,7 +4,10 @@ import { describe, it, expect, afterEach } from '@jest/globals';
 import { DeviceModelMapper } from '../../../src/infrastructure/mappers/DeviceModelMapper';
 import { DeviceModel } from '../../../src/domain/device-inventory/aggregates/DeviceModel';
 import { DeviceType } from '../../../src/domain/device-inventory/value-objects';
-import { DeviceModelId, VendorId } from '../../../src/domain/shared/ids';
+import {
+  DeviceModelId,
+  VendorId
+} from '../../../src/domain/shared/ids';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -25,7 +28,9 @@ type PrismaDeviceModelRecord = {
   vendor: { name: string; slug: string };
 };
 
-function makeRaw(overrides: Partial<PrismaDeviceModelRecord> = {}): PrismaDeviceModelRecord {
+function makeRaw(
+  overrides: Partial<PrismaDeviceModelRecord> = {}
+): PrismaDeviceModelRecord {
   return {
     id: VALID_UUID,
     vendorId: VENDOR_UUID,
@@ -39,13 +44,15 @@ function makeRaw(overrides: Partial<PrismaDeviceModelRecord> = {}): PrismaDevice
   };
 }
 
-function makeDeviceModel(overrides: Partial<{
-  model: string;
-  deviceType: string;
-  isWireless: boolean;
-  vendorName: string;
-  vendorSlug: string;
-}> = {}): DeviceModel {
+function makeDeviceModel(
+  overrides: Partial<{
+    model: string;
+    deviceType: string;
+    isWireless: boolean;
+    vendorName: string;
+    vendorSlug: string;
+  }> = {}
+): DeviceModel {
   const id = DeviceModelId.parse(VALID_UUID).value!;
   const vendorId = VendorId.parse(VENDOR_UUID).value!;
   return DeviceModel.reconstitute(id, {
@@ -114,7 +121,9 @@ describe('DeviceModelMapper', () => {
       });
 
       it('should map vendorName from the vendor join field', () => {
-        const raw = makeRaw({ vendor: { name: 'Ubiquiti', slug: 'ubiquiti' } });
+        const raw = makeRaw({
+          vendor: { name: 'Ubiquiti', slug: 'ubiquiti' }
+        });
 
         const result = DeviceModelMapper.toDomain(raw);
 
@@ -122,7 +131,9 @@ describe('DeviceModelMapper', () => {
       });
 
       it('should map vendorSlug from the vendor join field', () => {
-        const raw = makeRaw({ vendor: { name: 'Ubiquiti', slug: 'ubiquiti' } });
+        const raw = makeRaw({
+          vendor: { name: 'Ubiquiti', slug: 'ubiquiti' }
+        });
 
         const result = DeviceModelMapper.toDomain(raw);
 
@@ -269,7 +280,15 @@ describe('DeviceModelMapper', () => {
         const data = DeviceModelMapper.toPersistence(dm);
 
         expect(Object.keys(data).sort()).toEqual(
-          ['createdAt', 'deviceType', 'id', 'isWireless', 'model', 'updatedAt', 'vendorId'].sort()
+          [
+            'createdAt',
+            'deviceType',
+            'id',
+            'isWireless',
+            'model',
+            'updatedAt',
+            'vendorId'
+          ].sort()
         );
       });
     });
@@ -283,7 +302,9 @@ describe('DeviceModelMapper', () => {
       const domainResult = DeviceModelMapper.toDomain(raw);
       expect(domainResult.isSuccess).toBe(true);
 
-      const serialized = DeviceModelMapper.toPersistence(domainResult.value!);
+      const serialized = DeviceModelMapper.toPersistence(
+        domainResult.value!
+      );
 
       expect(serialized.id).toBe(raw.id);
       expect(serialized.vendorId).toBe(raw.vendorId);
@@ -295,7 +316,9 @@ describe('DeviceModelMapper', () => {
       const raw = makeRaw();
 
       const domainResult = DeviceModelMapper.toDomain(raw);
-      const serialized = DeviceModelMapper.toPersistence(domainResult.value!);
+      const serialized = DeviceModelMapper.toPersistence(
+        domainResult.value!
+      );
 
       expect(serialized.createdAt).toEqual(NOW);
       expect(serialized.updatedAt).toEqual(NOW);

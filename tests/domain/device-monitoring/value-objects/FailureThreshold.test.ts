@@ -53,13 +53,17 @@ describe('FailureThreshold', () => {
 
     describe('validation failures', () => {
       it('should fail when count is null', () => {
-        const result = FailureThreshold.create(null as unknown as number);
+        const result = FailureThreshold.create(
+          null as unknown as number
+        );
 
         expect(result.isFailure).toBe(true);
       });
 
       it('should fail when count is undefined', () => {
-        const result = FailureThreshold.create(undefined as unknown as number);
+        const result = FailureThreshold.create(
+          undefined as unknown as number
+        );
 
         expect(result.isFailure).toBe(true);
       });
@@ -102,7 +106,9 @@ describe('FailureThreshold', () => {
       });
 
       it('should include "failuresBeforeDown" in the error message when null', () => {
-        const result = FailureThreshold.create(null as unknown as number);
+        const result = FailureThreshold.create(
+          null as unknown as number
+        );
 
         expect(result.error).toContain('failuresBeforeDown');
       });

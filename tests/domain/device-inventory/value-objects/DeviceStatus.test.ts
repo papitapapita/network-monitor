@@ -66,7 +66,9 @@ describe('DeviceStatus', () => {
       });
 
       it('should fail when status is undefined', () => {
-        const result = DeviceStatus.create(undefined as unknown as string);
+        const result = DeviceStatus.create(
+          undefined as unknown as string
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('status');
@@ -140,7 +142,9 @@ describe('DeviceStatus', () => {
     });
 
     it('createCommissioning() should return a COMMISSIONING status', () => {
-      expect(DeviceStatus.createCommissioning().value).toBe('COMMISSIONING');
+      expect(DeviceStatus.createCommissioning().value).toBe(
+        'COMMISSIONING'
+      );
     });
 
     it('createDamaged() should return a DAMAGED status', () => {
@@ -168,7 +172,9 @@ describe('DeviceStatus', () => {
     });
 
     it('should bypass validation (no error thrown for arbitrary string)', () => {
-      expect(() => DeviceStatus.reconstitute('LEGACY_STATUS')).not.toThrow();
+      expect(() =>
+        DeviceStatus.reconstitute('LEGACY_STATUS')
+      ).not.toThrow();
     });
   });
 
@@ -180,17 +186,23 @@ describe('DeviceStatus', () => {
     });
 
     it('isCommissioning() should return true only for COMMISSIONING', () => {
-      expect(DeviceStatus.createCommissioning().isCommissioning()).toBe(true);
-      expect(DeviceStatus.createActive().isCommissioning()).toBe(false);
-      expect(DeviceStatus.createInventory().isCommissioning()).toBe(false);
+      expect(
+        DeviceStatus.createCommissioning().isCommissioning()
+      ).toBe(true);
+      expect(DeviceStatus.createActive().isCommissioning()).toBe(
+        false
+      );
+      expect(DeviceStatus.createInventory().isCommissioning()).toBe(
+        false
+      );
     });
 
     it('isDamaged() should return true only for DAMAGED', () => {
       expect(DeviceStatus.createDamaged().isDamaged()).toBe(true);
       expect(DeviceStatus.createActive().isDamaged()).toBe(false);
-      expect(
-        DeviceStatus.createDecommissioned().isDamaged()
-      ).toBe(false);
+      expect(DeviceStatus.createDecommissioned().isDamaged()).toBe(
+        false
+      );
     });
 
     it('isDecommissioned() should return true only for DECOMMISSIONED', () => {
@@ -209,17 +221,19 @@ describe('DeviceStatus', () => {
     it('isRetired() should be true for the three out-of-service statuses', () => {
       expect(DeviceStatus.createInventory().isRetired()).toBe(true);
       expect(DeviceStatus.createDamaged().isRetired()).toBe(true);
-      expect(
-        DeviceStatus.createDecommissioned().isRetired()
-      ).toBe(true);
+      expect(DeviceStatus.createDecommissioned().isRetired()).toBe(
+        true
+      );
       expect(DeviceStatus.createActive().isRetired()).toBe(false);
-      expect(
-        DeviceStatus.createCommissioning().isRetired()
-      ).toBe(false);
+      expect(DeviceStatus.createCommissioning().isRetired()).toBe(
+        false
+      );
     });
 
     it('isInInventory() should return true only for INVENTORY', () => {
-      expect(DeviceStatus.createInventory().isInInventory()).toBe(true);
+      expect(DeviceStatus.createInventory().isInInventory()).toBe(
+        true
+      );
       expect(DeviceStatus.createActive().isInInventory()).toBe(false);
     });
   });
@@ -227,7 +241,9 @@ describe('DeviceStatus', () => {
   // =========================================================================
   describe('getDisplayName()', () => {
     it('should return "Active" for ACTIVE', () => {
-      expect(DeviceStatus.createActive().getDisplayName()).toBe('Active');
+      expect(DeviceStatus.createActive().getDisplayName()).toBe(
+        'Active'
+      );
     });
 
     it('should return "Commissioning" for COMMISSIONING', () => {
@@ -237,11 +253,15 @@ describe('DeviceStatus', () => {
     });
 
     it('should return "Damaged" for DAMAGED', () => {
-      expect(DeviceStatus.createDamaged().getDisplayName()).toBe('Damaged');
+      expect(DeviceStatus.createDamaged().getDisplayName()).toBe(
+        'Damaged'
+      );
     });
 
     it('should return "Inventory" for INVENTORY', () => {
-      expect(DeviceStatus.createInventory().getDisplayName()).toBe('Inventory');
+      expect(DeviceStatus.createInventory().getDisplayName()).toBe(
+        'Inventory'
+      );
     });
   });
 

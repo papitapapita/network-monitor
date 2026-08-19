@@ -71,6 +71,7 @@
    Repository methods use a dual error-handling strategy:
 
    **Business/Domain Failures → Return `Result.fail()`**
+
    - Entity not found (when it's expected to exist)
    - Validation failures (e.g., duplicate IP address)
    - Business rule violations
@@ -78,6 +79,7 @@
    - These are recoverable and should be handled by use cases
 
    **Infrastructure Catastrophes → Throw Exceptions**
+
    - Database connection lost
    - Network timeouts
    - ORM crashes
@@ -87,6 +89,7 @@
    - These are unexpected, system-level failures that should bubble up to global error handlers
 
    **Key Principles:**
+
    - Method signatures always return `Promise<Result<T>>`
    - Not finding an entity by ID returns `Result.ok(null)` (not an error - valid scenario)
    - Finding zero results returns `Result.ok([])` (not an error)
@@ -1035,11 +1038,15 @@ Is this error expected in normal business operations?
 
 ```typescript
 class CreateNetworkDeviceUseCase {
-  async execute(request: CreateDeviceRequest): Promise<Result<NetworkDevice>> {
+  async execute(
+    request: CreateDeviceRequest
+  ): Promise<Result<NetworkDevice>> {
     // No try-catch needed - infrastructure errors throw to global handler
 
     // Check for duplicate IP
-    const ipExistsResult = await this.deviceRepo.existsByIpAddress(request.ipAddress);
+    const ipExistsResult = await this.deviceRepo.existsByIpAddress(
+      request.ipAddress
+    );
     if (ipExistsResult.isFailure) {
       // Business error from repository
       return Result.fail(ipExistsResult.error);
@@ -1057,7 +1064,9 @@ class CreateNetworkDeviceUseCase {
     }
 
     // Save device
-    const saveResult = await this.deviceRepo.save(deviceOrError.value);
+    const saveResult = await this.deviceRepo.save(
+      deviceOrError.value
+    );
     if (saveResult.isFailure) {
       // Business error (e.g., race condition - IP taken between check and save)
       return Result.fail(saveResult.error);
@@ -1500,6 +1509,7 @@ export interface IOrderRepository {
 When creating a Repository Interface, ensure:
 
 **Interface Design:**
+
 - ✅ Interface name: I + AggregateName + Repository
 - ✅ Located in domain layer (src/domain/repository/)
 - ✅ One repository per aggregate root
@@ -1509,6 +1519,7 @@ When creating a Repository Interface, ensure:
 - ✅ Collection-like metaphor
 
 **Method Signatures:**
+
 - ✅ Returns `Promise<Result<T>>` for all operations
 - ✅ save() method (not insert/update)
 - ✅ findById() returns `Result<T | null>`
@@ -1517,17 +1528,20 @@ When creating a Repository Interface, ensure:
 - ✅ Includes @throws JSDoc for infrastructure exceptions
 
 **Error Handling Documentation:**
+
 - ✅ JSDoc documents both Result and thrown exceptions
 - ✅ Clear distinction between business and infrastructure errors
 - ✅ Implementation notes explain error handling strategy
 
 **Implementation Guidance:**
+
 - ✅ No business logic in interface
 - ✅ Comprehensive documentation
 - ✅ Clear responsibilities noted
 - ✅ Error handling strategy documented
 
 **Error Handling in Implementations:**
+
 - ✅ Business errors return `Result.fail()`
   - Entity not found (when expected)
   - Duplicate key violations

@@ -56,7 +56,10 @@ describe('DeviceLocationAssignedEvent', () => {
 
     it('should create an event when both locationIds are null (unassignment with no prior location)', () => {
       const event = new DeviceLocationAssignedEvent(
-        makeEventProps({ previousLocationId: null, newLocationId: null })
+        makeEventProps({
+          previousLocationId: null,
+          newLocationId: null
+        })
       );
 
       expect(event.previousLocationId).toBeNull();
@@ -67,7 +70,10 @@ describe('DeviceLocationAssignedEvent', () => {
       const prev = LocationId.create();
       const next = LocationId.create();
       const event = new DeviceLocationAssignedEvent(
-        makeEventProps({ previousLocationId: prev, newLocationId: next })
+        makeEventProps({
+          previousLocationId: prev,
+          newLocationId: next
+        })
       );
 
       expect(event.previousLocationId).toBe(prev);
@@ -77,7 +83,10 @@ describe('DeviceLocationAssignedEvent', () => {
     it('should create an event when unassigning a location (newLocationId null)', () => {
       const prev = LocationId.create();
       const event = new DeviceLocationAssignedEvent(
-        makeEventProps({ previousLocationId: prev, newLocationId: null })
+        makeEventProps({
+          previousLocationId: prev,
+          newLocationId: null
+        })
       );
 
       expect(event.previousLocationId).toBe(prev);
@@ -88,7 +97,9 @@ describe('DeviceLocationAssignedEvent', () => {
       const event = new DeviceLocationAssignedEvent(makeEventProps());
 
       expect(
-        Object.isFrozen((event as unknown as { props: unknown }).props)
+        Object.isFrozen(
+          (event as unknown as { props: unknown }).props
+        )
       ).toBe(true);
     });
 
@@ -97,7 +108,8 @@ describe('DeviceLocationAssignedEvent', () => {
       const props = makeEventProps({ newLocationId: origLocation });
       const event = new DeviceLocationAssignedEvent(props);
 
-      (props as { newLocationId: LocationId | null }).newLocationId = null;
+      (props as { newLocationId: LocationId | null }).newLocationId =
+        null;
 
       expect(event.newLocationId).toBe(origLocation);
     });
@@ -223,7 +235,10 @@ describe('DeviceLocationAssignedEvent', () => {
       const prev = LocationId.create();
       const next = LocationId.create();
       const event = new DeviceLocationAssignedEvent(
-        makeEventProps({ previousLocationId: prev, newLocationId: next })
+        makeEventProps({
+          previousLocationId: prev,
+          newLocationId: next
+        })
       );
 
       expect(
@@ -239,7 +254,9 @@ describe('DeviceLocationAssignedEvent', () => {
         makeEventProps({ aggregateId, dateTimeOccurred })
       );
 
-      expect(event.toString()).toContain('DeviceLocationAssignedEvent');
+      expect(event.toString()).toContain(
+        'DeviceLocationAssignedEvent'
+      );
     });
 
     it('should contain the aggregate ID string value', () => {

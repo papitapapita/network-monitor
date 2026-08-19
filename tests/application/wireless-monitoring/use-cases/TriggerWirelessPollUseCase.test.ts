@@ -24,7 +24,7 @@ function makeLogger(): jest.Mocked<ILogger> {
     error: jest.fn(),
     fatal: jest.fn(),
     setLevel: jest.fn(),
-    child: jest.fn(),
+    child: jest.fn()
   };
   child.child.mockReturnValue(child);
   return child;
@@ -34,14 +34,16 @@ function makeOrchestrator(): jest.Mocked<IWirelessPollOrchestrator> {
   return { execute: jest.fn() };
 }
 
-function makeSuccessResponse(deviceId: string): PollWirelessDeviceResponseDTO {
+function makeSuccessResponse(
+  deviceId: string
+): PollWirelessDeviceResponseDTO {
   return {
     deviceId,
     collectedAt: new Date().toISOString(),
     metricsCollected: true,
     alertsTriggered: 0,
     alertsCleared: 0,
-    collectionMethod: 'mixed',
+    collectionMethod: 'mixed'
   };
 }
 
@@ -88,15 +90,21 @@ describe('[WLS-025] TriggerWirelessPollUseCase', () => {
   // ===========================================================================
   describe('executeImpl — happy path', () => {
     it('should return a successful Result when orchestrator succeeds', async () => {
-      orchestrator.execute.mockResolvedValue(Result.ok(makeSuccessResponse(VALID_DEVICE_UUID)));
+      orchestrator.execute.mockResolvedValue(
+        Result.ok(makeSuccessResponse(VALID_DEVICE_UUID))
+      );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isSuccess).toBe(true);
     });
 
     it('should call orchestrator.execute exactly once', async () => {
-      orchestrator.execute.mockResolvedValue(Result.ok(makeSuccessResponse(VALID_DEVICE_UUID)));
+      orchestrator.execute.mockResolvedValue(
+        Result.ok(makeSuccessResponse(VALID_DEVICE_UUID))
+      );
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
@@ -104,14 +112,16 @@ describe('[WLS-025] TriggerWirelessPollUseCase', () => {
     });
 
     it('should delegate with forceExecution set to true', async () => {
-      orchestrator.execute.mockResolvedValue(Result.ok(makeSuccessResponse(VALID_DEVICE_UUID)));
+      orchestrator.execute.mockResolvedValue(
+        Result.ok(makeSuccessResponse(VALID_DEVICE_UUID))
+      );
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
       expect(orchestrator.execute).toHaveBeenCalledWith(
         expect.objectContaining({
           deviceId: VALID_DEVICE_UUID,
-          forceExecution: true,
+          forceExecution: true
         })
       );
     });
@@ -120,7 +130,9 @@ describe('[WLS-025] TriggerWirelessPollUseCase', () => {
       const response = makeSuccessResponse(VALID_DEVICE_UUID);
       orchestrator.execute.mockResolvedValue(Result.ok(response));
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value).toEqual(response);
     });
@@ -130,7 +142,9 @@ describe('[WLS-025] TriggerWirelessPollUseCase', () => {
       response.collectionMethod = 'snmp';
       orchestrator.execute.mockResolvedValue(Result.ok(response));
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.value.collectionMethod).toBe('snmp');
     });
@@ -143,7 +157,9 @@ describe('[WLS-025] TriggerWirelessPollUseCase', () => {
         Result.fail('No wireless polling configuration found')
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       expect(result.isFailure).toBe(true);
     });
@@ -153,9 +169,13 @@ describe('[WLS-025] TriggerWirelessPollUseCase', () => {
         Result.fail('No credentials configured for device')
       );
 
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
-      expect(result.error).toBe('No credentials configured for device');
+      expect(result.error).toBe(
+        'No credentials configured for device'
+      );
     });
   });
 });

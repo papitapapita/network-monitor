@@ -94,7 +94,9 @@ describe('ListBillsUseCase', () => {
   });
 
   it('should fail for an invalid customerId', async () => {
-    const result = await useCase.execute({ customerId: 'not-a-uuid' });
+    const result = await useCase.execute({
+      customerId: 'not-a-uuid'
+    });
     expect(result.isFailure).toBe(true);
     expect(result.error).toContain('Invalid customerId');
   });

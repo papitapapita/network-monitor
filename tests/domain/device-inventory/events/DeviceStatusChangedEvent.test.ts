@@ -53,7 +53,9 @@ describe('DeviceStatusChangedEvent', () => {
       const event = new DeviceStatusChangedEvent(makeEventProps());
 
       expect(
-        Object.isFrozen((event as unknown as { props: unknown }).props)
+        Object.isFrozen(
+          (event as unknown as { props: unknown }).props
+        )
       ).toBe(true);
     });
 
@@ -171,17 +173,23 @@ describe('DeviceStatusChangedEvent', () => {
         })
       );
 
-      expect(event.previousStatus.equals(event.newStatus)).toBe(false);
+      expect(event.previousStatus.equals(event.newStatus)).toBe(
+        false
+      );
     });
 
     it('should reflect all valid status transitions', () => {
-      const transitions: Array<
-        [DeviceStatus, DeviceStatus]
-      > = [
+      const transitions: Array<[DeviceStatus, DeviceStatus]> = [
         [DeviceStatus.createInventory(), DeviceStatus.createActive()],
         [DeviceStatus.createActive(), DeviceStatus.createDamaged()],
-        [DeviceStatus.createDamaged(), DeviceStatus.createInventory()],
-        [DeviceStatus.createInventory(), DeviceStatus.createDamaged()],
+        [
+          DeviceStatus.createDamaged(),
+          DeviceStatus.createInventory()
+        ],
+        [
+          DeviceStatus.createInventory(),
+          DeviceStatus.createDamaged()
+        ],
         [DeviceStatus.createDamaged(), DeviceStatus.createActive()]
       ];
 

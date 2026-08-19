@@ -6,7 +6,9 @@ import { PrismaPg } from '@prisma/adapter-pg';
  * Deletes Devices first so cascade rules clean up child rows
  * (device_states, ping_results, polling_configurations, alert_events).
  */
-export async function cleanDatabase(prisma: PrismaClient): Promise<void> {
+export async function cleanDatabase(
+  prisma: PrismaClient
+): Promise<void> {
   await prisma.device.deleteMany();
   await prisma.location.deleteMany();
   await prisma.user.deleteMany();
@@ -16,7 +18,9 @@ export async function cleanDatabase(prisma: PrismaClient): Promise<void> {
  * Upserts the MikroTik vendor and RB4011iGS+ device model.
  * Returns the device model UUID — use it as `deviceModelId` when creating test devices.
  */
-export async function seedDeviceModel(prisma: PrismaClient): Promise<string> {
+export async function seedDeviceModel(
+  prisma: PrismaClient
+): Promise<string> {
   const vendor = await prisma.vendor.upsert({
     where: { slug: 'mikrotik' },
     update: {},
@@ -83,7 +87,9 @@ export async function seedWirelessDeviceModel(
  * Upserts a test Tower location.
  * Returns its UUID — use it as `locationId` when creating test devices.
  */
-export async function seedLocation(prisma: PrismaClient): Promise<string> {
+export async function seedLocation(
+  prisma: PrismaClient
+): Promise<string> {
   const location = await prisma.location.upsert({
     where: { id: '00000000-0000-4000-8000-000000000010' },
     update: {},
@@ -159,7 +165,9 @@ export async function seedMonitoredDevice(
  * Cleans all catalog and device data in FK-safe order.
  * Use in tests that create vendors or device models.
  */
-export async function cleanCatalog(prisma: PrismaClient): Promise<void> {
+export async function cleanCatalog(
+  prisma: PrismaClient
+): Promise<void> {
   await prisma.device.deleteMany();
   await prisma.deviceModel.deleteMany();
   await prisma.vendor.deleteMany();
@@ -171,7 +179,11 @@ export async function cleanCatalog(prisma: PrismaClient): Promise<void> {
  */
 export async function seedVendor(
   prisma: PrismaClient,
-  overrides: { name?: string; slug?: string; description?: string | null } = {}
+  overrides: {
+    name?: string;
+    slug?: string;
+    description?: string | null;
+  } = {}
 ): Promise<string> {
   const vendor = await prisma.vendor.upsert({
     where: { slug: overrides.slug ?? 'test-vendor' },
@@ -190,7 +202,9 @@ export async function seedVendor(
  * contracted_services (which reference customers/service_plans/devices)
  * must go before customers and service_plans.
  */
-export async function cleanCustomers(prisma: PrismaClient): Promise<void> {
+export async function cleanCustomers(
+  prisma: PrismaClient
+): Promise<void> {
   await prisma.contractedService.deleteMany();
   await prisma.customer.deleteMany();
   await prisma.servicePlan.deleteMany();
@@ -266,7 +280,9 @@ export async function seedDevice(
  * bill_line_items (which reference bills) must go before bills, and
  * bills (which reference customers, Restrict) must go before cleanCustomers().
  */
-export async function cleanBills(prisma: PrismaClient): Promise<void> {
+export async function cleanBills(
+  prisma: PrismaClient
+): Promise<void> {
   await prisma.billLineItem.deleteMany();
   await prisma.bill.deleteMany();
 }
@@ -301,7 +317,9 @@ export async function seedActiveContractedService(
  * technicians, so they must go first. Call this before cleanCustomers() —
  * tickets also reference customers.
  */
-export async function cleanTickets(prisma: PrismaClient): Promise<void> {
+export async function cleanTickets(
+  prisma: PrismaClient
+): Promise<void> {
   await prisma.ticket.deleteMany();
   await prisma.technician.deleteMany();
 }
@@ -339,9 +357,20 @@ export async function seedTicket(
   overrides: {
     title?: string;
     description?: string;
-    category?: 'CONNECTIVITY' | 'INSTALLATION' | 'HARDWARE_FAILURE' | 'MAINTENANCE' | 'RELOCATION' | 'OTHER';
+    category?:
+      | 'CONNECTIVITY'
+      | 'INSTALLATION'
+      | 'HARDWARE_FAILURE'
+      | 'MAINTENANCE'
+      | 'RELOCATION'
+      | 'OTHER';
     priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
-    status?: 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'CANCELLED';
+    status?:
+      | 'OPEN'
+      | 'ASSIGNED'
+      | 'IN_PROGRESS'
+      | 'RESOLVED'
+      | 'CANCELLED';
     customerId?: string | null;
     deviceId?: string | null;
     technicianId?: string | null;

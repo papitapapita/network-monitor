@@ -35,7 +35,9 @@ export class CustomerPrismaMapper {
             ? EmailAddress.reconstitute(raw.email)
             : null,
         cedula:
-          raw.cedula !== null ? Cedula.reconstitute(raw.cedula) : null,
+          raw.cedula !== null
+            ? Cedula.reconstitute(raw.cedula)
+            : null,
         createdAt: raw.createdAt,
         updatedAt: raw.updatedAt
       })
@@ -47,7 +49,8 @@ export class CustomerPrismaMapper {
       id: customer.id.toString(),
       fullName: customer.fullName,
       phone: customer.phone.toString(),
-      email: customer.email !== null ? customer.email.toString() : null,
+      email:
+        customer.email !== null ? customer.email.toString() : null,
       cedula:
         customer.cedula !== null ? customer.cedula.toString() : null,
       createdAt: customer.createdAt,

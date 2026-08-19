@@ -11,7 +11,9 @@ export class DeviceStatusChangedHandler
     private readonly logger: ILogger
   ) {}
 
-  public async handle(event: DeviceStatusChangedEvent): Promise<void> {
+  public async handle(
+    event: DeviceStatusChangedEvent
+  ): Promise<void> {
     const { newStatus } = event;
 
     // Every retired status — INVENTORY, DAMAGED, DECOMMISSIONED — means the

@@ -34,7 +34,9 @@ function makePersistedLocation(
   const id = LocationId.parse(`${BASE_UUID}${suffix}`).value;
   return Location.reconstitute(id, {
     name: overrides.name ?? `Location ${_uuidCounter}`,
-    type: LocationType.reconstitute(overrides.type ?? LocationType.TOWER),
+    type: LocationType.reconstitute(
+      overrides.type ?? LocationType.TOWER
+    ),
     address: null,
     coordinates: null,
     createdAt: new Date('2024-01-01T00:00:00.000Z'),
@@ -42,10 +44,7 @@ function makePersistedLocation(
   });
 }
 
-function makeLocations(
-  count: number,
-  type?: string
-): Location[] {
+function makeLocations(count: number, type?: string): Location[] {
   return Array.from({ length: count }, () =>
     makePersistedLocation({ type })
   );

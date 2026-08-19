@@ -8,9 +8,11 @@ import { IPAddress } from 'domain/shared/value-objects';
 import { PollingInterval } from 'domain/wireless-monitoring/value-objects';
 
 const DEVICE_UUID = 'f149790a-58f0-479a-8534-b0b01e9942bb';
-const CONFIG_UUID  = '61b09316-4070-4461-9b1b-7ecbd2eda306';
+const CONFIG_UUID = '61b09316-4070-4461-9b1b-7ecbd2eda306';
 
-type PrismaWirelessDeviceConfigRow = Parameters<typeof WirelessDeviceConfigPrismaMapper.toDomain>[0];
+type PrismaWirelessDeviceConfigRow = Parameters<
+  typeof WirelessDeviceConfigPrismaMapper.toDomain
+>[0];
 
 const makeFullRow = (): PrismaWirelessDeviceConfigRow => ({
   id: CONFIG_UUID,
@@ -21,7 +23,7 @@ const makeFullRow = (): PrismaWirelessDeviceConfigRow => ({
   deviceType: 'STATION',
   linkCapacityKbps: 100_000_000n,
   clientsProvisionedLimit: 10,
-  lastPolledAt: new Date('2024-01-01T12:00:00Z'),
+  lastPolledAt: new Date('2024-01-01T12:00:00Z')
 });
 
 const makeMinimalRow = (): PrismaWirelessDeviceConfigRow => ({
@@ -33,7 +35,7 @@ const makeMinimalRow = (): PrismaWirelessDeviceConfigRow => ({
   deviceType: 'ACCESS_POINT',
   linkCapacityKbps: null,
   clientsProvisionedLimit: null,
-  lastPolledAt: null,
+  lastPolledAt: null
 });
 
 const buildDomainConfig = (): WirelessDeviceConfig => {
@@ -49,14 +51,15 @@ const buildDomainConfig = (): WirelessDeviceConfig => {
     deviceType: 'STATION',
     linkCapacityKbps: 100_000_000,
     clientsProvisionedLimit: 10,
-    lastPolledAt: new Date('2024-01-01T12:00:00Z'),
+    lastPolledAt: new Date('2024-01-01T12:00:00Z')
   });
 };
 
 describe('WirelessDeviceConfigPrismaMapper', () => {
   describe('toDomain', () => {
     it('should map all fields from a full Prisma row to the domain entity', () => {
-      const config = WirelessDeviceConfigPrismaMapper.toDomain(makeFullRow());
+      const config =
+        WirelessDeviceConfigPrismaMapper.toDomain(makeFullRow());
 
       expect(config.id.toString()).toBe(CONFIG_UUID);
       expect(config.deviceId.toString()).toBe(DEVICE_UUID);
@@ -66,18 +69,22 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
       expect(config.deviceType).toBe('STATION');
       expect(config.linkCapacityKbps).toBe(100_000_000);
       expect(config.clientsProvisionedLimit).toBe(10);
-      expect(config.lastPolledAt).toEqual(new Date('2024-01-01T12:00:00Z'));
+      expect(config.lastPolledAt).toEqual(
+        new Date('2024-01-01T12:00:00Z')
+      );
     });
 
     it('should convert BigInt linkCapacityKbps to a number', () => {
-      const config = WirelessDeviceConfigPrismaMapper.toDomain(makeFullRow());
+      const config =
+        WirelessDeviceConfigPrismaMapper.toDomain(makeFullRow());
 
       expect(typeof config.linkCapacityKbps).toBe('number');
       expect(config.linkCapacityKbps).toBe(100_000_000);
     });
 
     it('should set ipAddress to null when the Prisma row has a null ipAddress', () => {
-      const config = WirelessDeviceConfigPrismaMapper.toDomain(makeMinimalRow());
+      const config =
+        WirelessDeviceConfigPrismaMapper.toDomain(makeMinimalRow());
 
       expect(config.ipAddress).toBeNull();
     });
@@ -92,19 +99,22 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
     });
 
     it('should set linkCapacityKbps to null when the Prisma row has a null value', () => {
-      const config = WirelessDeviceConfigPrismaMapper.toDomain(makeMinimalRow());
+      const config =
+        WirelessDeviceConfigPrismaMapper.toDomain(makeMinimalRow());
 
       expect(config.linkCapacityKbps).toBeNull();
     });
 
     it('should set lastPolledAt to null when the Prisma row has a null value', () => {
-      const config = WirelessDeviceConfigPrismaMapper.toDomain(makeMinimalRow());
+      const config =
+        WirelessDeviceConfigPrismaMapper.toDomain(makeMinimalRow());
 
       expect(config.lastPolledAt).toBeNull();
     });
 
     it('should map ACCESS_POINT deviceType correctly', () => {
-      const config = WirelessDeviceConfigPrismaMapper.toDomain(makeMinimalRow());
+      const config =
+        WirelessDeviceConfigPrismaMapper.toDomain(makeMinimalRow());
 
       expect(config.deviceType).toBe('ACCESS_POINT');
     });
@@ -112,13 +122,17 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
     it('should throw when the deviceId is not a valid UUID', () => {
       const row = { ...makeMinimalRow(), deviceId: 'bad-uuid' };
 
-      expect(() => WirelessDeviceConfigPrismaMapper.toDomain(row)).toThrow('Invalid device ID');
+      expect(() =>
+        WirelessDeviceConfigPrismaMapper.toDomain(row)
+      ).toThrow('Invalid device ID');
     });
 
     it('should throw when the config id is not a valid UUID', () => {
       const row = { ...makeMinimalRow(), id: 'not-valid' };
 
-      expect(() => WirelessDeviceConfigPrismaMapper.toDomain(row)).toThrow('Invalid config ID');
+      expect(() =>
+        WirelessDeviceConfigPrismaMapper.toDomain(row)
+      ).toThrow('Invalid config ID');
     });
   });
 
@@ -126,7 +140,8 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
     it('should map all domain entity fields to the persistence shape', () => {
       const config = buildDomainConfig();
 
-      const data = WirelessDeviceConfigPrismaMapper.toPersistence(config);
+      const data =
+        WirelessDeviceConfigPrismaMapper.toPersistence(config);
 
       expect(data.id).toBe(CONFIG_UUID);
       expect(data.deviceId).toBe(DEVICE_UUID);
@@ -136,13 +151,16 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
       expect(data.deviceType).toBe('STATION');
       expect(data.linkCapacityKbps).toBe(100_000_000n);
       expect(data.clientsProvisionedLimit).toBe(10);
-      expect(data.lastPolledAt).toEqual(new Date('2024-01-01T12:00:00Z'));
+      expect(data.lastPolledAt).toEqual(
+        new Date('2024-01-01T12:00:00Z')
+      );
     });
 
     it('should convert number linkCapacityKbps to BigInt for persistence', () => {
       const config = buildDomainConfig();
 
-      const data = WirelessDeviceConfigPrismaMapper.toPersistence(config);
+      const data =
+        WirelessDeviceConfigPrismaMapper.toPersistence(config);
 
       expect(typeof data.linkCapacityKbps).toBe('bigint');
     });
@@ -159,10 +177,11 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
         deviceType: 'ACCESS_POINT',
         linkCapacityKbps: null,
         clientsProvisionedLimit: null,
-        lastPolledAt: null,
+        lastPolledAt: null
       });
 
-      const data = WirelessDeviceConfigPrismaMapper.toPersistence(config);
+      const data =
+        WirelessDeviceConfigPrismaMapper.toPersistence(config);
 
       expect(data.ipAddress).toBeNull();
       expect(data.linkCapacityKbps).toBeNull();
@@ -174,7 +193,8 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
     it('should produce persistence data with matching scalar fields after a round-trip from a full row', () => {
       const row = makeFullRow();
       const config = WirelessDeviceConfigPrismaMapper.toDomain(row);
-      const back = WirelessDeviceConfigPrismaMapper.toPersistence(config);
+      const back =
+        WirelessDeviceConfigPrismaMapper.toPersistence(config);
 
       expect(back.id).toBe(row.id);
       expect(back.deviceId).toBe(row.deviceId);
@@ -183,13 +203,16 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
       expect(back.intervalSecs).toBe(row.intervalSecs);
       expect(back.deviceType).toBe(row.deviceType);
       expect(back.linkCapacityKbps).toBe(row.linkCapacityKbps);
-      expect(back.clientsProvisionedLimit).toBe(row.clientsProvisionedLimit);
+      expect(back.clientsProvisionedLimit).toBe(
+        row.clientsProvisionedLimit
+      );
     });
 
     it('should preserve null fields through a round-trip from a minimal row', () => {
       const row = makeMinimalRow();
       const config = WirelessDeviceConfigPrismaMapper.toDomain(row);
-      const back = WirelessDeviceConfigPrismaMapper.toPersistence(config);
+      const back =
+        WirelessDeviceConfigPrismaMapper.toPersistence(config);
 
       expect(back.ipAddress).toBeNull();
       expect(back.linkCapacityKbps).toBeNull();

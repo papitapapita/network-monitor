@@ -9,16 +9,16 @@ Conventions, rule types and the ID scheme are in [README.md](README.md).
 
 **ID ranges**
 
-| Range                 | Subject                                 |
-| --------------------- | --------------------------------------- |
-| `WLS-001` – `WLS-019` | Wireless configuration                  |
-| `WLS-020` – `WLS-039` | Polling schedule and execution          |
-| `WLS-040` – `WLS-059` | Collection from the radio               |
-| `WLS-060` – `WLS-079` | Metric and client-entry validation      |
-| `WLS-080` – `WLS-119` | Alert evaluation                        |
-| `WLS-120` – `WLS-139` | Alert lifecycle and notification        |
-| `WLS-140` – `WLS-159` | Queries and HTTP surface                |
-| `WLS-160` – `WLS-179` | Retention                               |
+| Range                 | Subject                            |
+| --------------------- | ---------------------------------- |
+| `WLS-001` – `WLS-019` | Wireless configuration             |
+| `WLS-020` – `WLS-039` | Polling schedule and execution     |
+| `WLS-040` – `WLS-059` | Collection from the radio          |
+| `WLS-060` – `WLS-079` | Metric and client-entry validation |
+| `WLS-080` – `WLS-119` | Alert evaluation                   |
+| `WLS-120` – `WLS-139` | Alert lifecycle and notification   |
+| `WLS-140` – `WLS-159` | Queries and HTTP surface           |
+| `WLS-160` – `WLS-179` | Retention                          |
 
 Rationales marked _(inferred)_ were reconstructed from the code, not stated by
 the business. They are the ones to read critically.
@@ -54,7 +54,7 @@ enforced on the `Device` aggregate, so they stay in
 **Since:** 2026-08-03
 
 `CreateWirelessConfigUseCase` looks the device up by id before inserting and
-refuses when a configuration already exists. Every other operation —  read,
+refuses when a configuration already exists. Every other operation — read,
 update, delete, poll, reboot — reaches the configuration through
 `findByDeviceId`, so the one-to-one relationship is assumed everywhere.
 
@@ -666,12 +666,12 @@ through to the alert rules, each of which skips a metric it cannot read
 Four conversions happen while parsing, so nothing downstream sees a raw AirOS
 unit:
 
-| Field | Raw | Stored |
-| --- | --- | --- |
-| `throughput.tx` / `.rx` | kbps | bps (×1000) |
-| `wireless.ccq` | 0–1000 | percent (÷10), null when ≤ 0 |
-| `host.totalram` / `freeram` | bytes | `memoryUsedPercent` |
-| `wireless.chanbw` | MHz | null when ≤ 0 |
+| Field                       | Raw    | Stored                       |
+| --------------------------- | ------ | ---------------------------- |
+| `throughput.tx` / `.rx`     | kbps   | bps (×1000)                  |
+| `wireless.ccq`              | 0–1000 | percent (÷10), null when ≤ 0 |
+| `host.totalram` / `freeram` | bytes  | `memoryUsedPercent`          |
+| `wireless.chanbw`           | MHz    | null when ≤ 0                |
 
 **Why:** The domain layer defines these fields in one unit each
 (`throughputTxBps`, `ccqPercent`), and the conversion has to live somewhere the
@@ -919,17 +919,17 @@ losing when the warning started — or refuses to open the critical one.
 Most numeric rules use a clear condition set inside the breach condition, so a
 value hovering at the threshold does not flap:
 
-| Metric | Opens at | Clears at |
-| --- | --- | --- |
-| `signal_rx_dbm` / `signal_tx_dbm` WARNING | < −70 dBm | > −68 dBm |
-| `signal_rx_dbm` / `signal_tx_dbm` CRITICAL | < −80 dBm | > −78 dBm |
-| `snr_db` WARNING | < 15 dB | > 17 dB |
-| `snr_db` CRITICAL | < 10 dB | > 12 dB |
-| `ccq_percent` WARNING | < 75 % | > 78 % |
-| `ccq_percent` CRITICAL | < 50 % | > 55 % |
-| `cpu_load_percent` | > 80 % | < 75 % |
-| `memory_used_percent` | > 85 % | < 80 % |
-| `lan_speed_mbps` | ≤ 10 Mbps | > 100 Mbps |
+| Metric                                     | Opens at  | Clears at  |
+| ------------------------------------------ | --------- | ---------- |
+| `signal_rx_dbm` / `signal_tx_dbm` WARNING  | < −70 dBm | > −68 dBm  |
+| `signal_rx_dbm` / `signal_tx_dbm` CRITICAL | < −80 dBm | > −78 dBm  |
+| `snr_db` WARNING                           | < 15 dB   | > 17 dB    |
+| `snr_db` CRITICAL                          | < 10 dB   | > 12 dB    |
+| `ccq_percent` WARNING                      | < 75 %    | > 78 %     |
+| `ccq_percent` CRITICAL                     | < 50 %    | > 55 %     |
+| `cpu_load_percent`                         | > 80 %    | < 75 %     |
+| `memory_used_percent`                      | > 85 %    | < 80 %     |
+| `lan_speed_mbps`                           | ≤ 10 Mbps | > 100 Mbps |
 
 **Why:** A radio sitting exactly on a threshold crosses it in both directions
 between polls. Without a dead band each crossing opens and closes an alert, and
@@ -1161,7 +1161,7 @@ overnight.
 
 Storing the floor at open time is what lets the alert clear without
 `previousMetrics`: by the time it recovers, "the previous poll" is the outage
-itself, so a freshly computed floor would be half of the *dropped* count and
+itself, so a freshly computed floor would be half of the _dropped_ count and
 would clear the moment a single client returned.
 
 **Enforced at:** `src/domain/wireless-monitoring/services/rules/ClientCountRule.ts:52`
@@ -1281,7 +1281,7 @@ alert: `ssid_changed`, `mac_address_changed`, `device_model_changed` and
 `remote_ap_mac_changed`. A field that is null on either side is skipped.
 
 **Why:** The IP address is configuration, but the MAC, the model and the SSID
-are what the hardware *is*. A device id whose MAC changed is pointing at
+are what the hardware _is_. A device id whose MAC changed is pointing at
 different equipment than the record says, which silently invalidates every
 metric and alert already attributed to it. `remote_ap_mac_changed` catches the
 same substitution at the far end — a station that reassociated to a different

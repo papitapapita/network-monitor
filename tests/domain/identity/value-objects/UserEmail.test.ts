@@ -56,7 +56,9 @@ describe('UserEmail', () => {
       });
 
       it('should fail when email is undefined', () => {
-        const result = UserEmail.create(undefined as unknown as string);
+        const result = UserEmail.create(
+          undefined as unknown as string
+        );
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('email');
@@ -151,7 +153,9 @@ describe('UserEmail', () => {
     });
 
     it('should bypass validation and accept an arbitrary string', () => {
-      expect(() => UserEmail.reconstitute('not-an-email')).not.toThrow();
+      expect(() =>
+        UserEmail.reconstitute('not-an-email')
+      ).not.toThrow();
     });
 
     it('should not normalise the value during reconstitute', () => {

@@ -14,23 +14,33 @@ import { Result } from '../../../src/domain/shared/core/Result';
 // ---------------------------------------------------------------------------
 
 function makePurgePing(): jest.Mocked<PurgeOldPingResultsUseCase> {
-  return { execute: jest.fn() } as unknown as jest.Mocked<PurgeOldPingResultsUseCase>;
+  return {
+    execute: jest.fn()
+  } as unknown as jest.Mocked<PurgeOldPingResultsUseCase>;
 }
 
 function makePurgeAlerts(): jest.Mocked<PurgeOldAlertsUseCase> {
-  return { execute: jest.fn() } as unknown as jest.Mocked<PurgeOldAlertsUseCase>;
+  return {
+    execute: jest.fn()
+  } as unknown as jest.Mocked<PurgeOldAlertsUseCase>;
 }
 
 function makePurgeSnapshots(): jest.Mocked<PurgeOldWirelessSnapshotsUseCase> {
-  return { execute: jest.fn() } as unknown as jest.Mocked<PurgeOldWirelessSnapshotsUseCase>;
+  return {
+    execute: jest.fn()
+  } as unknown as jest.Mocked<PurgeOldWirelessSnapshotsUseCase>;
 }
 
 function makePurgeAlertRecords(): jest.Mocked<PurgeOldWirelessAlertRecordsUseCase> {
-  return { execute: jest.fn() } as unknown as jest.Mocked<PurgeOldWirelessAlertRecordsUseCase>;
+  return {
+    execute: jest.fn()
+  } as unknown as jest.Mocked<PurgeOldWirelessAlertRecordsUseCase>;
 }
 
 function makePurgeDeletedDevices(): jest.Mocked<PurgeDeletedDevicesUseCase> {
-  return { execute: jest.fn() } as unknown as jest.Mocked<PurgeDeletedDevicesUseCase>;
+  return {
+    execute: jest.fn()
+  } as unknown as jest.Mocked<PurgeDeletedDevicesUseCase>;
 }
 
 function makeLogger(): jest.Mocked<ILogger> {
@@ -55,7 +65,9 @@ interface OrchestratorFixture {
   orchestrator: DataRetentionOrchestrator;
 }
 
-function makeOrchestrator(checkIntervalMs = 1_000): OrchestratorFixture {
+function makeOrchestrator(
+  checkIntervalMs = 1_000
+): OrchestratorFixture {
   const purgePing = makePurgePing();
   const purgeAlerts = makePurgeAlerts();
   const purgeSnapshots = makePurgeSnapshots();
@@ -114,8 +126,13 @@ describe('DataRetentionOrchestrator', () => {
     // -----------------------------------------------------------------------
     describe('immediate purge on start', () => {
       it('should run all four purge use cases immediately when start() is called', async () => {
-        const { purgePing, purgeAlerts, purgeSnapshots, purgeAlertRecords, orchestrator } =
-          makeOrchestrator(60_000);
+        const {
+          purgePing,
+          purgeAlerts,
+          purgeSnapshots,
+          purgeAlertRecords,
+          orchestrator
+        } = makeOrchestrator(60_000);
 
         orchestrator.start();
         // Flush only the microtasks queued by the immediate void runPurge()
@@ -144,7 +161,8 @@ describe('DataRetentionOrchestrator', () => {
     describe('periodic purge', () => {
       it('should run the purge again after the interval elapses', async () => {
         const INTERVAL_MS = 5_000;
-        const { purgePing, orchestrator } = makeOrchestrator(INTERVAL_MS);
+        const { purgePing, orchestrator } =
+          makeOrchestrator(INTERVAL_MS);
 
         orchestrator.start();
         await Promise.resolve();
@@ -160,7 +178,8 @@ describe('DataRetentionOrchestrator', () => {
 
       it('should run the purge a third time after two intervals', async () => {
         const INTERVAL_MS = 5_000;
-        const { purgePing, orchestrator } = makeOrchestrator(INTERVAL_MS);
+        const { purgePing, orchestrator } =
+          makeOrchestrator(INTERVAL_MS);
 
         orchestrator.start();
         await Promise.resolve();
@@ -182,7 +201,8 @@ describe('DataRetentionOrchestrator', () => {
     describe('idempotency', () => {
       it('should not set up a second interval when start() is called twice', async () => {
         const INTERVAL_MS = 5_000;
-        const { purgePing, orchestrator } = makeOrchestrator(INTERVAL_MS);
+        const { purgePing, orchestrator } =
+          makeOrchestrator(INTERVAL_MS);
 
         orchestrator.start();
         orchestrator.start(); // second call should be a no-op
@@ -203,8 +223,11 @@ describe('DataRetentionOrchestrator', () => {
         orchestrator.start();
         orchestrator.start();
 
-        const startedCalls = (logger.info as jest.Mock).mock.calls.filter(
-          ([msg]: [string]) => msg === '[DataRetentionOrchestrator] Started'
+        const startedCalls = (
+          logger.info as jest.Mock
+        ).mock.calls.filter(
+          ([msg]: [string]) =>
+            msg === '[DataRetentionOrchestrator] Started'
         );
         expect(startedCalls).toHaveLength(1);
       });
@@ -215,7 +238,8 @@ describe('DataRetentionOrchestrator', () => {
   describe('stop()', () => {
     it('should prevent the interval from firing after stop() is called', async () => {
       const INTERVAL_MS = 5_000;
-      const { purgePing, orchestrator } = makeOrchestrator(INTERVAL_MS);
+      const { purgePing, orchestrator } =
+        makeOrchestrator(INTERVAL_MS);
 
       orchestrator.start();
       await Promise.resolve();
@@ -250,8 +274,11 @@ describe('DataRetentionOrchestrator', () => {
         orchestrator.stop();
         orchestrator.stop(); // second call should be a no-op
 
-        const stoppedCalls = (logger.info as jest.Mock).mock.calls.filter(
-          ([msg]: [string]) => msg === '[DataRetentionOrchestrator] Stopped'
+        const stoppedCalls = (
+          logger.info as jest.Mock
+        ).mock.calls.filter(
+          ([msg]: [string]) =>
+            msg === '[DataRetentionOrchestrator] Stopped'
         );
         expect(stoppedCalls).toHaveLength(1);
       });
@@ -267,7 +294,8 @@ describe('DataRetentionOrchestrator', () => {
   // =========================================================================
   describe('error handling during runPurge()', () => {
     it('should log an error when the ping results purge fails', async () => {
-      const { purgePing, logger, orchestrator } = makeOrchestrator(60_000);
+      const { purgePing, logger, orchestrator } =
+        makeOrchestrator(60_000);
       purgePing.execute.mockResolvedValue(
         Result.fail('ping DB error')
       );
@@ -283,7 +311,8 @@ describe('DataRetentionOrchestrator', () => {
     });
 
     it('should log an error when the alerts purge fails', async () => {
-      const { purgeAlerts, logger, orchestrator } = makeOrchestrator(60_000);
+      const { purgeAlerts, logger, orchestrator } =
+        makeOrchestrator(60_000);
       purgeAlerts.execute.mockResolvedValue(
         Result.fail('alert write error')
       );
@@ -299,7 +328,8 @@ describe('DataRetentionOrchestrator', () => {
     });
 
     it('should log an error when the wireless snapshots purge fails', async () => {
-      const { purgeSnapshots, logger, orchestrator } = makeOrchestrator(60_000);
+      const { purgeSnapshots, logger, orchestrator } =
+        makeOrchestrator(60_000);
       purgeSnapshots.execute.mockResolvedValue(
         Result.fail('snapshot I/O error')
       );
@@ -315,7 +345,8 @@ describe('DataRetentionOrchestrator', () => {
     });
 
     it('should log an error when the wireless alert records purge fails', async () => {
-      const { purgeAlertRecords, logger, orchestrator } = makeOrchestrator(60_000);
+      const { purgeAlertRecords, logger, orchestrator } =
+        makeOrchestrator(60_000);
       purgeAlertRecords.execute.mockResolvedValue(
         Result.fail('alert record table locked')
       );
@@ -331,8 +362,13 @@ describe('DataRetentionOrchestrator', () => {
     });
 
     it('should continue to execute the remaining purges even when one fails', async () => {
-      const { purgePing, purgeAlerts, purgeSnapshots, purgeAlertRecords, orchestrator } =
-        makeOrchestrator(60_000);
+      const {
+        purgePing,
+        purgeAlerts,
+        purgeSnapshots,
+        purgeAlertRecords,
+        orchestrator
+      } = makeOrchestrator(60_000);
       purgePing.execute.mockResolvedValue(Result.fail('ping error'));
 
       orchestrator.start();
@@ -345,9 +381,12 @@ describe('DataRetentionOrchestrator', () => {
     });
 
     it('should log multiple errors when multiple purges fail in the same run', async () => {
-      const { purgePing, purgeAlerts, logger, orchestrator } = makeOrchestrator(60_000);
+      const { purgePing, purgeAlerts, logger, orchestrator } =
+        makeOrchestrator(60_000);
       purgePing.execute.mockResolvedValue(Result.fail('ping error'));
-      purgeAlerts.execute.mockResolvedValue(Result.fail('alert error'));
+      purgeAlerts.execute.mockResolvedValue(
+        Result.fail('alert error')
+      );
 
       orchestrator.start();
       await Promise.resolve();
@@ -392,15 +431,19 @@ describe('DataRetentionOrchestrator', () => {
     });
 
     it('should log zero counts for any purge that failed', async () => {
-      const { purgePing, logger, orchestrator } = makeOrchestrator(60_000);
+      const { purgePing, logger, orchestrator } =
+        makeOrchestrator(60_000);
       purgePing.execute.mockResolvedValue(Result.fail('ping error'));
 
       orchestrator.start();
       await Promise.resolve();
       await Promise.resolve();
 
-      const completeCalls = (logger.info as jest.Mock).mock.calls.filter(
-        ([msg]: [string]) => msg === '[DataRetentionOrchestrator] Purge complete'
+      const completeCalls = (
+        logger.info as jest.Mock
+      ).mock.calls.filter(
+        ([msg]: [string]) =>
+          msg === '[DataRetentionOrchestrator] Purge complete'
       );
       expect(completeCalls).toHaveLength(1);
       const summary = completeCalls[0][1] as Record<string, number>;

@@ -191,7 +191,9 @@ describe('[WLS-146] GetWirelessThroughputUseCase', () => {
 
   describe('[WLS-140] never polled', () => {
     it('fails with the shared no-data message so the route answers 404', async () => {
-      snapshotRepo.findLatestByDevice.mockResolvedValue(Result.ok(null));
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(null)
+      );
 
       const result = await useCase.execute({ deviceId: DEVICE_UUID });
 
@@ -211,7 +213,9 @@ describe('[WLS-146] GetWirelessThroughputUseCase', () => {
     });
 
     it('rejects a malformed device id', async () => {
-      const result = await useCase.execute({ deviceId: 'not-a-uuid' });
+      const result = await useCase.execute({
+        deviceId: 'not-a-uuid'
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid device ID');

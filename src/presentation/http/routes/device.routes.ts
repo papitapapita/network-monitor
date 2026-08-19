@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import { DeviceController } from '../controllers';
-import { validateRequest, authorize, createRateLimiter } from '../middleware';
+import {
+  validateRequest,
+  authorize,
+  createRateLimiter
+} from '../middleware';
 import {
   createDeviceSchema,
   listDevicesSchema,

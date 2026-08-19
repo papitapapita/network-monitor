@@ -283,7 +283,8 @@ describe('DeviceModelId', () => {
   // -------------------------------------------------------------------------
   describe('Result integration', () => {
     it('should return a properly formed Result on a successful parse', () => {
-      const result: Result<DeviceModelId> = DeviceModelId.parse(VALID_UUID_A);
+      const result: Result<DeviceModelId> =
+        DeviceModelId.parse(VALID_UUID_A);
 
       expect(result.isSuccess).toBe(true);
       expect(result.isFailure).toBe(false);
@@ -291,7 +292,8 @@ describe('DeviceModelId', () => {
     });
 
     it('should return a properly formed Result on a failed parse', () => {
-      const result: Result<DeviceModelId> = DeviceModelId.parse('bad-id');
+      const result: Result<DeviceModelId> =
+        DeviceModelId.parse('bad-id');
 
       expect(result.isFailure).toBe(true);
       expect(result.isSuccess).toBe(false);
