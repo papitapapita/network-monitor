@@ -127,12 +127,14 @@ function makeModel(isWireless: boolean) {
   return { isWireless } as never;
 }
 
-function makeOldDevice(overrides: Partial<{
-  status: DeviceStatus;
-  ipAddress: IPAddress | null;
-  replacedByDeviceId: DeviceId | null;
-  deletedAt: Date | null;
-}> = {}): Device {
+function makeOldDevice(
+  overrides: Partial<{
+    status: DeviceStatus;
+    ipAddress: IPAddress | null;
+    replacedByDeviceId: DeviceId | null;
+    deletedAt: Date | null;
+  }> = {}
+): Device {
   return Device.reconstitute(DeviceId.parse(OLD_DEVICE_ID).value, {
     deviceModelId: DeviceModelId.parse(OLD_MODEL_ID).value,
     locationId: LocationId.create(),
@@ -272,9 +274,12 @@ describe('ReplaceDeviceUseCase', () => {
       expect(result.error).toContain('Invalid device status');
     });
 
-    it('should require an identifier on the replacement', async () => {
+    it('[DEV-160] should require an identifier on the replacement', async () => {
       const result = await useCase.execute(
-        makeRequest({ serialNumber: undefined, macAddress: undefined })
+        makeRequest({
+          serialNumber: undefined,
+          macAddress: undefined
+        })
       );
 
       expect(result.isFailure).toBe(true);
@@ -283,7 +288,7 @@ describe('ReplaceDeviceUseCase', () => {
       );
     });
 
-    it('should accept a MAC address alone as the identifier', async () => {
+    it('[DEV-160] should accept a MAC address alone as the identifier', async () => {
       const result = await useCase.execute(
         makeRequest({
           serialNumber: undefined,
@@ -325,10 +330,13 @@ describe('ReplaceDeviceUseCase', () => {
       expect(result.isFailure).toBe(true);
     });
 
-    it('[DEV-082] should refuse to replace a device that was already replaced', async () => {
+    it('[DEV-082] should refuse to replace a superseded unit that is still retired', async () => {
       repo.findById.mockResolvedValue(
         Result.ok(
-          makeOldDevice({ replacedByDeviceId: DeviceId.create() })
+          makeOldDevice({
+            status: DeviceStatus.createInventory(),
+            replacedByDeviceId: DeviceId.create()
+          })
         )
       );
 
@@ -337,6 +345,18 @@ describe('ReplaceDeviceUseCase', () => {
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('already been replaced');
       expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('[DEV-082] should replace a superseded unit that went back into service', async () => {
+      repo.findById.mockResolvedValue(
+        Result.ok(
+          makeOldDevice({ replacedByDeviceId: DeviceId.create() })
+        )
+      );
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.isSuccess).toBe(true);
     });
   });
 
@@ -460,7 +480,8 @@ describe('ReplaceDeviceUseCase', () => {
 
       expect(result.value.credentialsTransferred).toBe(true);
       expect(credentialsRepo.save).toHaveBeenCalledTimes(1);
-      const [savedTo, savedCreds] = credentialsRepo.save.mock.calls[0];
+      const [savedTo, savedCreds] =
+        credentialsRepo.save.mock.calls[0];
       expect(savedTo.toString()).not.toBe(OLD_DEVICE_ID);
       expect(savedCreds).toBe(creds);
     });
@@ -498,9 +519,9 @@ describe('ReplaceDeviceUseCase', () => {
 
       expect(result.value.contractedServiceTransferred).toBe(true);
       expect(assignDevice).toHaveBeenCalledTimes(1);
-      expect(
-        assignDevice.mock.calls[0][0].toString()
-      ).not.toBe(OLD_DEVICE_ID);
+      expect(assignDevice.mock.calls[0][0].toString()).not.toBe(
+        OLD_DEVICE_ID
+      );
       expect(contractRepo.save).toHaveBeenCalledTimes(1);
     });
 

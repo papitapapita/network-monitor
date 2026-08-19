@@ -11,7 +11,9 @@ import {
   CreateWirelessConfigUseCase,
   GetWirelessConfigUseCase,
   UpdateWirelessConfigUseCase,
-  DeleteWirelessConfigUseCase
+  DeleteWirelessConfigUseCase,
+  ClearWirelessAlertUseCase,
+  BulkClearWirelessAlertsUseCase
 } from 'application/wireless-monitoring/use-cases';
 
 export class WirelessController {
@@ -27,6 +29,8 @@ export class WirelessController {
     private readonly getWirelessConfigUseCase: GetWirelessConfigUseCase,
     private readonly updateWirelessConfigUseCase: UpdateWirelessConfigUseCase,
     private readonly deleteWirelessConfigUseCase: DeleteWirelessConfigUseCase,
+    private readonly clearWirelessAlertUseCase: ClearWirelessAlertUseCase,
+    private readonly bulkClearWirelessAlertsUseCase: BulkClearWirelessAlertsUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -42,9 +46,7 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
@@ -70,9 +72,7 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
@@ -93,9 +93,7 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
@@ -117,9 +115,7 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
@@ -146,9 +142,7 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
@@ -170,9 +164,7 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
@@ -194,9 +186,7 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
@@ -220,9 +210,7 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
@@ -249,9 +237,7 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
@@ -273,9 +259,7 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
@@ -296,9 +280,7 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
@@ -320,9 +302,7 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
@@ -343,13 +323,56 @@ export class WirelessController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
       res.status(204).send();
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public clearAlert = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.clearWirelessAlertUseCase.execute({
+        deviceId: req.params.id,
+        alertId: req.params.alertId
+      });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res.status(statusCode).json({ error: result.error });
+        return;
+      }
+
+      res.status(200).json(result.value);
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public bulkClearAlerts = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result =
+        await this.bulkClearWirelessAlertsUseCase.execute({
+          deviceId: req.params.id,
+          ids: req.body?.ids
+        });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res.status(statusCode).json({ error: result.error });
+        return;
+      }
+
+      res.status(200).json(result.value);
     } catch (error) {
       this.handleUnexpectedError(error, res);
     }
@@ -399,8 +422,6 @@ export class WirelessController {
       { error: errorMessage }
     );
 
-    res
-      .status(500)
-      .json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 }

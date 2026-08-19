@@ -2,7 +2,6 @@ import { Device } from '../aggregates';
 
 export type IneligibilityReason =
   | 'DEVICE_DELETED'
-  | 'DEVICE_REPLACED'
   | 'DEVICE_RETIRED'
   | 'MONITORING_DISABLED'
   | 'NOT_WIRELESS_CAPABLE';

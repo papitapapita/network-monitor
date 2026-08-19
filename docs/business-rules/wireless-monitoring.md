@@ -1444,6 +1444,54 @@ the fallback only affects how it reads. _(inferred)_
 **Reached from:** `poll`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
 
+### WLS-127 — An operator can manually clear an active alert, idempotently
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-13
+
+`ClearWirelessAlertUseCase` loads the record by id, rejects it if the id does
+not belong to the requesting device (reported as not-found, not as a device
+mismatch, so the response cannot be used to probe another device's alert
+ids), and calls the same `WirelessAlertRecord.clear()` the poll cycle uses.
+Calling it again on an already-cleared record is not an error — the use case
+recognises `clear()`'s `'Alert is already cleared'` failure and returns the
+current state as a success instead of propagating it.
+
+**Why:** The clear path is the same one automatic clearing already uses, so a
+manual clear leaves no observable difference in the record — same
+`clearedAt`, same `WirelessAlertClearedEvent`, same downstream handlers. The
+idempotency wrapper exists because an operator retrying a request (a flaky
+connection, a double click) must not see an error for an action that already
+succeeded.
+
+**Enforced at:** `src/application/wireless-monitoring/use-cases/ClearWirelessAlertUseCase.ts`
+**Reached from:** `POST /api/devices/:id/wireless/alerts/:alertId/clear`
+**Message:** `Wireless alert not found for device`
+**Tests:** `tests/application/wireless-monitoring/use-cases/ClearWirelessAlertUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/ClearWirelessAlertUseCase.integration.test.ts`, `tests/integration/wireless.routes.test.ts`
+
+### WLS-128 — Bulk clear accepts explicit ids or defaults to every active alert on the device
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-08-13
+
+`BulkClearWirelessAlertsUseCase` takes an optional `ids` list scoped to one
+device. When `ids` is omitted it clears every currently active alert for that
+device; when given, each id is resolved and clearing is attempted
+individually. The response buckets results into `cleared`, `skipped`
+(already cleared) and `failed` (not found, or belongs to another device) —
+one bad id in a batch does not fail the rest.
+
+**Why:** Clearing alerts one at a time is unusable after an outage that trips
+several metrics on the same device at once. Bucketing instead of
+all-or-nothing failure means a storm cleanup does not stall on the one alert
+id a stale UI still has cached.
+
+**Enforced at:** `src/application/wireless-monitoring/use-cases/BulkClearWirelessAlertsUseCase.ts`
+**Reached from:** `POST /api/devices/:id/wireless/alerts/clear`
+**Tests:** `tests/application/wireless-monitoring/use-cases/BulkClearWirelessAlertsUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/BulkClearWirelessAlertsUseCase.integration.test.ts`, `tests/integration/wireless.routes.test.ts`
+
 ---
 
 ## Queries and HTTP surface

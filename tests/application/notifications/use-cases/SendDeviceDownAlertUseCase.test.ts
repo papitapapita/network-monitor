@@ -28,8 +28,8 @@ import { DeviceModelId } from '../../../../src/domain/shared';
 // ---------------------------------------------------------------------------
 
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440030';
-const VALID_ALERT_UUID  = '550e8400-e29b-41d4-a716-446655440031';
-const INVALID_UUID      = 'not-a-valid-uuid';
+const VALID_ALERT_UUID = '550e8400-e29b-41d4-a716-446655440031';
+const INVALID_UUID = 'not-a-valid-uuid';
 
 const FIXED_DATE = new Date('2024-06-01T10:00:00.000Z');
 
@@ -40,8 +40,8 @@ const FIXED_DATE = new Date('2024-06-01T10:00:00.000Z');
 function makeLogger(): ILogger {
   return {
     debug: jest.fn(),
-    info:  jest.fn(),
-    warn:  jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
     error: jest.fn(),
     fatal: jest.fn(),
     child: jest.fn().mockReturnThis(),
@@ -51,23 +51,24 @@ function makeLogger(): ILogger {
 
 function makeAlertRepo(): jest.Mocked<IAlertRepository> {
   return {
-    save:                    jest.fn(),
-    findById:                jest.fn(),
-    findOpenByDeviceAndType:      jest.fn(),
-    findAllByDeviceId:       jest.fn(),
-    findAll:                 jest.fn(),
-    deleteById:              jest.fn(),
+    save: jest.fn(),
+    findById: jest.fn(),
+    findOpenByDeviceAndType: jest.fn(),
+    findAllOpenByDeviceId: jest.fn(),
+    findAllByDeviceId: jest.fn(),
+    findAll: jest.fn(),
+    deleteById: jest.fn(),
     deleteResolvedOlderThan: jest.fn()
   };
 }
 
 function makePollingConfigRepo(): jest.Mocked<IPollingConfigurationRepository> {
   return {
-    save:         jest.fn(),
-    findById:     jest.fn(),
+    save: jest.fn(),
+    findById: jest.fn(),
     findByDeviceId: jest.fn(),
-    findAllDue:   jest.fn(),
-    delete:       jest.fn()
+    findAllDue: jest.fn(),
+    delete: jest.fn()
   };
 }
 
@@ -81,24 +82,24 @@ function makeRequest(
   overrides: Partial<SendDeviceDownAlertDTO> = {}
 ): SendDeviceDownAlertDTO {
   return {
-    deviceId:            VALID_DEVICE_UUID,
+    deviceId: VALID_DEVICE_UUID,
     consecutiveFailures: 3,
-    occurredAt:          FIXED_DATE,
+    occurredAt: FIXED_DATE,
     ...overrides
   };
 }
 
 function makeOpenAlert(): Alert {
   return Alert.reconstitute(AlertId.parse(VALID_ALERT_UUID).value, {
-    deviceId:           DeviceId.parse(VALID_DEVICE_UUID).value,
-    severity:           AlertSeverity.CRITICAL,
-    source:             'Disponibilidad',
-    type:               'device_unreachable',
-    description:        'Sin conexión',
-    startedAt:          FIXED_DATE,
-    resolvedAt:         null,
-    notifiedAt:         null,
-    recoveryNotifiedAt: null,
+    deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
+    severity: AlertSeverity.CRITICAL,
+    source: 'Disponibilidad',
+    type: 'device_unreachable',
+    description: 'Sin conexión',
+    startedAt: FIXED_DATE,
+    resolvedAt: null,
+    notifiedAt: null,
+    recoveryNotifiedAt: null
   });
 }
 
@@ -107,23 +108,26 @@ function makeOpenAlert(): Alert {
 function makeDevice(
   overrides: Partial<Parameters<typeof Device.reconstitute>[1]> = {}
 ): Device {
-  return Device.reconstitute(DeviceId.parse(VALID_DEVICE_UUID).value, {
-    deviceModelId:     DeviceModelId.create(),
-    name:              DeviceName.create('CPE-Vargas').value,
-    status:            DeviceStatus.createActive(),
-    ownerType:         DeviceOwnerType.COMPANY,
-    locationId:        null,
-    category:          null,
-    serialNumber:      SerialNumber.create('SN-DEFAULT').value,
-    macAddress:        null,
-    ipAddress:         null,
-    description:       null,
-    installedDate:     null,
-    createdAt:         FIXED_DATE,
-    updatedAt:         FIXED_DATE,
-    monitoringEnabled: true,
-    ...overrides
-  });
+  return Device.reconstitute(
+    DeviceId.parse(VALID_DEVICE_UUID).value,
+    {
+      deviceModelId: DeviceModelId.create(),
+      name: DeviceName.create('CPE-Vargas').value,
+      status: DeviceStatus.createActive(),
+      ownerType: DeviceOwnerType.COMPANY,
+      locationId: null,
+      category: null,
+      serialNumber: SerialNumber.create('SN-DEFAULT').value,
+      macAddress: null,
+      ipAddress: null,
+      description: null,
+      installedDate: null,
+      createdAt: FIXED_DATE,
+      updatedAt: FIXED_DATE,
+      monitoringEnabled: true,
+      ...overrides
+    }
+  );
 }
 
 function makeDeviceRepo(device: Device | null = makeDevice()) {
@@ -134,18 +138,20 @@ function makeDeviceRepo(device: Device | null = makeDevice()) {
 
 /** Minimal fake polling config stub (only the field the use case reads). */
 function makePollingConfig(ip = '192.168.1.1'): PollingConfiguration {
-  return { ipAddress: { value: ip } } as unknown as PollingConfiguration;
+  return {
+    ipAddress: { value: ip }
+  } as unknown as PollingConfiguration;
 }
 
 // ---------------------------------------------------------------------------
 
 describe('SendDeviceDownAlertUseCase', () => {
-  let alertRepo:         jest.Mocked<IAlertRepository>;
+  let alertRepo: jest.Mocked<IAlertRepository>;
   let pollingConfigRepo: jest.Mocked<IPollingConfigurationRepository>;
-  let alertPublisher:    jest.Mocked<IAlertPublisher>;
-  let deviceRepo:        ReturnType<typeof makeDeviceRepo>;
-  let logger:            ILogger;
-  let useCase:           SendDeviceDownAlertUseCase;
+  let alertPublisher: jest.Mocked<IAlertPublisher>;
+  let deviceRepo: ReturnType<typeof makeDeviceRepo>;
+  let logger: ILogger;
+  let useCase: SendDeviceDownAlertUseCase;
 
   function buildUseCase(
     repo = deviceRepo
@@ -161,11 +167,11 @@ describe('SendDeviceDownAlertUseCase', () => {
   }
 
   beforeEach(() => {
-    alertRepo         = makeAlertRepo();
+    alertRepo = makeAlertRepo();
     pollingConfigRepo = makePollingConfigRepo();
-    alertPublisher    = makeAlertPublisher();
-    deviceRepo        = makeDeviceRepo();
-    logger            = makeLogger();
+    alertPublisher = makeAlertPublisher();
+    deviceRepo = makeDeviceRepo();
+    logger = makeLogger();
     useCase = buildUseCase();
   });
 
@@ -176,13 +182,17 @@ describe('SendDeviceDownAlertUseCase', () => {
   // ===========================================================================
   describe('beforeExecute — input validation', () => {
     it('should fail when deviceId is an empty string', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: '' }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: '' })
+      );
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('deviceId is required');
     });
 
     it('should fail when deviceId is whitespace only', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: '   ' }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: '   ' })
+      );
       expect(result.isFailure).toBe(true);
     });
 
@@ -191,13 +201,19 @@ describe('SendDeviceDownAlertUseCase', () => {
         makeRequest({ consecutiveFailures: -1 })
       );
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('consecutiveFailures must be >= 0');
+      expect(result.error).toContain(
+        'consecutiveFailures must be >= 0'
+      );
     });
 
     it('should not fail when consecutiveFailures is zero', async () => {
-      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(null));
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(null)
+      );
       alertRepo.save.mockResolvedValue(Result.ok(makeOpenAlert()));
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(makePollingConfig()));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makePollingConfig())
+      );
 
       const result = await useCase.execute(
         makeRequest({ consecutiveFailures: 0 })
@@ -209,7 +225,9 @@ describe('SendDeviceDownAlertUseCase', () => {
   // ===========================================================================
   describe('executeImpl — invalid UUID', () => {
     it('should fail when deviceId is not a valid UUID', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: INVALID_UUID }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: INVALID_UUID })
+      );
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid device ID');
     });
@@ -231,7 +249,9 @@ describe('SendDeviceDownAlertUseCase', () => {
 
     it('should suppress the alert when the device has been retired', async () => {
       const suppressed = buildUseCase(
-        makeDeviceRepo(makeDevice({ status: DeviceStatus.createDamaged() }))
+        makeDeviceRepo(
+          makeDevice({ status: DeviceStatus.createDamaged() })
+        )
       );
 
       const result = await suppressed.execute(makeRequest());
@@ -246,7 +266,9 @@ describe('SendDeviceDownAlertUseCase', () => {
 
       await suppressed.execute(makeRequest());
 
-      expect(alertRepo.findOpenByDeviceAndType).not.toHaveBeenCalled();
+      expect(
+        alertRepo.findOpenByDeviceAndType
+      ).not.toHaveBeenCalled();
     });
 
     it('should fail when the device lookup itself fails', async () => {
@@ -257,7 +279,9 @@ describe('SendDeviceDownAlertUseCase', () => {
       const result = await broken.execute(makeRequest());
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Failed to load device for alert');
+      expect(result.error).toContain(
+        'Failed to load device for alert'
+      );
       expect(alertRepo.save).not.toHaveBeenCalled();
     });
   });
@@ -266,7 +290,9 @@ describe('SendDeviceDownAlertUseCase', () => {
   describe('executeImpl — existing open alert', () => {
     it('should return the existing open alert DTO without creating a new one', async () => {
       const existing = makeOpenAlert();
-      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(existing));
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(existing)
+      );
 
       const result = await useCase.execute(makeRequest());
       expect(result.isSuccess).toBe(true);
@@ -274,31 +300,43 @@ describe('SendDeviceDownAlertUseCase', () => {
     });
 
     it('should not call alertRepository.save when an open alert already exists', async () => {
-      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(makeOpenAlert()));
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(makeOpenAlert())
+      );
       await useCase.execute(makeRequest());
       expect(alertRepo.save).not.toHaveBeenCalled();
     });
 
     it('should not publish when an open alert already exists', async () => {
-      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(makeOpenAlert()));
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(makeOpenAlert())
+      );
       await useCase.execute(makeRequest());
       expect(alertPublisher.publish).not.toHaveBeenCalled();
     });
 
     it('should return a failure when findOpenByDeviceAndType itself fails', async () => {
-      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.fail('Repo error'));
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.fail('Repo error')
+      );
       const result = await useCase.execute(makeRequest());
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Failed to check existing alerts');
+      expect(result.error).toContain(
+        'Failed to check existing alerts'
+      );
     });
   });
 
   // ===========================================================================
   describe('executeImpl — happy path: creates alert, publishes, saves', () => {
     beforeEach(() => {
-      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(null));
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(null)
+      );
       alertRepo.save.mockResolvedValue(Result.ok(makeOpenAlert()));
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(makePollingConfig()));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makePollingConfig())
+      );
     });
 
     it('should return a successful DTO with status OPEN', async () => {
@@ -349,10 +387,16 @@ describe('SendDeviceDownAlertUseCase', () => {
   // ===========================================================================
   describe('executeImpl — publish failure', () => {
     it('should still save the alert when publish fails', async () => {
-      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(null));
-      alertPublisher.publish.mockResolvedValue(Result.fail('Telegram unavailable'));
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(null)
+      );
+      alertPublisher.publish.mockResolvedValue(
+        Result.fail('Telegram unavailable')
+      );
       alertRepo.save.mockResolvedValue(Result.ok(makeOpenAlert()));
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(makePollingConfig()));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makePollingConfig())
+      );
 
       const result = await useCase.execute(makeRequest());
       expect(alertRepo.save).toHaveBeenCalledTimes(1);
@@ -360,9 +404,15 @@ describe('SendDeviceDownAlertUseCase', () => {
     });
 
     it('should save the alert without notifiedAt when publish fails', async () => {
-      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(null));
-      alertPublisher.publish.mockResolvedValue(Result.fail('Telegram unavailable'));
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(makePollingConfig()));
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(null)
+      );
+      alertPublisher.publish.mockResolvedValue(
+        Result.fail('Telegram unavailable')
+      );
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makePollingConfig())
+      );
 
       let capturedAlert: Alert | null = null;
       alertRepo.save.mockImplementation(async (a) => {
@@ -379,9 +429,13 @@ describe('SendDeviceDownAlertUseCase', () => {
   // ===========================================================================
   describe('executeImpl — repository save failure', () => {
     it('should return a failure result when alertRepository.save fails', async () => {
-      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(null));
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(null)
+      );
       alertRepo.save.mockResolvedValue(Result.fail('Write conflict'));
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.ok(makePollingConfig()));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makePollingConfig())
+      );
 
       const result = await useCase.execute(makeRequest());
       expect(result.isFailure).toBe(true);
@@ -392,8 +446,12 @@ describe('SendDeviceDownAlertUseCase', () => {
   // ===========================================================================
   describe('executeImpl — IP address fallback', () => {
     it('should still publish (without IP in detail) when polling config lookup fails', async () => {
-      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(null));
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(Result.fail('Repo error'));
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(null)
+      );
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.fail('Repo error')
+      );
       alertRepo.save.mockResolvedValue(Result.ok(makeOpenAlert()));
 
       await useCase.execute(makeRequest());
@@ -402,8 +460,12 @@ describe('SendDeviceDownAlertUseCase', () => {
     });
 
     it('should still publish when pollingConfigRepository.findByDeviceId throws', async () => {
-      alertRepo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(null));
-      pollingConfigRepo.findByDeviceId.mockRejectedValue(new Error('Timeout'));
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(null)
+      );
+      pollingConfigRepo.findByDeviceId.mockRejectedValue(
+        new Error('Timeout')
+      );
       alertRepo.save.mockResolvedValue(Result.ok(makeOpenAlert()));
 
       const result = await useCase.execute(makeRequest());

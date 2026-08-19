@@ -80,21 +80,15 @@ export class DeviceEligibilityService
     return ELIGIBLE;
   }
 
-  // isReplaced() reads replacedByDeviceId, which markReplaced() does not write
-  // — the repository does, and only on reads that request the lineage include.
-  // So this can false-negative. It is checked anyway because it names the real
-  // reason when it is available; markReplaced() also forces a retired status,
-  // so the status check behind it catches the same device regardless.
+  // Deliberately does not consult isReplaced(). Having a successor is a fact
+  // about lineage, not about whether this box is in service: a unit superseded
+  // by an upgrade and later redeployed elsewhere is live hardware a customer
+  // depends on, and denying it here stopped its polling with no trace. Being
+  // out of service is what markReplaced() writes as a retired status, and the
+  // status checks in each caller already refuse that.
   private checkLive(device: Device): EligibilityDecision {
     if (device.isDeleted()) {
       return this.deny('DEVICE_DELETED', 'Device has been deleted');
-    }
-
-    if (device.isReplaced()) {
-      return this.deny(
-        'DEVICE_REPLACED',
-        'Device has been replaced by newer hardware'
-      );
     }
 
     return ELIGIBLE;

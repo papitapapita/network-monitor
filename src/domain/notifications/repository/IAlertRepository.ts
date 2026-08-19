@@ -9,6 +9,7 @@ export interface IAlertRepository {
     deviceId: DeviceId,
     type: string
   ): Promise<Result<Alert | null>>;
+  findAllOpenByDeviceId(deviceId: DeviceId): Promise<Result<Alert[]>>;
   findAllByDeviceId(
     deviceId: DeviceId,
     limit?: number,

@@ -167,7 +167,7 @@ describe('ReplaceDeviceUseCase — integration', () => {
     }
   );
 
-  it('[DEV-082] refuses to replace the same unit twice', async () => {
+  it('[DEV-082] refuses a second successor while the unit is still retired', async () => {
     const oldId = await createActiveDevice();
     await replaceUseCase.execute(request({ id: oldId }));
 
@@ -181,6 +181,42 @@ describe('ReplaceDeviceUseCase — integration', () => {
 
     expect(second.isFailure).toBe(true);
     expect(second.error).toMatch(/already been replaced/i);
+  });
+
+  it('[DEV-082] replaces a unit again once it is back in service', async () => {
+    // Upgraded out of one site into INVENTORY, redeployed to another, and
+    // broken there. The successor from the first service life must not cap the
+    // lineage at one.
+    const oldId = await createActiveDevice();
+    await replaceUseCase.execute(
+      request({ id: oldId, retiredStatus: 'INVENTORY' })
+    );
+
+    await prisma.device.update({
+      where: { id: oldId },
+      data: { status: 'ACTIVE', ipAddress: '10.60.0.44' }
+    });
+
+    const second = await replaceUseCase.execute(
+      request({
+        id: oldId,
+        serialNumber: 'SN-NEW-002',
+        macAddress: 'AA:BB:CC:DD:EE:03'
+      })
+    );
+
+    expect(second.isSuccess).toBe(true);
+
+    const successors = await prisma.device.findMany({
+      where: { replacesDeviceId: oldId },
+      orderBy: { createdAt: 'desc' }
+    });
+    expect(successors).toHaveLength(2);
+
+    const reread = await getUseCase.execute({ id: oldId });
+    expect(reread.value.replacedByDeviceId).toBe(
+      second.value.newDevice.id
+    );
   });
 
   it('keeps the retired unit’s history on the retired unit', async () => {
@@ -462,7 +498,7 @@ describe('ReplaceDeviceUseCase — integration', () => {
     expect(result.error).toMatch(/must be one of/i);
   });
 
-  it('refuses a replacement with no identifier', async () => {
+  it('[DEV-160] refuses a replacement with no identifier', async () => {
     const oldId = await createActiveDevice();
 
     const result = await replaceUseCase.execute(

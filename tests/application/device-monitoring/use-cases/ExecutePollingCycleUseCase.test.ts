@@ -68,7 +68,9 @@ function makePingResultRepo(): jest.Mocked<IPingResultRepository> {
     save: jest.fn(),
     findLatestByDevice: jest.fn(),
     findByDevice: jest.fn(),
-    deleteOlderThan: jest.fn()
+    deleteOlderThan: jest.fn(),
+
+    deleteByDevice: jest.fn()
   };
 }
 
@@ -84,23 +86,26 @@ function makeDeviceStateRepo(): jest.Mocked<IDeviceStateRepository> {
 function makeDevice(
   overrides: Partial<Parameters<typeof Device.reconstitute>[1]> = {}
 ): Device {
-  return Device.reconstitute(DeviceId.parse(VALID_DEVICE_UUID).value, {
-    deviceModelId: DeviceModelId.create(),
-    name: DeviceName.create('Core-Router-01').value,
-    status: DeviceStatus.createActive(),
-    ownerType: DeviceOwnerType.COMPANY,
-    locationId: null,
-    category: null,
-    serialNumber: SerialNumber.create('SN-DEFAULT').value,
-    macAddress: null,
-    ipAddress: null,
-    description: null,
-    installedDate: null,
-    createdAt: new Date('2026-01-01T00:00:00.000Z'),
-    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
-    monitoringEnabled: true,
-    ...overrides
-  });
+  return Device.reconstitute(
+    DeviceId.parse(VALID_DEVICE_UUID).value,
+    {
+      deviceModelId: DeviceModelId.create(),
+      name: DeviceName.create('Core-Router-01').value,
+      status: DeviceStatus.createActive(),
+      ownerType: DeviceOwnerType.COMPANY,
+      locationId: null,
+      category: null,
+      serialNumber: SerialNumber.create('SN-DEFAULT').value,
+      macAddress: null,
+      ipAddress: null,
+      description: null,
+      installedDate: null,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      monitoringEnabled: true,
+      ...overrides
+    }
+  );
 }
 
 function makeDeviceRepo(device: Device | null = makeDevice()) {
@@ -122,17 +127,22 @@ function makeConfig(
     thresholdCount?: number;
   } = {}
 ): PollingConfiguration {
-  const rawIp = overrides.ipAddress !== undefined ? overrides.ipAddress : TEST_IP;
+  const rawIp =
+    overrides.ipAddress !== undefined ? overrides.ipAddress : TEST_IP;
   // reconstitute: legacy rows can still be enabled without an IP, which is
   // exactly the case the scheduler has to defend against
   return PollingConfiguration.reconstitute(
     PollingConfigurationId.parse(VALID_CONFIG_UUID).value,
     {
       deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
-      ipAddress: rawIp !== null ? IPAddress.reconstitute(rawIp) : null,
+      ipAddress:
+        rawIp !== null ? IPAddress.reconstitute(rawIp) : null,
       interval: PollingInterval.create(60).value,
-      failuresBeforeDown: FailureThreshold.create(overrides.thresholdCount ?? 3).value,
-      enabled: overrides.enabled !== undefined ? overrides.enabled : true
+      failuresBeforeDown: FailureThreshold.create(
+        overrides.thresholdCount ?? 3
+      ).value,
+      enabled:
+        overrides.enabled !== undefined ? overrides.enabled : true
     }
   );
 }
@@ -195,7 +205,9 @@ describe('ExecutePollingCycleUseCase', () => {
     // permissive defaults — individual tests override to assert failures
     configRepo.save.mockResolvedValue(Result.ok(makeConfig()));
     pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
-    deviceStateRepo.save.mockResolvedValue(Result.ok(makeDeviceState()));
+    deviceStateRepo.save.mockResolvedValue(
+      Result.ok(makeDeviceState())
+    );
     deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
   });
 
@@ -206,14 +218,18 @@ describe('ExecutePollingCycleUseCase', () => {
   // ===========================================================================
   describe('beforeExecute — input validation', () => {
     it('should fail when deviceId is an empty string', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: '' }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: '' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Network device ID is required');
     });
 
     it('should fail when deviceId is whitespace only', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: '  ' }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: '  ' })
+      );
 
       expect(result.isFailure).toBe(true);
     });
@@ -222,7 +238,9 @@ describe('ExecutePollingCycleUseCase', () => {
   // ===========================================================================
   describe('executeImpl — device ID parsing', () => {
     it('should fail when deviceId is not a valid UUID', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: 'not-a-uuid' }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: 'not-a-uuid' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid device ID');
@@ -245,7 +263,8 @@ describe('ExecutePollingCycleUseCase', () => {
     }
 
     it('should skip a scheduled poll when the device no longer exists', async () => {
-      const result = await useCaseWithDevice(null).execute(makeRequest());
+      const result =
+        await useCaseWithDevice(null).execute(makeRequest());
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.status).toBe('SKIPPED');
@@ -258,9 +277,8 @@ describe('ExecutePollingCycleUseCase', () => {
         status: DeviceStatus.createDamaged()
       });
 
-      const result = await useCaseWithDevice(retired).execute(
-        makeRequest()
-      );
+      const result =
+        await useCaseWithDevice(retired).execute(makeRequest());
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.status).toBe('SKIPPED');
@@ -286,7 +304,9 @@ describe('ExecutePollingCycleUseCase', () => {
         deviceStateRepo,
         pingService,
         {
-          findById: jest.fn().mockResolvedValue(Result.fail('DB error'))
+          findById: jest
+            .fn()
+            .mockResolvedValue(Result.fail('DB error'))
         } as unknown as IDeviceRepository,
         new DeviceEligibilityService(),
         logger,
@@ -310,9 +330,8 @@ describe('ExecutePollingCycleUseCase', () => {
         Result.ok({ isReachable: true, latencyMs: 10 })
       );
 
-      const result = await useCaseWithDevice(commissioning).execute(
-        makeRequest()
-      );
+      const result =
+        await useCaseWithDevice(commissioning).execute(makeRequest());
 
       expect(result.isSuccess).toBe(true);
       expect(pingService.ping).toHaveBeenCalled();
@@ -321,7 +340,9 @@ describe('ExecutePollingCycleUseCase', () => {
 
   describe('executeImpl — polling config lookup', () => {
     it('should fail when the config repository returns a failure', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.fail('DB error'));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.fail('DB error')
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -335,7 +356,9 @@ describe('ExecutePollingCycleUseCase', () => {
       const result = await useCase.execute(makeRequest());
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('No polling configuration found');
+      expect(result.error).toContain(
+        'No polling configuration found'
+      );
     });
   });
 
@@ -346,7 +369,9 @@ describe('ExecutePollingCycleUseCase', () => {
         Result.ok(makeConfig({ enabled: false }))
       );
 
-      const result = await useCase.execute(makeRequest({ forceExecution: false }));
+      const result = await useCase.execute(
+        makeRequest({ forceExecution: false })
+      );
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.status).toBe('SKIPPED');
@@ -427,8 +452,12 @@ describe('ExecutePollingCycleUseCase', () => {
         Result.ok({ isReachable: true, latencyMs: 10 })
       );
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
-      deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
-      deviceStateRepo.save.mockResolvedValue(Result.ok(makeDeviceState()));
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
+      deviceStateRepo.save.mockResolvedValue(
+        Result.ok(makeDeviceState())
+      );
 
       const result = await useCase.execute(
         makeRequest({ forceExecution: true })
@@ -445,16 +474,24 @@ describe('ExecutePollingCycleUseCase', () => {
     // dispatched without being awaited, so this race is reachable in production.
     function arrangeDisabledMidCycle() {
       configRepo.findByDeviceId
-        .mockResolvedValueOnce(Result.ok(makeConfig({ enabled: true })))
-        .mockResolvedValueOnce(Result.ok(makeConfig({ enabled: false })));
+        .mockResolvedValueOnce(
+          Result.ok(makeConfig({ enabled: true }))
+        )
+        .mockResolvedValueOnce(
+          Result.ok(makeConfig({ enabled: false }))
+        );
       pingService.ping.mockResolvedValue(
         Result.ok({ isReachable: false, latencyMs: null })
       );
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
       deviceStateRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeDeviceState({ status: ReachabilityStatus.createUp() }))
+        Result.ok(
+          makeDeviceState({ status: ReachabilityStatus.createUp() })
+        )
       );
-      deviceStateRepo.save.mockResolvedValue(Result.ok(makeDeviceState()));
+      deviceStateRepo.save.mockResolvedValue(
+        Result.ok(makeDeviceState())
+      );
     }
 
     it('[MON-002] should skip rather than resurrect the state cleared by the suspend', async () => {
@@ -510,7 +547,9 @@ describe('ExecutePollingCycleUseCase', () => {
   // ===========================================================================
   describe('executeImpl — ping execution', () => {
     it('should fail when the ping service returns a failure', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
       pingService.ping.mockResolvedValue(Result.fail('ICMP timeout'));
 
       const result = await useCase.execute(makeRequest());
@@ -527,8 +566,12 @@ describe('ExecutePollingCycleUseCase', () => {
         Result.ok({ isReachable: true, latencyMs: 8 })
       );
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
-      deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
-      deviceStateRepo.save.mockResolvedValue(Result.ok(makeDeviceState()));
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
+      deviceStateRepo.save.mockResolvedValue(
+        Result.ok(makeDeviceState())
+      );
 
       await useCase.execute(makeRequest());
 
@@ -539,16 +582,28 @@ describe('ExecutePollingCycleUseCase', () => {
   // ===========================================================================
   describe('executeImpl — successful ping result', () => {
     beforeEach(() => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
       pingService.ping.mockResolvedValue(
         Result.ok({ isReachable: true, latencyMs: 15 })
       );
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
       deviceStateRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeDeviceState({ status: ReachabilityStatus.createUp(), consecutiveFailures: 0 }))
+        Result.ok(
+          makeDeviceState({
+            status: ReachabilityStatus.createUp(),
+            consecutiveFailures: 0
+          })
+        )
       );
       deviceStateRepo.save.mockResolvedValue(
-        Result.ok(makeDeviceState({ status: ReachabilityStatus.createUp(), consecutiveFailures: 0 }))
+        Result.ok(
+          makeDeviceState({
+            status: ReachabilityStatus.createUp(),
+            consecutiveFailures: 0
+          })
+        )
       );
     });
 
@@ -597,7 +652,8 @@ describe('ExecutePollingCycleUseCase', () => {
 
       await useCase.execute(makeRequest());
 
-      const savedState: DeviceState = deviceStateRepo.save.mock.calls[0][0];
+      const savedState: DeviceState =
+        deviceStateRepo.save.mock.calls[0][0];
       expect(savedState.consecutiveFailures).toBe(0);
     });
   });
@@ -605,14 +661,23 @@ describe('ExecutePollingCycleUseCase', () => {
   // ===========================================================================
   describe('executeImpl — failed ping result', () => {
     it('should return FAILED status when all retries are unreachable', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
       pingService.ping.mockResolvedValue(
         Result.ok({ isReachable: false, latencyMs: null })
       );
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
-      deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
       deviceStateRepo.save.mockResolvedValue(
-        Result.ok(makeDeviceState({ status: ReachabilityStatus.createDown(), consecutiveFailures: 1 }))
+        Result.ok(
+          makeDeviceState({
+            status: ReachabilityStatus.createDown(),
+            consecutiveFailures: 1
+          })
+        )
       );
 
       const result = await useCase.execute(makeRequest());
@@ -622,14 +687,20 @@ describe('ExecutePollingCycleUseCase', () => {
     });
 
     it('should return null metrics when all retries are unreachable', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
       pingService.ping.mockResolvedValue(
         Result.ok({ isReachable: false, latencyMs: null })
       );
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
-      deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
       deviceStateRepo.save.mockResolvedValue(
-        Result.ok(makeDeviceState({ status: ReachabilityStatus.createDown() }))
+        Result.ok(
+          makeDeviceState({ status: ReachabilityStatus.createDown() })
+        )
       );
 
       const result = await useCase.execute(makeRequest());
@@ -638,11 +709,19 @@ describe('ExecutePollingCycleUseCase', () => {
     });
 
     it('should increment consecutiveFailures when all ping retries fail', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig({ thresholdCount: 3 })));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig({ thresholdCount: 3 }))
+      );
       pingService.ping
-        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }))
-        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }))
-        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }));
+        .mockResolvedValueOnce(
+          Result.ok({ isReachable: false, latencyMs: null })
+        )
+        .mockResolvedValueOnce(
+          Result.ok({ isReachable: false, latencyMs: null })
+        )
+        .mockResolvedValueOnce(
+          Result.ok({ isReachable: false, latencyMs: null })
+        );
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
       deviceStateRepo.findByDeviceId.mockResolvedValue(
         Result.ok(makeDeviceState({ consecutiveFailures: 1 }))
@@ -653,7 +732,8 @@ describe('ExecutePollingCycleUseCase', () => {
 
       await useCase.execute(makeRequest());
 
-      const savedState: DeviceState = deviceStateRepo.save.mock.calls[0][0];
+      const savedState: DeviceState =
+        deviceStateRepo.save.mock.calls[0][0];
       expect(savedState.consecutiveFailures).toBe(2);
     });
 
@@ -662,15 +742,31 @@ describe('ExecutePollingCycleUseCase', () => {
         Result.ok(makeConfig({ thresholdCount: 3 }))
       );
       pingService.ping
-        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }))
-        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }))
-        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }));
+        .mockResolvedValueOnce(
+          Result.ok({ isReachable: false, latencyMs: null })
+        )
+        .mockResolvedValueOnce(
+          Result.ok({ isReachable: false, latencyMs: null })
+        )
+        .mockResolvedValueOnce(
+          Result.ok({ isReachable: false, latencyMs: null })
+        );
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
       deviceStateRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeDeviceState({ status: ReachabilityStatus.createUp(), consecutiveFailures: 0 }))
+        Result.ok(
+          makeDeviceState({
+            status: ReachabilityStatus.createUp(),
+            consecutiveFailures: 0
+          })
+        )
       );
       deviceStateRepo.save.mockResolvedValue(
-        Result.ok(makeDeviceState({ status: ReachabilityStatus.createDown(), consecutiveFailures: 1 }))
+        Result.ok(
+          makeDeviceState({
+            status: ReachabilityStatus.createDown(),
+            consecutiveFailures: 1
+          })
+        )
       );
 
       const result = await useCase.execute(makeRequest());
@@ -684,14 +780,28 @@ describe('ExecutePollingCycleUseCase', () => {
         Result.ok(makeConfig({ thresholdCount: 3 }))
       );
       pingService.ping
-        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }))
-        .mockResolvedValueOnce(Result.ok({ isReachable: true, latencyMs: 22 }));
+        .mockResolvedValueOnce(
+          Result.ok({ isReachable: false, latencyMs: null })
+        )
+        .mockResolvedValueOnce(
+          Result.ok({ isReachable: true, latencyMs: 22 })
+        );
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
       deviceStateRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeDeviceState({ status: ReachabilityStatus.createDown(), consecutiveFailures: 1 }))
+        Result.ok(
+          makeDeviceState({
+            status: ReachabilityStatus.createDown(),
+            consecutiveFailures: 1
+          })
+        )
       );
       deviceStateRepo.save.mockResolvedValue(
-        Result.ok(makeDeviceState({ status: ReachabilityStatus.createUp(), consecutiveFailures: 0 }))
+        Result.ok(
+          makeDeviceState({
+            status: ReachabilityStatus.createUp(),
+            consecutiveFailures: 0
+          })
+        )
       );
 
       const result = await useCase.execute(makeRequest());
@@ -706,18 +816,32 @@ describe('ExecutePollingCycleUseCase', () => {
         Result.ok(makeConfig({ thresholdCount: 3 }))
       );
       pingService.ping
-        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }))
-        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }))
-        .mockResolvedValueOnce(Result.ok({ isReachable: false, latencyMs: null }));
+        .mockResolvedValueOnce(
+          Result.ok({ isReachable: false, latencyMs: null })
+        )
+        .mockResolvedValueOnce(
+          Result.ok({ isReachable: false, latencyMs: null })
+        )
+        .mockResolvedValueOnce(
+          Result.ok({ isReachable: false, latencyMs: null })
+        );
       pingResultRepo.save.mockResolvedValue(Result.ok(undefined));
-      deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
       deviceStateRepo.save.mockResolvedValue(
-        Result.ok(makeDeviceState({ status: ReachabilityStatus.createDown(), consecutiveFailures: 1 }))
+        Result.ok(
+          makeDeviceState({
+            status: ReachabilityStatus.createDown(),
+            consecutiveFailures: 1
+          })
+        )
       );
 
       await useCase.execute(makeRequest());
 
-      const savedState: DeviceState = deviceStateRepo.save.mock.calls[0][0];
+      const savedState: DeviceState =
+        deviceStateRepo.save.mock.calls[0][0];
       expect(savedState.consecutiveFailures).toBe(1);
     });
   });
@@ -725,17 +849,23 @@ describe('ExecutePollingCycleUseCase', () => {
   // ===========================================================================
   describe('executeImpl — persistence failures', () => {
     beforeEach(() => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
       pingService.ping.mockResolvedValue(
         Result.ok({ isReachable: true, latencyMs: 15 })
       );
       deviceStateRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeDeviceState({ status: ReachabilityStatus.createUp() }))
+        Result.ok(
+          makeDeviceState({ status: ReachabilityStatus.createUp() })
+        )
       );
     });
 
     it('should fail when the device state cannot be saved', async () => {
-      deviceStateRepo.save.mockResolvedValue(Result.fail('DB write error'));
+      deviceStateRepo.save.mockResolvedValue(
+        Result.fail('DB write error')
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -744,7 +874,9 @@ describe('ExecutePollingCycleUseCase', () => {
     });
 
     it('should not report success from a state the repository rejected', async () => {
-      deviceStateRepo.save.mockResolvedValue(Result.fail('DB write error'));
+      deviceStateRepo.save.mockResolvedValue(
+        Result.fail('DB write error')
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -753,7 +885,9 @@ describe('ExecutePollingCycleUseCase', () => {
     });
 
     it('should still update device state when the ping history write fails', async () => {
-      pingResultRepo.save.mockResolvedValue(Result.fail('history unavailable'));
+      pingResultRepo.save.mockResolvedValue(
+        Result.fail('history unavailable')
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -762,7 +896,9 @@ describe('ExecutePollingCycleUseCase', () => {
     });
 
     it('should warn but succeed when lastPolledAt cannot be persisted', async () => {
-      configRepo.save.mockResolvedValue(Result.fail('config write error'));
+      configRepo.save.mockResolvedValue(
+        Result.fail('config write error')
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -774,8 +910,12 @@ describe('ExecutePollingCycleUseCase', () => {
   // ===========================================================================
   describe('executeImpl — first poll of an unseen device', () => {
     beforeEach(() => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
-      deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
     });
 
     it('should raise DeviceWentOfflineEvent when a device is unreachable on first sight', async () => {
@@ -785,7 +925,8 @@ describe('ExecutePollingCycleUseCase', () => {
 
       await useCase.execute(makeRequest());
 
-      const savedState: DeviceState = deviceStateRepo.save.mock.calls[0][0];
+      const savedState: DeviceState =
+        deviceStateRepo.save.mock.calls[0][0];
       expect(savedState.domainEvents).toHaveLength(1);
       expect(savedState.domainEvents[0].constructor.name).toBe(
         'DeviceWentOfflineEvent'
@@ -799,7 +940,8 @@ describe('ExecutePollingCycleUseCase', () => {
 
       await useCase.execute(makeRequest());
 
-      const savedState: DeviceState = deviceStateRepo.save.mock.calls[0][0];
+      const savedState: DeviceState =
+        deviceStateRepo.save.mock.calls[0][0];
       expect(savedState.domainEvents).toHaveLength(0);
     });
   });
@@ -823,7 +965,9 @@ describe('ExecutePollingCycleUseCase', () => {
     it('should recover when a later attempt executes successfully', async () => {
       pingService.ping
         .mockResolvedValueOnce(Result.fail('spawn EAGAIN'))
-        .mockResolvedValueOnce(Result.ok({ isReachable: true, latencyMs: 18 }));
+        .mockResolvedValueOnce(
+          Result.ok({ isReachable: true, latencyMs: 18 })
+        );
 
       const result = await useCase.execute(makeRequest());
 
@@ -843,12 +987,18 @@ describe('ExecutePollingCycleUseCase', () => {
     it('should not mark a reachable device as offline', async () => {
       pingService.ping.mockResolvedValue(Result.fail('spawn ENOENT'));
       deviceStateRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeDeviceState({ status: ReachabilityStatus.createUp(), consecutiveFailures: 0 }))
+        Result.ok(
+          makeDeviceState({
+            status: ReachabilityStatus.createUp(),
+            consecutiveFailures: 0
+          })
+        )
       );
 
       await useCase.execute(makeRequest());
 
-      const savedState: DeviceState = deviceStateRepo.save.mock.calls[0][0];
+      const savedState: DeviceState =
+        deviceStateRepo.save.mock.calls[0][0];
       expect(savedState.isOnline).toBe(true);
       expect(savedState.consecutiveFailures).toBe(0);
       expect(savedState.domainEvents).toHaveLength(0);
@@ -862,7 +1012,8 @@ describe('ExecutePollingCycleUseCase', () => {
 
       await useCase.execute(makeRequest());
 
-      const savedState: DeviceState = deviceStateRepo.save.mock.calls[0][0];
+      const savedState: DeviceState =
+        deviceStateRepo.save.mock.calls[0][0];
       expect(savedState.lastCheckedAt!.getTime()).toBeGreaterThan(
         FIXED_DATE.getTime()
       );
@@ -870,7 +1021,9 @@ describe('ExecutePollingCycleUseCase', () => {
 
     it('should not seed a state row for a device that has never been polled', async () => {
       pingService.ping.mockResolvedValue(Result.fail('spawn ENOENT'));
-      deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
 
       await useCase.execute(makeRequest());
 
@@ -897,7 +1050,9 @@ describe('ExecutePollingCycleUseCase', () => {
 
       await useCase.execute(makeRequest());
 
-      expect(probeHealth.recordProbeExecutionFailure).toHaveBeenCalledWith(
+      expect(
+        probeHealth.recordProbeExecutionFailure
+      ).toHaveBeenCalledWith(
         VALID_DEVICE_UUID,
         expect.stringContaining('ENOENT')
       );
@@ -929,7 +1084,9 @@ describe('ExecutePollingCycleUseCase', () => {
       expect(probeHealth.recordProbeExecuted).toHaveBeenCalledWith(
         VALID_DEVICE_UUID
       );
-      expect(probeHealth.recordProbeExecutionFailure).not.toHaveBeenCalled();
+      expect(
+        probeHealth.recordProbeExecutionFailure
+      ).not.toHaveBeenCalled();
     });
   });
 });

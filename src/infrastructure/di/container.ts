@@ -110,7 +110,9 @@ import {
   GetWirelessThroughputUseCase,
   GetFleetWirelessThroughputUseCase,
   UpdateWirelessConfigUseCase,
-  DeleteWirelessConfigUseCase
+  DeleteWirelessConfigUseCase,
+  ClearWirelessAlertUseCase,
+  BulkClearWirelessAlertsUseCase
 } from 'application/wireless-monitoring/use-cases';
 import {
   SetDeviceCredentialsUseCase,
@@ -203,6 +205,9 @@ import {
   DeleteAlertUseCase,
   OpenAlertUseCase,
   ResolveAlertUseCase,
+  ClearAlertUseCase,
+  BulkClearAlertsUseCase,
+  BulkDeleteAlertsUseCase,
   PurgeOldAlertsUseCase,
   SendSuspensionNoticeUseCase,
   SendAlertNotificationUseCase
@@ -259,6 +264,7 @@ import {
   ConfigureDevicePollingUseCase,
   GetDevicePollingStatusUseCase,
   GetDevicePollingHistoryUseCase,
+  DeleteDevicePingHistoryUseCase,
   CreateDevicePollingUseCase,
   PurgeOldPingResultsUseCase,
   SuspendDeviceMonitoringUseCase
@@ -851,6 +857,11 @@ export class DependencyContainer {
       suspendDeviceMonitoringUseCase,
       this.logger
     );
+    const deleteDevicePingHistoryUseCase =
+      new DeleteDevicePingHistoryUseCase(
+        this.pingResultRepository,
+        this.logger
+      );
 
     this.pollingController = new PollingController(
       executePollingCycleUseCase,
@@ -858,6 +869,7 @@ export class DependencyContainer {
       getPollingHistoryUseCase,
       configurePollingUseCase,
       createDevicePollingUseCase,
+      deleteDevicePingHistoryUseCase,
       this.logger
     );
 
@@ -925,6 +937,18 @@ export class DependencyContainer {
       this.alertRepository,
       this.logger
     );
+    const clearAlertUseCase = new ClearAlertUseCase(
+      this.alertRepository,
+      this.logger
+    );
+    const bulkClearAlertsUseCase = new BulkClearAlertsUseCase(
+      this.alertRepository,
+      this.logger
+    );
+    const bulkDeleteAlertsUseCase = new BulkDeleteAlertsUseCase(
+      this.alertRepository,
+      this.logger
+    );
 
     // Recorder: any producer BC persists alerts into the shared list through
     // this (via IAlertRecorder), independent of notification delivery.
@@ -944,6 +968,9 @@ export class DependencyContainer {
       listAlertsUseCase,
       getAlertByIdUseCase,
       deleteAlertUseCase,
+      clearAlertUseCase,
+      bulkClearAlertsUseCase,
+      bulkDeleteAlertsUseCase,
       this.logger
     );
 
@@ -1047,6 +1074,15 @@ export class DependencyContainer {
         this.wirelessDeviceConfigRepository,
         this.logger
       );
+    const clearWirelessAlertUseCase = new ClearWirelessAlertUseCase(
+      this.wirelessAlertRecordRepository,
+      this.logger
+    );
+    const bulkClearWirelessAlertsUseCase =
+      new BulkClearWirelessAlertsUseCase(
+        this.wirelessAlertRecordRepository,
+        this.logger
+      );
 
     this.wirelessController = new WirelessController(
       getWirelessDeviceStatusUseCase,
@@ -1060,6 +1096,8 @@ export class DependencyContainer {
       getWirelessConfigUseCase,
       updateWirelessConfigUseCase,
       deleteWirelessConfigUseCase,
+      clearWirelessAlertUseCase,
+      bulkClearWirelessAlertsUseCase,
       this.logger
     );
 

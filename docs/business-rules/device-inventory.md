@@ -16,6 +16,7 @@ Conventions, rule types and the ID scheme are in [README.md](README.md).
 | `DEV-090` – `DEV-119` | Location                                   |
 | `DEV-120` – `DEV-139` | Device Credentials                         |
 | `DEV-140` – `DEV-159` | Cross-cutting (access, listing, discovery) |
+| `DEV-160` – `DEV-179` | Device (continued — first block is full)   |
 
 Rationales marked _(inferred)_ were reconstructed from the code, not stated by
 the business. They are the ones to read critically.
@@ -33,16 +34,15 @@ Where each rule is enforced today. The domain layer is where business rules
 belong, so the rows below it are the ones worth arguing about — not all of them
 are wrong, but each is a deliberate choice that should stay deliberate.
 
-| Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                |
-| ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Domain**                            |    41 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144 |
-| **Application**                       |    41 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145 |
-| **Application + Domain**              |     5 | DEV-070, DEV-074, DEV-078, DEV-079, DEV-087                                                                                                                                                                                                                                                                                        |
-| **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                        |
-| **Domain + database constraint**      |     1 | DEV-082                                                                                                                                                                                                                                                                                                                            |
-| **Infrastructure + Domain**           |     1 | DEV-028                                                                                                                                                                                                                                                                                                                            |
-| **Infrastructure + Application**      |     2 | DEV-072, DEV-084                                                                                                                                                                                                                                                                                                                   |
-| **Presentation**                      |     2 | DEV-140, DEV-146                                                                                                                                                                                                                                                                                                                   |
+| Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Domain**                            |    42 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144 |
+| **Application**                       |    41 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145          |
+| **Application + Domain**              |     6 | DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160                                                                                                                                                                                                                                                                                                                                     |
+| **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                                                                              |
+| **Infrastructure + Domain**           |     1 | DEV-028                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Infrastructure + Application**      |     2 | DEV-072, DEV-084                                                                                                                                                                                                                                                                                                                                                                         |
+| **Presentation**                      |     2 | DEV-140, DEV-146                                                                                                                                                                                                                                                                                                                                                                         |
 
 **Half the book sits outside the domain, and most of it belongs there.** The
 three clusters are worth naming, because they are not the same kind of
@@ -1466,8 +1466,8 @@ strand every other device behind it indefinitely.
 hardware and retires `:id` into `retiredStatus`, which is **required** and must
 be one of the retired set: `INVENTORY`, `DAMAGED`, `DECOMMISSIONED`. `ACTIVE`
 and `COMMISSIONING` are refused. The replacement inherits the retired unit's
-location, category and owner, and defaults its name; it must carry at least a
-serial number or a MAC address of its own.
+location, category and owner, and defaults its name. What the replacement must
+carry of its own is DEV-160.
 
 The endpoint requires the `activate` permission (ADMIN and OPERATOR).
 
@@ -1484,12 +1484,14 @@ stock; a unit that is obsolete rather than broken is `DECOMMISSIONED`. Picking
 one of those for the operator would mean guessing why the swap happened, and
 guessing wrong makes the fleet's condition report fiction.
 
-Requiring an identifier on the replacement is DEV-053 arriving early: whichever
-retired status the caller picks, the outgoing unit needs one, and the incoming
-box is different hardware with its own.
+**History — the identifier requirement was split out as DEV-160 on 2026-08-18.**
+It was declared inside this entry and enforced with its own check and its own
+message, so it was a second rule wearing this one's ID: `check-rule-coverage`
+counts by ID and could only ever report the pair as one. Nothing about either
+rule changed in the split.
 
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`Device.markReplaced`); `src/application/device-inventory/use-cases/ReplaceDeviceUseCase.ts` (`beforeExecute`); route schema in `src/presentation/http/validation/device.schemas.ts`
-**Message:** `Cannot retire a replaced device as <status> — must be one of: DAMAGED, DECOMMISSIONED, INVENTORY` / `The replacement device must have at least a serial number or MAC address`
+**Message:** `Cannot retire a replaced device as <status> — must be one of: DAMAGED, DECOMMISSIONED, INVENTORY`
 **Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/domain/device-inventory/value-objects/DeviceStatus.test.ts`, `tests/application/device-inventory/use-cases/ReplaceDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ReplaceDeviceUseCase.integration.test.ts`
 
 ### DEV-079 — A replacement takes over the retired unit's IP address
@@ -1588,36 +1590,60 @@ an orphaned config is a smaller problem than a half-done swap.
 **Reached from:** `POST /api/devices/:id/replace`
 **Tests:** `tests/application/device-inventory/use-cases/ReplaceDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ReplaceDeviceUseCase.integration.test.ts`
 
-### DEV-082 — A device can be replaced at most once, and the lineage has one source of truth
+### DEV-082 — A device can be replaced once per service life, and the lineage has one source of truth
 
 **Type:** Invariant · **Status:** Active
-**Layer:** Domain + database constraint
-**Since:** 2026-08-12
+**Layer:** Domain
+**Since:** 2026-08-12 · **Amended:** 2026-08-18
 
-Only `replacesDeviceId` is stored, on the replacement's row, and it is `@unique`
-with an `ON DELETE SET NULL` self-reference. `replacedByDeviceId` is read back
-off that index rather than stored. Replacing a unit that already has a successor
-is refused.
+Only `replacesDeviceId` is stored, on the replacement's row, with an
+`ON DELETE SET NULL` self-reference. `replacedByDeviceId` is read back off it
+rather than stored, and resolves to the **most recently created** successor.
+Replacing a unit that already has a successor is refused **while that unit is
+still retired**; once it is back in service the refusal lifts.
 
-**Why:** Storing both directions invites them to disagree, and a lineage chain
-that contradicts itself is worse than no lineage at all — it is the record that
-answers "is this the same CPE the customer has had since March, or a different
-box?", and a wrong answer there re-attributes history to the wrong hardware.
-One column plus the unique index makes the second direction a derivation rather
-than a claim.
+**Why one stored column:** storing both directions invites them to disagree, and
+a lineage chain that contradicts itself is worse than no lineage at all — it is
+the record that answers "is this the same CPE the customer has had since March,
+or a different box?", and a wrong answer there re-attributes history to the
+wrong hardware. One column makes the second direction a derivation rather than
+a claim.
 
-The uniqueness is what enforces "at most once" at the database level: two
-replacements naming the same predecessor cannot both exist. The aggregate check
-gives the operator a sentence instead of a constraint violation.
+**Why the cap is per service life, not per lifetime.** A swap is not always a
+failure (DEV-078): an antenna upgraded for a more powerful model still works and
+goes back to `INVENTORY` as stock. Nothing stops it being deployed to another
+site later, and when it eventually breaks there it needs replacing again. A
+lifetime cap made that second swap unrecordable — the operator got
+`Device has already been replaced` for a unit that was live at a customer, with
+no way forward but to falsify the record. What must not happen is a _second_
+successor for a service life that already ended, which is what the retired-status
+condition expresses: a unit sitting in `INVENTORY`/`DAMAGED`/`DECOMMISSIONED`
+with a successor has been superseded and stays superseded.
+
+**History — the unique index was dropped on 2026-08-18.**
+`devices_replaces_device_id_key` capped the lineage at one successor per row, so
+no aggregate rule could have permitted the second swap; the constraint would
+have rejected the insert regardless. It is replaced by a plain index on the same
+column (`devices_replaces_device_id_idx`), which keeps the back-reference lookup
+an index scan. Rows with several successors are ordered newest-first and the
+head is the current one; the older rows are the record of previous service
+lives. This also removed the check from `DeviceEligibilityService` — see
+DEV-086.
 
 `SET NULL` rather than `RESTRICT` on the self-reference so that purging a
 retired unit at the end of its grace period (DEV-077) breaks the chain instead
 of the delete. Losing the link when the ancestor's record is gone is honest —
 there is nothing left to point at.
 
-**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`Device.markReplaced`); `devices_replaces_device_id_key` in `prisma/migrations/20260811120000_device_soft_delete_and_replacement/migration.sql`
+**Known gap:** a unit that has _never_ been deployed can still be "replaced" —
+`markReplaced` does not require the device to be in service, only that it is not
+a superseded retired one. Replacing a warehouse unit is meaningless (there is
+nothing installed to swap out) but harmless, and tightening it would make
+DEV-079's no-address branch unreachable. Left as-is deliberately.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`Device.markReplaced`)
 **Message:** `Device has already been replaced`
-**Tests:** `tests/application/device-inventory/use-cases/ReplaceDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ReplaceDeviceUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/PurgeDeletedDevicesUseCase.integration.test.ts`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/application/device-inventory/use-cases/ReplaceDeviceUseCase.test.ts`, `tests/infrastructure/mappers/DeviceMapper.test.ts`, `tests/integration/use-cases/device-inventory/ReplaceDeviceUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/PurgeDeletedDevicesUseCase.integration.test.ts`
 
 ### DEV-083 — A deleted device cannot be replaced
 
@@ -1713,8 +1739,8 @@ familiar verb one typo away.
 **Layer:** Domain
 **Since:** 2026-08-13
 
-A device is eligible for polling when it is not deleted, not replaced, its
-status is `ACTIVE` or `COMMISSIONING`, and monitoring is enabled.
+A device is eligible for polling when it is not deleted, its status is `ACTIVE`
+or `COMMISSIONING`, and monitoring is enabled.
 `COMMISSIONING` is included deliberately — see DEV-058/DEV-059; a unit is
 monitored while it is being installed, not only once someone marks it `ACTIVE`.
 
@@ -1726,16 +1752,25 @@ rule once, against the aggregate, gives callers a check that cannot go stale.
 
 Enforced in two places on purpose. `ExecutePollingCycleUseCase` re-reads the
 device and asks `canPoll` before probing — that is the authority. The ICMP
-`findAllDue` query *also* filters on `deleted_at IS NULL AND status IN
+`findAllDue` query _also_ filters on `deleted_at IS NULL AND status IN
 ('ACTIVE', 'COMMISSIONING')`, so an ineligible device is never selected in the
 first place.
 
 **Why the duplication is deliberate:** the SQL filter is an optimisation, not
 the rule. It keeps the scheduler from waking up once per tick for devices it
 will only discard, but it cannot express the whole predicate (`monitoringEnabled`
-is already covered by `pc.enabled`, and replacement is only visible through the
-retired status). If the two ever disagree, the use case wins — it is the one
+is already covered by `pc.enabled`). If the two ever disagree, the use case wins — it is the one
 that runs against the aggregate. A change to this rule must touch both.
+
+**History — the "not replaced" condition was dropped on 2026-08-18.**
+`checkLive` also refused any device with a successor. Having a successor is a
+fact about lineage, not about whether the box is in service: a unit superseded
+by an upgrade and later redeployed to another site is live hardware a customer
+depends on, and this denied its polling _and_ its alerting with nothing but a
+skip to show for it. Being out of service is what `markReplaced` writes as a
+retired status, and the status condition above already refuses that — so
+nothing that should have been skipped is now polled. `DEVICE_REPLACED` was
+removed from `IneligibilityReason` with it. See DEV-082.
 
 **Enforced at:** `src/domain/device-inventory/services/DeviceEligibilityService.ts` (`canPoll`), called from `src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.ts`; pre-filtered in `src/infrastructure/persistence/PrismaPollingConfigurationRepository.ts` (`findAllDue`)
 **Reached from:** the polling orchestrator's tick, and `POST /api/devices/:id/polling/execute` (`forceExecution` does **not** override it — it turns the silent skip into a `400`)
@@ -1744,7 +1779,7 @@ that runs against the aggregate. A change to this rule must touch both.
 
 ---
 
-### DEV-087 — A deleted, replaced or retired device raises no new alert
+### DEV-087 — A deleted or retired device raises no new alert
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application + Domain
@@ -1769,7 +1804,7 @@ hides the device.
 
 **Enforced at:** `src/domain/device-inventory/services/DeviceEligibilityService.ts` (`canAlert`), called from `SendDeviceDownAlertUseCase` and `OpenAlertUseCase`
 **Reached from:** `DeviceWentOfflineEvent` → `SendDeviceDownAlertUseCase`; `WirelessAlertTriggeredEvent` → `AlertRecorder` → `OpenAlertUseCase`
-**Message:** `Device has been deleted` / `Device has been replaced by newer hardware` / `Device is <STATUS> and is not alerted on`
+**Message:** `Device has been deleted` / `Device is <STATUS> and is not alerted on`
 **Tests:** `tests/domain/device-inventory/services/DeviceEligibilityService.test.ts`, `tests/application/notifications/use-cases/SendDeviceDownAlertUseCase.test.ts`, `tests/application/notifications/use-cases/OpenAlertUseCase.test.ts`, `tests/integration/use-cases/notifications/SendDeviceDownAlertUseCase.integration.test.ts`, `tests/integration/use-cases/notifications/SendDeviceRecoveryAlertUseCase.integration.test.ts`
 
 ---
@@ -1784,7 +1819,7 @@ On top of DEV-086, a device is eligible for wireless polling only when its
 category is `WIRELESS_CPE` or `ACCESS_POINT` (DEV-062).
 
 **Why:** The two eligibility questions differ by exactly one term, and writing
-that term twice is how they drift. Note this checks the device's *category*, not
+that term twice is how they drift. Note this checks the device's _category_, not
 `DeviceModel.isWireless` — the model lives in a second aggregate, and pulling it
 in would force a repository into a domain service. `CreateWirelessConfigUseCase`
 already checks the model at config-creation time; re-checking it per poll is
@@ -1792,7 +1827,7 @@ tracked separately.
 
 `PollWirelessDeviceUseCase` reaches this through its own narrow port
 (`application/wireless-monitoring/interfaces/IDeviceRepository`), which returns
-the *reason* rather than the `Device`. That keeps device-inventory's aggregate
+the _reason_ rather than the `Device`. That keeps device-inventory's aggregate
 out of wireless-monitoring; `WirelessDeviceRepositoryAdapter` is where the two
 contexts meet. The wireless `findAllDue` pre-filters on deletion and status like
 DEV-086, but **not** on category — a config only exists for a radio-capable
@@ -2030,7 +2065,7 @@ without geocoding, which the system does not do. _(inferred)_
 **Layer:** Application (not in domain)
 **Since:** 2026-08-11
 
-Distinct from DEV-090/DEV-091: those govern what a *supplied* name or type must
+Distinct from DEV-090/DEV-091: those govern what a _supplied_ name or type must
 look like (length, closed set); this one governs whether the field was supplied
 at all. `LocationProps.name` and `.type` are non-optional in the domain, so
 `Location.create` can never see a missing one — the presence check has to
@@ -2396,6 +2431,49 @@ number of instances — see the Priority 5 item in `docs/TODOS.md`.
 
 **Enforced at:** `src/presentation/http/middleware/rateLimiter.ts`, applied per route via `createRateLimiter(...)`
 **Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`
+
+---
+
+## Device (continued)
+
+The `DEV-040` – `DEV-089` block is fully allocated and IDs are never reused or
+renumbered, so Device rules added after 2026-08-18 continue here.
+
+### DEV-160 — A replacement device must carry a serial number or a MAC address
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application + Domain
+**Since:** 2026-08-12 · **Revised:** 2026-08-18
+
+A `Device` created as the successor of another — one whose `replacesDeviceId` is
+set — must have at least one of `serialNumber`, `macAddress`. Neither is
+required on its own; only the absence of both is refused. The requirement then
+holds for the unit's whole life, not just at creation: an update that would
+clear the last remaining identifier of a replacement is refused too.
+
+**Why:** This is DEV-053 arriving early. Whichever retired status the caller
+picks under DEV-078, the outgoing unit will need an identifier — and the
+incoming box is different hardware, so it cannot borrow the one it is replacing.
+
+**Status alone cannot express it, which is why the rule is separate.** DEV-053
+keys off the retired statuses, and a replacement that takes over an IP address
+under DEV-079 is born `COMMISSIONING`. That is not a retired status, so the
+replacement most likely to be confused with its predecessor — same location,
+same customer, same address, both rows live — is exactly the one DEV-053 does
+not cover. Once the IP has moved, what is printed on the box is the only thing
+left that tells the two apart.
+
+**History — this rule was declared inside DEV-078 until 2026-08-18**, and
+enforced only in `ReplaceDeviceUseCase.beforeExecute` and the route schema. It
+moved into `Device.validate` on the same date. `Device.create` would previously
+accept a replacement carrying neither identifier, so the invariant held only for
+callers arriving through the use case. The application-layer check stayed: it
+fails before `executeImpl` retires and saves the outgoing unit, which is what
+keeps a rejected replacement from leaving a retired device with no successor.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`Device.requiresIdentifier`, applied by `Device.validate` and so by `create` and every mutator); `src/application/device-inventory/use-cases/ReplaceDeviceUseCase.ts` (`beforeExecute`); route schema in `src/presentation/http/validation/device.schemas.ts`
+**Message:** `The replacement device must have at least a serial number or MAC address`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/application/device-inventory/use-cases/ReplaceDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ReplaceDeviceUseCase.integration.test.ts`
 
 ---
 

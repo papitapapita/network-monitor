@@ -189,11 +189,13 @@ model Device {
   deletedAt     DateTime? @map("deleted_at") @db.Timestamptz
   deletedBy     String?   @map("deleted_by") @db.Uuid
 
-  // Replacement lineage. Only `replacesDeviceId` is stored — it is @unique, so
-  // `replacedBy` is its back-reference rather than a second column that could
-  // drift out of step with it.
+  // Replacement lineage. Only `replacesDeviceId` is stored; `replacedBy` is its
+  // back-reference rather than a second column that could drift out of step
+  // with it. Not unique: a unit that goes back into service after being
+  // superseded can be replaced again, so one row may have several successors
+  // over its life. The current one is the most recently created.
   replacedAt       DateTime? @map("replaced_at") @db.Timestamptz
-  replacesDeviceId String?   @unique @map("replaces_device_id") @db.Uuid
+  replacesDeviceId String?   @map("replaces_device_id") @db.Uuid
 
   // Monitoring
   monitoringEnabled Boolean @default(true) @map("monitoring_enabled")
@@ -202,7 +204,7 @@ model Device {
   deviceModel                  DeviceModel                   @relation(fields: [deviceModelId], references: [id], onDelete: Restrict)
   location                     Location?                     @relation(fields: [locationId], references: [id], onDelete: SetNull)
   replaces                     Device?                       @relation("DeviceReplacement", fields: [replacesDeviceId], references: [id], onDelete: SetNull)
-  replacedBy                   Device?                       @relation("DeviceReplacement")
+  replacedBy                   Device[]                      @relation("DeviceReplacement")
   pollingConfiguration         PollingConfiguration?
   deviceState                  DeviceState?
   pingResults                  PingResult[]

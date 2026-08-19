@@ -153,7 +153,8 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       monitoringEnabled,
       description: props.description ?? null,
       installedDate: props.installedDate ?? null,
-      deletedAt: null
+      deletedAt: null,
+      isReplacement: (props.replacesDeviceId ?? null) !== null
     });
 
     if (validationResult.isFailure) {
@@ -326,7 +327,8 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       monitoringEnabled,
       description: next.description,
       installedDate: next.installedDate,
-      deletedAt: this.props.deletedAt
+      deletedAt: this.props.deletedAt,
+      isReplacement: this.props.replacesDeviceId !== null
     });
 
     if (validationResult.isFailure) {
@@ -605,10 +607,12 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       return Result.fail<void>('Cannot replace a deleted device');
     }
 
-    if (this.isReplaced()) {
-      return Result.fail<void>(
-        'Device has already been replaced'
-      );
+    // Only while it is still retired. A unit superseded by an upgrade goes back
+    // to INVENTORY as stock, and putting it into service somewhere else starts
+    // a new service life that can end in its own replacement. What must not
+    // happen is a second successor for the life that already ended.
+    if (this.isReplaced() && this.props.status.isRetired()) {
+      return Result.fail<void>('Device has already been replaced');
     }
 
     const guardResult = Guard.combine([
@@ -638,7 +642,8 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       monitoringEnabled: false,
       description: this.props.description,
       installedDate: this.props.installedDate,
-      deletedAt: null
+      deletedAt: null,
+      isReplacement: this.props.replacesDeviceId !== null
     });
 
     if (validationResult.isFailure) {
@@ -789,8 +794,16 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
 
   // Every retired status needs one: a unit that is not on the network can only
   // be told apart from its shelf-mates by something written on the box.
-  private static requiresIdentifier(status: DeviceStatus): boolean {
-    return status.isRetired();
+  //
+  // A replacement needs one for a different reason: it is a second row for the
+  // same job, so the identifier is what distinguishes the incoming box from
+  // the one it succeeded. Status alone would not catch it — a replacement that
+  // inherits an IP is born COMMISSIONING, which is not a retired status.
+  private static requiresIdentifier(
+    status: DeviceStatus,
+    isReplacement: boolean
+  ): boolean {
+    return status.isRetired() || isReplacement;
   }
 
   // Single source of truth for status-dependent invariants — every
@@ -807,6 +820,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     description: string | null;
     installedDate: Date | null;
     deletedAt: Date | null;
+    isReplacement: boolean;
   }): Result<void> {
     if (state.monitoringEnabled && state.deletedAt !== null) {
       return Result.fail<void>(
@@ -815,12 +829,14 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     }
 
     if (
-      Device.requiresIdentifier(state.status) &&
+      Device.requiresIdentifier(state.status, state.isReplacement) &&
       !state.serialNumber &&
       !state.macAddress
     ) {
       return Result.fail<void>(
-        `A device with status ${state.status.toString()} must have at least a serial number or MAC address`
+        state.isReplacement
+          ? 'The replacement device must have at least a serial number or MAC address'
+          : `A device with status ${state.status.toString()} must have at least a serial number or MAC address`
       );
     }
 

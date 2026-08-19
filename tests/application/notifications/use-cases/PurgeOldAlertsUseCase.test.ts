@@ -19,6 +19,7 @@ function makeRepo(): jest.Mocked<IAlertRepository> {
     save: jest.fn(),
     findById: jest.fn(),
     findOpenByDeviceAndType: jest.fn(),
+    findAllOpenByDeviceId: jest.fn(),
     findAllByDeviceId: jest.fn(),
     findAll: jest.fn(),
     deleteById: jest.fn(),
@@ -36,7 +37,9 @@ describe('PurgeOldAlertsUseCase', () => {
   beforeEach(() => {
     repo = makeRepo();
     useCase = new PurgeOldAlertsUseCase(repo);
-    dateSpy = jest.spyOn(Date, 'now').mockReturnValue(FIXED_TIMESTAMP);
+    dateSpy = jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(FIXED_TIMESTAMP);
   });
 
   afterEach(() => {

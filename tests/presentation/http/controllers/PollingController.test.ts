@@ -7,6 +7,7 @@ import { GetDevicePollingStatusUseCase } from '../../../../src/application/devic
 import { GetDevicePollingHistoryUseCase } from '../../../../src/application/device-monitoring/use-cases/GetDevicePollingHistoryUseCase';
 import { ConfigureDevicePollingUseCase } from '../../../../src/application/device-monitoring/use-cases/ConfigureDevicePollingUseCase';
 import { CreateDevicePollingUseCase } from '../../../../src/application/device-monitoring/use-cases/CreateDevicePollingUseCase';
+import { DeleteDevicePingHistoryUseCase } from '../../../../src/application/device-monitoring/use-cases/DeleteDevicePingHistoryUseCase';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
@@ -18,16 +19,27 @@ const createMockExecutePollingCycleUseCase = () =>
   ({ execute: jest.fn() }) as unknown as ExecutePollingCycleUseCase;
 
 const createMockGetPollingStatusUseCase = () =>
-  ({ execute: jest.fn() }) as unknown as GetDevicePollingStatusUseCase;
+  ({
+    execute: jest.fn()
+  }) as unknown as GetDevicePollingStatusUseCase;
 
 const createMockGetPollingHistoryUseCase = () =>
-  ({ execute: jest.fn() }) as unknown as GetDevicePollingHistoryUseCase;
+  ({
+    execute: jest.fn()
+  }) as unknown as GetDevicePollingHistoryUseCase;
 
 const createMockConfigurePollingUseCase = () =>
-  ({ execute: jest.fn() }) as unknown as ConfigureDevicePollingUseCase;
+  ({
+    execute: jest.fn()
+  }) as unknown as ConfigureDevicePollingUseCase;
 
 const createMockCreatePollingUseCase = () =>
   ({ execute: jest.fn() }) as unknown as CreateDevicePollingUseCase;
+
+const createMockDeleteDevicePingHistoryUseCase = () =>
+  ({
+    execute: jest.fn()
+  }) as unknown as DeleteDevicePingHistoryUseCase;
 
 const createMockLogger = (): jest.Mocked<ILogger> => ({
   info: jest.fn(),
@@ -108,14 +120,19 @@ describe('PollingController', () => {
   let mockGetPollingHistoryUseCase: GetDevicePollingHistoryUseCase;
   let mockConfigurePollingUseCase: ConfigureDevicePollingUseCase;
   let mockCreatePollingUseCase: CreateDevicePollingUseCase;
+  let mockDeleteDevicePingHistoryUseCase: DeleteDevicePingHistoryUseCase;
   let mockLogger: jest.Mocked<ILogger>;
 
   beforeEach(() => {
-    mockExecutePollingCycleUseCase = createMockExecutePollingCycleUseCase();
+    mockExecutePollingCycleUseCase =
+      createMockExecutePollingCycleUseCase();
     mockGetPollingStatusUseCase = createMockGetPollingStatusUseCase();
-    mockGetPollingHistoryUseCase = createMockGetPollingHistoryUseCase();
+    mockGetPollingHistoryUseCase =
+      createMockGetPollingHistoryUseCase();
     mockConfigurePollingUseCase = createMockConfigurePollingUseCase();
     mockCreatePollingUseCase = createMockCreatePollingUseCase();
+    mockDeleteDevicePingHistoryUseCase =
+      createMockDeleteDevicePingHistoryUseCase();
     mockLogger = createMockLogger();
 
     controller = new PollingController(
@@ -124,6 +141,7 @@ describe('PollingController', () => {
       mockGetPollingHistoryUseCase,
       mockConfigurePollingUseCase,
       mockCreatePollingUseCase,
+      mockDeleteDevicePingHistoryUseCase,
       mockLogger
     );
   });
@@ -137,12 +155,14 @@ describe('PollingController', () => {
     // -----------------------------------------------------------------------
     describe('Happy Path', () => {
       it('should return 200 with the poll result on a successful manual poll', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockExecutePollingCycleUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockPollResult)
-        );
+        (
+          mockExecutePollingCycleUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockPollResult));
 
         await controller.poll(mockReq as Request, res as Response);
 
@@ -151,16 +171,20 @@ describe('PollingController', () => {
       });
 
       it('should pass deviceId and forceExecution: true to the use case', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res } = createMockResponse();
 
-        (mockExecutePollingCycleUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockPollResult)
-        );
+        (
+          mockExecutePollingCycleUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockPollResult));
 
         await controller.poll(mockReq as Request, res as Response);
 
-        expect(mockExecutePollingCycleUseCase.execute).toHaveBeenCalledWith({
+        expect(
+          mockExecutePollingCycleUseCase.execute
+        ).toHaveBeenCalledWith({
           deviceId: DEVICE_UUID,
           forceExecution: true
         });
@@ -170,10 +194,14 @@ describe('PollingController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 404 Not Found', () => {
       it('should return 404 when the use case fails with "not found"', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockExecutePollingCycleUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockExecutePollingCycleUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail(`Device not found: ${DEVICE_UUID}`)
         );
 
@@ -186,10 +214,14 @@ describe('PollingController', () => {
       });
 
       it('should return 404 when the use case fails with "No polling configuration"', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock } = createMockResponse();
 
-        (mockExecutePollingCycleUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockExecutePollingCycleUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail('No polling configuration found for device')
         );
 
@@ -202,12 +234,14 @@ describe('PollingController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 400 Bad Request', () => {
       it('should return 400 when the use case fails with a validation error', async () => {
-        const mockReq = createMockRequest({ params: { id: 'bad-id' } });
+        const mockReq = createMockRequest({
+          params: { id: 'bad-id' }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockExecutePollingCycleUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('Invalid device ID format')
-        );
+        (
+          mockExecutePollingCycleUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.fail('Invalid device ID format'));
 
         await controller.poll(mockReq as Request, res as Response);
 
@@ -221,10 +255,14 @@ describe('PollingController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 500 Internal Server Error (use case Result failure)', () => {
       it('should return 500 when the use case fails with an unrecognised message', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockExecutePollingCycleUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockExecutePollingCycleUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail('Database connection refused')
         );
 
@@ -241,12 +279,14 @@ describe('PollingController', () => {
     describe('Error Path — 500 Internal Server Error (unexpected thrown exception)', () => {
       it('should return 500 and log the error when the use case throws', async () => {
         const thrownError = new Error('Unexpected DB crash');
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockExecutePollingCycleUseCase.execute as jest.Mock).mockRejectedValue(
-          thrownError
-        );
+        (
+          mockExecutePollingCycleUseCase.execute as jest.Mock
+        ).mockRejectedValue(thrownError);
 
         await controller.poll(mockReq as Request, res as Response);
 
@@ -262,17 +302,23 @@ describe('PollingController', () => {
       });
 
       it('should not leak sensitive error details in the response body', async () => {
-        const sensitiveError = new Error('SELECT * FROM polling; -- injected');
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const sensitiveError = new Error(
+          'SELECT * FROM polling; -- injected'
+        );
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, jsonMock } = createMockResponse();
 
-        (mockExecutePollingCycleUseCase.execute as jest.Mock).mockRejectedValue(
-          sensitiveError
-        );
+        (
+          mockExecutePollingCycleUseCase.execute as jest.Mock
+        ).mockRejectedValue(sensitiveError);
 
         await controller.poll(mockReq as Request, res as Response);
 
-        expect(jsonMock).toHaveBeenCalledWith({ error: 'Internal server error' });
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'Internal server error'
+        });
         expect(jsonMock).not.toHaveBeenCalledWith(
           expect.objectContaining({
             error: expect.stringContaining('SELECT')
@@ -281,12 +327,14 @@ describe('PollingController', () => {
       });
 
       it('should handle non-Error thrown values by converting them to strings', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock } = createMockResponse();
 
-        (mockExecutePollingCycleUseCase.execute as jest.Mock).mockRejectedValue(
-          'string exception'
-        );
+        (
+          mockExecutePollingCycleUseCase.execute as jest.Mock
+        ).mockRejectedValue('string exception');
 
         await controller.poll(mockReq as Request, res as Response);
 
@@ -305,30 +353,44 @@ describe('PollingController', () => {
     // -----------------------------------------------------------------------
     describe('Happy Path', () => {
       it('should return 200 with the polling status on success', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetPollingStatusUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockPollingStatusResult)
+        (
+          mockGetPollingStatusUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockPollingStatusResult));
+
+        await controller.getStatus(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getStatus(mockReq as Request, res as Response);
-
         expect(statusMock).toHaveBeenCalledWith(200);
-        expect(jsonMock).toHaveBeenCalledWith(mockPollingStatusResult);
+        expect(jsonMock).toHaveBeenCalledWith(
+          mockPollingStatusResult
+        );
       });
 
       it('should pass deviceId to the use case', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res } = createMockResponse();
 
-        (mockGetPollingStatusUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockPollingStatusResult)
+        (
+          mockGetPollingStatusUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockPollingStatusResult));
+
+        await controller.getStatus(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getStatus(mockReq as Request, res as Response);
-
-        expect(mockGetPollingStatusUseCase.execute).toHaveBeenCalledWith({
+        expect(
+          mockGetPollingStatusUseCase.execute
+        ).toHaveBeenCalledWith({
           deviceId: DEVICE_UUID
         });
       });
@@ -337,14 +399,21 @@ describe('PollingController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 404 Not Found', () => {
       it('should return 404 when the use case fails with "not found"', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetPollingStatusUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockGetPollingStatusUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail(`Device not found: ${DEVICE_UUID}`)
         );
 
-        await controller.getStatus(mockReq as Request, res as Response);
+        await controller.getStatus(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(404);
         expect(jsonMock).toHaveBeenCalledWith({
@@ -353,14 +422,23 @@ describe('PollingController', () => {
       });
 
       it('should return 404 when the use case fails with "No polling configuration"', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock } = createMockResponse();
 
-        (mockGetPollingStatusUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('No polling configuration exists for this device')
+        (
+          mockGetPollingStatusUseCase.execute as jest.Mock
+        ).mockResolvedValue(
+          Result.fail(
+            'No polling configuration exists for this device'
+          )
         );
 
-        await controller.getStatus(mockReq as Request, res as Response);
+        await controller.getStatus(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(404);
       });
@@ -369,14 +447,19 @@ describe('PollingController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 400 Bad Request', () => {
       it('should return 400 when the use case fails with a non-404 error', async () => {
-        const mockReq = createMockRequest({ params: { id: 'bad-id' } });
+        const mockReq = createMockRequest({
+          params: { id: 'bad-id' }
+        });
         const { res, statusMock } = createMockResponse();
 
-        (mockGetPollingStatusUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('Invalid device ID format')
-        );
+        (
+          mockGetPollingStatusUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.fail('Invalid device ID format'));
 
-        await controller.getStatus(mockReq as Request, res as Response);
+        await controller.getStatus(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(400);
       });
@@ -386,17 +469,24 @@ describe('PollingController', () => {
     describe('Error Path — 500 Internal Server Error (unexpected thrown exception)', () => {
       it('should return 500 and log the error when the use case throws', async () => {
         const thrownError = new Error('Connection pool exhausted');
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetPollingStatusUseCase.execute as jest.Mock).mockRejectedValue(
-          thrownError
+        (
+          mockGetPollingStatusUseCase.execute as jest.Mock
+        ).mockRejectedValue(thrownError);
+
+        await controller.getStatus(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getStatus(mockReq as Request, res as Response);
-
         expect(statusMock).toHaveBeenCalledWith(500);
-        expect(jsonMock).toHaveBeenCalledWith({ error: 'Internal server error' });
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'Internal server error'
+        });
         expect(mockLogger.error).toHaveBeenCalledWith(
           'Unexpected error in PollingController',
           thrownError,
@@ -417,14 +507,19 @@ describe('PollingController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetPollingHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockPollingHistoryResult)
+        (
+          mockGetPollingHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockPollingHistoryResult));
+
+        await controller.getHistory(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getHistory(mockReq as Request, res as Response);
-
         expect(statusMock).toHaveBeenCalledWith(200);
-        expect(jsonMock).toHaveBeenCalledWith(mockPollingHistoryResult);
+        expect(jsonMock).toHaveBeenCalledWith(
+          mockPollingHistoryResult
+        );
       });
 
       it('should pass deviceId to the use case', async () => {
@@ -434,13 +529,18 @@ describe('PollingController', () => {
         });
         const { res } = createMockResponse();
 
-        (mockGetPollingHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockPollingHistoryResult)
+        (
+          mockGetPollingHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockPollingHistoryResult));
+
+        await controller.getHistory(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getHistory(mockReq as Request, res as Response);
-
-        expect(mockGetPollingHistoryUseCase.execute).toHaveBeenCalledWith(
+        expect(
+          mockGetPollingHistoryUseCase.execute
+        ).toHaveBeenCalledWith(
           expect.objectContaining({ deviceId: DEVICE_UUID })
         );
       });
@@ -452,13 +552,18 @@ describe('PollingController', () => {
         });
         const { res } = createMockResponse();
 
-        (mockGetPollingHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockPollingHistoryResult)
+        (
+          mockGetPollingHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockPollingHistoryResult));
+
+        await controller.getHistory(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getHistory(mockReq as Request, res as Response);
-
-        expect(mockGetPollingHistoryUseCase.execute).toHaveBeenCalledWith(
+        expect(
+          mockGetPollingHistoryUseCase.execute
+        ).toHaveBeenCalledWith(
           expect.objectContaining({ limit: 10, offset: 20 })
         );
       });
@@ -470,13 +575,18 @@ describe('PollingController', () => {
         });
         const { res } = createMockResponse();
 
-        (mockGetPollingHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockPollingHistoryResult)
+        (
+          mockGetPollingHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockPollingHistoryResult));
+
+        await controller.getHistory(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getHistory(mockReq as Request, res as Response);
-
-        expect(mockGetPollingHistoryUseCase.execute).toHaveBeenCalledWith(
+        expect(
+          mockGetPollingHistoryUseCase.execute
+        ).toHaveBeenCalledWith(
           expect.objectContaining({ status: ['SUCCESS', 'FAILED'] })
         );
       });
@@ -488,13 +598,18 @@ describe('PollingController', () => {
         });
         const { res } = createMockResponse();
 
-        (mockGetPollingHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockPollingHistoryResult)
+        (
+          mockGetPollingHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockPollingHistoryResult));
+
+        await controller.getHistory(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getHistory(mockReq as Request, res as Response);
-
-        expect(mockGetPollingHistoryUseCase.execute).toHaveBeenCalledWith(
+        expect(
+          mockGetPollingHistoryUseCase.execute
+        ).toHaveBeenCalledWith(
           expect.objectContaining({ status: ['SUCCESS'] })
         );
       });
@@ -506,13 +621,18 @@ describe('PollingController', () => {
         });
         const { res } = createMockResponse();
 
-        (mockGetPollingHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockPollingHistoryResult)
+        (
+          mockGetPollingHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockPollingHistoryResult));
+
+        await controller.getHistory(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getHistory(mockReq as Request, res as Response);
-
-        expect(mockGetPollingHistoryUseCase.execute).toHaveBeenCalledWith(
+        expect(
+          mockGetPollingHistoryUseCase.execute
+        ).toHaveBeenCalledWith(
           expect.objectContaining({ status: undefined })
         );
       });
@@ -527,14 +647,18 @@ describe('PollingController', () => {
         });
         const { res } = createMockResponse();
 
-        (mockGetPollingHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockPollingHistoryResult)
+        (
+          mockGetPollingHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockPollingHistoryResult));
+
+        await controller.getHistory(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getHistory(mockReq as Request, res as Response);
-
-        const call = (mockGetPollingHistoryUseCase.execute as jest.Mock).mock
-          .calls[0][0];
+        const call = (
+          mockGetPollingHistoryUseCase.execute as jest.Mock
+        ).mock.calls[0][0];
         expect(call.fromDate).toBeInstanceOf(Date);
         expect(call.toDate).toBeInstanceOf(Date);
       });
@@ -546,14 +670,22 @@ describe('PollingController', () => {
         });
         const { res } = createMockResponse();
 
-        (mockGetPollingHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockPollingHistoryResult)
+        (
+          mockGetPollingHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockPollingHistoryResult));
+
+        await controller.getHistory(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getHistory(mockReq as Request, res as Response);
-
-        expect(mockGetPollingHistoryUseCase.execute).toHaveBeenCalledWith(
-          expect.objectContaining({ fromDate: undefined, toDate: undefined })
+        expect(
+          mockGetPollingHistoryUseCase.execute
+        ).toHaveBeenCalledWith(
+          expect.objectContaining({
+            fromDate: undefined,
+            toDate: undefined
+          })
         );
       });
     });
@@ -567,11 +699,16 @@ describe('PollingController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetPollingHistoryUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockGetPollingHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail('Invalid status value: INVALID_STATUS')
         );
 
-        await controller.getHistory(mockReq as Request, res as Response);
+        await controller.getHistory(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(400);
         expect(jsonMock).toHaveBeenCalledWith({
@@ -583,26 +720,141 @@ describe('PollingController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 500 Internal Server Error (unexpected thrown exception)', () => {
       it('should return 500 and log the error when the use case throws', async () => {
-        const thrownError = new Error('Unexpected error in history fetch');
+        const thrownError = new Error(
+          'Unexpected error in history fetch'
+        );
         const mockReq = createMockRequest({
           params: { id: DEVICE_UUID },
           query: {}
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetPollingHistoryUseCase.execute as jest.Mock).mockRejectedValue(
-          thrownError
+        (
+          mockGetPollingHistoryUseCase.execute as jest.Mock
+        ).mockRejectedValue(thrownError);
+
+        await controller.getHistory(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getHistory(mockReq as Request, res as Response);
-
         expect(statusMock).toHaveBeenCalledWith(500);
-        expect(jsonMock).toHaveBeenCalledWith({ error: 'Internal server error' });
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'Internal server error'
+        });
         expect(mockLogger.error).toHaveBeenCalledWith(
           'Unexpected error in PollingController',
           thrownError,
           { error: 'Unexpected error in history fetch' }
         );
+      });
+    });
+  });
+
+  // =========================================================================
+  describe('deleteHistory (DELETE /api/devices/:id/polling/history)', () => {
+    describe('Happy Path', () => {
+      it('[MON-041] should return 200 with the deleted count', async () => {
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID },
+          query: {}
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (
+          mockDeleteDevicePingHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok({ deletedCount: 42 }));
+
+        await controller.deleteHistory(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(
+          mockDeleteDevicePingHistoryUseCase.execute
+        ).toHaveBeenCalledWith({
+          deviceId: DEVICE_UUID,
+          fromDate: undefined,
+          toDate: undefined
+        });
+        expect(statusMock).toHaveBeenCalledWith(200);
+        expect(jsonMock).toHaveBeenCalledWith({ deletedCount: 42 });
+      });
+
+      it('[MON-041] should convert fromDate/toDate query params to Date objects', async () => {
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID },
+          query: {
+            fromDate: '2024-01-01T00:00:00.000Z',
+            toDate: '2024-01-31T00:00:00.000Z'
+          }
+        });
+        const { res } = createMockResponse();
+
+        (
+          mockDeleteDevicePingHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok({ deletedCount: 5 }));
+
+        await controller.deleteHistory(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(
+          mockDeleteDevicePingHistoryUseCase.execute
+        ).toHaveBeenCalledWith({
+          deviceId: DEVICE_UUID,
+          fromDate: new Date('2024-01-01T00:00:00.000Z'),
+          toDate: new Date('2024-01-31T00:00:00.000Z')
+        });
+      });
+    });
+
+    describe('Error Path — 400 Bad Request', () => {
+      it('[MON-041] should return 400 when the use case fails validation', async () => {
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID },
+          query: {}
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (
+          mockDeleteDevicePingHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(
+          Result.fail('fromDate must be before toDate')
+        );
+
+        await controller.deleteHistory(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(statusMock).toHaveBeenCalledWith(400);
+      });
+    });
+
+    describe('Error Path — 500 Internal Server Error (unexpected thrown exception)', () => {
+      it('should return 500 and log the error when the use case throws', async () => {
+        const thrownError = new Error('Delete failed');
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID },
+          query: {}
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (
+          mockDeleteDevicePingHistoryUseCase.execute as jest.Mock
+        ).mockRejectedValue(thrownError);
+
+        await controller.deleteHistory(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(statusMock).toHaveBeenCalledWith(500);
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'Internal server error'
+        });
       });
     });
   });
@@ -625,9 +877,9 @@ describe('PollingController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockCreatePollingUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockPollingConfig)
-        );
+        (
+          mockCreatePollingUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockPollingConfig));
 
         await controller.create(mockReq as Request, res as Response);
 
@@ -642,19 +894,21 @@ describe('PollingController', () => {
         });
         const { res } = createMockResponse();
 
-        (mockCreatePollingUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockPollingConfig)
-        );
+        (
+          mockCreatePollingUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockPollingConfig));
 
         await controller.create(mockReq as Request, res as Response);
 
-        expect(mockCreatePollingUseCase.execute).toHaveBeenCalledWith({
-          deviceId: DEVICE_UUID,
-          ipAddress: '192.168.1.10',
-          intervalSeconds: 60,
-          failuresBeforeDown: 3,
-          enabled: true
-        });
+        expect(mockCreatePollingUseCase.execute).toHaveBeenCalledWith(
+          {
+            deviceId: DEVICE_UUID,
+            ipAddress: '192.168.1.10',
+            intervalSeconds: 60,
+            failuresBeforeDown: 3,
+            enabled: true
+          }
+        );
       });
     });
 
@@ -667,7 +921,9 @@ describe('PollingController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockCreatePollingUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockCreatePollingUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail(`Device not found: ${DEVICE_UUID}`)
         );
 
@@ -689,7 +945,9 @@ describe('PollingController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockCreatePollingUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockCreatePollingUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail('Invalid IP address: not-an-ip')
         );
 
@@ -712,14 +970,16 @@ describe('PollingController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockCreatePollingUseCase.execute as jest.Mock).mockRejectedValue(
-          thrownError
-        );
+        (
+          mockCreatePollingUseCase.execute as jest.Mock
+        ).mockRejectedValue(thrownError);
 
         await controller.create(mockReq as Request, res as Response);
 
         expect(statusMock).toHaveBeenCalledWith(500);
-        expect(jsonMock).toHaveBeenCalledWith({ error: 'Internal server error' });
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'Internal server error'
+        });
         expect(mockLogger.error).toHaveBeenCalledWith(
           'Unexpected error in PollingController',
           thrownError,
@@ -746,11 +1006,14 @@ describe('PollingController', () => {
         });
         const { res, statusMock, sendMock } = createMockResponse();
 
-        (mockConfigurePollingUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(undefined)
-        );
+        (
+          mockConfigurePollingUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(undefined));
 
-        await controller.configure(mockReq as Request, res as Response);
+        await controller.configure(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(204);
         expect(sendMock).toHaveBeenCalled();
@@ -763,13 +1026,18 @@ describe('PollingController', () => {
         });
         const { res } = createMockResponse();
 
-        (mockConfigurePollingUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(undefined)
+        (
+          mockConfigurePollingUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(undefined));
+
+        await controller.configure(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.configure(mockReq as Request, res as Response);
-
-        expect(mockConfigurePollingUseCase.execute).toHaveBeenCalledWith({
+        expect(
+          mockConfigurePollingUseCase.execute
+        ).toHaveBeenCalledWith({
           deviceId: DEVICE_UUID,
           intervalSeconds: 120,
           failuresBeforeDown: 5,
@@ -787,11 +1055,16 @@ describe('PollingController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockConfigurePollingUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockConfigurePollingUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail(`Device not found: ${DEVICE_UUID}`)
         );
 
-        await controller.configure(mockReq as Request, res as Response);
+        await controller.configure(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(404);
         expect(jsonMock).toHaveBeenCalledWith({
@@ -806,11 +1079,18 @@ describe('PollingController', () => {
         });
         const { res, statusMock } = createMockResponse();
 
-        (mockConfigurePollingUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('No polling configuration found for this device')
+        (
+          mockConfigurePollingUseCase.execute as jest.Mock
+        ).mockResolvedValue(
+          Result.fail(
+            'No polling configuration found for this device'
+          )
         );
 
-        await controller.configure(mockReq as Request, res as Response);
+        await controller.configure(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(404);
       });
@@ -825,11 +1105,16 @@ describe('PollingController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockConfigurePollingUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockConfigurePollingUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail('intervalSeconds must be a positive integer')
         );
 
-        await controller.configure(mockReq as Request, res as Response);
+        await controller.configure(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(400);
         expect(jsonMock).toHaveBeenCalledWith({
@@ -848,14 +1133,19 @@ describe('PollingController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockConfigurePollingUseCase.execute as jest.Mock).mockRejectedValue(
-          thrownError
+        (
+          mockConfigurePollingUseCase.execute as jest.Mock
+        ).mockRejectedValue(thrownError);
+
+        await controller.configure(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.configure(mockReq as Request, res as Response);
-
         expect(statusMock).toHaveBeenCalledWith(500);
-        expect(jsonMock).toHaveBeenCalledWith({ error: 'Internal server error' });
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'Internal server error'
+        });
         expect(mockLogger.error).toHaveBeenCalledWith(
           'Unexpected error in PollingController',
           thrownError,

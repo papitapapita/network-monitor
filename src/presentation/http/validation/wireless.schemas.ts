@@ -65,28 +65,27 @@ export const createWirelessConfigSchema = z.object({
   // deviceType is not accepted: radio mode is derived from the device's
   // category, so linkCapacityKbps/clientsProvisionedLimit are cross-checked
   // in CreateWirelessConfigUseCase where that category is known.
-  body: z
-    .object({
-      ipAddress: z
-        .union([z.string().ipv4(), z.string().ipv6(), z.null()])
-        .optional(),
-      // Floor matches PollingInterval's MIN_SECONDS: polling AirOS faster
-      // than this overloads the embedded web server on the radio.
-      intervalSecs: z.number().int().min(60).max(86400).optional(),
-      enabled: z.boolean().optional(),
-      linkCapacityKbps: z
-        .number()
-        .int()
-        .positive()
-        .nullable()
-        .optional(),
-      clientsProvisionedLimit: z
-        .number()
-        .int()
-        .positive()
-        .nullable()
-        .optional()
-    })
+  body: z.object({
+    ipAddress: z
+      .union([z.string().ipv4(), z.string().ipv6(), z.null()])
+      .optional(),
+    // Floor matches PollingInterval's MIN_SECONDS: polling AirOS faster
+    // than this overloads the embedded web server on the radio.
+    intervalSecs: z.number().int().min(60).max(86400).optional(),
+    enabled: z.boolean().optional(),
+    linkCapacityKbps: z
+      .number()
+      .int()
+      .positive()
+      .nullable()
+      .optional(),
+    clientsProvisionedLimit: z
+      .number()
+      .int()
+      .positive()
+      .nullable()
+      .optional()
+  })
 });
 
 export const getWirelessConfigSchema = z.object({
@@ -124,6 +123,19 @@ export const updateWirelessConfigSchema = z.object({
 
 export const deleteWirelessConfigSchema = z.object({
   params: z.object({ id: uuidSchema })
+});
+
+export const clearWirelessAlertSchema = z.object({
+  params: z.object({ id: uuidSchema, alertId: uuidSchema })
+});
+
+export const bulkClearWirelessAlertsSchema = z.object({
+  params: z.object({ id: uuidSchema }),
+  body: z
+    .object({
+      ids: z.array(uuidSchema).min(1).optional()
+    })
+    .optional()
 });
 
 export type GetWirelessStatusInput = z.infer<
@@ -164,4 +176,10 @@ export type UpdateWirelessConfigInput = z.infer<
 >;
 export type DeleteWirelessConfigInput = z.infer<
   typeof deleteWirelessConfigSchema
+>;
+export type ClearWirelessAlertInput = z.infer<
+  typeof clearWirelessAlertSchema
+>;
+export type BulkClearWirelessAlertsInput = z.infer<
+  typeof bulkClearWirelessAlertsSchema
 >;

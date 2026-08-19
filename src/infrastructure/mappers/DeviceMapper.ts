@@ -40,8 +40,10 @@ export type PrismaDeviceRecord = {
   replacedAt?: Date | null;
   replacesDeviceId?: string | null;
   // Populated from the `replacedBy` back-relation, not a stored column. Reads
-  // that don't ask for it leave the successor link null rather than wrong.
-  replacedBy?: { id: string } | null;
+  // that don't ask for it leave the successor link null rather than wrong. A
+  // unit replaced more than once has several successors; the repository orders
+  // them newest-first, so the head of the list is the current one.
+  replacedBy?: { id: string }[] | null;
 };
 
 type DevicePersistenceData = {
@@ -117,8 +119,9 @@ export class DeviceMapper {
     }
 
     let replacedByDeviceId: DeviceId | null = null;
-    if (raw.replacedBy != null) {
-      const parsed = DeviceId.parse(raw.replacedBy.id);
+    const currentSuccessor = raw.replacedBy?.[0];
+    if (currentSuccessor != null) {
+      const parsed = DeviceId.parse(currentSuccessor.id);
       if (parsed.isFailure) {
         return Result.fail<Device>(
           `Invalid replaced-by device ID: ${parsed.error}`

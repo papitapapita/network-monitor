@@ -24,23 +24,26 @@ const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440080';
 function makeDevice(
   overrides: Partial<Parameters<typeof Device.reconstitute>[1]> = {}
 ): Device {
-  return Device.reconstitute(DeviceId.parse(VALID_DEVICE_UUID).value, {
-    deviceModelId: DeviceModelId.create(),
-    name: DeviceName.create('CPE-Vargas').value,
-    status: DeviceStatus.createActive(),
-    ownerType: DeviceOwnerType.COMPANY,
-    locationId: null,
-    category: null,
-    serialNumber: SerialNumber.create('SN-DEFAULT').value,
-    macAddress: null,
-    ipAddress: null,
-    description: null,
-    installedDate: null,
-    createdAt: new Date('2026-01-01T00:00:00.000Z'),
-    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
-    monitoringEnabled: true,
-    ...overrides
-  });
+  return Device.reconstitute(
+    DeviceId.parse(VALID_DEVICE_UUID).value,
+    {
+      deviceModelId: DeviceModelId.create(),
+      name: DeviceName.create('CPE-Vargas').value,
+      status: DeviceStatus.createActive(),
+      ownerType: DeviceOwnerType.COMPANY,
+      locationId: null,
+      category: null,
+      serialNumber: SerialNumber.create('SN-DEFAULT').value,
+      macAddress: null,
+      ipAddress: null,
+      description: null,
+      installedDate: null,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      monitoringEnabled: true,
+      ...overrides
+    }
+  );
 }
 
 function makeDeviceRepo(device: Device | null = makeDevice()) {
@@ -83,6 +86,7 @@ function makeAlertRepo(): jest.Mocked<IAlertRepository> {
     findOpenByDeviceAndType: jest
       .fn()
       .mockResolvedValue(Result.ok(null)),
+    findAllOpenByDeviceId: jest.fn(),
     findAllByDeviceId: jest.fn(),
     findAll: jest.fn(),
     deleteById: jest.fn(),
@@ -171,7 +175,8 @@ describe('OpenAlertUseCase', () => {
         makeDeviceRepo(null)
       );
 
-      const result = await useCaseWithTombstone.execute(makeRequest());
+      const result =
+        await useCaseWithTombstone.execute(makeRequest());
 
       expect(result.isSuccess).toBe(true);
       expect(repo.save).not.toHaveBeenCalled();
@@ -207,7 +212,8 @@ describe('OpenAlertUseCase', () => {
         brokenRepo
       );
 
-      const result = await useCaseWithBrokenRepo.execute(makeRequest());
+      const result =
+        await useCaseWithBrokenRepo.execute(makeRequest());
 
       expect(result.isFailure).toBe(true);
       expect(repo.save).not.toHaveBeenCalled();

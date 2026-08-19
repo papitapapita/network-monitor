@@ -1,7 +1,10 @@
 // Source: src/application/device-monitoring/use-cases/GetDevicePollingHistoryUseCase.ts
 
 import { GetDevicePollingHistoryUseCase } from '../../../../src/application/device-monitoring/use-cases/GetDevicePollingHistoryUseCase';
-import { IPingResultRepository, PingResultRecord } from '../../../../src/domain/device-monitoring/repository/IPingResultRepository';
+import {
+  IPingResultRepository,
+  PingResultRecord
+} from '../../../../src/domain/device-monitoring/repository/IPingResultRepository';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
@@ -35,7 +38,9 @@ function makePingResultRepo(): jest.Mocked<IPingResultRepository> {
     save: jest.fn(),
     findLatestByDevice: jest.fn(),
     findByDevice: jest.fn(),
-    deleteOlderThan: jest.fn()
+    deleteOlderThan: jest.fn(),
+
+    deleteByDevice: jest.fn()
   };
 }
 
@@ -71,7 +76,10 @@ describe('GetDevicePollingHistoryUseCase', () => {
   beforeEach(() => {
     pingResultRepo = makePingResultRepo();
     logger = makeLogger();
-    useCase = new GetDevicePollingHistoryUseCase(pingResultRepo, logger);
+    useCase = new GetDevicePollingHistoryUseCase(
+      pingResultRepo,
+      logger
+    );
   });
 
   afterEach(() => {
@@ -81,14 +89,18 @@ describe('GetDevicePollingHistoryUseCase', () => {
   // ===========================================================================
   describe('beforeExecute — input validation', () => {
     it('should fail when deviceId is an empty string', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: '' }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: '' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Network device ID is required');
     });
 
     it('should fail when deviceId is whitespace only', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: '  ' }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: '  ' })
+      );
 
       expect(result.isFailure).toBe(true);
     });
@@ -101,7 +113,9 @@ describe('GetDevicePollingHistoryUseCase', () => {
     });
 
     it('should fail when limit exceeds 1000', async () => {
-      const result = await useCase.execute(makeRequest({ limit: 1001 }));
+      const result = await useCase.execute(
+        makeRequest({ limit: 1001 })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Limit must be between');
@@ -122,13 +136,17 @@ describe('GetDevicePollingHistoryUseCase', () => {
         Result.ok({ records: [], total: 0 })
       );
 
-      const result = await useCase.execute(makeRequest({ limit: 1000 }));
+      const result = await useCase.execute(
+        makeRequest({ limit: 1000 })
+      );
 
       expect(result.isSuccess).toBe(true);
     });
 
     it('should fail when offset is negative', async () => {
-      const result = await useCase.execute(makeRequest({ offset: -1 }));
+      const result = await useCase.execute(
+        makeRequest({ offset: -1 })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Offset must be >= 0');
@@ -139,7 +157,9 @@ describe('GetDevicePollingHistoryUseCase', () => {
         Result.ok({ records: [], total: 0 })
       );
 
-      const result = await useCase.execute(makeRequest({ offset: 0 }));
+      const result = await useCase.execute(
+        makeRequest({ offset: 0 })
+      );
 
       expect(result.isSuccess).toBe(true);
     });
@@ -153,7 +173,9 @@ describe('GetDevicePollingHistoryUseCase', () => {
       );
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('fromDate must be before toDate');
+      expect(result.error).toContain(
+        'fromDate must be before toDate'
+      );
     });
 
     it('should succeed when fromDate equals toDate', async () => {
@@ -173,7 +195,9 @@ describe('GetDevicePollingHistoryUseCase', () => {
   // ===========================================================================
   describe('executeImpl — device ID parsing', () => {
     it('should fail when deviceId is not a valid UUID', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: 'not-a-uuid' }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: 'not-a-uuid' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid device ID');
@@ -190,7 +214,9 @@ describe('GetDevicePollingHistoryUseCase', () => {
       const result = await useCase.execute(makeRequest());
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Failed to retrieve polling history');
+      expect(result.error).toContain(
+        'Failed to retrieve polling history'
+      );
     });
 
     it('should call findByDevice with the parsed DeviceId', async () => {
@@ -201,9 +227,9 @@ describe('GetDevicePollingHistoryUseCase', () => {
       await useCase.execute(makeRequest());
 
       expect(pingResultRepo.findByDevice).toHaveBeenCalledTimes(1);
-      expect(pingResultRepo.findByDevice.mock.calls[0][0].toString()).toBe(
-        VALID_DEVICE_UUID
-      );
+      expect(
+        pingResultRepo.findByDevice.mock.calls[0][0].toString()
+      ).toBe(VALID_DEVICE_UUID);
     });
 
     it('should use default limit of 100 when limit is not provided', async () => {
@@ -257,7 +283,9 @@ describe('GetDevicePollingHistoryUseCase', () => {
       const from = new Date('2024-05-01T00:00:00.000Z');
       const to = new Date('2024-06-01T00:00:00.000Z');
 
-      await useCase.execute(makeRequest({ fromDate: from, toDate: to }));
+      await useCase.execute(
+        makeRequest({ fromDate: from, toDate: to })
+      );
 
       const filters = pingResultRepo.findByDevice.mock.calls[0][1];
       expect(filters.fromDate).toEqual(from);
@@ -294,7 +322,9 @@ describe('GetDevicePollingHistoryUseCase', () => {
         Result.ok({ records: [], total: 0 })
       );
 
-      await useCase.execute(makeRequest({ status: ['SUCCESS', 'FAILED'] }));
+      await useCase.execute(
+        makeRequest({ status: ['SUCCESS', 'FAILED'] })
+      );
 
       const filters = pingResultRepo.findByDevice.mock.calls[0][1];
       expect(filters.isReachable).toBeUndefined();
@@ -377,7 +407,10 @@ describe('GetDevicePollingHistoryUseCase', () => {
     });
 
     it('should map ping records to PollingResultDTOs in the results array', async () => {
-      const record = makePingRecord({ isReachable: true, latencyMs: 20 });
+      const record = makePingRecord({
+        isReachable: true,
+        latencyMs: 20
+      });
       pingResultRepo.findByDevice.mockResolvedValue(
         Result.ok({ records: [record], total: 1 })
       );
@@ -396,7 +429,9 @@ describe('GetDevicePollingHistoryUseCase', () => {
       const result = await useCase.execute(makeRequest());
 
       expect(result.value.statistics).toBeDefined();
-      expect(typeof result.value.statistics.successRate).toBe('number');
+      expect(typeof result.value.statistics.successRate).toBe(
+        'number'
+      );
     });
   });
 });

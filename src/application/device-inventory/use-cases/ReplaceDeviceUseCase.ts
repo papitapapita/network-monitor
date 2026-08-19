@@ -82,10 +82,9 @@ export class ReplaceDeviceUseCase extends UseCase<
       );
     }
 
-    // The replacement is a different physical box, and a box out of service is
-    // only identifiable by what is printed on it (DEV-053). Requiring one here
-    // rather than letting Device.create fail keeps the message about the
-    // replacement rather than about an aggregate invariant.
+    // Device.create refuses this too (DEV-160), but not until executeImpl has
+    // already retired the outgoing unit and saved it. Failing here keeps that
+    // from leaving a retired device with no successor.
     if (!request.serialNumber && !request.macAddress) {
       return Result.fail(
         'The replacement device must have at least a serial number or MAC address'
@@ -166,13 +165,10 @@ export class ReplaceDeviceUseCase extends UseCase<
       now
     );
     if (retireResult.isFailure) {
-      return this.fail<ReplaceDeviceResponseDTO>(
-        retireResult.error
-      );
+      return this.fail<ReplaceDeviceResponseDTO>(retireResult.error);
     }
 
-    const saveOldResult =
-      await this.deviceRepository.save(oldDevice);
+    const saveOldResult = await this.deviceRepository.save(oldDevice);
     if (saveOldResult.isFailure) {
       return this.fail<ReplaceDeviceResponseDTO>(
         saveOldResult.error!
@@ -222,11 +218,10 @@ export class ReplaceDeviceUseCase extends UseCase<
 
     let credentialsTransferred = false;
     if (credentialsResult.value !== null) {
-      const writeResult =
-        await this.deviceCredentialsRepository.save(
-          newDevice.id,
-          credentialsResult.value
-        );
+      const writeResult = await this.deviceCredentialsRepository.save(
+        newDevice.id,
+        credentialsResult.value
+      );
       if (writeResult.isFailure) {
         return this.fail<ReplaceDeviceResponseDTO>(
           `Replacement created but credentials could not be transferred: ${writeResult.error}`
@@ -264,8 +259,9 @@ export class ReplaceDeviceUseCase extends UseCase<
     // us — it refuses instead — so the removal is explicit and reported.
     let wirelessConfigRemoved = false;
     if (wirelessConfigResult.value !== null && !newModelIsWireless) {
-      const removeResult =
-        await this.wirelessConfigRepository.delete(oldDevice.id);
+      const removeResult = await this.wirelessConfigRepository.delete(
+        oldDevice.id
+      );
       if (removeResult.isFailure) {
         this.logger.error(
           '[ReplaceDeviceUseCase] Failed to remove the wireless config of the retired device',

@@ -209,3 +209,27 @@ it.
 
 **Enforced at:** `src/application/device-monitoring/use-cases/PurgeOldPingResultsUseCase.ts`, scheduled by `src/infrastructure/retention/DataRetentionOrchestrator.ts`
 **Tests:** `tests/application/device-monitoring/use-cases/PurgeOldPingResultsUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/PurgeOldPingResultsUseCase.integration.test.ts`
+
+### MON-041 — An administrator can delete a device's ping history on demand, scoped by device and optionally by date range
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-08-13
+
+`DELETE /api/devices/:id/polling/history` deletes `ping_results` rows for one
+device, optionally bounded by `fromDate`/`toDate`; omitting both deletes the
+device's entire history. This does not change `PING_RESULT_RETENTION_DAYS` or
+the daily sweep in `MON-040` — it is a scoped, immediate version of the same
+deletion, gated on the `delete` permission (ADMIN only) rather than the
+`update`/`write` tier used for alert-clearing, since it destroys diagnostic
+data at a scale (tens of thousands of rows per device) nothing else in this
+context reaches with one call.
+
+**Why:** The automatic sweep and the admin's blanket "purge stale data now"
+endpoint are both age-cutoff-only and apply globally — neither lets an
+operator clear one problem device's noisy history (e.g. after a known bad
+cable is replaced) without waiting out the retention window or affecting
+every other device's data at the same time.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/DeleteDevicePingHistoryUseCase.ts`, `src/presentation/http/routes/polling.routes.ts`
+**Reached from:** `DELETE /api/devices/:id/polling/history`
+**Tests:** `tests/application/device-monitoring/use-cases/DeleteDevicePingHistoryUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/DeleteDevicePingHistoryUseCase.integration.test.ts`, `tests/integration/polling.routes.test.ts`

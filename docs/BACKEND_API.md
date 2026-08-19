@@ -483,10 +483,10 @@ sortOrder?:        'ASC' | 'DESC'  // default: DESC
 **`deleted` — the recycle bin.** Soft-deleted devices are hidden from every
 listing unless you ask for them:
 
-| Value              | Returns                                          |
-| ------------------ | ------------------------------------------------ |
-| omitted or `false` | live devices only — unchanged from before        |
-| `true`             | **deleted devices only** — this is the bin       |
+| Value              | Returns                                                       |
+| ------------------ | ------------------------------------------------------------- |
+| omitted or `false` | live devices only — unchanged from before                     |
+| `true`             | **deleted devices only** — this is the bin                    |
 | `any`              | both; the only way a tombstone and a live device share a page |
 
 Bin rows carry `deletedAt` and `deletedBy`. Pair it with
@@ -516,13 +516,13 @@ GET /api/devices?deleted=true&sortBy=deletedAt&sortOrder=DESC
 
 **Device status lifecycle:**
 
-| Transition              | Requirements                                  | Side effects                                                                               |
-| ----------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| any → `COMMISSIONING`   | `ipAddress` must be set on the device         | `monitoringEnabled` turned on **unless** the same request sends `monitoringEnabled: false` |
-| any → `ACTIVE`          | `ipAddress` and `locationId` must both be set | —                                                                                          |
-| any → `DAMAGED`         | `serialNumber` or `macAddress` must be set    | monitoring stopped (see below)                                                             |
-| any → `DECOMMISSIONED`  | `serialNumber` or `macAddress` must be set    | monitoring stopped (see below)                                                             |
-| any → `INVENTORY`       | `serialNumber` or `macAddress` must be set    | monitoring stopped (see below)                                                             |
+| Transition             | Requirements                                  | Side effects                                                                               |
+| ---------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| any → `COMMISSIONING`  | `ipAddress` must be set on the device         | `monitoringEnabled` turned on **unless** the same request sends `monitoringEnabled: false` |
+| any → `ACTIVE`         | `ipAddress` and `locationId` must both be set | —                                                                                          |
+| any → `DAMAGED`        | `serialNumber` or `macAddress` must be set    | monitoring stopped (see below)                                                             |
+| any → `DECOMMISSIONED` | `serialNumber` or `macAddress` must be set    | monitoring stopped (see below)                                                             |
+| any → `INVENTORY`      | `serialNumber` or `macAddress` must be set    | monitoring stopped (see below)                                                             |
 
 `DAMAGED` is a side-state (e.g. hardware failure) and can be set from any status.
 
@@ -782,6 +782,7 @@ configuration belonging to the device goes with it. **There is no undo.**
 > too. "Empty the whole bin" is this call per device; there is no bulk endpoint
 > yet, and the `delete` rate limiter allows 60/minute, so a very large bin needs
 > throttling or a bulk endpoint (ask the backend for one if you hit it).
+
 ---
 
 ### `POST /api/devices/:id/replace` — Replace hardware
@@ -840,7 +841,7 @@ Requires the **`activate`** permission (ADMIN and OPERATOR).
 
 - `retiredStatus` is **required** and must be one of `INVENTORY`, `DAMAGED`, `DECOMMISSIONED` → otherwise `400`. This is deliberately the caller's choice: a swap is not always a failure. An upgraded antenna that still works belongs back in `INVENTORY`; a failed one is `DAMAGED`; an obsolete one is `DECOMMISSIONED`
 - At least one of `serialNumber` / `macAddress` → otherwise `400` `"The replacement device must have at least a serial number or MAC address"`. It is a different physical box with its own
-- A device can be replaced **at most once** → `400` `"Device has already been replaced"`. To model a chain of swaps, replace the most recent unit
+- A device can be replaced **once per service life** → `400` `"Device has already been replaced"` while the unit is still retired. A unit put back into service after being superseded (an upgraded antenna redeployed from `INVENTORY`) can be replaced again, and gains a second successor. `replacedByDeviceId` always names the **most recent** one
 - A deleted device cannot be replaced → `404` (it is invisible to reads)
 - Unknown `deviceModelId` → `404` `"Device model not found: <id>"`. Nothing is retired when this fails
 
@@ -850,9 +851,17 @@ Requires the **`activate`** permission (ADMIN and OPERATOR).
 > "current unit" navigation, which is what makes "this CPE, current box since
 > March" answerable.
 >
+> Follow it as a **chain, not a single hop**. A unit can be replaced once per
+> service life, so walking `replacesDeviceId` backwards may pass through several
+> boxes. `replacedByDeviceId` names only the most recent successor — if the unit
+> was superseded, redeployed and superseded again, its earlier successor is not
+> reachable from this field. There is no endpoint that returns the whole chain
+> in one call yet; walk it one `GET /api/devices/:id` at a time.
+>
 > Surface `wirelessConfigRemoved: true` prominently — it means wireless
 > monitoring for that site has stopped because the new hardware has no radio,
 > and nothing will re-create the config automatically.
+
 ---
 
 ## Device Credentials `/api/devices/:id/credentials`
@@ -1179,8 +1188,8 @@ each listed device first, then send `isWireless: false`.
 
 **Query parameters**
 
-| Param                | Type              | Default | Meaning                                                                  |
-| -------------------- | ----------------- | ------- | ------------------------------------------------------------------------ |
+| Param                | Type                | Default | Meaning                                                                   |
+| -------------------- | ------------------- | ------- | ------------------------------------------------------------------------- |
 | `purgeBinnedDevices` | `'true' \| 'false'` | `false` | Permanently delete the model's soft-deleted devices along with the model. |
 
 **Business rules:** DEV-026, DEV-029, DEV-030.
@@ -1319,6 +1328,26 @@ offset?:   number   // ≥0
 
 ---
 
+### `DELETE /api/devices/:id/polling/history` — Delete Ping History
+
+**Status:** 200 | 400  
+**Roles:** ADMIN
+
+```ts
+// Query params (both optional)
+fromDate?: string   // ISO 8601 with offset
+toDate?:   string
+
+// Response
+{ deletedCount: number }
+```
+
+> Permanently deletes stored `PingResult` rows for this device. Omitting both `fromDate` and `toDate` deletes the device's **entire** ping history; giving one or both scopes the deletion to that window.  
+> ADMIN-only — this destroys diagnostic data at a scale (tens of thousands of rows per device) nothing else in this context reaches with one call. Doesn't change the `PING_RESULT_RETENTION_DAYS` retention window or the daily automatic sweep; it's a scoped, on-demand version of the same deletion.  
+> Not scoped to another device, and there is no "delete for every device" variant — the automatic sweep and the admin's blanket data-retention purge already cover fleet-wide cleanup.
+
+---
+
 ### `POST /api/devices/:id/polling/config` — Create / Upsert Polling Config
 
 **Status:** 201 | 400 | 404
@@ -1446,6 +1475,52 @@ offset?:   number  // ≥0, default 0
 
 ---
 
+### `POST /api/alerts/:id/clear` — Clear
+
+**Status:** 200 | 400 | 404  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// No request body
+
+// Response
+{ success: true, data: AlertDTO }  // status: 'RESOLVED'
+```
+
+> Manually resolves an open alert — same effect as the system auto-resolving it (`resolvedAt` is stamped, `status` becomes `RESOLVED`). There is no separate "acknowledged" state: a clear is a real resolve, so it does **not** suppress the alert from reopening if the producer's next cycle still finds the fault.  
+> **Idempotent.** Clearing an alert that is already resolved returns `200` with its current (already-resolved) state, not an error.  
+> Returns 404 if no alert exists with that id.
+
+---
+
+### `POST /api/alerts/clear` — Bulk Clear
+
+**Status:** 200 | 400  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// Request body — exactly one of ids or deviceId
+{
+  ids?: string[]       // explicit alert UUIDs, any device
+  deviceId?: string    // UUID — clear every currently OPEN alert for this device
+}
+
+// Response
+{
+  success: true,
+  data: {
+    cleared: AlertDTO[]
+    skipped: { id: string, reason: string }[]   // e.g. already resolved
+    failed:  { id: string, error: string }[]    // e.g. not found
+  }
+}
+```
+
+> Always returns `200` with a bucketed report — one bad id in a batch does not fail the rest, which is the point after an outage storm trips alerts across several devices at once.  
+> Returns 400 if both `ids` and `deviceId` are provided, or neither.
+
+---
+
 ### `DELETE /api/alerts/:id` — Delete
 
 **Status:** 204 | 400 | 404 | 409  
@@ -1456,9 +1531,33 @@ offset?:   number  // ≥0, default 0
 // Response: 204 No Content
 ```
 
-> **Only resolved alerts can be deleted.** Deleting an alert that is still `OPEN` returns 409 `"Cannot delete an alert that is still open"` — resolve (or let it auto-resolve) first.  
-> Returns 400 for a non-UUID id, 404 if no alert exists with that id.  
-> There is no create/update endpoint — alerts are opened and resolved by the system (producers), never by clients. This is read + delete only.
+> **Only resolved alerts can be deleted.** Deleting an alert that is still `OPEN` returns 409 `"Cannot delete an alert that is still open"` — clear it (`POST .../clear`) or let it auto-resolve first.  
+> Returns 400 for a non-UUID id, 404 if no alert exists with that id.
+
+---
+
+### `DELETE /api/alerts` — Bulk Delete
+
+**Status:** 200 | 400  
+**Roles:** ADMIN
+
+```ts
+// Request body
+{ ids: string[] }   // required, non-empty — no "delete all resolved" shortcut
+
+// Response
+{
+  success: true,
+  data: {
+    deleted: string[]                             // ids actually removed
+    skipped: { id: string, reason: string }[]      // still open — same guard as the single-delete route
+    failed:  { id: string, error: string }[]       // not found
+  }
+}
+```
+
+> Always returns `200` with a bucketed report, same shape as bulk clear. An open alert in the batch is `skipped`, not a hard failure — the rest of the batch still deletes.  
+> There is no filter-based "delete everything resolved" call: deleting alert history is destructive, so the caller must name what it's removing.
 
 ---
 
@@ -1823,20 +1922,23 @@ stream. Returns 429 once a user holds 5 concurrent streams, or the server holds
 Same transport and authentication as the per-device stream. **The opening frame
 has a different event name and a different shape from the ones that follow:**
 
-| Order       | Event                 | Payload                                          |
-| ----------- | --------------------- | ------------------------------------------------ |
-| First only  | `throughput-snapshot` | `{ devices: WirelessThroughputDTO[], total }`     |
-| Every later | `throughput`          | A single `WirelessThroughputDTO` for one device   |
+| Order       | Event                 | Payload                                         |
+| ----------- | --------------------- | ----------------------------------------------- |
+| First only  | `throughput-snapshot` | `{ devices: WirelessThroughputDTO[], total }`   |
+| Every later | `throughput`          | A single `WirelessThroughputDTO` for one device |
 
 > A client that assumes a full list on every frame will render wrong. Seed state
 > from `throughput-snapshot`, then upsert each `throughput` delta by `deviceId`.
 
 ```js
-const es = new EventSource(`/api/wireless/throughput/stream?token=${jwt}`);
+const es = new EventSource(
+  `/api/wireless/throughput/stream?token=${jwt}`
+);
 const fleet = new Map();
 
 es.addEventListener('throughput-snapshot', (e) => {
-  for (const d of JSON.parse(e.data).devices) fleet.set(d.deviceId, d);
+  for (const d of JSON.parse(e.data).devices)
+    fleet.set(d.deviceId, d);
 });
 es.addEventListener('throughput', (e) => {
   const d = JSON.parse(e.data);
@@ -1880,6 +1982,46 @@ WirelessAlertDTO[]
 
 > Returns all alerts (active and cleared) for the device within the optional time window.  
 > Returns an empty array for unknown device IDs.
+
+---
+
+### `POST /api/devices/:id/wireless/alerts/:alertId/clear` — Clear Alert
+
+**Status:** 200 | 400 | 404  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// No request body
+
+// Response
+WirelessAlertDTO; // isActive: false
+```
+
+> Manually clears an active alert — the same transition `PollWirelessDeviceUseCase` makes automatically when a metric recovers, including the recovery notification/ticket-close side effects.  
+> **Idempotent.** Clearing an already-cleared alert returns `200` with its current state, not an error.  
+> Returns 404 if the alert doesn't exist, or exists but belongs to a **different** device than `:id` (the two cases aren't distinguished in the response, so a client can't probe another device's alert ids).
+
+---
+
+### `POST /api/devices/:id/wireless/alerts/clear` — Bulk Clear Alerts
+
+**Status:** 200 | 400  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// Request body (optional)
+{ ids?: string[] }   // omit entirely to clear every active alert for this device
+
+// Response
+{
+  cleared: WirelessAlertDTO[]
+  skipped: { id: string, reason: string }[]   // e.g. already cleared
+  failed:  { id: string, error: string }[]    // e.g. not found, or belongs to another device
+}
+```
+
+> Always returns `200` with a bucketed report — clearing alerts one at a time doesn't scale after a device trips several metrics at once.  
+> Omitting `ids` clears the device's full active-alert list without the caller having to fetch it first.
 
 ---
 

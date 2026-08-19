@@ -30,7 +30,9 @@ export class PrismaAlertRepository implements IAlertRepository {
 
       return Result.ok(alert);
     } catch (error) {
-      return Result.fail(`Database error saving alert: ${(error as Error).message}`);
+      return Result.fail(
+        `Database error saving alert: ${(error as Error).message}`
+      );
     }
   }
 
@@ -70,6 +72,23 @@ export class PrismaAlertRepository implements IAlertRepository {
     } catch (error) {
       return Result.fail(
         `Database error finding open alert: ${(error as Error).message}`
+      );
+    }
+  }
+
+  async findAllOpenByDeviceId(
+    deviceId: DeviceId
+  ): Promise<Result<Alert[]>> {
+    try {
+      const records = await this.prisma.alertEvent.findMany({
+        where: { deviceId: deviceId.toString(), resolvedAt: null },
+        orderBy: { startedAt: 'desc' }
+      });
+
+      return Result.ok(records.map(AlertMapper.toDomain));
+    } catch (error) {
+      return Result.fail(
+        `Database error finding open alerts by device: ${(error as Error).message}`
       );
     }
   }
@@ -124,7 +143,9 @@ export class PrismaAlertRepository implements IAlertRepository {
     }
   }
 
-  async deleteResolvedOlderThan(cutoff: Date): Promise<Result<number>> {
+  async deleteResolvedOlderThan(
+    cutoff: Date
+  ): Promise<Result<number>> {
     try {
       const { count } = await this.prisma.alertEvent.deleteMany({
         where: { resolvedAt: { not: null, lt: cutoff } }

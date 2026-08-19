@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import { WirelessController } from '../controllers';
-import { validateRequest, authorize, createRateLimiter } from '../middleware';
+import {
+  validateRequest,
+  authorize,
+  createRateLimiter
+} from '../middleware';
 import {
   getWirelessStatusSchema,
   getWirelessHistorySchema,
@@ -14,7 +18,9 @@ import {
   createWirelessConfigSchema,
   getWirelessConfigSchema,
   updateWirelessConfigSchema,
-  deleteWirelessConfigSchema
+  deleteWirelessConfigSchema,
+  clearWirelessAlertSchema,
+  bulkClearWirelessAlertsSchema
 } from '../validation';
 
 /**
@@ -31,6 +37,8 @@ import {
  * - GET    /api/devices/:id/wireless/clients       - Connected client list (AP only)
  * - GET    /api/devices/:id/wireless/alerts/history - Alert history for device
  * - GET    /api/devices/:id/wireless/alerts        - Active alerts for device
+ * - POST   /api/devices/:id/wireless/alerts/clear  - Bulk clear (ids or all active)
+ * - POST   /api/devices/:id/wireless/alerts/:alertId/clear - Clear one alert
  * - POST   /api/devices/:id/wireless/poll          - Trigger immediate poll
  * - POST   /api/devices/:id/wireless/reboot        - Reboot the device
  * - GET    /api/wireless/alerts/history            - All alert history
@@ -113,6 +121,23 @@ export function createWirelessRoutes(
     createRateLimiter('read'),
     validateRequest(getDeviceWirelessAlertsSchema),
     controller.getDeviceActiveAlerts
+  );
+
+  // Static /clear suffix before the dynamic /:alertId/clear segment
+  router.post(
+    '/devices/:id/wireless/alerts/clear',
+    authorize('update'),
+    createRateLimiter('write'),
+    validateRequest(bulkClearWirelessAlertsSchema),
+    controller.bulkClearAlerts
+  );
+
+  router.post(
+    '/devices/:id/wireless/alerts/:alertId/clear',
+    authorize('update'),
+    createRateLimiter('write'),
+    validateRequest(clearWirelessAlertSchema),
+    controller.clearAlert
   );
 
   router.post(

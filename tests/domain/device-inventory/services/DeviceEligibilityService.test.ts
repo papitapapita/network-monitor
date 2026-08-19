@@ -9,7 +9,10 @@ import {
   DeviceStatus,
   SerialNumber
 } from '../../../../src/domain/device-inventory';
-import { DeviceId, DeviceModelId } from '../../../../src/domain/shared';
+import {
+  DeviceId,
+  DeviceModelId
+} from '../../../../src/domain/shared';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -89,17 +92,14 @@ describe('DeviceEligibilityService', () => {
       });
     });
 
-    it('should deny a replaced device', () => {
+    it('should allow a superseded unit that is back in service — lineage is not a reason to stop monitoring', () => {
       const device = makeDevice({
         replacedByDeviceId: DeviceId.create()
       });
 
       const decision = service.canPoll(device);
 
-      expect(decision).toMatchObject({
-        eligible: false,
-        reason: 'DEVICE_REPLACED'
-      });
+      expect(decision.eligible).toBe(true);
     });
 
     it.each(RETIRED_STATUSES)(
@@ -172,17 +172,14 @@ describe('DeviceEligibilityService', () => {
       });
     });
 
-    it('should deny a replaced device', () => {
+    it('should allow a superseded unit that is back in service — lineage is not a reason to stop monitoring', () => {
       const device = makeDevice({
         replacedByDeviceId: DeviceId.create()
       });
 
       const decision = service.canAlert(device);
 
-      expect(decision).toMatchObject({
-        eligible: false,
-        reason: 'DEVICE_REPLACED'
-      });
+      expect(decision.eligible).toBe(true);
     });
 
     it.each(RETIRED_STATUSES)(

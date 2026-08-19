@@ -44,6 +44,37 @@ describe('DeviceMapper', () => {
   // =========================================================================
   describe('toDomain()', () => {
     // -----------------------------------------------------------------------
+    describe('[DEV-082] replacement lineage', () => {
+      it('should leave the successor link null when the read omits it', () => {
+        const result = DeviceMapper.toDomain(makeRawDevice());
+
+        expect(result.value.replacedByDeviceId).toBeNull();
+      });
+
+      it('should leave the successor link null when the unit has none', () => {
+        const raw = makeRawDevice({ replacedBy: [] });
+
+        const result = DeviceMapper.toDomain(raw);
+
+        expect(result.value.replacedByDeviceId).toBeNull();
+      });
+
+      it('should take the head of the list as the current successor', () => {
+        // A unit replaced, redeployed and replaced again has two successors.
+        // The repository orders them newest-first.
+        const raw = makeRawDevice({
+          replacedBy: [{ id: VALID_UUID_2 }, { id: VALID_UUID_3 }]
+        });
+
+        const result = DeviceMapper.toDomain(raw);
+
+        expect(result.value.replacedByDeviceId?.toString()).toBe(
+          VALID_UUID_2
+        );
+      });
+    });
+
+    // -----------------------------------------------------------------------
     describe('happy path — complete raw record', () => {
       it('should return a successful Result', () => {
         const raw = makeRawDevice();

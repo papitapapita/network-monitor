@@ -6,6 +6,8 @@ export * from './GetWirelessDeviceHistoryUseCase';
 export * from './GetWirelessClientsUseCase';
 export * from './GetActiveWirelessAlertsUseCase';
 export * from './GetWirelessAlertHistoryUseCase';
+export * from './ClearWirelessAlertUseCase';
+export * from './BulkClearWirelessAlertsUseCase';
 export * from './TriggerWirelessPollUseCase';
 export * from './RebootWirelessDeviceUseCase';
 export * from './CreateWirelessConfigUseCase';

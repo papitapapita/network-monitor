@@ -448,7 +448,13 @@ describe('PrismaDeviceRepository', () => {
 
         expect(prisma.device.findFirst).toHaveBeenCalledWith({
           where: { id: fakeDeviceId.toString(), deletedAt: null },
-          include: { replacedBy: { select: { id: true } } }
+          include: {
+            replacedBy: {
+              select: { id: true },
+              orderBy: { createdAt: 'desc' },
+              take: 1
+            }
+          }
         });
       });
 
@@ -909,7 +915,13 @@ describe('PrismaDeviceRepository', () => {
 
       expect(prisma.device.findFirst).toHaveBeenCalledWith({
         where: { macAddress: 'AA:BB:CC:DD:EE:FF', deletedAt: null },
-        include: { replacedBy: { select: { id: true } } }
+        include: {
+          replacedBy: {
+            select: { id: true },
+            orderBy: { createdAt: 'desc' },
+            take: 1
+          }
+        }
       });
     });
 
@@ -956,7 +968,13 @@ describe('PrismaDeviceRepository', () => {
 
       expect(prisma.device.findFirst).toHaveBeenCalledWith({
         where: { ipAddress: '192.168.1.1', deletedAt: null },
-        include: { replacedBy: { select: { id: true } } }
+        include: {
+          replacedBy: {
+            select: { id: true },
+            orderBy: { createdAt: 'desc' },
+            take: 1
+          }
+        }
       });
     });
 
@@ -1110,7 +1128,10 @@ describe('PrismaDeviceRepository', () => {
 
         const call = prisma.device.findMany.mock
           .calls[0][0] as Record<string, unknown>;
-        expect(call.where).toEqual({ status: 'ACTIVE', deletedAt: null });
+        expect(call.where).toEqual({
+          status: 'ACTIVE',
+          deletedAt: null
+        });
       });
 
       it('should build where with only owner when only owner filter is provided', async () => {
@@ -1122,7 +1143,10 @@ describe('PrismaDeviceRepository', () => {
 
         const call = prisma.device.findMany.mock
           .calls[0][0] as Record<string, unknown>;
-        expect(call.where).toEqual({ owner: 'CLIENT', deletedAt: null });
+        expect(call.where).toEqual({
+          owner: 'CLIENT',
+          deletedAt: null
+        });
       });
 
       it('should build where with only monitoringEnabled when provided', async () => {
@@ -1174,7 +1198,10 @@ describe('PrismaDeviceRepository', () => {
 
         const call = prisma.device.findMany.mock
           .calls[0][0] as Record<string, unknown>;
-        expect(call.where).toEqual({ category: 'CPE', deletedAt: null });
+        expect(call.where).toEqual({
+          category: 'CPE',
+          deletedAt: null
+        });
       });
 
       it('should combine multiple filters in a single where object', async () => {

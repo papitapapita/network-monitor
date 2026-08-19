@@ -31,8 +31,14 @@ export class PrismaDeviceRepository implements IDeviceRepository {
 
   // `replacedByDeviceId` is not a column — it is the back-reference of the
   // successor's `replacesDeviceId`. Reads that skip this include leave it null.
+  // A unit put back into service can be replaced again, so there may be several
+  // successors; the newest is the one that succeeds it now.
   private static readonly LINEAGE = {
-    replacedBy: { select: { id: true } }
+    replacedBy: {
+      select: { id: true },
+      orderBy: { createdAt: 'desc' },
+      take: 1
+    }
   } as const;
 
   public async save(device: Device): Promise<Result<Device>> {

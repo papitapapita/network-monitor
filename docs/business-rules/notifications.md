@@ -272,6 +272,79 @@ announced" and "recorded only".
 **Tests:** `tests/application/notifications/use-cases/SendDeviceDownAlertUseCase.test.ts`,
 `tests/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.test.ts`
 
+### NOT-037 — An operator can manually clear an open alert, identical to an automatic resolve
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-08-13
+
+`ClearAlertUseCase` loads an alert by id and calls the same `Alert.resolve()`
+every producer's auto-resolve path already uses — there is no separate
+"acknowledged" state and no suppression window. Clearing an alert that is
+already resolved is not an error: the use case recognises `resolve()`'s
+`'Alert already resolved'` failure and returns the current state as a success
+instead of propagating it, matching `NOT-061`'s idempotency for the automatic
+path.
+
+**Why:** A manual clear that only hides the alert while the underlying fault
+is still breaching would be undone by the very next producer cycle re-opening
+it (`NOT-060`/`NOT-061`), so a plain resolve is the honest behaviour: it means
+"this is fixed," not "stop telling me." This deliberately supersedes the
+`NOT-150` framing below, which predates any client-facing write on `Alert`.
+
+**Enforced at:** `src/application/notifications/use-cases/ClearAlertUseCase.ts`
+**Reached from:** `POST /api/alerts/:id/clear`
+**Message:** `Alert not found`
+**Tests:** `tests/application/notifications/use-cases/ClearAlertUseCase.test.ts`, `tests/integration/use-cases/notifications/ClearAlertUseCase.integration.test.ts`, `tests/integration/alert.routes.test.ts`
+
+### NOT-038 — Bulk clear accepts explicit ids or every open alert for one device, never both
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-08-13
+
+`BulkClearAlertsUseCase` takes exactly one of `ids` (a list of alert ids,
+possibly spanning devices) or `deviceId` (clear everything currently open for
+that device). Supplying both, or neither, fails validation before any lookup
+runs. As with `NOT-037`, results are bucketed into `cleared`, `skipped`
+(already resolved) and `failed` (not found) rather than aborting the whole
+request on the first bad id.
+
+**Why:** An outage storm trips alerts across many devices at once, which the
+device-scoped wireless bulk-clear (`WLS-128`) cannot express — this is the
+cross-device counterpart. Requiring exactly one selector keeps the request
+unambiguous: "these specific alerts" and "everything for this device" are
+different intents that should not silently merge if a caller sends both.
+
+**Enforced at:** `src/application/notifications/use-cases/BulkClearAlertsUseCase.ts`
+**Reached from:** `POST /api/alerts/clear`
+**Message:** `Exactly one of ids or deviceId is required`
+**Tests:** `tests/application/notifications/use-cases/BulkClearAlertsUseCase.test.ts`, `tests/integration/use-cases/notifications/BulkClearAlertsUseCase.integration.test.ts`, `tests/integration/alert.routes.test.ts`
+
+### NOT-039 — Bulk delete is bucketed the same way, and never deletes an open alert
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-08-13
+
+`BulkDeleteAlertsUseCase` extends the single `DELETE /api/alerts/:id` guard
+(`NOT-132`) to a required list of ids. Each id is resolved independently: an
+open alert is bucketed as `skipped` with the same `'Cannot delete an alert
+that is still open'` reason the single-delete path already uses, a missing
+id is `failed`, and everything else is deleted and bucketed under `deleted`.
+There is no "delete every resolved alert" shortcut — the caller must name
+what it is deleting.
+
+**Why:** Deleting alert history is destructive and, unlike a clear, not
+reversible by re-running the same producer cycle. Requiring explicit ids
+(rather than an implicit "all resolved" filter) keeps one careless bulk call
+from wiping the operational history an operator might still want for a
+post-mortem.
+
+**Enforced at:** `src/application/notifications/use-cases/BulkDeleteAlertsUseCase.ts`
+**Reached from:** `DELETE /api/alerts`
+**Tests:** `tests/application/notifications/use-cases/BulkDeleteAlertsUseCase.test.ts`, `tests/integration/use-cases/notifications/BulkDeleteAlertsUseCase.integration.test.ts`, `tests/integration/alert.routes.test.ts`
+
 ---
 
 ## Deduplication and the shared alert store
@@ -657,40 +730,53 @@ reported total will stop after one page.
 
 ## Cross-cutting
 
-### NOT-150 — Alerts can be read by anyone and deleted only by an administrator
+### NOT-150 — Alerts can be read by anyone, cleared by an operator, deleted only by an administrator
 
 **Type:** Policy · **Status:** Active
 **Layer:** Presentation
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Revised:** 2026-08-13
 
 | Endpoint                                 | Permission |
-| ---------------------------------------- | ---------- |
+| ----------------------------------------- | ---------- |
 | `GET /api/alerts`, `GET /api/alerts/:id` | `read`     |
+| `POST /api/alerts/:id/clear`             | `update`   |
+| `POST /api/alerts/clear`                 | `update`   |
 | `DELETE /api/alerts/:id`                 | `delete`   |
+| `DELETE /api/alerts`                     | `delete`   |
 
-There is no endpoint that creates or resolves an alert.
+There is still no endpoint that *creates* an alert — only the monitoring loops
+open one. `NOT-037`/`NOT-038` are the client-facing exception to "never
+resolved by hand": clearing was added because an operator manually
+acknowledging a fault is a real workflow, and it reaches `Alert.resolve()`
+through the exact same call the automatic path uses.
 
-**Why:** Alerts are produced by the monitoring loops, never by hand — an
-operator-created alert would be a claim about a device that nothing observed.
-Deletion is administrator-only under `IDN-030` because, with `NOT-132` already
-protecting open alerts, the only thing left to delete is history.
+**Why:** Clear sits on `update` (available to OPERATOR) because it is the
+alert-triage equivalent of every other day-to-day operational action, and
+gating it behind an administrator would make the common "yes I saw this,
+it's handled" case need an escalation. Deletion stays administrator-only
+under `IDN-030` because, with `NOT-132`/`NOT-039` already protecting open
+alerts, the only thing left to delete is history — and bulk deletion widens
+the blast radius of a mistake, not the judgment call needed to make it.
 
 **Enforced at:** `src/presentation/http/routes/alert.routes.ts` (`authorize`)
 **Tests:** `tests/integration/alert.routes.test.ts`
 
-### NOT-151 — Alert deletion is metered on the write budget
+### NOT-151 — Alert writes are metered on the write budget, not the stricter delete one
 
 **Type:** Policy · **Status:** Active
 **Layer:** Presentation
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Revised:** 2026-08-13
 
-`DELETE /api/alerts/:id` uses the `write` rate limiter rather than the `delete`
-one used by customers and devices.
+`DELETE /api/alerts/:id`, `DELETE /api/alerts`, `POST /api/alerts/:id/clear`
+and `POST /api/alerts/clear` all use the `write` rate limiter rather than the
+`delete` one used by customers and devices.
 
 **Why:** Recorded because it is inconsistent with `CUS-140` and
 `DEV-146` rather than because it is principled. Alert deletion is a routine
 tidy-up of resolved history, not the destructive act that the stricter `delete`
-budget exists to slow down.
+budget exists to slow down — and clearing needs to survive an outage-storm
+burst of clicks without an operator hitting a tighter budget than every other
+write in the system.
 
 **Enforced at:** `src/presentation/http/routes/alert.routes.ts` (`createRateLimiter`)
 **Tests:** `tests/integration/alert.routes.test.ts`

@@ -3,7 +3,10 @@ import { ILogger } from 'application/shared/interfaces';
 import {
   ListAlertsUseCase,
   GetAlertByIdUseCase,
-  DeleteAlertUseCase
+  DeleteAlertUseCase,
+  ClearAlertUseCase,
+  BulkClearAlertsUseCase,
+  BulkDeleteAlertsUseCase
 } from 'application/notifications/use-cases';
 
 export class AlertController {
@@ -11,6 +14,9 @@ export class AlertController {
     private readonly listAlertsUseCase: ListAlertsUseCase,
     private readonly getAlertByIdUseCase: GetAlertByIdUseCase,
     private readonly deleteAlertUseCase: DeleteAlertUseCase,
+    private readonly clearAlertUseCase: ClearAlertUseCase,
+    private readonly bulkClearAlertsUseCase: BulkClearAlertsUseCase,
+    private readonly bulkDeleteAlertsUseCase: BulkDeleteAlertsUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -82,6 +88,76 @@ export class AlertController {
       }
 
       res.status(204).send();
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public clearAlert = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.clearAlertUseCase.execute({
+        id: req.params.id
+      });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(200).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public bulkClearAlerts = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.bulkClearAlertsUseCase.execute({
+        ids: req.body?.ids,
+        deviceId: req.body?.deviceId
+      });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(200).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public bulkDeleteAlerts = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.bulkDeleteAlertsUseCase.execute({
+        ids: req.body?.ids
+      });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(200).json({ success: true, data: result.value });
     } catch (error) {
       this.handleUnexpectedError(error, res);
     }

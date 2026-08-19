@@ -23,3 +23,27 @@ export const getAlertByIdSchema = z.object({
 export const deleteAlertSchema = z.object({
   params: z.object({ id: uuidSchema })
 });
+
+export const clearAlertSchema = z.object({
+  params: z.object({ id: uuidSchema })
+});
+
+export const bulkClearAlertsSchema = z.object({
+  body: z
+    .object({
+      ids: z.array(uuidSchema).min(1).optional(),
+      deviceId: uuidSchema.optional()
+    })
+    .refine(
+      (data) => (data.ids ? 1 : 0) + (data.deviceId ? 1 : 0) === 1,
+      {
+        message: 'Provide exactly one of ids or deviceId'
+      }
+    )
+});
+
+export const bulkDeleteAlertsSchema = z.object({
+  body: z.object({
+    ids: z.array(uuidSchema).min(1)
+  })
+});

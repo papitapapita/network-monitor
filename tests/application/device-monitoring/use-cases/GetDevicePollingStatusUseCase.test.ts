@@ -3,7 +3,10 @@
 import { GetDevicePollingStatusUseCase } from '../../../../src/application/device-monitoring/use-cases/GetDevicePollingStatusUseCase';
 import { IPollingConfigurationRepository } from '../../../../src/domain/device-monitoring/repository/IPollingConfigurationRepository';
 import { IDeviceStateRepository } from '../../../../src/domain/device-monitoring/repository/IDeviceStateRepository';
-import { IPingResultRepository, PingResultRecord } from '../../../../src/domain/device-monitoring/repository/IPingResultRepository';
+import {
+  IPingResultRepository,
+  PingResultRecord
+} from '../../../../src/domain/device-monitoring/repository/IPingResultRepository';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { PollingConfiguration } from '../../../../src/domain/device-monitoring/entities/PollingConfiguration';
@@ -64,11 +67,16 @@ function makePingResultRepo(): jest.Mocked<IPingResultRepository> {
     save: jest.fn(),
     findLatestByDevice: jest.fn(),
     findByDevice: jest.fn(),
-    deleteOlderThan: jest.fn()
+    deleteOlderThan: jest.fn(),
+
+    deleteByDevice: jest.fn()
   };
 }
 
-function makeConfig(enabled = true, intervalSeconds = 60): PollingConfiguration {
+function makeConfig(
+  enabled = true,
+  intervalSeconds = 60
+): PollingConfiguration {
   return PollingConfiguration.create(
     {
       deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
@@ -149,14 +157,18 @@ describe('GetDevicePollingStatusUseCase', () => {
   // ===========================================================================
   describe('beforeExecute — input validation', () => {
     it('should fail when deviceId is an empty string', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: '' }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: '' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Network device ID is required');
     });
 
     it('should fail when deviceId is whitespace only', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: '   ' }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: '   ' })
+      );
 
       expect(result.isFailure).toBe(true);
     });
@@ -165,7 +177,9 @@ describe('GetDevicePollingStatusUseCase', () => {
   // ===========================================================================
   describe('executeImpl — device ID parsing', () => {
     it('should fail when deviceId is not a valid UUID', async () => {
-      const result = await useCase.execute(makeRequest({ deviceId: 'bad-id' }));
+      const result = await useCase.execute(
+        makeRequest({ deviceId: 'bad-id' })
+      );
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Invalid device ID');
@@ -175,7 +189,9 @@ describe('GetDevicePollingStatusUseCase', () => {
   // ===========================================================================
   describe('executeImpl — polling config lookup', () => {
     it('should fail when the config repository returns a failure', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.fail('DB timeout'));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.fail('DB timeout')
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -189,16 +205,25 @@ describe('GetDevicePollingStatusUseCase', () => {
       const result = await useCase.execute(makeRequest());
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('No polling configuration found');
+      expect(result.error).toContain(
+        'No polling configuration found'
+      );
     });
   });
 
   // ===========================================================================
   describe('executeImpl — happy path with full data', () => {
     beforeEach(() => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig(true, 60)));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig(true, 60))
+      );
       deviceStateRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeDeviceState({ status: ReachabilityStatus.createUp(), consecutiveFailures: 0 }))
+        Result.ok(
+          makeDeviceState({
+            status: ReachabilityStatus.createUp(),
+            consecutiveFailures: 0
+          })
+        )
       );
       pingResultRepo.findLatestByDevice.mockResolvedValue(
         Result.ok([makePingRecord()])
@@ -274,11 +299,17 @@ describe('GetDevicePollingStatusUseCase', () => {
   // ===========================================================================
   describe('executeImpl — OFFLINE device state', () => {
     it('should return OFFLINE when the stored status is DOWN', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
-      deviceStateRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeDeviceState({ status: ReachabilityStatus.createDown() }))
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
       );
-      pingResultRepo.findLatestByDevice.mockResolvedValue(Result.ok([]));
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(
+          makeDeviceState({ status: ReachabilityStatus.createDown() })
+        )
+      );
+      pingResultRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -294,10 +325,14 @@ describe('GetDevicePollingStatusUseCase', () => {
       );
       deviceStateRepo.findByDeviceId.mockResolvedValue(
         Result.ok(
-          makeDeviceState({ status: ReachabilityStatus.createUnknown() })
+          makeDeviceState({
+            status: ReachabilityStatus.createUnknown()
+          })
         )
       );
-      pingResultRepo.findLatestByDevice.mockResolvedValue(Result.ok([]));
+      pingResultRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -316,7 +351,9 @@ describe('GetDevicePollingStatusUseCase', () => {
           })
         )
       );
-      pingResultRepo.findLatestByDevice.mockResolvedValue(Result.ok([]));
+      pingResultRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -328,9 +365,15 @@ describe('GetDevicePollingStatusUseCase', () => {
   // ===========================================================================
   describe('executeImpl — no device state', () => {
     it('should return UNKNOWN status when no device state exists', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
-      deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
-      pingResultRepo.findLatestByDevice.mockResolvedValue(Result.ok([]));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
+      pingResultRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -338,9 +381,15 @@ describe('GetDevicePollingStatusUseCase', () => {
     });
 
     it('should set lastPolled to null when no device state exists', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
-      deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
-      pingResultRepo.findLatestByDevice.mockResolvedValue(Result.ok([]));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
+      pingResultRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -348,9 +397,15 @@ describe('GetDevicePollingStatusUseCase', () => {
     });
 
     it('should set nextScheduled to null when no device state exists', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
-      deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
-      pingResultRepo.findLatestByDevice.mockResolvedValue(Result.ok([]));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
+      pingResultRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -358,9 +413,15 @@ describe('GetDevicePollingStatusUseCase', () => {
     });
 
     it('should return 0 consecutiveFailures when no device state exists', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
-      deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
-      pingResultRepo.findLatestByDevice.mockResolvedValue(Result.ok([]));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
+      pingResultRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -368,9 +429,15 @@ describe('GetDevicePollingStatusUseCase', () => {
     });
 
     it('should set lastResult to null when there are no ping records', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
-      deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
-      pingResultRepo.findLatestByDevice.mockResolvedValue(Result.ok([]));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
+      pingResultRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -381,11 +448,15 @@ describe('GetDevicePollingStatusUseCase', () => {
   // ===========================================================================
   describe('executeImpl — state repo failure is tolerated', () => {
     it('should still return success when deviceStateRepo returns a failure', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
       deviceStateRepo.findByDeviceId.mockResolvedValue(
         Result.fail('State table unavailable')
       );
-      pingResultRepo.findLatestByDevice.mockResolvedValue(Result.ok([]));
+      pingResultRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       const result = await useCase.execute(makeRequest());
 
@@ -397,8 +468,12 @@ describe('GetDevicePollingStatusUseCase', () => {
   // ===========================================================================
   describe('executeImpl — ping result repo failure is tolerated', () => {
     it('should still return success when pingResultRepo returns a failure', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
-      deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
       pingResultRepo.findLatestByDevice.mockResolvedValue(
         Result.fail('Ping table unavailable')
       );
@@ -413,21 +488,33 @@ describe('GetDevicePollingStatusUseCase', () => {
   // ===========================================================================
   describe('executeImpl — repository call contracts', () => {
     it('should call configRepo.findByDeviceId with the parsed DeviceId', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
-      deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
-      pingResultRepo.findLatestByDevice.mockResolvedValue(Result.ok([]));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
+      pingResultRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       await useCase.execute(makeRequest());
 
-      expect(configRepo.findByDeviceId.mock.calls[0][0].toString()).toBe(
-        VALID_DEVICE_UUID
-      );
+      expect(
+        configRepo.findByDeviceId.mock.calls[0][0].toString()
+      ).toBe(VALID_DEVICE_UUID);
     });
 
     it('should call pingResultRepo.findLatestByDevice with limit 1', async () => {
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
-      deviceStateRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
-      pingResultRepo.findLatestByDevice.mockResolvedValue(Result.ok([]));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
+      pingResultRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok([])
+      );
 
       await useCase.execute(makeRequest());
 

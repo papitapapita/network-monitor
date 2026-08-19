@@ -1,10 +1,15 @@
 import { Router } from 'express';
 import { PollingController } from '../controllers';
-import { validateRequest, authorize, createRateLimiter } from '../middleware';
+import {
+  validateRequest,
+  authorize,
+  createRateLimiter
+} from '../middleware';
 import {
   pollDeviceSchema,
   getPollingStatusSchema,
   getPollingHistorySchema,
+  deleteDevicePingHistorySchema,
   configurePollingSchema,
   createDevicePollingSchema
 } from '../validation';
@@ -17,6 +22,7 @@ import {
  * - POST   /api/devices/:id/poll              - Manual poll
  * - GET    /api/devices/:id/polling/status    - Current status
  * - GET    /api/devices/:id/polling/history   - Ping history
+ * - DELETE /api/devices/:id/polling/history   - Delete ping history
  * - PATCH  /api/devices/:id/polling/config    - Configure polling
  */
 export function createPollingRoutes(
@@ -46,6 +52,14 @@ export function createPollingRoutes(
     createRateLimiter('read'),
     validateRequest(getPollingHistorySchema),
     controller.getHistory
+  );
+
+  router.delete(
+    '/:id/polling/history',
+    authorize('delete'),
+    createRateLimiter('delete'),
+    validateRequest(deleteDevicePingHistorySchema),
+    controller.deleteHistory
   );
 
   router.post(

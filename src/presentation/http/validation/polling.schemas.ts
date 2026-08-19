@@ -23,6 +23,16 @@ export const getPollingHistorySchema = z.object({
     .optional()
 });
 
+export const deleteDevicePingHistorySchema = z.object({
+  params: z.object({ id: uuidSchema }),
+  query: z
+    .object({
+      fromDate: z.string().datetime({ offset: true }).optional(),
+      toDate: z.string().datetime({ offset: true }).optional()
+    })
+    .optional()
+});
+
 export const configurePollingSchema = z.object({
   params: z.object({ id: uuidSchema }),
   body: z
@@ -57,6 +67,9 @@ export type ConfigurePollingInput = z.infer<
 >;
 export type GetPollingHistoryInput = z.infer<
   typeof getPollingHistorySchema
+>;
+export type DeleteDevicePingHistoryInput = z.infer<
+  typeof deleteDevicePingHistorySchema
 >;
 export type CreateDevicePollingInput = z.infer<
   typeof createDevicePollingSchema

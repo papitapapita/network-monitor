@@ -13,6 +13,8 @@ import { CreateWirelessConfigUseCase } from '../../../../src/application/wireles
 import { GetWirelessConfigUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetWirelessConfigUseCase';
 import { UpdateWirelessConfigUseCase } from '../../../../src/application/wireless-monitoring/use-cases/UpdateWirelessConfigUseCase';
 import { DeleteWirelessConfigUseCase } from '../../../../src/application/wireless-monitoring/use-cases/DeleteWirelessConfigUseCase';
+import { ClearWirelessAlertUseCase } from '../../../../src/application/wireless-monitoring/use-cases/ClearWirelessAlertUseCase';
+import { BulkClearWirelessAlertsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/BulkClearWirelessAlertsUseCase';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
@@ -52,19 +54,27 @@ interface WirelessAlertDTO {
 // ---------------------------------------------------------------------------
 
 const createMockGetStatusUseCase = () =>
-  ({ execute: jest.fn() }) as unknown as GetWirelessDeviceStatusUseCase;
+  ({
+    execute: jest.fn()
+  }) as unknown as GetWirelessDeviceStatusUseCase;
 
 const createMockGetHistoryUseCase = () =>
-  ({ execute: jest.fn() }) as unknown as GetWirelessDeviceHistoryUseCase;
+  ({
+    execute: jest.fn()
+  }) as unknown as GetWirelessDeviceHistoryUseCase;
 
 const createMockGetClientsUseCase = () =>
   ({ execute: jest.fn() }) as unknown as GetWirelessClientsUseCase;
 
 const createMockGetActiveAlertsUseCase = () =>
-  ({ execute: jest.fn() }) as unknown as GetActiveWirelessAlertsUseCase;
+  ({
+    execute: jest.fn()
+  }) as unknown as GetActiveWirelessAlertsUseCase;
 
 const createMockGetAlertHistoryUseCase = () =>
-  ({ execute: jest.fn() }) as unknown as GetWirelessAlertHistoryUseCase;
+  ({
+    execute: jest.fn()
+  }) as unknown as GetWirelessAlertHistoryUseCase;
 
 const createMockTriggerPollUseCase = () =>
   ({ execute: jest.fn() }) as unknown as TriggerWirelessPollUseCase;
@@ -83,6 +93,14 @@ const createMockUpdateWirelessConfigUseCase = () =>
 
 const createMockDeleteWirelessConfigUseCase = () =>
   ({ execute: jest.fn() }) as unknown as DeleteWirelessConfigUseCase;
+
+const createMockClearAlertUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as ClearWirelessAlertUseCase;
+
+const createMockBulkClearAlertsUseCase = () =>
+  ({
+    execute: jest.fn()
+  }) as unknown as BulkClearWirelessAlertsUseCase;
 
 const createMockLogger = (): jest.Mocked<ILogger> => ({
   info: jest.fn(),
@@ -110,7 +128,11 @@ const createMockResponse = (): {
 } => {
   const jsonMock = jest.fn();
   const statusMock = jest.fn().mockReturnValue({ json: jsonMock });
-  return { res: { status: statusMock, json: jsonMock }, statusMock, jsonMock };
+  return {
+    res: { status: statusMock, json: jsonMock },
+    statusMock,
+    jsonMock
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -175,6 +197,8 @@ describe('WirelessController', () => {
   let mockGetWirelessConfigUseCase: GetWirelessConfigUseCase;
   let mockUpdateWirelessConfigUseCase: UpdateWirelessConfigUseCase;
   let mockDeleteWirelessConfigUseCase: DeleteWirelessConfigUseCase;
+  let mockClearAlertUseCase: ClearWirelessAlertUseCase;
+  let mockBulkClearAlertsUseCase: BulkClearWirelessAlertsUseCase;
   let mockLogger: jest.Mocked<ILogger>;
 
   beforeEach(() => {
@@ -185,10 +209,16 @@ describe('WirelessController', () => {
     mockGetAlertHistoryUseCase = createMockGetAlertHistoryUseCase();
     mockTriggerPollUseCase = createMockTriggerPollUseCase();
     mockRebootUseCase = createMockRebootUseCase();
-    mockCreateWirelessConfigUseCase = createMockCreateWirelessConfigUseCase();
-    mockGetWirelessConfigUseCase = createMockGetWirelessConfigUseCase();
-    mockUpdateWirelessConfigUseCase = createMockUpdateWirelessConfigUseCase();
-    mockDeleteWirelessConfigUseCase = createMockDeleteWirelessConfigUseCase();
+    mockCreateWirelessConfigUseCase =
+      createMockCreateWirelessConfigUseCase();
+    mockGetWirelessConfigUseCase =
+      createMockGetWirelessConfigUseCase();
+    mockUpdateWirelessConfigUseCase =
+      createMockUpdateWirelessConfigUseCase();
+    mockDeleteWirelessConfigUseCase =
+      createMockDeleteWirelessConfigUseCase();
+    mockClearAlertUseCase = createMockClearAlertUseCase();
+    mockBulkClearAlertsUseCase = createMockBulkClearAlertsUseCase();
     mockLogger = createMockLogger();
 
     controller = new WirelessController(
@@ -203,6 +233,8 @@ describe('WirelessController', () => {
       mockGetWirelessConfigUseCase,
       mockUpdateWirelessConfigUseCase,
       mockDeleteWirelessConfigUseCase,
+      mockClearAlertUseCase,
+      mockBulkClearAlertsUseCase,
       mockLogger
     );
   });
@@ -216,28 +248,38 @@ describe('WirelessController', () => {
     // -----------------------------------------------------------------------
     describe('Happy Path', () => {
       it('should return 200 with the wireless status snapshot directly (no wrapper)', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockGetStatusUseCase.execute as jest.Mock).mockResolvedValue(
           Result.ok(mockStatusDTO)
         );
 
-        await controller.getStatus(mockReq as Request, res as Response);
+        await controller.getStatus(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(200);
         expect(jsonMock).toHaveBeenCalledWith(mockStatusDTO);
       });
 
       it('should pass deviceId to the use case', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res } = createMockResponse();
 
         (mockGetStatusUseCase.execute as jest.Mock).mockResolvedValue(
           Result.ok(mockStatusDTO)
         );
 
-        await controller.getStatus(mockReq as Request, res as Response);
+        await controller.getStatus(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(mockGetStatusUseCase.execute).toHaveBeenCalledWith({
           deviceId: DEVICE_UUID
@@ -248,14 +290,19 @@ describe('WirelessController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 404 Not Found', () => {
       it('should return 404 when the use case fails with "not found"', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockGetStatusUseCase.execute as jest.Mock).mockResolvedValue(
           Result.fail(`Device not found: ${DEVICE_UUID}`)
         );
 
-        await controller.getStatus(mockReq as Request, res as Response);
+        await controller.getStatus(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(404);
         expect(jsonMock).toHaveBeenCalledWith({
@@ -264,14 +311,19 @@ describe('WirelessController', () => {
       });
 
       it('should return 404 when the use case fails with "NOT_FOUND"', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock } = createMockResponse();
 
         (mockGetStatusUseCase.execute as jest.Mock).mockResolvedValue(
           Result.fail('NOT_FOUND')
         );
 
-        await controller.getStatus(mockReq as Request, res as Response);
+        await controller.getStatus(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(404);
       });
@@ -280,14 +332,19 @@ describe('WirelessController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 400 Bad Request', () => {
       it('should return 400 when the use case fails with a non-404 error', async () => {
-        const mockReq = createMockRequest({ params: { id: 'bad-id' } });
+        const mockReq = createMockRequest({
+          params: { id: 'bad-id' }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockGetStatusUseCase.execute as jest.Mock).mockResolvedValue(
           Result.fail('Invalid device ID format')
         );
 
-        await controller.getStatus(mockReq as Request, res as Response);
+        await controller.getStatus(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(400);
         expect(jsonMock).toHaveBeenCalledWith({
@@ -300,15 +357,24 @@ describe('WirelessController', () => {
     describe('Error Path — 500 Internal Server Error (unexpected thrown exception)', () => {
       it('should return 500 and log the error when the use case throws', async () => {
         const thrownError = new Error('Unexpected DB crash');
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetStatusUseCase.execute as jest.Mock).mockRejectedValue(thrownError);
+        (mockGetStatusUseCase.execute as jest.Mock).mockRejectedValue(
+          thrownError
+        );
 
-        await controller.getStatus(mockReq as Request, res as Response);
+        await controller.getStatus(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(500);
-        expect(jsonMock).toHaveBeenCalledWith({ error: 'Internal server error' });
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'Internal server error'
+        });
         expect(mockLogger.error).toHaveBeenCalledWith(
           'Unexpected error in WirelessController',
           thrownError,
@@ -317,17 +383,26 @@ describe('WirelessController', () => {
       });
 
       it('should not leak sensitive error details in the response body', async () => {
-        const sensitiveError = new Error('SELECT * FROM wireless; -- injected');
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const sensitiveError = new Error(
+          'SELECT * FROM wireless; -- injected'
+        );
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, jsonMock } = createMockResponse();
 
         (mockGetStatusUseCase.execute as jest.Mock).mockRejectedValue(
           sensitiveError
         );
 
-        await controller.getStatus(mockReq as Request, res as Response);
+        await controller.getStatus(
+          mockReq as Request,
+          res as Response
+        );
 
-        expect(jsonMock).toHaveBeenCalledWith({ error: 'Internal server error' });
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'Internal server error'
+        });
         expect(jsonMock).not.toHaveBeenCalledWith(
           expect.objectContaining({
             error: expect.stringContaining('SELECT')
@@ -336,14 +411,19 @@ describe('WirelessController', () => {
       });
 
       it('should handle non-Error thrown values by converting them to strings', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock } = createMockResponse();
 
         (mockGetStatusUseCase.execute as jest.Mock).mockRejectedValue(
           'string exception'
         );
 
-        await controller.getStatus(mockReq as Request, res as Response);
+        await controller.getStatus(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(500);
         expect(mockLogger.error).toHaveBeenCalledWith(
@@ -369,11 +449,14 @@ describe('WirelessController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockHistoryDTO)
-        );
+        (
+          mockGetHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockHistoryDTO));
 
-        await controller.getHistory(mockReq as Request, res as Response);
+        await controller.getHistory(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(200);
         expect(jsonMock).toHaveBeenCalledWith(mockHistoryDTO);
@@ -388,11 +471,14 @@ describe('WirelessController', () => {
         });
         const { res } = createMockResponse();
 
-        (mockGetHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockHistoryDTO)
-        );
+        (
+          mockGetHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockHistoryDTO));
 
-        await controller.getHistory(mockReq as Request, res as Response);
+        await controller.getHistory(
+          mockReq as Request,
+          res as Response
+        );
 
         const call = (mockGetHistoryUseCase.execute as jest.Mock).mock
           .calls[0][0];
@@ -414,11 +500,16 @@ describe('WirelessController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetHistoryUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockGetHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail(`Device not found: ${DEVICE_UUID}`)
         );
 
-        await controller.getHistory(mockReq as Request, res as Response);
+        await controller.getHistory(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(404);
         expect(jsonMock).toHaveBeenCalledWith({
@@ -436,11 +527,14 @@ describe('WirelessController', () => {
         });
         const { res, statusMock } = createMockResponse();
 
-        (mockGetHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('NOT_FOUND')
-        );
+        (
+          mockGetHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.fail('NOT_FOUND'));
 
-        await controller.getHistory(mockReq as Request, res as Response);
+        await controller.getHistory(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(404);
       });
@@ -458,11 +552,14 @@ describe('WirelessController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('Invalid date range')
-        );
+        (
+          mockGetHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.fail('Invalid date range'));
 
-        await controller.getHistory(mockReq as Request, res as Response);
+        await controller.getHistory(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(400);
         expect(jsonMock).toHaveBeenCalledWith({
@@ -484,14 +581,19 @@ describe('WirelessController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetHistoryUseCase.execute as jest.Mock).mockRejectedValue(
-          thrownError
+        (
+          mockGetHistoryUseCase.execute as jest.Mock
+        ).mockRejectedValue(thrownError);
+
+        await controller.getHistory(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getHistory(mockReq as Request, res as Response);
-
         expect(statusMock).toHaveBeenCalledWith(500);
-        expect(jsonMock).toHaveBeenCalledWith({ error: 'Internal server error' });
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'Internal server error'
+        });
         expect(mockLogger.error).toHaveBeenCalledWith(
           'Unexpected error in WirelessController',
           thrownError,
@@ -506,28 +608,38 @@ describe('WirelessController', () => {
     // -----------------------------------------------------------------------
     describe('Happy Path', () => {
       it('should return 200 with the clients list directly (no wrapper)', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetClientsUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockClientsDTO)
-        );
+        (
+          mockGetClientsUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockClientsDTO));
 
-        await controller.getClients(mockReq as Request, res as Response);
+        await controller.getClients(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(200);
         expect(jsonMock).toHaveBeenCalledWith(mockClientsDTO);
       });
 
       it('should pass deviceId to the use case', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res } = createMockResponse();
 
-        (mockGetClientsUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockClientsDTO)
-        );
+        (
+          mockGetClientsUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockClientsDTO));
 
-        await controller.getClients(mockReq as Request, res as Response);
+        await controller.getClients(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(mockGetClientsUseCase.execute).toHaveBeenCalledWith({
           deviceId: DEVICE_UUID
@@ -538,14 +650,21 @@ describe('WirelessController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 404 Not Found', () => {
       it('should return 404 when the use case fails with "not found"', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetClientsUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockGetClientsUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail(`Device not found: ${DEVICE_UUID}`)
         );
 
-        await controller.getClients(mockReq as Request, res as Response);
+        await controller.getClients(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(404);
         expect(jsonMock).toHaveBeenCalledWith({
@@ -554,27 +673,39 @@ describe('WirelessController', () => {
       });
 
       it('should return 404 when the use case fails with "NOT_AP"', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock } = createMockResponse();
 
-        (mockGetClientsUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockGetClientsUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail('NOT_AP: device is not an access point')
         );
 
-        await controller.getClients(mockReq as Request, res as Response);
+        await controller.getClients(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(404);
       });
 
       it('should return 404 when the use case fails with "NOT_FOUND"', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock } = createMockResponse();
 
-        (mockGetClientsUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('NOT_FOUND')
-        );
+        (
+          mockGetClientsUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.fail('NOT_FOUND'));
 
-        await controller.getClients(mockReq as Request, res as Response);
+        await controller.getClients(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(404);
       });
@@ -583,14 +714,19 @@ describe('WirelessController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 400 Bad Request', () => {
       it('should return 400 when the use case fails with a non-404 error', async () => {
-        const mockReq = createMockRequest({ params: { id: 'bad-id' } });
+        const mockReq = createMockRequest({
+          params: { id: 'bad-id' }
+        });
         const { res, statusMock } = createMockResponse();
 
-        (mockGetClientsUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('Invalid device ID format')
-        );
+        (
+          mockGetClientsUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.fail('Invalid device ID format'));
 
-        await controller.getClients(mockReq as Request, res as Response);
+        await controller.getClients(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(400);
       });
@@ -602,12 +738,14 @@ describe('WirelessController', () => {
     // -----------------------------------------------------------------------
     describe('Happy Path', () => {
       it('should return 200 with the active alerts directly (no wrapper)', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetActiveAlertsUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockAlertsDTO)
-        );
+        (
+          mockGetActiveAlertsUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockAlertsDTO));
 
         await controller.getDeviceActiveAlerts(
           mockReq as Request,
@@ -619,19 +757,23 @@ describe('WirelessController', () => {
       });
 
       it('should pass deviceId to the use case', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res } = createMockResponse();
 
-        (mockGetActiveAlertsUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockAlertsDTO)
-        );
+        (
+          mockGetActiveAlertsUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockAlertsDTO));
 
         await controller.getDeviceActiveAlerts(
           mockReq as Request,
           res as Response
         );
 
-        expect(mockGetActiveAlertsUseCase.execute).toHaveBeenCalledWith({
+        expect(
+          mockGetActiveAlertsUseCase.execute
+        ).toHaveBeenCalledWith({
           deviceId: DEVICE_UUID
         });
       });
@@ -640,10 +782,14 @@ describe('WirelessController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 404 Not Found', () => {
       it('should return 404 when the use case fails with "not found"', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetActiveAlertsUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockGetActiveAlertsUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail(`Device not found: ${DEVICE_UUID}`)
         );
 
@@ -659,12 +805,14 @@ describe('WirelessController', () => {
       });
 
       it('should return 404 when the use case fails with "NOT_FOUND"', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock } = createMockResponse();
 
-        (mockGetActiveAlertsUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('NOT_FOUND')
-        );
+        (
+          mockGetActiveAlertsUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.fail('NOT_FOUND'));
 
         await controller.getDeviceActiveAlerts(
           mockReq as Request,
@@ -678,12 +826,14 @@ describe('WirelessController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 400 Bad Request', () => {
       it('should return 400 when the use case fails with a non-404 error', async () => {
-        const mockReq = createMockRequest({ params: { id: 'bad-id' } });
+        const mockReq = createMockRequest({
+          params: { id: 'bad-id' }
+        });
         const { res, statusMock } = createMockResponse();
 
-        (mockGetActiveAlertsUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('Invalid device ID')
-        );
+        (
+          mockGetActiveAlertsUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.fail('Invalid device ID'));
 
         await controller.getDeviceActiveAlerts(
           mockReq as Request,
@@ -710,9 +860,9 @@ describe('WirelessController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetAlertHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockAlertsDTO)
-        );
+        (
+          mockGetAlertHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockAlertsDTO));
 
         await controller.getDeviceAlertHistory(
           mockReq as Request,
@@ -732,17 +882,17 @@ describe('WirelessController', () => {
         });
         const { res } = createMockResponse();
 
-        (mockGetAlertHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockAlertsDTO)
-        );
+        (
+          mockGetAlertHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockAlertsDTO));
 
         await controller.getDeviceAlertHistory(
           mockReq as Request,
           res as Response
         );
 
-        const call = (mockGetAlertHistoryUseCase.execute as jest.Mock).mock
-          .calls[0][0];
+        const call = (mockGetAlertHistoryUseCase.execute as jest.Mock)
+          .mock.calls[0][0];
         expect(call.deviceId).toBe(DEVICE_UUID);
         expect(call.from).toBeInstanceOf(Date);
         expect(call.to).toBeInstanceOf(Date);
@@ -756,16 +906,18 @@ describe('WirelessController', () => {
         });
         const { res } = createMockResponse();
 
-        (mockGetAlertHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockAlertsDTO)
-        );
+        (
+          mockGetAlertHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockAlertsDTO));
 
         await controller.getDeviceAlertHistory(
           mockReq as Request,
           res as Response
         );
 
-        expect(mockGetAlertHistoryUseCase.execute).toHaveBeenCalledWith(
+        expect(
+          mockGetAlertHistoryUseCase.execute
+        ).toHaveBeenCalledWith(
           expect.objectContaining({
             deviceId: DEVICE_UUID,
             from: undefined,
@@ -785,7 +937,9 @@ describe('WirelessController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetAlertHistoryUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockGetAlertHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail(`Device not found: ${DEVICE_UUID}`)
         );
 
@@ -810,7 +964,9 @@ describe('WirelessController', () => {
         });
         const { res, statusMock } = createMockResponse();
 
-        (mockGetAlertHistoryUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockGetAlertHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail('Invalid date range provided')
         );
 
@@ -829,28 +985,38 @@ describe('WirelessController', () => {
     // -----------------------------------------------------------------------
     describe('Happy Path', () => {
       it('should return 202 with the poll acknowledgement directly (no wrapper)', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockTriggerPollUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockTriggerPollResult)
-        );
+        (
+          mockTriggerPollUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockTriggerPollResult));
 
-        await controller.triggerPoll(mockReq as Request, res as Response);
+        await controller.triggerPoll(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(202);
         expect(jsonMock).toHaveBeenCalledWith(mockTriggerPollResult);
       });
 
       it('should pass deviceId to the use case', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res } = createMockResponse();
 
-        (mockTriggerPollUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockTriggerPollResult)
-        );
+        (
+          mockTriggerPollUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockTriggerPollResult));
 
-        await controller.triggerPoll(mockReq as Request, res as Response);
+        await controller.triggerPoll(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(mockTriggerPollUseCase.execute).toHaveBeenCalledWith({
           deviceId: DEVICE_UUID
@@ -861,14 +1027,21 @@ describe('WirelessController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 404 Not Found', () => {
       it('should return 404 when the use case fails with "not found"', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockTriggerPollUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockTriggerPollUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail(`Device not found: ${DEVICE_UUID}`)
         );
 
-        await controller.triggerPoll(mockReq as Request, res as Response);
+        await controller.triggerPoll(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(404);
         expect(jsonMock).toHaveBeenCalledWith({
@@ -877,14 +1050,19 @@ describe('WirelessController', () => {
       });
 
       it('should return 404 when the use case fails with "NOT_FOUND"', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock } = createMockResponse();
 
-        (mockTriggerPollUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('NOT_FOUND')
-        );
+        (
+          mockTriggerPollUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.fail('NOT_FOUND'));
 
-        await controller.triggerPoll(mockReq as Request, res as Response);
+        await controller.triggerPoll(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(404);
       });
@@ -893,14 +1071,23 @@ describe('WirelessController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 400 Bad Request', () => {
       it('should return 400 when the use case fails with a non-404 error', async () => {
-        const mockReq = createMockRequest({ params: { id: 'bad-id' } });
+        const mockReq = createMockRequest({
+          params: { id: 'bad-id' }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockTriggerPollUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('Device is not configured for wireless monitoring')
+        (
+          mockTriggerPollUseCase.execute as jest.Mock
+        ).mockResolvedValue(
+          Result.fail(
+            'Device is not configured for wireless monitoring'
+          )
         );
 
-        await controller.triggerPoll(mockReq as Request, res as Response);
+        await controller.triggerPoll(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(400);
         expect(jsonMock).toHaveBeenCalledWith({
@@ -913,17 +1100,24 @@ describe('WirelessController', () => {
     describe('Error Path — 500 Internal Server Error (unexpected thrown exception)', () => {
       it('should return 500 and log the error when the use case throws', async () => {
         const thrownError = new Error('Poll trigger failed');
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockTriggerPollUseCase.execute as jest.Mock).mockRejectedValue(
-          thrownError
+        (
+          mockTriggerPollUseCase.execute as jest.Mock
+        ).mockRejectedValue(thrownError);
+
+        await controller.triggerPoll(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.triggerPoll(mockReq as Request, res as Response);
-
         expect(statusMock).toHaveBeenCalledWith(500);
-        expect(jsonMock).toHaveBeenCalledWith({ error: 'Internal server error' });
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'Internal server error'
+        });
         expect(mockLogger.error).toHaveBeenCalledWith(
           'Unexpected error in WirelessController',
           thrownError,
@@ -938,7 +1132,9 @@ describe('WirelessController', () => {
     // -----------------------------------------------------------------------
     describe('Happy Path', () => {
       it('should return 202 with the reboot acknowledgement directly (no wrapper)', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockRebootUseCase.execute as jest.Mock).mockResolvedValue(
@@ -952,7 +1148,9 @@ describe('WirelessController', () => {
       });
 
       it('should pass deviceId to the use case', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res } = createMockResponse();
 
         (mockRebootUseCase.execute as jest.Mock).mockResolvedValue(
@@ -970,11 +1168,15 @@ describe('WirelessController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 404 Not Found', () => {
       it('should return 404 when no wireless config exists for the device', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockRebootUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.fail('No wireless polling configuration found for device')
+          Result.fail(
+            'No wireless polling configuration found for device'
+          )
         );
 
         await controller.reboot(mockReq as Request, res as Response);
@@ -989,7 +1191,9 @@ describe('WirelessController', () => {
     // -----------------------------------------------------------------------
     describe('Error Path — 400 Bad Request', () => {
       it('should return 400 when credentials are not configured', async () => {
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockRebootUseCase.execute as jest.Mock).mockResolvedValue(
@@ -1009,7 +1213,9 @@ describe('WirelessController', () => {
     describe('Error Path — 500 Internal Server Error (unexpected thrown exception)', () => {
       it('should return 500 and log the error when the use case throws', async () => {
         const thrownError = new Error('Reboot failed');
-        const mockReq = createMockRequest({ params: { id: DEVICE_UUID } });
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
         const { res, statusMock, jsonMock } = createMockResponse();
 
         (mockRebootUseCase.execute as jest.Mock).mockRejectedValue(
@@ -1019,12 +1225,177 @@ describe('WirelessController', () => {
         await controller.reboot(mockReq as Request, res as Response);
 
         expect(statusMock).toHaveBeenCalledWith(500);
-        expect(jsonMock).toHaveBeenCalledWith({ error: 'Internal server error' });
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'Internal server error'
+        });
         expect(mockLogger.error).toHaveBeenCalledWith(
           'Unexpected error in WirelessController',
           thrownError,
           { error: 'Reboot failed' }
         );
+      });
+    });
+  });
+
+  // =========================================================================
+  describe('clearAlert (POST /api/devices/:id/wireless/alerts/:alertId/clear)', () => {
+    const ALERT_UUID = '11111111-1111-1111-1111-111111111111';
+
+    describe('Happy Path', () => {
+      it('[WLS-127] should return 200 with the cleared alert on success', async () => {
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID, alertId: ALERT_UUID }
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+        const clearedAlert = { id: ALERT_UUID, isActive: false };
+
+        (
+          mockClearAlertUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(clearedAlert));
+
+        await controller.clearAlert(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(mockClearAlertUseCase.execute).toHaveBeenCalledWith({
+          deviceId: DEVICE_UUID,
+          alertId: ALERT_UUID
+        });
+        expect(statusMock).toHaveBeenCalledWith(200);
+        expect(jsonMock).toHaveBeenCalledWith(clearedAlert);
+      });
+    });
+
+    describe('Error Path — 404 Not Found', () => {
+      it('[WLS-127] should return 404 when the alert does not belong to the device', async () => {
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID, alertId: ALERT_UUID }
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (
+          mockClearAlertUseCase.execute as jest.Mock
+        ).mockResolvedValue(
+          Result.fail('Wireless alert not found for device')
+        );
+
+        await controller.clearAlert(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(statusMock).toHaveBeenCalledWith(404);
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'Wireless alert not found for device'
+        });
+      });
+    });
+
+    describe('Error Path — 500 Internal Server Error (unexpected thrown exception)', () => {
+      it('should return 500 and log the error when the use case throws', async () => {
+        const thrownError = new Error('Clear failed');
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID, alertId: ALERT_UUID }
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (
+          mockClearAlertUseCase.execute as jest.Mock
+        ).mockRejectedValue(thrownError);
+
+        await controller.clearAlert(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(statusMock).toHaveBeenCalledWith(500);
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'Internal server error'
+        });
+      });
+    });
+  });
+
+  // =========================================================================
+  describe('bulkClearAlerts (POST /api/devices/:id/wireless/alerts/clear)', () => {
+    describe('Happy Path', () => {
+      it('[WLS-128] should return 200 with the bucketed result and pass ids through', async () => {
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID },
+          body: { ids: ['11111111-1111-1111-1111-111111111111'] }
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+        const bucketed = { cleared: [], skipped: [], failed: [] };
+
+        (
+          mockBulkClearAlertsUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(bucketed));
+
+        await controller.bulkClearAlerts(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(
+          mockBulkClearAlertsUseCase.execute
+        ).toHaveBeenCalledWith({
+          deviceId: DEVICE_UUID,
+          ids: ['11111111-1111-1111-1111-111111111111']
+        });
+        expect(statusMock).toHaveBeenCalledWith(200);
+        expect(jsonMock).toHaveBeenCalledWith(bucketed);
+      });
+
+      it('[WLS-128] should clear all active alerts when ids is omitted', async () => {
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID },
+          body: {}
+        });
+        const { res } = createMockResponse();
+
+        (
+          mockBulkClearAlertsUseCase.execute as jest.Mock
+        ).mockResolvedValue(
+          Result.ok({ cleared: [], skipped: [], failed: [] })
+        );
+
+        await controller.bulkClearAlerts(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(
+          mockBulkClearAlertsUseCase.execute
+        ).toHaveBeenCalledWith({
+          deviceId: DEVICE_UUID,
+          ids: undefined
+        });
+      });
+    });
+
+    describe('Error Path — 500 Internal Server Error (unexpected thrown exception)', () => {
+      it('should return 500 and log the error when the use case throws', async () => {
+        const thrownError = new Error('Bulk clear failed');
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID },
+          body: {}
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (
+          mockBulkClearAlertsUseCase.execute as jest.Mock
+        ).mockRejectedValue(thrownError);
+
+        await controller.bulkClearAlerts(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(statusMock).toHaveBeenCalledWith(500);
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'Internal server error'
+        });
       });
     });
   });
@@ -1037,11 +1408,14 @@ describe('WirelessController', () => {
         const mockReq = createMockRequest({ query: {} });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetActiveAlertsUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockAlertsDTO)
-        );
+        (
+          mockGetActiveAlertsUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockAlertsDTO));
 
-        await controller.getAllActiveAlerts(mockReq as Request, res as Response);
+        await controller.getAllActiveAlerts(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(200);
         expect(jsonMock).toHaveBeenCalledWith(mockAlertsDTO);
@@ -1053,13 +1427,18 @@ describe('WirelessController', () => {
         });
         const { res } = createMockResponse();
 
-        (mockGetActiveAlertsUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockAlertsDTO)
+        (
+          mockGetActiveAlertsUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockAlertsDTO));
+
+        await controller.getAllActiveAlerts(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getAllActiveAlerts(mockReq as Request, res as Response);
-
-        expect(mockGetActiveAlertsUseCase.execute).toHaveBeenCalledWith({
+        expect(
+          mockGetActiveAlertsUseCase.execute
+        ).toHaveBeenCalledWith({
           deviceId: DEVICE_UUID
         });
       });
@@ -1068,13 +1447,18 @@ describe('WirelessController', () => {
         const mockReq = createMockRequest({ query: {} });
         const { res } = createMockResponse();
 
-        (mockGetActiveAlertsUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockAlertsDTO)
+        (
+          mockGetActiveAlertsUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockAlertsDTO));
+
+        await controller.getAllActiveAlerts(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getAllActiveAlerts(mockReq as Request, res as Response);
-
-        expect(mockGetActiveAlertsUseCase.execute).toHaveBeenCalledWith({
+        expect(
+          mockGetActiveAlertsUseCase.execute
+        ).toHaveBeenCalledWith({
           deviceId: undefined
         });
       });
@@ -1088,11 +1472,16 @@ describe('WirelessController', () => {
         });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetActiveAlertsUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockGetActiveAlertsUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail('Invalid device ID: not-a-uuid')
         );
 
-        await controller.getAllActiveAlerts(mockReq as Request, res as Response);
+        await controller.getAllActiveAlerts(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(400);
         expect(jsonMock).toHaveBeenCalledWith({
@@ -1108,14 +1497,19 @@ describe('WirelessController', () => {
         const mockReq = createMockRequest({ query: {} });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetActiveAlertsUseCase.execute as jest.Mock).mockRejectedValue(
-          thrownError
+        (
+          mockGetActiveAlertsUseCase.execute as jest.Mock
+        ).mockRejectedValue(thrownError);
+
+        await controller.getAllActiveAlerts(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getAllActiveAlerts(mockReq as Request, res as Response);
-
         expect(statusMock).toHaveBeenCalledWith(500);
-        expect(jsonMock).toHaveBeenCalledWith({ error: 'Internal server error' });
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'Internal server error'
+        });
         expect(mockLogger.error).toHaveBeenCalledWith(
           'Unexpected error in WirelessController',
           thrownError,
@@ -1133,11 +1527,14 @@ describe('WirelessController', () => {
         const mockReq = createMockRequest({ query: {} });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetAlertHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockAlertsDTO)
-        );
+        (
+          mockGetAlertHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockAlertsDTO));
 
-        await controller.getAllAlertHistory(mockReq as Request, res as Response);
+        await controller.getAllAlertHistory(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(200);
         expect(jsonMock).toHaveBeenCalledWith(mockAlertsDTO);
@@ -1156,14 +1553,17 @@ describe('WirelessController', () => {
         });
         const { res } = createMockResponse();
 
-        (mockGetAlertHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockAlertsDTO)
+        (
+          mockGetAlertHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockAlertsDTO));
+
+        await controller.getAllAlertHistory(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getAllAlertHistory(mockReq as Request, res as Response);
-
-        const call = (mockGetAlertHistoryUseCase.execute as jest.Mock).mock
-          .calls[0][0];
+        const call = (mockGetAlertHistoryUseCase.execute as jest.Mock)
+          .mock.calls[0][0];
         expect(call.deviceId).toBe(DEVICE_UUID);
         expect(call.from).toBeInstanceOf(Date);
         expect(call.to).toBeInstanceOf(Date);
@@ -1174,13 +1574,18 @@ describe('WirelessController', () => {
         const mockReq = createMockRequest({ query: {} });
         const { res } = createMockResponse();
 
-        (mockGetAlertHistoryUseCase.execute as jest.Mock).mockResolvedValue(
-          Result.ok(mockAlertsDTO)
+        (
+          mockGetAlertHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockAlertsDTO));
+
+        await controller.getAllAlertHistory(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getAllAlertHistory(mockReq as Request, res as Response);
-
-        expect(mockGetAlertHistoryUseCase.execute).toHaveBeenCalledWith(
+        expect(
+          mockGetAlertHistoryUseCase.execute
+        ).toHaveBeenCalledWith(
           expect.objectContaining({
             deviceId: undefined,
             from: undefined,
@@ -1197,11 +1602,16 @@ describe('WirelessController', () => {
         const mockReq = createMockRequest({ query: { limit: '-5' } });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetAlertHistoryUseCase.execute as jest.Mock).mockResolvedValue(
+        (
+          mockGetAlertHistoryUseCase.execute as jest.Mock
+        ).mockResolvedValue(
           Result.fail('Limit must be a positive integer')
         );
 
-        await controller.getAllAlertHistory(mockReq as Request, res as Response);
+        await controller.getAllAlertHistory(
+          mockReq as Request,
+          res as Response
+        );
 
         expect(statusMock).toHaveBeenCalledWith(400);
         expect(jsonMock).toHaveBeenCalledWith({
@@ -1217,14 +1627,19 @@ describe('WirelessController', () => {
         const mockReq = createMockRequest({ query: {} });
         const { res, statusMock, jsonMock } = createMockResponse();
 
-        (mockGetAlertHistoryUseCase.execute as jest.Mock).mockRejectedValue(
-          thrownError
+        (
+          mockGetAlertHistoryUseCase.execute as jest.Mock
+        ).mockRejectedValue(thrownError);
+
+        await controller.getAllAlertHistory(
+          mockReq as Request,
+          res as Response
         );
 
-        await controller.getAllAlertHistory(mockReq as Request, res as Response);
-
         expect(statusMock).toHaveBeenCalledWith(500);
-        expect(jsonMock).toHaveBeenCalledWith({ error: 'Internal server error' });
+        expect(jsonMock).toHaveBeenCalledWith({
+          error: 'Internal server error'
+        });
         expect(mockLogger.error).toHaveBeenCalledWith(
           'Unexpected error in WirelessController',
           thrownError,

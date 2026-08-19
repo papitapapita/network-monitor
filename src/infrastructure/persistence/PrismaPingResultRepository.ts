@@ -106,6 +106,33 @@ export class PrismaPingResultRepository
     }
   }
 
+  async deleteByDevice(
+    deviceId: DeviceId,
+    filters: { fromDate?: Date; toDate?: Date }
+  ): Promise<Result<number>> {
+    try {
+      const where: Prisma.PingResultWhereInput = {
+        deviceId: deviceId.toString()
+      };
+
+      if (filters.fromDate || filters.toDate) {
+        where.checkedAt = {
+          ...(filters.fromDate && { gte: filters.fromDate }),
+          ...(filters.toDate && { lte: filters.toDate })
+        };
+      }
+
+      const { count } = await this.prisma.pingResult.deleteMany({
+        where
+      });
+      return Result.ok(count);
+    } catch (error) {
+      return Result.fail(
+        `deleteByDevice failed: ${(error as Error).message}`
+      );
+    }
+  }
+
   // ============================================================================
   // Private Helpers
   // ============================================================================

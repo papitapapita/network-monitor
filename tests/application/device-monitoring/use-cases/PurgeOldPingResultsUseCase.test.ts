@@ -19,7 +19,9 @@ function makeRepo(): jest.Mocked<IPingResultRepository> {
     save: jest.fn(),
     findLatestByDevice: jest.fn(),
     findByDevice: jest.fn(),
-    deleteOlderThan: jest.fn()
+    deleteOlderThan: jest.fn(),
+
+    deleteByDevice: jest.fn()
   };
 }
 
@@ -33,7 +35,9 @@ describe('PurgeOldPingResultsUseCase', () => {
   beforeEach(() => {
     repo = makeRepo();
     useCase = new PurgeOldPingResultsUseCase(repo);
-    dateSpy = jest.spyOn(Date, 'now').mockReturnValue(FIXED_TIMESTAMP);
+    dateSpy = jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(FIXED_TIMESTAMP);
   });
 
   afterEach(() => {
@@ -54,7 +58,9 @@ describe('PurgeOldPingResultsUseCase', () => {
 
         await useCase.execute(retentionDays);
 
-        expect(repo.deleteOlderThan).toHaveBeenCalledWith(expectedCutoff);
+        expect(repo.deleteOlderThan).toHaveBeenCalledWith(
+          expectedCutoff
+        );
       });
 
       it('should call deleteOlderThan exactly once', async () => {
@@ -89,7 +95,9 @@ describe('PurgeOldPingResultsUseCase', () => {
 
         await useCase.execute(1);
 
-        expect(repo.deleteOlderThan).toHaveBeenCalledWith(expectedCutoff);
+        expect(repo.deleteOlderThan).toHaveBeenCalledWith(
+          expectedCutoff
+        );
       });
 
       it('should compute the correct cutoff for a 365-day retention window', async () => {
@@ -100,7 +108,9 @@ describe('PurgeOldPingResultsUseCase', () => {
 
         await useCase.execute(365);
 
-        expect(repo.deleteOlderThan).toHaveBeenCalledWith(expectedCutoff);
+        expect(repo.deleteOlderThan).toHaveBeenCalledWith(
+          expectedCutoff
+        );
       });
     });
 
@@ -118,9 +128,13 @@ describe('PurgeOldPingResultsUseCase', () => {
       });
 
       it('should not swallow a rejection thrown by the repository', async () => {
-        repo.deleteOlderThan.mockRejectedValue(new Error('unexpected'));
+        repo.deleteOlderThan.mockRejectedValue(
+          new Error('unexpected')
+        );
 
-        await expect(useCase.execute(30)).rejects.toThrow('unexpected');
+        await expect(useCase.execute(30)).rejects.toThrow(
+          'unexpected'
+        );
       });
     });
   });

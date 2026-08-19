@@ -79,9 +79,12 @@ function makeDevice(
  * (as opposed to an explicit true/false).
  */
 function makePropsWithoutMonitoring(
-  overrides: Partial<Omit<CreateDeviceProps, 'monitoringEnabled'>> = {}
+  overrides: Partial<
+    Omit<CreateDeviceProps, 'monitoringEnabled'>
+  > = {}
 ): Omit<CreateDeviceProps, 'monitoringEnabled'> {
-  const { monitoringEnabled: _unused, ...rest } = makeProps(overrides);
+  const { monitoringEnabled: _unused, ...rest } =
+    makeProps(overrides);
   return rest;
 }
 
@@ -428,7 +431,9 @@ describe('Device', () => {
         );
 
         expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('serial number or MAC address');
+        expect(result.error).toContain(
+          'serial number or MAC address'
+        );
       });
 
       it('should fail when DAMAGED status has neither serialNumber nor macAddress', () => {
@@ -441,7 +446,9 @@ describe('Device', () => {
         );
 
         expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('serial number or MAC address');
+        expect(result.error).toContain(
+          'serial number or MAC address'
+        );
       });
 
       it('should succeed when INVENTORY status has a serialNumber', () => {
@@ -842,7 +849,9 @@ describe('Device', () => {
         );
 
         expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('serial number or MAC address');
+        expect(result.error).toContain(
+          'serial number or MAC address'
+        );
       });
 
       it('should fail when transitioning to DAMAGED without a serial number or MAC address', () => {
@@ -862,7 +871,9 @@ describe('Device', () => {
         );
 
         expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('serial number or MAC address');
+        expect(result.error).toContain(
+          'serial number or MAC address'
+        );
       });
 
       it('should succeed transitioning to INVENTORY when a MAC address exists', () => {
@@ -1286,7 +1297,9 @@ describe('Device', () => {
         monitoringEnabled: true
       });
 
-      const kinds = device.domainEvents.map((e) => e.constructor.name);
+      const kinds = device.domainEvents.map(
+        (e) => e.constructor.name
+      );
       expect(kinds).toEqual([
         'DeviceDetailsUpdatedEvent',
         'DeviceStatusChangedEvent',
@@ -1313,7 +1326,9 @@ describe('Device', () => {
     describe('happy path', () => {
       it('should return a successful Result for an INVENTORY device', () => {
         const device = makeDevice();
-        const result = device.correctDeviceModel(DeviceModelId.create());
+        const result = device.correctDeviceModel(
+          DeviceModelId.create()
+        );
 
         expect(result.isSuccess).toBe(true);
       });
@@ -1726,7 +1741,9 @@ describe('Device', () => {
         const result = device.updateDetails({ serialNumber: null });
 
         expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('serial number or MAC address');
+        expect(result.error).toContain(
+          'serial number or MAC address'
+        );
         expect(device.serialNumber).not.toBeNull();
       });
     });
@@ -1775,7 +1792,9 @@ describe('Device', () => {
       it('should fail when installedDate is in the future', () => {
         const device = makeDevice();
         const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
-        const result = device.updateDetails({ installedDate: future });
+        const result = device.updateDetails({
+          installedDate: future
+        });
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('future');
@@ -1888,13 +1907,17 @@ describe('Device', () => {
     });
 
     it('should return true for an AP device', () => {
-      const device = makeDevice({ category: DeviceCategory.createAccessPoint() });
+      const device = makeDevice({
+        category: DeviceCategory.createAccessPoint()
+      });
 
       expect(device.canHaveWirelessConfig()).toBe(true);
     });
 
     it('should return false for a CPE device', () => {
-      const device = makeDevice({ category: DeviceCategory.createCpe() });
+      const device = makeDevice({
+        category: DeviceCategory.createCpe()
+      });
 
       expect(device.canHaveWirelessConfig()).toBe(false);
     });
@@ -2055,7 +2078,9 @@ describe('Device', () => {
   // =========================================================================
   describe('DeviceCreatedEvent payload completeness', () => {
     it('should emit ownerType in the DeviceCreatedEvent', () => {
-      const device = makeDevice({ ownerType: DeviceOwnerType.CLIENT });
+      const device = makeDevice({
+        ownerType: DeviceOwnerType.CLIENT
+      });
       const event = device.domainEvents[0] as DeviceCreatedEvent;
 
       expect(event.ownerType).toBe(DeviceOwnerType.CLIENT);
@@ -2126,7 +2151,8 @@ describe('Device', () => {
       device.clearEvents();
       device.changeStatus(DeviceStatus.createActive());
 
-      const event = device.domainEvents[0] as DeviceStatusChangedEvent;
+      const event = device
+        .domainEvents[0] as DeviceStatusChangedEvent;
 
       expect(event.aggregateId.toString()).toBe(device.id.toString());
     });
@@ -2141,7 +2167,8 @@ describe('Device', () => {
       device.clearEvents();
       device.changeStatus(DeviceStatus.createActive());
 
-      const event = device.domainEvents[0] as DeviceStatusChangedEvent;
+      const event = device
+        .domainEvents[0] as DeviceStatusChangedEvent;
 
       expect(event.deviceName.value).toBe('Status-Test-Device');
     });
@@ -2160,7 +2187,8 @@ describe('Device', () => {
       device.clearEvents();
       device.enableMonitoring();
 
-      const event = device.domainEvents[0] as DeviceMonitoringToggledEvent;
+      const event = device
+        .domainEvents[0] as DeviceMonitoringToggledEvent;
 
       expect(event.ipAddress).toBe(ip);
     });
@@ -2176,7 +2204,8 @@ describe('Device', () => {
       device.clearEvents();
       device.disableMonitoring();
 
-      const event = device.domainEvents[0] as DeviceMonitoringToggledEvent;
+      const event = device
+        .domainEvents[0] as DeviceMonitoringToggledEvent;
 
       expect(event.ipAddress).toBe(ip);
     });
@@ -2193,7 +2222,8 @@ describe('Device', () => {
       device.clearEvents();
       device.enableMonitoring();
 
-      const event = device.domainEvents[0] as DeviceMonitoringToggledEvent;
+      const event = device
+        .domainEvents[0] as DeviceMonitoringToggledEvent;
 
       expect(event.deviceName.value).toBe('Monitored-AP-01');
     });
@@ -2209,7 +2239,9 @@ describe('Device', () => {
       });
 
       expect(device.domainEvents.length).toBe(1);
-      expect(device.domainEvents[0]).toBeInstanceOf(DeviceDetailsUpdatedEvent);
+      expect(device.domainEvents[0]).toBeInstanceOf(
+        DeviceDetailsUpdatedEvent
+      );
     });
 
     it('should embed the correct aggregateId in the DeviceDetailsUpdatedEvent', () => {
@@ -2219,7 +2251,8 @@ describe('Device', () => {
         name: DeviceName.create('Renamed-Device').value
       });
 
-      const event = device.domainEvents[0] as DeviceDetailsUpdatedEvent;
+      const event = device
+        .domainEvents[0] as DeviceDetailsUpdatedEvent;
 
       expect(event.aggregateId.toString()).toBe(device.id.toString());
     });
@@ -2231,7 +2264,8 @@ describe('Device', () => {
         name: DeviceName.create('New-Name').value
       });
 
-      const event = device.domainEvents[0] as DeviceDetailsUpdatedEvent;
+      const event = device
+        .domainEvents[0] as DeviceDetailsUpdatedEvent;
 
       expect(event.deviceName.value).toBe('New-Name');
     });
@@ -2241,9 +2275,12 @@ describe('Device', () => {
       device.clearEvents();
       device.updateDetails({ description: 'A useful description' });
 
-      const event = device.domainEvents[0] as DeviceDetailsUpdatedEvent;
+      const event = device
+        .domainEvents[0] as DeviceDetailsUpdatedEvent;
 
-      expect(event.updatedFields.description).toBe('A useful description');
+      expect(event.updatedFields.description).toBe(
+        'A useful description'
+      );
     });
 
     it('should not emit anything when called with an empty fields object', () => {
@@ -2394,7 +2431,9 @@ describe('Device', () => {
 
       device.softDelete('user-1');
 
-      const names = device.domainEvents.map((e) => e.constructor.name);
+      const names = device.domainEvents.map(
+        (e) => e.constructor.name
+      );
       expect(names).toContain('DeviceDeletedEvent');
     });
 
@@ -2444,7 +2483,9 @@ describe('Device', () => {
 
       device.softDelete(null);
 
-      const names = device.domainEvents.map((e) => e.constructor.name);
+      const names = device.domainEvents.map(
+        (e) => e.constructor.name
+      );
       expect(names).not.toContain('DeviceMonitoringToggledEvent');
     });
   });
@@ -2459,7 +2500,9 @@ describe('Device', () => {
       });
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Cannot modify a deleted device');
+      expect(result.error).toContain(
+        'Cannot modify a deleted device'
+      );
     });
 
     it('should refuse a status change', () => {
@@ -2555,7 +2598,9 @@ describe('Device', () => {
 
       device.restore();
 
-      const names = device.domainEvents.map((e) => e.constructor.name);
+      const names = device.domainEvents.map(
+        (e) => e.constructor.name
+      );
       expect(names).toContain('DeviceRestoredEvent');
     });
   });
@@ -2641,7 +2686,9 @@ describe('Device', () => {
 
       device.markReplaced(DeviceStatus.createInventory());
 
-      const names = device.domainEvents.map((e) => e.constructor.name);
+      const names = device.domainEvents.map(
+        (e) => e.constructor.name
+      );
       expect(names).toContain('DeviceStatusChangedEvent');
     });
 
@@ -2654,7 +2701,47 @@ describe('Device', () => {
       );
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Cannot replace a deleted device');
+      expect(result.error).toContain(
+        'Cannot replace a deleted device'
+      );
+    });
+
+    it('[DEV-082] should refuse a superseded unit that is still retired', () => {
+      const device = Device.reconstitute(DeviceId.create(), {
+        ...makeProps({ status: DeviceStatus.createInventory() }),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        replacedByDeviceId: DeviceId.create()
+      });
+
+      const result = device.markReplaced(
+        DeviceStatus.createDamaged()
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('already been replaced');
+    });
+
+    it('[DEV-082] should allow a superseded unit that went back into service', () => {
+      // Upgraded out of one site, redeployed to another, broken there. The
+      // successor from its previous life must not block the second swap.
+      const device = Device.reconstitute(DeviceId.create(), {
+        ...makeProps({
+          status: DeviceStatus.createActive(),
+          ipAddress: IPAddress.create('10.0.0.9').value,
+          locationId: LocationId.create()
+        }),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        replacedByDeviceId: DeviceId.create()
+      });
+
+      const result = device.markReplaced(
+        DeviceStatus.createDamaged()
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(device.status.toString()).toBe('DAMAGED');
     });
 
     it('should refuse when the retired state would break an invariant', () => {
@@ -2701,6 +2788,95 @@ describe('Device', () => {
     });
   });
 
+  describe('[DEV-160] a replacement requires an identifier of its own', () => {
+    // The gap DEV-053 leaves open: a replacement that inherits an IP is born
+    // COMMISSIONING, which is not a retired status, so status alone never
+    // reaches this case.
+    function makeReplacementProps(
+      overrides: Partial<CreateDeviceProps> = {}
+    ) {
+      return {
+        ...makeProps({
+          status: DeviceStatus.createCommissioning(),
+          ipAddress: IPAddress.create('10.0.0.9').value,
+          serialNumber: null,
+          macAddress: null,
+          ...overrides
+        }),
+        replacesDeviceId: DeviceId.create()
+      };
+    }
+
+    it('should refuse a COMMISSIONING replacement with neither serial nor MAC', () => {
+      const result = Device.create(makeReplacementProps());
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'The replacement device must have at least a serial number or MAC address'
+      );
+    });
+
+    it('should accept a replacement carrying only a serial number', () => {
+      const result = Device.create(
+        makeReplacementProps({
+          serialNumber: SerialNumber.create('SN-NEW-01').value
+        })
+      );
+
+      expect(result.isSuccess).toBe(true);
+    });
+
+    it('should accept a replacement carrying only a MAC address', () => {
+      const result = Device.create(
+        makeReplacementProps({
+          macAddress: MACAddress.create('AA:BB:CC:DD:EE:FF').value
+        })
+      );
+
+      expect(result.isSuccess).toBe(true);
+    });
+
+    it('should refuse an INVENTORY replacement with neither, naming the replacement', () => {
+      const result = Device.create(
+        makeReplacementProps({
+          status: DeviceStatus.createInventory(),
+          ipAddress: null
+        })
+      );
+
+      expect(result.isFailure).toBe(true);
+      // Both DEV-053 and this rule apply here; the replacement is the more
+      // specific of the two and owns the message.
+      expect(result.error).toContain('The replacement device');
+    });
+
+    it('should leave an ordinary COMMISSIONING device unaffected', () => {
+      const result = Device.create(
+        makeProps({
+          status: DeviceStatus.createCommissioning(),
+          ipAddress: IPAddress.create('10.0.0.9').value,
+          serialNumber: null,
+          macAddress: null
+        })
+      );
+
+      expect(result.isSuccess).toBe(true);
+    });
+
+    it('should refuse clearing the last identifier of a replacement later', () => {
+      const replacement = Device.create(
+        makeReplacementProps({
+          serialNumber: SerialNumber.create('SN-NEW-02').value
+        })
+      ).value;
+
+      const result = replacement.applyChanges({ serialNumber: null });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('The replacement device');
+    });
+  });
+
   describe('[DEV-057] monitoring cannot be on for a DECOMMISSIONED device', () => {
     it('should refuse the combination', () => {
       const result = Device.create(
@@ -2711,7 +2887,9 @@ describe('Device', () => {
       );
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Monitoring can only be enabled');
+      expect(result.error).toContain(
+        'Monitoring can only be enabled'
+      );
     });
   });
 });

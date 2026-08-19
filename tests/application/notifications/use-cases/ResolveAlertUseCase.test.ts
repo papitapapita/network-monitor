@@ -12,8 +12,13 @@ const CLEARED_AT = new Date('2024-06-01T10:05:00.000Z');
 
 function makeLogger(): ILogger {
   return {
-    debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn(),
-    fatal: jest.fn(), child: jest.fn().mockReturnThis(), setLevel: jest.fn()
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    fatal: jest.fn(),
+    child: jest.fn().mockReturnThis(),
+    setLevel: jest.fn()
   };
 }
 
@@ -22,6 +27,7 @@ function makeAlertRepo(): jest.Mocked<IAlertRepository> {
     save: jest.fn().mockImplementation(async (a) => Result.ok(a)),
     findById: jest.fn(),
     findOpenByDeviceAndType: jest.fn(),
+    findAllOpenByDeviceId: jest.fn(),
     findAllByDeviceId: jest.fn(),
     findAll: jest.fn(),
     deleteById: jest.fn(),
@@ -39,7 +45,9 @@ function makeOpenAlert(): Alert {
   ).value;
 }
 
-function makeRequest(overrides: Partial<ResolveAlertDTO> = {}): ResolveAlertDTO {
+function makeRequest(
+  overrides: Partial<ResolveAlertDTO> = {}
+): ResolveAlertDTO {
   return {
     deviceId: VALID_DEVICE_UUID,
     type: 'wireless:signal_rx_dbm:CRITICAL',
@@ -60,7 +68,9 @@ describe('ResolveAlertUseCase', () => {
   afterEach(() => jest.clearAllMocks());
 
   it('should fail on an invalid device id', async () => {
-    const result = await useCase.execute(makeRequest({ deviceId: 'nope' }));
+    const result = await useCase.execute(
+      makeRequest({ deviceId: 'nope' })
+    );
     expect(result.isFailure).toBe(true);
   });
 
@@ -83,7 +93,9 @@ describe('ResolveAlertUseCase', () => {
   });
 
   it('should fail when save fails', async () => {
-    repo.findOpenByDeviceAndType.mockResolvedValue(Result.ok(makeOpenAlert()));
+    repo.findOpenByDeviceAndType.mockResolvedValue(
+      Result.ok(makeOpenAlert())
+    );
     repo.save.mockResolvedValue(Result.fail('db down'));
     const result = await useCase.execute(makeRequest());
     expect(result.isFailure).toBe(true);

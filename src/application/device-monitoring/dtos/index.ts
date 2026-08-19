@@ -4,6 +4,8 @@ export * from './PollingConfigurationDTO';
 export * from './DevicePollingStatusDTO';
 export * from './ExecutePollingCycleDTO';
 export * from './GetDevicePollingHistoryDTO';
+export * from './DeleteDevicePingHistoryDTO';
+export * from './DeleteDevicePingHistoryResponseDTO';
 export * from './GetDevicePollingStatusDTO';
 export * from './PollingHistoryDTO';
 export * from './PollingMetricsDTO';

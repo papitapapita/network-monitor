@@ -29,6 +29,7 @@ function makeAlertRepo(): jest.Mocked<IAlertRepository> {
     save: jest.fn(),
     findById: jest.fn(),
     findOpenByDeviceAndType: jest.fn(),
+    findAllOpenByDeviceId: jest.fn(),
     findAllByDeviceId: jest.fn(),
     findAll: jest.fn(),
     deleteById: jest.fn().mockResolvedValue(Result.ok()),
@@ -93,7 +94,9 @@ describe('DeleteAlertUseCase', () => {
 
   it('should propagate a repository delete failure', async () => {
     alertRepo.findById.mockResolvedValue(Result.ok(makeAlert(true)));
-    alertRepo.deleteById.mockResolvedValue(Result.fail('FK violation'));
+    alertRepo.deleteById.mockResolvedValue(
+      Result.fail('FK violation')
+    );
     const result = await useCase.execute({ id: VALID_ALERT_UUID });
     expect(result.isFailure).toBe(true);
     expect(result.error).toContain('Failed to delete alert');

@@ -10,6 +10,7 @@ import {
   GHOST_ID,
   INVALID_ID
 } from './helpers/db';
+import { seedAndGetToken } from './helpers/auth';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
 
 // ─────────────────────────────────────────────────────────────
@@ -128,8 +129,8 @@ async function seedAccessPointDevice(
 async function seedWirelessAlert(
   prisma: PrismaClient,
   deviceId: string
-): Promise<void> {
-  await prisma.wirelessAlertRecord.create({
+): Promise<string> {
+  const record = await prisma.wirelessAlertRecord.create({
     data: {
       deviceId,
       metric: 'signal_rx_dbm',
@@ -141,6 +142,7 @@ async function seedWirelessAlert(
       message: 'Signal below threshold'
     }
   });
+  return record.id;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -155,6 +157,9 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
 
   /** ID of a device seeded with a snapshot and an active alert for each test. */
   let deviceId: string;
+  /** ID of the active wireless alert seeded for `deviceId`. */
+  let alertId: string;
+  let adminToken: string;
 
   beforeAll(async () => {
     ({ app, container } = await createTestApp());
@@ -168,10 +173,11 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
 
   beforeEach(async () => {
     await cleanDatabase(prisma);
+    adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
 
     deviceId = await seedWirelessDevice(prisma, deviceModelId);
     await seedWirelessSnapshot(prisma, deviceId);
-    await seedWirelessAlert(prisma, deviceId);
+    alertId = await seedWirelessAlert(prisma, deviceId);
   });
 
   // ─────────────────────────────────────────────────────────────
@@ -294,7 +300,10 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
 
   describe('GET /api/devices/:id/wireless/clients', () => {
     it('200 — responds for access point device with snapshot', async () => {
-      const apDeviceId = await seedAccessPointDevice(prisma, deviceModelId);
+      const apDeviceId = await seedAccessPointDevice(
+        prisma,
+        deviceModelId
+      );
 
       const res = await request(app).get(
         `/api/devices/${apDeviceId}/wireless/clients`
@@ -414,6 +423,144 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
   });
 
   // ─────────────────────────────────────────────────────────────
+  // POST /api/devices/:id/wireless/alerts/:alertId/clear
+  // ─────────────────────────────────────────────────────────────
+
+  describe('[WLS-127] POST /api/devices/:id/wireless/alerts/:alertId/clear', () => {
+    it('401 — rejects a request with no Authorization header', async () => {
+      const res = await request(app).post(
+        `/api/devices/${deviceId}/wireless/alerts/${alertId}/clear`
+      );
+
+      expect(res.status).toBe(401);
+    });
+
+    it('200 — clears the active alert', async () => {
+      const res = await request(app)
+        .post(
+          `/api/devices/${deviceId}/wireless/alerts/${alertId}/clear`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.isActive).toBe(false);
+
+      const stored = await prisma.wirelessAlertRecord.findUnique({
+        where: { id: alertId }
+      });
+      expect(stored?.isActive).toBe(false);
+    });
+
+    it('200 — clearing an already-cleared alert is idempotent', async () => {
+      await request(app)
+        .post(
+          `/api/devices/${deviceId}/wireless/alerts/${alertId}/clear`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      const res = await request(app)
+        .post(
+          `/api/devices/${deviceId}/wireless/alerts/${alertId}/clear`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.isActive).toBe(false);
+    });
+
+    it('404 — alert does not belong to the device', async () => {
+      const otherDeviceId = await seedWirelessDeviceWithoutSnapshot(
+        prisma,
+        deviceModelId
+      );
+
+      const res = await request(app)
+        .post(
+          `/api/devices/${otherDeviceId}/wireless/alerts/${alertId}/clear`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(404);
+    });
+
+    it('404 — alert does not exist', async () => {
+      const res = await request(app)
+        .post(
+          `/api/devices/${deviceId}/wireless/alerts/${GHOST_ID}/clear`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(404);
+    });
+
+    it('400 — invalid alert UUID', async () => {
+      const res = await request(app)
+        .post(
+          `/api/devices/${deviceId}/wireless/alerts/${INVALID_ID}/clear`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // POST /api/devices/:id/wireless/alerts/clear (bulk)
+  // ─────────────────────────────────────────────────────────────
+
+  describe('[WLS-128] POST /api/devices/:id/wireless/alerts/clear', () => {
+    it('200 — clears every active alert for the device when ids is omitted', async () => {
+      const res = await request(app)
+        .post(`/api/devices/${deviceId}/wireless/alerts/clear`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body.cleared).toHaveLength(1);
+      expect(res.body.cleared[0].id).toBe(alertId);
+    });
+
+    it('200 — clears only the given ids', async () => {
+      const res = await request(app)
+        .post(`/api/devices/${deviceId}/wireless/alerts/clear`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ ids: [alertId] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.cleared).toHaveLength(1);
+    });
+
+    it('200 — bucket a foreign device alert id as failed, not cleared', async () => {
+      const otherDeviceId = await seedWirelessDeviceWithoutSnapshot(
+        prisma,
+        deviceModelId
+      );
+      const otherAlertId = await seedWirelessAlert(
+        prisma,
+        otherDeviceId
+      );
+
+      const res = await request(app)
+        .post(`/api/devices/${deviceId}/wireless/alerts/clear`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ ids: [otherAlertId] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.cleared).toHaveLength(0);
+      expect(res.body.failed).toHaveLength(1);
+    });
+
+    it('400 — invalid device UUID', async () => {
+      const res = await request(app)
+        .post(`/api/devices/${INVALID_ID}/wireless/alerts/clear`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({});
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
   // POST /api/devices/:id/wireless/poll
   // Note: poll attempts real device connectivity, so accept any
   // plausible status for existing devices to stay environment-agnostic.
@@ -485,7 +632,9 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
     // Calling without deviceId returns 400 ("Device ID is required").
 
     it('400 — returns 400 when deviceId is omitted (use case requires it)', async () => {
-      const res = await request(app).get('/api/wireless/alerts/history');
+      const res = await request(app).get(
+        '/api/wireless/alerts/history'
+      );
 
       expect(res.status).toBe(400);
     });

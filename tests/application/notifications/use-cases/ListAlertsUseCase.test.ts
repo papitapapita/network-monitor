@@ -14,8 +14,8 @@ import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity
 // ---------------------------------------------------------------------------
 
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440020';
-const VALID_ALERT_UUID  = '550e8400-e29b-41d4-a716-446655440021';
-const INVALID_UUID      = 'not-a-valid-uuid';
+const VALID_ALERT_UUID = '550e8400-e29b-41d4-a716-446655440021';
+const INVALID_UUID = 'not-a-valid-uuid';
 
 const STARTED_AT = new Date('2024-06-01T10:00:00.000Z');
 
@@ -26,8 +26,8 @@ const STARTED_AT = new Date('2024-06-01T10:00:00.000Z');
 function makeLogger(): ILogger {
   return {
     debug: jest.fn(),
-    info:  jest.fn(),
-    warn:  jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
     error: jest.fn(),
     fatal: jest.fn(),
     child: jest.fn().mockReturnThis(),
@@ -37,27 +37,28 @@ function makeLogger(): ILogger {
 
 function makeAlertRepo(): jest.Mocked<IAlertRepository> {
   return {
-    save:                    jest.fn(),
-    findById:                jest.fn(),
+    save: jest.fn(),
+    findById: jest.fn(),
     findOpenByDeviceAndType: jest.fn(),
-    findAllByDeviceId:       jest.fn(),
-    findAll:                 jest.fn(),
-    deleteById:              jest.fn(),
+    findAllOpenByDeviceId: jest.fn(),
+    findAllByDeviceId: jest.fn(),
+    findAll: jest.fn(),
+    deleteById: jest.fn(),
     deleteResolvedOlderThan: jest.fn()
   };
 }
 
 function makeAlert(): Alert {
   return Alert.reconstitute(AlertId.parse(VALID_ALERT_UUID).value, {
-    deviceId:           DeviceId.parse(VALID_DEVICE_UUID).value,
-    severity:           AlertSeverity.CRITICAL,
-    source:             'Disponibilidad',
-    type:               'device_unreachable',
-    description:        'Sin conexión',
-    startedAt:          STARTED_AT,
-    resolvedAt:         null,
-    notifiedAt:         null,
-    recoveryNotifiedAt: null,
+    deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
+    severity: AlertSeverity.CRITICAL,
+    source: 'Disponibilidad',
+    type: 'device_unreachable',
+    description: 'Sin conexión',
+    startedAt: STARTED_AT,
+    resolvedAt: null,
+    notifiedAt: null,
+    recoveryNotifiedAt: null
   });
 }
 
@@ -70,8 +71,8 @@ describe('ListAlertsUseCase', () => {
 
   beforeEach(() => {
     alertRepo = makeAlertRepo();
-    logger    = makeLogger();
-    useCase   = new ListAlertsUseCase(alertRepo, logger);
+    logger = makeLogger();
+    useCase = new ListAlertsUseCase(alertRepo, logger);
   });
 
   afterEach(() => {
@@ -128,7 +129,9 @@ describe('ListAlertsUseCase', () => {
 
     it('should return a failure when findAll returns a failure', async () => {
       // arrange
-      alertRepo.findAll.mockResolvedValue(Result.fail('DB connection lost'));
+      alertRepo.findAll.mockResolvedValue(
+        Result.fail('DB connection lost')
+      );
 
       // act
       const result = await useCase.execute({});
@@ -163,7 +166,8 @@ describe('ListAlertsUseCase', () => {
 
       // assert
       expect(alertRepo.findAllByDeviceId).toHaveBeenCalledTimes(1);
-      const calledDeviceId: DeviceId = alertRepo.findAllByDeviceId.mock.calls[0][0];
+      const calledDeviceId: DeviceId =
+        alertRepo.findAllByDeviceId.mock.calls[0][0];
       expect(calledDeviceId.toString()).toBe(VALID_DEVICE_UUID);
     });
 
@@ -185,10 +189,14 @@ describe('ListAlertsUseCase', () => {
     it('should return a successful result filtered to the device', async () => {
       // arrange
       const alert = makeAlert();
-      alertRepo.findAllByDeviceId.mockResolvedValue(Result.ok([alert]));
+      alertRepo.findAllByDeviceId.mockResolvedValue(
+        Result.ok([alert])
+      );
 
       // act
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       // assert
       expect(result.isSuccess).toBe(true);
@@ -197,7 +205,9 @@ describe('ListAlertsUseCase', () => {
 
     it('should return a failure when deviceId is an invalid UUID', async () => {
       // act
-      const result = await useCase.execute({ deviceId: INVALID_UUID });
+      const result = await useCase.execute({
+        deviceId: INVALID_UUID
+      });
 
       // assert
       expect(result.isFailure).toBe(true);
@@ -217,10 +227,14 @@ describe('ListAlertsUseCase', () => {
 
     it('should return a failure when findAllByDeviceId returns a failure', async () => {
       // arrange
-      alertRepo.findAllByDeviceId.mockResolvedValue(Result.fail('Timeout'));
+      alertRepo.findAllByDeviceId.mockResolvedValue(
+        Result.fail('Timeout')
+      );
 
       // act
-      const result = await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
 
       // assert
       expect(result.isFailure).toBe(true);

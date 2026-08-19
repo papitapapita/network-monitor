@@ -5,7 +5,8 @@ import {
   GetDevicePollingStatusUseCase,
   GetDevicePollingHistoryUseCase,
   ConfigureDevicePollingUseCase,
-  CreateDevicePollingUseCase
+  CreateDevicePollingUseCase,
+  DeleteDevicePingHistoryUseCase
 } from 'application/device-monitoring/use-cases';
 
 export class PollingController {
@@ -15,6 +16,7 @@ export class PollingController {
     private readonly getPollingHistoryUseCase: GetDevicePollingHistoryUseCase,
     private readonly configurePollingUseCase: ConfigureDevicePollingUseCase,
     private readonly createPollingUseCase: CreateDevicePollingUseCase,
+    private readonly deleteDevicePingHistoryUseCase: DeleteDevicePingHistoryUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -30,9 +32,7 @@ export class PollingController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
@@ -53,9 +53,7 @@ export class PollingController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
@@ -91,9 +89,35 @@ export class PollingController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
+        return;
+      }
+
+      res.status(200).json(result.value);
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public deleteHistory = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const query = req.query as Record<string, string>;
+
+      const result =
+        await this.deleteDevicePingHistoryUseCase.execute({
+          deviceId: req.params.id,
+          fromDate: query.fromDate
+            ? new Date(query.fromDate)
+            : undefined,
+          toDate: query.toDate ? new Date(query.toDate) : undefined
+        });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
@@ -118,9 +142,7 @@ export class PollingController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
@@ -144,9 +166,7 @@ export class PollingController {
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
-        res
-          .status(statusCode)
-          .json({ error: result.error });
+        res.status(statusCode).json({ error: result.error });
         return;
       }
 
@@ -193,8 +213,6 @@ export class PollingController {
       { error: errorMessage }
     );
 
-    res
-      .status(500)
-      .json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 }
