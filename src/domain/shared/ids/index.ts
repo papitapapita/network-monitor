@@ -3,6 +3,7 @@ export * from './LocationId';
 export * from './DeviceModelId';
 export * from './VendorId';
 export * from './PollingConfigurationId';
+export * from './DeviceNotificationPolicyId';
 export * from './AlertId';
 export * from './SnapshotId';
 export * from './WirelessDeviceConfigId';
