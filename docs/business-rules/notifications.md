@@ -12,24 +12,25 @@ Format and conventions: [README.md](README.md).
 
 ## ID ranges
 
-| Range                 | Area                                      |
-| --------------------- | ----------------------------------------- |
-| `NOT-001` … `NOT-029` | Alert identity and content                |
-| `NOT-030` … `NOT-059` | Alert lifecycle — open, resolve, notified |
-| `NOT-060` … `NOT-089` | Deduplication and the shared alert store  |
-| `NOT-090` … `NOT-109` | Operator notifications (Telegram)         |
-| `NOT-110` … `NOT-129` | Subscriber notifications (WhatsApp)       |
-| `NOT-130` … `NOT-149` | Retention, listing and deletion           |
-| `NOT-150` … `NOT-169` | Cross-cutting (access control)            |
+| Range                 | Area                                                     |
+| --------------------- | -------------------------------------------------------- |
+| `NOT-001` … `NOT-029` | Alert identity and content                               |
+| `NOT-030` … `NOT-059` | Alert lifecycle — open, resolve, notified                |
+| `NOT-060` … `NOT-089` | Deduplication and the shared alert store                 |
+| `NOT-090` … `NOT-109` | Operator notifications (Telegram)                        |
+| `NOT-110` … `NOT-129` | Subscriber notifications (WhatsApp)                      |
+| `NOT-130` … `NOT-149` | Retention, listing and deletion                          |
+| `NOT-150` … `NOT-169` | Cross-cutting (access control)                           |
+| `NOT-170` … `NOT-189` | Device notification policy (quiet hours, delay override) |
 
 ## Layer coverage
 
 | Layer                     | Rules |
 | ------------------------- | ----- |
-| Application               | 21    |
-| Domain (aggregate)        | 13    |
-| Presentation              | 2     |
-| Infrastructure (database) | 1     |
+| Application               | 25    |
+| Domain (aggregate/entity) | 17    |
+| Presentation              | 3     |
+| Infrastructure (database) | 2     |
 
 `Alert` is a deliberately thin aggregate — it holds one three-flag lifecycle
 (`resolvedAt`, `notifiedAt`, `recoveryNotifiedAt`) and refuses to move any of
@@ -446,12 +447,14 @@ keeping it would leave the alert list with rows pointing at nothing.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
-**Since:** 2026-08-05 · **Revised:** 2026-08-24
+**Since:** 2026-08-05 · **Revised:** 2026-09-02
 
 Raised by a periodic scan (`RaiseOverdueDeviceDownAlertsUseCase`) once a device
-has been continuously DOWN for at least `DEVICE_DOWN_ALERT_DELAY_MINUTES`
-(default 60), with source `Disponibilidad` and type `device_unreachable`. The
-alert records the consecutive failure count and the device's IP.
+has been continuously DOWN for at least its effective alert delay — the
+per-device override on `DeviceNotificationPolicy` (`NOT-173`) if one is set,
+otherwise `DEVICE_DOWN_ALERT_DELAY_MINUTES` (default 60) — with source
+`Disponibilidad` and type `device_unreachable`. The alert records the
+consecutive failure count and the device's IP.
 
 **Why:** Unreachable is the one condition that means the subscriber has no
 service at all, so it is never a warning. The failure count is carried because
@@ -569,19 +572,21 @@ already in the metadata, so failing it costs nothing that matters.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application · Domain
-**Since:** 2026-08-24
+**Since:** 2026-08-24 · **Revised:** 2026-09-02
 
 `DeviceState` records `downSince` — the start of the current DOWN streak — but
 raises no domain event for it. A periodic scan
 (`RaiseOverdueDeviceDownAlertsUseCase`, run every 60s by
-`OverdueDeviceDownAlertOrchestrator`) selects devices whose `downSince` is at
-or before `now - DEVICE_DOWN_ALERT_DELAY_MINUTES` and opens their alert
-through `SendDeviceDownAlertUseCase`, which already dedupes against an
-existing open alert (`NOT-060`), so re-selecting a still-down device on every
-scan is safe. A device that recovers before the delay elapses gets no alert at
-all, and `SendDeviceRecoveryAlertUseCase` skips its recovery notice as
-designed (`NOT-095`) rather than reporting the end of a fault nobody was told
-about.
+`OverdueDeviceDownAlertOrchestrator`) loads every currently-down device
+(`IDeviceStateRepository.findAllDown`, unfiltered by time — the delay is no
+longer uniform across devices, see `NOT-173`) and, for each one, opens its
+alert through `SendDeviceDownAlertUseCase` once `now - downSince` has reached
+that device's effective delay. `SendDeviceDownAlertUseCase` already dedupes
+against an existing open alert (`NOT-060`), so re-selecting a still-down
+device on every scan is safe. A device that recovers before its delay elapses
+gets no alert at all, and `SendDeviceRecoveryAlertUseCase` skips its recovery
+notice as designed (`NOT-095`) rather than reporting the end of a fault
+nobody was told about.
 
 The scan is independent of any device's own poll interval — a device polled
 once a day is not stuck waiting a day for its alert to be reconsidered.
@@ -813,3 +818,243 @@ write in the system.
 
 **Enforced at:** `src/presentation/http/routes/alert.routes.ts` (`createRateLimiter`)
 **Tests:** `tests/integration/alert.routes.test.ts`
+
+---
+
+## Device notification policy
+
+A `DeviceNotificationPolicy` is an optional, 1:1-with-device settings row —
+same shape as `PollingConfiguration` (`MON-` context), not an `AggregateRoot`
+and raises no domain events. It answers two independent questions: should
+this device page anyone right now (quiet hours), and how long should it wait
+before opening a down alert at all (delay override). Both default to "off":
+no window, no override.
+
+### NOT-170 — A device with no quiet-hours window always notifies
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-02
+
+`DeviceNotificationPolicy.quietHours` is `null` unless explicitly set, and
+`isWithinQuietHours` is unconditionally `false` while it is `null`. There is
+no separate "important" boolean — the absence of a window is what makes a
+device important.
+
+**Why:** A second flag redundant with "no window configured" could disagree
+with it — a device flagged important but still carrying a leftover window,
+or the reverse. Collapsing the concept into one property makes that
+contradiction unrepresentable, the same reasoning `NOT-030` applies to a
+single nullable timestamp over a status-plus-date pair.
+
+**Enforced at:** `src/domain/notifications/entities/DeviceNotificationPolicy.ts` (`isWithinQuietHours`)
+**Tests:** `tests/domain/notifications/entities/DeviceNotificationPolicy.test.ts`,
+`tests/application/notifications/use-cases/GetDeviceNotificationPolicyUseCase.test.ts`,
+`tests/application/notifications/use-cases/UpsertDeviceNotificationPolicyUseCase.test.ts`,
+`tests/application/notifications/use-cases/DeleteDeviceNotificationPolicyUseCase.test.ts`,
+`tests/infrastructure/persistence/PrismaDeviceNotificationPolicyRepository.test.ts`,
+`tests/infrastructure/notifications/QuietHoursAlertPublisher.test.ts`,
+`tests/integration/use-cases/notifications/GetDeviceNotificationPolicyUseCase.integration.test.ts`,
+`tests/integration/use-cases/notifications/UpsertDeviceNotificationPolicyUseCase.integration.test.ts`,
+`tests/integration/use-cases/notifications/DeleteDeviceNotificationPolicyUseCase.integration.test.ts`
+
+### NOT-171 — Quiet hours are both-or-neither, and each bound is a 24-hour HH:mm time
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-02
+
+`TimeOfDay.create` rejects anything but a zero-padded `HH:mm` string with
+hours `00`–`23` and minutes `00`–`59`. `QuietHours.create` additionally
+rejects an equal start and end — ambiguous between "the whole day" and "no
+window", so the caller must be explicit. The same both-or-neither rule is
+checked again in `UpsertDeviceNotificationPolicyUseCase` and the request
+validation schema before either bound reaches the domain, and once more by a
+database `CHECK` constraint for a row written outside the domain layer
+entirely.
+
+**Why:** A start with no end (or the reverse) is not a partial window, it is
+an invalid one — there is no sensible default for the missing side.
+Rejecting it at four layers (schema, use case, domain, database) is cheaper
+than ever having to decide what a one-sided window would mean.
+
+**Enforced at:** `src/domain/notifications/value-objects/TimeOfDay.ts`,
+`src/domain/notifications/value-objects/QuietHours.ts`,
+`src/application/notifications/use-cases/UpsertDeviceNotificationPolicyUseCase.ts`,
+`src/presentation/http/validation/notification-policy.schemas.ts`
+**Backed by:** `device_notification_policies_quiet_hours_both_or_neither` CHECK constraint, migration `20260902120000`
+**Message:** `quietHoursStart and quietHoursEnd must both be set, or both be null`
+**Tests:** `tests/domain/notifications/value-objects/TimeOfDay.test.ts`,
+`tests/domain/notifications/value-objects/QuietHours.test.ts`,
+`tests/application/notifications/use-cases/UpsertDeviceNotificationPolicyUseCase.test.ts`,
+`tests/integration/use-cases/notifications/UpsertDeviceNotificationPolicyUseCase.integration.test.ts`,
+`tests/integration/notification-policy.routes.test.ts`
+
+### NOT-172 — Quiet hours are evaluated against server-local wall-clock time, with overnight wraparound
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-02
+
+`TimeOfDay.fromDate` reads `Date#getHours()`/`getMinutes()` — the process's
+local timezone, not UTC and not a per-device or system-wide stored zone.
+`QuietHours.contains` treats a window whose start is after its end (e.g.
+`22:00`–`07:00`) as crossing midnight: "now" is inside when it is at or
+after start, or before end — never a plain `start <= now < end` comparison.
+
+**Why:** No timezone concept exists anywhere else in this system, and the
+person typing "22:00" into the policy is reading their own local clock —
+matching that removes a configuration axis (which timezone?) the feature
+does not need. Overnight is the common case this feature exists for; nobody
+scheduled a "customers asleep" window that starts and ends the same
+calendar day.
+
+**Enforced at:** `src/domain/notifications/value-objects/TimeOfDay.ts` (`fromDate`),
+`src/domain/notifications/value-objects/QuietHours.ts` (`contains`)
+**Tests:** `tests/domain/notifications/value-objects/TimeOfDay.test.ts`,
+`tests/domain/notifications/value-objects/QuietHours.test.ts`,
+`tests/domain/notifications/entities/DeviceNotificationPolicy.test.ts`,
+`tests/infrastructure/notifications/QuietHoursAlertPublisher.test.ts`
+
+### NOT-173 — The down-alert delay can be overridden per device, and falls back to the system default
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Domain
+**Since:** 2026-09-02
+
+`DeviceNotificationPolicy.alertDelayMinutes` is `null` unless explicitly
+set; `effectiveAlertDelayMs(defaultMs)` returns the override in
+milliseconds when present, otherwise `defaultMs`
+(`DEVICE_DOWN_ALERT_DELAY_MINUTES`, `NOT-090`). `RaiseOverdueDeviceDownAlertsUseCase`
+looks up each currently-down device's policy independently and compares its
+own `downSince` against its own effective delay (`NOT-097`), so a device
+with a 5-minute override and one on the 60-minute system default are both
+handled correctly inside the same scan. A negative override is rejected at
+the same layers as `NOT-171`.
+
+**Why:** The single global env var this extends could not express "page me
+for the core switch in 5 minutes, but a customer's home router in an hour"
+— the asymmetry that motivated this feature.
+
+**Enforced at:** `src/domain/notifications/entities/DeviceNotificationPolicy.ts` (`setAlertDelayMinutes`, `effectiveAlertDelayMs`),
+`src/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.ts`
+**Tests:** `tests/domain/notifications/entities/DeviceNotificationPolicy.test.ts`,
+`tests/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.test.ts`,
+`tests/application/notifications/use-cases/UpsertDeviceNotificationPolicyUseCase.test.ts`,
+`tests/integration/use-cases/notifications/UpsertDeviceNotificationPolicyUseCase.integration.test.ts`
+
+### NOT-174 — Quiet hours suppress the outbound notification, never the alert record
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-02
+
+`QuietHoursAlertPublisher` wraps the single shared `IAlertPublisher` every
+alert-producing path uses — device down, device recovery, wireless open and
+cleared alerts (`NOT-063`, `NOT-090`). During a device's configured window
+it returns `Result.fail(QUIET_HOURS_SUPPRESSED)` without forwarding to the
+real publisher. It never touches `Alert` or `WirelessAlertRecord` creation,
+which happens earlier in each producing use case and is unaffected — a
+device still opens its alert on schedule (`NOT-090`/`NOT-097`) and it
+remains visible on `GET /api/alerts` regardless of quiet hours. Only the
+Telegram push is muted. A failure to load the device's policy fails open —
+the real publisher is still called — so an infrastructure hiccup in this
+table never silently swallows a real alert.
+
+**Why:** The alert is the operational record of the fault; the notification
+is a best-effort page (`NOT-036`/`NOT-063` already separate these).
+Suppressing the record itself during quiet hours would hide a real outage
+from the dashboard, not just from the phone in someone's pocket at 3am — a
+far larger consequence than what this feature asks for.
+
+**Enforced at:** `src/infrastructure/notifications/QuietHoursAlertPublisher.ts`
+**Tests:** `tests/infrastructure/notifications/QuietHoursAlertPublisher.test.ts`,
+`tests/integration/notification-policy.routes.test.ts`
+
+### NOT-175 — Suppressed down and open-wireless alerts retry once quiet hours end; suppressed recovery and cleared notifications are dropped
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-02
+
+A publish failure — real or quiet-hours-suppressed — already means "don't
+mark notified" everywhere in this context (`NOT-036`). Two paths already
+rescan for exactly that state on their own schedule and so retry
+automatically once a window ends: `PollWirelessDeviceUseCase.deliverPendingAlertNotifications`
+re-queries `findActiveUnnotifiedByDevice` every poll cycle, and
+`SendDeviceDownAlertUseCase` now does the same for its own alert type — when
+`RaiseOverdueDeviceDownAlertsUseCase` re-selects a device with an existing
+but unnotified open alert (`NOT-060`), the use case retries delivery instead
+of handing the alert back untouched, closing a gap that also existed for
+genuine Telegram outages before this change. `SendDeviceRecoveryAlertUseCase`
+and `WirelessAlertClearedNotificationHandler` have no such record to
+rescan — a resolved alert or a cleared condition is a one-shot transition,
+so a notification suppressed there is simply not sent. All four call sites
+compare the publish error against `QUIET_HOURS_SUPPRESSED` before logging,
+so a device muted every night does not spam the error log the way a real
+delivery failure would.
+
+**Why:** Deferring a down alert matters because the fault might still be
+true, and worth knowing, once quiet hours end. Deferring a "here's what
+already got fixed" message does not — there is no morning-after value in
+being told a metric that already recovered once recovered, so building a
+redelivery queue for it would be unused machinery.
+
+**Enforced at:** `src/application/notifications/use-cases/SendDeviceDownAlertUseCase.ts` (`notifyAndSave`),
+`src/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.ts`,
+`src/application/wireless-monitoring/event-handlers/WirelessAlertClearedNotificationHandler.ts`,
+`src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts` (`deliverPendingAlertNotifications`)
+**Tests:** `tests/application/notifications/use-cases/SendDeviceDownAlertUseCase.test.ts`,
+`tests/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.test.ts`,
+`tests/application/wireless-monitoring/event-handlers/WirelessAlertClearedNotificationHandler.test.ts`,
+`tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
+
+### NOT-176 — Bulk policy updates apply one window/delay to an explicit device list, bucketed like other bulk actions
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-02
+
+`BulkUpsertDeviceNotificationPoliciesUseCase` takes a required, non-empty
+`deviceIds` list plus the same `quietHoursStart`/`quietHoursEnd`/`alertDelayMinutes`
+fields as the single-device upsert, and delegates to
+`UpsertDeviceNotificationPolicyUseCase` once per id. A device that fails
+validation or does not exist is bucketed into `failed` with its error
+message; every other device is bucketed into `updated`. One bad id in a
+large batch never aborts the rest.
+
+**Why:** The bucketed-response shape already established for bulk alert
+actions (`NOT-038`/`NOT-039`) fits here too — an operator turning on quiet
+hours for an entire location's worth of devices needs to see which ones
+actually took the change, not an all-or-nothing failure that leaves them
+guessing which id had the typo.
+
+**Enforced at:** `src/application/notifications/use-cases/BulkUpsertDeviceNotificationPoliciesUseCase.ts`
+**Reached from:** `PUT /api/notification-policies/bulk`
+**Tests:** `tests/application/notifications/use-cases/BulkUpsertDeviceNotificationPoliciesUseCase.test.ts`,
+`tests/integration/use-cases/notifications/BulkUpsertDeviceNotificationPoliciesUseCase.integration.test.ts`,
+`tests/integration/notification-policy.routes.test.ts`
+
+### NOT-177 — Notification policy reads and writes sit on the same permission tier as device configuration
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-09-02
+
+| Endpoint                                      | Permission |
+| --------------------------------------------- | ---------- |
+| `GET /api/devices/:id/notification-policy`    | `read`     |
+| `PUT /api/devices/:id/notification-policy`    | `update`   |
+| `DELETE /api/devices/:id/notification-policy` | `update`   |
+| `PUT /api/notification-policies/bulk`         | `update`   |
+
+**Why:** This is device configuration, not alert triage — the same tier as
+polling config (`PATCH /api/devices/:id/polling/config`, also `update`), not
+the alert-specific split in `NOT-150`. There is no delete-tier permission
+here at all: `DELETE` only resets a device to its always-notify default, it
+does not destroy history the way alert deletion does — gating it behind
+administrator-only would mismatch the permission against what the action
+actually risks.
+
+**Enforced at:** `src/presentation/http/routes/notification-policy.routes.ts` (`authorize`)
+**Tests:** `tests/integration/notification-policy.routes.test.ts`

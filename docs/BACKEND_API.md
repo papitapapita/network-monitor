@@ -1399,6 +1399,108 @@ toDate?:   string
 
 ---
 
+## Notification Policy `/api/devices/:id/notification-policy`, `/api/notification-policies/bulk`
+
+> **Response envelope:** these endpoints return **raw data** — no `{ success, data }` wrapper.  
+> Error: `{ error: string }`.
+
+Controls, per device: an optional **quiet-hours window** that mutes outbound
+alert notifications (device-down, device-recovery, and wireless alerts —
+never the alert record itself, which still opens/lists normally), and an
+optional **override of the down-alert delay**
+(`DEVICE_DOWN_ALERT_DELAY_MINUTES` otherwise).
+
+> **A device with no window configured always notifies.** There is no
+> separate "important device" flag — leaving both `quietHoursStart` and
+> `quietHoursEnd` unset (or clearing them) _is_ what marks a device as
+> always-notify. Quiet hours are evaluated against the **server's local
+> wall-clock time**, not the caller's timezone.
+>
+> Down-alert and wireless-alert notifications suppressed by quiet hours are
+> retried automatically once the window ends (as long as the underlying
+> condition is still true). A recovery or cleared-condition notification
+> suppressed during quiet hours is simply not sent — there is no
+> "catch up in the morning" for good news.
+
+### `GET /api/devices/:id/notification-policy` — Get Effective Policy
+
+**Status:** 200 | 400 | 404
+
+```ts
+// Response
+{
+  deviceId: string;
+  quietHoursStart: string | null; // "HH:mm", 24-hour, or null
+  quietHoursEnd: string | null;
+  alertDelayMinutes: number | null; // override; null = use the system default
+  updatedAt: string | null; // ISO 8601; null if never configured
+}
+```
+
+> Returns always-notify defaults (`quietHoursStart`/`quietHoursEnd`/`alertDelayMinutes`/`updatedAt` all `null`) when no policy row has ever been saved for this device — this is not a `404`.
+
+---
+
+### `PUT /api/devices/:id/notification-policy` — Replace Policy
+
+**Status:** 200 | 400 | 404  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// Request body — full replace; both quiet-hours fields must be set together, or both omitted/null
+{
+  quietHoursStart?: string | null  // "HH:mm", 24-hour
+  quietHoursEnd?: string | null
+  alertDelayMinutes?: number | null // ≥ 0
+}
+
+// Response: the resulting policy, same shape as GET
+```
+
+> Upserts — creates the policy row if none exists yet, or replaces it. The device must exist. Omitting a field (or sending it as `null`) clears that setting back to its default (no window / system default delay).
+
+---
+
+### `DELETE /api/devices/:id/notification-policy` — Reset to Defaults
+
+**Status:** 204 (no body) | 400  
+**Roles:** ADMIN, OPERATOR
+
+> Resets the device to always-notify with the system default delay by deleting its policy row. Idempotent — succeeds even if the device never had one, and does **not** 404 for an unknown device id (only a malformed UUID returns `400`).
+
+---
+
+### `PUT /api/notification-policies/bulk` — Configure Many Devices at Once
+
+**Status:** 200 | 400  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// Request body
+{
+  deviceIds: string[]              // required, at least one
+  quietHoursStart?: string | null
+  quietHoursEnd?: string | null
+  alertDelayMinutes?: number | null
+}
+
+// Response
+{
+  updated: Array<{                 // same shape as GET, one per successfully-updated device
+    deviceId: string
+    quietHoursStart: string | null
+    quietHoursEnd: string | null
+    alertDelayMinutes: number | null
+    updatedAt: string
+  }>
+  failed: Array<{ id: string; error: string }>
+}
+```
+
+> Applies the same settings to every device in `deviceIds`, independently — a bad id (malformed or unknown) lands in `failed` without aborting the rest. Always `200` when the request itself is well-formed; check `failed` for partial failures.
+
+---
+
 ## Alerts `/api/alerts`
 
 This is the **unified operational-alert list**. Every bounded context that detects an infrastructure problem records into this one store, so dashboards (and future ticketing) read a single place instead of chasing per-context lists. Both **device-availability** alerts and **wireless-link** alerts land here.
