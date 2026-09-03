@@ -12,3 +12,7 @@ export * from './BulkDeleteAlertsUseCase';
 export * from './PurgeOldAlertsUseCase';
 export * from './SendSuspensionNoticeUseCase';
 export * from './SendAlertNotificationUseCase';
+export * from './GetDeviceNotificationPolicyUseCase';
+export * from './UpsertDeviceNotificationPolicyUseCase';
+export * from './DeleteDeviceNotificationPolicyUseCase';
+export * from './BulkUpsertDeviceNotificationPoliciesUseCase';
