@@ -1332,6 +1332,19 @@ describe('PrismaDeviceRepository', () => {
           .calls[0][0] as Record<string, unknown>;
         expect(call.orderBy).toEqual({ updatedAt: 'desc' });
       });
+
+      it('should sort by the generated ipSortKey column, not the raw ipAddress string', async () => {
+        prisma.device.findMany.mockResolvedValue([]);
+
+        await repository.findByFilters({
+          sortBy: 'ipAddress',
+          sortOrder: 'ASC'
+        });
+
+        const call = prisma.device.findMany.mock
+          .calls[0][0] as Record<string, unknown>;
+        expect(call.orderBy).toEqual({ ipSortKey: 'asc' });
+      });
     });
 
     // -----------------------------------------------------------------------

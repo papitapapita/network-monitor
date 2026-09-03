@@ -92,6 +92,7 @@ export class DeviceController {
           | 'name'
           | 'status'
           | 'deletedAt'
+          | 'ipAddress'
           | undefined,
         sortOrder: q.sortOrder as 'ASC' | 'DESC' | undefined
       });

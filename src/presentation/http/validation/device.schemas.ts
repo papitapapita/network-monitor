@@ -55,7 +55,8 @@ const SORT_BY_VALUES = [
   'name',
   'status',
   // Most-recently-deleted-first is the natural order for the recycle bin.
-  'deletedAt'
+  'deletedAt',
+  'ipAddress'
 ] as const;
 
 // =====================================

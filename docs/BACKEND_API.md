@@ -460,7 +460,7 @@ deviceModelId?:    string          // UUID
 monitoringEnabled?: 'true' | 'false'
 deleted?:          'true' | 'false' | 'any'   // default: 'false' — see below
 search?:           string          // free-text
-sortBy?:           'createdAt' | 'updatedAt' | 'name' | 'status' | 'deletedAt'  // default: createdAt
+sortBy?:           'createdAt' | 'updatedAt' | 'name' | 'status' | 'deletedAt' | 'ipAddress'  // default: createdAt
 sortOrder?:        'ASC' | 'DESC'  // default: DESC
 
 // Response
@@ -479,6 +479,11 @@ sortOrder?:        'ASC' | 'DESC'  // default: DESC
 > `total` is the number of devices matching the filters, not the number returned
 > in `devices`. Filtered and unfiltered listings both paginate in the database,
 > so page size bounds the work the query does.
+
+> `sortBy=ipAddress` orders by address value (IPv4 and IPv6), not by the
+> stored string — `"9.0.0.1"` sorts before `"10.0.0.1"`. Devices with no
+> `ipAddress` sort last on `ASC`, first on `DESC` (Postgres's default null
+> ordering).
 
 **`deleted` — the recycle bin.** Soft-deleted devices are hidden from every
 listing unless you ask for them:

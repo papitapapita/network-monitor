@@ -612,7 +612,8 @@ describe('listDevicesSchema', () => {
         'createdAt',
         'updatedAt',
         'name',
-        'status'
+        'status',
+        'ipAddress'
       ] as const;
 
       for (const sortBy of sortByValues) {

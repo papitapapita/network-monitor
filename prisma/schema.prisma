@@ -180,6 +180,11 @@ model Device {
   // so a replacement can take it.
   macAddress       String? @map("mac_address") @db.VarChar(17)
   ipAddress        String? @map("ip_address") @db.VarChar(45)
+  // Generated column (migration 20260903130000) — Postgres derives it from
+  // `ipAddress` via inet_send() on every write. Prisma's DSL cannot express
+  // a generated column, so this is declared as an ordinary field and is
+  // never written to directly; it exists only to be ordered by.
+  ipSortKey        Bytes?  @map("ip_sort_key")
   description      String?   @db.Text
 
   // Lifecycle

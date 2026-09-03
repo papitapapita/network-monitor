@@ -15,6 +15,7 @@ export interface ListDevicesQueryDTO {
     | 'updatedAt'
     | 'name'
     | 'status'
-    | 'deletedAt';
+    | 'deletedAt'
+    | 'ipAddress';
   sortOrder?: 'ASC' | 'DESC';
 }

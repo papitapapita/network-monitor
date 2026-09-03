@@ -32,7 +32,8 @@ export interface DeviceFilters {
     | 'updatedAt'
     | 'name'
     | 'status'
-    | 'deletedAt';
+    | 'deletedAt'
+    | 'ipAddress';
   sortOrder?: 'ASC' | 'DESC';
   limit?: number;
   offset?: number;

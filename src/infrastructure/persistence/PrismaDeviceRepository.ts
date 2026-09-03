@@ -417,7 +417,12 @@ export class PrismaDeviceRepository implements IDeviceRepository {
       };
 
       if (filters.sortBy !== undefined) {
-        orderBy = { [filters.sortBy]: sortOrder };
+        // ip_sort_key is a generated column (migration 20260903130000) that
+        // orders by address value; ipAddress itself is a plain VARCHAR and
+        // would sort lexicographically ("10.0.0.1" before "9.0.0.1").
+        const column =
+          filters.sortBy === 'ipAddress' ? 'ipSortKey' : filters.sortBy;
+        orderBy = { [column]: sortOrder };
       }
 
       const rawRecords = await this.prisma.device.findMany({
