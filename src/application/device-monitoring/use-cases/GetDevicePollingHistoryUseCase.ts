@@ -78,6 +78,8 @@ export class GetDevicePollingHistoryUseCase extends UseCase<
         isReachable,
         fromDate: query.fromDate,
         toDate: query.toDate,
+        sortBy: query.sortBy,
+        sortOrder: query.sortOrder,
         limit,
         offset
       }

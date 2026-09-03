@@ -112,23 +112,32 @@ describe('ListDevicesUseCase', () => {
   });
 
   // =========================================================================
+  // [DEV-147] No-filter requests used to go through findAll()/count(), which
+  // has no sortBy param — a sort-only request (no other filter) silently lost
+  // its ordering, leaving the DB's default createdAt-desc order in place. Now
+  // every request, filtered or not, resolves through findByFilters/
+  // countByFilters so sorting always happens at the database level, before
+  // pagination.
   describe('no filters — DB-level pagination path', () => {
     beforeEach(() => {
-      repo.findAll.mockResolvedValue(Result.ok(makeDevicePage(5)));
-      repo.count.mockResolvedValue(Result.ok(5));
+      repo.findByFilters.mockResolvedValue(
+        Result.ok(makeDevicePage(5))
+      );
+      repo.countByFilters.mockResolvedValue(Result.ok(5));
     });
 
-    it('should call findAll (not findByFilters) when no filters are supplied', async () => {
+    it('should call findByFilters (not findAll) when no filters are supplied', async () => {
       await useCase.execute({});
 
-      expect(repo.findAll).toHaveBeenCalledTimes(1);
-      expect(repo.findByFilters).not.toHaveBeenCalled();
+      expect(repo.findByFilters).toHaveBeenCalledTimes(1);
+      expect(repo.findAll).not.toHaveBeenCalled();
     });
 
-    it('should call count when no filters are supplied', async () => {
+    it('should call countByFilters when no filters are supplied', async () => {
       await useCase.execute({});
 
-      expect(repo.count).toHaveBeenCalledTimes(1);
+      expect(repo.countByFilters).toHaveBeenCalledTimes(1);
+      expect(repo.count).not.toHaveBeenCalled();
     });
 
     it('should return a successful Result', async () => {
@@ -137,48 +146,61 @@ describe('ListDevicesUseCase', () => {
       expect(result.isSuccess).toBe(true);
     });
 
-    it('should return the total from the count call', async () => {
-      repo.count.mockResolvedValue(Result.ok(42));
-      repo.findAll.mockResolvedValue(Result.ok(makeDevicePage(20)));
+    it('should return the total from the countByFilters call', async () => {
+      repo.countByFilters.mockResolvedValue(Result.ok(42));
+      repo.findByFilters.mockResolvedValue(
+        Result.ok(makeDevicePage(20))
+      );
 
       const result = await useCase.execute({ limit: 20, offset: 0 });
 
       expect(result.value!.total).toBe(42);
     });
 
-    it('should pass the limit to findAll', async () => {
+    it('should pass the limit and offset to findByFilters', async () => {
       await useCase.execute({ limit: 10, offset: 0 });
 
-      expect(repo.findAll).toHaveBeenCalledWith(10, 0);
+      const filters = repo.findByFilters.mock.calls[0][0];
+      expect(filters.limit).toBe(10);
+      expect(filters.offset).toBe(0);
     });
 
-    it('should pass the offset to findAll', async () => {
-      await useCase.execute({ limit: 20, offset: 40 });
+    it('should pass sortBy and sortOrder to findByFilters when a plain sort is requested', async () => {
+      await useCase.execute({ sortBy: 'name', sortOrder: 'ASC' });
 
-      expect(repo.findAll).toHaveBeenCalledWith(20, 40);
+      const filters = repo.findByFilters.mock.calls[0][0];
+      expect(filters.sortBy).toBe('name');
+      expect(filters.sortOrder).toBe('ASC');
     });
 
     it('should use default limit of 20 when not provided', async () => {
       await useCase.execute({});
 
-      expect(repo.findAll).toHaveBeenCalledWith(20, 0);
+      const filters = repo.findByFilters.mock.calls[0][0];
+      expect(filters.limit).toBe(20);
+      expect(filters.offset).toBe(0);
     });
 
     it('should use default offset of 0 when not provided', async () => {
       await useCase.execute({ limit: 10 });
 
-      expect(repo.findAll).toHaveBeenCalledWith(10, 0);
+      const filters = repo.findByFilters.mock.calls[0][0];
+      expect(filters.limit).toBe(10);
+      expect(filters.offset).toBe(0);
     });
 
     it('should cap the limit at 100', async () => {
       await useCase.execute({ limit: 999 });
 
-      expect(repo.findAll).toHaveBeenCalledWith(100, 0);
+      const filters = repo.findByFilters.mock.calls[0][0];
+      expect(filters.limit).toBe(100);
     });
 
     it('should set hasMore to true when more items exist beyond the current page', async () => {
-      repo.findAll.mockResolvedValue(Result.ok(makeDevicePage(20)));
-      repo.count.mockResolvedValue(Result.ok(50));
+      repo.findByFilters.mockResolvedValue(
+        Result.ok(makeDevicePage(20))
+      );
+      repo.countByFilters.mockResolvedValue(Result.ok(50));
 
       const result = await useCase.execute({ limit: 20, offset: 0 });
 
@@ -186,16 +208,18 @@ describe('ListDevicesUseCase', () => {
     });
 
     it('should set hasMore to false when the page covers all remaining items', async () => {
-      repo.findAll.mockResolvedValue(Result.ok(makeDevicePage(10)));
-      repo.count.mockResolvedValue(Result.ok(30));
+      repo.findByFilters.mockResolvedValue(
+        Result.ok(makeDevicePage(10))
+      );
+      repo.countByFilters.mockResolvedValue(Result.ok(30));
 
       const result = await useCase.execute({ limit: 20, offset: 20 });
 
       expect(result.value!.hasMore).toBe(false);
     });
 
-    it('should fail when findAll returns a repository error', async () => {
-      repo.findAll.mockResolvedValue(
+    it('should fail when findByFilters returns a repository error', async () => {
+      repo.findByFilters.mockResolvedValue(
         Result.fail('DB connection lost')
       );
 
@@ -205,8 +229,10 @@ describe('ListDevicesUseCase', () => {
       expect(result.error).toContain('DB connection lost');
     });
 
-    it('should fail when count returns a repository error', async () => {
-      repo.count.mockResolvedValue(Result.fail('count query failed'));
+    it('should fail when countByFilters returns a repository error', async () => {
+      repo.countByFilters.mockResolvedValue(
+        Result.fail('count query failed')
+      );
 
       const result = await useCase.execute({});
 
@@ -215,8 +241,10 @@ describe('ListDevicesUseCase', () => {
     });
 
     it('should return devices mapped to DTOs', async () => {
-      repo.findAll.mockResolvedValue(Result.ok(makeDevicePage(3)));
-      repo.count.mockResolvedValue(Result.ok(3));
+      repo.findByFilters.mockResolvedValue(
+        Result.ok(makeDevicePage(3))
+      );
+      repo.countByFilters.mockResolvedValue(Result.ok(3));
 
       const result = await useCase.execute({});
 
@@ -519,8 +547,8 @@ describe('ListDevicesUseCase', () => {
   // =========================================================================
   describe('[DEV-142] pagination — no-filter path limit caps', () => {
     beforeEach(() => {
-      repo.findAll.mockResolvedValue(Result.ok([]));
-      repo.count.mockResolvedValue(Result.ok(0));
+      repo.findByFilters.mockResolvedValue(Result.ok([]));
+      repo.countByFilters.mockResolvedValue(Result.ok(0));
     });
 
     it('should include limit in the response', async () => {
@@ -539,7 +567,8 @@ describe('ListDevicesUseCase', () => {
       const result = await useCase.execute({ limit: 500 });
 
       expect(result.value!.limit).toBe(100);
-      expect(repo.findAll).toHaveBeenCalledWith(100, 0);
+      const filters = repo.findByFilters.mock.calls[0][0];
+      expect(filters.limit).toBe(100);
     });
   });
 });

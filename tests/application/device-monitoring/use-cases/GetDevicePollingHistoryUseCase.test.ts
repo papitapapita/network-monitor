@@ -291,6 +291,32 @@ describe('GetDevicePollingHistoryUseCase', () => {
       expect(filters.fromDate).toEqual(from);
       expect(filters.toDate).toEqual(to);
     });
+
+    it('[MON-042] should forward sortBy and sortOrder to the repository', async () => {
+      pingResultRepo.findByDevice.mockResolvedValue(
+        Result.ok({ records: [], total: 0 })
+      );
+
+      await useCase.execute(
+        makeRequest({ sortBy: 'latencyMs', sortOrder: 'ASC' })
+      );
+
+      const filters = pingResultRepo.findByDevice.mock.calls[0][1];
+      expect(filters.sortBy).toBe('latencyMs');
+      expect(filters.sortOrder).toBe('ASC');
+    });
+
+    it('[MON-042] should leave sortBy/sortOrder undefined when not provided', async () => {
+      pingResultRepo.findByDevice.mockResolvedValue(
+        Result.ok({ records: [], total: 0 })
+      );
+
+      await useCase.execute(makeRequest());
+
+      const filters = pingResultRepo.findByDevice.mock.calls[0][1];
+      expect(filters.sortBy).toBeUndefined();
+      expect(filters.sortOrder).toBeUndefined();
+    });
   });
 
   // ===========================================================================

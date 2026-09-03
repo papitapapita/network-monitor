@@ -20,6 +20,8 @@ export interface PingResultFilters {
   isReachable?: boolean;
   fromDate?: Date;
   toDate?: Date;
+  sortBy?: 'checkedAt' | 'latencyMs';
+  sortOrder?: 'ASC' | 'DESC';
   limit: number;
   offset: number;
 }

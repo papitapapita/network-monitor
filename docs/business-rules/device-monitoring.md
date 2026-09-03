@@ -238,3 +238,23 @@ every other device's data at the same time.
 **Enforced at:** `src/application/device-monitoring/use-cases/DeleteDevicePingHistoryUseCase.ts`, `src/presentation/http/routes/polling.routes.ts`
 **Reached from:** `DELETE /api/devices/:id/polling/history`
 **Tests:** `tests/application/device-monitoring/use-cases/DeleteDevicePingHistoryUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/DeleteDevicePingHistoryUseCase.integration.test.ts`, `tests/integration/polling.routes.test.ts`
+
+### MON-042 — Ping history can be sorted by check time or latency, ordered in the database
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-09-03
+
+`GET /api/devices/:id/polling/history` accepts `sortBy` (`checkedAt` |
+`latencyMs`) and `sortOrder` (`ASC` | `DESC`), defaulting to `checkedAt DESC`
+when omitted. The value is pushed into the query's `ORDER BY`, ahead of
+`skip`/`take`, so a page is ordered against the device's whole ping history —
+not just the rows the page happens to contain.
+
+**Why:** Before 2026-09-03 the endpoint had no `sortBy` parameter at all — every
+page came back `checkedAt desc` regardless of what a client asked for, which
+pushed any other ordering onto the client sorting whatever page it already had
+in hand. That only ever looks correct within one page.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/GetDevicePollingHistoryUseCase.ts`, backed by `PrismaPingResultRepository.findByDevice`
+**Reached from:** `GET /api/devices/:id/polling/history`
+**Tests:** `tests/application/device-monitoring/use-cases/GetDevicePollingHistoryUseCase.test.ts`, `tests/infrastructure/persistence/PrismaPingResultRepository.test.ts`

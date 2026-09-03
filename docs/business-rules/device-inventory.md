@@ -2432,6 +2432,30 @@ number of instances — see the Priority 5 item in `docs/TODOS.md`.
 **Enforced at:** `src/presentation/http/middleware/rateLimiter.ts`, applied per route via `createRateLimiter(...)`
 **Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`
 
+### DEV-147 — Every device listing sorts in the database, including a sort with no other filter
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-09-03
+
+`sortBy`/`sortOrder` are honored by pushing them into the same `ORDER BY` that
+`findByFilters` already builds, before `LIMIT`/`OFFSET` are applied — so a page
+is ordered against the whole matching set, not just the rows that landed on
+that page. This holds even when `sortBy` is the only query parameter supplied,
+with no `status`/`category`/etc. filter alongside it.
+
+**Why:** Until 2026-09-03, a request with no other filter went through
+`findAll(limit, offset)`, which has no `sortBy` parameter and always returns
+`createdAt desc`. `sortBy`/`sortOrder` were silently dropped in that case, so a
+paginated table sorted only by whatever the client did with the 20-or-so rows
+it received for that page — the client had no way to get a globally sorted
+result. DEV-145 already routed every *filtered* request through the database
+for this reason; the unfiltered request is now folded into the same path
+instead of being a special case with weaker guarantees.
+
+**Enforced at:** `src/application/device-inventory/use-cases/ListDevicesUseCase.ts`, backed by `PrismaDeviceRepository.findByFilters`/`countByFilters`
+**Tests:** `tests/application/device-inventory/use-cases/ListDevicesUseCase.test.ts`
+
 ---
 
 ## Device (continued)

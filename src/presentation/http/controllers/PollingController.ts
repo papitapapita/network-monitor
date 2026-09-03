@@ -83,6 +83,8 @@ export class PollingController {
               | 'UNKNOWN'
             )[])
           : undefined,
+        sortBy: query.sortBy as 'checkedAt' | 'latencyMs' | undefined,
+        sortOrder: query.sortOrder as 'ASC' | 'DESC' | undefined,
         limit: query.limit ? parseInt(query.limit, 10) : undefined,
         offset: query.offset ? parseInt(query.offset, 10) : undefined
       });

@@ -320,6 +320,52 @@ describe('PrismaPingResultRepository', () => {
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     });
 
+    it('should default to ordering by checkedAt desc when sortBy is not provided', async () => {
+      prisma.$transaction.mockResolvedValue([[], 0]);
+
+      const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
+      await repo.findByDevice(deviceId, baseFilters);
+
+      expect(prisma.pingResult.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: { checkedAt: 'desc' }
+        })
+      );
+    });
+
+    it('[MON-042] should order by the requested sortBy column', async () => {
+      prisma.$transaction.mockResolvedValue([[], 0]);
+
+      const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
+      await repo.findByDevice(deviceId, {
+        ...baseFilters,
+        sortBy: 'latencyMs'
+      });
+
+      expect(prisma.pingResult.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: { latencyMs: 'desc' }
+        })
+      );
+    });
+
+    it('[MON-042] should order ascending when sortOrder is ASC', async () => {
+      prisma.$transaction.mockResolvedValue([[], 0]);
+
+      const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
+      await repo.findByDevice(deviceId, {
+        ...baseFilters,
+        sortBy: 'checkedAt',
+        sortOrder: 'ASC'
+      });
+
+      expect(prisma.pingResult.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: { checkedAt: 'asc' }
+        })
+      );
+    });
+
     it('should return a failed Result when Prisma throws', async () => {
       prisma.$transaction.mockRejectedValue(
         new Error('Transaction failed')

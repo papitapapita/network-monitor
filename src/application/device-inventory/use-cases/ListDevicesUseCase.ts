@@ -34,53 +34,11 @@ export class ListDevicesUseCase extends UseCase<
     );
     const offset = request.offset ?? 0;
 
-    const hasFilters = this.hasActiveFilters(request);
-
-    if (!hasFilters) {
-      return this.listAll(limit, offset);
-    }
-
+    // Always resolve through findByFilters/countByFilters, even with no
+    // filters set — it is the only path that orders at the database level
+    // before paginating. findAll() has no sortBy param, so routing
+    // unfiltered-but-sorted requests through it silently dropped the sort.
     return this.listByFilters(request, limit, offset);
-  }
-
-  private hasActiveFilters(request: ListDevicesQueryDTO): boolean {
-    return (
-      request.status != null ||
-      request.category != null ||
-      request.owner != null ||
-      request.locationId != null ||
-      request.deviceModelId != null ||
-      request.monitoringEnabled != null ||
-      request.deleted != null ||
-      request.search != null
-    );
-  }
-
-  private async listAll(
-    limit: number,
-    offset: number
-  ): Promise<Result<DeviceListResponseDTO>> {
-    const devicesResult = await this.deviceRepository.findAll(
-      limit,
-      offset
-    );
-    if (devicesResult.isFailure) {
-      return this.fail<DeviceListResponseDTO>(devicesResult.error!);
-    }
-
-    const countResult = await this.deviceRepository.count();
-    if (countResult.isFailure) {
-      return this.fail<DeviceListResponseDTO>(countResult.error!);
-    }
-
-    return this.ok<DeviceListResponseDTO>(
-      DeviceMapper.toListDTO(
-        devicesResult.value,
-        countResult.value,
-        limit,
-        offset
-      )
-    );
   }
 
   private async listByFilters(

@@ -17,6 +17,8 @@ export const getPollingHistorySchema = z.object({
       fromDate: z.string().datetime({ offset: true }).optional(),
       toDate: z.string().datetime({ offset: true }).optional(),
       status: z.string().optional(),
+      sortBy: z.enum(['checkedAt', 'latencyMs']).optional(),
+      sortOrder: z.enum(['ASC', 'DESC']).optional(),
       limit: z.coerce.number().int().min(1).max(1000).optional(),
       offset: z.coerce.number().int().min(0).optional()
     })

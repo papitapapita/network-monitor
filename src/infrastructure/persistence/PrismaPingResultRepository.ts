@@ -72,10 +72,15 @@ export class PrismaPingResultRepository
         };
       }
 
+      const sortOrder = filters.sortOrder === 'ASC' ? 'asc' : 'desc';
+      const orderBy: Prisma.PingResultOrderByWithRelationInput = {
+        [filters.sortBy ?? 'checkedAt']: sortOrder
+      };
+
       const [rows, total] = await this.prisma.$transaction([
         this.prisma.pingResult.findMany({
           where,
-          orderBy: { checkedAt: 'desc' },
+          orderBy,
           skip: filters.offset,
           take: filters.limit
         }),
