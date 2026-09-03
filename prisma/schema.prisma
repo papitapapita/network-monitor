@@ -207,6 +207,7 @@ model Device {
   replacedBy                   Device[]                      @relation("DeviceReplacement")
   pollingConfiguration         PollingConfiguration?
   deviceState                  DeviceState?
+  notificationPolicy           DeviceNotificationPolicy?
   pingResults                  PingResult[]
   alertEvents                  AlertEvent[]
   deviceCredentials            DeviceCredentials?
@@ -342,6 +343,33 @@ model PollingConfiguration {
 
   @@index([enabled])
   @@map("polling_configurations")
+}
+
+/// Per-device notification settings: an optional quiet-hours window that
+/// suppresses outbound alert notifications (not the alert record itself —
+/// see NOT-174 in docs/business-rules/notifications.md), and an optional
+/// override of the system-wide down-alert delay.
+/// A device with no window configured always notifies (NOT-170) — there is
+/// deliberately no separate "important" boolean.
+model DeviceNotificationPolicy {
+  id       String @id @default(uuid()) @db.Uuid
+  deviceId String @unique @map("device_id") @db.Uuid
+
+  // Both null or both set — enforced by a CHECK constraint (migration
+  // 20260902120000), not expressible in the Prisma schema DSL.
+  quietHoursStart String? @map("quiet_hours_start") @db.VarChar(5)
+  quietHoursEnd   String? @map("quiet_hours_end") @db.VarChar(5)
+
+  // null = use the system default (DEVICE_DOWN_ALERT_DELAY_MINUTES).
+  // Range also enforced by the same migration's CHECK constraint.
+  alertDelayMinutes Int? @map("alert_delay_minutes")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@map("device_notification_policies")
 }
 
 // ============================================================================

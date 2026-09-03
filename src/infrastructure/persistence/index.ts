@@ -7,3 +7,4 @@ export * from './PrismaPingResultRepository';
 export * from './PrismaDeviceStateRepository';
 export * from './PrismaDeviceCredentialsRepository';
 export * from './PrismaAlertRepository';
+export * from './PrismaDeviceNotificationPolicyRepository';
