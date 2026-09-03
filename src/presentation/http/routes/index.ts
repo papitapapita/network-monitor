@@ -5,6 +5,10 @@ import { createDeviceRoutes } from './device.routes';
 import { createDeviceModelRoutes } from './device-model.routes';
 import { createVendorRoutes } from './vendor.routes';
 import { createPollingRoutes } from './polling.routes';
+import {
+  createNotificationPolicyRoutes,
+  createNotificationPolicyBulkRoutes
+} from './notification-policy.routes';
 import { createAlertRoutes } from './alert.routes';
 import { createScanRoutes } from './scan.routes';
 import { createWirelessRoutes } from './wireless.routes';
@@ -180,6 +184,21 @@ export function setupRoutes(
   apiRouter.use(
     '/alerts',
     createAlertRoutes(container.alertController)
+  );
+
+  // Notification policy: /api/devices/:id/notification-policy,
+  // /api/notification-policies/bulk
+  apiRouter.use(
+    '/devices',
+    createNotificationPolicyRoutes(
+      container.notificationPolicyController
+    )
+  );
+  apiRouter.use(
+    '/notification-policies',
+    createNotificationPolicyBulkRoutes(
+      container.notificationPolicyController
+    )
   );
 
   // =====================================

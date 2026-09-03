@@ -25,7 +25,8 @@ import {
   PrismaPingResultRepository,
   PrismaDeviceStateRepository,
   PrismaAlertRepository,
-  PrismaDeviceCredentialsRepository
+  PrismaDeviceCredentialsRepository,
+  PrismaDeviceNotificationPolicyRepository
 } from '../persistence/';
 import {
   LocationController,
@@ -33,6 +34,7 @@ import {
   DeviceModelController,
   VendorController,
   PollingController,
+  NotificationPolicyController,
   AlertController,
   ScanController,
   WirelessController,
@@ -132,6 +134,7 @@ import {
   TelegramNotificationService,
   WhatsAppNotificationService,
   AlertPublisher,
+  QuietHoursAlertPublisher,
   AlertRecorder
 } from '../notifications';
 import { OverdueDeviceDownAlertOrchestrator } from '../notifications/orchestrator';
@@ -209,7 +212,11 @@ import {
   PurgeOldAlertsUseCase,
   SendSuspensionNoticeUseCase,
   SendAlertNotificationUseCase,
-  RaiseOverdueDeviceDownAlertsUseCase
+  RaiseOverdueDeviceDownAlertsUseCase,
+  GetDeviceNotificationPolicyUseCase,
+  UpsertDeviceNotificationPolicyUseCase,
+  DeleteDeviceNotificationPolicyUseCase,
+  BulkUpsertDeviceNotificationPoliciesUseCase
 } from 'application/notifications/use-cases';
 import {
   DeviceCameOnlineNotificationHandler,
@@ -286,6 +293,7 @@ export class DependencyContainer {
   private pingResultRepository: PrismaPingResultRepository;
   private deviceStateRepository: PrismaDeviceStateRepository;
   private alertRepository: PrismaAlertRepository;
+  private deviceNotificationPolicyRepository: PrismaDeviceNotificationPolicyRepository;
 
   // Wireless repositories
   private wirelessSnapshotRepository: PrismaWirelessSnapshotRepository;
@@ -314,6 +322,7 @@ export class DependencyContainer {
   public deviceModelController: DeviceModelController;
   public vendorController: VendorController;
   public pollingController: PollingController;
+  public notificationPolicyController: NotificationPolicyController;
   public alertController: AlertController;
   public scanController: ScanController;
   public wirelessController: WirelessController;
@@ -374,6 +383,8 @@ export class DependencyContainer {
       this.prisma
     );
     this.alertRepository = new PrismaAlertRepository(this.prisma);
+    this.deviceNotificationPolicyRepository =
+      new PrismaDeviceNotificationPolicyRepository(this.prisma);
     this.wirelessDeviceConfigRepository =
       new PrismaWirelessDeviceConfigRepository(this.prisma);
     // Sits with the other persistence repositories rather than down in the
@@ -872,6 +883,37 @@ export class DependencyContainer {
       this.logger
     );
 
+    const getDeviceNotificationPolicyUseCase =
+      new GetDeviceNotificationPolicyUseCase(
+        this.deviceNotificationPolicyRepository,
+        this.deviceRepository,
+        this.logger
+      );
+    const upsertDeviceNotificationPolicyUseCase =
+      new UpsertDeviceNotificationPolicyUseCase(
+        this.deviceNotificationPolicyRepository,
+        this.deviceRepository,
+        this.logger
+      );
+    const deleteDeviceNotificationPolicyUseCase =
+      new DeleteDeviceNotificationPolicyUseCase(
+        this.deviceNotificationPolicyRepository,
+        this.logger
+      );
+    const bulkUpsertDeviceNotificationPoliciesUseCase =
+      new BulkUpsertDeviceNotificationPoliciesUseCase(
+        upsertDeviceNotificationPolicyUseCase,
+        this.logger
+      );
+    this.notificationPolicyController =
+      new NotificationPolicyController(
+        getDeviceNotificationPolicyUseCase,
+        upsertDeviceNotificationPolicyUseCase,
+        deleteDeviceNotificationPolicyUseCase,
+        bulkUpsertDeviceNotificationPoliciesUseCase,
+        this.logger
+      );
+
     this.pollingOrchestrator = new PollingOrchestrator(
       this.pollingConfigRepository,
       executePollingCycleUseCase,
@@ -892,8 +934,13 @@ export class DependencyContainer {
         telegramNotificationService,
         this.logger
       );
-    const alertPublisher = new AlertPublisher(
-      sendAlertNotificationUseCase
+    // Wraps the real publisher so every alert-producing path below (down,
+    // recovery, wireless — they all share this one instance) gets
+    // quiet-hours suppression for free.
+    const alertPublisher = new QuietHoursAlertPublisher(
+      new AlertPublisher(sendAlertNotificationUseCase),
+      this.deviceNotificationPolicyRepository,
+      this.logger
     );
 
     const sendDeviceDownAlertUseCase = new SendDeviceDownAlertUseCase(
@@ -922,6 +969,7 @@ export class DependencyContainer {
     const raiseOverdueDeviceDownAlertsUseCase =
       new RaiseOverdueDeviceDownAlertsUseCase(
         this.deviceStateRepository,
+        this.deviceNotificationPolicyRepository,
         sendDeviceDownAlertUseCase,
         deviceDownAlertDelayMs,
         this.logger
