@@ -11,6 +11,7 @@ import { AlertId } from '../../../../src/domain/shared/ids/AlertId';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
 import { SendDeviceDownAlertDTO } from '../../../../src/application/notifications/dtos/SendDeviceDownAlertDTO';
+import { QUIET_HOURS_SUPPRESSED } from '../../../../src/application/shared/interfaces/IAlertPublisher';
 import { PollingConfiguration } from '../../../../src/domain/device-monitoring/entities/PollingConfiguration';
 import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository';
 import {
@@ -89,7 +90,7 @@ function makeRequest(
   };
 }
 
-function makeOpenAlert(): Alert {
+function makeOpenAlert(notifiedAt: Date | null = null): Alert {
   return Alert.reconstitute(AlertId.parse(VALID_ALERT_UUID).value, {
     deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
     severity: AlertSeverity.CRITICAL,
@@ -98,7 +99,7 @@ function makeOpenAlert(): Alert {
     description: 'Sin conexión',
     startedAt: FIXED_DATE,
     resolvedAt: null,
-    notifiedAt: null,
+    notifiedAt,
     recoveryNotifiedAt: null
   });
 }
@@ -287,9 +288,9 @@ describe('SendDeviceDownAlertUseCase', () => {
   });
 
   // ===========================================================================
-  describe('executeImpl — existing open alert', () => {
+  describe('executeImpl — existing open alert, already notified', () => {
     it('should return the existing open alert DTO without creating a new one', async () => {
-      const existing = makeOpenAlert();
+      const existing = makeOpenAlert(FIXED_DATE);
       alertRepo.findOpenByDeviceAndType.mockResolvedValue(
         Result.ok(existing)
       );
@@ -299,17 +300,17 @@ describe('SendDeviceDownAlertUseCase', () => {
       expect(result.value?.id).toBe(VALID_ALERT_UUID);
     });
 
-    it('should not call alertRepository.save when an open alert already exists', async () => {
+    it('should not call alertRepository.save when the open alert was already notified', async () => {
       alertRepo.findOpenByDeviceAndType.mockResolvedValue(
-        Result.ok(makeOpenAlert())
+        Result.ok(makeOpenAlert(FIXED_DATE))
       );
       await useCase.execute(makeRequest());
       expect(alertRepo.save).not.toHaveBeenCalled();
     });
 
-    it('should not publish when an open alert already exists', async () => {
+    it('should not publish again when the open alert was already notified', async () => {
       alertRepo.findOpenByDeviceAndType.mockResolvedValue(
-        Result.ok(makeOpenAlert())
+        Result.ok(makeOpenAlert(FIXED_DATE))
       );
       await useCase.execute(makeRequest());
       expect(alertPublisher.publish).not.toHaveBeenCalled();
@@ -324,6 +325,56 @@ describe('SendDeviceDownAlertUseCase', () => {
       expect(result.error).toContain(
         'Failed to check existing alerts'
       );
+    });
+  });
+
+  // ===========================================================================
+  describe('[NOT-175] executeImpl — existing open alert, not yet notified', () => {
+    beforeEach(() => {
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(makeOpenAlert(null))
+      );
+      alertRepo.save.mockImplementation(async (a) => Result.ok(a));
+    });
+
+    it('retries delivery instead of handing the alert back untouched', async () => {
+      await useCase.execute(makeRequest());
+      expect(alertPublisher.publish).toHaveBeenCalledTimes(1);
+      expect(alertRepo.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('marks the alert notified once the retry succeeds', async () => {
+      let capturedAlert: Alert | null = null;
+      alertRepo.save.mockImplementation(async (a) => {
+        capturedAlert = a;
+        return Result.ok(a);
+      });
+
+      await useCase.execute(makeRequest());
+      expect(capturedAlert!.notifiedAt).not.toBeNull();
+    });
+
+    it('does not log a suppressed quiet-hours retry as an error', async () => {
+      alertPublisher.publish.mockResolvedValue(
+        Result.fail(QUIET_HOURS_SUPPRESSED)
+      );
+
+      await useCase.execute(makeRequest());
+      expect(logger.error).not.toHaveBeenCalled();
+    });
+
+    it('leaves the alert unnotified when the quiet-hours retry is suppressed', async () => {
+      alertPublisher.publish.mockResolvedValue(
+        Result.fail(QUIET_HOURS_SUPPRESSED)
+      );
+      let capturedAlert: Alert | null = null;
+      alertRepo.save.mockImplementation(async (a) => {
+        capturedAlert = a;
+        return Result.ok(a);
+      });
+
+      await useCase.execute(makeRequest());
+      expect(capturedAlert!.notifiedAt).toBeNull();
     });
   });
 

@@ -5,7 +5,8 @@ import { IPollingConfigurationRepository } from 'domain/device-monitoring/reposi
 import { UseCase } from 'application/shared/core';
 import {
   ILogger,
-  IAlertPublisher
+  IAlertPublisher,
+  QUIET_HOURS_SUPPRESSED
 } from 'application/shared/interfaces';
 import { AlertMapper } from '../mappers';
 import {
@@ -92,11 +93,19 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
     });
 
     if (publishResult.isFailure) {
-      this.logger.error(
-        'Failed to publish device-recovery alert notification',
-        undefined,
-        { deviceId: deviceId.toString(), error: publishResult.error }
-      );
+      // Deliberately not retried on a later cycle: unlike the down alert,
+      // there is no unnotified-record scan for a resolved alert, and
+      // re-announcing a recovery hours later has no value.
+      if (publishResult.error !== QUIET_HOURS_SUPPRESSED) {
+        this.logger.error(
+          'Failed to publish device-recovery alert notification',
+          undefined,
+          {
+            deviceId: deviceId.toString(),
+            error: publishResult.error
+          }
+        );
+      }
     } else {
       openAlert.markRecoveryNotified();
     }

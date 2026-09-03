@@ -15,7 +15,8 @@ import {
 import { UseCase } from 'application/shared/core';
 import {
   ILogger,
-  IAlertPublisher
+  IAlertPublisher,
+  QUIET_HOURS_SUPPRESSED
 } from 'application/shared/interfaces';
 import {
   IUbiquitiHttpCollector,
@@ -481,11 +482,13 @@ export class PollWirelessDeviceUseCase
       });
 
       if (sendResult.isFailure) {
-        this.logger.error(
-          `Alert notification failed, will retry next cycle`,
-          undefined,
-          { metric: record.metric, error: sendResult.error }
-        );
+        if (sendResult.error !== QUIET_HOURS_SUPPRESSED) {
+          this.logger.error(
+            `Alert notification failed, will retry next cycle`,
+            undefined,
+            { metric: record.metric, error: sendResult.error }
+          );
+        }
         continue;
       }
 

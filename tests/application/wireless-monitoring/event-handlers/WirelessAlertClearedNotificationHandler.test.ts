@@ -8,6 +8,7 @@ import {
 import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
+import { QUIET_HOURS_SUPPRESSED } from '../../../../src/application/shared/interfaces/IAlertPublisher';
 
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440050';
 const FIXED_DATE = new Date('2024-06-01T10:00:00.000Z');
@@ -113,6 +114,16 @@ describe('[WLS-123] WirelessAlertClearedNotificationHandler', () => {
         handler.handle(makeEvent('CRITICAL'))
       ).resolves.toBeUndefined();
       expect(logger.error).toHaveBeenCalled();
+    });
+
+    it('[NOT-175] should not log a quiet-hours suppression as an error', async () => {
+      publisher.publish.mockResolvedValue(
+        Result.fail(QUIET_HOURS_SUPPRESSED)
+      );
+
+      await handler.handle(makeEvent('CRITICAL'));
+
+      expect(logger.error).not.toHaveBeenCalled();
     });
   });
 });

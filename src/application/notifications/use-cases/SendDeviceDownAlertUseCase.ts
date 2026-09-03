@@ -9,7 +9,8 @@ import { IDeviceEligibilityService } from 'domain/device-inventory/services';
 import { UseCase } from 'application/shared/core';
 import {
   ILogger,
-  IAlertPublisher
+  IAlertPublisher,
+  QUIET_HOURS_SUPPRESSED
 } from 'application/shared/interfaces';
 import { AlertMapper } from '../mappers';
 import { AlertResponseDTO, SendDeviceDownAlertDTO } from '../dtos';
@@ -72,8 +73,16 @@ export class SendDeviceDownAlertUseCase extends UseCase<
         `Failed to check existing alerts: ${existingResult.error}`
       );
     }
+    // An existing alert that was never notified (e.g. the first publish
+    // attempt was suppressed by quiet hours, or Telegram was briefly down)
+    // gets a fresh delivery attempt on this scan instead of being handed
+    // back untouched — otherwise a device muted overnight would never page
+    // anyone once quiet hours end.
     if (existingResult.value !== null) {
-      return this.ok(AlertMapper.toDTO(existingResult.value));
+      if (existingResult.value.notifiedAt !== null) {
+        return this.ok(AlertMapper.toDTO(existingResult.value));
+      }
+      return this.notifyAndSave(existingResult.value, request);
     }
 
     const ipAddress = await this.resolveIpAddress(deviceId);
@@ -95,24 +104,35 @@ export class SendDeviceDownAlertUseCase extends UseCase<
         `Failed to create alert: ${alertResult.error}`
       );
     }
-    const alert = alertResult.value;
 
+    return this.notifyAndSave(alertResult.value, request);
+  }
+
+  private async notifyAndSave(
+    alert: Alert,
+    request: SendDeviceDownAlertDTO
+  ): Promise<Result<AlertResponseDTO | null>> {
     const publishResult = await this.alertPublisher.publish({
-      deviceId: deviceId.toString(),
+      deviceId: alert.deviceId.toString(),
       severity: AlertSeverity.CRITICAL,
       source: SOURCE,
       subject: SUBJECT,
-      detail,
+      detail: alert.description,
       occurredAt: request.occurredAt,
       resolved: false
     });
 
     if (publishResult.isFailure) {
-      this.logger.error(
-        'Failed to publish device-down alert notification',
-        undefined,
-        { deviceId: deviceId.toString(), error: publishResult.error }
-      );
+      if (publishResult.error !== QUIET_HOURS_SUPPRESSED) {
+        this.logger.error(
+          'Failed to publish device-down alert notification',
+          undefined,
+          {
+            deviceId: alert.deviceId.toString(),
+            error: publishResult.error
+          }
+        );
+      }
     } else {
       alert.markNotified();
     }

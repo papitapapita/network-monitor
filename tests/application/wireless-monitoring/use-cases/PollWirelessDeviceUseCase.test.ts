@@ -5,6 +5,7 @@ import {
   AlertDecision,
   IWirelessAlertEvaluator
 } from '../../../../src/domain/wireless-monitoring/services/IWirelessAlertEvaluator';
+import { QUIET_HOURS_SUPPRESSED } from '../../../../src/application/shared/interfaces/IAlertPublisher';
 import { IWirelessDeviceConfigRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessDeviceConfigRepository';
 import { IWirelessSnapshotRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessSnapshotRepository';
 import { IWirelessAlertRecordRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessAlertRecordRepository';
@@ -805,6 +806,22 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
       expect(record.isNotified).toBe(false);
       expect(mocks.logger.error).toHaveBeenCalled();
+    });
+
+    it('[NOT-175] leaves the alert un-notified without logging an error when quiet hours suppress it', async () => {
+      configureHappyPath(mocks);
+      const record = makePendingRecord();
+      mocks.alertRecordRepo.findActiveUnnotifiedByDevice.mockResolvedValue(
+        Result.ok([record])
+      );
+      mocks.alertPublisher.publish.mockResolvedValue(
+        Result.fail(QUIET_HOURS_SUPPRESSED)
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(record.isNotified).toBe(false);
+      expect(mocks.logger.error).not.toHaveBeenCalled();
     });
 
     it('should keep delivering later alerts when one fails', async () => {

@@ -3,7 +3,8 @@ import { AlertSeverity } from 'domain/shared/enums';
 import { WirelessAlertClearedEvent } from 'domain/wireless-monitoring/events';
 import {
   ILogger,
-  IAlertPublisher
+  IAlertPublisher,
+  QUIET_HOURS_SUPPRESSED
 } from 'application/shared/interfaces';
 
 const SOURCE = 'Enlace inalámbrico';
@@ -33,7 +34,13 @@ export class WirelessAlertClearedNotificationHandler
         resolved: true
       });
 
-      if (result.isFailure) {
+      // Not retried, same as the device-recovery case: a cleared-condition
+      // notice has no record to rescan, and re-announcing it later has no
+      // value.
+      if (
+        result.isFailure &&
+        result.error !== QUIET_HOURS_SUPPRESSED
+      ) {
         this.logger.error(
           'WirelessAlertClearedNotificationHandler: publish failed',
           undefined,

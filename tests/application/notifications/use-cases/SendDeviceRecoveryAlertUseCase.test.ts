@@ -3,6 +3,7 @@
 import { SendDeviceRecoveryAlertUseCase } from '../../../../src/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase';
 import { IAlertRepository } from '../../../../src/domain/notifications/repository/IAlertRepository';
 import { IPollingConfigurationRepository } from '../../../../src/domain/device-monitoring/repository/IPollingConfigurationRepository';
+import { QUIET_HOURS_SUPPRESSED } from '../../../../src/application/shared/interfaces/IAlertPublisher';
 import { IAlertPublisher } from '../../../../src/application/shared/interfaces/IAlertPublisher';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
@@ -295,6 +296,23 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
       await useCase.execute(makeRequest());
       expect(capturedAlert).not.toBeNull();
       expect(capturedAlert!.recoveryNotifiedAt).toBeNull();
+    });
+
+    it('[NOT-175] does not log a quiet-hours suppression as an error, and does not retry it', async () => {
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(makeOpenAlert())
+      );
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makePollingConfig())
+      );
+      alertPublisher.publish.mockResolvedValue(
+        Result.fail(QUIET_HOURS_SUPPRESSED)
+      );
+      alertRepo.save.mockImplementation(async (a) => Result.ok(a));
+
+      await useCase.execute(makeRequest());
+      expect(logger.error).not.toHaveBeenCalled();
+      expect(alertPublisher.publish).toHaveBeenCalledTimes(1);
     });
   });
 
