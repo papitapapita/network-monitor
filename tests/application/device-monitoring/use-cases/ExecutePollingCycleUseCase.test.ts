@@ -77,7 +77,7 @@ function makePingResultRepo(): jest.Mocked<IPingResultRepository> {
 function makeDeviceStateRepo(): jest.Mocked<IDeviceStateRepository> {
   return {
     findByDeviceId: jest.fn(),
-    findOverdueDown: jest.fn(),
+    findAllDown: jest.fn(),
     save: jest.fn()
   };
 }

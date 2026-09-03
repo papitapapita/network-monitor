@@ -6,8 +6,10 @@ export interface IDeviceStateRepository {
   findByDeviceId(
     deviceId: DeviceId
   ): Promise<Result<DeviceState | null>>;
-  // Devices continuously DOWN since at or before cutoff — the candidates for
-  // a delayed down-alert.
-  findOverdueDown(cutoff: Date): Promise<Result<DeviceState[]>>;
+  // Every device currently in a DOWN streak — the candidates for a delayed
+  // down-alert. Unfiltered by how long: the alert delay is per-device (see
+  // IDeviceNotificationPolicyRepository), so the cutoff is applied by the
+  // caller instead of in this query.
+  findAllDown(): Promise<Result<DeviceState[]>>;
   save(state: DeviceState): Promise<Result<DeviceState>>;
 }

@@ -3,9 +3,12 @@
 import { RaiseOverdueDeviceDownAlertsUseCase } from '../../../../src/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase';
 import { SendDeviceDownAlertUseCase } from '../../../../src/application/notifications/use-cases/SendDeviceDownAlertUseCase';
 import { IDeviceStateRepository } from '../../../../src/domain/device-monitoring/repository/IDeviceStateRepository';
+import { IDeviceNotificationPolicyRepository } from '../../../../src/domain/notifications/repository/IDeviceNotificationPolicyRepository';
 import { DeviceState } from '../../../../src/domain/device-monitoring/aggregates/DeviceState';
 import { DeviceStateProps } from '../../../../src/domain/device-monitoring/props/DeviceStateProps';
 import { ReachabilityStatus } from '../../../../src/domain/device-monitoring/value-objects/ReachabilityStatus';
+import { DeviceNotificationPolicy } from '../../../../src/domain/notifications/entities/DeviceNotificationPolicy';
+import { DeviceNotificationPolicyId } from '../../../../src/domain/shared/ids/DeviceNotificationPolicyId';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
@@ -19,6 +22,8 @@ function makeDeviceId(uuid: string): DeviceId {
   return DeviceId.parse(uuid).value;
 }
 
+// downSince defaults to exactly the default delay ago — overdue under the
+// default delay unless a test overrides it or attaches a policy.
 function makeDeviceState(
   uuid: string,
   overrides: Partial<DeviceStateProps> = {}
@@ -31,11 +36,27 @@ function makeDeviceState(
     lastLatencyMs: null,
     consecutiveFailures: 5,
     lastCheckedAt: FIXED_DATE,
-    downSince: FIXED_DATE,
+    downSince: new Date(FIXED_DATE.getTime() - ALERT_DELAY_MS),
     updatedAt: FIXED_DATE,
     ...overrides
   };
   return DeviceState.reconstitute(deviceId, props);
+}
+
+function makePolicy(
+  uuid: string,
+  alertDelayMinutes: number | null
+): DeviceNotificationPolicy {
+  return DeviceNotificationPolicy.reconstitute(
+    DeviceNotificationPolicyId.create(),
+    {
+      deviceId: makeDeviceId(uuid),
+      quietHours: null,
+      alertDelayMinutes,
+      createdAt: FIXED_DATE,
+      updatedAt: FIXED_DATE
+    }
+  );
 }
 
 const STUB_ALERT_DTO = {
@@ -57,8 +78,16 @@ const STUB_ALERT_DTO = {
 function makeDeviceStateRepo(): jest.Mocked<IDeviceStateRepository> {
   return {
     findByDeviceId: jest.fn(),
-    findOverdueDown: jest.fn(),
+    findAllDown: jest.fn(),
     save: jest.fn()
+  };
+}
+
+function makePolicyRepo(): jest.Mocked<IDeviceNotificationPolicyRepository> {
+  return {
+    save: jest.fn(),
+    findByDeviceId: jest.fn().mockResolvedValue(Result.ok(null)),
+    delete: jest.fn()
   };
 }
 
@@ -82,6 +111,7 @@ function makeLogger(): jest.Mocked<ILogger> {
 
 describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
   let deviceStateRepo: jest.Mocked<IDeviceStateRepository>;
+  let policyRepo: jest.Mocked<IDeviceNotificationPolicyRepository>;
   let sendDeviceDownAlertUseCase: jest.Mocked<
     Pick<SendDeviceDownAlertUseCase, 'execute'>
   >;
@@ -91,10 +121,12 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
   beforeEach(() => {
     jest.useFakeTimers().setSystemTime(FIXED_DATE);
     deviceStateRepo = makeDeviceStateRepo();
+    policyRepo = makePolicyRepo();
     sendDeviceDownAlertUseCase = makeSendDeviceDownAlertUseCase();
     logger = makeLogger();
     useCase = new RaiseOverdueDeviceDownAlertsUseCase(
       deviceStateRepo,
+      policyRepo,
       sendDeviceDownAlertUseCase as unknown as SendDeviceDownAlertUseCase,
       ALERT_DELAY_MS,
       logger
@@ -106,23 +138,17 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
     jest.useRealTimers();
   });
 
-  describe('cutoff computation', () => {
-    it('[NOT-097] should query findOverdueDown with now minus the alert delay', async () => {
-      deviceStateRepo.findOverdueDown.mockResolvedValue(
-        Result.ok([])
-      );
+  describe('happy path', () => {
+    it('should query every currently-down device, unfiltered by time', async () => {
+      deviceStateRepo.findAllDown.mockResolvedValue(Result.ok([]));
 
       await useCase.execute();
 
-      expect(deviceStateRepo.findOverdueDown).toHaveBeenCalledWith(
-        new Date(FIXED_DATE.getTime() - ALERT_DELAY_MS)
-      );
+      expect(deviceStateRepo.findAllDown).toHaveBeenCalledWith();
     });
-  });
 
-  describe('happy path', () => {
     it('should raise an alert for every overdue device returned', async () => {
-      deviceStateRepo.findOverdueDown.mockResolvedValue(
+      deviceStateRepo.findAllDown.mockResolvedValue(
         Result.ok([
           makeDeviceState(VALID_DEVICE_UUID_1),
           makeDeviceState(VALID_DEVICE_UUID_2)
@@ -140,7 +166,7 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
     });
 
     it('should pass the device id, consecutiveFailures and a fresh occurredAt', async () => {
-      deviceStateRepo.findOverdueDown.mockResolvedValue(
+      deviceStateRepo.findAllDown.mockResolvedValue(
         Result.ok([
           makeDeviceState(VALID_DEVICE_UUID_1, {
             consecutiveFailures: 12
@@ -163,7 +189,7 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
     });
 
     it('should return the count of alerts actually raised', async () => {
-      deviceStateRepo.findOverdueDown.mockResolvedValue(
+      deviceStateRepo.findAllDown.mockResolvedValue(
         Result.ok([
           makeDeviceState(VALID_DEVICE_UUID_1),
           makeDeviceState(VALID_DEVICE_UUID_2)
@@ -179,10 +205,8 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
       expect(result.value).toBe(2);
     });
 
-    it('should return 0 when nothing is overdue', async () => {
-      deviceStateRepo.findOverdueDown.mockResolvedValue(
-        Result.ok([])
-      );
+    it('should return 0 when nothing is down', async () => {
+      deviceStateRepo.findAllDown.mockResolvedValue(Result.ok([]));
 
       const result = await useCase.execute();
 
@@ -190,8 +214,8 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
       expect(result.value).toBe(0);
     });
 
-    it('[NOT-097] should not count a device whose alert was already open (use case returns null)', async () => {
-      deviceStateRepo.findOverdueDown.mockResolvedValue(
+    it('should not count a device whose alert was already open (use case returns null)', async () => {
+      deviceStateRepo.findAllDown.mockResolvedValue(
         Result.ok([makeDeviceState(VALID_DEVICE_UUID_1)])
       );
       sendDeviceDownAlertUseCase.execute.mockResolvedValue(
@@ -205,9 +229,94 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
     });
   });
 
+  describe('[NOT-173] effective alert delay — per-device override', () => {
+    it('uses the default delay when the device has no policy', async () => {
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([
+          makeDeviceState(VALID_DEVICE_UUID_1, {
+            // down for exactly the default delay — must fire
+            downSince: new Date(FIXED_DATE.getTime() - ALERT_DELAY_MS)
+          })
+        ])
+      );
+      policyRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
+      sendDeviceDownAlertUseCase.execute.mockResolvedValue(
+        Result.ok(STUB_ALERT_DTO)
+      );
+
+      const result = await useCase.execute();
+
+      expect(result.value).toBe(1);
+    });
+
+    it('skips a device whose down streak has not yet outlasted its shorter override', async () => {
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([
+          makeDeviceState(VALID_DEVICE_UUID_1, {
+            // down for 10 minutes
+            downSince: new Date(FIXED_DATE.getTime() - 10 * 60_000)
+          })
+        ])
+      );
+      // override delay is 30 minutes — not overdue yet
+      policyRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makePolicy(VALID_DEVICE_UUID_1, 30))
+      );
+
+      const result = await useCase.execute();
+
+      expect(result.value).toBe(0);
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).not.toHaveBeenCalled();
+    });
+
+    it('raises early for a device with a shorter override once it elapses', async () => {
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([
+          makeDeviceState(VALID_DEVICE_UUID_1, {
+            // down for 10 minutes
+            downSince: new Date(FIXED_DATE.getTime() - 10 * 60_000)
+          })
+        ])
+      );
+      // override delay is 5 minutes — already overdue
+      policyRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makePolicy(VALID_DEVICE_UUID_1, 5))
+      );
+      sendDeviceDownAlertUseCase.execute.mockResolvedValue(
+        Result.ok(STUB_ALERT_DTO)
+      );
+
+      const result = await useCase.execute();
+
+      expect(result.value).toBe(1);
+    });
+
+    it('falls back to the default delay when the policy lookup fails', async () => {
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([
+          makeDeviceState(VALID_DEVICE_UUID_1, {
+            downSince: new Date(FIXED_DATE.getTime() - ALERT_DELAY_MS)
+          })
+        ])
+      );
+      policyRepo.findByDeviceId.mockResolvedValue(
+        Result.fail('db unavailable')
+      );
+      sendDeviceDownAlertUseCase.execute.mockResolvedValue(
+        Result.ok(STUB_ALERT_DTO)
+      );
+
+      const result = await useCase.execute();
+
+      expect(result.value).toBe(1);
+    });
+  });
+
   describe('repository failure', () => {
-    it('should fail without calling the alert use case when findOverdueDown fails', async () => {
-      deviceStateRepo.findOverdueDown.mockResolvedValue(
+    it('should fail without calling the alert use case when findAllDown fails', async () => {
+      deviceStateRepo.findAllDown.mockResolvedValue(
         Result.fail('DB unavailable')
       );
 
@@ -220,7 +329,7 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
     });
 
     it('should include the repository error in the failure message', async () => {
-      deviceStateRepo.findOverdueDown.mockResolvedValue(
+      deviceStateRepo.findAllDown.mockResolvedValue(
         Result.fail('DB unavailable')
       );
 
@@ -232,7 +341,7 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
 
   describe('per-device failure isolation', () => {
     it('should continue raising alerts for remaining devices when one fails', async () => {
-      deviceStateRepo.findOverdueDown.mockResolvedValue(
+      deviceStateRepo.findAllDown.mockResolvedValue(
         Result.ok([
           makeDeviceState(VALID_DEVICE_UUID_1),
           makeDeviceState(VALID_DEVICE_UUID_2)
@@ -251,7 +360,7 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
     });
 
     it('should log an error for the device that failed', async () => {
-      deviceStateRepo.findOverdueDown.mockResolvedValue(
+      deviceStateRepo.findAllDown.mockResolvedValue(
         Result.ok([makeDeviceState(VALID_DEVICE_UUID_1)])
       );
       sendDeviceDownAlertUseCase.execute.mockResolvedValue(

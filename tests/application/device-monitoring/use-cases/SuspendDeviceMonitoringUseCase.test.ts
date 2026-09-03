@@ -40,7 +40,7 @@ function makeConfigRepo(): jest.Mocked<IPollingConfigurationRepository> {
 function makeStateRepo(): jest.Mocked<IDeviceStateRepository> {
   return {
     findByDeviceId: jest.fn(),
-    findOverdueDown: jest.fn(),
+    findAllDown: jest.fn(),
     save: jest.fn()
   };
 }

@@ -212,16 +212,14 @@ describe('PrismaDeviceStateRepository', () => {
   });
 
   // ===========================================================================
-  describe('findOverdueDown()', () => {
-    const CUTOFF = new Date('2024-06-01T09:00:00.000Z');
-
-    it('should query prisma.deviceState.findMany for DOWN devices at or before the cutoff', async () => {
+  describe('findAllDown()', () => {
+    it('should query prisma.deviceState.findMany for every DOWN device with a recorded downSince', async () => {
       prisma.deviceState.findMany.mockResolvedValue([]);
 
-      await repo.findOverdueDown(CUTOFF);
+      await repo.findAllDown();
 
       expect(prisma.deviceState.findMany).toHaveBeenCalledWith({
-        where: { status: 'DOWN', downSince: { lte: CUTOFF } }
+        where: { status: 'DOWN', downSince: { not: null } }
       });
     });
 
@@ -231,7 +229,7 @@ describe('PrismaDeviceStateRepository', () => {
         makeFakePrismaRow({ deviceId: VALID_DEVICE_UUID })
       ]);
 
-      await repo.findOverdueDown(CUTOFF);
+      await repo.findAllDown();
 
       expect(MockedMapper.toDomain).toHaveBeenCalledTimes(2);
     });
@@ -241,16 +239,16 @@ describe('PrismaDeviceStateRepository', () => {
         makeFakePrismaRow()
       ]);
 
-      const result = await repo.findOverdueDown(CUTOFF);
+      const result = await repo.findAllDown();
 
       expect(result.isSuccess).toBe(true);
       expect(result.value).toEqual([fakeState]);
     });
 
-    it('should return a successful Result with an empty array when nothing is overdue', async () => {
+    it('should return a successful Result with an empty array when nothing is down', async () => {
       prisma.deviceState.findMany.mockResolvedValue([]);
 
-      const result = await repo.findOverdueDown(CUTOFF);
+      const result = await repo.findAllDown();
 
       expect(result.isSuccess).toBe(true);
       expect(result.value).toEqual([]);
@@ -261,10 +259,10 @@ describe('PrismaDeviceStateRepository', () => {
         new Error('Connection refused')
       );
 
-      const result = await repo.findOverdueDown(CUTOFF);
+      const result = await repo.findAllDown();
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('findOverdueDown failed');
+      expect(result.error).toContain('findAllDown failed');
     });
   });
 
