@@ -118,7 +118,7 @@ describe('ListDevicesUseCase', () => {
   // every request, filtered or not, resolves through findByFilters/
   // countByFilters so sorting always happens at the database level, before
   // pagination.
-  describe('no filters — DB-level pagination path', () => {
+  describe('[DEV-147] no filters — DB-level pagination path', () => {
     beforeEach(() => {
       repo.findByFilters.mockResolvedValue(
         Result.ok(makeDevicePage(5))
