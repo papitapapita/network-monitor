@@ -2342,7 +2342,7 @@ interface ServicePlanDTO {
 
 ### `POST /api/service-plans` — Create
 
-**Status:** 201 | 400
+**Status:** 201 | 400 | 409
 
 ```ts
 // Request body
@@ -2358,6 +2358,9 @@ interface ServicePlanDTO {
 // Response
 { success: true, data: ServicePlanDTO }
 ```
+
+> Returns 409 if a plan with the same name already exists. Name comparison is
+> case-insensitive — `Plan 10 Mbps` and `plan 10 mbps` collide.
 
 ---
 
@@ -2398,7 +2401,7 @@ offset?: number  // ≥0, default 0
 
 ### `PUT /api/service-plans/:id` — Update
 
-**Status:** 200 | 400 | 404
+**Status:** 200 | 400 | 404 | 409
 
 ```ts
 // Request body (at least one field required)
@@ -2414,6 +2417,10 @@ offset?: number  // ≥0, default 0
 // Response
 { success: true, data: ServicePlanDTO }
 ```
+
+> Returns 409 if the new name is already taken by another plan, compared
+> case-insensitively. Submitting the plan's own name is not a conflict —
+> including "renaming" to a different case of its own current name.
 
 ---
 

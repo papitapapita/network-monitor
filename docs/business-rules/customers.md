@@ -464,22 +464,39 @@ the same width. The description field carries anything longer.
 **Message:** `Service plan name cannot exceed 100 characters`
 **Tests:** `tests/domain/customers/aggregates/ServicePlan.test.ts`
 
-### CUS-032 — A service plan name is unique across the catalogue
+### CUS-032 — A service plan name is unique across the catalogue, case-insensitively
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Application + database constraint
 **Since:** 2026-08-05
+**Revised:** 2026-09-03 (case-insensitive comparison)
+
+Comparison is case-insensitive: `Plan 10 Mbps` and `plan 10 mbps` collide. The
+stored value keeps whatever casing the operator typed — only the collision
+check folds case. A plan may keep its own name, including "renaming" itself to
+a different case of that same name, since the check excludes a match on its
+own id.
 
 **Why:** The plan is chosen by name by whoever contracts a service. Two plans
 called "Plan 10 Mbps" at different prices means the operator picks one at random
-and the subscriber is billed the other.
+and the subscriber is billed the other — two spellings differing only in case
+are exactly as ambiguous as an exact duplicate.
 
 **Enforced at:** `src/application/customers/use-cases/CreateServicePlanUseCase.ts`,
-`src/application/customers/use-cases/UpdateServicePlanUseCase.ts`
-**Backed by:** `ServicePlan.name @unique` in `prisma/schema.prisma`
+`src/application/customers/use-cases/UpdateServicePlanUseCase.ts`, via a
+case-insensitive lookup in
+`src/infrastructure/customers/repositories/PrismaServicePlanRepository.ts`
+(`findByName` — Postgres `mode: 'insensitive'`)
+**Backed by:** `ServicePlan.name @unique` in `prisma/schema.prisma` — this is a
+case-sensitive index, so it only catches exact-case duplicates; case-insensitive
+collisions rely on the application-level check above, not the database, so a
+race between two concurrent creates with different casing is not closed by the
+database.
 **Message:** `A service plan with name "<value>" already exists`
-**Tests:** `tests/application/customers/use-cases/CreateServicePlanUseCase.test.ts`,
-`tests/application/customers/use-cases/UpdateServicePlanUseCase.test.ts`
+**Tests:** `tests/infrastructure/customers/repositories/PrismaServicePlanRepository.test.ts`,
+`tests/application/customers/use-cases/CreateServicePlanUseCase.test.ts`,
+`tests/application/customers/use-cases/UpdateServicePlanUseCase.test.ts`,
+`tests/integration/service-plan.routes.test.ts`
 
 ### CUS-033 — Download bandwidth must be greater than zero
 

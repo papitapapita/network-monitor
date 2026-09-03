@@ -98,6 +98,20 @@ describe('Service Plan Routes — /api/service-plans', () => {
         });
       expect(res.status).toBe(409);
     });
+
+    it('[CUS-032] 409 — returns conflict when the name differs only in case', async () => {
+      await seedServicePlan(prisma, { name: 'Dup Plan' });
+      const res = await request(app)
+        .post('/api/service-plans')
+        .set('Authorization', auth())
+        .send({
+          name: 'dup plan',
+          downloadMbps: 50,
+          uploadMbps: 10,
+          monthlyPrice: 1000
+        });
+      expect(res.status).toBe(409);
+    });
   });
 
   describe('GET /api/service-plans', () => {
@@ -149,6 +163,28 @@ describe('Service Plan Routes — /api/service-plans', () => {
         .set('Authorization', auth())
         .send({ name: 'Existing Name' });
       expect(res.status).toBe(409);
+    });
+
+    it('[CUS-032] 409 — rejects a name owned by another plan even when only the case differs', async () => {
+      await seedServicePlan(prisma, { name: 'Existing Name' });
+      const id = await seedServicePlan(prisma, {
+        name: 'Other Name'
+      });
+      const res = await request(app)
+        .put(`/api/service-plans/${id}`)
+        .set('Authorization', auth())
+        .send({ name: 'existing name' });
+      expect(res.status).toBe(409);
+    });
+
+    it('[CUS-032] 200 — allows "renaming" a plan to a different case of its own name', async () => {
+      const id = await seedServicePlan(prisma, { name: 'Own Name' });
+      const res = await request(app)
+        .put(`/api/service-plans/${id}`)
+        .set('Authorization', auth())
+        .send({ name: 'own name' });
+      expect(res.status).toBe(200);
+      expect(res.body.data.name).toBe('own name');
     });
   });
 

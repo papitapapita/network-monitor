@@ -44,6 +44,7 @@ function makePrisma() {
     servicePlan: {
       upsert: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       delete: jest.fn(),
       count: jest.fn()
@@ -122,6 +123,51 @@ describe('PrismaServicePlanRepository', () => {
       );
 
       expect(result.value!.monthlyPrice).toBe(80000);
+    });
+  });
+
+  describe('[CUS-032] findByName()', () => {
+    it('should call prisma.servicePlan.findFirst with a case-insensitive where clause', async () => {
+      (prisma.servicePlan.findFirst as any).mockResolvedValue(
+        makeRaw()
+      );
+
+      await repository.findByName('Plan 50/10');
+
+      expect(prisma.servicePlan.findFirst).toHaveBeenCalledWith({
+        where: { name: { equals: 'Plan 50/10', mode: 'insensitive' } }
+      });
+    });
+
+    it('should return Result.ok(null) when no plan with the name exists', async () => {
+      (prisma.servicePlan.findFirst as any).mockResolvedValue(null);
+
+      const result = await repository.findByName('Unknown Plan');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value).toBeNull();
+    });
+
+    it('should find a plan stored as "Plan 50/10" when queried with "plan 50/10"', async () => {
+      (prisma.servicePlan.findFirst as any).mockResolvedValue(
+        makeRaw({ name: 'Plan 50/10' })
+      );
+
+      const result = await repository.findByName('plan 50/10');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value?.name).toBe('Plan 50/10');
+    });
+
+    it('should return a failure Result when Prisma throws', async () => {
+      (prisma.servicePlan.findFirst as any).mockRejectedValue(
+        new Error('query timeout')
+      );
+
+      const result = await repository.findByName('Plan 50/10');
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('query timeout');
     });
   });
 

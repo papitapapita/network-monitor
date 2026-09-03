@@ -76,8 +76,8 @@ export class PrismaServicePlanRepository
     name: string
   ): Promise<Result<ServicePlan | null>> {
     try {
-      const raw = await this.prisma.servicePlan.findUnique({
-        where: { name }
+      const raw = await this.prisma.servicePlan.findFirst({
+        where: { name: { equals: name, mode: 'insensitive' } }
       });
 
       if (!raw) return Result.ok<ServicePlan | null>(null);
