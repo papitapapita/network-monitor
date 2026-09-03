@@ -87,6 +87,7 @@ function makeDeviceModelRepo(): jest.Mocked<IDeviceModelRepository> {
     delete: jest.fn(),
     exists: jest.fn(),
     existsByVendorAndModel: jest.fn(),
+    findByVendorAndModel: jest.fn(),
     count: jest.fn()
   } as any;
 }
@@ -182,6 +183,9 @@ describe('UpdateDeviceModelUseCase', () => {
     );
     (vendorRepo.findById as any).mockResolvedValue(
       Result.ok(makeVendor())
+    );
+    (deviceModelRepo.findByVendorAndModel as any).mockResolvedValue(
+      Result.ok(null)
     );
     (deviceModelRepo.save as any).mockImplementation(
       async (m: DeviceModel) => Result.ok(m)
@@ -357,6 +361,149 @@ describe('UpdateDeviceModelUseCase', () => {
       await useCase.execute({ id: VALID_UUID, model: '' });
 
       expect(deviceModelRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-022] executeImpl — name conflict check', () => {
+    const CONFLICTING_UUID = '550e8400-e29b-41d4-a716-446655440003';
+
+    function makeConflictingDeviceModel(model: string): DeviceModel {
+      return DeviceModel.reconstitute(
+        DeviceModelId.parse(CONFLICTING_UUID).value!,
+        {
+          vendorId: VendorId.parse(VENDOR_UUID).value!,
+          vendorName: 'Mikrotik',
+          vendorSlug: 'mikrotik',
+          model,
+          deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
+          isWireless: false,
+          createdAt: NOW,
+          updatedAt: NOW
+        }
+      );
+    }
+
+    it('should not call findByVendorAndModel when neither vendorId nor model is in the request', async () => {
+      await useCase.execute({ id: VALID_UUID, deviceType: 'SWITCH' });
+
+      expect(
+        deviceModelRepo.findByVendorAndModel
+      ).not.toHaveBeenCalled();
+    });
+
+    it('should call findByVendorAndModel with the current vendor and trimmed new model', async () => {
+      await useCase.execute({
+        id: VALID_UUID,
+        model: '  CCR2004-16G-2S+  '
+      });
+
+      expect(
+        deviceModelRepo.findByVendorAndModel
+      ).toHaveBeenCalledWith(
+        VendorId.parse(VENDOR_UUID).value,
+        'CCR2004-16G-2S+'
+      );
+    });
+
+    it('should fail when another device model of the same vendor already has that name', async () => {
+      (deviceModelRepo.findByVendorAndModel as any).mockResolvedValue(
+        Result.ok(makeConflictingDeviceModel('hAP ac3'))
+      );
+
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        model: 'hAP ac3'
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('already exists');
+    });
+
+    it('should fail when the new model name differs only in case from another device model of the same vendor', async () => {
+      (deviceModelRepo.findByVendorAndModel as any).mockResolvedValue(
+        Result.ok(makeConflictingDeviceModel('hAP ac3'))
+      );
+
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        model: 'HAP AC3'
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('already exists');
+    });
+
+    it('should succeed when findByVendorAndModel finds the device model being updated itself', async () => {
+      (deviceModelRepo.findByVendorAndModel as any).mockResolvedValue(
+        Result.ok(makeDeviceModel())
+      );
+
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        model: 'rb760igs'
+      });
+
+      expect(result.isSuccess).toBe(true);
+    });
+
+    it('should not call save when the name conflict check fails', async () => {
+      (deviceModelRepo.findByVendorAndModel as any).mockResolvedValue(
+        Result.ok(makeConflictingDeviceModel('hAP ac3'))
+      );
+
+      await useCase.execute({ id: VALID_UUID, model: 'hAP ac3' });
+
+      expect(deviceModelRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('should check the new vendor when only vendorId changes, using the current model name', async () => {
+      (vendorRepo.findById as any).mockResolvedValue(
+        Result.ok(makeOtherVendor())
+      );
+
+      await useCase.execute({
+        id: VALID_UUID,
+        vendorId: OTHER_VENDOR_UUID
+      });
+
+      expect(
+        deviceModelRepo.findByVendorAndModel
+      ).toHaveBeenCalledWith(
+        VendorId.parse(OTHER_VENDOR_UUID).value,
+        'RB760iGS'
+      );
+    });
+
+    it('should fail when moving to a vendor that already has a device model with the current name', async () => {
+      (vendorRepo.findById as any).mockResolvedValue(
+        Result.ok(makeOtherVendor())
+      );
+      (deviceModelRepo.findByVendorAndModel as any).mockResolvedValue(
+        Result.ok(makeConflictingDeviceModel('RB760iGS'))
+      );
+
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        vendorId: OTHER_VENDOR_UUID
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('already exists');
+    });
+
+    it('should propagate a repository failure from findByVendorAndModel', async () => {
+      (deviceModelRepo.findByVendorAndModel as any).mockResolvedValue(
+        Result.fail('Device model DB error')
+      );
+
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        model: 'hAP ac3'
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Device model DB error');
     });
   });
 

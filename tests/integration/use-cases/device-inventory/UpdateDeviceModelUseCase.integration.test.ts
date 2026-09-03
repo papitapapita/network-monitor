@@ -131,6 +131,84 @@ describe('UpdateDeviceModelUseCase — integration', () => {
   });
 
   // ──────────────────────────────────────────────────────────────
+  // DEV-022 — name conflict, case-insensitive, scoped to vendor
+  // ──────────────────────────────────────────────────────────────
+
+  it('[DEV-022] fails when renamed to a model name already used by another model of the same vendor', async () => {
+    await prisma.deviceModel.create({
+      data: { vendorId, model: 'hAP ac3', deviceType: 'ROUTERBOARD' }
+    });
+
+    const result = await useCase.execute({
+      id: deviceModelId,
+      model: 'hAP ac3'
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/already exists/i);
+  });
+
+  it('[DEV-022] fails when renamed to a name differing only in case from another model of the same vendor', async () => {
+    await prisma.deviceModel.create({
+      data: { vendorId, model: 'hAP ac3', deviceType: 'ROUTERBOARD' }
+    });
+
+    const result = await useCase.execute({
+      id: deviceModelId,
+      model: 'HAP AC3'
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/already exists/i);
+  });
+
+  it('[DEV-022] succeeds when "renamed" to a different case of its own current name', async () => {
+    const result = await useCase.execute({
+      id: deviceModelId,
+      model: 'rb4011igs+'
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.model).toBe('rb4011igs+');
+  });
+
+  it('[DEV-022] fails when moved to a vendor that already has a model with the current name', async () => {
+    const otherVendorId = await seedVendor(prisma, {
+      name: 'Ubiquiti',
+      slug: 'ubiquiti'
+    });
+    await prisma.deviceModel.create({
+      data: {
+        vendorId: otherVendorId,
+        model: 'RB4011iGS+',
+        deviceType: 'ROUTERBOARD'
+      }
+    });
+
+    const result = await useCase.execute({
+      id: deviceModelId,
+      vendorId: otherVendorId
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/already exists/i);
+  });
+
+  it('[DEV-022] succeeds when moved to a vendor that has no model with the current name', async () => {
+    const otherVendorId = await seedVendor(prisma, {
+      name: 'Ubiquiti',
+      slug: 'ubiquiti'
+    });
+
+    const result = await useCase.execute({
+      id: deviceModelId,
+      vendorId: otherVendorId
+    });
+
+    expect(result.isSuccess).toBe(true);
+  });
+
+  // ──────────────────────────────────────────────────────────────
   // DEV-027 — isWireless is frozen while configs exist
   // ──────────────────────────────────────────────────────────────
 

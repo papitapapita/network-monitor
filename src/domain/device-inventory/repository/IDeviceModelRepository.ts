@@ -16,5 +16,9 @@ export interface IDeviceModelRepository {
     vendorId: VendorId,
     model: string
   ): Promise<Result<boolean>>;
+  findByVendorAndModel(
+    vendorId: VendorId,
+    model: string
+  ): Promise<Result<DeviceModel | null>>;
   count(): Promise<Result<number>>;
 }

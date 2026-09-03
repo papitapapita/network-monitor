@@ -1086,6 +1086,9 @@ offset?: number  // ≥0, default 0
 ```
 
 > Returns 409 if a model with the same name already exists for that vendor.
+> Name comparison is case-insensitive and scoped to the vendor — `hAP ac3` and
+> `HAP AC3` collide for the same vendor, but two different vendors may each
+> have a model called "AC Lite" regardless of casing.
 > `isWireless` marks the hardware as radio-capable; devices built on a model
 > with `isWireless: false` are refused a wireless config. Getting it wrong here
 > is cheap to fix later — but only until a device on the model is configured,
@@ -1144,6 +1147,14 @@ offset?: number  // ≥0, default 0
 // Response
 { success: true, data: DeviceModelDTO }
 ```
+
+> Returns 409 if the resulting (vendor, model name) pair is already taken by
+> a different device model — this applies whether `model` changes, `vendorId`
+> changes, or both, so moving a model to a vendor that already has one with
+> the same name is also rejected. Name comparison is case-insensitive and
+> scoped to the vendor. Submitting the model's own name (or the vendor it's
+> already on) is not a conflict — including "renaming" to a different case of
+> its own current name.
 
 **`isWireless: true → false` — refused while wireless configs exist**
 

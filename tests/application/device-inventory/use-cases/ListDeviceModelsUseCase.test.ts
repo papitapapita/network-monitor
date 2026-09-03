@@ -70,6 +70,7 @@ function makeRepo(): jest.Mocked<IDeviceModelRepository> {
     delete: jest.fn(),
     exists: jest.fn(),
     existsByVendorAndModel: jest.fn(),
+    findByVendorAndModel: jest.fn(),
     count: jest.fn()
   } as any;
 }

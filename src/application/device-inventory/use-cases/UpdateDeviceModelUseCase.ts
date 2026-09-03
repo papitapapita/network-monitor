@@ -59,6 +59,10 @@ export class UpdateDeviceModelUseCase extends UseCase<
     const deviceModel = findResult.value;
     const data = DeviceModelMapper.extractUpdateData(request);
 
+    let targetVendorId = deviceModel.vendorId;
+    let targetVendorName: string | undefined;
+    let targetVendorSlug: string | undefined;
+
     if (data.vendorId !== undefined) {
       const vendorIdResult = VendorId.parse(data.vendorId.trim());
       if (vendorIdResult.isFailure) {
@@ -77,10 +81,40 @@ export class UpdateDeviceModelUseCase extends UseCase<
         return this.fail(`Vendor not found: ${data.vendorId}`);
       }
 
+      targetVendorId = vendorIdResult.value;
+      targetVendorName = vendorResult.value.name;
+      targetVendorSlug = vendorResult.value.slug;
+    }
+
+    const targetModel =
+      data.model !== undefined
+        ? data.model.trim()
+        : deviceModel.model;
+
+    if (data.vendorId !== undefined || data.model !== undefined) {
+      const conflictResult =
+        await this.deviceModelRepository.findByVendorAndModel(
+          targetVendorId,
+          targetModel
+        );
+      if (conflictResult.isFailure) {
+        return this.fail(conflictResult.error!);
+      }
+      if (
+        conflictResult.value !== null &&
+        !conflictResult.value.id.equals(deviceModel.id)
+      ) {
+        return this.fail(
+          `A device model "${targetModel}" already exists for this vendor`
+        );
+      }
+    }
+
+    if (data.vendorId !== undefined) {
       const updateResult = deviceModel.updateVendor(
-        vendorIdResult.value,
-        vendorResult.value.name,
-        vendorResult.value.slug
+        targetVendorId,
+        targetVendorName!,
+        targetVendorSlug!
       );
       if (updateResult.isFailure) {
         return this.fail(updateResult.error!);

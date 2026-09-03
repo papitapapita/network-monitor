@@ -203,7 +203,7 @@ export class PrismaDeviceModelRepository
       const count = await this.prisma.deviceModel.count({
         where: {
           vendorId: vendorId.toString(),
-          model
+          model: { equals: model, mode: 'insensitive' }
         }
       });
       return Result.ok<boolean>(count > 0);
@@ -212,6 +212,38 @@ export class PrismaDeviceModelRepository
         error instanceof Error ? error.message : String(error);
       return Result.fail<boolean>(
         `Database error checking device model existence: ${errorMessage}`
+      );
+    }
+  }
+
+  public async findByVendorAndModel(
+    vendorId: VendorId,
+    model: string
+  ): Promise<Result<DeviceModel | null>> {
+    try {
+      const raw = await this.prisma.deviceModel.findFirst({
+        where: {
+          vendorId: vendorId.toString(),
+          model: { equals: model, mode: 'insensitive' }
+        },
+        include: { vendor: true }
+      });
+
+      if (!raw) return Result.ok<DeviceModel | null>(null);
+
+      const domainResult = DeviceModelMapper.toDomain(raw);
+      if (domainResult.isFailure) {
+        return Result.fail<DeviceModel | null>(
+          `Failed to map device model: ${domainResult.error}`
+        );
+      }
+
+      return Result.ok<DeviceModel | null>(domainResult.value);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<DeviceModel | null>(
+        `Database error finding device model by vendor and model: ${errorMessage}`
       );
     }
   }

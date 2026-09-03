@@ -266,24 +266,33 @@ name and slug the model reports until its next read (DEV-028).
 **Message:** `Vendor not found: <id>`
 **Tests:** `tests/integration/use-cases/device-inventory/CreateDeviceModelUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceModelUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
 
-### DEV-022 — A vendor cannot have two device models with the same name
+### DEV-022 — A vendor cannot have two device models with the same name, case-insensitively
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Application + database constraint (not in domain)
 **Since:** 2026-07-28
+**Revised:** 2026-09-03 (case-insensitive comparison; now also enforced on update)
 
-Uniqueness is per vendor, on the trimmed model name. Two different vendors may
-both have a model called "AC Lite".
+Uniqueness is per vendor, on the trimmed model name, compared case-insensitively:
+`hAP ac3` and `HAP AC3` collide for the same vendor. Two different vendors may
+both have a model called "AC Lite" regardless of casing. The stored value keeps
+whatever casing the operator typed — only the collision check folds case.
+Checked on both create and update: renaming a model, or moving it to a
+different vendor, is rejected if the resulting (vendor, model) pair collides
+with a model other than itself. A model may keep its own name — including
+"renaming" itself to a different case of that same name — since the check
+excludes a match on its own id.
 
 **Why:** Within one manufacturer the model name is the identifier operators use
-to pick equipment. Duplicates would make the choice ambiguous. Scoping to the
-vendor rather than globally is deliberate — model names collide across
-manufacturers all the time.
+to pick equipment. Duplicates would make the choice ambiguous, including two
+spellings that only differ in case — the picker doesn't distinguish them any
+better than an exact duplicate would. Scoping to the vendor rather than globally
+is deliberate — model names collide across manufacturers all the time.
 
-**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceModelUseCase.ts:78`
-**Backed by:** `@@unique([vendorId, model])` in `prisma/schema.prisma:88`
+**Enforced at:** `src/application/device-inventory/use-cases/CreateDeviceModelUseCase.ts:78` (`existsByVendorAndModel`), `UpdateDeviceModelUseCase.ts:94` (`findByVendorAndModel`, excluding the model's own id) — both via case-insensitive lookups in `src/infrastructure/persistence/PrismaDeviceModelRepository.ts` (Postgres `mode: 'insensitive'`)
+**Backed by:** `@@unique([vendorId, model])` in `prisma/schema.prisma:88` — this is a case-sensitive index, so it only catches exact-case duplicates; case-insensitive collisions rely on the application-level checks above, not the database, so a race between two concurrent creates/updates with different casing is not closed by the database.
 **Message:** `A device model "<model>" already exists for this vendor`
-**Tests:** `tests/integration/use-cases/device-inventory/CreateDeviceModelUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
+**Tests:** `tests/infrastructure/persistence/PrismaDeviceModelRepository.test.ts`, `tests/application/device-inventory/use-cases/UpdateDeviceModelUseCase.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceModelUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceModelUseCase.integration.test.ts`, `tests/integration/device-model.routes.test.ts`
 
 ### DEV-023 — A model name is non-empty and at most 150 characters
 

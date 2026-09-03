@@ -139,6 +139,23 @@ describe('CreateDeviceModelUseCase — integration', () => {
     expect(second.error).toMatch(/already exists/i);
   });
 
+  it('[DEV-022] fails when the model name differs only in case, for the same vendor', async () => {
+    await useCase.execute({
+      vendorId,
+      model: 'hAP ac3',
+      deviceType: 'ROUTER'
+    });
+
+    const second = await useCase.execute({
+      vendorId,
+      model: 'HAP AC3',
+      deviceType: 'ROUTER'
+    });
+
+    expect(second.isFailure).toBe(true);
+    expect(second.error).toMatch(/already exists/i);
+  });
+
   // ──────────────────────────────────────────────────────────────
   // Validation failures
   // ──────────────────────────────────────────────────────────────

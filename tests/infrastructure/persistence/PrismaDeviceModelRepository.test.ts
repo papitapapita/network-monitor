@@ -1,7 +1,10 @@
 // Source: src/infrastructure/persistence/PrismaDeviceModelRepository.ts
 
 import { PrismaDeviceModelRepository } from '../../../src/infrastructure/persistence/PrismaDeviceModelRepository';
-import { DeviceModelId } from '../../../src/domain/shared/ids';
+import {
+  DeviceModelId,
+  VendorId
+} from '../../../src/domain/shared/ids';
 import { DeviceModel } from '../../../src/domain/device-inventory/aggregates/DeviceModel';
 
 // ---------------------------------------------------------------------------
@@ -41,6 +44,7 @@ function makePrisma() {
     deviceModel: {
       upsert: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       delete: jest.fn(),
       count: jest.fn()
@@ -239,6 +243,168 @@ describe('PrismaDeviceModelRepository', () => {
 
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('DB unavailable');
+      });
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-022] existsByVendorAndModel()', () => {
+    const vendorId = VendorId.parse(VENDOR_UUID).value!;
+
+    // -----------------------------------------------------------------------
+    describe('happy path', () => {
+      it('should call prisma.deviceModel.count with a case-insensitive model filter scoped to the vendor', async () => {
+        prisma.deviceModel.count.mockResolvedValue(1);
+
+        await repository.existsByVendorAndModel(
+          vendorId,
+          'NanoBeam 5AC'
+        );
+
+        expect(prisma.deviceModel.count).toHaveBeenCalledWith({
+          where: {
+            vendorId: VENDOR_UUID,
+            model: { equals: 'NanoBeam 5AC', mode: 'insensitive' }
+          }
+        });
+      });
+
+      it('should return true when count is greater than zero', async () => {
+        prisma.deviceModel.count.mockResolvedValue(1);
+
+        const result = await repository.existsByVendorAndModel(
+          vendorId,
+          'NanoBeam 5AC'
+        );
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBe(true);
+      });
+
+      it('should return false when count is zero', async () => {
+        prisma.deviceModel.count.mockResolvedValue(0);
+
+        const result = await repository.existsByVendorAndModel(
+          vendorId,
+          'Unknown Model'
+        );
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBe(false);
+      });
+
+      it('should treat "NanoBeam 5AC" and "nanobeam 5ac" as the same model for the same vendor', async () => {
+        prisma.deviceModel.count.mockResolvedValue(1);
+
+        const result = await repository.existsByVendorAndModel(
+          vendorId,
+          'nanobeam 5ac'
+        );
+
+        expect(prisma.deviceModel.count).toHaveBeenCalledWith({
+          where: {
+            vendorId: VENDOR_UUID,
+            model: { equals: 'nanobeam 5ac', mode: 'insensitive' }
+          }
+        });
+        expect(result.value).toBe(true);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('database error', () => {
+      it('should return a failure Result when Prisma throws', async () => {
+        prisma.deviceModel.count.mockRejectedValue(
+          new Error('Query execution error')
+        );
+
+        const result = await repository.existsByVendorAndModel(
+          vendorId,
+          'NanoBeam 5AC'
+        );
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('Query execution error');
+      });
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-022] findByVendorAndModel()', () => {
+    const vendorId = VendorId.parse(VENDOR_UUID).value!;
+
+    // -----------------------------------------------------------------------
+    describe('record found', () => {
+      it('should call prisma.deviceModel.findFirst with a case-insensitive model filter scoped to the vendor', async () => {
+        prisma.deviceModel.findFirst.mockResolvedValue(makeRawRow());
+
+        await repository.findByVendorAndModel(vendorId, 'RB760iGS');
+
+        expect(prisma.deviceModel.findFirst).toHaveBeenCalledWith({
+          where: {
+            vendorId: VENDOR_UUID,
+            model: { equals: 'RB760iGS', mode: 'insensitive' }
+          },
+          include: { vendor: true }
+        });
+      });
+
+      it('should return isSuccess=true with the mapped aggregate when a match exists', async () => {
+        prisma.deviceModel.findFirst.mockResolvedValue(makeRawRow());
+
+        const result = await repository.findByVendorAndModel(
+          vendorId,
+          'RB760iGS'
+        );
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBeInstanceOf(DeviceModel);
+      });
+
+      it('should find a model stored as "hAP ac3" when queried with "HAP AC3"', async () => {
+        prisma.deviceModel.findFirst.mockResolvedValue(
+          makeRawRow({ model: 'hAP ac3' })
+        );
+
+        const result = await repository.findByVendorAndModel(
+          vendorId,
+          'HAP AC3'
+        );
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value?.model).toBe('hAP ac3');
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('record not found', () => {
+      it('should return Result.ok(null) when no matching device model exists', async () => {
+        prisma.deviceModel.findFirst.mockResolvedValue(null);
+
+        const result = await repository.findByVendorAndModel(
+          vendorId,
+          'Unknown Model'
+        );
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBeNull();
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('database error', () => {
+      it('should return a failure Result when Prisma throws', async () => {
+        prisma.deviceModel.findFirst.mockRejectedValue(
+          new Error('query timeout')
+        );
+
+        const result = await repository.findByVendorAndModel(
+          vendorId,
+          'RB760iGS'
+        );
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('query timeout');
       });
     });
   });
