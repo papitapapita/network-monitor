@@ -13,6 +13,7 @@ export class DeviceStateMapper {
     lastLatencyMs: unknown;
     consecutiveFailures: number;
     lastCheckedAt: Date | null;
+    downSince: Date | null;
     updatedAt: Date;
   }): DeviceState {
     const deviceIdResult = DeviceId.parse(raw.deviceId);
@@ -38,6 +39,7 @@ export class DeviceStateMapper {
         raw.lastLatencyMs !== null ? Number(raw.lastLatencyMs) : null,
       consecutiveFailures: raw.consecutiveFailures,
       lastCheckedAt: raw.lastCheckedAt,
+      downSince: raw.downSince,
       updatedAt: raw.updatedAt
     };
     return DeviceState.reconstitute(deviceId, props);
@@ -50,7 +52,8 @@ export class DeviceStateMapper {
       lastSeen: state.lastSeen,
       lastLatencyMs: state.lastLatencyMs,
       consecutiveFailures: state.consecutiveFailures,
-      lastCheckedAt: state.lastCheckedAt
+      lastCheckedAt: state.lastCheckedAt,
+      downSince: state.downSince
     };
   }
 }

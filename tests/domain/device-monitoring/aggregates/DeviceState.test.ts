@@ -3,7 +3,6 @@
 import { DeviceState } from '../../../../src/domain/device-monitoring/aggregates/DeviceState';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { DeviceCameOnlineEvent } from '../../../../src/domain/device-monitoring/events/DeviceCameOnlineEvent';
-import { DeviceWentOfflineEvent } from '../../../../src/domain/device-monitoring/events/DeviceWentOfflineEvent';
 import { DeviceStateProps } from '../../../../src/domain/device-monitoring/props/DeviceStateProps';
 import { ReachabilityStatus } from '../../../../src/domain/device-monitoring/value-objects/ReachabilityStatus';
 
@@ -34,6 +33,7 @@ function makeStateProps(
     lastLatencyMs: 20,
     consecutiveFailures: 0,
     lastCheckedAt: FIXED_DATE,
+    downSince: null,
     updatedAt: FIXED_DATE,
     ...overrides
   };
@@ -91,6 +91,12 @@ describe('DeviceState', () => {
       const state = DeviceState.createInitial(makeDeviceId());
 
       expect(state.lastCheckedAt).toBeNull();
+    });
+
+    it('should set downSince to null', () => {
+      const state = DeviceState.createInitial(makeDeviceId());
+
+      expect(state.downSince).toBeNull();
     });
 
     it('should use the supplied deviceId as its aggregate id', () => {
@@ -163,6 +169,18 @@ describe('DeviceState', () => {
 
       expect(state.lastCheckedAt).toEqual(FIXED_DATE);
     });
+
+    it('should preserve downSince', () => {
+      const state = makeState({ downSince: FIXED_DATE });
+
+      expect(state.downSince).toEqual(FIXED_DATE);
+    });
+
+    it('should preserve null downSince', () => {
+      const state = makeState({ downSince: null });
+
+      expect(state.downSince).toBeNull();
+    });
   });
 
   // ===========================================================================
@@ -215,6 +233,17 @@ describe('DeviceState', () => {
       state.markUnknown(LATER_DATE);
 
       expect(state.lastCheckedAt).toBeNull();
+    });
+
+    it('[MON-002] should null downSince, so a resumed device does not carry over a stale streak', () => {
+      const state = makeState({
+        status: DOWN(),
+        downSince: FIXED_DATE
+      });
+
+      state.markUnknown(LATER_DATE);
+
+      expect(state.downSince).toBeNull();
     });
 
     it('[MON-002] should keep lastSeen, which remains a true fact about the past', () => {
@@ -298,6 +327,17 @@ describe('DeviceState', () => {
       expect(state.consecutiveFailures).toBe(2);
     });
 
+    it('should not touch downSince — a local probe fault says nothing about the device', () => {
+      const state = makeState({
+        status: DOWN(),
+        downSince: FIXED_DATE
+      });
+
+      state.applyPollFailure(LATER_DATE);
+
+      expect(state.downSince).toEqual(FIXED_DATE);
+    });
+
     it('should not change lastLatencyMs', () => {
       const state = makeState({ lastLatencyMs: 42 });
 
@@ -372,6 +412,17 @@ describe('DeviceState', () => {
 
         expect(state.lastLatencyMs).toBeNull();
       });
+
+      it('should null downSince, ending the DOWN streak', () => {
+        const state = makeState({
+          status: DOWN(),
+          downSince: FIXED_DATE
+        });
+
+        state.applyPingResult(true, 15, LATER_DATE);
+
+        expect(state.downSince).toBeNull();
+      });
     });
 
     // -------------------------------------------------------------------------
@@ -416,57 +467,42 @@ describe('DeviceState', () => {
 
         expect(state.lastCheckedAt).toEqual(LATER_DATE);
       });
+
+      it('should raise no domain event on transition — alerting is delayed, not immediate', () => {
+        const state = makeState({
+          status: UP(),
+          consecutiveFailures: 0
+        });
+
+        state.applyPingResult(false, null, LATER_DATE);
+
+        expect(state.domainEvents).toHaveLength(0);
+      });
     });
 
     // -------------------------------------------------------------------------
-    describe('domain event — online → offline transition', () => {
-      it('should raise a DeviceWentOfflineEvent when the device transitions from online to offline', () => {
+    describe('downSince — online → offline transition', () => {
+      it('[NOT-097] should set downSince to the checkedAt timestamp when the device transitions from online to offline', () => {
         const state = makeState({
           status: UP(),
-          consecutiveFailures: 0
+          downSince: null
         });
 
         state.applyPingResult(false, null, LATER_DATE);
 
-        const events = state.domainEvents;
-        expect(events).toHaveLength(1);
-        expect(events[0]).toBeInstanceOf(DeviceWentOfflineEvent);
+        expect(state.downSince).toEqual(LATER_DATE);
       });
 
-      it('should attach the correct consecutiveFailures to the DeviceWentOfflineEvent', () => {
+      it('should not move downSince forward on a subsequent failed poll while already down', () => {
         const state = makeState({
-          status: UP(),
-          consecutiveFailures: 2
+          status: DOWN(),
+          downSince: FIXED_DATE
         });
+        const evenLater = new Date('2024-06-01T12:00:00.000Z');
 
-        state.applyPingResult(false, null, LATER_DATE);
+        state.applyPingResult(false, null, evenLater);
 
-        const event = state.domainEvents[0] as DeviceWentOfflineEvent;
-        expect(event.consecutiveFailures).toBe(3);
-      });
-
-      it('should attach the checkedAt timestamp to the DeviceWentOfflineEvent', () => {
-        const state = makeState({
-          status: UP(),
-          consecutiveFailures: 0
-        });
-
-        state.applyPingResult(false, null, LATER_DATE);
-
-        const event = state.domainEvents[0] as DeviceWentOfflineEvent;
-        expect(event.dateTimeOccurred).toEqual(LATER_DATE);
-      });
-
-      it('should attach the aggregate id to the DeviceWentOfflineEvent', () => {
-        const state = makeState({
-          status: UP(),
-          consecutiveFailures: 0
-        });
-
-        state.applyPingResult(false, null, LATER_DATE);
-
-        const event = state.domainEvents[0] as DeviceWentOfflineEvent;
-        expect(event.aggregateId.toString()).toBe(VALID_DEVICE_UUID);
+        expect(state.downSince).toEqual(FIXED_DATE);
       });
     });
 
@@ -550,7 +586,8 @@ describe('DeviceState', () => {
       it('should not raise any event when the device was already offline and ping fails again', () => {
         const state = makeState({
           status: DOWN(),
-          consecutiveFailures: 3
+          consecutiveFailures: 3,
+          downSince: FIXED_DATE
         });
 
         state.applyPingResult(false, null, LATER_DATE);
@@ -583,17 +620,23 @@ describe('DeviceState', () => {
         expect(state.domainEvents).toHaveLength(0);
       });
 
-      it('[MON-005] should raise DeviceWentOfflineEvent when an unreachable poll follows UNKNOWN', () => {
+      it('[MON-005] should raise no domain event when an unreachable poll follows UNKNOWN', () => {
         const state = DeviceState.createInitial(makeDeviceId());
 
         state.applyPingResult(false, null, LATER_DATE);
 
-        const events = state.domainEvents;
-        expect(events).toHaveLength(1);
-        expect(events[0]).toBeInstanceOf(DeviceWentOfflineEvent);
+        expect(state.domainEvents).toHaveLength(0);
       });
 
-      it('[MON-005] should raise DeviceWentOfflineEvent for a paused device that resumes unreachable', () => {
+      it('[MON-005] should start the DOWN streak when an unreachable poll follows UNKNOWN', () => {
+        const state = DeviceState.createInitial(makeDeviceId());
+
+        state.applyPingResult(false, null, LATER_DATE);
+
+        expect(state.downSince).toEqual(LATER_DATE);
+      });
+
+      it('[MON-005] should start the DOWN streak for a paused device that resumes unreachable', () => {
         const state = makeState({
           status: UP(),
           consecutiveFailures: 0
@@ -602,10 +645,8 @@ describe('DeviceState', () => {
 
         state.applyPingResult(false, null, LATER_DATE);
 
-        expect(state.domainEvents).toHaveLength(1);
-        expect(state.domainEvents[0]).toBeInstanceOf(
-          DeviceWentOfflineEvent
-        );
+        expect(state.domainEvents).toHaveLength(0);
+        expect(state.downSince).toEqual(LATER_DATE);
       });
 
       it('should report a single consecutive failure on a first-poll outage', () => {
@@ -613,8 +654,7 @@ describe('DeviceState', () => {
 
         state.applyPingResult(false, null, LATER_DATE);
 
-        const event = state.domainEvents[0] as DeviceWentOfflineEvent;
-        expect(event.consecutiveFailures).toBe(1);
+        expect(state.consecutiveFailures).toBe(1);
       });
 
       it('should still move to UP when reachable', () => {

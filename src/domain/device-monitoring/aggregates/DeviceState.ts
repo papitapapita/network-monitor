@@ -2,10 +2,7 @@ import { AggregateRoot } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 import { DeviceStateProps } from '../props';
 import { ReachabilityStatus } from '../value-objects';
-import {
-  DeviceWentOfflineEvent,
-  DeviceCameOnlineEvent
-} from '../events';
+import { DeviceCameOnlineEvent } from '../events';
 
 export class DeviceState extends AggregateRoot<
   DeviceStateProps,
@@ -38,6 +35,10 @@ export class DeviceState extends AggregateRoot<
   get lastCheckedAt(): Date | null {
     return this.props.lastCheckedAt;
   }
+  // Null while UP/UNKNOWN; the start of the current DOWN streak otherwise.
+  get downSince(): Date | null {
+    return this.props.downSince;
+  }
 
   // UNKNOWN, not DOWN: nothing has been observed yet, and applyPingResult reads
   // that to know the first result is not a transition
@@ -50,6 +51,7 @@ export class DeviceState extends AggregateRoot<
         lastLatencyMs: null,
         consecutiveFailures: 0,
         lastCheckedAt: null,
+        downSince: null,
         updatedAt: new Date()
       },
       deviceId
@@ -83,6 +85,7 @@ export class DeviceState extends AggregateRoot<
     this.props.status = ReachabilityStatus.createUnknown();
     this.props.consecutiveFailures = 0;
     this.props.lastCheckedAt = null;
+    this.props.downSince = null;
     this.props.updatedAt = at;
   }
 
@@ -108,28 +111,29 @@ export class DeviceState extends AggregateRoot<
     this.props.updatedAt = checkedAt;
     if (isReachable) this.props.lastSeen = checkedAt;
 
+    // Marks the start of a DOWN streak rather than raising an event for it:
+    // alerting is delayed until the streak has lasted long enough (see
+    // RaiseOverdueDeviceDownAlertsUseCase), which a periodic scan over this
+    // timestamp can decide independently of when this device next gets
+    // polled. Already-down stays untouched so the streak's start is not
+    // pushed forward by every subsequent failed poll.
+    if (isReachable) {
+      this.props.downSince = null;
+    } else if (wasUp || wasUnknown) {
+      this.props.downSince = checkedAt;
+    }
+
     // From UNKNOWN the previous reachability was never observed, so a successful
     // ping is not a recovery and must not raise CameOnline. A failed one is
     // still a genuine outage — a device that is dead the first time it is seen
     // has to alert, or it would stay silent until its first recovery.
     const cameOnline = wasUnknown ? false : !wasUp && isReachable;
-    const wentOffline = wasUnknown
-      ? !isReachable
-      : wasUp && !isReachable;
 
     if (cameOnline) {
       this.addDomainEvent(
         new DeviceCameOnlineEvent({
           aggregateId: this.id,
           latencyMs,
-          dateTimeOccurred: checkedAt
-        })
-      );
-    } else if (wentOffline) {
-      this.addDomainEvent(
-        new DeviceWentOfflineEvent({
-          aggregateId: this.id,
-          consecutiveFailures: newConsecutiveFailures,
           dateTimeOccurred: checkedAt
         })
       );

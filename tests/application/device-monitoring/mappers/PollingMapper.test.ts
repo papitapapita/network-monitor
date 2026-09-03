@@ -107,6 +107,7 @@ function makeDeviceState(
       overrides.lastCheckedAt !== undefined
         ? overrides.lastCheckedAt
         : FIXED_LAST_CHECKED,
+    downSince: null,
     updatedAt: FIXED_LAST_CHECKED
   });
 }

@@ -77,6 +77,7 @@ function makePingResultRepo(): jest.Mocked<IPingResultRepository> {
 function makeDeviceStateRepo(): jest.Mocked<IDeviceStateRepository> {
   return {
     findByDeviceId: jest.fn(),
+    findOverdueDown: jest.fn(),
     save: jest.fn()
   };
 }
@@ -158,6 +159,7 @@ function makeDeviceState(
     lastLatencyMs: 12,
     consecutiveFailures: 0,
     lastCheckedAt: FIXED_DATE,
+    downSince: null,
     updatedAt: FIXED_DATE,
     ...overrides
   };
@@ -918,7 +920,7 @@ describe('ExecutePollingCycleUseCase', () => {
       );
     });
 
-    it('should raise DeviceWentOfflineEvent when a device is unreachable on first sight', async () => {
+    it('should raise no event but record downSince when a device is unreachable on first sight', async () => {
       pingService.ping.mockResolvedValue(
         Result.ok({ isReachable: false, latencyMs: null })
       );
@@ -927,10 +929,8 @@ describe('ExecutePollingCycleUseCase', () => {
 
       const savedState: DeviceState =
         deviceStateRepo.save.mock.calls[0][0];
-      expect(savedState.domainEvents).toHaveLength(1);
-      expect(savedState.domainEvents[0].constructor.name).toBe(
-        'DeviceWentOfflineEvent'
-      );
+      expect(savedState.domainEvents).toHaveLength(0);
+      expect(savedState.downSince).not.toBeNull();
     });
 
     it('should raise no event when a device is reachable on first sight', async () => {

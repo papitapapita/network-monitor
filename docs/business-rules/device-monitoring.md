@@ -117,22 +117,27 @@ being watched, is good news that did not happen.
 ### MON-005 — The first result after UNKNOWN is not a recovery
 
 **Type:** Policy · **Status:** Active
-**Since:** 2026-08-03
+**Since:** 2026-08-03 · **Revised:** 2026-08-24
 
 When a poll follows an UNKNOWN state, a successful ping raises no
-`DeviceCameOnlineEvent`; a failed one still raises `DeviceWentOfflineEvent`.
+`DeviceCameOnlineEvent`; a failed one still starts the DOWN streak
+(`downSince`, see notifications `NOT-097`) as if it were a genuine transition.
 
 **Why:** Coming back from UNKNOWN is not the same as coming back from an outage.
 The device may never have been down — nobody was looking — so a recovery notice
 would report the end of an outage that was never reported, and never happened.
 The asymmetry is deliberate: a device that is dead the first time it is seen has
-to alert, or a unit that has been down since installation would stay silent until
-its first recovery.
+to start counting toward an alert, or a unit that has been down since
+installation would stay silent forever.
 
 Previously this was decided by an `isFirstPoll` argument the caller computed from
 whether a state row existed, so it covered a brand-new device but not a paused
 one. With UNKNOWN persisted (MON-001) the aggregate reads its own state and both
 cases are covered by the same rule.
+
+`applyPingResult` no longer raises a domain event on the online→offline
+transition itself — `DeviceWentOfflineEvent` was deleted along with the
+immediate-alert path it fed. See `NOT-097` for what replaced it.
 
 **Enforced at:** `src/domain/device-monitoring/aggregates/DeviceState.ts` (`applyPingResult`)
 **Tests:** `tests/domain/device-monitoring/aggregates/DeviceState.test.ts`, `tests/integration/use-cases/device-monitoring/SuspendDeviceMonitoringUseCase.integration.test.ts`

@@ -246,11 +246,16 @@ model DeviceState {
   lastLatencyMs       Decimal? @map("last_latency_ms") @db.Decimal(8, 2)
   consecutiveFailures Int      @default(0) @map("consecutive_failures")
   lastCheckedAt       DateTime? @map("last_checked_at") @db.Timestamptz
+  // When the current DOWN streak began. Null while UP/UNKNOWN. Drives the
+  // delayed down-alert scan (see RaiseOverdueDeviceDownAlertsUseCase) so a
+  // brief blip does not page anyone before it has been down long enough.
+  downSince           DateTime? @map("down_since") @db.Timestamptz
   updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
   device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
+  @@index([status, downSince])
   @@map("device_states")
 }
 

@@ -28,6 +28,22 @@ export class PrismaDeviceStateRepository
     }
   }
 
+  async findOverdueDown(
+    cutoff: Date
+  ): Promise<Result<DeviceState[]>> {
+    try {
+      const records = await this.prisma.deviceState.findMany({
+        where: { status: 'DOWN', downSince: { lte: cutoff } }
+      });
+
+      return Result.ok(records.map(DeviceStateMapper.toDomain));
+    } catch (error) {
+      return Result.fail(
+        `findOverdueDown failed: ${(error as Error).message}`
+      );
+    }
+  }
+
   async save(state: DeviceState): Promise<Result<DeviceState>> {
     try {
       const data = DeviceStateMapper.toPersistence(state);

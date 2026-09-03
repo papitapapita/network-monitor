@@ -77,10 +77,7 @@ export class SendDeviceDownAlertUseCase extends UseCase<
     }
 
     const ipAddress = await this.resolveIpAddress(deviceId);
-    const detail = this.buildDetail({
-      ipAddress,
-      consecutiveFailures: request.consecutiveFailures
-    });
+    const detail = this.buildDetail({ ipAddress });
 
     const alertResult = Alert.open(
       deviceId,
@@ -185,11 +182,8 @@ export class SendDeviceDownAlertUseCase extends UseCase<
     return null;
   }
 
-  private buildDetail(params: {
-    ipAddress: string | null;
-    consecutiveFailures: number;
-  }): string {
+  private buildDetail(params: { ipAddress: string | null }): string {
     const ip = params.ipAddress ? ` IP: ${params.ipAddress}.` : '';
-    return `Sin conexión tras ${params.consecutiveFailures} intento(s) fallido(s).${ip}`;
+    return `Sin conexión.${ip}`;
   }
 }

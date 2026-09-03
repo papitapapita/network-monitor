@@ -364,10 +364,9 @@ describe('SendDeviceDownAlertUseCase', () => {
       );
     });
 
-    it('should fold consecutive failures and IP into the detail', async () => {
+    it('should fold the IP into the detail', async () => {
       await useCase.execute(makeRequest({ consecutiveFailures: 5 }));
       const envelope = alertPublisher.publish.mock.calls[0][0];
-      expect(envelope.detail).toContain('5');
       expect(envelope.detail).toContain('192.168.1.1');
     });
 

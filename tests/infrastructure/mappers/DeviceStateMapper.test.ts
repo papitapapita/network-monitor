@@ -23,6 +23,7 @@ type RawRow = {
   lastLatencyMs: unknown;
   consecutiveFailures: number;
   lastCheckedAt: Date | null;
+  downSince: Date | null;
   updatedAt: Date;
 };
 
@@ -35,6 +36,7 @@ function makeRawRow(overrides: Partial<RawRow> = {}): RawRow {
     lastLatencyMs: 20,
     consecutiveFailures: 0,
     lastCheckedAt: FIXED_DATE,
+    downSince: null,
     updatedAt: FIXED_DATE,
     ...overrides
   };
@@ -55,6 +57,7 @@ function makeDomainState(
     lastLatencyMs: 20,
     consecutiveFailures: 0,
     lastCheckedAt: FIXED_DATE,
+    downSince: null,
     updatedAt: FIXED_DATE,
     ...overrides
   };
@@ -141,6 +144,22 @@ describe('DeviceStateMapper', () => {
         );
 
         expect(state.consecutiveFailures).toBe(7);
+      });
+
+      it('should map downSince when a date is provided', () => {
+        const state = DeviceStateMapper.toDomain(
+          makeRawRow({ downSince: LATER_DATE })
+        );
+
+        expect(state.downSince).toEqual(LATER_DATE);
+      });
+
+      it('should map downSince as null when null in the row', () => {
+        const state = DeviceStateMapper.toDomain(
+          makeRawRow({ downSince: null })
+        );
+
+        expect(state.downSince).toBeNull();
       });
     });
 
@@ -310,6 +329,22 @@ describe('DeviceStateMapper', () => {
 
         expect(raw.lastCheckedAt).toBeNull();
       });
+
+      it('should serialize downSince when set', () => {
+        const state = makeDomainState({ downSince: LATER_DATE });
+
+        const raw = DeviceStateMapper.toPersistence(state);
+
+        expect(raw.downSince).toEqual(LATER_DATE);
+      });
+
+      it('should serialize null downSince as null', () => {
+        const state = makeDomainState({ downSince: null });
+
+        const raw = DeviceStateMapper.toPersistence(state);
+
+        expect(raw.downSince).toBeNull();
+      });
     });
   });
 
@@ -361,6 +396,14 @@ describe('DeviceStateMapper', () => {
       const serialized = DeviceStateMapper.toPersistence(state);
 
       expect(serialized.consecutiveFailures).toBe(5);
+    });
+
+    it('should preserve downSince through a round-trip', () => {
+      const raw = makeRawRow({ downSince: LATER_DATE });
+      const state = DeviceStateMapper.toDomain(raw);
+      const serialized = DeviceStateMapper.toPersistence(state);
+
+      expect(serialized.downSince).toEqual(LATER_DATE);
     });
   });
 });

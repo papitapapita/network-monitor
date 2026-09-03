@@ -34,6 +34,7 @@ function makeFakePrismaClient() {
   return {
     deviceState: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       upsert: jest.fn()
     }
   };
@@ -64,6 +65,7 @@ function makeFakeDomainState(
     lastLatencyMs: 20,
     consecutiveFailures: 0,
     lastCheckedAt: FIXED_DATE,
+    downSince: null,
     updatedAt: FIXED_DATE,
     ...overrides
   };
@@ -79,7 +81,8 @@ function makeFakePersistenceData(): ReturnType<
     lastSeen: FIXED_DATE,
     lastLatencyMs: 20,
     consecutiveFailures: 0,
-    lastCheckedAt: FIXED_DATE
+    lastCheckedAt: FIXED_DATE,
+    downSince: null
   };
 }
 
@@ -205,6 +208,63 @@ describe('PrismaDeviceStateRepository', () => {
       const result = await repo.findByDeviceId(makeDeviceId());
 
       expect(result.error).toContain('network error');
+    });
+  });
+
+  // ===========================================================================
+  describe('findOverdueDown()', () => {
+    const CUTOFF = new Date('2024-06-01T09:00:00.000Z');
+
+    it('should query prisma.deviceState.findMany for DOWN devices at or before the cutoff', async () => {
+      prisma.deviceState.findMany.mockResolvedValue([]);
+
+      await repo.findOverdueDown(CUTOFF);
+
+      expect(prisma.deviceState.findMany).toHaveBeenCalledWith({
+        where: { status: 'DOWN', downSince: { lte: CUTOFF } }
+      });
+    });
+
+    it('should map every returned row through DeviceStateMapper.toDomain', async () => {
+      prisma.deviceState.findMany.mockResolvedValue([
+        makeFakePrismaRow(),
+        makeFakePrismaRow({ deviceId: VALID_DEVICE_UUID })
+      ]);
+
+      await repo.findOverdueDown(CUTOFF);
+
+      expect(MockedMapper.toDomain).toHaveBeenCalledTimes(2);
+    });
+
+    it('should return a successful Result with the mapped states', async () => {
+      prisma.deviceState.findMany.mockResolvedValue([
+        makeFakePrismaRow()
+      ]);
+
+      const result = await repo.findOverdueDown(CUTOFF);
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value).toEqual([fakeState]);
+    });
+
+    it('should return a successful Result with an empty array when nothing is overdue', async () => {
+      prisma.deviceState.findMany.mockResolvedValue([]);
+
+      const result = await repo.findOverdueDown(CUTOFF);
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value).toEqual([]);
+    });
+
+    it('should return a failed Result when Prisma throws', async () => {
+      prisma.deviceState.findMany.mockRejectedValue(
+        new Error('Connection refused')
+      );
+
+      const result = await repo.findOverdueDown(CUTOFF);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('findOverdueDown failed');
     });
   });
 

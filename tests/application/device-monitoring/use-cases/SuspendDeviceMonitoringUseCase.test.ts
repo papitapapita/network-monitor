@@ -40,6 +40,7 @@ function makeConfigRepo(): jest.Mocked<IPollingConfigurationRepository> {
 function makeStateRepo(): jest.Mocked<IDeviceStateRepository> {
   return {
     findByDeviceId: jest.fn(),
+    findOverdueDown: jest.fn(),
     save: jest.fn()
   };
 }
@@ -61,6 +62,7 @@ function makeState(
     lastLatencyMs: 20,
     consecutiveFailures: 0,
     lastCheckedAt: FIXED_DATE,
+    downSince: null,
     updatedAt: FIXED_DATE,
     ...overrides
   });

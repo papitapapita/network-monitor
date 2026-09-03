@@ -134,6 +134,7 @@ import {
   AlertPublisher,
   AlertRecorder
 } from '../notifications';
+import { OverdueDeviceDownAlertOrchestrator } from '../notifications/orchestrator';
 import {
   RouterOsQueueService,
   SuspensionReconciliationOrchestrator
@@ -187,10 +188,7 @@ import {
   DeviceDeletedEvent
 } from 'domain/device-inventory/events';
 import { DeviceEligibilityService } from 'domain/device-inventory/services';
-import {
-  DeviceWentOfflineEvent,
-  DeviceCameOnlineEvent
-} from 'domain/device-monitoring/events';
+import { DeviceCameOnlineEvent } from 'domain/device-monitoring/events';
 import {
   DeviceProvisionedHandler,
   DeviceStatusChangedHandler,
@@ -210,10 +208,10 @@ import {
   BulkDeleteAlertsUseCase,
   PurgeOldAlertsUseCase,
   SendSuspensionNoticeUseCase,
-  SendAlertNotificationUseCase
+  SendAlertNotificationUseCase,
+  RaiseOverdueDeviceDownAlertsUseCase
 } from 'application/notifications/use-cases';
 import {
-  DeviceWentOfflineNotificationHandler,
   DeviceCameOnlineNotificationHandler,
   ContractedServiceSuspendedNotificationHandler
 } from 'application/notifications/event-handlers';
@@ -333,6 +331,7 @@ export class DependencyContainer {
   public pollingOrchestrator: PollingOrchestrator;
   public wirelessPollingOrchestrator: WirelessPollingOrchestrator;
   public dataRetentionOrchestrator: DataRetentionOrchestrator;
+  public overdueDeviceDownAlertOrchestrator: OverdueDeviceDownAlertOrchestrator;
   // null when ENFORCEMENT_ROUTER_DEVICE_ID is not configured
   public suspensionReconciliationOrchestrator: SuspensionReconciliationOrchestrator | null =
     null;
@@ -913,6 +912,27 @@ export class DependencyContainer {
         this.logger
       );
 
+    const deviceDownAlertDelayMs =
+      parseInt(
+        process.env.DEVICE_DOWN_ALERT_DELAY_MINUTES ?? '60',
+        10
+      ) *
+      60 *
+      1_000;
+    const raiseOverdueDeviceDownAlertsUseCase =
+      new RaiseOverdueDeviceDownAlertsUseCase(
+        this.deviceStateRepository,
+        sendDeviceDownAlertUseCase,
+        deviceDownAlertDelayMs,
+        this.logger
+      );
+    this.overdueDeviceDownAlertOrchestrator =
+      new OverdueDeviceDownAlertOrchestrator(
+        raiseOverdueDeviceDownAlertsUseCase,
+        { checkIntervalMs: 60_000 },
+        this.logger
+      );
+
     // Wireless alert delivery is independently disableable so wireless
     // polling can run without paging anyone. Device-availability alerts
     // (down/recovery) are unaffected by this flag.
@@ -1283,13 +1303,6 @@ export class DependencyContainer {
       DeviceStatusChangedEvent.name,
       new DeviceStatusChangedWirelessConfigHandler(
         this.wirelessDeviceConfigRepository,
-        this.logger
-      )
-    );
-    EventDispatcher.register(
-      DeviceWentOfflineEvent.name,
-      new DeviceWentOfflineNotificationHandler(
-        sendDeviceDownAlertUseCase,
         this.logger
       )
     );

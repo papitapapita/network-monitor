@@ -8,5 +8,6 @@ export interface DeviceStateProps {
   lastLatencyMs: number | null;
   consecutiveFailures: number;
   lastCheckedAt: Date | null;
+  downSince: Date | null;
   updatedAt: Date;
 }

@@ -51,6 +51,7 @@ async function bootstrap(): Promise<Server> {
   container.pollingOrchestrator.start();
   container.wirelessPollingOrchestrator.start();
   container.dataRetentionOrchestrator.start();
+  container.overdueDeviceDownAlertOrchestrator.start();
   container.suspensionReconciliationOrchestrator?.start();
 
   // Error handling middleware.
@@ -95,6 +96,7 @@ async function bootstrap(): Promise<Server> {
       await container.pollingOrchestrator.stop();
       await container.wirelessPollingOrchestrator.stop();
       container.dataRetentionOrchestrator.stop();
+      container.overdueDeviceDownAlertOrchestrator.stop();
       await container.suspensionReconciliationOrchestrator?.stop();
       await container.disconnect();
       logger.info('Server closed');

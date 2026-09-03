@@ -442,15 +442,16 @@ keeping it would leave the alert list with rows pointing at nothing.
 
 ## Operator notifications
 
-### NOT-090 — A device going offline opens a CRITICAL availability alert
+### NOT-090 — A device continuously down for the alert delay opens a CRITICAL availability alert
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Revised:** 2026-08-24
 
-Raised from `DeviceWentOfflineEvent`, with source `Disponibilidad` and type
-`device_unreachable`. The alert records the consecutive failure count and the
-device's IP.
+Raised by a periodic scan (`RaiseOverdueDeviceDownAlertsUseCase`) once a device
+has been continuously DOWN for at least `DEVICE_DOWN_ALERT_DELAY_MINUTES`
+(default 60), with source `Disponibilidad` and type `device_unreachable`. The
+alert records the consecutive failure count and the device's IP.
 
 **Why:** Unreachable is the one condition that means the subscriber has no
 service at all, so it is never a warning. The failure count is carried because
@@ -458,8 +459,8 @@ the threshold that declared the device down is a monitoring policy (`MON-`) — 
 operator reading the alert needs to see how many attempts it took.
 
 **Enforced at:** `src/application/notifications/use-cases/SendDeviceDownAlertUseCase.ts`,
-`src/application/notifications/event-handlers/DeviceWentOfflineNotificationHandler.ts`
-**Tests:** `tests/application/notifications/event-handlers/DeviceWentOfflineNotificationHandler.test.ts`,
+`src/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.ts`
+**Tests:** `tests/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.test.ts`,
 `tests/integration/use-cases/notifications/SendDeviceDownAlertUseCase.integration.test.ts`
 
 ### NOT-091 — A newly opened alert may become a ticket, best effort
@@ -563,6 +564,38 @@ already in the metadata, so failing it costs nothing that matters.
 
 **Enforced at:** `src/application/notifications/use-cases/SendAlertNotificationUseCase.ts` (`resolveDeviceName`)
 **Tests:** `tests/application/notifications/use-cases/SendAlertNotificationUseCase.test.ts`
+
+### NOT-097 — The down alert waits for the outage to outlast the alert delay
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Domain
+**Since:** 2026-08-24
+
+`DeviceState` records `downSince` — the start of the current DOWN streak — but
+raises no domain event for it. A periodic scan
+(`RaiseOverdueDeviceDownAlertsUseCase`, run every 60s by
+`OverdueDeviceDownAlertOrchestrator`) selects devices whose `downSince` is at
+or before `now - DEVICE_DOWN_ALERT_DELAY_MINUTES` and opens their alert
+through `SendDeviceDownAlertUseCase`, which already dedupes against an
+existing open alert (`NOT-060`), so re-selecting a still-down device on every
+scan is safe. A device that recovers before the delay elapses gets no alert at
+all, and `SendDeviceRecoveryAlertUseCase` skips its recovery notice as
+designed (`NOT-095`) rather than reporting the end of a fault nobody was told
+about.
+
+The scan is independent of any device's own poll interval — a device polled
+once a day is not stuck waiting a day for its alert to be reconsidered.
+
+**Why:** A ping failure that resolves in minutes is not an outage a technician
+needs paged for. Alerting on every blip trains the team to stop trusting the
+channel, which is worse than a real outage arriving a little late.
+
+**Enforced at:** `src/domain/device-monitoring/aggregates/DeviceState.ts` (`applyPingResult`),
+`src/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.ts`,
+`src/infrastructure/notifications/orchestrator/OverdueDeviceDownAlertOrchestrator.ts`
+**Tests:** `tests/domain/device-monitoring/aggregates/DeviceState.test.ts`,
+`tests/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.test.ts`,
+`tests/infrastructure/notifications/orchestrator/OverdueDeviceDownAlertOrchestrator.test.ts`
 
 ---
 
