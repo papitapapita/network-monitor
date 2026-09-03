@@ -84,6 +84,7 @@ DEV-141 and DEV-144 count as domain because `ROLE_PERMISSIONS` lives in
 **Type:** Validation · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Revised:** 2026-09-03
 
 The name is trimmed before storage. Whitespace-only names are rejected.
 
@@ -101,6 +102,7 @@ column and keeps the picker from wrapping.
 **Type:** Validation · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Revised:** 2026-09-03
 
 Required, non-empty, at most 100 characters, matching
 `^[a-z0-9]+(?:-[a-z0-9]+)*$` — e.g. `tp-link`, `ubiquiti`, `mikrotik`. No
@@ -121,6 +123,7 @@ alphabet means it never needs escaping, and forbidding uppercase prevents
 **Type:** Invariant · **Status:** Active
 **Layer:** Application + database constraint (not in domain)
 **Since:** 2026-07-28
+**Revised:** 2026-09-03
 
 No two vendors may share a slug. On update, a vendor may keep its own slug —
 only a collision with a _different_ vendor is rejected.
@@ -138,6 +141,7 @@ would make the identifier ambiguous everywhere it is reported.
 **Type:** Validation · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Revised:** 2026-09-03
 
 Optional; defaults to `null`.
 
@@ -154,6 +158,7 @@ document.
 **Type:** Policy · **Status:** Active
 **Layer:** Application (not in domain)
 **Since:** 2026-07-28
+**Revised:** 2026-09-03
 
 Deletion is refused while any device model references the vendor. The message
 reports how many.
@@ -172,6 +177,7 @@ silently.
 **Type:** Validation · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Revised:** 2026-09-03
 
 Both are mandatory at creation. `null`, `undefined`, a non-string and a blank
 string are all rejected; neither has a default to fall back on. Update accepts a
@@ -195,6 +201,7 @@ optional.
 **Type:** Invariant · **Status:** Active
 **Layer:** Application + database constraint (not in domain)
 **Since:** 2026-08-01 · **Updated:** 2026-09-03 (case-insensitive comparison)
+**Revised:** 2026-09-03
 
 No two vendors may share a name. On update, a vendor may keep its own name —
 only a collision with a _different_ vendor is rejected. The comparison is
@@ -218,6 +225,7 @@ two vendors, which is the bug this rule now closes.
 **Type:** Invariant · **Status:** Active
 **Layer:** Application (not in domain)
 **Since:** 2026-08-11
+**Revised:** 2026-09-03
 
 **Why:** Mirrors DEV-068 (only an existing device can be deleted) one
 aggregate over — a delete against an id nobody recognizes is a caller error,
@@ -236,6 +244,7 @@ not a no-op, so it fails loudly instead of silently succeeding.
 **Type:** Validation · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Revised:** 2026-09-03
 
 All three are mandatory at creation.
 
@@ -256,6 +265,7 @@ time `create` runs, the value has already been through `DeviceType.create`.
 **Type:** Invariant · **Status:** Active
 **Layer:** Application (not in domain)
 **Since:** 2026-07-28
+**Revised:** 2026-09-03
 
 Checked on create and on any update that changes the vendor.
 
@@ -299,6 +309,7 @@ is deliberate — model names collide across manufacturers all the time.
 **Type:** Validation · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Revised:** 2026-09-03
 
 Trimmed before storage.
 
@@ -313,7 +324,8 @@ Trimmed before storage.
 
 **Type:** Validation · **Status:** Active
 **Layer:** Domain
-**Since:** 2026-07-28 · **Revised:** 2026-07-29
+**Since:** 2026-07-28 · **Updated:** 2026-07-29
+**Revised:** 2026-09-03
 
 Required: `ANTENNA`, `OTHER`, `RADIO`, `ROUTER`, `ROUTERBOARD`, `SERVER`,
 `SWITCH`. Input is trimmed and upper-cased before the set is checked, so
@@ -350,7 +362,8 @@ the domain have drifted, which is a defect to surface rather than paper over.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Domain
-**Since:** 2026-07-28 · **Revised:** 2026-07-29
+**Since:** 2026-07-28 · **Updated:** 2026-07-29
+**Revised:** 2026-09-03
 
 `isWireless` defaults to `false` when omitted.
 
@@ -373,6 +386,7 @@ does not silently start wireless polling.
 **Type:** Policy · **Status:** Active
 **Layer:** Application (not in domain)
 **Since:** 2026-07-28
+**Revised:** 2026-09-03
 
 **Why:** Same reasoning as DEV-005 — deleting the model would strip every unit
 built on it of its identity. Reassignment must be an explicit decision.
@@ -2458,7 +2472,7 @@ with no `status`/`category`/etc. filter alongside it.
 `createdAt desc`. `sortBy`/`sortOrder` were silently dropped in that case, so a
 paginated table sorted only by whatever the client did with the 20-or-so rows
 it received for that page — the client had no way to get a globally sorted
-result. DEV-145 already routed every *filtered* request through the database
+result. DEV-145 already routed every _filtered_ request through the database
 for this reason; the unfiltered request is now folded into the same path
 instead of being a special case with weaker guarantees.
 
