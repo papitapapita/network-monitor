@@ -989,8 +989,9 @@ The SNMP fields are optional and **nothing polls them today** — all polling is
 ```
 
 > Returns 409 if a vendor with the same slug **or the same name** already
-> exists. Name comparison is exact — `Ubiquiti` and `ubiquiti` are two names,
-> but their slugs would collide, so the pair is still rejected.
+> exists. Name comparison is case-insensitive — `Ubiquiti` and `ubiquiti`
+> collide as the same name (their slugs would also collide, since slugs are
+> lowercase by construction).
 
 ---
 
@@ -1046,7 +1047,9 @@ offset?: number  // ≥0, default 0
 ```
 
 > Returns 409 if the new slug or the new name is already taken by another
-> vendor. Submitting the vendor's own slug or name is not a conflict.
+> vendor. Name comparison is case-insensitive, same as create. Submitting the
+> vendor's own slug or name is not a conflict — including "renaming" to a
+> different case of its own current name (e.g. `Mimosa` → `mimosa`).
 
 ---
 

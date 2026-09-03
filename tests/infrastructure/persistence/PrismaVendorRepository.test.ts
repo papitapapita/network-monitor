@@ -49,6 +49,7 @@ function makePrisma() {
     vendor: {
       upsert: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       delete: jest.fn(),
       count: jest.fn()
@@ -323,6 +324,72 @@ describe('PrismaVendorRepository', () => {
   });
 
   // =========================================================================
+  describe('[DEV-007] findByName()', () => {
+    // -----------------------------------------------------------------------
+    describe('record found', () => {
+      it('should call prisma.vendor.findFirst with a case-insensitive where clause', async () => {
+        (prisma.vendor.findFirst as any).mockResolvedValue(
+          makeRawRow()
+        );
+
+        await repository.findByName('Mikrotik');
+
+        expect(prisma.vendor.findFirst).toHaveBeenCalledWith({
+          where: {
+            name: { equals: 'Mikrotik', mode: 'insensitive' }
+          }
+        });
+      });
+
+      it('should return isSuccess=true when a vendor with the name exists', async () => {
+        (prisma.vendor.findFirst as any).mockResolvedValue(
+          makeRawRow()
+        );
+
+        const result = await repository.findByName('Mikrotik');
+
+        expect(result.isSuccess).toBe(true);
+      });
+
+      it('should find a vendor stored as "Mimosa" when queried with "mimosa"', async () => {
+        (prisma.vendor.findFirst as any).mockResolvedValue(
+          makeRawRow({ name: 'Mimosa' })
+        );
+
+        const result = await repository.findByName('mimosa');
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value?.name).toBe('Mimosa');
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('record not found', () => {
+      it('should return Result.ok(null) when no vendor with the name exists', async () => {
+        (prisma.vendor.findFirst as any).mockResolvedValue(null);
+
+        const result = await repository.findByName('Unknown');
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBeNull();
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('database error', () => {
+      it('should return isFailure=true when Prisma throws', async () => {
+        (prisma.vendor.findFirst as any).mockRejectedValue(
+          new Error('query timeout')
+        );
+
+        const result = await repository.findByName('Mikrotik');
+
+        expect(result.isFailure).toBe(true);
+      });
+    });
+  });
+
+  // =========================================================================
   describe('findAll()', () => {
     // -----------------------------------------------------------------------
     describe('happy path', () => {
@@ -529,6 +596,68 @@ describe('PrismaVendorRepository', () => {
 
         expect(result.isSuccess).toBe(true);
         expect(result.value).toBe(false);
+      });
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-007] existsByName()', () => {
+    // -----------------------------------------------------------------------
+    describe('happy path', () => {
+      it('should call prisma.vendor.count with a case-insensitive where clause', async () => {
+        (prisma.vendor.count as any).mockResolvedValue(1);
+
+        await repository.existsByName('Mikrotik');
+
+        expect(prisma.vendor.count).toHaveBeenCalledWith({
+          where: {
+            name: { equals: 'Mikrotik', mode: 'insensitive' }
+          }
+        });
+      });
+
+      it('should return true when count is greater than zero', async () => {
+        (prisma.vendor.count as any).mockResolvedValue(1);
+
+        const result = await repository.existsByName('Mikrotik');
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBe(true);
+      });
+
+      it('should return false when count is zero', async () => {
+        (prisma.vendor.count as any).mockResolvedValue(0);
+
+        const result = await repository.existsByName('Unknown');
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value).toBe(false);
+      });
+
+      it('should treat "Mimosa" and "mimosa" as the same name', async () => {
+        (prisma.vendor.count as any).mockResolvedValue(1);
+
+        const result = await repository.existsByName('mimosa');
+
+        expect(prisma.vendor.count).toHaveBeenCalledWith({
+          where: {
+            name: { equals: 'mimosa', mode: 'insensitive' }
+          }
+        });
+        expect(result.value).toBe(true);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('database error', () => {
+      it('should return isFailure=true when Prisma throws', async () => {
+        (prisma.vendor.count as any).mockRejectedValue(
+          new Error('replica unavailable')
+        );
+
+        const result = await repository.existsByName('Mikrotik');
+
+        expect(result.isFailure).toBe(true);
       });
     });
   });

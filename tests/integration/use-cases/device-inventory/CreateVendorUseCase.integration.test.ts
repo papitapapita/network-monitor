@@ -98,6 +98,40 @@ describe('CreateVendorUseCase — integration', () => {
   });
 
   // ──────────────────────────────────────────────────────────────
+  // Duplicate name (case-insensitive)
+  // ──────────────────────────────────────────────────────────────
+
+  it('[DEV-007] fails with isFailure=true when name already exists', async () => {
+    await useCase.execute({
+      name: 'Mimosa',
+      slug: 'mimosa'
+    });
+
+    const second = await useCase.execute({
+      name: 'Mimosa',
+      slug: 'mimosa-2'
+    });
+
+    expect(second.isFailure).toBe(true);
+    expect(second.error).toMatch(/already exists/i);
+  });
+
+  it('[DEV-007] fails with isFailure=true when name differs only in case', async () => {
+    await useCase.execute({
+      name: 'Mimosa',
+      slug: 'mimosa'
+    });
+
+    const second = await useCase.execute({
+      name: 'mimosa',
+      slug: 'mimosa-lowercase'
+    });
+
+    expect(second.isFailure).toBe(true);
+    expect(second.error).toMatch(/already exists/i);
+  });
+
+  // ──────────────────────────────────────────────────────────────
   // Validation failures
   // ──────────────────────────────────────────────────────────────
 

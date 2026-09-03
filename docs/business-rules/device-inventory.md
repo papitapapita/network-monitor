@@ -190,28 +190,28 @@ optional.
 **Message:** `Vendor name is required` / `Vendor slug is required` (use case); `name is null or undefined` / `slug is null or undefined` (aggregate guards)
 **Tests:** `tests/domain/device-inventory/aggregates/Vendor.test.ts`, `tests/application/device-inventory/use-cases/CreateVendorUseCase.test.ts`, `tests/integration/use-cases/device-inventory/CreateVendorUseCase.integration.test.ts`, `tests/integration/vendor.routes.test.ts`
 
-### DEV-007 — Vendor names are unique
+### DEV-007 — Vendor names are unique, case-insensitively
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Application + database constraint (not in domain)
-**Since:** 2026-08-01
+**Since:** 2026-08-01 · **Updated:** 2026-09-03 (case-insensitive comparison)
 
 No two vendors may share a name. On update, a vendor may keep its own name —
-only a collision with a _different_ vendor is rejected. The comparison is exact:
-`Ubiquiti` and `ubiquiti` are two names, matching what the database constraint
-enforces. The slug (DEV-002) is what actually prevents that pair from becoming
-two vendors, since it is lowercase by construction.
+only a collision with a _different_ vendor is rejected. The comparison is
+case-insensitive: `Mimosa` and `mimosa` are treated as the same name and the
+second one is rejected. The stored value still keeps whatever casing the
+operator typed — only the collision check folds case.
 
-**Why:** The name is what operators pick equipment by. Two vendors carrying the
-same one makes the picker ambiguous exactly where the slug cannot help — a human
-reading a dropdown does not see slugs. The constraint existed in the database
-from the start; until 2026-08-01 nothing checked it in code, so a duplicate
-surfaced as a raw Prisma error instead of a sentence an operator could act on.
+**Why:** The name is what operators pick equipment by. Two vendors carrying
+what reads as the same name — differing only in casing — makes the picker
+ambiguous exactly where the slug cannot help, since a human reading a dropdown
+does not see slugs. An exact-match check let `Mimosa` and `mimosa` coexist as
+two vendors, which is the bug this rule now closes.
 
-**Enforced at:** `src/application/device-inventory/use-cases/CreateVendorUseCase.ts:49`, `UpdateVendorUseCase.ts:78`
-**Backed by:** `Vendor.name @unique` in `prisma/schema.prisma:47`
+**Enforced at:** `src/application/device-inventory/use-cases/CreateVendorUseCase.ts:49`, `UpdateVendorUseCase.ts:78`, via case-insensitive lookups in `src/infrastructure/persistence/PrismaVendorRepository.ts` (`findByName`, `existsByName` — Postgres `mode: 'insensitive'`)
+**Backed by:** `Vendor.name @unique` in `prisma/schema.prisma:47` — this is a case-sensitive index, so it only catches exact-case duplicates; case-insensitive collisions rely on the application-level check above, not the database, so a race between two concurrent creates with different casing is not closed by the database.
 **Message:** `A vendor with name "<name>" already exists`
-**Tests:** `tests/application/device-inventory/use-cases/CreateVendorUseCase.test.ts`, `tests/application/device-inventory/use-cases/UpdateVendorUseCase.test.ts`
+**Tests:** `tests/application/device-inventory/use-cases/CreateVendorUseCase.test.ts`, `tests/application/device-inventory/use-cases/UpdateVendorUseCase.test.ts`, `tests/infrastructure/persistence/PrismaVendorRepository.test.ts`, `tests/integration/use-cases/device-inventory/CreateVendorUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UpdateVendorUseCase.integration.test.ts`
 
 ### DEV-008 — Only an existing vendor can be deleted
 

@@ -101,8 +101,8 @@ export class PrismaVendorRepository implements IVendorRepository {
     name: string
   ): Promise<Result<Vendor | null>> {
     try {
-      const raw = await this.prisma.vendor.findUnique({
-        where: { name }
+      const raw = await this.prisma.vendor.findFirst({
+        where: { name: { equals: name, mode: 'insensitive' } }
       });
 
       if (!raw) return Result.ok<Vendor | null>(null);
@@ -210,7 +210,7 @@ export class PrismaVendorRepository implements IVendorRepository {
   public async existsByName(name: string): Promise<Result<boolean>> {
     try {
       const count = await this.prisma.vendor.count({
-        where: { name }
+        where: { name: { equals: name, mode: 'insensitive' } }
       });
       return Result.ok<boolean>(count > 0);
     } catch (error) {

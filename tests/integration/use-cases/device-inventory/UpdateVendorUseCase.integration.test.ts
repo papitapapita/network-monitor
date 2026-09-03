@@ -137,6 +137,57 @@ describe('UpdateVendorUseCase — integration', () => {
   });
 
   // ──────────────────────────────────────────────────────────────
+  // Name conflict
+  // ──────────────────────────────────────────────────────────────
+
+  it('[DEV-007] fails when the new name is already taken by another vendor', async () => {
+    await seedVendor(prisma, { name: 'Mimosa', slug: 'mimosa' });
+    const betaId = await seedVendor(prisma, {
+      name: 'Beta',
+      slug: 'beta-vendor'
+    });
+
+    const result = await useCase.execute({
+      id: betaId,
+      name: 'Mimosa'
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/already exists/i);
+  });
+
+  it('[DEV-007] fails when the new name differs only in case from another vendor', async () => {
+    await seedVendor(prisma, { name: 'Mimosa', slug: 'mimosa' });
+    const betaId = await seedVendor(prisma, {
+      name: 'Beta',
+      slug: 'beta-vendor'
+    });
+
+    const result = await useCase.execute({
+      id: betaId,
+      name: 'mimosa'
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/already exists/i);
+  });
+
+  it('[DEV-007] succeeds when a vendor "renames" itself to a different case of its own name', async () => {
+    const vendorId = await seedVendor(prisma, {
+      name: 'Mimosa',
+      slug: 'mimosa'
+    });
+
+    const result = await useCase.execute({
+      id: vendorId,
+      name: 'mimosa'
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.name).toBe('mimosa');
+  });
+
+  // ──────────────────────────────────────────────────────────────
   // Not found
   // ──────────────────────────────────────────────────────────────
 
