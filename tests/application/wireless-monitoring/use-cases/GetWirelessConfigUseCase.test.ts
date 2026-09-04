@@ -53,6 +53,7 @@ function makeConfig(
       deviceType: 'STATION',
       linkCapacityKbps: null,
       clientsProvisionedLimit: null,
+      provisionedLanSpeedMbps: null,
       lastPolledAt: null
     }
   );

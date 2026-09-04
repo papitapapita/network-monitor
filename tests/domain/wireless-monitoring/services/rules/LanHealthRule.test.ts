@@ -60,6 +60,7 @@ function makeContext(
     deviceModel: null,
     linkCapacityKbps: null,
     clientsProvisionedLimit: null,
+    provisionedLanSpeedMbps: null,
     previousMetrics: null,
     collectedAt: new Date(),
     ...overrides
@@ -210,6 +211,157 @@ describe('[WLS-088] [WLS-089] [WLS-090] LanHealthRule', () => {
         (d) => d.metric === 'lan_speed_mbps'
       );
       expect(speedDecisions).toHaveLength(0);
+    });
+
+    describe('[WLS-089] with a per-device baseline configured', () => {
+      it('should emit OPEN WARNING when speed drops below the baseline', () => {
+        const metrics = makeMetrics({ lanSpeedMbps: 100 });
+        const result = rule.evaluate(
+          metrics,
+          makeContext({ provisionedLanSpeedMbps: 1000 }),
+          new Map()
+        );
+        const decision = result.find(
+          (d) => d.metric === 'lan_speed_mbps'
+        );
+        expect(decision).toBeDefined();
+        expect(decision!.action).toBe('OPEN');
+        expect(decision!.severity).toBe('WARNING');
+        expect(decision!.currentValue).toBe(100);
+        expect(decision!.threshold).toBe(1000);
+      });
+
+      it('should use the fixed 100-Mbps threshold for a 100-Mbps-baseline device, not the old 10-Mbps floor', () => {
+        const metrics = makeMetrics({ lanSpeedMbps: 50 });
+        const result = rule.evaluate(
+          metrics,
+          makeContext({ provisionedLanSpeedMbps: 100 }),
+          new Map()
+        );
+        const decision = result.find(
+          (d) => d.metric === 'lan_speed_mbps'
+        );
+        expect(decision).toBeDefined();
+        expect(decision!.action).toBe('OPEN');
+        expect(decision!.threshold).toBe(100);
+      });
+
+      it('should not emit OPEN when speed equals the baseline', () => {
+        const metrics = makeMetrics({ lanSpeedMbps: 1000 });
+        const result = rule.evaluate(
+          metrics,
+          makeContext({ provisionedLanSpeedMbps: 1000 }),
+          new Map()
+        );
+        const speedDecisions = result.filter(
+          (d) => d.metric === 'lan_speed_mbps'
+        );
+        expect(speedDecisions).toHaveLength(0);
+      });
+
+      it('should not re-emit OPEN when already active and still below baseline', () => {
+        const metrics = makeMetrics({ lanSpeedMbps: 100 });
+        const alerts = activeMap(['lan_speed_mbps', 'WARNING']);
+        const result = rule.evaluate(
+          metrics,
+          makeContext({ provisionedLanSpeedMbps: 1000 }),
+          alerts
+        );
+        const opens = result.filter(
+          (d) => d.metric === 'lan_speed_mbps' && d.action === 'OPEN'
+        );
+        expect(opens).toHaveLength(0);
+      });
+
+      it('should NOT clear on the first poll back at baseline (debounce)', () => {
+        const previous = makeMetrics({ lanSpeedMbps: 100 });
+        const metrics = makeMetrics({ lanSpeedMbps: 1000 });
+        const alerts = activeMap(['lan_speed_mbps', 'WARNING']);
+        const result = rule.evaluate(
+          metrics,
+          makeContext({
+            provisionedLanSpeedMbps: 1000,
+            previousMetrics: previous
+          }),
+          alerts
+        );
+        const speedDecisions = result.filter(
+          (d) => d.metric === 'lan_speed_mbps'
+        );
+        expect(speedDecisions).toHaveLength(0);
+      });
+
+      it('should clear once back at baseline for two consecutive polls', () => {
+        const previous = makeMetrics({ lanSpeedMbps: 1000 });
+        const metrics = makeMetrics({ lanSpeedMbps: 1000 });
+        const alerts = activeMap(['lan_speed_mbps', 'WARNING']);
+        const result = rule.evaluate(
+          metrics,
+          makeContext({
+            provisionedLanSpeedMbps: 1000,
+            previousMetrics: previous
+          }),
+          alerts
+        );
+        const decision = result.find(
+          (d) => d.metric === 'lan_speed_mbps'
+        );
+        expect(decision).toBeDefined();
+        expect(decision!.action).toBe('CLEAR');
+        expect(decision!.currentValue).toBe(1000);
+        expect(decision!.threshold).toBe(1000);
+      });
+
+      it('should not clear when current poll is good but previous poll was still degraded', () => {
+        const previous = makeMetrics({ lanSpeedMbps: 100 });
+        const metrics = makeMetrics({ lanSpeedMbps: 1000 });
+        const alerts = activeMap(['lan_speed_mbps', 'WARNING']);
+        const result = rule.evaluate(
+          metrics,
+          makeContext({
+            provisionedLanSpeedMbps: 1000,
+            previousMetrics: previous
+          }),
+          alerts
+        );
+        const speedDecisions = result.filter(
+          (d) => d.metric === 'lan_speed_mbps'
+        );
+        expect(speedDecisions).toHaveLength(0);
+      });
+
+      it('should not clear when there is no previous poll to confirm sustained recovery', () => {
+        const metrics = makeMetrics({ lanSpeedMbps: 1000 });
+        const alerts = activeMap(['lan_speed_mbps', 'WARNING']);
+        const result = rule.evaluate(
+          metrics,
+          makeContext({
+            provisionedLanSpeedMbps: 1000,
+            previousMetrics: null
+          }),
+          alerts
+        );
+        const speedDecisions = result.filter(
+          (d) => d.metric === 'lan_speed_mbps'
+        );
+        expect(speedDecisions).toHaveLength(0);
+      });
+
+      it('should ignore the fixed 10/100 thresholds entirely once a baseline exists', () => {
+        // 15 Mbps is above the old fixed open threshold (<=10) but below
+        // a 1000 Mbps baseline — it must still open.
+        const metrics = makeMetrics({ lanSpeedMbps: 15 });
+        const result = rule.evaluate(
+          metrics,
+          makeContext({ provisionedLanSpeedMbps: 1000 }),
+          new Map()
+        );
+        const decision = result.find(
+          (d) => d.metric === 'lan_speed_mbps'
+        );
+        expect(decision).toBeDefined();
+        expect(decision!.action).toBe('OPEN');
+      });
     });
   });
 

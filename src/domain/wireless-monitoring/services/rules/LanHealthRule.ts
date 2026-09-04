@@ -41,13 +41,45 @@ export class LanHealthRule implements IAlertRule {
       }
     }
 
-    // lan_speed_mbps — WARNING when speed falls to ≤10 Mbps
+    // lan_speed_mbps — WARNING when negotiated speed drops below the
+    // device's own baseline (captured from its first poll, WLS-089).
+    // Falls back to the fixed 10/100 Mbps thresholds when a device has no
+    // baseline yet (should only happen transiently, e.g. a failed save).
     const lanSpeed = metrics.lanSpeedMbps;
     if (lanSpeed !== null) {
       const key = 'lan_speed_mbps:WARNING';
       const active = activeAlerts.get(key);
+      const baseline = context.provisionedLanSpeedMbps;
 
-      if (!active && lanSpeed <= 10) {
+      if (baseline !== null) {
+        if (!active && lanSpeed < baseline) {
+          decisions.push({
+            metric: 'lan_speed_mbps',
+            action: 'OPEN',
+            severity: 'WARNING',
+            currentValue: lanSpeed,
+            threshold: baseline,
+            message: `Velocidad LAN degradada en equipo ${context.deviceName}: ${lanSpeed} Mbps (esperado: ${baseline} Mbps)`
+          });
+        } else if (active) {
+          const previousLanSpeed =
+            context.previousMetrics?.lanSpeedMbps ?? null;
+          const sustainedRecovery =
+            lanSpeed >= baseline &&
+            previousLanSpeed !== null &&
+            previousLanSpeed >= baseline;
+          if (sustainedRecovery) {
+            decisions.push({
+              metric: 'lan_speed_mbps',
+              action: 'CLEAR',
+              severity: 'WARNING',
+              currentValue: lanSpeed,
+              threshold: baseline,
+              message: `Velocidad LAN recuperada en equipo ${context.deviceName}: ${lanSpeed} Mbps`
+            });
+          }
+        }
+      } else if (!active && lanSpeed <= 10) {
         decisions.push({
           metric: 'lan_speed_mbps',
           action: 'OPEN',

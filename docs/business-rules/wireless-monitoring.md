@@ -1078,23 +1078,34 @@ that customer, which is what CRITICAL means here.
 **Message:** `Puerto LAN caído en equipo <name>` / `Puerto LAN recuperado en equipo <name>`
 **Tests:** `tests/domain/wireless-monitoring/services/rules/LanHealthRule.test.ts`
 
-### WLS-089 — A LAN port negotiated down to 10 Mbps is a warning
+### WLS-089 — A LAN port degrading below its own baseline speed is a warning
 
 **Type:** Policy · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-08-03
+**Revised:** 2026-09-04 (thresholds are now per-device, relative to a
+baseline captured from the device's own first poll — see WLS-099 — instead of
+the fixed 10/100 Mbps values every device shared before)
 
-Opens at 10 Mbps or below, clears only above 100 Mbps.
+Once a device has a baseline (`provisionedLanSpeedMbps`), the rule opens the
+moment negotiated speed drops below it, and clears only once negotiated speed
+is back at or above the baseline for two consecutive polls. A device with no
+baseline yet falls back to the original fixed thresholds — opens at 10 Mbps or
+below, clears only above 100 Mbps — which should only be reached transiently,
+since WLS-099 captures a baseline on the very poll that first reports a speed.
 
-**Why:** 10 Mbps on a port that should negotiate 100 or 1000 is a cable or
-connector fault, not a configuration — it caps the subscriber's service far
-below what the radio can carry. The dead band is wide on purpose: a port
-flapping between 10 and 100 is the same fault, and clearing at 100 would
-announce a recovery that has not happened.
+**Why:** A port that should run gigabit and a port that should run
+fast-Ethernet fail differently — a gigabit port dropping to 100 Mbps is
+already a serious fault, but the old fixed 10 Mbps floor would miss it
+entirely. Comparing against each device's own baseline instead of one shared
+number catches that. The two-poll clear debounce exists because a bad cable
+or connector can cause a port to renegotiate up and down repeatedly in a short
+span; clearing on the very first good poll would flap the alert open and
+closed on every attempt.
 
-**Enforced at:** `src/domain/wireless-monitoring/services/rules/LanHealthRule.ts:50`, `:59`
+**Enforced at:** `src/domain/wireless-monitoring/services/rules/LanHealthRule.ts:44`
 **Reached from:** `WirelessAlertEvaluator.evaluate`
-**Message:** `Velocidad LAN muy baja en equipo <name>: <v> Mbps (umbral: 10 Mbps)`
+**Message:** `Velocidad LAN degradada en equipo <name>: <v> Mbps (esperado: <baseline> Mbps)` (baseline known) / `Velocidad LAN muy baja en equipo <name>: <v> Mbps (umbral: 10 Mbps)` (no baseline yet)
 **Tests:** `tests/domain/wireless-monitoring/services/rules/LanHealthRule.test.ts`
 
 ### WLS-090 — A LAN duplex change is a warning
@@ -1294,6 +1305,32 @@ construction. That interacts with WLS-123 — see the note there.
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Message:** `<field> cambió en <name>: "<previous>" → "<current>"`
 **Tests:** `tests/domain/wireless-monitoring/services/rules/IdentityChangeRule.test.ts`
+
+### WLS-099 — A device's LAN-speed baseline is captured from its first poll, not configured up front
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-04
+
+The first poll that reports a LAN speed for a device with no baseline yet
+(`provisionedLanSpeedMbps` is `null`) stores that reading as the baseline used
+by WLS-089. Every later poll is a no-op on this field. The baseline can still
+be set or corrected by hand afterward through the wireless-config update
+endpoint, e.g. if the very first poll happened to catch a port already
+degraded.
+
+**Why:** Requiring an operator to enter every device's rated LAN speed by hand
+before this rule could do anything useful would have meant either it protects
+nothing until someone fills in hundreds of fields, or every device silently
+falls back to one shared guess. Capturing the first observed value instead
+means the rule self-calibrates per device with no setup step, at the cost of
+one known rollout risk: a device already degraded the moment this shipped
+gets its degraded speed as its baseline, and won't warn until it drops even
+further — correctable with the same manual override.
+
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts`, `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts` (`captureLanSpeedBaselineIfUnset`)
+**Reached from:** `PollWirelessDeviceUseCase.poll`
+**Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.test.ts`
 
 ---
 

@@ -116,6 +116,12 @@ export class UpdateWirelessConfigUseCase extends UseCase<
       );
       if (r.isFailure) return this.fail(r.error);
     }
+    if (updates.provisionedLanSpeedMbps !== undefined) {
+      const r = config.updateProvisionedLanSpeedMbps(
+        updates.provisionedLanSpeedMbps
+      );
+      if (r.isFailure) return this.fail(r.error);
+    }
     const saveResult = await this.configRepo.save(config);
     if (saveResult.isFailure) {
       return this.fail(saveResult.error);

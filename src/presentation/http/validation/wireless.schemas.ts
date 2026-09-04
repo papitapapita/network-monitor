@@ -84,6 +84,12 @@ export const createWirelessConfigSchema = z.object({
       .int()
       .positive()
       .nullable()
+      .optional(),
+    provisionedLanSpeedMbps: z
+      .number()
+      .int()
+      .positive()
+      .nullable()
       .optional()
   })
 });
@@ -110,6 +116,12 @@ export const updateWirelessConfigSchema = z.object({
         .nullable()
         .optional(),
       clientsProvisionedLimit: z
+        .number()
+        .int()
+        .positive()
+        .nullable()
+        .optional(),
+      provisionedLanSpeedMbps: z
         .number()
         .int()
         .positive()

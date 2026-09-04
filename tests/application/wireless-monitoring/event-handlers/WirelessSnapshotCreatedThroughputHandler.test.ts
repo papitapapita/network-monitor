@@ -109,6 +109,7 @@ function makeConfig(): WirelessDeviceConfig {
       deviceType: 'STATION',
       linkCapacityKbps: 10_000,
       clientsProvisionedLimit: null,
+      provisionedLanSpeedMbps: null,
       lastPolledAt: null
     }
   );

@@ -211,6 +211,15 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
       expect(res.body).toHaveProperty('error');
     });
 
+    it('[WLS-089] 201 — accepts provisionedLanSpeedMbps on either device type', async () => {
+      const res = await request(app)
+        .post(`/api/devices/${plainDeviceId}/wireless/config`)
+        .send({ provisionedLanSpeedMbps: 1000 });
+
+      expect(res.status).toBe(201);
+      expect(res.body.provisionedLanSpeedMbps).toBe(1000);
+    });
+
     it('400 — rejects clientsProvisionedLimit on a derived STATION device', async () => {
       const res = await request(app)
         .post(`/api/devices/${plainDeviceId}/wireless/config`)
@@ -329,6 +338,23 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
 
       expect(res.status).toBe(200);
       expect(res.body.ipAddress).toBe('172.16.0.1');
+    });
+
+    it('[WLS-089] 200 — updates provisionedLanSpeedMbps and reflects it in the response', async () => {
+      const res = await request(app)
+        .patch(`/api/devices/${configuredDeviceId}/wireless/config`)
+        .send({ provisionedLanSpeedMbps: 100 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.provisionedLanSpeedMbps).toBe(100);
+    });
+
+    it('[WLS-089] 400 — rejects a non-positive provisionedLanSpeedMbps', async () => {
+      const res = await request(app)
+        .patch(`/api/devices/${configuredDeviceId}/wireless/config`)
+        .send({ provisionedLanSpeedMbps: 0 });
+
+      expect(res.status).toBe(400);
     });
 
     it('400 — returns 400 when body is empty (at least one field required)', async () => {

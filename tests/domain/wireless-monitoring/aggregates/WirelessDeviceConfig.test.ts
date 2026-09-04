@@ -21,6 +21,7 @@ function makeProps(
     deviceType: 'STATION',
     linkCapacityKbps: null,
     clientsProvisionedLimit: null,
+    provisionedLanSpeedMbps: null,
     lastPolledAt: null,
     ...overrides
   };
@@ -93,6 +94,7 @@ describe('[WLS-008] WirelessDeviceConfig', () => {
           ipAddress: null,
           linkCapacityKbps: null,
           clientsProvisionedLimit: null,
+          provisionedLanSpeedMbps: null,
           lastPolledAt: null
         });
 
@@ -227,6 +229,7 @@ describe('[WLS-008] WirelessDeviceConfig', () => {
         deviceType: 'ACCESS_POINT',
         linkCapacityKbps: 1_000_000,
         clientsProvisionedLimit: 50,
+        provisionedLanSpeedMbps: null,
         lastPolledAt
       });
 
@@ -561,6 +564,92 @@ describe('[WLS-008] WirelessDeviceConfig', () => {
     it('should emit no domain events', () => {
       const config = makeConfig();
       config.updateIpAddress(IPAddress.create('172.16.0.1').value);
+
+      expect(config.domainEvents.length).toBe(0);
+    });
+  });
+
+  // =========================================================================
+  describe('[WLS-089] updateProvisionedLanSpeedMbps(speedMbps)', () => {
+    it('should set the baseline to the given positive value', () => {
+      const config = makeConfig({ provisionedLanSpeedMbps: null });
+      const result = config.updateProvisionedLanSpeedMbps(1000);
+
+      expect(result.isSuccess).toBe(true);
+      expect(config.provisionedLanSpeedMbps).toBe(1000);
+    });
+
+    it('should overwrite a previously set baseline', () => {
+      const config = makeConfig({ provisionedLanSpeedMbps: 1000 });
+      config.updateProvisionedLanSpeedMbps(100);
+
+      expect(config.provisionedLanSpeedMbps).toBe(100);
+    });
+
+    it('should clear the baseline when given null', () => {
+      const config = makeConfig({ provisionedLanSpeedMbps: 1000 });
+      const result = config.updateProvisionedLanSpeedMbps(null);
+
+      expect(result.isSuccess).toBe(true);
+      expect(config.provisionedLanSpeedMbps).toBeNull();
+    });
+
+    it('should fail when given zero', () => {
+      const config = makeConfig();
+      const result = config.updateProvisionedLanSpeedMbps(0);
+
+      expect(result.isFailure).toBe(true);
+      expect(config.provisionedLanSpeedMbps).toBeNull();
+    });
+
+    it('should fail when given a negative value', () => {
+      const config = makeConfig();
+      const result = config.updateProvisionedLanSpeedMbps(-10);
+
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('should emit no domain events', () => {
+      const config = makeConfig();
+      config.updateProvisionedLanSpeedMbps(1000);
+
+      expect(config.domainEvents.length).toBe(0);
+    });
+  });
+
+  // =========================================================================
+  describe('[WLS-089] captureLanSpeedBaselineIfUnset(observedMbps)', () => {
+    it('should set the baseline when none is set yet', () => {
+      const config = makeConfig({ provisionedLanSpeedMbps: null });
+      config.captureLanSpeedBaselineIfUnset(1000);
+
+      expect(config.provisionedLanSpeedMbps).toBe(1000);
+    });
+
+    it('should not overwrite an already-set baseline', () => {
+      const config = makeConfig({ provisionedLanSpeedMbps: 1000 });
+      config.captureLanSpeedBaselineIfUnset(100);
+
+      expect(config.provisionedLanSpeedMbps).toBe(1000);
+    });
+
+    it('should not set a baseline of zero', () => {
+      const config = makeConfig({ provisionedLanSpeedMbps: null });
+      config.captureLanSpeedBaselineIfUnset(0);
+
+      expect(config.provisionedLanSpeedMbps).toBeNull();
+    });
+
+    it('should not set a negative baseline', () => {
+      const config = makeConfig({ provisionedLanSpeedMbps: null });
+      config.captureLanSpeedBaselineIfUnset(-1);
+
+      expect(config.provisionedLanSpeedMbps).toBeNull();
+    });
+
+    it('should emit no domain events', () => {
+      const config = makeConfig({ provisionedLanSpeedMbps: null });
+      config.captureLanSpeedBaselineIfUnset(1000);
 
       expect(config.domainEvents.length).toBe(0);
     });

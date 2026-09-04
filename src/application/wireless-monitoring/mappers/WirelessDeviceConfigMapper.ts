@@ -18,6 +18,7 @@ export class WirelessDeviceConfigMapper {
       deviceType: config.deviceType,
       linkCapacityKbps: config.linkCapacityKbps,
       clientsProvisionedLimit: config.clientsProvisionedLimit,
+      provisionedLanSpeedMbps: config.provisionedLanSpeedMbps,
       lastPolledAt: config.lastPolledAt?.toISOString() ?? null
     };
   }
@@ -31,7 +32,8 @@ export class WirelessDeviceConfigMapper {
       intervalSecs: dto.intervalSecs ?? null,
       enabled: dto.enabled ?? null,
       linkCapacityKbps: dto.linkCapacityKbps ?? null,
-      clientsProvisionedLimit: dto.clientsProvisionedLimit ?? null
+      clientsProvisionedLimit: dto.clientsProvisionedLimit ?? null,
+      provisionedLanSpeedMbps: dto.provisionedLanSpeedMbps ?? null
     };
   }
 
@@ -43,6 +45,7 @@ export class WirelessDeviceConfigMapper {
     enabled?: boolean;
     linkCapacityKbps?: number | null;
     clientsProvisionedLimit?: number | null;
+    provisionedLanSpeedMbps?: number | null;
   } {
     const updates: {
       ipAddress?: string | null;
@@ -50,6 +53,7 @@ export class WirelessDeviceConfigMapper {
       enabled?: boolean;
       linkCapacityKbps?: number | null;
       clientsProvisionedLimit?: number | null;
+      provisionedLanSpeedMbps?: number | null;
     } = {};
 
     if (dto.ipAddress !== undefined)
@@ -61,6 +65,8 @@ export class WirelessDeviceConfigMapper {
       updates.linkCapacityKbps = dto.linkCapacityKbps;
     if (dto.clientsProvisionedLimit !== undefined)
       updates.clientsProvisionedLimit = dto.clientsProvisionedLimit;
+    if (dto.provisionedLanSpeedMbps !== undefined)
+      updates.provisionedLanSpeedMbps = dto.provisionedLanSpeedMbps;
 
     return updates;
   }

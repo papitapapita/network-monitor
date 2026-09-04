@@ -35,6 +35,7 @@ const buildDomainConfig = (): WirelessDeviceConfig => {
     deviceType: 'STATION',
     linkCapacityKbps: 100_000_000,
     clientsProvisionedLimit: 10,
+    provisionedLanSpeedMbps: null,
     lastPolledAt: new Date('2024-01-01T12:00:00Z')
   });
 };
@@ -48,6 +49,7 @@ const makePrismaRow = () => ({
   deviceType: 'STATION',
   linkCapacityKbps: 100_000_000n,
   clientsProvisionedLimit: 10,
+  provisionedLanSpeedMbps: null,
   lastPolledAt: new Date('2024-01-01T12:00:00Z')
 });
 

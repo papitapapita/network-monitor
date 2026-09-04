@@ -58,6 +58,7 @@ function makeContext(
     deviceModel: null,
     linkCapacityKbps: null,
     clientsProvisionedLimit: null,
+    provisionedLanSpeedMbps: null,
     previousMetrics: null,
     collectedAt: new Date(),
     ...overrides

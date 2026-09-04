@@ -32,6 +32,7 @@ function makeConfig(
     deviceType: 'STATION' | 'ACCESS_POINT';
     linkCapacityKbps: number | null;
     clientsProvisionedLimit: number | null;
+    provisionedLanSpeedMbps: number | null;
     lastPolledAt: Date | null;
   }> = {}
 ): WirelessDeviceConfig {
@@ -50,6 +51,8 @@ function makeConfig(
     linkCapacityKbps: overrides.linkCapacityKbps ?? null,
     clientsProvisionedLimit:
       overrides.clientsProvisionedLimit ?? null,
+    provisionedLanSpeedMbps:
+      overrides.provisionedLanSpeedMbps ?? null,
     lastPolledAt: overrides.lastPolledAt ?? null
   });
 }
@@ -338,7 +341,8 @@ describe('WirelessDeviceConfigMapper', () => {
     it('should pass clientsProvisionedLimit through when provided', () => {
       const dto: CreateWirelessConfigRequestDTO = {
         deviceId: DEVICE_UUID,
-        clientsProvisionedLimit: 20
+        clientsProvisionedLimit: 20,
+        provisionedLanSpeedMbps: null
       };
 
       const result =

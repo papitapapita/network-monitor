@@ -85,6 +85,7 @@ function makeConfig(): WirelessDeviceConfig {
       pollingInterval: PollingInterval.reconstitute(3600),
       linkCapacityKbps: null,
       clientsProvisionedLimit: null,
+      provisionedLanSpeedMbps: null,
       lastPolledAt: null
     }
   );

@@ -124,6 +124,7 @@ function makeConfig(
       deviceType: 'STATION',
       linkCapacityKbps,
       clientsProvisionedLimit: null,
+      provisionedLanSpeedMbps: null,
       lastPolledAt: null
     }
   );

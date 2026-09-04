@@ -7,5 +7,6 @@ export interface WirelessConfigResponseDTO {
   deviceType: 'STATION' | 'ACCESS_POINT';
   linkCapacityKbps: number | null;
   clientsProvisionedLimit: number | null;
+  provisionedLanSpeedMbps: number | null;
   lastPolledAt: string | null;
 }

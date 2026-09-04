@@ -15,6 +15,7 @@ export interface EvaluationContext {
   deviceModel: string | null;
   linkCapacityKbps: number | null;
   clientsProvisionedLimit: number | null;
+  provisionedLanSpeedMbps: number | null;
   previousMetrics: WirelessMetrics | null;
   collectedAt: Date;
 }

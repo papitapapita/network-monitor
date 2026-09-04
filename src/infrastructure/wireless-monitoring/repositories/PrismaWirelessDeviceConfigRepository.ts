@@ -17,6 +17,7 @@ type RawPollingConfig = {
   device_type: string;
   link_capacity_kbps: bigint | null;
   clients_provisioned_limit: number | null;
+  provisioned_lan_speed_mbps: number | null;
   last_polled_at: Date | null;
 };
 
@@ -41,6 +42,7 @@ export class PrismaWirelessDeviceConfigRepository
           deviceType: data.deviceType as WirelessDeviceType,
           linkCapacityKbps: data.linkCapacityKbps,
           clientsProvisionedLimit: data.clientsProvisionedLimit,
+          provisionedLanSpeedMbps: data.provisionedLanSpeedMbps,
           lastPolledAt: data.lastPolledAt
         },
         create: {
@@ -52,6 +54,7 @@ export class PrismaWirelessDeviceConfigRepository
           deviceType: data.deviceType as WirelessDeviceType,
           linkCapacityKbps: data.linkCapacityKbps,
           clientsProvisionedLimit: data.clientsProvisionedLimit,
+          provisionedLanSpeedMbps: data.provisionedLanSpeedMbps,
           lastPolledAt: data.lastPolledAt
         }
       });
@@ -159,6 +162,7 @@ export class PrismaWirelessDeviceConfigRepository
           wpc.device_type,
           wpc.link_capacity_kbps,
           wpc.clients_provisioned_limit,
+          wpc.provisioned_lan_speed_mbps,
           wpc.last_polled_at
         FROM wireless_polling_configurations wpc
         JOIN devices d ON d.id = wpc.device_id
@@ -182,6 +186,7 @@ export class PrismaWirelessDeviceConfigRepository
           deviceType: r.device_type,
           linkCapacityKbps: r.link_capacity_kbps,
           clientsProvisionedLimit: r.clients_provisioned_limit,
+          provisionedLanSpeedMbps: r.provisioned_lan_speed_mbps,
           lastPolledAt: r.last_polled_at
         })
       );

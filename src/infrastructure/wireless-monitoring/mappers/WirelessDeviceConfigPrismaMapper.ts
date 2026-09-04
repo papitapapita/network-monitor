@@ -14,6 +14,7 @@ type PrismaWirelessDeviceConfigRow = {
   deviceType: string;
   linkCapacityKbps: bigint | null;
   clientsProvisionedLimit: number | null;
+  provisionedLanSpeedMbps: number | null;
   lastPolledAt: Date | null;
 };
 
@@ -26,6 +27,7 @@ type PersistenceData = {
   deviceType: string;
   linkCapacityKbps: bigint | null;
   clientsProvisionedLimit: number | null;
+  provisionedLanSpeedMbps: number | null;
   lastPolledAt: Date | null;
 };
 
@@ -55,6 +57,7 @@ export class WirelessDeviceConfigPrismaMapper {
           ? Number(raw.linkCapacityKbps)
           : null,
       clientsProvisionedLimit: raw.clientsProvisionedLimit,
+      provisionedLanSpeedMbps: raw.provisionedLanSpeedMbps,
       lastPolledAt: raw.lastPolledAt
     };
 
@@ -76,6 +79,7 @@ export class WirelessDeviceConfigPrismaMapper {
           ? BigInt(config.linkCapacityKbps)
           : null,
       clientsProvisionedLimit: config.clientsProvisionedLimit,
+      provisionedLanSpeedMbps: config.provisionedLanSpeedMbps,
       lastPolledAt: config.lastPolledAt
     };
   }

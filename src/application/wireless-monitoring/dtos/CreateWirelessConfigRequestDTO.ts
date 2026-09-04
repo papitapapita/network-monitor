@@ -5,4 +5,5 @@ export interface CreateWirelessConfigRequestDTO {
   enabled?: boolean;
   linkCapacityKbps?: number | null;
   clientsProvisionedLimit?: number | null;
+  provisionedLanSpeedMbps?: number | null;
 }

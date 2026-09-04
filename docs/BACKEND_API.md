@@ -1897,6 +1897,7 @@ interface WirelessClientDTO {
   enabled?: boolean                        // default true
   linkCapacityKbps?: number | null         // STATION only — provisioned uplink capacity in kbps
   clientsProvisionedLimit?: number | null  // ACCESS_POINT only — max expected clients
+  provisionedLanSpeedMbps?: number | null  // either device type — see note below; usually left unset
 }
 
 // Response
@@ -1909,6 +1910,7 @@ interface WirelessClientDTO {
   deviceType: 'STATION' | 'ACCESS_POINT'
   linkCapacityKbps: number | null
   clientsProvisionedLimit: number | null
+  provisionedLanSpeedMbps: number | null
   lastPolledAt: string | null   // ISO 8601 — null until first poll
 }
 ```
@@ -1933,6 +1935,8 @@ there rather than assuming it.
 - `intervalSecs` must be **at least 60**. Polling AirOS faster than that overloads the embedded web server on the radio, so the floor is a hardware constraint, not a preference.
 
 > **`linkCapacityKbps` is in kbps, not bps** — a 50 Mbps link is `50000`. It feeds the link-saturation alert, which warns at 80 % of this value, so an entry off by 1000× either never fires or fires permanently.
+
+> **`provisionedLanSpeedMbps` is usually not something you set (WLS-089/WLS-099).** It's the negotiated Ethernet speed (e.g. `1000`, `100`, `10`) this device's LAN port is expected to run at, and it auto-fills itself: the first poll that reports a speed for a device with no baseline yet stores that reading here, and every degradation warning after that compares against it instead of one fixed number shared by every device. Set it explicitly only to correct a baseline captured while the port was already degraded (e.g. right after this feature went live), or to pre-seed it before the first poll.
 
 > **Frontend:** set the device's `category` first (`PATCH /api/devices/:id`) — it decides which of the two fields this endpoint will accept, and creating this config **locks it**: the category cannot be changed again until the config is deleted. Sending `deviceType` in the body is now ignored by the schema.  
 > Returns 404 if the device does not exist.  
@@ -1964,6 +1968,7 @@ there rather than assuming it.
   enabled?: boolean
   linkCapacityKbps?: number | null        // kbps; STATION only — returns 400 if config is ACCESS_POINT
   clientsProvisionedLimit?: number | null // ACCESS_POINT only — returns 400 if config is STATION
+  provisionedLanSpeedMbps?: number | null // either device type — see the note under POST; null clears the auto-captured baseline
 }
 
 // Response — same shape as POST 201 above

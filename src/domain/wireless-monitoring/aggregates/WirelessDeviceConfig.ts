@@ -38,6 +38,9 @@ export class WirelessDeviceConfig extends AggregateRoot<
   get clientsProvisionedLimit(): number | null {
     return this.props.clientsProvisionedLimit;
   }
+  get provisionedLanSpeedMbps(): number | null {
+    return this.props.provisionedLanSpeedMbps;
+  }
   get lastPolledAt(): Date | null {
     return this.props.lastPolledAt;
   }
@@ -158,5 +161,26 @@ export class WirelessDeviceConfig extends AggregateRoot<
     }
     this.props.clientsProvisionedLimit = limit;
     return Result.ok();
+  }
+
+  public updateProvisionedLanSpeedMbps(
+    speedMbps: number | null
+  ): Result<void> {
+    if (speedMbps !== null && speedMbps <= 0) {
+      return Result.fail('provisionedLanSpeedMbps must be positive');
+    }
+    this.props.provisionedLanSpeedMbps = speedMbps;
+    return Result.ok();
+  }
+
+  // Called once per device, the first time a poll reports a LAN speed.
+  // A no-op once a baseline exists, whether auto-captured or manually set.
+  public captureLanSpeedBaselineIfUnset(observedMbps: number): void {
+    if (
+      this.props.provisionedLanSpeedMbps === null &&
+      observedMbps > 0
+    ) {
+      this.props.provisionedLanSpeedMbps = observedMbps;
+    }
   }
 }

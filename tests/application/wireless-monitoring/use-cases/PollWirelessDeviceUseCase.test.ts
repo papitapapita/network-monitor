@@ -68,6 +68,7 @@ function makePollingConfig(
     deviceType?: 'STATION' | 'ACCESS_POINT';
     linkCapacityKbps?: number | null;
     clientsProvisionedLimit?: number | null;
+    provisionedLanSpeedMbps?: number | null;
     ipAddress?: IPAddress | null;
   } = {}
 ): WirelessDeviceConfig {
@@ -91,6 +92,10 @@ function makePollingConfig(
       clientsProvisionedLimit:
         overrides.clientsProvisionedLimit !== undefined
           ? overrides.clientsProvisionedLimit
+          : null,
+      provisionedLanSpeedMbps:
+        overrides.provisionedLanSpeedMbps !== undefined
+          ? overrides.provisionedLanSpeedMbps
           : null,
       lastPolledAt: null
     }
@@ -1071,6 +1076,152 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
       expect(result.isSuccess).toBe(true);
       expect(mocks.logger.error).toHaveBeenCalled();
+    });
+  });
+
+  // ===========================================================================
+  describe('[WLS-089] executeImpl — LAN speed baseline auto-capture', () => {
+    it('should capture the reported LAN speed as the baseline on first poll', async () => {
+      const config = makePollingConfig({ provisionedLanSpeedMbps: null });
+      mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
+      mocks.wirelessDeviceConfigRepo.save.mockResolvedValue(
+        Result.ok(config)
+      );
+      mocks.credentialsRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeCredentials())
+      );
+      mocks.httpCollector.collect.mockResolvedValue(
+        Result.ok(makeHttpResult({ lanSpeedMbps: 1000 }))
+      );
+      mocks.alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([])
+      );
+      mocks.alertRecordRepo.findActiveUnnotifiedByDevice.mockResolvedValue(
+        Result.ok([])
+      );
+      mocks.snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(null)
+      );
+      mocks.alertEvaluator.evaluate.mockReturnValue([]);
+      mocks.snapshotRepo.save.mockImplementation((snapshot) =>
+        Promise.resolve(Result.ok(snapshot))
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(config.provisionedLanSpeedMbps).toBe(1000);
+      expect(mocks.wirelessDeviceConfigRepo.save).toHaveBeenCalledWith(
+        config
+      );
+    });
+
+    it('should not overwrite an already-captured baseline', async () => {
+      const config = makePollingConfig({
+        provisionedLanSpeedMbps: 1000
+      });
+      mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
+      mocks.wirelessDeviceConfigRepo.save.mockResolvedValue(
+        Result.ok(config)
+      );
+      mocks.credentialsRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeCredentials())
+      );
+      mocks.httpCollector.collect.mockResolvedValue(
+        Result.ok(makeHttpResult({ lanSpeedMbps: 100 }))
+      );
+      mocks.alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([])
+      );
+      mocks.alertRecordRepo.findActiveUnnotifiedByDevice.mockResolvedValue(
+        Result.ok([])
+      );
+      mocks.snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(null)
+      );
+      mocks.alertEvaluator.evaluate.mockReturnValue([]);
+      mocks.snapshotRepo.save.mockImplementation((snapshot) =>
+        Promise.resolve(Result.ok(snapshot))
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(config.provisionedLanSpeedMbps).toBe(1000);
+    });
+
+    it('should pass the baseline through to the evaluation context', async () => {
+      const config = makePollingConfig({
+        provisionedLanSpeedMbps: 1000
+      });
+      mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
+      mocks.wirelessDeviceConfigRepo.save.mockResolvedValue(
+        Result.ok(config)
+      );
+      mocks.credentialsRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeCredentials())
+      );
+      mocks.httpCollector.collect.mockResolvedValue(
+        Result.ok(makeHttpResult({ lanSpeedMbps: 100 }))
+      );
+      mocks.alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([])
+      );
+      mocks.alertRecordRepo.findActiveUnnotifiedByDevice.mockResolvedValue(
+        Result.ok([])
+      );
+      mocks.snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(null)
+      );
+      mocks.alertEvaluator.evaluate.mockReturnValue([]);
+      mocks.snapshotRepo.save.mockImplementation((snapshot) =>
+        Promise.resolve(Result.ok(snapshot))
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(mocks.alertEvaluator.evaluate).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ provisionedLanSpeedMbps: 1000 })
+      );
+    });
+
+    it('should not attempt to capture a baseline when the device reports no LAN speed', async () => {
+      const config = makePollingConfig({ provisionedLanSpeedMbps: null });
+      mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
+      mocks.wirelessDeviceConfigRepo.save.mockResolvedValue(
+        Result.ok(config)
+      );
+      mocks.credentialsRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeCredentials())
+      );
+      mocks.httpCollector.collect.mockResolvedValue(
+        Result.ok(makeHttpResult({ lanSpeedMbps: null }))
+      );
+      mocks.alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([])
+      );
+      mocks.alertRecordRepo.findActiveUnnotifiedByDevice.mockResolvedValue(
+        Result.ok([])
+      );
+      mocks.snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(null)
+      );
+      mocks.alertEvaluator.evaluate.mockReturnValue([]);
+      mocks.snapshotRepo.save.mockImplementation((snapshot) =>
+        Promise.resolve(Result.ok(snapshot))
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(config.provisionedLanSpeedMbps).toBeNull();
     });
   });
 

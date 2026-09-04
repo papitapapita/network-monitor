@@ -205,6 +205,13 @@ export class PollWirelessDeviceUseCase
 
     const http = httpResult.value;
 
+    // Auto-calibrate this device's LAN-speed baseline off its first
+    // reported speed, so WLS-089 can warn on degradation from whatever
+    // this specific port normally negotiates at, not a fixed value.
+    if (http.lanSpeedMbps !== null) {
+      config.captureLanSpeedBaselineIfUnset(http.lanSpeedMbps);
+    }
+
     const snrDb =
       http.signalRxDbm !== null && http.noiseFloorDbm !== null
         ? http.signalRxDbm - http.noiseFloorDbm
@@ -230,6 +237,7 @@ export class PollWirelessDeviceUseCase
       deviceModel: http.deviceModel,
       linkCapacityKbps: config.linkCapacityKbps,
       clientsProvisionedLimit: config.clientsProvisionedLimit,
+      provisionedLanSpeedMbps: config.provisionedLanSpeedMbps,
       previousMetrics,
       collectedAt: now
     };

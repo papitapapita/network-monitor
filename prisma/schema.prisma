@@ -512,6 +512,7 @@ model WirelessPollingConfiguration {
   deviceType              WirelessDeviceType @map("device_type")
   linkCapacityKbps         BigInt?   @map("link_capacity_kbps")
   clientsProvisionedLimit Int?      @map("clients_provisioned_limit")
+  provisionedLanSpeedMbps Int?      @map("provisioned_lan_speed_mbps")
   lastPolledAt            DateTime? @map("last_polled_at") @db.Timestamptz
   createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz

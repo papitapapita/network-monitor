@@ -141,6 +141,7 @@ export class CreateWirelessConfigUseCase extends UseCase<
       deviceType,
       linkCapacityKbps: data.linkCapacityKbps ?? null,
       clientsProvisionedLimit: data.clientsProvisionedLimit ?? null,
+      provisionedLanSpeedMbps: data.provisionedLanSpeedMbps ?? null,
       lastPolledAt: null
     });
     if (configResult.isFailure) {

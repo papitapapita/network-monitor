@@ -13,5 +13,10 @@ export interface WirelessDeviceConfigProps {
   readonly deviceType: 'STATION' | 'ACCESS_POINT';
   linkCapacityKbps: number | null;
   clientsProvisionedLimit: number | null;
+  // Auto-captured from the device's first poll that reports a LAN speed
+  // (WLS-089); a subsequent poll opens a warning once negotiated speed
+  // drops below this baseline. Editable afterward to correct a baseline
+  // captured while the port was already degraded.
+  provisionedLanSpeedMbps: number | null;
   lastPolledAt: Date | null;
 }

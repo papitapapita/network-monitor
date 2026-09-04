@@ -43,6 +43,7 @@ function makeConfig(
     deviceType?: 'STATION' | 'ACCESS_POINT';
     linkCapacityKbps?: number | null;
     clientsProvisionedLimit?: number | null;
+    provisionedLanSpeedMbps?: number | null;
   } = {}
 ): WirelessDeviceConfig {
   const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
@@ -67,6 +68,10 @@ function makeConfig(
       clientsProvisionedLimit:
         overrides.clientsProvisionedLimit !== undefined
           ? overrides.clientsProvisionedLimit
+          : null,
+      provisionedLanSpeedMbps:
+        overrides.provisionedLanSpeedMbps !== undefined
+          ? overrides.provisionedLanSpeedMbps
           : null,
       lastPolledAt: null
     }
@@ -586,6 +591,70 @@ describe('[WLS-009] UpdateWirelessConfigUseCase', () => {
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.clientsProvisionedLimit).toBe(20);
+    });
+  });
+
+  // ===========================================================================
+  describe('[WLS-089] executeImpl — provisionedLanSpeedMbps update', () => {
+    beforeEach(() => {
+      configRepo.save.mockImplementation((c) =>
+        Promise.resolve(Result.ok(c))
+      );
+    });
+
+    it('should update provisionedLanSpeedMbps when a value is provided', async () => {
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID,
+        provisionedLanSpeedMbps: 1000
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.provisionedLanSpeedMbps).toBe(1000);
+    });
+
+    it('should clear provisionedLanSpeedMbps when null is provided', async () => {
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig({ provisionedLanSpeedMbps: 1000 }))
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID,
+        provisionedLanSpeedMbps: null
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.provisionedLanSpeedMbps).toBeNull();
+    });
+
+    it('should NOT update provisionedLanSpeedMbps when undefined (skip)', async () => {
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig({ provisionedLanSpeedMbps: 1000 }))
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+        // provisionedLanSpeedMbps intentionally omitted
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.provisionedLanSpeedMbps).toBe(1000);
+    });
+
+    it('should fail when a non-positive value is provided', async () => {
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID,
+        provisionedLanSpeedMbps: 0
+      });
+
+      expect(result.isFailure).toBe(true);
     });
   });
 
