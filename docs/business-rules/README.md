@@ -164,6 +164,13 @@ Every entry carries a date line under its type:
 - **Revised** — the last date the rule itself changed: what it requires, what it
   refuses, where it is enforced, or the message it returns. **Omitted entirely
   while a rule has never changed** — an absent `Revised` is a claim, not a gap.
+- **Checked** — the last date someone re-read the rule against the code and
+  confirmed it still holds, with nothing to change. Distinct from `Revised`:
+  stamping a verification pass as `Revised` would claim the rule changed when
+  it did not, which is exactly the false claim the `Revised` definition above
+  rules out. Replaces a stale `Revised` date on a rule that was checked but
+  not altered — a rule keeps at most one of the two for its most recent
+  activity, never both dated the same day.
 - **Removed** — appended as a third field when a rule is retired
   (`· **Removed:** 2026-08-04`). The entry and its ID stay forever, so the date
   is the only thing that says when it stopped being true.
@@ -176,7 +183,8 @@ Every entry carries a date line under its type:
 line number, or adding a test to the `Tests` list leaves it alone. Ask whether
 someone who obeyed the old entry would now be wrong; if not, the date stands.
 
-All three are the day the change lands on the branch, not the day it ships.
+All of these are the day the change (or check) lands on the branch, not the
+day it ships.
 
 ### When the change needs a reason
 
