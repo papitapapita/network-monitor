@@ -605,4 +605,31 @@ describe('Alert', () => {
       expect(alert.isOpen).toBe(true);
     });
   });
+
+  describe('[NOT-097] refreshDetails()', () => {
+    it('should replace details on an open alert', () => {
+      const alert = openAlert();
+
+      const result = alert.refreshDetails({
+        consecutiveFailures: 12,
+        ipAddress: '10.0.0.5'
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(alert.details).toEqual({
+        consecutiveFailures: 12,
+        ipAddress: '10.0.0.5'
+      });
+    });
+
+    it('should fail on a resolved alert, so history is not rewritten after the fact', () => {
+      const alert = openAlert();
+      alert.resolve(RESOLVED_AT);
+
+      const result = alert.refreshDetails({ consecutiveFailures: 99 });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('resolved alert');
+    });
+  });
 });

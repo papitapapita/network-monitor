@@ -16,6 +16,7 @@ import { PollingInterval } from '../../../../src/domain/device-monitoring/value-
 import { FailureThreshold } from '../../../../src/domain/device-monitoring/value-objects/FailureThreshold';
 import { ExecutePollingCycleDTO } from '../../../../src/application/device-monitoring/dtos/ExecutePollingCycleDTO';
 import { DeviceState } from '../../../../src/domain/device-monitoring/aggregates/DeviceState';
+import { DeviceWentOfflineEvent } from '../../../../src/domain/device-monitoring/events/DeviceWentOfflineEvent';
 import { DeviceStateProps } from '../../../../src/domain/device-monitoring/props/DeviceStateProps';
 import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository';
 import {
@@ -920,7 +921,7 @@ describe('ExecutePollingCycleUseCase', () => {
       );
     });
 
-    it('should raise no event but record downSince when a device is unreachable on first sight', async () => {
+    it('[NOT-097] should raise DeviceWentOfflineEvent (not DeviceCameOnlineEvent) and record downSince when a device is unreachable on first sight', async () => {
       pingService.ping.mockResolvedValue(
         Result.ok({ isReachable: false, latencyMs: null })
       );
@@ -929,7 +930,10 @@ describe('ExecutePollingCycleUseCase', () => {
 
       const savedState: DeviceState =
         deviceStateRepo.save.mock.calls[0][0];
-      expect(savedState.domainEvents).toHaveLength(0);
+      expect(savedState.domainEvents).toHaveLength(1);
+      expect(savedState.domainEvents[0]).toBeInstanceOf(
+        DeviceWentOfflineEvent
+      );
       expect(savedState.downSince).not.toBeNull();
     });
 

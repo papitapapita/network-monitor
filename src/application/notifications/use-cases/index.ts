@@ -16,3 +16,5 @@ export * from './GetDeviceNotificationPolicyUseCase';
 export * from './UpsertDeviceNotificationPolicyUseCase';
 export * from './DeleteDeviceNotificationPolicyUseCase';
 export * from './BulkUpsertDeviceNotificationPoliciesUseCase';
+export * from './GetMutedAlertTypesUseCase';
+export * from './SetMutedAlertTypesUseCase';

@@ -4,7 +4,8 @@ import { WirelessAlertClearedEvent } from 'domain/wireless-monitoring/events';
 import {
   ILogger,
   IAlertPublisher,
-  QUIET_HOURS_SUPPRESSED
+  QUIET_HOURS_SUPPRESSED,
+  TYPE_MUTED_SUPPRESSED
 } from 'application/shared/interfaces';
 
 const SOURCE = 'Enlace inalámbrico';
@@ -31,7 +32,8 @@ export class WirelessAlertClearedNotificationHandler
         subject: event.metric,
         detail: `La condición de alerta en ${event.metric} se ha normalizado.`,
         occurredAt: event.clearedAt,
-        resolved: true
+        resolved: true,
+        type: `wireless:${event.metric}:${event.severity}`
       });
 
       // Not retried, same as the device-recovery case: a cleared-condition
@@ -39,7 +41,8 @@ export class WirelessAlertClearedNotificationHandler
       // value.
       if (
         result.isFailure &&
-        result.error !== QUIET_HOURS_SUPPRESSED
+        result.error !== QUIET_HOURS_SUPPRESSED &&
+        result.error !== TYPE_MUTED_SUPPRESSED
       ) {
         this.logger.error(
           'WirelessAlertClearedNotificationHandler: publish failed',

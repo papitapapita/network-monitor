@@ -26,7 +26,8 @@ import {
   PrismaDeviceStateRepository,
   PrismaAlertRepository,
   PrismaDeviceCredentialsRepository,
-  PrismaDeviceNotificationPolicyRepository
+  PrismaDeviceNotificationPolicyRepository,
+  PrismaMutedAlertTypeRepository
 } from '../persistence/';
 import {
   LocationController,
@@ -35,6 +36,7 @@ import {
   VendorController,
   PollingController,
   NotificationPolicyController,
+  NotificationMuteController,
   AlertController,
   ScanController,
   WirelessController,
@@ -135,6 +137,7 @@ import {
   WhatsAppNotificationService,
   AlertPublisher,
   QuietHoursAlertPublisher,
+  MutedTypeAlertPublisher,
   AlertRecorder
 } from '../notifications';
 import { OverdueDeviceDownAlertOrchestrator } from '../notifications/orchestrator';
@@ -191,7 +194,10 @@ import {
   DeviceDeletedEvent
 } from 'domain/device-inventory/events';
 import { DeviceEligibilityService } from 'domain/device-inventory/services';
-import { DeviceCameOnlineEvent } from 'domain/device-monitoring/events';
+import {
+  DeviceCameOnlineEvent,
+  DeviceWentOfflineEvent
+} from 'domain/device-monitoring/events';
 import {
   DeviceProvisionedHandler,
   DeviceStatusChangedHandler,
@@ -216,10 +222,13 @@ import {
   GetDeviceNotificationPolicyUseCase,
   UpsertDeviceNotificationPolicyUseCase,
   DeleteDeviceNotificationPolicyUseCase,
-  BulkUpsertDeviceNotificationPoliciesUseCase
+  BulkUpsertDeviceNotificationPoliciesUseCase,
+  GetMutedAlertTypesUseCase,
+  SetMutedAlertTypesUseCase
 } from 'application/notifications/use-cases';
 import {
   DeviceCameOnlineNotificationHandler,
+  DeviceWentOfflineAlertRecordHandler,
   ContractedServiceSuspendedNotificationHandler
 } from 'application/notifications/event-handlers';
 import {
@@ -294,6 +303,7 @@ export class DependencyContainer {
   private deviceStateRepository: PrismaDeviceStateRepository;
   private alertRepository: PrismaAlertRepository;
   private deviceNotificationPolicyRepository: PrismaDeviceNotificationPolicyRepository;
+  private mutedAlertTypeRepository: PrismaMutedAlertTypeRepository;
 
   // Wireless repositories
   private wirelessSnapshotRepository: PrismaWirelessSnapshotRepository;
@@ -323,6 +333,7 @@ export class DependencyContainer {
   public vendorController: VendorController;
   public pollingController: PollingController;
   public notificationPolicyController: NotificationPolicyController;
+  public notificationMuteController: NotificationMuteController;
   public alertController: AlertController;
   public scanController: ScanController;
   public wirelessController: WirelessController;
@@ -385,6 +396,8 @@ export class DependencyContainer {
     this.alertRepository = new PrismaAlertRepository(this.prisma);
     this.deviceNotificationPolicyRepository =
       new PrismaDeviceNotificationPolicyRepository(this.prisma);
+    this.mutedAlertTypeRepository =
+      new PrismaMutedAlertTypeRepository(this.prisma);
     this.wirelessDeviceConfigRepository =
       new PrismaWirelessDeviceConfigRepository(this.prisma);
     // Sits with the other persistence repositories rather than down in the
@@ -914,6 +927,20 @@ export class DependencyContainer {
         this.logger
       );
 
+    const getMutedAlertTypesUseCase = new GetMutedAlertTypesUseCase(
+      this.mutedAlertTypeRepository,
+      this.logger
+    );
+    const setMutedAlertTypesUseCase = new SetMutedAlertTypesUseCase(
+      this.mutedAlertTypeRepository,
+      this.logger
+    );
+    this.notificationMuteController = new NotificationMuteController(
+      getMutedAlertTypesUseCase,
+      setMutedAlertTypesUseCase,
+      this.logger
+    );
+
     this.pollingOrchestrator = new PollingOrchestrator(
       this.pollingConfigRepository,
       executePollingCycleUseCase,
@@ -938,7 +965,11 @@ export class DependencyContainer {
     // recovery, wireless — they all share this one instance) gets
     // quiet-hours suppression for free.
     const alertPublisher = new QuietHoursAlertPublisher(
-      new AlertPublisher(sendAlertNotificationUseCase),
+      new MutedTypeAlertPublisher(
+        new AlertPublisher(sendAlertNotificationUseCase),
+        this.mutedAlertTypeRepository,
+        this.logger
+      ),
       this.deviceNotificationPolicyRepository,
       this.logger
     );
@@ -949,7 +980,8 @@ export class DependencyContainer {
       this.deviceRepository,
       deviceEligibilityService,
       alertPublisher,
-      this.logger
+      this.logger,
+      this.ticketOpener
     );
     const sendDeviceRecoveryAlertUseCase =
       new SendDeviceRecoveryAlertUseCase(
@@ -1358,6 +1390,19 @@ export class DependencyContainer {
       DeviceCameOnlineEvent.name,
       new DeviceCameOnlineNotificationHandler(
         sendDeviceRecoveryAlertUseCase,
+        this.logger
+      )
+    );
+
+    // Device-down alerts feed the unified alert list the instant the
+    // outage starts (NOT-097) — independent of whether it ever outlives the
+    // notification delay. Notifying (and ticketing) still waits for
+    // RaiseOverdueDeviceDownAlertsUseCase.
+    EventDispatcher.register(
+      DeviceWentOfflineEvent.name,
+      new DeviceWentOfflineAlertRecordHandler(
+        alertRecorder,
+        this.pollingConfigRepository,
         this.logger
       )
     );

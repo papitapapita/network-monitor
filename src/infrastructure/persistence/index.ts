@@ -8,3 +8,4 @@ export * from './PrismaDeviceStateRepository';
 export * from './PrismaDeviceCredentialsRepository';
 export * from './PrismaAlertRepository';
 export * from './PrismaDeviceNotificationPolicyRepository';
+export * from './PrismaMutedAlertTypeRepository';

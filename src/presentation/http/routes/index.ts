@@ -9,6 +9,7 @@ import {
   createNotificationPolicyRoutes,
   createNotificationPolicyBulkRoutes
 } from './notification-policy.routes';
+import { createNotificationMuteRoutes } from './notification-mute.routes';
 import { createAlertRoutes } from './alert.routes';
 import { createScanRoutes } from './scan.routes';
 import { createWirelessRoutes } from './wireless.routes';
@@ -198,6 +199,14 @@ export function setupRoutes(
     '/notification-policies',
     createNotificationPolicyBulkRoutes(
       container.notificationPolicyController
+    )
+  );
+
+  // Muted alert types: /api/notification-mutes
+  apiRouter.use(
+    '/notification-mutes',
+    createNotificationMuteRoutes(
+      container.notificationMuteController
     )
   );
 

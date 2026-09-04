@@ -1440,6 +1440,12 @@ optional **override of the down-alert delay**
 > condition is still true). A recovery or cleared-condition notification
 > suppressed during quiet hours is simply not sent — there is no
 > "catch up in the morning" for good news.
+>
+> **Device-down alerts open the instant a device goes unreachable**, not once
+> the delay elapses — only the *notification* waits for the effective delay.
+> A blip that self-resolves inside that window still shows up (and later
+> resolves) on `GET /api/alerts`; it just never pages anyone, and its
+> recovery is silent too.
 
 ### `GET /api/devices/:id/notification-policy` — Get Effective Policy
 
@@ -1517,6 +1523,56 @@ optional **override of the down-alert delay**
 ```
 
 > Applies the same settings to every device in `deviceIds`, independently — a bad id (malformed or unknown) lands in `failed` without aborting the rest. Always `200` when the request itself is well-formed; check `failed` for partial failures.
+
+---
+
+## Notification Mutes `/api/notification-mutes`
+
+> **Response envelope:** raw data, no `{ success, data }` wrapper.
+> Error: `{ error: string }`.
+
+A **global**, standing list of alert-type keys whose outbound notification is
+suppressed everywhere — e.g. muting `cpu_load_percent` or `distance_m` stops
+those wireless pushes for every device, forever, until unmuted. This is not
+per-device (see Notification Policy above for that axis) and it never
+touches the alert record: a muted condition still opens/lists normally on
+`GET /api/alerts`, only the Telegram push is suppressed. Muting is by bare
+metric name — `cpu_load_percent`, not `wireless:cpu_load_percent:WARNING` —
+so one entry silences both its WARNING and CRITICAL severities.
+
+### `GET /api/notification-mutes` — List Muted Alert Types
+
+**Status:** 200
+**Roles:** any authenticated role
+
+```ts
+// Response
+{
+  metrics: string[]; // e.g. ["cpu_load_percent", "distance_m"]
+}
+```
+
+---
+
+### `PUT /api/notification-mutes` — Replace the Muted Alert Type List
+
+**Status:** 200 | 400
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// Request body — full replace, not incremental
+{
+  metrics: string[]; // lowercase letters, digits, underscores only; duplicates collapse
+}
+
+// Response: the resulting list, same shape as GET
+```
+
+> Wholesale replace, like the notification-policy bulk endpoint — there is no
+> add/remove-one route. Sending `{ metrics: [] }` clears every mute. A
+> malformed entry (uppercase, spaces, empty) is rejected with `400` before
+> anything is written; an unknown-but-well-formed metric is accepted and
+> simply never matches a real alert.
 
 ---
 

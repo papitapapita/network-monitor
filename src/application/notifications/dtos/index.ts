@@ -20,3 +20,5 @@ export * from './BulkUpsertDeviceNotificationPoliciesDTO';
 export * from './BulkUpsertDeviceNotificationPoliciesResponseDTO';
 export * from './GetDeviceNotificationPolicyDTO';
 export * from './DeleteDeviceNotificationPolicyDTO';
+export * from './MutedAlertTypesResponseDTO';
+export * from './SetMutedAlertTypesDTO';

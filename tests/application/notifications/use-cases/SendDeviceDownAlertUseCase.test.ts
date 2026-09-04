@@ -11,7 +11,10 @@ import { AlertId } from '../../../../src/domain/shared/ids/AlertId';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
 import { SendDeviceDownAlertDTO } from '../../../../src/application/notifications/dtos/SendDeviceDownAlertDTO';
-import { QUIET_HOURS_SUPPRESSED } from '../../../../src/application/shared/interfaces/IAlertPublisher';
+import {
+  QUIET_HOURS_SUPPRESSED,
+  TYPE_MUTED_SUPPRESSED
+} from '../../../../src/application/shared/interfaces/IAlertPublisher';
 import { PollingConfiguration } from '../../../../src/domain/device-monitoring/entities/PollingConfiguration';
 import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository';
 import {
@@ -155,7 +158,8 @@ describe('SendDeviceDownAlertUseCase', () => {
   let useCase: SendDeviceDownAlertUseCase;
 
   function buildUseCase(
-    repo = deviceRepo
+    repo = deviceRepo,
+    ticketOpener?: { openFromAlert: jest.Mock }
   ): SendDeviceDownAlertUseCase {
     return new SendDeviceDownAlertUseCase(
       alertRepo,
@@ -163,7 +167,8 @@ describe('SendDeviceDownAlertUseCase', () => {
       repo as unknown as IDeviceRepository,
       new DeviceEligibilityService(),
       alertPublisher,
-      logger
+      logger,
+      ticketOpener
     );
   }
 
@@ -521,6 +526,102 @@ describe('SendDeviceDownAlertUseCase', () => {
       const result = await useCase.execute(makeRequest());
       expect(result.isSuccess).toBe(true);
       expect(alertPublisher.publish).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ===========================================================================
+  describe('[NOT-097] executeImpl — details refreshed at notify time', () => {
+    it('refreshes consecutiveFailures/ipAddress on an alert recorded earlier with a stale count', async () => {
+      const existing = makeOpenAlert(null);
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(existing)
+      );
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makePollingConfig('10.0.0.9'))
+      );
+      alertRepo.save.mockImplementation(async (a) => Result.ok(a));
+
+      await useCase.execute(makeRequest({ consecutiveFailures: 42 }));
+
+      expect(existing.details).toEqual({
+        consecutiveFailures: 42,
+        ipAddress: '10.0.0.9'
+      });
+    });
+  });
+
+  // ===========================================================================
+  describe('[NOT-097] executeImpl — ticketing deferred to first successful notify', () => {
+    it('opens a ticket the first time an alert is actually notified', async () => {
+      const ticketOpener = {
+        openFromAlert: jest.fn().mockResolvedValue(Result.ok())
+      };
+      const withTickets = buildUseCase(deviceRepo, ticketOpener);
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(null)
+      );
+      alertRepo.save.mockResolvedValue(Result.ok(makeOpenAlert()));
+      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makePollingConfig())
+      );
+
+      await withTickets.execute(makeRequest());
+
+      expect(ticketOpener.openFromAlert).toHaveBeenCalledTimes(1);
+      expect(ticketOpener.openFromAlert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deviceId: VALID_DEVICE_UUID,
+          origin: 'DEVICE_ALERT'
+        })
+      );
+    });
+
+    it('does not open a ticket when the notify attempt is suppressed', async () => {
+      const ticketOpener = {
+        openFromAlert: jest.fn().mockResolvedValue(Result.ok())
+      };
+      const withTickets = buildUseCase(deviceRepo, ticketOpener);
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(makeOpenAlert(null))
+      );
+      alertRepo.save.mockImplementation(async (a) => Result.ok(a));
+      alertPublisher.publish.mockResolvedValue(
+        Result.fail(QUIET_HOURS_SUPPRESSED)
+      );
+
+      await withTickets.execute(makeRequest());
+
+      expect(ticketOpener.openFromAlert).not.toHaveBeenCalled();
+    });
+
+    it('does not re-open a ticket on a later scan once already notified', async () => {
+      const ticketOpener = {
+        openFromAlert: jest.fn().mockResolvedValue(Result.ok())
+      };
+      const withTickets = buildUseCase(deviceRepo, ticketOpener);
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(makeOpenAlert(FIXED_DATE))
+      );
+
+      await withTickets.execute(makeRequest());
+
+      expect(ticketOpener.openFromAlert).not.toHaveBeenCalled();
+    });
+  });
+
+  // ===========================================================================
+  describe('[NOT-175] executeImpl — muted alert type', () => {
+    it('does not log a muted-type suppression as an error', async () => {
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(makeOpenAlert(null))
+      );
+      alertRepo.save.mockImplementation(async (a) => Result.ok(a));
+      alertPublisher.publish.mockResolvedValue(
+        Result.fail(TYPE_MUTED_SUPPRESSED)
+      );
+
+      await useCase.execute(makeRequest());
+      expect(logger.error).not.toHaveBeenCalled();
     });
   });
 });

@@ -2,7 +2,10 @@ import { AggregateRoot } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 import { DeviceStateProps } from '../props';
 import { ReachabilityStatus } from '../value-objects';
-import { DeviceCameOnlineEvent } from '../events';
+import {
+  DeviceCameOnlineEvent,
+  DeviceWentOfflineEvent
+} from '../events';
 
 export class DeviceState extends AggregateRoot<
   DeviceStateProps,
@@ -111,16 +114,25 @@ export class DeviceState extends AggregateRoot<
     this.props.updatedAt = checkedAt;
     if (isReachable) this.props.lastSeen = checkedAt;
 
-    // Marks the start of a DOWN streak rather than raising an event for it:
-    // alerting is delayed until the streak has lasted long enough (see
-    // RaiseOverdueDeviceDownAlertsUseCase), which a periodic scan over this
-    // timestamp can decide independently of when this device next gets
-    // polled. Already-down stays untouched so the streak's start is not
-    // pushed forward by every subsequent failed poll.
+    // Marks the start of a DOWN streak. Notifying is still delayed until the
+    // streak has lasted long enough (see RaiseOverdueDeviceDownAlertsUseCase),
+    // decided independently by a periodic scan over this timestamp — but the
+    // transition itself is recorded immediately (NOT-097) via
+    // DeviceWentOfflineEvent, so a blip that self-resolves inside the delay
+    // still leaves a trace. Already-down stays untouched so the streak's
+    // start is not pushed forward by every subsequent failed poll, and no
+    // second event fires for it.
     if (isReachable) {
       this.props.downSince = null;
     } else if (wasUp || wasUnknown) {
       this.props.downSince = checkedAt;
+      this.addDomainEvent(
+        new DeviceWentOfflineEvent({
+          aggregateId: this.id,
+          consecutiveFailures: newConsecutiveFailures,
+          dateTimeOccurred: checkedAt
+        })
+      );
     }
 
     // From UNKNOWN the previous reachability was never observed, so a successful

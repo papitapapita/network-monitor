@@ -9,6 +9,7 @@ export * from './WirelessController';
 export * from './WirelessStreamController';
 export * from './CredentialsController';
 export * from './AlertController';
+export * from './NotificationMuteController';
 export * from './AuthController';
 export * from './AdminController';
 export * from './CustomerController';

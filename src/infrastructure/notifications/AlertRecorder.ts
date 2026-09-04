@@ -15,7 +15,15 @@ export class AlertRecorder implements IAlertRecorder {
   ) {}
 
   async open(input: AlertRecordInput): Promise<Result<void>> {
-    const result = await this.openAlertUseCase.execute(input);
+    const result = await this.openAlertUseCase.execute({
+      deviceId: input.deviceId,
+      severity: input.severity,
+      source: input.source,
+      type: input.type,
+      description: input.description,
+      details: input.details,
+      skipTicket: input.skipTicket
+    });
     return result.isFailure ? Result.fail(result.error) : Result.ok();
   }
 

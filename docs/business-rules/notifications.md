@@ -22,14 +22,15 @@ Format and conventions: [README.md](README.md).
 | `NOT-130` … `NOT-149` | Retention, listing and deletion                          |
 | `NOT-150` … `NOT-169` | Cross-cutting (access control)                           |
 | `NOT-170` … `NOT-189` | Device notification policy (quiet hours, delay override) |
+| `NOT-190` … `NOT-199` | Global alert-type muting                                 |
 
 ## Layer coverage
 
 | Layer                     | Rules |
 | ------------------------- | ----- |
-| Application               | 25    |
-| Domain (aggregate/entity) | 17    |
-| Presentation              | 3     |
+| Application               | 33    |
+| Domain (aggregate/entity) | 18    |
+| Presentation              | 4     |
 | Infrastructure (database) | 2     |
 
 `Alert` is a deliberately thin aggregate — it holds one three-flag lifecycle
@@ -443,27 +444,49 @@ keeping it would leave the alert list with rows pointing at nothing.
 
 ## Operator notifications
 
-### NOT-090 — A device continuously down for the alert delay opens a CRITICAL availability alert
+### NOT-090 — A device that goes unreachable opens a CRITICAL availability alert immediately; the outbound notification waits for the alert delay
 
 **Type:** Policy · **Status:** Active
-**Layer:** Application
-**Since:** 2026-08-05 · **Revised:** 2026-09-02
+**Layer:** Application · Domain
+**Since:** 2026-08-05 · **Revised:** 2026-09-04
 
-Raised by a periodic scan (`RaiseOverdueDeviceDownAlertsUseCase`) once a device
-has been continuously DOWN for at least its effective alert delay — the
-per-device override on `DeviceNotificationPolicy` (`NOT-173`) if one is set,
-otherwise `DEVICE_DOWN_ALERT_DELAY_MINUTES` (default 60) — with source
-`Disponibilidad` and type `device_unreachable`. The alert records the
-consecutive failure count and the device's IP.
+`DeviceState.applyPingResult` raises `DeviceWentOfflineEvent` the instant a
+device transitions from UP/UNKNOWN to DOWN. `DeviceWentOfflineAlertRecordHandler`
+records the alert through `IAlertRecorder` on that event — source
+`Disponibilidad`, type `device_unreachable` — with `notifiedAt` unset. The
+alert is visible on `GET /api/alerts` from that moment, whether or not it
+ever gets announced (`NOT-097`). A periodic scan
+(`RaiseOverdueDeviceDownAlertsUseCase`) separately decides when to actually
+notify: once a device has been continuously DOWN for at least its effective
+alert delay — the per-device override on `DeviceNotificationPolicy`
+(`NOT-173`) if one is set, otherwise `DEVICE_DOWN_ALERT_DELAY_MINUTES`
+(default 60). `SendDeviceDownAlertUseCase` refreshes the alert's details
+(consecutive failure count, IP) to their current value right before
+publishing, so a fault recorded hours before it is announced still shows an
+accurate failure count.
 
 **Why:** Unreachable is the one condition that means the subscriber has no
 service at all, so it is never a warning. The failure count is carried because
 the threshold that declared the device down is a monitoring policy (`MON-`) — an
-operator reading the alert needs to see how many attempts it took.
+operator reading the alert needs to see how many attempts it took, as of when
+they were actually told.
 
-**Enforced at:** `src/application/notifications/use-cases/SendDeviceDownAlertUseCase.ts`,
+**History — this rule previously delayed opening the alert itself, not just
+the notification.** Before 2026-09-04, no alert existed at all until the scan
+found a device down past the delay, which meant a blip that self-resolved
+inside the delay window left no trace anywhere in the alert list — only in
+the raw ping-result history. Splitting record from notify (mirroring the
+wireless pattern, `NOT-062`/`NOT-063`) keeps the "don't page on a blip"
+guarantee while giving every outage, however short, a row in `GET /api/alerts`.
+
+**Enforced at:** `src/domain/device-monitoring/aggregates/DeviceState.ts` (`applyPingResult`),
+`src/application/notifications/event-handlers/DeviceWentOfflineAlertRecordHandler.ts`,
+`src/application/notifications/use-cases/SendDeviceDownAlertUseCase.ts`,
 `src/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.ts`
-**Tests:** `tests/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.test.ts`,
+**Tests:** `tests/domain/device-monitoring/aggregates/DeviceState.test.ts`,
+`tests/application/notifications/event-handlers/DeviceWentOfflineAlertRecordHandler.test.ts`,
+`tests/application/notifications/use-cases/SendDeviceDownAlertUseCase.test.ts`,
+`tests/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.test.ts`,
 `tests/integration/use-cases/notifications/SendDeviceDownAlertUseCase.integration.test.ts`
 
 ### NOT-091 — A newly opened alert may become a ticket, best effort
@@ -553,6 +576,55 @@ that was never reported starting.
 **Message:** `No open alert found for device — recovery skipped`
 **Tests:** `tests/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.test.ts`
 
+### NOT-098 — A recovery for an alert that was never notified resolves silently, without a recovery notice
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-04
+
+Distinct from `NOT-095`: the open alert exists (it was recorded the instant
+the device went down, `NOT-097`), but `notifiedAt` is still `null` because
+the outage self-resolved before the alert delay elapsed — a blip. In that
+case `SendDeviceRecoveryAlertUseCase` sets `resolvedAt` and saves, then
+returns without calling `IAlertPublisher` or `Alert.markRecoveryNotified()`
+at all — no IP lookup, no message.
+
+**Why:** Nobody was told the device went down, so nobody needs to be told it
+came back — the exact reasoning `NOT-097` already applies to the down side,
+mirrored on the recovery side. A recovery notice for a fault that was never
+announced would be a non sequitur to whoever read it.
+
+**Enforced at:** `src/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.ts`
+**Tests:** `tests/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.test.ts`
+
+### NOT-099 — Ticketing a device-down alert is deferred to the moment it is actually notified
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-04
+
+`DeviceWentOfflineAlertRecordHandler` opens its alert with `skipTicket: true`
+(`AlertRecordInput.skipTicket`, threaded through `OpenAlertUseCase`), so
+recording an outage never opens a ticket by itself. `SendDeviceDownAlertUseCase`
+opens the ticket instead, from `notifyAndSave`, immediately after the first
+successful `Alert.markNotified()` — never on a retry, never when the publish
+is suppressed or fails. Wireless alerts are unaffected: `OpenAlertUseCase`
+still tickets immediately for any caller that does not set `skipTicket`
+(`NOT-091`), since wireless has no equivalent record/notify delay to defer to.
+
+**Why:** A ticket is a bigger interruption than a Telegram message — it is a
+work order someone is expected to act on. Ticketing every blip the moment it
+is recorded (`NOT-090`) would reintroduce exactly the noise the alert delay
+exists to prevent, just in the ticketing system instead of the phone.
+
+**Enforced at:** `src/application/notifications/shared/AlertTicketing.ts`,
+`src/application/notifications/use-cases/SendDeviceDownAlertUseCase.ts`,
+`src/application/notifications/event-handlers/DeviceWentOfflineAlertRecordHandler.ts`,
+`src/application/notifications/use-cases/OpenAlertUseCase.ts`
+**Tests:** `tests/application/notifications/use-cases/SendDeviceDownAlertUseCase.test.ts`,
+`tests/application/notifications/use-cases/OpenAlertUseCase.test.ts`,
+`tests/application/notifications/event-handlers/DeviceWentOfflineAlertRecordHandler.test.ts`
+
 ### NOT-096 — A missing device name degrades to `Unknown Device`
 
 **Type:** Policy · **Status:** Active
@@ -568,38 +640,50 @@ already in the metadata, so failing it costs nothing that matters.
 **Enforced at:** `src/application/notifications/use-cases/SendAlertNotificationUseCase.ts` (`resolveDeviceName`)
 **Tests:** `tests/application/notifications/use-cases/SendAlertNotificationUseCase.test.ts`
 
-### NOT-097 — The down alert waits for the outage to outlast the alert delay
+### NOT-097 — The down alert is recorded on transition; only the notification waits for the outage to outlast the alert delay
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application · Domain
-**Since:** 2026-08-24 · **Revised:** 2026-09-02
+**Since:** 2026-08-24 · **Revised:** 2026-09-04
 
-`DeviceState` records `downSince` — the start of the current DOWN streak — but
-raises no domain event for it. A periodic scan
+`DeviceState` records `downSince` — the start of the current DOWN streak —
+and, as of 2026-09-04, raises `DeviceWentOfflineEvent` on that same
+transition (`NOT-090`). `DeviceWentOfflineAlertRecordHandler` records the
+alert immediately, unnotified. A periodic scan
 (`RaiseOverdueDeviceDownAlertsUseCase`, run every 60s by
 `OverdueDeviceDownAlertOrchestrator`) loads every currently-down device
 (`IDeviceStateRepository.findAllDown`, unfiltered by time — the delay is no
-longer uniform across devices, see `NOT-173`) and, for each one, opens its
-alert through `SendDeviceDownAlertUseCase` once `now - downSince` has reached
-that device's effective delay. `SendDeviceDownAlertUseCase` already dedupes
+longer uniform across devices, see `NOT-173`) and, for each one, calls
+`SendDeviceDownAlertUseCase` once `now - downSince` has reached that device's
+effective delay — which now only decides whether to *notify* the already-open
+alert, not whether to create it. `SendDeviceDownAlertUseCase` already dedupes
 against an existing open alert (`NOT-060`), so re-selecting a still-down
 device on every scan is safe. A device that recovers before its delay elapses
-gets no alert at all, and `SendDeviceRecoveryAlertUseCase` skips its recovery
-notice as designed (`NOT-095`) rather than reporting the end of a fault
-nobody was told about.
+keeps its alert record (visible on `GET /api/alerts` from the moment it
+opened) but never gets notified, and `SendDeviceRecoveryAlertUseCase` resolves
+it silently rather than reporting the end of a fault nobody was told about
+(`NOT-098`).
 
 The scan is independent of any device's own poll interval — a device polled
 once a day is not stuck waiting a day for its alert to be reconsidered.
 
 **Why:** A ping failure that resolves in minutes is not an outage a technician
-needs paged for. Alerting on every blip trains the team to stop trusting the
-channel, which is worse than a real outage arriving a little late.
+needs paged for, so it stays out of Telegram/WhatsApp — but it is still a real
+fact about the device's history, worth seeing on the alert list if someone
+goes looking. Alerting on every blip trains the team to stop trusting the
+channel, which is worse than a real outage arriving a little late; hiding
+every blip from the record entirely was the cost paid for that, until this
+revision removed it.
 
 **Enforced at:** `src/domain/device-monitoring/aggregates/DeviceState.ts` (`applyPingResult`),
+`src/application/notifications/event-handlers/DeviceWentOfflineAlertRecordHandler.ts`,
 `src/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.ts`,
+`src/application/notifications/use-cases/SendDeviceDownAlertUseCase.ts`,
 `src/infrastructure/notifications/orchestrator/OverdueDeviceDownAlertOrchestrator.ts`
 **Tests:** `tests/domain/device-monitoring/aggregates/DeviceState.test.ts`,
+`tests/application/notifications/event-handlers/DeviceWentOfflineAlertRecordHandler.test.ts`,
 `tests/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.test.ts`,
+`tests/application/notifications/use-cases/SendDeviceDownAlertUseCase.test.ts`,
 `tests/infrastructure/notifications/orchestrator/OverdueDeviceDownAlertOrchestrator.test.ts`
 
 ---
@@ -947,7 +1031,11 @@ for the core switch in 5 minutes, but a customer's home router in an hour"
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
-**Since:** 2026-09-02
+**Since:** 2026-09-02 · **Revised:** 2026-09-04
+
+`MutedTypeAlertPublisher` (`NOT-190`) sits in the same composition chain and
+follows the identical principle for a different axis — muted by alert type
+rather than by device/time — so this entry's reasoning covers both.
 
 `QuietHoursAlertPublisher` wraps the single shared `IAlertPublisher` every
 alert-producing path uses — device down, device recovery, wireless open and
@@ -975,7 +1063,11 @@ far larger consequence than what this feature asks for.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
-**Since:** 2026-09-02
+**Since:** 2026-09-02 · **Revised:** 2026-09-04
+
+Applies identically whether the suppression came back as `QUIET_HOURS_SUPPRESSED`
+or `TYPE_MUTED_SUPPRESSED` (`NOT-190`) — both leave `notifiedAt` unset, and
+both are excluded from the four call sites' error logging.
 
 A publish failure — real or quiet-hours-suppressed — already means "don't
 mark notified" everywhere in this context (`NOT-036`). Two paths already
@@ -1058,3 +1150,142 @@ actually risks.
 
 **Enforced at:** `src/presentation/http/routes/notification-policy.routes.ts` (`authorize`)
 **Tests:** `tests/integration/notification-policy.routes.test.ts`
+
+---
+
+## Global alert-type muting
+
+Quiet hours (`NOT-170`–`177`) and the delay override answer "when" and "for
+which device." This answers a third, independent question: "which kind of
+condition, ever." An operator drowning in wireless CPU/distance warnings
+wants those off their phone permanently and everywhere, not on a schedule or
+per radio — a `MutedAlertType` row is a standing, global decision, not a
+per-device setting.
+
+### NOT-190 — A muted alert type suppresses the outbound notification, never the alert record
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Infrastructure
+**Since:** 2026-09-04
+
+`MutedTypeAlertPublisher` wraps the same shared `IAlertPublisher` instance
+`QuietHoursAlertPublisher` wraps (composed around it — the mute check runs
+first, since it is an in-memory-cheap lookup against a small table rather
+than quiet hours' per-device query). It extracts the bare metric from
+`AlertNotification.type` (`wireless:<metric>:<severity>` → `<metric>`; any
+other type — `device_unreachable` — used verbatim) and, if that metric is in
+the muted set, returns `Result.fail(TYPE_MUTED_SUPPRESSED)` without
+forwarding. It never touches `Alert`/`WirelessAlertRecord` creation, which
+happens earlier in each producing use case — a muted condition is still
+fully visible on `GET /api/alerts`, only silent on Telegram. A failure to
+load the muted set fails open, same reasoning as `NOT-174`.
+
+**Why:** The alert record and the notification already have different jobs
+(`NOT-063`) — muting is a delivery-side preference, and collapsing it into
+the record would make a metric the operator doesn't want paged for
+disappear from the dashboard too, which nobody asked for.
+
+**Enforced at:** `src/infrastructure/notifications/MutedTypeAlertPublisher.ts`
+**Tests:** `tests/infrastructure/notifications/MutedTypeAlertPublisher.test.ts`
+
+### NOT-191 — Muting is by bare metric name, not by metric-and-severity
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-09-04
+
+Muting `cpu_load_percent` silences both its `WARNING` and `CRITICAL` pushes.
+There is no way to mute one severity of a metric and keep the other.
+
+**Why:** The feature exists for "I don't need to be told about CPU at all,"
+not "only page me for CPU at CRITICAL" — the latter is what `NOT-004`'s two
+severities already express at the point a rule decides which one to raise.
+A finer-grained mute would double the configuration surface for a
+distinction the request that motivated this feature never asked for.
+
+**Enforced at:** `src/infrastructure/notifications/MutedTypeAlertPublisher.ts` (`extractMetric`)
+**Tests:** `tests/infrastructure/notifications/MutedTypeAlertPublisher.test.ts`
+
+### NOT-192 — The muted-type list is global, not per-device
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-04
+
+`MutedAlertType` has no `deviceId` — it is a standing, system-wide list, in
+contrast to `DeviceNotificationPolicy` (`NOT-170`–`173`), which is 1:1 with a
+device.
+
+**Why:** Deliberate scope choice over a per-device mute: CPU or distance
+noise is a property of the metric, not of any one radio, and the request
+this feature answers ("I don't need CPU/distance alerts anywhere") is a
+blanket preference. A per-device override can be added later without
+changing this table's shape if a narrower need ever appears.
+
+**Enforced at:** `src/domain/notifications/entities/MutedAlertType.ts`
+**Tests:** `tests/domain/notifications/entities/MutedAlertType.test.ts`
+
+### NOT-193 — A muted-type value is lowercase letters, digits and underscores, and is not validated against a fixed metric list
+
+**Type:** Validation · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-04
+
+`MutedAlertType.create` rejects anything outside `^[a-z][a-z0-9_]*$` (empty
+after trimming included) but does not check the value against the wireless
+evaluator's actual rule set.
+
+**Why:** A whitelist would make this context depend on wireless-monitoring's
+metric vocabulary — the exact coupling ADR-0001 rejected for the alert
+envelope itself. Rejecting the shape but not the specific value costs
+nothing when a caller mistypes a real metric (it simply never matches
+anything and mutes nothing, silently) but keeps this table decoupled from
+the rule set that names the metrics.
+
+**Enforced at:** `src/domain/notifications/entities/MutedAlertType.ts`,
+`src/presentation/http/validation/notification-mute.schemas.ts`
+**Tests:** `tests/domain/notifications/entities/MutedAlertType.test.ts`,
+`tests/integration/notification-mute.routes.test.ts`
+
+### NOT-194 — Replacing the muted-type list is wholesale, not incremental
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-04
+
+`PUT /api/notification-mutes` replaces the entire set with the array sent —
+there is no add/remove-one endpoint. `IMutedAlertTypeRepository.replaceAll`
+deletes every row and reinserts the new set inside one transaction,
+deduplicating and validating each entry first so a bad transaction never
+partially applies.
+
+**Why:** The list is short (on the order of the wireless evaluator's metric
+count) and read as a settings screen an operator edits as a whole, the same
+shape decision `NOT-176`'s bulk endpoint already made for notification
+policies — a client re-sends the full desired state rather than diffing it
+itself.
+
+**Enforced at:** `src/application/notifications/use-cases/SetMutedAlertTypesUseCase.ts`,
+`src/infrastructure/persistence/PrismaMutedAlertTypeRepository.ts`
+**Reached from:** `PUT /api/notification-mutes`
+**Tests:** `tests/application/notifications/use-cases/SetMutedAlertTypesUseCase.test.ts`,
+`tests/infrastructure/persistence/PrismaMutedAlertTypeRepository.test.ts`,
+`tests/integration/notification-mute.routes.test.ts`
+
+### NOT-195 — Muted-type reads and writes sit on the same permission tier as notification policy
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-09-04
+
+| Endpoint                       | Permission |
+| ------------------------------- | ---------- |
+| `GET /api/notification-mutes`  | `read`     |
+| `PUT /api/notification-mutes`  | `update`   |
+
+**Why:** Same reasoning as `NOT-177`: this is standing configuration of what
+pages an operator, not alert triage, so it sits at the device-configuration
+tier rather than the alert-specific split in `NOT-150`.
+
+**Enforced at:** `src/presentation/http/routes/notification-mute.routes.ts` (`authorize`)
+**Tests:** `tests/integration/notification-mute.routes.test.ts`

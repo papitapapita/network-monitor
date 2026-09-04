@@ -10,9 +10,12 @@ import { UseCase } from 'application/shared/core';
 import {
   ILogger,
   IAlertPublisher,
-  QUIET_HOURS_SUPPRESSED
+  QUIET_HOURS_SUPPRESSED,
+  TYPE_MUTED_SUPPRESSED
 } from 'application/shared/interfaces';
+import { ITicketOpener } from 'application/tickets/interfaces';
 import { AlertMapper } from '../mappers';
+import { openTicketForAlert } from '../shared';
 import { AlertResponseDTO, SendDeviceDownAlertDTO } from '../dtos';
 
 const SOURCE = 'Disponibilidad';
@@ -29,7 +32,12 @@ export class SendDeviceDownAlertUseCase extends UseCase<
     private readonly deviceRepository: IDeviceRepository,
     private readonly eligibility: IDeviceEligibilityService,
     private readonly alertPublisher: IAlertPublisher,
-    logger: ILogger
+    logger: ILogger,
+    // Optional so the notifications context still works without tickets
+    // wired in. Ticketing is deferred here (rather than at record time — see
+    // DeviceWentOfflineAlertRecordHandler) so a blip that never gets
+    // notified never opens a work order either.
+    private readonly ticketOpener?: ITicketOpener
   ) {
     super(logger, 'SendDeviceDownAlertUseCase');
   }
@@ -112,6 +120,25 @@ export class SendDeviceDownAlertUseCase extends UseCase<
     alert: Alert,
     request: SendDeviceDownAlertDTO
   ): Promise<Result<AlertResponseDTO | null>> {
+    // The alert may have been recorded well before this call — refresh the
+    // details so the operator sees the failure count as of the moment
+    // anyone was actually told, not as of whenever the streak started
+    // (NOT-097).
+    const ipAddress = await this.resolveIpAddress(alert.deviceId);
+    const refreshResult = alert.refreshDetails({
+      consecutiveFailures: request.consecutiveFailures,
+      ipAddress
+    });
+    if (refreshResult.isFailure) {
+      this.logger.warn(
+        'Could not refresh device-down alert details before notifying',
+        {
+          deviceId: alert.deviceId.toString(),
+          error: refreshResult.error
+        }
+      );
+    }
+
     const publishResult = await this.alertPublisher.publish({
       deviceId: alert.deviceId.toString(),
       severity: AlertSeverity.CRITICAL,
@@ -119,11 +146,15 @@ export class SendDeviceDownAlertUseCase extends UseCase<
       subject: SUBJECT,
       detail: alert.description,
       occurredAt: request.occurredAt,
-      resolved: false
+      resolved: false,
+      type: ALERT_TYPE
     });
 
     if (publishResult.isFailure) {
-      if (publishResult.error !== QUIET_HOURS_SUPPRESSED) {
+      if (
+        publishResult.error !== QUIET_HOURS_SUPPRESSED &&
+        publishResult.error !== TYPE_MUTED_SUPPRESSED
+      ) {
         this.logger.error(
           'Failed to publish device-down alert notification',
           undefined,
@@ -135,6 +166,13 @@ export class SendDeviceDownAlertUseCase extends UseCase<
       }
     } else {
       alert.markNotified();
+      await openTicketForAlert(this.ticketOpener, this.logger, {
+        alertId: alert.id.toString(),
+        deviceId: alert.deviceId.toString(),
+        type: ALERT_TYPE,
+        severity: AlertSeverity.CRITICAL,
+        message: alert.description
+      });
     }
 
     const saveResult = await this.alertRepository.save(alert);

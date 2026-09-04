@@ -91,7 +91,8 @@ describe('[WLS-123] WirelessAlertClearedNotificationHandler', () => {
         detail:
           'La condición de alerta en lan_status se ha normalizado.',
         occurredAt: FIXED_DATE,
-        resolved: true
+        resolved: true,
+        type: 'wireless:lan_status:CRITICAL'
       });
     });
   });

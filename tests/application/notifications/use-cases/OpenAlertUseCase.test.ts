@@ -346,5 +346,15 @@ describe('OpenAlertUseCase', () => {
       expect(result.isSuccess).toBe(true);
       expect(repo.save).toHaveBeenCalledTimes(1);
     });
+
+    it('[NOT-097] does not open a ticket when skipTicket is set, so an immediately-recorded down alert does not ticket a blip', async () => {
+      const result = await useCase.execute(
+        makeRequest({ skipTicket: true })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(repo.save).toHaveBeenCalledTimes(1);
+      expect(ticketOpener.openFromAlert).not.toHaveBeenCalled();
+    });
   });
 });

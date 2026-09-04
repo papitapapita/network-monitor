@@ -3,6 +3,7 @@
 import { DeviceState } from '../../../../src/domain/device-monitoring/aggregates/DeviceState';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { DeviceCameOnlineEvent } from '../../../../src/domain/device-monitoring/events/DeviceCameOnlineEvent';
+import { DeviceWentOfflineEvent } from '../../../../src/domain/device-monitoring/events/DeviceWentOfflineEvent';
 import { DeviceStateProps } from '../../../../src/domain/device-monitoring/props/DeviceStateProps';
 import { ReachabilityStatus } from '../../../../src/domain/device-monitoring/value-objects/ReachabilityStatus';
 
@@ -468,10 +469,45 @@ describe('DeviceState', () => {
         expect(state.lastCheckedAt).toEqual(LATER_DATE);
       });
 
-      it('should raise no domain event on transition — alerting is delayed, not immediate', () => {
+      it('[NOT-097] should raise DeviceWentOfflineEvent on transition, so the outage is recorded even if it never gets notified', () => {
         const state = makeState({
           status: UP(),
           consecutiveFailures: 0
+        });
+
+        state.applyPingResult(false, null, LATER_DATE);
+
+        const events = state.domainEvents;
+        expect(events).toHaveLength(1);
+        expect(events[0]).toBeInstanceOf(DeviceWentOfflineEvent);
+      });
+
+      it('[NOT-097] should attach the post-increment consecutiveFailures to DeviceWentOfflineEvent', () => {
+        const state = makeState({
+          status: UP(),
+          consecutiveFailures: 2
+        });
+
+        state.applyPingResult(false, null, LATER_DATE);
+
+        const event = state.domainEvents[0] as DeviceWentOfflineEvent;
+        expect(event.consecutiveFailures).toBe(3);
+      });
+
+      it('[NOT-097] should attach the checkedAt timestamp and aggregate id to DeviceWentOfflineEvent', () => {
+        const state = makeState({ status: UP() });
+
+        state.applyPingResult(false, null, LATER_DATE);
+
+        const event = state.domainEvents[0] as DeviceWentOfflineEvent;
+        expect(event.dateTimeOccurred).toEqual(LATER_DATE);
+        expect(event.aggregateId.toString()).toBe(VALID_DEVICE_UUID);
+      });
+
+      it('[NOT-097] should not raise a second DeviceWentOfflineEvent for a subsequent failed poll while already down', () => {
+        const state = makeState({
+          status: DOWN(),
+          downSince: FIXED_DATE
         });
 
         state.applyPingResult(false, null, LATER_DATE);
@@ -620,12 +656,14 @@ describe('DeviceState', () => {
         expect(state.domainEvents).toHaveLength(0);
       });
 
-      it('[MON-005] should raise no domain event when an unreachable poll follows UNKNOWN', () => {
+      it('[MON-005] [NOT-097] should raise DeviceWentOfflineEvent (not DeviceCameOnlineEvent) when an unreachable poll follows UNKNOWN', () => {
         const state = DeviceState.createInitial(makeDeviceId());
 
         state.applyPingResult(false, null, LATER_DATE);
 
-        expect(state.domainEvents).toHaveLength(0);
+        const events = state.domainEvents;
+        expect(events).toHaveLength(1);
+        expect(events[0]).toBeInstanceOf(DeviceWentOfflineEvent);
       });
 
       it('[MON-005] should start the DOWN streak when an unreachable poll follows UNKNOWN', () => {
@@ -645,7 +683,10 @@ describe('DeviceState', () => {
 
         state.applyPingResult(false, null, LATER_DATE);
 
-        expect(state.domainEvents).toHaveLength(0);
+        expect(state.domainEvents).toHaveLength(1);
+        expect(state.domainEvents[0]).toBeInstanceOf(
+          DeviceWentOfflineEvent
+        );
         expect(state.downSince).toEqual(LATER_DATE);
       });
 

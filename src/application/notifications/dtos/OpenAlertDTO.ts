@@ -7,4 +7,5 @@ export interface OpenAlertDTO {
   type: string;
   description: string;
   details: Record<string, unknown>;
+  skipTicket?: boolean;
 }

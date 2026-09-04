@@ -24,6 +24,7 @@ function makeNotification(
     detail: 'Señal crítica: -83 dBm',
     occurredAt: FIXED_DATE,
     resolved: false,
+    type: 'wireless:signal_rx_dbm:CRITICAL',
     ...overrides
   };
 }

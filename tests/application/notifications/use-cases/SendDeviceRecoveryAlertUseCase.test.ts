@@ -81,8 +81,8 @@ function makeRequest(
   };
 }
 
-/** Returns an open (unresolved) alert. */
-function makeOpenAlert(): Alert {
+/** Returns an open (unresolved) alert, notified by default. */
+function makeOpenAlert(notifiedAt: Date | null = STARTED_AT): Alert {
   return Alert.reconstitute(AlertId.parse(VALID_ALERT_UUID).value, {
     deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
     severity: AlertSeverity.CRITICAL,
@@ -91,7 +91,7 @@ function makeOpenAlert(): Alert {
     description: 'Sin conexión',
     startedAt: STARTED_AT,
     resolvedAt: null,
-    notifiedAt: null,
+    notifiedAt,
     recoveryNotifiedAt: null
   });
 }
@@ -254,6 +254,40 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
       await useCase.execute(makeRequest());
       expect(capturedAlert).not.toBeNull();
       expect(capturedAlert!.resolvedAt).toEqual(OCCURRED_AT);
+    });
+  });
+
+  // ===========================================================================
+  describe('[NOT-097] executeImpl — recovering an alert that was never notified (a blip)', () => {
+    beforeEach(() => {
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(makeOpenAlert(null))
+      );
+      alertRepo.save.mockImplementation(async (a) => Result.ok(a));
+    });
+
+    it('resolves and saves the alert without publishing a recovery notice', async () => {
+      const result = await useCase.execute(makeRequest());
+      expect(result.isSuccess).toBe(true);
+      expect(alertRepo.save).toHaveBeenCalledTimes(1);
+      expect(alertPublisher.publish).not.toHaveBeenCalled();
+    });
+
+    it('sets resolvedAt without ever setting recoveryNotifiedAt', async () => {
+      let capturedAlert: Alert | null = null;
+      alertRepo.save.mockImplementation(async (a) => {
+        capturedAlert = a;
+        return Result.ok(a);
+      });
+
+      await useCase.execute(makeRequest());
+      expect(capturedAlert!.resolvedAt).toEqual(OCCURRED_AT);
+      expect(capturedAlert!.recoveryNotifiedAt).toBeNull();
+    });
+
+    it('never looks up the IP, since no message is being built', async () => {
+      await useCase.execute(makeRequest());
+      expect(pollingConfigRepo.findByDeviceId).not.toHaveBeenCalled();
     });
   });
 

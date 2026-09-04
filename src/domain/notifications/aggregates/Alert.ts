@@ -113,6 +113,21 @@ export class Alert extends AggregateRoot<AlertProps, AlertId> {
     return Result.ok<void>();
   }
 
+  // The alert may have been recorded well before it was ever notified (a
+  // device-down alert opens immediately, but only pages once the effective
+  // delay elapses — NOT-097). Details captured at open time (consecutive
+  // failures, in particular) would otherwise go stale by the time anyone is
+  // actually told, so the notify path refreshes them right before publishing.
+  public refreshDetails(details: Record<string, unknown>): Result<void> {
+    if (this.props.resolvedAt !== null) {
+      return Result.fail(
+        'Cannot update details on a resolved alert'
+      );
+    }
+    this.props.details = details;
+    return Result.ok<void>();
+  }
+
   public resolve(resolvedAt: Date): Result<void> {
     if (this.props.resolvedAt !== null) {
       return Result.fail('Alert already resolved');

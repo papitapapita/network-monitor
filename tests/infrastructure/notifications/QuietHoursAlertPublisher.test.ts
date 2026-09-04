@@ -68,7 +68,8 @@ function makeNotification(): AlertNotification {
     subject: 'Dispositivo fuera de línea',
     detail: 'Sin conexión',
     occurredAt: FIXED_DATE,
-    resolved: false
+    resolved: false,
+    type: 'device_unreachable'
   };
 }
 

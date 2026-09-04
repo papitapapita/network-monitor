@@ -6,7 +6,8 @@ import { UseCase } from 'application/shared/core';
 import {
   ILogger,
   IAlertPublisher,
-  QUIET_HOURS_SUPPRESSED
+  QUIET_HOURS_SUPPRESSED,
+  TYPE_MUTED_SUPPRESSED
 } from 'application/shared/interfaces';
 import { AlertMapper } from '../mappers';
 import {
@@ -76,6 +77,17 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
       return this.fail(resolveResult.error);
     }
 
+    // A blip that self-resolved inside the alert delay was recorded
+    // (NOT-097) but never notified — nobody was told it started, so nobody
+    // needs to be told it ended. Resolve the record and stop there.
+    if (openAlert.notifiedAt === null) {
+      const saveResult = await this.alertRepository.save(openAlert);
+      if (saveResult.isFailure) {
+        return this.fail(`Failed to save alert: ${saveResult.error}`);
+      }
+      return this.ok(AlertMapper.toDTO(saveResult.value));
+    }
+
     const ipAddress = await this.resolveIpAddress(deviceId);
 
     const publishResult = await this.alertPublisher.publish({
@@ -89,14 +101,18 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
         durationSecs: openAlert.durationSecs
       }),
       occurredAt: request.occurredAt,
-      resolved: true
+      resolved: true,
+      type: ALERT_TYPE
     });
 
     if (publishResult.isFailure) {
       // Deliberately not retried on a later cycle: unlike the down alert,
       // there is no unnotified-record scan for a resolved alert, and
       // re-announcing a recovery hours later has no value.
-      if (publishResult.error !== QUIET_HOURS_SUPPRESSED) {
+      if (
+        publishResult.error !== QUIET_HOURS_SUPPRESSED &&
+        publishResult.error !== TYPE_MUTED_SUPPRESSED
+      ) {
         this.logger.error(
           'Failed to publish device-recovery alert notification',
           undefined,

@@ -377,6 +377,20 @@ model DeviceNotificationPolicy {
   @@map("device_notification_policies")
 }
 
+/// Global, standing list of alert-type keys (a wireless metric name, or
+/// `device_unreachable`) whose outbound notification is suppressed for
+/// every device — the alert record itself is unaffected, same as quiet
+/// hours (NOT-174). Not per-device: this is "I never want CPU noise",
+/// not "not on this radio" — see NOT-19x in
+/// docs/business-rules/notifications.md.
+model MutedAlertType {
+  id        String   @id @default(uuid()) @db.Uuid
+  metric    String   @unique @db.VarChar(64)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("muted_alert_types")
+}
+
 // ============================================================================
 // WIRELESS MONITORING MODELS
 // ============================================================================
