@@ -25,6 +25,7 @@ export class PrismaDeviceModelRepository
           model: data.model,
           deviceType: data.deviceType,
           isWireless: data.isWireless,
+          imageUrl: data.imageUrl,
           updatedAt: data.updatedAt
         }
       });

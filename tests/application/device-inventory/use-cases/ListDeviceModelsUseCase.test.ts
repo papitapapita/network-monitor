@@ -36,6 +36,7 @@ function makeDeviceModel(
     model: 'RB760iGS',
     deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
     isWireless: false,
+    imageUrl: null,
     createdAt: NOW,
     updatedAt: NOW
   });

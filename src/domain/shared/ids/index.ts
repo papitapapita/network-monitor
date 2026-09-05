@@ -16,3 +16,4 @@ export * from './ContractedServiceId';
 export * from './BillId';
 export * from './TicketId';
 export * from './TechnicianId';
+export * from './QuotationId';

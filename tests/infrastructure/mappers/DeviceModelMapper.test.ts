@@ -23,6 +23,7 @@ type PrismaDeviceModelRecord = {
   model: string;
   deviceType: string;
   isWireless: boolean;
+  imageUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
   vendor: { name: string; slug: string };
@@ -37,6 +38,7 @@ function makeRaw(
     model: 'RB760iGS',
     deviceType: 'ROUTER',
     isWireless: false,
+    imageUrl: null,
     createdAt: NOW,
     updatedAt: NOW,
     vendor: { name: 'Mikrotik', slug: 'mikrotik' },
@@ -49,6 +51,7 @@ function makeDeviceModel(
     model: string;
     deviceType: string;
     isWireless: boolean;
+    imageUrl: string | null;
     vendorName: string;
     vendorSlug: string;
   }> = {}
@@ -64,6 +67,7 @@ function makeDeviceModel(
       overrides.deviceType ?? 'ROUTER'
     ),
     isWireless: overrides.isWireless ?? false,
+    imageUrl: overrides.imageUrl ?? null,
     createdAt: NOW,
     updatedAt: NOW
   });
@@ -154,6 +158,26 @@ describe('DeviceModelMapper', () => {
         const result = DeviceModelMapper.toDomain(raw);
 
         expect(result.value!.updatedAt).toEqual(NOW);
+      });
+
+      it('should map imageUrl correctly', () => {
+        const raw = makeRaw({
+          imageUrl: 'https://example.com/camera.jpg'
+        });
+
+        const result = DeviceModelMapper.toDomain(raw);
+
+        expect(result.value!.imageUrl).toBe(
+          'https://example.com/camera.jpg'
+        );
+      });
+
+      it('should map a null imageUrl as null', () => {
+        const raw = makeRaw();
+
+        const result = DeviceModelMapper.toDomain(raw);
+
+        expect(result.value!.imageUrl).toBeNull();
       });
 
       it('should return a DeviceModel with no domain events (reconstitution path)', () => {
@@ -274,7 +298,7 @@ describe('DeviceModelMapper', () => {
         expect(Object.keys(data)).not.toContain('vendorSlug');
       });
 
-      it('should include exactly the seven base fields in the persistence shape', () => {
+      it('should include exactly the eight base fields in the persistence shape', () => {
         const dm = makeDeviceModel();
 
         const data = DeviceModelMapper.toPersistence(dm);
@@ -284,12 +308,31 @@ describe('DeviceModelMapper', () => {
             'createdAt',
             'deviceType',
             'id',
+            'imageUrl',
             'isWireless',
             'model',
             'updatedAt',
             'vendorId'
           ].sort()
         );
+      });
+
+      it('should serialize imageUrl correctly', () => {
+        const dm = makeDeviceModel({
+          imageUrl: 'https://example.com/camera.jpg'
+        });
+
+        const data = DeviceModelMapper.toPersistence(dm);
+
+        expect(data.imageUrl).toBe('https://example.com/camera.jpg');
+      });
+
+      it('should serialize a null imageUrl as null', () => {
+        const dm = makeDeviceModel();
+
+        const data = DeviceModelMapper.toPersistence(dm);
+
+        expect(data.imageUrl).toBeNull();
       });
     });
   });

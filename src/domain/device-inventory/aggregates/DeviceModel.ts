@@ -34,6 +34,10 @@ export class DeviceModel extends AggregateRoot<
     return this.props.isWireless;
   }
 
+  get imageUrl(): string | null {
+    return this.props.imageUrl;
+  }
+
   get createdAt(): Date {
     return this.props.createdAt;
   }
@@ -45,8 +49,8 @@ export class DeviceModel extends AggregateRoot<
   public static create(
     props: Omit<
       DeviceModelProps,
-      'createdAt' | 'updatedAt' | 'isWireless'
-    > & { isWireless?: boolean }
+      'createdAt' | 'updatedAt' | 'isWireless' | 'imageUrl'
+    > & { isWireless?: boolean; imageUrl?: string | null }
   ): Result<DeviceModel> {
     const validationResult = DeviceModel.validate(props);
     if (validationResult.isFailure) {
@@ -60,6 +64,7 @@ export class DeviceModel extends AggregateRoot<
       {
         ...props,
         isWireless: props.isWireless ?? false,
+        imageUrl: props.imageUrl ?? null,
         createdAt: now,
         updatedAt: now
       },
@@ -128,6 +133,22 @@ export class DeviceModel extends AggregateRoot<
     return Result.ok<void>();
   }
 
+  public updateImageUrl(url: string | null): Result<void> {
+    if (url !== null) {
+      const guardResult = Guard.isString(url, 'imageUrl');
+      if (!guardResult.succeeded) {
+        return Result.fail<void>(guardResult.message!);
+      }
+    }
+
+    if (this.props.imageUrl === url) return Result.ok<void>();
+
+    this.props.imageUrl = url;
+    this.props.updatedAt = new Date();
+
+    return Result.ok<void>();
+  }
+
   public updateVendor(
     vendorId: VendorId,
     vendorName: string,
@@ -153,7 +174,7 @@ export class DeviceModel extends AggregateRoot<
   private static validate(
     props: Omit<
       DeviceModelProps,
-      'createdAt' | 'updatedAt' | 'isWireless'
+      'createdAt' | 'updatedAt' | 'isWireless' | 'imageUrl'
     >
   ): Result<void> {
     const guardResult = Guard.combine([

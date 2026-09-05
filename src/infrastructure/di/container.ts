@@ -13,6 +13,11 @@ import {
   PrismaBillRepository,
   PdfKitBillPdfRenderer
 } from '../billing';
+import {
+  PrismaQuotationRepository,
+  PdfKitQuotationPdfRenderer,
+  HttpImageFetcher
+} from '../quoting';
 import { LoginUseCase } from 'application/identity/use-cases/LoginUseCase';
 import { AuthController } from 'presentation/http/controllers/AuthController';
 import { ITokenService } from 'application/identity/interfaces/ITokenService';
@@ -46,6 +51,7 @@ import {
   ServicePlanController,
   ContractedServiceController,
   BillController,
+  QuotationController,
   EnforcementController,
   TicketController,
   TechnicianController
@@ -77,6 +83,18 @@ import {
   MarkBillOverdueUseCase,
   CancelBillUseCase
 } from 'application/billing/use-cases';
+import {
+  CreateQuotationUseCase,
+  UpdateQuotationLineItemsUseCase,
+  UpdateQuotationDetailsUseCase,
+  SendQuotationUseCase,
+  AcceptQuotationUseCase,
+  RejectQuotationUseCase,
+  MarkQuotationExpiredUseCase,
+  GetQuotationUseCase,
+  ListQuotationsUseCase,
+  GetQuotationPdfUseCase
+} from 'application/quoting/use-cases';
 import {
   PrismaWirelessSnapshotRepository,
   PrismaWirelessAlertRecordRepository,
@@ -319,6 +337,10 @@ export class DependencyContainer {
 
   // Billing
   public billRepository: PrismaBillRepository;
+
+  // Quoting
+  public quotationRepository: PrismaQuotationRepository;
+
   public ticketRepository: PrismaTicketRepository;
   public technicianRepository: PrismaTechnicianRepository;
   private ticketOpener: TicketOpenerAdapter;
@@ -346,6 +368,7 @@ export class DependencyContainer {
   public servicePlanController: ServicePlanController;
   public contractedServiceController: ContractedServiceController;
   public billController: BillController;
+  public quotationController: QuotationController;
   public enforcementController: EnforcementController;
 
   // Orchestrators (lifecycle managed by main.ts)
@@ -519,6 +542,57 @@ export class DependencyContainer {
       new MarkBillPaidUseCase(this.billRepository, this.logger),
       new MarkBillOverdueUseCase(this.billRepository, this.logger),
       new CancelBillUseCase(this.billRepository, this.logger),
+      this.logger
+    );
+
+    // =====================================
+    // QUOTING BOUNDED CONTEXT
+    // =====================================
+
+    this.quotationRepository = new PrismaQuotationRepository(
+      this.prisma
+    );
+
+    this.quotationController = new QuotationController(
+      new CreateQuotationUseCase(
+        this.quotationRepository,
+        this.customerRepository,
+        this.deviceModelRepository,
+        this.logger
+      ),
+      new UpdateQuotationLineItemsUseCase(
+        this.quotationRepository,
+        this.deviceModelRepository,
+        this.logger
+      ),
+      new UpdateQuotationDetailsUseCase(
+        this.quotationRepository,
+        this.logger
+      ),
+      new SendQuotationUseCase(this.quotationRepository, this.logger),
+      new AcceptQuotationUseCase(
+        this.quotationRepository,
+        this.logger
+      ),
+      new RejectQuotationUseCase(
+        this.quotationRepository,
+        this.logger
+      ),
+      new MarkQuotationExpiredUseCase(
+        this.quotationRepository,
+        this.logger
+      ),
+      new GetQuotationUseCase(this.quotationRepository, this.logger),
+      new ListQuotationsUseCase(
+        this.quotationRepository,
+        this.logger
+      ),
+      new GetQuotationPdfUseCase(
+        this.quotationRepository,
+        new PdfKitQuotationPdfRenderer(),
+        new HttpImageFetcher(),
+        this.logger
+      ),
       this.logger
     );
 

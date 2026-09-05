@@ -63,6 +63,12 @@ export class Money extends ValueObject<MoneyProps> {
     return new Money({ cents: this._props.cents + other.cents });
   }
 
+  public multiply(factor: number): Money {
+    return new Money({
+      cents: Math.round(this._props.cents * factor)
+    });
+  }
+
   public toNumber(): number {
     return this._props.cents / 100;
   }

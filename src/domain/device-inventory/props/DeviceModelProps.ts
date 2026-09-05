@@ -10,6 +10,7 @@ export interface DeviceModelProps {
   model: string;
   deviceType: DeviceType;
   isWireless: boolean;
+  imageUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

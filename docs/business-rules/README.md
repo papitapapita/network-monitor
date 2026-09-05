@@ -14,6 +14,7 @@ different document for a different audience.
 | Device Inventory    | [device-inventory.md](device-inventory.md)       | `DEV-001` … `DEV-147` |
 | Customers           | [customers.md](customers.md)                     | `CUS-001` … `CUS-140` |
 | Billing             | [billing.md](billing.md)                         | `BIL-001` … `BIL-141` |
+| Quoting             | [quoting.md](quoting.md)                         | `QUO-001` … `QUO-142` |
 | Device Monitoring   | [device-monitoring.md](device-monitoring.md)     | `MON-001` … `MON-042` |
 | Wireless Monitoring | [wireless-monitoring.md](wireless-monitoring.md) | `WLS-001` … `WLS-161` |
 | Service Enforcement | [service-enforcement.md](service-enforcement.md) | `SVC-001` … `SVC-120` |

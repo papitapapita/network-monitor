@@ -82,10 +82,12 @@ model DeviceModel {
   model      String     @db.VarChar(150)
   deviceType DeviceType @map("device_type")
   isWireless Boolean    @default(false) @map("is_wireless")
+  imageUrl   String?    @map("image_url") @db.VarChar(500)
   createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz
 
-  devices    Device[]
+  devices        Device[]
+  quotationItems QuotationLineItem[]
 
   @@unique([vendorId, model])
   @@map("device_models")
@@ -183,8 +185,11 @@ model Device {
   // Generated column (migration 20260903130000) — Postgres derives it from
   // `ipAddress` via inet_send() on every write. Prisma's DSL cannot express
   // a generated column, so this is declared as an ordinary field and is
-  // never written to directly; it exists only to be ordered by.
-  ipSortKey        Bytes?  @map("ip_sort_key")
+  // never written to directly; it exists only to be ordered by. The
+  // dbgenerated() default mirrors Postgres's own pg_get_expr() rendering of
+  // the generation expression so `migrate dev`'s diff stops mistaking it for
+  // a missing default and proposing an invalid DROP DEFAULT on it.
+  ipSortKey        Bytes?  @map("ip_sort_key") @default(dbgenerated("inet_send((ip_address)::inet)"))
   description      String?   @db.Text
 
   // Lifecycle
@@ -225,6 +230,8 @@ model Device {
 
   @@index([monitoringEnabled])
   @@index([deletedAt])
+  @@index([ipSortKey])
+  @@index([replacesDeviceId])
   @@map("devices")
 }
 
@@ -555,6 +562,7 @@ model Customer {
   contractedServices ContractedService[]
   bills              Bill[]
   tickets            Ticket[]
+  quotations         Quotation[]
 
   @@map("customers")
 }
@@ -640,6 +648,87 @@ model BillLineItem {
 
   @@index([billId])
   @@map("bill_line_items")
+}
+
+// ============================================================================
+// QUOTING BOUNDED CONTEXT
+// ============================================================================
+// Cotizaciones: sales proposals a technician assembles from catalog hardware
+// (DeviceModel) with a manually-entered price, sent to a customer or
+// prospect, and exported as a PDF.
+// ============================================================================
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+
+  @@map("quotation_status")
+}
+
+model Quotation {
+  id     String          @id @default(uuid()) @db.Uuid
+  code   Int             @unique @default(autoincrement())
+  status QuotationStatus @default(DRAFT)
+
+  customerId String? @map("customer_id") @db.Uuid
+
+  // Customer snapshot — captured at creation, never re-resolved. A
+  // quotation is a point-in-time offer, and Customer has no address field
+  // at all, so the address can only ever come from this free-text snapshot.
+  customerName    String  @map("customer_name") @db.VarChar(150)
+  customerPhone   String? @map("customer_phone") @db.VarChar(20)
+  customerEmail   String? @map("customer_email") @db.VarChar(255)
+  customerAddress String? @map("customer_address") @db.VarChar(255)
+
+  validUntil DateTime @map("valid_until") @db.Timestamptz
+  notes      String?  @db.Text
+
+  sentAt          DateTime? @map("sent_at") @db.Timestamptz
+  acceptedAt      DateTime? @map("accepted_at") @db.Timestamptz
+  rejectedAt      DateTime? @map("rejected_at") @db.Timestamptz
+  rejectionReason String?   @map("rejection_reason") @db.VarChar(255)
+  expiredAt       DateTime? @map("expired_at") @db.Timestamptz
+
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  customer  Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  lineItems QuotationLineItem[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("quotations")
+}
+
+model QuotationLineItem {
+  id          String  @id @default(uuid()) @db.Uuid
+  quotationId String  @map("quotation_id") @db.Uuid
+
+  // Snapshot of the referenced DeviceModel at the time it was added to the
+  // quote, so the PDF stays stable even if the catalog changes later. The FK
+  // is nullable and SetNull on delete for the same reason: all display data
+  // needed to render the line already lives in the snapshot columns below.
+  deviceModelId   String? @map("device_model_id") @db.Uuid
+  deviceModelName String  @map("device_model_name") @db.VarChar(150)
+  vendorName      String  @map("vendor_name") @db.VarChar(100)
+  deviceType      String  @map("device_type") @db.VarChar(50)
+  imageUrl        String? @map("image_url") @db.VarChar(500)
+
+  description String  @db.VarChar(500)
+  unitPrice   Decimal @map("unit_price") @db.Decimal(12, 2)
+  quantity    Int
+
+  quotation   Quotation    @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  deviceModel DeviceModel? @relation(fields: [deviceModelId], references: [id], onDelete: SetNull)
+
+  @@index([quotationId])
+  @@index([deviceModelId])
+  @@map("quotation_line_items")
 }
 
 // ============================================================================

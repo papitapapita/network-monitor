@@ -19,7 +19,8 @@ export async function cleanDatabase(
  * Returns the device model UUID — use it as `deviceModelId` when creating test devices.
  */
 export async function seedDeviceModel(
-  prisma: PrismaClient
+  prisma: PrismaClient,
+  overrides: { imageUrl?: string | null } = {}
 ): Promise<string> {
   const vendor = await prisma.vendor.upsert({
     where: { slug: 'mikrotik' },
@@ -38,11 +39,12 @@ export async function seedDeviceModel(
         model: 'RB4011iGS+'
       }
     },
-    update: {},
+    update: { imageUrl: overrides.imageUrl ?? null },
     create: {
       vendorId: vendor.id,
       model: 'RB4011iGS+',
-      deviceType: 'ROUTERBOARD'
+      deviceType: 'ROUTERBOARD',
+      imageUrl: overrides.imageUrl ?? null
     }
   });
   return model.id;
@@ -400,6 +402,70 @@ export async function seedTicket(
     }
   });
   return ticket.id;
+}
+
+/**
+ * Cleans the quoting bounded context in FK-safe order: quotation_line_items
+ * (which reference quotations) must go before quotations.
+ */
+export async function cleanQuotations(
+  prisma: PrismaClient
+): Promise<void> {
+  await prisma.quotationLineItem.deleteMany();
+  await prisma.quotation.deleteMany();
+}
+
+/**
+ * Creates a quotation with one line item directly via Prisma, bypassing the
+ * aggregate so a test can put one straight into any status. Returns its UUID.
+ */
+export async function seedQuotation(
+  prisma: PrismaClient,
+  deviceModelId: string,
+  overrides: {
+    customerId?: string | null;
+    customerName?: string;
+    status?: 'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+    validUntil?: Date;
+    unitPrice?: number;
+    quantity?: number;
+  } = {}
+): Promise<string> {
+  const status = overrides.status ?? 'DRAFT';
+  const isSent = status !== 'DRAFT';
+  const deviceModel = await prisma.deviceModel.findUniqueOrThrow({
+    where: { id: deviceModelId }
+  });
+  const quotation = await prisma.quotation.create({
+    data: {
+      status,
+      customerId: overrides.customerId ?? null,
+      customerName: overrides.customerName ?? 'Test Prospect',
+      validUntil:
+        overrides.validUntil ??
+        new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      sentAt: isSent ? new Date() : null,
+      acceptedAt: status === 'ACCEPTED' ? new Date() : null,
+      rejectedAt: status === 'REJECTED' ? new Date() : null,
+      rejectionReason: status === 'REJECTED' ? 'Too expensive' : null,
+      expiredAt: status === 'EXPIRED' ? new Date() : null,
+      lineItems: {
+        create: [
+          {
+            deviceModelId,
+            deviceModelName: 'RB4011iGS+',
+            vendorName: 'MikroTik',
+            deviceType: 'ROUTERBOARD',
+            imageUrl: deviceModel.imageUrl,
+            description: 'Test line item',
+            unitPrice: overrides.unitPrice ?? 100,
+            quantity: overrides.quantity ?? 1
+          }
+        ]
+      }
+    }
+  });
+  return quotation.id;
 }
 
 /** Known-valid UUIDs that will never exist in the test DB */

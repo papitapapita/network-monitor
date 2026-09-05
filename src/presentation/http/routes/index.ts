@@ -24,6 +24,7 @@ import { createEnforcementRoutes } from './enforcement.routes';
 import { createBillRoutes } from './bill.routes';
 import { createTicketRoutes } from './ticket.routes';
 import { createTechnicianRoutes } from './technician.routes';
+import { createQuotationRoutes } from './quotation.routes';
 import {
   createAuditLogMiddleware,
   createAuthenticateMiddleware
@@ -151,6 +152,12 @@ export function setupRoutes(
   // Bills: /api/bills
   apiRouter.use('/bills', createBillRoutes(container.billController));
 
+  // Quotations: /api/quotations
+  apiRouter.use(
+    '/quotations',
+    createQuotationRoutes(container.quotationController)
+  );
+
   // =====================================
   // TICKETS BOUNDED CONTEXT
   // =====================================
@@ -205,9 +212,7 @@ export function setupRoutes(
   // Muted alert types: /api/notification-mutes
   apiRouter.use(
     '/notification-mutes',
-    createNotificationMuteRoutes(
-      container.notificationMuteController
-    )
+    createNotificationMuteRoutes(container.notificationMuteController)
   );
 
   // =====================================

@@ -1442,7 +1442,7 @@ optional **override of the down-alert delay**
 > "catch up in the morning" for good news.
 >
 > **Device-down alerts open the instant a device goes unreachable**, not once
-> the delay elapses — only the *notification* waits for the effective delay.
+> the delay elapses — only the _notification_ waits for the effective delay.
 > A blip that self-resolves inside that window still shows up (and later
 > resolves) on `GET /api/alerts`; it just never pages anyone, and its
 > recovery is silent too.
@@ -2934,6 +2934,256 @@ The PDF includes the bill header (period, status, issue/due/paid dates), the cus
 
 > Allowed from `PENDING` or `OVERDUE`. Returns 409 for a `PAID` bill ("Cannot cancel a paid bill") or an already-cancelled one.  
 > Cancelling frees the customer + period for regeneration via `POST /generate`.
+
+---
+
+## Quotations `/api/quotations`
+
+A sales proposal ("cotización"): catalog hardware from `device-inventory` picked by a technician, priced by hand for this quote alone, sent to a customer or free-text prospect, and exportable as a PDF. Unlike bills, a quotation's customer info (name, phone, email, address) is a **snapshot captured at creation** and never re-read live — `Customer` has no address field at all, so it's the only option, and a quote must keep saying what it said when it was built.
+
+**Lifecycle:** `DRAFT → SENT → ACCEPTED | REJECTED | EXPIRED`. `ACCEPTED`, `REJECTED` and `EXPIRED` are terminal. Line items and details (`validUntil`, `notes`, customer snapshot) can only be edited while `DRAFT`.
+
+```ts
+interface QuotationLineItemDTO {
+  deviceModelId: string | null; // UUID — null if the catalog entry was later deleted
+  deviceModelName: string; // snapshot at add-time
+  vendorName: string; // snapshot at add-time
+  deviceType: string; // snapshot at add-time
+  imageUrl: string | null; // snapshot at add-time
+  description: string; // editable; defaults to "<vendor> <model>"
+  unitPrice: number; // entered by hand — there is no catalog price
+  quantity: number; // positive integer
+  lineTotal: number; // unitPrice * quantity
+}
+
+interface QuotationDTO {
+  id: string; // UUID
+  code: number | null; // DB-assigned sequence number; null only before the first save
+  status: 'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+  customerId: string | null; // UUID — optional link, for traceability only
+  customerName: string;
+  customerPhone: string | null;
+  customerEmail: string | null;
+  customerAddress: string | null;
+  lineItems: QuotationLineItemDTO[];
+  subtotal: number; // sum of lineItems lineTotal
+  total: number; // currently equals subtotal — no tax logic yet
+  validUntil: string; // ISO 8601
+  notes: string | null;
+  sentAt: string | null;
+  acceptedAt: string | null;
+  rejectedAt: string | null;
+  rejectionReason: string | null;
+  expiredAt: string | null;
+  createdBy: string | null; // UUID — from the authenticated user, never the request body
+  createdAt: string; // ISO 8601
+  updatedAt: string;
+}
+```
+
+### `POST /api/quotations` — Create
+
+**Status:** 201 | 400 | 404 | 500
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// Request body
+{
+  customerId?: string        // UUID — optional link to an existing Customer
+  customerName?: string      // required if customerId is omitted
+  customerPhone?: string
+  customerEmail?: string
+  customerAddress?: string   // free text — Customer has no address field to read this from
+  validUntil: string         // required, ISO 8601 datetime
+  notes?: string
+  lineItems: Array<{
+    deviceModelId: string    // required, UUID — must exist in device-inventory
+    description?: string     // defaults to "<vendor> <model>"
+    unitPrice: number        // required, >= 0
+    quantity: number         // required, positive integer
+  }>                          // at least one required
+}
+
+// Response
+{ success: true, data: QuotationDTO }
+```
+
+**Business rules:**
+
+- Either `customerId` or `customerName` is required (400 otherwise).
+- When `customerId` is given, the customer's name/phone/email are snapshotted from the `Customer` record at this moment; `customerAddress` (if any) always comes from the request body.
+- Each `deviceModelId` must reference an existing device model (404 otherwise) — its name, vendor, type and image are snapshotted onto the line item.
+- Returns 404 if `customerId` does not reference an existing customer.
+
+---
+
+### `GET /api/quotations` — List
+
+**Status:** 200 | 400
+
+```ts
+// Query params (all optional)
+customerId?: string       // UUID
+status?:     'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED'
+limit?:      number       // 1–100, default 20
+offset?:     number       // ≥0, default 0
+
+// Response
+{
+  success: true,
+  data: {
+    quotations: QuotationDTO[]
+    total: number
+    hasMore: boolean
+    limit: number
+    offset: number
+  }
+}
+```
+
+> Results are ordered by `createdAt` descending (newest first).
+
+---
+
+### `GET /api/quotations/:id` — Get by ID
+
+**Status:** 200 | 400 | 404
+
+```ts
+// Response
+{ success: true, data: QuotationDTO }
+```
+
+---
+
+### `GET /api/quotations/:id/pdf` — Download as PDF
+
+**Status:** 200 | 400 | 404
+
+Returns the quotation as a **PDF document** — not the JSON envelope.
+
+```
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="cotizacion-<code>.pdf"
+```
+
+The PDF includes a branded header with the quote number and validity date, the customer block, an itemized table (thumbnail, description, quantity, unit price, line total), a subtotal/total block, and a terms/call-to-action footer. A missing or broken line item image never fails the PDF — it falls back to a placeholder.
+
+> Error responses (400/404) still use the standard JSON envelope `{ success: false, error }`.
+> Frontend tip: fetch with the Bearer token and download via a blob URL — a plain `<a href>` won't carry the Authorization header.
+
+---
+
+### `PATCH /api/quotations/:id/line-items` — Replace Line Items
+
+**Status:** 200 | 400 | 404 | 409
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// Request body
+{
+  lineItems: Array<{
+    deviceModelId: string
+    description?: string
+    unitPrice: number
+    quantity: number
+  }>   // at least one required — replaces the entire set
+}
+
+// Response
+{ success: true, data: QuotationDTO }
+```
+
+> Allowed only while `DRAFT` — returns 409 for a `SENT` or terminal quotation ("Cannot modify line items of a sent quotation"). There is no incremental add/remove; this replaces the full line-item set.
+
+---
+
+### `PATCH /api/quotations/:id` — Update Details
+
+**Status:** 200 | 400 | 404 | 409
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// Request body (all optional — only supplied fields change)
+{
+  validUntil?: string
+  notes?: string
+  customerName?: string
+  customerPhone?: string
+  customerEmail?: string
+  customerAddress?: string
+}
+
+// Response
+{ success: true, data: QuotationDTO }
+```
+
+> Allowed only while `DRAFT` — returns 409 otherwise ("Cannot update details of a sent quotation").
+
+---
+
+### `POST /api/quotations/:id/send` — Send
+
+**Status:** 200 | 400 | 404 | 409
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// No request body
+
+// Response — QuotationDTO with status 'SENT' and sentAt set
+{ success: true, data: QuotationDTO }
+```
+
+> Allowed only from `DRAFT`. Returns 409 otherwise.
+
+---
+
+### `POST /api/quotations/:id/accept` — Accept
+
+**Status:** 200 | 400 | 404 | 409
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// No request body
+
+// Response — QuotationDTO with status 'ACCEPTED' and acceptedAt set
+{ success: true, data: QuotationDTO }
+```
+
+> Allowed only from `SENT`. Returns 409 otherwise (a quote that was never sent cannot be accepted).
+
+---
+
+### `POST /api/quotations/:id/reject` — Reject
+
+**Status:** 200 | 400 | 404 | 409
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// Request body
+{ reason: string }   // required, non-empty, ≤255 characters
+
+// Response — QuotationDTO with status 'REJECTED', rejectedAt and rejectionReason set
+{ success: true, data: QuotationDTO }
+```
+
+> Allowed only from `SENT`. Returns 400 if `reason` is missing or blank, 409 if the quotation isn't `SENT`.
+
+---
+
+### `POST /api/quotations/:id/expire` — Mark Expired
+
+**Status:** 200 | 400 | 404 | 409
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// No request body
+
+// Response — QuotationDTO with status 'EXPIRED' and expiredAt set
+{ success: true, data: QuotationDTO }
+```
+
+> Allowed only from `SENT`, and only once the quotation is **past its `validUntil` date** — returns 409 otherwise. There is no automatic expiry job; the frontend (or an operator) triggers this explicitly, matching how bills are marked overdue.
 
 ---
 

@@ -447,6 +447,7 @@ still reported success.
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure + Domain (partly in domain)
 **Since:** 2026-07-28 · **Revised:** 2026-07-30
+**Checked:** 2026-09-05
 
 Every device model response carries `vendorName` and `vendorSlug` alongside
 `vendorId`. Neither is a column on `device_models`: each read joins `vendors`
@@ -482,6 +483,7 @@ never disagree with the vendor record it came from.
 **Type:** Policy · **Status:** Active
 **Layer:** Application (not in domain)
 **Since:** 2026-08-12
+**Checked:** 2026-09-05
 
 DEV-026 counts live devices, so a model whose every remaining unit has been
 soft-deleted (DEV-070) reads as unused. It is not: the tombstones still hold the
@@ -528,6 +530,7 @@ other route: once DEV-077 has purged the devices, the plain delete succeeds.
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Checked:** 2026-09-05
 
 Everything else — location, category, owner, serial, MAC, IP, dates — is
 optional at creation, subject to the status rules below.
@@ -545,6 +548,7 @@ registered on arrival, before it has been configured or installed.
 **Type:** Validation · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Checked:** 2026-09-05
 
 Trimmed before storage.
 
@@ -557,6 +561,7 @@ Trimmed before storage.
 **Type:** Validation · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28 · **Revised:** 2026-08-12
+**Checked:** 2026-09-05
 
 Input is trimmed and upper-cased. **INVENTORY is the default** when no status is
 given.
@@ -592,6 +597,7 @@ stay DAMAGED.
 **Type:** Validation · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28 · **Revised:** 2026-07-29, 2026-08-01
+**Checked:** 2026-09-05
 
 Optional (nullable). When present it must be one of `CPE`, `WIRELESS_CPE`,
 `ACCESS_POINT`, `GATEWAY`, `AGGREGATION_SWITCH`, `OTHER`. Trimmed and
@@ -662,6 +668,7 @@ how they were found and corrected.
 **Type:** Validation · **Status:** Active
 **Layer:** Application (not in domain)
 **Since:** 2026-07-28
+**Checked:** 2026-09-05
 
 Optional. Case-insensitive on input.
 
@@ -676,6 +683,7 @@ Optional. Case-insensitive on input.
 **Type:** Validation · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Checked:** 2026-09-05
 
 Optional; trimmed before storage.
 
@@ -688,6 +696,7 @@ Optional; trimmed before storage.
 **Type:** Validation · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Checked:** 2026-09-05
 
 Accepts `AA:BB:CC:DD:EE:FF` or `AA-BB-CC-DD-EE-FF`. **Normalized to
 upper-case with colons** before storage, so the two input forms cannot produce
@@ -706,6 +715,7 @@ spellings of one address would defeat the uniqueness check.
 **Type:** Invariant · **Status:** Active
 **Layer:** Application + database constraint (not in domain)
 **Since:** 2026-07-28 · **Revised:** 2026-07-30
+**Checked:** 2026-09-05
 
 Checked on create, and on update only when the value actually changes — so
 re-submitting a device's own MAC is not a collision.
@@ -725,6 +735,7 @@ concurrent writes that both clear it and reports the same message.
 **Type:** Validation · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Checked:** 2026-09-05
 
 Optional. IPv6 is lower-cased on storage; IPv4 is stored as written.
 
@@ -740,6 +751,7 @@ time, long after the operator who typed it has moved on.
 **Type:** Invariant · **Status:** Active
 **Layer:** Application + database constraint (not in domain)
 **Since:** 2026-07-28 · **Revised:** 2026-07-30
+**Checked:** 2026-09-05
 
 Same change-detection as DEV-047: a device may keep its own IP on update.
 
@@ -757,6 +769,7 @@ ping, so the data would be silently wrong rather than absent.
 **Type:** Validation · **Status:** Active
 **Layer:** Application (not in domain)
 **Since:** 2026-07-28 · **Revised:** 2026-08-01
+**Checked:** 2026-09-05
 
 Optional. Accepted forms are `YYYY-MM-DD` and `YYYY-MM-DDThh:mm[:ss[.sss]]` with
 an optional `Z` or `±hh:mm` offset. The calendar is checked too: `2024-02-31`
@@ -782,6 +795,7 @@ applied to callers that bypass the edge schema.
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Checked:** 2026-09-05
 
 Compared against the moment of validation.
 
@@ -799,6 +813,7 @@ fleet.
 **Type:** Validation · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Checked:** 2026-09-05
 
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:555` (`Device.validateDescription`)
 **Message:** `Device description cannot exceed 500 characters`
@@ -809,6 +824,7 @@ fleet.
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28 · **Revised:** 2026-08-12
+**Checked:** 2026-09-05
 
 Applies to every status in the retired set — INVENTORY, DAMAGED,
 DECOMMISSIONED. At least one of the two identifiers. Either satisfies the rule.
@@ -833,6 +849,7 @@ enumerates in one place cannot drift from the rule that depends on it.
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Checked:** 2026-09-05
 
 **Why:** ACTIVE means in service and monitored. Monitoring is ping-based, so a
 device with no IP cannot be polled — it would sit in the dashboard permanently
@@ -848,6 +865,7 @@ green and never actually be checked.
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Checked:** 2026-09-05
 
 Also blocks _removing_ the location from a device that is already ACTIVE.
 
@@ -865,6 +883,7 @@ in the field.
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Checked:** 2026-09-05
 
 **Why:** Commissioning is the stage where the unit is being brought up and
 watched to see whether it stays up. That requires reaching it. Note this is
@@ -880,6 +899,7 @@ configured on the bench before it is installed.
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Checked:** 2026-09-05
 
 **Why:** Those are the two states where the device is expected to answer. Polling
 a warehouse unit or a broken one would generate a permanent stream of
@@ -895,6 +915,7 @@ false-alarm outage alerts and train operators to ignore the dashboard.
 **Type:** Policy · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28
+**Checked:** 2026-09-05
 
 Default applies only when the caller expresses no preference. An **explicit
 `false` is respected**.
@@ -912,6 +933,7 @@ polling it yet.
 **Type:** Policy · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28 · **Revised:** 2026-08-03
+**Checked:** 2026-09-05
 
 A status change into COMMISSIONING enables monitoring if it was off — but, as in
 DEV-058, only when the caller expressed no preference. An **explicit
@@ -999,6 +1021,7 @@ silently — invalid state is caught on the next _write_, not on read.
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-28 · **Revised:** 2026-07-29
+**Checked:** 2026-09-05
 
 Exposed as `device.canHaveWirelessConfig()`, which asks the category itself
 (`isWirelessCpe()`, `isAccessPoint()`) rather than comparing against constants. A
@@ -1028,6 +1051,7 @@ configuration needs both.
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-07-29
+**Checked:** 2026-09-05
 
 `deviceModelId` is mandatory at creation (DEV-040) and thereafter changeable
 only through `Device.correctDeviceModel()`, which refuses unless the device's
@@ -1071,6 +1095,7 @@ because the device is still `INVENTORY` when the request arrives.
 **Type:** Policy · **Status:** Superseded by `WLS-003`
 **Layer:** Application (not in domain)
 **Since:** 2026-07-29 · **Revised:** 2026-07-30 · **Superseded:** 2026-08-03
+**Checked:** 2026-09-05
 
 Moved to [wireless-monitoring.md](wireless-monitoring.md) as **WLS-003**. The
 `linkCapacityKbps` and `clientsProvisionedLimit` cross-checks this entry carried
@@ -1097,6 +1122,7 @@ this rule derives. DEV-062 narrows the field to two, so "otherwise means
 **Type:** Policy · **Status:** Active
 **Layer:** Application (not in domain)
 **Since:** 2026-07-30
+**Checked:** 2026-09-05
 
 Once a wireless configuration exists for a device, `PATCH /api/devices/:id`
 refuses any request that would change that device's `category` — including
@@ -1154,6 +1180,7 @@ only stops the category moving any further.
 **Type:** Invariant · **Status:** Active
 **Layer:** Application (not in domain)
 **Since:** 2026-08-01
+**Checked:** 2026-09-05
 
 Creation verifies that `deviceModelId` names a real device model before building
 the aggregate; DEV-063 does the same on the correction path. The check runs
@@ -1178,6 +1205,7 @@ checked, so the create path returned that raw error.
 **Type:** Invariant · **Status:** Active
 **Layer:** Application (not in domain)
 **Since:** 2026-08-11
+**Checked:** 2026-09-05
 
 Location is optional (DEV-040), so this only runs when a `locationId` is
 actually supplied. Creation verifies it before building the aggregate;
@@ -1204,6 +1232,7 @@ exactly the gap DEV-066 closed for `deviceModelId` on 2026-08-01.
 **Type:** Invariant · **Status:** Active
 **Layer:** Application (not in domain)
 **Since:** 2026-08-11
+**Checked:** 2026-09-05
 
 **Why:** Mirrors DEV-121 (credentials can only be _set_ for a device that
 exists) on the other side of the same aggregate — a delete against an id
@@ -1229,6 +1258,7 @@ not need to.
 **Type:** Invariant · **Status:** Active
 **Layer:** Application (not in domain)
 **Since:** 2026-08-11
+**Checked:** 2026-09-05
 
 **Why:** Same reasoning as DEV-068, one operation over: a `PATCH` against an id
 nobody recognizes is a caller error, not a no-op, so it fails loudly instead of
@@ -1243,6 +1273,7 @@ validating and applying changes to nothing.
 **Type:** Policy · **Status:** Active
 **Layer:** Application + Domain
 **Since:** 2026-08-12
+**Checked:** 2026-09-05
 
 `DELETE /api/devices/:id` stamps `deletedAt` and `deletedBy` instead of removing
 the row. The device disappears from every read path (DEV-072) but its collected
@@ -1276,6 +1307,7 @@ as when.
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-08-12
+**Checked:** 2026-09-05
 
 `softDelete` forces `monitoringEnabled` to false and raises
 `DeviceMonitoringToggledEvent` alongside `DeviceDeletedEvent`. Monitoring can
@@ -1307,6 +1339,7 @@ Wireless polling does **not** follow the same flag — it selects on
 **Type:** Invariant · **Status:** Active
 **Layer:** Infrastructure (repository) + Application
 **Since:** 2026-08-12
+**Checked:** 2026-09-05
 
 Every finder on `IDeviceRepository` excludes rows with a `deletedAt`. `GET
 /api/devices/:id` answers `404`, listings omit it and do not count it in
@@ -1340,6 +1373,7 @@ the count query, so the two cannot disagree about what "matching" means.
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-08-12
+**Checked:** 2026-09-05
 
 `applyChanges` refuses on the first line when `deletedAt` is set, so every
 mutator built on it — `changeStatus`, `assignLocation`, `updateDetails`,
@@ -1366,6 +1400,7 @@ tombstone deliberately.
 **Type:** Policy · **Status:** Active
 **Layer:** Domain + Application
 **Since:** 2026-08-12
+**Checked:** 2026-09-05
 
 `POST /api/devices/:id/restore` clears `deletedAt` and `deletedBy`. It refuses
 if the device is not deleted, and refuses once `deletedAt` is more than the
@@ -1395,6 +1430,7 @@ enabling is one explicit `PATCH`.
 **Type:** Policy · **Status:** Active
 **Layer:** Application (not in domain)
 **Since:** 2026-08-12
+**Checked:** 2026-09-05
 
 The delete is refused when a `ContractedService` points at the device in any
 status other than `CANCELLED` — so `PENDING`, `ACTIVE` and `SUSPENDED` all

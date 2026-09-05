@@ -29,6 +29,7 @@ function makeProps(
     model: 'ISR-4321',
     deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
     isWireless: false,
+    imageUrl: null,
     ...overrides
   };
 }
@@ -289,6 +290,7 @@ describe('DeviceModel', () => {
         model: 'ProCurve-2920',
         deviceType: DeviceType.reconstitute(DeviceType.SWITCH),
         isWireless: false,
+        imageUrl: null,
         createdAt,
         updatedAt
       });
@@ -518,6 +520,91 @@ describe('DeviceModel', () => {
         deviceModel.updateDeviceType(null as unknown as DeviceType);
 
         expect(deviceModel.deviceType.value).toBe(DeviceType.ROUTER);
+      });
+    });
+  });
+
+  // =========================================================================
+  describe('updateImageUrl()', () => {
+    describe('happy path', () => {
+      it('should return a successful Result when given a valid URL', () => {
+        const deviceModel = makeDeviceModel();
+        const result = deviceModel.updateImageUrl(
+          'https://example.com/camera.jpg'
+        );
+
+        expect(result.isSuccess).toBe(true);
+      });
+
+      it('should update the imageUrl prop', () => {
+        const deviceModel = makeDeviceModel();
+        deviceModel.updateImageUrl('https://example.com/camera.jpg');
+
+        expect(deviceModel.imageUrl).toBe(
+          'https://example.com/camera.jpg'
+        );
+      });
+
+      it('should allow clearing the imageUrl back to null', () => {
+        const deviceModel = makeDeviceModel({
+          imageUrl: 'https://example.com/camera.jpg'
+        });
+        deviceModel.updateImageUrl(null);
+
+        expect(deviceModel.imageUrl).toBeNull();
+      });
+
+      it('should update updatedAt timestamp', () => {
+        const deviceModel = makeDeviceModel();
+        const before = new Date();
+        deviceModel.updateImageUrl('https://example.com/camera.jpg');
+        const after = new Date();
+
+        expect(
+          deviceModel.updatedAt.getTime()
+        ).toBeGreaterThanOrEqual(before.getTime());
+        expect(deviceModel.updatedAt.getTime()).toBeLessThanOrEqual(
+          after.getTime()
+        );
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('no-op when imageUrl is unchanged', () => {
+      it('should return a successful Result and emit no events', () => {
+        const deviceModel = makeDeviceModel({
+          imageUrl: 'https://example.com/camera.jpg'
+        });
+        deviceModel.clearEvents();
+        const result = deviceModel.updateImageUrl(
+          'https://example.com/camera.jpg'
+        );
+
+        expect(result.isSuccess).toBe(true);
+        expect(deviceModel.domainEvents.length).toBe(0);
+      });
+
+      it('should not change updatedAt when the value is the same', () => {
+        const deviceModel = makeDeviceModel({
+          imageUrl: 'https://example.com/camera.jpg'
+        });
+        const updatedAtBefore = deviceModel.updatedAt;
+        deviceModel.updateImageUrl('https://example.com/camera.jpg');
+
+        expect(deviceModel.updatedAt).toBe(updatedAtBefore);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('validation failures', () => {
+      it('should fail when a non-string, non-null value is given', () => {
+        const deviceModel = makeDeviceModel();
+        const result = deviceModel.updateImageUrl(
+          42 as unknown as string
+        );
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('imageUrl');
       });
     });
   });

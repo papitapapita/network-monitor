@@ -158,6 +158,29 @@ describe('Money', () => {
     });
   });
 
+  describe('multiply()', () => {
+    it('should scale cents by an integer factor', () => {
+      const unitPrice = Money.create(19.99).value;
+      expect(unitPrice.multiply(3).cents).toBe(5997);
+    });
+
+    it('should return zero when multiplied by zero', () => {
+      const price = Money.create(10).value;
+      expect(price.multiply(0).cents).toBe(0);
+    });
+
+    it('should not mutate the original instance', () => {
+      const price = Money.create(10).value;
+      price.multiply(4);
+      expect(price.cents).toBe(1000);
+    });
+
+    it('should return a new Money instance', () => {
+      const price = Money.create(10).value;
+      expect(price.multiply(2)).not.toBe(price);
+    });
+  });
+
   describe('toNumber()', () => {
     it('should convert cents back to a decimal amount', () => {
       expect(Money.create(1250.5).value.toNumber()).toBe(1250.5);

@@ -42,6 +42,7 @@ function makeDeviceModel(
       overrides.deviceType ?? 'ROUTER'
     ),
     isWireless: overrides.isWireless ?? false,
+    imageUrl: null,
     createdAt: overrides.createdAt ?? BASE_DATE,
     updatedAt: overrides.updatedAt ?? UPDATED_DATE
   });
