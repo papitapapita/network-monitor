@@ -110,6 +110,7 @@ function makeConfig(): WirelessDeviceConfig {
       linkCapacityKbps: 10_000,
       clientsProvisionedLimit: null,
       provisionedLanSpeedMbps: null,
+      parentApDeviceId: null,
       lastPolledAt: null
     }
   );
@@ -151,6 +152,7 @@ describe('[WLS-146] WirelessSnapshotCreatedThroughputHandler', () => {
       exists: jest.fn(),
       findByDeviceId: jest.fn(),
       findAllDue: jest.fn(),
+      findByParentApDeviceId: jest.fn(),
       findAll: jest.fn()
     };
 

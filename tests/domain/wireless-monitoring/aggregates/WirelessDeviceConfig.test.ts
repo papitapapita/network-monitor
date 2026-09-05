@@ -22,6 +22,7 @@ function makeProps(
     linkCapacityKbps: null,
     clientsProvisionedLimit: null,
     provisionedLanSpeedMbps: null,
+    parentApDeviceId: null,
     lastPolledAt: null,
     ...overrides
   };
@@ -166,6 +167,51 @@ describe('[WLS-008] WirelessDeviceConfig', () => {
         expect(result.error).toContain('pollingInterval');
       });
     });
+
+    // -----------------------------------------------------------------------
+    describe('[WLS-162] parentApDeviceId', () => {
+      it('should allow parentApDeviceId on a STATION config', () => {
+        const parentApDeviceId = DeviceId.create();
+        const result = WirelessDeviceConfig.create(
+          makeProps({ deviceType: 'STATION', parentApDeviceId })
+        );
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.parentApDeviceId).toBe(parentApDeviceId);
+      });
+
+      it('should default parentApDeviceId to null', () => {
+        const config = makeConfig();
+
+        expect(config.parentApDeviceId).toBeNull();
+      });
+
+      it('should fail when set on an ACCESS_POINT config', () => {
+        const result = WirelessDeviceConfig.create(
+          makeProps({
+            deviceType: 'ACCESS_POINT',
+            parentApDeviceId: DeviceId.create()
+          })
+        );
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('parentApDeviceId');
+      });
+
+      it('should fail when parentApDeviceId references the config own deviceId', () => {
+        const deviceId = DeviceId.create();
+        const result = WirelessDeviceConfig.create(
+          makeProps({
+            deviceId,
+            deviceType: 'STATION',
+            parentApDeviceId: deviceId
+          })
+        );
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('cannot reference itself');
+      });
+    });
   });
 
   // =========================================================================
@@ -230,6 +276,7 @@ describe('[WLS-008] WirelessDeviceConfig', () => {
         linkCapacityKbps: 1_000_000,
         clientsProvisionedLimit: 50,
         provisionedLanSpeedMbps: null,
+        parentApDeviceId: null,
         lastPolledAt
       });
 
@@ -612,6 +659,66 @@ describe('[WLS-008] WirelessDeviceConfig', () => {
     it('should emit no domain events', () => {
       const config = makeConfig();
       config.updateProvisionedLanSpeedMbps(1000);
+
+      expect(config.domainEvents.length).toBe(0);
+    });
+  });
+
+  // =========================================================================
+  describe('[WLS-162] updateParentApDeviceId(parentApDeviceId)', () => {
+    it('should set parentApDeviceId on a STATION config', () => {
+      const config = makeConfig({
+        deviceType: 'STATION',
+        parentApDeviceId: null
+      });
+      const parentApDeviceId = DeviceId.create();
+      const result = config.updateParentApDeviceId(parentApDeviceId);
+
+      expect(result.isSuccess).toBe(true);
+      expect(config.parentApDeviceId).toBe(parentApDeviceId);
+    });
+
+    it('should clear parentApDeviceId when given null', () => {
+      const config = makeConfig({
+        deviceType: 'STATION',
+        parentApDeviceId: DeviceId.create()
+      });
+      const result = config.updateParentApDeviceId(null);
+
+      expect(result.isSuccess).toBe(true);
+      expect(config.parentApDeviceId).toBeNull();
+    });
+
+    it('should fail when set on an ACCESS_POINT config', () => {
+      const config = makeConfig({
+        deviceType: 'ACCESS_POINT',
+        parentApDeviceId: null
+      });
+      const result = config.updateParentApDeviceId(DeviceId.create());
+
+      expect(result.isFailure).toBe(true);
+      expect(config.parentApDeviceId).toBeNull();
+    });
+
+    it('should fail when parentApDeviceId references the config own deviceId', () => {
+      const deviceId = DeviceId.create();
+      const config = makeConfig({
+        deviceId,
+        deviceType: 'STATION',
+        parentApDeviceId: null
+      });
+      const result = config.updateParentApDeviceId(deviceId);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('cannot reference itself');
+    });
+
+    it('should emit no domain events', () => {
+      const config = makeConfig({
+        deviceType: 'STATION',
+        parentApDeviceId: null
+      });
+      config.updateParentApDeviceId(DeviceId.create());
 
       expect(config.domainEvents.length).toBe(0);
     });

@@ -5,6 +5,7 @@ import { WirelessController } from '../../../../src/presentation/http/controller
 import { GetWirelessDeviceStatusUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetWirelessDeviceStatusUseCase';
 import { GetWirelessDeviceHistoryUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetWirelessDeviceHistoryUseCase';
 import { GetWirelessClientsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetWirelessClientsUseCase';
+import { GetApExpectedClientsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetApExpectedClientsUseCase';
 import { GetActiveWirelessAlertsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetActiveWirelessAlertsUseCase';
 import { GetWirelessAlertHistoryUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetWirelessAlertHistoryUseCase';
 import { TriggerWirelessPollUseCase } from '../../../../src/application/wireless-monitoring/use-cases/TriggerWirelessPollUseCase';
@@ -65,6 +66,9 @@ const createMockGetHistoryUseCase = () =>
 
 const createMockGetClientsUseCase = () =>
   ({ execute: jest.fn() }) as unknown as GetWirelessClientsUseCase;
+
+const createMockGetApExpectedClientsUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as GetApExpectedClientsUseCase;
 
 const createMockGetActiveAlertsUseCase = () =>
   ({
@@ -189,6 +193,7 @@ describe('WirelessController', () => {
   let mockGetStatusUseCase: GetWirelessDeviceStatusUseCase;
   let mockGetHistoryUseCase: GetWirelessDeviceHistoryUseCase;
   let mockGetClientsUseCase: GetWirelessClientsUseCase;
+  let mockGetApExpectedClientsUseCase: GetApExpectedClientsUseCase;
   let mockGetActiveAlertsUseCase: GetActiveWirelessAlertsUseCase;
   let mockGetAlertHistoryUseCase: GetWirelessAlertHistoryUseCase;
   let mockTriggerPollUseCase: TriggerWirelessPollUseCase;
@@ -205,6 +210,8 @@ describe('WirelessController', () => {
     mockGetStatusUseCase = createMockGetStatusUseCase();
     mockGetHistoryUseCase = createMockGetHistoryUseCase();
     mockGetClientsUseCase = createMockGetClientsUseCase();
+    mockGetApExpectedClientsUseCase =
+      createMockGetApExpectedClientsUseCase();
     mockGetActiveAlertsUseCase = createMockGetActiveAlertsUseCase();
     mockGetAlertHistoryUseCase = createMockGetAlertHistoryUseCase();
     mockTriggerPollUseCase = createMockTriggerPollUseCase();
@@ -225,6 +232,7 @@ describe('WirelessController', () => {
       mockGetStatusUseCase,
       mockGetHistoryUseCase,
       mockGetClientsUseCase,
+      mockGetApExpectedClientsUseCase,
       mockGetActiveAlertsUseCase,
       mockGetAlertHistoryUseCase,
       mockTriggerPollUseCase,
@@ -724,6 +732,104 @@ describe('WirelessController', () => {
         ).mockResolvedValue(Result.fail('Invalid device ID format'));
 
         await controller.getClients(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(statusMock).toHaveBeenCalledWith(400);
+      });
+    });
+  });
+
+  // =========================================================================
+  describe('getExpectedClients (GET /api/devices/:id/wireless/clients/expected)', () => {
+    const mockExpectedClientsDTO = {
+      apDeviceId: DEVICE_UUID,
+      collectedAt: null,
+      expected: [],
+      missingCount: 0,
+      unexpectedConnected: []
+    };
+
+    describe('Happy Path', () => {
+      it('should return 200 with the expected-clients DTO', async () => {
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (
+          mockGetApExpectedClientsUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockExpectedClientsDTO));
+
+        await controller.getExpectedClients(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(statusMock).toHaveBeenCalledWith(200);
+        expect(jsonMock).toHaveBeenCalledWith(mockExpectedClientsDTO);
+      });
+
+      it('should pass deviceId to the use case', async () => {
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
+        const { res } = createMockResponse();
+
+        (
+          mockGetApExpectedClientsUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(mockExpectedClientsDTO));
+
+        await controller.getExpectedClients(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(
+          mockGetApExpectedClientsUseCase.execute
+        ).toHaveBeenCalledWith({
+          deviceId: DEVICE_UUID
+        });
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 404 Not Found', () => {
+      it('should return 404 when the use case fails with "NOT_AP"', async () => {
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (
+          mockGetApExpectedClientsUseCase.execute as jest.Mock
+        ).mockResolvedValue(
+          Result.fail('NOT_AP: device is not an access point')
+        );
+
+        await controller.getExpectedClients(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(statusMock).toHaveBeenCalledWith(404);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 400 Bad Request', () => {
+      it('should return 400 when the use case fails with a non-404 error', async () => {
+        const mockReq = createMockRequest({
+          params: { id: 'bad-id' }
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (
+          mockGetApExpectedClientsUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.fail('Invalid device ID format'));
+
+        await controller.getExpectedClients(
           mockReq as Request,
           res as Response
         );

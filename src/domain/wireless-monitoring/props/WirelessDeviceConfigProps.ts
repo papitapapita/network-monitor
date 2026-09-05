@@ -19,4 +19,8 @@ export interface WirelessDeviceConfigProps {
   // captured while the port was already degraded.
   provisionedLanSpeedMbps: number | null;
   lastPolledAt: Date | null;
+  // STATION-only: the ACCESS_POINT this CPE is declared to sit on. Distinct
+  // from WirelessMetrics.remoteApDeviceId (what the radio currently reports)
+  // — this is the operator's intent, used to detect drift between the two.
+  parentApDeviceId: DeviceId | null;
 }

@@ -122,6 +122,25 @@ export class UpdateWirelessConfigUseCase extends UseCase<
       );
       if (r.isFailure) return this.fail(r.error);
     }
+    if (updates.parentApDeviceId !== undefined) {
+      if (updates.parentApDeviceId === null) {
+        const r = config.updateParentApDeviceId(null);
+        if (r.isFailure) return this.fail(r.error);
+      } else {
+        const parentApDeviceIdResult = DeviceId.parse(
+          updates.parentApDeviceId
+        );
+        if (parentApDeviceIdResult.isFailure) {
+          return this.fail(
+            `Invalid parent AP device ID: ${parentApDeviceIdResult.error}`
+          );
+        }
+        const r = config.updateParentApDeviceId(
+          parentApDeviceIdResult.value
+        );
+        if (r.isFailure) return this.fail(r.error);
+      }
+    }
     const saveResult = await this.configRepo.save(config);
     if (saveResult.isFailure) {
       return this.fail(saveResult.error);

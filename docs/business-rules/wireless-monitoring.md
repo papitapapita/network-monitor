@@ -165,6 +165,32 @@ would have nothing to count on a station.
 **Message:** `clientsProvisionedLimit can only be set for ACCESS_POINT devices`
 **Tests:** `tests/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.test.ts`, `tests/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.test.ts`
 
+### WLS-162 — `parentApDeviceId` is a STATION-only, self-reference-free declared link
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-05
+
+A configuration whose radio mode is `ACCESS_POINT` cannot carry a
+`parentApDeviceId`, at creation or on update — the mirror of WLS-004/WLS-005.
+A `STATION` config also cannot set `parentApDeviceId` to its own `deviceId`.
+Both checks live in `create` and `updateParentApDeviceId`; the create use case
+pre-checks the role restriction once more before the aggregate is built.
+
+**Why:** This field is the operator's declared intent — "this CPE is meant to
+sit on this AP" — kept separate from `WirelessMetrics.remoteApDeviceId`, which
+is what the radio's own last poll actually reported. Only a station has a
+single upstream AP to declare; an access point serves many CPEs and has no
+"parent" of its own. The self-reference guard rules out a config nonsensically
+claiming to be downstream of itself. The field feeds
+[WLS-163](#wls-163--the-expected-clients-query-diffs-declared-stations-against-a-live-snapshot),
+which needs one well-formed roster per AP, not a graph.
+
+**Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts` (`create`, `updateParentApDeviceId`); pre-checked at `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts`
+**Reached from:** `create`, `updateParentApDeviceId`
+**Message:** `parentApDeviceId can only be set for STATION devices` / `parentApDeviceId cannot reference itself`
+**Tests:** `tests/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.test.ts`, `tests/integration/wireless-config.routes.test.ts`
+
 ### WLS-006 — A polling interval is between 60 seconds and 24 hours
 
 **Type:** Validation · **Status:** Active
@@ -1570,6 +1596,42 @@ answer consistent with the data actually being returned.
 **Reached from:** `GET /api/devices/:id/wireless/clients`
 **Message:** `NOT_AP: This device is a CPE and does not have a client list`
 **Tests:** `tests/application/wireless-monitoring/use-cases/GetWirelessClientsUseCase.test.ts`
+
+### WLS-163 — The expected-clients query diffs declared STATIONs against a live snapshot
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-09-05
+
+`GET /api/devices/:id/wireless/clients/expected` is AP-only — it fails with
+the same `NOT_AP:`-prefixed message as WLS-141 when the target's own
+_configuration_ (not its snapshot) is `STATION`. For each STATION config
+declaring this device as its [WLS-162](#wls-162--parentapdeviceid-is-a-station-only-self-reference-free-declared-link)
+`parentApDeviceId`, the device's MAC (from device-inventory, not from any
+wireless poll) is looked up and matched — case/separator-normalised — against
+the MAC of every client entry in the AP's latest snapshot. A match marks the
+CPE `connected: true` with its live stats attached; no match marks it missing.
+Any live client whose MAC matches no declared CPE is reported separately as
+`unexpectedConnected`, and the AP's own client-count-based rules
+([WLS-091](#wls-091--more-clients-than-provisioned-is-a-warning),
+`clients_sudden_drop`) are untouched by this — it is a query, not an alert. A
+device with no MAC on file always reports `connected: false`, since there is
+nothing to match against. An AP that has never been polled returns
+`collectedAt: null` and every declared CPE as not connected, rather than
+failing — the roster is still meaningful before the first poll lands.
+
+**Why:** A live poll only ever reports who is connected right now — WLS-140
+already covers that. Knowing who is *supposed* to be connected and isn't
+requires a declared topology (WLS-162) to diff against; without it, an AP
+losing a subscriber's link looks identical to that subscriber never having
+been provisioned. Matching by device-inventory's MAC rather than a station's
+self-reported `remoteApMac` keeps the answer stable even if a CPE is
+mid-outage and hasn't reported anything itself.
+
+**Enforced at:** `src/application/wireless-monitoring/use-cases/GetApExpectedClientsUseCase.ts`
+**Reached from:** `GET /api/devices/:id/wireless/clients/expected`
+**Message:** `NOT_AP: This device is a CPE and has no expected-client roster`
+**Tests:** `tests/application/wireless-monitoring/use-cases/GetApExpectedClientsUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetApExpectedClientsUseCase.integration.test.ts`, `tests/integration/wireless.routes.test.ts`
 
 ### WLS-142 — A history window must start before it ends
 

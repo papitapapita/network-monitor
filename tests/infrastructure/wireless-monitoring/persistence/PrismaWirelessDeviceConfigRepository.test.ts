@@ -16,6 +16,7 @@ const createMockPrisma = () => ({
     upsert: jest.fn(),
     findUnique: jest.fn(),
     findFirst: jest.fn(),
+    findMany: jest.fn(),
     count: jest.fn(),
     deleteMany: jest.fn()
   },
@@ -36,6 +37,7 @@ const buildDomainConfig = (): WirelessDeviceConfig => {
     linkCapacityKbps: 100_000_000,
     clientsProvisionedLimit: 10,
     provisionedLanSpeedMbps: null,
+    parentApDeviceId: null,
     lastPolledAt: new Date('2024-01-01T12:00:00Z')
   });
 };
@@ -50,6 +52,7 @@ const makePrismaRow = () => ({
   linkCapacityKbps: 100_000_000n,
   clientsProvisionedLimit: 10,
   provisionedLanSpeedMbps: null,
+  parentApDeviceId: null,
   lastPolledAt: new Date('2024-01-01T12:00:00Z')
 });
 
@@ -334,6 +337,65 @@ describe('[WLS-020] [WLS-021] PrismaWirelessDeviceConfigRepository', () => {
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain(
         'Database error finding due wireless polling configs'
+      );
+    });
+  });
+
+  describe('findByParentApDeviceId', () => {
+    it('should call findMany with the parentApDeviceId filter', async () => {
+      prismaMock.wirelessPollingConfiguration.findMany.mockResolvedValue(
+        []
+      );
+      const apDeviceId = DeviceId.parse(DEVICE_UUID).value;
+
+      await repository.findByParentApDeviceId(apDeviceId);
+
+      expect(
+        prismaMock.wirelessPollingConfiguration.findMany
+      ).toHaveBeenCalledWith({
+        where: { parentApDeviceId: DEVICE_UUID }
+      });
+    });
+
+    it('should return mapped domain entities when configs are found', async () => {
+      prismaMock.wirelessPollingConfiguration.findMany.mockResolvedValue(
+        [makePrismaRow()]
+      );
+      const apDeviceId = DeviceId.parse(DEVICE_UUID).value;
+
+      const result =
+        await repository.findByParentApDeviceId(apDeviceId);
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value).toHaveLength(1);
+      expect(result.value[0]!.deviceId.toString()).toBe(DEVICE_UUID);
+    });
+
+    it('should return an empty array when no configs reference the AP', async () => {
+      prismaMock.wirelessPollingConfiguration.findMany.mockResolvedValue(
+        []
+      );
+      const apDeviceId = DeviceId.parse(DEVICE_UUID).value;
+
+      const result =
+        await repository.findByParentApDeviceId(apDeviceId);
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value).toHaveLength(0);
+    });
+
+    it('should return a failed Result when prisma throws', async () => {
+      prismaMock.wirelessPollingConfiguration.findMany.mockRejectedValue(
+        new Error('DB error')
+      );
+      const apDeviceId = DeviceId.parse(DEVICE_UUID).value;
+
+      const result =
+        await repository.findByParentApDeviceId(apDeviceId);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'Database error finding wireless polling configs by parent AP'
       );
     });
   });

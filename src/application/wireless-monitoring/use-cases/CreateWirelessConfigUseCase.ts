@@ -88,6 +88,27 @@ export class CreateWirelessConfigUseCase extends UseCase<
         'clientsProvisionedLimit can only be set for ACCESS_POINT devices'
       );
     }
+    if (
+      deviceType === 'ACCESS_POINT' &&
+      data.parentApDeviceId != null
+    ) {
+      return this.fail(
+        'parentApDeviceId can only be set for STATION devices'
+      );
+    }
+
+    let parentApDeviceId: DeviceId | null = null;
+    if (data.parentApDeviceId != null) {
+      const parentApDeviceIdResult = DeviceId.parse(
+        data.parentApDeviceId
+      );
+      if (parentApDeviceIdResult.isFailure) {
+        return this.fail(
+          `Invalid parent AP device ID: ${parentApDeviceIdResult.error}`
+        );
+      }
+      parentApDeviceId = parentApDeviceIdResult.value;
+    }
 
     const modelResult = await this.deviceModelRepo.findById(
       device.deviceModelId
@@ -142,6 +163,7 @@ export class CreateWirelessConfigUseCase extends UseCase<
       linkCapacityKbps: data.linkCapacityKbps ?? null,
       clientsProvisionedLimit: data.clientsProvisionedLimit ?? null,
       provisionedLanSpeedMbps: data.provisionedLanSpeedMbps ?? null,
+      parentApDeviceId,
       lastPolledAt: null
     });
     if (configResult.isFailure) {

@@ -2,7 +2,10 @@ import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 import { MACAddress } from 'domain/shared/value-objects';
 import { IDeviceEligibilityService } from 'domain/device-inventory/services';
-import { IDeviceRepository } from 'application/wireless-monitoring/interfaces';
+import {
+  IDeviceRepository,
+  DeviceBasicInfo
+} from 'application/wireless-monitoring/interfaces';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
 
 export class WirelessDeviceRepositoryAdapter
@@ -41,5 +44,18 @@ export class WirelessDeviceRepositoryAdapter
     if (!result.value) return Result.ok(null);
 
     return Result.ok(result.value.id);
+  }
+
+  async findBasicInfoById(
+    deviceId: DeviceId
+  ): Promise<Result<DeviceBasicInfo | null>> {
+    const result = await this.deviceRepo.findById(deviceId);
+    if (result.isFailure) return Result.fail(result.error!);
+    if (!result.value) return Result.ok(null);
+
+    return Result.ok({
+      name: result.value.name.value,
+      macAddress: result.value.macAddress?.value ?? null
+    });
   }
 }

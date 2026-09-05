@@ -3,6 +3,7 @@ export * from './WirelessClientDTO';
 export * from './WirelessStatusResponseDTO';
 export * from './WirelessHistoryResponseDTO';
 export * from './WirelessClientListResponseDTO';
+export * from './WirelessExpectedClientsResponseDTO';
 export * from './GetWirelessStatusRequestDTO';
 export * from './GetWirelessHistoryRequestDTO';
 export * from './GetWirelessClientsRequestDTO';

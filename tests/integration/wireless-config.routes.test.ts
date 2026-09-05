@@ -12,6 +12,7 @@ import {
   INVALID_ID
 } from './helpers/db';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
+import { seedAndGetToken } from './helpers/auth';
 
 // ─────────────────────────────────────────────────────────────
 // Local seed helpers
@@ -124,6 +125,8 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
   /** An ACCESS_POINT-role device — its radio mode derives to ACCESS_POINT. */
   let apDeviceId: string;
 
+  let adminToken: string;
+
   beforeAll(async () => {
     ({ app, container } = await createTestApp());
     prisma = container.getPrisma();
@@ -137,6 +140,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
 
   beforeEach(async () => {
     await cleanDatabase(prisma);
+    adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
 
     plainDeviceId = await seedPlainDevice(prisma, wirelessModelId);
     configuredDeviceId = await seedDeviceWithConfig(
@@ -191,6 +195,25 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
       expect(res.status).toBe(201);
       expect(res.body.deviceType).toBe('ACCESS_POINT');
       expect(res.body.clientsProvisionedLimit).toBe(50);
+    });
+
+    it('201 — accepts parentApDeviceId on a derived STATION device', async () => {
+      const res = await request(app)
+        .post(`/api/devices/${plainDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ parentApDeviceId: apDeviceId });
+
+      expect(res.status).toBe(201);
+      expect(res.body.parentApDeviceId).toBe(apDeviceId);
+    });
+
+    it('400 — rejects parentApDeviceId on a derived ACCESS_POINT device', async () => {
+      const res = await request(app)
+        .post(`/api/devices/${apDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ parentApDeviceId: plainDeviceId });
+
+      expect(res.status).toBe(400);
     });
 
     it('409 — returns 409 when a config already exists for the device', async () => {
@@ -338,6 +361,31 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
 
       expect(res.status).toBe(200);
       expect(res.body.ipAddress).toBe('172.16.0.1');
+    });
+
+    it('200 — updates parentApDeviceId and reflects it in the response', async () => {
+      const res = await request(app)
+        .patch(`/api/devices/${configuredDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ parentApDeviceId: apDeviceId });
+
+      expect(res.status).toBe(200);
+      expect(res.body.parentApDeviceId).toBe(apDeviceId);
+    });
+
+    it('200 — clears parentApDeviceId when given null', async () => {
+      await request(app)
+        .patch(`/api/devices/${configuredDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ parentApDeviceId: apDeviceId });
+
+      const res = await request(app)
+        .patch(`/api/devices/${configuredDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ parentApDeviceId: null });
+
+      expect(res.status).toBe(200);
+      expect(res.body.parentApDeviceId).toBeNull();
     });
 
     it('[WLS-089] 200 — updates provisionedLanSpeedMbps and reflects it in the response', async () => {

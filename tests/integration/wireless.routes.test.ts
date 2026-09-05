@@ -330,6 +330,96 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
   });
 
   // ─────────────────────────────────────────────────────────────
+  // GET /api/devices/:id/wireless/clients/expected
+  // ─────────────────────────────────────────────────────────────
+
+  describe('GET /api/devices/:id/wireless/clients/expected', () => {
+    it('200 — returns an expected roster with a missing CPE for an AP with a declared STATION', async () => {
+      const apDeviceId = await seedAccessPointDevice(
+        prisma,
+        deviceModelId
+      );
+      const cpeDevice = await prisma.device.create({
+        data: {
+          name: 'Expected CPE',
+          owner: 'COMPANY',
+          status: 'ACTIVE',
+          monitoringEnabled: true,
+          macAddress: 'AA:BB:CC:DD:EE:01',
+          deviceModelId
+        }
+      });
+      await prisma.wirelessPollingConfiguration.create({
+        data: {
+          deviceId: cpeDevice.id,
+          enabled: true,
+          intervalSecs: 3600,
+          deviceType: 'STATION',
+          parentApDeviceId: apDeviceId
+        }
+      });
+
+      const res = await request(app)
+        .get(`/api/devices/${apDeviceId}/wireless/clients/expected`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.apDeviceId).toBe(apDeviceId);
+      expect(res.body.expected).toHaveLength(1);
+      expect(res.body.expected[0].deviceId).toBe(cpeDevice.id);
+      expect(res.body.expected[0].connected).toBe(false);
+      expect(res.body.missingCount).toBe(1);
+    });
+
+    it('200 — returns an empty roster for an AP with no declared STATIONs', async () => {
+      const apDeviceId = await seedAccessPointDevice(
+        prisma,
+        deviceModelId
+      );
+
+      const res = await request(app)
+        .get(`/api/devices/${apDeviceId}/wireless/clients/expected`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.expected).toHaveLength(0);
+      expect(res.body.missingCount).toBe(0);
+    });
+
+    it('401 — rejects a request with no Authorization header', async () => {
+      const res = await request(app).get(
+        `/api/devices/${deviceId}/wireless/clients/expected`
+      );
+
+      expect(res.status).toBe(401);
+    });
+
+    it('404 — device is a STATION, not an access point', async () => {
+      const res = await request(app)
+        .get(`/api/devices/${deviceId}/wireless/clients/expected`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(404);
+    });
+
+    it('404 — device does not exist', async () => {
+      const res = await request(app)
+        .get(`/api/devices/${GHOST_ID}/wireless/clients/expected`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(404);
+    });
+
+    it('400 — invalid device UUID', async () => {
+      const res = await request(app)
+        .get(`/api/devices/${INVALID_ID}/wireless/clients/expected`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
   // GET /api/devices/:id/wireless/alerts/history
   // (static segment registered before parameterized /alerts route)
   // ─────────────────────────────────────────────────────────────

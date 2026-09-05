@@ -9,6 +9,7 @@ import {
   getWirelessStatusSchema,
   getWirelessHistorySchema,
   getWirelessClientsSchema,
+  getApExpectedClientsSchema,
   getDeviceWirelessAlertsSchema,
   getDeviceWirelessAlertHistorySchema,
   triggerWirelessPollSchema,
@@ -35,6 +36,7 @@ import {
  * - GET    /api/devices/:id/wireless/status        - Latest wireless snapshot
  * - GET    /api/devices/:id/wireless/history       - Historical snapshots
  * - GET    /api/devices/:id/wireless/clients       - Connected client list (AP only)
+ * - GET    /api/devices/:id/wireless/clients/expected - Expected vs connected clients (AP only)
  * - GET    /api/devices/:id/wireless/alerts/history - Alert history for device
  * - GET    /api/devices/:id/wireless/alerts        - Active alerts for device
  * - POST   /api/devices/:id/wireless/alerts/clear  - Bulk clear (ids or all active)
@@ -104,6 +106,14 @@ export function createWirelessRoutes(
     createRateLimiter('read'),
     validateRequest(getWirelessClientsSchema),
     controller.getClients
+  );
+
+  router.get(
+    '/devices/:id/wireless/clients/expected',
+    authorize('read'),
+    createRateLimiter('read'),
+    validateRequest(getApExpectedClientsSchema),
+    controller.getExpectedClients
   );
 
   // Static path before parameterized segment — alerts/history before alerts

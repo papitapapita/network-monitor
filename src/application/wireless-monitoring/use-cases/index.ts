@@ -4,6 +4,7 @@ export * from './PurgeOldWirelessAlertRecordsUseCase';
 export * from './GetWirelessDeviceStatusUseCase';
 export * from './GetWirelessDeviceHistoryUseCase';
 export * from './GetWirelessClientsUseCase';
+export * from './GetApExpectedClientsUseCase';
 export * from './GetActiveWirelessAlertsUseCase';
 export * from './GetWirelessAlertHistoryUseCase';
 export * from './ClearWirelessAlertUseCase';

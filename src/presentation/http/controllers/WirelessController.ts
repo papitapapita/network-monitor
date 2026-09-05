@@ -4,6 +4,7 @@ import {
   GetWirelessDeviceStatusUseCase,
   GetWirelessDeviceHistoryUseCase,
   GetWirelessClientsUseCase,
+  GetApExpectedClientsUseCase,
   GetActiveWirelessAlertsUseCase,
   GetWirelessAlertHistoryUseCase,
   TriggerWirelessPollUseCase,
@@ -21,6 +22,7 @@ export class WirelessController {
     private readonly getWirelessDeviceStatusUseCase: GetWirelessDeviceStatusUseCase,
     private readonly getWirelessDeviceHistoryUseCase: GetWirelessDeviceHistoryUseCase,
     private readonly getWirelessClientsUseCase: GetWirelessClientsUseCase,
+    private readonly getApExpectedClientsUseCase: GetApExpectedClientsUseCase,
     private readonly getActiveWirelessAlertsUseCase: GetActiveWirelessAlertsUseCase,
     private readonly getWirelessAlertHistoryUseCase: GetWirelessAlertHistoryUseCase,
     private readonly triggerWirelessPollUseCase: TriggerWirelessPollUseCase,
@@ -88,6 +90,27 @@ export class WirelessController {
   ): Promise<void> => {
     try {
       const result = await this.getWirelessClientsUseCase.execute({
+        deviceId: req.params.id
+      });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res.status(statusCode).json({ error: result.error });
+        return;
+      }
+
+      res.status(200).json(result.value);
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public getExpectedClients = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.getApExpectedClientsUseCase.execute({
         deviceId: req.params.id
       });
 
@@ -403,6 +426,8 @@ export class WirelessController {
       errorMessage.includes('required') ||
       errorMessage.includes('must be') ||
       errorMessage.includes('cannot be') ||
+      errorMessage.includes('can only be set for') ||
+      errorMessage.includes('cannot reference itself') ||
       errorMessage.includes('not configured') ||
       errorMessage.includes('not wireless-capable')
     ) {

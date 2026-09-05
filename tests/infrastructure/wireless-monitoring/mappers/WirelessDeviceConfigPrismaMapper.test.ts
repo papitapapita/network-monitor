@@ -24,6 +24,7 @@ const makeFullRow = (): PrismaWirelessDeviceConfigRow => ({
   linkCapacityKbps: 100_000_000n,
   clientsProvisionedLimit: 10,
   provisionedLanSpeedMbps: null,
+  parentApDeviceId: null,
   lastPolledAt: new Date('2024-01-01T12:00:00Z')
 });
 
@@ -37,6 +38,7 @@ const makeMinimalRow = (): PrismaWirelessDeviceConfigRow => ({
   linkCapacityKbps: null,
   clientsProvisionedLimit: null,
   provisionedLanSpeedMbps: null,
+  parentApDeviceId: null,
   lastPolledAt: null
 });
 
@@ -54,6 +56,7 @@ const buildDomainConfig = (): WirelessDeviceConfig => {
     linkCapacityKbps: 100_000_000,
     clientsProvisionedLimit: 10,
     provisionedLanSpeedMbps: null,
+    parentApDeviceId: null,
     lastPolledAt: new Date('2024-01-01T12:00:00Z')
   });
 };
@@ -137,6 +140,33 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
         WirelessDeviceConfigPrismaMapper.toDomain(row)
       ).toThrow('Invalid config ID');
     });
+
+    it('should map parentApDeviceId to a DeviceId when present', () => {
+      const apDeviceUuid = 'a1b2c3d4-58f0-479a-8534-b0b01e9942bb';
+      const row = { ...makeMinimalRow(), parentApDeviceId: apDeviceUuid };
+
+      const config = WirelessDeviceConfigPrismaMapper.toDomain(row);
+
+      expect(config.parentApDeviceId?.toString()).toBe(apDeviceUuid);
+    });
+
+    it('should set parentApDeviceId to null when the Prisma row has a null value', () => {
+      const config =
+        WirelessDeviceConfigPrismaMapper.toDomain(makeMinimalRow());
+
+      expect(config.parentApDeviceId).toBeNull();
+    });
+
+    it('should throw when parentApDeviceId is not a valid UUID', () => {
+      const row = {
+        ...makeMinimalRow(),
+        parentApDeviceId: 'not-valid'
+      };
+
+      expect(() =>
+        WirelessDeviceConfigPrismaMapper.toDomain(row)
+      ).toThrow('Invalid parent AP device ID');
+    });
   });
 
   describe('toPersistence', () => {
@@ -181,6 +211,7 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
         linkCapacityKbps: null,
         clientsProvisionedLimit: null,
         provisionedLanSpeedMbps: null,
+        parentApDeviceId: null,
         lastPolledAt: null
       });
 
@@ -190,6 +221,41 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
       expect(data.ipAddress).toBeNull();
       expect(data.linkCapacityKbps).toBeNull();
       expect(data.lastPolledAt).toBeNull();
+    });
+
+    it('should map parentApDeviceId to a string when present', () => {
+      const deviceId = DeviceId.parse(DEVICE_UUID).value;
+      const id = WirelessDeviceConfigId.parse(CONFIG_UUID).value;
+      const apDeviceId = DeviceId.parse(
+        'a1b2c3d4-58f0-479a-8534-b0b01e9942bb'
+      ).value;
+
+      const config = WirelessDeviceConfig.reconstitute(id, {
+        deviceId,
+        ipAddress: null,
+        enabled: true,
+        pollingInterval: PollingInterval.reconstitute(60),
+        deviceType: 'STATION',
+        linkCapacityKbps: null,
+        clientsProvisionedLimit: null,
+        provisionedLanSpeedMbps: null,
+        parentApDeviceId: apDeviceId,
+        lastPolledAt: null
+      });
+
+      const data =
+        WirelessDeviceConfigPrismaMapper.toPersistence(config);
+
+      expect(data.parentApDeviceId).toBe(apDeviceId.toString());
+    });
+
+    it('should set parentApDeviceId to null when the domain entity has none', () => {
+      const config = buildDomainConfig();
+
+      const data =
+        WirelessDeviceConfigPrismaMapper.toPersistence(config);
+
+      expect(data.parentApDeviceId).toBeNull();
     });
   });
 
@@ -210,6 +276,7 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
       expect(back.clientsProvisionedLimit).toBe(
         row.clientsProvisionedLimit
       );
+      expect(back.parentApDeviceId).toBe(row.parentApDeviceId);
     });
 
     it('should preserve null fields through a round-trip from a minimal row', () => {
@@ -222,6 +289,7 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
       expect(back.linkCapacityKbps).toBeNull();
       expect(back.lastPolledAt).toBeNull();
       expect(back.clientsProvisionedLimit).toBeNull();
+      expect(back.parentApDeviceId).toBeNull();
     });
   });
 });

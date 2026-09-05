@@ -72,6 +72,7 @@ function makeDeviceModel(): DeviceModel {
       model: 'RB760iGS',
       deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
       isWireless: false,
+      imageUrl: null,
       createdAt: NOW,
       updatedAt: NOW
     }
@@ -123,6 +124,7 @@ function makeWirelessConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> 
     exists: jest.fn(),
     findByDeviceId: jest.fn(),
     findAllDue: jest.fn(),
+    findByParentApDeviceId: jest.fn(),
     findAll: jest.fn()
   };
 }
@@ -378,6 +380,7 @@ describe('UpdateDeviceModelUseCase', () => {
           model,
           deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
           isWireless: false,
+          imageUrl: null,
           createdAt: NOW,
           updatedAt: NOW
         }
@@ -587,6 +590,7 @@ describe('UpdateDeviceModelUseCase', () => {
           model: 'LiteBeam 5AC',
           deviceType: DeviceType.reconstitute(DeviceType.ANTENNA),
           isWireless: true,
+          imageUrl: null,
           createdAt: NOW,
           updatedAt: NOW
         }

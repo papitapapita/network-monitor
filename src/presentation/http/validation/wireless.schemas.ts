@@ -25,6 +25,10 @@ export const getWirelessClientsSchema = z.object({
   params: z.object({ id: uuidSchema })
 });
 
+export const getApExpectedClientsSchema = z.object({
+  params: z.object({ id: uuidSchema })
+});
+
 export const getDeviceWirelessAlertsSchema = z.object({
   params: z.object({ id: uuidSchema }),
   query: z.object(alertQueryFields).optional()
@@ -90,7 +94,8 @@ export const createWirelessConfigSchema = z.object({
       .int()
       .positive()
       .nullable()
-      .optional()
+      .optional(),
+    parentApDeviceId: z.union([uuidSchema, z.null()]).optional()
   })
 });
 
@@ -126,7 +131,8 @@ export const updateWirelessConfigSchema = z.object({
         .int()
         .positive()
         .nullable()
-        .optional()
+        .optional(),
+      parentApDeviceId: z.union([uuidSchema, z.null()]).optional()
     })
     .refine((data) => Object.keys(data).length > 0, {
       message: 'At least one field must be provided'
@@ -158,6 +164,9 @@ export type GetWirelessHistoryInput = z.infer<
 >;
 export type GetWirelessClientsInput = z.infer<
   typeof getWirelessClientsSchema
+>;
+export type GetApExpectedClientsInput = z.infer<
+  typeof getApExpectedClientsSchema
 >;
 export type GetDeviceWirelessAlertsInput = z.infer<
   typeof getDeviceWirelessAlertsSchema

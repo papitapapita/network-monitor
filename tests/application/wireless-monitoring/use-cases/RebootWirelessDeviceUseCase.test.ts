@@ -64,6 +64,7 @@ function makePollingConfig(
       linkCapacityKbps: null,
       clientsProvisionedLimit: null,
       provisionedLanSpeedMbps: null,
+      parentApDeviceId: null,
       lastPolledAt: null
     }
   );
@@ -91,6 +92,7 @@ function makeMocks() {
       findByDeviceId: jest.fn(),
       save: jest.fn(),
       findAllDue: jest.fn(),
+      findByParentApDeviceId: jest.fn(),
       findAll: jest.fn(),
       delete: jest.fn(),
       findById: jest.fn(),

@@ -1898,6 +1898,7 @@ interface WirelessClientDTO {
   linkCapacityKbps?: number | null         // STATION only — provisioned uplink capacity in kbps
   clientsProvisionedLimit?: number | null  // ACCESS_POINT only — max expected clients
   provisionedLanSpeedMbps?: number | null  // either device type — see note below; usually left unset
+  parentApDeviceId?: string | null         // STATION only — the ACCESS_POINT device this CPE is declared to sit on
 }
 
 // Response
@@ -1911,6 +1912,7 @@ interface WirelessClientDTO {
   linkCapacityKbps: number | null
   clientsProvisionedLimit: number | null
   provisionedLanSpeedMbps: number | null
+  parentApDeviceId: string | null
   lastPolledAt: string | null   // ISO 8601 — null until first poll
 }
 ```
@@ -1932,11 +1934,14 @@ there rather than assuming it.
 
 - `linkCapacityKbps` may only be set (non-null) when the derived type is `STATION` — returns 400 for an `ACCESS_POINT` category device.
 - `clientsProvisionedLimit` may only be set (non-null) when the derived type is `ACCESS_POINT` — returns 400 for a `WIRELESS_CPE` category device.
+- `parentApDeviceId` may only be set (non-null) when the derived type is `STATION`, and cannot equal the config's own device — returns 400 otherwise. It does not have to point at a device that already has its own wireless config.
 - `intervalSecs` must be **at least 60**. Polling AirOS faster than that overloads the embedded web server on the radio, so the floor is a hardware constraint, not a preference.
 
 > **`linkCapacityKbps` is in kbps, not bps** — a 50 Mbps link is `50000`. It feeds the link-saturation alert, which warns at 80 % of this value, so an entry off by 1000× either never fires or fires permanently.
 
 > **`provisionedLanSpeedMbps` is usually not something you set (WLS-089/WLS-099).** It's the negotiated Ethernet speed (e.g. `1000`, `100`, `10`) this device's LAN port is expected to run at, and it auto-fills itself: the first poll that reports a speed for a device with no baseline yet stores that reading here, and every degradation warning after that compares against it instead of one fixed number shared by every device. Set it explicitly only to correct a baseline captured while the port was already degraded (e.g. right after this feature went live), or to pre-seed it before the first poll.
+
+> **`parentApDeviceId` is declared, not observed (WLS-162).** It's the operator's record of which AP this CPE is *meant* to sit on — separate from whatever the radio's own last poll reported it's actually talking to. Set it to drive `GET /api/devices/:id/wireless/clients/expected` on the AP side; leave it unset and that AP's expected roster simply won't include this device.
 
 > **Frontend:** set the device's `category` first (`PATCH /api/devices/:id`) — it decides which of the two fields this endpoint will accept, and creating this config **locks it**: the category cannot be changed again until the config is deleted. Sending `deviceType` in the body is now ignored by the schema.  
 > Returns 404 if the device does not exist.  
@@ -1969,6 +1974,7 @@ there rather than assuming it.
   linkCapacityKbps?: number | null        // kbps; STATION only — returns 400 if config is ACCESS_POINT
   clientsProvisionedLimit?: number | null // ACCESS_POINT only — returns 400 if config is STATION
   provisionedLanSpeedMbps?: number | null // either device type — see the note under POST; null clears the auto-captured baseline
+  parentApDeviceId?: string | null        // STATION only — returns 400 if config is ACCESS_POINT; null clears the declared link
 }
 
 // Response — same shape as POST 201 above
@@ -2051,6 +2057,42 @@ limit?: number // 1–1000
 
 > Returns the connected client list from the most recent snapshot (AP devices only).  
 > Returns 404 if no snapshot exists for this device.
+
+---
+
+### `GET /api/devices/:id/wireless/clients/expected` — Expected vs. Connected Clients
+
+**Status:** 200 | 400 | 404
+
+```ts
+// Response
+{
+  apDeviceId: string
+  collectedAt: string | null   // ISO 8601 from the latest snapshot; null if the AP has never been polled
+  expected: Array<{
+    deviceId: string
+    deviceName: string
+    macAddress: string | null  // from device-inventory, not from any poll
+    connected: boolean
+    client: WirelessClientDTO | null   // live stats when connected, else null
+  }>
+  missingCount: number
+  unexpectedConnected: WirelessClientDTO[]   // live clients matching no declared CPE
+}
+```
+
+> AP devices only — 404 (`NOT_AP:`-prefixed) if the target's own wireless
+> config is `STATION`. Unlike `GET .../clients`, this does **not** require an
+> existing snapshot: an AP that has never been polled returns `collectedAt: null`
+> with every declared CPE reported as not connected, rather than 404.  
+> `expected` lists every `STATION` config whose `parentApDeviceId` points at
+> this device (see `parentApDeviceId` on the config endpoints above) — it is
+> empty if no CPE has declared this AP as its parent, regardless of who is
+> actually connected. Matching is by MAC address; a declared CPE with no MAC
+> on file in device-inventory always shows `connected: false`.  
+> **Frontend:** this is the view for "who's supposed to be here and isn't" —
+> pair `missingCount` with `unexpectedConnected.length` for an at-a-glance
+> health indicator on the AP's detail page.
 
 ---
 

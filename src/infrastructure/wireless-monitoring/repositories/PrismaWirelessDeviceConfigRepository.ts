@@ -18,6 +18,7 @@ type RawPollingConfig = {
   link_capacity_kbps: bigint | null;
   clients_provisioned_limit: number | null;
   provisioned_lan_speed_mbps: number | null;
+  parent_ap_device_id: string | null;
   last_polled_at: Date | null;
 };
 
@@ -43,6 +44,7 @@ export class PrismaWirelessDeviceConfigRepository
           linkCapacityKbps: data.linkCapacityKbps,
           clientsProvisionedLimit: data.clientsProvisionedLimit,
           provisionedLanSpeedMbps: data.provisionedLanSpeedMbps,
+          parentApDeviceId: data.parentApDeviceId,
           lastPolledAt: data.lastPolledAt
         },
         create: {
@@ -55,6 +57,7 @@ export class PrismaWirelessDeviceConfigRepository
           linkCapacityKbps: data.linkCapacityKbps,
           clientsProvisionedLimit: data.clientsProvisionedLimit,
           provisionedLanSpeedMbps: data.provisionedLanSpeedMbps,
+          parentApDeviceId: data.parentApDeviceId,
           lastPolledAt: data.lastPolledAt
         }
       });
@@ -163,6 +166,7 @@ export class PrismaWirelessDeviceConfigRepository
           wpc.link_capacity_kbps,
           wpc.clients_provisioned_limit,
           wpc.provisioned_lan_speed_mbps,
+          wpc.parent_ap_device_id,
           wpc.last_polled_at
         FROM wireless_polling_configurations wpc
         JOIN devices d ON d.id = wpc.device_id
@@ -187,6 +191,7 @@ export class PrismaWirelessDeviceConfigRepository
           linkCapacityKbps: r.link_capacity_kbps,
           clientsProvisionedLimit: r.clients_provisioned_limit,
           provisionedLanSpeedMbps: r.provisioned_lan_speed_mbps,
+          parentApDeviceId: r.parent_ap_device_id,
           lastPolledAt: r.last_polled_at
         })
       );
@@ -195,6 +200,30 @@ export class PrismaWirelessDeviceConfigRepository
     } catch (error) {
       return Result.fail(
         `Database error finding due wireless polling configs: ${(error as Error).message}`
+      );
+    }
+  }
+
+  async findByParentApDeviceId(
+    apDeviceId: DeviceId
+  ): Promise<Result<WirelessDeviceConfig[]>> {
+    try {
+      const raws =
+        await this.prisma.wirelessPollingConfiguration.findMany({
+          where: { parentApDeviceId: apDeviceId.toString() }
+        });
+      return Result.ok(
+        raws.map((r) =>
+          WirelessDeviceConfigPrismaMapper.toDomain(
+            r as Parameters<
+              typeof WirelessDeviceConfigPrismaMapper.toDomain
+            >[0]
+          )
+        )
+      );
+    } catch (error) {
+      return Result.fail(
+        `Database error finding wireless polling configs by parent AP: ${(error as Error).message}`
       );
     }
   }

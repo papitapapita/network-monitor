@@ -41,6 +41,7 @@ function makeConfig(uuid: string): WirelessDeviceConfig {
       linkCapacityKbps: null,
       clientsProvisionedLimit: null,
       provisionedLanSpeedMbps: null,
+      parentApDeviceId: null,
       lastPolledAt: null
     }
   );
@@ -61,6 +62,7 @@ function makeMocks() {
     findByDeviceId: jest.fn(),
     save: jest.fn(),
     findAllDue: jest.fn().mockResolvedValue(Result.ok([])),
+    findByParentApDeviceId: jest.fn(),
     findAll: jest.fn(),
     delete: jest.fn(),
     findById: jest.fn(),

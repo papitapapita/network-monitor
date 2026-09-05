@@ -68,7 +68,7 @@ export class WirelessSnapshotMapper {
     };
   }
 
-  private static toClientDTO(
+  public static toClientDTO(
     c: WirelessClientEntry
   ): WirelessClientDTO {
     return {

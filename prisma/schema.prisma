@@ -219,6 +219,7 @@ model Device {
   wirelessSnapshots            WirelessSnapshot[]
   wirelessAlertRecords         WirelessAlertRecord[]
   wirelessPollingConfiguration WirelessPollingConfiguration?
+  wirelessConfigsAsParentAp    WirelessPollingConfiguration[] @relation("WirelessConfigParentAp")
   contractedService            ContractedService?
   tickets                      Ticket[]
 
@@ -513,13 +514,19 @@ model WirelessPollingConfiguration {
   linkCapacityKbps         BigInt?   @map("link_capacity_kbps")
   clientsProvisionedLimit Int?      @map("clients_provisioned_limit")
   provisionedLanSpeedMbps Int?      @map("provisioned_lan_speed_mbps")
+  // STATION-only: the ACCESS_POINT this CPE is declared to sit on (WLS-162).
+  // SetNull rather than Cascade — deleting the AP shouldn't delete an
+  // unrelated CPE's polling config, just its declared link.
+  parentApDeviceId        String?   @map("parent_ap_device_id") @db.Uuid
   lastPolledAt            DateTime? @map("last_polled_at") @db.Timestamptz
   createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  device       Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  parentApDevice Device? @relation("WirelessConfigParentAp", fields: [parentApDeviceId], references: [id], onDelete: SetNull)
 
   @@index([enabled])
+  @@index([parentApDeviceId])
   @@map("wireless_polling_configurations")
 }
 

@@ -97,6 +97,7 @@ function makePollingConfig(
         overrides.provisionedLanSpeedMbps !== undefined
           ? overrides.provisionedLanSpeedMbps
           : null,
+      parentApDeviceId: null,
       lastPolledAt: null
     }
   );
@@ -165,6 +166,7 @@ function makeMocks() {
       findByDeviceId: jest.fn(),
       save: jest.fn(),
       findAllDue: jest.fn(),
+      findByParentApDeviceId: jest.fn(),
       findAll: jest.fn(),
       delete: jest.fn(),
       findById: jest.fn(),
@@ -207,6 +209,7 @@ function makeMocks() {
 
   const deviceRepo: jest.Mocked<IDeviceRepository> = {
     findIdByMacAddress: jest.fn().mockResolvedValue(Result.ok(null)),
+    findBasicInfoById: jest.fn().mockResolvedValue(Result.ok(null)),
     // null = eligible; individual tests override to assert suppression
     findWirelessIneligibilityReason: jest
       .fn()

@@ -105,6 +105,7 @@ import {
   GetWirelessDeviceStatusUseCase,
   GetWirelessDeviceHistoryUseCase,
   GetWirelessClientsUseCase,
+  GetApExpectedClientsUseCase,
   GetActiveWirelessAlertsUseCase,
   GetWirelessAlertHistoryUseCase,
   TriggerWirelessPollUseCase,
@@ -1131,6 +1132,13 @@ export class DependencyContainer {
       this.wirelessSnapshotRepository,
       this.logger
     );
+    const getApExpectedClientsUseCase =
+      new GetApExpectedClientsUseCase(
+        this.wirelessDeviceConfigRepository,
+        this.wirelessSnapshotRepository,
+        wirelessDeviceRepo,
+        this.logger
+      );
     const getActiveWirelessAlertsUseCase =
       new GetActiveWirelessAlertsUseCase(
         this.wirelessAlertRecordRepository,
@@ -1188,6 +1196,7 @@ export class DependencyContainer {
       getWirelessDeviceStatusUseCase,
       getWirelessDeviceHistoryUseCase,
       getWirelessClientsUseCase,
+      getApExpectedClientsUseCase,
       getActiveWirelessAlertsUseCase,
       getWirelessAlertHistoryUseCase,
       triggerWirelessPollUseCase,

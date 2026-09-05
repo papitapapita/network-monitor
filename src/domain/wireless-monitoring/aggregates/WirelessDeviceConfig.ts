@@ -44,6 +44,9 @@ export class WirelessDeviceConfig extends AggregateRoot<
   get lastPolledAt(): Date | null {
     return this.props.lastPolledAt;
   }
+  get parentApDeviceId(): DeviceId | null {
+    return this.props.parentApDeviceId;
+  }
 
   public static create(
     props: WirelessDeviceConfigProps
@@ -74,6 +77,20 @@ export class WirelessDeviceConfig extends AggregateRoot<
       return Result.fail(
         'clientsProvisionedLimit can only be set for ACCESS_POINT devices'
       );
+    }
+    if (
+      props.parentApDeviceId !== null &&
+      props.deviceType !== 'STATION'
+    ) {
+      return Result.fail(
+        'parentApDeviceId can only be set for STATION devices'
+      );
+    }
+    if (
+      props.parentApDeviceId !== null &&
+      props.parentApDeviceId.equals(props.deviceId)
+    ) {
+      return Result.fail('parentApDeviceId cannot reference itself');
     }
     return Result.ok(
       new WirelessDeviceConfig(props, WirelessDeviceConfigId.create())
@@ -160,6 +177,27 @@ export class WirelessDeviceConfig extends AggregateRoot<
       );
     }
     this.props.clientsProvisionedLimit = limit;
+    return Result.ok();
+  }
+
+  public updateParentApDeviceId(
+    parentApDeviceId: DeviceId | null
+  ): Result<void> {
+    if (
+      parentApDeviceId !== null &&
+      this.props.deviceType !== 'STATION'
+    ) {
+      return Result.fail(
+        'parentApDeviceId can only be set for STATION devices'
+      );
+    }
+    if (
+      parentApDeviceId !== null &&
+      parentApDeviceId.equals(this.props.deviceId)
+    ) {
+      return Result.fail('parentApDeviceId cannot reference itself');
+    }
+    this.props.parentApDeviceId = parentApDeviceId;
     return Result.ok();
   }
 

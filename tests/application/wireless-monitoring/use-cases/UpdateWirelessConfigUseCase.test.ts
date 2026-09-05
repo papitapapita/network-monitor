@@ -73,6 +73,7 @@ function makeConfig(
         overrides.provisionedLanSpeedMbps !== undefined
           ? overrides.provisionedLanSpeedMbps
           : null,
+      parentApDeviceId: null,
       lastPolledAt: null
     }
   );
@@ -86,6 +87,7 @@ function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
     exists: jest.fn(),
     findByDeviceId: jest.fn(),
     findAllDue: jest.fn(),
+    findByParentApDeviceId: jest.fn(),
     findAll: jest.fn()
   };
 }
@@ -94,6 +96,7 @@ function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
 function makeDeviceRepo(ineligibleReason: string | null = null) {
   return {
     findIdByMacAddress: jest.fn().mockResolvedValue(Result.ok(null)),
+    findBasicInfoById: jest.fn().mockResolvedValue(Result.ok(null)),
     findWirelessIneligibilityReason: jest
       .fn()
       .mockResolvedValue(Result.ok(ineligibleReason))
