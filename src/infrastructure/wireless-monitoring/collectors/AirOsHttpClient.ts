@@ -174,17 +174,15 @@ export class AirOsHttpClient {
     if (result.isFailure) return Result.fail(result.error!);
 
     const { statusCode, headers } = result.value;
-    if (statusCode !== 200 && statusCode !== 201) {
+    if (statusCode === 401 || statusCode === 403) {
       return Result.fail(`Authentication failed: HTTP ${statusCode}`);
     }
+    // airOS 6 has no /api/auth: it redirects to /cookiechecker or 404s
+    if (statusCode !== 200 && statusCode !== 201) {
+      return this.authenticateLegacy(ip, port, creds);
+    }
 
-    const rawCookies = headers['set-cookie'] ?? [];
-    const cookieList = Array.isArray(rawCookies)
-      ? rawCookies
-      : [rawCookies];
-    const airOsCookie = cookieList
-      .map((h) => h.split(';')[0]?.trim())
-      .find((s) => s !== undefined && /^AIROS_[0-9A-Fa-f]+=/.test(s));
+    const airOsCookie = this.extractAirOsCookie(headers);
 
     if (!airOsCookie) {
       return Result.fail(
@@ -199,6 +197,82 @@ export class AirOsHttpClient {
       : (rawCsrfId ?? null);
 
     const session: AirOsSession = { cookie: airOsCookie, csrfId };
+    this.sessions.set(ip, session);
+    return Result.ok(session);
+  }
+
+  private extractAirOsCookie(
+    headers: IncomingHttpHeaders
+  ): string | undefined {
+    const rawCookies = headers['set-cookie'] ?? [];
+    const cookieList = Array.isArray(rawCookies)
+      ? rawCookies
+      : [rawCookies];
+    return cookieList
+      .map((h) => h.split(';')[0]?.trim())
+      .find((s) => s !== undefined && /^AIROS_[0-9A-Fa-f]+=/.test(s));
+  }
+
+  // airOS 6 refuses a login POST that carries no session cookie yet, so the
+  // cookie is fetched first. A rejected login re-renders the form with HTTP
+  // 200; only a redirect away from the login page means success.
+  private async authenticateLegacy(
+    ip: string,
+    port: number,
+    creds: AirOsCredentials
+  ): Promise<Result<AirOsSession>> {
+    const primer = await this.httpsRequest({
+      hostname: ip,
+      port,
+      path: '/login.cgi',
+      method: 'GET'
+    });
+    if (primer.isFailure) return Result.fail(primer.error!);
+
+    const cookie = this.extractAirOsCookie(primer.value.headers);
+    if (!cookie) {
+      return Result.fail(
+        'No AIROS session cookie from legacy login page'
+      );
+    }
+
+    const boundary = `----nms${Date.now().toString(16)}`;
+    const field = (name: string, value: string) =>
+      `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`;
+    const body =
+      field('username', creds.username) +
+      field('password', creds.password) +
+      field('uri', '/') +
+      `--${boundary}--\r\n`;
+
+    const login = await this.httpsRequest(
+      {
+        hostname: ip,
+        port,
+        path: '/login.cgi',
+        method: 'POST',
+        headers: {
+          Cookie: cookie,
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+          'Content-Length': Buffer.byteLength(body)
+        }
+      },
+      body
+    );
+    if (login.isFailure) return Result.fail(login.error!);
+
+    const { statusCode, headers } = login.value;
+    const location = String(headers['location'] ?? '');
+    if (statusCode !== 302 || location.includes('login.cgi')) {
+      return Result.fail(
+        'Authentication failed: invalid credentials'
+      );
+    }
+
+    const session: AirOsSession = {
+      cookie: this.extractAirOsCookie(headers) ?? cookie,
+      csrfId: null
+    };
     this.sessions.set(ip, session);
     return Result.ok(session);
   }

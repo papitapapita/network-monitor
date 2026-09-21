@@ -513,17 +513,19 @@ denial of service against the device.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-08-03
+**Since:** 2026-08-03 · **Revised:** 2026-09-21
 
 `AirOsHttpClient` keeps one session per IP — the `AIROS_<hex>` cookie plus the
 `X-CSRF-ID` header if the firmware issued one. A request with no cached session
-authenticates first; a cached one is used directly.
+authenticates first; a cached one is used directly. Both login paths — `/api/auth`
+and the AirOS 6 `login.cgi` flow ([WLS-052](#wls-052--an-airos-6-radio-is-logged-into-through-logincgi)) —
+store the session the same way.
 
 **Why:** `/api/auth` is the most expensive call on the radio: it is a form POST
 that the embedded server handles synchronously. Authenticating on every poll
 would double the load the interval floor (WLS-006) exists to bound.
 
-**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts:38`, `:202`
+**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts:38`, `:200`, `:276`
 **Reached from:** `fetchStatus`, `reboot`
 **Message:** `No AIROS session cookie in authentication response` / `Authentication failed: HTTP <code>`
 **Tests:** `tests/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.test.ts`
@@ -532,7 +534,7 @@ would double the load the interval floor (WLS-006) exists to bound.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-08-03
+**Since:** 2026-08-03 · **Revised:** 2026-09-21
 
 Any of these three status codes on `/status.cgi` or `/api/system/reboot` drops
 the cached session, re-authenticates once, and retries the request. A second
@@ -545,6 +547,10 @@ a radio permanently unpollable after it dropped the session, because the client
 kept presenting the same dead cookie and reading the `403` as a permission
 error. One retry, not a loop: if a fresh session also fails, the problem is the
 credentials, not the session.
+
+On AirOS 6, `302` to `/login.cgi` is the only expiry signal it gives, and the
+re-authentication goes through the same fallback as a first login
+([WLS-052](#wls-052--an-airos-6-radio-is-logged-into-through-logincgi)).
 
 **Enforced at:** `src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts:146`
 **Reached from:** `fetchStatus`, `reboot`
@@ -594,7 +600,7 @@ round trip discovering that.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-08-03
+**Since:** 2026-08-03 · **Checked:** 2026-09-21
 
 Every request sets `rejectUnauthorized: false`.
 
@@ -604,7 +610,7 @@ every radio in the fleet. The connection is to a management address on the
 operator's own network; the credentials are what authenticate the exchange.
 _(inferred)_
 
-**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts:258`
+**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts:332`
 **Reached from:** `httpsRequest`
 **Tests:** `tests/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.test.ts`
 
@@ -612,7 +618,7 @@ _(inferred)_
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-08-03
+**Since:** 2026-08-03 · **Checked:** 2026-09-21
 
 A timer destroys the socket and settles the promise with `HTTPS_TIMEOUT` naming
 the host and port. The promise is settled exactly once regardless of which of
@@ -624,7 +630,7 @@ one of the ten concurrency slots (WLS-023). The single-settle guard matters
 because destroying the socket fires an error event that would otherwise resolve
 the same promise a second time.
 
-**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts:285`, `:249` (single-settle)
+**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts:366`, `:322` (single-settle)
 **Reached from:** `httpsRequest`
 **Message:** `HTTPS_TIMEOUT (<host>:<port>)`
 **Tests:** `tests/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.test.ts`
@@ -633,7 +639,7 @@ the same promise a second time.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-08-03
+**Since:** 2026-08-03 · **Checked:** 2026-09-21
 
 `X-CSRF-ID` is captured from the authentication response and replayed on POSTs
 when present. A missing token is not an error.
@@ -641,7 +647,7 @@ when present. A missing token is not an error.
 **Why:** Some 8.x firmwares do not issue one and accept POSTs without it.
 Requiring it would make those radios unrebootable.
 
-**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts:196`, `:231`
+**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts:194`, `:306`
 **Reached from:** `authenticate`, `doPost`
 **Tests:** `tests/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.test.ts`
 
@@ -649,7 +655,7 @@ Requiring it would make those radios unrebootable.
 
 **Type:** Validation · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-08-03
+**Since:** 2026-08-03 · **Checked:** 2026-09-21
 
 A body that does not parse fails the collection with a fixed message rather than
 throwing.
@@ -658,7 +664,7 @@ throwing.
 `200`, returns HTML. Failing the cycle is right — there are no metrics — but it
 is an expected condition, not an exception.
 
-**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts:304`
+**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts:378`
 **Reached from:** `fetchStatus`
 **Message:** `Failed to parse status.cgi response as JSON`
 **Tests:** `tests/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.test.ts`
@@ -667,7 +673,7 @@ is an expected condition, not an exception.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-08-03
+**Since:** 2026-08-03 · **Checked:** 2026-09-21
 
 `parseStatusCgi` reads through helpers that return `null` (or `{}`, or `[]`) for
 anything absent, of the wrong type, or not coercible. No field is required and
@@ -679,7 +685,7 @@ strict parse would reject whole fleets over one missing field. Null flows
 through to the alert rules, each of which skips a metric it cannot read
 (WLS-082), so an absent field costs exactly the checks that needed it.
 
-**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts:144` – `:204`
+**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts:167` – `:235`
 **Reached from:** `parseStatusCgi`, `parseClientEntry`
 **Tests:** `tests/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.test.ts`
 
@@ -687,17 +693,18 @@ through to the alert rules, each of which skips a metric it cannot read
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-08-03
+**Since:** 2026-08-03 · **Revised:** 2026-09-21
 
-Four conversions happen while parsing, so nothing downstream sees a raw AirOS
+Five conversions happen while parsing, so nothing downstream sees a raw AirOS
 unit:
 
-| Field                       | Raw    | Stored                       |
-| --------------------------- | ------ | ---------------------------- |
-| `throughput.tx` / `.rx`     | kbps   | bps (×1000)                  |
-| `wireless.ccq`              | 0–1000 | percent (÷10), null when ≤ 0 |
-| `host.totalram` / `freeram` | bytes  | `memoryUsedPercent`          |
-| `wireless.chanbw`           | MHz    | null when ≤ 0                |
+| Field                       | Raw                              | Stored                       |
+| --------------------------- | -------------------------------- | ---------------------------- |
+| `throughput.tx` / `.rx`     | kbps                             | bps (×1000)                  |
+| `wireless.ccq`              | 0–1000                           | percent (÷10), null when ≤ 0 |
+| `host.totalram` / `freeram` | bytes                            | `memoryUsedPercent`          |
+| `wireless.chanbw`           | MHz                              | null when ≤ 0                |
+| `wireless.frequency`        | `"5730 MHz"` (AirOS 6) or number | number of MHz                |
 
 **Why:** The domain layer defines these fields in one unit each
 (`throughputTxBps`, `ccqPercent`), and the conversion has to live somewhere the
@@ -706,7 +713,7 @@ AirOS reports `0` for "not measured" rather than omitting the key, and a zero
 that reaches the rules is a breach of every threshold rather than a missing
 reading.
 
-**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts:70`, `:108`, `:110`, `:117`
+**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts:70`, `:123`, `:126`, `:132`, `:217`
 **Reached from:** `parseStatusCgi`
 **Tests:** `tests/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.test.ts`
 
@@ -714,19 +721,21 @@ reading.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-08-03
+**Since:** 2026-08-03 · **Revised:** 2026-09-21
 
 A `STATION` reads its link metrics from the first entry of `wireless.sta` — the
 one access point it is associated with — and gets `signalRxDbm`, `signalTxDbm`,
 `latencyMs`, `distanceM`, the remote AP identity and airMax capacities. An
 `ACCESS_POINT` reads `wireless.count` for its client total and maps the whole
-`sta` array into client entries; its station-only fields stay null.
+`sta` array into client entries; its station-only fields stay null. When a `STATION` reports no `wireless.sta`
+entry at all (AirOS 6), `signalRxDbm` and `remoteApMac` come from
+`wireless.signal` and `wireless.apmac`; the other station-only fields stay null.
 
 **Why:** `sta` means "the peers on the other end", which for a station is one AP
 and for an access point is every subscriber. Reading `sta[0]` on an access point
 would report one arbitrary subscriber's signal as the device's own.
 
-**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts:65`, `:115`, `:118` – `:135`
+**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts:65`, `:93`, `:130`, `:133` – `:158`
 **Reached from:** `parseStatusCgi`
 **Tests:** `tests/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.test.ts`
 
@@ -749,6 +758,33 @@ end of a link is often not a managed device.
 **Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:204`
 **Reached from:** `poll`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
+
+### WLS-052 — An AirOS 6 radio is logged into through `login.cgi`
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-09-21
+
+Authentication tries `/api/auth` first. `401` and `403` are credential failures
+and stop there. Any other non-2xx answer (AirOS 6 redirects to `/cookiechecker`)
+falls back to the legacy flow: fetch `/login.cgi` for a session cookie, then post
+`username`, `password` and `uri` to `/login.cgi` as multipart form data carrying
+that cookie. Only a `302` away from the login page counts as success; a rejected
+login re-renders the form with `200`. A station on AirOS 6 has no `wireless.sta`
+list, so its signal and remote AP MAC come from `wireless.signal` and
+`wireless.apmac`, its model from `host.devmodel`, its frequency from a
+`"5730 MHz"` string, and `plugged` may be `0`/`1`.
+
+**Why:** AirOS 6 refuses a login that arrives without a cookie, and gives no
+status-code signal on a bad password, so success can only be read from the
+redirect. Without this fallback every AirOS 6 radio failed with
+`Authentication failed: HTTP 302`. Access-point client lists (`sta.cgi`) and
+reboot (`reboot.cgi`) are not yet supported on AirOS 6.
+
+**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts:152`, `:219`, `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts:93`, `:217`, `:223`
+**Reached from:** `fetchStatus`
+**Message:** `Authentication failed: invalid credentials` / `No AIROS session cookie from legacy login page`
+**Tests:** `tests/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.test.ts`, `tests/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.test.ts`
 
 ---
 
@@ -1621,7 +1657,7 @@ nothing to match against. An AP that has never been polled returns
 failing — the roster is still meaningful before the first poll lands.
 
 **Why:** A live poll only ever reports who is connected right now — WLS-140
-already covers that. Knowing who is *supposed* to be connected and isn't
+already covers that. Knowing who is _supposed_ to be connected and isn't
 requires a declared topology (WLS-162) to diff against; without it, an AP
 losing a subscriber's link looks identical to that subscriber never having
 been provisioned. Matching by device-inventory's MAC rather than a station's

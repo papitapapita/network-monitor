@@ -79,9 +79,18 @@ export class UbiquitiHttpCollector
 
     // airOS 8: eth0.status.plugged is a boolean; eth0.status.speed is Mbps
     const plugged = eth0Status['plugged'];
+    // airOS 6 reports plugged as 0/1
     const lanStatus: 'UP' | 'DOWN' | null =
-      typeof plugged === 'boolean' ? (plugged ? 'UP' : 'DOWN') : null;
+      typeof plugged === 'boolean' || typeof plugged === 'number'
+        ? plugged
+          ? 'UP'
+          : 'DOWN'
+        : null;
     const lanSpeedMbps = num(eth0Status, 'speed');
+
+    // airOS 6 status.cgi has no wireless.sta list; a station's own link
+    // figures sit directly under wireless
+    const legacyLink = isStaMode && !sta0;
 
     const remote0 = isStaMode && sta0 ? obj(sta0, 'remote') : null;
     const airmax0 = isStaMode && sta0 ? obj(sta0, 'airmax') : null;
@@ -101,10 +110,16 @@ export class UbiquitiHttpCollector
       cpuLoadPercent: num(host, 'cpuload'),
       memoryUsedPercent,
       essid: str(wireless, 'essid'),
-      macAddress: str(wireless, 'mac'),
-      deviceModel: str(host, 'platform'),
+      macAddress:
+        str(wireless, 'mac') ??
+        str(
+          (interfaces.find((i) => str(i, 'ifname') === 'ath0') ??
+            {}) as Record<string, unknown>,
+          'hwaddr'
+        ),
+      deviceModel: str(host, 'platform') ?? str(host, 'devmodel'),
       mode: parseMode(str(wireless, 'mode')),
-      frequencyMhz: num(wireless, 'frequency'),
+      frequencyMhz: parseFrequency(wireless['frequency']),
       channelWidthMhz: chanbw !== null && chanbw > 0 ? chanbw : null,
       noiseFloorDbm: num(wireless, 'noisef'),
       throughputTxBps:
@@ -115,11 +130,19 @@ export class UbiquitiHttpCollector
       clientsConnected:
         deviceType === 'ACCESS_POINT' ? num(wireless, 'count') : null,
       ccqPercent: ccqRaw !== null && ccqRaw > 0 ? ccqRaw / 10 : null,
-      signalRxDbm: isStaMode && sta0 ? num(sta0, 'signal') : null,
+      signalRxDbm: legacyLink
+        ? num(wireless, 'signal')
+        : isStaMode && sta0
+          ? num(sta0, 'signal')
+          : null,
       signalTxDbm:
         isStaMode && remote0 ? num(remote0, 'signal') : null,
       latencyMs: isStaMode && sta0 ? num(sta0, 'tx_latency') : null,
-      remoteApMac: isStaMode && sta0 ? str(sta0, 'mac') : null,
+      remoteApMac: legacyLink
+        ? str(wireless, 'apmac')
+        : isStaMode && sta0
+          ? str(sta0, 'mac')
+          : null,
       remoteApName:
         isStaMode && remote0 ? str(remote0, 'hostname') : null,
       remoteApIp,
@@ -191,7 +214,15 @@ function big(
   }
 }
 
+function parseFrequency(raw: unknown): number | null {
+  if (raw === null || raw === undefined) return null;
+  const n = parseFloat(String(raw));
+  return isNaN(n) ? null : n;
+}
+
 function parseMode(raw: string | null): HttpCollectionResult['mode'] {
+  if (raw === 'ap') return 'ap-ptmp';
+  if (raw === 'sta') return 'sta-ptmp';
   if (
     raw === 'ap-ptmp' ||
     raw === 'sta-ptmp' ||

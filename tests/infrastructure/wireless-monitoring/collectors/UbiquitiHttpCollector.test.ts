@@ -526,4 +526,77 @@ describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
       expect(result.error).toBe('HTTPS_TIMEOUT');
     });
   });
+  // ===========================================================================
+  describe('[WLS-052] collect — airOS 6 STATION payload', () => {
+    const airOs6Body = {
+      host: {
+        uptime: 107581,
+        time: '2021-08-20 01:22:56',
+        fwversion: 'v6.3.6',
+        hostname: 'STA Cliente',
+        devmodel: 'AirGrid M5 HP',
+        totalram: 63627264,
+        freeram: 40837120,
+        cpuload: 11.9
+      },
+      wireless: {
+        mode: 'sta',
+        essid: 'AP TEST',
+        apmac: '18:E8:29:74:5A:AE',
+        frequency: '5730 MHz',
+        signal: -58,
+        noisef: -102,
+        distance: 300,
+        ccq: 980,
+        chanbw: 40,
+        count: 1
+      },
+      interfaces: [
+        {
+          ifname: 'eth0',
+          hwaddr: 'F0:9F:C2:5D:87:BA',
+          status: { plugged: 1, speed: 100, duplex: 1 }
+        },
+        { ifname: 'ath0', hwaddr: 'F0:9F:C2:5C:87:BA', status: {} }
+      ]
+    };
+
+    it('should read the link figures from the wireless block', async () => {
+      const collector = new UbiquitiHttpCollector(
+        makeClient(airOs6Body)
+      );
+
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
+
+      const d = result.value;
+      expect(d.mode).toBe('sta-ptmp');
+      expect(d.deviceModel).toBe('AirGrid M5 HP');
+      expect(d.frequencyMhz).toBe(5730);
+      expect(d.signalRxDbm).toBe(-58);
+      expect(d.remoteApMac).toBe('18:E8:29:74:5A:AE');
+      expect(d.macAddress).toBe('F0:9F:C2:5C:87:BA');
+      expect(d.ccqPercent).toBe(98);
+      expect(d.lanStatus).toBe('UP');
+      expect(d.lanSpeedMbps).toBe(100);
+    });
+
+    it('should report a numeric plugged of 0 as DOWN', async () => {
+      const body = {
+        ...airOs6Body,
+        interfaces: [
+          { ifname: 'eth0', status: { plugged: 0, speed: 0 } }
+        ]
+      };
+
+      const result = await new UbiquitiHttpCollector(
+        makeClient(body)
+      ).collect('192.168.1.1', credentials, 'STATION');
+
+      expect(result.value.lanStatus).toBe('DOWN');
+    });
+  });
 });

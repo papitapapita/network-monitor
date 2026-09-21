@@ -735,4 +735,121 @@ describe('[WLS-040] [WLS-041] [WLS-042] [WLS-043] [WLS-044] [WLS-045] [WLS-046] 
       expect(result.isSuccess).toBe(true);
     });
   });
+  // ===========================================================================
+  describe('[WLS-052] airOS 6 legacy login', () => {
+    const LEGACY_COOKIE = 'AIROS_F09FC25C87BA=deadbeef';
+
+    function stubLegacy(
+      loginResponse: FakeResponseOptions
+    ): string[] {
+      const calls: string[] = [];
+      (https.request as jest.Mock).mockImplementation(
+        (
+          options: https.RequestOptions,
+          callback: (res: EventEmitter) => void
+        ) => {
+          const key = `${options.method} ${options.path}`;
+          calls.push(key);
+          const responses: Record<string, FakeResponseOptions> = {
+            'POST /api/auth': {
+              statusCode: 302,
+              headers: { location: '/cookiechecker?uri=/api/auth' }
+            },
+            'GET /login.cgi': {
+              statusCode: 200,
+              headers: { 'set-cookie': [`${LEGACY_COOKIE}; Path=/`] }
+            },
+            'POST /login.cgi': loginResponse,
+            'GET /status.cgi': { statusCode: 200, body: STATUS_BODY }
+          };
+          const opts = responses[key]!;
+          const req = new EventEmitter() as EventEmitter & {
+            end: jest.Mock;
+            write: jest.Mock;
+            destroy: jest.Mock;
+          };
+          req.write = jest.fn();
+          req.destroy = jest.fn();
+          req.end = jest.fn().mockImplementation(() => {
+            const res = new EventEmitter() as EventEmitter & {
+              statusCode?: number;
+              headers: Record<string, unknown>;
+            };
+            res.statusCode = opts.statusCode;
+            res.headers = opts.headers ?? {};
+            callback(res);
+            res.emit('data', Buffer.from(opts.body ?? ''));
+            res.emit('end');
+          });
+          return req;
+        }
+      );
+      return calls;
+    }
+
+    it('should fall back to login.cgi when /api/auth redirects', async () => {
+      const calls = stubLegacy({
+        statusCode: 302,
+        headers: { location: '/index.cgi' }
+      });
+
+      const result = await new AirOsHttpClient().fetchStatus(
+        IP,
+        PORT,
+        CREDS
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(calls).toEqual([
+        'POST /api/auth',
+        'GET /login.cgi',
+        'POST /login.cgi',
+        'GET /status.cgi'
+      ]);
+    });
+
+    it('should send the primed cookie with the login and status requests', async () => {
+      stubLegacy({
+        statusCode: 302,
+        headers: { location: '/index.cgi' }
+      });
+
+      await new AirOsHttpClient().fetchStatus(IP, PORT, CREDS);
+
+      const cookies = (https.request as jest.Mock).mock.calls
+        .slice(2)
+        .map(
+          ([o]) => (o.headers as Record<string, string>)['Cookie']
+        );
+      expect(cookies).toEqual([LEGACY_COOKIE, LEGACY_COOKIE]);
+    });
+
+    it('should fail when the login page is re-rendered with 200', async () => {
+      stubLegacy({ statusCode: 200, body: '<html>login</html>' });
+
+      const result = await new AirOsHttpClient().fetchStatus(
+        IP,
+        PORT,
+        CREDS
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe(
+        'Authentication failed: invalid credentials'
+      );
+    });
+
+    it('should not fall back when /api/auth answers 401', async () => {
+      stubRequest({ statusCode: 401 });
+
+      const result = await new AirOsHttpClient().fetchStatus(
+        IP,
+        PORT,
+        CREDS
+      );
+
+      expect(result.error).toBe('Authentication failed: HTTP 401');
+      expect(https.request).toHaveBeenCalledTimes(1);
+    });
+  });
 });
