@@ -1460,6 +1460,7 @@ cancel the service, or keep the device.
 **Type:** Policy · **Status:** Active
 **Layer:** Application (not in domain)
 **Since:** 2026-08-12
+**Checked:** 2026-09-22
 
 The delete is refused while any non-terminal ticket references the device —
 `OPEN`, `ASSIGNED` or `IN_PROGRESS` (see [TKT](tickets.md)). `RESOLVED` and
@@ -1486,6 +1487,7 @@ device can no longer supply.
 **Type:** Policy · **Status:** Active
 **Layer:** Application (not in domain)
 **Since:** 2026-08-12
+**Checked:** 2026-09-22
 
 A daily job hard-deletes every device whose `deletedAt` is older than the grace
 period, cascading to its `pingResults`, `alertEvents`, `wirelessSnapshots`,
@@ -2560,8 +2562,6 @@ keeps a rejected replacement from leaving a retired device with no successor.
 **Message:** `The replacement device must have at least a serial number or MAC address`
 **Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/application/device-inventory/use-cases/ReplaceDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ReplaceDeviceUseCase.integration.test.ts`
 
----
-
 ### DEV-161 — Two devices can exchange their hardware, and only their hardware
 
 **Type:** Policy · **Status:** Active
@@ -2656,6 +2656,8 @@ reviewed after it.
 **Enforced at:** `src/application/device-inventory/use-cases/SwapDeviceHardwareUseCase.ts` (`checkRadioSurvives`)
 **Message:** `Cannot swap hardware: "<name>" has a wireless configuration and would receive a model with no radio`
 **Tests:** `tests/application/device-inventory/use-cases/SwapDeviceHardwareUseCase.test.ts`, `tests/integration/use-cases/device-inventory/SwapDeviceHardwareUseCase.integration.test.ts`
+
+---
 
 ## Known gaps
 
