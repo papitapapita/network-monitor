@@ -2,6 +2,18 @@ import { z } from 'zod';
 
 const uuidSchema = z.string().uuid();
 
+// Standard Ethernet negotiated speeds; AirOS/UISP LAN ports report one of these.
+const lanSpeedMbpsSchema = z
+  .union([
+    z.literal(10),
+    z.literal(100),
+    z.literal(1000),
+    z.literal(2500),
+    z.literal(10000)
+  ])
+  .nullable()
+  .optional();
+
 const alertQueryFields = {
   from: z.string().datetime({ offset: true }).optional(),
   to: z.string().datetime({ offset: true }).optional(),
@@ -89,12 +101,7 @@ export const createWirelessConfigSchema = z.object({
       .positive()
       .nullable()
       .optional(),
-    provisionedLanSpeedMbps: z
-      .number()
-      .int()
-      .positive()
-      .nullable()
-      .optional(),
+    provisionedLanSpeedMbps: lanSpeedMbpsSchema,
     parentApDeviceId: z.union([uuidSchema, z.null()]).optional()
   })
 });
@@ -126,12 +133,7 @@ export const updateWirelessConfigSchema = z.object({
         .positive()
         .nullable()
         .optional(),
-      provisionedLanSpeedMbps: z
-        .number()
-        .int()
-        .positive()
-        .nullable()
-        .optional(),
+      provisionedLanSpeedMbps: lanSpeedMbpsSchema,
       parentApDeviceId: z.union([uuidSchema, z.null()]).optional()
     })
     .refine((data) => Object.keys(data).length > 0, {

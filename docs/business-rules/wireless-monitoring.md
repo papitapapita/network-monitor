@@ -165,6 +165,32 @@ would have nothing to count on a station.
 **Message:** `clientsProvisionedLimit can only be set for ACCESS_POINT devices`
 **Tests:** `tests/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.test.ts`, `tests/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.test.ts`
 
+### WLS-165 — `provisionedLanSpeedMbps` must be a standard Ethernet speed
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-22
+
+Manually setting or correcting the LAN-speed baseline
+([WLS-099](#wls-099--a-devices-lan-speed-baseline-is-captured-from-its-first-poll-not-configured-up-front))
+only accepts 10, 100, 1000, 2500 or 10000 Mbps — the speeds a real Ethernet
+link actually negotiates. The aggregate checks this in `create` and
+`updateProvisionedLanSpeedMbps`; the HTTP schema rejects anything else before
+it reaches the use case. The auto-capture path (WLS-099) is not restricted —
+it stores whatever the radio itself reports.
+
+**Why:** The field feeds
+[WLS-089](#wls-089--a-lan-port-degrading-below-its-own-baseline-speed-is-a-warning)
+as a threshold, not just a number, so a value like `73` that no real NIC would
+ever negotiate would silently produce a degradation warning that means
+nothing. Restricting manual entry to the standard set catches a typo or bad
+payload before it becomes a misleading baseline for every future poll.
+
+**Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts` (`create`, `updateProvisionedLanSpeedMbps`); `src/presentation/http/validation/wireless.schemas.ts` (`lanSpeedMbpsSchema`)
+**Reached from:** `create`, `updateProvisionedLanSpeedMbps`
+**Message:** `provisionedLanSpeedMbps must be one of 10, 100, 1000, 2500, 10000`
+**Tests:** `tests/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.test.ts`
+
 ### WLS-162 — `parentApDeviceId` is a STATION-only, self-reference-free declared link
 
 **Type:** Invariant · **Status:** Active

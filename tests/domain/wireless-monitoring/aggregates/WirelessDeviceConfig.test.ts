@@ -113,6 +113,26 @@ describe('[WLS-008] WirelessDeviceConfig', () => {
     });
 
     // -----------------------------------------------------------------------
+    describe('[WLS-165] LAN speed baseline', () => {
+      it('should accept a standard Ethernet speed', () => {
+        const result = WirelessDeviceConfig.create(
+          makeProps({ provisionedLanSpeedMbps: 2500 })
+        );
+
+        expect(result.isSuccess).toBe(true);
+      });
+
+      it('should refuse a speed no Ethernet link negotiates', () => {
+        const result = WirelessDeviceConfig.create(
+          makeProps({ provisionedLanSpeedMbps: 73 })
+        );
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('provisionedLanSpeedMbps');
+      });
+    });
+
+    // -----------------------------------------------------------------------
     describe('required field validation', () => {
       it('should fail when deviceId is null', () => {
         const result = WirelessDeviceConfig.create(
@@ -654,6 +674,28 @@ describe('[WLS-008] WirelessDeviceConfig', () => {
       const result = config.updateProvisionedLanSpeedMbps(-10);
 
       expect(result.isFailure).toBe(true);
+    });
+
+    it.each([10, 100, 1000, 2500, 10000])(
+      '[WLS-165] should accept the standard Ethernet speed %i',
+      (speed) => {
+        const config = makeConfig();
+
+        expect(
+          config.updateProvisionedLanSpeedMbps(speed).isSuccess
+        ).toBe(true);
+      }
+    );
+
+    it('[WLS-165] should refuse a speed no Ethernet link negotiates', () => {
+      const config = makeConfig();
+      const result = config.updateProvisionedLanSpeedMbps(73);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe(
+        'provisionedLanSpeedMbps must be one of 10, 100, 1000, 2500, 10000'
+      );
+      expect(config.provisionedLanSpeedMbps).toBeNull();
     });
 
     it('should emit no domain events', () => {

@@ -6,6 +6,9 @@ import { WirelessDeviceConfigProps } from '../props';
 import { WirelessDeviceConfigId } from 'domain/shared/ids';
 import { WirelessDeviceConfigToggledEvent } from '../events';
 
+// Standard Ethernet negotiated speeds; AirOS/UISP LAN ports report one of these.
+const ALLOWED_LAN_SPEEDS_MBPS = [10, 100, 1000, 2500, 10000];
+
 export class WirelessDeviceConfig extends AggregateRoot<
   WirelessDeviceConfigProps,
   WirelessDeviceConfigId
@@ -91,6 +94,14 @@ export class WirelessDeviceConfig extends AggregateRoot<
       props.parentApDeviceId.equals(props.deviceId)
     ) {
       return Result.fail('parentApDeviceId cannot reference itself');
+    }
+    if (
+      props.provisionedLanSpeedMbps !== null &&
+      !ALLOWED_LAN_SPEEDS_MBPS.includes(props.provisionedLanSpeedMbps)
+    ) {
+      return Result.fail(
+        `provisionedLanSpeedMbps must be one of ${ALLOWED_LAN_SPEEDS_MBPS.join(', ')}`
+      );
     }
     return Result.ok(
       new WirelessDeviceConfig(props, WirelessDeviceConfigId.create())
@@ -204,8 +215,13 @@ export class WirelessDeviceConfig extends AggregateRoot<
   public updateProvisionedLanSpeedMbps(
     speedMbps: number | null
   ): Result<void> {
-    if (speedMbps !== null && speedMbps <= 0) {
-      return Result.fail('provisionedLanSpeedMbps must be positive');
+    if (
+      speedMbps !== null &&
+      !ALLOWED_LAN_SPEEDS_MBPS.includes(speedMbps)
+    ) {
+      return Result.fail(
+        `provisionedLanSpeedMbps must be one of ${ALLOWED_LAN_SPEEDS_MBPS.join(', ')}`
+      );
     }
     this.props.provisionedLanSpeedMbps = speedMbps;
     return Result.ok();

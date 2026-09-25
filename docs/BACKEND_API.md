@@ -1969,7 +1969,7 @@ interface WirelessClientDTO {
   enabled?: boolean                        // default true
   linkCapacityKbps?: number | null         // STATION only — provisioned uplink capacity in kbps
   clientsProvisionedLimit?: number | null  // ACCESS_POINT only — max expected clients
-  provisionedLanSpeedMbps?: number | null  // either device type — see note below; usually left unset
+  provisionedLanSpeedMbps?: number | null  // one of 10/100/1000/2500/10000 — see note below; usually left unset
   parentApDeviceId?: string | null         // STATION only — the ACCESS_POINT device this CPE is declared to sit on
 }
 
@@ -2008,10 +2008,11 @@ there rather than assuming it.
 - `clientsProvisionedLimit` may only be set (non-null) when the derived type is `ACCESS_POINT` — returns 400 for a `WIRELESS_CPE` category device.
 - `parentApDeviceId` may only be set (non-null) when the derived type is `STATION`, and cannot equal the config's own device — returns 400 otherwise. It does not have to point at a device that already has its own wireless config.
 - `intervalSecs` must be **at least 60**. Polling AirOS faster than that overloads the embedded web server on the radio, so the floor is a hardware constraint, not a preference.
+- `provisionedLanSpeedMbps`, when set, must be one of `10`, `100`, `1000`, `2500`, `10000` — returns 400 for any other value (WLS-165). The auto-captured baseline (WLS-099) is not subject to this check; it always mirrors whatever the radio reports.
 
 > **`linkCapacityKbps` is in kbps, not bps** — a 50 Mbps link is `50000`. It feeds the link-saturation alert, which warns at 80 % of this value, so an entry off by 1000× either never fires or fires permanently.
 
-> **`provisionedLanSpeedMbps` is usually not something you set (WLS-089/WLS-099).** It's the negotiated Ethernet speed (e.g. `1000`, `100`, `10`) this device's LAN port is expected to run at, and it auto-fills itself: the first poll that reports a speed for a device with no baseline yet stores that reading here, and every degradation warning after that compares against it instead of one fixed number shared by every device. Set it explicitly only to correct a baseline captured while the port was already degraded (e.g. right after this feature went live), or to pre-seed it before the first poll.
+> **`provisionedLanSpeedMbps` is usually not something you set (WLS-089/WLS-099).** It's the negotiated Ethernet speed (`10`, `100`, `1000`, `2500` or `10000` — WLS-165) this device's LAN port is expected to run at, and it auto-fills itself: the first poll that reports a speed for a device with no baseline yet stores that reading here, and every degradation warning after that compares against it instead of one fixed number shared by every device. Set it explicitly only to correct a baseline captured while the port was already degraded (e.g. right after this feature went live), or to pre-seed it before the first poll.
 
 > **`parentApDeviceId` is declared, not observed (WLS-162).** It's the operator's record of which AP this CPE is *meant* to sit on — separate from whatever the radio's own last poll reported it's actually talking to. Set it to drive `GET /api/devices/:id/wireless/clients/expected` on the AP side; leave it unset and that AP's expected roster simply won't include this device.
 
@@ -2045,7 +2046,7 @@ there rather than assuming it.
   enabled?: boolean
   linkCapacityKbps?: number | null        // kbps; STATION only — returns 400 if config is ACCESS_POINT
   clientsProvisionedLimit?: number | null // ACCESS_POINT only — returns 400 if config is STATION
-  provisionedLanSpeedMbps?: number | null // either device type — see the note under POST; null clears the auto-captured baseline
+  provisionedLanSpeedMbps?: number | null // one of 10/100/1000/2500/10000 — see the note under POST; null clears the auto-captured baseline
   parentApDeviceId?: string | null        // STATION only — returns 400 if config is ACCESS_POINT; null clears the declared link
 }
 
