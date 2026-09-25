@@ -87,6 +87,46 @@ describe('CreateTicketUseCase', () => {
     expect(result.value.originAlertId).toBeNull();
   });
 
+  it('creates a ticket with a time block on its scheduled day', async () => {
+    const result = await useCase.execute({
+      ...validRequest(),
+      scheduledFor: '2026-08-04',
+      startTime: '08:00',
+      endTime: '10:00'
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.startTime).toBe('08:00');
+    expect(result.value.endTime).toBe('10:00');
+  });
+
+  it('[TKT-079] refuses a time block without a scheduled day', async () => {
+    const result = await useCase.execute({
+      ...validRequest(),
+      startTime: '08:00',
+      endTime: '10:00'
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toBe(
+      'A scheduled date is required for a time block'
+    );
+    expect(ticketRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('[TKT-080] refuses half a time block', async () => {
+    const result = await useCase.execute({
+      ...validRequest(),
+      scheduledFor: '2026-08-04',
+      startTime: '08:00'
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toBe(
+      'startTime and endTime must be provided together'
+    );
+  });
+
   it('[TKT-077] refuses an inactive technician and never saves', async () => {
     const inactive = makeTechnician();
     inactive.deactivate();

@@ -10,6 +10,7 @@ import {
 } from '@jest/globals';
 import { TicketAssignedNotificationHandler } from '../../../../src/application/tickets/event-handlers';
 import { TicketAssignedEvent } from '../../../../src/domain/tickets/events';
+import { TimeBlock } from '../../../../src/domain/tickets/value-objects';
 import { Result } from '../../../../src/domain/shared/core';
 import { TechnicianId } from '../../../../src/domain/shared/ids';
 import {
@@ -31,12 +32,16 @@ describe('TicketAssignedNotificationHandler', () => {
   const ticket = makeTicket();
   const technician = makeTechnician();
 
-  const event = (scheduledFor: Date | null = null) =>
+  const event = (
+    scheduledFor: Date | null = null,
+    timeBlock: TimeBlock | null = null
+  ) =>
     new TicketAssignedEvent({
       aggregateId: ticket.id,
       previousTechnicianId: null,
       newTechnicianId: technician.id,
       scheduledFor,
+      timeBlock,
       dateTimeOccurred: new Date()
     });
 
@@ -87,7 +92,23 @@ describe('TicketAssignedNotificationHandler', () => {
     await handler.handle(event());
 
     expect(notifier.notifyAssignment).toHaveBeenCalledWith(
-      expect.objectContaining({ scheduledFor: null })
+      expect.objectContaining({ scheduledFor: null, timeBlock: null })
+    );
+  });
+
+  it('renders the time block as HH:mm-HH:mm', async () => {
+    await handler.handle(
+      event(
+        new Date('2026-08-04T00:00:00.000Z'),
+        TimeBlock.fromStrings('10:00', '12:30').value
+      )
+    );
+
+    expect(notifier.notifyAssignment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scheduledFor: '2026-08-04',
+        timeBlock: '10:00-12:30'
+      })
     );
   });
 
@@ -137,6 +158,7 @@ describe('TicketAssignedNotificationHandler', () => {
       previousTechnicianId: technician.id,
       newTechnicianId: otherId,
       scheduledFor: null,
+      timeBlock: null,
       dateTimeOccurred: new Date()
     });
 

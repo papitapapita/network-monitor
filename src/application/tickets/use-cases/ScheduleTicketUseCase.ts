@@ -5,7 +5,7 @@ import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import { TicketMapper } from '../mappers';
 import { ScheduleTicketRequestDTO, TicketResponseDTO } from '../dtos';
-import { parseCalendarDate } from './calendar-date';
+import { parseCalendarDate, parseTimeBlock } from './calendar-date';
 
 export class ScheduleTicketUseCase extends UseCase<
   ScheduleTicketRequestDTO,
@@ -50,6 +50,14 @@ export class ScheduleTicketUseCase extends UseCase<
       scheduledFor = dateResult.value;
     }
 
+    const blockResult = parseTimeBlock(
+      request.startTime,
+      request.endTime
+    );
+    if (blockResult.isFailure) {
+      return this.fail(blockResult.error!);
+    }
+
     const findResult = await this.ticketRepository.findById(
       idResult.value
     );
@@ -61,7 +69,10 @@ export class ScheduleTicketUseCase extends UseCase<
     }
 
     const ticket = findResult.value;
-    const scheduleResult = ticket.schedule(scheduledFor);
+    const scheduleResult = ticket.schedule(
+      scheduledFor,
+      blockResult.value
+    );
     if (scheduleResult.isFailure) {
       return this.fail(scheduleResult.error!);
     }

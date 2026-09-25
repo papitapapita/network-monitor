@@ -86,6 +86,38 @@ describe('AssignTicketUseCase — integration', () => {
     );
   });
 
+  it('stores a time block given with the schedule date', async () => {
+    const id = await seedTicket(prisma, { customerId });
+
+    const result = await useCase.execute({
+      id,
+      technicianId,
+      scheduledFor: '2026-08-04',
+      startTime: '14:00',
+      endTime: '16:00'
+    });
+
+    expect(result.isSuccess).toBe(true);
+    const row = await prisma.ticket.findUnique({ where: { id } });
+    expect(row!.scheduledStartTime).toBe('14:00');
+    expect(row!.scheduledEndTime).toBe('16:00');
+  });
+
+  it('[TKT-079] refuses a time block without a schedule date', async () => {
+    const id = await seedTicket(prisma, { customerId });
+
+    const result = await useCase.execute({
+      id,
+      technicianId,
+      startTime: '14:00',
+      endTime: '16:00'
+    });
+
+    expect(result.isFailure).toBe(true);
+    const row = await prisma.ticket.findUnique({ where: { id } });
+    expect(row!.status).toBe('OPEN');
+  });
+
   it('[TKT-071] reassigns a ticket that has not been started', async () => {
     const otherId = await seedTechnician(prisma, {
       phone: '+573004445566'

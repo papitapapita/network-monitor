@@ -162,6 +162,41 @@ describe('ListTicketsUseCase — integration', () => {
     expect(result.value.total).toBe(2);
   });
 
+  it('orders a day by block start time, with unblocked tickets last', async () => {
+    const day = new Date('2026-08-04T00:00:00.000Z');
+    await seedTicket(prisma, {
+      customerId,
+      title: 'Anytime',
+      scheduledFor: day
+    });
+    await seedTicket(prisma, {
+      customerId,
+      title: 'Afternoon',
+      scheduledFor: day,
+      scheduledStartTime: '14:00',
+      scheduledEndTime: '15:00'
+    });
+    await seedTicket(prisma, {
+      customerId,
+      title: 'Morning',
+      scheduledFor: day,
+      scheduledStartTime: '08:00',
+      scheduledEndTime: '09:00'
+    });
+
+    const result = await useCase.execute({
+      scheduledFrom: '2026-08-04',
+      scheduledTo: '2026-08-04'
+    });
+
+    expect(result.value.tickets.map((t) => t.title)).toEqual([
+      'Morning',
+      'Afternoon',
+      'Anytime'
+    ]);
+    expect(result.value.tickets[0].startTime).toBe('08:00');
+  });
+
   it('fails when the date window is inverted', async () => {
     const result = await useCase.execute({
       scheduledFrom: '2026-08-09',

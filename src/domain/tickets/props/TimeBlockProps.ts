@@ -1,6 +1,6 @@
 import { TimeOfDay } from 'domain/shared/value-objects';
 
-export interface QuietHoursProps {
+export interface TimeBlockProps {
   start: TimeOfDay;
   end: TimeOfDay;
 }

@@ -1,4 +1,5 @@
 import { Result } from 'domain/shared/core';
+import { TimeBlock } from 'domain/tickets';
 
 const CALENDAR_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -47,4 +48,29 @@ export function startOfUtcDay(date: Date): Date {
       date.getUTCDate()
     )
   );
+}
+
+// A half-given block is a client mistake, not "no block": refusing it stops a
+// forgotten endTime from silently scheduling the ticket for any time that day.
+export function parseTimeBlock(
+  startTime: string | null | undefined,
+  endTime: string | null | undefined
+): Result<TimeBlock | null> {
+  const hasStart = startTime !== undefined && startTime !== null;
+  const hasEnd = endTime !== undefined && endTime !== null;
+
+  if (!hasStart && !hasEnd) {
+    return Result.ok<TimeBlock | null>(null);
+  }
+  if (!hasStart || !hasEnd) {
+    return Result.fail<TimeBlock | null>(
+      'startTime and endTime must be provided together'
+    );
+  }
+
+  const blockResult = TimeBlock.fromStrings(startTime, endTime);
+  if (blockResult.isFailure) {
+    return Result.fail<TimeBlock | null>(blockResult.error!);
+  }
+  return Result.ok<TimeBlock | null>(blockResult.value);
 }

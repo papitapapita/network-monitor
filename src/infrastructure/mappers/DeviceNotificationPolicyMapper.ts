@@ -3,10 +3,8 @@ import {
   DeviceNotificationPolicyId
 } from 'domain/shared/ids';
 import { DeviceNotificationPolicy } from 'domain/notifications/entities';
-import {
-  QuietHours,
-  TimeOfDay
-} from 'domain/notifications/value-objects';
+import { TimeOfDay } from 'domain/shared/value-objects';
+import { QuietHours } from 'domain/notifications/value-objects';
 
 type PrismaDeviceNotificationPolicyRecord = {
   id: string;

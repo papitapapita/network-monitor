@@ -4,7 +4,8 @@ import {
   TicketPriority,
   TicketCategory,
   TicketOrigin,
-  ServiceAddress
+  ServiceAddress,
+  TimeBlock
 } from 'domain/tickets';
 import {
   CustomerId,
@@ -39,6 +40,8 @@ type PrismaTicketRecord = {
   latitude: number | { toNumber(): number } | null;
   longitude: number | { toNumber(): number } | null;
   scheduledFor: Date | null;
+  scheduledStartTime: string | null;
+  scheduledEndTime: string | null;
   origin: string;
   originAlertId: string | null;
   resolutionNotes: string | null;
@@ -70,6 +73,8 @@ type TicketPersistenceData = {
   latitude: number | null;
   longitude: number | null;
   scheduledFor: Date | null;
+  scheduledStartTime: string | null;
+  scheduledEndTime: string | null;
   origin: PrismaTicketOrigin;
   originAlertId: string | null;
   resolutionNotes: string | null;
@@ -152,6 +157,23 @@ export class TicketMapper {
       });
     }
 
+    let timeBlock: TimeBlock | null = null;
+    if (
+      raw.scheduledStartTime !== null &&
+      raw.scheduledEndTime !== null
+    ) {
+      const result = TimeBlock.fromStrings(
+        raw.scheduledStartTime,
+        raw.scheduledEndTime
+      );
+      if (result.isFailure) {
+        return Result.fail<Ticket>(
+          `Invalid ticket time block: ${result.error}`
+        );
+      }
+      timeBlock = result.value;
+    }
+
     const ticket = Ticket.reconstitute(idResult.value, {
       code: raw.code,
       status: TicketMapper.mapStatus(raw.status),
@@ -164,6 +186,7 @@ export class TicketMapper {
       technicianId,
       address,
       scheduledFor: raw.scheduledFor,
+      timeBlock,
       origin: TicketMapper.mapOrigin(raw.origin),
       originAlertId: raw.originAlertId,
       resolutionNotes: raw.resolutionNotes,
@@ -209,6 +232,14 @@ export class TicketMapper {
       latitude: address !== null ? address.latitude : null,
       longitude: address !== null ? address.longitude : null,
       scheduledFor: ticket.scheduledFor,
+      scheduledStartTime:
+        ticket.timeBlock !== null
+          ? ticket.timeBlock.start.toString()
+          : null,
+      scheduledEndTime:
+        ticket.timeBlock !== null
+          ? ticket.timeBlock.end.toString()
+          : null,
       origin: ticket.origin.value as PrismaTicketOrigin,
       originAlertId: ticket.originAlertId,
       resolutionNotes: ticket.resolutionNotes,

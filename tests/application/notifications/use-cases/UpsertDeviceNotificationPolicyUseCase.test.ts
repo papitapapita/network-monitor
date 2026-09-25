@@ -10,7 +10,7 @@ import { DeviceNotificationPolicyId } from '../../../../src/domain/shared/ids/De
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { UpsertDeviceNotificationPolicyDTO } from '../../../../src/application/notifications/dtos/UpsertDeviceNotificationPolicyDTO';
 import { QuietHours } from '../../../../src/domain/notifications/value-objects/QuietHours';
-import { TimeOfDay } from '../../../../src/domain/notifications/value-objects/TimeOfDay';
+import { TimeOfDay } from '../../../../src/domain/shared/value-objects/TimeOfDay';
 
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440091';
 

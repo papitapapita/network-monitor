@@ -14,7 +14,7 @@ import { DeviceNotificationPolicyId } from '../../../src/domain/shared/ids/Devic
 import { DeviceId } from '../../../src/domain/shared/ids/DeviceId';
 import { AlertSeverity } from '../../../src/domain/shared/enums/AlertSeverity';
 import { QuietHours } from '../../../src/domain/notifications/value-objects/QuietHours';
-import { TimeOfDay } from '../../../src/domain/notifications/value-objects/TimeOfDay';
+import { TimeOfDay } from '../../../src/domain/shared/value-objects/TimeOfDay';
 
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440095';
 const FIXED_DATE = new Date('2024-06-01T10:00:00.000Z');

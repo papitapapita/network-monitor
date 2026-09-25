@@ -8,7 +8,8 @@ import {
   TicketCategory,
   TicketOrigin,
   TicketStatus,
-  ServiceAddress
+  ServiceAddress,
+  TimeBlock
 } from '../../../../src/domain/tickets';
 import {
   CustomerId,
@@ -66,6 +67,26 @@ describe('TicketMapper (application)', () => {
       expect(TicketMapper.toDTO(ticket).scheduledFor).toBe(
         '2026-08-04'
       );
+    });
+
+    it('renders the time block as separate HH:mm fields', () => {
+      const ticket = makeTicket();
+      ticket.schedule(
+        new Date('2026-08-04T00:00:00.000Z'),
+        TimeBlock.fromStrings('07:30', '08:15').value
+      );
+
+      const dto = TicketMapper.toDTO(ticket);
+
+      expect(dto.startTime).toBe('07:30');
+      expect(dto.endTime).toBe('08:15');
+    });
+
+    it('leaves both times null when there is no block', () => {
+      const dto = TicketMapper.toDTO(makeTicket());
+
+      expect(dto.startTime).toBeNull();
+      expect(dto.endTime).toBeNull();
     });
 
     it('leaves absent timestamps null', () => {

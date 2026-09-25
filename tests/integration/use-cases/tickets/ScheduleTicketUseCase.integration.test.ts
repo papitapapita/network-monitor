@@ -62,6 +62,89 @@ describe('ScheduleTicketUseCase — integration', () => {
     );
   });
 
+  it('stores a time block as HH:mm columns on the scheduled day', async () => {
+    const id = await seedTicket(prisma, { customerId });
+
+    const result = await useCase.execute({
+      id,
+      scheduledFor: '2026-09-01',
+      startTime: '09:00',
+      endTime: '10:30'
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.startTime).toBe('09:00');
+    expect(result.value.endTime).toBe('10:30');
+
+    const row = await prisma.ticket.findUnique({ where: { id } });
+    expect(row!.scheduledStartTime).toBe('09:00');
+    expect(row!.scheduledEndTime).toBe('10:30');
+  });
+
+  it('[TKT-081] clears the stored block when rescheduled without one', async () => {
+    const id = await seedTicket(prisma, {
+      customerId,
+      scheduledFor: new Date('2026-09-01T00:00:00.000Z'),
+      scheduledStartTime: '09:00',
+      scheduledEndTime: '10:30'
+    });
+
+    const result = await useCase.execute({
+      id,
+      scheduledFor: '2026-09-02'
+    });
+
+    expect(result.isSuccess).toBe(true);
+    const row = await prisma.ticket.findUnique({ where: { id } });
+    expect(row!.scheduledStartTime).toBeNull();
+    expect(row!.scheduledEndTime).toBeNull();
+  });
+
+  it('[TKT-080] refuses half a block and leaves the row untouched', async () => {
+    const id = await seedTicket(prisma, { customerId });
+
+    const result = await useCase.execute({
+      id,
+      scheduledFor: '2026-09-01',
+      startTime: '09:00'
+    });
+
+    expect(result.isFailure).toBe(true);
+    const row = await prisma.ticket.findUnique({ where: { id } });
+    expect(row!.scheduledFor).toBeNull();
+  });
+
+  it('[TKT-079] the database refuses a block with no scheduled day', async () => {
+    const id = await seedTicket(prisma, { customerId });
+
+    await expect(
+      prisma.ticket.update({
+        where: { id },
+        data: {
+          scheduledStartTime: '09:00',
+          scheduledEndTime: '10:00'
+        }
+      })
+    ).rejects.toThrow();
+  });
+
+  it('[TKT-078] the database refuses a block that ends before it starts', async () => {
+    const id = await seedTicket(prisma, {
+      customerId,
+      scheduledFor: new Date('2026-09-01T00:00:00.000Z')
+    });
+
+    await expect(
+      prisma.ticket.update({
+        where: { id },
+        data: {
+          scheduledStartTime: '10:00',
+          scheduledEndTime: '09:00'
+        }
+      })
+    ).rejects.toThrow();
+  });
+
   it('[TKT-075] accepts a date in the past', async () => {
     const id = await seedTicket(prisma, { customerId });
 

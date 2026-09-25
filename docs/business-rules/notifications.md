@@ -962,13 +962,13 @@ an invalid one — there is no sensible default for the missing side.
 Rejecting it at four layers (schema, use case, domain, database) is cheaper
 than ever having to decide what a one-sided window would mean.
 
-**Enforced at:** `src/domain/notifications/value-objects/TimeOfDay.ts`,
+**Enforced at:** `src/domain/shared/value-objects/TimeOfDay.ts`,
 `src/domain/notifications/value-objects/QuietHours.ts`,
 `src/application/notifications/use-cases/UpsertDeviceNotificationPolicyUseCase.ts`,
 `src/presentation/http/validation/notification-policy.schemas.ts`
 **Backed by:** `device_notification_policies_quiet_hours_both_or_neither` CHECK constraint, migration `20260902120000`
 **Message:** `quietHoursStart and quietHoursEnd must both be set, or both be null`
-**Tests:** `tests/domain/notifications/value-objects/TimeOfDay.test.ts`,
+**Tests:** `tests/domain/shared/value-objects/TimeOfDay.test.ts`,
 `tests/domain/notifications/value-objects/QuietHours.test.ts`,
 `tests/application/notifications/use-cases/UpsertDeviceNotificationPolicyUseCase.test.ts`,
 `tests/integration/use-cases/notifications/UpsertDeviceNotificationPolicyUseCase.integration.test.ts`,
@@ -993,9 +993,9 @@ does not need. Overnight is the common case this feature exists for; nobody
 scheduled a "customers asleep" window that starts and ends the same
 calendar day.
 
-**Enforced at:** `src/domain/notifications/value-objects/TimeOfDay.ts` (`fromDate`),
+**Enforced at:** `src/domain/shared/value-objects/TimeOfDay.ts` (`fromDate`),
 `src/domain/notifications/value-objects/QuietHours.ts` (`contains`)
-**Tests:** `tests/domain/notifications/value-objects/TimeOfDay.test.ts`,
+**Tests:** `tests/domain/shared/value-objects/TimeOfDay.test.ts`,
 `tests/domain/notifications/value-objects/QuietHours.test.ts`,
 `tests/domain/notifications/entities/DeviceNotificationPolicy.test.ts`,
 `tests/infrastructure/notifications/QuietHoursAlertPublisher.test.ts`

@@ -50,6 +50,88 @@ describe('ScheduleTicketUseCase', () => {
     expect(result.value.scheduledFor).toBe('2026-09-01');
   });
 
+  it('sets a time block on the visit day', async () => {
+    const result = await useCase.execute({
+      id: ticket.id.toString(),
+      scheduledFor: '2026-09-01',
+      startTime: '10:00',
+      endTime: '11:30'
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.startTime).toBe('10:00');
+    expect(result.value.endTime).toBe('11:30');
+  });
+
+  it('[TKT-081] leaves no block when only the day is sent', async () => {
+    await useCase.execute({
+      id: ticket.id.toString(),
+      scheduledFor: '2026-09-01',
+      startTime: '10:00',
+      endTime: '11:30'
+    });
+
+    const result = await useCase.execute({
+      id: ticket.id.toString(),
+      scheduledFor: '2026-09-02'
+    });
+
+    expect(result.value.startTime).toBeNull();
+    expect(result.value.endTime).toBeNull();
+  });
+
+  it('[TKT-080] rejects a start time without an end time', async () => {
+    const result = await useCase.execute({
+      id: ticket.id.toString(),
+      scheduledFor: '2026-09-01',
+      startTime: '10:00'
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toBe(
+      'startTime and endTime must be provided together'
+    );
+    expect(ticketRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('[TKT-078] rejects a block that ends before it starts', async () => {
+    const result = await useCase.execute({
+      id: ticket.id.toString(),
+      scheduledFor: '2026-09-01',
+      startTime: '11:00',
+      endTime: '10:00'
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toContain('must be later than its start');
+  });
+
+  it('rejects a malformed time', async () => {
+    const result = await useCase.execute({
+      id: ticket.id.toString(),
+      scheduledFor: '2026-09-01',
+      startTime: '9:00',
+      endTime: '10:00'
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toContain('Invalid start time');
+  });
+
+  it('[TKT-079] rejects a block when the schedule is cleared', async () => {
+    const result = await useCase.execute({
+      id: ticket.id.toString(),
+      scheduledFor: null,
+      startTime: '10:00',
+      endTime: '11:00'
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toBe(
+      'A scheduled date is required for a time block'
+    );
+  });
+
   it('[TKT-075] accepts a past date', async () => {
     const result = await useCase.execute({
       id: ticket.id.toString(),

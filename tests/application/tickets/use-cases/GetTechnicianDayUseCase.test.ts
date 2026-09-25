@@ -9,7 +9,10 @@ import {
   afterEach
 } from '@jest/globals';
 import { GetTechnicianDayUseCase } from '../../../../src/application/tickets/use-cases';
-import { TicketPriority } from '../../../../src/domain/tickets';
+import {
+  TicketPriority,
+  TimeBlock
+} from '../../../../src/domain/tickets';
 import { Result } from '../../../../src/domain/shared/core';
 import { GHOST_ID, INVALID_ID } from './constants';
 import {
@@ -104,6 +107,44 @@ describe('GetTechnicianDayUseCase', () => {
       'Urgent',
       'Normal',
       'Low'
+    ]);
+  });
+
+  it('[TKT-076] puts booked blocks first in clock order, then the rest by priority', async () => {
+    const day = new Date('2026-08-04T00:00:00.000Z');
+    const afternoon = makeTicket({
+      title: 'Afternoon',
+      priority: priority(TicketPriority.LOW),
+      scheduledFor: day,
+      timeBlock: TimeBlock.fromStrings('14:00', '15:00').value
+    });
+    const morning = makeTicket({
+      title: 'Morning',
+      priority: priority(TicketPriority.LOW),
+      scheduledFor: day,
+      timeBlock: TimeBlock.fromStrings('08:00', '09:00').value
+    });
+    const urgent = makeTicket({
+      title: 'Urgent anytime',
+      priority: priority(TicketPriority.URGENT),
+      scheduledFor: day
+    });
+    const normal = makeTicket({
+      title: 'Normal anytime',
+      priority: priority(TicketPriority.NORMAL),
+      scheduledFor: day
+    });
+    (ticketRepo.findForTechnicianOnDate as any).mockResolvedValue(
+      Result.ok([normal, afternoon, urgent, morning])
+    );
+
+    const result = await useCase.execute(request());
+
+    expect(result.value.tickets.map((t) => t.title)).toEqual([
+      'Morning',
+      'Afternoon',
+      'Urgent anytime',
+      'Normal anytime'
     ]);
   });
 

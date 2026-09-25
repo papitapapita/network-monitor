@@ -817,6 +817,10 @@ model Ticket {
   longitude           Decimal? @db.Decimal(10, 7)
 
   scheduledFor DateTime?    @map("scheduled_for") @db.Date
+  // Optional wall-clock window (HH:mm) within scheduled_for. Not timestamps:
+  // the block must stay on its scheduled day regardless of zone.
+  scheduledStartTime String? @map("scheduled_start_time") @db.VarChar(5)
+  scheduledEndTime   String? @map("scheduled_end_time") @db.VarChar(5)
   origin       TicketOrigin @default(MANUAL)
   // Not a foreign key: points at alert_events or wireless_alert_records
   // depending on `origin`, so the reference cannot be expressed as an FK.

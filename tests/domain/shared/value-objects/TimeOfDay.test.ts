@@ -1,6 +1,6 @@
-// Source: src/domain/notifications/value-objects/TimeOfDay.ts
+// Source: src/domain/shared/value-objects/TimeOfDay.ts
 
-import { TimeOfDay } from '../../../../src/domain/notifications/value-objects/TimeOfDay';
+import { TimeOfDay } from '../../../../src/domain/shared/value-objects/TimeOfDay';
 
 describe('TimeOfDay', () => {
   describe('create(value)', () => {

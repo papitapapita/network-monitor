@@ -134,6 +134,23 @@ describe('CreateTicketUseCase — integration', () => {
     expect(result.value.scheduledFor).toBe('2026-08-04');
   });
 
+  it('stores a time block given at creation', async () => {
+    const result = await useCase.execute({
+      ...validRequest(),
+      technicianId,
+      scheduledFor: '2026-08-04',
+      startTime: '08:00',
+      endTime: '09:30'
+    });
+
+    expect(result.isSuccess).toBe(true);
+    const row = await prisma.ticket.findUnique({
+      where: { id: result.value.id }
+    });
+    expect(row!.scheduledStartTime).toBe('08:00');
+    expect(row!.scheduledEndTime).toBe('09:30');
+  });
+
   it('[TKT-077] refuses to assign an inactive technician at creation', async () => {
     const inactiveId = await seedTechnician(prisma, {
       phone: '+573009990000',

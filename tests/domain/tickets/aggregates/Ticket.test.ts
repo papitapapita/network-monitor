@@ -8,6 +8,7 @@ import {
   TicketCategory,
   TicketOrigin,
   ServiceAddress,
+  TimeBlock,
   TicketOpenedEvent,
   TicketAssignedEvent,
   TicketStatusChangedEvent,
@@ -39,6 +40,9 @@ function makeProps(overrides: Record<string, unknown> = {}) {
     ...overrides
   } as Parameters<typeof Ticket.create>[0];
 }
+
+const block = (start: string, end: string) =>
+  TimeBlock.fromStrings(start, end).value;
 
 function makeTicket(overrides: Record<string, unknown> = {}): Ticket {
   const result = Ticket.create(makeProps(overrides));
@@ -214,6 +218,32 @@ describe('Ticket', () => {
     });
   });
 
+  describe('create() with a time block', () => {
+    it('should keep a time block on a scheduled day', () => {
+      const ticket = makeTicket({
+        scheduledFor: new Date('2026-08-10T00:00:00Z'),
+        timeBlock: block('09:00', '10:30')
+      });
+
+      expect(ticket.timeBlock!.toString()).toBe('09:00-10:30');
+    });
+
+    it('should default to no time block', () => {
+      expect(makeTicket().timeBlock).toBeNull();
+    });
+
+    it('[TKT-079] should refuse a time block with no scheduled day', () => {
+      const result = Ticket.create(
+        makeProps({ timeBlock: block('09:00', '10:30') })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe(
+        'A scheduled date is required for a time block'
+      );
+    });
+  });
+
   describe('assign()', () => {
     it('[TKT-070] should move the ticket to ASSIGNED and stamp assignedAt', () => {
       const ticket = makeTicket();
@@ -221,7 +251,7 @@ describe('Ticket', () => {
       const technicianId = TechnicianId.create();
       const now = new Date('2026-08-04T09:00:00Z');
 
-      const result = ticket.assign(technicianId, null, now);
+      const result = ticket.assign(technicianId, null, null, now);
 
       expect(result.isSuccess).toBe(true);
       expect(ticket.status.value).toBe(TicketStatus.ASSIGNED);
@@ -250,6 +280,63 @@ describe('Ticket', () => {
       ticket.assign(TechnicianId.create(), scheduledFor);
 
       expect(ticket.scheduledFor).toEqual(scheduledFor);
+    });
+
+    it('should carry a time block with the schedule date', () => {
+      const ticket = makeTicket();
+      ticket.clearEvents();
+
+      const result = ticket.assign(
+        TechnicianId.create(),
+        new Date('2026-08-05T00:00:00Z'),
+        block('14:00', '15:00')
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(ticket.timeBlock!.toString()).toBe('14:00-15:00');
+      const event = ticket.domainEvents[0] as TicketAssignedEvent;
+      expect(event.timeBlock!.toString()).toBe('14:00-15:00');
+    });
+
+    it('[TKT-081] should replace an existing block when a new date comes without one', () => {
+      const ticket = makeTicket({
+        scheduledFor: new Date('2026-08-05T00:00:00Z'),
+        timeBlock: block('14:00', '15:00')
+      });
+
+      ticket.assign(
+        TechnicianId.create(),
+        new Date('2026-08-06T00:00:00Z')
+      );
+
+      expect(ticket.timeBlock).toBeNull();
+    });
+
+    it('should keep the existing schedule when no date is supplied', () => {
+      const ticket = makeTicket({
+        scheduledFor: new Date('2026-08-05T00:00:00Z'),
+        timeBlock: block('14:00', '15:00')
+      });
+
+      ticket.assign(TechnicianId.create());
+
+      expect(ticket.timeBlock!.toString()).toBe('14:00-15:00');
+    });
+
+    it('[TKT-079] should refuse a time block without a schedule date', () => {
+      const ticket = makeTicket();
+
+      const result = ticket.assign(
+        TechnicianId.create(),
+        null,
+        block('14:00', '15:00')
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe(
+        'A scheduled date is required for a time block'
+      );
+      expect(ticket.status.value).toBe(TicketStatus.OPEN);
     });
 
     it('[TKT-071] should allow reassigning a ticket that has not been started', () => {
@@ -536,6 +623,83 @@ describe('Ticket', () => {
       ticket.schedule(null);
 
       expect(ticket.scheduledFor).toBeNull();
+    });
+
+    it('should set a time block on the scheduled day', () => {
+      const ticket = makeTicket();
+
+      const result = ticket.schedule(
+        new Date('2026-08-10T00:00:00Z'),
+        block('08:00', '09:00')
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(ticket.timeBlock!.toString()).toBe('08:00-09:00');
+    });
+
+    it('should move a block to new times on the same day', () => {
+      const ticket = makeTicket();
+      const day = new Date('2026-08-10T00:00:00Z');
+      ticket.schedule(day, block('08:00', '09:00'));
+
+      ticket.schedule(day, block('11:00', '12:00'));
+
+      expect(ticket.timeBlock!.toString()).toBe('11:00-12:00');
+    });
+
+    it('should be a no-op when the date and block are unchanged', () => {
+      const ticket = makeTicket();
+      const day = new Date('2026-08-10T00:00:00Z');
+      ticket.schedule(
+        day,
+        block('08:00', '09:00'),
+        new Date('2026-08-01')
+      );
+      const updatedAt = ticket.updatedAt;
+
+      ticket.schedule(
+        day,
+        block('08:00', '09:00'),
+        new Date('2026-08-02')
+      );
+
+      expect(ticket.updatedAt).toEqual(updatedAt);
+    });
+
+    it('[TKT-081] should drop the block when rescheduled without one', () => {
+      const ticket = makeTicket();
+      const day = new Date('2026-08-10T00:00:00Z');
+      ticket.schedule(day, block('08:00', '09:00'));
+
+      const result = ticket.schedule(day);
+
+      expect(result.isSuccess).toBe(true);
+      expect(ticket.timeBlock).toBeNull();
+    });
+
+    it('[TKT-081] should drop the block when the schedule is cleared', () => {
+      const ticket = makeTicket();
+      ticket.schedule(
+        new Date('2026-08-10T00:00:00Z'),
+        block('08:00', '09:00')
+      );
+
+      ticket.schedule(null);
+
+      expect(ticket.scheduledFor).toBeNull();
+      expect(ticket.timeBlock).toBeNull();
+    });
+
+    it('[TKT-079] should refuse a time block with no date', () => {
+      const ticket = makeTicket();
+
+      const result = ticket.schedule(null, block('08:00', '09:00'));
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe(
+        'A scheduled date is required for a time block'
+      );
+      expect(ticket.timeBlock).toBeNull();
     });
 
     it('[TKT-074] should refuse to schedule a resolved ticket', () => {

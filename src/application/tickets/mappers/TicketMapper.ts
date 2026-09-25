@@ -47,6 +47,14 @@ export class TicketMapper {
       scheduledFor: TicketMapper.toDateOnlyString(
         ticket.scheduledFor
       ),
+      startTime:
+        ticket.timeBlock !== null
+          ? ticket.timeBlock.start.toString()
+          : null,
+      endTime:
+        ticket.timeBlock !== null
+          ? ticket.timeBlock.end.toString()
+          : null,
       origin: ticket.origin.value,
       originAlertId: ticket.originAlertId,
       resolutionNotes: ticket.resolutionNotes,
@@ -93,8 +101,8 @@ export class TicketMapper {
     };
   }
 
-  // Scheduling is by calendar day, so the wire format is a plain date with no
-  // time or zone to misread.
+  // The day is a plain date with no time or zone to misread; any time block
+  // travels separately as wall-clock HH:mm.
   public static toDateOnlyString(date: Date | null): string | null {
     if (date === null) return null;
     return date.toISOString().slice(0, 10);

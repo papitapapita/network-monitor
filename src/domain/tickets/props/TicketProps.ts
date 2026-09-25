@@ -9,7 +9,8 @@ import {
   TicketCategory,
   TicketOrigin,
   TicketPriority,
-  TicketStatus
+  TicketStatus,
+  TimeBlock
 } from '../value-objects';
 
 export interface TicketProps {
@@ -26,6 +27,8 @@ export interface TicketProps {
   technicianId: TechnicianId | null;
   address: ServiceAddress | null;
   scheduledFor: Date | null;
+  // Optional window within scheduledFor; null means any time that day.
+  timeBlock: TimeBlock | null;
   origin: TicketOrigin;
   // Raw uuid, not a typed id: it points at alert_events or
   // wireless_alert_records depending on origin.

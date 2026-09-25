@@ -171,7 +171,9 @@ export class TicketController {
       const result = await this.assignUseCase.execute({
         id: req.params.id,
         technicianId: req.body.technicianId,
-        scheduledFor: req.body.scheduledFor
+        scheduledFor: req.body.scheduledFor,
+        startTime: req.body.startTime,
+        endTime: req.body.endTime
       });
 
       if (result.isFailure) {
@@ -195,7 +197,9 @@ export class TicketController {
     try {
       const result = await this.scheduleUseCase.execute({
         id: req.params.id,
-        scheduledFor: req.body.scheduledFor
+        scheduledFor: req.body.scheduledFor,
+        startTime: req.body.startTime,
+        endTime: req.body.endTime
       });
 
       if (result.isFailure) {

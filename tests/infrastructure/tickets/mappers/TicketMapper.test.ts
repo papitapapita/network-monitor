@@ -8,7 +8,8 @@ import {
   TicketCategory,
   TicketOrigin,
   TicketStatus,
-  ServiceAddress
+  ServiceAddress,
+  TimeBlock
 } from '../../../../src/domain/tickets';
 import {
   CustomerId,
@@ -37,6 +38,8 @@ function makeRow(overrides: Record<string, unknown> = {}) {
     latitude: null,
     longitude: null,
     scheduledFor: null,
+    scheduledStartTime: null,
+    scheduledEndTime: null,
     origin: 'MANUAL',
     originAlertId: null,
     resolutionNotes: null,
@@ -62,6 +65,38 @@ describe('TicketMapper (infrastructure)', () => {
       expect(result.value.code).toBe(42);
       expect(result.value.status.value).toBe(TicketStatus.OPEN);
       expect(result.value.priority.value).toBe(TicketPriority.HIGH);
+    });
+
+    it('leaves the time block null when the times are absent', () => {
+      const result = TicketMapper.toDomain(makeRow());
+
+      expect(result.value.timeBlock).toBeNull();
+    });
+
+    it('rebuilds the time block from its HH:mm columns', () => {
+      const result = TicketMapper.toDomain(
+        makeRow({
+          scheduledFor: new Date('2026-08-04T00:00:00.000Z'),
+          scheduledStartTime: '09:30',
+          scheduledEndTime: '11:00'
+        })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.timeBlock!.toString()).toBe('09:30-11:00');
+    });
+
+    it('fails on a corrupt time block instead of dropping it', () => {
+      const result = TicketMapper.toDomain(
+        makeRow({
+          scheduledFor: new Date('2026-08-04T00:00:00.000Z'),
+          scheduledStartTime: '11:00',
+          scheduledEndTime: '09:30'
+        })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Invalid ticket time block');
     });
 
     it('bypasses aggregate validation so a legacy row still loads', () => {
@@ -215,6 +250,25 @@ describe('TicketMapper (infrastructure)', () => {
       expect(data.addressStreet).toBeNull();
       expect(data.latitude).toBeNull();
       expect(data.longitude).toBeNull();
+    });
+
+    it('writes the time block as HH:mm columns', () => {
+      const data = TicketMapper.toPersistence(
+        makeTicket({
+          scheduledFor: new Date('2026-08-04T00:00:00.000Z'),
+          timeBlock: TimeBlock.fromStrings('08:00', '09:45').value
+        })
+      );
+
+      expect(data.scheduledStartTime).toBe('08:00');
+      expect(data.scheduledEndTime).toBe('09:45');
+    });
+
+    it('nulls both time columns when there is no block', () => {
+      const data = TicketMapper.toPersistence(makeTicket());
+
+      expect(data.scheduledStartTime).toBeNull();
+      expect(data.scheduledEndTime).toBeNull();
     });
 
     it('round-trips through toDomain', () => {

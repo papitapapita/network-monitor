@@ -159,6 +159,48 @@ describe('GetTechnicianDayUseCase — integration', () => {
     ]);
   });
 
+  it('[TKT-076] puts booked blocks first in clock order, then the rest by priority', async () => {
+    await seedTicket(prisma, {
+      customerId,
+      technicianId,
+      status: 'ASSIGNED',
+      priority: 'URGENT',
+      title: 'Urgent anytime',
+      scheduledFor: todayDate()
+    });
+    await seedTicket(prisma, {
+      customerId,
+      technicianId,
+      status: 'ASSIGNED',
+      priority: 'LOW',
+      title: 'Afternoon visit',
+      scheduledFor: todayDate(),
+      scheduledStartTime: '15:00',
+      scheduledEndTime: '16:00'
+    });
+    await seedTicket(prisma, {
+      customerId,
+      technicianId,
+      status: 'ASSIGNED',
+      priority: 'LOW',
+      title: 'Morning visit',
+      scheduledFor: todayDate(),
+      scheduledStartTime: '08:30',
+      scheduledEndTime: '09:30'
+    });
+
+    const result = await useCase.execute({
+      technicianId,
+      date: TODAY
+    });
+
+    expect(result.value.tickets.map((t) => t.title)).toEqual([
+      'Morning visit',
+      'Afternoon visit',
+      'Urgent anytime'
+    ]);
+  });
+
   it('excludes another technician’s work', async () => {
     await seedTicket(prisma, {
       customerId,

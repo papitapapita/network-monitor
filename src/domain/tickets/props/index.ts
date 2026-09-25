@@ -4,6 +4,7 @@ export * from './TicketCategoryProps';
 export * from './TicketOriginProps';
 export * from './ContactPhoneProps';
 export * from './ServiceAddressProps';
+export * from './TimeBlockProps';
 export * from './TechnicianProps';
 export * from './TicketProps';
 export * from './TicketFilter';

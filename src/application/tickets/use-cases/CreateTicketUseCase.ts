@@ -5,7 +5,8 @@ import {
   TicketPriority,
   TicketCategory,
   TicketOrigin,
-  ServiceAddress
+  ServiceAddress,
+  TimeBlock
 } from 'domain/tickets';
 import {
   CustomerId,
@@ -19,7 +20,7 @@ import { ILogger } from 'application/shared/interfaces';
 import { TicketMapper } from '../mappers';
 import { CreateTicketRequestDTO, TicketResponseDTO } from '../dtos';
 import { ICustomerDirectory, IDeviceDirectory } from '../interfaces';
-import { parseCalendarDate } from './calendar-date';
+import { parseCalendarDate, parseTimeBlock } from './calendar-date';
 
 export class CreateTicketUseCase extends UseCase<
   CreateTicketRequestDTO,
@@ -109,6 +110,15 @@ export class CreateTicketUseCase extends UseCase<
       scheduledFor = dateResult.value;
     }
 
+    const blockResult = parseTimeBlock(
+      request.startTime,
+      request.endTime
+    );
+    if (blockResult.isFailure) {
+      return this.fail(blockResult.error!);
+    }
+    const timeBlock = blockResult.value;
+
     let createdBy: UserId | null = null;
     if (
       request.createdBy !== undefined &&
@@ -132,6 +142,7 @@ export class CreateTicketUseCase extends UseCase<
       deviceId: deviceResult.value,
       address: addressResult.value,
       scheduledFor,
+      timeBlock,
       createdBy
     });
     if (ticketResult.isFailure) {
@@ -150,7 +161,8 @@ export class CreateTicketUseCase extends UseCase<
       const assignResult = await this.assignAtCreation(
         ticket,
         request.technicianId,
-        scheduledFor
+        scheduledFor,
+        timeBlock
       );
       if (assignResult.isFailure) {
         return this.fail(assignResult.error!);
@@ -170,7 +182,8 @@ export class CreateTicketUseCase extends UseCase<
   private async assignAtCreation(
     ticket: Ticket,
     technicianId: string,
-    scheduledFor: Date | null
+    scheduledFor: Date | null,
+    timeBlock: TimeBlock | null
   ): Promise<Result<void>> {
     const idResult = TechnicianId.parse(technicianId);
     if (idResult.isFailure) {
@@ -192,7 +205,7 @@ export class CreateTicketUseCase extends UseCase<
       );
     }
 
-    return ticket.assign(idResult.value, scheduledFor);
+    return ticket.assign(idResult.value, scheduledFor, timeBlock);
   }
 
   private async resolveCustomer(

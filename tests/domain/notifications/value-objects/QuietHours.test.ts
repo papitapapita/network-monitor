@@ -1,7 +1,7 @@
 // Source: src/domain/notifications/value-objects/QuietHours.ts
 
 import { QuietHours } from '../../../../src/domain/notifications/value-objects/QuietHours';
-import { TimeOfDay } from '../../../../src/domain/notifications/value-objects/TimeOfDay';
+import { TimeOfDay } from '../../../../src/domain/shared/value-objects/TimeOfDay';
 
 function time(value: string): TimeOfDay {
   return TimeOfDay.create(value).value;

@@ -90,9 +90,18 @@ export class GetTechnicianDayUseCase extends UseCase<
       return this.fail(ticketsResult.error!);
     }
 
-    // Most urgent first, then oldest first within a priority — the order the
-    // technician should work the day in.
+    // Booked visits first, in clock order — they are commitments to a customer.
+    // The rest fill the gaps: most urgent first, then oldest within a priority.
     const ordered = [...ticketsResult.value].sort((a, b) => {
+      if (a.timeBlock !== null && b.timeBlock !== null) {
+        return (
+          a.timeBlock.start.toMinutes() -
+          b.timeBlock.start.toMinutes()
+        );
+      }
+      if (a.timeBlock !== null) return -1;
+      if (b.timeBlock !== null) return 1;
+
       const byPriority = a.priority.rank - b.priority.rank;
       if (byPriority !== 0) return byPriority;
       return a.createdAt.getTime() - b.createdAt.getTime();

@@ -1,6 +1,6 @@
 import { ValueObject, Result, Guard } from 'domain/shared/core';
 import { QuietHoursProps } from '../props';
-import { TimeOfDay } from './TimeOfDay';
+import { TimeOfDay } from 'domain/shared/value-objects';
 
 export class QuietHours extends ValueObject<QuietHoursProps> {
   get start(): TimeOfDay {

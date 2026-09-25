@@ -3,10 +3,10 @@ import {
   DeviceId,
   DeviceNotificationPolicyId
 } from 'domain/shared/ids';
+import { TimeOfDay } from 'domain/shared/value-objects';
 import {
   DeviceNotificationPolicy,
-  QuietHours,
-  TimeOfDay
+  QuietHours
 } from 'domain/notifications';
 import { IDeviceNotificationPolicyRepository } from 'domain/notifications/repository';
 import { IDeviceRepository } from 'domain/device-inventory/repository';

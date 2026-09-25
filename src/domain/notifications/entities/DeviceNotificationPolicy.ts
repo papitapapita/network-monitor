@@ -3,7 +3,8 @@ import {
   DeviceId,
   DeviceNotificationPolicyId
 } from 'domain/shared/ids';
-import { QuietHours, TimeOfDay } from '../value-objects';
+import { TimeOfDay } from 'domain/shared/value-objects';
+import { QuietHours } from '../value-objects';
 import { DeviceNotificationPolicyProps } from '../props';
 
 export class DeviceNotificationPolicy extends Entity<

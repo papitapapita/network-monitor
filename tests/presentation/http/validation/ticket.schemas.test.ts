@@ -156,6 +156,57 @@ describe('ticket.schemas', () => {
         }).success
       ).toBe(true);
     });
+
+    it('accepts a time block given as two HH:mm times', () => {
+      expect(
+        createTicketSchema.safeParse({
+          body: {
+            ...validBody,
+            scheduledFor: '2026-08-04',
+            startTime: '09:00',
+            endTime: '10:30'
+          }
+        }).success
+      ).toBe(true);
+    });
+
+    it('rejects a time that is not 24-hour HH:mm', () => {
+      expect(
+        createTicketSchema.safeParse({
+          body: {
+            ...validBody,
+            scheduledFor: '2026-08-04',
+            startTime: '9:00am',
+            endTime: '10:30'
+          }
+        }).success
+      ).toBe(false);
+    });
+
+    it('[TKT-080] rejects a start time without an end time', () => {
+      expect(
+        createTicketSchema.safeParse({
+          body: {
+            ...validBody,
+            scheduledFor: '2026-08-04',
+            startTime: '09:00'
+          }
+        }).success
+      ).toBe(false);
+    });
+
+    it('[TKT-080] treats a null end time as missing', () => {
+      expect(
+        createTicketSchema.safeParse({
+          body: {
+            ...validBody,
+            scheduledFor: '2026-08-04',
+            startTime: '09:00',
+            endTime: null
+          }
+        }).success
+      ).toBe(false);
+    });
   });
 
   describe('updateTicketSchema', () => {
@@ -314,6 +365,47 @@ describe('ticket.schemas', () => {
           body: { scheduledFor: null }
         }).success
       ).toBe(true);
+    });
+
+    it('assignTicketSchema accepts a time block and rejects half of one', () => {
+      expect(
+        assignTicketSchema.safeParse({
+          params: { id: UUID },
+          body: {
+            technicianId: OTHER_UUID,
+            scheduledFor: '2026-08-04',
+            startTime: '13:00',
+            endTime: '14:00'
+          }
+        }).success
+      ).toBe(true);
+
+      expect(
+        assignTicketSchema.safeParse({
+          params: { id: UUID },
+          body: { technicianId: OTHER_UUID, endTime: '14:00' }
+        }).success
+      ).toBe(false);
+    });
+
+    it('scheduleTicketSchema accepts a time block and rejects half of one', () => {
+      expect(
+        scheduleTicketSchema.safeParse({
+          params: { id: UUID },
+          body: {
+            scheduledFor: '2026-08-04',
+            startTime: '13:00',
+            endTime: '14:00'
+          }
+        }).success
+      ).toBe(true);
+
+      expect(
+        scheduleTicketSchema.safeParse({
+          params: { id: UUID },
+          body: { scheduledFor: '2026-08-04', startTime: '13:00' }
+        }).success
+      ).toBe(false);
     });
 
     it('[TKT-043] resolveTicketSchema requires non-empty notes', () => {

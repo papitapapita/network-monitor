@@ -55,6 +55,23 @@ const calendarDateField = z
     'Date must be a calendar date in YYYY-MM-DD format'
   );
 
+const timeOfDayField = z
+  .string()
+  .trim()
+  .regex(
+    /^([01]\d|2[0-3]):([0-5]\d)$/,
+    'Time must be in HH:mm 24-hour format'
+  );
+
+const hasTimeBlockPair = (body: {
+  startTime?: string | null;
+  endTime?: string | null;
+}) => (body.startTime == null) === (body.endTime == null);
+
+const timeBlockPairMessage = {
+  message: 'startTime and endTime must be provided together'
+};
+
 const uuidField = (label: string) =>
   z
     .string()
@@ -112,7 +129,9 @@ export const createTicketSchema = z.object({
       deviceId: uuidField('device ID').nullable().optional(),
       technicianId: uuidField('technician ID').nullable().optional(),
       address: addressField.nullable().optional(),
-      scheduledFor: calendarDateField.nullable().optional()
+      scheduledFor: calendarDateField.nullable().optional(),
+      startTime: timeOfDayField.nullable().optional(),
+      endTime: timeOfDayField.nullable().optional()
     })
     .refine(
       (body) =>
@@ -120,6 +139,7 @@ export const createTicketSchema = z.object({
         (body.deviceId ?? null) !== null,
       { message: 'A ticket must reference a customer or a device' }
     )
+    .refine(hasTimeBlockPair, timeBlockPairMessage)
 });
 
 export const updateTicketSchema = z.object({
@@ -173,17 +193,25 @@ export const technicianDaySchema = z.object({
 
 export const assignTicketSchema = z.object({
   params: ticketIdParam,
-  body: z.object({
-    technicianId: uuidField('technician ID'),
-    scheduledFor: calendarDateField.nullable().optional()
-  })
+  body: z
+    .object({
+      technicianId: uuidField('technician ID'),
+      scheduledFor: calendarDateField.nullable().optional(),
+      startTime: timeOfDayField.nullable().optional(),
+      endTime: timeOfDayField.nullable().optional()
+    })
+    .refine(hasTimeBlockPair, timeBlockPairMessage)
 });
 
 export const scheduleTicketSchema = z.object({
   params: ticketIdParam,
-  body: z.object({
-    scheduledFor: calendarDateField.nullable()
-  })
+  body: z
+    .object({
+      scheduledFor: calendarDateField.nullable(),
+      startTime: timeOfDayField.nullable().optional(),
+      endTime: timeOfDayField.nullable().optional()
+    })
+    .refine(hasTimeBlockPair, timeBlockPairMessage)
 });
 
 export const startTicketSchema = z.object({

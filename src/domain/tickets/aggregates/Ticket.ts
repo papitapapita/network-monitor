@@ -16,7 +16,8 @@ import {
   TicketCategory,
   TicketOrigin,
   TicketPriority,
-  TicketStatus
+  TicketStatus,
+  TimeBlock
 } from '../value-objects';
 import { TicketProps } from '../props';
 import {
@@ -79,6 +80,10 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
     return this.props.scheduledFor;
   }
 
+  get timeBlock(): TimeBlock | null {
+    return this.props.timeBlock;
+  }
+
   get origin(): TicketOrigin {
     return this.props.origin;
   }
@@ -137,7 +142,8 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
       | 'resolutionNotes'
       | 'cancelReason'
       | 'technicianId'
-    >
+      | 'timeBlock'
+    > & { timeBlock?: TimeBlock | null }
   ): Result<Ticket> {
     const validationResult = Ticket.validate({
       title: props.title,
@@ -145,7 +151,9 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
       customerId: props.customerId,
       deviceId: props.deviceId,
       origin: props.origin,
-      originAlertId: props.originAlertId
+      originAlertId: props.originAlertId,
+      scheduledFor: props.scheduledFor ?? null,
+      timeBlock: props.timeBlock ?? null
     });
     if (validationResult.isFailure) {
       return Result.fail<Ticket>(validationResult.error);
@@ -176,6 +184,7 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
         technicianId: null,
         address: props.address ?? null,
         scheduledFor: props.scheduledFor ?? null,
+        timeBlock: props.timeBlock ?? null,
         origin: props.origin,
         originAlertId: props.originAlertId ?? null,
         resolutionNotes: null,
@@ -218,6 +227,7 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
   public assign(
     technicianId: TechnicianId,
     scheduledFor: Date | null = null,
+    timeBlock: TimeBlock | null = null,
     now: Date = new Date()
   ): Result<void> {
     const mutableGuard = this.ensureMutable();
@@ -239,12 +249,21 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
       );
     }
 
+    // Without a new date the existing schedule is kept as-is, so a lone time
+    // block would have nothing to attach to.
+    if (scheduledFor === null && timeBlock !== null) {
+      return Result.fail<void>(
+        'A scheduled date is required for a time block'
+      );
+    }
+
     if (scheduledFor !== null) {
       const dateGuard = Guard.isDate(scheduledFor, 'scheduledFor');
       if (!dateGuard.succeeded) {
         return Result.fail<void>(dateGuard.message!);
       }
       this.props.scheduledFor = scheduledFor;
+      this.props.timeBlock = timeBlock;
     }
 
     const previousTechnicianId = this.props.technicianId;
@@ -263,6 +282,7 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
         previousTechnicianId,
         newTechnicianId: technicianId,
         scheduledFor: this.props.scheduledFor,
+        timeBlock: this.props.timeBlock,
         dateTimeOccurred: now
       })
     );
@@ -281,8 +301,11 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
     return Result.ok<void>();
   }
 
+  // Replaces the whole schedule: a new date without a block means any time
+  // that day, even if the ticket previously had a block.
   public schedule(
     scheduledFor: Date | null,
+    timeBlock: TimeBlock | null = null,
     now: Date = new Date()
   ): Result<void> {
     const mutableGuard = this.ensureMutable();
@@ -295,17 +318,29 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
       }
     }
 
-    const isSame =
+    const validationResult = Ticket.validate({
+      ...this.props,
+      scheduledFor,
+      timeBlock
+    });
+    if (validationResult.isFailure) return validationResult;
+
+    const isSameDate =
       (this.props.scheduledFor === null && scheduledFor === null) ||
       (this.props.scheduledFor !== null &&
         scheduledFor !== null &&
         this.props.scheduledFor.getTime() === scheduledFor.getTime());
+    const isSameBlock =
+      (this.props.timeBlock === null && timeBlock === null) ||
+      (this.props.timeBlock !== null &&
+        this.props.timeBlock.equals(timeBlock ?? undefined));
 
-    if (isSame) {
+    if (isSameDate && isSameBlock) {
       return Result.ok<void>();
     }
 
     this.props.scheduledFor = scheduledFor;
+    this.props.timeBlock = timeBlock;
     this.touch(now);
     return Result.ok<void>();
   }
@@ -466,7 +501,9 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
       customerId: this.props.customerId,
       deviceId: this.props.deviceId,
       origin: this.props.origin,
-      originAlertId: this.props.originAlertId
+      originAlertId: this.props.originAlertId,
+      scheduledFor: this.props.scheduledFor,
+      timeBlock: this.props.timeBlock
     });
     if (validationResult.isFailure) {
       return Result.fail<void>(validationResult.error);
@@ -499,7 +536,9 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
       customerId,
       deviceId,
       origin: this.props.origin,
-      originAlertId: this.props.originAlertId
+      originAlertId: this.props.originAlertId,
+      scheduledFor: this.props.scheduledFor,
+      timeBlock: this.props.timeBlock
     });
     if (validationResult.isFailure) {
       return Result.fail<void>(validationResult.error);
@@ -577,6 +616,8 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
       | 'deviceId'
       | 'origin'
       | 'originAlertId'
+      | 'scheduledFor'
+      | 'timeBlock'
     >
   ): Result<void> {
     const guardResult = Guard.combine([
@@ -636,6 +677,12 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
     ) {
       return Result.fail<void>(
         'Invalid originating alert id: must be a valid UUID'
+      );
+    }
+
+    if (props.timeBlock !== null && props.scheduledFor === null) {
+      return Result.fail<void>(
+        'A scheduled date is required for a time block'
       );
     }
 

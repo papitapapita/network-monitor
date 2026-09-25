@@ -146,6 +146,7 @@ export class PrismaTicketRepository implements ITicketRepository {
         skip: offset,
         orderBy: [
           { scheduledFor: 'asc' },
+          { scheduledStartTime: 'asc' },
           { priority: 'desc' },
           { createdAt: 'desc' }
         ]

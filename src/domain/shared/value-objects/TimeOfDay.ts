@@ -1,5 +1,9 @@
-import { ValueObject, Result, Guard } from 'domain/shared/core';
-import { TimeOfDayProps } from '../props';
+import { ValueObject, Result, Guard } from '../core';
+
+interface TimeOfDayProps {
+  readonly hours: number;
+  readonly minutes: number;
+}
 
 const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -40,8 +44,8 @@ export class TimeOfDay extends ValueObject<TimeOfDayProps> {
     );
   }
 
-  // Server-local wall clock — quiet hours are evaluated against the
-  // operator's own clock, not a stored timezone.
+  // Server-local wall clock — callers compare against the operator's own
+  // clock, not a stored timezone.
   public static fromDate(date: Date): TimeOfDay {
     return new TimeOfDay({
       hours: date.getHours(),

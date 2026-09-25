@@ -220,6 +220,36 @@ describe('Ticket Routes — /api/tickets', () => {
       expect(res.status).toBe(400);
     });
 
+    it('201 — accepts a time block on the scheduled day', async () => {
+      const res = await request(app)
+        .post('/api/tickets')
+        .set('Authorization', auth())
+        .send({
+          ...validBody(),
+          scheduledFor: TODAY,
+          startTime: '08:00',
+          endTime: '09:00'
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.startTime).toBe('08:00');
+      expect(res.body.data.endTime).toBe('09:00');
+    });
+
+    it('400 — rejects a malformed startTime', async () => {
+      const res = await request(app)
+        .post('/api/tickets')
+        .set('Authorization', auth())
+        .send({
+          ...validBody(),
+          scheduledFor: TODAY,
+          startTime: '8:00',
+          endTime: '09:00'
+        });
+
+      expect(res.status).toBe(400);
+    });
+
     it('404 — rejects an unknown customer', async () => {
       const res = await request(app)
         .post('/api/tickets')
@@ -567,6 +597,63 @@ describe('Ticket Routes — /api/tickets', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.data.scheduledFor).toBe('2026-09-01');
+    });
+
+    it('200 — schedule books a time block on the day', async () => {
+      const id = await seedTicket(prisma, { customerId });
+
+      const res = await request(app)
+        .post(`/api/tickets/${id}/schedule`)
+        .set('Authorization', auth())
+        .send({
+          scheduledFor: '2026-09-01',
+          startTime: '10:00',
+          endTime: '11:30'
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({
+        scheduledFor: '2026-09-01',
+        startTime: '10:00',
+        endTime: '11:30'
+      });
+    });
+
+    it('400 — schedule rejects half a time block', async () => {
+      const id = await seedTicket(prisma, { customerId });
+
+      const res = await request(app)
+        .post(`/api/tickets/${id}/schedule`)
+        .set('Authorization', auth())
+        .send({ scheduledFor: '2026-09-01', startTime: '10:00' });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('400 — schedule rejects a block that ends before it starts', async () => {
+      const id = await seedTicket(prisma, { customerId });
+
+      const res = await request(app)
+        .post(`/api/tickets/${id}/schedule`)
+        .set('Authorization', auth())
+        .send({
+          scheduledFor: '2026-09-01',
+          startTime: '11:00',
+          endTime: '10:00'
+        });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('400 — assign rejects a time block with no schedule date', async () => {
+      const id = await seedTicket(prisma, { customerId });
+
+      const res = await request(app)
+        .post(`/api/tickets/${id}/assign`)
+        .set('Authorization', auth())
+        .send({ technicianId, startTime: '10:00', endTime: '11:00' });
+
+      expect(res.status).toBe(400);
     });
 
     it('404 — assigning an unknown ticket', async () => {

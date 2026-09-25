@@ -33,8 +33,18 @@ export class TechnicianNotifierAdapter
         notice.technicianName,
         notice.ticketCode,
         notice.ticketTitle,
-        notice.scheduledFor ?? 'sin fecha'
+        TechnicianNotifierAdapter.formatSchedule(notice)
       ]
     });
+  }
+
+  // The approved WhatsApp template has a single slot for when the visit is, so
+  // the time block rides inside it rather than needing a new template.
+  private static formatSchedule(
+    notice: TechnicianAssignmentNotice
+  ): string {
+    if (notice.scheduledFor === null) return 'sin fecha';
+    if (notice.timeBlock === null) return notice.scheduledFor;
+    return `${notice.scheduledFor} ${notice.timeBlock}`;
   }
 }

@@ -35,7 +35,7 @@ Format and conventions: [README.md](README.md).
 | Layer                 | Rules |
 | --------------------- | ----- |
 | Domain (core)         | 14    |
-| Domain (value object) | 11    |
+| Domain (value object) | 12    |
 | Application           | 4     |
 
 ---
@@ -376,6 +376,25 @@ makes a date in a request mean one thing.
 
 **Enforced at:** `src/application/shared/utils/parseIso8601Date.ts` (`ISO_8601`)
 **Tests:** `tests/application/shared/utils/parseIso8601Date.test.ts`
+
+### SHR-062 — A time of day is a zero-padded 24-hour HH:mm, with no date and no zone
+
+**Type:** Validation · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-25
+
+`TimeOfDay` accepts `00:00` to `23:59` and nothing else: `9:00`, `9am`,
+`24:00` and `12:00:00` are all rejected. It carries no date and no timezone —
+it is a reading of a wall clock.
+
+**Why:** Two contexts need a wall-clock time — notification quiet hours
+([NOT-171]) and ticket time blocks ([TKT-078]) — and both mean "what the clock
+on the office wall says", not an instant. Keeping it zero-padded also makes the
+stored text sort in clock order, which the database constraints on both tables
+rely on.
+
+**Enforced at:** `src/domain/shared/value-objects/TimeOfDay.ts`
+**Tests:** `tests/domain/shared/value-objects/TimeOfDay.test.ts`
 
 ---
 

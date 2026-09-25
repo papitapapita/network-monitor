@@ -68,7 +68,9 @@ export class TicketAssignedNotificationHandler
         ticketTitle: ticket.title,
         scheduledFor: TicketMapper.toDateOnlyString(
           event.scheduledFor
-        )
+        ),
+        timeBlock:
+          event.timeBlock !== null ? event.timeBlock.toString() : null
       });
 
       if (result.isFailure) {

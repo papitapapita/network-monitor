@@ -1,11 +1,13 @@
 import { DomainEvent } from 'domain/shared/core';
 import { TechnicianId, TicketId } from 'domain/shared/ids';
+import { TimeBlock } from '../value-objects';
 
 interface TicketAssignedEventProps {
   aggregateId: TicketId;
   previousTechnicianId: TechnicianId | null;
   newTechnicianId: TechnicianId;
   scheduledFor: Date | null;
+  timeBlock: TimeBlock | null;
   dateTimeOccurred: Date;
 }
 
@@ -32,5 +34,9 @@ export class TicketAssignedEvent extends DomainEvent<TicketAssignedEventProps> {
 
   get scheduledFor(): Date | null {
     return this.props.scheduledFor;
+  }
+
+  get timeBlock(): TimeBlock | null {
+    return this.props.timeBlock;
   }
 }

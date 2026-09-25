@@ -19,10 +19,10 @@ Format and conventions: [README.md](README.md).
 
 | Layer                             | Rules |
 | --------------------------------- | ----- |
-| Domain (aggregate)                | 22    |
-| Domain (value object)             | 4     |
+| Domain (aggregate)                | 24    |
+| Domain (value object)             | 5     |
 | Application                       | 6     |
-| Application + database constraint | 3     |
+| Application + database constraint | 4     |
 | Infrastructure (database)         | 1     |
 
 Most rules live in the `Ticket` aggregate, which owns the status machine. The
@@ -441,22 +441,29 @@ the visit happened.
 **Reached from:** `schedule`, `assign`
 **Tests:** `tests/domain/tickets/aggregates/Ticket.test.ts`
 
-### TKT-076 — The day sheet is ordered most urgent first
+### TKT-076 — The day sheet puts booked visits first, then the most urgent
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
-**Since:** 2026-08-04
+**Since:** 2026-08-04 · **Revised:** 2026-09-25
 
-A technician's tasks for a date come back ordered by priority — `URGENT`,
-`HIGH`, `NORMAL`, `LOW` — and oldest first within a priority.
+A technician's tasks for a date come back in two groups. Tickets with a time
+block ([TKT-078]) come first, earliest start first. Tickets without one follow,
+ordered by priority — `URGENT`, `HIGH`, `NORMAL`, `LOW` — and oldest first
+within a priority.
 
 **Why:** The day sheet is a work queue, not a list. The order is the
-instruction: do this one next. Falling back to age within a priority stops a job
+instruction: do this one next. A time block is a promise made to a customer, so
+it cannot be pushed back by an urgent job that has no fixed time; those fill
+the gaps between appointments. Falling back to age within a priority stops a job
 from being permanently overtaken by newer ones at the same level.
 
 **Enforced at:** `src/application/tickets/use-cases/GetTechnicianDayUseCase.ts`
 **Reached from:** `GetTechnicianDayUseCase.execute`
-**Tests:** `tests/domain/tickets/value-objects/TicketPriority.test.ts`, `tests/integration/ticket.routes.test.ts`
+**Tests:** `tests/application/tickets/use-cases/GetTechnicianDayUseCase.test.ts`, `tests/integration/use-cases/tickets/GetTechnicianDayUseCase.integration.test.ts`, `tests/domain/tickets/value-objects/TicketPriority.test.ts`, `tests/integration/ticket.routes.test.ts`
+
+**History — time blocks were added on 2026-09-25.** Before then every ticket
+was "any time that day" and the order was priority alone.
 
 ### TKT-077 — A ticket can only be assigned to an active technician
 
@@ -473,6 +480,100 @@ the technician aggregate.
 **Reached from:** `AssignTicketUseCase.execute`, `CreateTicketUseCase.execute`
 **Message:** `Cannot assign a ticket to an inactive technician`
 **Tests:** `tests/integration/ticket.routes.test.ts`
+
+### TKT-078 — A time block ends after it starts, on the same day
+
+**Type:** Validation · **Status:** Active
+**Layer:** Domain (value object) + database constraint
+**Since:** 2026-09-25
+
+A time block is a start and an end, each a wall-clock `HH:mm` ([SHR-062]). The
+end must be strictly later than the start, so a zero-length block is refused and
+so is an overnight one such as `22:00`–`02:00`.
+
+**Why:** A block belongs to exactly one scheduled day. Letting it run past
+midnight would put half the visit on a day the ticket is not scheduled for, and
+the day sheet for that second day would never show it. The times are stored as
+wall-clock text rather than timestamps so the block cannot drift onto a
+neighbouring date when converted to or from UTC.
+
+**Enforced at:** `src/domain/tickets/value-objects/TimeBlock.ts`
+**Backed by:** `tickets_time_block_end_after_start` CHECK constraint, migration `20260925195608`
+**Message:** `Time block end must be later than its start`
+**Tests:** `tests/domain/tickets/value-objects/TimeBlock.test.ts`, `tests/application/tickets/use-cases/ScheduleTicketUseCase.test.ts`, `tests/integration/use-cases/tickets/ScheduleTicketUseCase.integration.test.ts`, `tests/integration/ticket.routes.test.ts`
+
+### TKT-079 — A time block requires a scheduled day
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain + database constraint
+**Since:** 2026-09-25
+
+A ticket can have a day and no block ("any time that day"), or a day and a
+block, but never a block with no day. Clearing the day clears the block with it.
+
+**Why:** `10:00`–`12:00` on no particular day is not an appointment. Accepting
+it would leave a ticket that looks booked on a calendar and appears on no day
+sheet.
+
+**Enforced at:** `src/domain/tickets/aggregates/Ticket.ts` (`validate`, `assign`)
+**Reached from:** `create`, `schedule`, `assign`
+**Backed by:** `tickets_time_block_requires_date` CHECK constraint, migration `20260925195608`
+**Message:** `A scheduled date is required for a time block`
+**Tests:** `tests/domain/tickets/aggregates/Ticket.test.ts`, `tests/application/tickets/use-cases/AssignTicketUseCase.test.ts`, `tests/application/tickets/use-cases/CreateTicketUseCase.test.ts`, `tests/integration/use-cases/tickets/ScheduleTicketUseCase.integration.test.ts`, `tests/integration/ticket.routes.test.ts`
+
+### TKT-080 — Start and end times are given together or not at all
+
+**Type:** Validation · **Status:** Active
+**Layer:** Application + database constraint
+**Since:** 2026-09-25
+
+A request that sends `startTime` without `endTime`, or the reverse, is refused.
+It is not read as "no block".
+
+**Why:** A half-sent block is a client mistake. Treating it as "any time that
+day" would silently discard the time the dispatcher typed and book the visit
+for the whole day instead.
+
+**Enforced at:** `src/application/tickets/use-cases/calendar-date.ts` (`parseTimeBlock`), `src/presentation/http/validation/ticket.schemas.ts`
+**Reached from:** `CreateTicketUseCase`, `AssignTicketUseCase`, `ScheduleTicketUseCase`
+**Backed by:** `tickets_time_block_both_or_neither` CHECK constraint, migration `20260925195608`
+**Message:** `startTime and endTime must be provided together`
+**Tests:** `tests/application/tickets/use-cases/ScheduleTicketUseCase.test.ts`, `tests/presentation/http/validation/ticket.schemas.test.ts`, `tests/integration/use-cases/tickets/ScheduleTicketUseCase.integration.test.ts`, `tests/integration/ticket.routes.test.ts`
+
+### TKT-081 — Rescheduling replaces the whole schedule
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-25
+
+Setting a new day without a block leaves the ticket with no block, even if it
+had one before. This applies to `schedule` and to `assign` when a day is passed.
+`assign` without a day keeps the existing day and block untouched.
+
+**Why:** Carrying the old block over to a new day would book an appointment
+time nobody chose for that day. Making every schedule call state the full
+schedule keeps a calendar drag or resize to one call with no hidden leftovers.
+
+**Enforced at:** `src/domain/tickets/aggregates/Ticket.ts` (`schedule`, `assign`)
+**Tests:** `tests/domain/tickets/aggregates/Ticket.test.ts`, `tests/application/tickets/use-cases/ScheduleTicketUseCase.test.ts`, `tests/integration/use-cases/tickets/ScheduleTicketUseCase.integration.test.ts`
+
+### TKT-082 — Overlapping time blocks are allowed
+
+**Type:** Policy · **Status:** Active
+**Layer:** None — a deliberate absence of a check
+**Since:** 2026-09-25
+
+Two active tickets for the same technician may have blocks that overlap on the
+same day. Nothing checks for it.
+
+**Why:** A deliberate choice. Short jobs at the same address, a two-stop run
+booked as one window, or a dispatcher double-booking on purpose to cover a
+likely no-show are all legitimate. The calendar view is the place to flag an
+overlap, where a person can judge it; refusing it here would block legitimate
+bookings.
+
+**Enforced at:** — (absence of a check)
+**Tests:** —
 
 ---
 

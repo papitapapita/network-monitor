@@ -377,6 +377,8 @@ export async function seedTicket(
     deviceId?: string | null;
     technicianId?: string | null;
     scheduledFor?: Date | null;
+    scheduledStartTime?: string | null;
+    scheduledEndTime?: string | null;
     origin?: 'MANUAL' | 'DEVICE_ALERT' | 'WIRELESS_ALERT';
     originAlertId?: string | null;
     assignedAt?: Date | null;
@@ -394,6 +396,8 @@ export async function seedTicket(
       deviceId: overrides.deviceId ?? null,
       technicianId: overrides.technicianId ?? null,
       scheduledFor: overrides.scheduledFor ?? null,
+      scheduledStartTime: overrides.scheduledStartTime ?? null,
+      scheduledEndTime: overrides.scheduledEndTime ?? null,
       origin: overrides.origin ?? 'MANUAL',
       originAlertId: overrides.originAlertId ?? null,
       assignedAt:

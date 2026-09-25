@@ -6,6 +6,8 @@ export interface TechnicianAssignmentNotice {
   ticketCode: string;
   ticketTitle: string;
   scheduledFor: string | null;
+  /** `HH:mm-HH:mm` on scheduledFor, or null for any time that day. */
+  timeBlock: string | null;
 }
 
 /**

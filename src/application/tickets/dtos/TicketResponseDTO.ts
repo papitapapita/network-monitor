@@ -12,8 +12,11 @@ export interface TicketResponseDTO {
   deviceId: string | null;
   technicianId: string | null;
   address: TicketAddressDTO | null;
-  /** Calendar day, `YYYY-MM-DD` — tickets are scheduled by day, not by time. */
+  /** Calendar day, `YYYY-MM-DD`. */
   scheduledFor: string | null;
+  /** Wall-clock `HH:mm` on scheduledFor; null means any time that day. */
+  startTime: string | null;
+  endTime: string | null;
   origin: string;
   originAlertId: string | null;
   resolutionNotes: string | null;
