@@ -18,6 +18,7 @@ export * from './TechnicianListResponseDTO';
 export * from './TechnicianResponseDTO';
 export * from './TechnicianSummaryDTO';
 export * from './TicketAddressDTO';
+export * from './TicketContactDTO';
 export * from './TicketCustomerContactDTO';
 export * from './TicketDetailResponseDTO';
 export * from './TicketDeviceSummaryDTO';

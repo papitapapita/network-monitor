@@ -1,4 +1,5 @@
 import { TicketAddressDTO } from './TicketAddressDTO';
+import { TicketContactDTO } from './TicketContactDTO';
 
 export interface UpdateTicketRequestDTO {
   id: string;
@@ -9,4 +10,5 @@ export interface UpdateTicketRequestDTO {
   customerId?: string | null;
   deviceId?: string | null;
   address?: Partial<TicketAddressDTO> | null;
+  contact?: Partial<TicketContactDTO> | null;
 }

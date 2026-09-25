@@ -26,6 +26,7 @@ const TICKET_CATEGORIES = [
   'HARDWARE_FAILURE',
   'MAINTENANCE',
   'RELOCATION',
+  'SITE_SURVEY',
   'OTHER'
 ] as const;
 
@@ -100,6 +101,20 @@ const addressField = z.object({
   longitude: z.number().min(-180).max(180).nullable().optional()
 });
 
+const contactField = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Contact name cannot be empty')
+    .max(150, 'Contact name cannot exceed 150 characters'),
+  phone: z
+    .string()
+    .trim()
+    .max(20, 'Contact phone cannot exceed 20 characters')
+    .nullable()
+    .optional()
+});
+
 const booleanQueryField = z
   .enum(['true', 'false'])
   .transform((v) => v === 'true');
@@ -129,16 +144,11 @@ export const createTicketSchema = z.object({
       deviceId: uuidField('device ID').nullable().optional(),
       technicianId: uuidField('technician ID').nullable().optional(),
       address: addressField.nullable().optional(),
+      contact: contactField.nullable().optional(),
       scheduledFor: calendarDateField.nullable().optional(),
       startTime: timeOfDayField.nullable().optional(),
       endTime: timeOfDayField.nullable().optional()
     })
-    .refine(
-      (body) =>
-        (body.customerId ?? null) !== null ||
-        (body.deviceId ?? null) !== null,
-      { message: 'A ticket must reference a customer or a device' }
-    )
     .refine(hasTimeBlockPair, timeBlockPairMessage)
 });
 
@@ -152,7 +162,8 @@ export const updateTicketSchema = z.object({
       priority: z.enum(TICKET_PRIORITIES).optional(),
       customerId: uuidField('customer ID').nullable().optional(),
       deviceId: uuidField('device ID').nullable().optional(),
-      address: addressField.nullable().optional()
+      address: addressField.nullable().optional(),
+      contact: contactField.nullable().optional()
     })
     .refine((body) => Object.keys(body).length > 0, {
       message: 'At least one field must be provided for update'

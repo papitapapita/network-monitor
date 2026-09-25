@@ -2,7 +2,8 @@ import {
   ITicketRepository,
   TicketPriority,
   TicketCategory,
-  ServiceAddress
+  ServiceAddress,
+  TicketContact
 } from 'domain/tickets';
 import { CustomerId, DeviceId, TicketId } from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
@@ -106,6 +107,25 @@ export class UpdateTicketUseCase extends UseCase<
       }
 
       const changeResult = ticket.changeAddress(addressResult.value);
+      if (changeResult.isFailure) {
+        return this.fail(changeResult.error!);
+      }
+    }
+
+    if (request.contact !== undefined) {
+      let contact: TicketContact | null = null;
+      if (request.contact !== null) {
+        const contactResult = TicketContact.create({
+          name: request.contact.name as string,
+          phone: request.contact.phone
+        });
+        if (contactResult.isFailure) {
+          return this.fail(contactResult.error!);
+        }
+        contact = contactResult.value;
+      }
+
+      const changeResult = ticket.changeContact(contact);
       if (changeResult.isFailure) {
         return this.fail(changeResult.error!);
       }

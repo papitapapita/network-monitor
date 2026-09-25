@@ -7,6 +7,7 @@ export class TicketCategory extends ValueObject<TicketCategoryProps> {
   static readonly HARDWARE_FAILURE = 'HARDWARE_FAILURE';
   static readonly MAINTENANCE = 'MAINTENANCE';
   static readonly RELOCATION = 'RELOCATION';
+  static readonly SITE_SURVEY = 'SITE_SURVEY';
   static readonly OTHER = 'OTHER';
 
   private static readonly VALID_CATEGORIES = [
@@ -15,6 +16,7 @@ export class TicketCategory extends ValueObject<TicketCategoryProps> {
     TicketCategory.HARDWARE_FAILURE,
     TicketCategory.MAINTENANCE,
     TicketCategory.RELOCATION,
+    TicketCategory.SITE_SURVEY,
     TicketCategory.OTHER
   ] as const;
 

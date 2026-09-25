@@ -1,4 +1,5 @@
 import { TicketAddressDTO } from './TicketAddressDTO';
+import { TicketContactDTO } from './TicketContactDTO';
 
 export interface CreateTicketRequestDTO {
   title: string;
@@ -9,6 +10,8 @@ export interface CreateTicketRequestDTO {
   deviceId?: string | null;
   technicianId?: string | null;
   address?: Partial<TicketAddressDTO> | null;
+  /** Person to ask for on site — e.g. a prospect with no customer record. */
+  contact?: Partial<TicketContactDTO> | null;
   /** Calendar day, `YYYY-MM-DD`. */
   scheduledFor?: string | null;
   /** Wall-clock `HH:mm` on scheduledFor; given together with endTime. */

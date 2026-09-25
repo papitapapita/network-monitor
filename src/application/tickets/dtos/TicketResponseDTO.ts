@@ -1,4 +1,5 @@
 import { TicketAddressDTO } from './TicketAddressDTO';
+import { TicketContactDTO } from './TicketContactDTO';
 
 export interface TicketResponseDTO {
   id: string;
@@ -12,6 +13,7 @@ export interface TicketResponseDTO {
   deviceId: string | null;
   technicianId: string | null;
   address: TicketAddressDTO | null;
+  contact: TicketContactDTO | null;
   /** Calendar day, `YYYY-MM-DD`. */
   scheduledFor: string | null;
   /** Wall-clock `HH:mm` on scheduledFor; null means any time that day. */

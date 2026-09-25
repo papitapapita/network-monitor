@@ -16,6 +16,7 @@ import {
   TicketCategory,
   TicketOrigin,
   TicketPriority,
+  TicketContact,
   TicketStatus,
   TimeBlock
 } from '../value-objects';
@@ -74,6 +75,10 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
 
   get address(): ServiceAddress | null {
     return this.props.address;
+  }
+
+  get contact(): TicketContact | null {
+    return this.props.contact;
   }
 
   get scheduledFor(): Date | null {
@@ -143,7 +148,11 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
       | 'cancelReason'
       | 'technicianId'
       | 'timeBlock'
-    > & { timeBlock?: TimeBlock | null }
+      | 'contact'
+    > & {
+      timeBlock?: TimeBlock | null;
+      contact?: TicketContact | null;
+    }
   ): Result<Ticket> {
     const validationResult = Ticket.validate({
       title: props.title,
@@ -183,6 +192,7 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
         deviceId: props.deviceId ?? null,
         technicianId: null,
         address: props.address ?? null,
+        contact: props.contact ?? null,
         scheduledFor: props.scheduledFor ?? null,
         timeBlock: props.timeBlock ?? null,
         origin: props.origin,
@@ -562,6 +572,18 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
     return Result.ok<void>();
   }
 
+  public changeContact(
+    contact: TicketContact | null,
+    now: Date = new Date()
+  ): Result<void> {
+    const mutableGuard = this.ensureMutable();
+    if (mutableGuard.isFailure) return mutableGuard;
+
+    this.props.contact = contact;
+    this.touch(now);
+    return Result.ok<void>();
+  }
+
   public isTerminal(): boolean {
     return this.props.status.isTerminal();
   }
@@ -642,14 +664,6 @@ export class Ticket extends AggregateRoot<TicketProps, TicketId> {
 
     if (props.description.trim().length === 0) {
       return Result.fail<void>('Ticket description cannot be empty');
-    }
-
-    // A work order that names neither a customer nor a device tells the
-    // technician nothing about where to go or what to look at.
-    if (props.customerId === null && props.deviceId === null) {
-      return Result.fail<void>(
-        'A ticket must reference a customer or a device'
-      );
     }
 
     const originAlertId = props.originAlertId ?? null;

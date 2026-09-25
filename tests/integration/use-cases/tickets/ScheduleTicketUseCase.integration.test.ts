@@ -13,6 +13,7 @@ import {
   cleanBills,
   cleanCustomers,
   seedCustomer,
+  seedTechnician,
   seedTicket,
   GHOST_ID,
   INVALID_ID
@@ -143,6 +144,38 @@ describe('ScheduleTicketUseCase — integration', () => {
         }
       })
     ).rejects.toThrow();
+  });
+
+  it('[TKT-082] books overlapping blocks for the same technician', async () => {
+    const technicianId = await seedTechnician(prisma, {
+      phone: '+573001112233'
+    });
+    const first = await seedTicket(prisma, {
+      customerId,
+      technicianId,
+      status: 'ASSIGNED'
+    });
+    const second = await seedTicket(prisma, {
+      customerId,
+      technicianId,
+      status: 'ASSIGNED'
+    });
+
+    const a = await useCase.execute({
+      id: first,
+      scheduledFor: '2026-09-01',
+      startTime: '09:00',
+      endTime: '11:00'
+    });
+    const b = await useCase.execute({
+      id: second,
+      scheduledFor: '2026-09-01',
+      startTime: '10:00',
+      endTime: '12:00'
+    });
+
+    expect(a.isSuccess).toBe(true);
+    expect(b.isSuccess).toBe(true);
   });
 
   it('[TKT-075] accepts a date in the past', async () => {

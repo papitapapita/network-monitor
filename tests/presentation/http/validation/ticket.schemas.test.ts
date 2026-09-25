@@ -42,19 +42,43 @@ describe('ticket.schemas', () => {
       expect(result.body.title).toBe('Padded');
     });
 
-    it('[TKT-004] rejects a body with neither a customer nor a device', () => {
+    it('[TKT-011] accepts a body with no customer, device or contact', () => {
       const result = createTicketSchema.safeParse({
         body: {
-          title: 'Orphan',
-          description: 'Nothing linked',
+          title: 'Buy connectors',
+          description: 'RJ45 and crimping tool',
           category: 'OTHER'
+        }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts a SITE_SURVEY for a prospect contact', () => {
+      const result = createTicketSchema.safeParse({
+        body: {
+          title: 'Line-of-sight check',
+          description: 'Prospect wants service',
+          category: 'SITE_SURVEY',
+          contact: { name: 'Luis Prospecto', phone: '3005551234' }
+        }
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('[TKT-012] rejects a contact with no name', () => {
+      const result = createTicketSchema.safeParse({
+        body: {
+          ...validBody,
+          contact: { name: '  ', phone: '3005551234' }
         }
       });
 
       expect(result.success).toBe(false);
     });
 
-    it('[TKT-004] accepts a device-only body', () => {
+    it('accepts a device-only body', () => {
       const result = createTicketSchema.safeParse({
         body: {
           title: 'Tower job',

@@ -6,6 +6,7 @@ import {
 } from 'domain/shared/ids';
 import {
   ServiceAddress,
+  TicketContact,
   TicketCategory,
   TicketOrigin,
   TicketPriority,
@@ -26,6 +27,9 @@ export interface TicketProps {
   deviceId: DeviceId | null;
   technicianId: TechnicianId | null;
   address: ServiceAddress | null;
+  // Free-text person to ask for — the only record of a prospect who is not a
+  // customer yet.
+  contact: TicketContact | null;
   scheduledFor: Date | null;
   // Optional window within scheduledFor; null means any time that day.
   timeBlock: TimeBlock | null;

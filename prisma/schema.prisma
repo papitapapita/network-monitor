@@ -763,6 +763,7 @@ enum TicketCategory {
   HARDWARE_FAILURE
   MAINTENANCE
   RELOCATION
+  SITE_SURVEY
   OTHER
 
   @@map("ticket_category")
@@ -815,6 +816,11 @@ model Ticket {
   addressReference    String?  @map("address_reference") @db.VarChar(255)
   latitude            Decimal? @db.Decimal(10, 7)
   longitude           Decimal? @db.Decimal(10, 7)
+
+  // On-site contact snapshot — the only record of a prospect who is not a
+  // customer yet. Free text, like the quotation's customer snapshot.
+  contactName  String? @map("contact_name") @db.VarChar(150)
+  contactPhone String? @map("contact_phone") @db.VarChar(20)
 
   scheduledFor DateTime?    @map("scheduled_for") @db.Date
   // Optional wall-clock window (HH:mm) within scheduled_for. Not timestamps:

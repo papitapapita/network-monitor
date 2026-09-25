@@ -5,6 +5,8 @@ import {
   TicketCategory,
   TicketOrigin,
   ServiceAddress,
+  TicketContact,
+  ContactPhone,
   TimeBlock
 } from 'domain/tickets';
 import {
@@ -39,6 +41,8 @@ type PrismaTicketRecord = {
   addressReference: string | null;
   latitude: number | { toNumber(): number } | null;
   longitude: number | { toNumber(): number } | null;
+  contactName: string | null;
+  contactPhone: string | null;
   scheduledFor: Date | null;
   scheduledStartTime: string | null;
   scheduledEndTime: string | null;
@@ -72,6 +76,8 @@ type TicketPersistenceData = {
   addressReference: string | null;
   latitude: number | null;
   longitude: number | null;
+  contactName: string | null;
+  contactPhone: string | null;
   scheduledFor: Date | null;
   scheduledStartTime: string | null;
   scheduledEndTime: string | null;
@@ -157,6 +163,17 @@ export class TicketMapper {
       });
     }
 
+    const contact =
+      raw.contactName !== null
+        ? TicketContact.reconstitute({
+            name: raw.contactName,
+            phone:
+              raw.contactPhone !== null
+                ? ContactPhone.reconstitute(raw.contactPhone)
+                : null
+          })
+        : null;
+
     let timeBlock: TimeBlock | null = null;
     if (
       raw.scheduledStartTime !== null &&
@@ -185,6 +202,7 @@ export class TicketMapper {
       deviceId,
       technicianId,
       address,
+      contact,
       scheduledFor: raw.scheduledFor,
       timeBlock,
       origin: TicketMapper.mapOrigin(raw.origin),
@@ -231,6 +249,12 @@ export class TicketMapper {
       addressReference: address !== null ? address.reference : null,
       latitude: address !== null ? address.latitude : null,
       longitude: address !== null ? address.longitude : null,
+      contactName:
+        ticket.contact !== null ? ticket.contact.name : null,
+      contactPhone:
+        ticket.contact !== null && ticket.contact.phone !== null
+          ? ticket.contact.phone.toString()
+          : null,
       scheduledFor: ticket.scheduledFor,
       scheduledStartTime:
         ticket.timeBlock !== null

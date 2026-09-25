@@ -19,8 +19,8 @@ Format and conventions: [README.md](README.md).
 
 | Layer                             | Rules |
 | --------------------------------- | ----- |
-| Domain (aggregate)                | 24    |
-| Domain (value object)             | 5     |
+| Domain (aggregate)                | 23    |
+| Domain (value object)             | 6     |
 | Application                       | 6     |
 | Application + database constraint | 4     |
 | Infrastructure (database)         | 1     |
@@ -91,22 +91,16 @@ arrives knowing only that something is wrong.
 
 ### TKT-004 — A ticket must reference a customer or a device
 
-**Type:** Invariant · **Status:** Active
-**Layer:** Domain
-**Since:** 2026-08-04
+**Type:** Invariant · **Status:** Removed
+**Since:** 2026-08-04 · **Removed:** 2026-09-25
 
-At least one of `customerId` or `deviceId` must be set. Either alone is enough;
-neither is not.
+At least one of `customerId` or `deviceId` had to be set.
 
-**Why:** A work order that names neither a customer nor a device tells the
-technician nothing about where to go or what to look at. Both are optional
-individually because an internal tower job has no customer, and a customer
-complaint may arrive before anyone knows which device is at fault.
-
-**Enforced at:** `src/domain/tickets/aggregates/Ticket.ts` (`validate`)
-**Reached from:** `create`, `updateDetails`, `updateLinks`
-**Message:** `A ticket must reference a customer or a device`
-**Tests:** `tests/domain/tickets/aggregates/Ticket.test.ts`, `tests/integration/ticket.routes.test.ts`
+**Why it was removed:** Tickets became general field tasks. A site survey for a
+prospect has no customer record yet, and an internal errand ("buy connectors")
+has neither a customer nor a device. The rule refused both. See [TKT-011] for
+what replaced it: nothing is required beyond a title and a description, and a
+prospect is recorded as a contact snapshot ([TKT-012]).
 
 ### TKT-005 — A new ticket opens unassigned
 
@@ -210,6 +204,52 @@ cancellation legible.
 **Reached from:** `assign`, `schedule`, `start`, `resolve`, `updateDetails`, `updateLinks`, `changeAddress`
 **Message:** `Cannot modify a cancelled ticket`
 **Tests:** `tests/domain/tickets/aggregates/Ticket.test.ts`, `tests/domain/tickets/value-objects/TicketStatus.test.ts`
+
+### TKT-011 — A ticket needs no customer, device or contact
+
+**Type:** Policy · **Status:** Active
+**Layer:** None — a deliberate absence of a check
+**Since:** 2026-09-25
+
+Beyond a title and a description ([TKT-001], [TKT-003]), a manual ticket may
+reference any combination of a customer, a device and an on-site contact —
+including none of them. Unlinking both the customer and the device from an
+existing ticket is allowed.
+
+**Why:** A ticket is any task on a technician's calendar, not only a repair.
+Some tasks are about people who are not customers yet (a site survey), and some
+are about nobody at all (buying stock, renewing a tower lease). The description
+already tells the technician what to do; demanding a link would force the
+office to invent one. Tickets opened from an alert still need their device
+([TKT-111]).
+
+**Replaces:** [TKT-004]
+**Enforced at:** — (absence of a check in `Ticket.validate` and `createTicketSchema`)
+**Tests:** `tests/domain/tickets/aggregates/Ticket.test.ts`, `tests/application/tickets/use-cases/UpdateTicketUseCase.test.ts`, `tests/presentation/http/validation/ticket.schemas.test.ts`, `tests/integration/use-cases/tickets/CreateTicketUseCase.integration.test.ts`, `tests/integration/use-cases/tickets/UpdateTicketUseCase.integration.test.ts`, `tests/integration/ticket.routes.test.ts`
+
+### TKT-012 — An on-site contact needs a name; the phone is optional
+
+**Type:** Validation · **Status:** Active
+**Layer:** Domain (value object) + database constraint
+**Since:** 2026-09-25
+
+A ticket's contact is a free-text snapshot: a name of 1–150 characters and, if
+given, a phone number with 7–15 digits (normalised the same way as a
+technician's phone). A phone without a name is refused.
+
+**Why:** The contact exists for prospects, who have no customer record to link
+to. It is copied onto the ticket, like the service address and the
+quotation's customer details, so the ticket keeps who was visited even after
+the prospect signs up and the ticket is linked to their new customer record.
+The name is what the technician asks for at the door; a bare number tells them
+nobody to ask for. The phone stays optional because a walk-in may leave only a
+name and an address.
+
+**Enforced at:** `src/domain/tickets/value-objects/TicketContact.ts`, `src/presentation/http/validation/ticket.schemas.ts`
+**Reached from:** `CreateTicketUseCase`, `UpdateTicketUseCase` (`Ticket.changeContact`)
+**Backed by:** `tickets_contact_phone_requires_name` CHECK constraint, migration `20260925233208`
+**Message:** `Contact name cannot be empty`
+**Tests:** `tests/domain/tickets/value-objects/TicketContact.test.ts`, `tests/application/tickets/use-cases/UpdateTicketUseCase.test.ts`, `tests/presentation/http/validation/ticket.schemas.test.ts`, `tests/integration/use-cases/tickets/CreateTicketUseCase.integration.test.ts`, `tests/integration/use-cases/tickets/UpdateTicketUseCase.integration.test.ts`
 
 ---
 
@@ -573,7 +613,7 @@ overlap, where a person can judge it; refusing it here would block legitimate
 bookings.
 
 **Enforced at:** — (absence of a check)
-**Tests:** —
+**Tests:** `tests/integration/use-cases/tickets/ScheduleTicketUseCase.integration.test.ts`
 
 ---
 

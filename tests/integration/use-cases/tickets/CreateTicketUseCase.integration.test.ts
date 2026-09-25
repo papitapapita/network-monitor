@@ -167,7 +167,7 @@ describe('CreateTicketUseCase — integration', () => {
     expect(await prisma.ticket.count()).toBe(0);
   });
 
-  it('[TKT-004] accepts a device-only ticket', async () => {
+  it('accepts a device-only ticket', async () => {
     const result = await useCase.execute({
       ...validRequest(),
       customerId: null
@@ -177,15 +177,50 @@ describe('CreateTicketUseCase — integration', () => {
     expect(result.value.customerId).toBeNull();
   });
 
-  it('[TKT-004] refuses a ticket with neither link', async () => {
+  it('[TKT-011] accepts an internal task with no link and no contact', async () => {
     const result = await useCase.execute({
       ...validRequest(),
       customerId: null,
       deviceId: null
     });
 
+    expect(result.isSuccess).toBe(true);
+    const row = await prisma.ticket.findUnique({
+      where: { id: result.value.id }
+    });
+    expect(row!.customerId).toBeNull();
+    expect(row!.deviceId).toBeNull();
+    expect(row!.contactName).toBeNull();
+  });
+
+  it('stores a site survey for a prospect as a contact snapshot', async () => {
+    const result = await useCase.execute({
+      ...validRequest(),
+      category: 'SITE_SURVEY',
+      customerId: null,
+      deviceId: null,
+      contact: { name: 'Luis Prospecto', phone: '300 555 1234' }
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.category).toBe('SITE_SURVEY');
+    const row = await prisma.ticket.findUnique({
+      where: { id: result.value.id }
+    });
+    expect(row!.category).toBe('SITE_SURVEY');
+    expect(row!.contactName).toBe('Luis Prospecto');
+    expect(row!.contactPhone).toBe('3005551234');
+  });
+
+  it('[TKT-012] refuses a contact with a blank name', async () => {
+    const result = await useCase.execute({
+      ...validRequest(),
+      contact: { name: '   ' }
+    });
+
     expect(result.isFailure).toBe(true);
-    expect(result.error).toMatch(/customer or a device/i);
+    expect(result.error).toMatch(/contact name cannot be empty/i);
+    expect(await prisma.ticket.count()).toBe(0);
   });
 
   it('fails when the customer does not exist', async () => {

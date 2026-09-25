@@ -365,6 +365,7 @@ export async function seedTicket(
       | 'HARDWARE_FAILURE'
       | 'MAINTENANCE'
       | 'RELOCATION'
+      | 'SITE_SURVEY'
       | 'OTHER';
     priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
     status?:
@@ -378,6 +379,8 @@ export async function seedTicket(
     technicianId?: string | null;
     scheduledFor?: Date | null;
     scheduledStartTime?: string | null;
+    contactName?: string | null;
+    contactPhone?: string | null;
     scheduledEndTime?: string | null;
     origin?: 'MANUAL' | 'DEVICE_ALERT' | 'WIRELESS_ALERT';
     originAlertId?: string | null;
@@ -397,6 +400,8 @@ export async function seedTicket(
       technicianId: overrides.technicianId ?? null,
       scheduledFor: overrides.scheduledFor ?? null,
       scheduledStartTime: overrides.scheduledStartTime ?? null,
+      contactName: overrides.contactName ?? null,
+      contactPhone: overrides.contactPhone ?? null,
       scheduledEndTime: overrides.scheduledEndTime ?? null,
       origin: overrides.origin ?? 'MANUAL',
       originAlertId: overrides.originAlertId ?? null,

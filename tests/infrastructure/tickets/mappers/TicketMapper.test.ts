@@ -37,6 +37,8 @@ function makeRow(overrides: Record<string, unknown> = {}) {
     addressReference: null,
     latitude: null,
     longitude: null,
+    contactName: null,
+    contactPhone: null,
     scheduledFor: null,
     scheduledStartTime: null,
     scheduledEndTime: null,
@@ -65,6 +67,34 @@ describe('TicketMapper (infrastructure)', () => {
       expect(result.value.code).toBe(42);
       expect(result.value.status.value).toBe(TicketStatus.OPEN);
       expect(result.value.priority.value).toBe(TicketPriority.HIGH);
+    });
+
+    it('rebuilds the contact from its columns', () => {
+      const result = TicketMapper.toDomain(
+        makeRow({
+          contactName: 'Luis Prospecto',
+          contactPhone: '3005551234'
+        })
+      );
+
+      expect(result.value.contact!.name).toBe('Luis Prospecto');
+      expect(result.value.contact!.phone!.toString()).toBe(
+        '3005551234'
+      );
+    });
+
+    it('rebuilds a contact with no phone', () => {
+      const result = TicketMapper.toDomain(
+        makeRow({ contactName: 'Luis Prospecto' })
+      );
+
+      expect(result.value.contact!.phone).toBeNull();
+    });
+
+    it('leaves the contact null when there is no name', () => {
+      expect(
+        TicketMapper.toDomain(makeRow()).value.contact
+      ).toBeNull();
     });
 
     it('leaves the time block null when the times are absent', () => {

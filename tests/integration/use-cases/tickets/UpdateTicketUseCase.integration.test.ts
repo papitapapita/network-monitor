@@ -133,7 +133,7 @@ describe('UpdateTicketUseCase — integration', () => {
     expect(row!.addressStreet).toBeNull();
   });
 
-  it('[TKT-004] refuses to drop both the customer and the device', async () => {
+  it('[TKT-011] drops both the customer and the device', async () => {
     const id = await seedTicket(prisma, { customerId, deviceId });
 
     const result = await useCase.execute({
@@ -142,8 +142,51 @@ describe('UpdateTicketUseCase — integration', () => {
       deviceId: null
     });
 
-    expect(result.isFailure).toBe(true);
-    expect(result.error).toMatch(/customer or a device/i);
+    expect(result.isSuccess).toBe(true);
+    const row = await prisma.ticket.findUnique({ where: { id } });
+    expect(row!.customerId).toBeNull();
+    expect(row!.deviceId).toBeNull();
+  });
+
+  it('stores and clears the on-site contact', async () => {
+    const id = await seedTicket(prisma, { customerId });
+
+    await useCase.execute({
+      id,
+      contact: { name: 'Luis Prospecto', phone: '300 555 1234' }
+    });
+    let row = await prisma.ticket.findUnique({ where: { id } });
+    expect(row!.contactName).toBe('Luis Prospecto');
+    expect(row!.contactPhone).toBe('3005551234');
+
+    await useCase.execute({ id, contact: null });
+    row = await prisma.ticket.findUnique({ where: { id } });
+    expect(row!.contactName).toBeNull();
+    expect(row!.contactPhone).toBeNull();
+  });
+
+  it('links a prospect ticket to the customer they became, keeping the contact', async () => {
+    const id = await seedTicket(prisma, {
+      contactName: 'Luis Prospecto',
+      contactPhone: '3005551234'
+    });
+
+    const result = await useCase.execute({ id, customerId });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.customerId).toBe(customerId);
+    expect(result.value.contact!.name).toBe('Luis Prospecto');
+  });
+
+  it('[TKT-012] the database refuses a contact phone with no name', async () => {
+    const id = await seedTicket(prisma, { customerId });
+
+    await expect(
+      prisma.ticket.update({
+        where: { id },
+        data: { contactPhone: '3005551234' }
+      })
+    ).rejects.toThrow();
   });
 
   it('[TKT-009] refuses to update a resolved ticket', async () => {

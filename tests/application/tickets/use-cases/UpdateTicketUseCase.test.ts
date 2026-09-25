@@ -119,15 +119,54 @@ describe('UpdateTicketUseCase', () => {
     expect(result.error).toContain('Customer not found');
   });
 
-  it('[TKT-004] refuses to drop both links', async () => {
+  it('[TKT-011] allows dropping both links', async () => {
     const result = await useCase.execute({
       id: ticket.id.toString(),
       customerId: null,
       deviceId: null
     });
 
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.customerId).toBeNull();
+    expect(result.value.deviceId).toBeNull();
+  });
+
+  it('sets the on-site contact', async () => {
+    const result = await useCase.execute({
+      id: ticket.id.toString(),
+      contact: { name: 'Luis Prospecto', phone: '300 555 1234' }
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.contact).toEqual({
+      name: 'Luis Prospecto',
+      phone: '3005551234'
+    });
+  });
+
+  it('clears the contact with null', async () => {
+    await useCase.execute({
+      id: ticket.id.toString(),
+      contact: { name: 'Luis Prospecto' }
+    });
+
+    const result = await useCase.execute({
+      id: ticket.id.toString(),
+      contact: null
+    });
+
+    expect(result.value.contact).toBeNull();
+  });
+
+  it('[TKT-012] rejects an unusable contact phone', async () => {
+    const result = await useCase.execute({
+      id: ticket.id.toString(),
+      contact: { name: 'Luis Prospecto', phone: '12' }
+    });
+
     expect(result.isFailure).toBe(true);
-    expect(result.error).toContain('customer or a device');
+    expect(result.error).toContain('Invalid contact phone');
+    expect(ticketRepo.save).not.toHaveBeenCalled();
   });
 
   it('rejects an unknown priority', async () => {

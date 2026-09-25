@@ -6,6 +6,7 @@ import {
   TicketCategory,
   TicketOrigin,
   ServiceAddress,
+  TicketContact,
   TimeBlock
 } from 'domain/tickets';
 import {
@@ -95,6 +96,18 @@ export class CreateTicketUseCase extends UseCase<
       return this.fail(addressResult.error!);
     }
 
+    let contact: TicketContact | null = null;
+    if (request.contact !== undefined && request.contact !== null) {
+      const contactResult = TicketContact.create({
+        name: request.contact.name as string,
+        phone: request.contact.phone
+      });
+      if (contactResult.isFailure) {
+        return this.fail(contactResult.error!);
+      }
+      contact = contactResult.value;
+    }
+
     let scheduledFor: Date | null = null;
     if (
       request.scheduledFor !== undefined &&
@@ -141,6 +154,7 @@ export class CreateTicketUseCase extends UseCase<
       customerId: customerResult.value,
       deviceId: deviceResult.value,
       address: addressResult.value,
+      contact,
       scheduledFor,
       timeBlock,
       createdBy

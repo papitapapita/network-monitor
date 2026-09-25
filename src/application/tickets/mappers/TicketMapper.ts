@@ -44,6 +44,16 @@ export class TicketMapper {
           ? ticket.technicianId.toString()
           : null,
       address: addressDTO,
+      contact:
+        ticket.contact === null
+          ? null
+          : {
+              name: ticket.contact.name,
+              phone:
+                ticket.contact.phone !== null
+                  ? ticket.contact.phone.toString()
+                  : null
+            },
       scheduledFor: TicketMapper.toDateOnlyString(
         ticket.scheduledFor
       ),

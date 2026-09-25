@@ -9,6 +9,7 @@ import {
   TicketOrigin,
   ServiceAddress,
   TimeBlock,
+  TicketContact,
   TicketOpenedEvent,
   TicketAssignedEvent,
   TicketStatusChangedEvent,
@@ -125,18 +126,30 @@ describe('Ticket', () => {
       expect(result.error).toContain('description cannot be empty');
     });
 
-    it('[TKT-004] should reject a ticket that references neither a customer nor a device', () => {
+    it('[TKT-011] should accept a ticket that references nothing at all', () => {
       const result = Ticket.create(
         makeProps({ customerId: null, deviceId: null })
       );
 
-      expect(result.isFailure).toBe(true);
-      expect(result.error).toContain(
-        'must reference a customer or a device'
-      );
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.contact).toBeNull();
     });
 
-    it('[TKT-004] should accept a ticket that references only a device', () => {
+    it('[TKT-011] should accept a prospect ticket with only a contact', () => {
+      const contact = TicketContact.create({
+        name: 'Luis Prospecto',
+        phone: '300 555 1234'
+      }).value;
+
+      const result = Ticket.create(
+        makeProps({ customerId: null, deviceId: null, contact })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.contact!.name).toBe('Luis Prospecto');
+    });
+
+    it('should accept a ticket that references only a device', () => {
       const result = Ticket.create(
         makeProps({ customerId: null, deviceId: DeviceId.create() })
       );
@@ -727,6 +740,40 @@ describe('Ticket', () => {
     });
   });
 
+  describe('changeContact()', () => {
+    const contact = () =>
+      TicketContact.create({ name: 'Luis Prospecto' }).value;
+
+    it('should set the on-site contact', () => {
+      const ticket = makeTicket();
+
+      const result = ticket.changeContact(contact());
+
+      expect(result.isSuccess).toBe(true);
+      expect(ticket.contact!.name).toBe('Luis Prospecto');
+    });
+
+    it('should clear the contact with null', () => {
+      const ticket = makeTicket({ contact: contact() });
+
+      ticket.changeContact(null);
+
+      expect(ticket.contact).toBeNull();
+    });
+
+    it('[TKT-009] should refuse to change the contact of a resolved ticket', () => {
+      const ticket = makeInProgressTicket();
+      ticket.resolve('Done');
+
+      const result = ticket.changeContact(contact());
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'Cannot modify a resolved ticket'
+      );
+    });
+  });
+
   describe('updateDetails()', () => {
     it('should update the title, description, priority and category', () => {
       const ticket = makeTicket();
@@ -805,15 +852,14 @@ describe('Ticket', () => {
       expect(ticket.deviceId!.equals(deviceId)).toBe(true);
     });
 
-    it('[TKT-004] should refuse to drop both references', () => {
+    it('[TKT-011] should allow dropping both references', () => {
       const ticket = makeTicket();
 
       const result = ticket.updateLinks(null, null);
 
-      expect(result.isFailure).toBe(true);
-      expect(result.error).toContain(
-        'must reference a customer or a device'
-      );
+      expect(result.isSuccess).toBe(true);
+      expect(ticket.customerId).toBeNull();
+      expect(ticket.deviceId).toBeNull();
     });
 
     it('[TKT-010] should refuse to relink a cancelled ticket', () => {

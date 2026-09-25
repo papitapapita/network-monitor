@@ -164,14 +164,48 @@ describe('Ticket Routes — /api/tickets', () => {
       expect(res.body.data.scheduledFor).toBe(TODAY);
     });
 
-    it('400 — rejects a ticket with neither a customer nor a device', async () => {
+    it('201 — accepts an internal task with no customer or device', async () => {
       const res = await request(app)
         .post('/api/tickets')
         .set('Authorization', auth())
         .send({
-          title: 'Orphan',
-          description: 'No links at all',
+          title: 'Buy connectors',
+          description: 'RJ45 and a crimping tool',
           category: 'OTHER'
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.customerId).toBeNull();
+      expect(res.body.data.deviceId).toBeNull();
+      expect(res.body.data.contact).toBeNull();
+    });
+
+    it('201 — accepts a site survey for a prospect contact', async () => {
+      const res = await request(app)
+        .post('/api/tickets')
+        .set('Authorization', auth())
+        .send({
+          title: 'Line-of-sight check',
+          description: 'Wants a 20 Mbps plan',
+          category: 'SITE_SURVEY',
+          contact: { name: 'Luis Prospecto', phone: '3005551234' }
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.category).toBe('SITE_SURVEY');
+      expect(res.body.data.contact).toEqual({
+        name: 'Luis Prospecto',
+        phone: '3005551234'
+      });
+    });
+
+    it('400 — rejects a contact with an unusable phone', async () => {
+      const res = await request(app)
+        .post('/api/tickets')
+        .set('Authorization', auth())
+        .send({
+          ...validBody(),
+          contact: { name: 'Luis Prospecto', phone: '12' }
         });
 
       expect(res.status).toBe(400);
