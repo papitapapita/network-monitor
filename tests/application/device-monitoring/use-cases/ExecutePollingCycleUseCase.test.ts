@@ -663,6 +663,42 @@ describe('ExecutePollingCycleUseCase', () => {
 
   // ===========================================================================
   describe('executeImpl — failed ping result', () => {
+    describe('attempt budget', () => {
+      beforeEach(() => {
+        configRepo.findByDeviceId.mockResolvedValue(
+          Result.ok(makeConfig({ thresholdCount: 100 }))
+        );
+        pingService.ping.mockResolvedValue(
+          Result.ok({ isReachable: false, latencyMs: null })
+        );
+      });
+
+      it('should run the full threshold on a scheduled poll', async () => {
+        await useCase.execute(makeRequest());
+
+        expect(pingService.ping).toHaveBeenCalledTimes(100);
+      });
+
+      it('should cap a manual poll at 3 attempts', async () => {
+        const result = await useCase.execute(
+          makeRequest({ forceExecution: true })
+        );
+
+        expect(result.isSuccess).toBe(true);
+        expect(pingService.ping).toHaveBeenCalledTimes(3);
+      });
+
+      it('should not raise a manual poll above a threshold lower than the cap', async () => {
+        configRepo.findByDeviceId.mockResolvedValue(
+          Result.ok(makeConfig({ thresholdCount: 2 }))
+        );
+
+        await useCase.execute(makeRequest({ forceExecution: true }));
+
+        expect(pingService.ping).toHaveBeenCalledTimes(2);
+      });
+    });
+
     it('should return FAILED status when all retries are unreachable', async () => {
       configRepo.findByDeviceId.mockResolvedValue(
         Result.ok(makeConfig())

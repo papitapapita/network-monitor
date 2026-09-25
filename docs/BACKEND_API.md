@@ -1337,6 +1337,12 @@ monitoring before polling it"`. A manual poll would write a real reading over
 > (from `GET /api/devices/:id/polling/status`) rather than letting the call fail;
 > on a `409`, offer "enable monitoring" instead of a retry.
 
+> **Since 2026-09-25: a manual poll makes at most 3 ping attempts**, whatever
+> the device's `failuresBeforeDown` (a lower threshold is kept as is). It
+> answers in under about 20 seconds even for an unreachable device, and an
+> unreachable device is marked down after those 3 attempts. Scheduled polls
+> still use the full threshold.
+
 ---
 
 ### `GET /api/devices/:id/polling/status` — Current Status

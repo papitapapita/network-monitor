@@ -25,6 +25,8 @@ export class ExecutePollingCycleUseCase extends UseCase<
   ExecutePollingCycleDTO,
   SingleDevicePollingResultDTO
 > {
+  private static readonly MANUAL_POLL_MAX_ATTEMPTS = 3;
+
   constructor(
     private readonly pollingConfigRepo: IPollingConfigurationRepository,
     private readonly pingResultRepo: IPingResultRepository,
@@ -119,7 +121,14 @@ export class ExecutePollingCycleUseCase extends UseCase<
 
     // failuresBeforeDown doubles as the intra-cycle attempt budget: the device
     // is only considered unreachable after all attempts fail within one cycle.
-    const maxAttempts = config.failuresBeforeDown.value;
+    // A manual poll is capped: an operator is waiting on the answer, and with
+    // a large threshold the full budget outlasts the HTTP proxy in front.
+    const maxAttempts = forceExecution
+      ? Math.min(
+          config.failuresBeforeDown.value,
+          ExecutePollingCycleUseCase.MANUAL_POLL_MAX_ATTEMPTS
+        )
+      : config.failuresBeforeDown.value;
     let isReachable = false;
     let latencyMs: number | null = null;
     // A failure to *run* the probe is a local fault, not an unreachable device.

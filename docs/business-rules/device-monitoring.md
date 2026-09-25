@@ -187,6 +187,27 @@ checked and how many failures it tolerates.
 **Backed by:** `polling_configurations.enabled`; the due-devices query filters on `enabled = true` (`src/infrastructure/persistence/PrismaPollingConfigurationRepository.ts`)
 **Tests:** `tests/integration/use-cases/device-monitoring/SuspendDeviceMonitoringUseCase.integration.test.ts`
 
+### MON-021 — A manual poll makes at most 3 ping attempts
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-09-25
+
+A scheduled poll declares a device unreachable only after all
+`failuresBeforeDown` attempts fail. A manual poll ("poll now") uses the smaller of
+that threshold and 3, so a threshold of 100 still answers after 3 attempts. A
+threshold below 3 is not raised. The result is written like any other poll, so
+a manual poll of an unreachable device marks it down after 3 failed attempts,
+earlier than the configured tolerance would allow on the schedule.
+
+**Why:** Each attempt can wait 5 seconds for a reply, so a threshold of 100 keeps
+an operator waiting about ten minutes, far longer than the HTTP proxy in front of
+the API lets a request run (30 seconds), which surfaced as a raw proxy error
+instead of a result. Three attempts answer in under 20 seconds.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.ts` (`MANUAL_POLL_MAX_ATTEMPTS`)
+**Reached from:** `POST /api/devices/:id/poll` via `PollingController.poll`
+**Tests:** `tests/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.test.ts`
+
 ---
 
 ## Ping history and retention
