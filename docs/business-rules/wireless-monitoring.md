@@ -1695,6 +1695,43 @@ mid-outage and hasn't reported anything itself.
 **Message:** `NOT_AP: This device is a CPE and has no expected-client roster`
 **Tests:** `tests/application/wireless-monitoring/use-cases/GetApExpectedClientsUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetApExpectedClientsUseCase.integration.test.ts`, `tests/integration/wireless.routes.test.ts`
 
+### WLS-164 — Identity suggestions compare the device's own polled hostname/MAC against device-inventory, case/format-insensitively
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-09-22
+
+`GET /api/devices/:id/wireless/identity/suggestions` compares the device's
+*own* hostname and MAC as last reported by AirOS — `host.hostname` and
+`wireless.mac`/`ath0.hwaddr`, persisted on `WirelessSnapshot.metrics` — against
+`Device.name` and `Device.macAddress` from device-inventory. Name comparison
+trims and lowercases both sides; MAC comparison normalizes separators and case
+the same way [WLS-163](#wls-163--the-expected-clients-query-diffs-declared-stations-against-a-live-snapshot)
+does. A mismatch on either field — including a `null` `Device.macAddress` when
+AirOS reports one — is returned as a suggestion; nothing is written
+automatically. A device that has never been polled returns `polled: false`
+and an empty suggestion list rather than failing. Serial number is never part
+of this comparison — AirOS's `status.cgi` payload has no serial-number field
+anywhere the collector reads, so there is nothing to compare it against. This
+is unrelated to [WLS-098](#wls-098--a-change-of-identity-is-a-warning), which
+alerts when a device's *own* polled MAC/SSID/model changes between
+consecutive polls — this rule instead diffs the latest poll against the
+manually-entered inventory record, regardless of whether anything changed
+since the last poll.
+
+**Why:** A technician provisions `Device.name`/`macAddress` by hand before a
+radio is ever reachable, and typos or later hardware swaps drift the record
+from reality. Radios expose their own hostname/MAC on every poll, which is a
+strong, cheap-to-check drift signal — but writing it back automatically risks
+propagating a misconfigured or spoofed device's identity into inventory, so
+this stays a read-only suggestion for a human to accept or reject, exactly
+like WLS-163 is a read-only diff rather than a reconciliation.
+
+**Enforced at:** `src/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.ts`
+**Reached from:** `GET /api/devices/:id/wireless/identity/suggestions`
+**Message:** `Device not found`
+**Tests:** `tests/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetDeviceIdentitySuggestionsUseCase.integration.test.ts`, `tests/integration/wireless.routes.test.ts`
+
 ### WLS-142 — A history window must start before it ends
 
 **Type:** Validation · **Status:** Active

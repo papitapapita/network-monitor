@@ -41,6 +41,10 @@ export const getApExpectedClientsSchema = z.object({
   params: z.object({ id: uuidSchema })
 });
 
+export const getDeviceIdentitySuggestionsSchema = z.object({
+  params: z.object({ id: uuidSchema })
+});
+
 export const getDeviceWirelessAlertsSchema = z.object({
   params: z.object({ id: uuidSchema }),
   query: z.object(alertQueryFields).optional()
@@ -169,6 +173,9 @@ export type GetWirelessClientsInput = z.infer<
 >;
 export type GetApExpectedClientsInput = z.infer<
   typeof getApExpectedClientsSchema
+>;
+export type GetDeviceIdentitySuggestionsInput = z.infer<
+  typeof getDeviceIdentitySuggestionsSchema
 >;
 export type GetDeviceWirelessAlertsInput = z.infer<
   typeof getDeviceWirelessAlertsSchema

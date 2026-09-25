@@ -420,6 +420,84 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
   });
 
   // ─────────────────────────────────────────────────────────────
+  // GET /api/devices/:id/wireless/identity/suggestions
+  // ─────────────────────────────────────────────────────────────
+
+  describe('GET /api/devices/:id/wireless/identity/suggestions', () => {
+    it('200 — returns a suggestion when the polled name differs from inventory', async () => {
+      const apDeviceId = await seedAccessPointDevice(
+        prisma,
+        deviceModelId
+      );
+      await prisma.wirelessSnapshot.create({
+        data: {
+          deviceId: apDeviceId,
+          deviceType: 'ACCESS_POINT',
+          collectionMethod: 'http_api',
+          collectedAt: new Date(),
+          deviceName: 'Renamed Access Point'
+        }
+      });
+
+      const res = await request(app)
+        .get(`/api/devices/${apDeviceId}/wireless/identity/suggestions`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.deviceId).toBe(apDeviceId);
+      expect(res.body.polled).toBe(true);
+      expect(res.body.suggestions).toContainEqual({
+        field: 'name',
+        currentValue: 'Access Point Test Device',
+        suggestedValue: 'Renamed Access Point'
+      });
+    });
+
+    it('200 — polled: false and no suggestions for a device that has never been polled', async () => {
+      const noSnapshotId = await seedWirelessDeviceWithoutSnapshot(
+        prisma,
+        deviceModelId
+      );
+
+      const res = await request(app)
+        .get(
+          `/api/devices/${noSnapshotId}/wireless/identity/suggestions`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.polled).toBe(false);
+      expect(res.body.suggestions).toHaveLength(0);
+    });
+
+    it('401 — rejects a request with no Authorization header', async () => {
+      const res = await request(app).get(
+        `/api/devices/${deviceId}/wireless/identity/suggestions`
+      );
+
+      expect(res.status).toBe(401);
+    });
+
+    it('404 — device does not exist', async () => {
+      const res = await request(app)
+        .get(`/api/devices/${GHOST_ID}/wireless/identity/suggestions`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(404);
+    });
+
+    it('400 — invalid device UUID', async () => {
+      const res = await request(app)
+        .get(
+          `/api/devices/${INVALID_ID}/wireless/identity/suggestions`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
   // GET /api/devices/:id/wireless/alerts/history
   // (static segment registered before parameterized /alerts route)
   // ─────────────────────────────────────────────────────────────

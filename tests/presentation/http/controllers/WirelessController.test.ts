@@ -6,6 +6,7 @@ import { GetWirelessDeviceStatusUseCase } from '../../../../src/application/wire
 import { GetWirelessDeviceHistoryUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetWirelessDeviceHistoryUseCase';
 import { GetWirelessClientsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetWirelessClientsUseCase';
 import { GetApExpectedClientsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetApExpectedClientsUseCase';
+import { GetDeviceIdentitySuggestionsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase';
 import { GetActiveWirelessAlertsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetActiveWirelessAlertsUseCase';
 import { GetWirelessAlertHistoryUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetWirelessAlertHistoryUseCase';
 import { TriggerWirelessPollUseCase } from '../../../../src/application/wireless-monitoring/use-cases/TriggerWirelessPollUseCase';
@@ -69,6 +70,11 @@ const createMockGetClientsUseCase = () =>
 
 const createMockGetApExpectedClientsUseCase = () =>
   ({ execute: jest.fn() }) as unknown as GetApExpectedClientsUseCase;
+
+const createMockGetDeviceIdentitySuggestionsUseCase = () =>
+  ({
+    execute: jest.fn()
+  }) as unknown as GetDeviceIdentitySuggestionsUseCase;
 
 const createMockGetActiveAlertsUseCase = () =>
   ({
@@ -194,6 +200,7 @@ describe('WirelessController', () => {
   let mockGetHistoryUseCase: GetWirelessDeviceHistoryUseCase;
   let mockGetClientsUseCase: GetWirelessClientsUseCase;
   let mockGetApExpectedClientsUseCase: GetApExpectedClientsUseCase;
+  let mockGetDeviceIdentitySuggestionsUseCase: GetDeviceIdentitySuggestionsUseCase;
   let mockGetActiveAlertsUseCase: GetActiveWirelessAlertsUseCase;
   let mockGetAlertHistoryUseCase: GetWirelessAlertHistoryUseCase;
   let mockTriggerPollUseCase: TriggerWirelessPollUseCase;
@@ -212,6 +219,8 @@ describe('WirelessController', () => {
     mockGetClientsUseCase = createMockGetClientsUseCase();
     mockGetApExpectedClientsUseCase =
       createMockGetApExpectedClientsUseCase();
+    mockGetDeviceIdentitySuggestionsUseCase =
+      createMockGetDeviceIdentitySuggestionsUseCase();
     mockGetActiveAlertsUseCase = createMockGetActiveAlertsUseCase();
     mockGetAlertHistoryUseCase = createMockGetAlertHistoryUseCase();
     mockTriggerPollUseCase = createMockTriggerPollUseCase();
@@ -233,6 +242,7 @@ describe('WirelessController', () => {
       mockGetHistoryUseCase,
       mockGetClientsUseCase,
       mockGetApExpectedClientsUseCase,
+      mockGetDeviceIdentitySuggestionsUseCase,
       mockGetActiveAlertsUseCase,
       mockGetAlertHistoryUseCase,
       mockTriggerPollUseCase,

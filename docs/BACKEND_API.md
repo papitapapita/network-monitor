@@ -2169,6 +2169,36 @@ limit?: number // 1–1000
 
 ---
 
+### `GET /api/devices/:id/wireless/identity/suggestions` — Identity Suggestions
+
+**Status:** 200 | 400 | 404
+
+```ts
+// Response
+{
+  deviceId: string
+  polled: boolean              // false if the device has never been polled
+  collectedAt: string | null   // ISO 8601 from the latest snapshot
+  suggestions: Array<{
+    field: 'name' | 'macAddress'
+    currentValue: string | null   // from device-inventory
+    suggestedValue: string        // from the latest AirOS poll
+  }>
+}
+```
+
+> Read-only diff between what AirOS last reported about its own hostname/MAC
+> and what's on file in device-inventory (WLS-164) — never auto-written. Name
+> matching is trim + case-insensitive; MAC matching is separator/case-normalized
+> the same way `.../clients/expected` matches. A device that has never been
+> polled returns `polled: false` and an empty `suggestions` array rather than
+> 404. Serial number is never compared — AirOS does not expose one.  
+> **Frontend:** render each suggestion as an accept/dismiss row; accepting one
+> means calling `PATCH /api/devices/:id` with the suggested value — this
+> endpoint never writes to device-inventory itself.
+
+---
+
 ### `GET /api/devices/:id/wireless/throughput/stream` — Live Throughput (SSE)
 
 **Status:** 200 (`text/event-stream`) | 400 | 401 | 404 | 429
