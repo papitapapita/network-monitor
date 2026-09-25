@@ -300,7 +300,7 @@ describe('GetApExpectedClientsUseCase', () => {
   });
 
   // ===========================================================================
-  describe('executeImpl — matching, missing, and unexpected clients', () => {
+  describe('[WLS-163] executeImpl — matching, missing, and unexpected clients', () => {
     it('should mark an expected CPE as connected when its MAC is live', async () => {
       configRepo.findByParentApDeviceId.mockResolvedValue(
         Result.ok([makeConfig(CPE_A_DEVICE_UUID, 'STATION')])
@@ -379,7 +379,10 @@ describe('GetApExpectedClientsUseCase', () => {
           );
         }
         return Promise.resolve(
-          Result.ok({ name: 'CPE B', macAddress: 'AA:BB:CC:DD:EE:02' })
+          Result.ok({
+            name: 'CPE B',
+            macAddress: 'AA:BB:CC:DD:EE:02'
+          })
         );
       });
       snapshotRepo.findLatestByDevice.mockResolvedValue(

@@ -1083,9 +1083,11 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
   });
 
   // ===========================================================================
-  describe('[WLS-089] executeImpl — LAN speed baseline auto-capture', () => {
+  describe('[WLS-089] [WLS-099] executeImpl — LAN speed baseline auto-capture', () => {
     it('should capture the reported LAN speed as the baseline on first poll', async () => {
-      const config = makePollingConfig({ provisionedLanSpeedMbps: null });
+      const config = makePollingConfig({
+        provisionedLanSpeedMbps: null
+      });
       mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
         Result.ok(config)
       );
@@ -1115,9 +1117,9 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
       expect(config.provisionedLanSpeedMbps).toBe(1000);
-      expect(mocks.wirelessDeviceConfigRepo.save).toHaveBeenCalledWith(
-        config
-      );
+      expect(
+        mocks.wirelessDeviceConfigRepo.save
+      ).toHaveBeenCalledWith(config);
     });
 
     it('should not overwrite an already-captured baseline', async () => {
@@ -1195,7 +1197,9 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
     });
 
     it('should not attempt to capture a baseline when the device reports no LAN speed', async () => {
-      const config = makePollingConfig({ provisionedLanSpeedMbps: null });
+      const config = makePollingConfig({
+        provisionedLanSpeedMbps: null
+      });
       mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
         Result.ok(config)
       );
