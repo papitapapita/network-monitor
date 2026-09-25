@@ -12,6 +12,7 @@ import {
   DeviceMonitoringToggledEvent,
   DeviceDetailsUpdatedEvent,
   DeviceModelCorrectedEvent,
+  DeviceHardwareSwappedEvent,
   DeviceOwnerType,
   DeviceProps
 } from '../../../../src/domain/device-inventory';
@@ -2890,6 +2891,311 @@ describe('Device', () => {
       expect(result.error).toContain(
         'Monitoring can only be enabled'
       );
+    });
+  });
+
+  // =========================================================================
+  describe('swapHardwareWith()', () => {
+    const NOW = new Date('2026-09-01T00:00:00.000Z');
+
+    function makeActive(
+      overrides: Partial<CreateDeviceProps> = {}
+    ): Device {
+      return makeDevice({
+        status: DeviceStatus.createActive(),
+        locationId: LocationId.create(),
+        ipAddress: IPAddress.create('10.0.0.1').value,
+        monitoringEnabled: true,
+        ...overrides
+      });
+    }
+
+    function makePair(): { big: Device; small: Device } {
+      const big = makeActive({
+        name: DeviceName.create('Site-A').value,
+        serialNumber: SerialNumber.create('SN-BIG').value,
+        macAddress: MACAddress.create('AA:AA:AA:AA:AA:AA').value,
+        ipAddress: IPAddress.create('10.0.0.1').value
+      });
+      const small = makeActive({
+        name: DeviceName.create('Site-B').value,
+        serialNumber: SerialNumber.create('SN-SMALL').value,
+        macAddress: MACAddress.create('BB:BB:BB:BB:BB:BB').value,
+        ipAddress: IPAddress.create('10.0.0.2').value
+      });
+      return { big, small };
+    }
+
+    function makeReplacedRetired(): Device {
+      return Device.reconstitute(DeviceId.create(), {
+        ...makeProps({
+          status: DeviceStatus.createDamaged(),
+          serialNumber: SerialNumber.create('SN-GONE').value
+        }),
+        createdAt: NOW,
+        updatedAt: NOW,
+        deletedAt: null,
+        deletedBy: null,
+        replacedAt: NOW,
+        replacesDeviceId: null,
+        replacedByDeviceId: DeviceId.create()
+      });
+    }
+
+    describe('happy path', () => {
+      it('should exchange model, serial number and MAC address', () => {
+        const { big, small } = makePair();
+        const bigModel = big.deviceModelId;
+        const smallModel = small.deviceModelId;
+
+        const result = big.swapHardwareWith(small, NOW);
+
+        expect(result.isSuccess).toBe(true);
+        expect(big.deviceModelId).toBe(smallModel);
+        expect(big.serialNumber?.value).toBe('SN-SMALL');
+        expect(big.macAddress?.value).toBe('BB:BB:BB:BB:BB:BB');
+        expect(small.deviceModelId).toBe(bigModel);
+        expect(small.serialNumber?.value).toBe('SN-BIG');
+        expect(small.macAddress?.value).toBe('AA:AA:AA:AA:AA:AA');
+      });
+
+      it('should leave everything the site carries with each record', () => {
+        const { big, small } = makePair();
+        const bigLocation = big.locationId;
+        const smallLocation = small.locationId;
+
+        big.swapHardwareWith(small, NOW);
+
+        expect(big.ipAddress?.value).toBe('10.0.0.1');
+        expect(small.ipAddress?.value).toBe('10.0.0.2');
+        expect(big.locationId).toBe(bigLocation);
+        expect(small.locationId).toBe(smallLocation);
+        expect(big.name.value).toBe('Site-A');
+        expect(small.name.value).toBe('Site-B');
+        expect(big.status.isActive()).toBe(true);
+        expect(small.status.isActive()).toBe(true);
+        expect(big.monitoringEnabled).toBe(true);
+        expect(small.monitoringEnabled).toBe(true);
+      });
+
+      it('should raise one DeviceHardwareSwappedEvent on each device', () => {
+        const { big, small } = makePair();
+        big.clearEvents();
+        small.clearEvents();
+
+        big.swapHardwareWith(small, NOW);
+
+        const bigEvents = big.domainEvents.filter(
+          (e) => e instanceof DeviceHardwareSwappedEvent
+        ) as DeviceHardwareSwappedEvent[];
+        const smallEvents = small.domainEvents.filter(
+          (e) => e instanceof DeviceHardwareSwappedEvent
+        ) as DeviceHardwareSwappedEvent[];
+
+        expect(big.domainEvents).toHaveLength(1);
+        expect(small.domainEvents).toHaveLength(1);
+        expect(bigEvents[0].aggregateId).toBe(big.id);
+        expect(bigEvents[0].counterpartDeviceId).toBe(small.id);
+        expect(bigEvents[0].previousSerialNumber?.value).toBe(
+          'SN-BIG'
+        );
+        expect(bigEvents[0].newSerialNumber?.value).toBe('SN-SMALL');
+        expect(bigEvents[0].previousMacAddress?.value).toBe(
+          'AA:AA:AA:AA:AA:AA'
+        );
+        expect(bigEvents[0].newMacAddress?.value).toBe(
+          'BB:BB:BB:BB:BB:BB'
+        );
+        expect(smallEvents[0].aggregateId).toBe(small.id);
+        expect(smallEvents[0].counterpartDeviceId).toBe(big.id);
+        expect(smallEvents[0].newSerialNumber?.value).toBe('SN-BIG');
+      });
+
+      it('should raise no DeviceModelCorrectedEvent', () => {
+        const { big, small } = makePair();
+        big.clearEvents();
+        small.clearEvents();
+
+        big.swapHardwareWith(small, NOW);
+
+        expect(
+          big.domainEvents.some(
+            (e) => e instanceof DeviceModelCorrectedEvent
+          )
+        ).toBe(false);
+      });
+
+      it('should work between an ACTIVE and an INVENTORY device — [DEV-063] does not apply', () => {
+        const active = makeActive({
+          serialNumber: SerialNumber.create('SN-INSTALLED').value
+        });
+        const spare = makeDevice({
+          status: DeviceStatus.createInventory(),
+          serialNumber: SerialNumber.create('SN-SPARE').value
+        });
+        const spareModel = spare.deviceModelId;
+
+        const result = active.swapHardwareWith(spare, NOW);
+
+        expect(result.isSuccess).toBe(true);
+        expect(active.deviceModelId).toBe(spareModel);
+        expect(active.serialNumber?.value).toBe('SN-SPARE');
+        expect(spare.serialNumber?.value).toBe('SN-INSTALLED');
+        expect(active.status.isActive()).toBe(true);
+        expect(spare.status.isInInventory()).toBe(true);
+      });
+
+      it('should bump updatedAt on both devices', () => {
+        const { big, small } = makePair();
+        const before = big.updatedAt;
+
+        big.swapHardwareWith(small, NOW);
+
+        expect(big.updatedAt.getTime()).toBeGreaterThanOrEqual(
+          before.getTime()
+        );
+        expect(small.updatedAt.getTime()).toBeGreaterThanOrEqual(
+          before.getTime()
+        );
+      });
+    });
+
+    describe('refusals', () => {
+      function snapshot(device: Device) {
+        return {
+          model: device.deviceModelId,
+          serial: device.serialNumber?.value ?? null,
+          mac: device.macAddress?.value ?? null,
+          events: device.domainEvents.length
+        };
+      }
+
+      it('should refuse swapping a device with itself', () => {
+        const { big } = makePair();
+        const before = snapshot(big);
+
+        const result = big.swapHardwareWith(big, NOW);
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('with itself');
+        expect(snapshot(big)).toEqual(before);
+      });
+
+      it('should refuse when this device is deleted', () => {
+        const { big, small } = makePair();
+        big.softDelete(null);
+        const bigBefore = snapshot(big);
+        const smallBefore = snapshot(small);
+
+        const result = big.swapHardwareWith(small, NOW);
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('deleted device');
+        expect(snapshot(big)).toEqual(bigBefore);
+        expect(snapshot(small)).toEqual(smallBefore);
+      });
+
+      it('should refuse when the other device is deleted', () => {
+        const { big, small } = makePair();
+        small.softDelete(null);
+        const bigBefore = snapshot(big);
+        const smallBefore = snapshot(small);
+
+        const result = big.swapHardwareWith(small, NOW);
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('deleted device');
+        expect(snapshot(big)).toEqual(bigBefore);
+        expect(snapshot(small)).toEqual(smallBefore);
+      });
+
+      it('should refuse when this device was replaced and is still retired', () => {
+        const { small } = makePair();
+        const retired = makeReplacedRetired();
+        const smallBefore = snapshot(small);
+        const retiredBefore = snapshot(retired);
+
+        const result = retired.swapHardwareWith(small, NOW);
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('already been replaced');
+        expect(snapshot(small)).toEqual(smallBefore);
+        expect(snapshot(retired)).toEqual(retiredBefore);
+      });
+
+      it('should refuse when the other device was replaced and is still retired', () => {
+        const { big } = makePair();
+        const retired = makeReplacedRetired();
+        const bigBefore = snapshot(big);
+
+        const result = big.swapHardwareWith(retired, NOW);
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('already been replaced');
+        expect(snapshot(big)).toEqual(bigBefore);
+      });
+
+      it('should refuse when both devices carry identical hardware details', () => {
+        const modelId = DeviceModelId.create();
+        const a = makeActive({
+          deviceModelId: modelId,
+          serialNumber: SerialNumber.create('SN-SAME').value,
+          macAddress: null,
+          ipAddress: IPAddress.create('10.0.0.1').value
+        });
+        const b = makeActive({
+          deviceModelId: modelId,
+          serialNumber: SerialNumber.create('SN-SAME').value,
+          macAddress: null,
+          ipAddress: IPAddress.create('10.0.0.2').value
+        });
+
+        const result = a.swapHardwareWith(b, NOW);
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('identical hardware');
+      });
+
+      it('should refuse when a retired device would end up with no serial or MAC', () => {
+        const retired = makeDevice({
+          status: DeviceStatus.createDamaged(),
+          serialNumber: SerialNumber.create('SN-BROKEN').value
+        });
+        const bare = makeActive({
+          serialNumber: null,
+          macAddress: null
+        });
+        const retiredBefore = snapshot(retired);
+        const bareBefore = snapshot(bare);
+
+        const result = retired.swapHardwareWith(bare, NOW);
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain(
+          'at least a serial number or MAC address'
+        );
+        expect(snapshot(retired)).toEqual(retiredBefore);
+        expect(snapshot(bare)).toEqual(bareBefore);
+      });
+
+      it('should refuse the same swap regardless of which side is called', () => {
+        const bare = makeActive({
+          serialNumber: null,
+          macAddress: null
+        });
+        const retired = makeDevice({
+          status: DeviceStatus.createDamaged(),
+          serialNumber: SerialNumber.create('SN-BROKEN').value
+        });
+        const bareBefore = snapshot(bare);
+        const retiredBefore = snapshot(retired);
+
+        const result = bare.swapHardwareWith(retired, NOW);
+
+        expect(result.isFailure).toBe(true);
+        expect(snapshot(bare)).toEqual(bareBefore);
+        expect(snapshot(retired)).toEqual(retiredBefore);
+      });
     });
   });
 });

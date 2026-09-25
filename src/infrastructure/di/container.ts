@@ -279,6 +279,7 @@ import {
   RestoreDeviceUseCase,
   ReplaceDeviceUseCase,
   PermanentlyDeleteDeviceUseCase,
+  SwapDeviceHardwareUseCase,
   PurgeDeletedDevicesUseCase,
   GetDeviceModelUseCase,
   ListDeviceModelsUseCase,
@@ -793,6 +794,13 @@ export class DependencyContainer {
       this.logger
     );
 
+    const swapDeviceHardwareUseCase = new SwapDeviceHardwareUseCase(
+      this.deviceRepository,
+      this.deviceRepository,
+      this.deviceModelRepository,
+      this.wirelessDeviceConfigRepository,
+      this.logger
+    );
     // Initialize device model use cases
     const getDeviceModelUseCase = new GetDeviceModelUseCase(
       this.deviceModelRepository,
@@ -863,6 +871,7 @@ export class DependencyContainer {
       restoreDeviceUseCase,
       replaceDeviceUseCase,
       permanentlyDeleteDeviceUseCase,
+      swapDeviceHardwareUseCase,
       this.logger
     );
 

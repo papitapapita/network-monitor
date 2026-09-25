@@ -19,6 +19,8 @@ export * from './RestoreDeviceRequestDTO';
 export * from './PermanentlyDeleteDeviceRequestDTO';
 export * from './ReplaceDeviceRequestDTO';
 export * from './ReplaceDeviceResponseDTO';
+export * from './SwapDeviceHardwareRequestDTO';
+export * from './SwapDeviceHardwareResponseDTO';
 export * from './CreateVendorRequestDTO';
 export * from './UpdateVendorRequestDTO';
 export * from './DeleteVendorRequestDTO';

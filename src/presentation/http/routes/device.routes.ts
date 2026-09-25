@@ -13,6 +13,7 @@ import {
   deleteDeviceSchema,
   restoreDeviceSchema,
   replaceDeviceSchema,
+  swapDeviceHardwareSchema,
   permanentlyDeleteDeviceSchema
 } from '../validation/device.schemas';
 
@@ -31,6 +32,7 @@ import {
  * - DELETE /:id           - Soft-delete a device (7-day grace period)
  * - POST   /:id/restore   - Undo a soft-delete inside the grace period
  * - POST   /:id/replace   - Swap in different hardware, retiring this unit
+ * - POST   /:id/swap-hardware - Exchange hardware identity with another device
  * - DELETE /:id/purge     - Permanently remove a device already in the bin
  *
  * @param controller - DeviceController instance (injected by DI container)
@@ -239,6 +241,33 @@ export function createDeviceRoutes(
     createRateLimiter('write'),
     validateRequest(replaceDeviceSchema),
     controller.replace
+  );
+
+  /**
+   * POST /api/devices/:id/swap-hardware
+   * Two working units physically traded places. Exchanges model, serial number
+   * and MAC address between the two records; IP, location, credentials,
+   * contract, wireless config and history stay with each record.
+   *
+   * Params:
+   *   - id (required) Device UUID v4 — one of the two records
+   *
+   * Body:
+   *   - otherDeviceId (required) UUID v4 of the other record
+   *
+   * Response: 200 OK with SwapDeviceHardwareResponseDTO
+   * Errors:
+   *   400 - Validation failure, same device twice, a deleted or replaced
+   *         device, or a wireless config that would lose its radio
+   *   404 - Either device not found
+   *   500 - Unexpected infrastructure error
+   */
+  router.post(
+    '/:id/swap-hardware',
+    authorize('activate'),
+    createRateLimiter('write'),
+    validateRequest(swapDeviceHardwareSchema),
+    controller.swapHardware
   );
 
   /**

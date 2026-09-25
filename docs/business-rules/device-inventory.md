@@ -36,11 +36,11 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 
 | Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Domain**                            |    42 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144 |
-| **Application**                       |    41 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145          |
+| **Domain**                            |    43 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144, DEV-162 |
+| **Application**                       |    42 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145, DEV-163 |
 | **Application + Domain**              |     6 | DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160                                                                                                                                                                                                                                                                                                                                     |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                                                                              |
-| **Infrastructure + Domain**           |     1 | DEV-028                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Infrastructure + Domain**           |     2 | DEV-028, DEV-161 |
 | **Infrastructure + Application**      |     2 | DEV-072, DEV-084                                                                                                                                                                                                                                                                                                                                                                         |
 | **Presentation**                      |     2 | DEV-140, DEV-146                                                                                                                                                                                                                                                                                                                                                                         |
 
@@ -1075,7 +1075,9 @@ a correction cannot retroactively re-attribute collected data to hardware that
 never produced it. Once a unit has been ACTIVE, COMMISSIONING or DAMAGED, the
 model is frozen and swapping in different hardware is a separate operation that
 retires the old record and links a new one — that operation now exists, see
-DEV-078.
+DEV-078. Two already-working units that traded places are a third case, handled
+by DEV-161: it exchanges the hardware between the two records and is the one
+sanctioned way a model changes outside `INVENTORY`.
 
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts:379` (`Device.correctDeviceModel`); model existence at `src/application/device-inventory/use-cases/UpdateDeviceUseCase.ts:234`
 **Reached from:** `UpdateDeviceUseCase` (`deviceModelId` on `PATCH /api/devices/:id`)
@@ -2559,6 +2561,101 @@ keeps a rejected replacement from leaving a retired device with no successor.
 **Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/application/device-inventory/use-cases/ReplaceDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ReplaceDeviceUseCase.integration.test.ts`
 
 ---
+
+### DEV-161 — Two devices can exchange their hardware, and only their hardware
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure + Domain
+**Since:** 2026-09-25
+
+`POST /api/devices/:id/swap-hardware` takes two existing records whose physical
+boxes traded places and exchanges **model, serial number and MAC address**
+between them. Everything the _site_ carries stays with the record: IP address,
+location, status, monitoring flag, credentials, contracted service, wireless
+config, and every metric hanging off the device id.
+
+**Why this is neither of the other two operations.** DEV-078 replaces a unit
+with a _new_ record and retires the old one — right when a box is genuinely
+new to the system. DEV-063 corrects a model typo on one record, and only while
+it is `INVENTORY`. Neither fits two already-working records that swapped places:
+there is no new record to create, and both are past `INVENTORY`. Treating the
+swap as two replacements would retire two live sites and reset their history.
+
+**The trade-off, stated plainly.** A record's history follows the _site_, not the
+box. A swap therefore re-attributes the model and identifiers of every earlier
+reading to the hardware that sits there now, which is the very thing DEV-063
+forbids for a correction. It is allowed here because the alternative — leaving
+the records describing boxes that are no longer there — is wrong from the moment
+the swap happens, and both records stay in step. Each side emits a
+`DeviceHardwareSwappedEvent` carrying the previous and new identity, so the
+moment of change stays recoverable.
+
+**Persisted together.** The live-MAC uniqueness index (DEV-047) rejects any
+intermediate state where two rows hold the same address, and it is checked per
+row, so no ordering of two ordinary saves can exchange two MACs. The repository
+writes both records in one transaction, clearing the first MAC before the second
+row claims it. Either both records change or neither does — a failure never
+leaves a device without its MAC.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`Device.swapHardwareWith`); `src/infrastructure/persistence/PrismaDeviceRepository.ts` (`saveHardwareSwap`)
+**Reached from:** `SwapDeviceHardwareUseCase` (`POST /api/devices/:id/swap-hardware`, `activate` permission)
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/application/device-inventory/use-cases/SwapDeviceHardwareUseCase.test.ts`, `tests/integration/use-cases/device-inventory/SwapDeviceHardwareUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
+
+### DEV-162 — Only two distinct, live, non-superseded devices with something to exchange can swap
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-25
+
+`Device.swapHardwareWith` refuses when:
+
+- both arguments are the same device — `Cannot swap a device with itself`
+- either device is deleted — `Cannot swap the hardware of a deleted device`
+- either device is retired **and** already has a successor —
+  `Cannot swap the hardware of a device that has already been replaced`
+- the two carry the same model, serial and MAC — nothing would change
+- the hardware a device would receive leaves it violating DEV-053 or DEV-160
+  (a retired or replacement device with no serial number and no MAC)
+
+Both candidate states are judged before either aggregate changes, so a refusal
+leaves **both** untouched.
+
+**Why superseded units are excluded.** The successor's `replacesDeviceId` says
+"this is the box that was taken out" (DEV-082). Handing that record a different
+box would falsify the lineage. A unit put back into service after being
+superseded has left that state and may swap.
+
+**Why a deleted device is excluded.** Same reasoning as DEV-083: it is days from
+being purged, and a swap would write into a record the operator has written off.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`Device.swapHardwareWith`)
+**Message:** see the list above
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/integration/use-cases/device-inventory/SwapDeviceHardwareUseCase.integration.test.ts`
+
+### DEV-163 — A swap cannot leave a wireless configuration without a radio
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-25
+
+If a device holds a wireless configuration and the hardware it would receive is
+a model with `isWireless` off, the swap is refused. Skipped when the two models
+are the same, since nothing about the radio changes.
+
+**Why:** A configuration schedules polls that read signal, SNR and CCQ (DEV-062).
+A model with no radio cannot answer them, so the record would poll forever and
+fail. Unlike replacement (DEV-078), which deletes the retired unit's config, a
+swap has no record to retire — so it refuses instead, and the operator decides
+whether to delete the config first.
+
+**Left to the operator.** A wireless configuration also carries capacity figures
+(`linkCapacityKbps`, `clientsProvisionedLimit`) that were probably set for the
+antenna that used to be there. The swap does not touch them; they should be
+reviewed after it.
+
+**Enforced at:** `src/application/device-inventory/use-cases/SwapDeviceHardwareUseCase.ts` (`checkRadioSurvives`)
+**Message:** `Cannot swap hardware: "<name>" has a wireless configuration and would receive a model with no radio`
+**Tests:** `tests/application/device-inventory/use-cases/SwapDeviceHardwareUseCase.test.ts`, `tests/integration/use-cases/device-inventory/SwapDeviceHardwareUseCase.integration.test.ts`
 
 ## Known gaps
 

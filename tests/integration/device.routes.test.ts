@@ -845,6 +845,154 @@ describe('Device Routes — /api/devices', () => {
         expect(res.status).toBe(404);
       });
     });
+
+    // ───────────────────────────────────────────────────────────
+    describe('POST /api/devices/:id/swap-hardware', () => {
+      async function createPair(): Promise<{
+        aId: string;
+        bId: string;
+      }> {
+        const aId = await createActive({
+          serialNumber: 'SN-SW-A',
+          macAddress: 'AA:BB:CC:DD:EE:0A',
+          ipAddress: '10.90.0.11'
+        });
+        const bId = await createActive({
+          name: 'CPE-Route-Test-B',
+          serialNumber: 'SN-SW-B',
+          macAddress: 'AA:BB:CC:DD:EE:0B',
+          ipAddress: '10.90.0.12'
+        });
+        return { aId, bId };
+      }
+
+      it('200 — exchanges serial number and MAC and returns both devices', async () => {
+        const { aId, bId } = await createPair();
+
+        const res = await request(app)
+          .post(`/api/devices/${aId}/swap-hardware`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ otherDeviceId: bId });
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.device).toMatchObject({
+          id: aId,
+          serialNumber: 'SN-SW-B',
+          macAddress: 'AA:BB:CC:DD:EE:0B',
+          ipAddress: '10.90.0.11'
+        });
+        expect(res.body.data.otherDevice).toMatchObject({
+          id: bId,
+          serialNumber: 'SN-SW-A',
+          macAddress: 'AA:BB:CC:DD:EE:0A',
+          ipAddress: '10.90.0.12'
+        });
+
+        const read = await request(app)
+          .get(`/api/devices/${aId}`)
+          .set('Authorization', `Bearer ${adminToken}`);
+        expect(read.body.data.serialNumber).toBe('SN-SW-B');
+      });
+
+      it('200 — an OPERATOR may swap hardware', async () => {
+        const { aId, bId } = await createPair();
+
+        const res = await request(app)
+          .post(`/api/devices/${aId}/swap-hardware`)
+          .set('Authorization', `Bearer ${operatorToken}`)
+          .send({ otherDeviceId: bId });
+
+        expect(res.status).toBe(200);
+      });
+
+      it('401 — rejects an unauthenticated request', async () => {
+        const res = await request(app)
+          .post(`/api/devices/${GHOST_ID}/swap-hardware`)
+          .send({ otherDeviceId: GHOST_ID });
+
+        expect(res.status).toBe(401);
+      });
+
+      it('403 — rejects a VIEWER', async () => {
+        const res = await request(app)
+          .post(`/api/devices/${GHOST_ID}/swap-hardware`)
+          .set('Authorization', `Bearer ${viewerToken}`)
+          .send({ otherDeviceId: GHOST_ID });
+
+        expect(res.status).toBe(403);
+      });
+
+      it('400 — rejects a body without otherDeviceId', async () => {
+        const { aId } = await createPair();
+
+        const res = await request(app)
+          .post(`/api/devices/${aId}/swap-hardware`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({});
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe('Validation failed');
+      });
+
+      it('400 — rejects a malformed otherDeviceId', async () => {
+        const { aId } = await createPair();
+
+        const res = await request(app)
+          .post(`/api/devices/${aId}/swap-hardware`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ otherDeviceId: INVALID_ID });
+
+        expect(res.status).toBe(400);
+        expect(JSON.stringify(res.body.details)).toMatch(
+          /otherDeviceId must be a valid UUID/i
+        );
+      });
+
+      it('400 — rejects a malformed path id', async () => {
+        const res = await request(app)
+          .post(`/api/devices/${INVALID_ID}/swap-hardware`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ otherDeviceId: GHOST_ID });
+
+        expect(res.status).toBe(400);
+      });
+
+      it('400 — rejects swapping a device with itself', async () => {
+        const { aId } = await createPair();
+
+        const res = await request(app)
+          .post(`/api/devices/${aId}/swap-hardware`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ otherDeviceId: aId });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/with itself/i);
+      });
+
+      it('404 — unknown device id', async () => {
+        const { bId } = await createPair();
+
+        const res = await request(app)
+          .post(`/api/devices/${GHOST_ID}/swap-hardware`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ otherDeviceId: bId });
+
+        expect(res.status).toBe(404);
+      });
+
+      it('404 — unknown otherDeviceId', async () => {
+        const { aId } = await createPair();
+
+        const res = await request(app)
+          .post(`/api/devices/${aId}/swap-hardware`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ otherDeviceId: GHOST_ID });
+
+        expect(res.status).toBe(404);
+      });
+    });
+
     // ───────────────────────────────────────────────────────────
     describe('GET /api/devices?deleted=... — the recycle bin', () => {
       it('200 — omits deleted devices by default', async () => {

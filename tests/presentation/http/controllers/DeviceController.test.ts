@@ -9,6 +9,7 @@ import { UpdateDeviceUseCase } from '../../../../src/application/device-inventor
 import { DeleteDeviceUseCase } from '../../../../src/application/device-inventory/use-cases/DeleteDeviceUseCase';
 import { RestoreDeviceUseCase } from '../../../../src/application/device-inventory/use-cases/RestoreDeviceUseCase';
 import { ReplaceDeviceUseCase } from '../../../../src/application/device-inventory/use-cases/ReplaceDeviceUseCase';
+import { SwapDeviceHardwareUseCase } from '../../../../src/application/device-inventory/use-cases/SwapDeviceHardwareUseCase';
 import { PermanentlyDeleteDeviceUseCase } from '../../../../src/application/device-inventory/use-cases/PermanentlyDeleteDeviceUseCase';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
@@ -69,6 +70,9 @@ const createMockRestoreUseCase = () =>
 
 const createMockReplaceUseCase = () =>
   ({ execute: jest.fn() }) as unknown as ReplaceDeviceUseCase;
+
+const createMockSwapHardwareUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as SwapDeviceHardwareUseCase;
 
 const createMockPermanentlyDeleteUseCase = () =>
   ({
@@ -152,6 +156,7 @@ describe('DeviceController', () => {
   let mockDeleteUseCase: DeleteDeviceUseCase;
   let mockRestoreUseCase: RestoreDeviceUseCase;
   let mockReplaceUseCase: ReplaceDeviceUseCase;
+  let mockSwapHardwareUseCase: SwapDeviceHardwareUseCase;
   let mockPermanentlyDeleteUseCase: PermanentlyDeleteDeviceUseCase;
   let mockLogger: jest.Mocked<ILogger>;
 
@@ -163,6 +168,7 @@ describe('DeviceController', () => {
     mockDeleteUseCase = createMockDeleteUseCase();
     mockRestoreUseCase = createMockRestoreUseCase();
     mockReplaceUseCase = createMockReplaceUseCase();
+    mockSwapHardwareUseCase = createMockSwapHardwareUseCase();
     mockPermanentlyDeleteUseCase =
       createMockPermanentlyDeleteUseCase();
     mockLogger = createMockLogger();
@@ -175,6 +181,7 @@ describe('DeviceController', () => {
       mockDeleteUseCase,
       mockRestoreUseCase,
       mockReplaceUseCase,
+      mockSwapHardwareUseCase,
       mockPermanentlyDeleteUseCase,
       mockLogger
     );
@@ -1321,6 +1328,179 @@ describe('DeviceController', () => {
           expect.objectContaining({
             error: expect.stringContaining('SELECT')
           })
+        );
+      });
+    });
+  });
+
+  // =========================================================================
+  describe('swapHardware (POST /api/devices/:id/swap-hardware)', () => {
+    const swapBody = { otherDeviceId: MODEL_UUID };
+    const swapData = {
+      device: mockDeviceDTO,
+      otherDevice: { ...mockDeviceDTO, id: MODEL_UUID }
+    };
+
+    // -----------------------------------------------------------------------
+    describe('Happy Path', () => {
+      it('should return 200 with success: true and both devices', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: swapBody
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (
+          mockSwapHardwareUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(swapData));
+
+        await controller.swapHardware(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(statusMock).toHaveBeenCalledWith(200);
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: true,
+          data: swapData
+        });
+      });
+
+      it('should pass the route id and otherDeviceId to the use case', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: swapBody
+        });
+        const { res } = createMockResponse();
+
+        (
+          mockSwapHardwareUseCase.execute as jest.Mock
+        ).mockResolvedValue(Result.ok(swapData));
+
+        await controller.swapHardware(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(mockSwapHardwareUseCase.execute).toHaveBeenCalledWith({
+          id: VALID_UUID,
+          otherDeviceId: MODEL_UUID
+        });
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 404 Not Found', () => {
+      it('should return 404 when a device is not found', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: swapBody
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (
+          mockSwapHardwareUseCase.execute as jest.Mock
+        ).mockResolvedValue(
+          Result.fail(`Device not found: ${MODEL_UUID}`)
+        );
+
+        await controller.swapHardware(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(statusMock).toHaveBeenCalledWith(404);
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: false,
+          error: `Device not found: ${MODEL_UUID}`
+        });
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 400 Bad Request', () => {
+      it('should return 400 when the swap is refused', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: swapBody
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (
+          mockSwapHardwareUseCase.execute as jest.Mock
+        ).mockResolvedValue(
+          Result.fail('Cannot swap a device with itself')
+        );
+
+        await controller.swapHardware(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(statusMock).toHaveBeenCalledWith(400);
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: false,
+          error: 'Cannot swap a device with itself'
+        });
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 500 Internal Server Error (use case Result failure)', () => {
+      it('should return 500 for an unrecognised failure', async () => {
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: swapBody
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (
+          mockSwapHardwareUseCase.execute as jest.Mock
+        ).mockResolvedValue(
+          Result.fail('Database error saving hardware swap: boom')
+        );
+
+        await controller.swapHardware(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(statusMock).toHaveBeenCalledWith(500);
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: false,
+          error: 'Database error saving hardware swap: boom'
+        });
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 500 Internal Server Error (unexpected thrown exception)', () => {
+      it('should return 500 and log the error when the use case throws', async () => {
+        const thrownError = new Error('Unexpected DB crash');
+        const mockReq = createMockRequest({
+          params: { id: VALID_UUID },
+          body: swapBody
+        });
+        const { res, statusMock, jsonMock } = createMockResponse();
+
+        (
+          mockSwapHardwareUseCase.execute as jest.Mock
+        ).mockRejectedValue(thrownError);
+
+        await controller.swapHardware(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(statusMock).toHaveBeenCalledWith(500);
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: false,
+          error: 'Internal server error'
+        });
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          'Unexpected error in DeviceController',
+          thrownError,
+          { error: 'Unexpected DB crash' }
         );
       });
     });

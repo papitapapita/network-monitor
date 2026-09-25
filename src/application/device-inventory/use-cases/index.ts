@@ -12,6 +12,7 @@ export * from './DeleteDeviceUseCase';
 export * from './RestoreDeviceUseCase';
 export * from './PermanentlyDeleteDeviceUseCase';
 export * from './ReplaceDeviceUseCase';
+export * from './SwapDeviceHardwareUseCase';
 export * from './PurgeDeletedDevicesUseCase';
 export * from './CreateVendorUseCase';
 export * from './GetVendorUseCase';

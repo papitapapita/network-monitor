@@ -3,7 +3,8 @@ import { ILogger } from 'application/shared/interfaces';
 import {
   CreateDeviceInput,
   UpdateDeviceInput,
-  ReplaceDeviceInput
+  ReplaceDeviceInput,
+  SwapDeviceHardwareInput
 } from '../validation';
 import {
   CreateDeviceUseCase,
@@ -13,6 +14,7 @@ import {
   DeleteDeviceUseCase,
   RestoreDeviceUseCase,
   ReplaceDeviceUseCase,
+  SwapDeviceHardwareUseCase,
   PermanentlyDeleteDeviceUseCase
 } from 'application/device-inventory/use-cases';
 
@@ -25,6 +27,7 @@ export class DeviceController {
     private readonly deleteUseCase: DeleteDeviceUseCase,
     private readonly restoreUseCase: RestoreDeviceUseCase,
     private readonly replaceUseCase: ReplaceDeviceUseCase,
+    private readonly swapHardwareUseCase: SwapDeviceHardwareUseCase,
     private readonly permanentlyDeleteUseCase: PermanentlyDeleteDeviceUseCase,
     private readonly logger: ILogger
   ) {}
@@ -252,6 +255,32 @@ export class DeviceController {
 
       // 201: the operation's headline outcome is a new Device aggregate.
       res.status(201).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public swapHardware = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const body = req.body as SwapDeviceHardwareInput;
+
+      const result = await this.swapHardwareUseCase.execute({
+        id: req.params.id,
+        otherDeviceId: body.otherDeviceId
+      });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(200).json({ success: true, data: result.value });
     } catch (error) {
       this.handleUnexpectedError(error, res);
     }

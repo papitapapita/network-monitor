@@ -7,3 +7,4 @@ export * from './DeviceModelCorrectedEvent';
 export * from './DeviceDeletedEvent';
 export * from './DeviceRestoredEvent';
 export * from './DeviceReplacedEvent';
+export * from './DeviceHardwareSwappedEvent';

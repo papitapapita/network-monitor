@@ -640,6 +640,8 @@ can end up attributed to the wrong hardware.
 > which creates the new unit, links the two, and carries the IP, credentials and
 > contracted service across. **(Changed 2026-08-12 — this used to say the path
 > did not exist. Stop telling operators to retire and re-create by hand.)**
+> Two working units that physically traded places are a third case — use
+> [`POST /api/devices/:id/swap-hardware`](#post-apidevicesidswap-hardware--swap-hardware-between-two-devices).
 
 **`category` — frozen while a wireless config exists**
 
@@ -866,6 +868,69 @@ Requires the **`activate`** permission (ADMIN and OPERATOR).
 > Surface `wirelessConfigRemoved: true` prominently — it means wireless
 > monitoring for that site has stopped because the new hardware has no radio,
 > and nothing will re-create the config automatically.
+
+---
+
+### `POST /api/devices/:id/swap-hardware` — Swap hardware between two devices
+
+**Status:** 200 | 400 | 401 | 403 | 404
+
+Use this when **two units that already exist in the system physically traded
+places** — for example a large antenna moved to a quieter site and a smaller one
+moved in. Each site keeps its record, IP, SSID, customers and history; only the
+box identity moves. It is not `/replace` (that creates a new record and retires
+the old one) and not `PATCH { deviceModelId }` (INVENTORY-only correction).
+
+Requires the **`activate`** permission (ADMIN and OPERATOR).
+
+```ts
+// Request body
+{
+  otherDeviceId: string // required, UUID — the other record; :id is one of the two
+}
+```
+
+```ts
+// Response
+{
+  success: true,
+  data: {
+    device: DeviceDTO       // :id, now carrying the other unit's hardware
+    otherDevice: DeviceDTO  // otherDeviceId, now carrying :id's former hardware
+  }
+}
+```
+
+**What moves:** `deviceModelId`, `serialNumber`, `macAddress` — exchanged between
+the two records.
+
+**What stays with each record:** `ipAddress`, `locationId`, `status`,
+`monitoringEnabled`, name, credentials, contracted service, wireless config and
+every reading, alert and snapshot. Which side is `:id` and which is
+`otherDeviceId` makes no difference.
+
+Both records change together or neither does — including the MAC exchange, which
+would otherwise trip the "MAC already assigned to another device" check.
+
+**Business rules:**
+
+- `otherDeviceId` equal to `:id` → `400` `"Cannot swap a device with itself"`
+- Either device deleted → `404` `"Device not found: <id>"` (deleted devices are invisible to reads)
+- Either device retired **and** already replaced → `400` `"Cannot swap the hardware of a device that has already been replaced"`
+- Both carry identical model, serial and MAC → `400` `"Cannot swap devices that carry identical hardware details — there is nothing to exchange"`
+- A retired or replacement device that would end up with neither a serial number nor a MAC → `400` (`"A device with status <status> must have at least a serial number or MAC address"` / `"The replacement device must have at least a serial number or MAC address"`)
+- A device with a wireless config would receive a model with no radio → `400` `"Cannot swap hardware: \"<name>\" has a wireless configuration and would receive a model with no radio"`
+- Either id unknown → `404` `"Device not found: <id>"`; malformed UUID → `400`
+
+> **Frontend:** a "swap hardware" action on the device detail page that asks for
+> the second device. Show both records' new model/serial/MAC in the confirmation.
+> After a swap, prompt the operator to review each device's wireless capacity
+> figures (`linkCapacityKbps`, `clientsProvisionedLimit`) — they were probably set
+> for the antenna that used to be there and are **not** changed by this call.
+>
+> History follows the **site**, not the box: readings taken before the swap now
+> sit on a record that describes the other hardware. That is deliberate — see
+> DEV-161.
 
 ---
 

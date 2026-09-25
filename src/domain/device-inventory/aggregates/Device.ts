@@ -22,7 +22,8 @@ import {
   DeviceModelCorrectedEvent,
   DeviceDeletedEvent,
   DeviceRestoredEvent,
-  DeviceReplacedEvent
+  DeviceReplacedEvent,
+  DeviceHardwareSwappedEvent
 } from '../events';
 
 export class Device extends AggregateRoot<DeviceProps, DeviceId> {
@@ -693,6 +694,130 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     }
 
     return Result.ok<void>();
+  }
+
+  // Two records whose physical boxes traded places. Only what the box carries
+  // moves — model, serial, MAC. What the site carries (IP, location, status,
+  // monitoring, history, credentials, contract) stays with the record, which is
+  // what separates this from a replacement (new record, old one retired) and
+  // from DEV-063's INVENTORY-only correction (one record, no counterpart).
+  //
+  // Both candidate states are judged before either aggregate changes, so a
+  // refusal never leaves one side swapped.
+  public swapHardwareWith(
+    other: Device,
+    now: Date = new Date()
+  ): Result<void> {
+    const guardResult = Guard.againstNullOrUndefined(other, 'other');
+    if (!guardResult.succeeded) {
+      return Result.fail<void>(guardResult.message!);
+    }
+
+    if (this.id.equals(other.id)) {
+      return Result.fail<void>('Cannot swap a device with itself');
+    }
+
+    if (this.isDeleted() || other.isDeleted()) {
+      return Result.fail<void>(
+        'Cannot swap the hardware of a deleted device'
+      );
+    }
+
+    // The successor's replacesDeviceId names this record as the box that was
+    // taken out. Handing it a different box would falsify that lineage.
+    if (
+      (this.isReplaced() && this.props.status.isRetired()) ||
+      (other.isReplaced() && other.props.status.isRetired())
+    ) {
+      return Result.fail<void>(
+        'Cannot swap the hardware of a device that has already been replaced'
+      );
+    }
+
+    if (
+      this.props.deviceModelId.equals(other.props.deviceModelId) &&
+      this.props.serialNumber?.value === other.props.serialNumber?.value &&
+      this.props.macAddress?.value === other.props.macAddress?.value
+    ) {
+      return Result.fail<void>(
+        'Cannot swap devices that carry identical hardware details — there is nothing to exchange'
+      );
+    }
+
+    const pairs: Array<{ device: Device; incoming: Device }> = [
+      { device: this, incoming: other },
+      { device: other, incoming: this }
+    ];
+    const validations = pairs.map(({ device, incoming }) =>
+      Device.validate({
+        status: device.props.status,
+        serialNumber: incoming.props.serialNumber,
+        macAddress: incoming.props.macAddress,
+        ipAddress: device.props.ipAddress,
+        locationId: device.props.locationId,
+        monitoringEnabled: device.props.monitoringEnabled,
+        description: device.props.description,
+        installedDate: device.props.installedDate,
+        deletedAt: null,
+        isReplacement: device.props.replacesDeviceId !== null
+      })
+    );
+
+    const failed = validations.find(v => v.isFailure);
+    if (failed) {
+      return Result.fail<void>(failed.error!);
+    }
+
+    const mine = {
+      deviceModelId: this.props.deviceModelId,
+      serialNumber: this.props.serialNumber,
+      macAddress: this.props.macAddress
+    };
+    const theirs = {
+      deviceModelId: other.props.deviceModelId,
+      serialNumber: other.props.serialNumber,
+      macAddress: other.props.macAddress
+    };
+
+    this.receiveHardware(theirs, mine, other.id, now);
+    other.receiveHardware(mine, theirs, this.id, now);
+
+    return Result.ok<void>();
+  }
+
+  private receiveHardware(
+    incoming: {
+      deviceModelId: DeviceModelId;
+      serialNumber: SerialNumber | null;
+      macAddress: MACAddress | null;
+    },
+    outgoing: {
+      deviceModelId: DeviceModelId;
+      serialNumber: SerialNumber | null;
+      macAddress: MACAddress | null;
+    },
+    counterpartDeviceId: DeviceId,
+    now: Date
+  ): void {
+    this.props.deviceModelId = incoming.deviceModelId;
+    this.props.serialNumber = incoming.serialNumber;
+    this.props.macAddress = incoming.macAddress;
+    this.touch();
+
+    this.addDomainEvent(
+      new DeviceHardwareSwappedEvent({
+        aggregateId: this.id,
+        deviceName: this.props.name,
+        counterpartDeviceId,
+        previousDeviceModelId: outgoing.deviceModelId,
+        newDeviceModelId: incoming.deviceModelId,
+        previousSerialNumber: outgoing.serialNumber,
+        newSerialNumber: incoming.serialNumber,
+        previousMacAddress: outgoing.macAddress,
+        newMacAddress: incoming.macAddress,
+        dateTimeOccurred: now
+      })
+    );
   }
 
   public graceExpiredAt(

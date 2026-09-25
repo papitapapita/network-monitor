@@ -11,6 +11,7 @@ import { z } from 'zod';
  * - DELETE /api/devices/:id    (deleteDeviceSchema)
  * - POST   /api/devices/:id/restore  (restoreDeviceSchema)
  * - POST   /api/devices/:id/replace  (replaceDeviceSchema)
+ * - POST   /api/devices/:id/swap-hardware  (swapDeviceHardwareSchema)
  * - DELETE /api/devices/:id/purge    (permanentlyDeleteDeviceSchema)
  */
 
@@ -500,6 +501,31 @@ export const replaceDeviceSchema = z.object({
 });
 
 // =====================================
+// SWAP HARDWARE SCHEMA
+// =====================================
+
+/**
+ * Schema for POST /api/devices/:id/swap-hardware
+ *
+ * :id and otherDeviceId are the two records whose physical boxes traded
+ * places. Nothing else is accepted: which fields move is not the caller's
+ * choice.
+ */
+export const swapDeviceHardwareSchema = z.object({
+  params: z.object({
+    id: z
+      .string()
+      .regex(UUID_REGEX, 'Invalid device ID (must be a UUID v4)')
+  }),
+
+  body: z.object({
+    otherDeviceId: z
+      .string()
+      .regex(UUID_REGEX, 'otherDeviceId must be a valid UUID v4')
+  })
+});
+
+// =====================================
 // TYPE EXPORTS
 // =====================================
 
@@ -533,3 +559,6 @@ export type ReplaceDeviceInput = z.infer<
 export type ReplaceDeviceParams = z.infer<
   typeof replaceDeviceSchema
 >['params'];
+export type SwapDeviceHardwareInput = z.infer<
+  typeof swapDeviceHardwareSchema
+>['body'];

@@ -16,12 +16,15 @@ import { DeviceStatus } from 'domain/device-inventory/value-objects';
 import { Result, EventDispatcher } from 'domain/shared/core';
 import {
   DeviceFilters,
+  IDeviceHardwareSwapRepository,
   IDeviceRepository
 } from 'domain/device-inventory/repository';
 import { DeviceMapper, PrismaDeviceRecord } from '../mappers';
 import { isRecordNotFound, isUniqueViolation } from './prisma-errors';
 
-export class PrismaDeviceRepository implements IDeviceRepository {
+export class PrismaDeviceRepository
+  implements IDeviceRepository, IDeviceHardwareSwapRepository
+{
   constructor(private readonly prisma: PrismaClient) {}
 
   // A soft-deleted device does not exist as far as the rest of the system is
@@ -100,6 +103,67 @@ export class PrismaDeviceRepository implements IDeviceRepository {
 
       return Result.fail<Device>(
         `Database error saving device: ${errorMessage}`
+      );
+    }
+  }
+
+  public async saveHardwareSwap(
+    first: Device,
+    second: Device
+  ): Promise<Result<void>> {
+    const a = DeviceMapper.toPersistence(first);
+    const b = DeviceMapper.toPersistence(second);
+
+    const hardware = (row: typeof a) => ({
+      deviceModelId: row.deviceModelId,
+      serialNumber: row.serialNumber,
+      macAddress: row.macAddress,
+      updatedAt: row.updatedAt
+    });
+
+    try {
+      // The partial unique index on mac_address is checked per row, so no
+      // ordering of two direct writes gets past it. Clearing the first MAC
+      // frees the address the second row needs, and the second row's move
+      // frees the one the first row ends up with.
+      await this.prisma.$transaction([
+        this.prisma.device.update({
+          where: { id: a.id },
+          data: { macAddress: null }
+        }),
+        this.prisma.device.update({
+          where: { id: b.id },
+          data: hardware(b)
+        }),
+        this.prisma.device.update({
+          where: { id: a.id },
+          data: hardware(a)
+        })
+      ]);
+
+      for (const device of [first, second]) {
+        EventDispatcher.markAggregateForDispatch(device);
+        EventDispatcher.dispatchEventsForAggregate(device.id);
+      }
+
+      return Result.ok<void>();
+    } catch (error) {
+      if (isRecordNotFound(error)) {
+        return Result.fail<void>(
+          'Device not found: one of the devices was removed before the swap could be saved'
+        );
+      }
+
+      if (isUniqueViolation(error)) {
+        return Result.fail<void>(
+          'MAC address is already assigned to another device'
+        );
+      }
+
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<void>(
+        `Database error saving hardware swap: ${errorMessage}`
       );
     }
   }

@@ -16,6 +16,7 @@ export * from './DeviceModelCorrectedEventProps';
 export * from './DeviceDeletedEventProps';
 export * from './DeviceRestoredEventProps';
 export * from './DeviceReplacedEventProps';
+export * from './DeviceHardwareSwappedEventProps';
 export * from './DeviceChanges';
 export * from './VendorProps';
 export * from './DeviceModelProps';
