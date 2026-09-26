@@ -16,7 +16,7 @@ different document for a different audience.
 | Billing             | [billing.md](billing.md)                         | `BIL-001` … `BIL-264` |
 | Quoting             | [quoting.md](quoting.md)                         | `QUO-001` … `QUO-142` |
 | Device Monitoring   | [device-monitoring.md](device-monitoring.md)     | `MON-001` … `MON-042` |
-| Wireless Monitoring | [wireless-monitoring.md](wireless-monitoring.md) | `WLS-001` … `WLS-161` |
+| Wireless Monitoring | [wireless-monitoring.md](wireless-monitoring.md) | `WLS-001` … `WLS-190` |
 | Service Enforcement | [service-enforcement.md](service-enforcement.md) | `SVC-001` … `SVC-120` |
 | Notifications       | [notifications.md](notifications.md)             | `NOT-001` … `NOT-195` |
 | Identity & Access   | [identity.md](identity.md)                       | `IDN-001` … `IDN-123` |

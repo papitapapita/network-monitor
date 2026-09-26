@@ -23,3 +23,6 @@ export * from './CreateWirelessConfigRequestDTO';
 export * from './UpdateWirelessConfigRequestDTO';
 export * from './WirelessThroughputDTO';
 export * from './GetWirelessThroughputRequestDTO';
+export * from './StartLinkDiagnosisRequestDTO';
+export * from './LinkDiagnosisRequestDTO';
+export * from './LinkDiagnosisDTO';

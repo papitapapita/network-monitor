@@ -13,6 +13,25 @@ import {
 import { seedAndGetToken } from './helpers/auth';
 import { readSseStream } from './helpers/sse';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
+import { FakePingService } from './helpers/FakePingService';
+import { FakeWirelessCollector } from './helpers/FakeWirelessCollector';
+import {
+  buildLinkDiagnosis,
+  seedDiagnosableDevice,
+  LinkDiagnosisStack
+} from './helpers/linkDiagnosis';
+import { WirelessStreamController } from '../../src/presentation/http/controllers/WirelessStreamController';
+import {
+  GetWirelessThroughputUseCase,
+  GetFleetWirelessThroughputUseCase
+} from '../../src/application/wireless-monitoring/use-cases';
+import { PrismaWirelessSnapshotRepository } from '../../src/infrastructure/wireless-monitoring/repositories/PrismaWirelessSnapshotRepository';
+import { PrismaWirelessDeviceConfigRepository } from '../../src/infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository';
+import { ContractedCapacityAdapter } from '../../src/infrastructure/wireless-monitoring/adapters/ContractedCapacityAdapter';
+import {
+  PrismaContractedServiceRepository,
+  PrismaServicePlanRepository
+} from '../../src/infrastructure/customers';
 
 // ─────────────────────────────────────────────────────────────
 // Local seed helpers
@@ -75,15 +94,56 @@ describe('Wireless throughput stream routes', () => {
   let prisma: PrismaClient;
   let token: string;
   let deviceModelId: string;
+  let diagnosis: LinkDiagnosisStack;
 
   beforeAll(async () => {
-    const testApp = await createTestApp();
+    // the diagnosis stream reads a runner wired to fakes, so no probe
+    // leaves the test process; the throughput half keeps real repositories
+    const testApp = await createTestApp((c) => {
+      const p = c.getPrisma();
+      const logger = c.getLogger();
+      const snapshots = new PrismaWirelessSnapshotRepository(p);
+      const configs = new PrismaWirelessDeviceConfigRepository(p);
+      const capacity = new ContractedCapacityAdapter(
+        new PrismaContractedServiceRepository(p),
+        new PrismaServicePlanRepository(p)
+      );
+      diagnosis = buildLinkDiagnosis(
+        p,
+        c.eventStreamHub,
+        {
+          ping: new FakePingService(),
+          collector: new FakeWirelessCollector()
+        },
+        // long intervals: after the opening probes nothing fires on its
+        // own, so a test controls exactly which frames reach the stream
+        { pingIntervalMs: 60_000, radioIntervalMs: 60_000 }
+      );
+      c.wirelessStreamController = new WirelessStreamController(
+        new GetWirelessThroughputUseCase(
+          snapshots,
+          configs,
+          capacity,
+          logger
+        ),
+        new GetFleetWirelessThroughputUseCase(
+          snapshots,
+          configs,
+          capacity,
+          logger
+        ),
+        diagnosis.get,
+        c.eventStreamHub,
+        logger
+      );
+    });
     app = testApp.app;
     container = testApp.container;
     prisma = container.getPrisma();
   });
 
   afterAll(async () => {
+    diagnosis.runner.stopAll();
     container.eventStreamHub.closeAll();
     await container.disconnect();
   });
@@ -95,6 +155,7 @@ describe('Wireless throughput stream routes', () => {
   });
 
   afterEach(() => {
+    diagnosis.runner.stopAll();
     container.eventStreamHub.closeAll();
   });
 
@@ -277,6 +338,86 @@ describe('Wireless throughput stream routes', () => {
       );
 
       expect((res.events[0].data as { total: number }).total).toBe(1);
+    });
+  });
+
+  describe('[WLS-186] GET /api/devices/:id/wireless/diagnosis/stream', () => {
+    const streamPath = (id: string) =>
+      `/api/devices/${id}/wireless/diagnosis/stream`;
+
+    it('opens with the full session, then ends with the end frame', async () => {
+      const deviceId = await seedDiagnosableDevice(
+        prisma,
+        deviceModelId,
+        {
+          ip: '192.168.50.30'
+        }
+      );
+      const started = await diagnosis.start.execute({ deviceId });
+      expect(started.isSuccess).toBe(true);
+      // let the opening probes land before anyone subscribes
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      setTimeout(
+        () => void diagnosis.stop.execute({ deviceId }),
+        300
+      );
+
+      const res = await readSseStream(app, streamPath(deviceId), {
+        token,
+        expectEvents: 2
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.events.map((e) => e.event)).toEqual([
+        'diagnosis',
+        'end'
+      ]);
+      expect(res.events[0].data).toMatchObject({
+        deviceId,
+        status: 'RUNNING',
+        report: { target: { sent: 1, received: 1 } },
+        samples: {
+          ping: [
+            expect.objectContaining({ hop: 'TARGET', latencyMs: 10 })
+          ],
+          radio: [expect.objectContaining({ ok: true })]
+        }
+      });
+      expect(res.events[1].data).toMatchObject({
+        deviceId,
+        status: 'STOPPED'
+      });
+    });
+
+    it('answers 404 as JSON when no session exists', async () => {
+      const deviceId = await seedDiagnosableDevice(
+        prisma,
+        deviceModelId,
+        {
+          ip: '192.168.50.32'
+        }
+      );
+
+      const res = await readSseStream(app, streamPath(deviceId), {
+        token
+      });
+
+      expect(res.status).toBe(404);
+      expect(res.events).toHaveLength(0);
+    });
+
+    it('rejects a malformed id', async () => {
+      const res = await readSseStream(app, streamPath(INVALID_ID), {
+        token
+      });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects a request with no credentials', async () => {
+      const res = await request(app).get(streamPath(GHOST_ID));
+
+      expect(res.status).toBe(401);
     });
   });
 

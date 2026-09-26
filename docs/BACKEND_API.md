@@ -2255,9 +2255,10 @@ A Server-Sent Events stream, not a JSON endpoint. Errors are still plain JSON �
 the failure path runs before any stream header is written, so a 404 looks like
 every other 404 here.
 
-**Authentication.** These two routes accept `?token=<jwt>` in addition to
-`Authorization: Bearer` — the browser `EventSource` API cannot set headers.
-Every other route in this document remains header-only.
+**Authentication.** These two routes, and the diagnosis stream below, accept
+`?token=<jwt>` in addition to `Authorization: Bearer` — the browser
+`EventSource` API cannot set headers. Every other route in this document
+remains header-only.
 
 ```js
 const es = new EventSource(
@@ -2448,6 +2449,192 @@ Reboots the antenna remotely via its AirOS 8 HTTP API. Requires the device to ha
 > Returns 400 if credentials are not configured or the device has no IP address.  
 > Returns 500 if the device is unreachable or authentication against it fails.  
 > This is a destructive-ish action — put it behind a confirmation dialog in the UI.
+
+---
+
+### Live Link Diagnosis
+
+A time-boxed, on-demand check of one radio, meant for a technician looking at a
+failing antenna. While a session runs the server:
+
+- **pings the device every second**, and its **parent AP** too for a STATION,
+  so the report can say whether the fault is on this link or upstream
+- **reads the radio every 2 s** (AirOS `status.cgi`) for live throughput,
+  signal, SNR, CCQ, airMAX capacity, radio latency and LAN state
+- rebuilds a **report** after every radio read: ping statistics per hop, the
+  findings, a verdict and a likely fault location
+
+Nothing is stored. A session lives in server memory, is readable for 15 minutes
+after it ends, and never opens alerts or sends notifications. Start it with
+`POST`, then watch it on the stream.
+
+```ts
+type DiagnosisVerdict = 'HEALTHY' | 'DEGRADED' | 'FAILING' | 'INCONCLUSIVE';
+// TARGET_LINK: this radio or its own link; UPSTREAM: the parent AP or backhaul
+type FaultLocation = 'NONE' | 'TARGET_LINK' | 'UPSTREAM' | 'UNDETERMINED';
+
+interface PingSampleDTO {
+  hop: 'TARGET' | 'PARENT';
+  at: string; // ISO 8601
+  latencyMs: number | null; // null = no reply within 1 s
+}
+
+interface RadioSampleDTO {
+  at: string;
+  ok: boolean; // false = the read failed; see error
+  error: string | null;
+  throughputTxBps: number | null; // from interface byte counters between reads
+  throughputRxBps: number | null;
+  capacityTxKbps: number | null; // airMAX estimate
+  capacityRxKbps: number | null;
+  signalRxDbm: number | null;
+  signalTxDbm: number | null;
+  noiseFloorDbm: number | null;
+  snrDb: number | null;
+  ccqPercent: number | null;
+  radioLatencyMs: number | null; // the radio's own tx latency, not the ping
+  cpuLoadPercent: number | null;
+  lanStatus: 'UP' | 'DOWN' | null;
+  lanSpeedMbps: number | null;
+}
+
+interface PingStatisticsDTO {
+  sent: number;
+  received: number;
+  lossPercent: number;
+  minMs: number | null;
+  avgMs: number | null;
+  maxMs: number | null;
+  jitterMs: number | null; // mean delta between consecutive replies
+  spikeCount: number; // replies >= 150 ms
+}
+
+interface DiagnosisFindingDTO {
+  code: string; // 'unreachable' | 'packet_loss' | 'high_latency' | 'latency_spikes'
+  //   | 'jitter' | 'radio_unreadable' | any wireless alert metric, e.g. 'signal_rx_dbm'
+  hop: 'TARGET' | 'PARENT' | 'RADIO';
+  severity: 'WARNING' | 'CRITICAL';
+  value: number | null;
+  threshold: number | null;
+  message: string; // Spanish, ready to display
+}
+
+interface LinkDiagnosisReportDTO {
+  verdict: DiagnosisVerdict;
+  faultLocation: FaultLocation;
+  summary: string; // Spanish one-liner, ready to display
+  findings: DiagnosisFindingDTO[];
+  target: PingStatisticsDTO;
+  parent: PingStatisticsDTO | null; // null when there is no parent hop
+  radio: {
+    samples: number;
+    failures: number;
+    throughput: {
+      avgTxBps: number | null;
+      avgRxBps: number | null;
+      peakTxBps: number | null;
+      peakRxBps: number | null;
+      linkCapacityKbps: number | null; // contracted plan, else the manual value
+    };
+  };
+  generatedAt: string;
+}
+
+interface LinkDiagnosisDTO {
+  deviceId: string;
+  deviceType: 'STATION' | 'ACCESS_POINT';
+  status: 'RUNNING' | 'COMPLETED' | 'STOPPED';
+  startedAt: string;
+  endsAt: string;
+  endedAt: string | null;
+  durationSeconds: number;
+  target: { deviceId: string | null; ipAddress: string; name: string | null };
+  parent: { deviceId: string | null; ipAddress: string; name: string | null } | null;
+  report: LinkDiagnosisReportDTO;
+  samples?: { ping: PingSampleDTO[]; radio: RadioSampleDTO[] }; // GET and stream only
+}
+```
+
+#### `POST /api/devices/:id/wireless/diagnosis` — Start (or Join) a Diagnosis
+
+**Status:** 201 | 200 | 400 | 401 | 403 | 404 | 409 | 429 | 500  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// Request (body optional)
+{ durationSeconds?: number } // integer 10–300, default 60
+
+// Response (201 started / 200 joined) — raw, no wrapper
+{
+  started: boolean; // false = a session was already running and was joined
+  diagnosis: LinkDiagnosisDTO; // without samples
+}
+```
+
+> Only one session runs per device. A second start while one is running
+> returns **200** with that session and its original duration. It does not
+> restart it.  
+> Needs the same things as a poll: a wireless config with an IP, HTTP
+> credentials and a supported vendor.  
+> 400: bad duration, no credentials, no IP, unsupported vendor.  
+> 404: no wireless config, or the device does not exist.  
+> 409: the device may not be polled (monitoring disabled, retired…); the
+> body says why.  
+> 429 `Too many diagnosis sessions running`: the server runs at most
+> `DIAGNOSIS_MAX_SESSIONS` sessions at once (default 5).
+
+#### `GET /api/devices/:id/wireless/diagnosis` — Current or Last Diagnosis
+
+**Status:** 200 | 400 | 401 | 404  
+**Roles:** all
+
+Returns the running session, or the last one if it ended less than 15 minutes
+ago, **with its samples**. 404 when there is neither.
+
+#### `DELETE /api/devices/:id/wireless/diagnosis` — Stop a Diagnosis
+
+**Status:** 200 | 400 | 401 | 403 | 404  
+**Roles:** ADMIN, OPERATOR
+
+Stops the running session early and returns it with `status: 'STOPPED'` and its
+final report. 404 when nothing is running for the device.
+
+#### `GET /api/devices/:id/wireless/diagnosis/stream` — Live Diagnosis (SSE)
+
+**Status:** 200 (`text/event-stream`) | 400 | 401 | 404 | 429
+
+Same transport, `?token=` authentication and connection caps as the throughput
+streams. Opening this stream only **watches**. It does not start anything, so
+start the session first. Reconnects and extra viewers add no load on the radio.
+
+| Event       | When                               | `data`                                  |
+| ----------- | ---------------------------------- | --------------------------------------- |
+| `diagnosis` | once, on connect                   | `LinkDiagnosisDTO` **with** samples     |
+| `ping`      | each probe, ~1/s per hop           | `PingSampleDTO`                         |
+| `radio`     | each radio read, ~every 2 s        | `RadioSampleDTO`                        |
+| `report`    | right after each `radio`           | `LinkDiagnosisReportDTO`                |
+| `end`       | once, when the session ends        | `LinkDiagnosisDTO` without samples      |
+
+```js
+await api.post(`/api/devices/${id}/wireless/diagnosis`, { durationSeconds: 60 });
+const es = new EventSource(
+  `/api/devices/${id}/wireless/diagnosis/stream?token=${jwt}`
+);
+es.addEventListener('diagnosis', (e) => hydrate(JSON.parse(e.data)));
+es.addEventListener('ping', (e) => pushLatencyPoint(JSON.parse(e.data)));
+es.addEventListener('radio', (e) => pushRadioPoint(JSON.parse(e.data)));
+es.addEventListener('report', (e) => renderVerdict(JSON.parse(e.data)));
+es.addEventListener('end', (e) => {
+  renderVerdict(JSON.parse(e.data).report);
+  es.close(); // required — otherwise EventSource reconnects into a finished session
+});
+```
+
+> **Close the `EventSource` on `end`.** The server keeps the connection open
+> after a session ends. If the client doesn't close it, the browser reconnects
+> and gets the finished session's `diagnosis` frame again.  
+> 404 when there is no session to watch (not started, or ended over 15
+> minutes ago).
 
 ---
 

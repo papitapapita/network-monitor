@@ -5,6 +5,7 @@ import { Request, Response } from 'express';
 import { WirelessStreamController } from '../../../../src/presentation/http/controllers/WirelessStreamController';
 import { GetWirelessThroughputUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetWirelessThroughputUseCase';
 import { GetFleetWirelessThroughputUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetFleetWirelessThroughputUseCase';
+import { GetLinkDiagnosisUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetLinkDiagnosisUseCase';
 import {
   ILogger,
   IEventStreamHub
@@ -90,6 +91,7 @@ const mockThroughputDTO: WirelessThroughputDTO = {
 describe('[WLS-146] WirelessStreamController', () => {
   let getThroughput: { execute: jest.Mock };
   let getFleetThroughput: { execute: jest.Mock };
+  let getDiagnosis: { execute: jest.Mock };
   let hub: jest.Mocked<IEventStreamHub>;
   let logger: jest.Mocked<ILogger>;
   let controller: WirelessStreamController;
@@ -97,12 +99,14 @@ describe('[WLS-146] WirelessStreamController', () => {
   beforeEach(() => {
     getThroughput = { execute: jest.fn() };
     getFleetThroughput = { execute: jest.fn() };
+    getDiagnosis = { execute: jest.fn() };
     hub = createMockHub();
     logger = createMockLogger();
 
     controller = new WirelessStreamController(
       getThroughput as unknown as GetWirelessThroughputUseCase,
       getFleetThroughput as unknown as GetFleetWirelessThroughputUseCase,
+      getDiagnosis as unknown as GetLinkDiagnosisUseCase,
       hub,
       logger
     );
@@ -263,6 +267,47 @@ describe('[WLS-146] WirelessStreamController', () => {
 
       expect(statusMock).toHaveBeenCalledWith(500);
       expect(res.writeHead).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('[WLS-186] streamLinkDiagnosis', () => {
+    const diagnosis = {
+      deviceId: DEVICE_UUID,
+      status: 'RUNNING',
+      samples: { ping: [], radio: [] }
+    };
+
+    it('opens with the full session on the diagnosis channel', async () => {
+      getDiagnosis.execute.mockResolvedValue(Result.ok(diagnosis));
+      const req = createMockRequest({ params: { id: DEVICE_UUID } });
+      const { res } = createMockResponse();
+
+      await controller.streamLinkDiagnosis(req, res);
+
+      const written = (res.write as jest.Mock).mock.calls.map(
+        (c) => c[0]
+      );
+      expect(written[1]).toBe(
+        `event: diagnosis\ndata: ${JSON.stringify(diagnosis)}\n\n`
+      );
+      expect(hub.subscribe).toHaveBeenCalledWith(
+        `diagnosis:device:${DEVICE_UUID}`,
+        res
+      );
+    });
+
+    it('answers 404 without opening a stream when no session exists', async () => {
+      getDiagnosis.execute.mockResolvedValue(
+        Result.fail('Diagnosis not found for device')
+      );
+      const req = createMockRequest({ params: { id: DEVICE_UUID } });
+      const { res } = createMockResponse();
+
+      await controller.streamLinkDiagnosis(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.writeHead).not.toHaveBeenCalled();
+      expect(hub.subscribe).not.toHaveBeenCalled();
     });
   });
 

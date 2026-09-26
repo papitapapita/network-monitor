@@ -13,12 +13,20 @@ export const streamDeviceThroughputSchema = z.object({
   query: z.object(streamQueryFields).optional()
 });
 
+export const streamLinkDiagnosisSchema = z.object({
+  params: z.object({ id: uuidSchema }),
+  query: z.object(streamQueryFields).optional()
+});
+
 export const streamFleetThroughputSchema = z.object({
   query: z.object(streamQueryFields).optional()
 });
 
 export type StreamDeviceThroughputInput = z.infer<
   typeof streamDeviceThroughputSchema
+>;
+export type StreamLinkDiagnosisInput = z.infer<
+  typeof streamLinkDiagnosisSchema
 >;
 export type StreamFleetThroughputInput = z.infer<
   typeof streamFleetThroughputSchema

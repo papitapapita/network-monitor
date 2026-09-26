@@ -20,3 +20,4 @@ export * from './technician.schemas';
 export * from './quotation.schemas';
 export * from './collection-account.schemas';
 export * from './bank-account.schemas';
+export * from './wireless-diagnosis.schemas';

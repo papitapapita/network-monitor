@@ -51,6 +51,7 @@ import {
   ScanController,
   WirelessController,
   WirelessStreamController,
+  LinkDiagnosisController,
   CredentialsController,
   CustomerController,
   ServicePlanController,
@@ -122,12 +123,16 @@ import {
   SnmpClient,
   MimosaSnmpCollector,
   WirelessCollectorRegistry,
-  WirelessPollingOrchestrator
+  WirelessPollingOrchestrator,
+  LinkDiagnosisRunner
 } from '../wireless-monitoring';
 import { WirelessDeviceRepositoryAdapter } from '../wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter';
 import { ContractedCapacityAdapter } from '../wireless-monitoring/adapters/ContractedCapacityAdapter';
 import { DeviceVendorAdapter } from '../wireless-monitoring/adapters/DeviceVendorAdapter';
-import { WirelessAlertEvaluator } from 'domain/wireless-monitoring/services';
+import {
+  WirelessAlertEvaluator,
+  LinkDiagnosisAnalyzer
+} from 'domain/wireless-monitoring/services';
 import { SignalStrengthRule } from 'domain/wireless-monitoring/services/rules/SignalStrengthRule';
 import { SnrRule } from 'domain/wireless-monitoring/services/rules/SnrRule';
 import { CcqRule } from 'domain/wireless-monitoring/services/rules/CcqRule';
@@ -159,7 +164,10 @@ import {
   UpdateWirelessConfigUseCase,
   DeleteWirelessConfigUseCase,
   ClearWirelessAlertUseCase,
-  BulkClearWirelessAlertsUseCase
+  BulkClearWirelessAlertsUseCase,
+  StartLinkDiagnosisUseCase,
+  GetLinkDiagnosisUseCase,
+  StopLinkDiagnosisUseCase
 } from 'application/wireless-monitoring/use-cases';
 import {
   SetDeviceCredentialsUseCase,
@@ -388,6 +396,7 @@ export class DependencyContainer {
   public scanController: ScanController;
   public wirelessController: WirelessController;
   public wirelessStreamController: WirelessStreamController;
+  public linkDiagnosisController: LinkDiagnosisController;
   public credentialsController: CredentialsController;
   public customerController: CustomerController;
   public ticketController: TicketController;
@@ -403,6 +412,8 @@ export class DependencyContainer {
   // Orchestrators (lifecycle managed by main.ts)
   public pollingOrchestrator: PollingOrchestrator;
   public wirelessPollingOrchestrator: WirelessPollingOrchestrator;
+  // lifecycle managed by main.ts — live diagnosis timers must stop on shutdown
+  public linkDiagnosisRunner: LinkDiagnosisRunner;
   public dataRetentionOrchestrator: DataRetentionOrchestrator;
   public overdueDeviceDownAlertOrchestrator: OverdueDeviceDownAlertOrchestrator;
   // null when ENFORCEMENT_ROUTER_DEVICE_ID is not configured
@@ -1408,6 +1419,44 @@ export class DependencyContainer {
     // Live throughput (SSE)
     this.eventStreamHub = new SseBroadcaster(this.logger);
 
+    // Live link diagnosis (frames stream over the same SSE hub)
+    this.linkDiagnosisRunner = new LinkDiagnosisRunner(
+      this.eventStreamHub,
+      pingService,
+      alertEvaluator,
+      new LinkDiagnosisAnalyzer(),
+      this.logger,
+      {
+        maxSessions: Number(process.env.DIAGNOSIS_MAX_SESSIONS ?? 5)
+      }
+    );
+    const startLinkDiagnosisUseCase = new StartLinkDiagnosisUseCase(
+      this.wirelessDeviceConfigRepository,
+      this.wirelessSnapshotRepository,
+      this.deviceCredentialsRepository,
+      wirelessCollectors,
+      deviceVendorLookup,
+      wirelessDeviceRepo,
+      contractedCapacityProvider,
+      this.linkDiagnosisRunner,
+      this.logger
+    );
+    const getLinkDiagnosisUseCase = new GetLinkDiagnosisUseCase(
+      this.linkDiagnosisRunner,
+      this.logger
+    );
+    const stopLinkDiagnosisUseCase = new StopLinkDiagnosisUseCase(
+      this.linkDiagnosisRunner,
+      this.logger
+    );
+
+    this.linkDiagnosisController = new LinkDiagnosisController(
+      startLinkDiagnosisUseCase,
+      getLinkDiagnosisUseCase,
+      stopLinkDiagnosisUseCase,
+      this.logger
+    );
+
     const getWirelessThroughputUseCase =
       new GetWirelessThroughputUseCase(
         this.wirelessSnapshotRepository,
@@ -1426,6 +1475,7 @@ export class DependencyContainer {
     this.wirelessStreamController = new WirelessStreamController(
       getWirelessThroughputUseCase,
       getFleetWirelessThroughputUseCase,
+      getLinkDiagnosisUseCase,
       this.eventStreamHub,
       this.logger
     );

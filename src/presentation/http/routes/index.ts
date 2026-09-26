@@ -14,6 +14,7 @@ import { createAlertRoutes } from './alert.routes';
 import { createScanRoutes } from './scan.routes';
 import { createWirelessRoutes } from './wireless.routes';
 import { createWirelessStreamRoutes } from './wireless-stream.routes';
+import { createWirelessDiagnosisRoutes } from './wireless-diagnosis.routes';
 import { createCredentialsRoutes } from './credentials.routes';
 import { createAuthRoutes } from './auth.routes';
 import { createAdminRoutes } from './admin.routes';
@@ -239,6 +240,12 @@ export function setupRoutes(
   apiRouter.use(
     '/',
     createWirelessRoutes(container.wirelessController)
+  );
+
+  // Live diagnosis: /api/devices/:id/wireless/diagnosis
+  apiRouter.use(
+    '/',
+    createWirelessDiagnosisRoutes(container.linkDiagnosisController)
   );
 
   // =====================================

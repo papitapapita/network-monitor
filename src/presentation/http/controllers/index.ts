@@ -22,3 +22,4 @@ export * from './TechnicianController';
 export * from './QuotationController';
 export * from './CollectionAccountController';
 export * from './BankAccountController';
+export * from './LinkDiagnosisController';

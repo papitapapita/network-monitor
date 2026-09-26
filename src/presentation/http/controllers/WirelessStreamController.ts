@@ -5,9 +5,12 @@ import {
 } from 'application/shared/interfaces';
 import {
   GetWirelessThroughputUseCase,
-  GetFleetWirelessThroughputUseCase
+  GetFleetWirelessThroughputUseCase,
+  GetLinkDiagnosisUseCase
 } from 'application/wireless-monitoring/use-cases';
 import {
+  DIAGNOSIS_EVENT,
+  diagnosisDeviceChannel,
   THROUGHPUT_EVENT,
   THROUGHPUT_SNAPSHOT_EVENT,
   THROUGHPUT_FLEET_CHANNEL,
@@ -30,6 +33,7 @@ export class WirelessStreamController {
   constructor(
     private readonly getWirelessThroughputUseCase: GetWirelessThroughputUseCase,
     private readonly getFleetWirelessThroughputUseCase: GetFleetWirelessThroughputUseCase,
+    private readonly getLinkDiagnosisUseCase: GetLinkDiagnosisUseCase,
     private readonly hub: IEventStreamHub,
     private readonly logger: ILogger
   ) {}
@@ -102,6 +106,41 @@ export class WirelessStreamController {
     }
   };
 
+  // The session must already exist (POST .../wireless/diagnosis): opening a
+  // stream only watches, so reconnects and extra viewers add no probe load.
+  public streamLinkDiagnosis = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      if (!this.reserveSlot(req, res)) return;
+
+      const deviceId = req.params.id;
+      const result = await this.getLinkDiagnosisUseCase.execute({
+        deviceId
+      });
+
+      if (result.isFailure) {
+        this.releaseSlot(req);
+        res
+          .status(this.getErrorStatusCode(result.error!))
+          .json({ error: result.error });
+        return;
+      }
+
+      this.openStream(
+        req,
+        res,
+        diagnosisDeviceChannel(deviceId),
+        DIAGNOSIS_EVENT,
+        result.value
+      );
+    } catch (error) {
+      this.releaseSlot(req);
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
   private openStream(
     req: Request,
     res: Response,
@@ -163,7 +202,10 @@ export class WirelessStreamController {
   }
 
   private getErrorStatusCode(errorMessage: string): number {
-    if (errorMessage.includes('No wireless data found')) {
+    if (
+      errorMessage.includes('No wireless data found') ||
+      errorMessage.includes('not found')
+    ) {
       return 404;
     }
     if (

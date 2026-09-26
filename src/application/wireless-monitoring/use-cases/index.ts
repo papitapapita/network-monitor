@@ -18,3 +18,6 @@ export * from './UpdateWirelessConfigUseCase';
 export * from './DeleteWirelessConfigUseCase';
 export * from './GetWirelessThroughputUseCase';
 export * from './GetFleetWirelessThroughputUseCase';
+export * from './StartLinkDiagnosisUseCase';
+export * from './GetLinkDiagnosisUseCase';
+export * from './StopLinkDiagnosisUseCase';

@@ -19,6 +19,7 @@ Conventions, rule types and the ID scheme are in [README.md](README.md).
 | `WLS-120` – `WLS-139` | Alert lifecycle and notification   |
 | `WLS-140` – `WLS-159` | Queries and HTTP surface           |
 | `WLS-160` – `WLS-179` | Retention                          |
+| `WLS-180` – `WLS-199` | Live link diagnosis                |
 
 Rationales marked _(inferred)_ were reconstructed from the code, not stated by
 the business. They are the ones to read critically.
@@ -2046,7 +2047,7 @@ The alternative — a cookie — would have meant introducing cookie auth to a
 system that is otherwise entirely Bearer-based, for two endpoints. _(inferred)_
 
 **Enforced at:** `src/presentation/http/middleware/authenticateStream.ts`, wired per route in `src/presentation/http/routes/wireless-stream.routes.ts`
-**Reached from:** `GET /api/devices/:id/wireless/throughput/stream`, `GET /api/wireless/throughput/stream`
+**Reached from:** `GET /api/devices/:id/wireless/throughput/stream`, `GET /api/wireless/throughput/stream`, `GET /api/devices/:id/wireless/diagnosis/stream`
 **Message:** `Authentication required` / `Invalid token`
 **Tests:** `tests/integration/wireless-stream.routes.test.ts`
 
@@ -2056,10 +2057,11 @@ system that is otherwise entirely Bearer-based, for two endpoints. _(inferred)_
 **Layer:** Presentation (not in domain)
 **Since:** 2026-08-12
 
-Neither stream route carries `createRateLimiter`. Instead one user may hold at
+No stream route carries `createRateLimiter`. Instead one user may hold at
 most `SSE_MAX_CONNECTIONS_PER_USER` streams (default 5) and the process at most
 `SSE_MAX_CONNECTIONS` (default 200). Exceeding either is a `429`. Both streams
-require only `read`, so every role including VIEWER can open one.
+require only `read`, so every role including VIEWER can open one. The
+diagnosis stream (WLS-186) shares the same caps.
 
 **Why:** `express-rate-limit` counts requests per window, which is the wrong
 unit for a connection that is opened once and held for hours — a single stream
@@ -2071,7 +2073,7 @@ The per-user cap is the one that matters in practice: a few dashboard tabs are
 legitimate, dozens are a leaking reconnect loop. _(inferred)_
 
 **Enforced at:** `src/presentation/http/controllers/WirelessStreamController.ts`, `src/presentation/http/routes/wireless-stream.routes.ts`
-**Reached from:** both throughput streams
+**Reached from:** both throughput streams and the diagnosis stream
 **Message:** `Too many streams`
 **Tests:** `tests/presentation/http/controllers/WirelessStreamController.test.ts`
 
@@ -2118,6 +2120,277 @@ it in the UI without anyone touching the device.
 **Enforced at:** `src/application/wireless-monitoring/use-cases/PurgeOldWirelessAlertRecordsUseCase.ts:10`; `src/infrastructure/wireless-monitoring/repositories/PrismaWirelessAlertRecordRepository.ts`
 **Reached from:** `TriggerDataRetentionUseCase`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PurgeOldWirelessAlertRecordsUseCase.test.ts`
+
+---
+
+## Live link diagnosis
+
+An operator's on-demand check of one failing radio. It runs the same threshold
+rules as the poller, but on samples taken every second or two over a short
+window, and adds continuous ping. Nothing is persisted: a session lives in the
+API process, the report is recalculated from its samples, and no alert record
+or notification comes out of it.
+
+### WLS-180 — A diagnosis is started on demand, one per device, with poll permission
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation + Infrastructure (not in domain)
+**Since:** 2026-09-26
+
+`POST /api/devices/:id/wireless/diagnosis` starts a session. It needs the
+`create` permission, the same one as a manual poll, so ADMIN and OPERATOR can
+start and stop sessions. Any role can read one. Starting again while a session
+runs for the device joins that session (`200`, `started: false`) instead of
+starting a second one. Once a session has ended, a start begins a fresh one.
+
+The device has to pass the same checks as a forced poll (WLS-024, WLS-053,
+DEV-088): wireless config with an IP, HTTP credentials, a vendor with a
+collector, and wireless eligibility from device-inventory. Like a manual poll
+(WLS-025), a config with `enabled: false` does not block it. A device that fails eligibility is refused
+with `Cannot diagnose device — <reason>` (`409`).
+
+**Why:** Starting a session makes the server probe a radio, which is what a
+manual poll does too, so both use the same permission. Two technicians opening
+the same failing CPE should see one session. Two would double the load on the
+radio and could disagree with each other. _(inferred)_
+
+**Enforced at:** `src/presentation/http/routes/wireless-diagnosis.routes.ts`; `src/application/wireless-monitoring/use-cases/StartLinkDiagnosisUseCase.ts`; `src/infrastructure/wireless-monitoring/diagnosis/LinkDiagnosisRunner.ts`
+**Reached from:** `POST /api/devices/:id/wireless/diagnosis`
+**Message:** `Cannot diagnose device — <reason>`
+**Tests:** `tests/application/wireless-monitoring/use-cases/StartLinkDiagnosisUseCase.test.ts`, `tests/infrastructure/wireless-monitoring/diagnosis/LinkDiagnosisRunner.test.ts`, `tests/integration/wireless-diagnosis.routes.test.ts`, `tests/integration/use-cases/wireless-monitoring/StartLinkDiagnosisUseCase.integration.test.ts`
+
+### WLS-181 — A session lasts 10–300 seconds and stays readable for 15 minutes
+
+**Type:** Validation · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-26
+
+`durationSeconds` is a whole number from 10 to 300 and defaults to 60. The
+session ends by itself at `startedAt + duration` (`COMPLETED`). `DELETE`
+ends it early (`STOPPED`). After it ends, `GET` and the stream keep returning
+it with its samples for 15 minutes. After that it is gone.
+
+**Why:** A diagnosis reads the radio's web server about thirty times faster
+than PollingInterval allows (WLS-006). That is fine for a few minutes, the same
+rate the AirOS UI polls at, but not as a background load someone forgets to
+stop. The 15-minute window is long enough to reopen the result after walking
+back to the truck, and short enough that memory can't grow without bound.
+_(inferred)_
+
+**Enforced at:** `src/domain/wireless-monitoring/value-objects/DiagnosisDuration.ts`; retention in `src/infrastructure/wireless-monitoring/diagnosis/LinkDiagnosisRunner.ts`
+**Reached from:** `POST`, `GET`, `DELETE /api/devices/:id/wireless/diagnosis`
+**Message:** `Diagnosis duration must be at least 10 seconds` / `Diagnosis duration must not exceed 300 seconds`
+**Tests:** `tests/domain/wireless-monitoring/value-objects/DiagnosisDuration.test.ts`, `tests/application/wireless-monitoring/services/LinkDiagnosisSession.test.ts`, `tests/infrastructure/wireless-monitoring/diagnosis/LinkDiagnosisRunner.test.ts`
+
+### WLS-182 — At most five sessions run at once
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (not in domain)
+**Since:** 2026-09-26
+
+A start that would create a new session beyond `DIAGNOSIS_MAX_SESSIONS`
+(default 5) is refused with `429`. Joining a running session does not count
+against the cap.
+
+**Why:** Each session spawns about two ping processes a second and makes an
+HTTPS request every two seconds. The cap keeps a burst of diagnoses from
+competing with the scheduled poller for sockets and CPU. Five is more than one
+support desk would realistically run at once. _(inferred)_
+
+**Enforced at:** `src/infrastructure/wireless-monitoring/diagnosis/LinkDiagnosisRunner.ts`
+**Reached from:** `POST /api/devices/:id/wireless/diagnosis`
+**Message:** `Too many diagnosis sessions running`
+**Tests:** `tests/infrastructure/wireless-monitoring/diagnosis/LinkDiagnosisRunner.test.ts`, `tests/integration/wireless-diagnosis.routes.test.ts`
+
+### WLS-183 — Ping every second per hop, radio every two; overlapping probes are skipped
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (not in domain)
+**Since:** 2026-09-26
+
+Each hop gets one ICMP probe per second with a 1-second timeout, and the radio
+is read every 2 seconds. The first probe of each kind fires as soon as the
+session starts. If a probe is still in flight when its next tick comes, that
+tick is skipped rather than queued. A reply that never comes counts as a lost
+packet. A failure of the ping tool itself (e.g. it cannot be spawned) is logged
+and counts as neither loss nor reply.
+
+**Why:** One-second pings are the usual cadence for spotting loss and jitter
+by eye. At that rate a 1-second timeout means a lost packet costs at most one
+tick. Skipping instead of stacking keeps a dead radio from piling up
+connections. Counting a tool failure as loss would blame the customer's link
+for a server problem. _(inferred)_
+
+**Enforced at:** `src/infrastructure/wireless-monitoring/diagnosis/LinkDiagnosisRunner.ts`
+**Reached from:** every running session
+**Tests:** `tests/infrastructure/wireless-monitoring/diagnosis/LinkDiagnosisRunner.test.ts`
+
+### WLS-184 — The parent hop is the declared AP, else the AP the radio last reported
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-09-26
+
+For a STATION, the second pinged hop is the IP in the wireless config of its
+declared `parentApDeviceId`. If there is no declared parent, or that parent has
+no IP, it is the `remoteApIp` from the station's latest snapshot. If neither
+exists there is no parent hop. An ACCESS_POINT never has one.
+
+**Why:** Pinging the AP alongside the CPE is what turns "the CPE is bad" into
+"the CPE is bad and the AP is fine", or "both are bad, so look upstream". The
+operator's declaration wins because it is intent. The radio's report is a
+fallback for the many stations nobody has linked to an AP yet. _(inferred)_
+
+**Enforced at:** `src/application/wireless-monitoring/use-cases/StartLinkDiagnosisUseCase.ts` (`resolveParent`)
+**Reached from:** `POST /api/devices/:id/wireless/diagnosis`
+**Tests:** `tests/application/wireless-monitoring/use-cases/StartLinkDiagnosisUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/StartLinkDiagnosisUseCase.integration.test.ts`
+
+### WLS-185 — Live throughput comes from interface byte counters
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-09-26
+
+On AirOS the collector reads the `ath0` interface's `tx_bytes`/`rx_bytes`.
+Between two consecutive radio reads, throughput is the byte delta × 8 divided
+by the elapsed seconds. The firmware's own `wireless.throughput` figure is used
+for the first read, whenever the counters are missing, and when a counter goes
+backwards (wrap or reboot). This live rate is what the saturation rule
+(WLS-093) sees during a diagnosis.
+
+**Why:** A counter delta measures exactly the traffic in the sampling window,
+whatever the firmware averages over. That is what "is the link full right now"
+needs. _(inferred)_
+
+**Enforced at:** `src/application/wireless-monitoring/services/LinkDiagnosisSession.ts` (`liveThroughput`); counters parsed in `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts`
+**Tests:** `tests/application/wireless-monitoring/services/LinkDiagnosisSession.test.ts`, `tests/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.test.ts`
+
+### WLS-186 — The diagnosis stream only watches
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation + Infrastructure (not in domain)
+**Since:** 2026-09-26
+
+`GET /api/devices/:id/wireless/diagnosis/stream` answers `404` unless a session
+exists. It never starts one. Its opening `diagnosis` frame carries the whole
+session with every sample so far. After that it carries one `ping` frame per
+probe, and one `radio` frame followed by a `report` frame per radio read. When
+the session ends it sends one `end` frame. The server does not close the
+connection after `end`; the client does.
+
+**Why:** Separating start from watch means a browser reconnecting, or a second
+person opening the same screen, adds no probes. The full opening frame lets a
+late viewer draw the whole chart instead of starting from empty. The client
+closes on `end` because a server-side close would make `EventSource` reconnect
+into a finished session. _(inferred)_
+
+**Enforced at:** `src/presentation/http/controllers/WirelessStreamController.ts` (`streamLinkDiagnosis`); frames published by `src/infrastructure/wireless-monitoring/diagnosis/LinkDiagnosisRunner.ts`
+**Reached from:** `GET /api/devices/:id/wireless/diagnosis/stream`
+**Tests:** `tests/presentation/http/controllers/WirelessStreamController.test.ts`, `tests/integration/wireless-stream.routes.test.ts`
+
+### WLS-187 — Ping thresholds
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-26
+
+Each hop is judged on everything collected so far, and only once it has at
+least 3 probes:
+
+| Finding          | Warning                           | Critical |
+| ---------------- | --------------------------------- | -------- |
+| `unreachable`    | —                                 | no reply at all |
+| `packet_loss`    | ≥ 2 %                             | ≥ 10 %   |
+| `high_latency`   | average > 50 ms                   | average > 150 ms |
+| `latency_spikes` | ≥ 5 % of replies ≥ 150 ms         | —        |
+| `jitter`         | mean delta between replies > 30 ms | —       |
+
+`latency_spikes` is only reported when `high_latency` is not, and nothing else
+is reported for an unreachable hop.
+
+**Why:** The latency bands match LatencyRule (WLS-086), so a diagnosis and a
+standing alert never disagree about the same number. Loss of a few percent is
+already audible on a call, and 10 % breaks most interactive use. Spikes are
+separated from the average because a link that is fine on average but stalls
+every twenty seconds is the classic "it drops sometimes" complaint that an
+average hides. The 3-probe minimum keeps a single early timeout from reading as
+33 % loss. _(inferred)_
+
+**Enforced at:** `src/domain/wireless-monitoring/services/LinkDiagnosisAnalyzer.ts`; statistics in `src/domain/wireless-monitoring/value-objects/PingStatistics.ts`
+**Tests:** `tests/domain/wireless-monitoring/services/LinkDiagnosisAnalyzer.test.ts`, `tests/domain/wireless-monitoring/value-objects/PingStatistics.test.ts`
+
+### WLS-188 — Radio findings are the alert rules without hysteresis, held for half the samples
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain + Application
+**Since:** 2026-09-26
+
+Every radio read goes through the same `WirelessAlertEvaluator` as a poll, but
+with no active alerts and no previous snapshot. Each rule therefore reports
+what it sees in that sample alone. A rule becomes a finding once it has fired
+on at least half of the successful reads. If both levels of one metric
+qualify, only CRITICAL is reported. If every read failed and the hop still
+answers ping, the result is one `radio_unreadable` warning (usually wrong
+credentials or HTTP blocked).
+
+**Why:** The rules and their Spanish messages already exist and are tested;
+running them again keeps a diagnosis consistent with the alerts. The
+half-the-samples bar stands in for hysteresis. One bad read in thirty should
+not count, but a signal that is weak most of the time should. Rules that need
+history (firmware and identity change) stay silent because there is no previous
+snapshot. _(inferred)_
+
+**Enforced at:** `src/application/wireless-monitoring/services/LinkDiagnosisSession.ts` (`recordRadio`); `src/domain/wireless-monitoring/services/LinkDiagnosisAnalyzer.ts` (`radioFindings`)
+**Tests:** `tests/domain/wireless-monitoring/services/LinkDiagnosisAnalyzer.test.ts`, `tests/application/wireless-monitoring/services/LinkDiagnosisSession.test.ts`
+
+### WLS-189 — Verdict and fault location
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-26
+
+The verdict is `INCONCLUSIVE` when the target has fewer than 3 probes and no
+radio read has succeeded. Otherwise it is `FAILING` if any finding is
+CRITICAL, `DEGRADED` if there are only warnings, and `HEALTHY` if there are
+none.
+
+The fault location, checked in this order:
+
+1. no findings → `NONE`
+2. the parent hop has a finding → `UPSTREAM`
+3. the target has ping findings, no parent was measured and the radio shows
+   nothing → `UNDETERMINED`
+4. the target has ping findings, or the radio has a finding other than
+   `radio_unreadable` → `TARGET_LINK`
+5. otherwise → `UNDETERMINED`
+
+**Why:** Comparing the device with the hop it depends on is the cheapest way to
+localise a fault, and it answers the question dispatch actually asks: send
+someone to the customer, or to the tower? A parent fault wins because anything
+wrong upstream also shows downstream. Without a parent, bad pings with a clean
+radio could be anywhere along the path, so the report says so instead of
+guessing. _(inferred)_
+
+**Enforced at:** `src/domain/wireless-monitoring/services/LinkDiagnosisAnalyzer.ts` (`locate`)
+**Tests:** `tests/domain/wireless-monitoring/services/LinkDiagnosisAnalyzer.test.ts`
+
+### WLS-190 — A diagnosis records and notifies nothing
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-09-26
+
+A session writes no snapshot, opens or clears no alert record, publishes no
+alert and does not touch `lastPolledAt`. Its findings exist only in the report.
+
+**Why:** A diagnosis is a technician looking at something they already know is
+failing. Alerting on it would notify the people who are already fixing it, and
+the one-to-two-second samples would swamp the snapshot table that the 30-day
+retention (WLS-160) is sized for. If the fault is real, the scheduled poller
+alerts on it through its own hysteresis. _(inferred)_
+
+**Enforced at:** `src/application/wireless-monitoring/services/LinkDiagnosisSession.ts` (depends on no repository or publisher)
+**Tests:** `tests/integration/use-cases/wireless-monitoring/StartLinkDiagnosisUseCase.integration.test.ts`
 
 ---
 
@@ -2184,3 +2457,15 @@ is physical capacity. Measuring that would mean comparing against airMAX
 capacity (the input WLS-094 already uses). The alert currently mixes the two
 questions. The plan's download and upload are also summed into one figure, so a
 20/5 plan saturates at 20 Mbps of pure download.
+
+### G-8 — Diagnosis sessions are per-process, and Mimosa throughput is a PHY rate
+
+Like G-2, the one-session-per-device guarantee (WLS-180) and the session cap
+(WLS-182) are in-memory. A second API instance would run its own sessions, and
+a stream connected to one instance cannot see a session running on the other.
+
+Separately, WLS-185's counter-based throughput works only on AirOS. The Mimosa
+collector reports no interface counters, so a diagnosis of a Mimosa radio falls
+back to `throughputTxBps`/`RxBps`, which on Mimosa is the negotiated PHY rate.
+That is not traffic. Its throughput chart and any saturation finding are
+meaningless until the collector reads `ifHCInOctets`/`ifHCOutOctets`.

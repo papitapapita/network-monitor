@@ -10,7 +10,8 @@ import {
 } from '../middleware';
 import {
   streamDeviceThroughputSchema,
-  streamFleetThroughputSchema
+  streamFleetThroughputSchema,
+  streamLinkDiagnosisSchema
 } from '../validation';
 
 /**
@@ -21,6 +22,7 @@ import {
  * Routes:
  * - GET /api/devices/:id/wireless/throughput/stream - Live throughput, one device
  * - GET /api/wireless/throughput/stream             - Live throughput, whole fleet
+ * - GET /api/devices/:id/wireless/diagnosis/stream  - Live diagnosis session frames
  *
  * No rate limiter: express-rate-limit assumes short-lived requests, and the
  * controller's per-user and fleet-wide connection caps bound these instead.
@@ -55,6 +57,15 @@ export function createWirelessStreamRoutes(
     authorize('read'),
     validateRequest(streamFleetThroughputSchema),
     controller.streamFleetThroughput
+  );
+
+  router.get(
+    '/devices/:id/wireless/diagnosis/stream',
+    auditLog,
+    streamAuth,
+    authorize('read'),
+    validateRequest(streamLinkDiagnosisSchema),
+    controller.streamLinkDiagnosis
   );
 
   return router;

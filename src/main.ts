@@ -91,6 +91,7 @@ async function bootstrap(): Promise<Server> {
     logger.info('SIGTERM received, closing server...');
     // server.close() waits for open connections, and an SSE stream never
     // closes on its own — end them first or shutdown hangs indefinitely.
+    container.linkDiagnosisRunner.stopAll();
     container.eventStreamHub.closeAll();
     server.close(async () => {
       await container.pollingOrchestrator.stop();
