@@ -1,7 +1,7 @@
-import { AlertResponseDTO } from './AlertResponseDTO';
+import { AlertListItemDTO } from './AlertListItemDTO';
 
 export interface AlertListResponseDTO {
-  alerts: AlertResponseDTO[];
+  alerts: AlertListItemDTO[];
   total: number;
   hasMore: boolean;
   limit: number;

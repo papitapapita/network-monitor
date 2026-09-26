@@ -10,12 +10,6 @@ export interface IAlertRepository {
     type: string
   ): Promise<Result<Alert | null>>;
   findAllOpenByDeviceId(deviceId: DeviceId): Promise<Result<Alert[]>>;
-  findAllByDeviceId(
-    deviceId: DeviceId,
-    limit?: number,
-    offset?: number
-  ): Promise<Result<Alert[]>>;
-  findAll(limit?: number, offset?: number): Promise<Result<Alert[]>>;
   deleteById(id: AlertId): Promise<Result<void>>;
   deleteResolvedOlderThan(cutoff: Date): Promise<Result<number>>;
 }

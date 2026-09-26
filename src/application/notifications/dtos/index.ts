@@ -1,5 +1,6 @@
 export * from './AlertResponseDTO';
 export * from './AlertListResponseDTO';
+export * from './AlertListItemDTO';
 export * from './SendDeviceDownAlertDTO';
 export * from './SendDeviceRecoveryAlertDTO';
 export * from './ListAlertsDTO';

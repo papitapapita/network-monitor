@@ -28,7 +28,7 @@ Format and conventions: [README.md](README.md).
 
 | Layer                     | Rules |
 | ------------------------- | ----- |
-| Application               | 33    |
+| Application               | 35    |
 | Domain (aggregate/entity) | 18    |
 | Presentation              | 4     |
 | Infrastructure (database) | 2     |
@@ -847,11 +847,45 @@ rather than paged through.
 **Enforced at:** `src/application/notifications/use-cases/ListAlertsUseCase.ts`
 **Tests:** `tests/integration/use-cases/notifications/ListAlertsUseCase.integration.test.ts`
 
-**Known gap — the reported total is the page size, not the row count.**
-`toListDTO` is handed `alerts.length`, so a caller asking for 50 rows is told
-there are 50 in total even when there are thousands. Unlike the customer and
-bill listings, this use case never issues a `count`. A client paging on the
-reported total will stop after one page.
+### NOT-134 — An alert listing's total counts every matching alert, not the page
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-26
+
+`total` comes from a second count query over the same filters as the page,
+without `limit`/`offset`, and `hasMore` is derived from it.
+
+**Why:** Until 2026-09-26 `total` was the length of the page returned, so
+`hasMore` was false on every page and a client paging on it stopped after the
+first one. This was the known gap recorded under NOT-133.
+
+**Enforced at:** `src/application/notifications/use-cases/ListAlertsUseCase.ts`, backed by `PrismaAlertListQuery.list`/`count` (one `buildWhere`)
+**Tests:** `tests/application/notifications/use-cases/ListAlertsUseCase.test.ts`, `tests/integration/use-cases/notifications/ListAlertsUseCase.integration.test.ts`
+
+### NOT-135 — Alert listings filter by status and severity, and name the device
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-26
+
+`GET /api/alerts` accepts `status=OPEN|RESOLVED` and
+`severity=WARNING|CRITICAL`, alongside `deviceId`. Filters combine with AND,
+and any other value is a `400`. `OPEN` means no `resolvedAt`, the same test
+as `Alert.isOpen`. Every alert carries `deviceName`, the device's **current**
+name.
+
+**Why:** The dashboard asks for "open critical alerts" and used to fetch
+every device separately just to label rows. The name belongs to
+device-inventory, so it is joined in a read-only query (`IAlertListQuery`)
+instead of being stored on the `Alert` aggregate, where it would go stale on
+the first rename.
+
+Wireless-link alerts are recorded into the same store (`source` "Enlace
+inalámbrico"), so the filters cover them too.
+
+**Enforced at:** `src/application/notifications/use-cases/ListAlertsUseCase.ts` (value check), `src/infrastructure/persistence/PrismaAlertListQuery.ts`, `src/presentation/http/validation/alert.schemas.ts`
+**Tests:** `tests/application/notifications/use-cases/ListAlertsUseCase.test.ts`, `tests/integration/use-cases/notifications/ListAlertsUseCase.integration.test.ts`, `tests/integration/alert.routes.test.ts`
 
 ---
 

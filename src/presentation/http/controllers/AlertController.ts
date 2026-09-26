@@ -29,6 +29,8 @@ export class AlertController {
 
       const result = await this.listAlertsUseCase.execute({
         deviceId: q.deviceId,
+        status: q.status,
+        severity: q.severity,
         limit: q.limit ? Number(q.limit) : undefined,
         offset: q.offset ? Number(q.offset) : undefined
       });

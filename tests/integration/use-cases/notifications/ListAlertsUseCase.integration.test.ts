@@ -1,6 +1,6 @@
 import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { ListAlertsUseCase } from 'application/notifications/use-cases/ListAlertsUseCase';
-import { PrismaAlertRepository } from 'infrastructure/persistence/PrismaAlertRepository';
+import { PrismaAlertListQuery } from 'infrastructure/persistence/PrismaAlertListQuery';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import {
   cleanDatabase,
@@ -21,9 +21,10 @@ describe('ListAlertsUseCase — integration', () => {
     prisma = createTestPrisma();
     deviceModelId = await seedDeviceModel(prisma);
 
-    const alertRepo = new PrismaAlertRepository(prisma);
-    const logger = new WinstonLogger();
-    useCase = new ListAlertsUseCase(alertRepo, logger);
+    useCase = new ListAlertsUseCase(
+      new PrismaAlertListQuery(prisma),
+      new WinstonLogger()
+    );
   });
 
   afterAll(async () => {
@@ -209,5 +210,93 @@ describe('ListAlertsUseCase — integration', () => {
     expect(result.isSuccess).toBe(true);
     expect(result.value.limit).toBe(2);
     expect(result.value.offset).toBe(1);
+  });
+
+  it('[NOT-134] reports the full total and hasMore across pages', async () => {
+    await Promise.all(
+      Array.from({ length: 5 }).map(() =>
+        prisma.alertEvent.create({
+          data: { deviceId, severity: 'CRITICAL' }
+        })
+      )
+    );
+
+    const page1 = await useCase.execute({ limit: 2, offset: 0 });
+    const last = await useCase.execute({ limit: 2, offset: 4 });
+
+    expect(page1.value.total).toBe(5);
+    expect(page1.value.hasMore).toBe(true);
+    expect(last.value.total).toBe(5);
+    expect(last.value.hasMore).toBe(false);
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Filters and device name
+  // ──────────────────────────────────────────────────────────────
+
+  describe('[NOT-135] status, severity and device name', () => {
+    beforeEach(async () => {
+      await prisma.alertEvent.createMany({
+        data: [
+          { deviceId, severity: 'CRITICAL', type: 'open_critical' },
+          { deviceId, severity: 'WARNING', type: 'open_warning' },
+          {
+            deviceId,
+            severity: 'CRITICAL',
+            type: 'resolved_critical',
+            resolvedAt: new Date()
+          }
+        ]
+      });
+    });
+
+    it('status=OPEN returns only unresolved alerts, with a matching total', async () => {
+      const result = await useCase.execute({ status: 'OPEN' });
+
+      expect(result.value.total).toBe(2);
+      expect(
+        result.value.alerts.every((a) => a.status === 'OPEN')
+      ).toBe(true);
+    });
+
+    it('status=RESOLVED returns only resolved alerts', async () => {
+      const result = await useCase.execute({ status: 'RESOLVED' });
+
+      expect(result.value.alerts.map((a) => a.type)).toEqual([
+        'resolved_critical'
+      ]);
+    });
+
+    it('combines status and severity', async () => {
+      const result = await useCase.execute({
+        status: 'OPEN',
+        severity: 'CRITICAL'
+      });
+
+      expect(result.value.total).toBe(1);
+      expect(result.value.alerts[0].type).toBe('open_critical');
+    });
+
+    it('carries the current device name on every alert', async () => {
+      await prisma.device.update({
+        where: { id: deviceId },
+        data: { name: 'Renamed Router' }
+      });
+
+      const result = await useCase.execute({});
+
+      expect(result.value.alerts).toHaveLength(3);
+      expect(
+        result.value.alerts.every(
+          (a) => a.deviceName === 'Renamed Router'
+        )
+      ).toBe(true);
+    });
+
+    it('rejects an unknown status', async () => {
+      const result = await useCase.execute({ status: 'CLOSED' });
+
+      expect(result.isFailure).toBe(true);
+    });
   });
 });

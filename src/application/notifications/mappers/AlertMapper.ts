@@ -1,5 +1,9 @@
 import { Alert } from 'domain/notifications/aggregates';
-import { AlertResponseDTO, AlertListResponseDTO } from '../dtos';
+import {
+  AlertResponseDTO,
+  AlertListResponseDTO,
+  AlertListItemDTO
+} from '../dtos';
 
 export class AlertMapper {
   public static toDTO(alert: Alert): AlertResponseDTO {
@@ -27,13 +31,13 @@ export class AlertMapper {
   }
 
   public static toListDTO(
-    alerts: Alert[],
+    alerts: AlertListItemDTO[],
     total: number,
     limit: number,
     offset: number
   ): AlertListResponseDTO {
     return {
-      alerts: alerts.map((a) => AlertMapper.toDTO(a)),
+      alerts,
       total,
       hasMore: offset + alerts.length < total,
       limit,

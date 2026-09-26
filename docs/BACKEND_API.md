@@ -1730,15 +1730,17 @@ interface AlertDTO {
 
 ```ts
 // Query params (all optional)
-deviceId?: string  // UUID — filter to a single device
-limit?:    number  // 1–300, default 50
-offset?:   number  // ≥0, default 0
+deviceId?: string                  // UUID — filter to a single device
+status?:   'OPEN' | 'RESOLVED'     // since 2026-09-26
+severity?: 'WARNING' | 'CRITICAL'  // since 2026-09-26
+limit?:    number                  // 1–300, default 50
+offset?:   number                  // ≥0, default 0
 
 // Response
 {
   success: true,
   data: {
-    alerts: AlertDTO[]
+    alerts: AlertListItemDTO[]  // AlertDTO & { deviceName: string }
     total: number
     hasMore: boolean
     limit: number
@@ -1748,7 +1750,9 @@ offset?:   number  // ≥0, default 0
 ```
 
 > Results are ordered by `startedAt` descending (newest first).  
-> Omit `deviceId` to list alerts across all devices.
+> Omit `deviceId` to list alerts across all devices. Filters combine with AND, so `?status=OPEN&severity=CRITICAL` is the open critical alerts, wireless-link alerts included. An unknown `status` or `severity` is a `400`.  
+> `deviceName` is the device's **current** name, so a renamed device's old alerts show the new name. Only the list carries it; `GET /api/alerts/:id` returns a plain `AlertDTO`.  
+> **`total` is fixed since 2026-09-26.** It used to be the length of the page, so `hasMore` was always `false`. It now counts every alert matching the filters, and paging on `hasMore` works.
 
 ---
 

@@ -34,6 +34,7 @@ import {
   PrismaPingResultRepository,
   PrismaDeviceStateRepository,
   PrismaAlertRepository,
+  PrismaAlertListQuery,
   PrismaDeviceCredentialsRepository,
   PrismaDeviceNotificationPolicyRepository,
   PrismaMutedAlertTypeRepository
@@ -1199,7 +1200,7 @@ export class DependencyContainer {
       );
     }
     const listAlertsUseCase = new ListAlertsUseCase(
-      this.alertRepository,
+      new PrismaAlertListQuery(this.prisma),
       this.logger
     );
     const getAlertByIdUseCase = new GetAlertByIdUseCase(

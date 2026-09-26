@@ -1,27 +1,14 @@
 // Source: src/application/notifications/use-cases/ListAlertsUseCase.ts
 
 import { ListAlertsUseCase } from '../../../../src/application/notifications/use-cases/ListAlertsUseCase';
-import { IAlertRepository } from '../../../../src/domain/notifications/repository/IAlertRepository';
+import { IAlertListQuery } from '../../../../src/application/notifications/interfaces';
+import { AlertListItemDTO } from '../../../../src/application/notifications/dtos';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
-import { Alert } from '../../../../src/domain/notifications/aggregates/Alert';
-import { AlertId } from '../../../../src/domain/shared/ids/AlertId';
-import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
 
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440020';
 const VALID_ALERT_UUID = '550e8400-e29b-41d4-a716-446655440021';
-const INVALID_UUID = 'not-a-valid-uuid';
-
-const STARTED_AT = new Date('2024-06-01T10:00:00.000Z');
-
-// ---------------------------------------------------------------------------
-// Stub factories
-// ---------------------------------------------------------------------------
 
 function makeLogger(): ILogger {
   return {
@@ -35,210 +22,159 @@ function makeLogger(): ILogger {
   };
 }
 
-function makeAlertRepo(): jest.Mocked<IAlertRepository> {
+function makeQuery(): jest.Mocked<IAlertListQuery> {
   return {
-    save: jest.fn(),
-    findById: jest.fn(),
-    findOpenByDeviceAndType: jest.fn(),
-    findAllOpenByDeviceId: jest.fn(),
-    findAllByDeviceId: jest.fn(),
-    findAll: jest.fn(),
-    deleteById: jest.fn(),
-    deleteResolvedOlderThan: jest.fn()
+    list: jest.fn().mockResolvedValue(Result.ok([])),
+    count: jest.fn().mockResolvedValue(Result.ok(0))
   };
 }
 
-function makeAlert(): Alert {
-  return Alert.reconstitute(AlertId.parse(VALID_ALERT_UUID).value, {
-    deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
-    severity: AlertSeverity.CRITICAL,
+function makeItem(): AlertListItemDTO {
+  return {
+    id: VALID_ALERT_UUID,
+    deviceId: VALID_DEVICE_UUID,
+    deviceName: 'Router A',
+    severity: 'CRITICAL',
     source: 'Disponibilidad',
     type: 'device_unreachable',
     description: 'Sin conexión',
-    startedAt: STARTED_AT,
+    details: {},
+    status: 'OPEN',
+    startedAt: '2024-06-01T10:00:00.000Z',
     resolvedAt: null,
     notifiedAt: null,
-    recoveryNotifiedAt: null
-  });
+    recoveryNotifiedAt: null,
+    durationSecs: null
+  };
 }
 
-// ---------------------------------------------------------------------------
-
 describe('ListAlertsUseCase', () => {
-  let alertRepo: jest.Mocked<IAlertRepository>;
-  let logger: ILogger;
+  let query: jest.Mocked<IAlertListQuery>;
   let useCase: ListAlertsUseCase;
 
   beforeEach(() => {
-    alertRepo = makeAlertRepo();
-    logger = makeLogger();
-    useCase = new ListAlertsUseCase(alertRepo, logger);
+    query = makeQuery();
+    useCase = new ListAlertsUseCase(query, makeLogger());
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  // ===========================================================================
-  describe('executeImpl — listing all alerts (no deviceId)', () => {
-    it('should return a successful result with alert list DTO', async () => {
-      // arrange
-      const alert = makeAlert();
-      alertRepo.findAll.mockResolvedValue(Result.ok([alert]));
-
-      // act
-      const result = await useCase.execute({});
-
-      // assert
-      expect(result.isSuccess).toBe(true);
-      expect(result.value.alerts).toHaveLength(1);
-    });
-
-    it('should call findAll with default limit=50 and offset=0', async () => {
-      // arrange
-      alertRepo.findAll.mockResolvedValue(Result.ok([]));
-
-      // act
+  describe('pagination', () => {
+    it('defaults to limit=50 and offset=0', async () => {
       await useCase.execute({});
 
-      // assert
-      expect(alertRepo.findAll).toHaveBeenCalledWith(50, 0);
+      expect(query.list).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: 50, offset: 0 })
+      );
     });
 
-    it('should call findAll with the provided limit and offset', async () => {
-      // arrange
-      alertRepo.findAll.mockResolvedValue(Result.ok([]));
-
-      // act
+    it('passes the provided limit and offset', async () => {
       await useCase.execute({ limit: 10, offset: 20 });
 
-      // assert
-      expect(alertRepo.findAll).toHaveBeenCalledWith(10, 20);
-    });
-
-    it('should not call findAllByDeviceId when no deviceId is provided', async () => {
-      // arrange
-      alertRepo.findAll.mockResolvedValue(Result.ok([]));
-
-      // act
-      await useCase.execute({});
-
-      // assert
-      expect(alertRepo.findAllByDeviceId).not.toHaveBeenCalled();
-    });
-
-    it('should return a failure when findAll returns a failure', async () => {
-      // arrange
-      alertRepo.findAll.mockResolvedValue(
-        Result.fail('DB connection lost')
+      expect(query.list).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: 10, offset: 20 })
       );
-
-      // act
-      const result = await useCase.execute({});
-
-      // assert
-      expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Failed to list alerts');
     });
 
-    it('should return an empty alerts array when the repository returns an empty list', async () => {
-      // arrange
-      alertRepo.findAll.mockResolvedValue(Result.ok([]));
+    it('[NOT-134] takes total from the count, not from the page length', async () => {
+      query.list.mockResolvedValue(
+        Result.ok([makeItem(), makeItem()])
+      );
+      query.count.mockResolvedValue(Result.ok(30));
 
-      // act
-      const result = await useCase.execute({});
+      const result = await useCase.execute({ limit: 2, offset: 0 });
 
-      // assert
-      expect(result.isSuccess).toBe(true);
-      expect(result.value.alerts).toEqual([]);
-      expect(result.value.total).toBe(0);
+      expect(result.value.total).toBe(30);
+      expect(result.value.hasMore).toBe(true);
+      expect(result.value.alerts).toHaveLength(2);
+    });
+
+    it('[NOT-134] counts over the same filters, without limit or offset', async () => {
+      await useCase.execute({
+        deviceId: VALID_DEVICE_UUID,
+        status: 'OPEN',
+        severity: 'WARNING',
+        limit: 5,
+        offset: 10
+      });
+
+      const counted = query.count.mock.calls[0][0];
+      expect(counted.deviceId?.toString()).toBe(VALID_DEVICE_UUID);
+      expect(counted.status).toBe('OPEN');
+      expect(counted.severity).toBe(AlertSeverity.WARNING);
+      expect(counted).not.toHaveProperty('limit');
+      expect(counted).not.toHaveProperty('offset');
     });
   });
 
-  // ===========================================================================
-  describe('executeImpl — listing alerts by deviceId', () => {
-    it('should call findAllByDeviceId with the parsed DeviceId', async () => {
-      // arrange
-      alertRepo.findAllByDeviceId.mockResolvedValue(Result.ok([]));
+  describe('[NOT-135] filters', () => {
+    it('passes no filters when none are requested', async () => {
+      await useCase.execute({});
 
-      // act
-      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
-
-      // assert
-      expect(alertRepo.findAllByDeviceId).toHaveBeenCalledTimes(1);
-      const calledDeviceId: DeviceId =
-        alertRepo.findAllByDeviceId.mock.calls[0][0];
-      expect(calledDeviceId.toString()).toBe(VALID_DEVICE_UUID);
+      const criteria = query.list.mock.calls[0][0];
+      expect(criteria.deviceId).toBeUndefined();
+      expect(criteria.status).toBeUndefined();
+      expect(criteria.severity).toBeUndefined();
     });
 
-    it('should call findAllByDeviceId with default limit and offset', async () => {
-      // arrange
-      alertRepo.findAllByDeviceId.mockResolvedValue(Result.ok([]));
-
-      // act
+    it('parses deviceId into a DeviceId', async () => {
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      // assert
-      expect(alertRepo.findAllByDeviceId).toHaveBeenCalledWith(
-        expect.anything(),
-        50,
-        0
+      expect(query.list.mock.calls[0][0].deviceId?.toString()).toBe(
+        VALID_DEVICE_UUID
       );
     });
 
-    it('should return a successful result filtered to the device', async () => {
-      // arrange
-      const alert = makeAlert();
-      alertRepo.findAllByDeviceId.mockResolvedValue(
-        Result.ok([alert])
-      );
-
-      // act
-      const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID
+    it('passes status and severity through', async () => {
+      await useCase.execute({
+        status: 'RESOLVED',
+        severity: 'CRITICAL'
       });
 
-      // assert
-      expect(result.isSuccess).toBe(true);
-      expect(result.value.alerts[0].deviceId).toBe(VALID_DEVICE_UUID);
+      const criteria = query.list.mock.calls[0][0];
+      expect(criteria.status).toBe('RESOLVED');
+      expect(criteria.severity).toBe(AlertSeverity.CRITICAL);
     });
 
-    it('should return a failure when deviceId is an invalid UUID', async () => {
-      // act
-      const result = await useCase.execute({
-        deviceId: INVALID_UUID
-      });
+    it.each([
+      [{ deviceId: 'not-a-valid-uuid' }, 'Invalid device ID'],
+      [{ status: 'CLOSED' }, 'Invalid alert status'],
+      [{ severity: 'INFO' }, 'Invalid alert severity']
+    ])('rejects %p without querying', async (request, message) => {
+      const result = await useCase.execute(request);
 
-      // assert
       expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('Invalid device ID');
+      expect(result.error).toContain(message);
+      expect(query.list).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('results', () => {
+    it('returns the items the query built, device name included', async () => {
+      const item = makeItem();
+      query.list.mockResolvedValue(Result.ok([item]));
+      query.count.mockResolvedValue(Result.ok(1));
+
+      const result = await useCase.execute({});
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.alerts).toEqual([item]);
     });
 
-    it('should not call findAll when a deviceId is provided', async () => {
-      // arrange
-      alertRepo.findAllByDeviceId.mockResolvedValue(Result.ok([]));
+    it('fails when list fails', async () => {
+      query.list.mockResolvedValue(Result.fail('connection lost'));
 
-      // act
-      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      const result = await useCase.execute({});
 
-      // assert
-      expect(alertRepo.findAll).not.toHaveBeenCalled();
-    });
-
-    it('should return a failure when findAllByDeviceId returns a failure', async () => {
-      // arrange
-      alertRepo.findAllByDeviceId.mockResolvedValue(
-        Result.fail('Timeout')
-      );
-
-      // act
-      const result = await useCase.execute({
-        deviceId: VALID_DEVICE_UUID
-      });
-
-      // assert
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Failed to list alerts');
+    });
+
+    it('fails when count fails', async () => {
+      query.count.mockResolvedValue(Result.fail('connection lost'));
+
+      const result = await useCase.execute({});
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Failed to count alerts');
     });
   });
 });

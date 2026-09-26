@@ -10,3 +10,4 @@ export * from './PrismaAlertRepository';
 export * from './PrismaDeviceNotificationPolicyRepository';
 export * from './PrismaMutedAlertTypeRepository';
 export * from './PrismaDeviceListQuery';
+export * from './PrismaAlertListQuery';

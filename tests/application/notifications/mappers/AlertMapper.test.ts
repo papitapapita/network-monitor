@@ -1,6 +1,7 @@
 // Source: src/application/notifications/mappers/AlertMapper.ts
 
 import { AlertMapper } from '../../../../src/application/notifications/mappers/AlertMapper';
+import { AlertListItemDTO } from '../../../../src/application/notifications/dtos';
 import { Alert } from '../../../../src/domain/notifications/aggregates/Alert';
 import { AlertId } from '../../../../src/domain/shared/ids/AlertId';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
@@ -226,9 +227,13 @@ describe('AlertMapper', () => {
 
   // ===========================================================================
   describe('toListDTO()', () => {
+    function item(alert: Alert): AlertListItemDTO {
+      return { ...AlertMapper.toDTO(alert), deviceName: 'Router A' };
+    }
+
     it('should set hasMore to true when offset + items.length < total', () => {
       // arrange
-      const alerts = [makeOpenAlert(), makeOpenAlert()];
+      const alerts = [item(makeOpenAlert()), item(makeOpenAlert())];
 
       // act
       const dto = AlertMapper.toListDTO(alerts, 10, 5, 0);
@@ -239,7 +244,7 @@ describe('AlertMapper', () => {
 
     it('should set hasMore to false when offset + items.length equals total', () => {
       // arrange
-      const alerts = [makeOpenAlert(), makeOpenAlert()];
+      const alerts = [item(makeOpenAlert()), item(makeOpenAlert())];
 
       // act
       const dto = AlertMapper.toListDTO(alerts, 2, 5, 0);
@@ -250,7 +255,7 @@ describe('AlertMapper', () => {
 
     it('should set hasMore to false when offset + items.length exceeds total', () => {
       // arrange
-      const alerts = [makeOpenAlert()];
+      const alerts = [item(makeOpenAlert())];
 
       // act
       // offset=5, length=1 → 6 > 5 (total)
@@ -260,23 +265,23 @@ describe('AlertMapper', () => {
       expect(dto.hasMore).toBe(false);
     });
 
-    it('should map each alert through toDTO', () => {
+    it('should carry the list items through unchanged', () => {
       // arrange
-      const open = makeOpenAlert();
-      const resolved = makeResolvedAlert();
+      const items = [
+        item(makeOpenAlert()),
+        item(makeResolvedAlert())
+      ];
 
       // act
-      const dto = AlertMapper.toListDTO([open, resolved], 2, 10, 0);
+      const dto = AlertMapper.toListDTO(items, 2, 10, 0);
 
       // assert
-      expect(dto.alerts).toHaveLength(2);
-      expect(dto.alerts[0].status).toBe('OPEN');
-      expect(dto.alerts[1].status).toBe('RESOLVED');
+      expect(dto.alerts).toEqual(items);
     });
 
     it('should reflect total, limit, and offset in the DTO', () => {
       // arrange
-      const alerts = [makeOpenAlert()];
+      const alerts = [item(makeOpenAlert())];
 
       // act
       const dto = AlertMapper.toListDTO(alerts, 99, 25, 50);

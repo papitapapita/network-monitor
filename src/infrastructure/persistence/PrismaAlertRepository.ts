@@ -106,43 +106,6 @@ export class PrismaAlertRepository implements IAlertRepository {
     }
   }
 
-  async findAllByDeviceId(
-    deviceId: DeviceId,
-    limit = 50,
-    offset = 0
-  ): Promise<Result<Alert[]>> {
-    try {
-      const records = await this.prisma.alertEvent.findMany({
-        where: { deviceId: deviceId.toString() },
-        orderBy: { startedAt: 'desc' },
-        take: limit,
-        skip: offset
-      });
-
-      return Result.ok(records.map(AlertMapper.toDomain));
-    } catch (error) {
-      return Result.fail(
-        `Database error finding alerts by device: ${(error as Error).message}`
-      );
-    }
-  }
-
-  async findAll(limit = 50, offset = 0): Promise<Result<Alert[]>> {
-    try {
-      const records = await this.prisma.alertEvent.findMany({
-        orderBy: { startedAt: 'desc' },
-        take: limit,
-        skip: offset
-      });
-
-      return Result.ok(records.map(AlertMapper.toDomain));
-    } catch (error) {
-      return Result.fail(
-        `Database error finding all alerts: ${(error as Error).message}`
-      );
-    }
-  }
-
   async deleteResolvedOlderThan(
     cutoff: Date
   ): Promise<Result<number>> {

@@ -245,6 +245,38 @@ describe('Alert Routes — GET /api/alerts', () => {
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
   });
+
+  it('[NOT-135] 200 — filters by status and severity, with the device name', async () => {
+    await prisma.alertEvent.createMany({
+      data: [
+        { deviceId, severity: 'CRITICAL' },
+        { deviceId, severity: 'WARNING' },
+        { deviceId, severity: 'CRITICAL', resolvedAt: new Date() }
+      ]
+    });
+
+    const res = await request(app)
+      .get('/api/alerts?status=OPEN&severity=CRITICAL')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.total).toBe(1);
+    expect(res.body.data.alerts[0].status).toBe('OPEN');
+    expect(res.body.data.alerts[0].deviceName).toBe(
+      'Monitored Test Device'
+    );
+  });
+
+  it.each(['status=CLOSED', 'severity=INFO'])(
+    '[NOT-135] 400 — rejects %s',
+    async (query) => {
+      const res = await request(app)
+        .get(`/api/alerts?${query}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(400);
+    }
+  );
 });
 
 // ─────────────────────────────────────────────────────────────

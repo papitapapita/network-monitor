@@ -6,6 +6,8 @@ export const listAlertsSchema = z.object({
   query: z
     .object({
       deviceId: uuidSchema.optional(),
+      status: z.enum(['OPEN', 'RESOLVED']).optional(),
+      severity: z.enum(['WARNING', 'CRITICAL']).optional(),
       limit: z.coerce.number().int().min(1).max(300).optional(),
       offset: z.coerce.number().int().min(0).optional()
     })
