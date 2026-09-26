@@ -2370,13 +2370,13 @@ WirelessAlertDTO; // isActive: false
   metricsCollected: boolean
   alertsTriggered: number
   alertsCleared: number
-  collectionMethod: string
+  collectionMethod: string    // 'http_api' (Ubiquiti AirOS) | 'snmp' (Mimosa)
   skipped?: boolean           // true if polling was disabled and forceExecution not set
 }
 ```
 
 > Triggers an on-demand poll. Returns 404 if the device has no wireless polling configuration.  
-> The collector is chosen by the vendor of the device's model (WLS-053). Only Ubiquiti is supported, polled over the AirOS HTTP API with the device's HTTP credentials; any other vendor returns 400 `Wireless polling is not supported for vendor '<slug>'`.  
+> The collector is chosen by the vendor of the device's model (WLS-053): Ubiquiti devices are polled over the AirOS HTTP API with the device's HTTP credentials, Mimosa devices over SNMP with its SNMP credentials. Returns 400 `Wireless polling is not supported for vendor '<slug>'` for any other vendor.  
 > The poll attempts real device connectivity — expect 400/500 in environments without reachable devices.
 
 ---

@@ -1,6 +1,6 @@
 # Business Rules — Wireless Monitoring
 
-What a Ubiquiti AirOS radio reports and what the system does with it: the
+What a Ubiquiti AirOS or Mimosa radio reports and what the system does with it: the
 per-device polling configuration (WirelessDeviceConfig), the metrics captured on
 each cycle (WirelessSnapshot), the thirteen rules that turn those metrics into
 alerts, and the open/clear lifecycle of each alert (WirelessAlertRecord).
@@ -869,7 +869,7 @@ reboot (`reboot.cgi`) are not yet supported on AirOS 6.
 
 Each poll follows the device to its model and the model to its vendor, and asks
 the collector registry for that vendor's slug (case-insensitive). `ubiquiti`
-polls over the AirOS HTTP API, the only collector registered so far. A device
+polls over the AirOS HTTP API; `mimosa` polls over SNMP (WLS-054). A device
 whose vendor has no collector, or whose device, model or vendor cannot be found,
 fails the poll without contacting the radio. The snapshot and the poll response
 record the method of the collector that ran (`http_api` or `snmp`).
@@ -886,6 +886,49 @@ a device configured for polling that cannot be polled is a setup error.
 **Reached from:** `PollWirelessDeviceUseCase`
 **Message:** `Wireless polling is not supported for vendor '<slug>'` / `Device has no vendor to choose a collector by` / `Failed to look up device vendor: <error>`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/infrastructure/wireless-monitoring/collectors/WirelessCollectorRegistry.test.ts`, `tests/infrastructure/wireless-monitoring/adapters/DeviceVendorAdapter.test.ts`
+
+### WLS-054 — A Mimosa radio is read over SNMP from the Mimosa MIB
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-09-26
+
+The C5c and C5x are polled with one SNMP GET against `MIMOSA-NETWORKS-BFIVE-MIB`
+(enterprise `43356`) plus four MIB-II values. SNMP v1, v2c and v3 are supported
+from the device's stored credentials. A device that does not answer
+`mimosaFirmwareVersion` is rejected as not a Mimosa radio; any other missing
+value becomes null, as in WLS-048. Verified against a live C5c on firmware
+2.14.0 and a live C5x on 2.10.0, which answer the same OIDs.
+
+| Field                             | Source                                         | Conversion                                    |
+| --------------------------------- | ---------------------------------------------- | --------------------------------------------- |
+| `signalRxDbm` / `noiseFloorDbm`   | `mimosaRxPower` / `mimosaRxNoise`, per chain   | ÷10, averaged over chains; −100 dBm = no chain |
+| `throughputTxBps` / `RxBps`       | `mimosaPhyTxRate` / `mimosaPhyRxRate`          | ÷100 → kbps, ×1000 → bps                      |
+| `uptimeSeconds`                   | `mimosaLastRebootTime`                         | now − reboot time, honouring its UTC offset   |
+| `frequencyMhz` / `channelWidthMhz`| `mimosaChannelCenterFreq` / `mimosaChannelWidth` | null when ≤ 0                               |
+| `essid` / `macAddress`            | `mimosaWanSsid` / `mimosaWanMac`               | MAC as upper-case colon-separated             |
+| `deviceModel`                     | `sysDescr` (e.g. `AIRSPAN-C5c`)                |                                               |
+| `lanStatus` / `lanSpeedMbps`      | `ifOperStatus.1` / `ifHighSpeed.1`             | 1 = UP, 2 = DOWN                              |
+
+CPU, memory, distance, latency, CCQ, remote signal, remote AP identity, device
+clock, PTP/PTMP mode and capacity are always null, and no client list is read.
+
+**Why:** The MIB is the vendor's documented interface; Mimosa's web UI JSON is
+undocumented and changes between firmware versions. Signal and noise are
+per-chain averages so that signal minus noise equals the per-chain SNR the
+radio's own UI shows, rather than a combined-power figure the SNR thresholds
+were not set against. Uptime comes from the reboot time because `sysUpTime`
+restarts with the SNMP agent — on the first radio checked it read 14 minutes
+against 3½ days of link uptime — and `mimosaWanUpTime` cannot stand in for it:
+the C5x on 2.10.0 reports it frozen at one second. Capacity stays null because Mimosa reports only
+the raw PHY rate (650 Mbps on an 80 MHz 2×2 link), which is not the
+usable-capacity estimate AirOS gives and would pass every WLS capacity floor
+regardless of link health. The MIB exposes none of the other null fields.
+
+**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/MimosaSnmpCollector.ts`, `src/infrastructure/wireless-monitoring/collectors/SnmpClient.ts`
+**Reached from:** `PollWirelessDeviceUseCase` via WLS-053
+**Message:** `Device did not answer the Mimosa MIB — is it a Mimosa radio?` / `SNMP community is not configured` / `SNMPv3 requires a username` / `SNMP request failed: <error>`
+**Tests:** `tests/infrastructure/wireless-monitoring/collectors/MimosaSnmpCollector.test.ts`, `tests/infrastructure/wireless-monitoring/collectors/SnmpClient.test.ts`
 
 ---
 

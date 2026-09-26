@@ -101,6 +101,8 @@ import {
   PrismaWirelessDeviceConfigRepository,
   AirOsHttpClient,
   UbiquitiHttpCollector,
+  SnmpClient,
+  MimosaSnmpCollector,
   WirelessCollectorRegistry,
   WirelessPollingOrchestrator
 } from '../wireless-monitoring';
@@ -1174,7 +1176,8 @@ export class DependencyContainer {
     const airOsHttpClient = new AirOsHttpClient(10_000, this.logger);
     const httpCollector = new UbiquitiHttpCollector(airOsHttpClient);
     const wirelessCollectors = new WirelessCollectorRegistry({
-      ubiquiti: httpCollector
+      ubiquiti: httpCollector,
+      mimosa: new MimosaSnmpCollector(new SnmpClient(5_000))
     });
     const deviceVendorLookup = new DeviceVendorAdapter(
       this.deviceRepository,
