@@ -21,3 +21,4 @@ export * from './TicketController';
 export * from './TechnicianController';
 export * from './QuotationController';
 export * from './CollectionAccountController';
+export * from './BankAccountController';

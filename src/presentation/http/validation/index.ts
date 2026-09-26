@@ -19,3 +19,4 @@ export * from './ticket.schemas';
 export * from './technician.schemas';
 export * from './quotation.schemas';
 export * from './collection-account.schemas';
+export * from './bank-account.schemas';

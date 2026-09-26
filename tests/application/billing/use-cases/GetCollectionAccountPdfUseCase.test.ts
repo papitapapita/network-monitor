@@ -71,6 +71,13 @@ describe('GetCollectionAccountPdfUseCase', () => {
         lineTotal: 740000
       }
     ]);
+    expect(model.paymentAccounts).toEqual([
+      {
+        bankName: 'Bancolombia',
+        accountType: 'SAVINGS',
+        accountNumber: '39500002227'
+      }
+    ]);
     expect(model.total).toBe(740000);
   });
 

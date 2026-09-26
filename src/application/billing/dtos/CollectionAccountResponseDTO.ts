@@ -1,4 +1,5 @@
 import { CollectionAccountLineItemDTO } from './CollectionAccountLineItemDTO';
+import { PaymentAccountDTO } from './PaymentAccountDTO';
 
 export interface CollectionAccountResponseDTO {
   id: string;
@@ -13,6 +14,7 @@ export interface CollectionAccountResponseDTO {
   customerAddress: string | null;
   lineItems: CollectionAccountLineItemDTO[];
   total: number;
+  paymentAccounts: PaymentAccountDTO[];
   issueDate: string;
   dueDate: string | null;
   notes: string | null;

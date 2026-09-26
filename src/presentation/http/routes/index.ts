@@ -23,6 +23,7 @@ import { createContractedServiceRoutes } from './contracted-service.routes';
 import { createEnforcementRoutes } from './enforcement.routes';
 import { createBillRoutes } from './bill.routes';
 import { createCollectionAccountRoutes } from './collection-account.routes';
+import { createBankAccountRoutes } from './bank-account.routes';
 import { createTicketRoutes } from './ticket.routes';
 import { createTechnicianRoutes } from './technician.routes';
 import { createQuotationRoutes } from './quotation.routes';
@@ -159,6 +160,12 @@ export function setupRoutes(
     createCollectionAccountRoutes(
       container.collectionAccountController
     )
+  );
+
+  // Issuer bank accounts listed on cuentas de cobro: /api/bank-accounts
+  apiRouter.use(
+    '/bank-accounts',
+    createBankAccountRoutes(container.bankAccountController)
   );
 
   // Quotations: /api/quotations

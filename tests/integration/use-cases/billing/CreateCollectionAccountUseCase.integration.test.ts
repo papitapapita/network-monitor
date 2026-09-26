@@ -2,15 +2,21 @@
 
 import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { CreateCollectionAccountUseCase } from 'application/billing/use-cases';
-import { PrismaCollectionAccountRepository } from 'infrastructure/billing/repositories';
+import {
+  PrismaBankAccountRepository,
+  PrismaCollectionAccountRepository
+} from 'infrastructure/billing/repositories';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import {
   setupDependencies,
   DependencyContainer
 } from 'infrastructure/di/container';
 import { PrismaCustomerRepository } from 'infrastructure/customers';
+import { CollectionAccountId } from 'domain/shared/ids';
 import {
   cleanCollectionAccounts,
+  cleanBankAccounts,
+  seedBankAccount,
   cleanBills,
   cleanCustomers,
   seedCustomer,
@@ -33,6 +39,7 @@ describe('CreateCollectionAccountUseCase — integration', () => {
     useCase = new CreateCollectionAccountUseCase(
       new PrismaCollectionAccountRepository(prisma),
       new PrismaCustomerRepository(prisma),
+      new PrismaBankAccountRepository(prisma),
       new WinstonLogger()
     );
   });
@@ -43,6 +50,7 @@ describe('CreateCollectionAccountUseCase — integration', () => {
 
   beforeEach(async () => {
     await cleanCollectionAccounts(prisma);
+    await cleanBankAccounts(prisma);
     await cleanBills(prisma);
     await cleanCustomers(prisma);
   });
@@ -104,6 +112,80 @@ describe('CreateCollectionAccountUseCase — integration', () => {
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/Customer not found/);
     expect(await prisma.collectionAccount.count()).toBe(0);
+  });
+
+  it('[BIL-214] copies every registered bank account when none are chosen', async () => {
+    await seedBankAccount(prisma);
+    await seedBankAccount(prisma, {
+      bankName: 'Davivienda',
+      accountType: 'CHECKING',
+      accountNumber: '4567-8901'
+    });
+
+    const result = await useCase.execute({
+      customerName: 'María López',
+      lineItems
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(
+      result.value.paymentAccounts.map((a) => a.bankName)
+    ).toEqual(['Bancolombia', 'Davivienda']);
+  });
+
+  it('[BIL-214] copies only the chosen bank account', async () => {
+    await seedBankAccount(prisma);
+    const chosen = await seedBankAccount(prisma, {
+      bankName: 'Davivienda',
+      accountNumber: '4567-8901'
+    });
+
+    const result = await useCase.execute({
+      customerName: 'María López',
+      lineItems,
+      bankAccountIds: [chosen]
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.paymentAccounts).toHaveLength(1);
+    expect(result.value.paymentAccounts[0].bankName).toBe(
+      'Davivienda'
+    );
+  });
+
+  it('[BIL-214] fails for a bank account that does not exist', async () => {
+    const result = await useCase.execute({
+      customerName: 'María López',
+      lineItems,
+      bankAccountIds: [GHOST_ID]
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/Bank account not found/);
+    expect(await prisma.collectionAccount.count()).toBe(0);
+  });
+
+  it('[BIL-215] keeps the copied account after the bank account is edited and deleted', async () => {
+    const bankAccountId = await seedBankAccount(prisma);
+    const created = await useCase.execute({
+      customerName: 'María López',
+      lineItems,
+      bankAccountIds: [bankAccountId]
+    });
+
+    await prisma.bankAccount.update({
+      where: { id: bankAccountId },
+      data: { accountNumber: '11111111' }
+    });
+    await prisma.bankAccount.delete({ where: { id: bankAccountId } });
+
+    const reloaded = await new PrismaCollectionAccountRepository(
+      prisma
+    ).findById(CollectionAccountId.parse(created.value.id).value);
+    expect(reloaded.value!.paymentAccounts).toHaveLength(1);
+    expect(reloaded.value!.paymentAccounts[0].accountNumber).toBe(
+      '39500002227'
+    );
   });
 
   it('[BIL-251] survives the linked customer being deleted', async () => {

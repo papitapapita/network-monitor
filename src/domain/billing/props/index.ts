@@ -7,3 +7,4 @@ export * from './CollectionAccountProps';
 export * from './CollectionAccountIssuedEventProps';
 export * from './CollectionAccountPaidEventProps';
 export * from './CollectionAccountCancelledEventProps';
+export * from './BankAccountProps';

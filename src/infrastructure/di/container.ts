@@ -13,6 +13,7 @@ import {
   PrismaBillRepository,
   PdfKitBillPdfRenderer,
   PrismaCollectionAccountRepository,
+  PrismaBankAccountRepository,
   PdfKitCollectionAccountPdfRenderer
 } from '../billing';
 import {
@@ -54,6 +55,7 @@ import {
   ContractedServiceController,
   BillController,
   CollectionAccountController,
+  BankAccountController,
   QuotationController,
   EnforcementController,
   TicketController,
@@ -90,7 +92,12 @@ import {
   GetCollectionAccountUseCase,
   GetCollectionAccountPdfUseCase,
   MarkCollectionAccountPaidUseCase,
-  CancelCollectionAccountUseCase
+  CancelCollectionAccountUseCase,
+  CreateBankAccountUseCase,
+  ListBankAccountsUseCase,
+  GetBankAccountUseCase,
+  UpdateBankAccountUseCase,
+  DeleteBankAccountUseCase
 } from 'application/billing/use-cases';
 import {
   CreateQuotationUseCase,
@@ -354,6 +361,7 @@ export class DependencyContainer {
   // Billing
   public billRepository: PrismaBillRepository;
   public collectionAccountRepository: PrismaCollectionAccountRepository;
+  public bankAccountRepository: PrismaBankAccountRepository;
 
   // Quoting
   public quotationRepository: PrismaQuotationRepository;
@@ -386,6 +394,7 @@ export class DependencyContainer {
   public contractedServiceController: ContractedServiceController;
   public billController: BillController;
   public collectionAccountController: CollectionAccountController;
+  public bankAccountController: BankAccountController;
   public quotationController: QuotationController;
   public enforcementController: EnforcementController;
 
@@ -565,12 +574,16 @@ export class DependencyContainer {
 
     this.collectionAccountRepository =
       new PrismaCollectionAccountRepository(this.prisma);
+    this.bankAccountRepository = new PrismaBankAccountRepository(
+      this.prisma
+    );
 
     this.collectionAccountController =
       new CollectionAccountController(
         new CreateCollectionAccountUseCase(
           this.collectionAccountRepository,
           this.customerRepository,
+          this.bankAccountRepository,
           this.logger
         ),
         new ListCollectionAccountsUseCase(
@@ -596,6 +609,30 @@ export class DependencyContainer {
         ),
         this.logger
       );
+
+    this.bankAccountController = new BankAccountController(
+      new CreateBankAccountUseCase(
+        this.bankAccountRepository,
+        this.logger
+      ),
+      new ListBankAccountsUseCase(
+        this.bankAccountRepository,
+        this.logger
+      ),
+      new GetBankAccountUseCase(
+        this.bankAccountRepository,
+        this.logger
+      ),
+      new UpdateBankAccountUseCase(
+        this.bankAccountRepository,
+        this.logger
+      ),
+      new DeleteBankAccountUseCase(
+        this.bankAccountRepository,
+        this.logger
+      ),
+      this.logger
+    );
 
     // =====================================
     // QUOTING BOUNDED CONTEXT

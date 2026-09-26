@@ -3067,6 +3067,13 @@ interface CollectionAccountLineItemDTO {
   lineTotal: number; // unitPrice × quantity
 }
 
+interface PaymentAccountDTO {
+  bankName: string;
+  accountType: 'SAVINGS' | 'CHECKING';
+  accountNumber: string;
+  label: string; // 'Bancolombia · Ahorros · 39500002227'
+}
+
 interface CollectionAccountDTO {
   id: string; // UUID
   code: number | null; // database sequence
@@ -3080,6 +3087,7 @@ interface CollectionAccountDTO {
   customerAddress: string | null;
   lineItems: CollectionAccountLineItemDTO[];
   total: number; // sum of lineTotal
+  paymentAccounts: PaymentAccountDTO[]; // copied at creation — printed under "Forma de pago"
   issueDate: string; // ISO 8601
   dueDate: string | null; // ISO 8601 — optional
   notes: string | null; // printed as "Observaciones"
@@ -3113,6 +3121,8 @@ interface CollectionAccountDTO {
     unitPrice: number        // ≥ 0
     quantity: number         // positive integer
   }>
+  bankAccountIds?: string[]  // UUIDs from /api/bank-accounts, ≤ 5
+                             // omitted → every registered account; [] → none
 }
 
 // Response
@@ -3122,6 +3132,7 @@ interface CollectionAccountDTO {
 - With `customerId`, name, phone, email and cédula are copied from the customer record; the address comes from the request.
 - Returns 404 if `customerId` does not exist.
 - `createdBy` is taken from the token, never the body.
+- Returns 404 if any `bankAccountIds` entry does not exist. The chosen accounts are **copied** onto the document — editing or deleting a bank account later never changes an issued cuenta de cobro.
 
 ---
 
@@ -3168,7 +3179,7 @@ Content-Type: application/pdf
 Content-Disposition: attachment; filename="cuenta-de-cobro-CC-0007.pdf"
 ```
 
-The PDF shows the issuer header, the `CC-NNNN` number, city and issue date, due date (if any), the customer block, "DEBE A" / "LA SUMA DE" with the total written in Spanish words, the line items table, total, observaciones, payment instructions and a signature line. Paid and cancelled documents are stamped `PAGADA` / `ANULADA`. Issuer details come from `src/infrastructure/billing/config/collectionAccountIssuerConfig.ts`.
+The PDF shows the issuer header, the `CC-NNNN` number, city and issue date, due date (if any), the customer block, "DEBE A" / "LA SUMA DE" with the total written in Spanish words, the line items table, total, observaciones, "Forma de pago" (one line per payment account, e.g. _Transferencia a cuenta de ahorros Bancolombia No. 39500002227_) and a signature line. Paid and cancelled documents are stamped `PAGADA` / `ANULADA`. Issuer name, NIT, address and contact details come from `src/infrastructure/billing/config/collectionAccountIssuerConfig.ts`.
 
 > Error responses (400/404) still use the standard JSON envelope. Fetch with the Bearer token and download via a blob URL.
 
@@ -3199,6 +3210,91 @@ The PDF shows the issuer header, the `CC-NNNN` number, city and issue date, due 
 ```
 
 > Only from `PENDING` — a paid document cannot be cancelled (409).
+
+---
+
+## Bank accounts `/api/bank-accounts`
+
+The company's own accounts that customers pay into. Register them once, then pick which ones appear on each cuenta de cobro (`bankAccountIds`). Each comes with a `label` ready to show in a selector.
+
+```ts
+interface BankAccountDTO {
+  id: string; // UUID
+  bankName: string;
+  accountType: 'SAVINGS' | 'CHECKING'; // ahorros | corriente
+  accountNumber: string;
+  label: string; // 'Bancolombia · Ahorros · 39500002227'
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+### `POST /api/bank-accounts` — Create
+
+**Status:** 201 | 400 | 409  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// Request body
+{
+  bankName: string       // 1–100 chars
+  accountType: 'SAVINGS' | 'CHECKING'
+  accountNumber: string  // 4–30 digits, spaces or dashes allowed between
+}
+
+// Response
+{ success: true, data: BankAccountDTO }
+```
+
+> 409 if the same number is already registered at the same bank.
+
+---
+
+### `GET /api/bank-accounts` — List
+
+**Status:** 200  
+**Roles:** all
+
+```ts
+// Response — oldest first, no pagination
+{ success: true, data: { bankAccounts: BankAccountDTO[] } }
+```
+
+---
+
+### `GET /api/bank-accounts/:id` — Get by ID
+
+**Status:** 200 | 400 | 404
+
+```ts
+{ success: true, data: BankAccountDTO }
+```
+
+---
+
+### `PATCH /api/bank-accounts/:id` — Update
+
+**Status:** 200 | 400 | 404 | 409  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// Request body — any subset
+{ bankName?: string; accountType?: 'SAVINGS' | 'CHECKING'; accountNumber?: string }
+
+// Response
+{ success: true, data: BankAccountDTO }
+```
+
+> Already-issued cuentas de cobro keep the details they were created with.
+
+---
+
+### `DELETE /api/bank-accounts/:id` — Delete
+
+**Status:** 204 | 400 | 404  
+**Roles:** ADMIN
+
+> Always safe: issued cuentas de cobro hold their own copy of the account.
 
 ---
 

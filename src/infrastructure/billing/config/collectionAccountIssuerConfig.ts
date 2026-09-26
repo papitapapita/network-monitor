@@ -6,8 +6,6 @@ export interface CollectionAccountIssuerConfig {
   issuerCity: string;
   contactPhone: string;
   contactEmail: string;
-  // One line per payment channel, printed verbatim under "Forma de pago".
-  paymentInstructions: string[];
   accentColorHex: string;
   // Filesystem path pdfkit's doc.image() can load directly. Null skips the
   // logo entirely.
@@ -16,20 +14,17 @@ export interface CollectionAccountIssuerConfig {
   timeZone: string;
 }
 
-// Neutral placeholder identity. Swap these values for the real issuer —
-// nothing else in the renderer needs to change.
+// Issuer identity printed on every cuenta de cobro. Bank accounts are not here:
+// they are managed through /api/bank-accounts and picked per document.
 export const collectionAccountIssuerConfig: CollectionAccountIssuerConfig =
   {
-    issuerName: 'Your Company Name',
+    issuerName: 'Insetel',
     issuerDocumentLabel: 'NIT',
-    issuerDocument: '000.000.000-0',
-    issuerAddress: 'Calle 0 # 0-00',
-    issuerCity: 'Ciudad',
-    contactPhone: '+57 300 000 0000',
-    contactEmail: 'facturacion@yourcompany.com',
-    paymentInstructions: [
-      'Transferencia a cuenta de ahorros Banco XXXX No. 000-000000-00'
-    ],
+    issuerDocument: '11685533-3',
+    issuerAddress: 'Calle 10 # 31-28, Villavicencio, Meta',
+    issuerCity: 'Villavicencio',
+    contactPhone: '310 226 3770',
+    contactEmail: 'insetelseguridad@hotmail.com',
     accentColorHex: '#1F4E79',
     logoPath: null,
     locale: 'es-CO',

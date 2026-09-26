@@ -8,6 +8,8 @@ import { PrismaClient } from '../../src/generated/prisma/client';
 import { createTestApp } from './helpers/createTestApp';
 import {
   cleanCollectionAccounts,
+  cleanBankAccounts,
+  seedBankAccount,
   cleanBills,
   cleanCustomers,
   seedCustomer,
@@ -38,6 +40,7 @@ describe('Collection Account Routes — /api/collection-accounts', () => {
 
   beforeEach(async () => {
     await cleanCollectionAccounts(prisma);
+    await cleanBankAccounts(prisma);
     await cleanBills(prisma);
     await cleanCustomers(prisma);
 
@@ -226,6 +229,48 @@ describe('Collection Account Routes — /api/collection-accounts', () => {
 
       expect(res.status).toBe(201);
       expect(res.body.data.customerId).toBe(customerId);
+    });
+
+    it('[BIL-214] 201 — lists only the chosen bank account', async () => {
+      await seedBankAccount(prisma);
+      const chosen = await seedBankAccount(prisma, {
+        bankName: 'Davivienda',
+        accountType: 'CHECKING',
+        accountNumber: '4567-8901'
+      });
+
+      const res = await createAccount({
+        ...validBody(),
+        bankAccountIds: [chosen]
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.paymentAccounts).toEqual([
+        {
+          bankName: 'Davivienda',
+          accountType: 'CHECKING',
+          accountNumber: '4567-8901',
+          label: 'Davivienda · Corriente · 4567-8901'
+        }
+      ]);
+    });
+
+    it('[BIL-214] 404 — an unknown bank account is rejected', async () => {
+      const res = await createAccount({
+        ...validBody(),
+        bankAccountIds: [GHOST_ID]
+      });
+
+      expect(res.status).toBe(404);
+    });
+
+    it('[BIL-213] 400 — more than five bank accounts are rejected', async () => {
+      const res = await createAccount({
+        ...validBody(),
+        bankAccountIds: Array.from({ length: 6 }, () => GHOST_ID)
+      });
+
+      expect(res.status).toBe(400);
     });
 
     it('404 — a customer that does not exist is rejected', async () => {

@@ -687,8 +687,9 @@ model CollectionAccount {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  customer  Customer?                   @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  lineItems CollectionAccountLineItem[]
+  customer        Customer?                         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  lineItems       CollectionAccountLineItem[]
+  paymentAccounts CollectionAccountPaymentAccount[]
 
   @@index([customerId])
   @@index([status])
@@ -707,6 +708,45 @@ model CollectionAccountLineItem {
 
   @@index([collectionAccountId])
   @@map("collection_account_line_items")
+}
+
+// Snapshot of a BankAccount copied onto a cuenta de cobro at issue time. No
+// FK to bank_accounts: the document must keep printing what it said even
+// after the account is edited or deleted.
+model CollectionAccountPaymentAccount {
+  id                  String          @id @default(uuid()) @db.Uuid
+  collectionAccountId String          @map("collection_account_id") @db.Uuid
+  position            Int
+  bankName            String          @map("bank_name") @db.VarChar(100)
+  accountType         BankAccountType @map("account_type")
+  accountNumber       String          @map("account_number") @db.VarChar(30)
+
+  collectionAccount CollectionAccount @relation(fields: [collectionAccountId], references: [id], onDelete: Cascade)
+
+  @@index([collectionAccountId])
+  @@map("collection_account_payment_accounts")
+}
+
+// The issuer's own accounts that customers pay into, picked per cuenta de
+// cobro.
+
+enum BankAccountType {
+  SAVINGS
+  CHECKING
+
+  @@map("bank_account_type")
+}
+
+model BankAccount {
+  id            String          @id @default(uuid()) @db.Uuid
+  bankName      String          @map("bank_name") @db.VarChar(100)
+  accountType   BankAccountType @map("account_type")
+  accountNumber String          @map("account_number") @db.VarChar(30)
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([bankName, accountNumber])
+  @@map("bank_accounts")
 }
 
 // ============================================================================

@@ -38,6 +38,11 @@ const COL_X = {
     GAP
 };
 
+const ACCOUNT_TYPE_PHRASES: Record<string, string> = {
+  SAVINGS: 'cuenta de ahorros',
+  CHECKING: 'cuenta corriente'
+};
+
 const STATUS_STAMPS: Record<
   string,
   { label: string; color: string }
@@ -409,10 +414,13 @@ export class PdfKitCollectionAccountPdfRenderer
     if (model.notes !== null && model.notes.trim().length > 0) {
       sections.push({ title: 'Observaciones', lines: [model.notes] });
     }
-    if (issuer.paymentInstructions.length > 0) {
+    if (model.paymentAccounts.length > 0) {
       sections.push({
         title: 'Forma de pago',
-        lines: issuer.paymentInstructions
+        lines: model.paymentAccounts.map(
+          (account) =>
+            `Transferencia a ${ACCOUNT_TYPE_PHRASES[account.accountType] ?? 'cuenta'} ${account.bankName} No. ${account.accountNumber}`
+        )
       });
     }
 
@@ -468,7 +476,7 @@ export class PdfKitCollectionAccountPdfRenderer
       .font('Helvetica')
       .fillColor('#888888')
       .text(
-        `${issuer.issuerName} · ${issuer.issuerAddress}, ${issuer.issuerCity} · página ${this.pageNumber}`,
+        `${issuer.issuerName} · ${issuer.issuerAddress} · página ${this.pageNumber}`,
         MARGIN,
         doc.page.height - MARGIN - 20,
         { width: CONTENT_WIDTH, align: 'center', lineBreak: false }

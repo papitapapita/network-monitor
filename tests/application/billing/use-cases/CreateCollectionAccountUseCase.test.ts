@@ -20,10 +20,17 @@ import {
 import { CustomerId } from '../../../../src/domain/shared/ids';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import {
+  BANK_ACCOUNT_UUID,
+  makeBankAccount,
+  makeBankAccountDetails,
+  makeBankAccountRepo,
   makeCollectionAccountRepo,
   makeLogger,
   NOW
 } from './collectionAccountFixtures';
+
+const SECOND_BANK_ACCOUNT_UUID =
+  '990e8400-e29b-41d4-a716-446655440004';
 
 const CUSTOMER_UUID = '660e8400-e29b-41d4-a716-446655440001';
 const USER_UUID = '770e8400-e29b-41d4-a716-446655440002';
@@ -81,17 +88,23 @@ function makeRequest(
 describe('CreateCollectionAccountUseCase', () => {
   let repo: ReturnType<typeof makeCollectionAccountRepo>;
   let customerRepo: jest.Mocked<ICustomerRepository>;
+  let bankAccountRepo: ReturnType<typeof makeBankAccountRepo>;
   let useCase: CreateCollectionAccountUseCase;
 
   beforeEach(() => {
     repo = makeCollectionAccountRepo();
     customerRepo = makeCustomerRepo();
+    bankAccountRepo = makeBankAccountRepo();
+    bankAccountRepo.findAll.mockResolvedValue(
+      Result.ok([makeBankAccount()])
+    );
     repo.save.mockImplementation(async (account: CollectionAccount) =>
       Result.ok(account)
     );
     useCase = new CreateCollectionAccountUseCase(
       repo,
       customerRepo,
+      bankAccountRepo,
       makeLogger()
     );
   });
@@ -262,6 +275,83 @@ describe('CreateCollectionAccountUseCase', () => {
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/^Invalid unitPrice/);
+  });
+
+  it('[BIL-214] lists every registered bank account when none are chosen', async () => {
+    const result = await useCase.execute(makeRequest());
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.paymentAccounts).toEqual([
+      {
+        bankName: 'Bancolombia',
+        accountType: 'SAVINGS',
+        accountNumber: '39500002227',
+        label: 'Bancolombia · Ahorros · 39500002227'
+      }
+    ]);
+    expect(bankAccountRepo.findById).not.toHaveBeenCalled();
+  });
+
+  it('[BIL-214] lists only the chosen accounts, in order, once each', async () => {
+    const second = makeBankAccount(
+      SECOND_BANK_ACCOUNT_UUID,
+      makeBankAccountDetails({ bankName: 'Davivienda' })
+    );
+    bankAccountRepo.findById.mockImplementation(async (id) =>
+      Result.ok(
+        id.toString() === SECOND_BANK_ACCOUNT_UUID
+          ? second
+          : makeBankAccount()
+      )
+    );
+
+    const result = await useCase.execute(
+      makeRequest({
+        bankAccountIds: [
+          SECOND_BANK_ACCOUNT_UUID,
+          BANK_ACCOUNT_UUID,
+          SECOND_BANK_ACCOUNT_UUID
+        ]
+      })
+    );
+
+    expect(result.isSuccess).toBe(true);
+    expect(
+      result.value.paymentAccounts.map((a) => a.bankName)
+    ).toEqual(['Davivienda', 'Bancolombia']);
+    expect(bankAccountRepo.findAll).not.toHaveBeenCalled();
+  });
+
+  it('[BIL-214] lists none when an empty selection is given', async () => {
+    const result = await useCase.execute(
+      makeRequest({ bankAccountIds: [] })
+    );
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.paymentAccounts).toEqual([]);
+  });
+
+  it('[BIL-214] fails for a bank account that does not exist', async () => {
+    bankAccountRepo.findById.mockResolvedValue(Result.ok(null));
+
+    const result = await useCase.execute(
+      makeRequest({ bankAccountIds: [BANK_ACCOUNT_UUID] })
+    );
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toBe(
+      `Bank account not found: ${BANK_ACCOUNT_UUID}`
+    );
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  it('[BIL-214] fails on a malformed bank account id', async () => {
+    const result = await useCase.execute(
+      makeRequest({ bankAccountIds: ['nope'] })
+    );
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/^Invalid bankAccountId/);
   });
 
   it('records the author from createdBy', async () => {

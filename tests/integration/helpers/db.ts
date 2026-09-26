@@ -526,6 +526,31 @@ export async function seedCollectionAccount(
   return account.id;
 }
 
+export async function cleanBankAccounts(
+  prisma: PrismaClient
+): Promise<void> {
+  await prisma.bankAccount.deleteMany();
+}
+
+/** Creates a bank account directly via Prisma. Returns its UUID. */
+export async function seedBankAccount(
+  prisma: PrismaClient,
+  overrides: {
+    bankName?: string;
+    accountType?: 'SAVINGS' | 'CHECKING';
+    accountNumber?: string;
+  } = {}
+): Promise<string> {
+  const account = await prisma.bankAccount.create({
+    data: {
+      bankName: overrides.bankName ?? 'Bancolombia',
+      accountType: overrides.accountType ?? 'SAVINGS',
+      accountNumber: overrides.accountNumber ?? '39500002227'
+    }
+  });
+  return account.id;
+}
+
 /** Known-valid UUIDs that will never exist in the test DB */
 export const GHOST_ID = '00000000-0000-4000-8000-000000000001';
 export const INVALID_ID = 'not-a-uuid';

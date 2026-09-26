@@ -1,10 +1,14 @@
 import {
+  BankAccountDetails,
   CollectionAccount,
   CollectionAccountLineItem
 } from 'domain/billing';
-import { ICollectionAccountRepository } from 'domain/billing/repository';
+import {
+  IBankAccountRepository,
+  ICollectionAccountRepository
+} from 'domain/billing/repository';
 import { ICustomerRepository } from 'domain/customers/repository';
-import { CustomerId, UserId } from 'domain/shared/ids';
+import { BankAccountId, CustomerId, UserId } from 'domain/shared/ids';
 import { Money } from 'domain/shared/value-objects';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
@@ -31,6 +35,7 @@ export class CreateCollectionAccountUseCase extends UseCase<
   constructor(
     private readonly collectionAccountRepository: ICollectionAccountRepository,
     private readonly customerRepository: ICustomerRepository,
+    private readonly bankAccountRepository: IBankAccountRepository,
     logger: ILogger
   ) {
     super(logger, 'CreateCollectionAccountUseCase');
@@ -76,6 +81,13 @@ export class CreateCollectionAccountUseCase extends UseCase<
       return this.fail(lineItemsResult.error!);
     }
 
+    const paymentAccountsResult = await this.resolvePaymentAccounts(
+      request.bankAccountIds
+    );
+    if (paymentAccountsResult.isFailure) {
+      return this.fail(paymentAccountsResult.error!);
+    }
+
     let createdBy: UserId | null = null;
     if (request.createdBy) {
       const createdByResult = UserId.parse(request.createdBy.trim());
@@ -91,6 +103,7 @@ export class CreateCollectionAccountUseCase extends UseCase<
       ...customerResult.value,
       ...datesResult.value,
       lineItems: lineItemsResult.value,
+      paymentAccounts: paymentAccountsResult.value,
       notes: this.blankToNull(request.notes),
       createdBy
     });
@@ -181,6 +194,45 @@ export class CreateCollectionAccountUseCase extends UseCase<
       customerEmail: this.blankToNull(request.customerEmail),
       customerAddress: this.blankToNull(request.customerAddress)
     });
+  }
+
+  private async resolvePaymentAccounts(
+    bankAccountIds: string[] | undefined
+  ): Promise<Result<BankAccountDetails[]>> {
+    if (bankAccountIds === undefined) {
+      const allResult = await this.bankAccountRepository.findAll();
+      if (allResult.isFailure) {
+        return Result.fail(allResult.error!);
+      }
+      return Result.ok(
+        allResult.value.map((account) => account.details)
+      );
+    }
+
+    const details: BankAccountDetails[] = [];
+    for (const rawId of new Set(
+      bankAccountIds.map((id) => id.trim())
+    )) {
+      const idResult = BankAccountId.parse(rawId);
+      if (idResult.isFailure) {
+        return Result.fail(
+          `Invalid bankAccountId: ${idResult.error}`
+        );
+      }
+
+      const findResult = await this.bankAccountRepository.findById(
+        idResult.value
+      );
+      if (findResult.isFailure) {
+        return Result.fail(findResult.error!);
+      }
+      if (findResult.value === null) {
+        return Result.fail(`Bank account not found: ${rawId}`);
+      }
+      details.push(findResult.value.details);
+    }
+
+    return Result.ok(details);
   }
 
   private buildLineItems(

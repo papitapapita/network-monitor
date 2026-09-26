@@ -7,6 +7,7 @@ import {
   CollectionAccountResponseDTO,
   CollectionAccountListResponseDTO
 } from '../dtos';
+import { BankAccountMapper } from './BankAccountMapper';
 
 export class CollectionAccountMapper {
   public static toDTO(
@@ -30,6 +31,9 @@ export class CollectionAccountMapper {
         this.toLineItemDTO(item)
       ),
       total: collectionAccount.total.toNumber(),
+      paymentAccounts: collectionAccount.paymentAccounts.map(
+        (details) => BankAccountMapper.toPaymentAccountDTO(details)
+      ),
       issueDate: collectionAccount.issueDate.toISOString(),
       dueDate:
         collectionAccount.dueDate !== null

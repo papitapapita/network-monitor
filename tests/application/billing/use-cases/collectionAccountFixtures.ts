@@ -1,11 +1,20 @@
 import { jest } from '@jest/globals';
-import { ICollectionAccountRepository } from '../../../../src/domain/billing/repository';
 import {
+  IBankAccountRepository,
+  ICollectionAccountRepository
+} from '../../../../src/domain/billing/repository';
+import {
+  BankAccount,
+  BankAccountDetails,
+  BankAccountType,
   CollectionAccount,
   CollectionAccountLineItem,
   CollectionAccountStatus
 } from '../../../../src/domain/billing';
-import { CollectionAccountId } from '../../../../src/domain/shared/ids';
+import {
+  BankAccountId,
+  CollectionAccountId
+} from '../../../../src/domain/shared/ids';
 import { Money } from '../../../../src/domain/shared/value-objects';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 
@@ -35,6 +44,44 @@ export function makeCollectionAccountRepo(): jest.Mocked<ICollectionAccountRepos
   };
 }
 
+export const BANK_ACCOUNT_UUID =
+  '880e8400-e29b-41d4-a716-446655440003';
+
+export function makeBankAccountDetails(
+  overrides: Partial<{
+    bankName: string;
+    accountType: BankAccountType;
+    accountNumber: string;
+  }> = {}
+): BankAccountDetails {
+  return BankAccountDetails.create({
+    bankName: 'Bancolombia',
+    accountType: BankAccountType.SAVINGS,
+    accountNumber: '39500002227',
+    ...overrides
+  }).value;
+}
+
+export function makeBankAccount(
+  id: string = BANK_ACCOUNT_UUID,
+  details: BankAccountDetails = makeBankAccountDetails()
+): BankAccount {
+  return BankAccount.reconstitute(BankAccountId.parse(id).value, {
+    details,
+    createdAt: NOW,
+    updatedAt: NOW
+  });
+}
+
+export function makeBankAccountRepo(): jest.Mocked<IBankAccountRepository> {
+  return {
+    save: jest.fn(),
+    findById: jest.fn(),
+    findAll: jest.fn(),
+    delete: jest.fn()
+  };
+}
+
 export function makeCollectionAccount(
   status: CollectionAccountStatus = CollectionAccountStatus.PENDING,
   code: number | null = 7
@@ -57,6 +104,7 @@ export function makeCollectionAccount(
           quantity: 4
         }).value
       ],
+      paymentAccounts: [makeBankAccountDetails()],
       issueDate: NOW,
       dueDate: null,
       notes: null,

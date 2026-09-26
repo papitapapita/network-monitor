@@ -28,6 +28,18 @@ function makeModel(
         lineTotal: 740000
       }
     ],
+    paymentAccounts: [
+      {
+        bankName: 'Bancolombia',
+        accountType: 'SAVINGS',
+        accountNumber: '39500002227'
+      },
+      {
+        bankName: 'Davivienda',
+        accountType: 'CHECKING',
+        accountNumber: '4567-8901'
+      }
+    ],
     total: 740000,
     ...overrides
   };
@@ -62,6 +74,7 @@ describe('PdfKitCollectionAccountPdfRenderer', () => {
       makeModel({
         dueDate: null,
         notes: null,
+        paymentAccounts: [],
         customer: {
           name: 'Cliente de mostrador',
           document: null,

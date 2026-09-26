@@ -2,6 +2,8 @@
 
 import { describe, it, expect } from '@jest/globals';
 import {
+  BankAccountDetails,
+  BankAccountType,
   CollectionAccount,
   CollectionAccountStatus,
   CollectionAccountLineItem,
@@ -27,6 +29,16 @@ function makeLineItem(
   }).value;
 }
 
+function makePaymentAccount(
+  accountNumber: string
+): BankAccountDetails {
+  return BankAccountDetails.create({
+    bankName: 'Bancolombia',
+    accountType: BankAccountType.SAVINGS,
+    accountNumber
+  }).value;
+}
+
 function makeProps(overrides: Record<string, unknown> = {}) {
   return {
     customerId: null,
@@ -36,6 +48,7 @@ function makeProps(overrides: Record<string, unknown> = {}) {
     customerEmail: null,
     customerAddress: null,
     lineItems: [makeLineItem()],
+    paymentAccounts: [makePaymentAccount('39500002227')],
     issueDate: ISSUE_DATE,
     dueDate: DUE_DATE,
     notes: null,
@@ -134,6 +147,28 @@ describe('CollectionAccount', () => {
       expect(result.error).toBe(
         'A collection account must have at least one line item'
       );
+    });
+
+    it('[BIL-213] accepts no payment accounts', () => {
+      const result = CollectionAccount.create(
+        makeProps({ paymentAccounts: [] })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.paymentAccounts).toHaveLength(0);
+    });
+
+    it('[BIL-213] rejects more than five payment accounts', () => {
+      const result = CollectionAccount.create(
+        makeProps({
+          paymentAccounts: Array.from({ length: 6 }, (_, i) =>
+            makePaymentAccount(`1000${i}`)
+          )
+        })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe('Payment accounts cannot exceed 5');
     });
 
     it('[BIL-205] rejects a due date before the issue date', () => {

@@ -7,6 +7,12 @@ export interface CollectionAccountPdfLineItem {
   lineTotal: number;
 }
 
+export interface CollectionAccountPdfPaymentAccount {
+  bankName: string;
+  accountType: string;
+  accountNumber: string;
+}
+
 export interface CollectionAccountPdfRenderModel {
   number: string;
   status: string;
@@ -21,6 +27,7 @@ export interface CollectionAccountPdfRenderModel {
     address: string | null;
   };
   lineItems: CollectionAccountPdfLineItem[];
+  paymentAccounts: CollectionAccountPdfPaymentAccount[];
   total: number;
 }
 

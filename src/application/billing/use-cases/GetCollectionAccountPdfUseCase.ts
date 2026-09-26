@@ -75,6 +75,13 @@ export class GetCollectionAccountPdfUseCase extends UseCase<
         unitPrice: item.unitPrice.toNumber(),
         lineTotal: item.lineTotal.toNumber()
       })),
+      paymentAccounts: collectionAccount.paymentAccounts.map(
+        (details) => ({
+          bankName: details.bankName,
+          accountType: details.accountType,
+          accountNumber: details.accountNumber
+        })
+      ),
       total: collectionAccount.total.toNumber()
     });
     if (renderResult.isFailure) {

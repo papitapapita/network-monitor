@@ -12,3 +12,8 @@ export * from './ListCollectionAccountsUseCase';
 export * from './MarkCollectionAccountPaidUseCase';
 export * from './CancelCollectionAccountUseCase';
 export * from './GetCollectionAccountPdfUseCase';
+export * from './CreateBankAccountUseCase';
+export * from './ListBankAccountsUseCase';
+export * from './GetBankAccountUseCase';
+export * from './UpdateBankAccountUseCase';
+export * from './DeleteBankAccountUseCase';

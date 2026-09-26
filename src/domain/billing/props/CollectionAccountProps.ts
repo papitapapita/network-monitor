@@ -1,6 +1,9 @@
 import { CustomerId, UserId } from 'domain/shared/ids';
 import { CollectionAccountStatus } from '../enums';
-import { CollectionAccountLineItem } from '../value-objects';
+import {
+  BankAccountDetails,
+  CollectionAccountLineItem
+} from '../value-objects';
 
 export interface CollectionAccountProps {
   // Assigned by the database sequence on first insert, so it is null only
@@ -16,6 +19,9 @@ export interface CollectionAccountProps {
   customerEmail: string | null;
   customerAddress: string | null;
   lineItems: CollectionAccountLineItem[];
+  // Copied from the chosen bank accounts at issue time, so editing or deleting
+  // an account never rewrites a document already handed to a customer.
+  paymentAccounts: BankAccountDetails[];
   issueDate: Date;
   dueDate: Date | null;
   notes: string | null;

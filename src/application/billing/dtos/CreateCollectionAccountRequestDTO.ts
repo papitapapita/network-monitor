@@ -11,5 +11,7 @@ export interface CreateCollectionAccountRequestDTO {
   dueDate?: string;
   notes?: string;
   lineItems: CollectionAccountLineItemRequestDTO[];
+  // Omitted: every registered bank account is listed. [] lists none.
+  bankAccountIds?: string[];
   createdBy?: string;
 }

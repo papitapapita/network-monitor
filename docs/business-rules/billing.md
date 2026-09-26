@@ -24,16 +24,17 @@ Format and conventions: [README.md](README.md).
 | `BIL-120` … `BIL-139` | Listing and filtering           |
 | `BIL-140` … `BIL-159` | Cross-cutting (access control)  |
 | `BIL-200` … `BIL-259` | Cuentas de cobro                |
+| `BIL-260` … `BIL-279` | Bank accounts                   |
 
 ## Layer coverage
 
 | Layer                     | Rules |
 | ------------------------- | ----- |
-| Application               | 23    |
-| Domain (aggregate)        | 27    |
-| Domain (value object)     | 6     |
-| Presentation              | 4     |
-| Infrastructure (database) | 5     |
+| Application               | 25    |
+| Domain (aggregate)        | 28    |
+| Domain (value object)     | 7     |
+| Presentation              | 5     |
+| Infrastructure (database) | 7     |
 | Infrastructure (PDF)      | 1     |
 
 More of this context lives in the application layer than in any other, and the
@@ -967,6 +968,55 @@ is looked up.
 **Enforced at:** `src/domain/billing/aggregates/CollectionAccount.ts` (`total`)
 **Tests:** `tests/domain/billing/aggregates/CollectionAccount.test.ts`
 
+### BIL-213 — A cuenta de cobro lists at most five payment accounts
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-26
+
+Zero is allowed — the "Forma de pago" section is then left out of the PDF.
+
+**Why:** A customer needs one place to pay, maybe two. Beyond a handful the
+section stops being instructions and becomes noise.
+
+**Enforced at:** `src/domain/billing/aggregates/CollectionAccount.ts` (`validate`), `src/presentation/http/validation/collection-account.schemas.ts`
+**Message:** `Payment accounts cannot exceed 5`
+**Tests:** `tests/domain/billing/aggregates/CollectionAccount.test.ts`, `tests/integration/collection-account.routes.test.ts`
+
+### BIL-214 — Payment accounts are chosen per document; omitting the choice lists them all
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-26
+
+`bankAccountIds` picks which registered bank accounts appear, in the order
+given, each once. Omitted, every registered account is listed; `[]` lists none.
+An id that does not exist fails the whole request.
+
+**Why:** Different jobs may be paid into different accounts, so the choice
+belongs to the document. Defaulting to all keeps the common case — one
+account — free of any extra step.
+
+**Enforced at:** `src/application/billing/use-cases/CreateCollectionAccountUseCase.ts` (`resolvePaymentAccounts`)
+**Message:** `Bank account not found: <id>` / `Invalid bankAccountId: …`
+**Tests:** `tests/application/billing/use-cases/CreateCollectionAccountUseCase.test.ts`, `tests/integration/use-cases/billing/CreateCollectionAccountUseCase.integration.test.ts`, `tests/integration/collection-account.routes.test.ts`
+
+### BIL-215 — Payment accounts are copied onto the document, not referenced
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (database)
+**Since:** 2026-09-26
+
+`collection_account_payment_accounts` holds bank, type and number with no
+foreign key to `bank_accounts`.
+
+**Why:** A cuenta de cobro already handed to a customer must keep telling them
+where to pay, even after the account is corrected, closed or deleted — the same
+reasoning as the customer snapshot in `BIL-201`.
+
+**Enforced at:** `prisma/schema.prisma` (`CollectionAccountPaymentAccount`)
+**Tests:** `tests/integration/use-cases/billing/CreateCollectionAccountUseCase.integration.test.ts`
+
 ### BIL-220 — A cuenta de cobro is PENDING, PAID or CANCELLED; new ones are PENDING
 
 **Type:** Invariant · **Status:** Active
@@ -1064,8 +1114,10 @@ camera install must not cut someone's internet.
 The document is titled `CUENTA DE COBRO`, carries its `CC-NNNN` number, states
 "DEBE A" (the issuer) and "LA SUMA DE" with the total written out in Spanish
 (`… PESOS M/CTE`), then lists the items. It downloads as
-`cuenta-de-cobro-CC-NNNN.pdf`. The issuer's name, NIT, address and payment
-instructions come from `src/infrastructure/billing/config/collectionAccountIssuerConfig.ts`.
+`cuenta-de-cobro-CC-NNNN.pdf`. The issuer's name, NIT, address and contact
+details come from `src/infrastructure/billing/config/collectionAccountIssuerConfig.ts`;
+the "Forma de pago" lines come from the document's own payment accounts
+(`BIL-214`), e.g. `Transferencia a cuenta de ahorros Bancolombia No. 39500002227`.
 
 **Why:** That is the conventional shape of a Colombian cuenta de cobro, and the
 amount in words is what makes the figure hard to alter on a printed copy.
@@ -1133,3 +1185,78 @@ the record either.
 
 **Enforced at:** `prisma/schema.prisma` (`CollectionAccount.customer`)
 **Tests:** `tests/integration/use-cases/billing/CreateCollectionAccountUseCase.integration.test.ts`
+
+---
+
+## Bank accounts
+
+The issuer's own accounts that customers pay into. They exist only to be
+picked onto a cuenta de cobro (`BIL-214`), which copies them (`BIL-215`).
+
+### BIL-260 — A bank account is a bank, a type and a number
+
+**Type:** Validation · **Status:** Active
+**Layer:** Domain (value object)
+**Since:** 2026-09-26
+
+Bank name 1–100 characters after trimming; type `SAVINGS` (ahorros) or
+`CHECKING` (corriente); number 4–30 characters, digits optionally separated by
+spaces or dashes, starting and ending with a digit.
+
+**Why:** These three facts are exactly what a customer needs to make a
+transfer; anything else in the number field is a typo that would send money
+nowhere.
+
+**Enforced at:** `src/domain/billing/value-objects/BankAccountDetails.ts`, `src/presentation/http/validation/bank-account.schemas.ts`
+**Message:** `bankName cannot be empty` / `Invalid accountType "<x>"` / `accountNumber must be 4 to 30 digits, optionally separated by spaces or dashes`
+**Tests:** `tests/domain/billing/value-objects/BankAccountDetails.test.ts`, `tests/application/billing/use-cases/CreateBankAccountUseCase.test.ts`, `tests/integration/bank-account.routes.test.ts`
+
+### BIL-261 — The same number at the same bank is registered once
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Infrastructure (database)
+**Since:** 2026-09-26
+
+Unique on (`bank_name`, `account_number`); a duplicate create or update is a 409. The same number at a different bank is allowed.
+
+**Why:** Two rows for one account would show up twice in the picker and could
+be listed twice on one document.
+
+**Enforced at:** `prisma/schema.prisma` (`BankAccount @@unique`), `src/infrastructure/billing/repositories/PrismaBankAccountRepository.ts`
+**Message:** `A bank account with number <n> at <bank> already exists`
+**Tests:** `tests/integration/use-cases/billing/CreateBankAccountUseCase.integration.test.ts`, `tests/integration/use-cases/billing/UpdateBankAccountUseCase.integration.test.ts`, `tests/integration/bank-account.routes.test.ts`
+
+### BIL-263 — Bank account endpoints are permission-gated; only ADMIN deletes
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-09-26
+
+| Endpoint                         | Permission |
+| -------------------------------- | ---------- |
+| `GET /api/bank-accounts`, `/:id` | `read`     |
+| `POST /api/bank-accounts`        | `create`   |
+| `PATCH /api/bank-accounts/:id`   | `update`   |
+| `DELETE /api/bank-accounts/:id`  | `delete`   |
+
+**Why:** Where the company's money goes is sensitive. Operators can add and fix
+accounts; removing one is an owner's decision. Deleting is always safe for
+issued documents (`BIL-215`).
+
+**Enforced at:** `src/presentation/http/routes/bank-account.routes.ts`
+**Tests:** `tests/integration/bank-account.routes.test.ts`
+
+### BIL-264 — Every bank account carries a ready-made picker label
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-26
+
+`<bank> · Ahorros|Corriente · <number>`, e.g.
+`Bancolombia · Ahorros · 39500002227`. Listed oldest first.
+
+**Why:** The frontend shows these in a selector when issuing a cuenta de cobro;
+formatting them in one place keeps the wording consistent with the PDF.
+
+**Enforced at:** `src/application/billing/mappers/BankAccountMapper.ts`
+**Tests:** `tests/application/billing/use-cases/CreateBankAccountUseCase.test.ts`, `tests/integration/use-cases/billing/ListBankAccountsUseCase.integration.test.ts`

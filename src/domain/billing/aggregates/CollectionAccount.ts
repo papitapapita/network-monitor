@@ -7,7 +7,10 @@ import {
 import { Money } from 'domain/shared/value-objects';
 import { CollectionAccountStatus } from '../enums';
 import { CollectionAccountProps } from '../props';
-import { CollectionAccountLineItem } from '../value-objects';
+import {
+  BankAccountDetails,
+  CollectionAccountLineItem
+} from '../value-objects';
 import {
   CollectionAccountIssuedEvent,
   CollectionAccountPaidEvent,
@@ -19,6 +22,7 @@ const MAX_CUSTOMER_DOCUMENT_LENGTH = 20;
 const MAX_CUSTOMER_PHONE_LENGTH = 20;
 const MAX_CUSTOMER_EMAIL_LENGTH = 255;
 const MAX_CUSTOMER_ADDRESS_LENGTH = 255;
+const MAX_PAYMENT_ACCOUNTS = 5;
 
 export class CollectionAccount extends AggregateRoot<
   CollectionAccountProps,
@@ -65,6 +69,10 @@ export class CollectionAccount extends AggregateRoot<
 
   get lineItems(): readonly CollectionAccountLineItem[] {
     return [...this.props.lineItems];
+  }
+
+  get paymentAccounts(): readonly BankAccountDetails[] {
+    return [...this.props.paymentAccounts];
   }
 
   get issueDate(): Date {
@@ -230,6 +238,10 @@ export class CollectionAccount extends AggregateRoot<
       ),
       Guard.isString(state.customerName, 'customerName'),
       Guard.againstNullOrUndefined(state.lineItems, 'lineItems'),
+      Guard.againstNullOrUndefined(
+        state.paymentAccounts,
+        'paymentAccounts'
+      ),
       Guard.againstNullOrUndefined(state.issueDate, 'issueDate'),
       Guard.isDate(state.issueDate, 'issueDate'),
       Guard.againstNullOrUndefined(state.status, 'status')
@@ -281,6 +293,12 @@ export class CollectionAccount extends AggregateRoot<
     if (state.lineItems.length === 0) {
       return Result.fail<void>(
         'A collection account must have at least one line item'
+      );
+    }
+
+    if (state.paymentAccounts.length > MAX_PAYMENT_ACCOUNTS) {
+      return Result.fail<void>(
+        `Payment accounts cannot exceed ${MAX_PAYMENT_ACCOUNTS}`
       );
     }
 

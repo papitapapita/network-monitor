@@ -36,6 +36,14 @@ describe('CollectionAccountMapper', () => {
           }
         ],
         total: 740000,
+        paymentAccounts: [
+          {
+            bankName: 'Bancolombia',
+            accountType: 'SAVINGS',
+            accountNumber: '39500002227',
+            label: 'Bancolombia · Ahorros · 39500002227'
+          }
+        ],
         issueDate: NOW.toISOString(),
         dueDate: null,
         notes: null,

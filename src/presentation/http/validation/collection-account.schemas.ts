@@ -43,7 +43,11 @@ export const createCollectionAccountSchema = z.object({
     notes: z.string().optional(),
     lineItems: z
       .array(lineItemSchema)
-      .min(1, 'At least one line item is required')
+      .min(1, 'At least one line item is required'),
+    bankAccountIds: z
+      .array(uuidField('bankAccountId'))
+      .max(5, 'At most 5 bank accounts can be listed')
+      .optional()
   })
 });
 

@@ -24,10 +24,13 @@ export class PrismaCollectionAccountRepository
     collectionAccount: CollectionAccount
   ): Promise<Result<CollectionAccount>> {
     try {
-      const { collectionAccount: data, lineItems } =
-        CollectionAccountPrismaMapper.toPersistence(
-          collectionAccount
-        );
+      const {
+        collectionAccount: data,
+        lineItems,
+        paymentAccounts
+      } = CollectionAccountPrismaMapper.toPersistence(
+        collectionAccount
+      );
 
       await this.prisma.$transaction([
         this.prisma.collectionAccount.upsert({
@@ -45,6 +48,12 @@ export class PrismaCollectionAccountRepository
         }),
         this.prisma.collectionAccountLineItem.createMany({
           data: lineItems
+        }),
+        this.prisma.collectionAccountPaymentAccount.deleteMany({
+          where: { collectionAccountId: data.id }
+        }),
+        this.prisma.collectionAccountPaymentAccount.createMany({
+          data: paymentAccounts
         })
       ]);
 
@@ -56,7 +65,7 @@ export class PrismaCollectionAccountRepository
       // known once the row is read back after save.
       const raw = await this.prisma.collectionAccount.findUnique({
         where: { id: data.id },
-        include: { lineItems: true }
+        include: { lineItems: true, paymentAccounts: true }
       });
       if (!raw) {
         return Result.fail<CollectionAccount>(
@@ -95,7 +104,7 @@ export class PrismaCollectionAccountRepository
     try {
       const raw = await this.prisma.collectionAccount.findUnique({
         where: { id: id.toString() },
-        include: { lineItems: true }
+        include: { lineItems: true, paymentAccounts: true }
       });
 
       if (!raw) return Result.ok<CollectionAccount | null>(null);
@@ -127,7 +136,7 @@ export class PrismaCollectionAccountRepository
       const rawRecords = await this.prisma.collectionAccount.findMany(
         {
           where: this.buildWhere(filters),
-          include: { lineItems: true },
+          include: { lineItems: true, paymentAccounts: true },
           orderBy: { createdAt: 'desc' },
           take: limit,
           skip: offset

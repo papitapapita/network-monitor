@@ -6,11 +6,16 @@ import {
 } from 'domain/shared/ids';
 import { Money } from 'domain/shared/value-objects';
 import {
+  BankAccountDetails,
   CollectionAccount,
   CollectionAccountLineItem,
   CollectionAccountStatus
 } from 'domain/billing';
-import { CollectionAccountStatus as PrismaCollectionAccountStatus } from 'generated/prisma/client';
+import {
+  BankAccountType as PrismaBankAccountType,
+  CollectionAccountStatus as PrismaCollectionAccountStatus
+} from 'generated/prisma/client';
+import { BankAccountPrismaMapper } from './BankAccountPrismaMapper';
 
 interface CollectionAccountLineItemRecord {
   id: string;
@@ -18,6 +23,13 @@ interface CollectionAccountLineItemRecord {
   description: string;
   unitPrice: number | { toNumber(): number };
   quantity: number;
+}
+
+interface CollectionAccountPaymentAccountRecord {
+  position: number;
+  bankName: string;
+  accountType: string;
+  accountNumber: string;
 }
 
 interface CollectionAccountRecord {
@@ -39,6 +51,7 @@ interface CollectionAccountRecord {
   createdAt: Date;
   updatedAt: Date;
   lineItems: CollectionAccountLineItemRecord[];
+  paymentAccounts: CollectionAccountPaymentAccountRecord[];
 }
 
 export class CollectionAccountPrismaMapper {
@@ -83,6 +96,19 @@ export class CollectionAccountPrismaMapper {
       lineItems.push(lineItemResult.value);
     }
 
+    const paymentAccounts: BankAccountDetails[] = [];
+    const orderedPaymentAccounts = [...raw.paymentAccounts].sort(
+      (a, b) => a.position - b.position
+    );
+    for (const rawAccount of orderedPaymentAccounts) {
+      const detailsResult =
+        BankAccountPrismaMapper.detailsToDomain(rawAccount);
+      if (detailsResult.isFailure) {
+        return Result.fail<CollectionAccount>(detailsResult.error);
+      }
+      paymentAccounts.push(detailsResult.value);
+    }
+
     return Result.ok<CollectionAccount>(
       CollectionAccount.reconstitute(idResult.value, {
         code: raw.code,
@@ -94,6 +120,7 @@ export class CollectionAccountPrismaMapper {
         customerEmail: raw.customerEmail,
         customerAddress: raw.customerAddress,
         lineItems,
+        paymentAccounts,
         issueDate: raw.issueDate,
         dueDate: raw.dueDate,
         notes: raw.notes,
@@ -132,6 +159,14 @@ export class CollectionAccountPrismaMapper {
       unitPrice: number;
       quantity: number;
     }[];
+    paymentAccounts: {
+      id: string;
+      collectionAccountId: string;
+      position: number;
+      bankName: string;
+      accountType: PrismaBankAccountType;
+      accountNumber: string;
+    }[];
   } {
     const collectionAccountId = collectionAccount.id.toString();
 
@@ -168,7 +203,15 @@ export class CollectionAccountPrismaMapper {
         description: item.description,
         unitPrice: item.unitPrice.toNumber(),
         quantity: item.quantity
-      }))
+      })),
+      paymentAccounts: collectionAccount.paymentAccounts.map(
+        (details, position) => ({
+          id: crypto.randomUUID(),
+          collectionAccountId,
+          position,
+          ...BankAccountPrismaMapper.detailsToPersistence(details)
+        })
+      )
     };
   }
 
