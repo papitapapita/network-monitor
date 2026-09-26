@@ -1836,7 +1836,7 @@ nothing that should have been skipped is now polled. `DEVICE_REPLACED` was
 removed from `IneligibilityReason` with it. See DEV-082.
 
 **Enforced at:** `src/domain/device-inventory/services/DeviceEligibilityService.ts` (`canPoll`), called from `src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.ts`; pre-filtered in `src/infrastructure/persistence/PrismaPollingConfigurationRepository.ts` (`findAllDue`)
-**Reached from:** the polling orchestrator's tick, and `POST /api/devices/:id/polling/execute` (`forceExecution` does **not** override it — it turns the silent skip into a `400`)
+**Reached from:** the polling orchestrator's tick, and `POST /api/devices/:id/polling/execute` (`forceExecution` does **not** override it — it turns the silent skip into a `409`, or a `404` when the device no longer exists)
 **Message:** `Device is <STATUS> and is not polled` / `Device has monitoring disabled` / `the device no longer exists`
 **Tests:** `tests/domain/device-inventory/services/DeviceEligibilityService.test.ts`, `tests/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.test.ts`
 

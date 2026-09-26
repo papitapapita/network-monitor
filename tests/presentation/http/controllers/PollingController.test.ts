@@ -229,6 +229,47 @@ describe('PollingController', () => {
 
         expect(statusMock).toHaveBeenCalledWith(404);
       });
+
+      it('should return 404 when the device no longer exists', async () => {
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (
+          mockExecutePollingCycleUseCase.execute as jest.Mock
+        ).mockResolvedValue(
+          Result.fail(
+            `Cannot poll device ${DEVICE_UUID} — the device no longer exists`
+          )
+        );
+
+        await controller.poll(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(404);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('Error Path — 409 Conflict', () => {
+      it('should return 409 when the device status refuses polling', async () => {
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (
+          mockExecutePollingCycleUseCase.execute as jest.Mock
+        ).mockResolvedValue(
+          Result.fail(
+            `Cannot poll device ${DEVICE_UUID} — Device is RETIRED and is not polled`
+          )
+        );
+
+        await controller.poll(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(409);
+      });
     });
 
     // -----------------------------------------------------------------------

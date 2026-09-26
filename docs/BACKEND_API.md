@@ -1338,6 +1338,12 @@ monitoring before polling it"`. A manual poll would write a real reading over
 > (from `GET /api/devices/:id/polling/status`) rather than letting the call fail;
 > on a `409`, offer "enable monitoring" instead of a retry.
 
+> A device whose status is not polled (e.g. `RETIRED`) also returns `409`,
+> `"Cannot poll device <id> — Device is <STATUS> and is not polled"`. A deleted
+> or non-existent device returns `404`,
+> `"Cannot poll device <id> — the device no longer exists"`. Both returned
+> `500` before 2026-09-25.
+
 > **Since 2026-09-25: a manual poll makes at most 3 ping attempts**, whatever
 > the device's `failuresBeforeDown` (a lower threshold is kept as is). It
 > answers in under about 20 seconds even for an unreachable device, and an
