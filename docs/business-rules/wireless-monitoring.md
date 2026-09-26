@@ -63,7 +63,7 @@ interval, its radio mode. A second row would mean two schedules for one radio
 and two `lastPolledAt` clocks, and `findByDeviceId` would have to pick one
 arbitrarily. _(inferred)_
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:112`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:133`
 **Reached from:** `POST /api/devices/:id/wireless-config`
 **Message:** `Wireless config already exists for this device`
 **Tests:** `tests/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.test.ts`, `tests/integration/wireless-config.routes.test.ts`
@@ -84,7 +84,7 @@ mis-registered as non-wireless would otherwise be scheduled for AirOS polls that
 can only fail. The error names the remedy because the fix is on the model, not
 on the request being rejected.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:101`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:122`
 **Reached from:** `POST /api/devices/:id/wireless-config`
 **Message:** `Device model is not wireless-capable. Mark the device model as wireless before configuring wireless polling.`
 **Tests:** `tests/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.test.ts`
@@ -112,7 +112,7 @@ The derived value is then frozen: nothing updates `deviceType` after creation.
 DEV-065 is what makes that safe — the category it was derived from cannot change
 while the configuration exists.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:70`; `deviceType` absent from `src/presentation/http/validation/wireless.schemas.ts:63`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:70`; `deviceType` absent from `src/presentation/http/validation/wireless.schemas.ts:83`
 **Reached from:** `POST /api/devices/:id/wireless-config`
 **Tests:** `tests/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.test.ts`, `tests/integration/wireless-config.routes.test.ts`
 
@@ -146,7 +146,7 @@ The configured value is now the fallback: a station with a contracted service
 takes its capacity from the plan instead
 ([WLS-166](#wls-166--link-capacity-is-inferred-from-the-contracted-plan-the-configured-value-is-a-fallback)).
 
-**Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts:59` (`create`), `:136` (`updateLinkCapacityKbps`); pre-checked at `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:75`
+**Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts:75` (`create`), `:174` (`updateLinkCapacityKbps`); pre-checked at `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:75`
 **Reached from:** `create`, `updateLinkCapacityKbps`
 **Message:** `linkCapacityKbps can only be set for STATION devices`
 **Tests:** `tests/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.test.ts`, `tests/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.test.ts`
@@ -209,7 +209,7 @@ client limit, at creation or on update.
 value feeds [WLS-091](#wls-091--more-clients-than-provisioned-is-a-warning), which
 would have nothing to count on a station.
 
-**Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts:67` (`create`), `:151` (`updateClientsProvisionedLimit`); pre-checked at `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:83`
+**Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts:83` (`create`), `:205` (`updateClientsProvisionedLimit`); pre-checked at `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:83`
 **Reached from:** `create`, `updateClientsProvisionedLimit`
 **Message:** `clientsProvisionedLimit can only be set for ACCESS_POINT devices`
 **Tests:** `tests/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.test.ts`, `tests/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.test.ts`
@@ -283,7 +283,7 @@ device fault rather than a monitoring fault. The 24-hour ceiling is the point
 past which a "monitored" device is not meaningfully monitored. _(inferred, for
 the ceiling)_
 
-**Enforced at:** `src/domain/wireless-monitoring/value-objects/PollingInterval.ts:29`, `:34`; schema bounds at `src/presentation/http/validation/wireless.schemas.ts:75`, `:105`
+**Enforced at:** `src/domain/wireless-monitoring/value-objects/PollingInterval.ts:29`, `:34`; schema bounds at `src/presentation/http/validation/wireless.schemas.ts:94`, `:126`
 **Reached from:** `CreateWirelessConfigUseCase`, `UpdateWirelessConfigUseCase`
 **Message:** `Wireless polling interval must be at least 60 seconds` / `Wireless polling interval must not exceed 86400 seconds`
 **Tests:** `tests/domain/wireless-monitoring/value-objects/PollingInterval.test.ts`
@@ -302,7 +302,7 @@ so the default that requires no follow-up request is the useful one. An hour is
 slow enough to be safe on any radio and fast enough that a link problem is
 noticed the same working day. _(inferred)_
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:128` (interval), `:139` (enabled)
+**Enforced at:** `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:149` (interval), `:160` (enabled)
 **Reached from:** `POST /api/devices/:id/wireless-config`
 **Tests:** `tests/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.test.ts`
 
@@ -322,7 +322,7 @@ rather than assigning the property, which is what keeps the event honest.
 current value back is not that. Emitting on every write would make the event
 stream unusable for anything that reacts to the transition.
 
-**Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts:92` (`enable`), `:108` (`disable`)
+**Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts:130` (`enable`), `:146` (`disable`)
 **Reached from:** `UpdateWirelessConfigUseCase.ts:229`, and since 2026-08-13 two
 device-inventory event handlers in this context —
 `DeviceDeletedWirelessConfigHandler` (DEV-072) and
@@ -351,7 +351,7 @@ device's inventory address — a radio may be reached over a management VLAN whi
 its service address is something else. Keeping a separate field means correcting
 one does not silently repoint the other. _(inferred)_
 
-**Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts:23`, `:124`; parsed at `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:120`
+**Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts:33`, `:162`; parsed at `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:141`
 **Reached from:** `CreateWirelessConfigUseCase`, `UpdateWirelessConfigUseCase`
 **Message:** `Invalid IP address: <reason>`
 **Tests:** `tests/application/wireless-monitoring/use-cases/UpdateWirelessConfigUseCase.test.ts`, `tests/integration/wireless-config.routes.test.ts`
@@ -367,7 +367,7 @@ one does not silently repoint the other. _(inferred)_
 **Why:** An empty patch has no meaning to satisfy, and answering `200` to one
 tells the caller a change landed when none did. _(inferred)_
 
-**Enforced at:** `src/presentation/http/validation/wireless.schemas.ts:120`
+**Enforced at:** `src/presentation/http/validation/wireless.schemas.ts:143`
 **Reached from:** `PATCH /api/devices/:id/wireless-config`
 **Message:** `At least one field must be provided`
 **Tests:** `tests/integration/wireless-config.routes.test.ts`
@@ -388,7 +388,7 @@ config". The message names the second because the first is already a `400` from
 the UUID schema. Delete reports rather than absorbs because an operator deleting
 a configuration that was never there has a wrong device id in hand. _(inferred)_
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/GetWirelessConfigUseCase.ts`, `UpdateWirelessConfigUseCase.ts:210`, `DeleteWirelessConfigUseCase.ts:313`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/GetWirelessConfigUseCase.ts:49`, `UpdateWirelessConfigUseCase.ts:52`, `DeleteWirelessConfigUseCase.ts:46`
 **Reached from:** `GET`, `PATCH`, `DELETE /api/devices/:id/wireless-config`
 **Message:** `Wireless config not found for device`
 **Tests:** `tests/application/wireless-monitoring/use-cases/GetWirelessConfigUseCase.test.ts`, `tests/application/wireless-monitoring/use-cases/DeleteWirelessConfigUseCase.test.ts`
@@ -413,7 +413,7 @@ it will act on, and there is one clock involved instead of two. A never-polled
 configuration is due immediately so a newly created one starts collecting
 without waiting a full interval.
 
-**Enforced at:** `src/infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository.ts:144`
+**Enforced at:** `src/infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository.ts:179`
 **Reached from:** `WirelessPollingOrchestrator.pollDevices`
 **Tests:** `tests/infrastructure/wireless-monitoring/persistence/PrismaWirelessDeviceConfigRepository.test.ts`
 
@@ -434,7 +434,7 @@ as success rather than an error is what lets the orchestrator treat "nothing to
 do" and "did the work" the same way, and keeps a disabled device from filling
 the log with failures.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:111`; `src/infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository.ts:144`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:147`; `src/infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository.ts:173`
 **Reached from:** `WirelessPollingOrchestrator`, `POST /api/devices/:id/wireless/poll`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
 
@@ -459,7 +459,7 @@ manual-poll path that never touches the orchestrator.
 Both are per-process. A second application instance would poll the same device
 concurrently — see [G-2](#known-gaps).
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:72`; `src/infrastructure/wireless-monitoring/orchestrator/WirelessPollingOrchestrator.ts:85`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:80`; `src/infrastructure/wireless-monitoring/orchestrator/WirelessPollingOrchestrator.ts:85`
 **Reached from:** `execute`, `WirelessPollingOrchestrator.pollDevices`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
 
@@ -497,7 +497,7 @@ rather than device faults, so they are reported rather than absorbed. Contrast
 WLS-021: a disabled device is a deliberate state, a device configured for
 polling with no way to reach it is not. _(inferred)_
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:131`, `:135`; `src/application/wireless-monitoring/use-cases/RebootWirelessDeviceUseCase.ts:62`, `:74`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:167`, `:171`; `src/application/wireless-monitoring/use-cases/RebootWirelessDeviceUseCase.ts:62`, `:74`
 **Reached from:** `PollWirelessDeviceUseCase`, `RebootWirelessDeviceUseCase`
 **Message:** `No credentials configured for device` / `Device has no IP address configured for polling` / `Credentials not configured for device` / `Device has no IP address configured`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/application/wireless-monitoring/use-cases/RebootWirelessDeviceUseCase.test.ts`
@@ -576,7 +576,7 @@ persistent storage failure becomes a hot loop hammering the radio. Advancing the
 clock means a failing save costs one cycle of history, not a self-inflicted
 denial of service against the device.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:381`, `:393`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:457`, `:469`
 **Reached from:** `poll`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
 
@@ -760,7 +760,7 @@ strict parse would reject whole fleets over one missing field. Null flows
 through to the alert rules, each of which skips a metric it cannot read
 (WLS-082), so an absent field costs exactly the checks that needed it.
 
-**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts:167` – `:235`
+**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts:170` – `:238`
 **Reached from:** `parseStatusCgi`, `parseClientEntry`
 **Tests:** `tests/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.test.ts`
 
@@ -788,7 +788,7 @@ AirOS reports `0` for "not measured" rather than omitting the key, and a zero
 that reaches the rules is a breach of every threshold rather than a missing
 reading.
 
-**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts:70`, `:123`, `:126`, `:132`, `:217`
+**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts:73`, `:126`, `:129`, `:135`, `:220`
 **Reached from:** `parseStatusCgi`
 **Tests:** `tests/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.test.ts`
 
@@ -810,7 +810,7 @@ entry at all (AirOS 6), `signalRxDbm` and `remoteApMac` come from
 and for an access point is every subscriber. Reading `sta[0]` on an access point
 would report one arbitrary subscriber's signal as the device's own.
 
-**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts:65`, `:93`, `:130`, `:133` – `:158`
+**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts:68`, `:96`, `:133`, `:136` – `:161`
 **Reached from:** `parseStatusCgi`
 **Tests:** `tests/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.test.ts`
 
@@ -830,7 +830,7 @@ snapshot names the inventory record of the AP it is associated with, so both
 ends of a link can be found from either. It cannot be required, because the AP
 end of a link is often not a managed device.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:204`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:281`
 **Reached from:** `poll`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
 
@@ -856,7 +856,7 @@ redirect. Without this fallback every AirOS 6 radio failed with
 `Authentication failed: HTTP 302`. Access-point client lists (`sta.cgi`) and
 reboot (`reboot.cgi`) are not yet supported on AirOS 6.
 
-**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts:152`, `:219`, `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts:93`, `:217`, `:223`
+**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts:152`, `:219`, `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts:96`, `:220`, `:226`
 **Reached from:** `fetchStatus`
 **Message:** `Authentication failed: invalid credentials` / `No AIROS session cookie from legacy login page`
 **Tests:** `tests/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.test.ts`, `tests/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.test.ts`
@@ -1028,7 +1028,7 @@ both terms. Deriving it means the SNR thresholds (WLS-084) work on hardware that
 does not publish the value, and the priority order means a device that _does_
 report it is believed over the arithmetic.
 
-**Enforced at:** `src/domain/wireless-monitoring/value-objects/WirelessMetrics.ts:115`; `src/domain/wireless-monitoring/value-objects/WirelessClientEntry.ts:104`; computed at `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:175`
+**Enforced at:** `src/domain/wireless-monitoring/value-objects/WirelessMetrics.ts:115`; `src/domain/wireless-monitoring/value-objects/WirelessClientEntry.ts:104`; computed at `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:232`
 **Reached from:** `SnrRule.evaluate`, `PollWirelessDeviceUseCase.poll`
 **Tests:** `tests/domain/wireless-monitoring/value-objects/WirelessMetrics.test.ts`, `tests/domain/wireless-monitoring/value-objects/WirelessClientEntry.test.ts`
 
@@ -1048,7 +1048,7 @@ Storing it a second time as a one-element "client list" would make
 `GET .../wireless/clients` answer with the station's own uplink dressed up as a
 subscriber.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:317`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:394`
 **Reached from:** `poll`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
 
@@ -1069,7 +1069,7 @@ poll if the radio recovers.
 The drop is currently silent, which is the reason
 [G-3](#known-gaps) exists.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:355`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:431`
 **Reached from:** `poll`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
 
@@ -1112,7 +1112,7 @@ what the alert _is_. Keying on metric alone would mean a link crossing from
 warning into critical either silently rewrites the open record's severity —
 losing when the warning started — or refuses to open the critical one.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:186`; every rule in `src/domain/wireless-monitoring/services/rules/`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:243`; every rule in `src/domain/wireless-monitoring/services/rules/`
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Tests:** `tests/domain/wireless-monitoring/services/WirelessAlertEvaluator.test.ts`
 
@@ -1325,7 +1325,7 @@ consecutive polls agree.
 
 **Status is `Dormant`, not `Active`:** the rule is wired into the evaluator and
 fully tested, but `WirelessCollectionResult` carries no `lanDuplex` field and
-`PollWirelessDeviceUseCase.ts:226` passes a literal `null`. The condition
+`PollWirelessDeviceUseCase.ts:302` passes a literal `null`. The condition
 therefore never fires in production. It begins working with no change to this
 rule the moment the collector extracts eth0's duplex mode.
 
@@ -1333,7 +1333,7 @@ rule the moment the collector extracts eth0's duplex mode.
 the few faults that degrades throughput badly while every status light stays
 green.
 
-**Enforced at:** `src/domain/wireless-monitoring/services/rules/LanHealthRule.ts:78`
+**Enforced at:** `src/domain/wireless-monitoring/services/rules/LanHealthRule.ts:103`
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Message:** `Modo dúplex LAN cambiado en <name>: <previous> → <current>`
 **Tests:** `tests/domain/wireless-monitoring/services/rules/LanHealthRule.test.ts`
@@ -1627,7 +1627,7 @@ construction. Announcing warning recoveries would mean a "resolved" message one
 cycle after every firmware upgrade and every SSID change, saying nothing had
 happened.
 
-**Enforced at:** `src/application/wireless-monitoring/event-handlers/WirelessAlertClearedNotificationHandler.ts:20`
+**Enforced at:** `src/application/wireless-monitoring/event-handlers/WirelessAlertClearedNotificationHandler.ts:25`
 **Reached from:** `WirelessAlertClearedEvent`
 **Tests:** `tests/application/wireless-monitoring/event-handlers/WirelessAlertClearedNotificationHandler.test.ts`
 
@@ -1649,7 +1649,7 @@ readable in the store itself. Idempotency matters because the triggered event
 re-fires on every poll that still has active alerts, which is what makes a
 missed write self-heal on the next cycle.
 
-**Enforced at:** `src/application/wireless-monitoring/event-handlers/WirelessAlertTriggeredAlertRecordHandler.ts:34`; `src/application/wireless-monitoring/event-handlers/WirelessAlertClearedAlertRecordHandler.ts:21`
+**Enforced at:** `src/application/wireless-monitoring/event-handlers/WirelessAlertTriggeredAlertRecordHandler.ts:30`; `src/application/wireless-monitoring/event-handlers/WirelessAlertClearedAlertRecordHandler.ts:22`
 **Reached from:** `WirelessAlertTriggeredEvent`, `WirelessAlertClearedEvent`
 **Tests:** `tests/application/wireless-monitoring/event-handlers/WirelessAlertTriggeredAlertRecordHandler.test.ts`, `tests/application/wireless-monitoring/event-handlers/WirelessAlertClearedAlertRecordHandler.test.ts`
 
@@ -1671,7 +1671,7 @@ timestamp only on success turns `notifiedAt IS NULL` into the retry queue, with
 no separate queue to keep consistent — and an alert opened during a WhatsApp
 outage is delivered when the channel returns instead of being lost.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:419`; `src/domain/wireless-monitoring/aggregates/WirelessAlertRecord.ts:92`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:495`; `src/domain/wireless-monitoring/aggregates/WirelessAlertRecord.ts:92`
 **Reached from:** `poll`
 **Message:** `Alert has already been notified`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/domain/wireless-monitoring/aggregates/WirelessAlertRecord.test.ts`
@@ -1689,7 +1689,7 @@ no hostname. Every alert message interpolates that name.
 device id is still on the alert record, so the notification stays actionable —
 the fallback only affects how it reads. _(inferred)_
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:196`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:271`
 **Reached from:** `poll`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
 
@@ -1889,7 +1889,7 @@ must be a positive integer. Device ids in path and query are UUIDs.
 applies a default page size, so an uncapped `limit` would let one request pull a
 device's entire retention window into memory. _(inferred)_
 
-**Enforced at:** `src/presentation/http/validation/wireless.schemas.ts:8`, `:20`
+**Enforced at:** `src/presentation/http/validation/wireless.schemas.ts:32`, `:20`
 **Reached from:** every wireless route
 **Tests:** `tests/integration/wireless.routes.test.ts`
 
@@ -1931,7 +1931,7 @@ out of `update` into an administrator-only permission. The distinction being
 drawn is durable damage, not disruption: a reboot is disruptive and reversible,
 overwriting credentials is neither. _(inferred)_
 
-**Enforced at:** `src/presentation/http/routes/wireless.routes.ts:128`
+**Enforced at:** `src/presentation/http/routes/wireless.routes.ts:173`
 **Reached from:** `POST /api/devices/:id/wireless/reboot`
 **Tests:** `tests/integration/wireless.routes.test.ts`
 
@@ -2095,7 +2095,7 @@ an embedded client list. 30 days is enough to investigate a link that has been
 degrading for a month, which is the longest a subscriber complaint realistically
 looks back. It matches the ping-history window in MON-040.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PurgeOldWirelessSnapshotsUseCase.ts:10`; default at `src/infrastructure/di/container.ts:925`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PurgeOldWirelessSnapshotsUseCase.ts:10`; default at `src/infrastructure/di/container.ts:1414`
 **Reached from:** `TriggerDataRetentionUseCase`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PurgeOldWirelessSnapshotsUseCase.test.ts`
 
@@ -2161,7 +2161,7 @@ already in the codebase; these six predate it.
 ### G-5 — `WirelessAlert` validates on `create` but the poll uses `reconstitute`
 
 `WirelessAlert.create` checks that the metric and message are non-empty and the
-severity is one of two values. `PollWirelessDeviceUseCase.ts:359` builds the
+severity is one of two values. `PollWirelessDeviceUseCase.ts:436` builds the
 snapshot's embedded alerts with `reconstitute`, which bypasses all of it. The
 values come from the evaluator rather than from input, so nothing invalid
 reaches it today — but the validation is dead code as wired, and the safety it
@@ -2170,7 +2170,7 @@ describes is not actually in force.
 ### G-6 — `throughputTxPps` and `throughputRxPps` are never populated
 
 `WirelessMetrics` declares both, the persistence layer stores them, and
-`PollWirelessDeviceUseCase.ts:222` passes literal `null` for each. The collector
+`PollWirelessDeviceUseCase.ts:298` passes literal `null` for each. The collector
 reads per-client `tx_pps`/`rx_pps` but never the device-level pair. No rule
 consumes them, so nothing is broken — the fields are simply unreachable.
 
