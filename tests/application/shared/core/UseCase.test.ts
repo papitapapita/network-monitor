@@ -5,12 +5,6 @@ import {
   LogContext
 } from '../../../../src/application/shared/interfaces';
 
-// Wall-clock timing assertions are opt-in — they depend on the host being
-// unloaded enough for setTimeout to be accurate, which is not true when jest
-// runs suites in parallel. See the duration test below.
-const timingIt =
-  process.env.RUN_TIMING_TESTS === 'true' ? it : it.skip;
-
 // ========================================
 // Mock Logger Implementation
 // ========================================
@@ -775,20 +769,16 @@ describe('UseCase', () => {
       expect(completionLog?.context?.duration).toMatch(/^\d+ms$/);
     });
 
-    // Wall-clock assertion: setTimeout is allowed to fire a fraction early and
-    // the measured duration rounds down with it, so this fails at random under
-    // parallel load — which is how it reached CI as a flake. The behaviour it
-    // covers (that duration reflects real elapsed time) is worth checking
-    // deliberately, not on every run. Opt in with RUN_TIMING_TESTS=true, or
-    // `npm run test:timing`.
-    timingIt(
-      'should measure execution duration accurately',
-      async () => {
+    // On a fake clock, so the assertion is exact. On the real clock setTimeout
+    // may fire a fraction early and the duration rounds down with it, which
+    // made this flake under parallel load.
+    it('should report the elapsed time as the execution duration', async () => {
+      jest.useFakeTimers();
+      try {
         class SlowUseCase extends UseCase<TestRequest, TestResponse> {
           protected async executeImpl(): Promise<
             Result<TestResponse>
           > {
-            // Simulate slow operation
             await new Promise((resolve) => setTimeout(resolve, 100));
             return this.ok({
               result: 'Success',
@@ -800,21 +790,17 @@ describe('UseCase', () => {
         const useCase = new SlowUseCase(mockLogger, 'SlowUseCase');
         const request: TestRequest = { name: 'test', value: 42 };
 
-        await useCase.execute(request);
+        const execution = useCase.execute(request);
+        await jest.advanceTimersByTimeAsync(100);
+        await execution;
 
         const completionLog = mockLogger.infoCalls.find((call) =>
           call.message.includes('completed successfully')
         );
-
-        expect(completionLog?.context?.duration).toBeDefined();
-        const duration = parseInt(
-          (completionLog?.context?.duration as string).replace(
-            'ms',
-            ''
-          )
-        );
-        expect(duration).toBeGreaterThanOrEqual(100);
+        expect(completionLog?.context?.duration).toBe('100ms');
+      } finally {
+        jest.useRealTimers();
       }
-    );
+    });
   });
 });

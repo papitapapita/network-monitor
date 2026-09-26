@@ -85,6 +85,17 @@ describe('ScanNetworkSegmentUseCase', () => {
       expect(result.error).toContain('segment is required');
     });
 
+    it('should fail when segment is missing from the request', async () => {
+      // Casting through unknown simulates a caller that omits the field.
+      const result = await useCase.execute(
+        makeRequest({ segment: undefined as unknown as string })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe('segment is required');
+      expect(scanner.scan).not.toHaveBeenCalled();
+    });
+
     it('should not call scanner.scan when beforeExecute fails', async () => {
       await useCase.execute(makeRequest({ segment: '' }));
 
@@ -199,6 +210,14 @@ describe('ScanNetworkSegmentUseCase', () => {
       expect(result.value!.scannedCount).toBe(14);
     });
 
+    it('should calculate scannedCount as 2 for a /30 segment', async () => {
+      const result = await useCase.execute(
+        makeRequest({ segment: '10.0.0.0/30' })
+      );
+
+      expect(result.value!.scannedCount).toBe(2);
+    });
+
     it('should calculate scannedCount as 1022 for a /22 segment', async () => {
       const result = await useCase.execute(
         makeRequest({ segment: '172.16.0.0/22' })
@@ -250,6 +269,27 @@ describe('ScanNetworkSegmentUseCase', () => {
 
       expect(result.value!.discoveredHosts).toHaveLength(3);
       expect(result.value!.responsiveCount).toBe(3);
+    });
+  });
+
+  describe('executeImpl — scanner failures', () => {
+    it('should fail with the scanner error when the scanner throws', async () => {
+      scanner.scan.mockRejectedValue(new Error('Network timeout'));
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Unexpected error');
+      expect(result.error).toContain('Network timeout');
+    });
+
+    it('should fail when the scanner rejects with a non-Error value', async () => {
+      scanner.scan.mockRejectedValue('something went wrong');
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Unexpected error');
     });
   });
 });
