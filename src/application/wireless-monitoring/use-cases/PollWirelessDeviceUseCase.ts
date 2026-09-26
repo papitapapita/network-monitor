@@ -5,7 +5,6 @@ import {
   IWirelessSnapshotRepository,
   IWirelessAlertRecordRepository,
   WirelessAlertRecord,
-  WirelessMetrics,
   WirelessClientEntry,
   WirelessAlert,
   WirelessSnapshot,
@@ -31,6 +30,7 @@ import {
   PollWirelessDeviceRequestDTO,
   PollWirelessDeviceResponseDTO
 } from '../dtos';
+import { CollectedMetricsMapper } from '../mappers';
 
 export class PollWirelessDeviceUseCase
   extends UseCase<
@@ -229,12 +229,6 @@ export class PollWirelessDeviceUseCase
       config.captureLanSpeedBaselineIfUnset(collected.lanSpeedMbps);
     }
 
-    const snrDb =
-      collected.signalRxDbm !== null &&
-      collected.noiseFloorDbm !== null
-        ? collected.signalRxDbm - collected.noiseFloorDbm
-        : null;
-
     const activeAlertsResult =
       await this.alertRecordRepo.findAllActiveByDevice(deviceId);
     const activeAlertsList = activeAlertsResult.isSuccess
@@ -285,39 +279,7 @@ export class PollWirelessDeviceUseCase
       if (apLookup.isSuccess) remoteApDeviceId = apLookup.value;
     }
 
-    const metricsResult = WirelessMetrics.create({
-      signalRxDbm: collected.signalRxDbm,
-      signalTxDbm: collected.signalTxDbm,
-      noiseFloorDbm: collected.noiseFloorDbm,
-      snrDb,
-      ccqPercent: collected.ccqPercent,
-      frequencyMhz: collected.frequencyMhz,
-      channelWidthMhz: collected.channelWidthMhz,
-      throughputTxBps: collected.throughputTxBps,
-      throughputRxBps: collected.throughputRxBps,
-      throughputTxPps: null,
-      throughputRxPps: null,
-      lanStatus: collected.lanStatus,
-      lanSpeedMbps: collected.lanSpeedMbps,
-      lanDuplex: null,
-      uptimeSeconds: collected.uptimeSeconds,
-      cpuLoadPercent: collected.cpuLoadPercent,
-      memoryUsedPercent: collected.memoryUsedPercent,
-      clientsConnected: collected.clientsConnected,
-      firmwareVersion: collected.firmwareVersion,
-      deviceName: collected.deviceName,
-      remoteApMac: collected.remoteApMac,
-      remoteApName: collected.remoteApName,
-      remoteApIp: collected.remoteApIp,
-      distanceM: collected.distanceM,
-      latencyMs: collected.latencyMs,
-      capacityTxKbps: collected.capacityTxKbps,
-      capacityRxKbps: collected.capacityRxKbps,
-      deviceTimeEpoch: collected.deviceTimeEpoch,
-      macAddress: collected.macAddress,
-      deviceModel: collected.deviceModel,
-      ssid: collected.essid
-    });
+    const metricsResult = CollectedMetricsMapper.toMetrics(collected);
     if (metricsResult.isFailure) {
       return this.fail(
         `Invalid metrics data from collector: ${metricsResult.error}`

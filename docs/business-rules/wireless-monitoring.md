@@ -576,7 +576,7 @@ persistent storage failure becomes a hot loop hammering the radio. Advancing the
 clock means a failing save costs one cycle of history, not a self-inflicted
 denial of service against the device.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:457`, `:469`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:419`, `:431`
 **Reached from:** `poll`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
 
@@ -830,7 +830,7 @@ snapshot names the inventory record of the AP it is associated with, so both
 ends of a link can be found from either. It cannot be required, because the AP
 end of a link is often not a managed device.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:281`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:275`
 **Reached from:** `poll`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
 
@@ -1028,7 +1028,7 @@ both terms. Deriving it means the SNR thresholds (WLS-084) work on hardware that
 does not publish the value, and the priority order means a device that _does_
 report it is believed over the arithmetic.
 
-**Enforced at:** `src/domain/wireless-monitoring/value-objects/WirelessMetrics.ts:115`; `src/domain/wireless-monitoring/value-objects/WirelessClientEntry.ts:104`; computed at `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:232`
+**Enforced at:** `src/domain/wireless-monitoring/value-objects/WirelessMetrics.ts:115`; `src/domain/wireless-monitoring/value-objects/WirelessClientEntry.ts:104`; computed at `src/application/wireless-monitoring/mappers/CollectedMetricsMapper.ts:17`
 **Reached from:** `SnrRule.evaluate`, `PollWirelessDeviceUseCase.poll`
 **Tests:** `tests/domain/wireless-monitoring/value-objects/WirelessMetrics.test.ts`, `tests/domain/wireless-monitoring/value-objects/WirelessClientEntry.test.ts`
 
@@ -1048,7 +1048,7 @@ Storing it a second time as a one-element "client list" would make
 `GET .../wireless/clients` answer with the station's own uplink dressed up as a
 subscriber.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:394`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:356`
 **Reached from:** `poll`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
 
@@ -1069,7 +1069,7 @@ poll if the radio recovers.
 The drop is currently silent, which is the reason
 [G-3](#known-gaps) exists.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:431`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:393`
 **Reached from:** `poll`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
 
@@ -1112,7 +1112,7 @@ what the alert _is_. Keying on metric alone would mean a link crossing from
 warning into critical either silently rewrites the open record's severity —
 losing when the warning started — or refuses to open the critical one.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:243`; every rule in `src/domain/wireless-monitoring/services/rules/`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:237`; every rule in `src/domain/wireless-monitoring/services/rules/`
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Tests:** `tests/domain/wireless-monitoring/services/WirelessAlertEvaluator.test.ts`
 
@@ -1325,7 +1325,7 @@ consecutive polls agree.
 
 **Status is `Dormant`, not `Active`:** the rule is wired into the evaluator and
 fully tested, but `WirelessCollectionResult` carries no `lanDuplex` field and
-`PollWirelessDeviceUseCase.ts:302` passes a literal `null`. The condition
+`CollectedMetricsMapper.ts:41` passes a literal `null`. The condition
 therefore never fires in production. It begins working with no change to this
 rule the moment the collector extracts eth0's duplex mode.
 
@@ -1407,7 +1407,7 @@ With the plan as the denominator, this alert means "the customer is using most
 of what they pay for" more than "the radio link is congested". See
 [G-7](#g-7--plan-based-saturation-measures-plan-usage-not-link-congestion).
 
-**Enforced at:** `src/domain/wireless-monitoring/services/rules/ThroughputSaturationRule.ts:9`; capacity resolved at `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:266`
+**Enforced at:** `src/domain/wireless-monitoring/services/rules/ThroughputSaturationRule.ts:9`; capacity resolved at `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:260`
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Message:** `Saturación de enlace en <name>: <v> Mbps de <capacity> Mbps (<pct>%)`
 **Tests:** `tests/domain/wireless-monitoring/services/rules/ThroughputSaturationRule.test.ts`
@@ -1671,7 +1671,7 @@ timestamp only on success turns `notifiedAt IS NULL` into the retry queue, with
 no separate queue to keep consistent — and an alert opened during a WhatsApp
 outage is delivered when the channel returns instead of being lost.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:495`; `src/domain/wireless-monitoring/aggregates/WirelessAlertRecord.ts:92`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:457`; `src/domain/wireless-monitoring/aggregates/WirelessAlertRecord.ts:92`
 **Reached from:** `poll`
 **Message:** `Alert has already been notified`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/domain/wireless-monitoring/aggregates/WirelessAlertRecord.test.ts`
@@ -1689,7 +1689,7 @@ no hostname. Every alert message interpolates that name.
 device id is still on the alert record, so the notification stays actionable —
 the fallback only affects how it reads. _(inferred)_
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:271`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:265`
 **Reached from:** `poll`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
 
@@ -2095,7 +2095,7 @@ an embedded client list. 30 days is enough to investigate a link that has been
 degrading for a month, which is the longest a subscriber complaint realistically
 looks back. It matches the ping-history window in MON-040.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/PurgeOldWirelessSnapshotsUseCase.ts:10`; default at `src/infrastructure/di/container.ts:1414`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PurgeOldWirelessSnapshotsUseCase.ts:10`; default at `src/infrastructure/di/container.ts:1548`
 **Reached from:** `TriggerDataRetentionUseCase`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PurgeOldWirelessSnapshotsUseCase.test.ts`
 
@@ -2161,7 +2161,7 @@ already in the codebase; these six predate it.
 ### G-5 — `WirelessAlert` validates on `create` but the poll uses `reconstitute`
 
 `WirelessAlert.create` checks that the metric and message are non-empty and the
-severity is one of two values. `PollWirelessDeviceUseCase.ts:436` builds the
+severity is one of two values. `PollWirelessDeviceUseCase.ts:398` builds the
 snapshot's embedded alerts with `reconstitute`, which bypasses all of it. The
 values come from the evaluator rather than from input, so nothing invalid
 reaches it today — but the validation is dead code as wired, and the safety it
@@ -2170,7 +2170,7 @@ describes is not actually in force.
 ### G-6 — `throughputTxPps` and `throughputRxPps` are never populated
 
 `WirelessMetrics` declares both, the persistence layer stores them, and
-`PollWirelessDeviceUseCase.ts:298` passes literal `null` for each. The collector
+`CollectedMetricsMapper.ts:37` passes literal `null` for each. The collector
 reads per-client `tx_pps`/`rx_pps` but never the device-level pair. No rule
 consumes them, so nothing is broken — the fields are simply unreachable.
 
