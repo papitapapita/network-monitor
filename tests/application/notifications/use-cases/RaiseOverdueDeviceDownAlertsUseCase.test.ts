@@ -165,7 +165,7 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
       ).toHaveBeenCalledTimes(2);
     });
 
-    it('should pass the device id, consecutiveFailures and a fresh occurredAt', async () => {
+    it('should pass the device id, consecutiveFailures and downSince as occurredAt', async () => {
       deviceStateRepo.findAllDown.mockResolvedValue(
         Result.ok([
           makeDeviceState(VALID_DEVICE_UUID_1, {
@@ -183,7 +183,7 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
         {
           deviceId: VALID_DEVICE_UUID_1,
           consecutiveFailures: 12,
-          occurredAt: FIXED_DATE
+          occurredAt: new Date(FIXED_DATE.getTime() - ALERT_DELAY_MS)
         }
       );
     });

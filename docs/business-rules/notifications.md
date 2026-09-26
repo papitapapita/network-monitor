@@ -644,7 +644,7 @@ already in the metadata, so failing it costs nothing that matters.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application · Domain
-**Since:** 2026-08-24 · **Revised:** 2026-09-04
+**Since:** 2026-08-24 · **Revised:** 2026-09-25
 
 `DeviceState` records `downSince` — the start of the current DOWN streak —
 and, as of 2026-09-04, raises `DeviceWentOfflineEvent` on that same
@@ -663,6 +663,11 @@ keeps its alert record (visible on `GET /api/alerts` from the moment it
 opened) but never gets notified, and `SendDeviceRecoveryAlertUseCase` resolves
 it silently rather than reporting the end of a fault nobody was told about
 (`NOT-098`).
+
+The notification reports `downSince` as the time the outage occurred, not
+the moment the scan sends it — a message delivered after a 15-minute delay
+(or held back by quiet hours) still says when the device actually went
+down (revised 2026-09-25).
 
 The scan is independent of any device's own poll interval — a device polled
 once a day is not stuck waiting a day for its alert to be reconsidered.

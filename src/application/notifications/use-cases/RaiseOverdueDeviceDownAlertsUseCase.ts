@@ -42,7 +42,7 @@ export class RaiseOverdueDeviceDownAlertsUseCase {
       const result = await this.sendDeviceDownAlertUseCase.execute({
         deviceId: state.deviceId.toString(),
         consecutiveFailures: state.consecutiveFailures,
-        occurredAt: new Date()
+        occurredAt: state.downSince
       });
 
       if (result.isFailure) {
