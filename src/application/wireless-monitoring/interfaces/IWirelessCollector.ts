@@ -49,6 +49,9 @@ export interface WirelessCollectionResult {
   noiseFloorDbm: number | null;
   throughputTxBps: number | null;
   throughputRxBps: number | null;
+  // cumulative wireless-interface counters; null when the firmware omits them
+  wirelessTxBytes: bigint | null;
+  wirelessRxBytes: bigint | null;
   distanceM: number | null;
   clientsConnected: number | null;
   ccqPercent: number | null;

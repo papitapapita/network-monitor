@@ -139,6 +139,8 @@ function makeHttpResult(
     noiseFloorDbm: -90,
     throughputTxBps: 5_000_000,
     throughputRxBps: 3_000_000,
+    wirelessTxBytes: null,
+    wirelessRxBytes: null,
     distanceM: 1500,
     clientsConnected: null,
     ccqPercent: null,

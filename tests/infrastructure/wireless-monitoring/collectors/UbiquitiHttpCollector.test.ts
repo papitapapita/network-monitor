@@ -540,6 +540,38 @@ describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
 
       expect(result.value.lanStatus).toBeNull();
     });
+
+    it('[WLS-185] should read the ath0 byte counters as bigints', async () => {
+      const collector = new UbiquitiHttpCollector(
+        makeClient(staStatusBody)
+      );
+
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
+
+      expect(result.value.wirelessTxBytes).toBe(3000000n);
+      expect(result.value.wirelessRxBytes).toBe(1500000n);
+    });
+
+    it('[WLS-185] should leave the counters null when ath0 is missing', async () => {
+      const body = JSON.parse(JSON.stringify(staStatusBody));
+      body.interfaces = body.interfaces.filter(
+        (i: { ifname: string }) => i.ifname !== 'ath0'
+      );
+      const collector = new UbiquitiHttpCollector(makeClient(body));
+
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
+
+      expect(result.value.wirelessTxBytes).toBeNull();
+      expect(result.value.wirelessRxBytes).toBeNull();
+    });
   });
 
   // ===========================================================================

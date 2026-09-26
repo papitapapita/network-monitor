@@ -116,6 +116,8 @@ export class MimosaSnmpCollector implements IWirelessCollector {
         phyTxKbps !== null ? Math.round(phyTxKbps * 1000) : null,
       throughputRxBps:
         phyRxKbps !== null ? Math.round(phyRxKbps * 1000) : null,
+      wirelessTxBytes: null,
+      wirelessRxBytes: null,
       distanceM: null,
       clientsConnected: null,
       ccqPercent: null,

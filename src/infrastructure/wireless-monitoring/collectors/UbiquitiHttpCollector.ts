@@ -64,6 +64,11 @@ export class UbiquitiHttpCollector
       (i) => str(i, 'ifname') === 'eth0'
     ) ?? {}) as Record<string, unknown>;
     const eth0Status = obj(eth0, 'status');
+    const ath0Status = obj(
+      (interfaces.find((i) => str(i, 'ifname') === 'ath0') ??
+        {}) as Record<string, unknown>,
+      'status'
+    );
 
     const isStaMode = deviceType === 'STATION';
     const sta0 = sta.length > 0 ? sta[0]! : null;
@@ -129,6 +134,8 @@ export class UbiquitiHttpCollector
         txThroughputRaw !== null ? txThroughputRaw * 1000 : null,
       throughputRxBps:
         rxThroughputRaw !== null ? rxThroughputRaw * 1000 : null,
+      wirelessTxBytes: big(ath0Status, 'tx_bytes'),
+      wirelessRxBytes: big(ath0Status, 'rx_bytes'),
       distanceM: num(wireless, 'distance'),
       clientsConnected:
         deviceType === 'ACCESS_POINT' ? num(wireless, 'count') : null,
