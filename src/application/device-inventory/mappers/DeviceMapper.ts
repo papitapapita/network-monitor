@@ -2,6 +2,7 @@ import { Device } from 'domain/device-inventory/aggregates';
 import {
   DeviceResponseDTO,
   DeviceListResponseDTO,
+  DeviceListItemDTO,
   CreateDeviceRequestDTO,
   UpdateDeviceRequestDTO
 } from '../dtos';
@@ -51,13 +52,13 @@ export class DeviceMapper {
   }
 
   public static toListDTO(
-    devices: Device[],
+    devices: DeviceListItemDTO[],
     total: number,
     limit: number = 20,
     offset: number = 0
   ): DeviceListResponseDTO {
     return {
-      devices: devices.map((device) => this.toDTO(device)),
+      devices,
       total,
       hasMore: offset + devices.length < total,
       limit,

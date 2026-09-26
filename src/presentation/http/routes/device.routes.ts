@@ -91,11 +91,16 @@ export function createDeviceRoutes(
    *   - locationId       (optional) Filter by location UUID
    *   - deviceModelId    (optional) Filter by device model UUID
    *   - monitoringEnabled (optional) true | false
+   *   - deleted          (optional) true | false | any — the recycle bin
    *   - search           (optional) Free-text search (name, serial, MAC, IP)
-   *   - sortBy           (optional) createdAt | updatedAt | name | status
+   *   - connectivity     (optional) UP | DOWN | UNKNOWN — monitored devices only
+   *   - sortBy           (optional) createdAt | updatedAt | name | status |
+   *                                 deletedAt | ipAddress | downSince
    *   - sortOrder        (optional) ASC | DESC
    *
-   * Response: 200 OK with DeviceListResponseDTO
+   * Response: 200 OK with DeviceListResponseDTO; each device carries
+   *   `connectivity` ({ status, downSince, lastSeen }), null when monitoring
+   *   is off
    * Errors:
    *   400 - Invalid query parameters
    *   500 - Unexpected infrastructure error

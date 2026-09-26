@@ -76,5 +76,4 @@ export interface IDeviceRepository {
   existsByIpAddress(ipAddress: IPAddress): Promise<Result<boolean>>;
 
   findByFilters(filters: DeviceFilters): Promise<Result<Device[]>>;
-  countByFilters(filters: DeviceFilters): Promise<Result<number>>;
 }

@@ -337,6 +337,48 @@ describe('Device Routes — /api/devices', () => {
       expect(res.body.data.total).toBe(1);
       expect(res.body.data.devices[0].name).toBe('Core Router');
     });
+
+    it('[DEV-148] 200 — filters by connectivity and reports it per device', async () => {
+      const created = await request(app)
+        .post('/api/devices')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          deviceModelId,
+          name: 'Down Router',
+          ownerType: 'COMPANY',
+          status: 'ACTIVE',
+          ipAddress: '10.0.0.9',
+          locationId,
+          monitoringEnabled: true
+        });
+      await prisma.deviceState.create({
+        data: {
+          deviceId: created.body.data.id,
+          status: 'DOWN',
+          downSince: new Date('2026-09-26T10:00:00Z')
+        }
+      });
+
+      const res = await request(app)
+        .get('/api/devices?connectivity=DOWN&sortBy=downSince')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.total).toBe(1);
+      expect(res.body.data.devices[0].connectivity).toEqual({
+        status: 'DOWN',
+        downSince: '2026-09-26T10:00:00.000Z',
+        lastSeen: null
+      });
+    });
+
+    it('[DEV-149] 400 — rejects an unknown connectivity value', async () => {
+      const res = await request(app)
+        .get('/api/devices?connectivity=ONLINE')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(400);
+    });
   });
 
   // ─────────────────────────────────────────────────────────────

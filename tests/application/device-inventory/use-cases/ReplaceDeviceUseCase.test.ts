@@ -69,8 +69,7 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
     findByLocationIds: jest.fn(),
     findByFilters: jest.fn(),
     findByIdIncludingDeleted: jest.fn(),
-    findDeletedBefore: jest.fn(),
-    countByFilters: jest.fn()
+    findDeletedBefore: jest.fn()
   };
 }
 
@@ -83,8 +82,7 @@ function makeModelRepo(): jest.Mocked<IDeviceModelRepository> {
     count: jest.fn(),
     findAll: jest.fn(),
     findByVendor: jest.fn(),
-    findByFilters: jest.fn(),
-    countByFilters: jest.fn()
+    findByFilters: jest.fn()
   } as unknown as jest.Mocked<IDeviceModelRepository>;
 }
 

@@ -10,12 +10,14 @@ export interface ListDevicesQueryDTO {
   // 'only' is the recycle-bin view. Absent means live devices only.
   deleted?: 'exclude' | 'only' | 'any';
   search?: string;
+  connectivity?: string;
   sortBy?:
     | 'createdAt'
     | 'updatedAt'
     | 'name'
     | 'status'
     | 'deletedAt'
-    | 'ipAddress';
+    | 'ipAddress'
+    | 'downSince';
   sortOrder?: 'ASC' | 'DESC';
 }

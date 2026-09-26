@@ -1,9 +1,7 @@
 import {
   Prisma,
   PrismaClient,
-  DeviceStatus as PrismaDeviceStatus,
-  DeviceCategory as PrismaDeviceCategory,
-  DeviceOwnerType as PrismaDeviceOwnerType
+  DeviceStatus as PrismaDeviceStatus
 } from 'generated/prisma/client';
 import { IPAddress, MACAddress } from 'domain/shared';
 import { Device } from 'domain/device-inventory/aggregates';
@@ -21,6 +19,11 @@ import {
 } from 'domain/device-inventory/repository';
 import { DeviceMapper, PrismaDeviceRecord } from '../mappers';
 import { isRecordNotFound, isUniqueViolation } from './prisma-errors';
+import {
+  DEVICE_LINEAGE_INCLUDE,
+  buildDeviceFilterWhere,
+  buildDeviceOrderBy
+} from './device-listing';
 
 export class PrismaDeviceRepository
   implements IDeviceRepository, IDeviceHardwareSwapRepository
@@ -32,17 +35,7 @@ export class PrismaDeviceRepository
   // tombstones (restore, purge) say so in their names.
   private static readonly LIVE = { deletedAt: null } as const;
 
-  // `replacedByDeviceId` is not a column — it is the back-reference of the
-  // successor's `replacesDeviceId`. Reads that skip this include leave it null.
-  // A unit put back into service can be replaced again, so there may be several
-  // successors; the newest is the one that succeeds it now.
-  private static readonly LINEAGE = {
-    replacedBy: {
-      select: { id: true },
-      orderBy: { createdAt: 'desc' },
-      take: 1
-    }
-  } as const;
+  private static readonly LINEAGE = DEVICE_LINEAGE_INCLUDE;
 
   public async save(device: Device): Promise<Result<Device>> {
     const data = DeviceMapper.toPersistence(device);
@@ -475,24 +468,13 @@ export class PrismaDeviceRepository
     filters: DeviceFilters
   ): Promise<Result<Device[]>> {
     try {
-      const sortOrder = filters.sortOrder === 'ASC' ? 'asc' : 'desc';
-      let orderBy: Prisma.DeviceOrderByWithRelationInput = {
-        createdAt: 'desc'
-      };
-
-      if (filters.sortBy !== undefined) {
-        // ip_sort_key is a generated column (migration 20260903130000) that
-        // orders by address value; ipAddress itself is a plain VARCHAR and
-        // would sort lexicographically ("10.0.0.1" before "9.0.0.1").
-        const column =
-          filters.sortBy === 'ipAddress' ? 'ipSortKey' : filters.sortBy;
-        orderBy = { [column]: sortOrder };
-      }
-
       const rawRecords = await this.prisma.device.findMany({
-        where: this.buildFilterWhere(filters),
+        where: buildDeviceFilterWhere(filters),
         include: PrismaDeviceRepository.LINEAGE,
-        orderBy,
+        orderBy: buildDeviceOrderBy(
+          filters.sortBy,
+          filters.sortOrder
+        ),
         take: filters.limit,
         skip: filters.offset
       });
@@ -508,91 +490,6 @@ export class PrismaDeviceRepository
         `Database error finding devices by filters: ${errorMessage}`
       );
     }
-  }
-
-  public async countByFilters(
-    filters: DeviceFilters
-  ): Promise<Result<number>> {
-    try {
-      const count = await this.prisma.device.count({
-        where: this.buildFilterWhere(filters)
-      });
-
-      return Result.ok<number>(count);
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      return Result.fail<number>(
-        `Database error counting devices by filters: ${errorMessage}`
-      );
-    }
-  }
-
-  // The page query and the total-count query must agree on what "matching"
-  // means, so both build their `where` here.
-  private buildFilterWhere(
-    filters: DeviceFilters
-  ): Prisma.DeviceWhereInput {
-    const where: Prisma.DeviceWhereInput = {};
-
-    // 'any' adds no predicate at all — that is the only case where a tombstone
-    // and a live device can appear in the same page.
-    if (filters.deleted === 'only') {
-      where.deletedAt = { not: null };
-    } else if (filters.deleted !== 'any') {
-      where.deletedAt = null;
-    }
-
-    if (filters.status !== undefined) {
-      where.status = filters.status.toString() as PrismaDeviceStatus;
-    }
-
-    if (filters.category !== undefined) {
-      where.category =
-        filters.category.toString() as PrismaDeviceCategory;
-    }
-
-    if (filters.owner !== undefined) {
-      where.owner = filters.owner.toString() as PrismaDeviceOwnerType;
-    }
-
-    if (filters.locationId !== undefined) {
-      where.locationId = filters.locationId.toString();
-    }
-
-    if (filters.deviceModelId !== undefined) {
-      where.deviceModelId = filters.deviceModelId.toString();
-    }
-
-    if (filters.monitoringEnabled !== undefined) {
-      where.monitoringEnabled = filters.monitoringEnabled;
-    }
-
-    if (filters.search !== undefined) {
-      where.OR = [
-        { name: { contains: filters.search, mode: 'insensitive' } },
-        {
-          macAddress: {
-            contains: filters.search,
-            mode: 'insensitive'
-          }
-        },
-        {
-          ipAddress: {
-            contains: filters.search,
-            mode: 'insensitive'
-          }
-        },
-        {
-          serialNumber: {
-            contains: filters.search,
-            mode: 'insensitive'
-          }
-        }
-      ];
-    }
-
-    return where;
   }
 
   // ============================================================================

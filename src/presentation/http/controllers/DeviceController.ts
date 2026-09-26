@@ -89,6 +89,7 @@ export class DeviceController {
             : undefined,
         deleted: this.parseDeletedFilter(q.deleted),
         search: q.search,
+        connectivity: q.connectivity,
         sortBy: q.sortBy as
           | 'createdAt'
           | 'updatedAt'
@@ -96,6 +97,7 @@ export class DeviceController {
           | 'status'
           | 'deletedAt'
           | 'ipAddress'
+          | 'downSince'
           | undefined,
         sortOrder: q.sortOrder as 'ASC' | 'DESC' | undefined
       });

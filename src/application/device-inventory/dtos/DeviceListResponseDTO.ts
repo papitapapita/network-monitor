@@ -1,7 +1,7 @@
-import { DeviceResponseDTO } from './DeviceResponseDTO';
+import { DeviceListItemDTO } from './DeviceListItemDTO';
 
 export interface DeviceListResponseDTO {
-  devices: DeviceResponseDTO[];
+  devices: DeviceListItemDTO[];
   total: number;
   hasMore: boolean;
   limit: number;

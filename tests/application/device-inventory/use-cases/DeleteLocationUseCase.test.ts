@@ -90,7 +90,6 @@ function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
     findByFilters: jest.fn(),
     findByIdIncludingDeleted: jest.fn(),
     findDeletedBefore: jest.fn(),
-    countByFilters: jest.fn(),
     delete: jest.fn()
   } as unknown as jest.Mocked<IDeviceRepository>;
 }

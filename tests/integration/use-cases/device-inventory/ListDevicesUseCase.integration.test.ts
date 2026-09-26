@@ -7,6 +7,7 @@ import { DeleteDeviceUseCase } from 'application/device-inventory/use-cases/Dele
 import { PrismaContractedServiceRepository } from 'infrastructure/customers';
 import { PrismaTicketRepository } from 'infrastructure/tickets/repositories';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
+import { PrismaDeviceListQuery } from 'infrastructure/persistence/PrismaDeviceListQuery';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import {
   setupDependencies,
@@ -40,7 +41,10 @@ describe('ListDevicesUseCase — integration', () => {
       new PrismaLocationRepository(prisma),
       logger
     );
-    listUseCase = new ListDevicesUseCase(repo, logger);
+    listUseCase = new ListDevicesUseCase(
+      new PrismaDeviceListQuery(prisma),
+      logger
+    );
     deleteUseCase = new DeleteDeviceUseCase(
       repo,
       new PrismaContractedServiceRepository(prisma),
@@ -400,6 +404,144 @@ describe('ListDevicesUseCase — integration', () => {
 
       expect(result.value.total).toBe(1);
       expect(result.value.devices[0].id).toBe(id);
+    });
+  });
+
+  // Device state rows belong to device-monitoring; they are written directly
+  // here because the list only reads them.
+  describe('[DEV-148][DEV-149] connectivity', () => {
+    let upId: string;
+    let longDownId: string;
+    let recentDownId: string;
+    let unpolledId: string;
+    let unmonitoredId: string;
+
+    let nextHost = 1;
+
+    async function create(
+      name: string,
+      monitoringEnabled: boolean
+    ): Promise<string> {
+      const result = await createUseCase.execute({
+        deviceModelId,
+        name,
+        ownerType: 'COMPANY',
+        serialNumber: `SN-${name}`,
+        status: 'ACTIVE',
+        ipAddress: `10.20.0.${nextHost++}`,
+        locationId,
+        monitoringEnabled
+      });
+      return result.value.id;
+    }
+
+    beforeEach(async () => {
+      upId = await create('Up', true);
+      longDownId = await create('LongDown', true);
+      recentDownId = await create('RecentDown', true);
+      unpolledId = await create('Unpolled', true);
+      unmonitoredId = await create('Unmonitored', false);
+
+      await prisma.deviceState.createMany({
+        data: [
+          {
+            deviceId: upId,
+            status: 'UP',
+            lastSeen: new Date('2026-09-26T12:00:00Z')
+          },
+          {
+            deviceId: longDownId,
+            status: 'DOWN',
+            downSince: new Date('2026-09-20T00:00:00Z')
+          },
+          {
+            deviceId: recentDownId,
+            status: 'DOWN',
+            downSince: new Date('2026-09-26T11:00:00Z')
+          },
+          // Stale: recorded before monitoring was switched off.
+          {
+            deviceId: unmonitoredId,
+            status: 'DOWN',
+            downSince: new Date('2026-01-01T00:00:00Z')
+          }
+        ]
+      });
+    });
+
+    it('reports connectivity on every device in the page', async () => {
+      const result = await listUseCase.execute({});
+      const byId = new Map(
+        result.value.devices.map((d) => [d.id, d.connectivity])
+      );
+
+      expect(byId.get(upId)).toEqual({
+        status: 'UP',
+        downSince: null,
+        lastSeen: '2026-09-26T12:00:00.000Z'
+      });
+      expect(byId.get(longDownId)?.downSince).toBe(
+        '2026-09-20T00:00:00.000Z'
+      );
+      expect(byId.get(unpolledId)).toEqual({
+        status: 'UNKNOWN',
+        downSince: null,
+        lastSeen: null
+      });
+      expect(byId.get(unmonitoredId)).toBeNull();
+    });
+
+    it('filters DOWN to monitored devices only, with a matching total', async () => {
+      const result = await listUseCase.execute({
+        connectivity: 'DOWN'
+      });
+
+      expect(result.value.total).toBe(2);
+      expect(result.value.devices.map((d) => d.id).sort()).toEqual(
+        [longDownId, recentDownId].sort()
+      );
+    });
+
+    it('filters UNKNOWN to include a monitored device never polled', async () => {
+      const result = await listUseCase.execute({
+        connectivity: 'UNKNOWN'
+      });
+
+      expect(result.value.devices.map((d) => d.id)).toEqual([
+        unpolledId
+      ]);
+    });
+
+    it('returns nothing when connectivity is combined with monitoringEnabled=false', async () => {
+      const result = await listUseCase.execute({
+        connectivity: 'DOWN',
+        monitoringEnabled: false
+      });
+
+      expect(result.value.total).toBe(0);
+    });
+
+    it('sorts by downSince: longest outage first, unmonitored last', async () => {
+      const result = await listUseCase.execute({
+        sortBy: 'downSince'
+      });
+      const ids = result.value.devices.map((d) => d.id);
+
+      expect(ids.slice(0, 2)).toEqual([longDownId, recentDownId]);
+      expect(ids[ids.length - 1]).toBe(unmonitoredId);
+    });
+
+    it('sorts by downSince DESC: newest outage first', async () => {
+      const result = await listUseCase.execute({
+        connectivity: 'DOWN',
+        sortBy: 'downSince',
+        sortOrder: 'DESC'
+      });
+
+      expect(result.value.devices.map((d) => d.id)).toEqual([
+        recentDownId,
+        longDownId
+      ]);
     });
   });
 });

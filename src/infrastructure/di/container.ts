@@ -27,6 +27,7 @@ import { ITokenService } from 'application/identity/interfaces/ITokenService';
 import {
   PrismaLocationRepository,
   PrismaDeviceRepository,
+  PrismaDeviceListQuery,
   PrismaDeviceModelRepository,
   PrismaVendorRepository,
   PrismaPollingConfigurationRepository,
@@ -847,7 +848,7 @@ export class DependencyContainer {
       this.logger
     );
     const listDevicesUseCase = new ListDevicesUseCase(
-      this.deviceRepository,
+      new PrismaDeviceListQuery(this.prisma),
       this.logger
     );
     const updateDeviceUseCase = new UpdateDeviceUseCase(

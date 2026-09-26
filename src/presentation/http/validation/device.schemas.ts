@@ -57,8 +57,12 @@ const SORT_BY_VALUES = [
   'status',
   // Most-recently-deleted-first is the natural order for the recycle bin.
   'deletedAt',
-  'ipAddress'
+  'ipAddress',
+  // Longest outage first by default (ASC); unmonitored devices sort last.
+  'downSince'
 ] as const;
+
+const CONNECTIVITY_VALUES = ['UP', 'DOWN', 'UNKNOWN'] as const;
 
 // =====================================
 // CREATE SCHEMA
@@ -255,6 +259,14 @@ export const listDevicesSchema = z.object({
       .optional(),
 
     search: z.string().trim().optional(),
+
+    connectivity: z
+      .enum(CONNECTIVITY_VALUES, {
+        error: () => ({
+          message: `connectivity must be one of: ${CONNECTIVITY_VALUES.join(', ')}`
+        })
+      })
+      .optional(),
 
     sortBy: z.enum(SORT_BY_VALUES).optional(),
 

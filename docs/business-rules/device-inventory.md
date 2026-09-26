@@ -41,7 +41,7 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 | **Application + Domain**              |     6 | DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160                                                                                                                                                                                                                                                                                                                                     |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                                                                              |
 | **Infrastructure + Domain**           |     2 | DEV-028, DEV-161 |
-| **Infrastructure + Application**      |     2 | DEV-072, DEV-084                                                                                                                                                                                                                                                                                                                                                                         |
+| **Infrastructure + Application**      |     4 | DEV-072, DEV-084, DEV-148, DEV-149                                                                                                                                                                                                                                                                                                                                                       |
 | **Presentation**                      |     2 | DEV-140, DEV-146                                                                                                                                                                                                                                                                                                                                                                         |
 
 **Half the book sits outside the domain, and most of it belongs there.** The
@@ -2463,8 +2463,8 @@ grew with the fleet no matter how small a page the caller asked for. DEV-142
 caps what is returned; this is what makes the cap also bound the work. The
 unfiltered path already paginated in SQL, so the two now behave the same way.
 
-**Enforced at:** `src/application/device-inventory/use-cases/ListDevicesUseCase.ts:152`, backed by `PrismaDeviceRepository.countByFilters`
-**Tests:** `tests/application/device-inventory/use-cases/ListDevicesUseCase.test.ts`, `tests/infrastructure/persistence/PrismaDeviceRepository.test.ts`
+**Enforced at:** `src/application/device-inventory/use-cases/ListDevicesUseCase.ts`, backed by `PrismaDeviceListQuery.list`/`count` — both build their `where` through `buildDeviceFilterWhere` in `src/infrastructure/persistence/device-listing.ts`
+**Tests:** `tests/application/device-inventory/use-cases/ListDevicesUseCase.test.ts`, `tests/infrastructure/persistence/PrismaDeviceListQuery.test.ts`
 
 ### DEV-146 — Request rate is budgeted per user, per resource
 
@@ -2516,8 +2516,64 @@ result. DEV-145 already routed every _filtered_ request through the database
 for this reason; the unfiltered request is now folded into the same path
 instead of being a special case with weaker guarantees.
 
-**Enforced at:** `src/application/device-inventory/use-cases/ListDevicesUseCase.ts`, backed by `PrismaDeviceRepository.findByFilters`/`countByFilters`
+**Enforced at:** `src/application/device-inventory/use-cases/ListDevicesUseCase.ts`, backed by `PrismaDeviceListQuery.list`/`count`
 **Tests:** `tests/application/device-inventory/use-cases/ListDevicesUseCase.test.ts`
+
+### DEV-148 — The device list reports each device's connectivity, and only for monitored devices
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure + Application (not in domain)
+**Since:** 2026-09-26
+
+Every device in `GET /api/devices` carries `connectivity`, read from the
+device-monitoring context's recorded state:
+
+- `{ status, downSince, lastSeen }` for a monitored device. `status` is
+  `UP`, `DOWN` or `UNKNOWN`; `downSince` is set only while the device is down.
+- `{ status: 'UNKNOWN', downSince: null, lastSeen: null }` for a monitored
+  device that has not been polled yet.
+- `null` when monitoring is off, even if a state was recorded before it was
+  switched off.
+
+**Why:** The frontend fetched every device's polling status one request at a
+time to paint the list. A stale state is worse than none: a device taken out of
+monitoring would keep showing whatever it last was, often `DOWN`, forever.
+
+Connectivity belongs to device-monitoring, not to the `Device` aggregate, so it
+is joined in a read-only query (`IDeviceListQuery`) that returns DTOs. It is
+never copied onto `Device` or reachable through `IDeviceRepository`, the same
+move as the tickets context's `IDeviceDirectory`. `GET /api/devices/:id` does
+not carry it; the per-device polling endpoints still own the detail.
+
+**Enforced at:** `src/infrastructure/persistence/PrismaDeviceListQuery.ts` (`toConnectivity`)
+**Tests:** `tests/infrastructure/persistence/PrismaDeviceListQuery.test.ts`, `tests/integration/use-cases/device-inventory/ListDevicesUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
+
+### DEV-149 — The device list filters by connectivity and sorts by outage start
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure + Application (not in domain)
+**Since:** 2026-09-26
+
+- `connectivity=UP|DOWN|UNKNOWN` matches **monitored devices only**. `UNKNOWN`
+  also matches a monitored device with no recorded state yet, which keeps the
+  filter consistent with what DEV-148 reports. Combined with
+  `monitoringEnabled=false` it matches nothing: neither filter overrides the
+  other. Any other value is a `400`.
+- `sortBy=downSince` orders by when the current outage began: `ASC` (the
+  default for this column) puts the longest outage first, `DESC` the newest.
+  Devices that are not down come after those that are; unmonitored devices
+  always come last, whatever the direction.
+
+Both are applied in the database before `LIMIT`/`OFFSET`, and `total` counts
+through the same `where` (DEV-145).
+
+**Why:** "What is down right now, worst first" is the question the dashboard
+asks. There is no `sortBy=connectivity`: the `UP`/`DOWN`/`UNKNOWN` enum order
+means nothing, so filtering by status and sorting by outage start answers
+that question instead.
+
+**Enforced at:** `src/application/device-inventory/use-cases/ListDevicesUseCase.ts` (value check), `src/infrastructure/persistence/PrismaDeviceListQuery.ts` (`buildWhere`, `buildOrderBy`), `src/presentation/http/validation/device.schemas.ts`
+**Tests:** `tests/application/device-inventory/use-cases/ListDevicesUseCase.test.ts`, `tests/infrastructure/persistence/PrismaDeviceListQuery.test.ts`, `tests/integration/use-cases/device-inventory/ListDevicesUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
 
 ---
 

@@ -1,4 +1,3 @@
-import { IDeviceRepository } from 'domain/device-inventory/repository';
 import {
   DeviceStatus,
   DeviceCategory
@@ -8,8 +7,13 @@ import { DeviceModelId, LocationId } from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
-import { ListDevicesQueryDTO, DeviceListResponseDTO } from '../dtos';
+import {
+  ListDevicesQueryDTO,
+  DeviceListResponseDTO,
+  ConnectivityStatus
+} from '../dtos';
 import { DeviceMapper } from '../mappers';
+import { IDeviceListQuery } from '../interfaces';
 
 export class ListDevicesUseCase extends UseCase<
   ListDevicesQueryDTO,
@@ -17,9 +21,11 @@ export class ListDevicesUseCase extends UseCase<
 > {
   private static readonly DEFAULT_LIMIT = 20;
   private static readonly MAX_LIMIT = 100;
+  private static readonly CONNECTIVITY_VALUES: readonly ConnectivityStatus[] =
+    ['UP', 'DOWN', 'UNKNOWN'];
 
   constructor(
-    private readonly deviceRepository: IDeviceRepository,
+    private readonly deviceListQuery: IDeviceListQuery,
     logger: ILogger
   ) {
     super(logger, 'ListDevicesUseCase');
@@ -34,10 +40,9 @@ export class ListDevicesUseCase extends UseCase<
     );
     const offset = request.offset ?? 0;
 
-    // Always resolve through findByFilters/countByFilters, even with no
-    // filters set — it is the only path that orders at the database level
-    // before paginating. findAll() has no sortBy param, so routing
-    // unfiltered-but-sorted requests through it silently dropped the sort.
+    // Every request, filtered or not, resolves through the list/count pair:
+    // it is the only path that orders at the database level before
+    // paginating.
     return this.listByFilters(request, limit, offset);
   }
 
@@ -104,7 +109,21 @@ export class ListDevicesUseCase extends UseCase<
       deviceModelIdFilter = deviceModelIdResult.value;
     }
 
-    const filters = {
+    let connectivityFilter: ConnectivityStatus | undefined;
+    if (request.connectivity !== undefined) {
+      const connectivity =
+        ListDevicesUseCase.CONNECTIVITY_VALUES.find(
+          (value) => value === request.connectivity
+        );
+      if (connectivity === undefined) {
+        return this.fail<DeviceListResponseDTO>(
+          `Invalid connectivity: "${request.connectivity}". Must be one of: ${ListDevicesUseCase.CONNECTIVITY_VALUES.join(', ')}`
+        );
+      }
+      connectivityFilter = connectivity;
+    }
+
+    const criteria = {
       status: statusFilter,
       category: categoryFilter,
       owner: ownerFilter,
@@ -113,12 +132,13 @@ export class ListDevicesUseCase extends UseCase<
       monitoringEnabled: request.monitoringEnabled,
       deleted: request.deleted,
       search: request.search,
+      connectivity: connectivityFilter,
       sortBy: request.sortBy,
       sortOrder: request.sortOrder
     };
 
-    const devicesResult = await this.deviceRepository.findByFilters({
-      ...filters,
+    const devicesResult = await this.deviceListQuery.list({
+      ...criteria,
       limit,
       offset
     });
@@ -127,8 +147,7 @@ export class ListDevicesUseCase extends UseCase<
       return this.fail<DeviceListResponseDTO>(devicesResult.error!);
     }
 
-    const countResult =
-      await this.deviceRepository.countByFilters(filters);
+    const countResult = await this.deviceListQuery.count(criteria);
 
     if (countResult.isFailure) {
       return this.fail<DeviceListResponseDTO>(countResult.error!);

@@ -1,6 +1,7 @@
 // Source: src/application/device-inventory/mappers/DeviceMapper.ts
 import { IPAddress, MACAddress } from 'domain/shared';
 import { DeviceMapper } from 'application/device-inventory/mappers';
+import { DeviceListItemDTO } from 'application/device-inventory/dtos';
 import { Device } from 'domain/device-inventory/aggregates';
 import {
   DeviceName,
@@ -346,8 +347,11 @@ describe('DeviceMapper (application layer)', () => {
 
   // =========================================================================
   describe('toListDTO()', () => {
-    function makeDevicePage(count: number): Device[] {
-      return Array.from({ length: count }, () => makeDevice());
+    function makeDevicePage(count: number): DeviceListItemDTO[] {
+      return Array.from({ length: count }, () => ({
+        ...DeviceMapper.toDTO(makeDevice()),
+        connectivity: null
+      }));
     }
 
     // -----------------------------------------------------------------------
@@ -428,17 +432,12 @@ describe('DeviceMapper (application layer)', () => {
 
     // -----------------------------------------------------------------------
     describe('devices array', () => {
-      it('should map each device to a DeviceResponseDTO', () => {
+      it('should carry the list items through unchanged', () => {
         const devices = makeDevicePage(3);
 
         const dto = DeviceMapper.toListDTO(devices, 3, 20, 0);
 
-        expect(dto.devices).toHaveLength(3);
-        dto.devices.forEach((d) => {
-          expect(d.id).toBeDefined();
-          expect(d.name).toBeDefined();
-          expect(d.status).toBeDefined();
-        });
+        expect(dto.devices).toEqual(devices);
       });
 
       it('should return an empty devices array when the page is empty', () => {

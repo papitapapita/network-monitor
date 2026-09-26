@@ -461,14 +461,15 @@ deviceModelId?:    string          // UUID
 monitoringEnabled?: 'true' | 'false'
 deleted?:          'true' | 'false' | 'any'   // default: 'false' — see below
 search?:           string          // free-text
-sortBy?:           'createdAt' | 'updatedAt' | 'name' | 'status' | 'deletedAt' | 'ipAddress'  // default: createdAt
-sortOrder?:        'ASC' | 'DESC'  // default: DESC
+connectivity?:     'UP' | 'DOWN' | 'UNKNOWN'  // monitored devices only — see below
+sortBy?:           'createdAt' | 'updatedAt' | 'name' | 'status' | 'deletedAt' | 'ipAddress' | 'downSince'  // default: createdAt
+sortOrder?:        'ASC' | 'DESC'  // default: DESC (ASC for downSince)
 
 // Response
 {
   success: true,
   data: {
-    devices: DeviceDTO[]
+    devices: DeviceListItemDTO[]
     total: number
     hasMore: boolean
     limit: number
@@ -485,6 +486,40 @@ sortOrder?:        'ASC' | 'DESC'  // default: DESC
 > stored string — `"9.0.0.1"` sorts before `"10.0.0.1"`. Devices with no
 > `ipAddress` sort last on `ASC`, first on `DESC` (Postgres's default null
 > ordering).
+
+**Connectivity (since 2026-09-26).** Each list item is a `DeviceDTO` plus the
+device's current reachability, so the list needs no per-device polling calls:
+
+```ts
+interface DeviceListItemDTO extends DeviceDTO {
+  connectivity: {
+    status: 'UP' | 'DOWN' | 'UNKNOWN';
+    downSince: string | null; // ISO 8601 — when the current outage began; null unless DOWN
+    lastSeen: string | null;  // ISO 8601 — last successful ping
+  } | null; // null when monitoringEnabled is false
+}
+```
+
+| Device                              | `connectivity`                                        |
+| ----------------------------------- | ----------------------------------------------------- |
+| monitored, polled                   | its recorded state                                    |
+| monitored, never polled             | `{ status: 'UNKNOWN', downSince: null, lastSeen: null }` |
+| monitoring off                      | `null`. A state recorded before it was switched off is stale and is not shown |
+
+- `connectivity=DOWN` (or `UP`/`UNKNOWN`) matches **monitored devices only**,
+  and `total` counts the same set. `UNKNOWN` includes monitored devices never
+  polled. Combined with `monitoringEnabled=false` it returns nothing. Any
+  other value is a `400`. The values are `UP`/`DOWN`/`UNKNOWN`, not
+  `ONLINE`/`OFFLINE`.
+- `sortBy=downSince` sorts by outage start: the default (`ASC`) puts the
+  longest outage first, `DESC` the newest. Devices that are not down follow;
+  unmonitored devices are always last. There is no `sortBy=connectivity`;
+  filter by status and sort by `downSince` instead.
+- `GET /api/devices/:id` returns a plain `DeviceDTO`, without `connectivity`.
+
+```
+GET /api/devices?connectivity=DOWN&sortBy=downSince   // what is down, worst first
+```
 
 **`deleted` — the recycle bin.** Soft-deleted devices are hidden from every
 listing unless you ask for them:

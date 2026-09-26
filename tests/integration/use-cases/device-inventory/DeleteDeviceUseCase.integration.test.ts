@@ -8,6 +8,7 @@ import { DeleteDeviceUseCase } from 'application/device-inventory/use-cases/Dele
 import { GetDeviceUseCase } from 'application/device-inventory/use-cases/GetDeviceUseCase';
 import { ListDevicesUseCase } from 'application/device-inventory/use-cases/ListDevicesUseCase';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
+import { PrismaDeviceListQuery } from 'infrastructure/persistence/PrismaDeviceListQuery';
 import { PrismaContractedServiceRepository } from 'infrastructure/customers';
 import { PrismaTicketRepository } from 'infrastructure/tickets/repositories';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
@@ -61,7 +62,10 @@ describe('DeleteDeviceUseCase — integration', () => {
       logger
     );
     getUseCase = new GetDeviceUseCase(repo, logger);
-    listUseCase = new ListDevicesUseCase(repo, logger);
+    listUseCase = new ListDevicesUseCase(
+      new PrismaDeviceListQuery(prisma),
+      logger
+    );
   });
 
   afterAll(async () => {
