@@ -9,6 +9,13 @@ import { WirelessDeviceConfigToggledEvent } from '../events';
 // Standard Ethernet negotiated speeds; AirOS/UISP LAN ports report one of these.
 const ALLOWED_LAN_SPEEDS_MBPS = [10, 100, 1000, 2500, 10000];
 
+export type LinkCapacitySource = 'CONTRACT' | 'MANUAL';
+
+export interface ResolvedLinkCapacity {
+  kbps: number;
+  source: LinkCapacitySource;
+}
+
 export class WirelessDeviceConfig extends AggregateRoot<
   WirelessDeviceConfigProps,
   WirelessDeviceConfigId
@@ -177,6 +184,22 @@ export class WirelessDeviceConfig extends AggregateRoot<
     }
     this.props.linkCapacityKbps = linkCapacityKbps;
     return Result.ok();
+  }
+
+  // The contracted plan wins over the manual value: it is what the customer
+  // is sold, and it follows plan changes without anyone editing this config.
+  // The manual value remains for links with no contract, such as backhauls.
+  public resolveLinkCapacity(
+    contractedKbps: number | null
+  ): ResolvedLinkCapacity | null {
+    if (this.props.deviceType !== 'STATION') return null;
+    if (contractedKbps !== null) {
+      return { kbps: contractedKbps, source: 'CONTRACT' };
+    }
+    if (this.props.linkCapacityKbps !== null) {
+      return { kbps: this.props.linkCapacityKbps, source: 'MANUAL' };
+    }
+    return null;
   }
 
   public updateClientsProvisionedLimit(

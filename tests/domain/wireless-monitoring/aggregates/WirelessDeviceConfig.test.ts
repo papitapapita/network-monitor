@@ -312,6 +312,46 @@ describe('[WLS-008] WirelessDeviceConfig', () => {
   });
 
   // =========================================================================
+  describe('[WLS-166] resolveLinkCapacity(contractedKbps)', () => {
+    it('should use the contracted capacity when one is given', () => {
+      const config = makeConfig();
+
+      expect(config.resolveLinkCapacity(12_000)).toEqual({
+        kbps: 12_000,
+        source: 'CONTRACT'
+      });
+    });
+
+    it('should prefer the contract over the manual value', () => {
+      const config = makeConfig({ linkCapacityKbps: 60_000 });
+
+      expect(config.resolveLinkCapacity(12_000)).toEqual({
+        kbps: 12_000,
+        source: 'CONTRACT'
+      });
+    });
+
+    it('should fall back to the manual value when there is no contract', () => {
+      const config = makeConfig({ linkCapacityKbps: 60_000 });
+
+      expect(config.resolveLinkCapacity(null)).toEqual({
+        kbps: 60_000,
+        source: 'MANUAL'
+      });
+    });
+
+    it('should return null when neither is known', () => {
+      expect(makeConfig().resolveLinkCapacity(null)).toBeNull();
+    });
+
+    it('should return null for an ACCESS_POINT even with a contract', () => {
+      const config = makeConfig({ deviceType: 'ACCESS_POINT' });
+
+      expect(config.resolveLinkCapacity(12_000)).toBeNull();
+    });
+  });
+
+  // =========================================================================
   describe('markPolled(at)', () => {
     it('should return a successful Result', () => {
       const config = makeConfig();

@@ -8,6 +8,7 @@ import {
   ILogger,
   IEventStreamHub
 } from 'application/shared/interfaces';
+import { IContractedCapacityProvider } from '../interfaces';
 import { WirelessThroughputMapper } from '../mappers';
 import {
   THROUGHPUT_EVENT,
@@ -28,6 +29,7 @@ export class WirelessSnapshotCreatedThroughputHandler
   constructor(
     private readonly snapshotRepo: IWirelessSnapshotRepository,
     private readonly configRepo: IWirelessDeviceConfigRepository,
+    private readonly contractedCapacity: IContractedCapacityProvider,
     private readonly hub: IEventStreamHub,
     private readonly logger: ILogger
   ) {}
@@ -64,9 +66,22 @@ export class WirelessSnapshotCreatedThroughputHandler
         return;
       }
 
+      const contractedResult =
+        await this.contractedCapacity.findKbpsByDeviceId(
+          event.deviceId
+        );
+      if (contractedResult.isFailure) {
+        this.logger.warn(
+          'WirelessSnapshotCreatedThroughputHandler: contracted capacity unavailable',
+          { deviceId, error: contractedResult.error }
+        );
+        return;
+      }
+
       const payload = WirelessThroughputMapper.toDTO(
         snapshotResult.value,
         configResult.value,
+        contractedResult.value,
         new Date()
       );
 

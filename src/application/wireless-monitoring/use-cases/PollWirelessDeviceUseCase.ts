@@ -24,7 +24,8 @@ import {
   HttpCredentials,
   IDeviceCredentialsRepository,
   IDeviceRepository,
-  IWirelessPollOrchestrator
+  IWirelessPollOrchestrator,
+  IContractedCapacityProvider
 } from '../interfaces';
 import {
   PollWirelessDeviceRequestDTO,
@@ -48,6 +49,7 @@ export class PollWirelessDeviceUseCase
     private readonly httpCollector: IUbiquitiHttpCollector,
     private readonly alertEvaluator: IWirelessAlertEvaluator,
     private readonly deviceRepo: IDeviceRepository,
+    private readonly contractedCapacity: IContractedCapacityProvider,
     private readonly alertPublisher: IAlertPublisher | null,
     logger: ILogger
   ) {
@@ -232,10 +234,27 @@ export class PollWirelessDeviceUseCase
       ? (latestSnapshotResult.value?.metrics ?? null)
       : null;
 
+    // A failed lookup degrades to the manual value rather than failing the
+    // poll: metrics and every other rule still matter without the plan.
+    const contractedResult =
+      await this.contractedCapacity.findKbpsByDeviceId(deviceId);
+    if (contractedResult.isFailure) {
+      this.logger.warn(
+        'Contracted capacity unavailable for wireless poll',
+        {
+          deviceId: deviceId.toString(),
+          error: contractedResult.error
+        }
+      );
+    }
+    const linkCapacity = config.resolveLinkCapacity(
+      contractedResult.isSuccess ? contractedResult.value : null
+    );
+
     const ctx: EvaluationContext = {
       deviceName: http.deviceName ?? 'Equipo desconocido',
       deviceModel: http.deviceModel,
-      linkCapacityKbps: config.linkCapacityKbps,
+      linkCapacityKbps: linkCapacity?.kbps ?? null,
       clientsProvisionedLimit: config.clientsProvisionedLimit,
       provisionedLanSpeedMbps: config.provisionedLanSpeedMbps,
       previousMetrics,

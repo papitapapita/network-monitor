@@ -104,6 +104,7 @@ import {
   WirelessPollingOrchestrator
 } from '../wireless-monitoring';
 import { WirelessDeviceRepositoryAdapter } from '../wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter';
+import { ContractedCapacityAdapter } from '../wireless-monitoring/adapters/ContractedCapacityAdapter';
 import { WirelessAlertEvaluator } from 'domain/wireless-monitoring/services';
 import { SignalStrengthRule } from 'domain/wireless-monitoring/services/rules/SignalStrengthRule';
 import { SnrRule } from 'domain/wireless-monitoring/services/rules/SnrRule';
@@ -1189,6 +1190,10 @@ export class DependencyContainer {
       this.deviceRepository,
       deviceEligibilityService
     );
+    const contractedCapacityProvider = new ContractedCapacityAdapter(
+      this.contractedServiceRepository,
+      this.servicePlanRepository
+    );
 
     const pollWirelessDeviceUseCase = new PollWirelessDeviceUseCase(
       this.wirelessDeviceConfigRepository,
@@ -1198,6 +1203,7 @@ export class DependencyContainer {
       httpCollector,
       alertEvaluator,
       wirelessDeviceRepo,
+      contractedCapacityProvider,
       wirelessAlertPublisher,
       this.logger
     );
@@ -1308,12 +1314,14 @@ export class DependencyContainer {
       new GetWirelessThroughputUseCase(
         this.wirelessSnapshotRepository,
         this.wirelessDeviceConfigRepository,
+        contractedCapacityProvider,
         this.logger
       );
     const getFleetWirelessThroughputUseCase =
       new GetFleetWirelessThroughputUseCase(
         this.wirelessSnapshotRepository,
         this.wirelessDeviceConfigRepository,
+        contractedCapacityProvider,
         this.logger
       );
 
@@ -1541,6 +1549,7 @@ export class DependencyContainer {
       new WirelessSnapshotCreatedThroughputHandler(
         this.wirelessSnapshotRepository,
         this.wirelessDeviceConfigRepository,
+        contractedCapacityProvider,
         this.eventStreamHub,
         this.logger
       )

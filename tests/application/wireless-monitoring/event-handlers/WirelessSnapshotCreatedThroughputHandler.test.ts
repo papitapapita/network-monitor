@@ -7,6 +7,7 @@ import {
   ILogger,
   IEventStreamHub
 } from '../../../../src/application/shared/interfaces';
+import { IContractedCapacityProvider } from '../../../../src/application/wireless-monitoring/interfaces/IContractedCapacityProvider';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { WirelessSnapshotCreatedEvent } from '../../../../src/domain/wireless-monitoring/events';
 import {
@@ -131,6 +132,7 @@ function makeEvent(): WirelessSnapshotCreatedEvent {
 describe('[WLS-146] WirelessSnapshotCreatedThroughputHandler', () => {
   let snapshotRepo: jest.Mocked<IWirelessSnapshotRepository>;
   let configRepo: jest.Mocked<IWirelessDeviceConfigRepository>;
+  let contractedCapacity: jest.Mocked<IContractedCapacityProvider>;
   let hub: jest.Mocked<IEventStreamHub>;
   let logger: jest.Mocked<ILogger>;
   let handler: WirelessSnapshotCreatedThroughputHandler;
@@ -163,10 +165,18 @@ describe('[WLS-146] WirelessSnapshotCreatedThroughputHandler', () => {
       closeAll: jest.fn()
     };
 
+    contractedCapacity = {
+      findKbpsByDeviceId: jest
+        .fn()
+        .mockResolvedValue(Result.ok(null)),
+      findKbpsForAllDevices: jest.fn()
+    };
+
     logger = makeLogger();
     handler = new WirelessSnapshotCreatedThroughputHandler(
       snapshotRepo,
       configRepo,
+      contractedCapacity,
       hub,
       logger
     );
@@ -199,6 +209,26 @@ describe('[WLS-146] WirelessSnapshotCreatedThroughputHandler', () => {
     });
   });
 
+  it('[WLS-166] measures the pushed reading against the device plan', async () => {
+    snapshotRepo.findById.mockResolvedValue(
+      Result.ok(makeSnapshot())
+    );
+    configRepo.findByDeviceId.mockResolvedValue(
+      Result.ok(makeConfig())
+    );
+    contractedCapacity.findKbpsByDeviceId.mockResolvedValue(
+      Result.ok(20_000)
+    );
+
+    await handler.handle(makeEvent());
+
+    expect(hub.publish.mock.calls[0][2]).toMatchObject({
+      linkCapacityKbps: 20_000,
+      linkCapacitySource: 'CONTRACT',
+      utilisationPercent: 25
+    });
+  });
+
   // polling a fleet must not pay for a feature nobody has open
   describe('with no subscribers', () => {
     it('skips the repository reads entirely', async () => {
@@ -208,6 +238,9 @@ describe('[WLS-146] WirelessSnapshotCreatedThroughputHandler', () => {
 
       expect(snapshotRepo.findById).not.toHaveBeenCalled();
       expect(configRepo.findByDeviceId).not.toHaveBeenCalled();
+      expect(
+        contractedCapacity.findKbpsByDeviceId
+      ).not.toHaveBeenCalled();
       expect(hub.publish).not.toHaveBeenCalled();
     });
 
@@ -256,6 +289,23 @@ describe('[WLS-146] WirelessSnapshotCreatedThroughputHandler', () => {
         Result.ok(makeSnapshot())
       );
       configRepo.findByDeviceId.mockResolvedValue(
+        Result.fail('connection reset')
+      );
+
+      await handler.handle(makeEvent());
+
+      expect(hub.publish).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalled();
+    });
+
+    it('logs and returns when the contracted capacity cannot be read', async () => {
+      snapshotRepo.findById.mockResolvedValue(
+        Result.ok(makeSnapshot())
+      );
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+      contractedCapacity.findKbpsByDeviceId.mockResolvedValue(
         Result.fail('connection reset')
       );
 

@@ -4,6 +4,7 @@ import { GetFleetWirelessThroughputUseCase } from '../../../../src/application/w
 import { IWirelessSnapshotRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessSnapshotRepository';
 import { IWirelessDeviceConfigRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessDeviceConfigRepository';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
+import { IContractedCapacityProvider } from '../../../../src/application/wireless-monitoring/interfaces/IContractedCapacityProvider';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import {
   WirelessSnapshot,
@@ -136,6 +137,7 @@ function makeConfig(
 describe('[WLS-146] GetFleetWirelessThroughputUseCase', () => {
   let snapshotRepo: jest.Mocked<IWirelessSnapshotRepository>;
   let configRepo: jest.Mocked<IWirelessDeviceConfigRepository>;
+  let contractedCapacity: jest.Mocked<IContractedCapacityProvider>;
   let logger: jest.Mocked<ILogger>;
   let useCase: GetFleetWirelessThroughputUseCase;
 
@@ -160,10 +162,18 @@ describe('[WLS-146] GetFleetWirelessThroughputUseCase', () => {
       findAll: jest.fn()
     };
 
+    contractedCapacity = {
+      findKbpsByDeviceId: jest.fn(),
+      findKbpsForAllDevices: jest
+        .fn()
+        .mockResolvedValue(Result.ok(new Map()))
+    };
+
     logger = makeLogger();
     useCase = new GetFleetWirelessThroughputUseCase(
       snapshotRepo,
       configRepo,
+      contractedCapacity,
       logger
     );
   });
@@ -192,6 +202,38 @@ describe('[WLS-146] GetFleetWirelessThroughputUseCase', () => {
     );
     expect(byDevice.get(DEVICE_A)!.utilisationPercent).toBe(50);
     expect(byDevice.get(DEVICE_B)!.utilisationPercent).toBe(10);
+  });
+
+  it('[WLS-166] uses each device plan where one is contracted', async () => {
+    snapshotRepo.findLatestForAllDevices.mockResolvedValue(
+      Result.ok([
+        makeSnapshot(SNAPSHOT_A, DEVICE_A, 5_000_000),
+        makeSnapshot(SNAPSHOT_B, DEVICE_B, 5_000_000)
+      ])
+    );
+    configRepo.findAll.mockResolvedValue(
+      Result.ok([
+        makeConfig(CONFIG_A, DEVICE_A, null),
+        makeConfig(CONFIG_B, DEVICE_B, 50_000)
+      ])
+    );
+    contractedCapacity.findKbpsForAllDevices.mockResolvedValue(
+      Result.ok(new Map([[DEVICE_A, 25_000]]))
+    );
+
+    const result = await useCase.execute();
+
+    const byDevice = new Map(
+      result.value.devices.map((d) => [d.deviceId, d])
+    );
+    expect(byDevice.get(DEVICE_A)).toMatchObject({
+      linkCapacitySource: 'CONTRACT',
+      utilisationPercent: 20
+    });
+    expect(byDevice.get(DEVICE_B)).toMatchObject({
+      linkCapacitySource: 'MANUAL',
+      utilisationPercent: 10
+    });
   });
 
   it('includes a device whose configuration is missing, marked stale', async () => {
@@ -267,6 +309,23 @@ describe('[WLS-146] GetFleetWirelessThroughputUseCase', () => {
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain(
         'Failed to load wireless configurations'
+      );
+    });
+
+    it('surfaces a contracted capacity lookup failure', async () => {
+      snapshotRepo.findLatestForAllDevices.mockResolvedValue(
+        Result.ok([makeSnapshot(SNAPSHOT_A, DEVICE_A, 1)])
+      );
+      configRepo.findAll.mockResolvedValue(Result.ok([]));
+      contractedCapacity.findKbpsForAllDevices.mockResolvedValue(
+        Result.fail('connection reset')
+      );
+
+      const result = await useCase.execute();
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'Failed to load contracted capacities'
       );
     });
   });

@@ -2,6 +2,11 @@ import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { GetFleetWirelessThroughputUseCase } from 'application/wireless-monitoring/use-cases/GetFleetWirelessThroughputUseCase';
 import { PrismaWirelessSnapshotRepository } from 'infrastructure/wireless-monitoring/repositories/PrismaWirelessSnapshotRepository';
 import { PrismaWirelessDeviceConfigRepository } from 'infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository';
+import { ContractedCapacityAdapter } from 'infrastructure/wireless-monitoring/adapters/ContractedCapacityAdapter';
+import {
+  PrismaContractedServiceRepository,
+  PrismaServicePlanRepository
+} from 'infrastructure/customers';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import {
   setupDependencies,
@@ -9,6 +14,13 @@ import {
 } from 'infrastructure/di/container';
 import {
   cleanDatabase,
+  cleanBills,
+  cleanTickets,
+  cleanQuotations,
+  cleanCustomers,
+  seedCustomer,
+  seedServicePlan,
+  seedActiveContractedService,
   seedWirelessDeviceModel
 } from '../../helpers/db';
 import { WirelessThroughputDTO } from 'application/wireless-monitoring/dtos';
@@ -26,6 +38,10 @@ describe('GetFleetWirelessThroughputUseCase — integration', () => {
     useCase = new GetFleetWirelessThroughputUseCase(
       new PrismaWirelessSnapshotRepository(prisma),
       new PrismaWirelessDeviceConfigRepository(prisma),
+      new ContractedCapacityAdapter(
+        new PrismaContractedServiceRepository(prisma),
+        new PrismaServicePlanRepository(prisma)
+      ),
       new WinstonLogger()
     );
   });
@@ -35,6 +51,10 @@ describe('GetFleetWirelessThroughputUseCase — integration', () => {
   });
 
   beforeEach(async () => {
+    await cleanQuotations(prisma);
+    await cleanBills(prisma);
+    await cleanTickets(prisma);
+    await cleanCustomers(prisma);
     await cleanDatabase(prisma);
     deviceModelId = await seedWirelessDeviceModel(prisma);
   });
@@ -148,6 +168,40 @@ describe('GetFleetWirelessThroughputUseCase — integration', () => {
     const rows = byDevice(result.value.devices);
     expect(rows.get(a)!.throughputTxBps).toBe(3_000_000);
     expect(rows.get(b)!.throughputTxBps).toBe(4_000_000);
+  });
+
+  // [WLS-166] one batched lookup must still key each plan to its own device
+  it('uses each device contracted plan, falling back to manual capacity', async () => {
+    const contracted = await seedDevice('192.168.70.30');
+    const backhaul = await seedDevice('192.168.70.31');
+    await seedConfig(contracted, 50_000);
+    await seedConfig(backhaul, 50_000);
+    await seedSnapshot(contracted, 5_000_000);
+    await seedSnapshot(backhaul, 5_000_000);
+
+    const customerId = await seedCustomer(prisma);
+    const planId = await seedServicePlan(prisma, {
+      name: 'Plan 8/2',
+      downloadMbps: 8,
+      uploadMbps: 2
+    });
+    await seedActiveContractedService(prisma, customerId, planId, {
+      deviceId: contracted
+    });
+
+    const result = await useCase.execute();
+
+    const rows = byDevice(result.value.devices);
+    expect(rows.get(contracted)).toMatchObject({
+      linkCapacityKbps: 10_000,
+      linkCapacitySource: 'CONTRACT',
+      utilisationPercent: 50
+    });
+    expect(rows.get(backhaul)).toMatchObject({
+      linkCapacityKbps: 50_000,
+      linkCapacitySource: 'MANUAL',
+      utilisationPercent: 10
+    });
   });
 
   // ──────────────────────────────────────────────────────────────

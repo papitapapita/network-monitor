@@ -142,10 +142,59 @@ and has no single link whose capacity this could mean. The value feeds
 so a value set on the wrong end would produce saturation alerts against a
 denominator that means nothing.
 
+The configured value is now the fallback: a station with a contracted service
+takes its capacity from the plan instead
+([WLS-166](#wls-166--link-capacity-is-inferred-from-the-contracted-plan-the-configured-value-is-a-fallback)).
+
 **Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts:59` (`create`), `:136` (`updateLinkCapacityKbps`); pre-checked at `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts:75`
 **Reached from:** `create`, `updateLinkCapacityKbps`
 **Message:** `linkCapacityKbps can only be set for STATION devices`
 **Tests:** `tests/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.test.ts`, `tests/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.test.ts`
+
+### WLS-166 — Link capacity is inferred from the contracted plan; the configured value is a fallback
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (precedence) · Infrastructure (which contracts count)
+**Since:** 2026-09-25
+
+A station's effective link capacity is taken, in order, from:
+
+1. **The device's contracted service plan**: `downloadMbps + uploadMbps`,
+   converted to kbps. Only an `ACTIVE` or `PENDING` service counts.
+2. **The configuration's own `linkCapacityKbps`**, when no such service covers
+   the device.
+3. **Nothing.** Saturation (WLS-093) is skipped and utilisation (WLS-147) is
+   `null`.
+
+When a contract applies, the configured value is ignored, not merged. An
+`ACCESS_POINT` has no capacity whatever its contracts say (WLS-004). A device
+with no wireless configuration has none either, because nothing polls it. The
+plan is read when the capacity is used (each poll and each throughput read),
+never copied into the configuration. The throughput DTO reports which source
+applied as `linkCapacitySource` (`CONTRACT`, `MANUAL` or `null`).
+
+A failed plan lookup behaves differently per caller. During a poll it logs a
+warning and falls back to the configured value, and the poll still succeeds.
+The throughput queries fail, and the live stream skips that push, the same way
+they treat a failed configuration read.
+
+**Why:** Saturation and utilisation measure against what the customer is sold
+(WLS-093), and the plan is where that is recorded. A hand-entered copy drifts
+the moment a customer changes plan. The configured value stays because some
+stations (backhauls, infrastructure links) have no contract, and for them the
+capacity is an engineering figure only an operator can supply. Download and
+upload are summed because both rules measure tx + rx combined. A suspended
+service is throttled by enforcement, and a cancelled one is no longer sold, so
+neither plan describes the link.
+
+Wireless monitoring reads the plan through its own port
+(`IContractedCapacityProvider`) and never imports the customers model. Which
+service statuses count is decided in the adapter, on the customers side of that
+boundary.
+
+**Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts:192` (`resolveLinkCapacity`); `src/infrastructure/wireless-monitoring/adapters/ContractedCapacityAdapter.ts` (`CAPACITY_BEARING_STATUSES`, `toKbps`)
+**Reached from:** `PollWirelessDeviceUseCase`, `GetWirelessThroughputUseCase`, `GetFleetWirelessThroughputUseCase`, `WirelessSnapshotCreatedThroughputHandler`
+**Tests:** `tests/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.test.ts`, `tests/infrastructure/wireless-monitoring/adapters/ContractedCapacityAdapter.test.ts`, `tests/application/wireless-monitoring/mappers/WirelessThroughputMapper.test.ts`, `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/application/wireless-monitoring/use-cases/GetWirelessThroughputUseCase.test.ts`, `tests/application/wireless-monitoring/use-cases/GetFleetWirelessThroughputUseCase.test.ts`, `tests/application/wireless-monitoring/event-handlers/WirelessSnapshotCreatedThroughputHandler.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetWirelessThroughputUseCase.integration.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetFleetWirelessThroughputUseCase.integration.test.ts`
 
 ### WLS-005 — `clientsProvisionedLimit` is an ACCESS_POINT-only setting
 
@@ -1272,18 +1321,24 @@ would clear the moment a single client returned.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Domain
-**Since:** 2026-08-03
+**Since:** 2026-08-03 · **Revised:** 2026-09-25
 
-Combined tx + rx throughput at or above 80 % of the configuration's
-`linkCapacityKbps` opens a warning. Skipped when the capacity is not configured,
-which for an access point it always is (WLS-004).
+Combined tx + rx throughput at or above 80 % of the station's effective link
+capacity opens a warning. That capacity is the contracted plan, else the
+configuration's `linkCapacityKbps`
+([WLS-166](#wls-166--link-capacity-is-inferred-from-the-contracted-plan-the-configured-value-is-a-fallback)).
+Skipped when neither is known, which for an access point is always (WLS-004).
 
 **Why:** 80 % is where queueing delay on a wireless link starts rising sharply —
 waiting for 100 % would alert only once the link is already unusable. The
 threshold is against provisioned capacity rather than measured capacity because
 the operator sold the former.
 
-**Enforced at:** `src/domain/wireless-monitoring/services/rules/ThroughputSaturationRule.ts:9`
+With the plan as the denominator, this alert means "the customer is using most
+of what they pay for" more than "the radio link is congested". See
+[G-7](#g-7--plan-based-saturation-measures-plan-usage-not-link-congestion).
+
+**Enforced at:** `src/domain/wireless-monitoring/services/rules/ThroughputSaturationRule.ts:9`; capacity resolved at `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:250`
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Message:** `Saturación de enlace en <name>: <v> Mbps de <capacity> Mbps (<pct>%)`
 **Tests:** `tests/domain/wireless-monitoring/services/rules/ThroughputSaturationRule.test.ts`
@@ -1841,23 +1896,27 @@ hundred rows because one radio reported. _(inferred)_
 **Reached from:** `GET /api/devices/:id/wireless/throughput/stream`, `GET /api/wireless/throughput/stream`
 **Tests:** `tests/application/wireless-monitoring/event-handlers/WirelessSnapshotCreatedThroughputHandler.test.ts`, `tests/presentation/http/controllers/WirelessStreamController.test.ts`, `tests/integration/wireless-stream.routes.test.ts`
 
-### WLS-147 — Utilisation is only reported when a link capacity is configured
+### WLS-147 — Utilisation is only reported when a link capacity is known
 
 **Type:** Validation · **Status:** Active
 **Layer:** Application (not in domain)
-**Since:** 2026-08-12
+**Since:** 2026-08-12 · **Revised:** 2026-09-25
 
 `utilisationPercent` is `(txBps + rxBps) / (linkCapacityKbps × 1000) × 100`,
-rounded to two decimals. It is `null` whenever `linkCapacityKbps` is unset or
-either throughput leg was not collected. Because `linkCapacityKbps` may only be
-set on a `STATION` (WLS-004), an `ACCESS_POINT` always reports `null` here —
-that is correct, not missing data.
+rounded to two decimals. `linkCapacityKbps` here is the effective capacity:
+the contracted plan, else the configured value
+([WLS-166](#wls-166--link-capacity-is-inferred-from-the-contracted-plan-the-configured-value-is-a-fallback)),
+and `linkCapacitySource` says which. It is `null` when neither is known or
+either throughput leg was not collected. Only a `STATION` has a capacity, so
+an `ACCESS_POINT` always reports `null` here. That is correct, not missing
+data.
 
 The reading itself is still returned in every one of those cases; only the
 percentage is withheld.
 
 **Why:** A saturation figure is a comparison against what the customer pays for,
-and there is no such number until an operator records the plan. Inventing a
+and there is no such number until the device has a contracted plan or an
+operator records a capacity. Inventing a
 denominator — the radio's negotiated airMAX capacity, say — would answer a
 different question and answer it as though it were this one. The raw bits per
 second are useful on their own, so withholding them too would be worse than
@@ -2045,3 +2104,14 @@ describes is not actually in force.
 `PollWirelessDeviceUseCase.ts:222` passes literal `null` for each. The collector
 reads per-client `tx_pps`/`rx_pps` but never the device-level pair. No rule
 consumes them, so nothing is broken — the fields are simply unreachable.
+
+### G-7 — Plan-based saturation measures plan usage, not link congestion
+
+Since WLS-166, the WLS-093 denominator is usually the contracted plan. If the
+customer's rate is enforced by a queue, as it is on MikroTik, reaching 80 % of
+the plan means the customer is using what they pay for. That is not a fault.
+WLS-093's rationale, though, is about queueing delay on the radio link, which
+is physical capacity. Measuring that would mean comparing against airMAX
+capacity (the input WLS-094 already uses). The alert currently mixes the two
+questions. The plan's download and upload are also summed into one figure, so a
+20/5 plan saturates at 20 Mbps of pure download.

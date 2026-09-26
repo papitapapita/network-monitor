@@ -81,6 +81,7 @@ const mockThroughputDTO: WirelessThroughputDTO = {
   throughputRxBps: 2_000_000,
   throughputTotalBps: 10_000_000,
   linkCapacityKbps: 50_000,
+  linkCapacitySource: 'CONTRACT',
   utilisationPercent: 20
 };
 

@@ -9,10 +9,13 @@ export class WirelessThroughputMapper {
   public static toDTO(
     snapshot: WirelessSnapshot,
     config: WirelessDeviceConfig | null,
+    contractedKbps: number | null,
     now: Date
   ): WirelessThroughputDTO {
     const m = snapshot.metrics;
-    const linkCapacityKbps = config?.linkCapacityKbps ?? null;
+    const capacity =
+      config?.resolveLinkCapacity(contractedKbps) ?? null;
+    const linkCapacityKbps = capacity?.kbps ?? null;
 
     const ageSeconds = Math.max(
       0,
@@ -41,6 +44,7 @@ export class WirelessThroughputMapper {
       throughputRxBps: m.throughputRxBps,
       throughputTotalBps,
       linkCapacityKbps,
+      linkCapacitySource: capacity?.source ?? null,
       utilisationPercent: this.utilisation(m, linkCapacityKbps)
     };
   }

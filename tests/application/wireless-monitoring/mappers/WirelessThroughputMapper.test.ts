@@ -120,12 +120,14 @@ describe('WirelessThroughputMapper', () => {
 
       const dto = WirelessThroughputMapper.toDTO(
         makeSnapshot(metrics),
-        makeConfig(50_000), // 50 Mbps plan
+        makeConfig(50_000), // 50 Mbps link
+        null,
         COLLECTED_AT
       );
 
       expect(dto.throughputTotalBps).toBe(15_000_000);
       expect(dto.linkCapacityKbps).toBe(50_000);
+      expect(dto.linkCapacitySource).toBe('MANUAL');
       expect(dto.utilisationPercent).toBe(30);
     });
 
@@ -138,6 +140,7 @@ describe('WirelessThroughputMapper', () => {
       const dto = WirelessThroughputMapper.toDTO(
         makeSnapshot(metrics),
         makeConfig(10_000),
+        null,
         COLLECTED_AT
       );
 
@@ -154,6 +157,7 @@ describe('WirelessThroughputMapper', () => {
       const dto = WirelessThroughputMapper.toDTO(
         makeSnapshot(metrics, 'ACCESS_POINT'),
         makeConfig(null),
+        null,
         COLLECTED_AT
       );
 
@@ -170,11 +174,69 @@ describe('WirelessThroughputMapper', () => {
       const dto = WirelessThroughputMapper.toDTO(
         makeSnapshot(metrics),
         makeConfig(50_000),
+        null,
         COLLECTED_AT
       );
 
       expect(dto.throughputTotalBps).toBeNull();
       expect(dto.utilisationPercent).toBeNull();
+    });
+  });
+
+  describe('[WLS-166] capacity inferred from the contracted plan', () => {
+    const metrics = makeMetrics({
+      throughputTxBps: 6_000_000,
+      throughputRxBps: 0
+    });
+
+    it('measures utilisation against the contracted capacity', () => {
+      const dto = WirelessThroughputMapper.toDTO(
+        makeSnapshot(metrics),
+        makeConfig(null),
+        12_000,
+        COLLECTED_AT
+      );
+
+      expect(dto.linkCapacityKbps).toBe(12_000);
+      expect(dto.linkCapacitySource).toBe('CONTRACT');
+      expect(dto.utilisationPercent).toBe(50);
+    });
+
+    it('prefers the contract over a manually configured value', () => {
+      const dto = WirelessThroughputMapper.toDTO(
+        makeSnapshot(metrics),
+        makeConfig(60_000),
+        12_000,
+        COLLECTED_AT
+      );
+
+      expect(dto.linkCapacityKbps).toBe(12_000);
+      expect(dto.linkCapacitySource).toBe('CONTRACT');
+    });
+
+    it('reports no source when neither capacity is known', () => {
+      const dto = WirelessThroughputMapper.toDTO(
+        makeSnapshot(metrics),
+        makeConfig(null),
+        null,
+        COLLECTED_AT
+      );
+
+      expect(dto.linkCapacityKbps).toBeNull();
+      expect(dto.linkCapacitySource).toBeNull();
+    });
+
+    // with no config nothing polls the device, so there is nothing to size
+    it('ignores the contract when the device has no configuration', () => {
+      const dto = WirelessThroughputMapper.toDTO(
+        makeSnapshot(metrics),
+        null,
+        12_000,
+        COLLECTED_AT
+      );
+
+      expect(dto.linkCapacityKbps).toBeNull();
+      expect(dto.linkCapacitySource).toBeNull();
     });
   });
 
@@ -185,6 +247,7 @@ describe('WirelessThroughputMapper', () => {
       const dto = WirelessThroughputMapper.toDTO(
         makeSnapshot(),
         makeConfig(null, 3600),
+        null,
         now
       );
 
@@ -198,6 +261,7 @@ describe('WirelessThroughputMapper', () => {
       const dto = WirelessThroughputMapper.toDTO(
         makeSnapshot(),
         makeConfig(null, 60),
+        null,
         now
       );
 
@@ -210,6 +274,7 @@ describe('WirelessThroughputMapper', () => {
       const dto = WirelessThroughputMapper.toDTO(
         makeSnapshot(),
         makeConfig(null, 60),
+        null,
         now
       );
 
@@ -222,6 +287,7 @@ describe('WirelessThroughputMapper', () => {
       const dto = WirelessThroughputMapper.toDTO(
         makeSnapshot(),
         makeConfig(null, 60),
+        null,
         now
       );
 
@@ -232,6 +298,7 @@ describe('WirelessThroughputMapper', () => {
     it('is stale when the device has no configuration', () => {
       const dto = WirelessThroughputMapper.toDTO(
         makeSnapshot(),
+        null,
         null,
         COLLECTED_AT
       );
@@ -245,6 +312,7 @@ describe('WirelessThroughputMapper', () => {
   it('carries the device identity and radio mode from the snapshot', () => {
     const dto = WirelessThroughputMapper.toDTO(
       makeSnapshot(makeMetrics(), 'ACCESS_POINT'),
+      null,
       null,
       COLLECTED_AT
     );

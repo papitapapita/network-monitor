@@ -6,12 +6,13 @@ import {
 import { WirelessDeviceConfig } from 'domain/wireless-monitoring/aggregates';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
+import { IContractedCapacityProvider } from '../interfaces';
 import { FleetWirelessThroughputResponseDTO } from '../dtos';
 import { WirelessThroughputMapper } from '../mappers';
 
 /**
  * Fleet-wide live throughput: the newest snapshot per device, joined to its
- * configured link capacity. Devices that have never been polled are absent —
+ * link capacity (contracted plan, else the configured value). Devices that have never been polled are absent —
  * there is no reading to report, and a row of nulls would read as idle.
  */
 export class GetFleetWirelessThroughputUseCase extends UseCase<
@@ -21,6 +22,7 @@ export class GetFleetWirelessThroughputUseCase extends UseCase<
   constructor(
     private readonly snapshotRepo: IWirelessSnapshotRepository,
     private readonly configRepo: IWirelessDeviceConfigRepository,
+    private readonly contractedCapacity: IContractedCapacityProvider,
     logger: ILogger
   ) {
     super(logger, 'GetFleetWirelessThroughputUseCase');
@@ -44,6 +46,15 @@ export class GetFleetWirelessThroughputUseCase extends UseCase<
       );
     }
 
+    const contractedResult =
+      await this.contractedCapacity.findKbpsForAllDevices();
+    if (contractedResult.isFailure) {
+      return this.fail(
+        `Failed to load contracted capacities: ${contractedResult.error}`
+      );
+    }
+    const contractedByDevice = contractedResult.value;
+
     const configsByDevice = new Map<string, WirelessDeviceConfig>(
       configsResult.value.map((c) => [c.deviceId.toString(), c])
     );
@@ -53,6 +64,7 @@ export class GetFleetWirelessThroughputUseCase extends UseCase<
       WirelessThroughputMapper.toDTO(
         snapshot,
         configsByDevice.get(snapshot.deviceId.toString()) ?? null,
+        contractedByDevice.get(snapshot.deviceId.toString()) ?? null,
         now
       )
     );

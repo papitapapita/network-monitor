@@ -17,6 +17,7 @@ import {
   IUbiquitiHttpCollector,
   HttpCollectionResult
 } from '../../../../src/application/wireless-monitoring/interfaces/IUbiquitiHttpCollector';
+import { IContractedCapacityProvider } from '../../../../src/application/wireless-monitoring/interfaces/IContractedCapacityProvider';
 import { IDeviceRepository } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceRepository';
 import { IAlertPublisher } from '../../../../src/application/shared/interfaces/IAlertPublisher';
 import { WirelessDeviceConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig';
@@ -216,6 +217,14 @@ function makeMocks() {
       .mockResolvedValue(Result.ok(null))
   };
 
+  const contractedCapacity: jest.Mocked<IContractedCapacityProvider> =
+    {
+      findKbpsByDeviceId: jest
+        .fn()
+        .mockResolvedValue(Result.ok(null)),
+      findKbpsForAllDevices: jest.fn()
+    };
+
   const alertPublisher: jest.Mocked<IAlertPublisher> = {
     publish: jest.fn().mockResolvedValue(Result.ok())
   };
@@ -230,6 +239,7 @@ function makeMocks() {
     httpCollector,
     alertEvaluator,
     deviceRepo,
+    contractedCapacity,
     alertPublisher,
     logger
   };
@@ -246,6 +256,7 @@ function makeUseCase(
     mocks.httpCollector,
     mocks.alertEvaluator,
     mocks.deviceRepo,
+    mocks.contractedCapacity,
     mocks.alertPublisher,
     mocks.logger
   );
@@ -1553,6 +1564,57 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
       const ctx = mocks.alertEvaluator.evaluate.mock.calls[0]![2];
       expect(ctx.deviceName).toBe('CPE-001');
+    });
+  });
+
+  describe('[WLS-166] link capacity for alert evaluation', () => {
+    function useManualCapacity(kbps: number): void {
+      mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makePollingConfig({ linkCapacityKbps: kbps }))
+      );
+    }
+
+    it('should evaluate against the contracted plan capacity', async () => {
+      configureHappyPath(mocks);
+      useManualCapacity(60_000);
+      mocks.contractedCapacity.findKbpsByDeviceId.mockResolvedValue(
+        Result.ok(12_000)
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      const ctx = mocks.alertEvaluator.evaluate.mock.calls[0]![2];
+      expect(ctx.linkCapacityKbps).toBe(12_000);
+    });
+
+    it('should use the manual capacity when there is no contract', async () => {
+      configureHappyPath(mocks);
+      useManualCapacity(60_000);
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      const ctx = mocks.alertEvaluator.evaluate.mock.calls[0]![2];
+      expect(ctx.linkCapacityKbps).toBe(60_000);
+    });
+
+    it('should fall back to the manual capacity and still poll when the lookup fails', async () => {
+      configureHappyPath(mocks);
+      useManualCapacity(60_000);
+      mocks.contractedCapacity.findKbpsByDeviceId.mockResolvedValue(
+        Result.fail('connection reset')
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isSuccess).toBe(true);
+      const ctx = mocks.alertEvaluator.evaluate.mock.calls[0]![2];
+      expect(ctx.linkCapacityKbps).toBe(60_000);
+      expect(mocks.logger.warn).toHaveBeenCalledWith(
+        'Contracted capacity unavailable for wireless poll',
+        expect.objectContaining({ error: 'connection reset' })
+      );
     });
   });
 });

@@ -4,6 +4,7 @@ import { GetWirelessThroughputUseCase } from '../../../../src/application/wirele
 import { IWirelessSnapshotRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessSnapshotRepository';
 import { IWirelessDeviceConfigRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessDeviceConfigRepository';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
+import { IContractedCapacityProvider } from '../../../../src/application/wireless-monitoring/interfaces/IContractedCapacityProvider';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import {
   WirelessSnapshot,
@@ -127,6 +128,7 @@ function makeConfig(
 describe('[WLS-146] GetWirelessThroughputUseCase', () => {
   let snapshotRepo: jest.Mocked<IWirelessSnapshotRepository>;
   let configRepo: jest.Mocked<IWirelessDeviceConfigRepository>;
+  let contractedCapacity: jest.Mocked<IContractedCapacityProvider>;
   let logger: jest.Mocked<ILogger>;
   let useCase: GetWirelessThroughputUseCase;
 
@@ -151,10 +153,20 @@ describe('[WLS-146] GetWirelessThroughputUseCase', () => {
       findAll: jest.fn()
     };
 
+    contractedCapacity = {
+      findKbpsByDeviceId: jest
+        .fn()
+        .mockResolvedValue(Result.ok(null)),
+      findKbpsForAllDevices: jest
+        .fn()
+        .mockResolvedValue(Result.ok(new Map()))
+    };
+
     logger = makeLogger();
     useCase = new GetWirelessThroughputUseCase(
       snapshotRepo,
       configRepo,
+      contractedCapacity,
       logger
     );
   });
@@ -189,6 +201,46 @@ describe('[WLS-146] GetWirelessThroughputUseCase', () => {
       expect(result.isSuccess).toBe(true);
       expect(result.value.utilisationPercent).toBeNull();
       expect(result.value.stale).toBe(true);
+    });
+  });
+
+  describe('[WLS-166] contracted capacity', () => {
+    it('measures utilisation against the device plan', async () => {
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(makeSnapshot())
+      );
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig(null))
+      );
+      contractedCapacity.findKbpsByDeviceId.mockResolvedValue(
+        Result.ok(20_000)
+      );
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.linkCapacityKbps).toBe(20_000);
+      expect(result.value.linkCapacitySource).toBe('CONTRACT');
+      expect(result.value.utilisationPercent).toBe(50);
+    });
+
+    it('surfaces a contracted capacity lookup failure', async () => {
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(makeSnapshot())
+      );
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+      contractedCapacity.findKbpsByDeviceId.mockResolvedValue(
+        Result.fail('connection reset')
+      );
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'Failed to load contracted capacity'
+      );
     });
   });
 

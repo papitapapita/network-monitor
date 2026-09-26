@@ -2,6 +2,11 @@ import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { GetWirelessThroughputUseCase } from 'application/wireless-monitoring/use-cases/GetWirelessThroughputUseCase';
 import { PrismaWirelessSnapshotRepository } from 'infrastructure/wireless-monitoring/repositories/PrismaWirelessSnapshotRepository';
 import { PrismaWirelessDeviceConfigRepository } from 'infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository';
+import { ContractedCapacityAdapter } from 'infrastructure/wireless-monitoring/adapters/ContractedCapacityAdapter';
+import {
+  PrismaContractedServiceRepository,
+  PrismaServicePlanRepository
+} from 'infrastructure/customers';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import {
   setupDependencies,
@@ -9,6 +14,13 @@ import {
 } from 'infrastructure/di/container';
 import {
   cleanDatabase,
+  cleanBills,
+  cleanTickets,
+  cleanQuotations,
+  cleanCustomers,
+  seedCustomer,
+  seedServicePlan,
+  seedActiveContractedService,
   seedWirelessDeviceModel,
   GHOST_ID,
   INVALID_ID
@@ -27,6 +39,10 @@ describe('GetWirelessThroughputUseCase — integration', () => {
     useCase = new GetWirelessThroughputUseCase(
       new PrismaWirelessSnapshotRepository(prisma),
       new PrismaWirelessDeviceConfigRepository(prisma),
+      new ContractedCapacityAdapter(
+        new PrismaContractedServiceRepository(prisma),
+        new PrismaServicePlanRepository(prisma)
+      ),
       new WinstonLogger()
     );
   });
@@ -36,6 +52,10 @@ describe('GetWirelessThroughputUseCase — integration', () => {
   });
 
   beforeEach(async () => {
+    await cleanQuotations(prisma);
+    await cleanBills(prisma);
+    await cleanTickets(prisma);
+    await cleanCustomers(prisma);
     await cleanDatabase(prisma);
     deviceModelId = await seedWirelessDeviceModel(prisma);
   });
@@ -169,6 +189,73 @@ describe('GetWirelessThroughputUseCase — integration', () => {
 
     expect(result.value.throughputTotalBps).toBeNull();
     expect(result.value.utilisationPercent).toBeNull();
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // [WLS-166] capacity inferred from the contracted plan
+  // ──────────────────────────────────────────────────────────────
+
+  async function contractPlan(
+    deviceId: string,
+    status: 'ACTIVE' | 'SUSPENDED' = 'ACTIVE'
+  ): Promise<void> {
+    const customerId = await seedCustomer(prisma);
+    const planId = await seedServicePlan(prisma, {
+      name: 'Plan 15/5',
+      downloadMbps: 15,
+      uploadMbps: 5
+    });
+    const serviceId = await seedActiveContractedService(
+      prisma,
+      customerId,
+      planId,
+      { deviceId }
+    );
+    if (status !== 'ACTIVE') {
+      await prisma.contractedService.update({
+        where: { id: serviceId },
+        data: { status }
+      });
+    }
+  }
+
+  it('measures utilisation against the contracted plan over the manual value', async () => {
+    const deviceId = await seedDevice('192.168.60.20');
+    await seedConfig(deviceId, 50_000);
+    await contractPlan(deviceId);
+    await seedSnapshot(deviceId, 8_000_000, 2_000_000);
+
+    const result = await useCase.execute({ deviceId });
+
+    expect(result.value).toMatchObject({
+      linkCapacityKbps: 20_000,
+      linkCapacitySource: 'CONTRACT',
+      utilisationPercent: 50
+    });
+  });
+
+  it('infers capacity for a config that carries none', async () => {
+    const deviceId = await seedDevice('192.168.60.21');
+    await seedConfig(deviceId, null);
+    await contractPlan(deviceId);
+    await seedSnapshot(deviceId, 2_000_000, 0);
+
+    const result = await useCase.execute({ deviceId });
+
+    expect(result.value.linkCapacityKbps).toBe(20_000);
+    expect(result.value.utilisationPercent).toBe(10);
+  });
+
+  it('falls back to the manual value while the service is suspended', async () => {
+    const deviceId = await seedDevice('192.168.60.22');
+    await seedConfig(deviceId, 50_000);
+    await contractPlan(deviceId, 'SUSPENDED');
+    await seedSnapshot(deviceId, 1_000_000, 0);
+
+    const result = await useCase.execute({ deviceId });
+
+    expect(result.value.linkCapacityKbps).toBe(50_000);
+    expect(result.value.linkCapacitySource).toBe('MANUAL');
   });
 
   // ──────────────────────────────────────────────────────────────

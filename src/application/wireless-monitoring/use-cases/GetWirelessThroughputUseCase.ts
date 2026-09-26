@@ -6,6 +6,7 @@ import {
 } from 'domain/wireless-monitoring/repository';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
+import { IContractedCapacityProvider } from '../interfaces';
 import {
   GetWirelessThroughputRequestDTO,
   WirelessThroughputDTO
@@ -19,6 +20,7 @@ export class GetWirelessThroughputUseCase extends UseCase<
   constructor(
     private readonly snapshotRepo: IWirelessSnapshotRepository,
     private readonly configRepo: IWirelessDeviceConfigRepository,
+    private readonly contractedCapacity: IContractedCapacityProvider,
     logger: ILogger
   ) {
     super(logger, 'GetWirelessThroughputUseCase');
@@ -65,10 +67,19 @@ export class GetWirelessThroughputUseCase extends UseCase<
       );
     }
 
+    const contractedResult =
+      await this.contractedCapacity.findKbpsByDeviceId(deviceId);
+    if (contractedResult.isFailure) {
+      return this.fail(
+        `Failed to load contracted capacity: ${contractedResult.error}`
+      );
+    }
+
     return this.ok(
       WirelessThroughputMapper.toDTO(
         snapshot,
         configResult.value,
+        contractedResult.value,
         new Date()
       )
     );

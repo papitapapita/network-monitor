@@ -9,7 +9,10 @@ export interface WirelessThroughputDTO {
   throughputRxBps: number | null;
   throughputTotalBps: number | null;
   linkCapacityKbps: number | null;
-  // null whenever no capacity is configured, which is always true for an AP
+  // CONTRACT = inferred from the device's service plan, MANUAL = the config's
+  // own value; null exactly when linkCapacityKbps is
+  linkCapacitySource: 'CONTRACT' | 'MANUAL' | null;
+  // null whenever no capacity is known, which is always true for an AP
   utilisationPercent: number | null;
 }
 
