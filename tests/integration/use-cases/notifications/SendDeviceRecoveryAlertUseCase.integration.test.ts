@@ -17,6 +17,9 @@ import {
 } from '../../helpers/db';
 import { FakeNotificationService } from '../../helpers/FakeNotificationService';
 
+// deleted_by is a UUID column: the id of the user who deleted the device.
+const OPERATOR_USER_ID = '00000000-0000-4000-8000-0000000000aa';
+
 describe('SendDeviceRecoveryAlertUseCase — integration', () => {
   let prisma: PrismaClient;
   let downUseCase: SendDeviceDownAlertUseCase;
@@ -219,7 +222,7 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
 
     await prisma.device.update({
       where: { id: deviceId },
-      data: { deletedAt: new Date(), deletedBy: 'operator' }
+      data: { deletedAt: new Date(), deletedBy: OPERATOR_USER_ID }
     });
 
     const result = await recoveryUseCase.execute({

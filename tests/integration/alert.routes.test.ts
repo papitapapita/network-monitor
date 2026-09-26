@@ -18,6 +18,7 @@ describe('Alert Routes — GET /api/alerts', () => {
   let prisma: PrismaClient;
   let deviceModelId: string;
   let deviceId: string;
+  let adminToken: string;
 
   beforeAll(async () => {
     ({ app, container } = await createTestApp());
@@ -31,8 +32,15 @@ describe('Alert Routes — GET /api/alerts', () => {
 
   beforeEach(async () => {
     await cleanDatabase(prisma);
+    adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
     const seeded = await seedMonitoredDevice(prisma, deviceModelId);
     deviceId = seeded.deviceId;
+  });
+
+  it('401 — rejects a request with no Authorization header', async () => {
+    const res = await request(app).get('/api/alerts');
+
+    expect(res.status).toBe(401);
   });
 
   // ─────────────────────────────────────────────────────────────
@@ -40,7 +48,9 @@ describe('Alert Routes — GET /api/alerts', () => {
   // ─────────────────────────────────────────────────────────────
 
   it('200 — returns empty list when no alerts exist', async () => {
-    const res = await request(app).get('/api/alerts');
+    const res = await request(app)
+      .get('/api/alerts')
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -54,7 +64,9 @@ describe('Alert Routes — GET /api/alerts', () => {
       data: { deviceId, severity: 'CRITICAL' }
     });
 
-    const res = await request(app).get('/api/alerts');
+    const res = await request(app)
+      .get('/api/alerts')
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data.alerts).toHaveLength(1);
@@ -84,7 +96,9 @@ describe('Alert Routes — GET /api/alerts', () => {
       }
     });
 
-    const res = await request(app).get('/api/alerts');
+    const res = await request(app)
+      .get('/api/alerts')
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(200);
     const alert = res.body.data.alerts[0];
@@ -111,9 +125,9 @@ describe('Alert Routes — GET /api/alerts', () => {
       data: { deviceId: other.deviceId, severity: 'CRITICAL' }
     });
 
-    const res = await request(app).get(
-      `/api/alerts?deviceId=${deviceId}`
-    );
+    const res = await request(app)
+      .get(`/api/alerts?deviceId=${deviceId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data.alerts).toHaveLength(1);
@@ -121,9 +135,9 @@ describe('Alert Routes — GET /api/alerts', () => {
   });
 
   it('200 — returns empty list when filtering by a device with no alerts', async () => {
-    const res = await request(app).get(
-      `/api/alerts?deviceId=${GHOST_ID}`
-    );
+    const res = await request(app)
+      .get(`/api/alerts?deviceId=${GHOST_ID}`)
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data.alerts).toHaveLength(0);
@@ -142,7 +156,9 @@ describe('Alert Routes — GET /api/alerts', () => {
       )
     );
 
-    const res = await request(app).get('/api/alerts?limit=2');
+    const res = await request(app)
+      .get('/api/alerts?limit=2')
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data.alerts).toHaveLength(2);
@@ -160,12 +176,12 @@ describe('Alert Routes — GET /api/alerts', () => {
       });
     }
 
-    const page1 = await request(app).get(
-      '/api/alerts?limit=2&offset=0'
-    );
-    const page2 = await request(app).get(
-      '/api/alerts?limit=2&offset=2'
-    );
+    const page1 = await request(app)
+      .get('/api/alerts?limit=2&offset=0')
+      .set('Authorization', `Bearer ${adminToken}`);
+    const page2 = await request(app)
+      .get('/api/alerts?limit=2&offset=2')
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(page1.status).toBe(200);
     expect(page2.status).toBe(200);
@@ -186,37 +202,45 @@ describe('Alert Routes — GET /api/alerts', () => {
   // ─────────────────────────────────────────────────────────────
 
   it('400 — rejects non-UUID deviceId query param', async () => {
-    const res = await request(app).get(
-      `/api/alerts?deviceId=${INVALID_ID}`
-    );
+    const res = await request(app)
+      .get(`/api/alerts?deviceId=${INVALID_ID}`)
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
   });
 
   it('400 — rejects non-integer limit', async () => {
-    const res = await request(app).get('/api/alerts?limit=abc');
+    const res = await request(app)
+      .get('/api/alerts?limit=abc')
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
   });
 
   it('400 — rejects limit=0', async () => {
-    const res = await request(app).get('/api/alerts?limit=0');
+    const res = await request(app)
+      .get('/api/alerts?limit=0')
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
   });
 
   it('400 — rejects limit exceeding 300', async () => {
-    const res = await request(app).get('/api/alerts?limit=301');
+    const res = await request(app)
+      .get('/api/alerts?limit=301')
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
   });
 
   it('400 — rejects negative offset', async () => {
-    const res = await request(app).get('/api/alerts?offset=-1');
+    const res = await request(app)
+      .get('/api/alerts?offset=-1')
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);

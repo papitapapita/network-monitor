@@ -19,9 +19,15 @@ export interface TestApp {
  * Creates a fully-wired Express app backed by the real DI container and
  * database, without starting an HTTP server or the polling orchestrator.
  *
+ * `configure` runs after the container is built and before routes are
+ * mounted — the place to swap a controller onto a Fake* outbound port for a
+ * route whose real adapter would touch the network.
+ *
  * Call `container.disconnect()` in afterAll to release the DB connection.
  */
-export async function createTestApp(): Promise<TestApp> {
+export async function createTestApp(
+  configure?: (container: DependencyContainer) => void
+): Promise<TestApp> {
   const app = express();
 
   app.use(express.json());
@@ -32,6 +38,7 @@ export async function createTestApp(): Promise<TestApp> {
   });
 
   const container = await setupDependencies();
+  configure?.(container);
   setupRoutes(app, container);
 
   // Generic error handler (mirrors main.ts)

@@ -28,7 +28,7 @@
     "test:rules:tkt": "node scripts/check-rule-coverage.mjs TKT",
     "test:rules:shr": "node scripts/check-rule-coverage.mjs SHR",
     "test:rules:quo": "node scripts/check-rule-coverage.mjs QUO",
-    "test:integration": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js --runInBand",
+    "test:integration": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js --maxWorkers=1 --workerIdleMemoryLimit=1500MB",
     "test:integration:usecases": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js --runInBand --testPathPattern=\"tests/integration/use-cases/\"",
     "test:integration:usecases:device-inventory": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js --runInBand --testPathPattern=\"tests/integration/use-cases/device-inventory/\"",
     "test:integration:usecases:device-monitoring": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js --runInBand --testPathPattern=\"tests/integration/use-cases/device-monitoring/\"",

@@ -188,8 +188,28 @@ describe('ExecutePollingCycleUseCase — integration', () => {
   // Failure paths
   // ──────────────────────────────────────────────────────────────
 
-  it('fails when no polling configuration exists', async () => {
-    // Use a device ID that has no polling config
+  it('fails when an eligible device has no polling configuration', async () => {
+    const device = await prisma.device.create({
+      data: {
+        name: 'Unconfigured Device',
+        owner: 'COMPANY',
+        status: 'ACTIVE',
+        monitoringEnabled: true,
+        ipAddress: '192.168.99.50',
+        deviceModelId
+      }
+    });
+
+    const result = await useCase.execute({
+      deviceId: device.id,
+      forceExecution: true
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toMatch(/no polling configuration/i);
+  });
+
+  it('[DEV-086] fails before looking for a config when the device does not exist', async () => {
     const ghostDeviceId = '00000000-0000-4000-8000-000000000099';
     const result = await useCase.execute({
       deviceId: ghostDeviceId,
@@ -197,7 +217,7 @@ describe('ExecutePollingCycleUseCase — integration', () => {
     });
 
     expect(result.isFailure).toBe(true);
-    expect(result.error).toMatch(/no polling configuration/i);
+    expect(result.error).toMatch(/no longer exists/i);
   });
 
   it('fails when deviceId is empty', async () => {

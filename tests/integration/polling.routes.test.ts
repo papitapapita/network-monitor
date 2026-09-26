@@ -6,6 +6,7 @@ import {
   cleanDatabase,
   seedDeviceModel,
   seedMonitoredDevice,
+  seedLocation,
   waitForPollingConfig,
   GHOST_ID,
   INVALID_ID
@@ -21,6 +22,7 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
 
   /** ID of a device created with monitoringEnabled=true for each test. */
   let monitoredDeviceId: string;
+  let adminToken: string;
 
   beforeAll(async () => {
     ({ app, container } = await createTestApp());
@@ -34,17 +36,25 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
 
   beforeEach(async () => {
     await cleanDatabase(prisma);
+    adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
+    const locationId = await seedLocation(prisma);
 
-    // Create a device with monitoring enabled + IP.
+    // Create an ACTIVE device with monitoring enabled + IP. Monitoring is
+    // refused for INVENTORY (the default status), and ACTIVE needs a location.
     // DeviceProvisionedHandler auto-creates a PollingConfiguration.
-    const res = await request(app).post('/api/devices').send({
-      deviceModelId,
-      name: 'Monitored Router',
-      ownerType: 'COMPANY',
-      serialNumber: 'SN-001',
-      ipAddress: '127.0.0.1',
-      monitoringEnabled: true
-    });
+    const res = await request(app)
+      .post('/api/devices')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        deviceModelId,
+        name: 'Monitored Router',
+        ownerType: 'COMPANY',
+        serialNumber: 'SN-001',
+        ipAddress: '127.0.0.1',
+        status: 'ACTIVE',
+        locationId,
+        monitoringEnabled: true
+      });
     monitoredDeviceId = res.body.data.id as string;
 
     // DeviceProvisionedHandler is fire-and-forget — wait for the
@@ -58,9 +68,9 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
 
   describe('POST /api/devices/:id/poll', () => {
     it('200 or 400 — responds for a device with polling config', async () => {
-      const res = await request(app).post(
-        `/api/devices/${monitoredDeviceId}/poll`
-      );
+      const res = await request(app)
+        .post(`/api/devices/${monitoredDeviceId}/poll`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       // 200 if ping ran; 400/404 if no config or ping service issue.
       // Accept both to keep tests environment-agnostic.
@@ -68,17 +78,17 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
     });
 
     it('404 — device does not exist', async () => {
-      const res = await request(app).post(
-        `/api/devices/${GHOST_ID}/poll`
-      );
+      const res = await request(app)
+        .post(`/api/devices/${GHOST_ID}/poll`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(404);
     });
 
     it('400 — invalid device UUID', async () => {
-      const res = await request(app).post(
-        `/api/devices/${INVALID_ID}/poll`
-      );
+      const res = await request(app)
+        .post(`/api/devices/${INVALID_ID}/poll`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
@@ -91,9 +101,9 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
 
   describe('GET /api/devices/:id/polling/status', () => {
     it('200 — returns polling status for monitored device', async () => {
-      const res = await request(app).get(
-        `/api/devices/${monitoredDeviceId}/polling/status`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${monitoredDeviceId}/polling/status`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.deviceId).toBe(monitoredDeviceId);
@@ -101,17 +111,17 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
     });
 
     it('404 — device does not exist', async () => {
-      const res = await request(app).get(
-        `/api/devices/${GHOST_ID}/polling/status`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${GHOST_ID}/polling/status`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(404);
     });
 
     it('400 — invalid device UUID', async () => {
-      const res = await request(app).get(
-        `/api/devices/${INVALID_ID}/polling/status`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${INVALID_ID}/polling/status`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
@@ -123,26 +133,28 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
 
   describe('GET /api/devices/:id/polling/history', () => {
     it('200 — returns empty history for fresh device', async () => {
-      const res = await request(app).get(
-        `/api/devices/${monitoredDeviceId}/polling/history`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${monitoredDeviceId}/polling/history`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
     });
 
     it('200 — accepts date range filters', async () => {
-      const res = await request(app).get(
-        `/api/devices/${monitoredDeviceId}/polling/history` +
-          `?fromDate=2026-01-01T00:00:00Z&toDate=2026-12-31T23:59:59Z&limit=50`
-      );
+      const res = await request(app)
+        .get(
+          `/api/devices/${monitoredDeviceId}/polling/history` +
+            `?fromDate=2026-01-01T00:00:00Z&toDate=2026-12-31T23:59:59Z&limit=50`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
     });
 
     it('400 — invalid device UUID', async () => {
-      const res = await request(app).get(
-        `/api/devices/${INVALID_ID}/polling/history`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${INVALID_ID}/polling/history`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
@@ -156,6 +168,7 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
     it('204 — updates interval seconds', async () => {
       const res = await request(app)
         .patch(`/api/devices/${monitoredDeviceId}/polling/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ intervalSeconds: 30 });
 
       expect(res.status).toBe(204);
@@ -164,6 +177,7 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
     it('204 — disables polling', async () => {
       const res = await request(app)
         .patch(`/api/devices/${monitoredDeviceId}/polling/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ enabled: false });
 
       expect(res.status).toBe(204);
@@ -172,6 +186,7 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
     it('204 — updates multiple fields at once', async () => {
       const res = await request(app)
         .patch(`/api/devices/${monitoredDeviceId}/polling/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({
           intervalSeconds: 60,
           failuresBeforeDown: 5,
@@ -184,6 +199,7 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
     it('400 — rejects empty body', async () => {
       const res = await request(app)
         .patch(`/api/devices/${monitoredDeviceId}/polling/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({});
 
       expect(res.status).toBe(400);
@@ -192,6 +208,7 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
     it('400 — rejects intervalSeconds out of range', async () => {
       const res = await request(app)
         .patch(`/api/devices/${monitoredDeviceId}/polling/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ intervalSeconds: 99999 });
 
       expect(res.status).toBe(400);
@@ -200,6 +217,7 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
     it('404 — device does not exist', async () => {
       const res = await request(app)
         .patch(`/api/devices/${GHOST_ID}/polling/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ enabled: true });
 
       expect(res.status).toBe(404);
@@ -208,6 +226,7 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
     it('400 — invalid device UUID', async () => {
       const res = await request(app)
         .patch(`/api/devices/${INVALID_ID}/polling/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ enabled: true });
 
       expect(res.status).toBe(400);
