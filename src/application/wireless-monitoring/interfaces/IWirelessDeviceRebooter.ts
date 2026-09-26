@@ -1,5 +1,10 @@
 import { Result } from 'domain/shared/core';
-import { HttpCredentials } from './IUbiquitiHttpCollector';
+
+export interface HttpCredentials {
+  username: string;
+  password: string;
+  port: number;
+}
 
 export interface IWirelessDeviceRebooter {
   reboot(

@@ -2,17 +2,25 @@
 
 import { UbiquitiHttpCollector } from '../../../../src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector';
 import { AirOsHttpClient } from '../../../../src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient';
-import { HttpCredentials } from '../../../../src/application/wireless-monitoring/interfaces/IUbiquitiHttpCollector';
+import { DecryptedCredentials } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceCredentialsRepository';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
 
-const credentials: HttpCredentials = {
-  username: 'ubnt',
-  password: 'ubnt',
-  port: 443
+const credentials: DecryptedCredentials = {
+  snmpVersion: 2,
+  snmpCommunity: null,
+  snmpV3AuthUser: null,
+  snmpV3AuthProto: null,
+  snmpV3AuthKey: null,
+  snmpV3PrivProto: null,
+  snmpV3PrivKey: null,
+  httpUsername: 'ubnt',
+  httpPassword: 'ubnt',
+  snmpPort: 161,
+  httpPort: 443
 };
 
 const staStatusBody = {
@@ -183,6 +191,31 @@ function makeFailingClient(
 // ---------------------------------------------------------------------------
 
 describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
+  it('should report http_api as its collection method', () => {
+    expect(
+      new UbiquitiHttpCollector(makeClient(staStatusBody)).method
+    ).toBe('http_api');
+  });
+
+  it('should log in with the HTTP credentials and port', async () => {
+    const client = makeClient(staStatusBody);
+
+    await new UbiquitiHttpCollector(client).collect(
+      '192.168.1.1',
+      credentials,
+      'STATION'
+    );
+
+    expect(client.fetchStatus).toHaveBeenCalledWith(
+      '192.168.1.1',
+      443,
+      {
+        username: 'ubnt',
+        password: 'ubnt'
+      }
+    );
+  });
+
   // ===========================================================================
   describe('collect — STATION mode', () => {
     it('should return success with parsed device fields', async () => {

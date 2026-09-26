@@ -455,6 +455,7 @@ export class WirelessController {
       errorMessage.includes('cannot reference itself') ||
       errorMessage.includes('not configured') ||
       errorMessage.includes('not wireless-capable') ||
+      errorMessage.includes('is not supported for vendor') ||
       errorMessage.includes('devices can have a wireless config')
     ) {
       return 400;

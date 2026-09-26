@@ -1,12 +1,7 @@
 import { Result } from 'domain/shared/core';
+import { DecryptedCredentials } from './IDeviceCredentialsRepository';
 
-export interface HttpCredentials {
-  username: string;
-  password: string;
-  port: number;
-}
-
-export interface HttpClientEntry {
+export interface CollectedClientEntry {
   macAddress: string;
   ipAddress: string | null;
   signalRxDbm: number | null;
@@ -40,7 +35,7 @@ export interface HttpClientEntry {
   ulAirtimePercent: number | null;
 }
 
-export interface HttpCollectionResult {
+export interface WirelessCollectionResult {
   deviceName: string | null;
   firmwareVersion: string | null;
   uptimeSeconds: number | null;
@@ -69,13 +64,23 @@ export interface HttpCollectionResult {
   lanSpeedMbps: number | null;
   macAddress: string | null;
   deviceModel: string | null;
-  clients: HttpClientEntry[];
+  clients: CollectedClientEntry[];
 }
 
-export interface IUbiquitiHttpCollector {
+export type CollectionMethod = 'http_api' | 'snmp';
+
+export interface IWirelessCollector {
+  readonly method: CollectionMethod;
+
+  // Takes the full credential set because vendors differ in which protocol
+  // they answer on: AirOS needs the HTTP login, Mimosa the SNMP community.
   collect(
     ipAddress: string,
-    credentials: HttpCredentials,
+    credentials: DecryptedCredentials,
     deviceType: 'STATION' | 'ACCESS_POINT'
-  ): Promise<Result<HttpCollectionResult>>;
+  ): Promise<Result<WirelessCollectionResult>>;
+}
+
+export interface IWirelessCollectorResolver {
+  forVendor(vendorSlug: string): IWirelessCollector | null;
 }

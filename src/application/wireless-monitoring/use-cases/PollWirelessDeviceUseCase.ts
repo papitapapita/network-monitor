@@ -20,8 +20,8 @@ import {
   TYPE_MUTED_SUPPRESSED
 } from 'application/shared/interfaces';
 import {
-  IUbiquitiHttpCollector,
-  HttpCredentials,
+  IWirelessCollectorResolver,
+  IDeviceVendorLookup,
   IDeviceCredentialsRepository,
   IDeviceRepository,
   IWirelessPollOrchestrator,
@@ -46,7 +46,8 @@ export class PollWirelessDeviceUseCase
     private readonly snapshotRepo: IWirelessSnapshotRepository,
     private readonly alertRecordRepo: IWirelessAlertRecordRepository,
     private readonly credentialsRepo: IDeviceCredentialsRepository,
-    private readonly httpCollector: IUbiquitiHttpCollector,
+    private readonly collectors: IWirelessCollectorResolver,
+    private readonly vendorLookup: IDeviceVendorLookup,
     private readonly alertEvaluator: IWirelessAlertEvaluator,
     private readonly deviceRepo: IDeviceRepository,
     private readonly contractedCapacity: IContractedCapacityProvider,
@@ -175,48 +176,63 @@ export class PollWirelessDeviceUseCase
 
     const ipAddress = config.ipAddress.value;
 
-    const httpCreds: HttpCredentials = {
-      username: credentials.httpUsername ?? '',
-      password: credentials.httpPassword ?? '',
-      port: credentials.httpPort
-    };
-
-    this.logger.info('[PollWirelessDeviceUseCase] polling device', {
-      ip: ipAddress,
-      port: httpCreds.port,
-      username: httpCreds.username,
-      hasPassword: !!httpCreds.password
-    });
-
-    const httpResult = await this.httpCollector.collect(
-      ipAddress,
-      httpCreds,
-      config.deviceType
-    );
-
-    if (httpResult.isFailure) {
-      this.logger.warn('HTTP collector failed', {
-        ip: ipAddress,
-        port: httpCreds.port,
-        error: httpResult.error
-      });
+    const vendorResult =
+      await this.vendorLookup.findVendorSlug(deviceId);
+    if (vendorResult.isFailure) {
       return this.fail(
-        `Failed to collect metrics: ${httpResult.error}`
+        `Failed to look up device vendor: ${vendorResult.error}`
+      );
+    }
+    const vendorSlug = vendorResult.value;
+    if (!vendorSlug) {
+      return this.fail(
+        'Device has no vendor to choose a collector by'
+      );
+    }
+    const collector = this.collectors.forVendor(vendorSlug);
+    if (!collector) {
+      return this.fail(
+        `Wireless polling is not supported for vendor '${vendorSlug}'`
       );
     }
 
-    const http = httpResult.value;
+    this.logger.info('[PollWirelessDeviceUseCase] polling device', {
+      ip: ipAddress,
+      vendor: vendorSlug,
+      method: collector.method
+    });
+
+    const collectResult = await collector.collect(
+      ipAddress,
+      credentials,
+      config.deviceType
+    );
+
+    if (collectResult.isFailure) {
+      this.logger.warn('Wireless collector failed', {
+        ip: ipAddress,
+        vendor: vendorSlug,
+        method: collector.method,
+        error: collectResult.error
+      });
+      return this.fail(
+        `Failed to collect metrics: ${collectResult.error}`
+      );
+    }
+
+    const collected = collectResult.value;
 
     // Auto-calibrate this device's LAN-speed baseline off its first
     // reported speed, so WLS-089 can warn on degradation from whatever
     // this specific port normally negotiates at, not a fixed value.
-    if (http.lanSpeedMbps !== null) {
-      config.captureLanSpeedBaselineIfUnset(http.lanSpeedMbps);
+    if (collected.lanSpeedMbps !== null) {
+      config.captureLanSpeedBaselineIfUnset(collected.lanSpeedMbps);
     }
 
     const snrDb =
-      http.signalRxDbm !== null && http.noiseFloorDbm !== null
-        ? http.signalRxDbm - http.noiseFloorDbm
+      collected.signalRxDbm !== null &&
+      collected.noiseFloorDbm !== null
+        ? collected.signalRxDbm - collected.noiseFloorDbm
         : null;
 
     const activeAlertsResult =
@@ -252,8 +268,8 @@ export class PollWirelessDeviceUseCase
     );
 
     const ctx: EvaluationContext = {
-      deviceName: http.deviceName ?? 'Equipo desconocido',
-      deviceModel: http.deviceModel,
+      deviceName: collected.deviceName ?? 'Equipo desconocido',
+      deviceModel: collected.deviceModel,
       linkCapacityKbps: linkCapacity?.kbps ?? null,
       clientsProvisionedLimit: config.clientsProvisionedLimit,
       provisionedLanSpeedMbps: config.provisionedLanSpeedMbps,
@@ -262,45 +278,45 @@ export class PollWirelessDeviceUseCase
     };
 
     let remoteApDeviceId = null;
-    if (http.remoteApMac) {
+    if (collected.remoteApMac) {
       const apLookup = await this.deviceRepo.findIdByMacAddress(
-        http.remoteApMac
+        collected.remoteApMac
       );
       if (apLookup.isSuccess) remoteApDeviceId = apLookup.value;
     }
 
     const metricsResult = WirelessMetrics.create({
-      signalRxDbm: http.signalRxDbm,
-      signalTxDbm: http.signalTxDbm,
-      noiseFloorDbm: http.noiseFloorDbm,
+      signalRxDbm: collected.signalRxDbm,
+      signalTxDbm: collected.signalTxDbm,
+      noiseFloorDbm: collected.noiseFloorDbm,
       snrDb,
-      ccqPercent: http.ccqPercent,
-      frequencyMhz: http.frequencyMhz,
-      channelWidthMhz: http.channelWidthMhz,
-      throughputTxBps: http.throughputTxBps,
-      throughputRxBps: http.throughputRxBps,
+      ccqPercent: collected.ccqPercent,
+      frequencyMhz: collected.frequencyMhz,
+      channelWidthMhz: collected.channelWidthMhz,
+      throughputTxBps: collected.throughputTxBps,
+      throughputRxBps: collected.throughputRxBps,
       throughputTxPps: null,
       throughputRxPps: null,
-      lanStatus: http.lanStatus,
-      lanSpeedMbps: http.lanSpeedMbps,
+      lanStatus: collected.lanStatus,
+      lanSpeedMbps: collected.lanSpeedMbps,
       lanDuplex: null,
-      uptimeSeconds: http.uptimeSeconds,
-      cpuLoadPercent: http.cpuLoadPercent,
-      memoryUsedPercent: http.memoryUsedPercent,
-      clientsConnected: http.clientsConnected,
-      firmwareVersion: http.firmwareVersion,
-      deviceName: http.deviceName,
-      remoteApMac: http.remoteApMac,
-      remoteApName: http.remoteApName,
-      remoteApIp: http.remoteApIp,
-      distanceM: http.distanceM,
-      latencyMs: http.latencyMs,
-      capacityTxKbps: http.capacityTxKbps,
-      capacityRxKbps: http.capacityRxKbps,
-      deviceTimeEpoch: http.deviceTimeEpoch,
-      macAddress: http.macAddress,
-      deviceModel: http.deviceModel,
-      ssid: http.essid
+      uptimeSeconds: collected.uptimeSeconds,
+      cpuLoadPercent: collected.cpuLoadPercent,
+      memoryUsedPercent: collected.memoryUsedPercent,
+      clientsConnected: collected.clientsConnected,
+      firmwareVersion: collected.firmwareVersion,
+      deviceName: collected.deviceName,
+      remoteApMac: collected.remoteApMac,
+      remoteApName: collected.remoteApName,
+      remoteApIp: collected.remoteApIp,
+      distanceM: collected.distanceM,
+      latencyMs: collected.latencyMs,
+      capacityTxKbps: collected.capacityTxKbps,
+      capacityRxKbps: collected.capacityRxKbps,
+      deviceTimeEpoch: collected.deviceTimeEpoch,
+      macAddress: collected.macAddress,
+      deviceModel: collected.deviceModel,
+      ssid: collected.essid
     });
     if (metricsResult.isFailure) {
       return this.fail(
@@ -376,7 +392,7 @@ export class PollWirelessDeviceUseCase
 
     const clients: WirelessClientEntry[] =
       config.deviceType === 'ACCESS_POINT'
-        ? http.clients
+        ? collected.clients
             .map((c) =>
               WirelessClientEntry.create({
                 macAddress: c.macAddress,
@@ -431,7 +447,7 @@ export class PollWirelessDeviceUseCase
       deviceId,
       deviceType: config.deviceType,
       collectedAt: now,
-      collectionMethod: 'http_api',
+      collectionMethod: collector.method,
       metrics,
       clients,
       alerts: embeddedAlerts,
@@ -470,7 +486,7 @@ export class PollWirelessDeviceUseCase
       metricsCollected: true,
       alertsTriggered: openDecisions.length,
       alertsCleared: clearDecisions.length,
-      collectionMethod: 'http_api'
+      collectionMethod: collector.method
     });
   }
 

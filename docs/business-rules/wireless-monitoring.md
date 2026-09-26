@@ -861,6 +861,32 @@ reboot (`reboot.cgi`) are not yet supported on AirOS 6.
 **Message:** `Authentication failed: invalid credentials` / `No AIROS session cookie from legacy login page`
 **Tests:** `tests/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.test.ts`, `tests/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.test.ts`
 
+### WLS-053 — The collector is chosen by the vendor of the device's model
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-09-26
+
+Each poll follows the device to its model and the model to its vendor, and asks
+the collector registry for that vendor's slug (case-insensitive). `ubiquiti`
+polls over the AirOS HTTP API, the only collector registered so far. A device
+whose vendor has no collector, or whose device, model or vendor cannot be found,
+fails the poll without contacting the radio. The snapshot and the poll response
+record the method of the collector that ran (`http_api` or `snmp`).
+
+**Why:** Vendors answer on different protocols with different credentials —
+AirOS needs the HTTP login, Mimosa the SNMP community — so one collector cannot
+serve the fleet. Before this rule every wireless device was polled as AirOS,
+which against a Mimosa radio produced an HTTP login failure and an
+"Unauthorized access" entry in the radio's own event log. An unsupported vendor
+is an operator-visible failure rather than a skip for the same reason as WLS-024:
+a device configured for polling that cannot be polled is a setup error.
+
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:180` – `:195`; `src/infrastructure/wireless-monitoring/collectors/WirelessCollectorRegistry.ts:20`
+**Reached from:** `PollWirelessDeviceUseCase`
+**Message:** `Wireless polling is not supported for vendor '<slug>'` / `Device has no vendor to choose a collector by` / `Failed to look up device vendor: <error>`
+**Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/infrastructure/wireless-monitoring/collectors/WirelessCollectorRegistry.test.ts`, `tests/infrastructure/wireless-monitoring/adapters/DeviceVendorAdapter.test.ts`
+
 ---
 
 ## Metric and client-entry validation
@@ -1255,7 +1281,7 @@ Opens when the duplex mode differs from the previous poll's, clears when two
 consecutive polls agree.
 
 **Status is `Dormant`, not `Active`:** the rule is wired into the evaluator and
-fully tested, but `HttpCollectionResult` carries no `lanDuplex` field and
+fully tested, but `WirelessCollectionResult` carries no `lanDuplex` field and
 `PollWirelessDeviceUseCase.ts:226` passes a literal `null`. The condition
 therefore never fires in production. It begins working with no change to this
 rule the moment the collector extracts eth0's duplex mode.
@@ -1338,7 +1364,7 @@ With the plan as the denominator, this alert means "the customer is using most
 of what they pay for" more than "the radio link is congested". See
 [G-7](#g-7--plan-based-saturation-measures-plan-usage-not-link-congestion).
 
-**Enforced at:** `src/domain/wireless-monitoring/services/rules/ThroughputSaturationRule.ts:9`; capacity resolved at `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:250`
+**Enforced at:** `src/domain/wireless-monitoring/services/rules/ThroughputSaturationRule.ts:9`; capacity resolved at `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:266`
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Message:** `Saturación de enlace en <name>: <v> Mbps de <capacity> Mbps (<pct>%)`
 **Tests:** `tests/domain/wireless-monitoring/services/rules/ThroughputSaturationRule.test.ts`

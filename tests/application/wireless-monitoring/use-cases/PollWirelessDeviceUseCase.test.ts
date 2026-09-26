@@ -14,11 +14,13 @@ import {
   DecryptedCredentials
 } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceCredentialsRepository';
 import {
-  IUbiquitiHttpCollector,
-  HttpCollectionResult
-} from '../../../../src/application/wireless-monitoring/interfaces/IUbiquitiHttpCollector';
-import { IContractedCapacityProvider } from '../../../../src/application/wireless-monitoring/interfaces/IContractedCapacityProvider';
+  IWirelessCollector,
+  IWirelessCollectorResolver,
+  WirelessCollectionResult
+} from '../../../../src/application/wireless-monitoring/interfaces/IWirelessCollector';
+import { IDeviceVendorLookup } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceVendorLookup';
 import { IDeviceRepository } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceRepository';
+import { IContractedCapacityProvider } from '../../../../src/application/wireless-monitoring/interfaces/IContractedCapacityProvider';
 import { IAlertPublisher } from '../../../../src/application/shared/interfaces/IAlertPublisher';
 import { WirelessDeviceConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig';
 import { WirelessDeviceConfigId } from '../../../../src/domain/shared/ids/WirelessDeviceConfigId';
@@ -121,8 +123,8 @@ function makeCredentials(): DecryptedCredentials {
 }
 
 function makeHttpResult(
-  overrides: Partial<HttpCollectionResult> = {}
-): HttpCollectionResult {
+  overrides: Partial<WirelessCollectionResult> = {}
+): WirelessCollectionResult {
   return {
     deviceName: 'CPE-001',
     firmwareVersion: 'WA.v8.7.5',
@@ -200,8 +202,17 @@ function makeMocks() {
     findByDeviceId: jest.fn()
   };
 
-  const httpCollector: jest.Mocked<IUbiquitiHttpCollector> = {
+  const collector: jest.Mocked<IWirelessCollector> = {
+    method: 'http_api',
     collect: jest.fn()
+  };
+
+  const collectors: jest.Mocked<IWirelessCollectorResolver> = {
+    forVendor: jest.fn().mockReturnValue(collector)
+  };
+
+  const vendorLookup: jest.Mocked<IDeviceVendorLookup> = {
+    findVendorSlug: jest.fn().mockResolvedValue(Result.ok('ubiquiti'))
   };
 
   const alertEvaluator: jest.Mocked<IWirelessAlertEvaluator> = {
@@ -236,7 +247,9 @@ function makeMocks() {
     snapshotRepo,
     alertRecordRepo,
     credentialsRepo,
-    httpCollector,
+    collector,
+    collectors,
+    vendorLookup,
     alertEvaluator,
     deviceRepo,
     contractedCapacity,
@@ -253,7 +266,8 @@ function makeUseCase(
     mocks.snapshotRepo,
     mocks.alertRecordRepo,
     mocks.credentialsRepo,
-    mocks.httpCollector,
+    mocks.collectors,
+    mocks.vendorLookup,
     mocks.alertEvaluator,
     mocks.deviceRepo,
     mocks.contractedCapacity,
@@ -285,7 +299,7 @@ function configureHappyPath(
     Result.ok(makeCredentials())
   );
 
-  mocks.httpCollector.collect.mockResolvedValue(
+  mocks.collector.collect.mockResolvedValue(
     options.httpFails
       ? Result.fail('HTTPS_TIMEOUT')
       : Result.ok(makeHttpResult())
@@ -467,7 +481,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
       expect(result.isSuccess).toBe(true);
       expect(result.value.skipped).toBe(true);
-      expect(mocks.httpCollector.collect).not.toHaveBeenCalled();
+      expect(mocks.collector.collect).not.toHaveBeenCalled();
       expect(
         mocks.wirelessDeviceConfigRepo.findByDeviceId
       ).not.toHaveBeenCalled();
@@ -486,7 +500,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('DAMAGED');
-      expect(mocks.httpCollector.collect).not.toHaveBeenCalled();
+      expect(mocks.collector.collect).not.toHaveBeenCalled();
     });
 
     it('should fail when the eligibility check itself fails', async () => {
@@ -635,7 +649,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
   // ===========================================================================
   describe('executeImpl — collection method', () => {
-    it('should always set collectionMethod to "http_api"', async () => {
+    it('should set collectionMethod from the collector', async () => {
       configureHappyPath(mocks);
 
       const result = await useCase.execute({
@@ -670,11 +684,95 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      expect(mocks.httpCollector.collect).toHaveBeenCalledWith(
+      expect(mocks.collector.collect).toHaveBeenCalledWith(
         VALID_IP,
-        expect.objectContaining({ username: 'ubnt' }),
+        expect.objectContaining({ httpUsername: 'ubnt' }),
         'ACCESS_POINT'
       );
+    });
+
+    it('should record the method of the collector that ran', async () => {
+      configureHappyPath(mocks);
+      const snmpCollector = {
+        ...mocks.collector,
+        method: 'snmp' as const
+      };
+      mocks.collectors.forVendor.mockReturnValue(snmpCollector);
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.value.collectionMethod).toBe('snmp');
+      const saved = mocks.snapshotRepo.save.mock.calls[0]![0];
+      expect(saved.collectionMethod).toBe('snmp');
+    });
+  });
+
+  // ===========================================================================
+  describe('[WLS-053] executeImpl — collector selection by vendor', () => {
+    it('should ask the resolver for the device vendor collector', async () => {
+      configureHappyPath(mocks);
+      mocks.vendorLookup.findVendorSlug.mockResolvedValue(
+        Result.ok('mimosa')
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(mocks.collectors.forVendor).toHaveBeenCalledWith(
+        'mimosa'
+      );
+    });
+
+    it('should fail without collecting when no collector supports the vendor', async () => {
+      configureHappyPath(mocks);
+      mocks.vendorLookup.findVendorSlug.mockResolvedValue(
+        Result.ok('tp-link')
+      );
+      mocks.collectors.forVendor.mockReturnValue(null);
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        "Wireless polling is not supported for vendor 'tp-link'"
+      );
+      expect(mocks.collector.collect).not.toHaveBeenCalled();
+      expect(mocks.snapshotRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('should fail when the device has no vendor', async () => {
+      configureHappyPath(mocks);
+      mocks.vendorLookup.findVendorSlug.mockResolvedValue(
+        Result.ok(null)
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('no vendor');
+      expect(mocks.collector.collect).not.toHaveBeenCalled();
+    });
+
+    it('should fail when the vendor lookup fails', async () => {
+      configureHappyPath(mocks);
+      mocks.vendorLookup.findVendorSlug.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'Failed to look up device vendor'
+      );
+      expect(mocks.collector.collect).not.toHaveBeenCalled();
     });
   });
 
@@ -1108,7 +1206,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       mocks.credentialsRepo.findByDeviceId.mockResolvedValue(
         Result.ok(makeCredentials())
       );
-      mocks.httpCollector.collect.mockResolvedValue(
+      mocks.collector.collect.mockResolvedValue(
         Result.ok(makeHttpResult({ lanSpeedMbps: 1000 }))
       );
       mocks.alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
@@ -1146,7 +1244,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       mocks.credentialsRepo.findByDeviceId.mockResolvedValue(
         Result.ok(makeCredentials())
       );
-      mocks.httpCollector.collect.mockResolvedValue(
+      mocks.collector.collect.mockResolvedValue(
         Result.ok(makeHttpResult({ lanSpeedMbps: 100 }))
       );
       mocks.alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
@@ -1181,7 +1279,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       mocks.credentialsRepo.findByDeviceId.mockResolvedValue(
         Result.ok(makeCredentials())
       );
-      mocks.httpCollector.collect.mockResolvedValue(
+      mocks.collector.collect.mockResolvedValue(
         Result.ok(makeHttpResult({ lanSpeedMbps: 100 }))
       );
       mocks.alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
@@ -1220,7 +1318,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       mocks.credentialsRepo.findByDeviceId.mockResolvedValue(
         Result.ok(makeCredentials())
       );
-      mocks.httpCollector.collect.mockResolvedValue(
+      mocks.collector.collect.mockResolvedValue(
         Result.ok(makeHttpResult({ lanSpeedMbps: null }))
       );
       mocks.alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
@@ -1313,7 +1411,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
   describe('executeImpl — metrics mapping', () => {
     it('should compute snrDb as signalRxDbm minus noiseFloorDbm when both are present', async () => {
       configureHappyPath(mocks);
-      mocks.httpCollector.collect.mockResolvedValue(
+      mocks.collector.collect.mockResolvedValue(
         Result.ok(
           makeHttpResult({ signalRxDbm: -65, noiseFloorDbm: -90 })
         )
@@ -1328,7 +1426,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
     it('should pass cpuLoadPercent and memoryUsedPercent from HTTP result to metrics', async () => {
       configureHappyPath(mocks);
-      mocks.httpCollector.collect.mockResolvedValue(
+      mocks.collector.collect.mockResolvedValue(
         Result.ok(
           makeHttpResult({
             cpuLoadPercent: 75,
@@ -1350,15 +1448,21 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       configureHappyPath(mocks);
 
       let releaseCollector: (v: unknown) => void = () => {};
-      mocks.httpCollector.collect.mockImplementation(
+      let collectorEntered: () => void = () => {};
+      const firstIsCollecting = new Promise<void>((resolve) => {
+        collectorEntered = resolve;
+      });
+      mocks.collector.collect.mockImplementation(
         () =>
           new Promise((resolve) => {
+            collectorEntered();
             releaseCollector = () =>
               resolve(Result.ok(makeHttpResult()));
           })
       );
 
       const first = useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      await firstIsCollecting;
       const second = await useCase.execute({
         deviceId: VALID_DEVICE_UUID
       });
@@ -1366,7 +1470,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       expect(second.isSuccess).toBe(true);
       expect(second.value.skipped).toBe(true);
       expect(second.value.metricsCollected).toBe(false);
-      expect(mocks.httpCollector.collect).toHaveBeenCalledTimes(1);
+      expect(mocks.collector.collect).toHaveBeenCalledTimes(1);
 
       releaseCollector(undefined);
       await first;
@@ -1384,7 +1488,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
       expect(first.value.skipped).toBeUndefined();
       expect(second.value.skipped).toBeUndefined();
-      expect(mocks.httpCollector.collect).toHaveBeenCalledTimes(2);
+      expect(mocks.collector.collect).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -1428,7 +1532,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
     it('should not skip the lookup when the radio reports no remote AP MAC', async () => {
       configureHappyPath(mocks);
-      mocks.httpCollector.collect.mockResolvedValue(
+      mocks.collector.collect.mockResolvedValue(
         Result.ok(makeHttpResult({ remoteApMac: null }))
       );
 
@@ -1461,7 +1565,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
   describe('[WLS-065] [WLS-066] client entries on the snapshot', () => {
     it('should store client entries for an ACCESS_POINT', async () => {
       configureHappyPath(mocks, { deviceType: 'ACCESS_POINT' });
-      mocks.httpCollector.collect.mockResolvedValue(
+      mocks.collector.collect.mockResolvedValue(
         Result.ok(makeHttpResult({ clients: [makeHttpClient()] }))
       );
 
@@ -1474,7 +1578,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
     it('should store no client entries for a STATION even when the radio reports them', async () => {
       configureHappyPath(mocks, { deviceType: 'STATION' });
-      mocks.httpCollector.collect.mockResolvedValue(
+      mocks.collector.collect.mockResolvedValue(
         Result.ok(makeHttpResult({ clients: [makeHttpClient()] }))
       );
 
@@ -1486,7 +1590,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
     it('should drop an invalid client entry and keep the valid ones', async () => {
       configureHappyPath(mocks, { deviceType: 'ACCESS_POINT' });
-      mocks.httpCollector.collect.mockResolvedValue(
+      mocks.collector.collect.mockResolvedValue(
         Result.ok(
           makeHttpResult({
             clients: [
@@ -1511,7 +1615,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
   describe('[WLS-067] snapshot construction', () => {
     it('should build a snapshot even when every optional metric is null', async () => {
       configureHappyPath(mocks);
-      mocks.httpCollector.collect.mockResolvedValue(
+      mocks.collector.collect.mockResolvedValue(
         Result.ok(
           makeHttpResult({
             deviceName: null,
@@ -1547,7 +1651,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
   describe('[WLS-126] device name fallback', () => {
     it('should fall back to "Equipo desconocido" when the radio reports no hostname', async () => {
       configureHappyPath(mocks);
-      mocks.httpCollector.collect.mockResolvedValue(
+      mocks.collector.collect.mockResolvedValue(
         Result.ok(makeHttpResult({ deviceName: null }))
       );
 

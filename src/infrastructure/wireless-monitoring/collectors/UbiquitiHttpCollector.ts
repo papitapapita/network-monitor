@@ -1,16 +1,19 @@
 import { Result } from 'domain/shared/core';
 import {
-  IUbiquitiHttpCollector,
+  IWirelessCollector,
   IWirelessDeviceRebooter,
   HttpCredentials,
-  HttpCollectionResult,
-  HttpClientEntry
+  DecryptedCredentials,
+  WirelessCollectionResult,
+  CollectedClientEntry
 } from 'application/wireless-monitoring/interfaces';
 import { AirOsHttpClient } from './AirOsHttpClient';
 
 export class UbiquitiHttpCollector
-  implements IUbiquitiHttpCollector, IWirelessDeviceRebooter
+  implements IWirelessCollector, IWirelessDeviceRebooter
 {
+  readonly method = 'http_api' as const;
+
   constructor(private readonly client: AirOsHttpClient) {}
 
   async reboot(
@@ -25,15 +28,15 @@ export class UbiquitiHttpCollector
 
   async collect(
     ipAddress: string,
-    credentials: HttpCredentials,
+    credentials: DecryptedCredentials,
     deviceType: 'STATION' | 'ACCESS_POINT'
-  ): Promise<Result<HttpCollectionResult>> {
+  ): Promise<Result<WirelessCollectionResult>> {
     const fetchResult = await this.client.fetchStatus(
       ipAddress,
-      credentials.port,
+      credentials.httpPort,
       {
-        username: credentials.username,
-        password: credentials.password
+        username: credentials.httpUsername ?? '',
+        password: credentials.httpPassword ?? ''
       }
     );
     if (fetchResult.isFailure) {
@@ -50,7 +53,7 @@ export class UbiquitiHttpCollector
   private parseStatusCgi(
     data: Record<string, unknown>,
     deviceType: 'STATION' | 'ACCESS_POINT'
-  ): HttpCollectionResult {
+  ): WirelessCollectionResult {
     const host = obj(data, 'host');
     const wireless = obj(data, 'wireless');
     const throughput = obj(wireless, 'throughput');
@@ -220,7 +223,9 @@ function parseFrequency(raw: unknown): number | null {
   return isNaN(n) ? null : n;
 }
 
-function parseMode(raw: string | null): HttpCollectionResult['mode'] {
+function parseMode(
+  raw: string | null
+): WirelessCollectionResult['mode'] {
   if (raw === 'ap') return 'ap-ptmp';
   if (raw === 'sta') return 'sta-ptmp';
   if (
@@ -236,7 +241,7 @@ function parseMode(raw: string | null): HttpCollectionResult['mode'] {
 
 function parseClientEntry(
   s: Record<string, unknown>
-): HttpClientEntry {
+): CollectedClientEntry {
   const airmax = obj(s, 'airmax');
   const airmaxRx = obj(airmax, 'rx');
   const airmaxTx = obj(airmax, 'tx');

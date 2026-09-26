@@ -101,10 +101,12 @@ import {
   PrismaWirelessDeviceConfigRepository,
   AirOsHttpClient,
   UbiquitiHttpCollector,
+  WirelessCollectorRegistry,
   WirelessPollingOrchestrator
 } from '../wireless-monitoring';
 import { WirelessDeviceRepositoryAdapter } from '../wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter';
 import { ContractedCapacityAdapter } from '../wireless-monitoring/adapters/ContractedCapacityAdapter';
+import { DeviceVendorAdapter } from '../wireless-monitoring/adapters/DeviceVendorAdapter';
 import { WirelessAlertEvaluator } from 'domain/wireless-monitoring/services';
 import { SignalStrengthRule } from 'domain/wireless-monitoring/services/rules/SignalStrengthRule';
 import { SnrRule } from 'domain/wireless-monitoring/services/rules/SnrRule';
@@ -1171,6 +1173,14 @@ export class DependencyContainer {
 
     const airOsHttpClient = new AirOsHttpClient(10_000, this.logger);
     const httpCollector = new UbiquitiHttpCollector(airOsHttpClient);
+    const wirelessCollectors = new WirelessCollectorRegistry({
+      ubiquiti: httpCollector
+    });
+    const deviceVendorLookup = new DeviceVendorAdapter(
+      this.deviceRepository,
+      this.deviceModelRepository,
+      this.vendorRepository
+    );
     const alertEvaluator = new WirelessAlertEvaluator([
       new SignalStrengthRule(),
       new SnrRule(),
@@ -1200,7 +1210,8 @@ export class DependencyContainer {
       this.wirelessSnapshotRepository,
       this.wirelessAlertRecordRepository,
       this.deviceCredentialsRepository,
-      httpCollector,
+      wirelessCollectors,
+      deviceVendorLookup,
       alertEvaluator,
       wirelessDeviceRepo,
       contractedCapacityProvider,

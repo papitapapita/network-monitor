@@ -101,7 +101,7 @@ export class LanHealthRule implements IAlertRule {
     }
 
     // lan_duplex_changed — WARNING when duplex mode changes unexpectedly
-    // NOTE: HttpCollectionResult does not yet include lanDuplex; the use case
+    // NOTE: WirelessCollectionResult does not yet include lanDuplex; the use case
     // hardcodes it to null. This rule activates automatically once the collector
     // is extended to extract eth0 duplex mode.
     const currentDuplex = metrics.lanDuplex;

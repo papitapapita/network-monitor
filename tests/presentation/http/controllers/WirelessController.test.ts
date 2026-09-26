@@ -1232,6 +1232,28 @@ describe('WirelessController', () => {
           error: 'Device is not configured for wireless monitoring'
         });
       });
+
+      it('[WLS-053] should return 400 when the vendor has no collector', async () => {
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (
+          mockTriggerPollUseCase.execute as jest.Mock
+        ).mockResolvedValue(
+          Result.fail(
+            "Wireless polling is not supported for vendor 'tp-link'"
+          )
+        );
+
+        await controller.triggerPoll(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(statusMock).toHaveBeenCalledWith(400);
+      });
     });
 
     // -----------------------------------------------------------------------
