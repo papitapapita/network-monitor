@@ -186,9 +186,9 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
 
   describe('GET /api/devices/:id/wireless/status', () => {
     it('200 — returns snapshot with deviceId for a device that has a snapshot', async () => {
-      const res = await request(app).get(
-        `/api/devices/${deviceId}/wireless/status`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${deviceId}/wireless/status`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.deviceId).toBe(deviceId);
@@ -200,25 +200,25 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
         deviceModelId
       );
 
-      const res = await request(app).get(
-        `/api/devices/${noSnapshotId}/wireless/status`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${noSnapshotId}/wireless/status`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(404);
     });
 
     it('404 — device does not exist', async () => {
-      const res = await request(app).get(
-        `/api/devices/${GHOST_ID}/wireless/status`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${GHOST_ID}/wireless/status`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(404);
     });
 
     it('400 — invalid device UUID', async () => {
-      const res = await request(app).get(
-        `/api/devices/${INVALID_ID}/wireless/status`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${INVALID_ID}/wireless/status`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
@@ -230,10 +230,12 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
 
   describe('GET /api/devices/:id/wireless/history', () => {
     it('200 — returns { snapshots, total } for valid from/to ISO datetime query params', async () => {
-      const res = await request(app).get(
-        `/api/devices/${deviceId}/wireless/history` +
-          `?from=2026-01-01T00:00:00Z&to=2026-12-31T23:59:59Z`
-      );
+      const res = await request(app)
+        .get(
+          `/api/devices/${deviceId}/wireless/history` +
+            `?from=2026-01-01T00:00:00Z&to=2026-12-31T23:59:59Z`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body.snapshots)).toBe(true);
@@ -241,54 +243,66 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
     });
 
     it('200 — accepts optional limit param alongside from/to', async () => {
-      const res = await request(app).get(
-        `/api/devices/${deviceId}/wireless/history` +
-          `?from=2026-01-01T00:00:00Z&to=2026-12-31T23:59:59Z&limit=10`
-      );
+      const res = await request(app)
+        .get(
+          `/api/devices/${deviceId}/wireless/history` +
+            `?from=2026-01-01T00:00:00Z&to=2026-12-31T23:59:59Z&limit=10`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body.snapshots)).toBe(true);
     });
 
     it('400 — invalid device UUID', async () => {
-      const res = await request(app).get(
-        `/api/devices/${INVALID_ID}/wireless/history` +
-          `?from=2026-01-01T00:00:00Z&to=2026-12-31T23:59:59Z`
-      );
+      const res = await request(app)
+        .get(
+          `/api/devices/${INVALID_ID}/wireless/history` +
+            `?from=2026-01-01T00:00:00Z&to=2026-12-31T23:59:59Z`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
 
     it('400 — missing required from query param', async () => {
-      const res = await request(app).get(
-        `/api/devices/${deviceId}/wireless/history?to=2026-12-31T23:59:59Z`
-      );
+      const res = await request(app)
+        .get(
+          `/api/devices/${deviceId}/wireless/history?to=2026-12-31T23:59:59Z`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
 
     it('400 — missing required to query param', async () => {
-      const res = await request(app).get(
-        `/api/devices/${deviceId}/wireless/history?from=2026-01-01T00:00:00Z`
-      );
+      const res = await request(app)
+        .get(
+          `/api/devices/${deviceId}/wireless/history?from=2026-01-01T00:00:00Z`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
 
     it('400 — from is not a valid datetime string', async () => {
-      const res = await request(app).get(
-        `/api/devices/${deviceId}/wireless/history` +
-          `?from=not-a-date&to=2026-12-31T23:59:59Z`
-      );
+      const res = await request(app)
+        .get(
+          `/api/devices/${deviceId}/wireless/history` +
+            `?from=not-a-date&to=2026-12-31T23:59:59Z`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
 
     it('400 — to is not a valid datetime string', async () => {
-      const res = await request(app).get(
-        `/api/devices/${deviceId}/wireless/history` +
-          `?from=2026-01-01T00:00:00Z&to=not-a-date`
-      );
+      const res = await request(app)
+        .get(
+          `/api/devices/${deviceId}/wireless/history` +
+            `?from=2026-01-01T00:00:00Z&to=not-a-date`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
@@ -305,25 +319,25 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
         deviceModelId
       );
 
-      const res = await request(app).get(
-        `/api/devices/${apDeviceId}/wireless/clients`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${apDeviceId}/wireless/clients`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
     });
 
     it('404 — device does not exist', async () => {
-      const res = await request(app).get(
-        `/api/devices/${GHOST_ID}/wireless/clients`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${GHOST_ID}/wireless/clients`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(404);
     });
 
     it('400 — invalid device UUID', async () => {
-      const res = await request(app).get(
-        `/api/devices/${INVALID_ID}/wireless/clients`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${INVALID_ID}/wireless/clients`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
@@ -440,7 +454,9 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
       });
 
       const res = await request(app)
-        .get(`/api/devices/${apDeviceId}/wireless/identity/suggestions`)
+        .get(
+          `/api/devices/${apDeviceId}/wireless/identity/suggestions`
+        )
         .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
@@ -504,28 +520,30 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
 
   describe('GET /api/devices/:id/wireless/alerts/history', () => {
     it('200 — returns an array for device with alert history', async () => {
-      const res = await request(app).get(
-        `/api/devices/${deviceId}/wireless/alerts/history`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${deviceId}/wireless/alerts/history`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
 
     it('200 — accepts optional from, to, and limit query params', async () => {
-      const res = await request(app).get(
-        `/api/devices/${deviceId}/wireless/alerts/history` +
-          `?from=2026-01-01T00:00:00Z&to=2026-12-31T23:59:59Z&limit=25`
-      );
+      const res = await request(app)
+        .get(
+          `/api/devices/${deviceId}/wireless/alerts/history` +
+            `?from=2026-01-01T00:00:00Z&to=2026-12-31T23:59:59Z&limit=25`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
 
     it('200 — returns empty array for device that does not exist', async () => {
-      const res = await request(app).get(
-        `/api/devices/${GHOST_ID}/wireless/alerts/history`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${GHOST_ID}/wireless/alerts/history`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       // Use case queries by deviceId without checking device existence — returns empty list
       expect(res.status).toBe(200);
@@ -533,9 +551,9 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
     });
 
     it('400 — invalid device UUID', async () => {
-      const res = await request(app).get(
-        `/api/devices/${INVALID_ID}/wireless/alerts/history`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${INVALID_ID}/wireless/alerts/history`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
@@ -547,9 +565,9 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
 
   describe('GET /api/devices/:id/wireless/alerts', () => {
     it('200 — returns an array containing the seeded active alert', async () => {
-      const res = await request(app).get(
-        `/api/devices/${deviceId}/wireless/alerts`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${deviceId}/wireless/alerts`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
@@ -563,18 +581,18 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
       );
       await seedWirelessSnapshot(prisma, noAlertId);
 
-      const res = await request(app).get(
-        `/api/devices/${noAlertId}/wireless/alerts`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${noAlertId}/wireless/alerts`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
 
     it('200 — returns empty array for device that does not exist', async () => {
-      const res = await request(app).get(
-        `/api/devices/${GHOST_ID}/wireless/alerts`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${GHOST_ID}/wireless/alerts`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       // Use case queries by deviceId without checking device existence — returns empty list
       expect(res.status).toBe(200);
@@ -582,9 +600,9 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
     });
 
     it('400 — invalid device UUID', async () => {
-      const res = await request(app).get(
-        `/api/devices/${INVALID_ID}/wireless/alerts`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${INVALID_ID}/wireless/alerts`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
@@ -736,25 +754,25 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
 
   describe('POST /api/devices/:id/wireless/poll', () => {
     it('202 or 400/404/500 — responds for a device with wireless polling config', async () => {
-      const res = await request(app).post(
-        `/api/devices/${deviceId}/wireless/poll`
-      );
+      const res = await request(app)
+        .post(`/api/devices/${deviceId}/wireless/poll`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect([202, 400, 404, 500]).toContain(res.status);
     });
 
     it('404 — device does not exist', async () => {
-      const res = await request(app).post(
-        `/api/devices/${GHOST_ID}/wireless/poll`
-      );
+      const res = await request(app)
+        .post(`/api/devices/${GHOST_ID}/wireless/poll`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(404);
     });
 
     it('400 — invalid device UUID', async () => {
-      const res = await request(app).post(
-        `/api/devices/${INVALID_ID}/wireless/poll`
-      );
+      const res = await request(app)
+        .post(`/api/devices/${INVALID_ID}/wireless/poll`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
@@ -766,25 +784,27 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
 
   describe('GET /api/wireless/alerts', () => {
     it('200 — returns an array (may include the seeded alert)', async () => {
-      const res = await request(app).get('/api/wireless/alerts');
+      const res = await request(app)
+        .get('/api/wireless/alerts')
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
 
     it('200 — accepts optional deviceId query filter (valid UUID)', async () => {
-      const res = await request(app).get(
-        `/api/wireless/alerts?deviceId=${deviceId}`
-      );
+      const res = await request(app)
+        .get(`/api/wireless/alerts?deviceId=${deviceId}`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
 
     it('400 — rejects deviceId that is not a valid UUID', async () => {
-      const res = await request(app).get(
-        `/api/wireless/alerts?deviceId=not-a-uuid`
-      );
+      const res = await request(app)
+        .get(`/api/wireless/alerts?deviceId=not-a-uuid`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
@@ -800,36 +820,38 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
     // Calling without deviceId returns 400 ("Device ID is required").
 
     it('400 — returns 400 when deviceId is omitted (use case requires it)', async () => {
-      const res = await request(app).get(
-        '/api/wireless/alerts/history'
-      );
+      const res = await request(app)
+        .get('/api/wireless/alerts/history')
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
 
     it('200 — returns an array when deviceId is supplied', async () => {
-      const res = await request(app).get(
-        `/api/wireless/alerts/history?deviceId=${deviceId}`
-      );
+      const res = await request(app)
+        .get(`/api/wireless/alerts/history?deviceId=${deviceId}`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
 
     it('200 — accepts from, to, and limit alongside deviceId', async () => {
-      const res = await request(app).get(
-        `/api/wireless/alerts/history?deviceId=${deviceId}` +
-          `&from=2026-01-01T00:00:00Z&to=2026-12-31T23:59:59Z&limit=50`
-      );
+      const res = await request(app)
+        .get(
+          `/api/wireless/alerts/history?deviceId=${deviceId}` +
+            `&from=2026-01-01T00:00:00Z&to=2026-12-31T23:59:59Z&limit=50`
+        )
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
 
     it('400 — rejects deviceId that is not a valid UUID', async () => {
-      const res = await request(app).get(
-        `/api/wireless/alerts/history?deviceId=not-a-uuid`
-      );
+      const res = await request(app)
+        .get(`/api/wireless/alerts/history?deviceId=not-a-uuid`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });

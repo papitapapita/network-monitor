@@ -159,6 +159,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('201 — derives STATION from a WIRELESS_CPE device and returns correct defaults', async () => {
       const res = await request(app)
         .post(`/api/devices/${plainDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({});
 
       expect(res.status).toBe(201);
@@ -171,6 +172,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('201 — creates a STATION config with all station-valid optional fields', async () => {
       const res = await request(app)
         .post(`/api/devices/${plainDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({
           ipAddress: '192.168.10.1',
           intervalSecs: 120,
@@ -190,6 +192,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('201 — derives ACCESS_POINT from an ACCESS_POINT device', async () => {
       const res = await request(app)
         .post(`/api/devices/${apDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ clientsProvisionedLimit: 50 });
 
       expect(res.status).toBe(201);
@@ -219,6 +222,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('409 — returns 409 when a config already exists for the device', async () => {
       const res = await request(app)
         .post(`/api/devices/${configuredDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({});
 
       expect(res.status).toBe(409);
@@ -228,6 +232,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('404 — returns 404 when the device does not exist', async () => {
       const res = await request(app)
         .post(`/api/devices/${GHOST_ID}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({});
 
       expect(res.status).toBe(404);
@@ -237,6 +242,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('[WLS-089] 201 — accepts provisionedLanSpeedMbps on either device type', async () => {
       const res = await request(app)
         .post(`/api/devices/${plainDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ provisionedLanSpeedMbps: 1000 });
 
       expect(res.status).toBe(201);
@@ -246,6 +252,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('400 — rejects clientsProvisionedLimit on a derived STATION device', async () => {
       const res = await request(app)
         .post(`/api/devices/${plainDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ clientsProvisionedLimit: 50 });
 
       expect(res.status).toBe(400);
@@ -254,6 +261,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('400 — rejects linkCapacityKbps on a derived ACCESS_POINT device', async () => {
       const res = await request(app)
         .post(`/api/devices/${apDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ linkCapacityKbps: 100000000 });
 
       expect(res.status).toBe(400);
@@ -262,6 +270,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('400 — returns 400 when intervalSecs is below the minimum of 30', async () => {
       const res = await request(app)
         .post(`/api/devices/${plainDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ intervalSecs: 10 });
 
       expect(res.status).toBe(400);
@@ -270,6 +279,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('400 — returns 400 when the device is not wireless-capable (wired CPE)', async () => {
       const res = await request(app)
         .post(`/api/devices/${wiredDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({});
 
       expect(res.status).toBe(400);
@@ -279,6 +289,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('400 — returns 400 when device ID is not a valid UUID', async () => {
       const res = await request(app)
         .post(`/api/devices/${INVALID_ID}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({});
 
       expect(res.status).toBe(400);
@@ -291,9 +302,9 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
 
   describe('GET /api/devices/:id/wireless/config', () => {
     it('200 — returns the config with correct deviceId for a device that has one', async () => {
-      const res = await request(app).get(
-        `/api/devices/${configuredDeviceId}/wireless/config`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${configuredDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.deviceId).toBe(configuredDeviceId);
@@ -304,27 +315,27 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     });
 
     it('404 — returns 404 when device exists but has no config', async () => {
-      const res = await request(app).get(
-        `/api/devices/${plainDeviceId}/wireless/config`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${plainDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(404);
       expect(res.body).toHaveProperty('error');
     });
 
     it('404 — returns 404 when device does not exist', async () => {
-      const res = await request(app).get(
-        `/api/devices/${GHOST_ID}/wireless/config`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${GHOST_ID}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(404);
       expect(res.body).toHaveProperty('error');
     });
 
     it('400 — returns 400 when device ID is not a valid UUID', async () => {
-      const res = await request(app).get(
-        `/api/devices/${INVALID_ID}/wireless/config`
-      );
+      const res = await request(app)
+        .get(`/api/devices/${INVALID_ID}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
@@ -338,6 +349,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('200 — updates enabled to false and reflects it in the response', async () => {
       const res = await request(app)
         .patch(`/api/devices/${configuredDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ enabled: false });
 
       expect(res.status).toBe(200);
@@ -348,6 +360,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('200 — updates intervalSecs to a new valid value and reflects it in the response', async () => {
       const res = await request(app)
         .patch(`/api/devices/${configuredDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ intervalSecs: 300 });
 
       expect(res.status).toBe(200);
@@ -357,6 +370,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('200 — updates ipAddress to a valid IPv4 and reflects it in the response', async () => {
       const res = await request(app)
         .patch(`/api/devices/${configuredDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ ipAddress: '172.16.0.1' });
 
       expect(res.status).toBe(200);
@@ -391,6 +405,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('[WLS-089] 200 — updates provisionedLanSpeedMbps and reflects it in the response', async () => {
       const res = await request(app)
         .patch(`/api/devices/${configuredDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ provisionedLanSpeedMbps: 100 });
 
       expect(res.status).toBe(200);
@@ -400,6 +415,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('[WLS-089] 400 — rejects a non-positive provisionedLanSpeedMbps', async () => {
       const res = await request(app)
         .patch(`/api/devices/${configuredDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ provisionedLanSpeedMbps: 0 });
 
       expect(res.status).toBe(400);
@@ -408,6 +424,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('400 — returns 400 when body is empty (at least one field required)', async () => {
       const res = await request(app)
         .patch(`/api/devices/${configuredDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({});
 
       expect(res.status).toBe(400);
@@ -416,6 +433,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('400 — returns 400 when intervalSecs is below the minimum of 30', async () => {
       const res = await request(app)
         .patch(`/api/devices/${configuredDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ intervalSecs: 10 });
 
       expect(res.status).toBe(400);
@@ -424,6 +442,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('404 — returns 404 when device exists but has no config', async () => {
       const res = await request(app)
         .patch(`/api/devices/${plainDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ enabled: false });
 
       expect(res.status).toBe(404);
@@ -433,6 +452,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('404 — returns 404 when device does not exist', async () => {
       const res = await request(app)
         .patch(`/api/devices/${GHOST_ID}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ enabled: false });
 
       expect(res.status).toBe(404);
@@ -442,6 +462,7 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
     it('400 — returns 400 when device ID is not a valid UUID', async () => {
       const res = await request(app)
         .patch(`/api/devices/${INVALID_ID}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({ enabled: false });
 
       expect(res.status).toBe(400);
@@ -454,42 +475,42 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
 
   describe('DELETE /api/devices/:id/wireless/config', () => {
     it('204 — deletes the config and a subsequent GET returns 404', async () => {
-      const deleteRes = await request(app).delete(
-        `/api/devices/${configuredDeviceId}/wireless/config`
-      );
+      const deleteRes = await request(app)
+        .delete(`/api/devices/${configuredDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(deleteRes.status).toBe(204);
       expect(deleteRes.body).toEqual({});
 
-      const getRes = await request(app).get(
-        `/api/devices/${configuredDeviceId}/wireless/config`
-      );
+      const getRes = await request(app)
+        .get(`/api/devices/${configuredDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(getRes.status).toBe(404);
     });
 
     it('404 — returns 404 when device exists but has no config', async () => {
-      const res = await request(app).delete(
-        `/api/devices/${plainDeviceId}/wireless/config`
-      );
+      const res = await request(app)
+        .delete(`/api/devices/${plainDeviceId}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(404);
       expect(res.body).toHaveProperty('error');
     });
 
     it('404 — returns 404 when device does not exist', async () => {
-      const res = await request(app).delete(
-        `/api/devices/${GHOST_ID}/wireless/config`
-      );
+      const res = await request(app)
+        .delete(`/api/devices/${GHOST_ID}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(404);
       expect(res.body).toHaveProperty('error');
     });
 
     it('400 — returns 400 when device ID is not a valid UUID', async () => {
-      const res = await request(app).delete(
-        `/api/devices/${INVALID_ID}/wireless/config`
-      );
+      const res = await request(app)
+        .delete(`/api/devices/${INVALID_ID}/wireless/config`)
+        .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
     });
