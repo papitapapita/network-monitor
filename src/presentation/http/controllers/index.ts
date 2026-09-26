@@ -20,3 +20,4 @@ export * from './EnforcementController';
 export * from './TicketController';
 export * from './TechnicianController';
 export * from './QuotationController';
+export * from './CollectionAccountController';

@@ -45,12 +45,12 @@ model User {
 // ============================================================================
 
 model Vendor {
-  id           String      @id @default(uuid()) @db.Uuid
-  name         String      @unique @db.VarChar(100)
-  slug         String      @unique @db.VarChar(100)
-  description  String?     @db.VarChar(500)
-  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(100)
+  slug        String   @unique @db.VarChar(100)
+  description String?  @db.VarChar(500)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   deviceModels DeviceModel[]
 
@@ -135,7 +135,6 @@ model Location {
 // Network fields (ip_address) nullable for warehouse inventory.
 // ============================================================================
 
-
 enum DeviceStatus {
   ACTIVE
   COMMISSIONING
@@ -166,22 +165,22 @@ enum DeviceOwnerType {
 }
 
 model Device {
-  id            String          @id @default(uuid()) @db.Uuid
-  deviceModelId String          @map("device_model_id") @db.Uuid
-  locationId    String?         @map("location_id") @db.Uuid
-  status        DeviceStatus    @default(INVENTORY)
+  id            String           @id @default(uuid()) @db.Uuid
+  deviceModelId String           @map("device_model_id") @db.Uuid
+  locationId    String?          @map("location_id") @db.Uuid
+  status        DeviceStatus     @default(INVENTORY)
   category      DeviceCategory?
   owner         DeviceOwnerType?
 
   //Identity
-  name             String  @db.VarChar(150)
-  serialNumber     String? @map("serial_number") @db.VarChar(100)
+  name         String  @db.VarChar(150)
+  serialNumber String? @map("serial_number") @db.VarChar(100)
   // Uniqueness is a PARTIAL index (`WHERE deleted_at IS NULL`), declared in
   // migration 20260811120000 — Prisma's DSL cannot express one, so `@unique`
   // is deliberately absent here. A soft-deleted unit must release its address
   // so a replacement can take it.
-  macAddress       String? @map("mac_address") @db.VarChar(17)
-  ipAddress        String? @map("ip_address") @db.VarChar(45)
+  macAddress   String? @map("mac_address") @db.VarChar(17)
+  ipAddress    String? @map("ip_address") @db.VarChar(45)
   // Generated column (migration 20260903130000) — Postgres derives it from
   // `ipAddress` via inet_send() on every write. Prisma's DSL cannot express
   // a generated column, so this is declared as an ordinary field and is
@@ -189,8 +188,8 @@ model Device {
   // dbgenerated() default mirrors Postgres's own pg_get_expr() rendering of
   // the generation expression so `migrate dev`'s diff stops mistaking it for
   // a missing default and proposing an invalid DROP DEFAULT on it.
-  ipSortKey        Bytes?  @map("ip_sort_key") @default(dbgenerated("inet_send((ip_address)::inet)"))
-  description      String?   @db.Text
+  ipSortKey    Bytes?  @default(dbgenerated("inet_send((ip_address)::inet)")) @map("ip_sort_key")
+  description  String? @db.Text
 
   // Lifecycle
   installedDate DateTime? @map("installed_at") @db.Timestamptz
@@ -211,10 +210,10 @@ model Device {
   monitoringEnabled Boolean @default(true) @map("monitoring_enabled")
 
   // Relations
-  deviceModel                  DeviceModel                   @relation(fields: [deviceModelId], references: [id], onDelete: Restrict)
-  location                     Location?                     @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  replaces                     Device?                       @relation("DeviceReplacement", fields: [replacesDeviceId], references: [id], onDelete: SetNull)
-  replacedBy                   Device[]                      @relation("DeviceReplacement")
+  deviceModel                  DeviceModel                    @relation(fields: [deviceModelId], references: [id], onDelete: Restrict)
+  location                     Location?                      @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  replaces                     Device?                        @relation("DeviceReplacement", fields: [replacesDeviceId], references: [id], onDelete: SetNull)
+  replacedBy                   Device[]                       @relation("DeviceReplacement")
   pollingConfiguration         PollingConfiguration?
   deviceState                  DeviceState?
   notificationPolicy           DeviceNotificationPolicy?
@@ -253,18 +252,18 @@ enum ReachabilityStatus {
 }
 
 model DeviceState {
-  id                  String   @id @default(uuid()) @db.Uuid
-  deviceId            String   @unique @map("device_id") @db.Uuid
+  id                  String             @id @default(uuid()) @db.Uuid
+  deviceId            String             @unique @map("device_id") @db.Uuid
   status              ReachabilityStatus @default(UNKNOWN)
-  lastSeen            DateTime? @map("last_seen") @db.Timestamptz
-  lastLatencyMs       Decimal? @map("last_latency_ms") @db.Decimal(8, 2)
-  consecutiveFailures Int      @default(0) @map("consecutive_failures")
-  lastCheckedAt       DateTime? @map("last_checked_at") @db.Timestamptz
+  lastSeen            DateTime?          @map("last_seen") @db.Timestamptz
+  lastLatencyMs       Decimal?           @map("last_latency_ms") @db.Decimal(8, 2)
+  consecutiveFailures Int                @default(0) @map("consecutive_failures")
+  lastCheckedAt       DateTime?          @map("last_checked_at") @db.Timestamptz
   // When the current DOWN streak began. Null while UP/UNKNOWN. Drives the
   // delayed down-alert scan (see RaiseOverdueDeviceDownAlertsUseCase) so a
   // brief blip does not page anyone before it has been down long enough.
-  downSince           DateTime? @map("down_since") @db.Timestamptz
-  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  downSince           DateTime?          @map("down_since") @db.Timestamptz
+  updatedAt           DateTime           @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
   device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
@@ -312,17 +311,17 @@ enum AlertSeverity {
 }
 
 model AlertEvent {
-  id          String        @id @default(uuid()) @db.Uuid
-  deviceId    String        @map("device_id") @db.Uuid
-  severity    AlertSeverity @default(CRITICAL)
-  source      String        @default("") @db.Text
-  type        String        @default("") @db.Text
-  description String        @default("") @db.Text
-  details     Json          @default("{}")
-  startedAt   DateTime      @default(now()) @map("started_at") @db.Timestamptz
-  resolvedAt  DateTime?     @map("resolved_at") @db.Timestamptz
-  notifiedAt  DateTime?     @map("notified_at") @db.Timestamptz
-  recoveryNotifiedAt DateTime? @map("recovery_notified_at") @db.Timestamptz
+  id                 String        @id @default(uuid()) @db.Uuid
+  deviceId           String        @map("device_id") @db.Uuid
+  severity           AlertSeverity @default(CRITICAL)
+  source             String        @default("") @db.Text
+  type               String        @default("") @db.Text
+  description        String        @default("") @db.Text
+  details            Json          @default("{}")
+  startedAt          DateTime      @default(now()) @map("started_at") @db.Timestamptz
+  resolvedAt         DateTime?     @map("resolved_at") @db.Timestamptz
+  notifiedAt         DateTime?     @map("notified_at") @db.Timestamptz
+  recoveryNotifiedAt DateTime?     @map("recovery_notified_at") @db.Timestamptz
 
   // Relations
   device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
@@ -340,19 +339,19 @@ model AlertEvent {
 /// Polling configuration for continuous device monitoring.
 /// Defines how often and how many pings should be executed.
 model PollingConfiguration {
-  id                  String    @id @default(uuid()) @db.Uuid
-  deviceId            String    @unique @map("device_id") @db.Uuid
-  ipAddress           String?   @map("ip_address") @db.VarChar(45)
-  enabled             Boolean   @default(true)
+  id                 String    @id @default(uuid()) @db.Uuid
+  deviceId           String    @unique @map("device_id") @db.Uuid
+  ipAddress          String?   @map("ip_address") @db.VarChar(45)
+  enabled            Boolean   @default(true)
   // Range enforced by a CHECK constraint (migration 20260722010000) — Prisma
   // cannot express CHECK constraints in the schema DSL.
-  pingIntervalSecs    Int       @default(60) @map("interval_seconds") // Polling interval (5-86400 seconds)
-  failuresBeforeDown  Int       @default(3) @map("failures_before_down") // Consecutive failures before marking device as down
-  lastPolledAt        DateTime? @map("last_polled_at") @db.Timestamptz
-  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  pingIntervalSecs   Int       @default(60) @map("interval_seconds") // Polling interval (5-86400 seconds)
+  failuresBeforeDown Int       @default(3) @map("failures_before_down") // Consecutive failures before marking device as down
+  lastPolledAt       DateTime? @map("last_polled_at") @db.Timestamptz
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  device  Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@index([enabled])
   @@map("polling_configurations")
@@ -440,45 +439,45 @@ model DeviceCredentials {
 }
 
 model WirelessSnapshot {
-  id                String   @id @default(uuid()) @db.Uuid
-  deviceId          String   @map("device_id") @db.Uuid
+  id                String             @id @default(uuid()) @db.Uuid
+  deviceId          String             @map("device_id") @db.Uuid
   deviceType        WirelessDeviceType @map("device_type")
-  collectedAt       DateTime @map("collected_at") @db.Timestamptz
-  collectionMethod  String   @map("collection_method") @db.VarChar(20)
-  signalRxDbm       Int?     @map("signal_rx_dbm")
-  signalTxDbm       Int?     @map("signal_tx_dbm")
-  noiseFloorDbm     Int?     @map("noise_floor_dbm")
-  snrDb             Int?     @map("snr_db")
-  ccqPercent        Int?     @map("ccq_percent")
-  frequencyMhz      Int?     @map("frequency_mhz")
-  channelWidthMhz   Int?     @map("channel_width_mhz")
-  throughputTxBps   BigInt?  @map("throughput_tx_bps")
-  throughputRxBps   BigInt?  @map("throughput_rx_bps")
-  throughputTxPps   BigInt?  @map("throughput_tx_pps")
-  throughputRxPps   BigInt?  @map("throughput_rx_pps")
-  lanStatus         String?  @map("lan_status") @db.VarChar(10)
-  lanSpeedMbps      Int?     @map("lan_speed_mbps")
-  lanDuplex         String?  @map("lan_duplex") @db.VarChar(10)
-  uptimeSeconds     BigInt?  @map("uptime_seconds")
-  cpuLoadPercent    Int?     @map("cpu_load_percent")
-  memoryUsedPercent Int?     @map("memory_used_percent")
-  firmwareVersion   String?  @map("firmware_version") @db.VarChar(100)
-  deviceName        String?  @map("device_name") @db.VarChar(150)
-  remoteApMac       String?  @map("remote_ap_mac") @db.VarChar(17)
-  remoteApName      String?  @map("remote_ap_name") @db.VarChar(150)
-  remoteApIp        String?  @map("remote_ap_ip") @db.VarChar(45)
-  remoteApDeviceId  String?  @map("remote_ap_device_id") @db.Uuid
-  distanceM         Int?     @map("distance_m")
-  latencyMs         Int?     @map("latency_ms")
-  capacityTxKbps    Int?     @map("capacity_tx_kbps")
-  capacityRxKbps    Int?     @map("capacity_rx_kbps")
-  deviceTimeEpoch   BigInt?  @map("device_time_epoch")
-  clientsConnected  Int?     @map("clients_connected")
-  clientsJson       Json?    @map("clients_json")
-  macAddress        String?  @map("mac_address") @db.VarChar(17)
-  deviceModel       String?  @map("device_model") @db.VarChar(100)
-  ssid              String?  @map("ssid") @db.VarChar(64)
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  collectedAt       DateTime           @map("collected_at") @db.Timestamptz
+  collectionMethod  String             @map("collection_method") @db.VarChar(20)
+  signalRxDbm       Int?               @map("signal_rx_dbm")
+  signalTxDbm       Int?               @map("signal_tx_dbm")
+  noiseFloorDbm     Int?               @map("noise_floor_dbm")
+  snrDb             Int?               @map("snr_db")
+  ccqPercent        Int?               @map("ccq_percent")
+  frequencyMhz      Int?               @map("frequency_mhz")
+  channelWidthMhz   Int?               @map("channel_width_mhz")
+  throughputTxBps   BigInt?            @map("throughput_tx_bps")
+  throughputRxBps   BigInt?            @map("throughput_rx_bps")
+  throughputTxPps   BigInt?            @map("throughput_tx_pps")
+  throughputRxPps   BigInt?            @map("throughput_rx_pps")
+  lanStatus         String?            @map("lan_status") @db.VarChar(10)
+  lanSpeedMbps      Int?               @map("lan_speed_mbps")
+  lanDuplex         String?            @map("lan_duplex") @db.VarChar(10)
+  uptimeSeconds     BigInt?            @map("uptime_seconds")
+  cpuLoadPercent    Int?               @map("cpu_load_percent")
+  memoryUsedPercent Int?               @map("memory_used_percent")
+  firmwareVersion   String?            @map("firmware_version") @db.VarChar(100)
+  deviceName        String?            @map("device_name") @db.VarChar(150)
+  remoteApMac       String?            @map("remote_ap_mac") @db.VarChar(17)
+  remoteApName      String?            @map("remote_ap_name") @db.VarChar(150)
+  remoteApIp        String?            @map("remote_ap_ip") @db.VarChar(45)
+  remoteApDeviceId  String?            @map("remote_ap_device_id") @db.Uuid
+  distanceM         Int?               @map("distance_m")
+  latencyMs         Int?               @map("latency_ms")
+  capacityTxKbps    Int?               @map("capacity_tx_kbps")
+  capacityRxKbps    Int?               @map("capacity_rx_kbps")
+  deviceTimeEpoch   BigInt?            @map("device_time_epoch")
+  clientsConnected  Int?               @map("clients_connected")
+  clientsJson       Json?              @map("clients_json")
+  macAddress        String?            @map("mac_address") @db.VarChar(17)
+  deviceModel       String?            @map("device_model") @db.VarChar(100)
+  ssid              String?            @map("ssid") @db.VarChar(64)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz
 
   device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
@@ -510,26 +509,26 @@ model WirelessAlertRecord {
 }
 
 model WirelessPollingConfiguration {
-  id                      String    @id @default(uuid()) @db.Uuid
-  deviceId                String    @unique @map("device_id") @db.Uuid
-  ipAddress               String?   @map("ip_address") @db.VarChar(45)
-  enabled                 Boolean   @default(true)
+  id                      String             @id @default(uuid()) @db.Uuid
+  deviceId                String             @unique @map("device_id") @db.Uuid
+  ipAddress               String?            @map("ip_address") @db.VarChar(45)
+  enabled                 Boolean            @default(true)
   // Range enforced by a CHECK constraint (migration 20260722010000) — Prisma
   // cannot express CHECK constraints in the schema DSL.
-  intervalSecs            Int       @default(3600) @map("interval_secs") // Polling interval (60-86400 seconds)
+  intervalSecs            Int                @default(3600) @map("interval_secs") // Polling interval (60-86400 seconds)
   deviceType              WirelessDeviceType @map("device_type")
-  linkCapacityKbps         BigInt?   @map("link_capacity_kbps")
-  clientsProvisionedLimit Int?      @map("clients_provisioned_limit")
-  provisionedLanSpeedMbps Int?      @map("provisioned_lan_speed_mbps")
+  linkCapacityKbps        BigInt?            @map("link_capacity_kbps")
+  clientsProvisionedLimit Int?               @map("clients_provisioned_limit")
+  provisionedLanSpeedMbps Int?               @map("provisioned_lan_speed_mbps")
   // STATION-only: the ACCESS_POINT this CPE is declared to sit on (WLS-162).
   // SetNull rather than Cascade — deleting the AP shouldn't delete an
   // unrelated CPE's polling config, just its declared link.
-  parentApDeviceId        String?   @map("parent_ap_device_id") @db.Uuid
-  lastPolledAt            DateTime? @map("last_polled_at") @db.Timestamptz
-  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  parentApDeviceId        String?            @map("parent_ap_device_id") @db.Uuid
+  lastPolledAt            DateTime?          @map("last_polled_at") @db.Timestamptz
+  createdAt               DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime           @updatedAt @map("updated_at") @db.Timestamptz
 
-  device       Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  device         Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   parentApDevice Device? @relation("WirelessConfigParentAp", fields: [parentApDeviceId], references: [id], onDelete: SetNull)
 
   @@index([enabled])
@@ -563,20 +562,21 @@ model Customer {
   bills              Bill[]
   tickets            Ticket[]
   quotations         Quotation[]
+  collectionAccounts CollectionAccount[]
 
   @@map("customers")
 }
 
 model ServicePlan {
-  id            String   @id @default(uuid()) @db.Uuid
-  name          String   @unique @db.VarChar(100)
-  downloadMbps  Int      @map("download_mbps")
-  uploadMbps    Int      @map("upload_mbps")
-  monthlyPrice  Decimal  @map("monthly_price") @db.Decimal(12, 2)
-  description   String?  @db.VarChar(500)
-  isActive      Boolean  @default(true) @map("is_active")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @unique @db.VarChar(100)
+  downloadMbps Int      @map("download_mbps")
+  uploadMbps   Int      @map("upload_mbps")
+  monthlyPrice Decimal  @map("monthly_price") @db.Decimal(12, 2)
+  description  String?  @db.VarChar(500)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   contractedServices ContractedService[]
 
@@ -584,14 +584,14 @@ model ServicePlan {
 }
 
 model ContractedService {
-  id            String                   @id @default(uuid()) @db.Uuid
-  customerId    String                   @map("customer_id") @db.Uuid
-  servicePlanId String                   @map("service_plan_id") @db.Uuid
-  deviceId      String?                  @unique @map("device_id") @db.Uuid
-  status        ContractedServiceStatus  @default(PENDING)
-  startDate     DateTime                 @map("start_date") @db.Timestamptz
-  createdAt     DateTime                 @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime                 @updatedAt @map("updated_at") @db.Timestamptz
+  id            String                  @id @default(uuid()) @db.Uuid
+  customerId    String                  @map("customer_id") @db.Uuid
+  servicePlanId String                  @map("service_plan_id") @db.Uuid
+  deviceId      String?                 @unique @map("device_id") @db.Uuid
+  status        ContractedServiceStatus @default(PENDING)
+  startDate     DateTime                @map("start_date") @db.Timestamptz
+  createdAt     DateTime                @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime                @updatedAt @map("updated_at") @db.Timestamptz
 
   customer    Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
   servicePlan ServicePlan @relation(fields: [servicePlanId], references: [id], onDelete: Restrict)
@@ -637,17 +637,76 @@ model Bill {
 }
 
 model BillLineItem {
-  id                  String   @id @default(uuid()) @db.Uuid
-  billId              String   @map("bill_id") @db.Uuid
-  contractedServiceId String   @map("contracted_service_id") @db.Uuid
-  servicePlanId       String   @map("service_plan_id") @db.Uuid
-  planName            String   @map("plan_name") @db.VarChar(100)
-  monthlyPrice        Decimal  @map("monthly_price") @db.Decimal(12, 2)
+  id                  String  @id @default(uuid()) @db.Uuid
+  billId              String  @map("bill_id") @db.Uuid
+  contractedServiceId String  @map("contracted_service_id") @db.Uuid
+  servicePlanId       String  @map("service_plan_id") @db.Uuid
+  planName            String  @map("plan_name") @db.VarChar(100)
+  monthlyPrice        Decimal @map("monthly_price") @db.Decimal(12, 2)
 
   bill Bill @relation(fields: [billId], references: [id], onDelete: Cascade)
 
   @@index([billId])
   @@map("bill_line_items")
+}
+
+// Cuentas de cobro: one-off charges for work outside the internet service
+// (camera installs, equipment, repairs). Deliberately separate from Bill,
+// which is tied to subscriptions and one-per-period.
+
+enum CollectionAccountStatus {
+  PENDING
+  PAID
+  CANCELLED
+
+  @@map("collection_account_status")
+}
+
+model CollectionAccount {
+  id     String                  @id @default(uuid()) @db.Uuid
+  code   Int                     @unique @default(autoincrement())
+  status CollectionAccountStatus @default(PENDING)
+
+  customerId String? @map("customer_id") @db.Uuid
+
+  // Customer snapshot — captured at issue time, never re-resolved.
+  customerName     String  @map("customer_name") @db.VarChar(150)
+  customerDocument String? @map("customer_document") @db.VarChar(20)
+  customerPhone    String? @map("customer_phone") @db.VarChar(20)
+  customerEmail    String? @map("customer_email") @db.VarChar(255)
+  customerAddress  String? @map("customer_address") @db.VarChar(255)
+
+  issueDate DateTime  @map("issue_date") @db.Timestamptz
+  dueDate   DateTime? @map("due_date") @db.Timestamptz
+  notes     String?   @db.Text
+
+  paidAt      DateTime? @map("paid_at") @db.Timestamptz
+  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz
+
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  customer  Customer?                   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  lineItems CollectionAccountLineItem[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("collection_accounts")
+}
+
+model CollectionAccountLineItem {
+  id                  String  @id @default(uuid()) @db.Uuid
+  collectionAccountId String  @map("collection_account_id") @db.Uuid
+  description         String  @db.VarChar(500)
+  unitPrice           Decimal @map("unit_price") @db.Decimal(12, 2)
+  quantity            Int
+
+  collectionAccount CollectionAccount @relation(fields: [collectionAccountId], references: [id], onDelete: Cascade)
+
+  @@index([collectionAccountId])
+  @@map("collection_account_line_items")
 }
 
 // ============================================================================
@@ -706,8 +765,8 @@ model Quotation {
 }
 
 model QuotationLineItem {
-  id          String  @id @default(uuid()) @db.Uuid
-  quotationId String  @map("quotation_id") @db.Uuid
+  id          String @id @default(uuid()) @db.Uuid
+  quotationId String @map("quotation_id") @db.Uuid
 
   // Snapshot of the referenced DeviceModel at the time it was added to the
   // quote, so the PDF stays stable even if the catalog changes later. The FK
@@ -822,15 +881,15 @@ model Ticket {
   contactName  String? @map("contact_name") @db.VarChar(150)
   contactPhone String? @map("contact_phone") @db.VarChar(20)
 
-  scheduledFor DateTime?    @map("scheduled_for") @db.Date
+  scheduledFor       DateTime?    @map("scheduled_for") @db.Date
   // Optional wall-clock window (HH:mm) within scheduled_for. Not timestamps:
   // the block must stay on its scheduled day regardless of zone.
-  scheduledStartTime String? @map("scheduled_start_time") @db.VarChar(5)
-  scheduledEndTime   String? @map("scheduled_end_time") @db.VarChar(5)
-  origin       TicketOrigin @default(MANUAL)
+  scheduledStartTime String?      @map("scheduled_start_time") @db.VarChar(5)
+  scheduledEndTime   String?      @map("scheduled_end_time") @db.VarChar(5)
+  origin             TicketOrigin @default(MANUAL)
   // Not a foreign key: points at alert_events or wireless_alert_records
   // depending on `origin`, so the reference cannot be expressed as an FK.
-  originAlertId String?     @map("origin_alert_id") @db.Uuid
+  originAlertId      String?      @map("origin_alert_id") @db.Uuid
 
   resolutionNotes String?   @map("resolution_notes") @db.Text
   cancelReason    String?   @map("cancel_reason") @db.VarChar(255)

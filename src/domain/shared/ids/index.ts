@@ -17,3 +17,4 @@ export * from './BillId';
 export * from './TicketId';
 export * from './TechnicianId';
 export * from './QuotationId';
+export * from './CollectionAccountId';

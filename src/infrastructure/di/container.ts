@@ -11,7 +11,9 @@ import {
 } from '../customers';
 import {
   PrismaBillRepository,
-  PdfKitBillPdfRenderer
+  PdfKitBillPdfRenderer,
+  PrismaCollectionAccountRepository,
+  PdfKitCollectionAccountPdfRenderer
 } from '../billing';
 import {
   PrismaQuotationRepository,
@@ -51,6 +53,7 @@ import {
   ServicePlanController,
   ContractedServiceController,
   BillController,
+  CollectionAccountController,
   QuotationController,
   EnforcementController,
   TicketController,
@@ -81,7 +84,13 @@ import {
   ListBillsUseCase,
   MarkBillPaidUseCase,
   MarkBillOverdueUseCase,
-  CancelBillUseCase
+  CancelBillUseCase,
+  CreateCollectionAccountUseCase,
+  ListCollectionAccountsUseCase,
+  GetCollectionAccountUseCase,
+  GetCollectionAccountPdfUseCase,
+  MarkCollectionAccountPaidUseCase,
+  CancelCollectionAccountUseCase
 } from 'application/billing/use-cases';
 import {
   CreateQuotationUseCase,
@@ -344,6 +353,7 @@ export class DependencyContainer {
 
   // Billing
   public billRepository: PrismaBillRepository;
+  public collectionAccountRepository: PrismaCollectionAccountRepository;
 
   // Quoting
   public quotationRepository: PrismaQuotationRepository;
@@ -375,6 +385,7 @@ export class DependencyContainer {
   public servicePlanController: ServicePlanController;
   public contractedServiceController: ContractedServiceController;
   public billController: BillController;
+  public collectionAccountController: CollectionAccountController;
   public quotationController: QuotationController;
   public enforcementController: EnforcementController;
 
@@ -551,6 +562,40 @@ export class DependencyContainer {
       new CancelBillUseCase(this.billRepository, this.logger),
       this.logger
     );
+
+    this.collectionAccountRepository =
+      new PrismaCollectionAccountRepository(this.prisma);
+
+    this.collectionAccountController =
+      new CollectionAccountController(
+        new CreateCollectionAccountUseCase(
+          this.collectionAccountRepository,
+          this.customerRepository,
+          this.logger
+        ),
+        new ListCollectionAccountsUseCase(
+          this.collectionAccountRepository,
+          this.logger
+        ),
+        new GetCollectionAccountUseCase(
+          this.collectionAccountRepository,
+          this.logger
+        ),
+        new GetCollectionAccountPdfUseCase(
+          this.collectionAccountRepository,
+          new PdfKitCollectionAccountPdfRenderer(),
+          this.logger
+        ),
+        new MarkCollectionAccountPaidUseCase(
+          this.collectionAccountRepository,
+          this.logger
+        ),
+        new CancelCollectionAccountUseCase(
+          this.collectionAccountRepository,
+          this.logger
+        ),
+        this.logger
+      );
 
     // =====================================
     // QUOTING BOUNDED CONTEXT

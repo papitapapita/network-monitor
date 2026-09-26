@@ -477,6 +477,55 @@ export async function seedQuotation(
   return quotation.id;
 }
 
+/**
+ * Cleans cuentas de cobro in FK-safe order: line items (which reference
+ * collection_accounts) must go before their parent rows.
+ */
+export async function cleanCollectionAccounts(
+  prisma: PrismaClient
+): Promise<void> {
+  await prisma.collectionAccountLineItem.deleteMany();
+  await prisma.collectionAccount.deleteMany();
+}
+
+/**
+ * Creates a collection account with one line item directly via Prisma,
+ * bypassing the aggregate so a test can put one straight into any status.
+ * Returns its UUID.
+ */
+export async function seedCollectionAccount(
+  prisma: PrismaClient,
+  overrides: {
+    customerId?: string | null;
+    customerName?: string;
+    status?: 'PENDING' | 'PAID' | 'CANCELLED';
+    unitPrice?: number;
+    quantity?: number;
+  } = {}
+): Promise<string> {
+  const status = overrides.status ?? 'PENDING';
+  const account = await prisma.collectionAccount.create({
+    data: {
+      status,
+      customerId: overrides.customerId ?? null,
+      customerName: overrides.customerName ?? 'Test Walk-in',
+      issueDate: new Date(),
+      paidAt: status === 'PAID' ? new Date() : null,
+      cancelledAt: status === 'CANCELLED' ? new Date() : null,
+      lineItems: {
+        create: [
+          {
+            description: 'Instalación de cámaras',
+            unitPrice: overrides.unitPrice ?? 350000,
+            quantity: overrides.quantity ?? 1
+          }
+        ]
+      }
+    }
+  });
+  return account.id;
+}
+
 /** Known-valid UUIDs that will never exist in the test DB */
 export const GHOST_ID = '00000000-0000-4000-8000-000000000001';
 export const INVALID_ID = 'not-a-uuid';

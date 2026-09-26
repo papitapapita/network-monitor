@@ -4,6 +4,12 @@ What a subscriber owes for a month. A `Bill` is a customer, a billing period, an
 one immutable line item per active subscription, priced at the moment the bill
 was cut.
 
+The context also issues **cuentas de cobro** (`CollectionAccount`): one-off
+charges for work outside the internet service — a camera install, equipment, a
+repair visit. They share nothing with `Bill` but the context: free-text line
+items, no period, no subscription, and no effect on service
+(`BIL-200` … `BIL-251`).
+
 Format and conventions: [README.md](README.md).
 
 ## ID ranges
@@ -17,16 +23,18 @@ Format and conventions: [README.md](README.md).
 | `BIL-100` … `BIL-119` | PDF rendering                   |
 | `BIL-120` … `BIL-139` | Listing and filtering           |
 | `BIL-140` … `BIL-159` | Cross-cutting (access control)  |
+| `BIL-200` … `BIL-259` | Cuentas de cobro                |
 
 ## Layer coverage
 
 | Layer                     | Rules |
 | ------------------------- | ----- |
-| Application               | 18    |
-| Domain (aggregate)        | 16    |
-| Domain (value object)     | 5     |
-| Presentation              | 3     |
-| Infrastructure (database) | 3     |
+| Application               | 23    |
+| Domain (aggregate)        | 27    |
+| Domain (value object)     | 6     |
+| Presentation              | 4     |
+| Infrastructure (database) | 5     |
+| Infrastructure (PDF)      | 1     |
 
 More of this context lives in the application layer than in any other, and the
 reason is structural: a bill is assembled from three other aggregates it cannot
@@ -798,3 +806,330 @@ database backing, is precisely the condition that could double-bill.
 
 **Enforced at:** `src/presentation/http/routes/bill.routes.ts` (`createRateLimiter`)
 **Tests:** `tests/integration/bill.routes.test.ts`
+
+---
+
+## Cuentas de cobro
+
+A cuenta de cobro (`CollectionAccount`) is the document handed to a customer
+after one-off work: cameras installed, a router sold, a site visit. It is not a
+bill. It has no period, no subscription behind it, and nothing in the service
+side of the system reads it.
+
+### BIL-200 — A cuenta de cobro must name who owes it
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-25
+
+The customer name is required, non-blank after trimming, and at most 150
+characters.
+
+**Why:** The document is a demand for payment addressed to someone. Without a
+name it cannot be presented or collected.
+
+**Enforced at:** `src/domain/billing/aggregates/CollectionAccount.ts` (`validate`)
+**Reached from:** `create`, `markPaid`, `cancel`
+**Message:** `Customer name cannot be empty` / `Customer name cannot exceed 150 characters`
+**Tests:** `tests/domain/billing/aggregates/CollectionAccount.test.ts`
+
+### BIL-201 — Customer details are snapshotted at issue time
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-25
+
+Linking an existing customer is optional. When `customerId` is given, the
+name, phone, email and cédula are copied from the customer record (a supplied
+document is used only when the customer has no cédula); the address always
+comes from the request, since `Customer` has none. Without `customerId`, every
+field is taken as typed. Nothing is re-read later.
+
+**Why:** Camera installs and equipment sales are often for people who are not
+internet subscribers, so a free-text customer has to work. And a document that
+has been handed over must keep saying what it said — a later rename of the
+customer must not rewrite it.
+
+**Enforced at:** `src/application/billing/use-cases/CreateCollectionAccountUseCase.ts` (`resolveCustomer`)
+**Message:** `Customer not found: <id>` / `Invalid customerId: …`
+**Tests:** `tests/application/billing/use-cases/CreateCollectionAccountUseCase.test.ts`, `tests/integration/use-cases/billing/CreateCollectionAccountUseCase.integration.test.ts`
+
+### BIL-202 — Either a customerId or a customerName is required
+
+**Type:** Validation · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-25
+
+**Why:** `BIL-200` needs a name, and one of the two is the only place it can
+come from.
+
+**Enforced at:** `src/application/billing/use-cases/CreateCollectionAccountUseCase.ts` (`beforeExecute`)
+**Message:** `Either customerId or customerName is required`
+**Tests:** `tests/application/billing/use-cases/CreateCollectionAccountUseCase.test.ts`, `tests/integration/collection-account.routes.test.ts`
+
+### BIL-203 — Snapshot fields fit their columns
+
+**Type:** Validation · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-25
+
+Document ≤ 20, phone ≤ 20, email ≤ 255, address ≤ 255 characters.
+
+**Why:** Free-text customers bypass the `Customer` value objects that would
+otherwise bound these. Checking in the aggregate turns an oversized value into
+a 400 instead of a database error.
+
+**Enforced at:** `src/domain/billing/aggregates/CollectionAccount.ts` (`validate`)
+**Message:** `<Field> cannot exceed <n> characters`
+**Tests:** `tests/domain/billing/aggregates/CollectionAccount.test.ts`
+
+### BIL-204 — An omitted issue date means now; the due date is optional
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-25
+
+An unparseable date is rejected.
+
+**Why:** Unlike a monthly bill (`BIL-009`), one-off work is often paid on the
+spot, so there is no sensible default term to impose.
+
+**Enforced at:** `src/application/billing/use-cases/CreateCollectionAccountUseCase.ts` (`parseDates`)
+**Message:** `issueDate is not a valid date` / `dueDate is not a valid date`
+**Tests:** `tests/application/billing/use-cases/CreateCollectionAccountUseCase.test.ts`
+
+### BIL-205 — A due date cannot precede its issue date
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-25
+
+**Why:** Same as `BIL-006`: such a document is overdue the moment it exists.
+
+**Enforced at:** `src/domain/billing/aggregates/CollectionAccount.ts` (`validate`)
+**Message:** `dueDate cannot be before issueDate`
+**Tests:** `tests/domain/billing/aggregates/CollectionAccount.test.ts`, `tests/integration/collection-account.routes.test.ts`
+
+### BIL-206 — The number is assigned by the database, formatted `CC-NNNN`
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (database)
+**Since:** 2026-09-25
+
+`code` is a Postgres sequence, never supplied by a caller. It is shown
+zero-padded to four digits behind `CC-`; it is `null` only between `create()`
+and the first save.
+
+**Why:** A consecutive number is what the customer and the accountant refer to.
+Letting the database own it means two concurrent requests can never be given
+the same one.
+
+**Enforced at:** `prisma/schema.prisma` (`CollectionAccount.code`), `src/application/billing/mappers/CollectionAccountMapper.ts` (`formatNumber`)
+**Tests:** `tests/application/billing/mappers/CollectionAccountMapper.test.ts`, `tests/integration/use-cases/billing/CreateCollectionAccountUseCase.integration.test.ts`
+
+### BIL-210 — A cuenta de cobro must have at least one line item
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-25
+
+**Why:** A demand for nothing is a mistake, not a document.
+
+**Enforced at:** `src/domain/billing/aggregates/CollectionAccount.ts` (`validate`), `CreateCollectionAccountUseCase` (`beforeExecute`)
+**Message:** `A collection account must have at least one line item`
+**Tests:** `tests/domain/billing/aggregates/CollectionAccount.test.ts`, `tests/application/billing/use-cases/CreateCollectionAccountUseCase.test.ts`
+
+### BIL-211 — A line item is free text with a hand-entered price
+
+**Type:** Validation · **Status:** Active
+**Layer:** Domain (value object)
+**Since:** 2026-09-25
+
+Description 1–500 characters after trimming; quantity a positive integer; unit
+price a non-negative `Money`. The line total is unit price × quantity.
+
+**Why:** What is being charged for — labour, cable by the metre, a used camera —
+rarely exists in the device catalog, so unlike quotations (`QUO-031`) nothing
+is looked up.
+
+**Enforced at:** `src/domain/billing/value-objects/CollectionAccountLineItem.ts`
+**Message:** `description cannot be empty` / `description cannot exceed 500 characters` / `quantity must be a positive integer`
+**Tests:** `tests/domain/billing/value-objects/CollectionAccountLineItem.test.ts`
+
+### BIL-212 — The total is computed from the line items, never stored
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-25
+
+**Why:** Same as `BIL-034` — a stored total is a second copy that can disagree.
+
+**Enforced at:** `src/domain/billing/aggregates/CollectionAccount.ts` (`total`)
+**Tests:** `tests/domain/billing/aggregates/CollectionAccount.test.ts`
+
+### BIL-220 — A cuenta de cobro is PENDING, PAID or CANCELLED; new ones are PENDING
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-25
+
+**Why:** Three states cover the only questions asked of it: has it been paid,
+and does it still stand.
+
+**Enforced at:** `src/domain/billing/enums/CollectionAccountStatus.ts`, `CollectionAccount.create`
+**Tests:** `tests/domain/billing/aggregates/CollectionAccount.test.ts`
+
+### BIL-221 — Only a PENDING cuenta de cobro can be paid
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-25
+
+Paying records `paidAt`.
+
+**Why:** Paying twice would record a second payment that never happened;
+paying a cancelled one would revive a document that was withdrawn.
+
+**Enforced at:** `src/domain/billing/aggregates/CollectionAccount.ts` (`markPaid`)
+**Message:** `Cannot mark a <STATUS> collection account as paid`
+**Tests:** `tests/domain/billing/aggregates/CollectionAccount.test.ts`, `tests/integration/collection-account.routes.test.ts`
+
+### BIL-222 — Only a PENDING cuenta de cobro can be cancelled
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-25
+
+Cancelling records `cancelledAt`. There is no edit: a wrong document is
+cancelled and a new one issued.
+
+**Why:** A paid document records money received; cancelling it would erase
+that. Cancel-and-reissue keeps every number that was ever handed out visible.
+
+**Enforced at:** `src/domain/billing/aggregates/CollectionAccount.ts` (`cancel`)
+**Message:** `Cannot cancel a <STATUS> collection account`
+**Tests:** `tests/domain/billing/aggregates/CollectionAccount.test.ts`, `tests/integration/collection-account.routes.test.ts`
+
+### BIL-223 — Status and its date agree in both directions
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-25
+
+Only a PAID one has `paidAt`, and it must; only a CANCELLED one has
+`cancelledAt`, and it must.
+
+**Why:** The same shape as `BIL-053`: a date on the wrong status is corrupt
+data that the PDF stamp (`BIL-231`) would then misreport.
+
+**Enforced at:** `src/domain/billing/aggregates/CollectionAccount.ts` (`validate`)
+**Tests:** `tests/domain/billing/aggregates/CollectionAccount.test.ts`
+
+### BIL-224 — Every transition announces itself
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-25
+
+`CollectionAccountIssuedEvent`, `CollectionAccountPaidEvent`,
+`CollectionAccountCancelledEvent`. Nothing subscribes yet.
+
+**Why:** Consistent with `BIL-059`, so a future notification or accounting
+export can hook in without touching the aggregate.
+
+**Enforced at:** `src/domain/billing/aggregates/CollectionAccount.ts`
+**Tests:** `tests/domain/billing/aggregates/CollectionAccount.test.ts`
+
+### BIL-225 — A cuenta de cobro never affects internet service
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-25
+
+It has no OVERDUE state, is not read by bill generation, and plays no part in
+suspension or enforcement.
+
+**Why:** Decided with the business: these are separate documents. An unpaid
+camera install must not cut someone's internet.
+
+**Enforced at:** `src/domain/billing/enums/CollectionAccountStatus.ts` (by absence)
+**Tests:** `tests/domain/billing/aggregates/CollectionAccount.test.ts`
+
+### BIL-230 — The PDF is a "CUENTA DE COBRO" with the amount in words
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-25
+
+The document is titled `CUENTA DE COBRO`, carries its `CC-NNNN` number, states
+"DEBE A" (the issuer) and "LA SUMA DE" with the total written out in Spanish
+(`… PESOS M/CTE`), then lists the items. It downloads as
+`cuenta-de-cobro-CC-NNNN.pdf`. The issuer's name, NIT, address and payment
+instructions come from `src/infrastructure/billing/config/collectionAccountIssuerConfig.ts`.
+
+**Why:** That is the conventional shape of a Colombian cuenta de cobro, and the
+amount in words is what makes the figure hard to alter on a printed copy.
+
+**Enforced at:** `src/application/billing/use-cases/GetCollectionAccountPdfUseCase.ts`, `src/infrastructure/billing/services/PdfKitCollectionAccountPdfRenderer.ts`, `src/infrastructure/billing/utils/spanishAmountInWords.ts`
+**Tests:** `tests/application/billing/use-cases/GetCollectionAccountPdfUseCase.test.ts`, `tests/infrastructure/billing/utils/spanishAmountInWords.test.ts`, `tests/integration/collection-account.routes.test.ts`
+
+### BIL-231 — A paid or cancelled PDF is stamped
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (PDF)
+**Since:** 2026-09-25
+
+`PAGADA` in green or `ANULADA` in red, top right.
+
+**Why:** A re-downloaded copy must not be mistakable for an open demand.
+
+**Enforced at:** `src/infrastructure/billing/services/PdfKitCollectionAccountPdfRenderer.ts` (`drawStatusStamp`)
+**Tests:** `tests/infrastructure/billing/services/PdfKitCollectionAccountPdfRenderer.test.ts`
+
+### BIL-240 — Listings return 20 rows by default and 100 at most, filterable by customer and status
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-25
+
+Newest first. A limit above 100 is rejected at the edge and capped in the use
+case.
+
+**Why:** Same limits as `BIL-120`.
+
+**Enforced at:** `src/application/billing/use-cases/ListCollectionAccountsUseCase.ts`, `src/presentation/http/validation/collection-account.schemas.ts`
+**Tests:** `tests/application/billing/use-cases/ListCollectionAccountsUseCase.test.ts`, `tests/integration/use-cases/billing/ListCollectionAccountsUseCase.integration.test.ts`
+
+### BIL-250 — Endpoints are permission-gated, with no edit or delete
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-09-25
+
+| Endpoint                                           | Permission |
+| -------------------------------------------------- | ---------- |
+| `GET /api/collection-accounts`, `/:id`, `/:id/pdf` | `read`     |
+| `POST /api/collection-accounts`                    | `create`   |
+| `POST /api/collection-accounts/:id/pay`, `/cancel` | `update`   |
+
+**Why:** As `BIL-140`: a document handed to a customer is withdrawn by
+cancelling it, which leaves it visible and dated.
+
+**Enforced at:** `src/presentation/http/routes/collection-account.routes.ts`
+**Tests:** `tests/integration/collection-account.routes.test.ts`
+
+### BIL-251 — Deleting a customer keeps their cuentas de cobro
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (database)
+**Since:** 2026-09-25
+
+The foreign key is `ON DELETE SET NULL`; the snapshot (`BIL-201`) still says
+who the document was for.
+
+**Why:** Unlike bills (`BIL-011`), a cuenta de cobro stands on its snapshot, so
+there is no reason for it to block a customer's removal — and no reason to lose
+the record either.
+
+**Enforced at:** `prisma/schema.prisma` (`CollectionAccount.customer`)
+**Tests:** `tests/integration/use-cases/billing/CreateCollectionAccountUseCase.integration.test.ts`

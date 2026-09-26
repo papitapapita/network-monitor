@@ -3051,6 +3051,157 @@ The PDF includes the bill header (period, status, issue/due/paid dates), the cus
 
 ---
 
+## Cuentas de cobro `/api/collection-accounts`
+
+A one-off charge for work outside the internet service — camera installs, equipment, repair visits — downloadable as a PDF titled **CUENTA DE COBRO**. Completely separate from bills: no billing period, no subscriptions, free-text line items, and **no effect on service** (never overdue, never triggers suspension). The customer can be an existing `Customer` or typed in freely; either way the details are a **snapshot captured at creation**.
+
+**Lifecycle:** `PENDING → PAID | CANCELLED`. Both are terminal. There is no edit endpoint — to fix a mistake, cancel and issue a new one.
+
+```ts
+type CollectionAccountStatus = 'PENDING' | 'PAID' | 'CANCELLED';
+
+interface CollectionAccountLineItemDTO {
+  description: string;
+  unitPrice: number;
+  quantity: number;
+  lineTotal: number; // unitPrice × quantity
+}
+
+interface CollectionAccountDTO {
+  id: string; // UUID
+  code: number | null; // database sequence
+  number: string | null; // 'CC-0007' — what is printed on the document
+  status: CollectionAccountStatus;
+  customerId: string | null; // UUID when linked to a Customer
+  customerName: string;
+  customerDocument: string | null; // cédula / NIT
+  customerPhone: string | null;
+  customerEmail: string | null;
+  customerAddress: string | null;
+  lineItems: CollectionAccountLineItemDTO[];
+  total: number; // sum of lineTotal
+  issueDate: string; // ISO 8601
+  dueDate: string | null; // ISO 8601 — optional
+  notes: string | null; // printed as "Observaciones"
+  paidAt: string | null;
+  cancelledAt: string | null;
+  createdBy: string | null; // UUID of the user who issued it
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+### `POST /api/collection-accounts` — Create
+
+**Status:** 201 | 400 | 404 | 500  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// Request body
+{
+  customerId?: string        // UUID — link an existing customer
+  customerName?: string      // required when customerId is absent, ≤ 150
+  customerDocument?: string  // ≤ 20; ignored if the linked customer has a cédula
+  customerPhone?: string     // ≤ 20; ignored when customerId is given
+  customerEmail?: string     // email; ignored when customerId is given
+  customerAddress?: string   // ≤ 255
+  issueDate?: string         // ISO 8601 datetime; default: now
+  dueDate?: string           // ISO 8601 datetime; optional, must be ≥ issueDate
+  notes?: string
+  lineItems: Array<{         // at least one
+    description: string      // 1–500 chars
+    unitPrice: number        // ≥ 0
+    quantity: number         // positive integer
+  }>
+}
+
+// Response
+{ success: true, data: CollectionAccountDTO }
+```
+
+- With `customerId`, name, phone, email and cédula are copied from the customer record; the address comes from the request.
+- Returns 404 if `customerId` does not exist.
+- `createdBy` is taken from the token, never the body.
+
+---
+
+### `GET /api/collection-accounts` — List
+
+**Status:** 200 | 400
+
+```ts
+// Query: customerId?: UUID, status?: CollectionAccountStatus, limit?: 1–100 (default 20), offset?: ≥ 0
+
+// Response — newest first
+{
+  success: true,
+  data: {
+    collectionAccounts: CollectionAccountDTO[]
+    total: number
+    hasMore: boolean
+    limit: number
+    offset: number
+  }
+}
+```
+
+---
+
+### `GET /api/collection-accounts/:id` — Get by ID
+
+**Status:** 200 | 400 | 404
+
+```ts
+{ success: true, data: CollectionAccountDTO }
+```
+
+---
+
+### `GET /api/collection-accounts/:id/pdf` — Download as PDF
+
+**Status:** 200 | 400 | 404
+
+Returns the document as a **PDF** — not the JSON envelope.
+
+```
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="cuenta-de-cobro-CC-0007.pdf"
+```
+
+The PDF shows the issuer header, the `CC-NNNN` number, city and issue date, due date (if any), the customer block, "DEBE A" / "LA SUMA DE" with the total written in Spanish words, the line items table, total, observaciones, payment instructions and a signature line. Paid and cancelled documents are stamped `PAGADA` / `ANULADA`. Issuer details come from `src/infrastructure/billing/config/collectionAccountIssuerConfig.ts`.
+
+> Error responses (400/404) still use the standard JSON envelope. Fetch with the Bearer token and download via a blob URL.
+
+---
+
+### `POST /api/collection-accounts/:id/pay` — Mark as Paid
+
+**Status:** 200 | 400 | 404 | 409  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// No request body
+{ success: true, data: CollectionAccountDTO } // status 'PAID', paidAt set
+```
+
+> Only from `PENDING` — 409 otherwise.
+
+---
+
+### `POST /api/collection-accounts/:id/cancel` — Cancel
+
+**Status:** 200 | 400 | 404 | 409  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// No request body
+{ success: true, data: CollectionAccountDTO } // status 'CANCELLED', cancelledAt set
+```
+
+> Only from `PENDING` — a paid document cannot be cancelled (409).
+
+---
+
 ## Quotations `/api/quotations`
 
 A sales proposal ("cotización"): catalog hardware from `device-inventory` picked by a technician, priced by hand for this quote alone, sent to a customer or free-text prospect, and exportable as a PDF. Unlike bills, a quotation's customer info (name, phone, email, address) is a **snapshot captured at creation** and never re-read live — `Customer` has no address field at all, so it's the only option, and a quote must keep saying what it said when it was built.

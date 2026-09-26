@@ -22,6 +22,7 @@ import { createServicePlanRoutes } from './service-plan.routes';
 import { createContractedServiceRoutes } from './contracted-service.routes';
 import { createEnforcementRoutes } from './enforcement.routes';
 import { createBillRoutes } from './bill.routes';
+import { createCollectionAccountRoutes } from './collection-account.routes';
 import { createTicketRoutes } from './ticket.routes';
 import { createTechnicianRoutes } from './technician.routes';
 import { createQuotationRoutes } from './quotation.routes';
@@ -151,6 +152,14 @@ export function setupRoutes(
 
   // Bills: /api/bills
   apiRouter.use('/bills', createBillRoutes(container.billController));
+
+  // Cuentas de cobro: /api/collection-accounts
+  apiRouter.use(
+    '/collection-accounts',
+    createCollectionAccountRoutes(
+      container.collectionAccountController
+    )
+  );
 
   // Quotations: /api/quotations
   apiRouter.use(

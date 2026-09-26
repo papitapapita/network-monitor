@@ -153,6 +153,7 @@ This document defines the **Ubiquitous Language** used throughout the Network Mo
 | **ISP (Internet Service Provider)** | A company that provides internet access to customers.                 | Business Domain  | Service Provider      |
 | **Customer**                        | An end-user who subscribes to ISP services.                           | Business Domain  | Client, Subscriber    |
 | **Billing**                         | The process of charging customers for services rendered.              | Business Domain  | Invoicing             |
+| **Cuenta de cobro**                 | A one-off charge document for work outside the internet service.      | Business Domain  | Collection Account    |
 | **Subscription**                    | A recurring payment model for services.                               | Business Domain  | Plan, Service Package |
 
 ---
