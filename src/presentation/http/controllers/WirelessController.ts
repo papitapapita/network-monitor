@@ -435,7 +435,8 @@ export class WirelessController {
         'No wireless polling configuration found'
       ) ||
       errorMessage.includes('Wireless config not found') ||
-      errorMessage.includes('Device not found')
+      errorMessage.includes('Device not found') ||
+      errorMessage.includes('no longer exists')
     ) {
       return 404;
     }
@@ -453,7 +454,8 @@ export class WirelessController {
       errorMessage.includes('can only be set for') ||
       errorMessage.includes('cannot reference itself') ||
       errorMessage.includes('not configured') ||
-      errorMessage.includes('not wireless-capable')
+      errorMessage.includes('not wireless-capable') ||
+      errorMessage.includes('devices can have a wireless config')
     ) {
       return 400;
     }

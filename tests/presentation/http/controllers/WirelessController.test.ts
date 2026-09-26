@@ -1142,6 +1142,28 @@ describe('WirelessController', () => {
 
     // -----------------------------------------------------------------------
     describe('Error Path — 404 Not Found', () => {
+      it('should return 404 when the device was deleted before the poll ran', async () => {
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (
+          mockTriggerPollUseCase.execute as jest.Mock
+        ).mockResolvedValue(
+          Result.fail(
+            'Cannot poll device — the device no longer exists'
+          )
+        );
+
+        await controller.triggerPoll(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(statusMock).toHaveBeenCalledWith(404);
+      });
+
       it('should return 404 when the use case fails with "not found"', async () => {
         const mockReq = createMockRequest({
           params: { id: DEVICE_UUID }
@@ -1762,6 +1784,31 @@ describe('WirelessController', () => {
           { error: 'Alert history query failed' }
         );
       });
+    });
+  });
+
+  describe('createConfig (POST /api/devices/:id/wireless/config)', () => {
+    it('should return 400 when the device type cannot have a wireless config', async () => {
+      const mockReq = createMockRequest({
+        params: { id: DEVICE_UUID },
+        body: {}
+      });
+      const { res, statusMock } = createMockResponse();
+
+      (
+        mockCreateWirelessConfigUseCase.execute as jest.Mock
+      ).mockResolvedValue(
+        Result.fail(
+          'Only WIRELESS_CPE and ACCESS_POINT devices can have a wireless config'
+        )
+      );
+
+      await controller.createConfig(
+        mockReq as Request,
+        res as Response
+      );
+
+      expect(statusMock).toHaveBeenCalledWith(400);
     });
   });
 });
