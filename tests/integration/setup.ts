@@ -14,6 +14,9 @@ process.env.JWT_SECRET ??= 'test-jwt-secret';
 // chars. Fixed so encrypted rows stay readable across runs.
 process.env.DEVICE_CREDENTIALS_KEY ??= '0'.repeat(63) + '1';
 
+// Baked into pairing keys; agents are never actually contacted in tests.
+process.env.AGENT_PUBLIC_URL ??= 'https://agents.test.local';
+
 // Cuenta de cobro issuer — required whenever billing is enabled.
 process.env.ISSUER_NAME ??= 'Test ISP';
 process.env.ISSUER_DOCUMENT ??= '900123456-7';

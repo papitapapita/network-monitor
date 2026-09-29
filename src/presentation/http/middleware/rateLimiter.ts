@@ -1,7 +1,12 @@
 import { Request } from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
-type RateLimitType = 'read' | 'write' | 'delete' | 'bulk-import';
+type RateLimitType =
+  | 'read'
+  | 'write'
+  | 'delete'
+  | 'bulk-import'
+  | 'enroll';
 
 const LIMITS: Record<
   RateLimitType,
@@ -10,7 +15,8 @@ const LIMITS: Record<
   read: { max: 100, windowMs: 60_000 },
   write: { max: 60, windowMs: 60_000 },
   delete: { max: 60, windowMs: 60_000 },
-  'bulk-import': { max: 5, windowMs: 3_600_000 }
+  'bulk-import': { max: 5, windowMs: 3_600_000 },
+  enroll: { max: 10, windowMs: 900_000 }
 };
 
 // Authenticated callers get their own bucket so several operators behind one

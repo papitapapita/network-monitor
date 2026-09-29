@@ -1,4 +1,5 @@
 import { PrismaClient } from '../../../src/generated/prisma/client';
+import { createHash, randomUUID } from 'crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 /**
@@ -566,4 +567,51 @@ export function createTestPrisma(): PrismaClient {
     connectionString: process.env.DATABASE_URL
   });
   return new PrismaClient({ adapter });
+}
+
+export async function cleanAgents(
+  prisma: PrismaClient
+): Promise<void> {
+  await prisma.probeAgent.deleteMany();
+}
+
+const sha256 = (secret: string): string =>
+  createHash('sha256').update(secret, 'utf8').digest('hex');
+
+/**
+ * Creates a probe agent directly via Prisma. A PENDING agent gets a known
+ * pairing code, an ACTIVE one a known token, so tests can present them.
+ */
+export async function seedAgent(
+  prisma: PrismaClient,
+  overrides: {
+    name?: string;
+    status?: 'PENDING' | 'ACTIVE' | 'REVOKED';
+    pairingCode?: string;
+    pairingExpiresAt?: Date;
+    token?: string;
+  } = {}
+): Promise<{ id: string; pairingCode: string; token: string }> {
+  const status = overrides.status ?? 'PENDING';
+  const pairingCode = overrides.pairingCode ?? randomUUID();
+  const token = overrides.token ?? randomUUID();
+  const now = new Date();
+
+  const agent = await prisma.probeAgent.create({
+    data: {
+      name: overrides.name ?? `Agent ${randomUUID().slice(0, 8)}`,
+      status,
+      pairingCodeHash:
+        status === 'PENDING' ? sha256(pairingCode) : null,
+      pairingExpiresAt:
+        status === 'PENDING'
+          ? (overrides.pairingExpiresAt ??
+            new Date(now.getTime() + 24 * 60 * 60 * 1000))
+          : null,
+      tokenHash: status === 'ACTIVE' ? sha256(token) : null,
+      enrolledAt: status === 'ACTIVE' ? now : null,
+      revokedAt: status === 'REVOKED' ? now : null
+    }
+  });
+  return { id: agent.id, pairingCode, token };
 }

@@ -1,6 +1,17 @@
 import { PrismaClient } from 'generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { WinstonLogger } from '../logging';
+import { PrismaAgentRepository } from '../probe-agents/repositories';
+import { NodeAgentSecretService } from '../probe-agents/crypto';
+import { loadAgentPublicUrl } from '../probe-agents/config';
+import {
+  CreateAgentUseCase,
+  ListAgentsUseCase,
+  GetAgentUseCase,
+  ReissuePairingKeyUseCase,
+  RevokeAgentUseCase,
+  EnrollAgentUseCase
+} from '../../application/probe-agents/use-cases';
 import { JwtTokenService } from '../identity/services/JwtTokenService';
 import { BcryptPasswordService } from '../identity/services/BcryptPasswordService';
 import { PrismaUserRepository } from '../identity/repositories/PrismaUserRepository';
@@ -59,6 +70,8 @@ import {
   BillController,
   CollectionAccountController,
   BankAccountController,
+  AgentController,
+  AgentEnrollmentController,
   QuotationController,
   EnforcementController,
   TicketController,
@@ -397,6 +410,8 @@ export class DependencyContainer {
   public pollingController: PollingController;
   public notificationPolicyController: NotificationPolicyController;
   public notificationMuteController: NotificationMuteController;
+  public agentController: AgentController;
+  public agentEnrollmentController: AgentEnrollmentController;
   public alertController: AlertController;
   public scanController: ScanController;
   public wirelessController: WirelessController;
@@ -1170,6 +1185,38 @@ export class DependencyContainer {
     this.notificationMuteController = new NotificationMuteController(
       getMutedAlertTypesUseCase,
       setMutedAlertTypesUseCase,
+      this.logger
+    );
+
+    // PROBE-AGENTS — core, like monitoring: an install without agents simply
+    // has none, and AGENT_PUBLIC_URL unset only disables issuing keys.
+    const agentRepository = new PrismaAgentRepository(this.prisma);
+    const agentSecrets = new NodeAgentSecretService();
+    const agentPublicUrl = loadAgentPublicUrl(process.env);
+    this.agentController = new AgentController(
+      new CreateAgentUseCase(
+        agentRepository,
+        agentSecrets,
+        agentPublicUrl,
+        this.logger
+      ),
+      new ListAgentsUseCase(agentRepository, this.logger),
+      new GetAgentUseCase(agentRepository, this.logger),
+      new ReissuePairingKeyUseCase(
+        agentRepository,
+        agentSecrets,
+        agentPublicUrl,
+        this.logger
+      ),
+      new RevokeAgentUseCase(agentRepository, this.logger),
+      this.logger
+    );
+    this.agentEnrollmentController = new AgentEnrollmentController(
+      new EnrollAgentUseCase(
+        agentRepository,
+        agentSecrets,
+        this.logger
+      ),
       this.logger
     );
 

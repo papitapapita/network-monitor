@@ -952,3 +952,37 @@ model Ticket {
   @@index([origin, originAlertId])
   @@map("tickets")
 }
+
+// ============================================================================
+// PROBE AGENTS BOUNDED CONTEXT
+// ============================================================================
+// On-site agents that measure a customer's network and report to this
+// backend (ADR 0002). Only hashes of the pairing code and the token are
+// stored; both are shown once and never again.
+// ============================================================================
+
+enum AgentStatus {
+  PENDING
+  ACTIVE
+  REVOKED
+
+  @@map("agent_status")
+}
+
+model ProbeAgent {
+  id               String      @id @default(uuid()) @db.Uuid
+  name             String      @unique @db.VarChar(60)
+  status           AgentStatus @default(PENDING)
+  pairingCodeHash  String?     @unique @map("pairing_code_hash") @db.Char(64)
+  pairingExpiresAt DateTime?   @map("pairing_expires_at") @db.Timestamptz
+  tokenHash        String?     @unique @map("token_hash") @db.Char(64)
+  enrolledAt       DateTime?   @map("enrolled_at") @db.Timestamptz
+  revokedAt        DateTime?   @map("revoked_at") @db.Timestamptz
+  lastSeenAt       DateTime?   @map("last_seen_at") @db.Timestamptz
+  agentVersion     String?     @map("agent_version") @db.VarChar(32)
+  clockOffsetMs    Int?        @map("clock_offset_ms")
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("probe_agents")
+}

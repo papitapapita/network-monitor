@@ -49,7 +49,7 @@ Everything else (monitoring) is always present. A monitoring-only install
 
 ## Authentication
 
-All endpoints except `POST /api/auth/login` require a valid JWT in the `Authorization` header:
+All endpoints except `POST /api/auth/login` and the agent-facing `/agent/v1/*` (see Probe agents) require a valid JWT in the `Authorization` header:
 
 ```
 Authorization: Bearer <token>
@@ -69,9 +69,10 @@ Missing or invalid tokens return `401`. Insufficient role returns `403`.
 | `OPERATOR` | read, create, update, activate, bulk-import                             |
 | `VIEWER`   | read only                                                               |
 
-`manage-credentials` gates writes to `/api/devices/:id/credentials` only — those
-endpoints carry device passwords and SNMP keys, so they are not covered by the
-generic `update` permission. Reading them stays on `read` because the response is
+`manage-credentials` gates writes to `/api/devices/:id/credentials` and to
+`/api/agents` — the first carry device passwords and SNMP keys, the second issue
+and revoke agent pairing keys, so neither is covered by the generic `update`
+permission. Reading them stays on `read` because the response is
 masked.
 
 ### Rate limits (per authenticated user)
@@ -82,6 +83,7 @@ masked.
 | Write (`POST`, `PATCH`, `PUT`) | 60 / min  |
 | Delete (`DELETE`)              | 60 / min  |
 | Bulk import                    | 5 / hr    |
+| Agent enrollment (per IP)      | 10 / 15 min |
 
 Counters are keyed by user id, falling back to IP for unauthenticated requests,
 so operators sharing one office address do not share a budget. Each resource
@@ -2689,6 +2691,119 @@ WirelessAlertDTO[]
 
 > Note: `deviceId` is **required** even though the route appears global. Omitting it returns 400.  
 > Prefer `GET /api/devices/:id/wireless/alerts/history` for per-device history.
+
+---
+
+## Probe agents `/api/agents`
+
+On-site agents that measure a customer's network from inside it and report to this backend (ADR 0002). An administrator creates an agent and gets a **pairing key** — the only thing the installer asks for. The key is shown **once**, in the create (or re-key) response; store nothing, show it with a copy button and a "this will not be shown again" warning.
+
+**Lifecycle:** `PENDING → ACTIVE → REVOKED`. `PENDING` until the installer pairs; the key expires 24 h after it was issued (`pairingExpiresAt`) — offer "new key" for an expired pending agent. `REVOKED` is final. Connection status (online/offline, last seen) is filled in by a later release; `lastSeenAt`, `agentVersion` and `clockOffsetMs` are `null` until then.
+
+```ts
+interface AgentDTO {
+  id: string; // UUID
+  name: string; // unique, 1–60 chars
+  status: 'PENDING' | 'ACTIVE' | 'REVOKED';
+  pairingExpiresAt: string | null; // set only while PENDING
+  enrolledAt: string | null;
+  revokedAt: string | null;
+  lastSeenAt: string | null;
+  agentVersion: string | null;
+  clockOffsetMs: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AgentPairingDTO {
+  agent: AgentDTO;
+  pairingKey: string; // 'pk1.aHR0cHM6Ly9hcGkuZXhhbXBsZS5jb20.3q2-…' — shown once
+}
+```
+
+### `POST /api/agents` — Create
+
+**Status:** 201 | 400 | 409 | 503  
+**Roles:** ADMIN
+
+```ts
+// Request body
+{ name: string } // 1–60 chars, unique across all agents (revoked included)
+
+// Response
+{ success: true, data: AgentPairingDTO }
+```
+
+> 409 if the name is taken. 503 if the server has no `AGENT_PUBLIC_URL` configured — pairing is unavailable on this install.
+
+---
+
+### `GET /api/agents` — List
+
+**Status:** 200  
+**Roles:** all
+
+```ts
+// Response — oldest first, no pagination
+{ success: true, data: { agents: AgentDTO[] } }
+```
+
+---
+
+### `GET /api/agents/:id` — Get by ID
+
+**Status:** 200 | 400 | 404  
+**Roles:** all
+
+```ts
+{ success: true, data: AgentDTO }
+```
+
+---
+
+### `POST /api/agents/:id/pairing-key` — Issue a new pairing key
+
+**Status:** 200 | 400 | 404 | 409 | 503  
+**Roles:** ADMIN
+
+```ts
+// No body. Response
+{ success: true, data: AgentPairingDTO }
+```
+
+> Only for a `PENDING` agent (409 otherwise). The previous key stops working immediately.
+
+---
+
+### `POST /api/agents/:id/revoke` — Revoke
+
+**Status:** 200 | 400 | 404 | 409  
+**Roles:** ADMIN
+
+```ts
+// No body. Response
+{ success: true, data: AgentDTO } // status: 'REVOKED'
+```
+
+> Final. The agent's token and any unused key stop working. 409 if already revoked.
+
+---
+
+### `POST /agent/v1/enroll` — Pair an agent (called by the installer, not the dashboard)
+
+Outside `/api`, no JWT — the pairing code is the credential. Documented so the frontend knows it exists; the dashboard never calls it.
+
+**Status:** 201 | 400 | 401 | 429
+
+```ts
+// Request body — the code segment of the pairing key
+{ pairingCode: string }
+
+// Response — the token is returned once
+{ success: true, data: { token: string; agentName: string } }
+```
+
+> 401 `Invalid or expired pairing code` for any unusable code (unknown, used, expired, revoked) — deliberately indistinguishable.
 
 ---
 

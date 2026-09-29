@@ -28,6 +28,8 @@ import { createBankAccountRoutes } from './bank-account.routes';
 import { createTicketRoutes } from './ticket.routes';
 import { createTechnicianRoutes } from './technician.routes';
 import { createQuotationRoutes } from './quotation.routes';
+import { createAgentRoutes } from './agent.routes';
+import { createAgentEnrollmentRoutes } from './agent-enrollment.routes';
 import {
   createAuditLogMiddleware,
   createAuthenticateMiddleware
@@ -264,6 +266,16 @@ export function setupRoutes(
   );
 
   // =====================================
+  // PROBE-AGENTS BOUNDED CONTEXT
+  // =====================================
+
+  // Agents: /api/agents
+  apiRouter.use(
+    '/agents',
+    createAgentRoutes(container.agentController)
+  );
+
+  // =====================================
   // ADMIN
   // =====================================
 
@@ -274,4 +286,11 @@ export function setupRoutes(
   );
 
   app.use('/api', apiRouter);
+
+  // Agent-facing endpoints live outside /api: agents authenticate with a
+  // pairing code or their own token, never a user's JWT (ADR 0002, R4).
+  app.use(
+    '/agent/v1',
+    createAgentEnrollmentRoutes(container.agentEnrollmentController)
+  );
 }

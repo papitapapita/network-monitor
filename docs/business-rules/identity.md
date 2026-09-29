@@ -514,7 +514,7 @@ the limit a property of the account rather than the building.
 **Enforced at:** `src/presentation/http/middleware/rateLimiter.ts` (`keyGenerator`)
 **Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`
 
-### IDN-101 — There are four rate budgets
+### IDN-101 — There are five rate budgets
 
 **Type:** Policy · **Status:** Active
 **Layer:** Presentation (middleware)
@@ -526,12 +526,15 @@ the limit a property of the account rather than the building.
 | `write`       | 60 per minute  |
 | `delete`      | 60 per minute  |
 | `bulk-import` | 5 per hour     |
+| `enroll`      | 10 per 15 min  |
 
 **Why:** Reads are cheap and are what a dashboard does on a timer, so they get
 the loosest budget. `bulk-import` is three orders of magnitude tighter because
 one call does the work of hundreds and can run for minutes — `BIL-141` explains
 what that protects. `write` and `delete` are currently identical; the separate
 name exists so deletion can be tightened without touching every write route.
+`enroll` is the only budget for a caller with no user: agent enrollment
+(`AGT-008`), keyed by IP address.
 
 **Enforced at:** `src/presentation/http/middleware/rateLimiter.ts` (`LIMITS`)
 **Message:** `Too many requests`
