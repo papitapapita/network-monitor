@@ -7,6 +7,8 @@
   "scripts": {
     "build": "esbuild src/main.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/main.js",
     "dev": "NODE_ENV=development tsx --watch src/main.ts",
+    "build:agent": "esbuild src/agent/main.ts --bundle --platform=node --format=cjs --target=node22 --outfile=dist/agent/nms-agent.cjs",
+    "dev:agent": "tsx src/agent/main.ts",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write src tests docs",
     "format:check": "prettier --check src tests docs",
@@ -45,7 +47,7 @@
     "test:integration:routes:tickets": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js --runInBand --testPathPattern=\"(technician|ticket)\\.routes\\.test\\.ts$\"",
     "test:integration:routes:identity": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js --runInBand --testPathPattern=\"auth\\.routes\\.test\\.ts$\"",
     "test:integration:routes:admin": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js --runInBand --testPathPattern=\"admin\\.routes\\.test\\.ts$\"",
-    "test:integration:routes:probe-agents": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js --runInBand --testPathPattern=\"agent(-enrollment)?\\.routes\\.test\\.ts$|agent-gateway\\.test\\.ts$\"",
+    "test:integration:routes:probe-agents": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js --runInBand --testPathPattern=\"agent(-enrollment)?\\.routes\\.test\\.ts$|agent-gateway\\.test\\.ts$|agent-app\\.test\\.ts$\"",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:prod": "NODE_ENV=production prisma migrate deploy",
     "db:studio:dev": "prisma studio",

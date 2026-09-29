@@ -14,7 +14,7 @@ import {
 } from './helpers/db';
 import { seedAndGetToken } from './helpers/auth';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
-import { PairingKey } from '../../src/application/probe-agents/services';
+import { parsePairingKey } from '../../src/agent/protocol';
 
 describe('Agent Routes — /api/agents', () => {
   let app: Application;
@@ -103,7 +103,7 @@ describe('Agent Routes — /api/agents', () => {
         name: 'Torre Norte',
         status: 'PENDING'
       });
-      const parts = PairingKey.parse(res.body.data.pairingKey).value;
+      const parts = parsePairingKey(res.body.data.pairingKey)!;
       expect(parts.backendUrl).toBe('https://agents.test.local');
     });
 
@@ -119,8 +119,7 @@ describe('Agent Routes — /api/agents', () => {
 
       expect(read.body.data).not.toHaveProperty('pairingKey');
       expect(JSON.stringify(read.body)).not.toContain(
-        PairingKey.parse(created.body.data.pairingKey).value
-          .pairingCode
+        parsePairingKey(created.body.data.pairingKey)!.pairingCode
       );
     });
 
@@ -213,8 +212,8 @@ describe('Agent Routes — /api/agents', () => {
 
       expect(res.status).toBe(200);
       expect(
-        PairingKey.parse(res.body.data.pairingKey).isSuccess
-      ).toBe(true);
+        parsePairingKey(res.body.data.pairingKey)
+      ).not.toBeNull();
     });
 
     it('[AGT-004] 409 — an enrolled agent gets no new key', async () => {

@@ -15,7 +15,11 @@ export class PingService implements IPingService {
     try {
       const response = await ping.promise.probe(ipAddress, {
         timeout: timeoutMs / 1000,
-        min_reply: 1
+        min_reply: 1,
+        // The Windows parser finds the time field next to `bytes=<size>`
+        // rather than by its (localized) name — `time=`, `tiempo=`. Without
+        // the size it reads the byte count as the latency.
+        packetSize: 32
       });
 
       return Result.ok<PingResponse>({

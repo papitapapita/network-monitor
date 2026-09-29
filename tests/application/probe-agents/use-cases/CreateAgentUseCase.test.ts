@@ -2,7 +2,7 @@ import {
   CreateAgentUseCase,
   AGENT_PUBLIC_URL_MISSING
 } from '../../../../src/application/probe-agents/use-cases';
-import { PairingKey } from '../../../../src/application/probe-agents/services';
+import { parsePairingKey } from '../../../../src/agent/protocol';
 import {
   BACKEND_URL,
   FakeAgentSecretService,
@@ -32,7 +32,7 @@ describe('CreateAgentUseCase', () => {
   it('[AGT-001] returns a pairing key pointing at this backend', async () => {
     const result = await useCase.execute({ name: 'Torre Norte' });
 
-    const parts = PairingKey.parse(result.value.pairingKey).value;
+    const parts = parsePairingKey(result.value.pairingKey)!;
     expect(parts.backendUrl).toBe(BACKEND_URL);
     expect(parts.pairingCode).toBe('secret-1');
   });

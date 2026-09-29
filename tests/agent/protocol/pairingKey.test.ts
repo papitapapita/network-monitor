@@ -1,27 +1,30 @@
-import { PairingKey } from '../../../../src/application/probe-agents/services/PairingKey';
+import {
+  formatPairingKey,
+  parsePairingKey
+} from '../../../src/agent/protocol/pairingKey';
 
-describe('PairingKey', () => {
+describe('pairing key', () => {
   const parts = {
     backendUrl: 'https://api.example.com',
     pairingCode: 'Zm9vYmFy_-abc'
   };
 
   it('[AGT-001] round-trips the backend URL and the code', () => {
-    const key = PairingKey.format(parts);
+    const key = formatPairingKey(parts);
 
-    expect(PairingKey.parse(key).value).toEqual(parts);
+    expect(parsePairingKey(key)).toEqual(parts);
   });
 
   it('is a single pasteable token with a version prefix', () => {
-    const key = PairingKey.format(parts);
+    const key = formatPairingKey(parts);
 
     expect(key).toMatch(/^pk1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
   });
 
   it('tolerates surrounding whitespace from a paste', () => {
-    const key = PairingKey.format(parts);
+    const key = formatPairingKey(parts);
 
-    expect(PairingKey.parse(`  ${key}\n`).value).toEqual(parts);
+    expect(parsePairingKey(`  ${key}\n`)).toEqual(parts);
   });
 
   it.each([
@@ -30,15 +33,15 @@ describe('PairingKey', () => {
     ['an empty code', 'pk1.aHR0cHM6Ly94.'],
     ['garbage', 'hello world']
   ])('rejects %s', (_label, raw) => {
-    expect(PairingKey.parse(raw).isFailure).toBe(true);
+    expect(parsePairingKey(raw)).toBeNull();
   });
 
   it('rejects a key whose URL is not http(s)', () => {
-    const key = PairingKey.format({
+    const key = formatPairingKey({
       backendUrl: 'ftp://example.com',
       pairingCode: 'code'
     });
 
-    expect(PairingKey.parse(key).error).toContain('bad backend URL');
+    expect(parsePairingKey(key)).toBeNull();
   });
 });

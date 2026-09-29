@@ -1,6 +1,6 @@
 import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { CreateAgentUseCase } from 'application/probe-agents/use-cases';
-import { PairingKey } from 'application/probe-agents/services';
+import { parsePairingKey } from 'agent/protocol';
 import {
   setupDependencies,
   DependencyContainer
@@ -38,9 +38,7 @@ describe('CreateAgentUseCase — integration', () => {
   it('[AGT-002] persists a PENDING agent holding only the code hash', async () => {
     const result = await useCase.execute({ name: 'Torre Norte' });
 
-    const { pairingCode } = PairingKey.parse(
-      result.value.pairingKey
-    ).value;
+    const { pairingCode } = parsePairingKey(result.value.pairingKey)!;
     const row = await prisma.probeAgent.findUnique({
       where: { id: result.value.agent.id }
     });

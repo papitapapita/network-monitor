@@ -5,7 +5,7 @@ import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import { IAgentSecretService } from '../interfaces';
 import { AgentMapper } from '../mappers';
-import { PairingKey } from '../services';
+import { formatPairingKey } from 'agent/protocol';
 import {
   AgentPairingResponseDTO,
   CreateAgentRequestDTO
@@ -66,7 +66,7 @@ export class CreateAgentUseCase extends UseCase<
 
     return this.ok({
       agent: AgentMapper.toDTO(saveResult.value),
-      pairingKey: PairingKey.format({
+      pairingKey: formatPairingKey({
         backendUrl: this.backendUrl,
         pairingCode
       })

@@ -13,6 +13,15 @@ wrong, and who is told. How a result is judged once it reaches a device —
 duplicates, backlog, out-of-order — is device-monitoring's (`MON-007`,
 `MON-008`).
 
+The agent program rules cover the agent's own side (`src/agent/`): pairing,
+polling, buffering while offline and reacting to what the backend tells it.
+The agent is a separate program with its own composition root
+(`src/agent/main.ts`); it reuses the backend's ping probe but never its
+database, HTTP server, DI container or use cases, which ESLint and
+`tests/agent/importBoundary.test.ts` both check. It keeps its files in one data
+directory — `%ProgramData%\NmsAgent` on Windows, `/var/lib/nms-agent` on Linux,
+or `NMS_AGENT_DATA_DIR`.
+
 Format and conventions: [README.md](README.md).
 
 ## ID ranges
@@ -22,6 +31,7 @@ Format and conventions: [README.md](README.md).
 | `AGT-001` … `AGT-019` | Enrollment and identity |
 | `AGT-020` … `AGT-039` | Liveness                |
 | `AGT-040` … `AGT-059` | Connection and protocol |
+| `AGT-060` … `AGT-079` | The agent program       |
 
 ## Layer coverage
 
@@ -31,8 +41,9 @@ A rule enforced in two layers counts in both.
 | ---------------------------- | ----- |
 | Domain                       | 10    |
 | Application                  | 14    |
-| Infrastructure (composition) | 9     |
+| Infrastructure (composition) | 10    |
 | Presentation                 | 7     |
+| Agent program                | 7     |
 
 ---
 
@@ -59,9 +70,9 @@ be able to move the backend without reissuing anything (R20), so the address
 travels inside the key. The short lifetime bounds the damage of a key pasted
 into the wrong chat.
 
-**Enforced at:** `src/domain/probe-agents/aggregates/Agent.ts` (`PAIRING_KEY_TTL_MS`, `enroll`), `src/application/probe-agents/services/PairingKey.ts`
+**Enforced at:** `src/domain/probe-agents/aggregates/Agent.ts` (`PAIRING_KEY_TTL_MS`, `enroll`), `src/agent/protocol/pairingKey.ts`
 **Reached from:** `POST /api/agents`, `POST /api/agents/:id/pairing-key`
-**Tests:** `tests/domain/probe-agents/aggregates/Agent.test.ts`, `tests/application/probe-agents/services/PairingKey.test.ts`, `tests/integration/use-cases/probe-agents/CreateAgentUseCase.integration.test.ts`
+**Tests:** `tests/domain/probe-agents/aggregates/Agent.test.ts`, `tests/agent/protocol/pairingKey.test.ts`, `tests/integration/use-cases/probe-agents/CreateAgentUseCase.integration.test.ts`
 
 ### AGT-002 — A pairing code works once, and only its hash is stored
 
@@ -534,3 +545,179 @@ make live results look like backlog and never alert.
 
 **Enforced at:** `src/application/probe-agents/use-cases/AcceptAgentResultsUseCase.ts`, `src/presentation/ws/agent/AgentSession.ts`
 **Tests:** `tests/application/probe-agents/use-cases/AcceptAgentResultsUseCase.test.ts`, `tests/integration/use-cases/probe-agents/AcceptAgentResultsUseCase.integration.test.ts`
+
+---
+
+## The agent program
+
+### AGT-060 — The agent pairs itself from the key alone, once, and keeps its token sealed
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program
+**Since:** 2026-09-29
+
+Until it holds a token, the agent waits for a pairing key: given with
+`--pair <key>` or `NMS_AGENT_PAIRING_KEY`, or left by the installer in
+`pairing.key` in its data directory, checked every 30 seconds. It reads the
+backend's address from the key and sends only the code to
+`POST /agent/v1/enroll` (`AGT-003`). A key the backend refuses (`400`, `401`),
+or one that is not a key at all, is deleted and never tried again; an
+unreachable backend or any other answer is retried every minute with the same
+key. Once enrolled, the key is deleted and the token is written to `agent.json`:
+sealed with Windows DPAPI for the service's own account, or on Linux in a file
+only its owner can read (`0600`). A token sealed on one platform is refused on
+another rather than sent as garbage.
+
+**Why:** ADR 0002, R1 and R2. The installer asks for one string and nothing
+else. The service reads the key itself rather than the installer enrolling on
+its behalf, so the token is sealed for the account that will use it. DPAPI goes
+through PowerShell, which every supported Windows has, so the single executable
+carries no native module; the token travels on stdin, never on a command line
+other processes can read.
+
+**Enforced at:** `src/agent/identity/enrollAgent.ts`, `src/agent/identity/PairingKeySource.ts`, `src/agent/identity/CredentialStore.ts`, `src/agent/identity/SecretProtector.ts`, `src/agent/AgentRuntime.ts`
+**Tests:** `tests/agent/identity/enrollAgent.test.ts`, `tests/agent/identity/PairingKeySource.test.ts`, `tests/agent/identity/CredentialStore.test.ts`, `tests/agent/AgentRuntime.test.ts`, `tests/integration/agent-app.test.ts`
+
+### AGT-061 — The agent measures each device on its interval and reports one result per cycle
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program · Infrastructure
+**Since:** 2026-09-29
+
+Each device is polled every `intervalSeconds`, counted from the start of its
+last cycle, with the same attempt loop the backend uses: up to
+`failuresBeforeDown` pings, one second apart, stopping at the first reply
+(`PingCycleProbe`). A cycle produces one result with its own id, the device's
+index and the agent-clock time the cycle started: reachable with latency,
+unreachable, or "the probe could not run" with the error. A device never has
+two cycles running at once, and at most 32 cycles run together, the most
+overdue first. The agent never decides whether a device is down.
+
+Ping reads the same on any Windows language: the reply line is recognised by
+its `bytes=32` field, not by the words around it (`time=`, `tiempo=`), and
+"destination host unreachable" from a router is not a reply. A reply under a
+millisecond (`tiempo<1ms`) reads as 1 ms.
+
+**Why:** ADR 0002, "Responsibilities" and "Packaging". One result per cycle
+keeps `DeviceState` meaning what it means for in-process polling. Before this
+rule, the probe did not tell the ping library the packet size, and on Windows
+the library then read the byte count as the latency: every device showed
+32 ms.
+
+**Enforced at:** `src/agent/polling/PollScheduler.ts`, `src/application/device-monitoring/services/PingCycleProbe.ts`, `src/infrastructure/monitoring/ping/PingService.ts`
+**Tests:** `tests/agent/polling/PollScheduler.test.ts`, `tests/infrastructure/monitoring/ping/PingService.test.ts`, `tests/integration/agent-app.test.ts`
+
+### AGT-062 — The agent polls what its last configuration says, and keeps it through a restart
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program
+**Since:** 2026-09-29
+
+Each configuration the backend sends replaces the agent's device list and is
+acknowledged with its version (`AGT-042`). A new device is polled at once; a
+known one keeps its rhythm, pulled forward if its interval got shorter; a
+device no longer listed stops being polled. The configuration is saved to
+`config.json` — index, address, interval and attempts only — so an agent that
+restarts while the internet is down keeps polling and buffering without
+waiting for the backend.
+
+**Why:** ADR 0002, R13 and R14. A PC rebooted during an outage would otherwise
+measure nothing until the connection came back, leaving exactly the gap the
+buffer exists to cover. Nothing else a device carries is written: device
+credentials, when they arrive (phase 3), stay in memory only (R15).
+
+**Enforced at:** `src/agent/polling/PollScheduler.ts` (`applyConfig`), `src/agent/config/ConfigStore.ts`, `src/agent/AgentRuntime.ts`, `src/agent/connection/BackendConnection.ts`
+**Tests:** `tests/agent/polling/PollScheduler.test.ts`, `tests/agent/config/ConfigStore.test.ts`, `tests/agent/AgentRuntime.test.ts`, `tests/agent/connection/BackendConnection.test.ts`, `tests/integration/agent-app.test.ts`
+
+### AGT-063 — After every reconnect the agent measures everything at once and sends the newest results first
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program
+**Since:** 2026-09-29
+
+The first configuration after each connect polls every device immediately,
+whatever its interval. Results always leave newest first, so these live results
+go ahead of any backlog, and a backlog never delays a live result measured
+while it drains.
+
+**Why:** ADR 0002, R11. Only a live result can change a device's state
+(`MON-008`); sending it first makes the dashboard current within seconds of a
+reconnect, even for devices polled once an hour, while the backlog fills
+history behind it.
+
+**Enforced at:** `src/agent/AgentRuntime.ts` (`onConfig`), `src/agent/polling/PollScheduler.ts` (`pollAllNow`), `src/agent/results/ResultBuffer.ts` (`take`)
+**Tests:** `tests/agent/AgentRuntime.test.ts`, `tests/agent/polling/PollScheduler.test.ts`, `tests/agent/results/ResultBuffer.test.ts`, `tests/agent/connection/BackendConnection.test.ts`
+
+### AGT-064 — A result is kept until the backend acknowledges it, for up to 24 hours, on disk
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program
+**Since:** 2026-09-29
+
+Every result is buffered in memory and appended to a file on disk, one file per
+10 minutes, within about a second. Results go out in batches of up to 500
+every 2 seconds, over the compressed connection, at most 4 batches awaiting
+an answer. Only the ids the backend acknowledges leave the buffer; the rest of
+a batch, a batch unanswered after 60 seconds, and everything in flight when the
+connection drops are sent again. A file is deleted once all its results are
+acknowledged. A result measured more than 24 hours ago is dropped, and so is
+the file that held it. After a restart the agent resends whatever its files
+still hold, including results acknowledged just before it stopped; the
+backend stores each id once (`MON-007`), so the resend is harmless.
+
+**Why:** ADR 0002, R8, R13 and R19. Nothing measured during an outage of up to
+a day is lost, and the disk holds only what is still owed. Writing
+acknowledgements down as well would double the disk writes of a healthy agent
+to save a few seconds of resending after a restart.
+
+**Enforced at:** `src/agent/results/ResultBuffer.ts`, `src/agent/connection/BackendConnection.ts`
+**Tests:** `tests/agent/results/ResultBuffer.test.ts`, `tests/agent/connection/BackendConnection.test.ts`, `tests/integration/agent-app.test.ts`
+
+### AGT-065 — The agent reconnects on its own, and waits as long as the reason for closing calls for
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program
+**Since:** 2026-09-29
+
+The agent says hello on connect and sends a heartbeat on the interval the
+welcome names (30 seconds). When the connection closes it reconnects:
+
+| Close                                            | Agent does                                                                |
+| ------------------------------------------------ | ------------------------------------------------------------------------- |
+| `4003` subscription expired, or `402` on pairing | stops polling; retries after an hour; polling resumes on the next welcome |
+| `4002` update required                           | keeps polling and buffering; retries after an hour                        |
+| `4000` replaced                                  | retries after a minute                                                    |
+| `4001` revoked                                   | `AGT-066`; never reconnects                                               |
+| anything else, including a refused upgrade       | retries after 1 s, doubling up to 60 s, with jitter                       |
+
+A `401` at the upgrade is retried like a network failure, never taken as a
+revocation.
+
+**Why:** ADR 0002, R5, R17 and R18. Nothing about an expired subscription or an
+outdated agent changes within seconds, and an agent that measured while
+expired would fill its buffer with results nobody accepts. An outdated agent
+keeps measuring because an update installed within a day recovers its
+backlog. A refused token is not proof of revocation: the gateway also answers
+`401` when it cannot read the database, and an agent that forgot its token over
+a hiccup would need a technician. Two copies of one agent retrying fast would
+take the connection from each other every second.
+
+**Enforced at:** `src/agent/connection/BackendConnection.ts`, `src/agent/AgentRuntime.ts`, `src/agent/identity/enrollAgent.ts`
+**Tests:** `tests/agent/connection/BackendConnection.test.ts`, `tests/agent/AgentRuntime.test.ts`, `tests/agent/identity/enrollAgent.test.ts`
+
+### AGT-066 — A revoked agent forgets everything and waits to be paired again
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program
+**Since:** 2026-09-29
+
+On close code `4001` the agent stops polling and deletes its token, its saved
+configuration and every buffered result, from memory and disk. It then waits
+for a new pairing key as if freshly installed.
+
+**Why:** ADR 0002, R3: after revocation the PC holds nothing sensitive — no
+credential, and no list of the network's addresses. Waiting for a key rather
+than exiting lets an administrator pair the same PC again without reinstalling.
+
+**Enforced at:** `src/agent/AgentRuntime.ts` (`forgetEverything`), `src/agent/connection/BackendConnection.ts`
+**Tests:** `tests/agent/AgentRuntime.test.ts`, `tests/agent/results/ResultBuffer.test.ts`, `tests/agent/identity/CredentialStore.test.ts`, `tests/agent/config/ConfigStore.test.ts`, `tests/agent/connection/BackendConnection.test.ts`

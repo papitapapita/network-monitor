@@ -4,7 +4,7 @@ import {
   INVALID_PAIRING_CODE,
   ReissuePairingKeyUseCase
 } from 'application/probe-agents/use-cases';
-import { PairingKey } from 'application/probe-agents/services';
+import { parsePairingKey } from 'agent/protocol';
 import {
   setupDependencies,
   DependencyContainer
@@ -51,9 +51,7 @@ describe('ReissuePairingKeyUseCase — integration', () => {
 
     const result = await useCase.execute({ id });
 
-    const { pairingCode } = PairingKey.parse(
-      result.value.pairingKey
-    ).value;
+    const { pairingCode } = parsePairingKey(result.value.pairingKey)!;
     expect(
       (await enroll.execute({ pairingCode: oldCode })).error
     ).toBe(INVALID_PAIRING_CODE);

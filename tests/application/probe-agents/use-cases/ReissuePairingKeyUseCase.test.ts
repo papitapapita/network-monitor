@@ -1,5 +1,5 @@
 import { ReissuePairingKeyUseCase } from '../../../../src/application/probe-agents/use-cases';
-import { PairingKey } from '../../../../src/application/probe-agents/services';
+import { parsePairingKey } from '../../../../src/agent/protocol';
 import {
   BACKEND_URL,
   FakeAgentSecretService,
@@ -33,9 +33,7 @@ describe('ReissuePairingKeyUseCase', () => {
 
     const result = await useCase.execute({ id: agent.id.toString() });
 
-    const { pairingCode } = PairingKey.parse(
-      result.value.pairingKey
-    ).value;
+    const { pairingCode } = parsePairingKey(result.value.pairingKey)!;
     expect(pairingCode).not.toBe('old-code');
     expect(
       (await repo.findByPairingCodeHash(secrets.hash('old-code')))

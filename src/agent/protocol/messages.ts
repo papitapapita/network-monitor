@@ -1,10 +1,12 @@
 // Wire protocol between an on-site agent and the backend (ADR 0002). Plain
-// types and constants only: imported by both sides, so nothing here may
-// depend on the backend's layers.
+// types and constants, plus the pairing key's encoding: imported by both
+// sides, so nothing here may depend on the backend's layers.
 
 export const PROTOCOL_VERSION = 1;
 
 export const AGENT_WS_PATH = '/agent/v1/ws';
+
+export const AGENT_ENROLL_PATH = '/agent/v1/enroll';
 
 // 4000–4999 is the range RFC 6455 leaves to applications.
 export const CloseCode = {
