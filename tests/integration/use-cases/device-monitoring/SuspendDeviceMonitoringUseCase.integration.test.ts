@@ -1,6 +1,8 @@
 import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { SuspendDeviceMonitoringUseCase } from 'application/device-monitoring/use-cases/SuspendDeviceMonitoringUseCase';
 import { ExecutePollingCycleUseCase } from 'application/device-monitoring/use-cases/ExecutePollingCycleUseCase';
+import { IngestPingResultsUseCase } from 'application/device-monitoring/use-cases/IngestPingResultsUseCase';
+import { PingCycleProbe } from 'application/device-monitoring/services';
 import { ConfigureDevicePollingUseCase } from 'application/device-monitoring/use-cases/ConfigureDevicePollingUseCase';
 import { ResolveAlertUseCase } from 'application/notifications/use-cases/ResolveAlertUseCase';
 import { PrismaPollingConfigurationRepository } from 'infrastructure/persistence/PrismaPollingConfigurationRepository';
@@ -47,13 +49,16 @@ describe('SuspendDeviceMonitoringUseCase — integration', () => {
     fakePing = new FakePingService();
     pollingUseCase = new ExecutePollingCycleUseCase(
       pollingConfigRepo,
-      pingResultRepo,
-      deviceStateRepo,
-      fakePing,
       new PrismaDeviceRepository(prisma),
       new DeviceEligibilityService(),
-      logger,
-      0
+      new PingCycleProbe(fakePing, 0),
+      new IngestPingResultsUseCase(
+        pollingConfigRepo,
+        pingResultRepo,
+        deviceStateRepo,
+        logger
+      ),
+      logger
     );
     useCase = new SuspendDeviceMonitoringUseCase(
       pollingConfigRepo,

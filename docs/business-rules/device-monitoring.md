@@ -79,15 +79,17 @@ down still reads "down" months later. Blanking it to UNKNOWN is the only honest
 answer, and keeping `lastSeen` means the operator can still tell how stale the
 last real observation is.
 
-An in-flight poll cannot undo this: `ExecutePollingCycleUseCase` re-reads the
-configuration after its ping attempts and before writing, and skips the write if
-monitoring was turned off meanwhile. Without that re-read the race is real, since
-a cycle runs for several seconds and the suspension is dispatched without being
-awaited.
+An in-flight poll cannot undo this: `IngestPingResultsUseCase`, which applies
+every measured result, re-reads the configuration before writing and skips the
+result if monitoring was turned off meanwhile. Without that re-read the race is
+real, since a cycle runs for several seconds and the suspension is dispatched
+without being awaited. The re-read lives in ingest, not in the poll, so it covers
+a result from any source — including one measured by an on-site agent (ADR 0002)
+before its configuration caught up.
 
 **Enforced at:** `src/domain/device-monitoring/aggregates/DeviceState.ts` (`markUnknown`); orchestrated by `src/application/device-monitoring/use-cases/SuspendDeviceMonitoringUseCase.ts`
 **Reached from:** `DeviceMonitoringToggledHandler` (monitoring off), `DeviceStatusChangedHandler` (INVENTORY or DAMAGED), `ConfigureDevicePollingUseCase` and `CreateDevicePollingUseCase` (`enabled: false`)
-**Tests:** `tests/application/device-monitoring/use-cases/SuspendDeviceMonitoringUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/SuspendDeviceMonitoringUseCase.integration.test.ts`
+**Tests:** `tests/application/device-monitoring/use-cases/SuspendDeviceMonitoringUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/SuspendDeviceMonitoringUseCase.integration.test.ts`; the in-flight re-read in `tests/application/device-monitoring/use-cases/IngestPingResultsUseCase.test.ts` and `tests/integration/use-cases/device-monitoring/IngestPingResultsUseCase.integration.test.ts`
 
 The suspension writes state, then the alert, then the configuration, and the
 order is deliberate: no repository in this codebase accepts a transaction client,
@@ -145,7 +147,10 @@ immediate-alert path it fed. See `NOT-097` for what replaced it.
 A probe that could not be executed at all is a separate case and deliberately
 does **not** move the status: `applyPollFailure` advances `lastCheckedAt` only. A
 local fault says nothing about the device, and demoting a known-DOWN device to
-UNKNOWN would silently end the outage it is already in.
+UNKNOWN would silently end the outage it is already in. The attempt loop
+(`PingCycleProbe`) reports this as `probe-unavailable` only when no attempt ran;
+`IngestPingResultsUseCase` then advances `lastCheckedAt` of an already-known
+device and records no history sample.
 
 ---
 

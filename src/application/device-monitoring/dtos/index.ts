@@ -11,3 +11,5 @@ export * from './PollingHistoryDTO';
 export * from './PollingMetricsDTO';
 export * from './PollingResultDTO';
 export * from './SingleDevicePollingResultDTO';
+export * from './IngestPingResultsDTO';
+export * from './IngestPingResultsResponseDTO';

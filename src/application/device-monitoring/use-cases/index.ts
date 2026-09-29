@@ -1,4 +1,5 @@
 export * from './CreateDevicePollingUseCase';
+export * from './IngestPingResultsUseCase';
 export * from './ExecutePollingCycleUseCase';
 export * from './ConfigureDevicePollingUseCase';
 export * from './GetDevicePollingStatusUseCase';

@@ -5,6 +5,9 @@ import { IPollingConfigurationRepository } from '../../../../src/domain/device-m
 import { IPingResultRepository } from '../../../../src/domain/device-monitoring/repository/IPingResultRepository';
 import { IDeviceStateRepository } from '../../../../src/domain/device-monitoring/repository/IDeviceStateRepository';
 import { IPingService } from '../../../../src/application/device-monitoring/interfaces/IPingService';
+import { IProbeHealthReporter } from '../../../../src/application/device-monitoring/interfaces/IProbeHealthReporter';
+import { IngestPingResultsUseCase } from '../../../../src/application/device-monitoring/use-cases/IngestPingResultsUseCase';
+import { PingCycleProbe } from '../../../../src/application/device-monitoring/services/PingCycleProbe';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { PollingConfiguration } from '../../../../src/domain/device-monitoring/entities/PollingConfiguration';
@@ -187,6 +190,29 @@ describe('ExecutePollingCycleUseCase', () => {
   let logger: ILogger;
   let useCase: ExecutePollingCycleUseCase;
 
+  function makeUseCase(
+    overrides: {
+      probeHealth?: IProbeHealthReporter;
+      deviceRepo?: IDeviceRepository;
+    } = {}
+  ): ExecutePollingCycleUseCase {
+    return new ExecutePollingCycleUseCase(
+      configRepo,
+      overrides.deviceRepo ??
+        (deviceRepo as unknown as IDeviceRepository),
+      new DeviceEligibilityService(),
+      new PingCycleProbe(pingService, 0), // no delay between retries in tests
+      new IngestPingResultsUseCase(
+        configRepo,
+        pingResultRepo,
+        deviceStateRepo,
+        logger
+      ),
+      logger,
+      overrides.probeHealth
+    );
+  }
+
   beforeEach(() => {
     configRepo = makePollingConfigRepo();
     pingResultRepo = makePingResultRepo();
@@ -194,16 +220,7 @@ describe('ExecutePollingCycleUseCase', () => {
     pingService = makePingService();
     deviceRepo = makeDeviceRepo();
     logger = makeLogger();
-    useCase = new ExecutePollingCycleUseCase(
-      configRepo,
-      pingResultRepo,
-      deviceStateRepo,
-      pingService,
-      deviceRepo as unknown as IDeviceRepository,
-      new DeviceEligibilityService(),
-      logger,
-      0 // no delay between retries in tests
-    );
+    useCase = makeUseCase();
 
     // permissive defaults — individual tests override to assert failures
     configRepo.save.mockResolvedValue(Result.ok(makeConfig()));
@@ -253,16 +270,11 @@ describe('ExecutePollingCycleUseCase', () => {
   // ===========================================================================
   describe('[DEV-086] executeImpl — device eligibility', () => {
     function useCaseWithDevice(device: Device | null) {
-      return new ExecutePollingCycleUseCase(
-        configRepo,
-        pingResultRepo,
-        deviceStateRepo,
-        pingService,
-        makeDeviceRepo(device) as unknown as IDeviceRepository,
-        new DeviceEligibilityService(),
-        logger,
-        0
-      );
+      return makeUseCase({
+        deviceRepo: makeDeviceRepo(
+          device
+        ) as unknown as IDeviceRepository
+      });
     }
 
     it('should skip a scheduled poll when the device no longer exists', async () => {
@@ -301,20 +313,13 @@ describe('ExecutePollingCycleUseCase', () => {
     });
 
     it('should fail when the device lookup itself fails', async () => {
-      const broken = new ExecutePollingCycleUseCase(
-        configRepo,
-        pingResultRepo,
-        deviceStateRepo,
-        pingService,
-        {
+      const broken = makeUseCase({
+        deviceRepo: {
           findById: jest
             .fn()
             .mockResolvedValue(Result.fail('DB error'))
-        } as unknown as IDeviceRepository,
-        new DeviceEligibilityService(),
-        logger,
-        0
-      );
+        } as unknown as IDeviceRepository
+      });
 
       const result = await broken.execute(makeRequest());
 
@@ -1075,17 +1080,7 @@ describe('ExecutePollingCycleUseCase', () => {
         recordProbeExecutionFailure: jest.fn(),
         recordProbeExecuted: jest.fn()
       };
-      useCase = new ExecutePollingCycleUseCase(
-        configRepo,
-        pingResultRepo,
-        deviceStateRepo,
-        pingService,
-        deviceRepo as unknown as IDeviceRepository,
-        new DeviceEligibilityService(),
-        logger,
-        0,
-        probeHealth
-      );
+      useCase = makeUseCase({ probeHealth });
       pingService.ping.mockResolvedValue(Result.fail('spawn ENOENT'));
 
       await useCase.execute(makeRequest());
@@ -1104,17 +1099,7 @@ describe('ExecutePollingCycleUseCase', () => {
         recordProbeExecutionFailure: jest.fn(),
         recordProbeExecuted: jest.fn()
       };
-      useCase = new ExecutePollingCycleUseCase(
-        configRepo,
-        pingResultRepo,
-        deviceStateRepo,
-        pingService,
-        deviceRepo as unknown as IDeviceRepository,
-        new DeviceEligibilityService(),
-        logger,
-        0,
-        probeHealth
-      );
+      useCase = makeUseCase({ probeHealth });
       pingService.ping.mockResolvedValue(
         Result.ok({ isReachable: false, latencyMs: null })
       );

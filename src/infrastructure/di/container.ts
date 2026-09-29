@@ -327,6 +327,7 @@ import {
 } from '../../application/device-inventory/use-cases';
 import {
   ExecutePollingCycleUseCase,
+  IngestPingResultsUseCase,
   ConfigureDevicePollingUseCase,
   GetDevicePollingStatusUseCase,
   GetDevicePollingHistoryUseCase,
@@ -335,6 +336,7 @@ import {
   PurgeOldPingResultsUseCase,
   SuspendDeviceMonitoringUseCase
 } from '../../application/device-monitoring/use-cases';
+import { PingCycleProbe } from '../../application/device-monitoring/services';
 import {
   PurgeOldWirelessSnapshotsUseCase,
   PurgeOldWirelessAlertRecordsUseCase
@@ -1073,15 +1075,19 @@ export class DependencyContainer {
     // the polling cycles, the wireless adapter and the alert use cases below.
     const deviceEligibilityService = new DeviceEligibilityService();
 
-    const executePollingCycleUseCase = new ExecutePollingCycleUseCase(
+    const ingestPingResultsUseCase = new IngestPingResultsUseCase(
       this.pollingConfigRepository,
       this.pingResultRepository,
       this.deviceStateRepository,
-      pingService,
+      this.logger
+    );
+    const executePollingCycleUseCase = new ExecutePollingCycleUseCase(
+      this.pollingConfigRepository,
       this.deviceRepository,
       deviceEligibilityService,
+      new PingCycleProbe(pingService),
+      ingestPingResultsUseCase,
       this.logger,
-      undefined,
       probeHealthReporter
     );
     const configurePollingUseCase = new ConfigureDevicePollingUseCase(
