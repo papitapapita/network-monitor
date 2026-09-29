@@ -5,6 +5,7 @@ import { Server } from 'http';
 import { setupRoutes } from './presentation/http/routes';
 import { setupDependencies } from './infrastructure/di/container';
 import { WinstonLogger } from './infrastructure/logging/WinstonLogger';
+import { loadTrustProxy } from './infrastructure/di/trustProxy';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -20,6 +21,7 @@ const logger = new WinstonLogger();
 
 async function bootstrap(): Promise<Server> {
   const app: Application = express();
+  app.set('trust proxy', loadTrustProxy(process.env));
 
   // Middleware
   app.use(helmet());

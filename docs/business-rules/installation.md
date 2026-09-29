@@ -4,7 +4,8 @@ What one install of the backend runs. The product is sold to other ISPs, one
 backend and database per customer (ADR 0002), and not every customer buys
 every part of it: the first pilot is monitoring only. These rules decide which
 parts an install switches on, what the parts that stay on see when their
-neighbours are off, and what happens when the customer stops paying.
+neighbours are off, what happens when the customer stops paying, and how it
+sits behind the proxy that publishes it.
 
 This is not a bounded context. It owns no aggregate and no data; it is the
 composition root's policy, enforced in `src/infrastructure/di/` and
@@ -18,6 +19,7 @@ Format and conventions: [README.md](README.md).
 | --------------------- | --------------- |
 | `INS-001` … `INS-019` | Module switches |
 | `INS-020` … `INS-039` | Subscription    |
+| `INS-040` … `INS-059` | Hosting         |
 
 ## Layer coverage
 
@@ -25,7 +27,7 @@ Format and conventions: [README.md](README.md).
 | ---------------------------- | ----- |
 | Domain                       | 1     |
 | Application (use case)       | 4     |
-| Infrastructure (composition) | 11    |
+| Infrastructure (composition) | 12    |
 | Presentation                 | 3     |
 
 ---
@@ -181,12 +183,12 @@ then read-only, then locked — and tells the customer every day on the way.
 Nothing is ever deleted. The install knows only its own terms; how payments
 are recorded across customers is a separate decision.
 
-| Stage       | Dashboard              | Agents, polling, jobs | Alerts | Reminder       |
-| ----------- | ---------------------- | --------------------- | ------ | -------------- |
-| `ACTIVE`    | Full                   | Running               | Sent   | Last 5 days    |
-| `GRACE`     | Full                   | Running               | Sent   | Daily          |
-| `READ_ONLY` | Reads only (402)       | Stopped               | None   | Daily          |
-| `LOCKED`    | Status and login only  | Stopped               | None   | Once, that day |
+| Stage       | Dashboard             | Agents, polling, jobs | Alerts | Reminder       |
+| ----------- | --------------------- | --------------------- | ------ | -------------- |
+| `ACTIVE`    | Full                  | Running               | Sent   | Last 5 days    |
+| `GRACE`     | Full                  | Running               | Sent   | Daily          |
+| `READ_ONLY` | Reads only (402)      | Stopped               | None   | Daily          |
+| `LOCKED`    | Status and login only | Stopped               | None   | Once, that day |
 
 ### INS-020 — A lapsed subscription escalates from grace to read-only to locked
 
@@ -351,3 +353,29 @@ next stage and its date, so the customer knows exactly how long they have.
 
 **Enforced at:** `src/application/notifications/use-cases/SendSubscriptionReminderUseCase.ts`, `src/infrastructure/notifications/orchestrator/SubscriptionReminderOrchestrator.ts`
 **Tests:** `tests/application/notifications/use-cases/SendSubscriptionReminderUseCase.test.ts`, `tests/infrastructure/notifications/orchestrator/SubscriptionReminderOrchestrator.test.ts`, `tests/integration/use-cases/notifications/SendSubscriptionReminderUseCase.integration.test.ts`
+
+---
+
+## Hosting
+
+### INS-040 — Behind a proxy, only the proxy named in `TRUST_PROXY` may say who the caller is
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (composition)
+**Since:** 2026-09-29
+
+`TRUST_PROXY` names the proxy allowed to report the caller's real address in
+`X-Forwarded-For`: `loopback` when `cloudflared` (Cloudflare Tunnel) runs on
+the same machine, or a hop count, or a comma-separated list of addresses and
+CIDRs. Unset trusts no proxy. `true`, which would trust any caller's claim
+about itself, stops the boot, and so does an address Express cannot read.
+
+**Why:** Limits on callers who are not signed in key on the caller's
+address; agent enrollment, for one, allows 10 attempts per address per 15
+minutes (`AGT-008`). Behind a tunnel every request arrives from the
+tunnel, so without this all agents and all users would share one limit, and
+one mistyped pairing key could lock every other installer out. Trusting
+everyone instead would let an attacker set a fresh address on each guess.
+
+**Enforced at:** `src/infrastructure/di/trustProxy.ts`, `src/main.ts`
+**Tests:** `tests/infrastructure/di/trustProxy.test.ts`
