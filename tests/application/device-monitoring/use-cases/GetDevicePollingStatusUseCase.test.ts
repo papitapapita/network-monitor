@@ -1,5 +1,6 @@
 // Source: src/application/device-monitoring/use-cases/GetDevicePollingStatusUseCase.ts
 
+import { IAgentStatusQuery } from '../../../../src/application/shared/interfaces/IAgentStatusQuery';
 import { GetDevicePollingStatusUseCase } from '../../../../src/application/device-monitoring/use-cases/GetDevicePollingStatusUseCase';
 import { IPollingConfigurationRepository } from '../../../../src/domain/device-monitoring/repository/IPollingConfigurationRepository';
 import { IDeviceStateRepository } from '../../../../src/domain/device-monitoring/repository/IDeviceStateRepository';
@@ -137,6 +138,7 @@ describe('GetDevicePollingStatusUseCase', () => {
   let deviceStateRepo: jest.Mocked<IDeviceStateRepository>;
   let pingResultRepo: jest.Mocked<IPingResultRepository>;
   let logger: ILogger;
+  let agentStatusQuery: jest.Mocked<IAgentStatusQuery>;
   let useCase: GetDevicePollingStatusUseCase;
 
   beforeEach(() => {
@@ -144,11 +146,17 @@ describe('GetDevicePollingStatusUseCase', () => {
     deviceStateRepo = makeDeviceStateRepo();
     pingResultRepo = makePingResultRepo();
     logger = makeLogger();
+    agentStatusQuery = {
+      findUnmeasuredDevices: jest
+        .fn()
+        .mockResolvedValue(Result.ok(new Set()))
+    };
     useCase = new GetDevicePollingStatusUseCase(
       configRepo,
       deviceStateRepo,
       pingResultRepo,
-      logger
+      logger,
+      agentStatusQuery
     );
   });
 
@@ -524,6 +532,48 @@ describe('GetDevicePollingStatusUseCase', () => {
         expect.anything(),
         1
       );
+    });
+  });
+
+  describe('[MON-006] behind an agent that is not reporting', () => {
+    beforeEach(() => {
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(
+          makeDeviceState({
+            status: ReachabilityStatus.createDown(),
+            consecutiveFailures: 3,
+            downSince: FIXED_DATE
+          })
+        )
+      );
+      pingResultRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok([])
+      );
+    });
+
+    it('reports UNKNOWN instead of the stored status', async () => {
+      agentStatusQuery.findUnmeasuredDevices.mockResolvedValue(
+        Result.ok(new Set([VALID_DEVICE_UUID]))
+      );
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.value.currentStatus).toBe('UNKNOWN');
+      expect(result.value.consecutiveFailures).toBe(3);
+    });
+
+    it('falls back to the stored status when agent status is unavailable', async () => {
+      agentStatusQuery.findUnmeasuredDevices.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.value.currentStatus).toBe('OFFLINE');
+      expect(logger.warn).toHaveBeenCalled();
     });
   });
 });

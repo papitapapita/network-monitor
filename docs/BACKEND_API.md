@@ -528,10 +528,12 @@ interface DeviceListItemDTO extends DeviceDTO {
 | monitored, polled                   | its recorded state                                    |
 | monitored, never polled             | `{ status: 'UNKNOWN', downSince: null, lastSeen: null }` |
 | monitoring off                      | `null`. A state recorded before it was switched off is stale and is not shown |
+| behind an agent that is not reporting (offline, pending or revoked) | `{ status: 'UNKNOWN', downSince: null, lastSeen }` — the recorded state is stale, `lastSeen` is kept |
 
 - `connectivity=DOWN` (or `UP`/`UNKNOWN`) matches **monitored devices only**,
   and `total` counts the same set. `UNKNOWN` includes monitored devices never
-  polled. Combined with `monitoringEnabled=false` it returns nothing. Any
+  polled and devices behind an agent that is not reporting; `UP` and `DOWN`
+  leave those out. Combined with `monitoringEnabled=false` it returns nothing. Any
   other value is a `400`. The values are `UP`/`DOWN`/`UNKNOWN`, not
   `ONLINE`/`OFFLINE`.
 - `sortBy=downSince` sorts by outage start: the default (`ASC`) puts the
@@ -1465,7 +1467,11 @@ monitoring before polling it"`. A manual poll would write a real reading over
 > `currentStatus: 'UNKNOWN'` means **nobody is watching this device** — either it
 > has never been polled, or monitoring was turned off (see
 > [What "monitoring stopped" does](#stopping-monitoring)). It is not an outage;
-> `'OFFLINE'` is. Use `pollingEnabled` to distinguish the two causes.
+> `'OFFLINE'` is. Use `pollingEnabled` to distinguish the two causes. A third
+> cause: the device sits behind an on-site agent that is not reporting
+> (offline, pending or revoked) — `pollingEnabled` is still `true` and the
+> other fields show the last reading the agent took. Show the agent's state
+> (`GET /api/agents/:id`) rather than a device outage.
 >
 > While monitoring is off, `lastPolled` and `nextScheduled` are `null` and
 > `consecutiveFailures` is `0`, but `lastResult` still shows the last ping that

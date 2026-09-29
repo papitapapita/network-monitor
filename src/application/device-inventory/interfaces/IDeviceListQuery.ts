@@ -4,7 +4,8 @@ import { ConnectivityStatus, DeviceListItemDTO } from '../dtos';
 
 export type DeviceListCriteria = Omit<DeviceFilters, 'sortBy'> & {
   // Matches monitored devices only. UNKNOWN includes a monitored device that
-  // has not been polled yet and so has no recorded state.
+  // has not been polled yet and so has no recorded state, and one behind an
+  // agent that is not reporting (MON-006), whatever its stored state.
   connectivity?: ConnectivityStatus;
   sortBy?: DeviceFilters['sortBy'] | 'downSince';
 };

@@ -1,6 +1,9 @@
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
-import { ILogger } from 'application/shared/interfaces';
+import {
+  IAgentStatusQuery,
+  ILogger
+} from 'application/shared/interfaces';
 import { IPingResultRepository } from 'domain/device-monitoring/repository';
 import { PollingMapper } from '../mappers';
 import {
@@ -21,7 +24,8 @@ export class GetDevicePollingStatusUseCase extends UseCase<
     private readonly pollingConfigRepo: IPollingConfigurationRepository,
     private readonly deviceStateRepo: IDeviceStateRepository,
     private readonly pingResultRepo: IPingResultRepository,
-    logger: ILogger
+    logger: ILogger,
+    private readonly agentStatusQuery: IAgentStatusQuery
   ) {
     super(logger, 'GetDevicePollingStatusUseCase');
   }
@@ -73,8 +77,33 @@ export class GetDevicePollingStatusUseCase extends UseCase<
         : null;
 
     return this.ok(
-      PollingMapper.toStatusDTO(config, state, lastPing)
+      PollingMapper.toStatusDTO(
+        config,
+        state,
+        lastPing,
+        await this.isUnmeasured(deviceId)
+      )
     );
+  }
+
+  // R7. A failed read falls back to the stored state: this is a display, and
+  // showing the last known status beats failing the whole screen.
+  private async isUnmeasured(deviceId: DeviceId): Promise<boolean> {
+    const id = deviceId.toString();
+    const result = await this.agentStatusQuery.findUnmeasuredDevices([
+      id
+    ]);
+    if (result.isFailure) {
+      this.logger.warn(
+        'Agent status unavailable for polling status',
+        {
+          deviceId: id,
+          error: result.error
+        }
+      );
+      return false;
+    }
+    return result.value.has(id);
   }
 
   protected sanitizeForLogging(data: unknown): unknown {

@@ -14,7 +14,9 @@ import {
   DependencyContainer
 } from 'infrastructure/di/container';
 import {
+  cleanAgents,
   cleanDatabase,
+  seedAgent,
   seedDeviceModel,
   seedLocation
 } from '../../helpers/db';
@@ -59,6 +61,7 @@ describe('ListDevicesUseCase — integration', () => {
 
   // cleanDatabase() wipes locations, so the fixture is re-seeded per test.
   beforeEach(async () => {
+    await cleanAgents(prisma);
     await cleanDatabase(prisma);
     locationId = await seedLocation(prisma);
   });
@@ -542,6 +545,81 @@ describe('ListDevicesUseCase — integration', () => {
         recentDownId,
         longDownId
       ]);
+    });
+
+    describe('[MON-006] behind an agent that is not reporting', () => {
+      async function placeBehindAgent(
+        deviceId: string,
+        offlineSince: Date | null
+      ): Promise<void> {
+        const { id } = await seedAgent(prisma, { status: 'ACTIVE' });
+        await prisma.probeAgent.update({
+          where: { id },
+          data: { offlineSince }
+        });
+        await prisma.device.update({
+          where: { id: deviceId },
+          data: { agentId: id }
+        });
+      }
+
+      it('shows UNKNOWN, keeping when the device was last seen', async () => {
+        await placeBehindAgent(upId, new Date());
+        await placeBehindAgent(longDownId, new Date());
+
+        const result = await listUseCase.execute({});
+        const byId = new Map(
+          result.value.devices.map((d) => [d.id, d.connectivity])
+        );
+
+        expect(byId.get(upId)).toEqual({
+          status: 'UNKNOWN',
+          downSince: null,
+          lastSeen: '2026-09-26T12:00:00.000Z'
+        });
+        expect(byId.get(longDownId)?.status).toBe('UNKNOWN');
+      });
+
+      it('moves the device from the DOWN filter to the UNKNOWN filter', async () => {
+        await placeBehindAgent(longDownId, new Date());
+
+        const down = await listUseCase.execute({
+          connectivity: 'DOWN'
+        });
+        const unknown = await listUseCase.execute({
+          connectivity: 'UNKNOWN'
+        });
+
+        expect(down.value.devices.map((d) => d.id)).toEqual([
+          recentDownId
+        ]);
+        expect(down.value.total).toBe(1);
+        expect(unknown.value.devices.map((d) => d.id).sort()).toEqual(
+          [longDownId, unpolledId].sort()
+        );
+      });
+
+      it('treats a pending agent as not reporting', async () => {
+        const { id } = await seedAgent(prisma, { status: 'PENDING' });
+        await prisma.device.update({
+          where: { id: upId },
+          data: { agentId: id }
+        });
+
+        const up = await listUseCase.execute({ connectivity: 'UP' });
+
+        expect(up.value.total).toBe(0);
+      });
+
+      it('shows the stored status while the agent is reporting', async () => {
+        await placeBehindAgent(longDownId, null);
+
+        const down = await listUseCase.execute({
+          connectivity: 'DOWN'
+        });
+
+        expect(down.value.total).toBe(2);
+      });
     });
   });
 });

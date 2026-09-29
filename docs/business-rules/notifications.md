@@ -28,7 +28,7 @@ Format and conventions: [README.md](README.md).
 
 | Layer                     | Rules |
 | ------------------------- | ----- |
-| Application               | 35    |
+| Application               | 36    |
 | Domain (aggregate/entity) | 18    |
 | Presentation              | 4     |
 | Infrastructure (database) | 2     |
@@ -711,6 +711,30 @@ policy apply to something that is not a device.
 
 **Enforced at:** `src/application/shared/interfaces/IAlertPublisher.ts`, `src/application/notifications/use-cases/SendAlertNotificationUseCase.ts`
 **Tests:** `tests/application/notifications/use-cases/SendAlertNotificationUseCase.test.ts`, `tests/infrastructure/notifications/AlertPublisher.test.ts`
+
+---
+
+### NOT-101 — No down alert is raised for a device behind an agent that is not reporting
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-28
+
+The overdue down-alert scan (`NOT-097`) skips every device whose agent is not
+reporting: offline, pending or revoked (`MON-006`). No alert is opened, no
+notification is sent and no ticket is opened for it. Once the agent reports
+again, a device still DOWN past its delay is alerted on the next scan as
+usual. If the agents' status cannot be read, the scan raises nothing that
+minute and tries again on the next one.
+
+**Why:** ADR 0002, R7. While the agent is gone the device's DOWN is only the
+last thing the agent saw. The agent-offline message (`AGT-023`) already tells
+the operator that the whole site is unwatched; one down alert per device on
+top of it would bury that message and could open work orders for devices that
+are fine.
+
+**Enforced at:** `src/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.ts`, `src/infrastructure/probe-agents/queries/PrismaAgentStatusQuery.ts`
+**Tests:** `tests/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.test.ts`, `tests/integration/use-cases/notifications/RaiseOverdueDeviceDownAlertsUseCase.integration.test.ts`
 
 ---
 

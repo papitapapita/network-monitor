@@ -9,12 +9,15 @@ import { PrismaDeviceStateRepository } from 'infrastructure/persistence/PrismaDe
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
 import { DeviceEligibilityService } from 'domain/device-inventory/services';
+import { PrismaAgentStatusQuery } from 'infrastructure/probe-agents/queries';
 import {
   setupDependencies,
   DependencyContainer
 } from 'infrastructure/di/container';
 import {
+  cleanAgents,
   cleanDatabase,
+  seedAgent,
   seedDeviceModel,
   seedMonitoredDevice,
   GHOST_ID
@@ -46,7 +49,8 @@ describe('GetDevicePollingStatusUseCase — integration', () => {
       pollingConfigRepo,
       deviceStateRepo,
       pingResultRepo,
-      logger
+      logger,
+      new PrismaAgentStatusQuery(prisma)
     );
     executeUseCase = new ExecutePollingCycleUseCase(
       pollingConfigRepo,
@@ -68,6 +72,7 @@ describe('GetDevicePollingStatusUseCase — integration', () => {
   });
 
   beforeEach(async () => {
+    await cleanAgents(prisma);
     await cleanDatabase(prisma);
     const seeded = await seedMonitoredDevice(prisma, deviceModelId);
     deviceId = seeded.deviceId;
@@ -120,5 +125,43 @@ describe('GetDevicePollingStatusUseCase — integration', () => {
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/required/i);
+  });
+
+  describe('[MON-006] behind an agent that is not reporting', () => {
+    async function placeBehindAgent(offlineSince: Date | null) {
+      await executeUseCase.execute({
+        deviceId,
+        forceExecution: true
+      });
+      const { id } = await seedAgent(prisma, { status: 'ACTIVE' });
+      await prisma.probeAgent.update({
+        where: { id },
+        data: { offlineSince }
+      });
+      await prisma.device.update({
+        where: { id: deviceId },
+        data: { agentId: id }
+      });
+    }
+
+    it('reports UNKNOWN while the agent is offline, keeping the stored state', async () => {
+      await placeBehindAgent(new Date());
+
+      const result = await statusUseCase.execute({ deviceId });
+
+      expect(result.value.currentStatus).toBe('UNKNOWN');
+      const state = await prisma.deviceState.findUnique({
+        where: { deviceId }
+      });
+      expect(state!.status).toBe('UP');
+    });
+
+    it('reports the stored status while the agent is reporting', async () => {
+      await placeBehindAgent(null);
+
+      const result = await statusUseCase.execute({ deviceId });
+
+      expect(result.value.currentStatus).toBe('ONLINE');
+    });
   });
 });

@@ -7,7 +7,8 @@ import { loadAgentPublicUrl } from '../probe-agents/config';
 import {
   PrismaAgentAssignmentQuery,
   PrismaAgentDeviceIndex,
-  PrismaAgentPollingTargetsQuery
+  PrismaAgentPollingTargetsQuery,
+  PrismaAgentStatusQuery
 } from '../probe-agents/queries';
 import { DeviceMonitoringPingResultSink } from '../probe-agents/adapters';
 import { AgentGateway } from '../../presentation/ws/agent';
@@ -1148,11 +1149,14 @@ export class DependencyContainer {
       suspendDeviceMonitoringUseCase,
       this.logger
     );
+    // R7: what monitoring and notifications know about agents, read-only.
+    const agentStatusQuery = new PrismaAgentStatusQuery(this.prisma);
     const getPollingStatusUseCase = new GetDevicePollingStatusUseCase(
       this.pollingConfigRepository,
       this.deviceStateRepository,
       this.pingResultRepository,
-      this.logger
+      this.logger,
+      agentStatusQuery
     );
     const getPollingHistoryUseCase =
       new GetDevicePollingHistoryUseCase(
@@ -1362,7 +1366,8 @@ export class DependencyContainer {
         this.deviceNotificationPolicyRepository,
         sendDeviceDownAlertUseCase,
         deviceDownAlertDelayMs,
-        this.logger
+        this.logger,
+        agentStatusQuery
       );
     this.overdueDeviceDownAlertOrchestrator =
       new OverdueDeviceDownAlertOrchestrator(

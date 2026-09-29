@@ -154,6 +154,34 @@ device and records no history sample.
 
 ---
 
+### MON-006 — A device behind an agent that is not reporting shows as UNKNOWN
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Infrastructure (read model)
+**Since:** 2026-09-28
+
+A device placed behind an on-site agent (`MON-022`) is shown as UNKNOWN while
+that agent is not reporting: offline (`AGT-021`), paired but never connected
+(pending) or revoked. This covers the device list (`connectivity.status` is
+`UNKNOWN`, `downSince` is `null`, `lastSeen` is kept; the `UNKNOWN` filter
+includes it and the `UP`/`DOWN` filters leave it out) and the polling status
+(`currentStatus` is `UNKNOWN`). The stored `DeviceState` is not touched: when
+the agent reports again the device shows whatever it measures next. If the
+agent's status cannot be read, the polling status falls back to the stored
+state.
+
+**Why:** ADR 0002, R7: offline means unknown, not down. Nobody is measuring
+the device, so its last state is only what the agent saw before it went
+silent; showing it as DOWN would send a technician to a site whose only
+problem may be a PC that was switched off. A pending or revoked agent measures
+nothing either, so its devices are no better known. Leaving the stored state
+alone keeps the history honest and lets the next live result decide.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/GetDevicePollingStatusUseCase.ts`, `src/application/device-monitoring/mappers/PollingMapper.ts`, `src/infrastructure/persistence/PrismaDeviceListQuery.ts`, `src/infrastructure/probe-agents/queries/PrismaAgentStatusQuery.ts`
+**Tests:** `tests/application/device-monitoring/use-cases/GetDevicePollingStatusUseCase.test.ts`, `tests/infrastructure/persistence/PrismaDeviceListQuery.test.ts`, `tests/integration/use-cases/device-monitoring/GetDevicePollingStatusUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/ListDevicesUseCase.integration.test.ts`
+
+---
+
 ## Polling configuration and scheduling
 
 ### MON-004 — A device whose monitoring is off cannot be polled on demand

@@ -2,7 +2,10 @@ import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 import { IDeviceStateRepository } from 'domain/device-monitoring/repository';
 import { IDeviceNotificationPolicyRepository } from 'domain/notifications/repository';
-import { ILogger } from 'application/shared/interfaces';
+import {
+  IAgentStatusQuery,
+  ILogger
+} from 'application/shared/interfaces';
 import { SendDeviceDownAlertUseCase } from './SendDeviceDownAlertUseCase';
 
 // Scans every device currently DOWN and opens the down alert for any that
@@ -12,13 +15,18 @@ import { SendDeviceDownAlertUseCase } from './SendDeviceDownAlertUseCase';
 // device polled once a day would otherwise wait a day for its alert to
 // reconsider. SendDeviceDownAlertUseCase already dedupes against an
 // existing open alert, so re-selecting a device on every scan is safe.
+//
+// A device behind an agent that is not reporting is skipped (ADR 0002, R7):
+// its DOWN is the last thing the agent saw, not what is true now. It alerts
+// normally once the agent is back and still finds it down.
 export class RaiseOverdueDeviceDownAlertsUseCase {
   constructor(
     private readonly deviceStateRepository: IDeviceStateRepository,
     private readonly policyRepository: IDeviceNotificationPolicyRepository,
     private readonly sendDeviceDownAlertUseCase: SendDeviceDownAlertUseCase,
     private readonly defaultAlertDelayMs: number,
-    private readonly logger: ILogger
+    private readonly logger: ILogger,
+    private readonly agentStatusQuery: IAgentStatusQuery
   ) {}
 
   async execute(): Promise<Result<number>> {
@@ -29,10 +37,22 @@ export class RaiseOverdueDeviceDownAlertsUseCase {
       );
     }
 
+    const unmeasuredResult =
+      await this.agentStatusQuery.findUnmeasuredDevices(
+        downResult.value.map((s) => s.deviceId.toString())
+      );
+    if (unmeasuredResult.isFailure) {
+      return Result.fail(
+        `Failed to read agent status: ${unmeasuredResult.error}`
+      );
+    }
+    const unmeasured = unmeasuredResult.value;
+
     const now = Date.now();
     let raised = 0;
     for (const state of downResult.value) {
       if (state.downSince === null) continue;
+      if (unmeasured.has(state.deviceId.toString())) continue;
 
       const delayMs = await this.effectiveAlertDelayMs(
         state.deviceId

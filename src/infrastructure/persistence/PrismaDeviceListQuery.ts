@@ -16,12 +16,17 @@ import {
   buildDeviceFilterWhere,
   buildDeviceOrderBy
 } from './device-listing';
+import {
+  DEVICE_BEHIND_SILENT_AGENT,
+  isBehindSilentAgent
+} from '../probe-agents/queries';
 
 const INCLUDE = {
   ...DEVICE_LINEAGE_INCLUDE,
   deviceState: {
     select: { status: true, downSince: true, lastSeen: true }
-  }
+  },
+  agent: { select: { status: true, offlineSince: true } }
 } as const;
 
 type DeviceListRecord = Prisma.DeviceGetPayload<{
@@ -97,15 +102,21 @@ export class PrismaDeviceListQuery implements IDeviceListQuery {
     // AND rather than assigning monitoringEnabled directly: a caller asking
     // for monitoringEnabled=false and a connectivity at the same time must get
     // nothing, not have one filter silently overwrite the other.
+    // A device behind an agent that is not reporting is UNKNOWN whatever its
+    // stored state says (ADR 0002, R7), and never UP or DOWN.
     const stateMatch: Prisma.DeviceWhereInput =
       connectivity === 'UNKNOWN'
         ? {
             OR: [
               { deviceState: { is: null } },
-              { deviceState: { is: { status: 'UNKNOWN' } } }
+              { deviceState: { is: { status: 'UNKNOWN' } } },
+              DEVICE_BEHIND_SILENT_AGENT
             ]
           }
-        : { deviceState: { is: { status: connectivity } } };
+        : {
+            deviceState: { is: { status: connectivity } },
+            NOT: DEVICE_BEHIND_SILENT_AGENT
+          };
 
     return {
       ...where,
@@ -148,6 +159,13 @@ export class PrismaDeviceListQuery implements IDeviceListQuery {
     const state = raw.deviceState;
     if (!state) {
       return { status: 'UNKNOWN', downSince: null, lastSeen: null };
+    }
+    if (isBehindSilentAgent(raw)) {
+      return {
+        status: 'UNKNOWN',
+        downSince: null,
+        lastSeen: state.lastSeen ? state.lastSeen.toISOString() : null
+      };
     }
 
     return {

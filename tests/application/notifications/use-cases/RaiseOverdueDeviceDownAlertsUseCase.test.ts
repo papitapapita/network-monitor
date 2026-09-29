@@ -12,6 +12,7 @@ import { DeviceNotificationPolicyId } from '../../../../src/domain/shared/ids/De
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
+import { IAgentStatusQuery } from '../../../../src/application/shared/interfaces/IAgentStatusQuery';
 
 const VALID_DEVICE_UUID_1 = '550e8400-e29b-41d4-a716-446655440070';
 const VALID_DEVICE_UUID_2 = '550e8400-e29b-41d4-a716-446655440071';
@@ -116,6 +117,7 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
     Pick<SendDeviceDownAlertUseCase, 'execute'>
   >;
   let logger: jest.Mocked<ILogger>;
+  let agentStatusQuery: jest.Mocked<IAgentStatusQuery>;
   let useCase: RaiseOverdueDeviceDownAlertsUseCase;
 
   beforeEach(() => {
@@ -124,12 +126,18 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
     policyRepo = makePolicyRepo();
     sendDeviceDownAlertUseCase = makeSendDeviceDownAlertUseCase();
     logger = makeLogger();
+    agentStatusQuery = {
+      findUnmeasuredDevices: jest
+        .fn()
+        .mockResolvedValue(Result.ok(new Set()))
+    };
     useCase = new RaiseOverdueDeviceDownAlertsUseCase(
       deviceStateRepo,
       policyRepo,
       sendDeviceDownAlertUseCase as unknown as SendDeviceDownAlertUseCase,
       ALERT_DELAY_MS,
-      logger
+      logger,
+      agentStatusQuery
     );
   });
 
@@ -377,6 +385,55 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
           error: 'eligibility check failed'
         }
       );
+    });
+  });
+
+  describe('[NOT-101] devices behind an agent that is not reporting', () => {
+    it('skips them and still alerts for the rest', async () => {
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([
+          makeDeviceState(VALID_DEVICE_UUID_1),
+          makeDeviceState(VALID_DEVICE_UUID_2)
+        ])
+      );
+      agentStatusQuery.findUnmeasuredDevices.mockResolvedValue(
+        Result.ok(new Set([VALID_DEVICE_UUID_1]))
+      );
+      sendDeviceDownAlertUseCase.execute.mockResolvedValue(
+        Result.ok(STUB_ALERT_DTO)
+      );
+
+      const result = await useCase.execute();
+
+      expect(
+        agentStatusQuery.findUnmeasuredDevices
+      ).toHaveBeenCalledWith([
+        VALID_DEVICE_UUID_1,
+        VALID_DEVICE_UUID_2
+      ]);
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).toHaveBeenCalledTimes(1);
+      expect(sendDeviceDownAlertUseCase.execute).toHaveBeenCalledWith(
+        expect.objectContaining({ deviceId: VALID_DEVICE_UUID_2 })
+      );
+      expect(result.value).toBe(1);
+    });
+
+    it('raises nothing when the agent status cannot be read', async () => {
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([makeDeviceState(VALID_DEVICE_UUID_1)])
+      );
+      agentStatusQuery.findUnmeasuredDevices.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      const result = await useCase.execute();
+
+      expect(result.isFailure).toBe(true);
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).not.toHaveBeenCalled();
     });
   });
 });

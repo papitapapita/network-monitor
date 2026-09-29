@@ -2,6 +2,7 @@
 import { PrismaClient } from '../../../src/generated/prisma/client';
 import { PrismaDeviceListQuery } from '../../../src/infrastructure/persistence/PrismaDeviceListQuery';
 import { DeviceStatus } from '../../../src/domain/device-inventory/value-objects';
+import { DEVICE_BEHIND_SILENT_AGENT } from '../../../src/infrastructure/probe-agents/queries';
 
 const DEVICE_ID = '550e8400-e29b-41d4-a716-446655440001';
 const MODEL_ID = '550e8400-e29b-41d4-a716-446655440002';
@@ -83,6 +84,35 @@ describe('PrismaDeviceListQuery', () => {
       expect(result.value[0].name).toBe('Router A');
     });
 
+    it.each([
+      ['offline', { status: 'ACTIVE', offlineSince: new Date() }],
+      ['pending', { status: 'PENDING', offlineSince: null }],
+      ['revoked', { status: 'REVOKED', offlineSince: null }]
+    ])(
+      '[MON-006] reports UNKNOWN behind an agent that is %s',
+      async (_label, agent) => {
+        prisma.device.findMany.mockResolvedValue([
+          makeRow({
+            agentId: '550e8400-e29b-41d4-a716-446655440009',
+            agent,
+            deviceState: {
+              status: 'DOWN',
+              downSince: new Date('2026-09-26T10:00:00Z'),
+              lastSeen: new Date('2026-09-26T09:59:00Z')
+            }
+          })
+        ]);
+
+        const result = await query.list({});
+
+        expect(result.value[0].connectivity).toEqual({
+          status: 'UNKNOWN',
+          downSince: null,
+          lastSeen: '2026-09-26T09:59:00.000Z'
+        });
+      }
+    );
+
     it('reports UNKNOWN for a monitored device never polled', async () => {
       prisma.device.findMany.mockResolvedValue([makeRow()]);
 
@@ -146,7 +176,10 @@ describe('PrismaDeviceListQuery', () => {
         deletedAt: null,
         AND: [
           { monitoringEnabled: true },
-          { deviceState: { is: { status: 'DOWN' } } }
+          {
+            deviceState: { is: { status: 'DOWN' } },
+            NOT: DEVICE_BEHIND_SILENT_AGENT
+          }
         ]
       });
     });
@@ -161,7 +194,8 @@ describe('PrismaDeviceListQuery', () => {
           {
             OR: [
               { deviceState: { is: null } },
-              { deviceState: { is: { status: 'UNKNOWN' } } }
+              { deviceState: { is: { status: 'UNKNOWN' } } },
+              DEVICE_BEHIND_SILENT_AGENT
             ]
           }
         ]

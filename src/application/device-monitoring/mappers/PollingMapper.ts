@@ -57,7 +57,10 @@ export class PollingMapper {
   public static toStatusDTO(
     config: PollingConfiguration,
     state: DeviceState | null,
-    lastPing: PingResultRecord | null
+    lastPing: PingResultRecord | null,
+    // Behind an agent that is not reporting (ADR 0002, R7): the stored state
+    // is stale, so the status is UNKNOWN. The state itself is left alone.
+    unmeasured = false
   ): DevicePollingStatusDTO {
     const lastCheckedAt = state?.lastCheckedAt ?? null;
     // nextScheduled: last poll time + interval; null when never polled (no baseline).
@@ -74,7 +77,9 @@ export class PollingMapper {
       failuresBeforeDown: config.failuresBeforeDown.value,
       lastPolled: lastCheckedAt,
       nextScheduled,
-      currentStatus: PollingMapper.toDeviceStatusLabel(state),
+      currentStatus: unmeasured
+        ? 'UNKNOWN'
+        : PollingMapper.toDeviceStatusLabel(state),
       lastResult: lastPing
         ? this.toPingResultDTO(
             lastPing,
