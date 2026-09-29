@@ -22,6 +22,7 @@ different document for a different audience.
 | Identity & Access   | [identity.md](identity.md)                       | `IDN-001` … `IDN-123` |
 | Tickets             | [tickets.md](tickets.md)                         | `TKT-001` … `TKT-114` |
 | Shared Kernel       | [shared.md](shared.md)                           | `SHR-001` … `SHR-104` |
+| Installation        | [installation.md](installation.md)               | `INS-001` … `INS-008` |
 
 Every context now has a file. Two conventions settled while filling them in:
 

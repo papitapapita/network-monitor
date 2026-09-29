@@ -44,6 +44,7 @@ repository, no persistence of its own. That is deliberate and is itself a rule
 | Infrastructure (orchestrator)    | 8     |
 | Application (use case)           | 8     |
 | Application (service)            | 4     |
+| Infrastructure (composition)     | 1     |
 | Application (event handler)      | 4     |
 | Infrastructure (RouterOS client) | 2     |
 | Presentation                     | 1     |
@@ -314,6 +315,26 @@ that follows.
 
 **Enforced at:** `src/application/service-enforcement/services/EnforcementRouterResolver.ts`
 **Tests:** `tests/application/service-enforcement/services/EnforcementRouterResolver.test.ts`
+
+### SVC-063 — Enforcement exists only when its module is enabled
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (composition)
+**Since:** 2026-09-28
+
+With `enforcement` absent from `ENABLED_MODULES`, nothing of this context is
+built: no event handler, no reconciliation orchestrator, no routes. That holds
+even when `ENFORCEMENT_ROUTER_DEVICE_ID` is set, which is then logged and
+ignored. With the module enabled and no router configured, the routes stay
+mounted and answer `503`, as before.
+
+**Why:** This context writes queues onto a live router. Before the switch, it
+was turned on by the router variable alone, so an install copied from Insetel's
+environment could start throttling a customer's subscribers. Turning it on
+now takes an explicit decision.
+
+**Enforced at:** `src/infrastructure/di/container.ts`
+**Tests:** `tests/integration/enabled-modules.routes.test.ts`
 
 ---
 

@@ -336,7 +336,7 @@ describe('OpenAlertUseCase', () => {
       expect(logger.error).toHaveBeenCalled();
     });
 
-    it('records the alert normally when no ticket opener is wired in', async () => {
+    it('[INS-008] records the alert normally when no ticket opener is wired in', async () => {
       const withoutTickets = makeUseCase(repo, makeLogger());
 
       const result = await withoutTickets.execute(makeRequest());

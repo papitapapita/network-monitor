@@ -9,6 +9,7 @@ import {
   DependencyContainer
 } from 'infrastructure/di/container';
 import { PdfKitCollectionAccountPdfRenderer } from 'infrastructure/billing/services';
+import { loadCollectionAccountIssuerConfig } from 'infrastructure/billing/config/collectionAccountIssuerConfig';
 import {
   cleanCollectionAccounts,
   seedCollectionAccount,
@@ -25,7 +26,9 @@ describe('GetCollectionAccountPdfUseCase — integration', () => {
     prisma = container.getPrisma();
     useCase = new GetCollectionAccountPdfUseCase(
       new PrismaCollectionAccountRepository(prisma),
-      new PdfKitCollectionAccountPdfRenderer(),
+      new PdfKitCollectionAccountPdfRenderer(
+        loadCollectionAccountIssuerConfig(process.env)
+      ),
       new WinstonLogger()
     );
   });

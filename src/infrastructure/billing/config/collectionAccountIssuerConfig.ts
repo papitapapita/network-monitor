@@ -14,19 +14,45 @@ export interface CollectionAccountIssuerConfig {
   timeZone: string;
 }
 
-// Issuer identity printed on every cuenta de cobro. Bank accounts are not here:
-// they are managed through /api/bank-accounts and picked per document.
-export const collectionAccountIssuerConfig: CollectionAccountIssuerConfig =
-  {
-    issuerName: 'Insetel',
-    issuerDocumentLabel: 'NIT',
-    issuerDocument: '11685533-3',
-    issuerAddress: 'Calle 10 # 31-28, Villavicencio, Meta',
-    issuerCity: 'Villavicencio',
-    contactPhone: '310 226 3770',
-    contactEmail: 'insetelseguridad@hotmail.com',
-    accentColorHex: '#1F4E79',
-    logoPath: null,
-    locale: 'es-CO',
-    timeZone: 'America/Bogota'
+const REQUIRED = {
+  issuerName: 'ISSUER_NAME',
+  issuerDocument: 'ISSUER_DOCUMENT',
+  issuerAddress: 'ISSUER_ADDRESS',
+  issuerCity: 'ISSUER_CITY',
+  contactPhone: 'ISSUER_CONTACT_PHONE',
+  contactEmail: 'ISSUER_CONTACT_EMAIL'
+} as const;
+
+// Issuer identity printed on every cuenta de cobro — one per install, so it
+// comes from the environment. Bank accounts are not here: they are managed
+// through /api/bank-accounts and picked per document.
+export function loadCollectionAccountIssuerConfig(
+  env: NodeJS.ProcessEnv
+): CollectionAccountIssuerConfig {
+  const missing = Object.values(REQUIRED).filter(
+    (name) => !env[name]?.trim()
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `Billing is enabled but the issuer is not configured: ${missing.join(', ')}`
+    );
+  }
+
+  const read = (name: string): string => env[name]!.trim();
+  const readOr = (name: string, fallback: string): string =>
+    env[name]?.trim() || fallback;
+
+  return {
+    issuerName: read(REQUIRED.issuerName),
+    issuerDocumentLabel: readOr('ISSUER_DOCUMENT_LABEL', 'NIT'),
+    issuerDocument: read(REQUIRED.issuerDocument),
+    issuerAddress: read(REQUIRED.issuerAddress),
+    issuerCity: read(REQUIRED.issuerCity),
+    contactPhone: read(REQUIRED.contactPhone),
+    contactEmail: read(REQUIRED.contactEmail),
+    accentColorHex: readOr('ISSUER_ACCENT_COLOR', '#1F4E79'),
+    logoPath: env.ISSUER_LOGO_PATH?.trim() || null,
+    locale: readOr('ISSUER_LOCALE', 'es-CO'),
+    timeZone: readOr('ISSUER_TIME_ZONE', 'America/Bogota')
   };
+}

@@ -27,6 +27,24 @@ Most API responses are wrapped:
 > **Exceptions:** Credentials, Polling, and Wireless endpoints return **raw data** — no `{ success, data }` wrapper.  
 > Their error responses use `{ error: string }` (no `success` field).
 
+### Optional modules
+
+An install can switch off whole modules (`ENABLED_MODULES`, see `INS-001` … `INS-008`). A disabled
+module's endpoints are not mounted: an authenticated request gets **`404`** (`401` still comes
+first without a token). The frontend should hide those sections rather than treat the `404` as an
+error.
+
+| Module        | Endpoints                                                                  |
+| ------------- | -------------------------------------------------------------------------- |
+| `customers`   | `/api/customers`, `/api/service-plans`, `/api/contracted-services`         |
+| `billing`     | `/api/bills`, `/api/collection-accounts`, `/api/bank-accounts`             |
+| `quoting`     | `/api/quotations`                                                          |
+| `tickets`     | `/api/tickets`, `/api/technicians`                                         |
+| `enforcement` | `/api/enforcement/suspensions`, `/api/contracted-services/:id/enforcement` |
+
+Everything else (monitoring) is always present. A monitoring-only install
+(`ENABLED_MODULES=monitoring`) serves none of the endpoints above.
+
 ---
 
 ## Authentication

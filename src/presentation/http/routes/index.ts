@@ -114,82 +114,87 @@ export function setupRoutes(
   );
 
   // =====================================
-  // CUSTOMERS BOUNDED CONTEXT
+  // OPTIONAL MODULES — a disabled module's controller is null, so its routes
+  // are never mounted and fall through to the 404 handler (ENABLED_MODULES)
   // =====================================
 
-  // Customers: /api/customers
-  apiRouter.use(
-    '/customers',
-    createCustomerRoutes(container.customerController)
-  );
+  const {
+    customerController,
+    servicePlanController,
+    contractedServiceController,
+    enforcementController,
+    billController,
+    collectionAccountController,
+    bankAccountController,
+    quotationController,
+    ticketController,
+    technicianController
+  } = container;
 
-  // Service plans: /api/service-plans
-  apiRouter.use(
-    '/service-plans',
-    createServicePlanRoutes(container.servicePlanController)
-  );
-
-  // Contracted services: /api/contracted-services
-  apiRouter.use(
-    '/contracted-services',
-    createContractedServiceRoutes(
-      container.contractedServiceController
-    )
-  );
-
-  // =====================================
-  // SERVICE-ENFORCEMENT BOUNDED CONTEXT
-  // =====================================
+  // Customers: /api/customers, /api/service-plans, /api/contracted-services
+  if (customerController) {
+    apiRouter.use(
+      '/customers',
+      createCustomerRoutes(customerController)
+    );
+  }
+  if (servicePlanController) {
+    apiRouter.use(
+      '/service-plans',
+      createServicePlanRoutes(servicePlanController)
+    );
+  }
+  if (contractedServiceController) {
+    apiRouter.use(
+      '/contracted-services',
+      createContractedServiceRoutes(contractedServiceController)
+    );
+  }
 
   // Enforcement status: /api/enforcement/suspensions,
   // /api/contracted-services/:id/enforcement
-  apiRouter.use(
-    '/',
-    createEnforcementRoutes(container.enforcementController)
-  );
+  if (enforcementController) {
+    apiRouter.use(
+      '/',
+      createEnforcementRoutes(enforcementController)
+    );
+  }
 
-  // =====================================
-  // BILLING BOUNDED CONTEXT
-  // =====================================
-
-  // Bills: /api/bills
-  apiRouter.use('/bills', createBillRoutes(container.billController));
-
-  // Cuentas de cobro: /api/collection-accounts
-  apiRouter.use(
-    '/collection-accounts',
-    createCollectionAccountRoutes(
-      container.collectionAccountController
-    )
-  );
-
-  // Issuer bank accounts listed on cuentas de cobro: /api/bank-accounts
-  apiRouter.use(
-    '/bank-accounts',
-    createBankAccountRoutes(container.bankAccountController)
-  );
+  // Billing: /api/bills, /api/collection-accounts, /api/bank-accounts
+  if (billController) {
+    apiRouter.use('/bills', createBillRoutes(billController));
+  }
+  if (collectionAccountController) {
+    apiRouter.use(
+      '/collection-accounts',
+      createCollectionAccountRoutes(collectionAccountController)
+    );
+  }
+  if (bankAccountController) {
+    apiRouter.use(
+      '/bank-accounts',
+      createBankAccountRoutes(bankAccountController)
+    );
+  }
 
   // Quotations: /api/quotations
-  apiRouter.use(
-    '/quotations',
-    createQuotationRoutes(container.quotationController)
-  );
+  if (quotationController) {
+    apiRouter.use(
+      '/quotations',
+      createQuotationRoutes(quotationController)
+    );
+  }
 
-  // =====================================
-  // TICKETS BOUNDED CONTEXT
-  // =====================================
-
-  // Tickets: /api/tickets, /api/tickets/my-day
-  apiRouter.use(
-    '/tickets',
-    createTicketRoutes(container.ticketController)
-  );
-
-  // Technicians: /api/technicians
-  apiRouter.use(
-    '/technicians',
-    createTechnicianRoutes(container.technicianController)
-  );
+  // Tickets: /api/tickets, /api/tickets/my-day, /api/technicians
+  if (ticketController) {
+    apiRouter.use('/tickets', createTicketRoutes(ticketController));
+  }
+  if (technicianController) {
+    apiRouter.use(
+      '/technicians',
+      createTechnicianRoutes(technicianController)
+    );
+  }
 
   // =====================================
   // DEVICE-MONITORING BOUNDED CONTEXT

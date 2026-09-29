@@ -5,7 +5,7 @@ import {
   CollectionAccountPdfRenderModel,
   CollectionAccountPdfLineItem
 } from 'application/billing/interfaces';
-import { collectionAccountIssuerConfig as issuer } from '../config/collectionAccountIssuerConfig';
+import { CollectionAccountIssuerConfig } from '../config/collectionAccountIssuerConfig';
 import { spanishAmountInWords } from '../utils/spanishAmountInWords';
 
 const MARGIN = 50;
@@ -56,6 +56,10 @@ export class PdfKitCollectionAccountPdfRenderer
 {
   private pageNumber = 1;
 
+  constructor(
+    private readonly issuer: CollectionAccountIssuerConfig
+  ) {}
+
   public async render(
     model: CollectionAccountPdfRenderModel
   ): Promise<Result<Buffer>> {
@@ -103,11 +107,11 @@ export class PdfKitCollectionAccountPdfRenderer
   ): void {
     doc
       .rect(0, 0, doc.page.width, HEADER_BAND_HEIGHT)
-      .fill(issuer.accentColorHex);
+      .fill(this.issuer.accentColorHex);
 
     let issuerX = MARGIN;
-    if (issuer.logoPath !== null) {
-      doc.image(issuer.logoPath, MARGIN, 20, { fit: [50, 50] });
+    if (this.issuer.logoPath !== null) {
+      doc.image(this.issuer.logoPath, MARGIN, 20, { fit: [50, 50] });
       issuerX = MARGIN + 60;
     }
 
@@ -115,20 +119,23 @@ export class PdfKitCollectionAccountPdfRenderer
       .fillColor('#ffffff')
       .fontSize(15)
       .font('Helvetica-Bold')
-      .text(issuer.issuerName, issuerX, 24, {
+      .text(this.issuer.issuerName, issuerX, 24, {
         width: CONTENT_WIDTH / 2
       })
       .fontSize(9)
       .font('Helvetica')
       .text(
-        `${issuer.issuerDocumentLabel} ${issuer.issuerDocument}`,
+        `${this.issuer.issuerDocumentLabel} ${this.issuer.issuerDocument}`,
         issuerX,
         doc.y + 2,
         { width: CONTENT_WIDTH / 2 }
       )
-      .text(`${issuer.contactPhone} · ${issuer.contactEmail}`, {
-        width: CONTENT_WIDTH / 2
-      });
+      .text(
+        `${this.issuer.contactPhone} · ${this.issuer.contactEmail}`,
+        {
+          width: CONTENT_WIDTH / 2
+        }
+      );
 
     doc
       .fillColor('#ffffff')
@@ -147,14 +154,14 @@ export class PdfKitCollectionAccountPdfRenderer
 
     doc.fillColor('#000000').fontSize(10).font('Helvetica');
     doc.text(
-      `${issuer.issuerCity}, ${this.formatDate(model.issueDate)}`,
+      `${this.issuer.issuerCity}, ${this.formatDate(model.issueDate)}`,
       MARGIN,
       HEADER_BAND_HEIGHT + 15
     );
     if (model.dueDate !== null) {
       doc
         .font('Helvetica-Bold')
-        .fillColor(issuer.accentColorHex)
+        .fillColor(this.issuer.accentColorHex)
         .text(
           `Fecha límite de pago: ${this.formatDate(model.dueDate)}`,
           MARGIN,
@@ -247,7 +254,7 @@ export class PdfKitCollectionAccountPdfRenderer
       .text('DEBE A: ', MARGIN, doc.y, { continued: true })
       .font('Helvetica')
       .text(
-        `${issuer.issuerName}, ${issuer.issuerDocumentLabel} ${issuer.issuerDocument}`
+        `${this.issuer.issuerName}, ${this.issuer.issuerDocumentLabel} ${this.issuer.issuerDocument}`
       );
     doc
       .font('Helvetica-Bold')
@@ -293,7 +300,7 @@ export class PdfKitCollectionAccountPdfRenderer
     const headerY = doc.y;
     doc
       .rect(MARGIN, headerY, CONTENT_WIDTH, 20)
-      .fill(issuer.accentColorHex);
+      .fill(this.issuer.accentColorHex);
 
     doc.fontSize(9).font('Helvetica-Bold').fillColor('#ffffff');
     const textY = headerY + 6;
@@ -395,7 +402,7 @@ export class PdfKitCollectionAccountPdfRenderer
     doc
       .fontSize(12)
       .font('Helvetica-Bold')
-      .fillColor(issuer.accentColorHex)
+      .fillColor(this.issuer.accentColorHex)
       .text('TOTAL', boxX + 8, boxY + 8, { width: 60 })
       .text(this.formatMoney(model.total), boxX, boxY + 8, {
         width: boxWidth - 6,
@@ -451,10 +458,10 @@ export class PdfKitCollectionAccountPdfRenderer
       .fontSize(10)
       .font('Helvetica-Bold')
       .fillColor('#000000')
-      .text(issuer.issuerName, MARGIN, lineY + 4, { width: 250 })
+      .text(this.issuer.issuerName, MARGIN, lineY + 4, { width: 250 })
       .font('Helvetica')
       .text(
-        `${issuer.issuerDocumentLabel} ${issuer.issuerDocument}`,
+        `${this.issuer.issuerDocumentLabel} ${this.issuer.issuerDocument}`,
         {
           width: 250
         }
@@ -476,7 +483,7 @@ export class PdfKitCollectionAccountPdfRenderer
       .font('Helvetica')
       .fillColor('#888888')
       .text(
-        `${issuer.issuerName} · ${issuer.issuerAddress} · página ${this.pageNumber}`,
+        `${this.issuer.issuerName} · ${this.issuer.issuerAddress} · página ${this.pageNumber}`,
         MARGIN,
         doc.page.height - MARGIN - 20,
         { width: CONTENT_WIDTH, align: 'center', lineBreak: false }
@@ -486,7 +493,7 @@ export class PdfKitCollectionAccountPdfRenderer
   }
 
   private formatMoney(amount: number): string {
-    const formatted = new Intl.NumberFormat(issuer.locale, {
+    const formatted = new Intl.NumberFormat(this.issuer.locale, {
       minimumFractionDigits: 0,
       maximumFractionDigits: 2
     }).format(amount);
@@ -494,8 +501,8 @@ export class PdfKitCollectionAccountPdfRenderer
   }
 
   private formatDate(date: Date): string {
-    return date.toLocaleDateString(issuer.locale, {
-      timeZone: issuer.timeZone,
+    return date.toLocaleDateString(this.issuer.locale, {
+      timeZone: this.issuer.timeZone,
       day: 'numeric',
       month: 'long',
       year: 'numeric'

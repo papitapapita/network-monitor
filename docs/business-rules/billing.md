@@ -36,6 +36,7 @@ Format and conventions: [README.md](README.md).
 | Presentation              | 5     |
 | Infrastructure (database) | 7     |
 | Infrastructure (PDF)      | 1     |
+| Infrastructure (config)   | 1     |
 
 More of this context lives in the application layer than in any other, and the
 reason is structural: a bill is assembled from three other aggregates it cannot
@@ -1109,13 +1110,13 @@ camera install must not cut someone's internet.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
-**Since:** 2026-09-25
+**Since:** 2026-09-25 · **Revised:** 2026-09-28
 
 The document is titled `CUENTA DE COBRO`, carries its `CC-NNNN` number, states
 "DEBE A" (the issuer) and "LA SUMA DE" with the total written out in Spanish
 (`… PESOS M/CTE`), then lists the items. It downloads as
 `cuenta-de-cobro-CC-NNNN.pdf`. The issuer's name, NIT, address and contact
-details come from `src/infrastructure/billing/config/collectionAccountIssuerConfig.ts`;
+details come from the install's configuration (`BIL-232`);
 the "Forma de pago" lines come from the document's own payment accounts
 (`BIL-214`), e.g. `Transferencia a cuenta de ahorros Bancolombia No. 39500002227`.
 
@@ -1137,6 +1138,28 @@ amount in words is what makes the figure hard to alter on a printed copy.
 
 **Enforced at:** `src/infrastructure/billing/services/PdfKitCollectionAccountPdfRenderer.ts` (`drawStatusStamp`)
 **Tests:** `tests/infrastructure/billing/services/PdfKitCollectionAccountPdfRenderer.test.ts`
+
+### BIL-232 — The issuer comes from the install's configuration, and billing will not start without it
+
+**Type:** Validation · **Status:** Active
+**Layer:** Infrastructure (config)
+**Since:** 2026-09-28
+
+The issuer's name, document, address, city, phone and email are read from
+`ISSUER_NAME`, `ISSUER_DOCUMENT`, `ISSUER_ADDRESS`, `ISSUER_CITY`,
+`ISSUER_CONTACT_PHONE` and `ISSUER_CONTACT_EMAIL`. All six are required while
+the billing module is enabled (`INS-001`), and a missing one stops the boot.
+The document label (`NIT`), accent colour (`#1F4E79`), logo (none), locale
+(`es-CO`) and time zone (`America/Bogota`) have defaults.
+
+**Why:** Each install bills as its own company. Hard-coded in the source, every
+customer's cuentas de cobro would have been issued in Insetel's name. Refusing
+to boot surfaces the gap on the day of the install, not on the first document
+a customer's client receives. An install without billing needs none of it.
+
+**Enforced at:** `src/infrastructure/billing/config/collectionAccountIssuerConfig.ts` (`loadCollectionAccountIssuerConfig`), `src/infrastructure/di/container.ts`
+**Message:** `Billing is enabled but the issuer is not configured: <missing variables>`
+**Tests:** `tests/infrastructure/billing/config/collectionAccountIssuerConfig.test.ts`
 
 ### BIL-240 — Listings return 20 rows by default and 100 at most, filterable by customer and status
 

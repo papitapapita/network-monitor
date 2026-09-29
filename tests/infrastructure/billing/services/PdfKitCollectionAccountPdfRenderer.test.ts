@@ -3,6 +3,21 @@
 import { describe, it, expect } from '@jest/globals';
 import { PdfKitCollectionAccountPdfRenderer } from '../../../../src/infrastructure/billing/services/PdfKitCollectionAccountPdfRenderer';
 import { CollectionAccountPdfRenderModel } from '../../../../src/application/billing/interfaces';
+import { CollectionAccountIssuerConfig } from '../../../../src/infrastructure/billing/config/collectionAccountIssuerConfig';
+
+const ISSUER: CollectionAccountIssuerConfig = {
+  issuerName: 'Test ISP',
+  issuerDocumentLabel: 'NIT',
+  issuerDocument: '900123456-7',
+  issuerAddress: 'Calle 1 # 2-3',
+  issuerCity: 'Villavicencio',
+  contactPhone: '300 000 0000',
+  contactEmail: 'billing@test-isp.example',
+  accentColorHex: '#1F4E79',
+  logoPath: null,
+  locale: 'es-CO',
+  timeZone: 'America/Bogota'
+};
 
 function makeModel(
   overrides: Partial<CollectionAccountPdfRenderModel> = {}
@@ -51,7 +66,7 @@ function pageCount(pdf: Buffer): number {
 }
 
 describe('PdfKitCollectionAccountPdfRenderer', () => {
-  const renderer = new PdfKitCollectionAccountPdfRenderer();
+  const renderer = new PdfKitCollectionAccountPdfRenderer(ISSUER);
 
   it('[BIL-230] produces a PDF', async () => {
     const result = await renderer.render(makeModel());

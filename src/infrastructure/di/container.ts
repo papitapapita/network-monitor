@@ -342,6 +342,8 @@ import {
 import { DataRetentionOrchestrator } from '../retention/DataRetentionOrchestrator';
 import { TriggerDataRetentionUseCase } from 'application/shared/use-cases/TriggerDataRetentionUseCase';
 import { AdminController } from 'presentation/http/controllers/AdminController';
+import { loadCollectionAccountIssuerConfig } from '../billing/config/collectionAccountIssuerConfig';
+import { EnabledModules } from './enabledModules';
 
 export class DependencyContainer {
   private prisma: PrismaClient;
@@ -378,7 +380,8 @@ export class DependencyContainer {
 
   public ticketRepository: PrismaTicketRepository;
   public technicianRepository: PrismaTechnicianRepository;
-  private ticketOpener: TicketOpenerAdapter;
+  // undefined when tickets are disabled — alerts then open no tickets
+  private ticketOpener: TicketOpenerAdapter | undefined;
 
   // Identity
   public tokenService: ITokenService;
@@ -398,16 +401,18 @@ export class DependencyContainer {
   public wirelessStreamController: WirelessStreamController;
   public linkDiagnosisController: LinkDiagnosisController;
   public credentialsController: CredentialsController;
-  public customerController: CustomerController;
-  public ticketController: TicketController;
-  public technicianController: TechnicianController;
-  public servicePlanController: ServicePlanController;
-  public contractedServiceController: ContractedServiceController;
-  public billController: BillController;
-  public collectionAccountController: CollectionAccountController;
-  public bankAccountController: BankAccountController;
-  public quotationController: QuotationController;
-  public enforcementController: EnforcementController;
+  public customerController: CustomerController | null = null;
+  public ticketController: TicketController | null = null;
+  public technicianController: TechnicianController | null = null;
+  public servicePlanController: ServicePlanController | null = null;
+  public contractedServiceController: ContractedServiceController | null =
+    null;
+  public billController: BillController | null = null;
+  public collectionAccountController: CollectionAccountController | null =
+    null;
+  public bankAccountController: BankAccountController | null = null;
+  public quotationController: QuotationController | null = null;
+  public enforcementController: EnforcementController | null = null;
 
   // Orchestrators (lifecycle managed by main.ts)
   public pollingOrchestrator: PollingOrchestrator;
@@ -416,7 +421,7 @@ export class DependencyContainer {
   public linkDiagnosisRunner: LinkDiagnosisRunner;
   public dataRetentionOrchestrator: DataRetentionOrchestrator;
   public overdueDeviceDownAlertOrchestrator: OverdueDeviceDownAlertOrchestrator;
-  // null when ENFORCEMENT_ROUTER_DEVICE_ID is not configured
+  // null when the enforcement module is off or has no router configured
   public suspensionReconciliationOrchestrator: SuspensionReconciliationOrchestrator | null =
     null;
 
@@ -426,7 +431,15 @@ export class DependencyContainer {
   // SSE hub (lifecycle managed by main.ts — open streams block shutdown)
   public eventStreamHub: SseBroadcaster;
 
-  constructor() {
+  // Optional modules' controllers stay null when the module is disabled, and
+  // their routes are then never mounted. Their repositories are still built:
+  // the schema is the same in every install, and the monitoring side reads
+  // them (a device with no contract, no tickets, no plan capacity).
+  constructor(
+    public readonly modules: EnabledModules = EnabledModules.parse(
+      process.env.ENABLED_MODULES
+    )
+  ) {
     // Initialize infrastructure
     const adapter = new PrismaPg({
       connectionString: process.env.DATABASE_URL
@@ -439,6 +452,7 @@ export class DependencyContainer {
           : ['error']
     });
     this.logger = new WinstonLogger();
+    this.logger.info(`Enabled modules: ${this.modules}`);
 
     // Initialize repositories
     this.locationRepository = new PrismaLocationRepository(
@@ -483,71 +497,82 @@ export class DependencyContainer {
     this.contractedServiceRepository =
       new PrismaContractedServiceRepository(this.prisma);
 
-    this.customerController = new CustomerController(
-      new CreateCustomerUseCase(this.customerRepository, this.logger),
-      new GetCustomerUseCase(this.customerRepository, this.logger),
-      new ListCustomersUseCase(this.customerRepository, this.logger),
-      new UpdateCustomerUseCase(this.customerRepository, this.logger),
-      new DeleteCustomerUseCase(
-        this.customerRepository,
-        this.contractedServiceRepository,
-        this.logger
-      ),
-      this.logger
-    );
-
-    this.servicePlanController = new ServicePlanController(
-      new CreateServicePlanUseCase(
-        this.servicePlanRepository,
-        this.logger
-      ),
-      new GetServicePlanUseCase(
-        this.servicePlanRepository,
-        this.logger
-      ),
-      new ListServicePlansUseCase(
-        this.servicePlanRepository,
-        this.logger
-      ),
-      new UpdateServicePlanUseCase(
-        this.servicePlanRepository,
-        this.logger
-      ),
-      new DeleteServicePlanUseCase(
-        this.servicePlanRepository,
-        this.contractedServiceRepository,
-        this.logger
-      ),
-      this.logger
-    );
-
-    this.contractedServiceController =
-      new ContractedServiceController(
-        new CreateContractedServiceUseCase(
-          this.contractedServiceRepository,
+    if (this.modules.has('customers')) {
+      this.customerController = new CustomerController(
+        new CreateCustomerUseCase(
           this.customerRepository,
-          this.servicePlanRepository,
           this.logger
         ),
-        new GetContractedServiceUseCase(
-          this.contractedServiceRepository,
+        new GetCustomerUseCase(this.customerRepository, this.logger),
+        new ListCustomersUseCase(
+          this.customerRepository,
           this.logger
         ),
-        new ListContractedServicesUseCase(
-          this.contractedServiceRepository,
+        new UpdateCustomerUseCase(
+          this.customerRepository,
           this.logger
         ),
-        new UpdateContractedServiceUseCase(
-          this.contractedServiceRepository,
-          this.servicePlanRepository,
-          this.logger
-        ),
-        new DeleteContractedServiceUseCase(
+        new DeleteCustomerUseCase(
+          this.customerRepository,
           this.contractedServiceRepository,
           this.logger
         ),
         this.logger
       );
+
+      this.servicePlanController = new ServicePlanController(
+        new CreateServicePlanUseCase(
+          this.servicePlanRepository,
+          this.logger
+        ),
+        new GetServicePlanUseCase(
+          this.servicePlanRepository,
+          this.logger
+        ),
+        new ListServicePlansUseCase(
+          this.servicePlanRepository,
+          this.logger
+        ),
+        new UpdateServicePlanUseCase(
+          this.servicePlanRepository,
+          this.logger
+        ),
+        new DeleteServicePlanUseCase(
+          this.servicePlanRepository,
+          this.contractedServiceRepository,
+          this.logger
+        ),
+        this.logger
+      );
+
+      this.contractedServiceController =
+        new ContractedServiceController(
+          new CreateContractedServiceUseCase(
+            this.contractedServiceRepository,
+            this.customerRepository,
+            this.servicePlanRepository,
+            this.logger
+          ),
+          new GetContractedServiceUseCase(
+            this.contractedServiceRepository,
+            this.logger
+          ),
+          new ListContractedServicesUseCase(
+            this.contractedServiceRepository,
+            this.logger
+          ),
+          new UpdateContractedServiceUseCase(
+            this.contractedServiceRepository,
+            this.servicePlanRepository,
+            this.logger
+          ),
+          new DeleteContractedServiceUseCase(
+            this.contractedServiceRepository,
+            this.logger
+          ),
+          this.logger
+        );
+    }
 
     // =====================================
     // BILLING BOUNDED CONTEXT
@@ -555,35 +580,37 @@ export class DependencyContainer {
 
     this.billRepository = new PrismaBillRepository(this.prisma);
 
-    const generateBillUseCase = new GenerateBillUseCase(
-      this.billRepository,
-      this.customerRepository,
-      this.contractedServiceRepository,
-      this.servicePlanRepository,
-      this.logger
-    );
-
-    this.billController = new BillController(
-      generateBillUseCase,
-      new GenerateBillsForPeriodUseCase(
-        generateBillUseCase,
-        this.billRepository,
-        this.contractedServiceRepository,
-        this.logger
-      ),
-      new ListBillsUseCase(this.billRepository, this.logger),
-      new GetBillUseCase(this.billRepository, this.logger),
-      new GetBillPdfUseCase(
+    if (this.modules.has('billing')) {
+      const generateBillUseCase = new GenerateBillUseCase(
         this.billRepository,
         this.customerRepository,
-        new PdfKitBillPdfRenderer(),
+        this.contractedServiceRepository,
+        this.servicePlanRepository,
         this.logger
-      ),
-      new MarkBillPaidUseCase(this.billRepository, this.logger),
-      new MarkBillOverdueUseCase(this.billRepository, this.logger),
-      new CancelBillUseCase(this.billRepository, this.logger),
-      this.logger
-    );
+      );
+
+      this.billController = new BillController(
+        generateBillUseCase,
+        new GenerateBillsForPeriodUseCase(
+          generateBillUseCase,
+          this.billRepository,
+          this.contractedServiceRepository,
+          this.logger
+        ),
+        new ListBillsUseCase(this.billRepository, this.logger),
+        new GetBillUseCase(this.billRepository, this.logger),
+        new GetBillPdfUseCase(
+          this.billRepository,
+          this.customerRepository,
+          new PdfKitBillPdfRenderer(),
+          this.logger
+        ),
+        new MarkBillPaidUseCase(this.billRepository, this.logger),
+        new MarkBillOverdueUseCase(this.billRepository, this.logger),
+        new CancelBillUseCase(this.billRepository, this.logger),
+        this.logger
+      );
+    }
 
     this.collectionAccountRepository =
       new PrismaCollectionAccountRepository(this.prisma);
@@ -591,61 +618,65 @@ export class DependencyContainer {
       this.prisma
     );
 
-    this.collectionAccountController =
-      new CollectionAccountController(
-        new CreateCollectionAccountUseCase(
-          this.collectionAccountRepository,
-          this.customerRepository,
+    if (this.modules.has('billing')) {
+      this.collectionAccountController =
+        new CollectionAccountController(
+          new CreateCollectionAccountUseCase(
+            this.collectionAccountRepository,
+            this.customerRepository,
+            this.bankAccountRepository,
+            this.logger
+          ),
+          new ListCollectionAccountsUseCase(
+            this.collectionAccountRepository,
+            this.logger
+          ),
+          new GetCollectionAccountUseCase(
+            this.collectionAccountRepository,
+            this.logger
+          ),
+          new GetCollectionAccountPdfUseCase(
+            this.collectionAccountRepository,
+            new PdfKitCollectionAccountPdfRenderer(
+              loadCollectionAccountIssuerConfig(process.env)
+            ),
+            this.logger
+          ),
+          new MarkCollectionAccountPaidUseCase(
+            this.collectionAccountRepository,
+            this.logger
+          ),
+          new CancelCollectionAccountUseCase(
+            this.collectionAccountRepository,
+            this.logger
+          ),
+          this.logger
+        );
+
+      this.bankAccountController = new BankAccountController(
+        new CreateBankAccountUseCase(
           this.bankAccountRepository,
           this.logger
         ),
-        new ListCollectionAccountsUseCase(
-          this.collectionAccountRepository,
+        new ListBankAccountsUseCase(
+          this.bankAccountRepository,
           this.logger
         ),
-        new GetCollectionAccountUseCase(
-          this.collectionAccountRepository,
+        new GetBankAccountUseCase(
+          this.bankAccountRepository,
           this.logger
         ),
-        new GetCollectionAccountPdfUseCase(
-          this.collectionAccountRepository,
-          new PdfKitCollectionAccountPdfRenderer(),
+        new UpdateBankAccountUseCase(
+          this.bankAccountRepository,
           this.logger
         ),
-        new MarkCollectionAccountPaidUseCase(
-          this.collectionAccountRepository,
-          this.logger
-        ),
-        new CancelCollectionAccountUseCase(
-          this.collectionAccountRepository,
+        new DeleteBankAccountUseCase(
+          this.bankAccountRepository,
           this.logger
         ),
         this.logger
       );
-
-    this.bankAccountController = new BankAccountController(
-      new CreateBankAccountUseCase(
-        this.bankAccountRepository,
-        this.logger
-      ),
-      new ListBankAccountsUseCase(
-        this.bankAccountRepository,
-        this.logger
-      ),
-      new GetBankAccountUseCase(
-        this.bankAccountRepository,
-        this.logger
-      ),
-      new UpdateBankAccountUseCase(
-        this.bankAccountRepository,
-        this.logger
-      ),
-      new DeleteBankAccountUseCase(
-        this.bankAccountRepository,
-        this.logger
-      ),
-      this.logger
-    );
+    }
 
     // =====================================
     // QUOTING BOUNDED CONTEXT
@@ -655,48 +686,56 @@ export class DependencyContainer {
       this.prisma
     );
 
-    this.quotationController = new QuotationController(
-      new CreateQuotationUseCase(
-        this.quotationRepository,
-        this.customerRepository,
-        this.deviceModelRepository,
+    if (this.modules.has('quoting')) {
+      this.quotationController = new QuotationController(
+        new CreateQuotationUseCase(
+          this.quotationRepository,
+          this.customerRepository,
+          this.deviceModelRepository,
+          this.logger
+        ),
+        new UpdateQuotationLineItemsUseCase(
+          this.quotationRepository,
+          this.deviceModelRepository,
+          this.logger
+        ),
+        new UpdateQuotationDetailsUseCase(
+          this.quotationRepository,
+          this.logger
+        ),
+        new SendQuotationUseCase(
+          this.quotationRepository,
+          this.logger
+        ),
+        new AcceptQuotationUseCase(
+          this.quotationRepository,
+          this.logger
+        ),
+        new RejectQuotationUseCase(
+          this.quotationRepository,
+          this.logger
+        ),
+        new MarkQuotationExpiredUseCase(
+          this.quotationRepository,
+          this.logger
+        ),
+        new GetQuotationUseCase(
+          this.quotationRepository,
+          this.logger
+        ),
+        new ListQuotationsUseCase(
+          this.quotationRepository,
+          this.logger
+        ),
+        new GetQuotationPdfUseCase(
+          this.quotationRepository,
+          new PdfKitQuotationPdfRenderer(),
+          new HttpImageFetcher(),
+          this.logger
+        ),
         this.logger
-      ),
-      new UpdateQuotationLineItemsUseCase(
-        this.quotationRepository,
-        this.deviceModelRepository,
-        this.logger
-      ),
-      new UpdateQuotationDetailsUseCase(
-        this.quotationRepository,
-        this.logger
-      ),
-      new SendQuotationUseCase(this.quotationRepository, this.logger),
-      new AcceptQuotationUseCase(
-        this.quotationRepository,
-        this.logger
-      ),
-      new RejectQuotationUseCase(
-        this.quotationRepository,
-        this.logger
-      ),
-      new MarkQuotationExpiredUseCase(
-        this.quotationRepository,
-        this.logger
-      ),
-      new GetQuotationUseCase(this.quotationRepository, this.logger),
-      new ListQuotationsUseCase(
-        this.quotationRepository,
-        this.logger
-      ),
-      new GetQuotationPdfUseCase(
-        this.quotationRepository,
-        new PdfKitQuotationPdfRenderer(),
-        new HttpImageFetcher(),
-        this.logger
-      ),
-      this.logger
-    );
+      );
+    }
 
     // =====================================
     // TICKETS BOUNDED CONTEXT
@@ -707,90 +746,92 @@ export class DependencyContainer {
       this.prisma
     );
 
-    // Anti-corruption reads onto customers and device-inventory: a work order
-    // needs a phone number and a device name, not those aggregates.
-    const customerDirectory = new CustomerDirectoryAdapter(
-      this.prisma
-    );
-    const deviceDirectory = new DeviceDirectoryAdapter(this.prisma);
+    if (this.modules.has('tickets')) {
+      // Anti-corruption reads onto customers and device-inventory: a work order
+      // needs a phone number and a device name, not those aggregates.
+      const customerDirectory = new CustomerDirectoryAdapter(
+        this.prisma
+      );
+      const deviceDirectory = new DeviceDirectoryAdapter(this.prisma);
 
-    // Built here rather than inline below because the notifications context
-    // needs it: OpenAlertUseCase turns a newly recorded alert into a ticket.
-    this.ticketOpener = new TicketOpenerAdapter(
-      new OpenTicketFromAlertUseCase(
-        this.ticketRepository,
-        customerDirectory,
-        deviceDirectory,
-        this.logger
-      )
-    );
+      // Built here rather than inline below because the notifications context
+      // needs it: OpenAlertUseCase turns a newly recorded alert into a ticket.
+      this.ticketOpener = new TicketOpenerAdapter(
+        new OpenTicketFromAlertUseCase(
+          this.ticketRepository,
+          customerDirectory,
+          deviceDirectory,
+          this.logger
+        )
+      );
 
-    this.ticketController = new TicketController(
-      new CreateTicketUseCase(
-        this.ticketRepository,
-        this.technicianRepository,
-        customerDirectory,
-        deviceDirectory,
+      this.ticketController = new TicketController(
+        new CreateTicketUseCase(
+          this.ticketRepository,
+          this.technicianRepository,
+          customerDirectory,
+          deviceDirectory,
+          this.logger
+        ),
+        new GetTicketUseCase(
+          this.ticketRepository,
+          this.technicianRepository,
+          customerDirectory,
+          deviceDirectory,
+          this.logger
+        ),
+        new ListTicketsUseCase(this.ticketRepository, this.logger),
+        new GetTechnicianDayUseCase(
+          this.ticketRepository,
+          this.technicianRepository,
+          customerDirectory,
+          deviceDirectory,
+          this.logger
+        ),
+        new UpdateTicketUseCase(
+          this.ticketRepository,
+          customerDirectory,
+          deviceDirectory,
+          this.logger
+        ),
+        new AssignTicketUseCase(
+          this.ticketRepository,
+          this.technicianRepository,
+          this.logger
+        ),
+        new ScheduleTicketUseCase(this.ticketRepository, this.logger),
+        new StartTicketUseCase(this.ticketRepository, this.logger),
+        new ResolveTicketUseCase(this.ticketRepository, this.logger),
+        new CancelTicketUseCase(this.ticketRepository, this.logger),
+        new DeleteTicketUseCase(this.ticketRepository, this.logger),
         this.logger
-      ),
-      new GetTicketUseCase(
-        this.ticketRepository,
-        this.technicianRepository,
-        customerDirectory,
-        deviceDirectory,
-        this.logger
-      ),
-      new ListTicketsUseCase(this.ticketRepository, this.logger),
-      new GetTechnicianDayUseCase(
-        this.ticketRepository,
-        this.technicianRepository,
-        customerDirectory,
-        deviceDirectory,
-        this.logger
-      ),
-      new UpdateTicketUseCase(
-        this.ticketRepository,
-        customerDirectory,
-        deviceDirectory,
-        this.logger
-      ),
-      new AssignTicketUseCase(
-        this.ticketRepository,
-        this.technicianRepository,
-        this.logger
-      ),
-      new ScheduleTicketUseCase(this.ticketRepository, this.logger),
-      new StartTicketUseCase(this.ticketRepository, this.logger),
-      new ResolveTicketUseCase(this.ticketRepository, this.logger),
-      new CancelTicketUseCase(this.ticketRepository, this.logger),
-      new DeleteTicketUseCase(this.ticketRepository, this.logger),
-      this.logger
-    );
+      );
 
-    this.technicianController = new TechnicianController(
-      new CreateTechnicianUseCase(
-        this.technicianRepository,
+      this.technicianController = new TechnicianController(
+        new CreateTechnicianUseCase(
+          this.technicianRepository,
+          this.logger
+        ),
+        new GetTechnicianUseCase(
+          this.technicianRepository,
+          this.logger
+        ),
+        new ListTechniciansUseCase(
+          this.technicianRepository,
+          this.logger
+        ),
+        new UpdateTechnicianUseCase(
+          this.technicianRepository,
+          this.logger
+        ),
+        new DeleteTechnicianUseCase(
+          this.technicianRepository,
+          this.ticketRepository,
+          this.logger
+        ),
         this.logger
-      ),
-      new GetTechnicianUseCase(
-        this.technicianRepository,
-        this.logger
-      ),
-      new ListTechniciansUseCase(
-        this.technicianRepository,
-        this.logger
-      ),
-      new UpdateTechnicianUseCase(
-        this.technicianRepository,
-        this.logger
-      ),
-      new DeleteTechnicianUseCase(
-        this.technicianRepository,
-        this.ticketRepository,
-        this.logger
-      ),
-      this.logger
-    );
+      );
+    }
 
     // =====================================
     // IDENTITY BOUNDED CONTEXT
@@ -1719,35 +1760,48 @@ export class DependencyContainer {
           whatsAppNotificationService,
           this.logger
         );
-      EventDispatcher.register(
-        ContractedServiceStatusChangedEvent.name,
-        new ContractedServiceSuspendedNotificationHandler(
-          sendSuspensionNoticeUseCase,
-          this.logger
-        )
-      );
+      if (this.modules.has('customers')) {
+        EventDispatcher.register(
+          ContractedServiceStatusChangedEvent.name,
+          new ContractedServiceSuspendedNotificationHandler(
+            sendSuspensionNoticeUseCase,
+            this.logger
+          )
+        );
+      }
 
       // Job notices ride the same WhatsApp sender, so they share its opt-in.
-      EventDispatcher.register(
-        TicketAssignedEvent.name,
-        new TicketAssignedNotificationHandler(
-          this.ticketRepository,
-          this.technicianRepository,
-          new TechnicianNotifierAdapter(whatsAppNotificationService),
-          this.logger
-        )
-      );
+      if (this.modules.has('tickets')) {
+        EventDispatcher.register(
+          TicketAssignedEvent.name,
+          new TicketAssignedNotificationHandler(
+            this.ticketRepository,
+            this.technicianRepository,
+            new TechnicianNotifierAdapter(
+              whatsAppNotificationService
+            ),
+            this.logger
+          )
+        );
+      }
     } else {
       this.logger.warn(
         'WhatsApp env vars not set — suspension notices disabled'
       );
     }
 
-    // MikroTik suspension enforcement is optional — existing deployments
-    // without an enforcement router must keep booting.
+    // The module switch decides whether enforcement exists at all; the router
+    // variable alone must never turn it on. Within the module the router is
+    // still optional, so an install without one keeps booting.
     const enforcementRouterDeviceId =
       process.env.ENFORCEMENT_ROUTER_DEVICE_ID;
-    if (enforcementRouterDeviceId) {
+    if (!this.modules.has('enforcement')) {
+      if (enforcementRouterDeviceId) {
+        this.logger.warn(
+          'ENFORCEMENT_ROUTER_DEVICE_ID is set but the enforcement module is disabled — ignoring it'
+        );
+      }
+    } else if (enforcementRouterDeviceId) {
       const routerResolver = new EnforcementRouterResolver(
         this.deviceRepository,
         this.deviceCredentialsRepository,
