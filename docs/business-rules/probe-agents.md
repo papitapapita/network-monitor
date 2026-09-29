@@ -6,18 +6,20 @@ directly (ADR 0002). These rules cover how an agent gets its identity: an
 administrator creates it, the installer pairs it with a one-time key, and an
 administrator can revoke it.
 
-Liveness (heartbeats, OFFLINE after 5 minutes), result ingest and the device
-assignment arrive in later slices of ADR 0002 phase 1 and will extend this
-file.
+The connection rules cover the agent's one WebSocket: how it authenticates,
+what configuration it receives and how its results reach the devices. Liveness
+alerts (OFFLINE after 5 minutes) and the ingest rules for buffered and
+duplicate results arrive in later slices of ADR 0002 phase 1.
 
 Format and conventions: [README.md](README.md).
 
 ## ID ranges
 
-| Range                 | Area                           |
-| --------------------- | ------------------------------ |
-| `AGT-001` … `AGT-019` | Enrollment and identity        |
-| `AGT-020` … `AGT-039` | Liveness (reserved, slice 1.5) |
+| Range                 | Area                    |
+| --------------------- | ----------------------- |
+| `AGT-001` … `AGT-019` | Enrollment and identity |
+| `AGT-020` … `AGT-039` | Liveness                |
+| `AGT-040` … `AGT-059` | Connection and protocol |
 
 ## Layer coverage
 
@@ -25,16 +27,22 @@ A rule enforced in two layers counts in both.
 
 | Layer                        | Rules |
 | ---------------------------- | ----- |
-| Domain                       | 6     |
-| Application                  | 3     |
-| Infrastructure (composition) | 3     |
-| Presentation                 | 2     |
+| Domain                       | 7     |
+| Application                  | 8     |
+| Infrastructure (composition) | 5     |
+| Presentation                 | 6     |
+
+---------------------------- | ----- |
+| Domain | 6 |
+| Application | 3 |
+| Infrastructure (composition) | 3 |
+| Presentation | 2 |
 
 -------------- | ----- |
-| Domain         | 5     |
-| Application    | 1     |
-| Infrastructure | 1     |
-| Presentation   | 2     |
+| Domain | 5 |
+| Application | 1 |
+| Infrastructure | 1 |
+| Presentation | 2 |
 
 ---
 
@@ -132,14 +140,17 @@ Revoking clears the token hash and any pairing code, so neither can be used
 again. A revoked agent cannot be re-enrolled or revoked a second time (`409`).
 The agent's record is kept, not deleted.
 
+A connected agent is cut off within a minute of being revoked: the gateway
+re-checks every session's agent on each configuration refresh and closes a
+revoked one with code `4001`.
+
 **Why:** ADR 0002, R3: a lost or retired PC must be cut off without touching
 the customer's other agents. Keeping the record keeps its name and history
-attributable. Closing a live connection when the agent is revoked arrives with
-the WebSocket gateway (slice 1.5).
+attributable.
 
 **Enforced at:** `src/domain/probe-agents/aggregates/Agent.ts` (`revoke`)
 **Reached from:** `POST /api/agents/:id/revoke`
-**Tests:** `tests/domain/probe-agents/aggregates/Agent.test.ts`, `tests/integration/use-cases/probe-agents/RevokeAgentUseCase.integration.test.ts`
+**Tests:** `tests/domain/probe-agents/aggregates/Agent.test.ts`, `tests/integration/use-cases/probe-agents/RevokeAgentUseCase.integration.test.ts`, `tests/integration/agent-gateway.test.ts`
 
 ### AGT-006 — Agent names are unique, including revoked agents
 
@@ -223,3 +234,171 @@ information everyone who watches the network needs.
 
 **Enforced at:** `src/presentation/http/routes/agent.routes.ts` (`authorize`)
 **Tests:** `tests/integration/agent.routes.test.ts`
+
+---
+
+## Liveness
+
+### AGT-020 — Every hello and heartbeat records when the agent was last heard from, its version and its clock offset
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain · Application
+**Since:** 2026-09-28
+
+The agent says hello once per connection and sends a heartbeat every 30
+seconds; the backend tells it the interval in its welcome. Each one sets
+`lastSeenAt` to the arrival time, stores the version the agent reports (1–32
+characters) and its clock offset: the agent's clock minus the backend's at
+arrival, in milliseconds, positive when the agent runs ahead. Only an enrolled
+agent can report in.
+
+**Why:** ADR 0002, R5. `lastSeenAt` is what the OFFLINE rule (R6) will measure,
+the version is what support needs first, and the offset is what result
+timestamps will be corrected by (R12). The offset includes the message's
+transit time, which on a live connection is milliseconds against a warning
+threshold of a minute.
+
+**Enforced at:** `src/domain/probe-agents/aggregates/Agent.ts` (`recordContact`), `src/application/probe-agents/use-cases/RecordAgentContactUseCase.ts`
+**Tests:** `tests/domain/probe-agents/aggregates/Agent.test.ts`, `tests/integration/use-cases/probe-agents/RecordAgentContactUseCase.integration.test.ts`, `tests/integration/agent-gateway.test.ts`
+
+---
+
+## Connection and protocol
+
+An agent keeps one WebSocket open to `/agent/v1/ws` on the backend's own HTTP
+server, with `permessage-deflate` compression (R19). Messages are JSON with a
+`type`; their shapes live in `src/agent/protocol/`, shared by both sides. Close
+codes:
+
+| Code   | Meaning                                          |
+| ------ | ------------------------------------------------ |
+| `4000` | Replaced by a newer connection of the same agent |
+| `4001` | Revoked                                          |
+| `4002` | Update required                                  |
+| `4003` | Subscription expired (slice 1.5d)                |
+| `4004` | Malformed or out-of-order message                |
+| `4005` | No hello within 10 seconds                       |
+
+### AGT-040 — An agent connects with its token and nothing else
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Presentation
+**Since:** 2026-09-28
+
+The upgrade carries `Authorization: Bearer <token>`. A missing token, one
+nobody holds, or one whose agent is not `ACTIVE` gets `401` and no socket. The
+backend works out which agent is talking from the token alone; no message
+carries an agent id it would trust. The endpoint is outside `/api` and never
+accepts a user's JWT, and a pairing code is not a token.
+
+**Why:** ADR 0002, R4. Deriving identity from the credential keeps the
+protocol unchanged when one backend serves many tenants (token → agent →
+tenant), and refusing at the upgrade means an unauthenticated caller never
+holds an open socket.
+
+**Enforced at:** `src/application/probe-agents/use-cases/AuthenticateAgentUseCase.ts`, `src/presentation/ws/agent/AgentGateway.ts`
+**Tests:** `tests/application/probe-agents/use-cases/AuthenticateAgentUseCase.test.ts`, `tests/integration/use-cases/probe-agents/AuthenticateAgentUseCase.integration.test.ts`, `tests/integration/agent-gateway.test.ts`
+
+### AGT-041 — The configuration lists the agent's pollable devices by a short index that is never reused
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application · Infrastructure
+**Since:** 2026-09-28
+
+The configuration an agent receives lists every device assigned to it that
+in-process polling would otherwise poll: polling enabled, an IP set, not
+deleted, `ACTIVE` or `COMMISSIONING` (the same test as the due query, DEV-086).
+Each device appears with its IP, interval and `failuresBeforeDown`, under a
+small number instead of its id. That number is assigned the first time the
+device appears for that agent and never changes; it is never given to another
+device of the same agent, even after the first one is purged. No credentials are
+sent (they arrive with phase 3).
+
+**Why:** ADR 0002, R19: results name devices by this number to keep them small.
+Because it never changes or moves, a result buffered for hours still names the
+right device after the configuration changed or the backend restarted. The
+eligibility test is repeated rather than shared across contexts, so a change to
+DEV-086 must touch this query too.
+
+**Enforced at:** `src/application/probe-agents/use-cases/BuildAgentConfigSnapshotUseCase.ts`, `src/infrastructure/probe-agents/queries/PrismaAgentDeviceIndex.ts`, `src/infrastructure/probe-agents/queries/PrismaAgentPollingTargetsQuery.ts`
+**Tests:** `tests/application/probe-agents/use-cases/BuildAgentConfigSnapshotUseCase.test.ts`, `tests/integration/use-cases/probe-agents/BuildAgentConfigSnapshotUseCase.integration.test.ts`, `tests/integration/agent-gateway.test.ts`
+
+### AGT-042 — The configuration is sent on connect and within a minute of any change
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Presentation
+**Since:** 2026-09-28
+
+After the welcome the agent receives its configuration. The backend rebuilds
+it every 60 seconds and sends it again only if it changed. Its version is
+derived from its content, so an unchanged configuration keeps its version.
+The agent answers with the version it applied; a mismatch is logged.
+
+**Why:** ADR 0002, R14. Rebuilding on a timer instead of reacting to every
+change keeps device inventory, device monitoring and probe-agents from wiring
+events into each other. The cost is up to a minute between editing a device
+and its agent polling the new way, which is below any poll interval anyone
+uses.
+
+**Enforced at:** `src/presentation/ws/agent/AgentSession.ts` (`refresh`, `pushConfig`)
+**Tests:** `tests/application/probe-agents/use-cases/BuildAgentConfigSnapshotUseCase.test.ts`, `tests/integration/agent-gateway.test.ts`
+
+### AGT-043 — A result reaches a device only while the device is on the agent that sent it
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Infrastructure
+**Since:** 2026-09-28
+
+Results arrive in batches. Each is handed to device monitoring (MON-022) if
+its index names a device currently assigned to the sending agent. A result for
+an unknown index, or for a device since moved to another agent or back
+in-process, is acknowledged and dropped. A result that could not be stored is
+left unacknowledged so the agent keeps it and sends it again. The backend
+acknowledges each batch with the ids it is done with.
+
+**Why:** After a move, the old agent may still send what it measured before it
+received the new configuration. Letting that through would give the device two
+writers again. Acknowledging it anyway stops the agent from resending it
+forever. Duplicate and stale results are handled by the ingest rules of slice
+1.6.
+
+**Enforced at:** `src/application/probe-agents/use-cases/AcceptAgentResultsUseCase.ts`, `src/infrastructure/probe-agents/queries/PrismaAgentDeviceIndex.ts` (`resolveAssigned`)
+**Tests:** `tests/application/probe-agents/use-cases/AcceptAgentResultsUseCase.test.ts`, `tests/integration/use-cases/probe-agents/AcceptAgentResultsUseCase.integration.test.ts`, `tests/integration/agent-gateway.test.ts`
+
+### AGT-044 — An agent speaking an older protocol is told to update, and nothing else happens
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-09-28
+
+The hello carries the agent's protocol version. Below the minimum the backend
+accepts (today `1`), the connection is closed with `4002` and a reason naming
+the version, before the contact is recorded or any configuration is sent. Any
+version number is read, however old, so the agent always gets that answer
+rather than a bare protocol error.
+
+**Why:** ADR 0002, R18. An outdated agent must be visibly outdated, on the agent
+and to support, rather than half-working. Recording nothing keeps it from
+counting as online.
+
+**Enforced at:** `src/presentation/ws/agent/AgentSession.ts` (`onHello`), `src/presentation/ws/agent/agentMessageSchema.ts`
+**Tests:** `tests/integration/agent-gateway.test.ts`
+
+### AGT-045 — An agent has at most one connection; the newest wins
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-09-28
+
+When an agent connects while an older connection of the same agent is still
+open, the older one is closed with `4000`. A connection that sends anything
+before its hello, or anything malformed, is closed with `4004`; one that sends
+no hello within 10 seconds, with `4005`.
+
+**Why:** After a network blip the agent reconnects before the backend notices
+the old socket is dead. The new connection is the one that reflects the
+agent's state; two open sessions would each push configuration and handle
+results for the same agent.
+
+**Enforced at:** `src/presentation/ws/agent/AgentGateway.ts`, `src/presentation/ws/agent/AgentSession.ts`
+**Tests:** `tests/integration/agent-gateway.test.ts`

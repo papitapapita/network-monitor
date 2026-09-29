@@ -14,10 +14,13 @@ import {
   DependencyContainer
 } from 'infrastructure/di/container';
 import {
+  cleanAgents,
   cleanDatabase,
+  seedAgent,
   seedDeviceModel,
   seedMonitoredDevice
 } from '../../helpers/db';
+import { PrismaPollingConfigurationRepository as DueRepo } from 'infrastructure/persistence/PrismaPollingConfigurationRepository';
 import { FakePingService } from '../../helpers/FakePingService';
 import { SuspendDeviceMonitoringUseCase } from 'application/device-monitoring/use-cases/SuspendDeviceMonitoringUseCase';
 import { ResolveAlertUseCase } from 'application/notifications/use-cases/ResolveAlertUseCase';
@@ -230,5 +233,45 @@ describe('ExecutePollingCycleUseCase — integration', () => {
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/required/i);
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // One writer per device (ADR 0002)
+  // ──────────────────────────────────────────────────────────────
+
+  describe('[MON-022] a device behind an on-site agent', () => {
+    beforeEach(async () => {
+      const { id: agentId } = await seedAgent(prisma, {
+        status: 'ACTIVE'
+      });
+      await prisma.device.update({
+        where: { id: deviceId },
+        data: { agentId }
+      });
+    });
+
+    afterEach(async () => {
+      await cleanAgents(prisma);
+    });
+
+    it('leaves the due-devices query', async () => {
+      const due = await new DueRepo(prisma).findAllDue(new Date());
+
+      expect(
+        due.value.map((c) => c.deviceId.toString())
+      ).not.toContain(deviceId);
+    });
+
+    it('refuses a manual poll and writes nothing', async () => {
+      const result = await useCase.execute({
+        deviceId,
+        forceExecution: true
+      });
+
+      expect(result.error).toContain('polled by an on-site agent');
+      expect(
+        await prisma.pingResult.count({ where: { deviceId } })
+      ).toBe(0);
+    });
   });
 });

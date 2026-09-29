@@ -6,7 +6,9 @@ import {
   IAgentAssignmentQuery
 } from 'application/device-inventory/interfaces';
 
-export class PrismaAgentAssignmentQuery implements IAgentAssignmentQuery {
+export class PrismaAgentAssignmentQuery
+  implements IAgentAssignmentQuery
+{
   constructor(private readonly prisma: PrismaClient) {}
 
   async check(agentId: AgentId): Promise<Result<AgentAssignability>> {
@@ -16,7 +18,9 @@ export class PrismaAgentAssignmentQuery implements IAgentAssignmentQuery {
         select: { status: true }
       });
       if (!row) return Result.ok('NOT_FOUND');
-      return Result.ok(row.status === 'REVOKED' ? 'REVOKED' : 'ASSIGNABLE');
+      return Result.ok(
+        row.status === 'REVOKED' ? 'REVOKED' : 'ASSIGNABLE'
+      );
     } catch (error) {
       return Result.fail(
         `Database error checking agent: ${this.message(error)}`

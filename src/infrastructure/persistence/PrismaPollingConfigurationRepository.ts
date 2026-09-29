@@ -72,6 +72,8 @@ export class PrismaPollingConfigurationRepository
           AND pc.ip_address IS NOT NULL
           AND d.deleted_at IS NULL
           AND d.status IN ('ACTIVE', 'COMMISSIONING')
+          -- A device behind an on-site agent is that agent's to poll (MON-022)
+          AND d.agent_id IS NULL
           AND (
             ds.last_checked_at IS NULL
             OR ds.last_checked_at + (pc.interval_seconds || ' seconds')::interval <= ${now}

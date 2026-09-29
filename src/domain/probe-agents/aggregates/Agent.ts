@@ -5,6 +5,7 @@ import { AgentProps } from '../props';
 import { AgentName } from '../value-objects';
 
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
+const MAX_VERSION_LENGTH = 32;
 
 export class Agent extends AggregateRoot<AgentProps, AgentId> {
   static readonly PAIRING_KEY_TTL_MS = 24 * 60 * 60 * 1000;
@@ -136,6 +137,34 @@ export class Agent extends AggregateRoot<AgentProps, AgentId> {
       pairingExpiresAt: null,
       tokenHash,
       enrolledAt: now,
+      updatedAt: now
+    });
+  }
+
+  // A hello or heartbeat from the enrolled agent. The offset is the agent's
+  // clock minus ours as measured on arrival; correcting for it is the
+  // ingest's job (ADR 0002, R12), the agent only remembers the latest.
+  public recordContact(
+    agentVersion: string,
+    clockOffsetMs: number,
+    now: Date = new Date()
+  ): Result<void> {
+    if (this.props.status !== AgentStatus.ACTIVE) {
+      return Result.fail('Only an enrolled agent can report in');
+    }
+    const version = agentVersion?.trim() ?? '';
+    if (version.length === 0 || version.length > MAX_VERSION_LENGTH) {
+      return Result.fail(
+        `Agent version must be 1-${MAX_VERSION_LENGTH} characters`
+      );
+    }
+    if (!Number.isFinite(clockOffsetMs)) {
+      return Result.fail('Clock offset must be a finite number');
+    }
+    return this.apply({
+      agentVersion: version,
+      clockOffsetMs: Math.round(clockOffsetMs),
+      lastSeenAt: now,
       updatedAt: now
     });
   }

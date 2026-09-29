@@ -4,14 +4,24 @@ import { WinstonLogger } from '../logging';
 import { PrismaAgentRepository } from '../probe-agents/repositories';
 import { NodeAgentSecretService } from '../probe-agents/crypto';
 import { loadAgentPublicUrl } from '../probe-agents/config';
-import { PrismaAgentAssignmentQuery } from '../probe-agents/queries';
+import {
+  PrismaAgentAssignmentQuery,
+  PrismaAgentDeviceIndex,
+  PrismaAgentPollingTargetsQuery
+} from '../probe-agents/queries';
+import { DeviceMonitoringPingResultSink } from '../probe-agents/adapters';
+import { AgentGateway } from '../../presentation/ws/agent';
 import {
   CreateAgentUseCase,
   ListAgentsUseCase,
   GetAgentUseCase,
   ReissuePairingKeyUseCase,
   RevokeAgentUseCase,
-  EnrollAgentUseCase
+  EnrollAgentUseCase,
+  AuthenticateAgentUseCase,
+  RecordAgentContactUseCase,
+  BuildAgentConfigSnapshotUseCase,
+  AcceptAgentResultsUseCase
 } from '../../application/probe-agents/use-cases';
 import { JwtTokenService } from '../identity/services/JwtTokenService';
 import { BcryptPasswordService } from '../identity/services/BcryptPasswordService';
@@ -415,6 +425,8 @@ export class DependencyContainer {
   public notificationMuteController: NotificationMuteController;
   public agentController: AgentController;
   public agentEnrollmentController: AgentEnrollmentController;
+  // Attached to the HTTP server by main.ts, once it is listening.
+  public agentGateway: AgentGateway;
   public alertController: AlertController;
   public scanController: ScanController;
   public wirelessController: WirelessController;
@@ -1208,6 +1220,10 @@ export class DependencyContainer {
     const agentRepository = new PrismaAgentRepository(this.prisma);
     const agentSecrets = new NodeAgentSecretService();
     const agentPublicUrl = loadAgentPublicUrl(process.env);
+    const getAgentUseCase = new GetAgentUseCase(
+      agentRepository,
+      this.logger
+    );
     this.agentController = new AgentController(
       new CreateAgentUseCase(
         agentRepository,
@@ -1216,7 +1232,7 @@ export class DependencyContainer {
         this.logger
       ),
       new ListAgentsUseCase(agentRepository, this.logger),
-      new GetAgentUseCase(agentRepository, this.logger),
+      getAgentUseCase,
       new ReissuePairingKeyUseCase(
         agentRepository,
         agentSecrets,
@@ -1232,6 +1248,35 @@ export class DependencyContainer {
         agentSecrets,
         this.logger
       ),
+      this.logger
+    );
+
+    const agentDeviceIndex = new PrismaAgentDeviceIndex(this.prisma);
+    this.agentGateway = new AgentGateway(
+      new AuthenticateAgentUseCase(
+        agentRepository,
+        agentSecrets,
+        this.logger
+      ),
+      {
+        recordContact: new RecordAgentContactUseCase(
+          agentRepository,
+          this.logger
+        ),
+        buildConfig: new BuildAgentConfigSnapshotUseCase(
+          new PrismaAgentPollingTargetsQuery(this.prisma),
+          agentDeviceIndex,
+          this.logger
+        ),
+        acceptResults: new AcceptAgentResultsUseCase(
+          agentDeviceIndex,
+          new DeviceMonitoringPingResultSink(
+            ingestPingResultsUseCase
+          ),
+          this.logger
+        ),
+        getAgent: getAgentUseCase
+      },
       this.logger
     );
 

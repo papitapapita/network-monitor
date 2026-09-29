@@ -2733,9 +2733,8 @@ never disagree about who reaches a device (ADR 0002, R16). The device holds only
 the agent's id, the same way it holds `locationId`, so inventory never imports
 the probe-agents context.
 
-**Not yet in effect.** Until ADR 0002 slice 1.5 connects agents, in-process
-polling still covers every device regardless of `agentId`, which is how an
-agent runs alongside it during the migration (1.9).
+Since ADR 0002 slice 1.5a the assignment decides who polls: in-process polling
+skips every device with an `agentId` (MON-022).
 
 **Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`agentId`, `assignAgent`)
 **Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`

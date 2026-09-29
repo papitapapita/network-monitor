@@ -3,7 +3,9 @@ import { Application } from 'express';
 import { PrismaClient } from '../../src/generated/prisma/client';
 import { createTestApp } from './helpers/createTestApp';
 import {
+  cleanAgents,
   cleanDatabase,
+  seedAgent,
   seedDeviceModel,
   seedMonitoredDevice,
   seedLocation,
@@ -91,6 +93,24 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
         .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(400);
+    });
+
+    it('[MON-022] 409 — the device is polled by an on-site agent', async () => {
+      const { id: agentId } = await seedAgent(prisma, {
+        status: 'ACTIVE'
+      });
+      await prisma.device.update({
+        where: { id: monitoredDeviceId },
+        data: { agentId }
+      });
+
+      const res = await request(app)
+        .post(`/api/devices/${monitoredDeviceId}/poll`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toContain('polled by an on-site agent');
+      await cleanAgents(prisma);
     });
   });
 

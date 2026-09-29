@@ -85,6 +85,7 @@ async function bootstrap(): Promise<Server> {
     logger.info(`Server running on http://localhost:${PORT}`);
     logger.info(`CORS enabled for: ${ALLOWED_ORIGINS.join(', ')}`);
   });
+  container.agentGateway.attach(server);
 
   // Graceful shutdown
   process.on('SIGTERM', () => {
@@ -93,6 +94,7 @@ async function bootstrap(): Promise<Server> {
     // closes on its own — end them first or shutdown hangs indefinitely.
     container.linkDiagnosisRunner.stopAll();
     container.eventStreamHub.closeAll();
+    container.agentGateway.closeAll();
     server.close(async () => {
       await container.pollingOrchestrator.stop();
       await container.wirelessPollingOrchestrator.stop();

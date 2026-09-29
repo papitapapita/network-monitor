@@ -13,5 +13,6 @@ export interface IAgentRepository {
   ): Promise<Result<Agent | null>>;
   findById(id: AgentId): Promise<Result<Agent | null>>;
   findByPairingCodeHash(hash: string): Promise<Result<Agent | null>>;
+  findByTokenHash(hash: string): Promise<Result<Agent | null>>;
   findAll(): Promise<Result<Agent[]>>;
 }

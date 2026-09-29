@@ -174,4 +174,48 @@ describe('Agent', () => {
       expect(agent.updatedAt).toBe(before);
     });
   });
+
+  describe('recordContact', () => {
+    function enrolled(): Agent {
+      const agent = makeAgent();
+      agent.enroll(TOKEN_HASH, at(1_000));
+      return agent;
+    }
+
+    it('[AGT-020] records when, which version and the clock offset', () => {
+      const agent = enrolled();
+
+      const result = agent.recordContact('1.2.0', -1500.4, at(5_000));
+
+      expect(result.isSuccess).toBe(true);
+      expect(agent.lastSeenAt).toEqual(at(5_000));
+      expect(agent.agentVersion).toBe('1.2.0');
+      expect(agent.clockOffsetMs).toBe(-1500);
+    });
+
+    it('refuses an agent that is not enrolled', () => {
+      expect(
+        makeAgent().recordContact('1.0.0', 0, NOW).isFailure
+      ).toBe(true);
+    });
+
+    it('refuses a revoked agent', () => {
+      const agent = enrolled();
+      agent.revoke(at(2_000));
+
+      expect(
+        agent.recordContact('1.0.0', 0, at(3_000)).isFailure
+      ).toBe(true);
+    });
+
+    it.each([
+      ['an empty version', '', 0],
+      ['a version longer than 32 characters', 'v'.repeat(33), 0],
+      ['a non-finite offset', '1.0.0', Number.NaN]
+    ])('rejects %s', (_label, version, offset) => {
+      expect(
+        enrolled().recordContact(version, offset, NOW).isFailure
+      ).toBe(true);
+    });
+  });
 });

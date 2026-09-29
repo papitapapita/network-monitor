@@ -7,7 +7,9 @@ import {
 } from 'generated/prisma/client';
 
 export class AgentPrismaMapper {
-  public static toDomain(raw: ProbeAgent): Result<Agent> {
+  public static toDomain(
+    raw: Omit<ProbeAgent, 'nextDeviceIndex'>
+  ): Result<Agent> {
     const idResult = AgentId.parse(raw.id);
     if (idResult.isFailure) {
       return Result.fail(`Invalid agent id: ${idResult.error}`);
@@ -35,7 +37,11 @@ export class AgentPrismaMapper {
     );
   }
 
-  public static toPersistence(agent: Agent): ProbeAgent {
+  // next_device_index belongs to the device-index adapter, not the aggregate,
+  // so it is never written from here.
+  public static toPersistence(
+    agent: Agent
+  ): Omit<ProbeAgent, 'nextDeviceIndex'> {
     return {
       id: agent.id.toString(),
       name: agent.name.value,

@@ -30,7 +30,7 @@ import {
   DeviceStatus,
   SerialNumber
 } from '../../../../src/domain/device-inventory';
-import { DeviceModelId } from '../../../../src/domain/shared';
+import { AgentId, DeviceModelId } from '../../../../src/domain/shared';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -1112,6 +1112,34 @@ describe('ExecutePollingCycleUseCase', () => {
       expect(
         probeHealth.recordProbeExecutionFailure
       ).not.toHaveBeenCalled();
+    });
+  });
+
+  // ===========================================================================
+  describe('[MON-022] a device behind an on-site agent', () => {
+    beforeEach(() => {
+      deviceRepo = makeDeviceRepo(
+        makeDevice({ agentId: AgentId.create() })
+      );
+      useCase = makeUseCase();
+      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+    });
+
+    it('is skipped by the scheduler without being pinged', async () => {
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.value.status).toBe('SKIPPED');
+      expect(pingService.ping).not.toHaveBeenCalled();
+      expect(deviceStateRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('refuses a manual poll and says why', async () => {
+      const result = await useCase.execute(
+        makeRequest({ forceExecution: true })
+      );
+
+      expect(result.error).toContain('polled by an on-site agent');
+      expect(pingService.ping).not.toHaveBeenCalled();
     });
   });
 });

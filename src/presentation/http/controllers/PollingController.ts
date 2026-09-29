@@ -183,7 +183,8 @@ export class PollingController {
     // current state that refuses the poll.
     if (
       errorMessage.includes('Monitoring is disabled') ||
-      errorMessage.includes('and is not polled')
+      errorMessage.includes('and is not polled') ||
+      errorMessage.includes('polled by an on-site agent')
     ) {
       return 409;
     }

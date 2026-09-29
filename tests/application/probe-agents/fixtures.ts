@@ -3,7 +3,14 @@ import { Agent, AgentName } from '../../../src/domain/probe-agents';
 import { IAgentRepository } from '../../../src/domain/probe-agents/repository';
 import { AgentId } from '../../../src/domain/shared/ids';
 import { Result } from '../../../src/domain/shared/core/Result';
-import { IAgentSecretService } from '../../../src/application/probe-agents/interfaces';
+import {
+  AgentPingResult,
+  AgentPollingTarget,
+  IAgentDeviceIndex,
+  IAgentPingResultSink,
+  IAgentPollingTargetsQuery,
+  IAgentSecretService
+} from '../../../src/application/probe-agents/interfaces';
 import { ILogger } from '../../../src/application/shared/interfaces/ILogger';
 
 export const BACKEND_URL = 'https://api.example.com';
@@ -81,6 +88,14 @@ export class InMemoryAgentRepository implements IAgentRepository {
     return Result.ok(null);
   }
 
+  async findByTokenHash(hash: string): Promise<Result<Agent | null>> {
+    if (this.failWith) return Result.fail(this.failWith);
+    for (const agent of this.agents.values()) {
+      if (agent.tokenHash === hash) return Result.ok(agent);
+    }
+    return Result.ok(null);
+  }
+
   async findAll(): Promise<Result<Agent[]>> {
     if (this.failWith) return Result.fail(this.failWith);
     return Result.ok([...this.agents.values()]);
@@ -117,4 +132,74 @@ export function makePendingAgent(
     secrets.hash(pairingCode),
     now
   ).value;
+}
+
+export function makeActiveAgent(
+  secrets: FakeAgentSecretService,
+  token: string,
+  name = 'Torre Norte'
+): Agent {
+  const agent = makePendingAgent(
+    secrets,
+    `code-for-${token}`,
+    new Date(),
+    name
+  );
+  agent.enroll(secrets.hash(token));
+  return agent;
+}
+
+export class FakeTargetsQuery implements IAgentPollingTargetsQuery {
+  targets: AgentPollingTarget[] = [];
+  async listForAgent(): Promise<Result<AgentPollingTarget[]>> {
+    return Result.ok(this.targets);
+  }
+}
+
+// Mirrors PrismaAgentDeviceIndex: indexes come from an ever-increasing
+// counter, and resolving only answers for devices still on the agent.
+export class FakeDeviceIndex implements IAgentDeviceIndex {
+  private next = 0;
+  readonly indexes = new Map<string, number>();
+  readonly assignedToAgent = new Set<string>();
+
+  async indexesFor(
+    _agentId: AgentId,
+    deviceIds: string[]
+  ): Promise<Result<Map<string, number>>> {
+    for (const id of deviceIds) {
+      if (!this.indexes.has(id)) this.indexes.set(id, this.next++);
+    }
+    return Result.ok(
+      new Map(deviceIds.map((id) => [id, this.indexes.get(id)!]))
+    );
+  }
+
+  async resolveAssigned(
+    _agentId: AgentId,
+    wanted: number[]
+  ): Promise<Result<Map<number, string>>> {
+    const out = new Map<number, string>();
+    for (const [deviceId, index] of this.indexes) {
+      if (
+        wanted.includes(index) &&
+        this.assignedToAgent.has(deviceId)
+      ) {
+        out.set(index, deviceId);
+      }
+    }
+    return Result.ok(out);
+  }
+}
+
+export class FakeResultSink implements IAgentPingResultSink {
+  readonly accepted: AgentPingResult[] = [];
+  failFor = new Set<string>();
+
+  async accept(result: AgentPingResult): Promise<Result<void>> {
+    if (this.failFor.has(result.deviceId))
+      return Result.fail('db down');
+    this.accepted.push(result);
+    return Result.ok();
+  }
 }

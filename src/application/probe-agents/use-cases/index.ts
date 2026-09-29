@@ -4,3 +4,7 @@ export * from './EnrollAgentUseCase';
 export * from './RevokeAgentUseCase';
 export * from './GetAgentUseCase';
 export * from './ListAgentsUseCase';
+export * from './AuthenticateAgentUseCase';
+export * from './RecordAgentContactUseCase';
+export * from './BuildAgentConfigSnapshotUseCase';
+export * from './AcceptAgentResultsUseCase';

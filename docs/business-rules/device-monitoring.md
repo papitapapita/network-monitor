@@ -213,6 +213,28 @@ instead of a result. Three attempts answer in under 20 seconds.
 **Reached from:** `POST /api/devices/:id/poll` via `PollingController.poll`
 **Tests:** `tests/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.test.ts`
 
+### MON-022 — A device behind an on-site agent is polled by that agent only
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-09-28
+
+A device with an `agentId` (DEV-164) leaves the in-process scheduler's due
+query; its agent polls it and its results arrive through the agent gateway
+(AGT-043). A manual poll of such a device is refused with `409`: this server may
+not be able to reach it, and on-demand polls through an agent arrive with ADR
+0002 phase 4. Wireless polling is not affected; it moves to agents in phase 3.
+
+**Why:** One writer per device. Two sources applying results to the same
+`DeviceState` would flip it between their views and raise alerts from
+whichever is wrong. Running an agent alongside in-process polling (ADR 0002,
+1.9) therefore means moving devices over in groups (DEV-168) and moving them
+back if needed, not polling each device twice.
+
+**Enforced at:** `src/infrastructure/persistence/PrismaPollingConfigurationRepository.ts` (`findAllDue`), `src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.ts` (`findIneligibilityReason`)
+**Reached from:** `POST /api/devices/:id/poll` via `PollingController.poll`
+**Message:** `Cannot poll device <id> — it is polled by an on-site agent, and polling it on demand is not available yet`
+**Tests:** `tests/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/ExecutePollingCycleUseCase.integration.test.ts`, `tests/integration/polling.routes.test.ts`
+
 ---
 
 ## Ping history and retention

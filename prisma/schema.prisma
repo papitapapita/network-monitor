@@ -230,6 +230,7 @@ model Device {
   wirelessConfigsAsParentAp    WirelessPollingConfiguration[] @relation("WirelessConfigParentAp")
   contractedService            ContractedService?
   tickets                      Ticket[]
+  agentIndexes                 ProbeAgentDeviceIndex[]
 
   @@index([monitoringEnabled])
   @@index([deletedAt])
@@ -986,10 +987,28 @@ model ProbeAgent {
   lastSeenAt       DateTime?   @map("last_seen_at") @db.Timestamptz
   agentVersion     String?     @map("agent_version") @db.VarChar(32)
   clockOffsetMs    Int?        @map("clock_offset_ms")
+  // Source of the short per-device indexes in config snapshots (R19). Only
+  // ever increases, so an index is never handed to a second device — not even
+  // after the first one is purged.
+  nextDeviceIndex  Int         @default(0) @map("next_device_index")
   createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz
 
-  devices Device[]
+  devices       Device[]
+  deviceIndexes ProbeAgentDeviceIndex[]
 
   @@map("probe_agents")
+}
+
+model ProbeAgentDeviceIndex {
+  agentId     String @map("agent_id") @db.Uuid
+  deviceId    String @map("device_id") @db.Uuid
+  deviceIndex Int    @map("device_index")
+
+  agent  ProbeAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  device Device     @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@id([agentId, deviceId])
+  @@unique([agentId, deviceIndex])
+  @@map("probe_agent_device_indexes")
 }

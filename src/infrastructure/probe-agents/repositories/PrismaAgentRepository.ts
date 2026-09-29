@@ -76,6 +76,18 @@ export class PrismaAgentRepository implements IAgentRepository {
     );
   }
 
+  public async findByTokenHash(
+    hash: string
+  ): Promise<Result<Agent | null>> {
+    return this.findOne(
+      () =>
+        this.prisma.probeAgent.findUnique({
+          where: { tokenHash: hash }
+        }),
+      'finding agent by token'
+    );
+  }
+
   public async findAll(): Promise<Result<Agent[]>> {
     try {
       const rows = await this.prisma.probeAgent.findMany({

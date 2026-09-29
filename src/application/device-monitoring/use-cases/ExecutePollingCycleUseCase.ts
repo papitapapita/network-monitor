@@ -185,7 +185,16 @@ export class ExecutePollingCycleUseCase extends UseCase<
     }
 
     const decision = this.eligibility.canPoll(deviceResult.value);
-    return Result.ok(decision.eligible ? null : decision.message);
+    if (!decision.eligible) return Result.ok(decision.message);
+
+    // MON-022: one writer per device. On-demand polls through an agent
+    // arrive with ADR 0002 phase 4.
+    if (deviceResult.value.agentId !== null) {
+      return Result.ok(
+        'it is polled by an on-site agent, and polling it on demand is not available yet'
+      );
+    }
+    return Result.ok(null);
   }
 
   protected sanitizeForLogging(data: unknown): unknown {

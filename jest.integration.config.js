@@ -17,6 +17,7 @@ export default {
     '^application/(.*)$': '<rootDir>/src/application/$1',
     '^infrastructure/(.*)$': '<rootDir>/src/infrastructure/$1',
     '^presentation/(.*)$': '<rootDir>/src/presentation/$1',
+    '^agent/(.*)$': '<rootDir>/src/agent/$1',
     '^generated/(.*)$': '<rootDir>/src/generated/$1',
     '^(\\.\\.?/.+)\\.js$': '$1'
   },

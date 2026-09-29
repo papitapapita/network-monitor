@@ -5,3 +5,7 @@ export * from './CreateAgentRequestDTO';
 export * from './AgentIdRequestDTO';
 export * from './EnrollAgentRequestDTO';
 export * from './EnrollAgentResponseDTO';
+export * from './AuthenticateAgentDTOs';
+export * from './RecordAgentContactRequestDTO';
+export * from './AgentConfigSnapshotDTO';
+export * from './AcceptAgentResultsDTOs';

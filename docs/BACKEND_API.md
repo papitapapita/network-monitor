@@ -1418,6 +1418,10 @@ monitoring before polling it"`. A manual poll would write a real reading over
 > (from `GET /api/devices/:id/polling/status`) rather than letting the call fail;
 > on a `409`, offer "enable monitoring" instead of a retry.
 
+> A device behind an on-site agent (`agentId` set) returns `409`
+> `"Cannot poll device <id> — it is polled by an on-site agent, and polling it on demand is not available yet"`
+> (MON-022). Hide "poll now" for devices with an `agentId`.
+
 > A device whose status is not polled (e.g. `RETIRED`) also returns `409`,
 > `"Cannot poll device <id> — Device is <STATUS> and is not polled"`. A deleted
 > or non-existent device returns `404`,
@@ -2723,7 +2727,7 @@ WirelessAlertDTO[]
 
 On-site agents that measure a customer's network from inside it and report to this backend (ADR 0002). An administrator creates an agent and gets a **pairing key** — the only thing the installer asks for. The key is shown **once**, in the create (or re-key) response; store nothing, show it with a copy button and a "this will not be shown again" warning.
 
-**Lifecycle:** `PENDING → ACTIVE → REVOKED`. `PENDING` until the installer pairs; the key expires 24 h after it was issued (`pairingExpiresAt`) — offer "new key" for an expired pending agent. `REVOKED` is final. Connection status (online/offline, last seen) is filled in by a later release; `lastSeenAt`, `agentVersion` and `clockOffsetMs` are `null` until then.
+**Lifecycle:** `PENDING → ACTIVE → REVOKED`. `PENDING` until the installer pairs; the key expires 24 h after it was issued (`pairingExpiresAt`) — offer "new key" for an expired pending agent. `REVOKED` is final. `lastSeenAt`, `agentVersion` and `clockOffsetMs` are set each time the agent connects and every 30 s while connected (`null` until it first connects); an explicit online/offline status arrives with a later release — until then, treat `lastSeenAt` older than 5 minutes as offline.
 
 ```ts
 interface AgentDTO {
@@ -2811,6 +2815,12 @@ interface AgentPairingDTO {
 ```
 
 > Final. The agent's token and any unused key stop working. 409 if already revoked.
+
+---
+
+### `GET /agent/v1/ws` — Agent WebSocket (agents only)
+
+The agents' live connection, authenticated with the agent token from enrollment (`Authorization: Bearer <token>`); never called by the dashboard. Protocol and close codes: `src/agent/protocol/` and `docs/business-rules/probe-agents.md` (`AGT-040` … `AGT-045`).
 
 ---
 
