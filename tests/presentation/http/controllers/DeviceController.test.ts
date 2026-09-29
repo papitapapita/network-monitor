@@ -11,6 +11,7 @@ import { RestoreDeviceUseCase } from '../../../../src/application/device-invento
 import { ReplaceDeviceUseCase } from '../../../../src/application/device-inventory/use-cases/ReplaceDeviceUseCase';
 import { SwapDeviceHardwareUseCase } from '../../../../src/application/device-inventory/use-cases/SwapDeviceHardwareUseCase';
 import { PermanentlyDeleteDeviceUseCase } from '../../../../src/application/device-inventory/use-cases/PermanentlyDeleteDeviceUseCase';
+import { AssignDevicesToAgentUseCase } from '../../../../src/application/device-inventory/use-cases/AssignDevicesToAgentUseCase';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
@@ -78,6 +79,9 @@ const createMockPermanentlyDeleteUseCase = () =>
   ({
     execute: jest.fn()
   }) as unknown as PermanentlyDeleteDeviceUseCase;
+
+const createMockAssignAgentUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as AssignDevicesToAgentUseCase;
 
 const createMockLogger = (): jest.Mocked<ILogger> => ({
   info: jest.fn(),
@@ -158,6 +162,7 @@ describe('DeviceController', () => {
   let mockReplaceUseCase: ReplaceDeviceUseCase;
   let mockSwapHardwareUseCase: SwapDeviceHardwareUseCase;
   let mockPermanentlyDeleteUseCase: PermanentlyDeleteDeviceUseCase;
+  let mockAssignAgentUseCase: AssignDevicesToAgentUseCase;
   let mockLogger: jest.Mocked<ILogger>;
 
   beforeEach(() => {
@@ -171,6 +176,7 @@ describe('DeviceController', () => {
     mockSwapHardwareUseCase = createMockSwapHardwareUseCase();
     mockPermanentlyDeleteUseCase =
       createMockPermanentlyDeleteUseCase();
+    mockAssignAgentUseCase = createMockAssignAgentUseCase();
     mockLogger = createMockLogger();
 
     controller = new DeviceController(
@@ -183,6 +189,7 @@ describe('DeviceController', () => {
       mockReplaceUseCase,
       mockSwapHardwareUseCase,
       mockPermanentlyDeleteUseCase,
+      mockAssignAgentUseCase,
       mockLogger
     );
   });
@@ -1503,6 +1510,52 @@ describe('DeviceController', () => {
           { error: 'Unexpected DB crash' }
         );
       });
+    });
+  });
+
+  // =========================================================================
+  describe('assignAgent (POST /api/devices/agent-assignment)', () => {
+    const AGENT_ID = '550e8400-e29b-41d4-a716-446655440099';
+
+    it('passes the selection through and answers 200', async () => {
+      (mockAssignAgentUseCase.execute as jest.Mock).mockResolvedValue(
+        Result.ok({ assigned: ['a'], failed: [] })
+      );
+      const req = createMockRequest({
+        body: { agentId: AGENT_ID, fromAgentId: null }
+      });
+      const { res, statusMock, jsonMock } = createMockResponse();
+
+      await controller.assignAgent(req as Request, res as Response);
+
+      expect(mockAssignAgentUseCase.execute).toHaveBeenCalledWith({
+        agentId: AGENT_ID,
+        deviceIds: undefined,
+        fromAgentId: null
+      });
+      expect(statusMock).toHaveBeenCalledWith(200);
+      expect(jsonMock).toHaveBeenCalledWith({
+        success: true,
+        data: { assigned: ['a'], failed: [] }
+      });
+    });
+
+    it.each([
+      [`Agent not found: ${AGENT_ID}`, 404],
+      [`Agent ${AGENT_ID} is revoked and cannot take devices`, 400],
+      ['Invalid fromAgentId: bad', 400]
+    ])('maps "%s" to %i', async (error, status) => {
+      (mockAssignAgentUseCase.execute as jest.Mock).mockResolvedValue(
+        Result.fail(error)
+      );
+      const { res, statusMock } = createMockResponse();
+
+      await controller.assignAgent(
+        createMockRequest({ body: { agentId: AGENT_ID } }) as Request,
+        res as Response
+      );
+
+      expect(statusMock).toHaveBeenCalledWith(status);
     });
   });
 });

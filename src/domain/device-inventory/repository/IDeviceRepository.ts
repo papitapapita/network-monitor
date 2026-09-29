@@ -1,6 +1,7 @@
 import { Result } from 'domain/shared/core';
 import { IPAddress, MACAddress } from 'domain/shared';
 import {
+  AgentId,
   DeviceId,
   LocationId,
   DeviceModelId
@@ -60,6 +61,8 @@ export interface IDeviceRepository {
   findAll(limit?: number, offset?: number): Promise<Result<Device[]>>;
   findByLocation(locationId: LocationId): Promise<Result<Device[]>>;
   findByLocationIds(ids: LocationId[]): Promise<Result<Device[]>>;
+  // null finds the devices no agent reaches — the ones polled in-process.
+  findByAgent(agentId: AgentId | null): Promise<Result<Device[]>>;
   findByDeviceModel(
     deviceModelId: DeviceModelId
   ): Promise<Result<Device[]>>;

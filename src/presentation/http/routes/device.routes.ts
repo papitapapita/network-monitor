@@ -14,7 +14,8 @@ import {
   restoreDeviceSchema,
   replaceDeviceSchema,
   swapDeviceHardwareSchema,
-  permanentlyDeleteDeviceSchema
+  permanentlyDeleteDeviceSchema,
+  assignDevicesToAgentSchema
 } from '../validation/device.schemas';
 
 /**
@@ -76,6 +77,25 @@ export function createDeviceRoutes(
     createRateLimiter('write'),
     validateRequest(createDeviceSchema),
     controller.create
+  );
+
+  /**
+   * POST /api/devices/agent-assignment
+   * Places many devices behind one probe agent, or back to in-process polling
+   * (agentId: null). Select with `deviceIds` or with `fromAgentId` (null =
+   * every device currently polled in-process) — exactly one.
+   *
+   * Response: 200 OK with { assigned: string[], failed: { id, error }[] }
+   * Errors:
+   *   400 - Validation failure, or the target agent is revoked
+   *   404 - Target agent not found
+   */
+  router.post(
+    '/agent-assignment',
+    authorize('update'),
+    createRateLimiter('write'),
+    validateRequest(assignDevicesToAgentSchema),
+    controller.assignAgent
   );
 
   /**

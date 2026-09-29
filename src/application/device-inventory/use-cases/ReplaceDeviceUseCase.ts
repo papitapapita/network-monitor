@@ -180,6 +180,8 @@ export class ReplaceDeviceUseCase extends UseCase<
       // Inherited: the replacement stands in the same place, serves the same
       // customer, and plays the same role as the unit it succeeds.
       locationId: oldDevice.locationId,
+      // Same place on the network, so the same agent reaches it.
+      agentId: oldDevice.agentId,
       category: oldDevice.category,
       ownerType: oldDevice.ownerType,
       // Keyed off the inherited IP, not the retired unit's status — by this

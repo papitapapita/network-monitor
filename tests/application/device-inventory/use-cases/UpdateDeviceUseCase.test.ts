@@ -27,6 +27,8 @@ import {
   LocationId
 } from '../../../../src/domain/shared/ids';
 import { UpdateDeviceRequestDTO } from '../../../../src/application/device-inventory/dtos';
+import { makeAgentPolicy } from '../agentFixtures';
+import { AgentId } from '../../../../src/domain/shared/ids';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -99,6 +101,7 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
     existsByMacAddress: jest.fn(),
     existsByIpAddress: jest.fn(),
     findByLocationIds: jest.fn(),
+    findByAgent: jest.fn(),
     findByFilters: jest.fn(),
     findByIdIncludingDeleted: jest.fn(),
     findDeletedBefore: jest.fn()
@@ -1195,6 +1198,87 @@ describe('UpdateDeviceUseCase', () => {
         'Failed to check for an existing wireless config'
       );
       expect(repo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-165] agent assignment', () => {
+    function withAgents() {
+      const { agents, policy } = makeAgentPolicy();
+      useCase = new UpdateDeviceUseCase(
+        repo,
+        deviceModelRepo,
+        locationRepo,
+        wirelessConfigRepo,
+        logger,
+        policy
+      );
+      return agents;
+    }
+
+    function deviceBehind(agentId: string): Device {
+      const device = makePersistedDevice();
+      device.assignAgent(AgentId.parse(agentId).value);
+      return device;
+    }
+
+    it('moves the device behind an assignable agent', async () => {
+      const agentId = withAgents().add();
+
+      const result = await useCase.execute(makeRequest({ agentId }));
+
+      expect(result.value.agentId).toBe(agentId);
+    });
+
+    it('moves it back to in-process with null', async () => {
+      const agentId = withAgents().add();
+      repo.findById.mockResolvedValue(
+        Result.ok(deviceBehind(agentId))
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ agentId: null })
+      );
+
+      expect(result.value.agentId).toBeNull();
+    });
+
+    it('refuses a revoked agent', async () => {
+      const revoked = withAgents().add('REVOKED');
+
+      const result = await useCase.execute(
+        makeRequest({ agentId: revoked })
+      );
+
+      expect(result.error).toContain('is revoked');
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('accepts the unchanged agent even after it was revoked', async () => {
+      const revoked = withAgents().add('REVOKED');
+      repo.findById.mockResolvedValue(
+        Result.ok(deviceBehind(revoked))
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ agentId: revoked, name: 'Renamed' })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.agentId).toBe(revoked);
+    });
+
+    it('leaves the agent alone when the field is omitted', async () => {
+      const agentId = withAgents().add();
+      repo.findById.mockResolvedValue(
+        Result.ok(deviceBehind(agentId))
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ name: 'Renamed' })
+      );
+
+      expect(result.value.agentId).toBe(agentId);
     });
   });
 });

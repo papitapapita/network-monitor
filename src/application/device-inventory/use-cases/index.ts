@@ -28,3 +28,4 @@ export * from './GetDeviceCredentialsUseCase';
 export * from './DeleteDeviceCredentialsUseCase';
 export * from './GetMapLocationsUseCase';
 export * from './DeleteLocationUseCase';
+export * from './AssignDevicesToAgentUseCase';

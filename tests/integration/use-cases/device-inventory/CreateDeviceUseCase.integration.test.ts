@@ -4,12 +4,16 @@ import { PrismaLocationRepository } from 'infrastructure/persistence/PrismaLocat
 import { CreateDeviceUseCase } from 'application/device-inventory/use-cases/CreateDeviceUseCase';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
+import { PrismaAgentAssignmentQuery } from 'infrastructure/probe-agents/queries';
+import { AgentAssignmentPolicy } from 'application/device-inventory/services';
 import {
   setupDependencies,
   DependencyContainer
 } from 'infrastructure/di/container';
 import {
+  cleanAgents,
   cleanDatabase,
+  seedAgent,
   seedDeviceModel,
   seedLocation,
   GHOST_ID
@@ -294,5 +298,82 @@ describe('CreateDeviceUseCase — integration', () => {
     });
 
     expect(result.isFailure).toBe(true);
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // Agent assignment (ADR 0002)
+  // ──────────────────────────────────────────────────────────────
+
+  describe('[DEV-166] agent assignment', () => {
+    let withAgents: CreateDeviceUseCase;
+    const request = (agentId?: string | null) => ({
+      deviceModelId,
+      name: 'CPE Casa 1',
+      serialNumber: `SN-${Math.random()}`,
+      ...(agentId !== undefined ? { agentId } : {})
+    });
+
+    beforeAll(() => {
+      withAgents = new CreateDeviceUseCase(
+        new PrismaDeviceRepository(prisma),
+        new PrismaDeviceModelRepository(prisma),
+        new PrismaLocationRepository(prisma),
+        new WinstonLogger(),
+        new AgentAssignmentPolicy(
+          new PrismaAgentAssignmentQuery(prisma)
+        )
+      );
+    });
+
+    beforeEach(async () => {
+      await cleanAgents(prisma);
+    });
+
+    afterAll(async () => {
+      await cleanAgents(prisma);
+    });
+
+    it('stores the only non-revoked agent on the device', async () => {
+      const { id: agentId } = await seedAgent(prisma);
+      await seedAgent(prisma, { status: 'REVOKED' });
+
+      const result = await withAgents.execute(request());
+
+      const row = await prisma.device.findUnique({
+        where: { id: result.value.id }
+      });
+      expect(row!.agentId).toBe(agentId);
+    });
+
+    it('keeps the device in-process when there are no agents', async () => {
+      const result = await withAgents.execute(request());
+
+      expect(result.value.agentId).toBeNull();
+    });
+
+    it('refuses to guess between two agents and creates nothing', async () => {
+      await seedAgent(prisma);
+      await seedAgent(prisma);
+      const before = await prisma.device.count();
+
+      const result = await withAgents.execute(request());
+
+      expect(result.error).toContain('agentId is required');
+      expect(await prisma.device.count()).toBe(before);
+    });
+
+    it('[DEV-165] refuses a revoked agent', async () => {
+      const { id } = await seedAgent(prisma, { status: 'REVOKED' });
+
+      const result = await withAgents.execute(request(id));
+
+      expect(result.error).toContain('is revoked');
+    });
+
+    it('fails for an agent that does not exist', async () => {
+      const result = await withAgents.execute(request(GHOST_ID));
+
+      expect(result.error).toContain('Agent not found');
+    });
   });
 });

@@ -1,4 +1,8 @@
-import { DeviceModelId, LocationId } from 'domain/shared/ids';
+import {
+  AgentId,
+  DeviceModelId,
+  LocationId
+} from 'domain/shared/ids';
 import { IPAddress, MACAddress } from 'domain/shared/value-objects';
 import {
   DeviceName,
@@ -23,5 +27,6 @@ export interface DeviceChanges {
   ownerType?: DeviceOwnerType;
   status?: DeviceStatus;
   locationId?: LocationId | null;
+  agentId?: AgentId | null;
   monitoringEnabled?: boolean;
 }

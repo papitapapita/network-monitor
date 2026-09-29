@@ -11,6 +11,7 @@ import { ILogger } from '../../../../src/application/shared/interfaces';
 import { Result } from '../../../../src/domain/shared/core';
 import { Device } from '../../../../src/domain/device-inventory/aggregates';
 import { CreateDeviceRequestDTO } from '../../../../src/application/device-inventory/dtos';
+import { makeAgentPolicy } from '../agentFixtures';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -52,6 +53,7 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
     existsByMacAddress: jest.fn(),
     existsByIpAddress: jest.fn(),
     findByLocationIds: jest.fn(),
+    findByAgent: jest.fn(),
     findByFilters: jest.fn(),
     findByIdIncludingDeleted: jest.fn(),
     findDeletedBefore: jest.fn()
@@ -706,6 +708,76 @@ describe('CreateDeviceUseCase', () => {
 
       expect(result.isSuccess).toBe(true);
       expect(result.value!.ownerType).toBe('COMPANY');
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-166] agent assignment', () => {
+    function withAgents() {
+      const { agents, policy } = makeAgentPolicy();
+      useCase = new CreateDeviceUseCase(
+        repo,
+        modelRepo,
+        locationRepo,
+        logger,
+        policy
+      );
+      return agents;
+    }
+
+    it('puts a new device behind the only agent', async () => {
+      const agentId = withAgents().add();
+
+      const result = await useCase.execute(makeMinimalRequest());
+
+      expect(result.value.agentId).toBe(agentId);
+    });
+
+    it('keeps it in-process when no agent exists', async () => {
+      withAgents();
+
+      const result = await useCase.execute(makeMinimalRequest());
+
+      expect(result.value.agentId).toBeNull();
+    });
+
+    it('refuses to guess between several agents and saves nothing', async () => {
+      const agents = withAgents();
+      agents.add();
+      agents.add();
+
+      const result = await useCase.execute(makeMinimalRequest());
+
+      expect(result.error).toContain('agentId is required');
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('uses the agent the caller chose', async () => {
+      const agents = withAgents();
+      agents.add();
+      const chosen = agents.add();
+
+      const result = await useCase.execute(
+        makeMinimalRequest({ agentId: chosen })
+      );
+
+      expect(result.value.agentId).toBe(chosen);
+    });
+
+    it('[DEV-165] refuses a revoked agent', async () => {
+      const revoked = withAgents().add('REVOKED');
+
+      const result = await useCase.execute(
+        makeMinimalRequest({ agentId: revoked })
+      );
+
+      expect(result.error).toContain('is revoked');
+    });
+
+    it('defaults to in-process when wired without an agent query', async () => {
+      const result = await useCase.execute(makeMinimalRequest());
+
+      expect(result.value.agentId).toBeNull();
     });
   });
 });

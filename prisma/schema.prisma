@@ -168,6 +168,9 @@ model Device {
   id            String           @id @default(uuid()) @db.Uuid
   deviceModelId String           @map("device_model_id") @db.Uuid
   locationId    String?          @map("location_id") @db.Uuid
+  // The on-site agent that reaches this device (ADR 0002). Null: polled
+  // in-process, until Insetel's own install moves onto an agent.
+  agentId       String?          @map("agent_id") @db.Uuid
   status        DeviceStatus     @default(INVENTORY)
   category      DeviceCategory?
   owner         DeviceOwnerType?
@@ -212,6 +215,7 @@ model Device {
   // Relations
   deviceModel                  DeviceModel                    @relation(fields: [deviceModelId], references: [id], onDelete: Restrict)
   location                     Location?                      @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  agent                        ProbeAgent?                    @relation(fields: [agentId], references: [id], onDelete: Restrict)
   replaces                     Device?                        @relation("DeviceReplacement", fields: [replacesDeviceId], references: [id], onDelete: SetNull)
   replacedBy                   Device[]                       @relation("DeviceReplacement")
   pollingConfiguration         PollingConfiguration?
@@ -231,6 +235,7 @@ model Device {
   @@index([deletedAt])
   @@index([ipSortKey])
   @@index([replacesDeviceId])
+  @@index([agentId])
   @@map("devices")
 }
 
@@ -983,6 +988,8 @@ model ProbeAgent {
   clockOffsetMs    Int?        @map("clock_offset_ms")
   createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  devices Device[]
 
   @@map("probe_agents")
 }

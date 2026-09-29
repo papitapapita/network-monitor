@@ -129,6 +129,12 @@ export const createDeviceSchema = z.object({
       .nullable()
       .optional(),
 
+    agentId: z
+      .string()
+      .regex(UUID_REGEX, 'agentId must be a valid UUID v4')
+      .nullable()
+      .optional(),
+
     // ===================================
     // OPTIONAL IDENTITY
     // ===================================
@@ -353,6 +359,12 @@ export const updateDeviceSchema = z.object({
       .nullable()
       .optional(),
 
+    agentId: z
+      .string()
+      .regex(UUID_REGEX, 'agentId must be a valid UUID v4')
+      .nullable()
+      .optional(),
+
     serialNumber: z
       .string()
       .max(100, 'Serial number cannot exceed 100 characters')
@@ -537,6 +549,35 @@ export const swapDeviceHardwareSchema = z.object({
   })
 });
 
+// Exactly one selector: named devices, or every device currently behind
+// `fromAgentId` (null = the ones polled in-process).
+export const assignDevicesToAgentSchema = z.object({
+  body: z
+    .object({
+      agentId: z
+        .string()
+        .regex(UUID_REGEX, 'agentId must be a valid UUID v4')
+        .nullable(),
+      deviceIds: z
+        .array(
+          z.string().regex(UUID_REGEX, 'deviceIds must be UUID v4s')
+        )
+        .min(1)
+        .max(1000)
+        .optional(),
+      fromAgentId: z
+        .string()
+        .regex(UUID_REGEX, 'fromAgentId must be a valid UUID v4')
+        .nullable()
+        .optional()
+    })
+    .refine(
+      (b) =>
+        (b.deviceIds !== undefined) !== (b.fromAgentId !== undefined),
+      { message: 'Provide exactly one of deviceIds or fromAgentId' }
+    )
+});
+
 // =====================================
 // TYPE EXPORTS
 // =====================================
@@ -550,6 +591,9 @@ export type ListDevicesQuery = z.infer<
 export type GetDeviceByIdParams = z.infer<
   typeof getDeviceByIdSchema
 >['params'];
+export type AssignDevicesToAgentInput = z.infer<
+  typeof assignDevicesToAgentSchema
+>['body'];
 export type UpdateDeviceInput = z.infer<
   typeof updateDeviceSchema
 >['body'];

@@ -4,7 +4,8 @@ import {
   CreateDeviceInput,
   UpdateDeviceInput,
   ReplaceDeviceInput,
-  SwapDeviceHardwareInput
+  SwapDeviceHardwareInput,
+  AssignDevicesToAgentInput
 } from '../validation';
 import {
   CreateDeviceUseCase,
@@ -15,7 +16,8 @@ import {
   RestoreDeviceUseCase,
   ReplaceDeviceUseCase,
   SwapDeviceHardwareUseCase,
-  PermanentlyDeleteDeviceUseCase
+  PermanentlyDeleteDeviceUseCase,
+  AssignDevicesToAgentUseCase
 } from 'application/device-inventory/use-cases';
 
 export class DeviceController {
@@ -29,8 +31,36 @@ export class DeviceController {
     private readonly replaceUseCase: ReplaceDeviceUseCase,
     private readonly swapHardwareUseCase: SwapDeviceHardwareUseCase,
     private readonly permanentlyDeleteUseCase: PermanentlyDeleteDeviceUseCase,
+    private readonly assignAgentUseCase: AssignDevicesToAgentUseCase,
     private readonly logger: ILogger
   ) {}
+
+  public assignAgent = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const body = req.body as AssignDevicesToAgentInput;
+
+      const result = await this.assignAgentUseCase.execute({
+        agentId: body.agentId,
+        deviceIds: body.deviceIds,
+        fromAgentId: body.fromAgentId
+      });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(200).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
 
   public create = async (
     req: Request,
@@ -46,6 +76,7 @@ export class DeviceController {
         status: body.status,
         category: body.category ?? null,
         locationId: body.locationId ?? null,
+        agentId: body.agentId,
         serialNumber: body.serialNumber ?? null,
         macAddress: body.macAddress ?? null,
         ipAddress: body.ipAddress ?? null,
@@ -316,6 +347,7 @@ export class DeviceController {
       // too — 'already deleted', 'already been replaced'.
       errorMessage.includes('already') ||
       errorMessage.includes('Cannot ') ||
+      errorMessage.includes('is revoked') ||
       errorMessage.includes('Failed to persist')
     ) {
       return 400;

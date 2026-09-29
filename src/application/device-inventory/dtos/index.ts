@@ -39,3 +39,5 @@ export * from './SetDeviceCredentialsRequestDTO';
 export * from './DeviceCredentialsResponseDTO';
 export * from './MapPinDTO';
 export * from './DeleteLocationRequestDTO';
+export * from './AssignDevicesToAgentRequestDTO';
+export * from './AssignDevicesToAgentResponseDTO';

@@ -1,6 +1,7 @@
 import { Device } from 'domain/device-inventory/aggregates';
 import { IPAddress, MACAddress } from 'domain/shared/value-objects';
 import {
+  AgentId,
   DeviceId,
   DeviceModelId,
   LocationId
@@ -23,6 +24,7 @@ export type PrismaDeviceRecord = {
   id: string;
   deviceModelId: string;
   locationId: string | null;
+  agentId: string | null;
   owner: string | null;
   status: string;
   category: string | null;
@@ -50,6 +52,7 @@ type DevicePersistenceData = {
   id: string;
   deviceModelId: string;
   locationId: string | null;
+  agentId: string | null;
   owner: PrismaDeviceOwnerType | null;
   status: PrismaDeviceStatus;
   category: PrismaDeviceCategory | null;
@@ -97,6 +100,17 @@ export class DeviceMapper {
       locationId = locationIdResult.value;
     }
 
+    let agentId: AgentId | null = null;
+    if (raw.agentId != null) {
+      const agentIdResult = AgentId.parse(raw.agentId);
+      if (agentIdResult.isFailure) {
+        return Result.fail<Device>(
+          `Invalid agent ID: ${agentIdResult.error}`
+        );
+      }
+      agentId = agentIdResult.value;
+    }
+
     const ownerType =
       raw.owner != null
         ? this.mapOwnerTypeFromPrisma(raw.owner)
@@ -133,6 +147,7 @@ export class DeviceMapper {
     const device = Device.reconstitute(deviceIdResult.value, {
       deviceModelId: deviceModelIdResult.value,
       locationId,
+      agentId,
       status: DeviceStatus.reconstitute(raw.status),
       category,
       ownerType,
@@ -169,6 +184,7 @@ export class DeviceMapper {
       id: device.id.toString(),
       deviceModelId: device.deviceModelId.toString(),
       locationId: device.locationId?.toString() ?? null,
+      agentId: device.agentId?.toString() ?? null,
       status: device.status.toString() as PrismaDeviceStatus,
       category: (device.category?.toString() ??
         null) as PrismaDeviceCategory | null,

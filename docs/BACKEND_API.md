@@ -226,6 +226,7 @@ interface DeviceDTO {
   id: string; // UUID
   deviceModelId: string; // UUID
   locationId: string | null;
+  agentId: string | null; // probe agent that polls it; null = polled by the server itself
   status: DeviceStatus;
   category: DeviceCategory | null;
   ownerType: DeviceOwner | null;
@@ -441,6 +442,7 @@ Returns all locations that have coordinates, each with their nested devices. Int
   status?: DeviceStatus        // default: INVENTORY
   category?: DeviceCategory | null
   locationId?: string | null   // UUID
+  agentId?: string | null      // UUID of a probe agent; see below
   serialNumber?: string | null // max 100 chars
   macAddress?: string | null   // format AA:BB:CC:DD:EE:FF or AA-BB-CC-DD-EE-FF
   ipAddress?: string | null    // IPv4 or IPv6
@@ -456,6 +458,7 @@ Returns all locations that have coordinates, each with their nested devices. Int
 - `INVENTORY` / `DAMAGED` / `DECOMMISSIONED` status → at least one of `serialNumber` or `macAddress` required (status defaults to `INVENTORY`, so a minimal request must include at least one)
 - `COMMISSIONING` status → `ipAddress` required; `monitoringEnabled` defaults to `true`, but an explicit `monitoringEnabled: false` in the same request is respected (staging a device without polling it yet is legitimate)
 - `ACTIVE` status → `ipAddress` and `locationId` required
+- `agentId` omitted → the device goes behind the only non-revoked agent; with no agents it stays `null`; with **two or more** the request is refused `400 agentId is required…` — show an agent picker whenever `GET /api/agents` lists more than one non-revoked agent. `agentId: null` always means "polled by the server". A revoked agent is `400`, an unknown one `404` (`DEV-164` … `DEV-166`)
 - `installedDate` must be ISO 8601 — `YYYY-MM-DD` or `YYYY-MM-DDThh:mm[:ss[.sss]]` with an optional `Z`/`±hh:mm` offset. Locale forms (`March 5, 2020`) and impossible dates (`2024-02-31`) are rejected, not reinterpreted
 
 ```ts
@@ -658,6 +661,7 @@ either, the operator turns polling back on explicitly.
   category?: DeviceCategory | null
   ownerType?: DeviceOwner
   locationId?: string | null
+  agentId?: string | null        // null = polled by the server; revoked agent → 400
   serialNumber?: string | null
   macAddress?: string | null
   ipAddress?: string | null
@@ -848,6 +852,27 @@ configuration belonging to the device goes with it. **There is no undo.**
 
 ---
 
+### `POST /api/devices/agent-assignment` — Move devices between agents
+
+**Status:** 200 | 400 | 401 | 403 | 404  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// Request body — agentId plus exactly one selector
+{
+  agentId: string | null     // target agent; null = back to polling by the server
+  deviceIds?: string[]       // 1–1000 device UUIDs
+  fromAgentId?: string | null // every device currently behind this agent; null = every device polled by the server
+}
+
+// Response — each device is moved on its own
+{ success: true, data: { assigned: string[]; failed: { id: string; error: string }[] } }
+```
+
+> Typical calls: first agent installed → `{ agentId, fromAgentId: null }`; PC replaced → `{ agentId: newAgent, fromAgentId: oldAgent }`; agent misbehaving → `{ agentId: null, fromAgentId: agent }`. Show `failed` to the user: a device whose other data breaks a rule (e.g. `ACTIVE` with no location) is listed there with that rule's message and is not moved. Unknown target agent `404`, revoked target `400`.
+
+---
+
 ### `POST /api/devices/:id/replace` — Replace hardware
 
 **Status:** 201 | 400 | 403 | 404
@@ -891,7 +916,7 @@ Requires the **`activate`** permission (ADMIN and OPERATOR).
 
 1. Retires `:id` into `retiredStatus` and **releases its IP address**
 2. Creates a new device on `deviceModelId`, inheriting the retired unit's
-   **location, category and owner**, and taking over the released IP.
+   **location, agent, category and owner**, and taking over the released IP.
    It starts in `COMMISSIONING` if it inherited an address, `INVENTORY` if not
 3. Links the two — `newDevice.replacesDeviceId` and
    `retiredDevice.replacedByDeviceId`
@@ -960,7 +985,7 @@ Requires the **`activate`** permission (ADMIN and OPERATOR).
 **What moves:** `deviceModelId`, `serialNumber`, `macAddress` — exchanged between
 the two records.
 
-**What stays with each record:** `ipAddress`, `locationId`, `status`,
+**What stays with each record:** `ipAddress`, `locationId`, `agentId`, `status`,
 `monitoringEnabled`, name, credentials, contracted service, wireless config and
 every reading, alert and snapshot. Which side is `:id` and which is
 `otherDeviceId` makes no difference.

@@ -1,5 +1,6 @@
 import { AggregateRoot, Result, Guard } from 'domain/shared/core';
 import {
+  AgentId,
   DeviceId,
   DeviceModelId,
   LocationId
@@ -37,6 +38,10 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
 
   get locationId(): LocationId | null {
     return this.props.locationId;
+  }
+
+  get agentId(): AgentId | null {
+    return this.props.agentId;
   }
 
   get status(): DeviceStatus {
@@ -118,8 +123,10 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       | 'replacedAt'
       | 'replacesDeviceId'
       | 'replacedByDeviceId'
+      | 'agentId'
     > & {
       monitoringEnabled?: boolean;
+      agentId?: AgentId | null;
       // Set only by ReplaceDeviceUseCase — a unit created as the successor of
       // a retired one carries the link from birth, so the lineage is never in
       // a half-written state.
@@ -169,6 +176,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       {
         ...props,
         locationId: props.locationId ?? null,
+        agentId: props.agentId ?? null,
         ownerType: props.ownerType ?? null,
         category: props.category ?? null,
         serialNumber: props.serialNumber ?? null,
@@ -217,6 +225,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       | 'replacedAt'
       | 'replacesDeviceId'
       | 'replacedByDeviceId'
+      | 'agentId'
     > &
       Partial<
         Pick<
@@ -226,12 +235,14 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
           | 'replacedAt'
           | 'replacesDeviceId'
           | 'replacedByDeviceId'
+          | 'agentId'
         >
       >
   ): Device {
     return new Device(
       {
         ...props,
+        agentId: props.agentId ?? null,
         deletedAt: props.deletedAt ?? null,
         deletedBy: props.deletedBy ?? null,
         replacedAt: props.replacedAt ?? null,
@@ -348,12 +359,17 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     const detailsProvided = Device.touchesDetails(changes);
     const monitoringChanged =
       previousMonitoring !== monitoringEnabled;
+    const agentChanged = !Device.sameAgent(
+      this.props.agentId,
+      next.agentId
+    );
 
     if (
       !modelChanged &&
       !statusChanged &&
       !locationChanged &&
       !monitoringChanged &&
+      !agentChanged &&
       !detailsProvided
     ) {
       return Result.ok<void>();
@@ -370,6 +386,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     this.props.ownerType = next.ownerType;
     this.props.status = next.status;
     this.props.locationId = next.locationId;
+    this.props.agentId = next.agentId;
     this.props.monitoringEnabled = monitoringEnabled;
 
     this.touch();
@@ -456,6 +473,12 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
 
   public assignLocation(locationId: LocationId | null): Result<void> {
     return this.applyChanges({ locationId });
+  }
+
+  // Whether the agent exists and may take devices is the caller's check
+  // (ADR 0002): the device only records which one reaches it.
+  public assignAgent(agentId: AgentId | null): Result<void> {
+    return this.applyChanges({ agentId });
   }
 
   // A data-entry correction, not a hardware swap. Restricted to INVENTORY
@@ -736,7 +759,8 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
 
     if (
       this.props.deviceModelId.equals(other.props.deviceModelId) &&
-      this.props.serialNumber?.value === other.props.serialNumber?.value &&
+      this.props.serialNumber?.value ===
+        other.props.serialNumber?.value &&
       this.props.macAddress?.value === other.props.macAddress?.value
     ) {
       return Result.fail<void>(
@@ -763,7 +787,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       })
     );
 
-    const failed = validations.find(v => v.isFailure);
+    const failed = validations.find((v) => v.isFailure);
     if (failed) {
       return Result.fail<void>(failed.error!);
     }
@@ -868,6 +892,16 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     return a.equals(b);
   }
 
+  private static sameAgent(
+    a: AgentId | null,
+    b: AgentId | null
+  ): boolean {
+    if (a === null || b === null) {
+      return a === b;
+    }
+    return a.equals(b);
+  }
+
   private resolve(changes: DeviceChanges): {
     deviceModelId: DeviceModelId;
     name: DeviceName;
@@ -880,6 +914,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     ownerType: DeviceOwnerType | null;
     status: DeviceStatus;
     locationId: LocationId | null;
+    agentId: AgentId | null;
     monitoringEnabled: boolean;
   } {
     const pick = <T>(incoming: T | undefined, current: T): T =>
@@ -906,6 +941,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       ownerType: pick(changes.ownerType, this.props.ownerType),
       status: pick(changes.status, this.props.status),
       locationId: pick(changes.locationId, this.props.locationId),
+      agentId: pick(changes.agentId, this.props.agentId),
       monitoringEnabled: pick(
         changes.monitoringEnabled,
         this.props.monitoringEnabled

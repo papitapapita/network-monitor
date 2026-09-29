@@ -572,6 +572,12 @@ export function createTestPrisma(): PrismaClient {
 export async function cleanAgents(
   prisma: PrismaClient
 ): Promise<void> {
+  // devices.agent_id is ON DELETE RESTRICT — agents are revoked, never deleted
+  // in production — so tests detach devices before clearing agents.
+  await prisma.device.updateMany({
+    where: { agentId: { not: null } },
+    data: { agentId: null }
+  });
   await prisma.probeAgent.deleteMany();
 }
 

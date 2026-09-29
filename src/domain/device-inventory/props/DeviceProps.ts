@@ -1,4 +1,5 @@
 import {
+  AgentId,
   DeviceId,
   DeviceModelId,
   LocationId
@@ -16,6 +17,9 @@ export interface DeviceProps {
   // References (by ID — no cross-aggregate object references)
   deviceModelId: DeviceModelId;
   locationId: LocationId | null;
+  // Which on-site agent reaches this device (ADR 0002). null means it is
+  // polled from inside this backend's process.
+  agentId: AgentId | null;
 
   // Classification
   status: DeviceStatus;

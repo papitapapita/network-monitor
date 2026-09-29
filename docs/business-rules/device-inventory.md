@@ -36,13 +36,13 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 
 | Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Domain**                            |    43 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144, DEV-162 |
-| **Application**                       |    42 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145, DEV-163 |
+| **Domain**                            |    45 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144, DEV-162, DEV-164, DEV-169 |
+| **Application**                       |    46 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168 |
 | **Application + Domain**              |     6 | DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160                                                                                                                                                                                                                                                                                                                                     |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                                                                              |
 | **Infrastructure + Domain**           |     2 | DEV-028, DEV-161 |
 | **Infrastructure + Application**      |     4 | DEV-072, DEV-084, DEV-148, DEV-149                                                                                                                                                                                                                                                                                                                                                       |
-| **Presentation**                      |     2 | DEV-140, DEV-146                                                                                                                                                                                                                                                                                                                                                                         |
+| **Presentation**                      |     3 | DEV-140, DEV-146, DEV-170                                                                                                                                                                                                                                                                                                                                                                         |
 
 **Half the book sits outside the domain, and most of it belongs there.** The
 three clusters are worth naming, because they are not the same kind of
@@ -2712,6 +2712,164 @@ reviewed after it.
 **Enforced at:** `src/application/device-inventory/use-cases/SwapDeviceHardwareUseCase.ts` (`checkRadioSurvives`)
 **Message:** `Cannot swap hardware: "<name>" has a wireless configuration and would receive a model with no radio`
 **Tests:** `tests/application/device-inventory/use-cases/SwapDeviceHardwareUseCase.test.ts`, `tests/integration/use-cases/device-inventory/SwapDeviceHardwareUseCase.integration.test.ts`
+
+
+### DEV-164 — A device records which probe agent reaches it; none means it is polled in-process
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-28
+
+`Device.agentId` names the on-site agent that can reach the device on the
+network (ADR 0002). `null` means this backend polls it from its own process,
+which is how every device existing before 2026-09-28 starts. The assignment
+belongs to the record, not the box: a hardware swap (DEV-161) leaves it where it
+is, like the IP and location. Changing it raises no event of its own.
+
+**Why:** Which agent can reach a device follows from where the device sits on
+the network, a fact inventory already owns (IP, location). Keeping it on
+`Device`, not on each polling configuration, means ping and wireless polling can
+never disagree about who reaches a device (ADR 0002, R16). The device holds only
+the agent's id, the same way it holds `locationId`, so inventory never imports
+the probe-agents context.
+
+**Not yet in effect.** Until ADR 0002 slice 1.5 connects agents, in-process
+polling still covers every device regardless of `agentId`, which is how an
+agent runs alongside it during the migration (1.9).
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`agentId`, `assignAgent`)
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`
+
+### DEV-165 — Only an agent that is not revoked can take devices
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-28
+
+Assigning a device to an agent, whether on create, update or in bulk, requires
+the agent to exist (`404` otherwise) and not be revoked (`400`). A pending agent
+qualifies, so an install's devices can be loaded before its installer runs.
+Sending back the agent a device already has is not a reassignment and is not
+re-checked, so saving a device whose agent was later revoked still works.
+
+**Why:** A revoked agent will never poll again (AGT-005), so a device placed
+behind it would silently go unmonitored. Existence and revocation are facts about
+another context, so they are checked in the application layer through a
+read-only port (`IAgentAssignmentQuery`), not by the aggregate (ADR 0002).
+
+**Enforced at:** `src/application/device-inventory/services/AgentAssignmentPolicy.ts` (`resolve`), `src/application/device-inventory/use-cases/UpdateDeviceUseCase.ts`
+**Message:** `Agent <id> is revoked and cannot take devices`, `Agent not found: <id>`
+**Tests:** `tests/application/device-inventory/services/AgentAssignmentPolicy.test.ts`, `tests/application/device-inventory/use-cases/UpdateDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
+
+### DEV-166 — A new device goes behind the only agent; with several, the caller must choose
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-28
+
+When a device is created without `agentId`:
+
+| Agents that are not revoked | The device is placed                          |
+| --------------------------- | --------------------------------------------- |
+| none                        | in-process (`null`)                           |
+| exactly one                 | behind that agent                             |
+| two or more                 | nowhere — refused, `agentId` is required (400) |
+
+An explicit `agentId: null` always keeps the device in-process.
+
+**Why:** ADR 0002, R16: the pilot runs one agent, and nobody should have to pick
+it for every device. With several agents a guess could put a device behind a PC
+that cannot reach it, where it would never be polled and never alert. Refusing
+makes that visible at the moment someone can answer it. This applies whatever
+the device's status or monitoring switch, so a unit taken out of stock later
+is already behind the right agent.
+
+**Enforced at:** `src/application/device-inventory/services/AgentAssignmentPolicy.ts` (`resolveForNewDevice`), `src/application/device-inventory/use-cases/CreateDeviceUseCase.ts`
+**Message:** `agentId is required when more than one agent exists — choose which one reaches this device`
+**Tests:** `tests/application/device-inventory/use-cases/CreateDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
+
+### DEV-167 — A replacement is reached by the same agent as the unit it replaces
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-28
+
+The successor created by DEV-078 inherits `agentId` from the retired unit, as it
+inherits the location. The agent is not re-checked.
+
+**Why:** The replacement stands in the same place on the network, so the agent
+that reached the old box reaches the new one. Re-checking would block replacing
+failed hardware at a site whose agent was just revoked, when the fix for that is
+moving the site's devices to its new agent (DEV-168).
+
+**Enforced at:** `src/application/device-inventory/use-cases/ReplaceDeviceUseCase.ts`
+**Tests:** `tests/application/device-inventory/use-cases/ReplaceDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ReplaceDeviceUseCase.integration.test.ts`
+
+### DEV-168 — Devices can be moved between agents in bulk
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-28
+
+`POST /api/devices/agent-assignment` places many devices behind one agent, or
+back in-process with `agentId: null`. The selection is exactly one of:
+
+- `deviceIds`: up to 1000 named devices, or
+- `fromAgentId`: every live device currently behind that agent, where `null`
+  selects every device polled in-process.
+
+The target agent is checked once (DEV-165). Each device is then changed and
+saved on its own, and the answer lists which moved (`assigned`) and which did
+not, with why (`failed`). Soft-deleted devices are never selected by
+`fromAgentId`.
+
+**Why:** Moving an install onto its first agent (ADR 0002, 1.9), following a
+replaced PC to its new agent, and falling back to in-process polling if an
+agent misbehaves are all "move this whole set". Doing it device by device over
+hundreds of devices is the kind of task that gets half-done. Per-device results
+instead of all-or-nothing, because one bad record must not hold back the rest.
+
+**Enforced at:** `src/application/device-inventory/use-cases/AssignDevicesToAgentUseCase.ts`
+**Tests:** `tests/application/device-inventory/use-cases/AssignDevicesToAgentUseCase.test.ts`, `tests/integration/use-cases/device-inventory/AssignDevicesToAgentUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
+
+### DEV-169 — A device whose other data breaks a rule cannot be moved until it is fixed
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-09-28
+
+Assigning an agent is a change to the device like any other: the whole
+resulting device is validated, as for every change (DEV-040 onwards). A device
+stored before a rule existed that it now breaks, for example an `ACTIVE` device
+with no location (DEV-055), is refused. In bulk (DEV-168) it lands in `failed`
+with that rule's message while the others move.
+
+**Why:** The aggregate judges its whole state on every change, so no path can
+leave it in a shape its other mutators would refuse. The cost is that a
+migration surfaces old data problems; the per-device report is what turns that
+into a to-do list instead of a blocked migration.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`applyChanges`)
+**Tests:** `tests/integration/use-cases/device-inventory/AssignDevicesToAgentUseCase.integration.test.ts`
+
+### DEV-170 — Moving devices in bulk is an operator action
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-09-28
+
+| Endpoint                                  | Permission |
+| ----------------------------------------- | ---------- |
+| `POST /api/devices/agent-assignment`      | `update`   |
+| `agentId` on `POST` / `PATCH /api/devices` | as the route (`create` / `update`) |
+
+**Why:** Choosing which agent polls a device is device configuration, the same
+tier as editing its IP or location. Creating and revoking the agents themselves
+is administrator-only (AGT-009), because that hands out or removes network
+access; placing devices behind an existing agent does not.
+
+**Enforced at:** `src/presentation/http/routes/device.routes.ts` (`authorize`)
+**Tests:** `tests/integration/device.routes.test.ts`
 
 ---
 

@@ -4,6 +4,7 @@ import { WinstonLogger } from '../logging';
 import { PrismaAgentRepository } from '../probe-agents/repositories';
 import { NodeAgentSecretService } from '../probe-agents/crypto';
 import { loadAgentPublicUrl } from '../probe-agents/config';
+import { PrismaAgentAssignmentQuery } from '../probe-agents/queries';
 import {
   CreateAgentUseCase,
   ListAgentsUseCase,
@@ -336,8 +337,10 @@ import {
   CreateDeviceModelUseCase,
   UpdateDeviceModelUseCase,
   DeleteDeviceModelUseCase,
-  ScanNetworkSegmentUseCase
+  ScanNetworkSegmentUseCase,
+  AssignDevicesToAgentUseCase
 } from '../../application/device-inventory/use-cases';
+import { AgentAssignmentPolicy } from '../../application/device-inventory/services';
 import {
   ExecutePollingCycleUseCase,
   IngestPingResultsUseCase,
@@ -907,11 +910,17 @@ export class DependencyContainer {
     );
 
     // Initialize device use cases
+    // Inventory reads agents through its own port, never the probe-agents
+    // domain (ADR 0002).
+    const agentAssignmentPolicy = new AgentAssignmentPolicy(
+      new PrismaAgentAssignmentQuery(this.prisma)
+    );
     const createDeviceUseCase = new CreateDeviceUseCase(
       this.deviceRepository,
       this.deviceModelRepository,
       this.locationRepository,
-      this.logger
+      this.logger,
+      agentAssignmentPolicy
     );
     const getDeviceUseCase = new GetDeviceUseCase(
       this.deviceRepository,
@@ -926,7 +935,8 @@ export class DependencyContainer {
       this.deviceModelRepository,
       this.locationRepository,
       this.wirelessDeviceConfigRepository,
-      this.logger
+      this.logger,
+      agentAssignmentPolicy
     );
     const deleteDeviceUseCase = new DeleteDeviceUseCase(
       this.deviceRepository,
@@ -1031,6 +1041,11 @@ export class DependencyContainer {
       replaceDeviceUseCase,
       swapDeviceHardwareUseCase,
       permanentlyDeleteDeviceUseCase,
+      new AssignDevicesToAgentUseCase(
+        this.deviceRepository,
+        agentAssignmentPolicy,
+        this.logger
+      ),
       this.logger
     );
 

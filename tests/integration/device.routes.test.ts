@@ -14,6 +14,8 @@ import {
   seedServicePlan,
   seedActiveContractedService,
   seedTicket,
+  seedAgent,
+  cleanAgents,
   GHOST_ID,
   INVALID_ID
 } from './helpers/db';
@@ -1176,6 +1178,215 @@ describe('Device Routes — /api/devices', () => {
           .set('Authorization', `Bearer ${adminToken}`);
 
         expect(res.status).toBe(400);
+      });
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // Agent assignment (ADR 0002)
+  // ─────────────────────────────────────────────────────────────
+
+  describe('agent assignment', () => {
+    const auth = () => `Bearer ${adminToken}`;
+    let serial = 0;
+
+    async function createDevice(): Promise<string> {
+      const res = await request(app)
+        .post('/api/devices')
+        .set('Authorization', auth())
+        .send({
+          deviceModelId,
+          name: `CPE ${serial}`,
+          serialNumber: `SN-AGT-${serial++}`,
+          agentId: null
+        });
+      return res.body.data.id;
+    }
+
+    beforeEach(async () => {
+      await cleanAgents(prisma);
+    });
+
+    afterAll(async () => {
+      await cleanAgents(prisma);
+    });
+
+    describe('POST /api/devices', () => {
+      it('[DEV-166] 201 — places a new device behind the only agent', async () => {
+        const { id: agentId } = await seedAgent(prisma);
+
+        const res = await request(app)
+          .post('/api/devices')
+          .set('Authorization', auth())
+          .send({
+            deviceModelId,
+            name: 'CPE',
+            serialNumber: 'SN-A1'
+          });
+
+        expect(res.status).toBe(201);
+        expect(res.body.data.agentId).toBe(agentId);
+      });
+
+      it('[DEV-166] 400 — asks which agent when there are several', async () => {
+        await seedAgent(prisma);
+        await seedAgent(prisma);
+
+        const res = await request(app)
+          .post('/api/devices')
+          .set('Authorization', auth())
+          .send({
+            deviceModelId,
+            name: 'CPE',
+            serialNumber: 'SN-A2'
+          });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toContain('agentId is required');
+      });
+
+      it('400 — malformed agentId', async () => {
+        const res = await request(app)
+          .post('/api/devices')
+          .set('Authorization', auth())
+          .send({
+            deviceModelId,
+            name: 'CPE',
+            serialNumber: 'SN-A3',
+            agentId: INVALID_ID
+          });
+
+        expect(res.status).toBe(400);
+      });
+    });
+
+    describe('PATCH /api/devices/:id', () => {
+      it('[DEV-165] 200 — moves a device behind an agent', async () => {
+        const id = await createDevice();
+        const { id: agentId } = await seedAgent(prisma);
+
+        const res = await request(app)
+          .patch(`/api/devices/${id}`)
+          .set('Authorization', auth())
+          .send({ agentId });
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.agentId).toBe(agentId);
+      });
+
+      it('[DEV-165] 400 — refuses a revoked agent', async () => {
+        const id = await createDevice();
+        const { id: revoked } = await seedAgent(prisma, {
+          status: 'REVOKED'
+        });
+
+        const res = await request(app)
+          .patch(`/api/devices/${id}`)
+          .set('Authorization', auth())
+          .send({ agentId: revoked });
+
+        expect(res.status).toBe(400);
+      });
+
+      it('404 — unknown agent', async () => {
+        const id = await createDevice();
+
+        const res = await request(app)
+          .patch(`/api/devices/${id}`)
+          .set('Authorization', auth())
+          .send({ agentId: GHOST_ID });
+
+        expect(res.status).toBe(404);
+      });
+    });
+
+    describe('POST /api/devices/agent-assignment', () => {
+      it('401 — without a token', async () => {
+        const res = await request(app)
+          .post('/api/devices/agent-assignment')
+          .send({ agentId: null, fromAgentId: null });
+
+        expect(res.status).toBe(401);
+      });
+
+      it('[DEV-170] 403 — a VIEWER cannot move devices', async () => {
+        const viewer = await seedAndGetToken(app, prisma, 'VIEWER');
+
+        const res = await request(app)
+          .post('/api/devices/agent-assignment')
+          .set('Authorization', `Bearer ${viewer}`)
+          .send({ agentId: null, fromAgentId: null });
+
+        expect(res.status).toBe(403);
+      });
+
+      it('[DEV-168] 200 — an OPERATOR migrates every in-process device', async () => {
+        const operator = await seedAndGetToken(
+          app,
+          prisma,
+          'OPERATOR'
+        );
+        const a = await createDevice();
+        const b = await createDevice();
+        const { id: agentId } = await seedAgent(prisma, {
+          status: 'ACTIVE'
+        });
+
+        const res = await request(app)
+          .post('/api/devices/agent-assignment')
+          .set('Authorization', `Bearer ${operator}`)
+          .send({ agentId, fromAgentId: null });
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.assigned.sort()).toEqual([a, b].sort());
+        expect(res.body.data.failed).toEqual([]);
+      });
+
+      it('[DEV-168] 200 — moves named devices back to in-process', async () => {
+        const { id: agentId } = await seedAgent(prisma);
+        const id = await createDevice();
+        await prisma.device.update({
+          where: { id },
+          data: { agentId }
+        });
+
+        const res = await request(app)
+          .post('/api/devices/agent-assignment')
+          .set('Authorization', auth())
+          .send({ agentId: null, deviceIds: [id] });
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.assigned).toEqual([id]);
+      });
+
+      it.each([
+        ['neither selector', { agentId: null }],
+        [
+          'both selectors',
+          { agentId: null, deviceIds: [GHOST_ID], fromAgentId: null }
+        ],
+        [
+          'a malformed device id',
+          { agentId: null, deviceIds: [INVALID_ID] }
+        ],
+        ['a missing agentId', { fromAgentId: null }]
+      ])('400 — %s', async (_label, body) => {
+        const res = await request(app)
+          .post('/api/devices/agent-assignment')
+          .set('Authorization', auth())
+          .send(body);
+
+        expect(res.status).toBe(400);
+      });
+
+      it('404 — unknown target agent', async () => {
+        const res = await request(app)
+          .post('/api/devices/agent-assignment')
+          .set('Authorization', auth())
+          .send({ agentId: GHOST_ID, fromAgentId: null });
+
+        expect(res.status).toBe(404);
       });
     });
   });

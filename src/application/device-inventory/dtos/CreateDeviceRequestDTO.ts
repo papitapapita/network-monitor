@@ -7,6 +7,8 @@ export interface CreateDeviceRequestDTO {
   // When set, the device must have an IP address.
   category?: string | null;
   locationId?: string | null;
+  // Omitted: the only agent, if there is exactly one. null: polled in-process.
+  agentId?: string | null;
   serialNumber?: string | null;
   macAddress?: string | null;
   ipAddress?: string | null;

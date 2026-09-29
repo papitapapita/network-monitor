@@ -13,6 +13,8 @@ import { ILogger } from 'application/shared/interfaces';
 import { parseIso8601Date } from 'application/shared/utils';
 import { CreateDeviceRequestDTO, DeviceResponseDTO } from '../dtos';
 import { DeviceMapper } from '../mappers';
+import { NoAgentsQuery } from '../interfaces';
+import { AgentAssignmentPolicy } from '../services';
 import {
   DeviceStatus,
   DeviceCategory,
@@ -28,7 +30,10 @@ export class CreateDeviceUseCase extends UseCase<
     private readonly deviceRepository: IDeviceRepository,
     private readonly deviceModelRepository: IDeviceModelRepository,
     private readonly locationRepository: ILocationRepository,
-    logger: ILogger
+    logger: ILogger,
+    private readonly agentAssignment: AgentAssignmentPolicy = new AgentAssignmentPolicy(
+      NoAgentsQuery
+    )
   ) {
     super(logger, 'CreateDeviceUseCase');
   }
@@ -131,6 +136,12 @@ export class CreateDeviceUseCase extends UseCase<
       }
     }
 
+    const agentResult =
+      await this.agentAssignment.resolveForNewDevice(data.agentId);
+    if (agentResult.isFailure) {
+      return this.fail(agentResult.error);
+    }
+
     const nameResult = DeviceName.create(data.name);
     if (nameResult.isFailure) {
       return this.fail(nameResult.error!);
@@ -221,6 +232,7 @@ export class CreateDeviceUseCase extends UseCase<
     const deviceResult = Device.create({
       deviceModelId: deviceModelIdResult.value,
       locationId,
+      agentId: agentResult.value,
       name: nameResult.value,
       status: statusResult.value,
       category,

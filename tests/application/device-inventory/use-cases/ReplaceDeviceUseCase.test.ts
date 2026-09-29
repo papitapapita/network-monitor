@@ -20,6 +20,7 @@ import {
 } from '../../../../src/domain/device-inventory/value-objects';
 import { DeviceOwnerType } from '../../../../src/domain/device-inventory/enums';
 import {
+  AgentId,
   DeviceId,
   DeviceModelId,
   LocationId
@@ -67,6 +68,7 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
     existsByMacAddress: jest.fn(),
     existsByIpAddress: jest.fn(),
     findByLocationIds: jest.fn(),
+    findByAgent: jest.fn(),
     findByFilters: jest.fn(),
     findByIdIncludingDeleted: jest.fn(),
     findDeletedBefore: jest.fn()
@@ -450,6 +452,17 @@ describe('ReplaceDeviceUseCase', () => {
       );
       expect(result.value.newDevice.category).toBe('WIRELESS_CPE');
       expect(result.value.newDevice.ownerType).toBe('CLIENT');
+    });
+
+    it('[DEV-167] should put the replacement behind the same agent', async () => {
+      const agentId = AgentId.create();
+      const old = makeOldDevice();
+      old.assignAgent(agentId);
+      repo.findById.mockResolvedValue(Result.ok(old));
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.value.newDevice.agentId).toBe(agentId.toString());
     });
 
     it('should default the replacement name to the retired unit name', async () => {

@@ -24,6 +24,8 @@ import {
   seedDeviceModel,
   seedWirelessDeviceModel,
   seedLocation,
+  seedAgent,
+  cleanAgents,
   seedCustomer,
   seedServicePlan,
   seedActiveContractedService,
@@ -423,6 +425,27 @@ describe('ReplaceDeviceUseCase — integration', () => {
     expect(newRow!.locationId).toBe(locationId);
     expect(newRow!.category).toBe('WIRELESS_CPE');
     expect(newRow!.owner).toBe('CLIENT');
+  });
+
+  it('[DEV-167] puts the replacement behind the retired unit’s agent', async () => {
+    const oldId = await createActiveDevice();
+    const { id: agentId } = await seedAgent(prisma, {
+      status: 'ACTIVE'
+    });
+    await prisma.device.update({
+      where: { id: oldId },
+      data: { agentId }
+    });
+
+    const result = await replaceUseCase.execute(
+      request({ id: oldId })
+    );
+
+    const newRow = await prisma.device.findUnique({
+      where: { id: result.value.newDevice.id }
+    });
+    expect(newRow!.agentId).toBe(agentId);
+    await cleanAgents(prisma);
   });
 
   it('puts the replacement on the new model', async () => {

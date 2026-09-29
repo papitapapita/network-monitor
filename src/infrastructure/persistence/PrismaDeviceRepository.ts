@@ -6,6 +6,7 @@ import {
 import { IPAddress, MACAddress } from 'domain/shared';
 import { Device } from 'domain/device-inventory/aggregates';
 import {
+  AgentId,
   DeviceId,
   LocationId,
   DeviceModelId
@@ -47,6 +48,7 @@ export class PrismaDeviceRepository
         update: {
           deviceModelId: data.deviceModelId,
           locationId: data.locationId,
+          agentId: data.agentId,
           status: data.status,
           category: data.category,
           owner: data.owner,
@@ -311,6 +313,32 @@ export class PrismaDeviceRepository
         error instanceof Error ? error.message : String(error);
       return Result.fail<Device[]>(
         `Database error finding devices by location: ${errorMessage}`
+      );
+    }
+  }
+
+  public async findByAgent(
+    agentId: AgentId | null
+  ): Promise<Result<Device[]>> {
+    try {
+      const rawRecords = await this.prisma.device.findMany({
+        where: {
+          agentId: agentId?.toString() ?? null,
+          ...PrismaDeviceRepository.LIVE
+        },
+        include: PrismaDeviceRepository.LINEAGE,
+        orderBy: { createdAt: 'asc' }
+      });
+
+      return this.mapManyToDomain(
+        rawRecords,
+        'Database error finding devices by agent'
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<Device[]>(
+        `Database error finding devices by agent: ${errorMessage}`
       );
     }
   }

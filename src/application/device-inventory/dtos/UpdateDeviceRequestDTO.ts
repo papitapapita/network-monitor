@@ -11,6 +11,8 @@ export interface UpdateDeviceRequestDTO {
   ownerType?: string;
   // null unassigns the device from its current location.
   locationId?: string | null;
+  // null moves the device back to in-process polling.
+  agentId?: string | null;
   serialNumber?: string | null;
   macAddress?: string | null;
   ipAddress?: string | null;

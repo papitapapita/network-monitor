@@ -18,6 +18,7 @@ import {
 } from '../../../../src/domain/device-inventory';
 import { IPAddress, MACAddress } from '../../../../src/domain/shared';
 import {
+  AgentId,
   DeviceId,
   DeviceModelId,
   LocationId
@@ -38,6 +39,7 @@ type CreateDeviceProps = Omit<
   | 'replacedAt'
   | 'replacesDeviceId'
   | 'replacedByDeviceId'
+  | 'agentId'
 >;
 
 /**
@@ -3196,6 +3198,112 @@ describe('Device', () => {
         expect(snapshot(bare)).toEqual(bareBefore);
         expect(snapshot(retired)).toEqual(retiredBefore);
       });
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-164] agent assignment', () => {
+    it('is in-process (null) unless created behind an agent', () => {
+      expect(makeDevice().agentId).toBeNull();
+    });
+
+    it('records the agent it was created behind', () => {
+      const agentId = AgentId.create();
+
+      const device = Device.create({ ...makeProps(), agentId }).value;
+
+      expect(device.agentId).toBe(agentId);
+    });
+
+    it('treats a row with no agent column as in-process', () => {
+      const { agentId: _unused, ...legacy } = {
+        ...makeProps(),
+        agentId: null,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      expect(
+        Device.reconstitute(DeviceId.create(), legacy).agentId
+      ).toBeNull();
+    });
+
+    it('moves behind another agent and back to in-process', () => {
+      const device = makeDevice();
+      const agentId = AgentId.create();
+
+      expect(device.assignAgent(agentId).isSuccess).toBe(true);
+      expect(device.agentId).toBe(agentId);
+
+      expect(device.assignAgent(null).isSuccess).toBe(true);
+      expect(device.agentId).toBeNull();
+    });
+
+    it('advances updatedAt only when the agent actually changes', () => {
+      const agentId = AgentId.create();
+      const device = Device.create({ ...makeProps(), agentId }).value;
+      const before = device.updatedAt;
+
+      device.assignAgent(AgentId.parse(agentId.toString()).value);
+
+      expect(device.updatedAt).toBe(before);
+    });
+
+    it('raises no domain event of its own', () => {
+      const device = makeDevice();
+      device.clearEvents();
+
+      device.assignAgent(AgentId.create());
+
+      expect(device.domainEvents).toHaveLength(0);
+    });
+
+    it('refuses a deleted device', () => {
+      const device = makeDevice();
+      device.softDelete('user-1');
+
+      expect(device.assignAgent(AgentId.create()).isFailure).toBe(
+        true
+      );
+    });
+
+    it('stays with the record on a hardware swap', () => {
+      const agentA = AgentId.create();
+      const agentB = AgentId.create();
+      const active = (
+        serial: string,
+        mac: string,
+        ip: string,
+        agentId: AgentId
+      ) =>
+        Device.create({
+          ...makeProps({
+            status: DeviceStatus.createActive(),
+            locationId: LocationId.create(),
+            ipAddress: IPAddress.create(ip).value,
+            serialNumber: SerialNumber.create(serial).value,
+            macAddress: MACAddress.create(mac).value,
+            monitoringEnabled: true
+          }),
+          agentId
+        }).value;
+      const a = active(
+        'SN-A',
+        'AA:AA:AA:AA:AA:AA',
+        '10.0.0.1',
+        agentA
+      );
+      const b = active(
+        'SN-B',
+        'BB:BB:BB:BB:BB:BB',
+        '10.0.0.2',
+        agentB
+      );
+
+      a.swapHardwareWith(b);
+
+      expect(a.agentId).toBe(agentA);
+      expect(b.agentId).toBe(agentB);
     });
   });
 });

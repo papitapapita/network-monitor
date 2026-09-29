@@ -18,6 +18,8 @@ import { ILogger } from 'application/shared/interfaces';
 import { parseIso8601Date } from 'application/shared/utils';
 import { DeviceResponseDTO, UpdateDeviceRequestDTO } from '../dtos';
 import { DeviceMapper } from '../mappers';
+import { NoAgentsQuery } from '../interfaces';
+import { AgentAssignmentPolicy } from '../services';
 import {
   DeviceStatus,
   DeviceCategory,
@@ -34,7 +36,10 @@ export class UpdateDeviceUseCase extends UseCase<
     private readonly deviceModelRepository: IDeviceModelRepository,
     private readonly locationRepository: ILocationRepository,
     private readonly wirelessConfigRepository: IWirelessDeviceConfigRepository,
-    logger: ILogger
+    logger: ILogger,
+    private readonly agentAssignment: AgentAssignmentPolicy = new AgentAssignmentPolicy(
+      NoAgentsQuery
+    )
   ) {
     super(logger, 'UpdateDeviceUseCase');
   }
@@ -317,6 +322,29 @@ export class UpdateDeviceUseCase extends UseCase<
         }
 
         updateFields.locationId = newLocationId;
+      }
+    }
+
+    if (data.agentId !== undefined) {
+      // Resending the agent a device already has is not a reassignment, so it
+      // is not re-checked — a form that echoes every field back must still
+      // save after that agent was revoked.
+      const unchanged =
+        data.agentId === null
+          ? device.agentId === null
+          : device.agentId?.toString() === data.agentId.trim();
+      if (!unchanged) {
+        if (data.agentId === null) {
+          updateFields.agentId = null;
+        } else {
+          const agentResult = await this.agentAssignment.resolve(
+            data.agentId
+          );
+          if (agentResult.isFailure) {
+            return this.fail(agentResult.error);
+          }
+          updateFields.agentId = agentResult.value;
+        }
       }
     }
 

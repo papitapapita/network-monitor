@@ -5,6 +5,7 @@ export interface DeviceResponseDTO {
   category: string | null;
   ownerType: string | null;
   locationId: string | null;
+  agentId: string | null;
   name: string;
   serialNumber: string | null;
   macAddress: string | null;

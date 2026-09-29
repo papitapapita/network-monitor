@@ -15,6 +15,7 @@ export class DeviceMapper {
       locationId: device.locationId
         ? device.locationId.toString()
         : null,
+      agentId: device.agentId?.toString() ?? null,
       status: device.status.toString(),
       category: device.category ? device.category.toString() : null,
       ownerType: device.ownerType ?? null,
@@ -70,6 +71,7 @@ export class DeviceMapper {
     return {
       deviceModelId: dto.deviceModelId,
       locationId: dto.locationId ?? null,
+      agentId: dto.agentId,
       name: dto.name,
       ownerType: dto.ownerType ?? null,
       status: dto.status ?? null,
@@ -91,6 +93,7 @@ export class DeviceMapper {
       category?: string | null;
       ownerType?: string;
       locationId?: string | null;
+      agentId?: string | null;
       serialNumber?: string | null;
       macAddress?: string | null;
       ipAddress?: string | null;
@@ -107,6 +110,7 @@ export class DeviceMapper {
       updates.ownerType = dto.ownerType;
     if (dto.locationId !== undefined)
       updates.locationId = dto.locationId;
+    if (dto.agentId !== undefined) updates.agentId = dto.agentId;
     if (dto.serialNumber !== undefined)
       updates.serialNumber = dto.serialNumber;
     if (dto.macAddress !== undefined)

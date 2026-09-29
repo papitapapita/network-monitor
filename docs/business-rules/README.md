@@ -11,7 +11,7 @@ different document for a different audience.
 
 | Context             | File                                             | Rules                 |
 | ------------------- | ------------------------------------------------ | --------------------- |
-| Device Inventory    | [device-inventory.md](device-inventory.md)       | `DEV-001` … `DEV-147` |
+| Device Inventory    | [device-inventory.md](device-inventory.md)       | `DEV-001` … `DEV-170` |
 | Customers           | [customers.md](customers.md)                     | `CUS-001` … `CUS-140` |
 | Billing             | [billing.md](billing.md)                         | `BIL-001` … `BIL-264` |
 | Quoting             | [quoting.md](quoting.md)                         | `QUO-001` … `QUO-142` |
