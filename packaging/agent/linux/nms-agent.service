@@ -1,0 +1,30 @@
+# systemd unit for the on-site agent (ADR 0002, 1.8). Installed by
+# install.sh to /etc/systemd/system/nms-agent.service.
+[Unit]
+Description=NMS Agent - measures this network for the NMS monitoring service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=nms-agent
+Group=nms-agent
+ExecStart=/opt/nms-agent/nms-agent
+Environment=NMS_AGENT_DATA_DIR=/var/lib/nms-agent
+# systemd creates /var/lib/nms-agent owned by the service user, mode 0700:
+# the token and the network's addresses are readable by the agent alone.
+StateDirectory=nms-agent
+StateDirectoryMode=0700
+Restart=always
+RestartSec=10
+# The agent drains in-flight pings for up to 5 s and flushes its buffer.
+TimeoutStopSec=15
+
+# Hardening that leaves ping working. NoNewPrivileges is deliberately not set:
+# the system ping gets its right to send ICMP from setuid or a file
+# capability, which NoNewPrivileges would strip.
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -43,7 +43,7 @@ A rule enforced in two layers counts in both.
 | Application                  | 14    |
 | Infrastructure (composition) | 10    |
 | Presentation                 | 7     |
-| Agent program                | 7     |
+| Agent program                | 9     |
 
 ---
 
@@ -721,3 +721,71 @@ than exiting lets an administrator pair the same PC again without reinstalling.
 
 **Enforced at:** `src/agent/AgentRuntime.ts` (`forgetEverything`), `src/agent/connection/BackendConnection.ts`
 **Tests:** `tests/agent/AgentRuntime.test.ts`, `tests/agent/results/ResultBuffer.test.ts`, `tests/agent/identity/CredentialStore.test.ts`, `tests/agent/config/ConfigStore.test.ts`, `tests/agent/connection/BackendConnection.test.ts`
+
+### AGT-067 — On Windows, one `setup.exe` asks only for the pairing key and leaves a service that runs unattended
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program
+**Since:** 2026-09-29
+
+`nms-agent-setup-<version>.exe` needs administrator rights and asks one
+question, the pairing key, only on a PC that is not paired yet. It checks the
+key's shape (`pk1.`, three parts) to catch a partial paste; the backend judges
+the rest. It also accepts the key as `/PAIRINGKEY=<key>` for a silent install
+(`/VERYSILENT`), which refuses to run on an unpaired PC without one. It then:
+
+- installs the agent to `Program Files\NmsAgent`
+- locks `%ProgramData%\NmsAgent` to SYSTEM and administrators, and leaves the
+  key there as `pairing.key` for the service to use (`AGT-060`)
+- sets the PC never to sleep or hibernate on mains power
+- excludes the program and data folders from Microsoft Defender
+- registers the `NmsAgent` service through WinSW: it starts at boot, runs as
+  LocalSystem with nobody logged in, and restarts after a crash (10 s, 30 s,
+  then every 60 s). Its logs go to `%ProgramData%\NmsAgent\logs`, kept to 5
+  files of 10 MB.
+
+Running the installer again upgrades in place: it stops the service, replaces
+the files and starts it, keeping the pairing. Uninstalling stops and removes
+the service, removes the Defender exclusion and deletes the data folder with
+the token, configuration and unsent results. The installer speaks Spanish or
+English.
+
+**Why:** ADR 0002, "Packaging": the customer's PC is Windows and whoever
+installs it is not technical. A sleeping PC measures nothing, and Defender
+tends to quarantine an unsigned executable (the agent is unsigned until there
+are several customers). The data folder holds the token and the list of the
+network's addresses, so other users of the PC cannot read it.
+
+**Enforced at:** `packaging/agent/windows/nms-agent.iss`, `packaging/agent/windows/nms-agent-service.xml`, `scripts/agent/package.mjs`
+**Tests:** `tests/agent/packaging.test.ts`
+
+### AGT-068 — On Linux, an install script sets the agent up as a systemd service under its own user
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program
+**Since:** 2026-09-29
+
+`nms-agent-<version>-linux-x64.tar.gz` holds the agent binary, a systemd unit
+and `install.sh`. Run as root, `install.sh <pairing-key>` does the following:
+
+- checks that systemd and the system `ping` are present
+- creates the system user `nms-agent`, which cannot log in
+- installs the binary to `/opt/nms-agent/nms-agent`
+- creates `/var/lib/nms-agent`, readable by that user alone (`0700`), and
+  leaves the key there as `pairing.key` (`0600`)
+- enables and starts `nms-agent.service`
+
+Without a key it only upgrades a PC that is already paired. The service
+restarts 10 seconds after any exit; the rest of the system is read-only to
+it, and it cannot see home directories. Logs go to the journal
+(`journalctl -u nms-agent`). `uninstall.sh` removes the service, the binary,
+the data directory and the user.
+
+**Why:** ADR 0002, "Packaging": the same agent for customers who run Linux, a
+Raspberry Pi for instance. A dedicated user and a private directory keep the
+token away from everyone else on the machine. `NoNewPrivileges` is deliberately
+not set: the system `ping` gets its right to send ICMP from setuid or a file
+capability, which that option would strip.
+
+**Enforced at:** `packaging/agent/linux/nms-agent.service`, `packaging/agent/linux/install.sh`, `packaging/agent/linux/uninstall.sh`, `scripts/agent/package.mjs`
+**Tests:** `tests/agent/packaging.test.ts`

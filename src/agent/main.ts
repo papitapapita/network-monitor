@@ -23,6 +23,10 @@ import {
 // The on-site agent's composition root (ADR 0002). It only measures and
 // reports; nothing here reaches a database, Express or a use case.
 async function main(): Promise<void> {
+  if (process.argv.includes('--version')) {
+    process.stdout.write(`${AGENT_VERSION}\n`);
+    return;
+  }
   const settings = loadAgentSettings(
     process.env,
     process.argv.slice(2),

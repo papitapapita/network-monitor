@@ -1,0 +1,30 @@
+<!--
+  WinSW service definition for the on-site agent (ADR 0002, 1.8).
+  WinSW reads this file because it sits next to nms-agent-service.exe
+  under the same name.
+-->
+<service>
+  <id>NmsAgent</id>
+  <name>NMS Agent</name>
+  <description>Measures this network for the NMS monitoring service and reports to it.</description>
+  <executable>%BASE%\nms-agent.exe</executable>
+
+  <!-- LocalSystem: runs at boot with nobody logged in. DPAPI seals the token
+       for this account, so only the service can read it back. -->
+  <startmode>Automatic</startmode>
+
+  <!-- Restart on any crash, forever; a restart storm is capped by the delay. -->
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="30 sec"/>
+  <onfailure action="restart" delay="60 sec"/>
+  <resetfailure>1 hour</resetfailure>
+
+  <!-- The agent drains in-flight pings for up to 5 s and flushes its buffer. -->
+  <stoptimeout>15 sec</stoptimeout>
+
+  <logpath>%ProgramData%\NmsAgent\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+</service>

@@ -29,7 +29,11 @@ export class WinstonLogger implements ILogger {
         // Console transport for development
         new winston.transports.Console({
           format: winston.format.combine(
-            winston.format.colorize(),
+            // Colour codes only help a terminal; in a service's log file
+            // (WinSW, journald) they are noise.
+            ...(process.stdout.isTTY
+              ? [winston.format.colorize()]
+              : []),
             winston.format.printf(
               ({ timestamp, level, message, ...meta }) => {
                 const metaStr =
