@@ -1481,6 +1481,12 @@ monitoring before polling it"`. A manual poll would write a real reading over
 
 ### `GET /api/devices/:id/polling/history` — History + Stats
 
+> For a device behind an on-site agent, history can fill in **after the fact**:
+> when an agent reconnects it uploads what it measured while offline, with the
+> times it was measured. Re-fetch after an agent comes back rather than
+> assuming the past is final. Those backfilled samples never change the
+> device's current status.
+
 **Status:** 200
 
 ```ts
@@ -2733,7 +2739,7 @@ WirelessAlertDTO[]
 
 On-site agents that measure a customer's network from inside it and report to this backend (ADR 0002). An administrator creates an agent and gets a **pairing key** — the only thing the installer asks for. The key is shown **once**, in the create (or re-key) response; store nothing, show it with a copy button and a "this will not be shown again" warning.
 
-**Lifecycle:** `PENDING → ACTIVE → REVOKED`. `PENDING` until the installer pairs; the key expires 24 h after it was issued (`pairingExpiresAt`) — offer "new key" for an expired pending agent. `REVOKED` is final. `lastSeenAt`, `agentVersion` and `clockOffsetMs` are set each time the agent connects and every 30 s while connected (`null` until it first connects).
+**Lifecycle:** `PENDING → ACTIVE → REVOKED`. `PENDING` until the installer pairs; the key expires 24 h after it was issued (`pairingExpiresAt`) — offer "new key" for an expired pending agent. `REVOKED` is final. `lastSeenAt`, `agentVersion` and `clockOffsetMs` are set each time the agent connects and every 30 s while connected (`null` until it first connects). `clockDriftSince` is set when the PC's clock is more than a minute off and cleared once it is back within 30 s — show a "fix this PC's clock" hint while it is set; the results themselves are already corrected.
 
 **Online / offline:** an `ACTIVE` agent silent for 5 minutes (since `lastSeenAt`, or since `enrolledAt` if it never connected) gets `offlineSince` set, checked once a minute; its next contact clears it. `offlineSince !== null` is the offline badge — no need to compare `lastSeenAt` against the clock. `PENDING` and `REVOKED` agents are never offline. Going offline and coming back each send one Telegram message (to the install's chat and the vendor's); they are not device alerts, so they do not appear in `GET /api/alerts`.
 
@@ -2749,6 +2755,7 @@ interface AgentDTO {
   agentVersion: string | null;
   clockOffsetMs: number | null;
   offlineSince: string | null; // set only while ACTIVE and offline
+  clockDriftSince: string | null; // set while the PC clock is >1 min off
   createdAt: string;
   updatedAt: string;
 }

@@ -182,6 +182,53 @@ alone keeps the history honest and lets the next live result decide.
 
 ---
 
+### MON-007 — A result sent in by an agent is stored once, however many times it arrives
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application · Infrastructure (database)
+**Since:** 2026-09-29
+
+A result from an on-site agent carries the agent's own id for it. The history
+sample is stored under that id first, and only once: a second copy — a batch
+resent because its acknowledgement was lost — is recognised, acknowledged
+again and changes nothing else. If the sample cannot be stored, the whole
+result fails and is left unacknowledged, so the agent keeps it and sends it
+again. Results polled in-process have no such id and are stored as before.
+
+**Why:** ADR 0002, R8. An agent resends whatever it has not seen acknowledged,
+so duplicates are normal, not an error. Storing first and failing loudly means
+a result is either fully handled or not handled at all; a unique column, not
+a lookup, makes that hold even when two copies arrive at once.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/IngestPingResultsUseCase.ts`, `src/infrastructure/persistence/PrismaPingResultRepository.ts` (`saveOnce`), `ping_results.source_result_id` (unique)
+**Tests:** `tests/application/device-monitoring/use-cases/IngestPingResultsUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/IngestPingResultsUseCase.integration.test.ts`, `tests/integration/use-cases/probe-agents/AcceptAgentResultsUseCase.integration.test.ts`
+
+### MON-008 — Only a live result newer than the last one changes a device's state
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain · Application
+**Since:** 2026-09-29
+
+A result changes the device's state — and so can raise or resolve an outage —
+only if it was measured after the last result applied and, when sent in by an
+agent, at most 2 minutes before it arrived. Anything else is kept as history
+only: it fills graphs and uptime but changes no state and raises nothing. A
+probe failure that old is dropped, having no history to fill. This holds for
+in-process polls too: one overtaken by a newer poll becomes history.
+
+**Why:** ADR 0002, R9 and R10. An agent that was offline replays its backlog
+when it reconnects. Applying it would re-run an outage that began and ended
+while nobody was watching, alerting about something already over — so a
+backlog is history, and a device still down now alerts once, from the live
+result the agent sends first (R11). The window is fixed rather than tied to
+the poll interval because a live result arrives within seconds whatever the
+interval; only a backlog is ever that old.
+
+**Enforced at:** `src/domain/device-monitoring/aggregates/DeviceState.ts` (`isNewerThanLastCheck`), `src/application/device-monitoring/use-cases/IngestPingResultsUseCase.ts` (`LIVE_RESULT_WINDOW_MS`)
+**Tests:** `tests/domain/device-monitoring/aggregates/DeviceState.test.ts`, `tests/application/device-monitoring/use-cases/IngestPingResultsUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/IngestPingResultsUseCase.integration.test.ts`, `tests/integration/use-cases/probe-agents/AcceptAgentResultsUseCase.integration.test.ts`
+
+---
+
 ## Polling configuration and scheduling
 
 ### MON-004 — A device whose monitoring is off cannot be polled on demand

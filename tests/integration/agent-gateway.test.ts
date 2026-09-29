@@ -99,6 +99,7 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
           logger
         ),
         acceptResults: new AcceptAgentResultsUseCase(
+          agents,
           index,
           new DeviceMonitoringPingResultSink(
             new IngestPingResultsUseCase(

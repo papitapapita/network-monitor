@@ -14,6 +14,7 @@ export class AgentMapper {
       agentVersion: agent.agentVersion,
       clockOffsetMs: agent.clockOffsetMs,
       offlineSince: agent.offlineSince?.toISOString() ?? null,
+      clockDriftSince: agent.clockDriftSince?.toISOString() ?? null,
       createdAt: agent.createdAt.toISOString(),
       updatedAt: agent.updatedAt.toISOString()
     };

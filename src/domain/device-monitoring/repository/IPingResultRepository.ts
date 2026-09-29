@@ -33,6 +33,11 @@ export interface PingResultPage {
 
 export interface IPingResultRepository {
   save(input: CreatePingResultInput): Promise<Result<void>>;
+  // Stores a result that carries its source's id, once: resolves false when a
+  // result with that id is already stored (ADR 0002, R8).
+  saveOnce(
+    input: CreatePingResultInput & { sourceResultId: string }
+  ): Promise<Result<boolean>>;
   findLatestByDevice(
     deviceId: DeviceId,
     limit: number

@@ -33,6 +33,30 @@ export class PrismaPingResultRepository
     }
   }
 
+  async saveOnce(
+    input: CreatePingResultInput & { sourceResultId: string }
+  ): Promise<Result<boolean>> {
+    try {
+      const { count } = await this.prisma.pingResult.createMany({
+        data: [
+          {
+            deviceId: input.deviceId.toString(),
+            isReachable: input.isReachable,
+            latencyMs: input.latencyMs,
+            checkedAt: input.checkedAt,
+            sourceResultId: input.sourceResultId
+          }
+        ],
+        skipDuplicates: true
+      });
+      return Result.ok(count === 1);
+    } catch (error) {
+      return Result.fail(
+        `save ping result failed: ${(error as Error).message}`
+      );
+    }
+  }
+
   async findLatestByDevice(
     deviceId: DeviceId,
     limit: number

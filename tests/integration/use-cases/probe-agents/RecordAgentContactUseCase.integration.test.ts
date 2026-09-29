@@ -10,7 +10,11 @@ import {
   GHOST_ID,
   INVALID_ID
 } from '../../helpers/db';
-import { AgentCameBackEvent } from 'domain/probe-agents/events';
+import {
+  AgentCameBackEvent,
+  AgentClockCorrectedEvent,
+  AgentClockDriftedEvent
+} from 'domain/probe-agents/events';
 import { IDomainEvent } from 'domain/shared/interfaces';
 import { captureAgentHealthEvents, makeAdapters } from './shared';
 
@@ -94,6 +98,44 @@ describe('RecordAgentContactUseCase — integration', () => {
     });
 
     expect(events).toHaveLength(0);
+  });
+
+  it('[AGT-025] stores a clock drift past a minute and dispatches one warning', async () => {
+    const { id } = await seedAgent(prisma, { status: 'ACTIVE' });
+    const contact = (at: Date) =>
+      useCase.execute({
+        agentId: id,
+        agentVersion: '1.0.0',
+        sentAt: at.getTime() + 120_000,
+        receivedAt: at
+      });
+
+    await contact(receivedAt);
+    await contact(new Date(receivedAt.getTime() + 30_000));
+
+    const row = await prisma.probeAgent.findUnique({ where: { id } });
+    expect(row!.clockDriftSince).toEqual(receivedAt);
+    expect(events).toEqual([expect.any(AgentClockDriftedEvent)]);
+  });
+
+  it('[AGT-025] clears the warning once the clock is fixed', async () => {
+    const { id } = await seedAgent(prisma, { status: 'ACTIVE' });
+    await prisma.probeAgent.update({
+      where: { id },
+      data: { clockOffsetMs: 120_000, clockDriftSince: receivedAt }
+    });
+    const at = new Date(receivedAt.getTime() + 60_000);
+
+    await useCase.execute({
+      agentId: id,
+      agentVersion: '1.0.0',
+      sentAt: at.getTime() + 1_000,
+      receivedAt: at
+    });
+
+    const row = await prisma.probeAgent.findUnique({ where: { id } });
+    expect(row!.clockDriftSince).toBeNull();
+    expect(events).toEqual([expect.any(AgentClockCorrectedEvent)]);
   });
 
   it('writes nothing for a revoked agent', async () => {

@@ -10,6 +10,9 @@ import { PrismaPg } from '@prisma/adapter-pg';
 export async function cleanDatabase(
   prisma: PrismaClient
 ): Promise<void> {
+  // A leftover agent would capture every device created through the API
+  // (a lone agent gets new devices automatically, DEV-166).
+  await cleanAgents(prisma);
   await prisma.device.deleteMany();
   await prisma.location.deleteMany();
   await prisma.user.deleteMany();
@@ -208,6 +211,9 @@ export async function seedVendor(
 export async function cleanCustomers(
   prisma: PrismaClient
 ): Promise<void> {
+  // Bills restrict deleting their customer; a suite that ran earlier may
+  // have left some behind, so they go first whatever the run order.
+  await cleanBills(prisma);
   await prisma.contractedService.deleteMany();
   await prisma.customer.deleteMany();
   await prisma.servicePlan.deleteMany();

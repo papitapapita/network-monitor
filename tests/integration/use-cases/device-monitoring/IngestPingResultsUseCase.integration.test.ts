@@ -170,4 +170,57 @@ describe('IngestPingResultsUseCase — integration', () => {
     expect(result.isFailure).toBe(true);
     expect(result.error).toContain('Invalid device ID');
   });
+
+  describe('a result sent in by an agent', () => {
+    const fromAgent = (
+      resultId: string,
+      measuredAt: Date,
+      receivedAt: Date,
+      isReachable = false
+    ) =>
+      useCase.execute({
+        deviceId,
+        outcome: measured(isReachable),
+        measuredAt,
+        source: { resultId, receivedAt }
+      });
+
+    it('[MON-007] a second copy is a duplicate: one row, state untouched', async () => {
+      await fromAgent('agent-res-1', MEASURED_AT, MEASURED_AT);
+      const before = await stateRow();
+
+      const again = await fromAgent(
+        'agent-res-1',
+        MEASURED_AT,
+        MEASURED_AT
+      );
+
+      expect(again.value.status).toBe('DUPLICATE');
+      expect(await pingRows()).toHaveLength(1);
+      expect((await stateRow())!.updatedAt).toEqual(
+        before!.updatedAt
+      );
+    });
+
+    it('[MON-007] stores the source id with the sample', async () => {
+      await fromAgent('agent-res-2', MEASURED_AT, MEASURED_AT);
+
+      const row = await prisma.pingResult.findFirst({
+        where: { deviceId }
+      });
+      expect(row!.sourceResultId).toBe('agent-res-2');
+    });
+
+    it('[MON-008] a result older than 2 minutes on arrival is history only', async () => {
+      const result = await fromAgent(
+        'agent-res-3',
+        MEASURED_AT,
+        new Date(MEASURED_AT.getTime() + 3 * 60_000)
+      );
+
+      expect(result.value.status).toBe('HISTORY_ONLY');
+      expect(await pingRows()).toHaveLength(1);
+      expect(await stateRow()).toBeNull();
+    });
+  });
 });

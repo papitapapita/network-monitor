@@ -32,6 +32,7 @@ export class AgentPrismaMapper {
         agentVersion: raw.agentVersion,
         clockOffsetMs: raw.clockOffsetMs,
         offlineSince: raw.offlineSince,
+        clockDriftSince: raw.clockDriftSince,
         createdAt: raw.createdAt,
         updatedAt: raw.updatedAt
       })
@@ -56,6 +57,7 @@ export class AgentPrismaMapper {
       agentVersion: agent.agentVersion,
       clockOffsetMs: agent.clockOffsetMs,
       offlineSince: agent.offlineSince,
+      clockDriftSince: agent.clockDriftSince,
       createdAt: agent.createdAt,
       updatedAt: agent.updatedAt
     };

@@ -1,7 +1,12 @@
 import { AggregateRoot, Result, Guard } from 'domain/shared/core';
 import { AgentId } from 'domain/shared/ids';
 import { AgentStatus } from '../enums';
-import { AgentCameBackEvent, AgentWentOfflineEvent } from '../events';
+import {
+  AgentCameBackEvent,
+  AgentClockCorrectedEvent,
+  AgentClockDriftedEvent,
+  AgentWentOfflineEvent
+} from '../events';
 import { AgentProps } from '../props';
 import { AgentName } from '../value-objects';
 
@@ -13,6 +18,10 @@ export class Agent extends AggregateRoot<AgentProps, AgentId> {
   // R6. Several missed heartbeats, so a service restart or a short network
   // blip never pages anyone.
   static readonly OFFLINE_AFTER_MS = 5 * 60 * 1000;
+  // R12. Warned past a minute, cleared only well inside it, so an offset
+  // hovering near the threshold cannot flap between the two messages.
+  static readonly CLOCK_DRIFT_WARN_MS = 60 * 1000;
+  static readonly CLOCK_DRIFT_CLEAR_MS = 30 * 1000;
 
   private constructor(props: AgentProps, id: AgentId) {
     super(props, id);
@@ -62,6 +71,10 @@ export class Agent extends AggregateRoot<AgentProps, AgentId> {
     return this.props.offlineSince;
   }
 
+  get clockDriftSince(): Date | null {
+    return this.props.clockDriftSince;
+  }
+
   get isOffline(): boolean {
     return this.props.offlineSince !== null;
   }
@@ -91,6 +104,7 @@ export class Agent extends AggregateRoot<AgentProps, AgentId> {
       agentVersion: null,
       clockOffsetMs: null,
       offlineSince: null,
+      clockDriftSince: null,
       createdAt: now,
       updatedAt: now
     };
@@ -175,21 +189,47 @@ export class Agent extends AggregateRoot<AgentProps, AgentId> {
       return Result.fail('Clock offset must be a finite number');
     }
     const offlineSince = this.props.offlineSince;
+    const wasDrifting = this.props.clockDriftSince !== null;
+    const offset = Math.round(clockOffsetMs);
+    const drift = Math.abs(offset);
+    const drifting = wasDrifting
+      ? drift > Agent.CLOCK_DRIFT_CLEAR_MS
+      : drift > Agent.CLOCK_DRIFT_WARN_MS;
+
     const result = this.apply({
       agentVersion: version,
-      clockOffsetMs: Math.round(clockOffsetMs),
+      clockOffsetMs: offset,
       lastSeenAt: now,
       offlineSince: null,
+      clockDriftSince: drifting
+        ? (this.props.clockDriftSince ?? now)
+        : null,
       updatedAt: now
     });
-    if (result.isSuccess && offlineSince !== null) {
+    if (result.isFailure) return result;
+
+    const agentName = this.props.name.value;
+    if (offlineSince !== null) {
       this.addDomainEvent(
         new AgentCameBackEvent({
           aggregateId: this.id,
-          agentName: this.props.name.value,
+          agentName,
           offlineSince,
           dateTimeOccurred: now
         })
+      );
+    }
+    if (drifting !== wasDrifting) {
+      const props = {
+        aggregateId: this.id,
+        agentName,
+        clockOffsetMs: offset,
+        dateTimeOccurred: now
+      };
+      this.addDomainEvent(
+        drifting
+          ? new AgentClockDriftedEvent(props)
+          : new AgentClockCorrectedEvent(props)
       );
     }
     return result;
@@ -239,6 +279,7 @@ export class Agent extends AggregateRoot<AgentProps, AgentId> {
       pairingExpiresAt: null,
       tokenHash: null,
       offlineSince: null,
+      clockDriftSince: null,
       revokedAt: now,
       updatedAt: now
     });
@@ -292,6 +333,14 @@ export class Agent extends AggregateRoot<AgentProps, AgentId> {
       state.status !== AgentStatus.ACTIVE
     ) {
       return Result.fail('Only an active agent can be offline');
+    }
+    if (
+      state.clockDriftSince !== null &&
+      state.status !== AgentStatus.ACTIVE
+    ) {
+      return Result.fail(
+        'Only an active agent can have a drifting clock'
+      );
     }
 
     switch (state.status) {

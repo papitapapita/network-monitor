@@ -1,4 +1,5 @@
 import { AgentId } from 'domain/shared/ids';
+import { IAgentRepository } from 'domain/probe-agents/repository';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
@@ -12,14 +13,19 @@ import {
 } from '../dtos';
 
 // Turns a batch of results from one agent into per-device ingests. A result
-// is acknowledged once the agent may forget it: stored, or dropped on
-// purpose. One that failed to store is left unacknowledged, so the agent
-// keeps it and sends it again.
+// is acknowledged once the agent may forget it: stored, already stored, or
+// dropped on purpose. One that failed to store is left unacknowledged, so the
+// agent keeps it and sends it again.
+//
+// Timestamps are moved onto the backend's clock with the agent's last
+// measured offset (ADR 0002, R12), and never past the batch's arrival: a
+// result from the future would read as newer than every live one after it.
 export class AcceptAgentResultsUseCase extends UseCase<
   AcceptAgentResultsRequestDTO,
   AcceptAgentResultsResponseDTO
 > {
   constructor(
+    private readonly agentRepository: IAgentRepository,
     private readonly deviceIndex: IAgentDeviceIndex,
     private readonly sink: IAgentPingResultSink,
     logger: ILogger
@@ -34,6 +40,18 @@ export class AcceptAgentResultsUseCase extends UseCase<
     if (idResult.isFailure) {
       return this.fail(`Invalid agent ID: ${idResult.error}`);
     }
+
+    const agentResult = await this.agentRepository.findById(
+      idResult.value
+    );
+    if (agentResult.isFailure) {
+      return this.fail(agentResult.error);
+    }
+    if (agentResult.value === null) {
+      return this.fail(`Agent not found: ${request.agentId}`);
+    }
+    const clockOffsetMs = agentResult.value.clockOffsetMs ?? 0;
+    const receivedAtMs = request.receivedAt.getTime();
 
     const indexes = [
       ...new Set(request.results.map((r) => r.deviceIndex))
@@ -61,8 +79,15 @@ export class AcceptAgentResultsUseCase extends UseCase<
 
       const acceptResult = await this.sink.accept({
         deviceId,
+        resultId: result.id,
         outcome: result.outcome,
-        measuredAt: result.measuredAt
+        measuredAt: new Date(
+          Math.min(
+            result.measuredAt.getTime() - clockOffsetMs,
+            receivedAtMs
+          )
+        ),
+        receivedAt: request.receivedAt
       });
       if (acceptResult.isFailure) {
         this.logger.warn(

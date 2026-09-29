@@ -34,7 +34,9 @@ import {
 import { GetSubscriptionStatusUseCase } from 'application/shared/use-cases/GetSubscriptionStatusUseCase';
 import {
   AgentWentOfflineEvent,
-  AgentCameBackEvent
+  AgentCameBackEvent,
+  AgentClockDriftedEvent,
+  AgentClockCorrectedEvent
 } from 'domain/probe-agents/events';
 import { JwtTokenService } from '../identity/services/JwtTokenService';
 import { BcryptPasswordService } from '../identity/services/BcryptPasswordService';
@@ -327,7 +329,9 @@ import {
   DeviceWentOfflineAlertRecordHandler,
   ContractedServiceSuspendedNotificationHandler,
   AgentWentOfflineNotificationHandler,
-  AgentCameBackNotificationHandler
+  AgentCameBackNotificationHandler,
+  AgentClockDriftedNotificationHandler,
+  AgentClockCorrectedNotificationHandler
 } from 'application/notifications/event-handlers';
 import {
   WirelessAlertClearedNotificationHandler,
@@ -1313,6 +1317,7 @@ export class DependencyContainer {
           this.logger
         ),
         acceptResults: new AcceptAgentResultsUseCase(
+          agentRepository,
           agentDeviceIndex,
           new DeviceMonitoringPingResultSink(
             ingestPingResultsUseCase
@@ -1898,6 +1903,20 @@ export class DependencyContainer {
     EventDispatcher.register(
       AgentCameBackEvent.name,
       new AgentCameBackNotificationHandler(
+        agentHealthPublisher,
+        this.logger
+      )
+    );
+    EventDispatcher.register(
+      AgentClockDriftedEvent.name,
+      new AgentClockDriftedNotificationHandler(
+        agentHealthPublisher,
+        this.logger
+      )
+    );
+    EventDispatcher.register(
+      AgentClockCorrectedEvent.name,
+      new AgentClockCorrectedNotificationHandler(
         agentHealthPublisher,
         this.logger
       )

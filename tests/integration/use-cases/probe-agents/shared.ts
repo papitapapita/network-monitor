@@ -6,6 +6,8 @@ import { EventDispatcher } from 'domain/shared/core';
 import { IDomainEvent } from 'domain/shared/interfaces';
 import {
   AgentCameBackEvent,
+  AgentClockCorrectedEvent,
+  AgentClockDriftedEvent,
   AgentWentOfflineEvent
 } from 'domain/probe-agents/events';
 
@@ -27,7 +29,9 @@ export function captureAgentHealthEvents(): IDomainEvent[] {
   EventDispatcher.clearHandlers();
   for (const name of [
     AgentWentOfflineEvent.name,
-    AgentCameBackEvent.name
+    AgentCameBackEvent.name,
+    AgentClockDriftedEvent.name,
+    AgentClockCorrectedEvent.name
   ]) {
     EventDispatcher.register(name, {
       handle: async (event: IDomainEvent) => {

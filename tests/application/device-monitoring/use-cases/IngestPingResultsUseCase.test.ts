@@ -1,4 +1,7 @@
-import { IngestPingResultsUseCase } from '../../../../src/application/device-monitoring/use-cases/IngestPingResultsUseCase';
+import {
+  IngestPingResultsUseCase,
+  LIVE_RESULT_WINDOW_MS
+} from '../../../../src/application/device-monitoring/use-cases/IngestPingResultsUseCase';
 import { IngestPingResultsDTO } from '../../../../src/application/device-monitoring/dtos/IngestPingResultsDTO';
 import { PingCycleOutcome } from '../../../../src/application/device-monitoring/services/PingCycleProbe';
 import { IPollingConfigurationRepository } from '../../../../src/domain/device-monitoring/repository/IPollingConfigurationRepository';
@@ -46,6 +49,7 @@ function makePollingConfigRepo(): jest.Mocked<IPollingConfigurationRepository> {
 function makePingResultRepo(): jest.Mocked<IPingResultRepository> {
   return {
     save: jest.fn(),
+    saveOnce: jest.fn(),
     findLatestByDevice: jest.fn(),
     findByDevice: jest.fn(),
     deleteOlderThan: jest.fn(),
@@ -358,6 +362,125 @@ describe('IngestPingResultsUseCase', () => {
 
       expect(result.value).toEqual({ status: 'PROBE_UNAVAILABLE' });
       expect(logger.warn).toHaveBeenCalled();
+    });
+  });
+
+  describe('a result sent in by an agent', () => {
+    const fromAgent = (
+      measuredAt: Date,
+      receivedAt: Date,
+      outcome: PingCycleOutcome = measured(false)
+    ) =>
+      makeRequest({
+        outcome,
+        measuredAt,
+        source: { resultId: 'res-1', receivedAt }
+      });
+
+    beforeEach(() => {
+      pingResultRepo.saveOnce.mockResolvedValue(Result.ok(true));
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeDeviceState())
+      );
+    });
+
+    it('[MON-007] stores it once under its id and applies it', async () => {
+      const result = await useCase.execute(
+        fromAgent(MEASURED_AT, MEASURED_AT)
+      );
+
+      expect(result.value.status).toBe('APPLIED');
+      expect(pingResultRepo.saveOnce).toHaveBeenCalledWith(
+        expect.objectContaining({ sourceResultId: 'res-1' })
+      );
+      expect(pingResultRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('[MON-007] does nothing more for a result already stored', async () => {
+      pingResultRepo.saveOnce.mockResolvedValue(Result.ok(false));
+
+      const result = await useCase.execute(
+        fromAgent(MEASURED_AT, MEASURED_AT)
+      );
+
+      expect(result.value.status).toBe('DUPLICATE');
+      expect(deviceStateRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('[MON-007] fails when it cannot be stored, so the agent resends', async () => {
+      pingResultRepo.saveOnce.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      const result = await useCase.execute(
+        fromAgent(MEASURED_AT, MEASURED_AT)
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(deviceStateRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('[MON-008] applies a result up to 2 minutes old', async () => {
+      const result = await useCase.execute(
+        fromAgent(
+          MEASURED_AT,
+          new Date(MEASURED_AT.getTime() + LIVE_RESULT_WINDOW_MS)
+        )
+      );
+
+      expect(result.value.status).toBe('APPLIED');
+    });
+
+    it('[MON-008] keeps an older result as history only', async () => {
+      const result = await useCase.execute(
+        fromAgent(
+          MEASURED_AT,
+          new Date(MEASURED_AT.getTime() + LIVE_RESULT_WINDOW_MS + 1)
+        )
+      );
+
+      expect(result.value.status).toBe('HISTORY_ONLY');
+      expect(pingResultRepo.saveOnce).toHaveBeenCalled();
+      expect(deviceStateRepo.save).not.toHaveBeenCalled();
+      expect(configRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('[MON-008] keeps a result not newer than the last check as history only', async () => {
+      const result = await useCase.execute(
+        fromAgent(EARLIER, MEASURED_AT)
+      );
+
+      expect(result.value.status).toBe('HISTORY_ONLY');
+      expect(deviceStateRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('[MON-008] ignores a stale probe failure', async () => {
+      const result = await useCase.execute(
+        fromAgent(
+          MEASURED_AT,
+          new Date(MEASURED_AT.getTime() + LIVE_RESULT_WINDOW_MS + 1),
+          probeUnavailable
+        )
+      );
+
+      expect(result.value.status).toBe('PROBE_UNAVAILABLE');
+      expect(deviceStateRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('[MON-008] an in-process poll overtaken by a newer one', () => {
+    it('keeps the older result as history only', async () => {
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeDeviceState({ lastCheckedAt: MEASURED_AT }))
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ measuredAt: EARLIER })
+      );
+
+      expect(result.value.status).toBe('HISTORY_ONLY');
+      expect(pingResultRepo.save).toHaveBeenCalled();
+      expect(deviceStateRepo.save).not.toHaveBeenCalled();
     });
   });
 });

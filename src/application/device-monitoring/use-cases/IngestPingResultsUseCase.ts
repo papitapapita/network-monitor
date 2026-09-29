@@ -13,9 +13,15 @@ import {
   IngestPingResultsResponseDTO
 } from '../dtos';
 
+// A result measured more than this long before it arrived is history only:
+// live results reach the backend within seconds, so only an agent's buffered
+// backlog is ever this old (ADR 0002, R9). Fixed, not tied to the poll
+// interval, for that reason.
+export const LIVE_RESULT_WINDOW_MS = 2 * 60 * 1000;
+
 // The "decide" half of a poll cycle: applies one measured outcome to history
-// and DeviceState, whoever measured it — the in-process scheduler today, an
-// on-site agent tomorrow.
+// and DeviceState, whoever measured it — the in-process scheduler or an
+// on-site agent.
 export class IngestPingResultsUseCase extends UseCase<
   IngestPingResultsDTO,
   IngestPingResultsResponseDTO
@@ -46,10 +52,14 @@ export class IngestPingResultsUseCase extends UseCase<
       return this.fail(`Invalid device ID: ${deviceIdResult.error}`);
     }
     const deviceId = deviceIdResult.value;
-    const { outcome, measuredAt } = request;
+    const { outcome, measuredAt, source } = request;
+    const live =
+      source === undefined ||
+      source.receivedAt.getTime() - measuredAt.getTime() <=
+        LIVE_RESULT_WINDOW_MS;
 
     if (outcome.kind === 'probe-unavailable') {
-      return this.handleProbeUnavailable(deviceId, measuredAt);
+      return this.handleProbeUnavailable(deviceId, measuredAt, live);
     }
 
     // Monitoring can be turned off while a cycle is in flight — the attempt
@@ -66,19 +76,36 @@ export class IngestPingResultsUseCase extends UseCase<
 
     const { isReachable, latencyMs } = outcome;
 
-    // history sample only — losing it must not stop the state update below,
-    // which is what drives alerting and scheduling
-    const pingSaveResult = await this.pingResultRepo.save({
+    const sample = {
       deviceId,
       isReachable,
       latencyMs,
       checkedAt: measuredAt
-    });
-    if (pingSaveResult.isFailure) {
-      this.logger.warn('Failed to persist ping result', {
-        deviceId: deviceId.toString(),
-        error: pingSaveResult.error
+    };
+    if (source) {
+      // A sent-in result is stored first and exactly once. A failure here
+      // fails the ingest, so the sender keeps the result and resends it; a
+      // duplicate was fully handled the first time (R8).
+      const saveResult = await this.pingResultRepo.saveOnce({
+        ...sample,
+        sourceResultId: source.resultId
       });
+      if (saveResult.isFailure) {
+        return this.fail(
+          `Failed to store ping result: ${saveResult.error}`
+        );
+      }
+      if (!saveResult.value) return this.ok({ status: 'DUPLICATE' });
+    } else {
+      // history sample only — losing it must not stop the state update
+      // below, which is what drives alerting and scheduling
+      const pingSaveResult = await this.pingResultRepo.save(sample);
+      if (pingSaveResult.isFailure) {
+        this.logger.warn('Failed to persist ping result', {
+          deviceId: deviceId.toString(),
+          error: pingSaveResult.error
+        });
+      }
     }
 
     const stateResult =
@@ -91,6 +118,13 @@ export class IngestPingResultsUseCase extends UseCase<
 
     const deviceState =
       stateResult.value ?? DeviceState.createInitial(deviceId);
+
+    // R9/R10: an old or out-of-order result fills graphs and uptime but
+    // changes no state, so an outage that began and ended while an agent was
+    // offline is recorded and never alerted.
+    if (!live || !deviceState.isNewerThanLastCheck(measuredAt)) {
+      return this.ok({ status: 'HISTORY_ONLY' });
+    }
 
     deviceState.applyPingResult(isReachable, latencyMs, measuredAt);
 
@@ -137,13 +171,20 @@ export class IngestPingResultsUseCase extends UseCase<
   // The probe never ran, so device status is unknown and must not be rewritten.
   // Only an already-known device gets its lastCheckedAt advanced: seeding a row
   // here would make the next successful poll look like a recovery.
+  // A stale or out-of-order one is dropped: it has no history to fill.
   private async handleProbeUnavailable(
     deviceId: DeviceId,
-    measuredAt: Date
+    measuredAt: Date,
+    live: boolean
   ): Promise<Result<IngestPingResultsResponseDTO>> {
     const stateResult =
       await this.deviceStateRepo.findByDeviceId(deviceId);
-    if (stateResult.isSuccess && stateResult.value !== null) {
+    if (
+      live &&
+      stateResult.isSuccess &&
+      stateResult.value !== null &&
+      stateResult.value.isNewerThanLastCheck(measuredAt)
+    ) {
       stateResult.value.applyPollFailure(measuredAt);
       const saveResult = await this.deviceStateRepo.save(
         stateResult.value

@@ -6,6 +6,8 @@ import {
 } from '../../../../src/domain/probe-agents';
 import {
   AgentCameBackEvent,
+  AgentClockCorrectedEvent,
+  AgentClockDriftedEvent,
   AgentWentOfflineEvent
 } from '../../../../src/domain/probe-agents/events';
 import { AgentId } from '../../../../src/domain/shared/ids';
@@ -36,6 +38,7 @@ function makeProps(overrides: Partial<AgentProps> = {}): AgentProps {
     agentVersion: null,
     clockOffsetMs: null,
     offlineSince: null,
+    clockDriftSince: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides
@@ -322,6 +325,79 @@ describe('Agent', () => {
       expect(agent.revoke(at(DAY_MS)).isSuccess).toBe(true);
       expect(agent.offlineSince).toBeNull();
       expect(agent.domainEvents).toHaveLength(0);
+    });
+  });
+
+  describe('[AGT-025] clock drift', () => {
+    function enrolled(): Agent {
+      const agent = makeAgent();
+      agent.enroll(TOKEN_HASH, NOW);
+      agent.clearEvents();
+      return agent;
+    }
+
+    const contact = (agent: Agent, offsetMs: number, at_ = NOW) =>
+      agent.recordContact('1.0.0', offsetMs, at_);
+
+    it('warns once when the clock is more than a minute off, either way', () => {
+      for (const offset of [60_001, -60_001]) {
+        const agent = enrolled();
+
+        contact(agent, offset);
+        contact(agent, offset * 2, at(30_000));
+
+        expect(agent.clockDriftSince).toEqual(NOW);
+        expect(agent.domainEvents).toHaveLength(1);
+        const event = agent.domainEvents[0] as AgentClockDriftedEvent;
+        expect(event).toBeInstanceOf(AgentClockDriftedEvent);
+        expect(event.clockOffsetMs).toBe(offset);
+      }
+    });
+
+    it('does not warn at exactly a minute', () => {
+      const agent = enrolled();
+
+      contact(agent, 60_000);
+
+      expect(agent.clockDriftSince).toBeNull();
+      expect(agent.domainEvents).toHaveLength(0);
+    });
+
+    it('stays warned until the clock is back within 30 seconds', () => {
+      const agent = enrolled();
+      contact(agent, 90_000);
+      agent.clearEvents();
+
+      contact(agent, 45_000, at(30_000));
+      expect(agent.clockDriftSince).toEqual(NOW);
+      expect(agent.domainEvents).toHaveLength(0);
+
+      contact(agent, 30_000, at(60_000));
+      expect(agent.clockDriftSince).toBeNull();
+      expect(agent.domainEvents).toEqual([
+        expect.any(AgentClockCorrectedEvent)
+      ]);
+    });
+
+    it('does not flap for an offset hovering at the threshold', () => {
+      const agent = enrolled();
+
+      for (const [i, offset] of [
+        61_000, 59_000, 61_000, 59_000
+      ].entries()) {
+        contact(agent, offset, at(i * 30_000));
+      }
+
+      expect(agent.domainEvents).toHaveLength(1);
+    });
+
+    it('revoking clears the warning', () => {
+      const agent = enrolled();
+      contact(agent, 90_000);
+
+      agent.revoke(at(1_000));
+
+      expect(agent.clockDriftSince).toBeNull();
     });
   });
 });

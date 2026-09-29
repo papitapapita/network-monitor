@@ -55,7 +55,10 @@ export class AgentSession {
   ) {
     socket.on('message', (data) => {
       const raw = data.toString();
-      this.enqueue(() => this.handle(raw));
+      // Stamped on arrival, not when the queue gets to it: a result's age is
+      // what decides whether it is live (R9).
+      const receivedAt = new Date();
+      this.enqueue(() => this.handle(raw, receivedAt));
     });
     socket.on('pong', () => {
       this.alive = true;
@@ -112,7 +115,7 @@ export class AgentSession {
       );
   }
 
-  private async handle(raw: string): Promise<void> {
+  private async handle(raw: string, receivedAt: Date): Promise<void> {
     const message = parseAgentMessage(raw);
     if (message === null) {
       this.close(CloseCode.PROTOCOL_ERROR, 'Malformed message');
@@ -125,21 +128,23 @@ export class AgentSession {
 
     switch (message.type) {
       case 'hello':
-        return this.onHello(message);
+        return this.onHello(message, receivedAt);
       case 'heartbeat':
         return this.recordContact(
           message.agentVersion,
-          message.sentAt
+          message.sentAt,
+          receivedAt
         );
       case 'config.ack':
         return this.onConfigAck(message.version);
       case 'results':
-        return this.onResults(message);
+        return this.onResults(message, receivedAt);
     }
   }
 
   private async onHello(
-    message: Extract<AgentMessage, { type: 'hello' }>
+    message: Extract<AgentMessage, { type: 'hello' }>,
+    receivedAt: Date
   ): Promise<void> {
     if (this.greeted) {
       this.close(CloseCode.PROTOCOL_ERROR, 'Duplicate hello');
@@ -171,7 +176,11 @@ export class AgentSession {
     }
 
     this.greeted = true;
-    await this.recordContact(message.agentVersion, message.sentAt);
+    await this.recordContact(
+      message.agentVersion,
+      message.sentAt,
+      receivedAt
+    );
     this.send({
       type: 'welcome',
       agentName: this.agentName,
@@ -188,13 +197,14 @@ export class AgentSession {
 
   private async recordContact(
     agentVersion: string,
-    sentAt: number
+    sentAt: number,
+    receivedAt: Date
   ): Promise<void> {
     const result = await this.useCases.recordContact.execute({
       agentId: this.agentId,
       agentVersion,
       sentAt,
-      receivedAt: new Date()
+      receivedAt
     });
     if (result.isFailure) {
       this.logger.warn('Agent contact not recorded', {
@@ -275,10 +285,14 @@ export class AgentSession {
     }
   }
 
-  private async onResults(message: ResultsMessage): Promise<void> {
+  private async onResults(
+    message: ResultsMessage,
+    receivedAt: Date
+  ): Promise<void> {
     const result = await this.useCases.acceptResults.execute({
       agentId: this.agentId,
-      results: message.results.map(toResultDTO)
+      results: message.results.map(toResultDTO),
+      receivedAt
     });
     if (result.isFailure) {
       // Nothing acknowledged: the agent keeps the batch and resends it.

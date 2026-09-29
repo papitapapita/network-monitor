@@ -15,7 +15,11 @@ export class DeviceMonitoringPingResultSink
     const ingestResult = await this.ingest.execute({
       deviceId: result.deviceId,
       outcome: result.outcome,
-      measuredAt: result.measuredAt
+      measuredAt: result.measuredAt,
+      source: {
+        resultId: result.resultId,
+        receivedAt: result.receivedAt
+      }
     });
     return ingestResult.isFailure
       ? Result.fail(ingestResult.error)

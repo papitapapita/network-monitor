@@ -292,6 +292,10 @@ model PingResult {
   isReachable Boolean  @map("is_reachable")
   latencyMs   Decimal? @map("latency_ms") @db.Decimal(8, 2)
   checkedAt   DateTime @default(now()) @map("checked_at") @db.Timestamptz
+  // The id the measuring side gave this result — an on-site agent's, so a
+  // batch it resends is stored once (ADR 0002, R8). Null when polled
+  // in-process.
+  sourceResultId String? @unique @map("source_result_id") @db.VarChar(64)
 
   // Relations
   device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
@@ -990,6 +994,9 @@ model ProbeAgent {
   // Set when an active agent has been silent past the offline threshold
   // (R6); cleared by its next contact. Null means online.
   offlineSince     DateTime?   @map("offline_since") @db.Timestamptz
+  // Set when the PC's clock drifted more than a minute from ours (R12);
+  // cleared once it is back within 30 seconds. Null means the clock is fine.
+  clockDriftSince  DateTime?   @map("clock_drift_since") @db.Timestamptz
   // Source of the short per-device indexes in config snapshots (R19). Only
   // ever increases, so an index is never handed to a second device — not even
   // after the first one is purged.

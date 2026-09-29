@@ -17,6 +17,7 @@ const FIXED_TIMESTAMP = 1_717_200_000_000; // 2024-06-01T00:00:00.000Z
 function makeRepo(): jest.Mocked<IPingResultRepository> {
   return {
     save: jest.fn(),
+    saveOnce: jest.fn(),
     findLatestByDevice: jest.fn(),
     findByDevice: jest.fn(),
     deleteOlderThan: jest.fn(),

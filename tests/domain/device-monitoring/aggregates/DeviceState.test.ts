@@ -287,6 +287,26 @@ describe('DeviceState', () => {
   });
 
   // ===========================================================================
+  describe('[MON-008] isNewerThanLastCheck()', () => {
+    it('is true for a device never checked', () => {
+      expect(
+        makeState({ lastCheckedAt: null }).isNewerThanLastCheck(
+          FIXED_DATE
+        )
+      ).toBe(true);
+    });
+
+    it('is true only strictly after the last check', () => {
+      const state = makeState({ lastCheckedAt: FIXED_DATE });
+
+      expect(state.isNewerThanLastCheck(LATER_DATE)).toBe(true);
+      expect(state.isNewerThanLastCheck(FIXED_DATE)).toBe(false);
+      expect(
+        state.isNewerThanLastCheck(new Date(FIXED_DATE.getTime() - 1))
+      ).toBe(false);
+    });
+  });
+
   describe('applyPollFailure()', () => {
     it('should advance lastCheckedAt', () => {
       const state = makeState({ lastCheckedAt: FIXED_DATE });

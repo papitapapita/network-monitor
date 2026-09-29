@@ -8,9 +8,10 @@ administrator can revoke it.
 
 The connection rules cover the agent's one WebSocket: how it authenticates,
 what configuration it receives and how its results reach the devices. The
-liveness rules cover when an agent counts as offline and who is told. The
-ingest rules for buffered and duplicate results arrive in a later slice of
-ADR 0002 phase 1.
+liveness rules cover when an agent counts as offline, when its clock is
+wrong, and who is told. How a result is judged once it reaches a device —
+duplicates, backlog, out-of-order — is device-monitoring's (`MON-007`,
+`MON-008`).
 
 Format and conventions: [README.md](README.md).
 
@@ -28,10 +29,10 @@ A rule enforced in two layers counts in both.
 
 | Layer                        | Rules |
 | ---------------------------- | ----- |
-| Domain                       | 9     |
-| Application                  | 12    |
-| Infrastructure (composition) | 8     |
-| Presentation                 | 6     |
+| Domain                       | 10    |
+| Application                  | 14    |
+| Infrastructure (composition) | 9     |
+| Presentation                 | 7     |
 
 ---
 
@@ -347,6 +348,30 @@ or offline in the database while connected.
 
 ---
 
+### AGT-025 — A PC clock more than a minute off raises one warning, and one all-clear once fixed
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain · Application · Infrastructure (composition)
+**Since:** 2026-09-29
+
+When a hello or heartbeat shows the agent's clock more than a minute ahead of
+or behind the backend's, `clockDriftSince` is set and `AgentClockDrifted` is
+raised, once. It is cleared, raising `AgentClockCorrected`, only when the
+offset is back within 30 seconds. Both go out like the offline messages
+(`AGT-023`): to the install's chat and the vendor's, with no device, type
+`agent_clock`, as a warning and its resolution. Revoking clears it.
+
+**Why:** ADR 0002, R12. Results are corrected for the offset either way
+(`AGT-046`); the warning is so someone fixes the PC's clock, which keeps
+drifting and can jump when Windows finally syncs. Warning past a minute but
+clearing only well inside it means an offset hovering near the line cannot
+flap between the two messages.
+
+**Enforced at:** `src/domain/probe-agents/aggregates/Agent.ts` (`recordContact`, `CLOCK_DRIFT_WARN_MS`, `CLOCK_DRIFT_CLEAR_MS`), `src/application/notifications/event-handlers/AgentClockNotificationHandlers.ts`, `src/infrastructure/di/container.ts`
+**Tests:** `tests/domain/probe-agents/aggregates/Agent.test.ts`, `tests/application/notifications/event-handlers/AgentClockNotificationHandlers.test.ts`, `tests/integration/use-cases/probe-agents/RecordAgentContactUseCase.integration.test.ts`
+
+---
+
 ## Connection and protocol
 
 An agent keeps one WebSocket open to `/agent/v1/ws` on the backend's own HTTP
@@ -486,3 +511,26 @@ results for the same agent.
 
 **Enforced at:** `src/presentation/ws/agent/AgentGateway.ts`, `src/presentation/ws/agent/AgentSession.ts`
 **Tests:** `tests/integration/agent-gateway.test.ts`
+
+---
+
+### AGT-046 — Result timestamps are moved onto the backend's clock, and never past their arrival
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Presentation
+**Since:** 2026-09-29
+
+Each result's time is taken on the agent's clock. Before it reaches the
+device, it is corrected by the agent's last measured offset (`AGT-020`) and
+capped at the moment its batch arrived. The arrival time is stamped when the
+message is received, not when the session gets round to it, and travels with
+each result, so whether a result is live (`MON-008`) is judged on the
+backend's own clock.
+
+**Why:** ADR 0002, R12. A PC whose clock runs ahead would otherwise date its
+results in the future: each would read as newer than every live result after
+it and freeze the device's state until real time caught up. Behind, it would
+make live results look like backlog and never alert.
+
+**Enforced at:** `src/application/probe-agents/use-cases/AcceptAgentResultsUseCase.ts`, `src/presentation/ws/agent/AgentSession.ts`
+**Tests:** `tests/application/probe-agents/use-cases/AcceptAgentResultsUseCase.test.ts`, `tests/integration/use-cases/probe-agents/AcceptAgentResultsUseCase.integration.test.ts`

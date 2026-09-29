@@ -69,6 +69,17 @@ export class DeviceState extends AggregateRoot<
     return new DeviceState(props, id);
   }
 
+  // Only a result measured after the last one applied may change the state:
+  // results can arrive late and out of order (an agent's backlog, a manual
+  // poll overtaking a scheduled one), and an older reading must never undo a
+  // newer one (ADR 0002, R9).
+  public isNewerThanLastCheck(checkedAt: Date): boolean {
+    return (
+      this.props.lastCheckedAt === null ||
+      checkedAt.getTime() > this.props.lastCheckedAt.getTime()
+    );
+  }
+
   // The probe could not be run at all: record that an attempt happened without
   // touching status, lastSeen or failure counts. Deliberately NOT a move to
   // UNKNOWN — a local fault says nothing about the device, and demoting a
