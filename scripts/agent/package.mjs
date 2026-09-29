@@ -9,8 +9,8 @@
 // (SEA). Output in dist/agent/:
 //
 //   win-x64/        nms-agent.exe, the WinSW service wrapper and its XML
-//   nms-agent-setup-<version>.exe   when Inno Setup 6 is installed (Windows,
-//                                   or Windows seen from WSL)
+//   nms-agent-setup-<version>.exe   with Inno Setup 6 on Windows (also seen
+//                                   from WSL), or else Inno Setup in Docker
 //   nms-agent-<version>-linux-x64.tar.gz   binary, systemd unit, install.sh
 //
 // Downloads are cached in dist/agent/.cache and checked against pinned or
@@ -189,6 +189,17 @@ async function executable(target, blob, dir) {
   return output;
 }
 
+const INNO_IMAGE = 'amake/innosetup:latest';
+
+function hasDocker() {
+  try {
+    execFileSync('docker', ['version'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function findInnoSetup() {
   if (process.env.ISCC) return process.env.ISCC;
   const candidates =
@@ -220,23 +231,44 @@ async function packageWindows(blob, version) {
   );
 
   const iscc = findInnoSetup();
-  if (!iscc) {
+  const defines = [`/DAppVersion=${version}`];
+  if (iscc) {
+    execFileSync(
+      iscc,
+      [
+        '/Q',
+        ...defines,
+        `/DSourceDir=${forWindows(dir)}`,
+        forWindows(path.join(PACKAGING, 'windows/nms-agent.iss'))
+      ],
+      { stdio: 'inherit' }
+    );
+  } else if (hasDocker()) {
+    // Inno Setup under Wine: builds the installer on Linux or WSL with
+    // nothing installed on Windows. The repository is Z:\work inside it.
+    log(`  Inno Setup not installed; compiling with ${INNO_IMAGE}`);
+    execFileSync(
+      'docker',
+      [
+        'run',
+        '--rm',
+        '-v',
+        `${ROOT}:/work`,
+        INNO_IMAGE,
+        '/Q',
+        ...defines,
+        `/DSourceDir=Z:\\work\\${path.relative(ROOT, dir).split(path.sep).join('\\')}`,
+        'packaging/agent/windows/nms-agent.iss'
+      ],
+      { stdio: 'inherit' }
+    );
+  } else {
     log(
-      '  Inno Setup 6 not found: win-x64/ is ready, but no setup.exe. Install' +
-        ' Inno Setup 6 on Windows (or set ISCC) and run this again.'
+      '  Neither Inno Setup 6 nor Docker found: win-x64/ is ready, but no' +
+        ' setup.exe. Install Inno Setup 6 (or set ISCC) and run this again.'
     );
     return;
   }
-  execFileSync(
-    iscc,
-    [
-      '/Q',
-      `/DAppVersion=${version}`,
-      `/DSourceDir=${forWindows(dir)}`,
-      forWindows(path.join(PACKAGING, 'windows/nms-agent.iss'))
-    ],
-    { stdio: 'inherit' }
-  );
   log(`  dist/agent/nms-agent-setup-${version}.exe`);
 }
 
