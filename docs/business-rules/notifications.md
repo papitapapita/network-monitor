@@ -691,6 +691,27 @@ revision removed it.
 `tests/application/notifications/use-cases/SendDeviceDownAlertUseCase.test.ts`,
 `tests/infrastructure/notifications/orchestrator/OverdueDeviceDownAlertOrchestrator.test.ts`
 
+### NOT-100 — An alert about something other than a device is sent without a device line
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-28
+
+`AlertNotification.deviceId` is `null` when the alert is not about a device
+— an on-site probe agent going offline (ADR 0002, R6) is the first case. Such
+an alert is rendered the same way as any other except that no device is looked
+up and the "Dispositivo" line is left out; the `source` line names what the
+alert is about. The field is nullable, not optional, so every producer must
+state which kind of alert it is sending.
+
+**Why:** An agent going offline leaves a whole site blind, and its alert has to
+travel the same path as device alerts (ADR 0001) to reach the same chat. Faking
+a device id for it would print `Unknown Device` (`NOT-096`) and let per-device
+policy apply to something that is not a device.
+
+**Enforced at:** `src/application/shared/interfaces/IAlertPublisher.ts`, `src/application/notifications/use-cases/SendAlertNotificationUseCase.ts`
+**Tests:** `tests/application/notifications/use-cases/SendAlertNotificationUseCase.test.ts`, `tests/infrastructure/notifications/AlertPublisher.test.ts`
+
 ---
 
 ## Subscriber notifications
@@ -1190,6 +1211,22 @@ actually risks.
 **Enforced at:** `src/presentation/http/routes/notification-policy.routes.ts` (`authorize`)
 **Tests:** `tests/integration/notification-policy.routes.test.ts`
 
+### NOT-178 — Quiet hours never apply to an alert with no device
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-09-28
+
+`QuietHoursAlertPublisher` forwards an alert whose `deviceId` is `null`
+(`NOT-100`) without looking up a policy.
+
+**Why:** Quiet hours are a per-device window (`NOT-170`); an alert about an
+agent has no device to carry one. An offline agent silences every device behind
+it, so there is nothing a quiet window would be protecting.
+
+**Enforced at:** `src/infrastructure/notifications/QuietHoursAlertPublisher.ts`
+**Tests:** `tests/infrastructure/notifications/QuietHoursAlertPublisher.test.ts`
+
 ---
 
 ## Global alert-type muting
@@ -1328,3 +1365,21 @@ tier rather than the alert-specific split in `NOT-150`.
 
 **Enforced at:** `src/presentation/http/routes/notification-mute.routes.ts` (`authorize`)
 **Tests:** `tests/integration/notification-mute.routes.test.ts`
+
+### NOT-196 — An alert with no device is never muted
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-09-28
+
+`MutedTypeAlertPublisher` forwards an alert whose `deviceId` is `null`
+(`NOT-100`) without consulting the muted set, even if its type is on it.
+
+**Why:** These alerts are about the monitoring itself — an agent offline means
+the whole site is unwatched and no device alert can reach anyone (ADR 0002,
+R7). Muting it would hide the one message that says monitoring has stopped.
+The vendor copy of the same alert must go out regardless of any install's
+preferences.
+
+**Enforced at:** `src/infrastructure/notifications/MutedTypeAlertPublisher.ts`
+**Tests:** `tests/infrastructure/notifications/MutedTypeAlertPublisher.test.ts`

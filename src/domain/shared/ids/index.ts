@@ -19,3 +19,4 @@ export * from './TechnicianId';
 export * from './QuotationId';
 export * from './CollectionAccountId';
 export * from './BankAccountId';
+export * from './AgentId';

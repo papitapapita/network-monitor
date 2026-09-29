@@ -90,4 +90,15 @@ describe('AlertPublisher', () => {
     expect(result.isFailure).toBe(true);
     expect(result.error).toContain('Telegram API error');
   });
+
+  it('should forward an alert with no device as null', async () => {
+    await publisher.publish({
+      ...makeNotification(),
+      deviceId: null
+    });
+
+    expect(useCase.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ deviceId: null })
+    );
+  });
 });

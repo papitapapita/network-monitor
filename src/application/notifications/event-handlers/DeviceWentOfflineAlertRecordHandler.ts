@@ -2,7 +2,10 @@ import { IHandle } from 'domain/shared/interfaces';
 import { DeviceWentOfflineEvent } from 'domain/device-monitoring/events';
 import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
 import { DeviceId } from 'domain/shared/ids';
-import { ILogger, IAlertRecorder } from 'application/shared/interfaces';
+import {
+  ILogger,
+  IAlertRecorder
+} from 'application/shared/interfaces';
 import { AlertSeverity } from 'domain/shared/enums';
 
 const SOURCE = 'Disponibilidad';

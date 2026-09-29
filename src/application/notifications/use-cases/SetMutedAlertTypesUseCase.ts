@@ -33,9 +33,7 @@ export class SetMutedAlertTypesUseCase extends UseCase<
   protected async executeImpl(
     request: SetMutedAlertTypesDTO
   ): Promise<Result<MutedAlertTypesResponseDTO>> {
-    const result = await this.repository.replaceAll(
-      request.metrics
-    );
+    const result = await this.repository.replaceAll(request.metrics);
     if (result.isFailure) {
       return this.fail(
         `Failed to update muted alert types: ${result.error}`

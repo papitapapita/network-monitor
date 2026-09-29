@@ -160,4 +160,14 @@ describe('QuietHoursAlertPublisher', () => {
     expect(inner.publish).toHaveBeenCalledTimes(1);
     expect(result.isSuccess).toBe(true);
   });
+
+  it('forwards an alert with no device without looking up a policy', async () => {
+    const notification = { ...makeNotification(), deviceId: null };
+
+    const result = await publisher.publish(notification);
+
+    expect(policyRepo.findByDeviceId).not.toHaveBeenCalled();
+    expect(inner.publish).toHaveBeenCalledWith(notification);
+    expect(result.isSuccess).toBe(true);
+  });
 });

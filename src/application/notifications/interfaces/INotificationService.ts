@@ -4,8 +4,8 @@ export interface NotificationMessage {
   title: string;
   body: string;
   metadata: {
-    deviceId: string;
-    deviceName: string;
+    deviceId: string | null;
+    deviceName: string | null;
     ipAddress: string | null;
     severity: string;
     alertId?: string;

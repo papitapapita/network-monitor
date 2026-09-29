@@ -88,9 +88,7 @@ describe('MutedTypeAlertPublisher', () => {
         makeNotification({ type: 'device_unreachable' })
       );
 
-      expect(repo.isMuted).toHaveBeenCalledWith(
-        'device_unreachable'
-      );
+      expect(repo.isMuted).toHaveBeenCalledWith('device_unreachable');
     });
   });
 
@@ -109,7 +107,9 @@ describe('MutedTypeAlertPublisher', () => {
       repo.isMuted.mockResolvedValue(Result.ok(true));
 
       const warning = await publisher.publish(
-        makeNotification({ type: 'wireless:cpu_load_percent:WARNING' })
+        makeNotification({
+          type: 'wireless:cpu_load_percent:WARNING'
+        })
       );
       const critical = await publisher.publish(
         makeNotification({
@@ -131,6 +131,22 @@ describe('MutedTypeAlertPublisher', () => {
       expect(result.isSuccess).toBe(true);
       expect(inner.publish).toHaveBeenCalledTimes(1);
       expect(logger.error).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('an alert with no device', () => {
+    it('is never muted, even when its type is on the muted list', async () => {
+      repo.isMuted.mockResolvedValue(Result.ok(true));
+      const notification = makeNotification({
+        deviceId: null,
+        type: 'agent_offline'
+      });
+
+      const result = await publisher.publish(notification);
+
+      expect(result.isSuccess).toBe(true);
+      expect(inner.publish).toHaveBeenCalledWith(notification);
+      expect(repo.isMuted).not.toHaveBeenCalled();
     });
   });
 });

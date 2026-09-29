@@ -201,4 +201,27 @@ describe('SendAlertNotificationUseCase', () => {
       expect(result.isSuccess).toBe(true);
     });
   });
+
+  describe('executeImpl — an alert with no device', () => {
+    it('should send it without looking up a device', async () => {
+      const result = await useCase.execute(
+        makeRequest({ deviceId: null, source: 'Agente Torre Norte' })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(deviceRepo.findById).not.toHaveBeenCalled();
+    });
+
+    it('should leave the device line out of the message', async () => {
+      await useCase.execute(
+        makeRequest({ deviceId: null, source: 'Agente Torre Norte' })
+      );
+
+      const message = notificationService.send.mock.calls[0][0];
+      expect(message.body).not.toContain('Dispositivo');
+      expect(message.body).toContain('Agente Torre Norte');
+      expect(message.metadata.deviceId).toBeNull();
+      expect(message.metadata.deviceName).toBeNull();
+    });
+  });
 });

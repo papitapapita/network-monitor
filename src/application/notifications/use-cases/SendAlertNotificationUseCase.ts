@@ -23,7 +23,7 @@ export class SendAlertNotificationUseCase extends UseCase<
   protected async beforeExecute(
     request: SendAlertNotificationDTO
   ): Promise<Result<void> | null> {
-    if (!request.deviceId?.trim()) {
+    if (request.deviceId !== null && !request.deviceId?.trim()) {
       return Result.fail('deviceId is required');
     }
     if (!request.detail?.trim()) {
@@ -35,14 +35,16 @@ export class SendAlertNotificationUseCase extends UseCase<
   protected async executeImpl(
     request: SendAlertNotificationDTO
   ): Promise<Result<void>> {
-    const deviceIdResult = DeviceId.parse(request.deviceId);
-    if (deviceIdResult.isFailure) {
-      return this.fail(`Invalid device ID: ${deviceIdResult.error}`);
+    let deviceName: string | null = null;
+    if (request.deviceId !== null) {
+      const deviceIdResult = DeviceId.parse(request.deviceId);
+      if (deviceIdResult.isFailure) {
+        return this.fail(
+          `Invalid device ID: ${deviceIdResult.error}`
+        );
+      }
+      deviceName = await this.resolveDeviceName(deviceIdResult.value);
     }
-
-    const deviceName = await this.resolveDeviceName(
-      deviceIdResult.value
-    );
 
     const sendResult = await this.notificationService.send({
       title: this.buildTitle(request),
@@ -74,7 +76,7 @@ export class SendAlertNotificationUseCase extends UseCase<
 
   private formatBody(
     request: SendAlertNotificationDTO,
-    deviceName: string
+    deviceName: string | null
   ): string {
     const e = (text: string) => TelegramFormatting.escapeMd(text);
     const ts = e(
@@ -95,7 +97,9 @@ export class SendAlertNotificationUseCase extends UseCase<
     return [
       header,
       '',
-      `📛 *Dispositivo:* ${e(deviceName)}`,
+      ...(deviceName !== null
+        ? [`📛 *Dispositivo:* ${e(deviceName)}`]
+        : []),
       `📡 *Origen:* ${e(request.source)}`,
       `📊 *Métrica:* ${e(request.subject)}`,
       `⚠️ *Severidad:* ${e(severityLabel)}`,

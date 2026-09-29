@@ -35,7 +35,9 @@ interface OrchestratorFixture {
   orchestrator: OverdueDeviceDownAlertOrchestrator;
 }
 
-function makeOrchestrator(checkIntervalMs = 1_000): OrchestratorFixture {
+function makeOrchestrator(
+  checkIntervalMs = 1_000
+): OrchestratorFixture {
   const useCase = makeUseCase();
   const logger = makeLogger();
   useCase.execute.mockResolvedValue(Result.ok(0));
@@ -181,8 +183,11 @@ describe('OverdueDeviceDownAlertOrchestrator', () => {
   // =========================================================================
   describe('error handling', () => {
     it('should log an error when the use case returns a failure result', async () => {
-      const { useCase, logger, orchestrator } = makeOrchestrator(60_000);
-      useCase.execute.mockResolvedValue(Result.fail('DB unavailable'));
+      const { useCase, logger, orchestrator } =
+        makeOrchestrator(60_000);
+      useCase.execute.mockResolvedValue(
+        Result.fail('DB unavailable')
+      );
 
       orchestrator.start();
       await Promise.resolve();
@@ -195,7 +200,8 @@ describe('OverdueDeviceDownAlertOrchestrator', () => {
     });
 
     it('should log an error and not throw when the use case rejects unexpectedly', async () => {
-      const { useCase, logger, orchestrator } = makeOrchestrator(60_000);
+      const { useCase, logger, orchestrator } =
+        makeOrchestrator(60_000);
       useCase.execute.mockRejectedValue(new Error('boom'));
 
       orchestrator.start();

@@ -22,6 +22,11 @@ export class QuietHoursAlertPublisher implements IAlertPublisher {
   async publish(
     notification: AlertNotification
   ): Promise<Result<void>> {
+    // Quiet hours are a per-device policy; an alert with no device has none.
+    if (notification.deviceId === null) {
+      return this.inner.publish(notification);
+    }
+
     const deviceIdResult = DeviceId.parse(notification.deviceId);
     if (deviceIdResult.isSuccess) {
       const policyResult = await this.policyRepository.findByDeviceId(

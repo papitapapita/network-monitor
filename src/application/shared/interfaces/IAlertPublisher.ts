@@ -2,7 +2,10 @@ import { Result } from 'domain/shared/core';
 import { AlertSeverity } from 'domain/shared/enums';
 
 export interface AlertNotification {
-  deviceId: string;
+  // null for an alert about something other than a device — an on-site agent
+  // going offline (ADR 0002). Nullable rather than optional so every producer
+  // has to say which it is.
+  deviceId: string | null;
   severity: AlertSeverity;
   source: string;
   subject: string;

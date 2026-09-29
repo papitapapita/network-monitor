@@ -1,7 +1,7 @@
 import { AlertSeverity } from 'domain/shared/enums';
 
 export interface SendAlertNotificationDTO {
-  deviceId: string;
+  deviceId: string | null;
   severity: AlertSeverity;
   source: string;
   subject: string;

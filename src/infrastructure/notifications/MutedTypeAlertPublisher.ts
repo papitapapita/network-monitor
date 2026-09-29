@@ -25,6 +25,12 @@ export class MutedTypeAlertPublisher implements IAlertPublisher {
   async publish(
     notification: AlertNotification
   ): Promise<Result<void>> {
+    // An alert with no device is about the monitoring itself (an agent gone
+    // offline leaves a whole site blind), so it is never mutable.
+    if (notification.deviceId === null) {
+      return this.inner.publish(notification);
+    }
+
     const metric = MutedTypeAlertPublisher.extractMetric(
       notification.type
     );
