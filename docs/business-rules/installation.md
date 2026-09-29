@@ -3,8 +3,8 @@
 What one install of the backend runs. The product is sold to other ISPs, one
 backend and database per customer (ADR 0002), and not every customer buys
 every part of it: the first pilot is monitoring only. These rules decide which
-parts an install switches on and what the parts that stay on see when their
-neighbours are off.
+parts an install switches on, what the parts that stay on see when their
+neighbours are off, and what happens when the customer stops paying.
 
 This is not a bounded context. It owns no aggregate and no data; it is the
 composition root's policy, enforced in `src/infrastructure/di/` and
@@ -17,13 +17,16 @@ Format and conventions: [README.md](README.md).
 | Range                 | Area            |
 | --------------------- | --------------- |
 | `INS-001` … `INS-019` | Module switches |
+| `INS-020` … `INS-039` | Subscription    |
 
 ## Layer coverage
 
 | Layer                        | Rules |
 | ---------------------------- | ----- |
-| Infrastructure (composition) | 7     |
-| Application (use case)       | 1     |
+| Domain                       | 1     |
+| Application (use case)       | 4     |
+| Infrastructure (composition) | 11    |
+| Presentation                 | 3     |
 
 ---
 
@@ -166,3 +169,185 @@ itself, which the customer does see, is unaffected.
 
 **Enforced at:** `src/infrastructure/di/container.ts`, `src/application/notifications/use-cases/OpenAlertUseCase.ts`
 **Tests:** `tests/application/notifications/use-cases/OpenAlertUseCase.test.ts`
+
+---
+
+## Subscription
+
+A customer install pays monthly (ADR 0002, R17). The vendor records what has
+been paid for in environment variables; there is no screen for it. When a
+payment is missed the install escalates in stages — full service during grace,
+then read-only, then locked — and tells the customer every day on the way.
+Nothing is ever deleted. The install knows only its own terms; how payments
+are recorded across customers is a separate decision.
+
+| Stage       | Dashboard              | Agents, polling, jobs | Alerts | Reminder       |
+| ----------- | ---------------------- | --------------------- | ------ | -------------- |
+| `ACTIVE`    | Full                   | Running               | Sent   | Last 5 days    |
+| `GRACE`     | Full                   | Running               | Sent   | Daily          |
+| `READ_ONLY` | Reads only (402)       | Stopped               | None   | Daily          |
+| `LOCKED`    | Status and login only  | Stopped               | None   | Once, that day |
+
+### INS-020 — A lapsed subscription escalates from grace to read-only to locked
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain · Application
+**Since:** 2026-09-29
+
+The stage follows from the terms and the clock alone: `ACTIVE` until the paid
+period ends, `GRACE` for the grace days after that, `READ_ONLY` for the
+read-only days after the grace, `LOCKED` from then on. A stage of zero days is
+skipped. An install with no terms is `NOT_ENFORCED`. `GRACE` changes nothing
+but the reminders; what `READ_ONLY` and `LOCKED` change is set out in
+`INS-022` … `INS-027`. Paying again — a new date and a restart — resumes
+everything.
+
+**Why:** ADR 0002, R17 asks for read-only, never deletion; the vendor asked
+for more pressure than that (2026-09-29). Stopping the service in steps gives
+the customer a visible warning before losing the dashboard, and keeping the
+data means paying again is all it takes to come back.
+
+**Enforced at:** `src/domain/shared/value-objects/SubscriptionTerms.ts`, `src/application/shared/use-cases/GetSubscriptionStatusUseCase.ts`
+**Tests:** `tests/domain/shared/value-objects/SubscriptionTerms.test.ts`, `tests/application/shared/use-cases/GetSubscriptionStatusUseCase.test.ts`, `tests/integration/use-cases/shared/GetSubscriptionStatusUseCase.integration.test.ts`
+
+### INS-021 — The terms are the last paid day and two stage lengths, set by the vendor at boot
+
+**Type:** Validation · **Status:** Active
+**Layer:** Infrastructure (composition)
+**Since:** 2026-09-29
+
+`SUBSCRIPTION_PAID_UNTIL` is the last day paid for, as `YYYY-MM-DD`, covered
+to its end in Colombian time (UTC−5). `SUBSCRIPTION_GRACE_DAYS` (default 3)
+and `SUBSCRIPTION_READ_ONLY_DAYS` (default 7) are whole numbers from 0 to 90.
+With `SUBSCRIPTION_PAID_UNTIL` unset or blank nothing is enforced — Insetel's
+own install sets none of them. A date that is not a real calendar day, or a
+stage length outside the range, stops the boot. All three are read once at
+start-up, so a renewal is a new date and a restart.
+
+**Why:** The vendor, not the customer, controls billing. Failing the boot on a
+typo is safer than guessing: a wrong guess either cuts off a paying customer
+or never cuts off anyone. The whole last day is covered so "paid until the
+31st" means what it says.
+
+**Enforced at:** `src/infrastructure/di/subscriptionTerms.ts`, `src/domain/shared/value-objects/SubscriptionTerms.ts`
+**Tests:** `tests/infrastructure/di/subscriptionTerms.test.ts`, `tests/domain/shared/value-objects/SubscriptionTerms.test.ts`
+
+### INS-022 — A read-only or locked install refuses its agents
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-09-29
+
+From `READ_ONLY` on, an agent's hello is answered by closing the connection
+with code 4003 (`SUBSCRIPTION_EXPIRED`) before anything is recorded — not even
+its last contact. An agent already connected when the grace ends is closed the
+same way within a minute. The agent is expected to wait and retry hourly. If
+the status cannot be read, agents are let in.
+
+**Why:** No results means no new state, history or alerts from the agents.
+Recording nothing lets the agent go offline in the usual way, so its devices
+show as unknown (`MON-006`) rather than as they were last seen. A distinct
+close code tells the agent — and whoever looks at it — why it is idle.
+
+**Enforced at:** `src/presentation/ws/agent/AgentSession.ts`
+**Tests:** `tests/integration/agent-gateway.test.ts`
+
+### INS-023 — A read-only or locked install sends no alerts
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (composition)
+**Since:** 2026-09-29
+
+From `READ_ONLY` on, every outbound alert is withheld: device and wireless
+alerts, recoveries, agent offline and back-online messages, and the vendor's
+copy of them. Alerts are still recorded, and a withheld publish counts as a
+deliberate suppression like quiet hours or a mute, so it is not logged as a
+failure and a down alert still open when payment resumes is sent on the next
+scan. If the status cannot be read, the alert is sent. Subscription reminders
+(`INS-027`) are not alerts and are not withheld.
+
+**Why:** A monitoring system that has stopped alerting is the clearest sign
+the service has lapsed. Failing open keeps a configuration problem from ever
+silencing a paying customer.
+
+**Enforced at:** `src/infrastructure/notifications/SubscriptionAlertPublisher.ts`, `src/application/shared/interfaces/IAlertPublisher.ts` (`isSuppressedPublish`), `src/infrastructure/di/container.ts`
+**Tests:** `tests/infrastructure/notifications/SubscriptionAlertPublisher.test.ts`
+
+### INS-024 — Every role can read the subscription status, even when locked
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation · Application
+**Since:** 2026-09-29
+
+`GET /api/subscription` returns the stage, when the paid period ends, when
+the grace ends, when the dashboard locks, and whether the install is
+read-only or locked, to any signed-in user in every stage.
+
+**Why:** The dashboard shows a warning during grace, a notice while read-only
+and a lock screen once locked, to whoever is looking at it; it has to be able
+to ask in every stage.
+
+**Enforced at:** `src/presentation/http/routes/subscription.routes.ts`, `src/presentation/http/routes/index.ts`, `src/application/shared/use-cases/GetSubscriptionStatusUseCase.ts`
+**Tests:** `tests/integration/subscription.routes.test.ts`
+
+### INS-025 — Read-only refuses every write; locked refuses everything but signing in and the status
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-09-29
+
+While `READ_ONLY`, every `/api` request other than `GET`, `HEAD` or `OPTIONS`
+is answered `402`, whatever the role, and so is pairing a new agent
+(`POST /agent/v1/enroll`). While `LOCKED`, every `/api` request is answered
+`402` except the `/api/auth` routes and `GET /api/subscription`. The check
+runs ahead of authentication, so an anonymous request to a locked install
+also gets `402`. If the status cannot be read, the request goes through.
+
+**Why:** Read-only lets the customer see what they are about to lose; locked
+takes it away without deleting it. Signing in and the status stay open so the
+dashboard can explain why. `402 Payment Required` tells the frontend exactly
+which screen to show.
+
+**Enforced at:** `src/presentation/http/middleware/subscriptionGuard.ts`, `src/presentation/http/routes/index.ts`
+**Tests:** `tests/presentation/http/middleware/subscriptionGuard.test.ts`, `tests/integration/subscription.routes.test.ts`
+
+### INS-026 — A read-only or locked install measures nothing and runs no background jobs
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (composition)
+**Since:** 2026-09-29
+
+From `READ_ONLY` on, in-process ICMP polling, wireless polling, data
+retention, the overdue down-alert scan and suspension reconciliation are
+stopped — at boot if the install starts that way, and within a minute if the
+grace ends while it runs. Agent liveness keeps running so refused agents go
+offline and their devices read as unknown. If the status cannot be read at
+boot the jobs start; a failed check later leaves them as they are.
+
+**Why:** The vendor asked that nothing keep working for an install that does
+not pay (2026-09-29). Data retention stops too, because purging history
+during a lapse would break "nothing is deleted": the customer comes back to
+everything they had.
+
+**Enforced at:** `src/infrastructure/installation/SubscriptionJobSupervisor.ts`, `src/infrastructure/di/container.ts`, `src/main.ts`
+**Tests:** `tests/infrastructure/installation/SubscriptionJobSupervisor.test.ts`
+
+### INS-027 — The customer is reminded every day before anything stops
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Infrastructure (composition)
+**Since:** 2026-09-29
+
+One Telegram message a day, from 9:00 Colombian time, to the install's own
+chat: in the 5 days before the paid period ends, every day of grace and of
+read-only — each saying what happens next and when — and once on the day it
+locks. Reminders go straight to the chat, not through the alert publisher, so
+they arrive while alerts are silenced. The day already reminded is kept in
+memory: a restart after 9:00 can repeat that day's message. A failed send is
+retried on the next check, every 15 minutes.
+
+**Why:** Non-payment should never come as a surprise. Each message names the
+next stage and its date, so the customer knows exactly how long they have.
+
+**Enforced at:** `src/application/notifications/use-cases/SendSubscriptionReminderUseCase.ts`, `src/infrastructure/notifications/orchestrator/SubscriptionReminderOrchestrator.ts`
+**Tests:** `tests/application/notifications/use-cases/SendSubscriptionReminderUseCase.test.ts`, `tests/infrastructure/notifications/orchestrator/SubscriptionReminderOrchestrator.test.ts`, `tests/integration/use-cases/notifications/SendSubscriptionReminderUseCase.integration.test.ts`

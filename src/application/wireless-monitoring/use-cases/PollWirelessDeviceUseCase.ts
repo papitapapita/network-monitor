@@ -15,8 +15,7 @@ import { UseCase } from 'application/shared/core';
 import {
   ILogger,
   IAlertPublisher,
-  QUIET_HOURS_SUPPRESSED,
-  TYPE_MUTED_SUPPRESSED
+  isSuppressedPublish
 } from 'application/shared/interfaces';
 import {
   IWirelessCollectorResolver,
@@ -489,10 +488,7 @@ export class PollWirelessDeviceUseCase
       });
 
       if (sendResult.isFailure) {
-        if (
-          sendResult.error !== QUIET_HOURS_SUPPRESSED &&
-          sendResult.error !== TYPE_MUTED_SUPPRESSED
-        ) {
+        if (!isSuppressedPublish(sendResult.error)) {
           this.logger.error(
             `Alert notification failed, will retry next cycle`,
             undefined,

@@ -26,6 +26,12 @@ import {
   MarkSilentAgentsOfflineUseCase
 } from '../../application/probe-agents/use-cases';
 import { AgentLivenessOrchestrator } from '../probe-agents/orchestrator';
+import { loadSubscriptionTerms } from './subscriptionTerms';
+import {
+  SubscriptionJobSupervisor,
+  SupervisedJob
+} from '../installation';
+import { GetSubscriptionStatusUseCase } from 'application/shared/use-cases/GetSubscriptionStatusUseCase';
 import {
   AgentWentOfflineEvent,
   AgentCameBackEvent
@@ -90,6 +96,7 @@ import {
   BankAccountController,
   AgentController,
   AgentEnrollmentController,
+  SubscriptionController,
   QuotationController,
   EnforcementController,
   TicketController,
@@ -222,9 +229,13 @@ import {
   MutedTypeAlertPublisher,
   AlertRecorder,
   FanOutAlertPublisher,
-  InstallLabelAlertPublisher
+  InstallLabelAlertPublisher,
+  SubscriptionAlertPublisher
 } from '../notifications';
-import { OverdueDeviceDownAlertOrchestrator } from '../notifications/orchestrator';
+import {
+  OverdueDeviceDownAlertOrchestrator,
+  SubscriptionReminderOrchestrator
+} from '../notifications/orchestrator';
 import {
   RouterOsQueueService,
   SuspensionReconciliationOrchestrator
@@ -308,7 +319,8 @@ import {
   DeleteDeviceNotificationPolicyUseCase,
   BulkUpsertDeviceNotificationPoliciesUseCase,
   GetMutedAlertTypesUseCase,
-  SetMutedAlertTypesUseCase
+  SetMutedAlertTypesUseCase,
+  SendSubscriptionReminderUseCase
 } from 'application/notifications/use-cases';
 import {
   DeviceCameOnlineNotificationHandler,
@@ -435,6 +447,8 @@ export class DependencyContainer {
   public notificationPolicyController: NotificationPolicyController;
   public notificationMuteController: NotificationMuteController;
   public agentController: AgentController;
+  public subscriptionController: SubscriptionController;
+  public getSubscriptionStatusUseCase: GetSubscriptionStatusUseCase;
   public agentEnrollmentController: AgentEnrollmentController;
   // Attached to the HTTP server by main.ts, once it is listening.
   public agentGateway: AgentGateway;
@@ -465,6 +479,8 @@ export class DependencyContainer {
   public dataRetentionOrchestrator: DataRetentionOrchestrator;
   public overdueDeviceDownAlertOrchestrator: OverdueDeviceDownAlertOrchestrator;
   public agentLivenessOrchestrator: AgentLivenessOrchestrator;
+  public subscriptionJobSupervisor: SubscriptionJobSupervisor;
+  public subscriptionReminderOrchestrator: SubscriptionReminderOrchestrator;
   // null when the enforcement module is off or has no router configured
   public suspensionReconciliationOrchestrator: SuspensionReconciliationOrchestrator | null =
     null;
@@ -1149,6 +1165,19 @@ export class DependencyContainer {
       suspendDeviceMonitoringUseCase,
       this.logger
     );
+    // R17: vendor-set terms; unset means not enforced. Read once at boot, so
+    // a renewal takes a restart with the new date.
+    const getSubscriptionStatusUseCase =
+      (this.getSubscriptionStatusUseCase =
+        new GetSubscriptionStatusUseCase(
+          loadSubscriptionTerms(process.env),
+          this.logger
+        ));
+    this.subscriptionController = new SubscriptionController(
+      getSubscriptionStatusUseCase,
+      this.logger
+    );
+
     // R7: what monitoring and notifications know about agents, read-only.
     const agentStatusQuery = new PrismaAgentStatusQuery(this.prisma);
     const getPollingStatusUseCase = new GetDevicePollingStatusUseCase(
@@ -1290,7 +1319,8 @@ export class DependencyContainer {
           ),
           this.logger
         ),
-        getAgent: getAgentUseCase
+        getAgent: getAgentUseCase,
+        subscriptionStatus: getSubscriptionStatusUseCase
       },
       this.logger
     );
@@ -1326,13 +1356,18 @@ export class DependencyContainer {
     // Wraps the real publisher so every alert-producing path below (down,
     // recovery, wireless — they all share this one instance) gets
     // quiet-hours suppression for free.
-    const alertPublisher = new QuietHoursAlertPublisher(
-      new MutedTypeAlertPublisher(
-        new AlertPublisher(sendAlertNotificationUseCase),
-        this.mutedAlertTypeRepository,
+    // Outermost: an expired subscription (R17) silences everything.
+    const alertPublisher = new SubscriptionAlertPublisher(
+      new QuietHoursAlertPublisher(
+        new MutedTypeAlertPublisher(
+          new AlertPublisher(sendAlertNotificationUseCase),
+          this.mutedAlertTypeRepository,
+          this.logger
+        ),
+        this.deviceNotificationPolicyRepository,
         this.logger
       ),
-      this.deviceNotificationPolicyRepository,
+      getSubscriptionStatusUseCase,
       this.logger
     );
 
@@ -1835,17 +1870,21 @@ export class DependencyContainer {
     const agentHealthPublisher = vendorChatId
       ? new FanOutAlertPublisher([
           alertPublisher,
-          new InstallLabelAlertPublisher(
-            new AlertPublisher(
-              new SendAlertNotificationUseCase(
-                this.deviceRepository,
-                new TelegramNotificationService(vendorChatId),
-                this.logger
-              )
+          new SubscriptionAlertPublisher(
+            new InstallLabelAlertPublisher(
+              new AlertPublisher(
+                new SendAlertNotificationUseCase(
+                  this.deviceRepository,
+                  new TelegramNotificationService(vendorChatId),
+                  this.logger
+                )
+              ),
+              agentPublicUrl
+                ? new URL(agentPublicUrl).host
+                : 'sin AGENT_PUBLIC_URL'
             ),
-            agentPublicUrl
-              ? new URL(agentPublicUrl).host
-              : 'sin AGENT_PUBLIC_URL'
+            getSubscriptionStatusUseCase,
+            this.logger
           )
         ])
       : alertPublisher;
@@ -2045,6 +2084,49 @@ export class DependencyContainer {
         this.logger
       );
     }
+
+    // R17: everything that measures or works in the background stops while
+    // the subscription is read-only or locked. Agent liveness keeps running
+    // so refused agents go offline and their devices read as unknown.
+    const supervisedJobs: SupervisedJob[] = [
+      { name: 'polling', ...bindJob(this.pollingOrchestrator) },
+      {
+        name: 'wireless-polling',
+        ...bindJob(this.wirelessPollingOrchestrator)
+      },
+      {
+        name: 'data-retention',
+        ...bindJob(this.dataRetentionOrchestrator)
+      },
+      {
+        name: 'overdue-down-alerts',
+        ...bindJob(this.overdueDeviceDownAlertOrchestrator)
+      }
+    ];
+    if (this.suspensionReconciliationOrchestrator) {
+      supervisedJobs.push({
+        name: 'suspension-reconciliation',
+        ...bindJob(this.suspensionReconciliationOrchestrator)
+      });
+    }
+    this.subscriptionJobSupervisor = new SubscriptionJobSupervisor(
+      supervisedJobs,
+      getSubscriptionStatusUseCase,
+      this.logger
+    );
+
+    // R17: reminders go to the install's own chat directly — they must
+    // arrive precisely while alerts are silenced.
+    this.subscriptionReminderOrchestrator =
+      new SubscriptionReminderOrchestrator(
+        new SendSubscriptionReminderUseCase(
+          getSubscriptionStatusUseCase,
+          telegramNotificationService,
+          this.logger
+        ),
+        {},
+        this.logger
+      );
   }
 
   public async connect(): Promise<void> {
@@ -2086,4 +2168,11 @@ export async function setupDependencies(): Promise<DependencyContainer> {
   const container = new DependencyContainer();
   await container.connect();
   return container;
+}
+
+function bindJob(job: {
+  start(): void;
+  stop(): void | Promise<void>;
+}): Pick<SupervisedJob, 'start' | 'stop'> {
+  return { start: () => job.start(), stop: () => job.stop() };
 }

@@ -6,6 +6,7 @@ import {
   GetAgentUseCase,
   RecordAgentContactUseCase
 } from 'application/probe-agents/use-cases';
+import { GetSubscriptionStatusUseCase } from 'application/shared/use-cases/GetSubscriptionStatusUseCase';
 import { AgentResultDTO } from 'application/probe-agents/dtos';
 import {
   AgentMessage,
@@ -21,6 +22,7 @@ export interface AgentSessionUseCases {
   buildConfig: BuildAgentConfigSnapshotUseCase;
   acceptResults: AcceptAgentResultsUseCase;
   getAgent: GetAgentUseCase;
+  subscriptionStatus: GetSubscriptionStatusUseCase;
 }
 
 export interface AgentSessionConfig {
@@ -158,6 +160,16 @@ export class AgentSession {
       return;
     }
 
+    // R17: an install past its grace period accepts nothing. Refused before
+    // contact is recorded, so the agent reads as silent, not as reporting.
+    if (await this.subscriptionExpired()) {
+      this.close(
+        CloseCode.SUBSCRIPTION_EXPIRED,
+        'Subscription expired; results are not accepted'
+      );
+      return;
+    }
+
     this.greeted = true;
     await this.recordContact(message.agentVersion, message.sentAt);
     this.send({
@@ -193,8 +205,16 @@ export class AgentSession {
   }
 
   // Re-checks that the agent may still be connected (R3: a revoked agent is
-  // cut off) and pushes its configuration if anything changed (R14).
+  // cut off; R17: so is every agent once the subscription expires) and pushes
+  // its configuration if anything changed (R14).
   private async refresh(): Promise<void> {
+    if (await this.subscriptionExpired()) {
+      this.close(
+        CloseCode.SUBSCRIPTION_EXPIRED,
+        'Subscription expired; results are not accepted'
+      );
+      return;
+    }
     const agent = await this.useCases.getAgent.execute({
       id: this.agentId
     });
@@ -203,6 +223,19 @@ export class AgentSession {
       return;
     }
     await this.pushConfig();
+  }
+
+  // A failure to read the status never cuts off a paying customer.
+  private async subscriptionExpired(): Promise<boolean> {
+    const status = await this.useCases.subscriptionStatus.execute();
+    if (status.isFailure) {
+      this.logger.warn('Subscription status unavailable', {
+        agentId: this.agentId,
+        error: status.error
+      });
+      return false;
+    }
+    return status.value.readOnly;
   }
 
   private async pushConfig(): Promise<void> {

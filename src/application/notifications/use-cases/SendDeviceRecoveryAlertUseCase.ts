@@ -6,8 +6,7 @@ import { UseCase } from 'application/shared/core';
 import {
   ILogger,
   IAlertPublisher,
-  QUIET_HOURS_SUPPRESSED,
-  TYPE_MUTED_SUPPRESSED
+  isSuppressedPublish
 } from 'application/shared/interfaces';
 import { AlertMapper } from '../mappers';
 import {
@@ -109,10 +108,7 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
       // Deliberately not retried on a later cycle: unlike the down alert,
       // there is no unnotified-record scan for a resolved alert, and
       // re-announcing a recovery hours later has no value.
-      if (
-        publishResult.error !== QUIET_HOURS_SUPPRESSED &&
-        publishResult.error !== TYPE_MUTED_SUPPRESSED
-      ) {
+      if (!isSuppressedPublish(publishResult.error)) {
         this.logger.error(
           'Failed to publish device-recovery alert notification',
           undefined,

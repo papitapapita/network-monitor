@@ -31,6 +31,8 @@ import { PrismaPollingConfigurationRepository } from '../../src/infrastructure/p
 import { PrismaPingResultRepository } from '../../src/infrastructure/persistence/PrismaPingResultRepository';
 import { PrismaDeviceStateRepository } from '../../src/infrastructure/persistence/PrismaDeviceStateRepository';
 import { WinstonLogger } from '../../src/infrastructure/logging/WinstonLogger';
+import { GetSubscriptionStatusUseCase } from '../../src/application/shared/use-cases/GetSubscriptionStatusUseCase';
+import { Result } from '../../src/domain/shared/core/Result';
 import {
   AGENT_WS_PATH,
   BackendMessage,
@@ -61,6 +63,19 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
   let url: string;
   let deviceModelId: string;
   const openClients: WebSocket[] = [];
+  // The terms are fixed at boot, so a test flips the answer instead.
+  let subscriptionExpired = false;
+  const subscriptionStatus = {
+    execute: async () =>
+      Result.ok({
+        state: subscriptionExpired ? 'READ_ONLY' : 'ACTIVE',
+        paidThrough: null,
+        graceEndsAt: null,
+        lockedAt: null,
+        readOnly: subscriptionExpired,
+        locked: false
+      })
+  } as unknown as GetSubscriptionStatusUseCase;
 
   beforeAll(async () => {
     container = await setupDependencies();
@@ -95,7 +110,8 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
           ),
           logger
         ),
-        getAgent: new GetAgentUseCase(agents, logger)
+        getAgent: new GetAgentUseCase(agents, logger),
+        subscriptionStatus
       },
       logger,
       {
@@ -120,6 +136,7 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
   });
 
   beforeEach(async () => {
+    subscriptionExpired = false;
     await cleanAgents(prisma);
     await cleanDatabase(prisma);
   });
@@ -317,6 +334,37 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
         where: { id }
       });
       expect(row!.lastSeenAt).toBeNull();
+    });
+  });
+
+  describe('[INS-022] an expired subscription', () => {
+    it('refuses the hello before anything is recorded', async () => {
+      subscriptionExpired = true;
+      const { token, id } = await agentWithDevice();
+      const client = connect(token);
+
+      client.send(hello());
+
+      expect((await client.closed).code).toBe(
+        CloseCode.SUBSCRIPTION_EXPIRED
+      );
+      const row = await prisma.probeAgent.findUnique({
+        where: { id }
+      });
+      expect(row!.lastSeenAt).toBeNull();
+    });
+
+    it('cuts off an agent already connected when the grace ends', async () => {
+      const { token } = await agentWithDevice();
+      const client = connect(token);
+      client.send(hello());
+      await client.next('welcome');
+
+      subscriptionExpired = true;
+
+      expect((await client.closed).code).toBe(
+        CloseCode.SUBSCRIPTION_EXPIRED
+      );
     });
   });
 

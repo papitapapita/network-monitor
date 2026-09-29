@@ -10,8 +10,7 @@ import { UseCase } from 'application/shared/core';
 import {
   ILogger,
   IAlertPublisher,
-  QUIET_HOURS_SUPPRESSED,
-  TYPE_MUTED_SUPPRESSED
+  isSuppressedPublish
 } from 'application/shared/interfaces';
 import { ITicketOpener } from 'application/tickets/interfaces';
 import { AlertMapper } from '../mappers';
@@ -151,10 +150,7 @@ export class SendDeviceDownAlertUseCase extends UseCase<
     });
 
     if (publishResult.isFailure) {
-      if (
-        publishResult.error !== QUIET_HOURS_SUPPRESSED &&
-        publishResult.error !== TYPE_MUTED_SUPPRESSED
-      ) {
+      if (!isSuppressedPublish(publishResult.error)) {
         this.logger.error(
           'Failed to publish device-down alert notification',
           undefined,

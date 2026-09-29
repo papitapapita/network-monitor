@@ -359,7 +359,7 @@ codes:
 | `4000` | Replaced by a newer connection of the same agent |
 | `4001` | Revoked                                          |
 | `4002` | Update required                                  |
-| `4003` | Subscription expired (slice 1.5d)                |
+| `4003` | Subscription expired (`INS-022`)                 |
 | `4004` | Malformed or out-of-order message                |
 | `4005` | No hello within 10 seconds                       |
 

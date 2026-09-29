@@ -25,3 +25,4 @@ export * from './BankAccountController';
 export * from './LinkDiagnosisController';
 export * from './AgentController';
 export * from './AgentEnrollmentController';
+export * from './SubscriptionController';

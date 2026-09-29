@@ -152,6 +152,11 @@ implemented.
   and the dashboard shows history with an "expired subscription" notice. The
   agent idles and retries hourly. Paying again resumes everything; nothing is
   deleted. (How subscriptions are recorded is a separate decision.)
+  *Revised 2026-09-29:* escalated in stages — grace (full service, daily
+  reminders), then read-only (writes refused, every poller and background job
+  stopped, no alerts), then locked (dashboard closed except sign-in and the
+  subscription status). Still nothing is deleted. Rules `INS-020` …
+  `INS-027`.
 
 **Compatibility**
 

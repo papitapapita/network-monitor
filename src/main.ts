@@ -47,13 +47,11 @@ async function bootstrap(): Promise<Server> {
   const container = await setupDependencies();
   setupRoutes(app, container);
 
-  // Start polling orchestrators
-  container.pollingOrchestrator.start();
-  container.wirelessPollingOrchestrator.start();
-  container.dataRetentionOrchestrator.start();
-  container.overdueDeviceDownAlertOrchestrator.start();
+  // Polling and the other background jobs run only while the subscription
+  // allows them (ADR 0002, R17); the supervisor starts and stops them.
+  await container.subscriptionJobSupervisor.start();
   container.agentLivenessOrchestrator.start();
-  container.suspensionReconciliationOrchestrator?.start();
+  container.subscriptionReminderOrchestrator.start();
 
   // Error handling middleware.
   // Express identifies error handlers by arity: the `next` parameter must be
@@ -97,12 +95,9 @@ async function bootstrap(): Promise<Server> {
     container.eventStreamHub.closeAll();
     container.agentGateway.closeAll();
     server.close(async () => {
-      await container.pollingOrchestrator.stop();
-      await container.wirelessPollingOrchestrator.stop();
-      container.dataRetentionOrchestrator.stop();
-      container.overdueDeviceDownAlertOrchestrator.stop();
+      await container.subscriptionJobSupervisor.stop();
       container.agentLivenessOrchestrator.stop();
-      await container.suspensionReconciliationOrchestrator?.stop();
+      container.subscriptionReminderOrchestrator.stop();
       await container.disconnect();
       logger.info('Server closed');
       process.exit(0);

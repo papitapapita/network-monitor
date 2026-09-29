@@ -36,3 +36,21 @@ export const QUIET_HOURS_SUPPRESSED =
 // MutedTypeAlertPublisher.
 export const TYPE_MUTED_SUPPRESSED =
   'Notification suppressed: alert type is muted';
+
+// Same idea, for an install whose subscription has lapsed past its grace
+// period (ADR 0002, R17) — see SubscriptionAlertPublisher.
+export const SUBSCRIPTION_EXPIRED_SUPPRESSED =
+  'Notification suppressed: subscription expired';
+
+// A publish a decorator withheld on purpose. Callers leave the alert
+// unnotified — so it is retried once the reason lifts — and do not log it as
+// a delivery failure.
+export function isSuppressedPublish(
+  error: string | undefined
+): boolean {
+  return (
+    error === QUIET_HOURS_SUPPRESSED ||
+    error === TYPE_MUTED_SUPPRESSED ||
+    error === SUBSCRIPTION_EXPIRED_SUPPRESSED
+  );
+}

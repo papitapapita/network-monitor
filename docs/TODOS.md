@@ -92,6 +92,8 @@ _Main user-facing features still missing._
 
 ## Priority 3 — Monitoring Enhancements
 
+- [ ] **Vendor admin dashboard for customer agents, and agent alert history** — today agent health reaches the vendor only as Telegram messages (AGT-021..023): offline and back-online, one pair per outage, labelled with the install's host. Nothing is stored: `AlertEvent.deviceId` is required, so these alerts are not in `GET /api/alerts`, and there is no cross-install view. Wanted eventually: one screen listing every customer's agents (online/offline, last seen, version, clock offset, subscription state) and a history of agent alerts. Needs a decision on where that data lives — each install is its own backend (ADR 0002), so a vendor view means installs reporting to a central place, not a query here. Deliberately left for later (2026-09-29): the Telegram messages are enough for the pilot.
+
 - [ ] **Turning monitoring off does not stop wireless/SNMP polling** — the two pipelines run on separate flags
 
   - `Device.monitoringEnabled` governs ICMP only. The wireless orchestrator selects on `wireless_device_configs.enabled` (`PrismaWirelessDeviceConfigRepository.findAllDue`, `WHERE enabled = true`) and no handler links `DeviceMonitoringToggledEvent` to it

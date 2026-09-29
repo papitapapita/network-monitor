@@ -30,9 +30,11 @@ import { createTechnicianRoutes } from './technician.routes';
 import { createQuotationRoutes } from './quotation.routes';
 import { createAgentRoutes } from './agent.routes';
 import { createAgentEnrollmentRoutes } from './agent-enrollment.routes';
+import { createSubscriptionRoutes } from './subscription.routes';
 import {
   createAuditLogMiddleware,
-  createAuthenticateMiddleware
+  createAuthenticateMiddleware,
+  createSubscriptionGuard
 } from '../middleware';
 
 /**
@@ -49,6 +51,22 @@ export function setupRoutes(
   container: DependencyContainer
 ): void {
   const apiRouter = Router();
+
+  // =====================================
+  // SUBSCRIPTION GUARD — ahead of everything (ADR 0002, R17)
+  // =====================================
+
+  // Read-only refuses writes, locked refuses everything. Signing in and
+  // reading the status stay open so the dashboard can show why.
+  apiRouter.use(
+    createSubscriptionGuard(
+      container.getSubscriptionStatusUseCase,
+      container.getLogger(),
+      (req) =>
+        req.path.startsWith('/auth/') ||
+        (req.method === 'GET' && req.path === '/subscription')
+    )
+  );
 
   // =====================================
   // IDENTITY — public (no auth required)
@@ -276,6 +294,16 @@ export function setupRoutes(
   );
 
   // =====================================
+  // INSTALLATION
+  // =====================================
+
+  // Subscription status: /api/subscription
+  apiRouter.use(
+    '/subscription',
+    createSubscriptionRoutes(container.subscriptionController)
+  );
+
+  // =====================================
   // ADMIN
   // =====================================
 
@@ -291,6 +319,10 @@ export function setupRoutes(
   // pairing code or their own token, never a user's JWT (ADR 0002, R4).
   app.use(
     '/agent/v1',
+    createSubscriptionGuard(
+      container.getSubscriptionStatusUseCase,
+      container.getLogger()
+    ),
     createAgentEnrollmentRoutes(container.agentEnrollmentController)
   );
 }

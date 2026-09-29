@@ -4494,6 +4494,57 @@ interface TechnicianDTO {
 
 ---
 
+## Subscription `/api/subscription`
+
+The install's subscription (ADR 0002, R17). When a payment is missed the
+install escalates in stages; drive the banner and the lock screen from
+`state`:
+
+| `state`        | What the backend does                                                     | Show                                                    |
+| -------------- | ------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `NOT_ENFORCED` | Nothing                                                                   | Nothing                                                 |
+| `ACTIVE`       | Nothing                                                                   | Optional "renews on" hint in the last 5 days            |
+| `GRACE`        | Nothing yet                                                               | Warning banner: read-only from `graceEndsAt`            |
+| `READ_ONLY`    | Every write is `402`; monitoring, agents and alerts stopped               | Notice: nothing is being monitored, locks at `lockedAt` |
+| `LOCKED`       | Every `/api` route is `402` except `/api/auth/*` and this one             | Lock screen only                                        |
+
+While read-only, disable every edit control rather than letting users hit
+`402`, and say plainly that alerts are off, so an empty alert feed is not
+mistaken for a quiet network. Nothing is deleted in any stage.
+
+### `GET /api/subscription`
+
+Any role, in every stage (including `LOCKED`).
+
+```ts
+interface SubscriptionStatusDTO {
+  state: 'NOT_ENFORCED' | 'ACTIVE' | 'GRACE' | 'READ_ONLY' | 'LOCKED';
+  paidThrough: string | null; // ISO 8601 — first instant no longer paid for
+  graceEndsAt: string | null; // ISO 8601 — READ_ONLY from here
+  lockedAt: string | null; // ISO 8601 — LOCKED from here
+  readOnly: boolean; // READ_ONLY or LOCKED
+  locked: boolean; // LOCKED
+}
+```
+
+`NOT_ENFORCED` (all dates `null`) means the install is not billed by
+subscription. The terms are set by the vendor; there is no endpoint to change
+them.
+
+### `402 Payment Required`
+
+Any `/api` route (and `POST /agent/v1/enroll`) can answer `402` once the
+subscription is past its grace:
+
+```ts
+{ success: false, error: 'Subscription expired: the service is read-only until payment is received' }
+{ success: false, error: 'Subscription expired: the service is locked until payment is received' }
+```
+
+On any `402`, re-read `GET /api/subscription` and switch to the matching
+screen. On a locked install `402` comes before authentication, so it can
+arrive instead of `401`.
+
 ## Other
 
 ### `GET /health`
@@ -4519,6 +4570,7 @@ interface TechnicianDTO {
 | 403  | Valid token but insufficient role for this operation                                                                                                            |
 | 404  | Resource not found                                                                                                                                              |
 | 409  | Conflict — resource already exists, or cannot be deleted/changed while dependents exist (e.g. vendor has models, model has devices, model has wireless configs) |
+| 402  | Subscription expired — read-only (writes refused) or locked (everything but sign-in and `GET /api/subscription` refused). See [Subscription](#subscription-apisubscription) |
 | 429  | Rate limit exceeded                                                                                                                                             |
 | 500  | Unexpected server error                                                                                                                                         |
 | 503  | Dependent system unavailable — enforcement router unreachable or enforcement not configured (enforcement endpoints only)                                        |

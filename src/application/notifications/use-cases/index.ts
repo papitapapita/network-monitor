@@ -18,3 +18,4 @@ export * from './DeleteDeviceNotificationPolicyUseCase';
 export * from './BulkUpsertDeviceNotificationPoliciesUseCase';
 export * from './GetMutedAlertTypesUseCase';
 export * from './SetMutedAlertTypesUseCase';
+export * from './SendSubscriptionReminderUseCase';
