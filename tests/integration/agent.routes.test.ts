@@ -168,6 +168,24 @@ describe('Agent Routes — /api/agents', () => {
   });
 
   describe('GET /api/agents/:id', () => {
+    it('[AGT-021] 200 — reports when an agent went offline', async () => {
+      const { id } = await seedAgent(prisma, { status: 'ACTIVE' });
+      const offlineSince = new Date('2026-09-28T12:00:00.000Z');
+      await prisma.probeAgent.update({
+        where: { id },
+        data: { offlineSince }
+      });
+
+      const res = await request(app)
+        .get(`/api/agents/${id}`)
+        .set('Authorization', as(adminToken));
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.offlineSince).toBe(
+        offlineSince.toISOString()
+      );
+    });
+
     it('404 — unknown agent', async () => {
       const res = await request(app)
         .get(`/api/agents/${GHOST_ID}`)

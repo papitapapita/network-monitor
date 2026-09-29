@@ -13,6 +13,7 @@ export class AgentMapper {
       lastSeenAt: agent.lastSeenAt?.toISOString() ?? null,
       agentVersion: agent.agentVersion,
       clockOffsetMs: agent.clockOffsetMs,
+      offlineSince: agent.offlineSince?.toISOString() ?? null,
       createdAt: agent.createdAt.toISOString(),
       updatedAt: agent.updatedAt.toISOString()
     };

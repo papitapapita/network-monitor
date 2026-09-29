@@ -72,6 +72,23 @@ export class InMemoryAgentRepository implements IAgentRepository {
     return Result.ok(agent);
   }
 
+  // Mirrors the updatedAt compare-and-set in PrismaAgentRepository. A test
+  // simulates a concurrent writer by bumping storedUpdatedAt in between.
+  readonly savedIfUnchanged: Agent[] = [];
+  async saveIfUnchanged(
+    agent: Agent,
+    loadedUpdatedAt: Date
+  ): Promise<Result<boolean>> {
+    if (this.failWith) return Result.fail(this.failWith);
+    const stored = this.storedUpdatedAt.get(agent.id.toString());
+    if (stored?.getTime() !== loadedUpdatedAt.getTime()) {
+      return Result.ok(false);
+    }
+    this.store(agent);
+    this.savedIfUnchanged.push(agent);
+    return Result.ok(true);
+  }
+
   async findById(id: AgentId): Promise<Result<Agent | null>> {
     if (this.failWith) return Result.fail(this.failWith);
     return Result.ok(this.agents.get(id.toString()) ?? null);
@@ -104,6 +121,7 @@ export class InMemoryAgentRepository implements IAgentRepository {
   // What the database holds, independent of in-memory mutations of the
   // aggregate — mirrors the conditional update in PrismaAgentRepository.
   readonly storedPairingHashes = new Map<string, string>();
+  readonly storedUpdatedAt = new Map<string, Date>();
 
   seed(agent: Agent): Agent {
     this.store(agent);
@@ -113,6 +131,7 @@ export class InMemoryAgentRepository implements IAgentRepository {
   private store(agent: Agent): void {
     const id = agent.id.toString();
     this.agents.set(id, agent);
+    this.storedUpdatedAt.set(id, agent.updatedAt);
     if (agent.pairingCodeHash) {
       this.storedPairingHashes.set(id, agent.pairingCodeHash);
     } else {

@@ -7,9 +7,10 @@ administrator creates it, the installer pairs it with a one-time key, and an
 administrator can revoke it.
 
 The connection rules cover the agent's one WebSocket: how it authenticates,
-what configuration it receives and how its results reach the devices. Liveness
-alerts (OFFLINE after 5 minutes) and the ingest rules for buffered and
-duplicate results arrive in later slices of ADR 0002 phase 1.
+what configuration it receives and how its results reach the devices. The
+liveness rules cover when an agent counts as offline and who is told. The
+ingest rules for buffered and duplicate results arrive in a later slice of
+ADR 0002 phase 1.
 
 Format and conventions: [README.md](README.md).
 
@@ -27,22 +28,10 @@ A rule enforced in two layers counts in both.
 
 | Layer                        | Rules |
 | ---------------------------- | ----- |
-| Domain                       | 7     |
-| Application                  | 8     |
-| Infrastructure (composition) | 5     |
+| Domain                       | 9     |
+| Application                  | 12    |
+| Infrastructure (composition) | 8     |
 | Presentation                 | 6     |
-
----------------------------- | ----- |
-| Domain | 6 |
-| Application | 3 |
-| Infrastructure (composition) | 3 |
-| Presentation | 2 |
-
--------------- | ----- |
-| Domain | 5 |
-| Application | 1 |
-| Infrastructure | 1 |
-| Presentation | 2 |
 
 ---
 
@@ -252,7 +241,7 @@ characters) and its clock offset: the agent's clock minus the backend's at
 arrival, in milliseconds, positive when the agent runs ahead. Only an enrolled
 agent can report in.
 
-**Why:** ADR 0002, R5. `lastSeenAt` is what the OFFLINE rule (R6) will measure,
+**Why:** ADR 0002, R5. `lastSeenAt` is what the OFFLINE rule (AGT-021) measures,
 the version is what support needs first, and the offset is what result
 timestamps will be corrected by (R12). The offset includes the message's
 transit time, which on a live connection is milliseconds against a warning
@@ -260,6 +249,101 @@ threshold of a minute.
 
 **Enforced at:** `src/domain/probe-agents/aggregates/Agent.ts` (`recordContact`), `src/application/probe-agents/use-cases/RecordAgentContactUseCase.ts`
 **Tests:** `tests/domain/probe-agents/aggregates/Agent.test.ts`, `tests/integration/use-cases/probe-agents/RecordAgentContactUseCase.integration.test.ts`, `tests/integration/agent-gateway.test.ts`
+
+---
+
+### AGT-021 — An active agent silent for 5 minutes goes offline, once
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain · Application · Infrastructure (composition)
+**Since:** 2026-09-28
+
+Once a minute the backend checks every agent. An `ACTIVE` agent that has not
+been heard from for 5 minutes or more is marked offline: `offlineSince` is set
+to the moment it was noticed and `AgentWentOffline` is raised. Silence is
+measured from `lastSeenAt`, or from `enrolledAt` for an agent that was paired
+but never connected. An agent already offline is not marked again, so the
+alert goes out once per outage. `PENDING` agents have never run and `REVOKED`
+agents are finished, so neither is ever offline; revoking an offline agent
+clears `offlineSince`.
+
+**Why:** ADR 0002, R6. Five minutes is ten missed heartbeats — a service
+restart or a short network blip reconnects well within it and pages no one.
+Measuring from enrollment catches the installer who pairs the agent and then
+switches the PC off, which would otherwise never be noticed. The state is
+stored rather than derived from `lastSeenAt`, so the alert fires once and the
+suppression rule (R7) has one field to read.
+
+**Enforced at:** `src/domain/probe-agents/aggregates/Agent.ts` (`isOverdue`, `markOffline`, `revoke`), `src/application/probe-agents/use-cases/MarkSilentAgentsOfflineUseCase.ts`, `src/infrastructure/probe-agents/orchestrator/AgentLivenessOrchestrator.ts`
+**Tests:** `tests/domain/probe-agents/aggregates/Agent.test.ts`, `tests/application/probe-agents/use-cases/MarkSilentAgentsOfflineUseCase.test.ts`, `tests/infrastructure/probe-agents/orchestrator/AgentLivenessOrchestrator.test.ts`, `tests/integration/use-cases/probe-agents/MarkSilentAgentsOfflineUseCase.integration.test.ts`, `tests/integration/agent.routes.test.ts`
+
+---
+
+### AGT-022 — The next contact brings an offline agent back, with one recovery message
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain · Application
+**Since:** 2026-09-28
+
+A hello or heartbeat from an offline agent clears `offlineSince` and raises
+`AgentCameBack`, carrying when the agent had been marked offline. A contact
+from an agent that is online raises nothing.
+
+**Why:** ADR 0002, R6: one alert when it goes, one message when it returns.
+Tying the recovery to a stored offline state means a blip that never reached
+the threshold produces neither.
+
+**Enforced at:** `src/domain/probe-agents/aggregates/Agent.ts` (`recordContact`), `src/application/probe-agents/use-cases/RecordAgentContactUseCase.ts`
+**Tests:** `tests/domain/probe-agents/aggregates/Agent.test.ts`, `tests/integration/use-cases/probe-agents/RecordAgentContactUseCase.integration.test.ts`
+
+---
+
+### AGT-023 — Offline and back-online messages go to the install's chat and to the vendor's
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Infrastructure (composition)
+**Since:** 2026-09-28
+
+Both events are published through the shared `IAlertPublisher` as alerts with
+no device (`NOT-100`): critical when the agent goes offline, resolved when it
+comes back, type `agent_offline`, naming the agent. When
+`TELEGRAM_VENDOR_CHAT_ID` is set, the same message also goes to that chat,
+with the install's host (from `AGENT_PUBLIC_URL`) added to the source. One
+chat failing does not stop delivery to the other. Neither copy is subject to
+quiet hours or mutes (`NOT-196`). These messages are not recorded in the alert
+list: an alert record belongs to a device.
+
+**Why:** ADR 0002, R6. The customer needs to know its monitoring has stopped;
+the vendor needs to know first, because a silent agent looks like a broken
+product. The vendor chat hears from every customer's install, so each message
+says which one. The vendor chat receives only agent-health messages, never
+device alerts.
+
+**Enforced at:** `src/application/notifications/event-handlers/AgentWentOfflineNotificationHandler.ts`, `src/application/notifications/event-handlers/AgentCameBackNotificationHandler.ts`, `src/infrastructure/notifications/FanOutAlertPublisher.ts`, `src/infrastructure/notifications/InstallLabelAlertPublisher.ts`, `src/infrastructure/di/container.ts`
+**Tests:** `tests/application/notifications/event-handlers/AgentHealthNotificationHandlers.test.ts`, `tests/infrastructure/notifications/FanOutAlertPublisher.test.ts`
+
+---
+
+### AGT-024 — The offline check and a heartbeat never overwrite each other
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application · Infrastructure (composition)
+**Since:** 2026-09-28
+
+Both writes succeed only if the agent's row is unchanged since it was read
+(`updatedAt` still matches). If a heartbeat lands between the check reading an
+agent and marking it offline, the check skips it: the agent is not silent any
+more. If the check marks the agent offline between a heartbeat's read and its
+write, the heartbeat reads again and brings the agent back, raising the
+recovery. After a second conflict the heartbeat is dropped and logged; the
+next one, 30 seconds later, records the contact.
+
+**Why:** Without this, an agent reconnecting at the moment of the check could
+end up online in the database after an offline alert with no recovery message,
+or offline in the database while connected.
+
+**Enforced at:** `src/infrastructure/probe-agents/repositories/PrismaAgentRepository.ts` (`saveIfUnchanged`), `src/application/probe-agents/use-cases/MarkSilentAgentsOfflineUseCase.ts`, `src/application/probe-agents/use-cases/RecordAgentContactUseCase.ts`
+**Tests:** `tests/application/probe-agents/use-cases/RecordAgentContactUseCase.test.ts`, `tests/application/probe-agents/use-cases/MarkSilentAgentsOfflineUseCase.test.ts`, `tests/integration/use-cases/probe-agents/MarkSilentAgentsOfflineUseCase.integration.test.ts`
 
 ---
 

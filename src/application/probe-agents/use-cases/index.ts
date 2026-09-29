@@ -8,3 +8,4 @@ export * from './AuthenticateAgentUseCase';
 export * from './RecordAgentContactUseCase';
 export * from './BuildAgentConfigSnapshotUseCase';
 export * from './AcceptAgentResultsUseCase';
+export * from './MarkSilentAgentsOfflineUseCase';

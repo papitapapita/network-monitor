@@ -11,6 +11,14 @@ export interface IAgentRepository {
     agent: Agent,
     consumedPairingCodeHash: string
   ): Promise<Result<Agent | null>>;
+  // Persists only if the row has not changed since the agent was loaded
+  // (its updatedAt still matches), so the liveness scan and a heartbeat
+  // racing on one agent cannot overwrite each other. Resolves false on a
+  // miss; nothing is written and no event is dispatched.
+  saveIfUnchanged(
+    agent: Agent,
+    loadedUpdatedAt: Date
+  ): Promise<Result<boolean>>;
   findById(id: AgentId): Promise<Result<Agent | null>>;
   findByPairingCodeHash(hash: string): Promise<Result<Agent | null>>;
   findByTokenHash(hash: string): Promise<Result<Agent | null>>;

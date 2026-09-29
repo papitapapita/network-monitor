@@ -2727,7 +2727,9 @@ WirelessAlertDTO[]
 
 On-site agents that measure a customer's network from inside it and report to this backend (ADR 0002). An administrator creates an agent and gets a **pairing key** — the only thing the installer asks for. The key is shown **once**, in the create (or re-key) response; store nothing, show it with a copy button and a "this will not be shown again" warning.
 
-**Lifecycle:** `PENDING → ACTIVE → REVOKED`. `PENDING` until the installer pairs; the key expires 24 h after it was issued (`pairingExpiresAt`) — offer "new key" for an expired pending agent. `REVOKED` is final. `lastSeenAt`, `agentVersion` and `clockOffsetMs` are set each time the agent connects and every 30 s while connected (`null` until it first connects); an explicit online/offline status arrives with a later release — until then, treat `lastSeenAt` older than 5 minutes as offline.
+**Lifecycle:** `PENDING → ACTIVE → REVOKED`. `PENDING` until the installer pairs; the key expires 24 h after it was issued (`pairingExpiresAt`) — offer "new key" for an expired pending agent. `REVOKED` is final. `lastSeenAt`, `agentVersion` and `clockOffsetMs` are set each time the agent connects and every 30 s while connected (`null` until it first connects).
+
+**Online / offline:** an `ACTIVE` agent silent for 5 minutes (since `lastSeenAt`, or since `enrolledAt` if it never connected) gets `offlineSince` set, checked once a minute; its next contact clears it. `offlineSince !== null` is the offline badge — no need to compare `lastSeenAt` against the clock. `PENDING` and `REVOKED` agents are never offline. Going offline and coming back each send one Telegram message (to the install's chat and the vendor's); they are not device alerts, so they do not appear in `GET /api/alerts`.
 
 ```ts
 interface AgentDTO {
@@ -2740,6 +2742,7 @@ interface AgentDTO {
   lastSeenAt: string | null;
   agentVersion: string | null;
   clockOffsetMs: number | null;
+  offlineSince: string | null; // set only while ACTIVE and offline
   createdAt: string;
   updatedAt: string;
 }

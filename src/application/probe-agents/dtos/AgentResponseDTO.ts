@@ -8,6 +8,8 @@ export interface AgentResponseDTO {
   lastSeenAt: string | null;
   agentVersion: string | null;
   clockOffsetMs: number | null;
+  // Set while an active agent is offline (R6); null otherwise.
+  offlineSince: string | null;
   createdAt: string;
   updatedAt: string;
 }

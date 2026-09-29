@@ -10,9 +10,12 @@ export class TelegramNotificationService
   private readonly botToken: string;
   private readonly chatId: string;
 
-  constructor() {
+  // A chat id other than the install's own is the vendor chat (ADR 0002, R6):
+  // same bot, different audience.
+  constructor(
+    chatId: string | undefined = process.env.TELEGRAM_CHAT_ID
+  ) {
     const token = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
 
     if (!token || !chatId) {
       throw new Error(

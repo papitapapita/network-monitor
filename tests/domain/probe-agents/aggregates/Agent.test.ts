@@ -4,6 +4,10 @@ import {
   AgentProps,
   AgentStatus
 } from '../../../../src/domain/probe-agents';
+import {
+  AgentCameBackEvent,
+  AgentWentOfflineEvent
+} from '../../../../src/domain/probe-agents/events';
 import { AgentId } from '../../../../src/domain/shared/ids';
 
 const CODE_HASH = 'a'.repeat(64);
@@ -31,6 +35,7 @@ function makeProps(overrides: Partial<AgentProps> = {}): AgentProps {
     lastSeenAt: null,
     agentVersion: null,
     clockOffsetMs: null,
+    offlineSince: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides
@@ -216,6 +221,107 @@ describe('Agent', () => {
       expect(
         enrolled().recordContact(version, offset, NOW).isFailure
       ).toBe(true);
+    });
+  });
+
+  describe('liveness', () => {
+    const OFFLINE = Agent.OFFLINE_AFTER_MS;
+
+    function enrolled(): Agent {
+      const agent = makeAgent();
+      agent.enroll(TOKEN_HASH, NOW);
+      agent.clearEvents();
+      return agent;
+    }
+
+    function offline(): Agent {
+      const agent = enrolled();
+      agent.markOffline(at(OFFLINE));
+      agent.clearEvents();
+      return agent;
+    }
+
+    it('[AGT-021] is overdue 5 minutes after the last contact, not before', () => {
+      const agent = enrolled();
+      agent.recordContact('1.0.0', 0, at(10_000));
+
+      expect(agent.isOverdue(at(10_000 + OFFLINE - 1))).toBe(false);
+      expect(agent.isOverdue(at(10_000 + OFFLINE))).toBe(true);
+    });
+
+    it('[AGT-021] counts from enrollment for an agent that never reported in', () => {
+      const agent = enrolled();
+
+      expect(agent.isOverdue(at(OFFLINE - 1))).toBe(false);
+      expect(agent.isOverdue(at(OFFLINE))).toBe(true);
+    });
+
+    it('[AGT-021] never considers a pending or revoked agent overdue', () => {
+      const revoked = enrolled();
+      revoked.revoke(at(1_000));
+
+      expect(makeAgent().isOverdue(at(DAY_MS))).toBe(false);
+      expect(revoked.isOverdue(at(DAY_MS))).toBe(false);
+    });
+
+    it('[AGT-021] goes offline once, raising AgentWentOffline with the silence start', () => {
+      const agent = enrolled();
+      agent.recordContact('1.0.0', 0, at(10_000));
+      agent.clearEvents();
+
+      const result = agent.markOffline(at(10_000 + OFFLINE));
+
+      expect(result.isSuccess).toBe(true);
+      expect(agent.isOffline).toBe(true);
+      expect(agent.offlineSince).toEqual(at(10_000 + OFFLINE));
+      expect(agent.domainEvents).toHaveLength(1);
+      const event = agent.domainEvents[0] as AgentWentOfflineEvent;
+      expect(event).toBeInstanceOf(AgentWentOfflineEvent);
+      expect(event.agentName).toBe('Torre Norte');
+      expect(event.silentSince).toEqual(at(10_000));
+      expect(event.aggregateId.equals(agent.id)).toBe(true);
+    });
+
+    it('[AGT-021] refuses to go offline twice or before the threshold', () => {
+      expect(offline().markOffline(at(DAY_MS)).isFailure).toBe(true);
+      expect(enrolled().markOffline(at(OFFLINE - 1)).isFailure).toBe(
+        true
+      );
+      expect(offline().isOverdue(at(DAY_MS))).toBe(false);
+    });
+
+    it('[AGT-022] comes back on its next contact, raising AgentCameBack once', () => {
+      const agent = offline();
+
+      agent.recordContact('1.0.0', 0, at(OFFLINE + 60_000));
+
+      expect(agent.isOffline).toBe(false);
+      expect(agent.offlineSince).toBeNull();
+      expect(agent.domainEvents).toHaveLength(1);
+      const event = agent.domainEvents[0] as AgentCameBackEvent;
+      expect(event).toBeInstanceOf(AgentCameBackEvent);
+      expect(event.offlineSince).toEqual(at(OFFLINE));
+      expect(event.dateTimeOccurred).toEqual(at(OFFLINE + 60_000));
+
+      agent.clearEvents();
+      agent.recordContact('1.0.0', 0, at(OFFLINE + 90_000));
+      expect(agent.domainEvents).toHaveLength(0);
+    });
+
+    it('[AGT-022] raises nothing for a contact while online', () => {
+      const agent = enrolled();
+
+      agent.recordContact('1.0.0', 0, at(1_000));
+
+      expect(agent.domainEvents).toHaveLength(0);
+    });
+
+    it('[AGT-021] revoking an offline agent clears its offline state', () => {
+      const agent = offline();
+
+      expect(agent.revoke(at(DAY_MS)).isSuccess).toBe(true);
+      expect(agent.offlineSince).toBeNull();
+      expect(agent.domainEvents).toHaveLength(0);
     });
   });
 });

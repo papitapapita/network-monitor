@@ -987,6 +987,9 @@ model ProbeAgent {
   lastSeenAt       DateTime?   @map("last_seen_at") @db.Timestamptz
   agentVersion     String?     @map("agent_version") @db.VarChar(32)
   clockOffsetMs    Int?        @map("clock_offset_ms")
+  // Set when an active agent has been silent past the offline threshold
+  // (R6); cleared by its next contact. Null means online.
+  offlineSince     DateTime?   @map("offline_since") @db.Timestamptz
   // Source of the short per-device indexes in config snapshots (R19). Only
   // ever increases, so an index is never handed to a second device — not even
   // after the first one is purged.

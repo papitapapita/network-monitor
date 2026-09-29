@@ -21,8 +21,14 @@ import {
   AuthenticateAgentUseCase,
   RecordAgentContactUseCase,
   BuildAgentConfigSnapshotUseCase,
-  AcceptAgentResultsUseCase
+  AcceptAgentResultsUseCase,
+  MarkSilentAgentsOfflineUseCase
 } from '../../application/probe-agents/use-cases';
+import { AgentLivenessOrchestrator } from '../probe-agents/orchestrator';
+import {
+  AgentWentOfflineEvent,
+  AgentCameBackEvent
+} from 'domain/probe-agents/events';
 import { JwtTokenService } from '../identity/services/JwtTokenService';
 import { BcryptPasswordService } from '../identity/services/BcryptPasswordService';
 import { PrismaUserRepository } from '../identity/repositories/PrismaUserRepository';
@@ -213,7 +219,9 @@ import {
   AlertPublisher,
   QuietHoursAlertPublisher,
   MutedTypeAlertPublisher,
-  AlertRecorder
+  AlertRecorder,
+  FanOutAlertPublisher,
+  InstallLabelAlertPublisher
 } from '../notifications';
 import { OverdueDeviceDownAlertOrchestrator } from '../notifications/orchestrator';
 import {
@@ -304,7 +312,9 @@ import {
 import {
   DeviceCameOnlineNotificationHandler,
   DeviceWentOfflineAlertRecordHandler,
-  ContractedServiceSuspendedNotificationHandler
+  ContractedServiceSuspendedNotificationHandler,
+  AgentWentOfflineNotificationHandler,
+  AgentCameBackNotificationHandler
 } from 'application/notifications/event-handlers';
 import {
   WirelessAlertClearedNotificationHandler,
@@ -453,6 +463,7 @@ export class DependencyContainer {
   public linkDiagnosisRunner: LinkDiagnosisRunner;
   public dataRetentionOrchestrator: DataRetentionOrchestrator;
   public overdueDeviceDownAlertOrchestrator: OverdueDeviceDownAlertOrchestrator;
+  public agentLivenessOrchestrator: AgentLivenessOrchestrator;
   // null when the enforcement module is off or has no router configured
   public suspensionReconciliationOrchestrator: SuspensionReconciliationOrchestrator | null =
     null;
@@ -1279,6 +1290,14 @@ export class DependencyContainer {
       },
       this.logger
     );
+    this.agentLivenessOrchestrator = new AgentLivenessOrchestrator(
+      new MarkSilentAgentsOfflineUseCase(
+        agentRepository,
+        this.logger
+      ),
+      { checkIntervalMs: 60_000 },
+      this.logger
+    );
 
     this.pollingOrchestrator = new PollingOrchestrator(
       this.pollingConfigRepository,
@@ -1800,6 +1819,42 @@ export class DependencyContainer {
       DeviceCameOnlineEvent.name,
       new DeviceCameOnlineNotificationHandler(
         sendDeviceRecoveryAlertUseCase,
+        this.logger
+      )
+    );
+
+    // R6: agent health goes to the install's chat and, when configured, to
+    // the vendor's. The vendor copy skips quiet hours and mutes — those are
+    // the customer's settings, not the vendor's.
+    const vendorChatId = process.env.TELEGRAM_VENDOR_CHAT_ID?.trim();
+    const agentHealthPublisher = vendorChatId
+      ? new FanOutAlertPublisher([
+          alertPublisher,
+          new InstallLabelAlertPublisher(
+            new AlertPublisher(
+              new SendAlertNotificationUseCase(
+                this.deviceRepository,
+                new TelegramNotificationService(vendorChatId),
+                this.logger
+              )
+            ),
+            agentPublicUrl
+              ? new URL(agentPublicUrl).host
+              : 'sin AGENT_PUBLIC_URL'
+          )
+        ])
+      : alertPublisher;
+    EventDispatcher.register(
+      AgentWentOfflineEvent.name,
+      new AgentWentOfflineNotificationHandler(
+        agentHealthPublisher,
+        this.logger
+      )
+    );
+    EventDispatcher.register(
+      AgentCameBackEvent.name,
+      new AgentCameBackNotificationHandler(
+        agentHealthPublisher,
         this.logger
       )
     );

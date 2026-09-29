@@ -1,6 +1,7 @@
 import { AggregateRoot, Result, Guard } from 'domain/shared/core';
 import { AgentId } from 'domain/shared/ids';
 import { AgentStatus } from '../enums';
+import { AgentCameBackEvent, AgentWentOfflineEvent } from '../events';
 import { AgentProps } from '../props';
 import { AgentName } from '../value-objects';
 
@@ -9,6 +10,9 @@ const MAX_VERSION_LENGTH = 32;
 
 export class Agent extends AggregateRoot<AgentProps, AgentId> {
   static readonly PAIRING_KEY_TTL_MS = 24 * 60 * 60 * 1000;
+  // R6. Several missed heartbeats, so a service restart or a short network
+  // blip never pages anyone.
+  static readonly OFFLINE_AFTER_MS = 5 * 60 * 1000;
 
   private constructor(props: AgentProps, id: AgentId) {
     super(props, id);
@@ -54,6 +58,14 @@ export class Agent extends AggregateRoot<AgentProps, AgentId> {
     return this.props.clockOffsetMs;
   }
 
+  get offlineSince(): Date | null {
+    return this.props.offlineSince;
+  }
+
+  get isOffline(): boolean {
+    return this.props.offlineSince !== null;
+  }
+
   get createdAt(): Date {
     return this.props.createdAt;
   }
@@ -78,6 +90,7 @@ export class Agent extends AggregateRoot<AgentProps, AgentId> {
       lastSeenAt: null,
       agentVersion: null,
       clockOffsetMs: null,
+      offlineSince: null,
       createdAt: now,
       updatedAt: now
     };
@@ -161,12 +174,59 @@ export class Agent extends AggregateRoot<AgentProps, AgentId> {
     if (!Number.isFinite(clockOffsetMs)) {
       return Result.fail('Clock offset must be a finite number');
     }
-    return this.apply({
+    const offlineSince = this.props.offlineSince;
+    const result = this.apply({
       agentVersion: version,
       clockOffsetMs: Math.round(clockOffsetMs),
       lastSeenAt: now,
+      offlineSince: null,
       updatedAt: now
     });
+    if (result.isSuccess && offlineSince !== null) {
+      this.addDomainEvent(
+        new AgentCameBackEvent({
+          aggregateId: this.id,
+          agentName: this.props.name.value,
+          offlineSince,
+          dateTimeOccurred: now
+        })
+      );
+    }
+    return result;
+  }
+
+  // Measured from the last contact, or from enrollment for an agent that was
+  // installed but never connected — that is an outage worth reporting too.
+  // A pending agent has never run, so it cannot be overdue.
+  public isOverdue(now: Date = new Date()): boolean {
+    if (this.props.status !== AgentStatus.ACTIVE) return false;
+    if (this.isOffline) return false;
+    const silentSince = this.silentSince();
+    return (
+      silentSince !== null &&
+      now.getTime() - silentSince.getTime() >= Agent.OFFLINE_AFTER_MS
+    );
+  }
+
+  public markOffline(now: Date = new Date()): Result<void> {
+    if (!this.isOverdue(now)) {
+      return Result.fail(
+        'Only an active agent silent past the offline threshold can go offline'
+      );
+    }
+    const silentSince = this.silentSince()!;
+    const result = this.apply({ offlineSince: now, updatedAt: now });
+    if (result.isSuccess) {
+      this.addDomainEvent(
+        new AgentWentOfflineEvent({
+          aggregateId: this.id,
+          agentName: this.props.name.value,
+          silentSince,
+          dateTimeOccurred: now
+        })
+      );
+    }
+    return result;
   }
 
   public revoke(now: Date = new Date()): Result<void> {
@@ -178,6 +238,7 @@ export class Agent extends AggregateRoot<AgentProps, AgentId> {
       pairingCodeHash: null,
       pairingExpiresAt: null,
       tokenHash: null,
+      offlineSince: null,
       revokedAt: now,
       updatedAt: now
     });
@@ -191,6 +252,10 @@ export class Agent extends AggregateRoot<AgentProps, AgentId> {
     }
     this.props = candidate;
     return Result.ok();
+  }
+
+  private silentSince(): Date | null {
+    return this.props.lastSeenAt ?? this.props.enrolledAt;
   }
 
   private static pairingExpiry(now: Date): Date {
@@ -221,6 +286,13 @@ export class Agent extends AggregateRoot<AgentProps, AgentId> {
       state.pairingCodeHash === null &&
       state.pairingExpiresAt === null;
     const hasToken = state.tokenHash !== null;
+
+    if (
+      state.offlineSince !== null &&
+      state.status !== AgentStatus.ACTIVE
+    ) {
+      return Result.fail('Only an active agent can be offline');
+    }
 
     switch (state.status) {
       case AgentStatus.PENDING:

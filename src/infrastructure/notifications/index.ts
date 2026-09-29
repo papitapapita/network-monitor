@@ -4,3 +4,5 @@ export * from './AlertPublisher';
 export * from './QuietHoursAlertPublisher';
 export * from './MutedTypeAlertPublisher';
 export * from './AlertRecorder';
+export * from './FanOutAlertPublisher';
+export * from './InstallLabelAlertPublisher';

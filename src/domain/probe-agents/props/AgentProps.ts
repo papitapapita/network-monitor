@@ -14,6 +14,8 @@ export interface AgentProps {
   lastSeenAt: Date | null;
   agentVersion: string | null;
   clockOffsetMs: number | null;
+  // Null while online (R6). Only an active agent can be offline.
+  offlineSince: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

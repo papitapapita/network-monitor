@@ -2,7 +2,7 @@ import { PrismaClient, ProbeAgent } from 'generated/prisma/client';
 import { Agent } from 'domain/probe-agents';
 import { IAgentRepository } from 'domain/probe-agents/repository';
 import { AgentId } from 'domain/shared/ids';
-import { Result } from 'domain/shared/core';
+import { EventDispatcher, Result } from 'domain/shared/core';
 import { AgentPrismaMapper } from '../mappers';
 import { isUniqueViolation } from '../../persistence/prisma-errors';
 
@@ -13,11 +13,13 @@ export class PrismaAgentRepository implements IAgentRepository {
     try {
       const { id, createdAt, ...changes } =
         AgentPrismaMapper.toPersistence(agent);
+      EventDispatcher.markAggregateForDispatch(agent);
       const raw = await this.prisma.probeAgent.upsert({
         where: { id },
         create: { id, createdAt, ...changes },
         update: changes
       });
+      EventDispatcher.dispatchEventsForAggregate(agent.id);
       return AgentPrismaMapper.toDomain(raw);
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -50,6 +52,31 @@ export class PrismaAgentRepository implements IAgentRepository {
     } catch (error) {
       return Result.fail(
         `Database error saving agent enrollment: ${this.message(error)}`
+      );
+    }
+  }
+
+  public async saveIfUnchanged(
+    agent: Agent,
+    loadedUpdatedAt: Date
+  ): Promise<Result<boolean>> {
+    try {
+      const {
+        id,
+        createdAt: _createdAt,
+        ...changes
+      } = AgentPrismaMapper.toPersistence(agent);
+      const { count } = await this.prisma.probeAgent.updateMany({
+        where: { id, updatedAt: loadedUpdatedAt },
+        data: changes
+      });
+      if (count === 0) return Result.ok(false);
+      EventDispatcher.markAggregateForDispatch(agent);
+      EventDispatcher.dispatchEventsForAggregate(agent.id);
+      return Result.ok(true);
+    } catch (error) {
+      return Result.fail(
+        `Database error saving agent: ${this.message(error)}`
       );
     }
   }

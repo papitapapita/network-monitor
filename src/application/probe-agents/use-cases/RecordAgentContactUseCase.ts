@@ -26,17 +26,33 @@ export class RecordAgentContactUseCase extends UseCase<
       return this.fail(`Invalid agent ID: ${idResult.error}`);
     }
 
-    const findResult = await this.agentRepository.findById(
-      idResult.value
+    // One retry: a miss means the liveness scan marked the agent offline
+    // between our read and our write, and only a fresh read sees that and
+    // raises the matching came-back event.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const saved = await this.recordOnce(idResult.value, request);
+      if (saved.isFailure) return this.fail(saved.error);
+      if (saved.value) return this.ok(undefined);
+    }
+    return this.fail(
+      `Agent ${request.agentId} changed while recording contact`
     );
+  }
+
+  private async recordOnce(
+    id: AgentId,
+    request: RecordAgentContactRequestDTO
+  ): Promise<Result<boolean>> {
+    const findResult = await this.agentRepository.findById(id);
     if (findResult.isFailure) {
-      return this.fail(findResult.error);
+      return Result.fail(findResult.error);
     }
     const agent = findResult.value;
     if (agent === null) {
-      return this.fail(`Agent not found: ${request.agentId}`);
+      return Result.fail(`Agent not found: ${request.agentId}`);
     }
 
+    const loadedUpdatedAt = agent.updatedAt;
     // Positive when the agent's clock runs ahead of ours. Includes the
     // message's transit time, which on a live connection is milliseconds
     // against the minute that matters (R12).
@@ -48,13 +64,12 @@ export class RecordAgentContactUseCase extends UseCase<
       request.receivedAt
     );
     if (contactResult.isFailure) {
-      return this.fail(contactResult.error);
+      return Result.fail(contactResult.error);
     }
 
-    const saveResult = await this.agentRepository.save(agent);
-    if (saveResult.isFailure) {
-      return this.fail(saveResult.error);
-    }
-    return this.ok(undefined);
+    return this.agentRepository.saveIfUnchanged(
+      agent,
+      loadedUpdatedAt
+    );
   }
 }
