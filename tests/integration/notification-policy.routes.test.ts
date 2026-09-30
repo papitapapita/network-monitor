@@ -27,8 +27,6 @@ describe('Notification Policy Routes — /api/devices/:id/notification-policy', 
     ({ app, container } = await createTestApp());
     prisma = container.getPrisma();
     deviceModelId = await seedDeviceModel(prisma);
-    adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
-    viewerToken = await seedAndGetToken(app, prisma, 'VIEWER');
   });
 
   afterAll(async () => {
@@ -37,6 +35,9 @@ describe('Notification Policy Routes — /api/devices/:id/notification-policy', 
 
   beforeEach(async () => {
     await cleanDatabase(prisma);
+    // Minted after the clean: a token outlives nothing its account doesn't.
+    adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
+    viewerToken = await seedAndGetToken(app, prisma, 'VIEWER');
     deviceId = await seedDevice(prisma, deviceModelId);
   });
 
@@ -198,8 +199,6 @@ describe('Notification Policy Bulk Route — /api/notification-policies/bulk', (
     ({ app, container } = await createTestApp());
     prisma = container.getPrisma();
     deviceModelId = await seedDeviceModel(prisma);
-    adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
-    viewerToken = await seedAndGetToken(app, prisma, 'VIEWER');
   });
 
   afterAll(async () => {
@@ -208,6 +207,9 @@ describe('Notification Policy Bulk Route — /api/notification-policies/bulk', (
 
   beforeEach(async () => {
     await cleanDatabase(prisma);
+    // Minted after the clean: a token outlives nothing its account doesn't.
+    adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
+    viewerToken = await seedAndGetToken(app, prisma, 'VIEWER');
     deviceIdA = await seedDevice(prisma, deviceModelId, {
       serialNumber: 'SN-BULK-A'
     });

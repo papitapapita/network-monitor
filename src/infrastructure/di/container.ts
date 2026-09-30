@@ -62,6 +62,13 @@ import {
   HttpImageFetcher
 } from '../quoting';
 import { LoginUseCase } from 'application/identity/use-cases/LoginUseCase';
+import { SessionValidator } from 'application/identity/services/SessionValidator';
+import {
+  ListUsersUseCase,
+  CreateUserUseCase,
+  UpdateUserUseCase,
+  ChangeOwnPasswordUseCase
+} from 'application/identity';
 import { EnsureVendorAccountUseCase } from 'application/identity/use-cases/EnsureVendorAccountUseCase';
 import { AuthController } from 'presentation/http/controllers/AuthController';
 import { ITokenService } from 'application/identity/interfaces/ITokenService';
@@ -104,6 +111,7 @@ import {
   AgentEnrollmentController,
   SubscriptionController,
   InstallationController,
+  UserController,
   QuotationController,
   EnforcementController,
   TicketController,
@@ -452,6 +460,8 @@ export class DependencyContainer {
 
   // Identity
   public tokenService: ITokenService;
+  public sessionValidator: SessionValidator;
+  public userController: UserController;
   private ensureVendorAccountUseCase: EnsureVendorAccountUseCase;
   public authController: AuthController;
 
@@ -940,6 +950,27 @@ export class DependencyContainer {
     );
 
     this.tokenService = jwtTokenService;
+    this.sessionValidator = new SessionValidator(userRepository);
+    this.userController = new UserController(
+      new ListUsersUseCase(userRepository, this.logger),
+      new CreateUserUseCase(
+        userRepository,
+        bcryptPasswordService,
+        this.logger
+      ),
+      new UpdateUserUseCase(
+        userRepository,
+        bcryptPasswordService,
+        this.logger
+      ),
+      new ChangeOwnPasswordUseCase(
+        userRepository,
+        bcryptPasswordService,
+        jwtTokenService,
+        this.logger
+      ),
+      this.logger
+    );
     this.authController = new AuthController(
       loginUseCase,
       this.logger

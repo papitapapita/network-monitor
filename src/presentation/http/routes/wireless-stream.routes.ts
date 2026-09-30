@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { SessionValidator } from 'application/identity/services/SessionValidator';
 import { ITokenService } from 'application/identity/interfaces/ITokenService';
 import { ILogger } from 'application/shared/interfaces';
 import { WirelessStreamController } from '../controllers';
@@ -34,12 +35,16 @@ import {
 export function createWirelessStreamRoutes(
   controller: WirelessStreamController,
   tokenService: ITokenService,
+  sessions: SessionValidator,
   logger: ILogger
 ): Router {
   const router = Router({ mergeParams: true });
 
   const auditLog = createAuditLogMiddleware(logger);
-  const streamAuth = createStreamAuthenticateMiddleware(tokenService);
+  const streamAuth = createStreamAuthenticateMiddleware(
+    tokenService,
+    sessions
+  );
 
   router.get(
     '/devices/:id/wireless/throughput/stream',

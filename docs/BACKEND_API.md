@@ -57,6 +57,12 @@ Authorization: Bearer <token>
 
 Missing or invalid tokens return `401`. Insufficient role returns `403`.
 
+A token also stops working (`401 Invalid token`) as soon as its account is
+disabled or has its role or password changed (IDN-065) — **on any `401`, drop the
+token and send the user to the login screen.** The role that counts is the
+account's current one; after a `401` the new login returns it. Tokens issued
+before 2026-09-30 are all refused once, when this ships.
+
 > **SSE exception:** the two wireless throughput streams also accept
 > `?token=<jwt>`, because the browser `EventSource` API cannot set headers. No
 > other endpoint does.
@@ -66,7 +72,7 @@ Missing or invalid tokens return `401`. Insufficient role returns `403`.
 | Role       | Allowed operations                                                      |
 | ---------- | ----------------------------------------------------------------------- |
 | `VENDOR`   | everything `ADMIN` has, plus manage-installation                        |
-| `ADMIN`    | read, create, update, delete, activate, bulk-import, manage-credentials |
+| `ADMIN`    | read, create, update, delete, activate, bulk-import, manage-credentials, manage-users |
 | `OPERATOR` | read, create, update, activate, bulk-import                             |
 | `VIEWER`   | read only                                                               |
 
@@ -78,6 +84,9 @@ the API. Wherever an endpoint below lists `ADMIN`, `VENDOR` is allowed too.
 `manage-credentials` gates writes to `/api/devices/:id/credentials`: they carry
 device passwords and SNMP keys, so they are not covered by the generic `update`
 permission. Reading them stays on `read` because the response is masked.
+
+`manage-users` gates `/api/users` except `/api/users/me/password`, which every
+role may use (IDN-140).
 
 `manage-installation` (VENDOR only, IDN-033) gates agent create, re-key and
 revoke and the data-retention purge. **Hide those controls unless
@@ -133,7 +142,7 @@ user and 200 per server, exceeding either returns `429` with
 }
 ```
 
-> Returns `401` for both wrong password and unknown email (identical error message — no credential enumeration).  
+> Returns `401` for a wrong password, an unknown email and a disabled account alike (identical error message — no credential enumeration).  
 > Token expires after 24 hours; obtain a new one by logging in again.
 
 ---
@@ -4709,6 +4718,101 @@ blob and save it (or show progress from `Content-Length`).
 > `404` for any name the list above does not return (INS-043). `400` for a
 > name with `/`, `\` or a leading `.`. Error bodies are the usual JSON
 > envelope.
+
+## Users `/api/users`
+
+The customer's staff accounts (IDN-140). `ADMIN` (and `VENDOR`) manage them;
+every role changes its own password.
+
+```ts
+interface UserAccountDTO {
+  id: string; // UUID
+  email: string;
+  role: 'VENDOR' | 'ADMIN' | 'OPERATOR' | 'VIEWER';
+  disabled: boolean;
+  disabledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+### `GET /api/users` — List
+
+**Status:** 200 | 401 | 403  
+**Roles:** ADMIN (`manage-users`)
+
+```ts
+{ success: true, data: { users: UserAccountDTO[] } } // oldest first, no pagination
+```
+
+> The vendor account is left out unless the caller is the vendor.
+
+---
+
+### `POST /api/users` — Create
+
+**Status:** 201 | 400 | 401 | 403 | 409  
+**Roles:** ADMIN (`manage-users`)
+
+```ts
+// Request body
+{
+  email: string; // stored lowercase; unique
+  password: string; // 8–200 chars
+  role: 'ADMIN' | 'OPERATOR' | 'VIEWER'; // VENDOR is refused (400)
+}
+
+// Response
+{ success: true, data: UserAccountDTO }
+```
+
+> `409` when the email is taken (case-insensitive).
+
+---
+
+### `PATCH /api/users/:id` — Change role, status or password
+
+**Status:** 200 | 400 | 401 | 403 | 404  
+**Roles:** ADMIN (`manage-users`)
+
+```ts
+// Request body — at least one field; no others allowed
+{
+  role?: 'ADMIN' | 'OPERATOR' | 'VIEWER';
+  disabled?: boolean; // true disables, false re-enables
+  password?: string; // 8–200 chars — a reset, no current password needed
+}
+
+// Response
+{ success: true, data: UserAccountDTO }
+```
+
+> Every change signs the user out everywhere (re-enabling excepted); a
+> disabled account cannot sign in. `403` for the vendor account (`The vendor
+> account is managed by the vendor`) and for the caller's own account — hide
+> these actions on the vendor's row and on the signed-in user's row. There is
+> no delete: disable instead.
+
+---
+
+### `POST /api/users/me/password` — Change my password
+
+**Status:** 200 | 400 | 401  
+**Roles:** all
+
+```ts
+// Request body
+{ currentPassword: string; newPassword: string } // new: 8–200 chars (12 for the vendor)
+
+// Response
+{ success: true, data: { token: string } }
+```
+
+> The change signs this account out everywhere, this session included: **replace
+> the stored token with the one returned**. `400 Current password is incorrect`
+> on a wrong current password.
+
+---
 
 ## Admin `/api/admin`
 

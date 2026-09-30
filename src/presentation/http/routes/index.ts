@@ -18,6 +18,7 @@ import { createWirelessDiagnosisRoutes } from './wireless-diagnosis.routes';
 import { createCredentialsRoutes } from './credentials.routes';
 import { createAuthRoutes } from './auth.routes';
 import { createAdminRoutes } from './admin.routes';
+import { createUserRoutes } from './user.routes';
 import { createCustomerRoutes } from './customer.routes';
 import { createServicePlanRoutes } from './service-plan.routes';
 import { createContractedServiceRoutes } from './contracted-service.routes';
@@ -87,6 +88,7 @@ export function setupRoutes(
     createWirelessStreamRoutes(
       container.wirelessStreamController,
       container.tokenService,
+      container.sessionValidator,
       container.getLogger()
     )
   );
@@ -97,7 +99,10 @@ export function setupRoutes(
 
   apiRouter.use(
     createAuditLogMiddleware(container.getLogger()),
-    createAuthenticateMiddleware(container.tokenService)
+    createAuthenticateMiddleware(
+      container.tokenService,
+      container.sessionValidator
+    )
   );
 
   // =====================================
@@ -313,6 +318,9 @@ export function setupRoutes(
   // =====================================
   // ADMIN
   // =====================================
+
+  // Users: /api/users
+  apiRouter.use('/users', createUserRoutes(container.userController));
 
   // Admin: /api/admin/*
   apiRouter.use(

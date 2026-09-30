@@ -41,6 +41,7 @@ function makeUserRepo(): jest.Mocked<IUserRepository> {
   return {
     save: jest.fn(),
     findById: jest.fn(),
+    findAll: jest.fn(),
     findByEmail: jest.fn()
   };
 }
@@ -70,6 +71,8 @@ function makeUser(
     email: UserEmail.reconstitute(emailRaw),
     role: UserRole.reconstitute(roleRaw),
     passwordHash,
+    disabledAt: null,
+    tokenVersion: 0,
     createdAt: now,
     updatedAt: now
   };
@@ -150,8 +153,33 @@ describe('LoginUseCase', () => {
       expect(tokenService.sign).toHaveBeenCalledWith({
         userId: user.id.toString(),
         email: 'alice@example.com',
-        role: 'OPERATOR'
+        role: 'OPERATOR',
+        tokenVersion: 0
       } satisfies TokenPayload);
+    });
+
+    it('[IDN-013] should refuse a disabled account like any wrong credentials', async () => {
+      const user = makeUser('alice@example.com', 'OPERATOR');
+      user.disable();
+      userRepo.findByEmail.mockResolvedValue(Result.ok(user));
+      passwordService.compare.mockResolvedValue(true);
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.error).toBe('Invalid credentials');
+      expect(tokenService.sign).not.toHaveBeenCalled();
+    });
+
+    it('[IDN-065] should sign the current token version', async () => {
+      const user = makeUser('alice@example.com', 'OPERATOR');
+      user.changePassword('$2b$10$newer');
+      userRepo.findByEmail.mockResolvedValue(Result.ok(user));
+      passwordService.compare.mockResolvedValue(true);
+      tokenService.sign.mockReturnValue('tok');
+
+      await useCase.execute(makeRequest());
+
+      expect(tokenService.sign.mock.calls[0][0].tokenVersion).toBe(1);
     });
 
     it('should call passwordService.compare with the plain password and stored hash', async () => {

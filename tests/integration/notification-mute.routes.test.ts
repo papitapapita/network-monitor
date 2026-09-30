@@ -18,8 +18,6 @@ describe('Notification Mute Routes — /api/notification-mutes', () => {
   beforeAll(async () => {
     ({ app, container } = await createTestApp());
     prisma = container.getPrisma();
-    adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
-    viewerToken = await seedAndGetToken(app, prisma, 'VIEWER');
   });
 
   afterAll(async () => {
@@ -28,6 +26,10 @@ describe('Notification Mute Routes — /api/notification-mutes', () => {
 
   beforeEach(async () => {
     await cleanDatabase(prisma);
+    await prisma.mutedAlertType.deleteMany();
+    // Minted after the clean: a token outlives nothing its account doesn't.
+    adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
+    viewerToken = await seedAndGetToken(app, prisma, 'VIEWER');
   });
 
   describe('GET /api/notification-mutes', () => {
@@ -41,9 +43,7 @@ describe('Notification Mute Routes — /api/notification-mutes', () => {
     });
 
     it('401 — rejects a request with no Authorization header', async () => {
-      const res = await request(app).get(
-        '/api/notification-mutes'
-      );
+      const res = await request(app).get('/api/notification-mutes');
       expect(res.status).toBe(401);
     });
 

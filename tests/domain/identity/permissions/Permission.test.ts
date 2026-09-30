@@ -18,8 +18,8 @@ describe('ROLE_PERMISSIONS', () => {
       );
     });
 
-    it('should grant exactly 8 permissions', () => {
-      expect(vendorPerms).toHaveLength(8);
+    it('should grant exactly 9 permissions', () => {
+      expect(vendorPerms).toHaveLength(9);
     });
 
     it('should include manage-installation', () => {
@@ -31,8 +31,12 @@ describe('ROLE_PERMISSIONS', () => {
   describe('ADMIN permissions', () => {
     const adminPerms: Permission[] = ROLE_PERMISSIONS[UserRole.ADMIN];
 
-    it('should grant exactly 7 permissions', () => {
-      expect(adminPerms).toHaveLength(7);
+    it('should grant exactly 8 permissions', () => {
+      expect(adminPerms).toHaveLength(8);
+    });
+
+    it('[IDN-140] should include manage-users', () => {
+      expect(adminPerms).toContain('manage-users');
     });
 
     it('should include read', () => {
@@ -107,6 +111,10 @@ describe('ROLE_PERMISSIONS', () => {
 
     it('should NOT include manage-installation', () => {
       expect(operatorPerms).not.toContain('manage-installation');
+    });
+
+    it('should NOT include manage-users', () => {
+      expect(operatorPerms).not.toContain('manage-users');
     });
   });
 

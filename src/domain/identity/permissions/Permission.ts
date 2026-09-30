@@ -8,6 +8,7 @@ export type Permission =
   | 'activate'
   | 'bulk-import'
   | 'manage-credentials'
+  | 'manage-users'
   | 'manage-installation';
 
 const ADMIN_PERMISSIONS: Permission[] = [
@@ -17,7 +18,8 @@ const ADMIN_PERMISSIONS: Permission[] = [
   'delete',
   'activate',
   'bulk-import',
-  'manage-credentials'
+  'manage-credentials',
+  'manage-users'
 ];
 
 // VENDOR is the company that sells and runs the install; ADMIN is the

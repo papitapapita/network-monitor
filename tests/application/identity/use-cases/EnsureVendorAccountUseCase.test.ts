@@ -36,6 +36,7 @@ function makeUserRepo(
   return {
     save: jest.fn(async (u: User) => Result.ok<User>(u)),
     findById: jest.fn(),
+    findAll: jest.fn(),
     findByEmail: jest
       .fn()
       .mockResolvedValue(Result.ok<User | null>(existing))
@@ -55,6 +56,8 @@ function makeUser(role: string): User {
     email: UserEmail.reconstitute('owner@isp.example'),
     role: UserRole.reconstitute(role),
     passwordHash: '$2b$10$existing',
+    disabledAt: null,
+    tokenVersion: 0,
     createdAt: now,
     updatedAt: now
   });

@@ -14,7 +14,7 @@ export async function seedUser(
   const passwordHash = await bcrypt.hash(password, 4);
   await prisma.user.upsert({
     where: { email },
-    update: { passwordHash, role },
+    update: { passwordHash, role, disabledAt: null },
     create: { email, passwordHash, role }
   });
 }

@@ -7,4 +7,6 @@ export interface IUserRepository {
   save(user: User): Promise<Result<User>>;
   findById(id: UserId): Promise<Result<User | null>>;
   findByEmail(email: UserEmail): Promise<Result<User | null>>;
+  // Oldest first.
+  findAll(): Promise<Result<User[]>>;
 }

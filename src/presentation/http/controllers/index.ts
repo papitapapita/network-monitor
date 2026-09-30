@@ -27,3 +27,4 @@ export * from './AgentController';
 export * from './AgentEnrollmentController';
 export * from './SubscriptionController';
 export * from './InstallationController';
+export * from './UserController';

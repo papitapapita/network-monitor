@@ -23,3 +23,4 @@ export * from './bank-account.schemas';
 export * from './wireless-diagnosis.schemas';
 export * from './agent.schemas';
 export * from './installation.schemas';
+export * from './user.schemas';

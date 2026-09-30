@@ -4,6 +4,8 @@ export interface TokenPayload {
   userId: string;
   email: string;
   role: string;
+  // The user's tokenVersion when the token was signed (IDN-065).
+  tokenVersion: number;
 }
 
 export interface ITokenService {

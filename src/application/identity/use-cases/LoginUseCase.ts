@@ -49,7 +49,7 @@ export class LoginUseCase extends UseCase<
     }
 
     const user = userResult.value;
-    if (!user) {
+    if (!user || user.isDisabled) {
       return this.fail('Invalid credentials');
     }
 
@@ -64,7 +64,8 @@ export class LoginUseCase extends UseCase<
     const token = this.tokenService.sign({
       userId: user.id.toString(),
       email: user.email.toString(),
-      role: user.role.toString()
+      role: user.role.toString(),
+      tokenVersion: user.tokenVersion
     });
 
     return this.ok({ token, user: UserMapper.toDTO(user) });

@@ -9,6 +9,8 @@ interface UserRecord {
   email: string;
   passwordHash: string;
   role: string;
+  disabledAt: Date | null;
+  tokenVersion: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,6 +27,8 @@ export class UserPrismaMapper {
         email: UserEmail.reconstitute(raw.email),
         role: UserRole.reconstitute(raw.role),
         passwordHash: raw.passwordHash,
+        disabledAt: raw.disabledAt,
+        tokenVersion: raw.tokenVersion,
         createdAt: raw.createdAt,
         updatedAt: raw.updatedAt
       })
@@ -37,6 +41,8 @@ export class UserPrismaMapper {
       email: user.email.toString(),
       passwordHash: user.passwordHash,
       role: user.role.toString(),
+      disabledAt: user.disabledAt,
+      tokenVersion: user.tokenVersion,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     };

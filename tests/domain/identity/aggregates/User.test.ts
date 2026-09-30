@@ -41,6 +41,8 @@ function makeUserProps(
     email: makeEmail(),
     role: makeRole(),
     passwordHash: '$2b$10$hashedpassword',
+    disabledAt: null,
+    tokenVersion: 0,
     createdAt: now,
     updatedAt: now,
     ...overrides
@@ -285,6 +287,74 @@ describe('User', () => {
 
       expect(result.isFailure).toBe(true);
       expect(user.role.toString()).toBe('OPERATOR');
+    });
+  });
+
+  // =========================================================================
+  describe('[IDN-065] sessions', () => {
+    const fresh = () =>
+      User.reconstitute(UserId.create(), makeUserProps());
+
+    it('starts a created user at token version 0, enabled', () => {
+      const user = User.create(makeValidCreateProps()).value;
+
+      expect(user.tokenVersion).toBe(0);
+      expect(user.isDisabled).toBe(false);
+      expect(user.disabledAt).toBeNull();
+    });
+
+    it('bumps the token version on a role change', () => {
+      const user = fresh();
+      user.changeRole(makeRole('VIEWER'));
+      expect(user.tokenVersion).toBe(1);
+    });
+
+    it('bumps the token version on a password change and stores the hash', () => {
+      const user = fresh();
+      user.changePassword('$2b$10$new');
+      expect(user.tokenVersion).toBe(1);
+      expect(user.passwordHash).toBe('$2b$10$new');
+    });
+
+    it('refuses an empty password hash and leaves the user unchanged', () => {
+      const user = fresh();
+      const result = user.changePassword('  ');
+      expect(result.error).toBe('passwordHash cannot be empty');
+      expect(user.tokenVersion).toBe(0);
+    });
+  });
+
+  // =========================================================================
+  describe('[IDN-013] disable() / enable()', () => {
+    const fresh = () =>
+      User.reconstitute(UserId.create(), makeUserProps());
+
+    it('disables and ends the sessions', () => {
+      const user = fresh();
+
+      expect(user.disable().isSuccess).toBe(true);
+      expect(user.isDisabled).toBe(true);
+      expect(user.disabledAt).toBeInstanceOf(Date);
+      expect(user.tokenVersion).toBe(1);
+    });
+
+    it('refuses to disable twice', () => {
+      const user = fresh();
+      user.disable();
+      expect(user.disable().error).toBe('User is already disabled');
+    });
+
+    it('re-enables without touching the token version', () => {
+      const user = fresh();
+      user.disable();
+
+      expect(user.enable().isSuccess).toBe(true);
+      expect(user.isDisabled).toBe(false);
+      expect(user.tokenVersion).toBe(1);
+    });
+
+    it('refuses to enable an enabled user', () => {
+      expect(fresh().enable().error).toBe('User is not disabled');
     });
   });
 });

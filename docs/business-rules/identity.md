@@ -1,8 +1,8 @@
 # Identity & Access — Business Rules
 
-Who may call this API and what they may do with it. One aggregate (`User`), one
-use case (`LoginUseCase`), and four pieces of middleware that every other
-context sits behind.
+Who may call this API and what they may do with it. One aggregate (`User`), the
+login and user-management use cases, and four pieces of middleware that every
+other context sits behind.
 
 This file is load-bearing for the rest of the book: `CUS-140`, `BIL-140`,
 `NOT-150` and the device-inventory access rules all describe _which_ permission
@@ -22,18 +22,19 @@ Format and conventions: [README.md](README.md).
 | `IDN-080` … `IDN-099` | Request-level enforcement     |
 | `IDN-100` … `IDN-119` | Rate limiting                 |
 | `IDN-120` … `IDN-139` | Audit and transport hardening |
+| `IDN-140` … `IDN-159` | User management               |
 
 ## Layer coverage
 
 | Layer                         | Rules |
 | ----------------------------- | ----- |
-| Presentation (middleware)     | 10    |
+| Presentation (middleware)     | 11    |
 | Infrastructure                | 8     |
 | Domain (value object)         | 4     |
-| Application                   | 5     |
-| Presentation                  | 3     |
+| Application                   | 10    |
+| Presentation                  | 4     |
 | Domain (permission table)     | 2     |
-| Domain (aggregate)            | 2     |
+| Domain (aggregate)            | 3     |
 | Infrastructure + Presentation | 1     |
 | Infrastructure (database)     | 1     |
 
@@ -43,9 +44,9 @@ constant under `domain/identity/permissions/` precisely so the question "may an
 operator delete things" has one answer, testable without an HTTP request, that
 no route can disagree with.
 
-`User` is intentionally almost empty: its one mutator is `changeRole`, used only
-to make the configured account the vendor at boot (`IDN-011`). Password changes
-and deactivation do not exist as operations — see `IDN-010`.
+`User` is small: a role change, a password change, disabling and re-enabling.
+Every one of them except re-enabling ends the sessions the account has open
+(`IDN-065`).
 
 ---
 
@@ -144,24 +145,23 @@ invalidates nothing, since bcrypt hashes carry their own cost.
 **Enforced at:** `src/infrastructure/identity/services/BcryptPasswordService.ts` (`COST`)
 **Tests:** `tests/integration/auth.routes.test.ts`
 
-### IDN-010 — A user cannot be modified through the API
+### IDN-010 — Users are managed by the customer's administrator, through the API
 
 **Type:** Policy · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-08-05 · **Revised:** 2026-09-30
 
-There are no user-management endpoints — no password change, no role change, no
-deactivation through the API. Accounts are created by the seed script, which is
-idempotent and skips an email that already exists, and the vendor account by
-`IDN-011` at boot, which is also the one place a role changes.
+`/api/users` creates accounts, changes a role, disables and re-enables an
+account and resets a password (`IDN-140` … `IDN-144`). Nothing deletes a user:
+disabling is the way to take access away, and it keeps the account's history
+and its link to a technician. The seed script still creates the first
+administrator of a new install, and the vendor account comes from the
+environment (`IDN-011`).
 
-**Why:** Recorded because it is a real limitation, not an oversight to be
-"fixed" by adding setters. This is a small operation with a handful of staff
-accounts provisioned at deployment. The consequence to be aware of: **there is
-no way to revoke a user's access short of deleting the row in the database**,
-and because tokens are stateless (`IDN-062`), even that leaves their current
-token valid until it expires. Adding user management means adding revocation at
-the same time, not afterwards.
+**Why:** Until 2026-09-30 accounts were rows inserted by hand, with no way to
+take access away short of deleting one — and a deleted user's token kept working
+until it expired. User management arrived together with session revocation
+(`IDN-065`), which is what makes disabling an account mean something.
 
 **Enforced at:** `src/domain/identity/aggregates/User.ts`, `prisma/seed.ts`
 **Tests:** `tests/domain/identity/aggregates/User.test.ts`
@@ -206,21 +206,49 @@ the owner already uses.
 `tests/integration/use-cases/identity/EnsureVendorAccountUseCase.integration.test.ts`,
 `tests/domain/identity/aggregates/User.test.ts`
 
-### IDN-012 — A new vendor account needs a password of at least 12 characters
+### IDN-012 — The vendor account's password is at least 12 characters
 
 **Type:** Validation · **Status:** Active
 **Layer:** Application
 **Since:** 2026-09-30
 
+Both when the boot creates it and when the vendor changes it
+(`IDN-144`).
+
 **Why:** It is the one account that can pair machines onto a customer's network
 (`IDN-033`), and it is typed into an environment file rather than chosen at a
-login screen, so a short placeholder would otherwise go live unnoticed. Other
-accounts have no length rule yet; that belongs with user management.
+login screen, so a short placeholder would otherwise go live unnoticed. Staff
+accounts need 8 (`IDN-142`).
 
-**Enforced at:** `src/application/identity/use-cases/EnsureVendorAccountUseCase.ts` (`VENDOR_PASSWORD_MIN_LENGTH`)
-**Message:** `A password of at least 12 characters is required to create the vendor account`
+**Enforced at:** `src/application/identity/use-cases/EnsureVendorAccountUseCase.ts` (`VENDOR_PASSWORD_MIN_LENGTH`), `src/application/identity/use-cases/ChangeOwnPasswordUseCase.ts`
+**Message:** `A password of at least 12 characters is required to create the vendor account` / `Password must be at least 12 characters`
 **Tests:** `tests/application/identity/use-cases/EnsureVendorAccountUseCase.test.ts`,
-`tests/integration/use-cases/identity/EnsureVendorAccountUseCase.integration.test.ts`
+`tests/integration/use-cases/identity/EnsureVendorAccountUseCase.integration.test.ts`,
+`tests/application/identity/use-cases/ChangeOwnPasswordUseCase.test.ts`
+
+### IDN-013 — A disabled account cannot sign in, and its open sessions end
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain (aggregate)
+**Since:** 2026-09-30
+
+`disable()` sets `disabledAt` and ends the account's sessions (`IDN-065`);
+login answers a disabled account exactly as a wrong password (`IDN-040`).
+`enable()` clears it. Disabling twice, or enabling an enabled account, is
+refused by the aggregate; `PATCH /api/users/:id` treats both as no change.
+
+**Why:** Taking access away has to work now, not when the token expires — that
+is the whole point of disabling someone who has left or whose password leaked.
+Answering like a wrong password keeps `IDN-040`'s promise that login does not
+tell anyone which accounts exist or are active.
+
+**Enforced at:** `src/domain/identity/aggregates/User.ts`,
+`src/application/identity/use-cases/LoginUseCase.ts`,
+`src/application/identity/services/SessionValidator.ts`
+**Message:** `User is already disabled` / `User is not disabled`
+**Tests:** `tests/domain/identity/aggregates/User.test.ts`,
+`tests/application/identity/use-cases/LoginUseCase.test.ts`,
+`tests/integration/user.routes.test.ts`
 
 ---
 
@@ -246,14 +274,14 @@ the right place for that argument to happen.
 **Message:** `Invalid role: <value>. Must be one of: VENDOR, ADMIN, OPERATOR, VIEWER`
 **Tests:** `tests/domain/identity/value-objects/UserRole.test.ts`
 
-### IDN-021 — There are eight permissions
+### IDN-021 — There are nine permissions
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain (permission table)
 **Since:** 2026-08-05 · **Revised:** 2026-09-30
 
 `read`, `create`, `update`, `delete`, `activate`, `bulk-import`,
-`manage-credentials`, `manage-installation`.
+`manage-credentials`, `manage-users`, `manage-installation`.
 
 **Why:** Permissions are verbs, not resources — one `delete` covers customers,
 devices and alerts alike. That keeps the table small enough to hold in your head,
@@ -270,15 +298,15 @@ endpoint is omitted entirely instead (`BIL-140`).
 **Layer:** Domain (permission table)
 **Since:** 2026-08-05 · **Revised:** 2026-09-30
 
-| Role         | Permissions                                                                           |
-| ------------ | ------------------------------------------------------------------------------------- |
-| **VENDOR**   | everything ADMIN has, plus `manage-installation`                                      |
-| **ADMIN**    | `read`, `create`, `update`, `delete`, `activate`, `bulk-import`, `manage-credentials` |
-| **OPERATOR** | `read`, `create`, `update`, `activate`, `bulk-import`                                 |
-| **VIEWER**   | `read`                                                                                |
+| Role         | Permissions                                                                                           |
+| ------------ | ----------------------------------------------------------------------------------------------------- |
+| **VENDOR**   | everything ADMIN has, plus `manage-installation`                                                      |
+| **ADMIN**    | `read`, `create`, `update`, `delete`, `activate`, `bulk-import`, `manage-credentials`, `manage-users` |
+| **OPERATOR** | `read`, `create`, `update`, `activate`, `bulk-import`                                                 |
+| **VIEWER**   | `read`                                                                                                |
 
-The two an operator lacks are `delete` and `manage-credentials`; the one an
-administrator lacks is `manage-installation` (`IDN-033`).
+An operator lacks `delete`, `manage-credentials` and `manage-users`; an
+administrator lacks only `manage-installation` (`IDN-033`).
 
 **Why:** An operator does the daily work — adding subscribers, commissioning
 devices, activating service — and none of that destroys anything. The two
@@ -429,19 +457,21 @@ single place that guarantees it does not.
 
 ## Tokens and session lifetime
 
-### IDN-060 — A token carries the user id, email and role
+### IDN-060 — A token carries the user id, email, role and token version
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Revised:** 2026-09-30
 
-Nothing else. `verify` reconstructs exactly these three fields and discards any
-other claim present in the token.
+Nothing else. `verify` reconstructs exactly these four fields and discards any
+other claim present in the token; a token without a token version is invalid.
+The role in the token is not what authorisation uses: each request takes the
+role from the account (`IDN-065`).
 
-**Why:** The role travels in the token so authorisation needs no database read
-per request. Rebuilding the payload field by field on verify rather than
-returning the decoded object means a token with extra claims cannot smuggle
-anything into `req.user`.
+**Why:** Rebuilding the payload field by field on verify rather than returning
+the decoded object means a token with extra claims cannot smuggle anything into
+`req.user`. Refusing a token with no version signs out, once, everyone who
+signed in before versioning existed — the price of making revocation work.
 
 **Enforced at:** `src/infrastructure/identity/services/JwtTokenService.ts`
 **Tests:** `tests/integration/auth.routes.test.ts`
@@ -459,25 +489,24 @@ there is — see `IDN-062`.
 **Enforced at:** `src/infrastructure/identity/services/JwtTokenService.ts`
 **Tests:** `tests/integration/auth.routes.test.ts`
 
-### IDN-062 — Tokens are stateless and cannot be revoked
+### IDN-062 — There is no logout; a session ends when it expires or when the account changes
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Revised:** 2026-09-30
 
-There is no session store, no deny-list, and no logout that invalidates anything
-server-side. A token stays valid until it expires.
+There is no session store and no logout endpoint: signing out is the client
+forgetting its token. What ends a token early is the account — disabling it, or
+changing its role or password, invalidates every token it holds (`IDN-065`).
 
-**Why:** Recorded because it is the consequence people are most likely to be
-surprised by. Stateless tokens are what let every request be authorised without
-a database round trip, and at this scale that tradeoff is deliberate. But taken
-with `IDN-010` — no way to change a password or a role — it means **the fastest
-possible response to a compromised account is 24 hours**, or rotating
-`JWT_SECRET` and logging everyone out at once. Anything better requires a
-revocation list, and that is the change to make before adding user management.
+**Why:** Until 2026-09-30 tokens could not be revoked at all, which is what made
+user management unsafe to add (`IDN-010`). Versioning the account rather than
+listing revoked tokens keeps nothing to store per session and needs no cleanup.
+Its limit: it ends all of an account's sessions at once, never one device's.
 
-**Enforced at:** `src/infrastructure/identity/services/JwtTokenService.ts`
-**Tests:** `tests/integration/auth.routes.test.ts`
+**Enforced at:** `src/infrastructure/identity/services/JwtTokenService.ts`,
+`src/application/identity/services/SessionValidator.ts`
+**Tests:** `tests/integration/auth.routes.test.ts`, `tests/integration/user.routes.test.ts`
 
 ### IDN-063 — The signing secret comes from the environment and is required
 
@@ -514,6 +543,35 @@ signature was structurally accepted.
 `src/presentation/http/middleware/authenticate.ts`
 **Message:** `Invalid token`
 **Tests:** `tests/integration/auth.routes.test.ts`
+
+### IDN-065 — Every request checks that the account still stands behind the token
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Presentation (middleware)
+**Since:** 2026-09-30
+
+After the signature, the authentication middleware — the Bearer one and the
+stream one alike — loads the account by id and refuses the token with
+`401 Invalid token` if the account is gone, disabled, or its `tokenVersion` is
+not the one the token carries. `tokenVersion` goes up on every role change,
+password change and disabling. The role and email put on the request come from
+the account, not from the token. A failure to read the account is a `500`, not
+a `401`.
+
+**Why:** A signature proves a token was issued, not that it should still work.
+One primary-key lookup per request is what it costs to make disabling and role
+changes take effect immediately instead of up to 24 hours later (`IDN-061`),
+and at this scale it is small. Reading the role from the account means a
+demoted administrator loses the rights on their next click.
+
+**Enforced at:** `src/application/identity/services/SessionValidator.ts`,
+`src/presentation/http/middleware/authenticate.ts`,
+`src/presentation/http/middleware/authenticateStream.ts`,
+`src/domain/identity/aggregates/User.ts`
+**Message:** `Invalid token`
+**Tests:** `tests/application/identity/services/SessionValidator.test.ts`,
+`tests/presentation/http/middleware/authenticate.test.ts`,
+`tests/integration/user.routes.test.ts`
 
 ---
 
@@ -745,3 +803,130 @@ the process is up — no version, no database state, no dependency detail.
 
 **Enforced at:** `src/main.ts`
 **Tests:** `tests/integration/auth.routes.test.ts`
+
+---
+
+## User management
+
+### IDN-140 — An administrator manages the install's staff
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-30
+
+`manage-users` (ADMIN, and VENDOR through `IDN-030`) gates:
+
+| Endpoint               | What it does                                        |
+| ---------------------- | --------------------------------------------------- |
+| `GET /api/users`       | list accounts, oldest first                         |
+| `POST /api/users`      | create an account (`ADMIN`, `OPERATOR` or `VIEWER`) |
+| `PATCH /api/users/:id` | change `role`, `disabled` and/or `password`         |
+
+The list leaves out the vendor account unless the caller is the vendor. A
+password reset replaces the old password at once and, like a role change or
+disabling, ends the account's sessions. Setting a field to its current value
+changes nothing.
+
+**Why:** The customer runs their own team — hiring, moving someone to a
+different job, someone leaving — and should not need the vendor for it. The
+vendor account is not part of that team, so it is not shown among it.
+
+**Enforced at:** `src/application/identity/use-cases/ListUsersUseCase.ts`,
+`src/application/identity/use-cases/CreateUserUseCase.ts`,
+`src/application/identity/use-cases/UpdateUserUseCase.ts`,
+`src/presentation/http/routes/user.routes.ts`
+**Tests:** `tests/application/identity/use-cases/ListUsersUseCase.test.ts`,
+`tests/application/identity/use-cases/CreateUserUseCase.test.ts`,
+`tests/application/identity/use-cases/UpdateUserUseCase.test.ts`,
+`tests/integration/use-cases/identity/ListUsersUseCase.integration.test.ts`,
+`tests/integration/use-cases/identity/CreateUserUseCase.integration.test.ts`,
+`tests/integration/use-cases/identity/UpdateUserUseCase.integration.test.ts`,
+`tests/integration/user.routes.test.ts`
+
+### IDN-141 — Nobody manages the vendor account through the API
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application · Presentation
+**Since:** 2026-09-30
+
+`PATCH /api/users/:id` on a `VENDOR` account answers `403`, whoever asks. The
+`VENDOR` role cannot be given to anyone: creating or changing a user to it is a
+`400`. The vendor changes its own password like anyone else (`IDN-144`).
+
+**Why:** The vendor account is how the vendor keeps running the install
+(`IDN-033`). If the customer could disable it, demote it or reset its password,
+they could lock the vendor out; if they could hand out `VENDOR`, the separation
+would mean nothing. Only the vendor's own environment setting creates or
+promotes it (`IDN-011`).
+
+**Enforced at:** `src/application/identity/services/userAccountPolicy.ts`,
+`src/application/identity/use-cases/UpdateUserUseCase.ts`,
+`src/application/identity/use-cases/CreateUserUseCase.ts`,
+`src/presentation/http/validation/user.schemas.ts`
+**Message:** `The vendor account is managed by the vendor` (403) /
+`The VENDOR role cannot be assigned through the API` (400)
+**Tests:** `tests/application/identity/use-cases/UpdateUserUseCase.test.ts`,
+`tests/application/identity/use-cases/CreateUserUseCase.test.ts`,
+`tests/integration/use-cases/identity/UpdateUserUseCase.integration.test.ts`,
+`tests/integration/user.routes.test.ts`
+
+### IDN-142 — A staff password is at least 8 characters
+
+**Type:** Validation · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-30
+
+On creation, on reset and on a change of one's own password. The vendor account
+needs 12 (`IDN-012`). Passwords over 200 characters are refused at the edge.
+
+**Why:** The floor stops the obvious placeholders (`1234`, the company name)
+without forcing rules people work around by writing passwords down. The ceiling
+keeps a request from handing bcrypt an arbitrarily long string.
+
+**Enforced at:** `src/application/identity/services/userAccountPolicy.ts` (`USER_PASSWORD_MIN_LENGTH`),
+`src/presentation/http/validation/user.schemas.ts`
+**Message:** `Password must be at least 8 characters`
+**Tests:** `tests/application/identity/use-cases/CreateUserUseCase.test.ts`,
+`tests/application/identity/use-cases/UpdateUserUseCase.test.ts`,
+`tests/integration/user.routes.test.ts`
+
+### IDN-143 — An administrator cannot change their own account through user management
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-30
+
+`PATCH /api/users/:id` on the caller's own id answers `403`, whatever the
+fields. Their own password goes through `IDN-144`.
+
+**Why:** An administrator who demotes or disables themselves by mistake can lock
+the install out of its only administrator. Having someone else do it keeps a
+second pair of eyes on the one change that can remove the last person able to
+undo it.
+
+**Enforced at:** `src/application/identity/use-cases/UpdateUserUseCase.ts`
+**Message:** `You cannot change your own account here — use /api/users/me/password for your password`
+**Tests:** `tests/application/identity/use-cases/UpdateUserUseCase.test.ts`,
+`tests/integration/user.routes.test.ts`
+
+### IDN-144 — Everyone changes their own password with the current one
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-30
+
+`POST /api/users/me/password`, any role, with `currentPassword` and
+`newPassword`. A wrong current password is a `400`. The change ends every
+session of the account, the caller's included, so the response carries a new
+token to continue with.
+
+**Why:** Asking for the current password means a token left on an unattended
+screen cannot be turned into a permanent takeover. Returning a fresh token keeps
+the person who just changed their password signed in, while any other device
+that had the old one is signed out.
+
+**Enforced at:** `src/application/identity/use-cases/ChangeOwnPasswordUseCase.ts`
+**Message:** `Current password is incorrect`
+**Tests:** `tests/application/identity/use-cases/ChangeOwnPasswordUseCase.test.ts`,
+`tests/integration/use-cases/identity/ChangeOwnPasswordUseCase.integration.test.ts`,
+`tests/integration/user.routes.test.ts`

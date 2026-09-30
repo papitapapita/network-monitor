@@ -26,10 +26,15 @@ export class JwtTokenService implements ITokenService {
   public verify(token: string): Result<TokenPayload> {
     try {
       const decoded = jwt.verify(token, this.secret) as TokenPayload;
+      // A token signed before sessions were versioned carries none.
+      if (!Number.isInteger(decoded.tokenVersion)) {
+        return Result.fail<TokenPayload>('Invalid or expired token');
+      }
       return Result.ok<TokenPayload>({
         userId: decoded.userId,
         email: decoded.email,
-        role: decoded.role
+        role: decoded.role,
+        tokenVersion: decoded.tokenVersion
       });
     } catch {
       return Result.fail<TokenPayload>('Invalid or expired token');

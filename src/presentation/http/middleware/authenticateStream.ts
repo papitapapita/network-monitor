@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ITokenService } from 'application/identity/interfaces/ITokenService';
+import { SessionValidator } from 'application/identity/services/SessionValidator';
+import { authenticateToken } from './authenticate';
 
 /**
  * Authenticates SSE routes, which accept `?token=` in addition to the Bearer
@@ -11,9 +13,14 @@ import { ITokenService } from 'application/identity/interfaces/ITokenService';
  * excludes the query string, so the token stays out of the logs.
  */
 export function createStreamAuthenticateMiddleware(
-  tokenService: ITokenService
+  tokenService: ITokenService,
+  sessions: SessionValidator
 ) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
     const authHeader = req.headers.authorization;
     const queryToken = req.query.token;
 
@@ -30,16 +37,13 @@ export function createStreamAuthenticateMiddleware(
       return;
     }
 
-    const result = tokenService.verify(token);
-
-    if (result.isFailure) {
-      res
-        .status(401)
-        .json({ success: false, error: 'Invalid token' });
-      return;
-    }
-
-    req.user = result.value;
-    next();
+    await authenticateToken(
+      token,
+      tokenService,
+      sessions,
+      req,
+      res,
+      next
+    );
   };
 }

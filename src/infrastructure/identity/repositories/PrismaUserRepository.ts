@@ -23,6 +23,8 @@ export class PrismaUserRepository implements IUserRepository {
           email: data.email,
           passwordHash: data.passwordHash,
           role: data.role as PrismaUserRole,
+          disabledAt: data.disabledAt,
+          tokenVersion: data.tokenVersion,
           createdAt: data.createdAt,
           updatedAt: data.updatedAt
         },
@@ -30,6 +32,8 @@ export class PrismaUserRepository implements IUserRepository {
           email: data.email,
           passwordHash: data.passwordHash,
           role: data.role as PrismaUserRole,
+          disabledAt: data.disabledAt,
+          tokenVersion: data.tokenVersion,
           updatedAt: data.updatedAt
         }
       });
@@ -88,6 +92,31 @@ export class PrismaUserRepository implements IUserRepository {
         error instanceof Error ? error.message : String(error);
       return Result.fail<User | null>(
         `Database error finding user: ${msg}`
+      );
+    }
+  }
+
+  public async findAll(): Promise<Result<User[]>> {
+    try {
+      const rows = await this.prisma.user.findMany({
+        orderBy: { createdAt: 'asc' }
+      });
+      const users: User[] = [];
+      for (const raw of rows) {
+        const result = UserPrismaMapper.toDomain(raw);
+        if (result.isFailure) {
+          return Result.fail<User[]>(
+            `Failed to map user: ${result.error}`
+          );
+        }
+        users.push(result.value);
+      }
+      return Result.ok<User[]>(users);
+    } catch (error) {
+      const msg =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<User[]>(
+        `Database error listing users: ${msg}`
       );
     }
   }
