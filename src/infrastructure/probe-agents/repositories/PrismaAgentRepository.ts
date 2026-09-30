@@ -1,5 +1,9 @@
-import { PrismaClient, ProbeAgent } from 'generated/prisma/client';
-import { Agent } from 'domain/probe-agents';
+import {
+  Prisma,
+  PrismaClient,
+  ProbeAgent
+} from 'generated/prisma/client';
+import { Agent, AgentStatus } from 'domain/probe-agents';
 import { IAgentRepository } from 'domain/probe-agents/repository';
 import { AgentId } from 'domain/shared/ids';
 import { EventDispatcher, Result } from 'domain/shared/core';
@@ -14,10 +18,14 @@ export class PrismaAgentRepository implements IAgentRepository {
       const { id, createdAt, ...changes } =
         AgentPrismaMapper.toPersistence(agent);
       EventDispatcher.markAggregateForDispatch(agent);
-      const raw = await this.prisma.probeAgent.upsert({
-        where: { id },
-        create: { id, createdAt, ...changes },
-        update: changes
+      const raw = await this.prisma.$transaction(async (tx) => {
+        const row = await tx.probeAgent.upsert({
+          where: { id },
+          create: { id, createdAt, ...changes },
+          update: changes
+        });
+        await this.syncOutage(tx, agent);
+        return row;
       });
       EventDispatcher.dispatchEventsForAggregate(agent.id);
       return AgentPrismaMapper.toDomain(raw);
@@ -66,11 +74,16 @@ export class PrismaAgentRepository implements IAgentRepository {
         createdAt: _createdAt,
         ...changes
       } = AgentPrismaMapper.toPersistence(agent);
-      const { count } = await this.prisma.probeAgent.updateMany({
-        where: { id, updatedAt: loadedUpdatedAt },
-        data: changes
+      const saved = await this.prisma.$transaction(async (tx) => {
+        const { count } = await tx.probeAgent.updateMany({
+          where: { id, updatedAt: loadedUpdatedAt },
+          data: changes
+        });
+        if (count === 0) return false;
+        await this.syncOutage(tx, agent);
+        return true;
       });
-      if (count === 0) return Result.ok(false);
+      if (!saved) return Result.ok(false);
       EventDispatcher.markAggregateForDispatch(agent);
       EventDispatcher.dispatchEventsForAggregate(agent.id);
       return Result.ok(true);
@@ -79,6 +92,45 @@ export class PrismaAgentRepository implements IAgentRepository {
         `Database error saving agent: ${this.message(error)}`
       );
     }
+  }
+
+  // Keeps the outage history in step with offlineSince (AGT-026): an agent
+  // marked offline gets one open outage, and the save that clears
+  // offlineSince, a reconnection or a revocation, closes it. Driven by state
+  // rather than events so a lost event cannot leave an outage open.
+  private async syncOutage(
+    tx: Prisma.TransactionClient,
+    agent: Agent
+  ): Promise<void> {
+    const agentId = agent.id.toString();
+    const offlineSince = agent.offlineSince;
+    if (offlineSince !== null) {
+      const open = await tx.probeAgentOutage.findFirst({
+        where: { agentId, endedAt: null },
+        select: { id: true }
+      });
+      if (open === null) {
+        await tx.probeAgentOutage.create({
+          data: {
+            agentId,
+            silentSince:
+              agent.lastSeenAt ?? agent.enrolledAt ?? offlineSince,
+            offlineSince
+          }
+        });
+      }
+      return;
+    }
+    await tx.probeAgentOutage.updateMany({
+      where: { agentId, endedAt: null },
+      data: {
+        endedAt: agent.updatedAt,
+        endReason:
+          agent.status === AgentStatus.REVOKED
+            ? 'REVOKED'
+            : 'RECONNECTED'
+      }
+    });
   }
 
   public async findById(id: AgentId): Promise<Result<Agent | null>> {

@@ -5,7 +5,11 @@ import {
   authorize,
   createRateLimiter
 } from '../middleware';
-import { createAgentSchema, agentIdParamSchema } from '../validation';
+import {
+  createAgentSchema,
+  agentIdParamSchema,
+  listAgentOutagesSchema
+} from '../validation';
 
 // Issuing a pairing key or revoking an agent grants or removes network
 // access to a customer's site, so writes sit on the credential tier.
@@ -35,6 +39,14 @@ export function createAgentRoutes(
     createRateLimiter('read'),
     validateRequest(agentIdParamSchema),
     controller.getById
+  );
+
+  router.get(
+    '/:id/outages',
+    authorize('read'),
+    createRateLimiter('read'),
+    validateRequest(listAgentOutagesSchema),
+    controller.listOutages
   );
 
   router.post(

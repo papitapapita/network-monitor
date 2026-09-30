@@ -3,3 +3,4 @@ export * from './PrismaAgentPollingTargetsQuery';
 export * from './PrismaAgentDeviceIndex';
 export * from './PrismaAgentStatusQuery';
 export * from './PrismaAgentDeviceCountQuery';
+export * from './PrismaAgentOutageQuery';

@@ -48,6 +48,7 @@ describe('Agent Routes — /api/agents', () => {
         request(app).post('/api/agents').send({ name: 'X' }),
         request(app).get('/api/agents'),
         request(app).get(`/api/agents/${GHOST_ID}`),
+        request(app).get(`/api/agents/${GHOST_ID}/outages`),
         request(app).post(`/api/agents/${GHOST_ID}/pairing-key`),
         request(app).post(`/api/agents/${GHOST_ID}/revoke`)
       ]);
@@ -199,6 +200,66 @@ describe('Agent Routes — /api/agents', () => {
         .set('Authorization', as(adminToken));
 
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe('GET /api/agents/:id/outages', () => {
+    it('[AGT-026] 200 — a VIEWER reads the outage history', async () => {
+      const { id } = await seedAgent(prisma, { status: 'ACTIVE' });
+      const offlineSince = new Date('2026-09-28T10:05:00.000Z');
+      await prisma.probeAgentOutage.create({
+        data: {
+          agentId: id,
+          silentSince: new Date('2026-09-28T10:00:00.000Z'),
+          offlineSince,
+          endedAt: new Date('2026-09-28T11:00:00.000Z'),
+          endReason: 'RECONNECTED'
+        }
+      });
+
+      const res = await request(app)
+        .get(`/api/agents/${id}/outages`)
+        .set('Authorization', as(viewerToken));
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({
+        total: 1,
+        limit: 20,
+        offset: 0,
+        hasMore: false,
+        outages: [
+          {
+            silentSince: '2026-09-28T10:00:00.000Z',
+            offlineSince: '2026-09-28T10:05:00.000Z',
+            endedAt: '2026-09-28T11:00:00.000Z',
+            endReason: 'RECONNECTED'
+          }
+        ]
+      });
+    });
+
+    it('404 — unknown agent', async () => {
+      const res = await request(app)
+        .get(`/api/agents/${GHOST_ID}/outages`)
+        .set('Authorization', as(adminToken));
+
+      expect(res.status).toBe(404);
+    });
+
+    it('400 — malformed id or a limit over 100', async () => {
+      const { id } = await seedAgent(prisma, { status: 'ACTIVE' });
+      const responses = await Promise.all([
+        request(app)
+          .get(`/api/agents/${INVALID_ID}/outages`)
+          .set('Authorization', as(adminToken)),
+        request(app)
+          .get(`/api/agents/${id}/outages?limit=101`)
+          .set('Authorization', as(adminToken))
+      ]);
+
+      for (const res of responses) {
+        expect(res.status).toBe(400);
+      }
     });
   });
 

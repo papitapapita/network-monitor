@@ -19,6 +19,23 @@ export const agentIdParamSchema = z.object({
   params: agentIdParams
 });
 
+export const listAgentOutagesSchema = z.object({
+  params: agentIdParams,
+  query: z.object({
+    limit: z
+      .string()
+      .regex(/^\d+$/, 'limit must be a positive integer')
+      .refine((v) => Number(v) >= 1 && Number(v) <= 100, {
+        message: 'limit must be between 1 and 100'
+      })
+      .optional(),
+    offset: z
+      .string()
+      .regex(/^\d+$/, 'offset must be a non-negative integer')
+      .optional()
+  })
+});
+
 export const enrollAgentSchema = z.object({
   body: z.object({
     pairingCode: z

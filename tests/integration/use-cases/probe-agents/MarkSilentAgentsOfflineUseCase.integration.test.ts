@@ -117,6 +117,26 @@ describe('MarkSilentAgentsOfflineUseCase — integration', () => {
     expect(events).toHaveLength(0);
   });
 
+  it('[AGT-026] opens one outage that starts at the last contact', async () => {
+    const lastSeenAt = minutesAgo(6);
+    const id = await seedActive({ lastSeenAt });
+
+    await useCase.execute();
+    await useCase.execute();
+
+    const outages = await prisma.probeAgentOutage.findMany({
+      where: { agentId: id }
+    });
+    const row = await prisma.probeAgent.findUnique({ where: { id } });
+    expect(outages).toHaveLength(1);
+    expect(outages[0]).toMatchObject({
+      silentSince: lastSeenAt,
+      offlineSince: row!.offlineSince,
+      endedAt: null,
+      endReason: null
+    });
+  });
+
   it('[AGT-024] does not overwrite a contact that landed after the agent was read', async () => {
     const id = await seedActive({ lastSeenAt: minutesAgo(6) });
     const agent = (await repo.findById(AgentId.parse(id).value))

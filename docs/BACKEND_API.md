@@ -2840,6 +2840,47 @@ interface AgentPairingDTO {
 
 ---
 
+### `GET /api/agents/:id/outages` — Offline history
+
+**Status:** 200 | 400 | 401 | 404  
+**Roles:** all
+
+```ts
+// Query params (optional)
+limit?:  number // 1–100, default 20
+offset?: number // ≥0, default 0
+
+interface AgentOutageDTO {
+  id: string; // UUID
+  silentSince: string; // last contact before the silence: when it really began
+  offlineSince: string; // when it was marked offline, ~5 min later
+  endedAt: string | null; // null while the agent is still offline
+  endReason: 'RECONNECTED' | 'REVOKED' | null;
+}
+
+// Response — newest first
+{
+  success: true,
+  data: {
+    outages: AgentOutageDTO[];
+    total: number; // this agent's outages, all pages
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  }
+}
+```
+
+> One entry per time the agent went offline (AGT-026). An open entry
+> (`endedAt: null`) is the current outage and matches the agent's
+> `offlineSince`. Show the length as `endedAt − silentSince`, or
+> `now − silentSince` while open. History starts on 2026-09-29: an agent
+> already offline then got one open entry; earlier outages are not recorded.
+> 404 for an unknown agent; an agent that was never offline answers an empty
+> page.
+
+---
+
 ### `POST /api/agents/:id/pairing-key` — Issue a new pairing key
 
 **Status:** 200 | 400 | 404 | 409 | 503  

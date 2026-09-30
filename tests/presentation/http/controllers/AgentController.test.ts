@@ -21,6 +21,7 @@ function makeController(createResult: Result<unknown>) {
     useCase,
     useCase,
     useCase,
+    useCase,
     logger
   );
 }

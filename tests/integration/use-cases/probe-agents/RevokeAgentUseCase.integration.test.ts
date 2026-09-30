@@ -50,6 +50,27 @@ describe('RevokeAgentUseCase — integration', () => {
     expect(row!.revokedAt).not.toBeNull();
   });
 
+  it('[AGT-026] closes an open outage as REVOKED', async () => {
+    const { id } = await seedAgent(prisma, { status: 'ACTIVE' });
+    const offlineSince = new Date(Date.now() - 60_000);
+    await prisma.probeAgent.update({
+      where: { id },
+      data: { offlineSince }
+    });
+    await prisma.probeAgentOutage.create({
+      data: { agentId: id, silentSince: offlineSince, offlineSince }
+    });
+
+    await useCase.execute({ id });
+
+    const [outage] = await prisma.probeAgentOutage.findMany({
+      where: { agentId: id }
+    });
+    const row = await prisma.probeAgent.findUnique({ where: { id } });
+    expect(outage.endReason).toBe('REVOKED');
+    expect(outage.endedAt).toEqual(row!.revokedAt);
+  });
+
   it('[AGT-005] kills the pairing key of a pending agent', async () => {
     const { id, pairingCode } = await seedAgent(prisma);
 

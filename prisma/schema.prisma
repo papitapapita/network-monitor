@@ -1006,8 +1006,30 @@ model ProbeAgent {
 
   devices       Device[]
   deviceIndexes ProbeAgentDeviceIndex[]
+  outages       ProbeAgentOutage[]
 
   @@map("probe_agents")
+}
+
+// One row per time an agent went offline (AGT-026). Kept in step with
+// probe_agents.offline_since by PrismaAgentRepository, in the same
+// transaction. At most one open row (ended_at null) per agent: a partial
+// unique index in the migration enforces it.
+model ProbeAgentOutage {
+  id           String    @id @default(uuid()) @db.Uuid
+  agentId      String    @map("agent_id") @db.Uuid
+  // Last contact before the silence: when the outage really began.
+  silentSince  DateTime  @map("silent_since") @db.Timestamptz
+  // When the liveness check noticed and marked the agent offline.
+  offlineSince DateTime  @map("offline_since") @db.Timestamptz
+  endedAt      DateTime? @map("ended_at") @db.Timestamptz
+  // RECONNECTED or REVOKED; null while open.
+  endReason    String?   @map("end_reason") @db.VarChar(16)
+
+  agent ProbeAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, offlineSince(sort: Desc)])
+  @@map("probe_agent_outages")
 }
 
 model ProbeAgentDeviceIndex {

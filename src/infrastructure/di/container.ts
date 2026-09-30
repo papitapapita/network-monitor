@@ -9,6 +9,7 @@ import {
   PrismaAgentDeviceIndex,
   PrismaAgentPollingTargetsQuery,
   PrismaAgentDeviceCountQuery,
+  PrismaAgentOutageQuery,
   PrismaAgentStatusQuery
 } from '../probe-agents/queries';
 import { DeviceMonitoringPingResultSink } from '../probe-agents/adapters';
@@ -19,6 +20,7 @@ import {
   GetAgentUseCase,
   ReissuePairingKeyUseCase,
   RevokeAgentUseCase,
+  ListAgentOutagesUseCase,
   EnrollAgentUseCase,
   AuthenticateAgentUseCase,
   RecordAgentContactUseCase,
@@ -1310,6 +1312,11 @@ export class DependencyContainer {
       new RevokeAgentUseCase(
         agentRepository,
         agentDeviceCounts,
+        this.logger
+      ),
+      new ListAgentOutagesUseCase(
+        agentRepository,
+        new PrismaAgentOutageQuery(this.prisma),
         this.logger
       ),
       this.logger

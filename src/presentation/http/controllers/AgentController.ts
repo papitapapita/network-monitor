@@ -7,6 +7,7 @@ import {
   GetAgentUseCase,
   ReissuePairingKeyUseCase,
   RevokeAgentUseCase,
+  ListAgentOutagesUseCase,
   AGENT_PUBLIC_URL_MISSING
 } from 'application/probe-agents/use-cases';
 
@@ -17,6 +18,7 @@ export class AgentController {
     private readonly getUseCase: GetAgentUseCase,
     private readonly reissueUseCase: ReissuePairingKeyUseCase,
     private readonly revokeUseCase: RevokeAgentUseCase,
+    private readonly listOutagesUseCase: ListAgentOutagesUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -42,6 +44,20 @@ export class AgentController {
   ): Promise<void> => {
     await this.respond(res, 200, () =>
       this.getUseCase.execute({ id: req.params.id })
+    );
+  };
+
+  public listOutages = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    const q = req.query as Record<string, string | undefined>;
+    await this.respond(res, 200, () =>
+      this.listOutagesUseCase.execute({
+        id: req.params.id,
+        limit: q.limit ? Number(q.limit) : undefined,
+        offset: q.offset ? Number(q.offset) : undefined
+      })
     );
   };
 

@@ -40,8 +40,8 @@ A rule enforced in two layers counts in both.
 | Layer                        | Rules |
 | ---------------------------- | ----- |
 | Domain                       | 10    |
-| Application                  | 15    |
-| Infrastructure (composition) | 10    |
+| Application                  | 16    |
+| Infrastructure (composition) | 11    |
 | Presentation                 | 7     |
 | Agent program                | 9     |
 
@@ -224,6 +224,7 @@ through the tunnel.
 | `POST /api/agents`                 | `manage-credentials` |
 | `GET /api/agents`                  | `read`               |
 | `GET /api/agents/:id`              | `read`               |
+| `GET /api/agents/:id/outages`      | `read`               |
 | `POST /api/agents/:id/pairing-key` | `manage-credentials` |
 | `POST /api/agents/:id/revoke`      | `manage-credentials` |
 | `POST /agent/v1/enroll`            | none (pairing code)  |
@@ -401,6 +402,32 @@ flap between the two messages.
 
 **Enforced at:** `src/domain/probe-agents/aggregates/Agent.ts` (`recordContact`, `CLOCK_DRIFT_WARN_MS`, `CLOCK_DRIFT_CLEAR_MS`), `src/application/notifications/event-handlers/AgentClockNotificationHandlers.ts`, `src/infrastructure/di/container.ts`
 **Tests:** `tests/domain/probe-agents/aggregates/Agent.test.ts`, `tests/application/notifications/event-handlers/AgentClockNotificationHandlers.test.ts`, `tests/integration/use-cases/probe-agents/RecordAgentContactUseCase.integration.test.ts`
+
+### AGT-026 — Every offline spell is kept, from its last contact to how it ended
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Infrastructure (composition)
+**Since:** 2026-09-29
+
+When an agent is marked offline (`AGT-021`), one outage is opened with its last
+contact (`silentSince`, or its enrollment if it never connected) and the moment
+it was marked (`offlineSince`). The save that clears `offlineSince` closes it:
+`RECONNECTED` at the contact that brought the agent back (`AGT-022`), or
+`REVOKED` at the revocation. An agent has at most one open outage. The history
+is read newest first, 20 per page by default and at most 100, at
+`GET /api/agents/:id/outages`. Nothing is deleted while the agent exists.
+
+**Why:** The offline and back-online messages (`AGT-023`) are gone once read,
+and the agent's own row only knows about the current outage. The customer's
+dashboard and the vendor need to see how often and how long a PC was down to
+tell a flaky site from a one-off. Writing the outage in the same transaction as
+the agent's state, from that state rather than from the events, means a lost
+event cannot leave an outage open or missing. An outage is one row per several
+minutes of silence, so the table stays small without a purge.
+
+**Enforced at:** `src/infrastructure/probe-agents/repositories/PrismaAgentRepository.ts` (`syncOutage`), unique index `probe_agent_outages_one_open_per_agent`, `src/application/probe-agents/use-cases/ListAgentOutagesUseCase.ts`
+**Reached from:** the offline check, the agent's hello and heartbeats, `POST /api/agents/:id/revoke`, `GET /api/agents/:id/outages`
+**Tests:** `tests/application/probe-agents/use-cases/ListAgentOutagesUseCase.test.ts`, `tests/integration/use-cases/probe-agents/MarkSilentAgentsOfflineUseCase.integration.test.ts`, `tests/integration/use-cases/probe-agents/RecordAgentContactUseCase.integration.test.ts`, `tests/integration/use-cases/probe-agents/RevokeAgentUseCase.integration.test.ts`, `tests/integration/use-cases/probe-agents/ListAgentOutagesUseCase.integration.test.ts`, `tests/integration/agent.routes.test.ts`
 
 ---
 

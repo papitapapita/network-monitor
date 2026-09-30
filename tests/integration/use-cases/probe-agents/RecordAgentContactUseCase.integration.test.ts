@@ -87,6 +87,53 @@ describe('RecordAgentContactUseCase — integration', () => {
     expect(event.offlineSince).toEqual(offlineSince);
   });
 
+  it('[AGT-026] closes the open outage as RECONNECTED at the contact', async () => {
+    const { id } = await seedAgent(prisma, { status: 'ACTIVE' });
+    const offlineSince = new Date('2026-09-28T11:50:00.000Z');
+    await prisma.probeAgent.update({
+      where: { id },
+      data: { offlineSince }
+    });
+    await prisma.probeAgentOutage.create({
+      data: {
+        agentId: id,
+        silentSince: new Date('2026-09-28T11:45:00.000Z'),
+        offlineSince
+      }
+    });
+
+    await useCase.execute({
+      agentId: id,
+      agentVersion: '1.4.2',
+      sentAt: receivedAt.getTime(),
+      receivedAt
+    });
+
+    const outages = await prisma.probeAgentOutage.findMany({
+      where: { agentId: id }
+    });
+    expect(outages).toHaveLength(1);
+    expect(outages[0]).toMatchObject({
+      endedAt: receivedAt,
+      endReason: 'RECONNECTED'
+    });
+  });
+
+  it('[AGT-026] opens no outage for a contact while online', async () => {
+    const { id } = await seedAgent(prisma, { status: 'ACTIVE' });
+
+    await useCase.execute({
+      agentId: id,
+      agentVersion: '1.4.2',
+      sentAt: receivedAt.getTime(),
+      receivedAt
+    });
+
+    expect(
+      await prisma.probeAgentOutage.count({ where: { agentId: id } })
+    ).toBe(0);
+  });
+
   it('[AGT-022] dispatches nothing for a contact while online', async () => {
     const { id } = await seedAgent(prisma, { status: 'ACTIVE' });
 

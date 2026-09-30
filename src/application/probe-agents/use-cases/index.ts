@@ -9,3 +9,4 @@ export * from './RecordAgentContactUseCase';
 export * from './BuildAgentConfigSnapshotUseCase';
 export * from './AcceptAgentResultsUseCase';
 export * from './MarkSilentAgentsOfflineUseCase';
+export * from './ListAgentOutagesUseCase';

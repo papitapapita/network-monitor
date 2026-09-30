@@ -10,3 +10,4 @@ export * from './RecordAgentContactRequestDTO';
 export * from './AgentConfigSnapshotDTO';
 export * from './AcceptAgentResultsDTOs';
 export * from './MarkSilentAgentsOfflineResponseDTO';
+export * from './AgentOutageDTOs';
