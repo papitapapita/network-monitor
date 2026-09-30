@@ -4657,6 +4657,7 @@ interface InstallationDTO {
   };
   serverOnSite: boolean; // false: hide wireless poll, reboot, diagnosis for devices with an agentId, and the network scan
   agentPairingAvailable: boolean; // false: creating an agent or a new key answers 503
+  installersAvailable: boolean; // false: hide installer downloads — the routes below answer 503
 }
 
 { success: true, data: InstallationDTO }
@@ -4666,6 +4667,48 @@ interface InstallationDTO {
 > the network scan are the core and always present. A module that is off has
 > no routes at all (`404`). The values change only when the vendor edits the
 > install's settings and restarts it, so there is no need to poll.
+
+---
+
+### `GET /api/installation/installers` — Agent installers
+
+**Status:** 200 | 401 | 402 | 503  
+**Roles:** all
+
+The agent installers the vendor has placed in the install's installer folder
+(INS-042). Newest first, so the first entry of a platform is the one to offer.
+
+```ts
+interface InstallerDTO {
+  fileName: string; // 'nms-agent-setup-0.1.0.exe' — also the download path segment
+  platform: 'windows' | 'linux'; // .exe/.msi → windows, .tar.gz → linux
+  version: string | null; // read from the file name ('0.1.0'); null if it has none
+  sizeBytes: number;
+  modifiedAt: string; // ISO
+}
+
+{ success: true, data: { installers: InstallerDTO[] } } // may be empty
+```
+
+> `503` when the install has no installer folder (`installersAvailable: false`)
+> or the folder cannot be read. Works while the subscription is read-only;
+> a locked install answers `402` like every other route.
+
+---
+
+### `GET /api/installation/installers/:fileName` — Download an installer
+
+**Status:** 200 | 400 | 401 | 402 | 404 | 503  
+**Roles:** all
+
+Streams the file as `application/octet-stream` with
+`Content-Disposition: attachment; filename="<fileName>"` and `Content-Length`.
+It needs the Bearer token, so a plain `<a href>` will not work: fetch it as a
+blob and save it (or show progress from `Content-Length`).
+
+> `404` for any name the list above does not return (INS-043). `400` for a
+> name with `/`, `\` or a leading `.`. Error bodies are the usual JSON
+> envelope.
 
 ## Admin `/api/admin`
 

@@ -4,3 +4,4 @@ export * from './IAlertPublisher';
 export * from './IAlertRecorder';
 export * from './IEventStreamHub';
 export * from './IAgentStatusQuery';
+export * from './IInstallerStore';

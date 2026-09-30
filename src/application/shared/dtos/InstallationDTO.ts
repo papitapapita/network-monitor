@@ -14,4 +14,7 @@ export interface InstallationDTO {
   serverOnSite: boolean;
   // AGENT_PUBLIC_URL is set, so agents can be created and paired (AGT-007).
   agentPairingAvailable: boolean;
+  // INSTALLERS_DIR is set, so agent installers can be listed and downloaded
+  // (INS-042).
+  installersAvailable: boolean;
 }

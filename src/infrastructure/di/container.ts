@@ -407,6 +407,10 @@ import { loadCollectionAccountIssuerConfig } from '../billing/config/collectionA
 import { EnabledModules } from './enabledModules';
 import { loadServerOnSite } from './serverOnSite';
 import { loadVendorAccount } from './vendorAccount';
+import { loadInstallersDir } from './installersDir';
+import { FileSystemInstallerStore } from '../installation/FileSystemInstallerStore';
+import { ListInstallersUseCase } from 'application/shared/use-cases/ListInstallersUseCase';
+import { GetInstallerUseCase } from 'application/shared/use-cases/GetInstallerUseCase';
 
 export class DependencyContainer {
   private prisma: PrismaClient;
@@ -1293,17 +1297,27 @@ export class DependencyContainer {
     const agentRepository = new PrismaAgentRepository(this.prisma);
     const agentSecrets = new NodeAgentSecretService();
     const agentPublicUrl = loadAgentPublicUrl(process.env);
-    this.installationController = new InstallationController({
-      modules: {
-        customers: this.modules.has('customers'),
-        billing: this.modules.has('billing'),
-        quoting: this.modules.has('quoting'),
-        tickets: this.modules.has('tickets'),
-        enforcement: this.modules.has('enforcement')
+    const installersDir = loadInstallersDir(process.env);
+    const installerStore = installersDir
+      ? new FileSystemInstallerStore(installersDir)
+      : null;
+    this.installationController = new InstallationController(
+      {
+        modules: {
+          customers: this.modules.has('customers'),
+          billing: this.modules.has('billing'),
+          quoting: this.modules.has('quoting'),
+          tickets: this.modules.has('tickets'),
+          enforcement: this.modules.has('enforcement')
+        },
+        serverOnSite: this.serverOnSite,
+        agentPairingAvailable: agentPublicUrl !== null,
+        installersAvailable: installerStore !== null
       },
-      serverOnSite: this.serverOnSite,
-      agentPairingAvailable: agentPublicUrl !== null
-    });
+      new ListInstallersUseCase(installerStore, this.logger),
+      new GetInstallerUseCase(installerStore, this.logger),
+      this.logger
+    );
     const agentDeviceCounts = new PrismaAgentDeviceCountQuery(
       this.prisma
     );

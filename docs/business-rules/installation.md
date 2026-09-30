@@ -26,9 +26,10 @@ Format and conventions: [README.md](README.md).
 | Layer                        | Rules |
 | ---------------------------- | ----- |
 | Domain                       | 1     |
-| Application (use case)       | 4     |
-| Infrastructure (composition) | 14    |
-| Presentation                 | 4     |
+| Application (use case)       | 5     |
+| Infrastructure (composition) | 15    |
+| Infrastructure               | 1     |
+| Presentation                 | 6     |
 
 ---
 
@@ -176,11 +177,12 @@ itself, which the customer does see, is unaffected.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure (composition) · Presentation
-**Since:** 2026-09-29
+**Since:** 2026-09-29 · **Revised:** 2026-09-30
 
 `GET /api/installation` answers, for any role, which optional modules are on,
-whether the server is on the monitored network (`SERVER_ON_SITE`, INS-041), and
-whether agents can be paired (`AGENT_PUBLIC_URL`, AGT-007). The answer is
+whether the server is on the monitored network (`SERVER_ON_SITE`, INS-041),
+whether agents can be paired (`AGENT_PUBLIC_URL`, AGT-007), and whether agent
+installers can be downloaded (`INSTALLERS_DIR`, INS-042). The answer is
 settled when the backend starts, from the same settings that decide what it
 runs, so it cannot disagree with them. It sits behind the subscription guard
 like every other route (INS-025): a locked install shows only its lock screen.
@@ -426,3 +428,72 @@ for devices it moves behind an agent.
 
 **Enforced at:** `src/infrastructure/di/serverOnSite.ts`, `src/infrastructure/di/container.ts`
 **Tests:** `tests/infrastructure/di/serverOnSite.test.ts`, `tests/integration/wireless.routes.test.ts`, `tests/integration/scan.routes.test.ts`
+
+### INS-042 — Agent installers are served from the folder in `INSTALLERS_DIR`
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (composition) · Application (use case) · Presentation
+**Since:** 2026-09-30
+
+`INSTALLERS_DIR` is an absolute path; a relative one stops the boot. Unset, the
+install offers no downloads: `installersAvailable` is `false` and both installer
+routes answer `503`. Set, any signed-in role lists the installers
+(`GET /api/installation/installers`, newest first, with platform, version and
+size) and downloads one (`GET /api/installation/installers/:fileName`).
+
+The folder is read on every request, so an installer copied in is offered at
+once and the folder may be created or mounted after the backend starts; one
+that cannot be read answers `503`. Both routes are reads, so they keep working
+while the subscription is read-only, and answer `402` once it is locked, like
+every other route (INS-025).
+
+**Why:** The installer is what a customer's technician runs on the site PC, and
+it is useless without a pairing key only the vendor can issue (IDN-033), so
+handing it to any signed-in user gives nothing away. Serving it from a folder
+the vendor controls — one shared folder for every install on a host — means a
+new agent version reaches every customer by copying one file, with no deploy.
+Keeping downloads open in read-only mode lets a customer who has fallen behind
+still repair a broken agent, which is what keeps their monitoring honest while
+they pay.
+
+**Enforced at:** `src/infrastructure/di/installersDir.ts`,
+`src/infrastructure/di/container.ts`,
+`src/application/shared/use-cases/ListInstallersUseCase.ts`,
+`src/application/shared/use-cases/GetInstallerUseCase.ts`,
+`src/presentation/http/routes/installation.routes.ts`,
+`src/presentation/http/controllers/InstallationController.ts`
+**Message:** `Installer downloads are not configured on this install` /
+`Installer folder cannot be read: …` / `INSTALLERS_DIR: expected an absolute path, got "<value>"`
+**Tests:** `tests/infrastructure/di/installersDir.test.ts`,
+`tests/application/shared/use-cases/ListInstallersUseCase.test.ts`,
+`tests/application/shared/use-cases/GetInstallerUseCase.test.ts`,
+`tests/integration/use-cases/shared/ListInstallersUseCase.integration.test.ts`,
+`tests/integration/use-cases/shared/GetInstallerUseCase.integration.test.ts`,
+`tests/integration/installation.routes.test.ts`
+
+### INS-043 — Only installer files in the folder itself can be downloaded
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Infrastructure · Presentation
+**Since:** 2026-09-30
+
+A file is an installer when its name ends in `.exe` or `.msi` (Windows) or
+`.tar.gz` (Linux), case-insensitive, it is a regular file, and its name does not
+start with `.`. Everything else in the folder — notes, subfolders, hidden
+files — is neither listed nor served. A download is found by matching the
+requested name exactly against the folder's own listing; the name as sent is
+never joined onto a path. A name containing `/` or `\`, or starting with `.`,
+is refused with `400` before that.
+
+**Why:** The folder is shared and edited by hand, so it will hold other things,
+and a download route is the classic way to read files a server never meant to
+serve (`../../.env`). Matching against the listing, rather than cleaning up the
+requested path, means no spelling of a path can reach outside the folder or a
+file the listing did not offer.
+
+**Enforced at:** `src/infrastructure/installation/FileSystemInstallerStore.ts`,
+`src/presentation/http/validation/installation.schemas.ts`
+**Message:** `Installer not found: <fileName>` (404) / `Invalid installer file name` (400)
+**Tests:** `tests/infrastructure/installation/FileSystemInstallerStore.test.ts`,
+`tests/integration/use-cases/shared/GetInstallerUseCase.integration.test.ts`,
+`tests/integration/installation.routes.test.ts`
