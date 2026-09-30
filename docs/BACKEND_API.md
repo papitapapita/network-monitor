@@ -2772,7 +2772,7 @@ On-site agents that measure a customer's network from inside it and report to th
 
 **On the PC:** the key is pasted into the agent's installer (or passed as `--pair <key>` on Linux); the agent pairs itself, which turns it `ACTIVE`. A key the backend refuses is thrown away by the agent, so the fix is always "new key", never "retry". Revoking makes the connected agent delete its token, its device list and its unsent results, then wait for a new key — the same PC can be paired again without reinstalling (`AGT-060`, `AGT-066`).
 
-**What still runs from the server:** ping of a device with an `agentId` is always the agent's (manual poll `409`, MON-022). Wireless poll, reboot and link diagnosis stay with the server when it sits on the monitored network (the default, and Insetel's case); an install hosted off site (`SERVER_ON_SITE=false`) answers `409` for them and refuses the network scan (WLS-029, DEV-171). The dashboard cannot read that setting yet; it arrives with `GET /api/installation`. Until then, treat those `409`s as "not available for this device" rather than as errors.
+**What still runs from the server:** ping of a device with an `agentId` is always the agent's (manual poll `409`, MON-022). Wireless poll, reboot and link diagnosis stay with the server when it sits on the monitored network (the default, and Insetel's case); an install hosted off site (`SERVER_ON_SITE=false`) answers `409` for them and refuses the network scan (WLS-029, DEV-171). Read the setting from `GET /api/installation` (`serverOnSite`) and hide those actions for devices with an `agentId` when it is `false`.
 
 **Online / offline:** an `ACTIVE` agent silent for 5 minutes (since `lastSeenAt`, or since `enrolledAt` if it never connected) gets `offlineSince` set, checked once a minute; its next contact clears it. `offlineSince !== null` is the offline badge — no need to compare `lastSeenAt` against the clock. `PENDING` and `REVOKED` agents are never offline. Going offline and coming back each send one Telegram message (to the install's chat and the vendor's); they are not device alerts, so they do not appear in `GET /api/alerts`.
 
@@ -4626,6 +4626,38 @@ subscription is past its grace:
 On any `402`, re-read `GET /api/subscription` and switch to the matching
 screen. On a locked install `402` comes before authentication, so it can
 arrive instead of `401`.
+
+## Installation `/api/installation`
+
+### `GET /api/installation`
+
+**Status:** 200 | 401 | 402  
+**Roles:** all
+
+What this install runs, fixed when the backend starts (INS-009). Read it once
+after sign-in and hide what the install does not offer, rather than letting a
+click fail.
+
+```ts
+interface InstallationDTO {
+  modules: {
+    customers: boolean; // /api/customers, /api/service-plans, /api/contracted-services
+    billing: boolean; // /api/bills, /api/collection-accounts, /api/bank-accounts
+    quoting: boolean; // /api/quotations
+    tickets: boolean; // /api/tickets, /api/technicians
+    enforcement: boolean; // /api/enforcement/suspensions, /api/contracted-services/:id/enforcement
+  };
+  serverOnSite: boolean; // false: hide wireless poll, reboot, diagnosis for devices with an agentId, and the network scan
+  agentPairingAvailable: boolean; // false: creating an agent or a new key answers 503
+}
+
+{ success: true, data: InstallationDTO }
+```
+
+> Device inventory, monitoring, wireless, alerts, notifications, agents and
+> the network scan are the core and always present. A module that is off has
+> no routes at all (`404`). The values change only when the vendor edits the
+> install's settings and restarts it, so there is no need to poll.
 
 ## Other
 

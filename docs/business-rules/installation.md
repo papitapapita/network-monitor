@@ -27,8 +27,8 @@ Format and conventions: [README.md](README.md).
 | ---------------------------- | ----- |
 | Domain                       | 1     |
 | Application (use case)       | 4     |
-| Infrastructure (composition) | 13    |
-| Presentation                 | 3     |
+| Infrastructure (composition) | 14    |
+| Presentation                 | 4     |
 
 ---
 
@@ -171,6 +171,29 @@ itself, which the customer does see, is unaffected.
 
 **Enforced at:** `src/infrastructure/di/container.ts`, `src/application/notifications/use-cases/OpenAlertUseCase.ts`
 **Tests:** `tests/application/notifications/use-cases/OpenAlertUseCase.test.ts`
+
+### INS-009 — Every signed-in user can read what the install runs
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (composition) · Presentation
+**Since:** 2026-09-29
+
+`GET /api/installation` answers, for any role, which optional modules are on,
+whether the server is on the monitored network (`SERVER_ON_SITE`, INS-041), and
+whether agents can be paired (`AGENT_PUBLIC_URL`, AGT-007). The answer is
+settled when the backend starts, from the same settings that decide what it
+runs, so it cannot disagree with them. It sits behind the subscription guard
+like every other route (INS-025): a locked install shows only its lock screen.
+
+**Why:** A disabled module's routes answer 404 (INS-005), and an off-site
+server refuses some actions with 409 (WLS-029, DEV-171). The dashboard should
+not find that out by clicking: reading the settings once lets it hide the
+menus and buttons the install does not offer, so a customer on a
+monitoring-only plan never sees billing or quoting.
+
+**Enforced at:** `src/infrastructure/di/container.ts` (`installationController`), `src/presentation/http/routes/installation.routes.ts`
+**Reached from:** `GET /api/installation`
+**Tests:** `tests/integration/installation.routes.test.ts`
 
 ---
 

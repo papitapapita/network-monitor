@@ -102,6 +102,7 @@ import {
   AgentController,
   AgentEnrollmentController,
   SubscriptionController,
+  InstallationController,
   QuotationController,
   EnforcementController,
   TicketController,
@@ -457,6 +458,7 @@ export class DependencyContainer {
   public notificationMuteController: NotificationMuteController;
   public agentController: AgentController;
   public subscriptionController: SubscriptionController;
+  public installationController: InstallationController;
   public getSubscriptionStatusUseCase: GetSubscriptionStatusUseCase;
   public agentEnrollmentController: AgentEnrollmentController;
   // Attached to the HTTP server by main.ts, once it is listening.
@@ -1281,6 +1283,17 @@ export class DependencyContainer {
     const agentRepository = new PrismaAgentRepository(this.prisma);
     const agentSecrets = new NodeAgentSecretService();
     const agentPublicUrl = loadAgentPublicUrl(process.env);
+    this.installationController = new InstallationController({
+      modules: {
+        customers: this.modules.has('customers'),
+        billing: this.modules.has('billing'),
+        quoting: this.modules.has('quoting'),
+        tickets: this.modules.has('tickets'),
+        enforcement: this.modules.has('enforcement')
+      },
+      serverOnSite: this.serverOnSite,
+      agentPairingAvailable: agentPublicUrl !== null
+    });
     const agentDeviceCounts = new PrismaAgentDeviceCountQuery(
       this.prisma
     );

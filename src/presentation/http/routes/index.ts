@@ -31,6 +31,7 @@ import { createQuotationRoutes } from './quotation.routes';
 import { createAgentRoutes } from './agent.routes';
 import { createAgentEnrollmentRoutes } from './agent-enrollment.routes';
 import { createSubscriptionRoutes } from './subscription.routes';
+import { createInstallationRoutes } from './installation.routes';
 import {
   createAuditLogMiddleware,
   createAuthenticateMiddleware,
@@ -301,6 +302,12 @@ export function setupRoutes(
   apiRouter.use(
     '/subscription',
     createSubscriptionRoutes(container.subscriptionController)
+  );
+
+  // Installation settings: /api/installation
+  apiRouter.use(
+    '/installation',
+    createInstallationRoutes(container.installationController)
   );
 
   // =====================================
