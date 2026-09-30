@@ -3,6 +3,7 @@ import { AgentId } from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
+import { IAgentDeviceCountQuery } from '../interfaces';
 import { AgentMapper } from '../mappers';
 import { AgentIdRequestDTO, AgentResponseDTO } from '../dtos';
 
@@ -12,6 +13,7 @@ export class GetAgentUseCase extends UseCase<
 > {
   constructor(
     private readonly agentRepository: IAgentRepository,
+    private readonly deviceCounts: IAgentDeviceCountQuery,
     logger: ILogger
   ) {
     super(logger, 'GetAgentUseCase');
@@ -43,6 +45,14 @@ export class GetAgentUseCase extends UseCase<
     if (findResult.value === null) {
       return this.fail(`Agent not found: ${request.id}`);
     }
-    return this.ok(AgentMapper.toDTO(findResult.value));
+    const agent = findResult.value;
+
+    const countResult = await this.deviceCounts.countByAgent([
+      agent.id
+    ]);
+    if (countResult.isFailure) {
+      return this.fail(countResult.error);
+    }
+    return this.ok(AgentMapper.toDTO(agent, countResult.value));
   }
 }

@@ -480,6 +480,7 @@ status?:           DeviceStatus
 category?:         DeviceCategory
 owner?:            DeviceOwner
 locationId?:       string          // UUID
+agentId?:          string          // an agent's UUID, or 'none' — see below
 deviceModelId?:    string          // UUID
 monitoringEnabled?: 'true' | 'false'
 deleted?:          'true' | 'false' | 'any'   // default: 'false' — see below
@@ -504,6 +505,11 @@ sortOrder?:        'ASC' | 'DESC'  // default: DESC (ASC for downSince)
 > `total` is the number of devices matching the filters, not the number returned
 > in `devices`. Filtered and unfiltered listings both paginate in the database,
 > so page size bounds the work the query does.
+
+> `agentId=<uuid>` lists the devices behind that agent; `agentId=none` lists the
+> devices this server polls itself (no agent). `total` counts only those, so
+> it matches the agent's `deviceCount` for live devices (DEV-172). An unknown
+> agent id returns an empty list. Anything else answers `400`.
 
 > `sortBy=ipAddress` orders by address value (IPv4 and IPv6), not by the
 > stored string — `"9.0.0.1"` sorts before `"10.0.0.1"`. Devices with no
@@ -2783,6 +2789,7 @@ interface AgentDTO {
   clockOffsetMs: number | null;
   offlineSince: string | null; // set only while ACTIVE and offline
   clockDriftSince: string | null; // set while the PC clock is >1 min off
+  deviceCount: number; // live devices behind it; the recycle bin is not counted (AGT-010)
   createdAt: string;
   updatedAt: string;
 }

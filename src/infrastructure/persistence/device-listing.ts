@@ -54,6 +54,10 @@ export function buildDeviceFilterWhere(
     where.locationId = filters.locationId.toString();
   }
 
+  if (filters.agentId !== undefined) {
+    where.agentId = filters.agentId?.toString() ?? null;
+  }
+
   if (filters.deviceModelId !== undefined) {
     where.deviceModelId = filters.deviceModelId.toString();
   }

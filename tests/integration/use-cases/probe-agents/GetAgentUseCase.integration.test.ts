@@ -20,8 +20,8 @@ describe('GetAgentUseCase — integration', () => {
   beforeAll(async () => {
     container = await setupDependencies();
     prisma = container.getPrisma();
-    const { repo, logger } = makeAdapters(prisma);
-    useCase = new GetAgentUseCase(repo, logger);
+    const { repo, deviceCounts, logger } = makeAdapters(prisma);
+    useCase = new GetAgentUseCase(repo, deviceCounts, logger);
   });
 
   afterAll(async () => {

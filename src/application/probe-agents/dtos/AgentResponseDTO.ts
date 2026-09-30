@@ -12,6 +12,8 @@ export interface AgentResponseDTO {
   offlineSince: string | null;
   // Set while the PC's clock is off by more than a minute (R12).
   clockDriftSince: string | null;
+  // Live devices behind this agent; the recycle bin is not counted (AGT-010).
+  deviceCount: number;
   createdAt: string;
   updatedAt: string;
 }

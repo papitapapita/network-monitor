@@ -65,7 +65,7 @@ export class CreateAgentUseCase extends UseCase<
     }
 
     return this.ok({
-      agent: AgentMapper.toDTO(saveResult.value),
+      agent: AgentMapper.toDTO(saveResult.value, new Map()),
       pairingKey: formatPairingKey({
         backendUrl: this.backendUrl,
         pairingCode

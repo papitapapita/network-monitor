@@ -23,6 +23,8 @@ export interface DeviceFilters {
   owner?: DeviceOwnerType;
   locationId?: LocationId;
   deviceModelId?: DeviceModelId;
+  // null matches the devices this server polls itself (no agent).
+  agentId?: AgentId | null;
   monitoringEnabled?: boolean;
   // Absent means 'exclude': a soft-deleted device stays out of every listing
   // until something explicitly asks for tombstones.

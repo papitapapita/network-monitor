@@ -25,8 +25,9 @@ describe('RevokeAgentUseCase — integration', () => {
   beforeAll(async () => {
     container = await setupDependencies();
     prisma = container.getPrisma();
-    const { repo, secrets, logger } = makeAdapters(prisma);
-    useCase = new RevokeAgentUseCase(repo, logger);
+    const { repo, deviceCounts, secrets, logger } =
+      makeAdapters(prisma);
+    useCase = new RevokeAgentUseCase(repo, deviceCounts, logger);
     enroll = new EnrollAgentUseCase(repo, secrets, logger);
   });
 

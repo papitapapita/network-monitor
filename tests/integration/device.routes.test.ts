@@ -1211,6 +1211,43 @@ describe('Device Routes — /api/devices', () => {
       await cleanAgents(prisma);
     });
 
+    describe('[DEV-172] GET /api/devices?agentId=', () => {
+      it('200 — lists and counts only the devices behind that agent', async () => {
+        const direct = await createDevice();
+        const behind = await createDevice();
+        const { id: agentId } = await seedAgent(prisma);
+        await prisma.device.update({
+          where: { id: behind },
+          data: { agentId }
+        });
+
+        const res = await request(app)
+          .get(`/api/devices?agentId=${agentId}`)
+          .set('Authorization', auth());
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.total).toBe(1);
+        expect(
+          res.body.data.devices.map((d: { id: string }) => d.id)
+        ).toEqual([behind]);
+
+        const none = await request(app)
+          .get('/api/devices?agentId=none')
+          .set('Authorization', auth());
+        expect(
+          none.body.data.devices.map((d: { id: string }) => d.id)
+        ).toEqual([direct]);
+      });
+
+      it('400 — agentId that is neither a UUID nor none', async () => {
+        const res = await request(app)
+          .get('/api/devices?agentId=torre')
+          .set('Authorization', auth());
+
+        expect(res.status).toBe(400);
+      });
+    });
+
     describe('POST /api/devices', () => {
       it('[DEV-166] 201 — places a new device behind the only agent', async () => {
         const { id: agentId } = await seedAgent(prisma);

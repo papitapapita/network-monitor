@@ -4,7 +4,12 @@ import {
   setupDependencies,
   DependencyContainer
 } from 'infrastructure/di/container';
-import { cleanAgents, seedAgent } from '../../helpers/db';
+import {
+  cleanDatabase,
+  seedAgent,
+  seedDevice,
+  seedDeviceModel
+} from '../../helpers/db';
 import { makeAdapters } from './shared';
 
 describe('ListAgentsUseCase — integration', () => {
@@ -15,8 +20,8 @@ describe('ListAgentsUseCase — integration', () => {
   beforeAll(async () => {
     container = await setupDependencies();
     prisma = container.getPrisma();
-    const { repo, logger } = makeAdapters(prisma);
-    useCase = new ListAgentsUseCase(repo, logger);
+    const { repo, deviceCounts, logger } = makeAdapters(prisma);
+    useCase = new ListAgentsUseCase(repo, deviceCounts, logger);
   });
 
   afterAll(async () => {
@@ -24,7 +29,7 @@ describe('ListAgentsUseCase — integration', () => {
   });
 
   beforeEach(async () => {
-    await cleanAgents(prisma);
+    await cleanDatabase(prisma);
   });
 
   it('lists agents of every status, oldest first', async () => {
@@ -40,6 +45,40 @@ describe('ListAgentsUseCase — integration', () => {
       ['A', 'PENDING'],
       ['B', 'ACTIVE'],
       ['C', 'REVOKED']
+    ]);
+  });
+
+  it('[AGT-010] counts the live devices behind each agent, not the recycle bin', async () => {
+    const busy = await seedAgent(prisma, {
+      name: 'A',
+      status: 'ACTIVE'
+    });
+    await seedAgent(prisma, { name: 'B', status: 'ACTIVE' });
+    const modelId = await seedDeviceModel(prisma);
+    const place = async (serialNumber: string, deleted = false) => {
+      const id = await seedDevice(prisma, modelId, { serialNumber });
+      await prisma.device.update({
+        where: { id },
+        data: {
+          agentId: busy.id,
+          deletedAt: deleted ? new Date() : null
+        }
+      });
+    };
+    await place('SN-AGT-010-1');
+    await place('SN-AGT-010-2');
+    await place('SN-AGT-010-3', true);
+    await seedDevice(prisma, modelId, {
+      serialNumber: 'SN-AGT-010-4'
+    });
+
+    const result = await useCase.execute();
+
+    expect(
+      result.value.agents.map((a) => [a.name, a.deviceCount])
+    ).toEqual([
+      ['A', 2],
+      ['B', 0]
     ]);
   });
 

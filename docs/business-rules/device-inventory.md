@@ -37,7 +37,7 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 | Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Domain**                            |    45 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144, DEV-162, DEV-164, DEV-169 |
-| **Application**                       |    47 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171 |
+| **Application**                       |    48 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172 |
 | **Application + Domain**              |     6 | DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160                                                                                                                                                                                                                                                                                                                                     |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                                                                              |
 | **Infrastructure + Domain**           |     2 | DEV-028, DEV-161 |
@@ -2890,6 +2890,29 @@ not built yet.
 **Reached from:** `POST /api/network/scan` via `ScanController.scan`
 **Message:** `Network scan is not available — this server is not on the monitored network`
 **Tests:** `tests/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.test.ts`, `tests/integration/scan.routes.test.ts`
+
+### DEV-172 — The device list can be narrowed to one agent, or to the devices with none
+
+**Type:** Validation · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-09-29
+
+`GET /api/devices?agentId=<uuid>` lists only the devices behind that agent;
+`agentId=none` lists only the devices with no agent, which this server polls
+itself. `total` counts the filtered set, like every other filter, and the
+filter combines with the others (a bin view with `deleted=true` shows that
+agent's deleted devices). An unknown agent id is not an error: it matches
+nothing. A value that is neither a UUID nor `none` is refused (`400`).
+
+**Why:** The agent screen shows each agent's devices, and the device screen
+lets an operator find what is still left on the server while moving devices
+to an agent in groups (DEV-168). Filtering in the database keeps the page and
+its total in agreement (DEV-145).
+
+**Enforced at:** `src/application/device-inventory/use-cases/ListDevicesUseCase.ts`, `src/presentation/http/validation/device.schemas.ts`, `src/infrastructure/persistence/device-listing.ts` (`buildDeviceFilterWhere`)
+**Reached from:** `GET /api/devices` via `DeviceController.list`
+**Message:** `Invalid agentId: <reason>`
+**Tests:** `tests/application/device-inventory/use-cases/ListDevicesUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ListDevicesUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
 
 ---
 

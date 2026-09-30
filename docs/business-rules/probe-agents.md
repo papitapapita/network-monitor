@@ -40,7 +40,7 @@ A rule enforced in two layers counts in both.
 | Layer                        | Rules |
 | ---------------------------- | ----- |
 | Domain                       | 10    |
-| Application                  | 14    |
+| Application                  | 15    |
 | Infrastructure (composition) | 10    |
 | Presentation                 | 7     |
 | Agent program                | 9     |
@@ -235,6 +235,27 @@ information everyone who watches the network needs.
 
 **Enforced at:** `src/presentation/http/routes/agent.routes.ts` (`authorize`)
 **Tests:** `tests/integration/agent.routes.test.ts`
+
+### AGT-010 — An agent reports how many live devices sit behind it
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-29
+
+Every agent in a response carries `deviceCount`: the devices whose `agentId`
+is this agent and that are not in the recycle bin. Retired devices still count,
+because they are still placed behind the agent. A new agent has 0. The count is
+read when the response is built, never stored.
+
+**Why:** The agent screen shows how much of the network each PC is
+responsible for, and an operator deciding whether to revoke one needs to see
+what would be left behind. Deleted devices are not in service, so counting
+them would overstate it. Devices live in inventory, so the count is a
+read-only query across contexts, not a field of the agent.
+
+**Enforced at:** `src/infrastructure/probe-agents/queries/PrismaAgentDeviceCountQuery.ts`, `src/application/probe-agents/mappers/AgentMapper.ts`
+**Reached from:** `GET /api/agents`, `GET /api/agents/:id`, `POST /api/agents`, `POST /api/agents/:id/pairing-key`, `POST /api/agents/:id/revoke`
+**Tests:** `tests/application/probe-agents/use-cases/ListAgentsUseCase.test.ts`, `tests/integration/use-cases/probe-agents/ListAgentsUseCase.integration.test.ts`
 
 ---
 

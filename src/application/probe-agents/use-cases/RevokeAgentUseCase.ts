@@ -3,6 +3,7 @@ import { AgentId } from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
+import { IAgentDeviceCountQuery } from '../interfaces';
 import { AgentMapper } from '../mappers';
 import { AgentIdRequestDTO, AgentResponseDTO } from '../dtos';
 
@@ -12,6 +13,7 @@ export class RevokeAgentUseCase extends UseCase<
 > {
   constructor(
     private readonly agentRepository: IAgentRepository,
+    private readonly deviceCounts: IAgentDeviceCountQuery,
     logger: ILogger
   ) {
     super(logger, 'RevokeAgentUseCase');
@@ -54,6 +56,15 @@ export class RevokeAgentUseCase extends UseCase<
     if (saveResult.isFailure) {
       return this.fail(saveResult.error);
     }
-    return this.ok(AgentMapper.toDTO(saveResult.value));
+
+    const countResult = await this.deviceCounts.countByAgent([
+      agent.id
+    ]);
+    if (countResult.isFailure) {
+      return this.fail(countResult.error);
+    }
+    return this.ok(
+      AgentMapper.toDTO(saveResult.value, countResult.value)
+    );
   }
 }

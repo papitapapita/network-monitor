@@ -24,7 +24,8 @@ import { PrismaAgentRepository } from '../../src/infrastructure/probe-agents/rep
 import { NodeAgentSecretService } from '../../src/infrastructure/probe-agents/crypto';
 import {
   PrismaAgentDeviceIndex,
-  PrismaAgentPollingTargetsQuery
+  PrismaAgentPollingTargetsQuery,
+  PrismaAgentDeviceCountQuery
 } from '../../src/infrastructure/probe-agents/queries';
 import { DeviceMonitoringPingResultSink } from '../../src/infrastructure/probe-agents/adapters';
 import { PrismaPollingConfigurationRepository } from '../../src/infrastructure/persistence/PrismaPollingConfigurationRepository';
@@ -111,7 +112,11 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
           ),
           logger
         ),
-        getAgent: new GetAgentUseCase(agents, logger),
+        getAgent: new GetAgentUseCase(
+          agents,
+          new PrismaAgentDeviceCountQuery(prisma),
+          logger
+        ),
         subscriptionStatus
       },
       logger,

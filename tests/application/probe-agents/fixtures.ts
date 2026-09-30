@@ -6,6 +6,7 @@ import { Result } from '../../../src/domain/shared/core/Result';
 import {
   AgentPingResult,
   AgentPollingTarget,
+  IAgentDeviceCountQuery,
   IAgentDeviceIndex,
   IAgentPingResultSink,
   IAgentPollingTargetsQuery,
@@ -166,6 +167,18 @@ export function makeActiveAgent(
   );
   agent.enroll(secrets.hash(token));
   return agent;
+}
+
+export class FakeDeviceCounts implements IAgentDeviceCountQuery {
+  counts = new Map<string, number>();
+  async countByAgent(
+    agentIds: AgentId[]
+  ): Promise<Result<Map<string, number>>> {
+    const wanted = new Set(agentIds.map((id) => id.toString()));
+    return Result.ok(
+      new Map([...this.counts].filter(([id]) => wanted.has(id)))
+    );
+  }
 }
 
 export class FakeTargetsQuery implements IAgentPollingTargetsQuery {

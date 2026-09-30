@@ -1,6 +1,7 @@
 import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { PrismaAgentRepository } from 'infrastructure/probe-agents/repositories';
 import { NodeAgentSecretService } from 'infrastructure/probe-agents/crypto';
+import { PrismaAgentDeviceCountQuery } from 'infrastructure/probe-agents/queries';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import { EventDispatcher } from 'domain/shared/core';
 import { IDomainEvent } from 'domain/shared/interfaces';
@@ -16,6 +17,7 @@ export const BACKEND_URL = 'https://agents.test.local';
 export function makeAdapters(prisma: PrismaClient) {
   return {
     repo: new PrismaAgentRepository(prisma),
+    deviceCounts: new PrismaAgentDeviceCountQuery(prisma),
     secrets: new NodeAgentSecretService(),
     logger: new WinstonLogger()
   };

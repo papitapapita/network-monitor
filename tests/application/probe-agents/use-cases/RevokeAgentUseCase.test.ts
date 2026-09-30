@@ -1,6 +1,7 @@
 import { RevokeAgentUseCase } from '../../../../src/application/probe-agents/use-cases';
 import {
   FakeAgentSecretService,
+  FakeDeviceCounts,
   InMemoryAgentRepository,
   makeLogger,
   makePendingAgent
@@ -16,7 +17,11 @@ describe('RevokeAgentUseCase', () => {
   beforeEach(() => {
     repo = new InMemoryAgentRepository();
     secrets = new FakeAgentSecretService();
-    useCase = new RevokeAgentUseCase(repo, makeLogger());
+    useCase = new RevokeAgentUseCase(
+      repo,
+      new FakeDeviceCounts(),
+      makeLogger()
+    );
   });
 
   it('[AGT-005] revokes an active agent and drops its token', async () => {

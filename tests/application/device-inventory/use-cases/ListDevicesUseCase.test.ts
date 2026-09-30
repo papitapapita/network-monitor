@@ -459,6 +459,23 @@ describe('ListDevicesUseCase', () => {
       expect(result.error).toContain('Invalid locationId');
     });
 
+    it('[DEV-172] should fail when agentId is neither a UUID nor none', async () => {
+      const result = await useCase.execute({ agentId: 'torre' });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('Invalid agentId');
+    });
+
+    it("[DEV-172] should turn agentId 'none' into a no-agent filter for both list and count", async () => {
+      query.list.mockResolvedValue(Result.ok([]));
+      query.count.mockResolvedValue(Result.ok(0));
+
+      await useCase.execute({ agentId: 'none' });
+
+      expect(query.list.mock.calls[0][0].agentId).toBeNull();
+      expect(query.count.mock.calls[0][0].agentId).toBeNull();
+    });
+
     it('should fail when deviceModelId is not a valid UUID', async () => {
       const result = await useCase.execute({
         deviceModelId: 'bad-model-id'

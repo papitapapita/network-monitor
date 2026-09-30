@@ -3,6 +3,7 @@ import { parsePairingKey } from '../../../../src/agent/protocol';
 import {
   BACKEND_URL,
   FakeAgentSecretService,
+  FakeDeviceCounts,
   InMemoryAgentRepository,
   makeLogger,
   makePendingAgent
@@ -20,6 +21,7 @@ describe('ReissuePairingKeyUseCase', () => {
     secrets = new FakeAgentSecretService();
     useCase = new ReissuePairingKeyUseCase(
       repo,
+      new FakeDeviceCounts(),
       secrets,
       BACKEND_URL,
       makeLogger()
@@ -69,6 +71,7 @@ describe('ReissuePairingKeyUseCase', () => {
   it('[AGT-007] fails without AGENT_PUBLIC_URL', async () => {
     useCase = new ReissuePairingKeyUseCase(
       repo,
+      new FakeDeviceCounts(),
       secrets,
       null,
       makeLogger()

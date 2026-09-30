@@ -251,6 +251,66 @@ describe('ListDevicesUseCase — integration', () => {
   // [DEV-084] The recycle bin — listing deleted devices
   // ──────────────────────────────────────────────────────────────
 
+  describe('[DEV-172] agent filter', () => {
+    let torreId: string;
+    const ids: Record<string, string> = {};
+
+    beforeEach(async () => {
+      for (const name of ['Torre 1', 'Torre 2', 'Direct', 'Other']) {
+        ids[name] = await createUseCase
+          .execute({
+            deviceModelId,
+            name,
+            ownerType: 'COMPANY',
+            serialNumber: `SN-${name.replace(' ', '-')}`
+          })
+          .then((r) => r.value.id);
+      }
+      torreId = (await seedAgent(prisma, { status: 'ACTIVE' })).id;
+      const otherId = (await seedAgent(prisma, { status: 'ACTIVE' }))
+        .id;
+      await prisma.device.updateMany({
+        where: { id: { in: [ids['Torre 1'], ids['Torre 2']] } },
+        data: { agentId: torreId }
+      });
+      await prisma.device.update({
+        where: { id: ids['Other'] },
+        data: { agentId: otherId }
+      });
+    });
+
+    it('lists only the devices behind the given agent, and counts only those', async () => {
+      const result = await listUseCase.execute({
+        agentId: torreId,
+        limit: 1
+      });
+
+      expect(result.value.devices).toHaveLength(1);
+      expect(result.value.total).toBe(2);
+      expect(result.value.hasMore).toBe(true);
+      expect(
+        [ids['Torre 1'], ids['Torre 2']].includes(
+          result.value.devices[0].id
+        )
+      ).toBe(true);
+    });
+
+    it("'none' lists the devices this server polls itself", async () => {
+      const result = await listUseCase.execute({ agentId: 'none' });
+
+      expect(result.value.devices.map((d) => d.id)).toEqual([
+        ids['Direct']
+      ]);
+      expect(result.value.total).toBe(1);
+    });
+
+    it('rejects an agentId that is neither a UUID nor none', async () => {
+      const result = await listUseCase.execute({ agentId: 'torre' });
+
+      expect(result.error).toMatch(/^Invalid agentId/);
+    });
+  });
+
   describe('[DEV-084] deleted filter', () => {
     async function seedOneLiveOneDeleted(): Promise<{
       live: string;

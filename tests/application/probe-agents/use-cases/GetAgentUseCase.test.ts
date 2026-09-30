@@ -1,6 +1,7 @@
 import { GetAgentUseCase } from '../../../../src/application/probe-agents/use-cases';
 import {
   FakeAgentSecretService,
+  FakeDeviceCounts,
   InMemoryAgentRepository,
   makeLogger,
   makePendingAgent
@@ -14,7 +15,11 @@ describe('GetAgentUseCase', () => {
   beforeEach(() => {
     repo = new InMemoryAgentRepository();
     secrets = new FakeAgentSecretService();
-    useCase = new GetAgentUseCase(repo, makeLogger());
+    useCase = new GetAgentUseCase(
+      repo,
+      new FakeDeviceCounts(),
+      makeLogger()
+    );
   });
 
   it('returns the agent without any secret material', async () => {

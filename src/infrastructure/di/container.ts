@@ -8,6 +8,7 @@ import {
   PrismaAgentAssignmentQuery,
   PrismaAgentDeviceIndex,
   PrismaAgentPollingTargetsQuery,
+  PrismaAgentDeviceCountQuery,
   PrismaAgentStatusQuery
 } from '../probe-agents/queries';
 import { DeviceMonitoringPingResultSink } from '../probe-agents/adapters';
@@ -1278,8 +1279,12 @@ export class DependencyContainer {
     const agentRepository = new PrismaAgentRepository(this.prisma);
     const agentSecrets = new NodeAgentSecretService();
     const agentPublicUrl = loadAgentPublicUrl(process.env);
+    const agentDeviceCounts = new PrismaAgentDeviceCountQuery(
+      this.prisma
+    );
     const getAgentUseCase = new GetAgentUseCase(
       agentRepository,
+      agentDeviceCounts,
       this.logger
     );
     this.agentController = new AgentController(
@@ -1289,15 +1294,24 @@ export class DependencyContainer {
         agentPublicUrl,
         this.logger
       ),
-      new ListAgentsUseCase(agentRepository, this.logger),
+      new ListAgentsUseCase(
+        agentRepository,
+        agentDeviceCounts,
+        this.logger
+      ),
       getAgentUseCase,
       new ReissuePairingKeyUseCase(
         agentRepository,
+        agentDeviceCounts,
         agentSecrets,
         agentPublicUrl,
         this.logger
       ),
-      new RevokeAgentUseCase(agentRepository, this.logger),
+      new RevokeAgentUseCase(
+        agentRepository,
+        agentDeviceCounts,
+        this.logger
+      ),
       this.logger
     );
     this.agentEnrollmentController = new AgentEnrollmentController(

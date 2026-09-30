@@ -233,6 +233,14 @@ export const listDevicesSchema = z.object({
       .regex(UUID_REGEX, 'locationId must be a valid UUID v4')
       .optional(),
 
+    // 'none' lists the devices this server polls itself
+    agentId: z
+      .string()
+      .refine((v) => v === 'none' || UUID_REGEX.test(v), {
+        message: 'agentId must be a valid UUID v4 or none'
+      })
+      .optional(),
+
     deviceModelId: z
       .string()
       .regex(UUID_REGEX, 'deviceModelId must be a valid UUID v4')

@@ -113,6 +113,7 @@ export class DeviceController {
         category: q.category,
         owner: q.owner,
         locationId: q.locationId,
+        agentId: q.agentId,
         deviceModelId: q.deviceModelId,
         monitoringEnabled:
           q.monitoringEnabled != null

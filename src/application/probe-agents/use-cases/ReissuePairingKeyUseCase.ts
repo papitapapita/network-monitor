@@ -3,7 +3,10 @@ import { AgentId } from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
-import { IAgentSecretService } from '../interfaces';
+import {
+  IAgentDeviceCountQuery,
+  IAgentSecretService
+} from '../interfaces';
 import { AgentMapper } from '../mappers';
 import { formatPairingKey } from 'agent/protocol';
 import { AgentIdRequestDTO, AgentPairingResponseDTO } from '../dtos';
@@ -15,6 +18,7 @@ export class ReissuePairingKeyUseCase extends UseCase<
 > {
   constructor(
     private readonly agentRepository: IAgentRepository,
+    private readonly deviceCounts: IAgentDeviceCountQuery,
     private readonly secrets: IAgentSecretService,
     private readonly backendUrl: string | null,
     logger: ILogger
@@ -67,8 +71,16 @@ export class ReissuePairingKeyUseCase extends UseCase<
       return this.fail(saveResult.error);
     }
 
+    // A pending agent can already have devices (DEV-166).
+    const countResult = await this.deviceCounts.countByAgent([
+      agent.id
+    ]);
+    if (countResult.isFailure) {
+      return this.fail(countResult.error);
+    }
+
     return this.ok({
-      agent: AgentMapper.toDTO(saveResult.value),
+      agent: AgentMapper.toDTO(saveResult.value, countResult.value),
       pairingKey: formatPairingKey({
         backendUrl: this.backendUrl,
         pairingCode

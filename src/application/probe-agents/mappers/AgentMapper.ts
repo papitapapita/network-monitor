@@ -2,7 +2,12 @@ import { Agent } from 'domain/probe-agents';
 import { AgentListResponseDTO, AgentResponseDTO } from '../dtos';
 
 export class AgentMapper {
-  public static toDTO(agent: Agent): AgentResponseDTO {
+  // deviceCounts comes from IAgentDeviceCountQuery; an agent missing from it
+  // has no devices.
+  public static toDTO(
+    agent: Agent,
+    deviceCounts: ReadonlyMap<string, number>
+  ): AgentResponseDTO {
     return {
       id: agent.id.toString(),
       name: agent.name.value,
@@ -15,12 +20,16 @@ export class AgentMapper {
       clockOffsetMs: agent.clockOffsetMs,
       offlineSince: agent.offlineSince?.toISOString() ?? null,
       clockDriftSince: agent.clockDriftSince?.toISOString() ?? null,
+      deviceCount: deviceCounts.get(agent.id.toString()) ?? 0,
       createdAt: agent.createdAt.toISOString(),
       updatedAt: agent.updatedAt.toISOString()
     };
   }
 
-  public static toListDTO(agents: Agent[]): AgentListResponseDTO {
-    return { agents: agents.map((a) => this.toDTO(a)) };
+  public static toListDTO(
+    agents: Agent[],
+    deviceCounts: ReadonlyMap<string, number>
+  ): AgentListResponseDTO {
+    return { agents: agents.map((a) => this.toDTO(a, deviceCounts)) };
   }
 }

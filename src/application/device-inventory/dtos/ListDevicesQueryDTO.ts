@@ -5,6 +5,8 @@ export interface ListDevicesQueryDTO {
   category?: string;
   owner?: string;
   locationId?: string;
+  // An agent's id, or 'none' for the devices this server polls itself.
+  agentId?: string;
   deviceModelId?: string;
   monitoringEnabled?: boolean;
   // 'only' is the recycle-bin view. Absent means live devices only.

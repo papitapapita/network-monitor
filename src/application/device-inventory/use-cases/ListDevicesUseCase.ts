@@ -3,7 +3,11 @@ import {
   DeviceCategory
 } from 'domain/device-inventory/value-objects';
 import { DeviceOwnerType } from 'domain/device-inventory/enums';
-import { DeviceModelId, LocationId } from 'domain/shared/ids';
+import {
+  AgentId,
+  DeviceModelId,
+  LocationId
+} from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
@@ -21,6 +25,7 @@ export class ListDevicesUseCase extends UseCase<
 > {
   private static readonly DEFAULT_LIMIT = 20;
   private static readonly MAX_LIMIT = 100;
+  private static readonly NO_AGENT = 'none';
   private static readonly CONNECTIVITY_VALUES: readonly ConnectivityStatus[] =
     ['UP', 'DOWN', 'UNKNOWN'];
 
@@ -96,6 +101,19 @@ export class ListDevicesUseCase extends UseCase<
       locationIdFilter = locationIdResult.value;
     }
 
+    let agentIdFilter: AgentId | null | undefined;
+    if (request.agentId === ListDevicesUseCase.NO_AGENT) {
+      agentIdFilter = null;
+    } else if (request.agentId) {
+      const agentIdResult = AgentId.parse(request.agentId);
+      if (agentIdResult.isFailure) {
+        return this.fail<DeviceListResponseDTO>(
+          `Invalid agentId: ${agentIdResult.error}`
+        );
+      }
+      agentIdFilter = agentIdResult.value;
+    }
+
     let deviceModelIdFilter: DeviceModelId | undefined;
     if (request.deviceModelId) {
       const deviceModelIdResult = DeviceModelId.parse(
@@ -128,6 +146,7 @@ export class ListDevicesUseCase extends UseCase<
       category: categoryFilter,
       owner: ownerFilter,
       locationId: locationIdFilter,
+      agentId: agentIdFilter,
       deviceModelId: deviceModelIdFilter,
       monitoringEnabled: request.monitoringEnabled,
       deleted: request.deleted,

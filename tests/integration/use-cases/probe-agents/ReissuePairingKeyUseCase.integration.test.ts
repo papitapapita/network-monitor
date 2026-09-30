@@ -26,9 +26,11 @@ describe('ReissuePairingKeyUseCase — integration', () => {
   beforeAll(async () => {
     container = await setupDependencies();
     prisma = container.getPrisma();
-    const { repo, secrets, logger } = makeAdapters(prisma);
+    const { repo, deviceCounts, secrets, logger } =
+      makeAdapters(prisma);
     useCase = new ReissuePairingKeyUseCase(
       repo,
+      deviceCounts,
       secrets,
       BACKEND_URL,
       logger
