@@ -9,7 +9,10 @@ import { seedAndGetToken } from './helpers/auth';
 import { FakeNetworkScannerService } from './helpers/FakeNetworkScannerService';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
 import { ScanController } from '../../src/presentation/http/controllers/ScanController';
-import { ScanNetworkSegmentUseCase } from '../../src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase';
+import {
+  ScanNetworkSegmentUseCase,
+  SCAN_NEEDS_SERVER_ON_SITE
+} from '../../src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase';
 
 const SCAN = '/api/network/scan';
 
@@ -218,5 +221,52 @@ describe('Scan Routes — POST /api/network/scan', () => {
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe('[DEV-171] Scan Routes — a server hosted off site', () => {
+  let app: Application;
+  let container: DependencyContainer;
+  const scanner = new FakeNetworkScannerService();
+
+  beforeAll(async () => {
+    process.env.SERVER_ON_SITE = 'false';
+    try {
+      ({ app, container } = await createTestApp((c) => {
+        const logger = c.getLogger();
+        c.scanController = new ScanController(
+          new ScanNetworkSegmentUseCase(
+            scanner,
+            logger,
+            c.serverOnSite
+          ),
+          logger
+        );
+      }));
+    } finally {
+      delete process.env.SERVER_ON_SITE;
+    }
+  });
+
+  afterAll(async () => {
+    await container.disconnect();
+  });
+
+  it('409 — refuses to scan', async () => {
+    const prisma = container.getPrisma();
+    await cleanDatabase(prisma);
+    const adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
+
+    const res = await request(app)
+      .post(SCAN)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ segment: '192.168.1.0/24' });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      success: false,
+      error: SCAN_NEEDS_SERVER_ON_SITE
+    });
+    expect(scanner.callCount).toBe(0);
   });
 });

@@ -17,6 +17,7 @@ import {
   ClearWirelessAlertUseCase,
   BulkClearWirelessAlertsUseCase
 } from 'application/wireless-monitoring/use-cases';
+import { OUT_OF_SERVER_REACH } from 'application/wireless-monitoring/interfaces';
 
 export class WirelessController {
   constructor(
@@ -441,7 +442,10 @@ export class WirelessController {
       return 404;
     }
 
-    if (errorMessage.includes('already exists')) {
+    if (
+      errorMessage.includes('already exists') ||
+      errorMessage.includes(OUT_OF_SERVER_REACH)
+    ) {
       return 409;
     }
 

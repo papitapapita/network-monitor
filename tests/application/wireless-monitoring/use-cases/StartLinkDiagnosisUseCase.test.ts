@@ -3,12 +3,14 @@ import {
   DecryptedCredentials,
   IContractedCapacityProvider,
   IDeviceCredentialsRepository,
+  IDeviceReach,
   IDeviceRepository,
   IDeviceVendorLookup,
   ILinkDiagnosisRunner,
   IWirelessCollector,
   IWirelessCollectorResolver,
   LinkDiagnosisTarget,
+  OUT_OF_SERVER_REACH,
   TOO_MANY_DIAGNOSES
 } from '../../../../src/application/wireless-monitoring/interfaces';
 import { LinkDiagnosisDTO } from '../../../../src/application/wireless-monitoring/dtos';
@@ -117,6 +119,9 @@ function setup() {
       .fn()
       .mockResolvedValue(Result.ok(null))
   };
+  const deviceReach = {
+    isOutOfReach: jest.fn().mockResolvedValue(Result.ok(false))
+  };
   const contracted = {
     findKbpsByDeviceId: jest.fn().mockResolvedValue(Result.ok(null))
   };
@@ -137,6 +142,7 @@ function setup() {
     collectors as unknown as IWirelessCollectorResolver,
     vendorLookup as unknown as IDeviceVendorLookup,
     deviceRepo as unknown as IDeviceRepository,
+    deviceReach as unknown as IDeviceReach,
     contracted as unknown as IContractedCapacityProvider,
     runner as unknown as ILinkDiagnosisRunner,
     makeLogger()
@@ -154,6 +160,7 @@ function setup() {
     collectors,
     vendorLookup,
     deviceRepo,
+    deviceReach,
     contracted,
     runner,
     startedTarget
@@ -212,6 +219,22 @@ describe('StartLinkDiagnosisUseCase', () => {
       await useCase.execute({ deviceId: DEVICE_UUID });
 
       expect(runner.startOrJoin).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("[WLS-029] out of this server's reach", () => {
+    it('should refuse with the stable reason before loading anything else', async () => {
+      const { useCase, deviceReach, runner, configRepo } = setup();
+      deviceReach.isOutOfReach.mockResolvedValue(Result.ok(true));
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe(
+        `Cannot diagnose device — ${OUT_OF_SERVER_REACH}`
+      );
+      expect(configRepo.findByDeviceId).not.toHaveBeenCalled();
+      expect(runner.startOrJoin).not.toHaveBeenCalled();
     });
   });
 

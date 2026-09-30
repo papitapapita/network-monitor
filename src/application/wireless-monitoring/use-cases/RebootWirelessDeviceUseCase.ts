@@ -6,7 +6,9 @@ import { ILogger } from 'application/shared/interfaces';
 import {
   HttpCredentials,
   IDeviceCredentialsRepository,
-  IWirelessDeviceRebooter
+  IDeviceReach,
+  IWirelessDeviceRebooter,
+  OUT_OF_SERVER_REACH
 } from '../interfaces';
 import {
   RebootWirelessDeviceRequestDTO,
@@ -21,6 +23,7 @@ export class RebootWirelessDeviceUseCase extends UseCase<
     private readonly wirelessDeviceConfigRepo: IWirelessDeviceConfigRepository,
     private readonly credentialsRepo: IDeviceCredentialsRepository,
     private readonly rebooter: IWirelessDeviceRebooter,
+    private readonly deviceReach: IDeviceReach,
     logger: ILogger
   ) {
     super(logger, 'RebootWirelessDeviceUseCase');
@@ -44,6 +47,18 @@ export class RebootWirelessDeviceUseCase extends UseCase<
     }
     const deviceId = deviceIdResult.value;
     const now = new Date();
+
+    const outOfReach = await this.deviceReach.isOutOfReach(deviceId);
+    if (outOfReach.isFailure) {
+      return this.fail(
+        `Failed to check device reach: ${outOfReach.error}`
+      );
+    }
+    if (outOfReach.value) {
+      return this.fail(
+        `Cannot reboot device — ${OUT_OF_SERVER_REACH}`
+      );
+    }
 
     const configResult =
       await this.wirelessDeviceConfigRepo.findByDeviceId(deviceId);

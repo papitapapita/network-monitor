@@ -15,6 +15,7 @@ import {
   seedServicePlan,
   seedActiveContractedService,
   seedWirelessDeviceModel,
+  seedAgent,
   GHOST_ID,
   INVALID_ID
 } from '../../helpers/db';
@@ -25,6 +26,7 @@ import {
   seedDiagnosableDevice,
   LinkDiagnosisStack
 } from '../../helpers/linkDiagnosis';
+import { OUT_OF_SERVER_REACH } from 'application/wireless-monitoring/interfaces';
 
 // Start is where the database is read: eligibility, config, encrypted
 // credentials, vendor, the parent AP and the contracted plan all resolve
@@ -197,6 +199,44 @@ describe('StartLinkDiagnosisUseCase — integration', () => {
         where: { deviceId }
       });
     expect(config?.lastPolledAt).toBeNull();
+  });
+
+  describe('[WLS-029] a device behind an on-site agent', () => {
+    const seedBehindAgent = async (ip: string) => {
+      const deviceId = await seed(ip);
+      const agent = await seedAgent(prisma, { status: 'ACTIVE' });
+      await prisma.device.update({
+        where: { id: deviceId },
+        data: { agentId: agent.id }
+      });
+      return deviceId;
+    };
+
+    it('is diagnosed by a server on the same network', async () => {
+      const deviceId = await seedBehindAgent('192.168.80.30');
+
+      const result = await stack.start.execute({ deviceId });
+
+      expect(result.isSuccess).toBe(true);
+    });
+
+    it('is refused by a server hosted off site', async () => {
+      const offSite = buildLinkDiagnosis(
+        prisma,
+        new SseBroadcaster(new WinstonLogger()),
+        { ping, collector },
+        {},
+        false
+      );
+      const deviceId = await seedBehindAgent('192.168.80.31');
+
+      const result = await offSite.start.execute({ deviceId });
+
+      expect(result.error).toBe(
+        `Cannot diagnose device — ${OUT_OF_SERVER_REACH}`
+      );
+      expect(collector.calls).toHaveLength(0);
+    });
   });
 
   describe('refusals', () => {

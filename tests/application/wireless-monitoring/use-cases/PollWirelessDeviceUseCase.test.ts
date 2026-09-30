@@ -20,6 +20,10 @@ import {
 } from '../../../../src/application/wireless-monitoring/interfaces/IWirelessCollector';
 import { IDeviceVendorLookup } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceVendorLookup';
 import { IDeviceRepository } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceRepository';
+import {
+  IDeviceReach,
+  OUT_OF_SERVER_REACH
+} from '../../../../src/application/wireless-monitoring/interfaces/IDeviceReach';
 import { IContractedCapacityProvider } from '../../../../src/application/wireless-monitoring/interfaces/IContractedCapacityProvider';
 import { IAlertPublisher } from '../../../../src/application/shared/interfaces/IAlertPublisher';
 import { WirelessDeviceConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig';
@@ -230,6 +234,10 @@ function makeMocks() {
       .mockResolvedValue(Result.ok(null))
   };
 
+  const deviceReach: jest.Mocked<IDeviceReach> = {
+    isOutOfReach: jest.fn().mockResolvedValue(Result.ok(false))
+  };
+
   const contractedCapacity: jest.Mocked<IContractedCapacityProvider> =
     {
       findKbpsByDeviceId: jest
@@ -254,6 +262,7 @@ function makeMocks() {
     vendorLookup,
     alertEvaluator,
     deviceRepo,
+    deviceReach,
     contractedCapacity,
     alertPublisher,
     logger
@@ -272,6 +281,7 @@ function makeUseCase(
     mocks.vendorLookup,
     mocks.alertEvaluator,
     mocks.deviceRepo,
+    mocks.deviceReach,
     mocks.contractedCapacity,
     mocks.alertPublisher,
     mocks.logger
@@ -516,6 +526,52 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('eligibility');
+    });
+  });
+
+  // ===========================================================================
+  describe("[WLS-029] executeImpl — devices out of this server's reach", () => {
+    beforeEach(() => {
+      mocks.deviceReach.isOutOfReach.mockResolvedValue(
+        Result.ok(true)
+      );
+    });
+
+    it('refuses a manual poll with the stable reason', async () => {
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID,
+        forceExecution: true
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe(
+        `Cannot poll device — ${OUT_OF_SERVER_REACH}`
+      );
+      expect(mocks.collector.collect).not.toHaveBeenCalled();
+    });
+
+    it('skips a scheduled poll without touching the device', async () => {
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.skipped).toBe(true);
+      expect(mocks.collector.collect).not.toHaveBeenCalled();
+    });
+
+    it('fails when the reach check itself fails', async () => {
+      mocks.deviceReach.isOutOfReach.mockResolvedValue(
+        Result.fail('DB error')
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID,
+        forceExecution: true
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('reach');
     });
   });
 

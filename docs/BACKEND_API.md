@@ -1920,7 +1920,7 @@ offset?:   number                  // ≥0, default 0
 
 ### `POST /api/network/scan` — Scan a network segment
 
-**Status:** 200 | 400 | 404 | 500
+**Status:** 200 | 400 | 404 | 409 | 500
 
 ```ts
 // Request body
@@ -1948,6 +1948,9 @@ offset?:   number                  // ≥0, default 0
 > Probes every host in the CIDR range via ICMP ping and returns all responsive hosts with their latency, MAC address, and manufacturer (where resolvable).  
 > Returns 400 if the segment is invalid or the range exceeds /22 (1 024 usable hosts).  
 > Returns 500 on unexpected infrastructure errors.
+> Returns 409 `{ success: false, error: "Network scan is not available — this server is not on the monitored network" }`
+> on an install whose server is not on the monitored network
+> (`SERVER_ON_SITE=false`, DEV-171). Hide the scan screen on such installs.
 
 ---
 
@@ -2465,7 +2468,7 @@ WirelessAlertDTO; // isActive: false
 
 ### `POST /api/devices/:id/wireless/poll` — Trigger Immediate Poll
 
-**Status:** 202 | 400 | 404
+**Status:** 202 | 400 | 404 | 409
 
 ```ts
 // No request body
@@ -2486,11 +2489,17 @@ WirelessAlertDTO; // isActive: false
 > The collector is chosen by the vendor of the device's model (WLS-053): Ubiquiti devices are polled over the AirOS HTTP API with the device's HTTP credentials, Mimosa devices over SNMP with its SNMP credentials. Returns 400 `Wireless polling is not supported for vendor '<slug>'` for any other vendor.  
 > The poll attempts real device connectivity — expect 400/500 in environments without reachable devices.
 
+> **Off-site server (WLS-029):** on an install whose server is not on the
+> monitored network (`SERVER_ON_SITE=false`), a device with an `agentId`
+> answers `409` `"Cannot poll device — it sits behind an on-site agent, and this server is not on its network"`.
+> Hide the wireless "poll now" button for devices with an `agentId` on such installs. An on-site
+> install (the default) keeps it working for them.
+
 ---
 
 ### `POST /api/devices/:id/wireless/reboot` — Reboot Device (AirOS 8)
 
-**Status:** 202 | 400 | 404 | 500  
+**Status:** 202 | 400 | 404 | 409 | 500  
 **Roles:** ADMIN, OPERATOR
 
 Reboots the antenna remotely via its AirOS 8 HTTP API. Requires the device to have a **wireless config** (source of the IP) and **HTTP credentials** (`httpUsername`/`httpPassword` via `PUT /api/devices/:id/credentials`).
@@ -2510,6 +2519,12 @@ Reboots the antenna remotely via its AirOS 8 HTTP API. Requires the device to ha
 > Returns 400 if credentials are not configured or the device has no IP address.  
 > Returns 500 if the device is unreachable or authentication against it fails.  
 > This is a destructive-ish action — put it behind a confirmation dialog in the UI.
+
+> **Off-site server (WLS-029):** on an install whose server is not on the
+> monitored network (`SERVER_ON_SITE=false`), a device with an `agentId`
+> answers `409` `"Cannot reboot device — it sits behind an on-site agent, and this server is not on its network"`.
+> Hide the reboot button for devices with an `agentId` on such installs. An on-site
+> install (the default) keeps it working for them.
 
 ---
 
@@ -2644,6 +2659,14 @@ interface LinkDiagnosisDTO {
 > 429 `Too many diagnosis sessions running`: the server runs at most
 > `DIAGNOSIS_MAX_SESSIONS` sessions at once (default 5).
 
+> **Off-site server (WLS-029):** on an install whose server is not on the
+> monitored network (`SERVER_ON_SITE=false`), a device with an `agentId`
+> answers `409` `"Cannot diagnose device — it sits behind an on-site agent, and this server is not on its network"`.
+> Hide the diagnosis button for devices with an `agentId` on such installs. An on-site
+> install (the default) keeps it working for them.
+> The `GET`, `DELETE` and stream routes below then answer `404`: no session can
+> exist for such a device.
+
 #### `GET /api/devices/:id/wireless/diagnosis` — Current or Last Diagnosis
 
 **Status:** 200 | 400 | 401 | 404  
@@ -2742,6 +2765,8 @@ On-site agents that measure a customer's network from inside it and report to th
 **Lifecycle:** `PENDING → ACTIVE → REVOKED`. `PENDING` until the installer pairs; the key expires 24 h after it was issued (`pairingExpiresAt`) — offer "new key" for an expired pending agent. `REVOKED` is final. `lastSeenAt`, `agentVersion` and `clockOffsetMs` are set each time the agent connects and every 30 s while connected (`null` until it first connects). `clockDriftSince` is set when the PC's clock is more than a minute off and cleared once it is back within 30 s — show a "fix this PC's clock" hint while it is set; the results themselves are already corrected.
 
 **On the PC:** the key is pasted into the agent's installer (or passed as `--pair <key>` on Linux); the agent pairs itself, which turns it `ACTIVE`. A key the backend refuses is thrown away by the agent, so the fix is always "new key", never "retry". Revoking makes the connected agent delete its token, its device list and its unsent results, then wait for a new key — the same PC can be paired again without reinstalling (`AGT-060`, `AGT-066`).
+
+**What still runs from the server:** ping of a device with an `agentId` is always the agent's (manual poll `409`, MON-022). Wireless poll, reboot and link diagnosis stay with the server when it sits on the monitored network (the default, and Insetel's case); an install hosted off site (`SERVER_ON_SITE=false`) answers `409` for them and refuses the network scan (WLS-029, DEV-171). The dashboard cannot read that setting yet; it arrives with `GET /api/installation`. Until then, treat those `409`s as "not available for this device" rather than as errors.
 
 **Online / offline:** an `ACTIVE` agent silent for 5 minutes (since `lastSeenAt`, or since `enrolledAt` if it never connected) gets `offlineSince` set, checked once a minute; its next contact clears it. `offlineSince !== null` is the offline badge — no need to compare `lastSeenAt` against the clock. `PENDING` and `REVOKED` agents are never offline. Going offline and coming back each send one Telegram message (to the install's chat and the vendor's); they are not device alerts, so they do not appear in `GET /api/alerts`.
 

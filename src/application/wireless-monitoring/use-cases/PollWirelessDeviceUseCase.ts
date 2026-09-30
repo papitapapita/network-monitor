@@ -23,7 +23,9 @@ import {
   IDeviceCredentialsRepository,
   IDeviceRepository,
   IWirelessPollOrchestrator,
-  IContractedCapacityProvider
+  IContractedCapacityProvider,
+  IDeviceReach,
+  OUT_OF_SERVER_REACH
 } from '../interfaces';
 import {
   PollWirelessDeviceRequestDTO,
@@ -49,6 +51,7 @@ export class PollWirelessDeviceUseCase
     private readonly vendorLookup: IDeviceVendorLookup,
     private readonly alertEvaluator: IWirelessAlertEvaluator,
     private readonly deviceRepo: IDeviceRepository,
+    private readonly deviceReach: IDeviceReach,
     private readonly contractedCapacity: IContractedCapacityProvider,
     private readonly alertPublisher: IAlertPublisher | null,
     logger: ILogger
@@ -112,11 +115,20 @@ export class PollWirelessDeviceUseCase
         `Failed to check device eligibility: ${ineligibleReason.error}`
       );
     }
-    if (ineligibleReason.value !== null) {
+    // The scheduler already leaves such devices out (WLS-029); this refuses
+    // the manual poll.
+    const outOfReach = await this.deviceReach.isOutOfReach(deviceId);
+    if (outOfReach.isFailure) {
+      return this.fail(
+        `Failed to check device reach: ${outOfReach.error}`
+      );
+    }
+    const refusal =
+      ineligibleReason.value ??
+      (outOfReach.value ? OUT_OF_SERVER_REACH : null);
+    if (refusal !== null) {
       if (request.forceExecution) {
-        return this.fail(
-          `Cannot poll device — ${ineligibleReason.value}`
-        );
+        return this.fail(`Cannot poll device — ${refusal}`);
       }
       return this.ok({
         deviceId: request.deviceId,

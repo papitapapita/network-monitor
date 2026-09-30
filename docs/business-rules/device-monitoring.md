@@ -297,7 +297,9 @@ A device with an `agentId` (DEV-164) leaves the in-process scheduler's due
 query; its agent polls it and its results arrive through the agent gateway
 (AGT-043). A manual poll of such a device is refused with `409`: this server may
 not be able to reach it, and on-demand polls through an agent arrive with ADR
-0002 phase 4. Wireless polling is not affected; it moves to agents in phase 3.
+0002 phase 4. Wireless polling stays with the server while it is on the
+monitored network; a server hosted off site leaves such devices alone (WLS-029).
+It moves to agents in phase 3.
 
 **Why:** One writer per device. Two sources applying results to the same
 `DeviceState` would flip it between their views and raise alerts from

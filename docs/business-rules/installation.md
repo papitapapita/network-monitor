@@ -27,7 +27,7 @@ Format and conventions: [README.md](README.md).
 | ---------------------------- | ----- |
 | Domain                       | 1     |
 | Application (use case)       | 4     |
-| Infrastructure (composition) | 12    |
+| Infrastructure (composition) | 13    |
 | Presentation                 | 3     |
 
 ---
@@ -379,3 +379,27 @@ everyone instead would let an attacker set a fresh address on each guess.
 
 **Enforced at:** `src/infrastructure/di/trustProxy.ts`, `src/main.ts`
 **Tests:** `tests/infrastructure/di/trustProxy.test.ts`
+
+### INS-041 — `SERVER_ON_SITE` says whether the server can reach the devices itself
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (composition)
+**Since:** 2026-09-29
+
+`SERVER_ON_SITE` is `true` or `false`, case-insensitive. Unset means `true`,
+which is how every install ran before agents. Set it to `false` when the
+backend is hosted off site (a VPS) and its devices are reached through
+on-site agents. Anything else stops the boot.
+
+Off site, devices behind an agent get no wireless polling, reboot or link
+diagnosis from the server (WLS-029), and the network scan is refused
+(DEV-171). Ping is the agent's either way (MON-022).
+
+**Why:** The backend cannot find out by itself whether a private address is
+reachable: a timeout looks the same as a dead radio. The vendor who installs it
+knows where it runs, so the install states it once. Defaulting to `true` keeps
+the existing on-site install unchanged, and it continues to use these features
+for devices it moves behind an agent.
+
+**Enforced at:** `src/infrastructure/di/serverOnSite.ts`, `src/infrastructure/di/container.ts`
+**Tests:** `tests/infrastructure/di/serverOnSite.test.ts`, `tests/integration/wireless.routes.test.ts`, `tests/integration/scan.routes.test.ts`

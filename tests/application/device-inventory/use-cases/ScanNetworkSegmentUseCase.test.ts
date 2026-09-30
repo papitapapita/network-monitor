@@ -1,6 +1,9 @@
 // Source: src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.ts
 
-import { ScanNetworkSegmentUseCase } from '../../../../src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase';
+import {
+  ScanNetworkSegmentUseCase,
+  SCAN_NEEDS_SERVER_ON_SITE
+} from '../../../../src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase';
 import {
   INetworkScannerService,
   DiscoveredHost
@@ -63,6 +66,23 @@ describe('ScanNetworkSegmentUseCase', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  // =========================================================================
+  describe('[DEV-171] a server hosted off site', () => {
+    it('should refuse to scan without sweeping anything', async () => {
+      const offSite = new ScanNetworkSegmentUseCase(
+        scanner,
+        logger,
+        false
+      );
+
+      const result = await offSite.execute(makeRequest());
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe(SCAN_NEEDS_SERVER_ON_SITE);
+      expect(scanner.scan).not.toHaveBeenCalled();
+    });
   });
 
   // =========================================================================

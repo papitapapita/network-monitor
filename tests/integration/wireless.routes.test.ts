@@ -6,12 +6,16 @@ import { PrismaClient } from '../../src/generated/prisma/client';
 import { createTestApp } from './helpers/createTestApp';
 import {
   cleanDatabase,
+  seedAgent,
   seedDeviceModel,
+  seedWirelessDeviceModel,
   GHOST_ID,
   INVALID_ID
 } from './helpers/db';
 import { seedAndGetToken } from './helpers/auth';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
+import { OUT_OF_SERVER_REACH } from '../../src/application/wireless-monitoring/interfaces';
+import { seedDiagnosableDevice } from './helpers/linkDiagnosis';
 
 // ─────────────────────────────────────────────────────────────
 // Local seed helpers (no shared wireless seed helpers exist yet)
@@ -855,5 +859,66 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
 
       expect(res.status).toBe(400);
     });
+  });
+});
+
+describe('[WLS-029] Wireless Routes — a server hosted off site', () => {
+  let app: Application;
+  let container: DependencyContainer;
+  let prisma: PrismaClient;
+  let adminToken: string;
+  let deviceId: string;
+
+  beforeAll(async () => {
+    process.env.SERVER_ON_SITE = 'false';
+    try {
+      ({ app, container } = await createTestApp());
+    } finally {
+      delete process.env.SERVER_ON_SITE;
+    }
+    prisma = container.getPrisma();
+  });
+
+  afterAll(async () => {
+    await container.disconnect();
+  });
+
+  beforeEach(async () => {
+    await cleanDatabase(prisma);
+    adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
+    // eligible in every other respect, so only the agent stands in the way
+    deviceId = await seedDiagnosableDevice(
+      prisma,
+      await seedWirelessDeviceModel(prisma),
+      { ip: '192.168.70.30' }
+    );
+    const agent = await seedAgent(prisma, { status: 'ACTIVE' });
+    await prisma.device.update({
+      where: { id: deviceId },
+      data: { agentId: agent.id }
+    });
+  });
+
+  it('409 — refuses a manual poll of a device behind an agent', async () => {
+    const res = await request(app)
+      .post(`/api/devices/${deviceId}/wireless/poll`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe(
+      `Cannot poll device — ${OUT_OF_SERVER_REACH}`
+    );
+  });
+
+  it('409 — refuses to reboot a device behind an agent', async () => {
+    const res = await request(app)
+      .post(`/api/devices/${deviceId}/wireless/reboot`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({});
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe(
+      `Cannot reboot device — ${OUT_OF_SERVER_REACH}`
+    );
   });
 });

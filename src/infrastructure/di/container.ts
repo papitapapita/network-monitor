@@ -167,6 +167,7 @@ import {
   LinkDiagnosisRunner
 } from '../wireless-monitoring';
 import { WirelessDeviceRepositoryAdapter } from '../wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter';
+import { DeviceReachAdapter } from '../wireless-monitoring/adapters/DeviceReachAdapter';
 import { ContractedCapacityAdapter } from '../wireless-monitoring/adapters/ContractedCapacityAdapter';
 import { DeviceVendorAdapter } from '../wireless-monitoring/adapters/DeviceVendorAdapter';
 import {
@@ -399,6 +400,7 @@ import { TriggerDataRetentionUseCase } from 'application/shared/use-cases/Trigge
 import { AdminController } from 'presentation/http/controllers/AdminController';
 import { loadCollectionAccountIssuerConfig } from '../billing/config/collectionAccountIssuerConfig';
 import { EnabledModules } from './enabledModules';
+import { loadServerOnSite } from './serverOnSite';
 
 export class DependencyContainer {
   private prisma: PrismaClient;
@@ -502,6 +504,9 @@ export class DependencyContainer {
   constructor(
     public readonly modules: EnabledModules = EnabledModules.parse(
       process.env.ENABLED_MODULES
+    ),
+    public readonly serverOnSite: boolean = loadServerOnSite(
+      process.env
     )
   ) {
     // Initialize infrastructure
@@ -517,6 +522,7 @@ export class DependencyContainer {
     });
     this.logger = new WinstonLogger();
     this.logger.info(`Enabled modules: ${this.modules}`);
+    this.logger.info(`Server on site: ${this.serverOnSite}`);
 
     // Initialize repositories
     this.locationRepository = new PrismaLocationRepository(
@@ -541,7 +547,10 @@ export class DependencyContainer {
     this.mutedAlertTypeRepository =
       new PrismaMutedAlertTypeRepository(this.prisma);
     this.wirelessDeviceConfigRepository =
-      new PrismaWirelessDeviceConfigRepository(this.prisma);
+      new PrismaWirelessDeviceConfigRepository(
+        this.prisma,
+        this.serverOnSite
+      );
     // Sits with the other persistence repositories rather than down in the
     // wireless block: ReplaceDeviceUseCase needs it to move credentials onto
     // the new unit, and that is constructed well before wireless.
@@ -1122,7 +1131,8 @@ export class DependencyContainer {
     );
     const scanNetworkSegmentUseCase = new ScanNetworkSegmentUseCase(
       networkScannerService,
-      this.logger
+      this.logger,
+      this.serverOnSite
     );
     this.scanController = new ScanController(
       scanNetworkSegmentUseCase,
@@ -1516,6 +1526,10 @@ export class DependencyContainer {
       this.deviceRepository,
       deviceEligibilityService
     );
+    const deviceReach = new DeviceReachAdapter(
+      this.deviceRepository,
+      this.serverOnSite
+    );
     const contractedCapacityProvider = new ContractedCapacityAdapter(
       this.contractedServiceRepository,
       this.servicePlanRepository
@@ -1530,6 +1544,7 @@ export class DependencyContainer {
       deviceVendorLookup,
       alertEvaluator,
       wirelessDeviceRepo,
+      deviceReach,
       contractedCapacityProvider,
       wirelessAlertPublisher,
       this.logger
@@ -1581,6 +1596,7 @@ export class DependencyContainer {
         this.wirelessDeviceConfigRepository,
         this.deviceCredentialsRepository,
         httpCollector,
+        deviceReach,
         this.logger
       );
     const createWirelessConfigUseCase =
@@ -1655,6 +1671,7 @@ export class DependencyContainer {
       wirelessCollectors,
       deviceVendorLookup,
       wirelessDeviceRepo,
+      deviceReach,
       contractedCapacityProvider,
       this.linkDiagnosisRunner,
       this.logger

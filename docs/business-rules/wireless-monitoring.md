@@ -581,6 +581,32 @@ denial of service against the device.
 **Reached from:** `poll`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
 
+### WLS-029 — A server hosted off site does not talk to devices behind an agent
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application + infrastructure
+**Since:** 2026-09-29
+
+When the install says its server is not on the monitored network
+(`SERVER_ON_SITE=false`, INS-041), a device with an `agentId` (DEV-164) is out
+of this server's reach. The scheduler leaves it out of the due query, and a
+manual poll, a reboot, or a link diagnosis of it is refused with `409`. A
+device without an agent is polled as before. A server on the monitored network
+(the default) keeps doing all of this for devices behind an agent too; only
+ping belongs to the agent there (MON-022).
+
+**Why:** Off site, the device's address is a private one on the customer's
+network. Trying anyway means every scheduled poll times out and raises a
+connection alert about a radio that is fine, and every button waits out its
+timeout before failing. Refusing up front with one stable reason lets the
+dashboard hide these actions for such devices. Wireless polling through the
+agent is ADR 0002 phase 3.
+
+**Enforced at:** `src/infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository.ts` (`findAllDue`), `src/infrastructure/wireless-monitoring/adapters/DeviceReachAdapter.ts`, and `PollWirelessDeviceUseCase`, `RebootWirelessDeviceUseCase`, `StartLinkDiagnosisUseCase` in `src/application/wireless-monitoring/use-cases/`
+**Reached from:** `POST /api/devices/:id/wireless/poll`, `POST /api/devices/:id/wireless/reboot`, `POST /api/devices/:id/wireless/diagnosis`, and the wireless polling scheduler
+**Message:** `Cannot poll device — it sits behind an on-site agent, and this server is not on its network` (`Cannot reboot device — …`, `Cannot diagnose device — …` with the same reason)
+**Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/application/wireless-monitoring/use-cases/RebootWirelessDeviceUseCase.test.ts`, `tests/application/wireless-monitoring/use-cases/StartLinkDiagnosisUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/PollWirelessDeviceUseCase.integration.test.ts`, `tests/integration/use-cases/wireless-monitoring/StartLinkDiagnosisUseCase.integration.test.ts`, `tests/integration/wireless.routes.test.ts`
+
 ---
 
 ## Collection from the radio

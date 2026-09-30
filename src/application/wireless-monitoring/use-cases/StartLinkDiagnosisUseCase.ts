@@ -13,10 +13,12 @@ import {
   IContractedCapacityProvider,
   IDeviceCredentialsRepository,
   IDeviceRepository,
+  IDeviceReach,
   IDeviceVendorLookup,
   ILinkDiagnosisRunner,
   IWirelessCollectorResolver,
-  LinkDiagnosisTarget
+  LinkDiagnosisTarget,
+  OUT_OF_SERVER_REACH
 } from '../interfaces';
 import {
   StartLinkDiagnosisRequestDTO,
@@ -34,6 +36,7 @@ export class StartLinkDiagnosisUseCase extends UseCase<
     private readonly collectors: IWirelessCollectorResolver,
     private readonly vendorLookup: IDeviceVendorLookup,
     private readonly deviceRepo: IDeviceRepository,
+    private readonly deviceReach: IDeviceReach,
     private readonly contractedCapacity: IContractedCapacityProvider,
     private readonly runner: ILinkDiagnosisRunner,
     logger: ILogger
@@ -83,6 +86,18 @@ export class StartLinkDiagnosisUseCase extends UseCase<
     if (ineligibleReason.value !== null) {
       return this.fail(
         `Cannot diagnose device — ${ineligibleReason.value}`
+      );
+    }
+
+    const outOfReach = await this.deviceReach.isOutOfReach(deviceId);
+    if (outOfReach.isFailure) {
+      return this.fail(
+        `Failed to check device reach: ${outOfReach.error}`
+      );
+    }
+    if (outOfReach.value) {
+      return this.fail(
+        `Cannot diagnose device — ${OUT_OF_SERVER_REACH}`
       );
     }
 

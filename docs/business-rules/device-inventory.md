@@ -37,7 +37,7 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 | Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Domain**                            |    45 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144, DEV-162, DEV-164, DEV-169 |
-| **Application**                       |    46 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168 |
+| **Application**                       |    47 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171 |
 | **Application + Domain**              |     6 | DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160                                                                                                                                                                                                                                                                                                                                     |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                                                                              |
 | **Infrastructure + Domain**           |     2 | DEV-028, DEV-161 |
@@ -2869,6 +2869,27 @@ access; placing devices behind an existing agent does not.
 
 **Enforced at:** `src/presentation/http/routes/device.routes.ts` (`authorize`)
 **Tests:** `tests/integration/device.routes.test.ts`
+
+### DEV-171 — A server hosted off site cannot scan the network
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-09-29
+
+When the install says its server is not on the monitored network
+(`SERVER_ON_SITE=false`, INS-041), `POST /api/network/scan` is refused with
+`409` before anything is swept.
+
+**Why:** The scan sends pings from the server's own machine. Off site, a
+private segment such as `192.168.1.0/24` would be looked up on the hosting
+provider's network, and the result would list someone else's hosts, or
+nothing, as if it were the customer's network. Scanning through an agent is
+not built yet.
+
+**Enforced at:** `src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.ts` (`beforeExecute`)
+**Reached from:** `POST /api/network/scan` via `ScanController.scan`
+**Message:** `Network scan is not available — this server is not on the monitored network`
+**Tests:** `tests/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.test.ts`, `tests/integration/scan.routes.test.ts`
 
 ---
 

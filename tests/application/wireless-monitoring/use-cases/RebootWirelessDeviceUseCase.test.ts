@@ -7,6 +7,10 @@ import {
   DecryptedCredentials
 } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceCredentialsRepository';
 import { IWirelessDeviceRebooter } from '../../../../src/application/wireless-monitoring/interfaces/IWirelessDeviceRebooter';
+import {
+  IDeviceReach,
+  OUT_OF_SERVER_REACH
+} from '../../../../src/application/wireless-monitoring/interfaces/IDeviceReach';
 import { WirelessDeviceConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig';
 import { WirelessDeviceConfigId } from '../../../../src/domain/shared/ids/WirelessDeviceConfigId';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
@@ -107,7 +111,16 @@ function makeMocks() {
     reboot: jest.fn()
   };
 
-  return { wirelessDeviceConfigRepo, credentialsRepo, rebooter };
+  const deviceReach: jest.Mocked<IDeviceReach> = {
+    isOutOfReach: jest.fn().mockResolvedValue(Result.ok(false))
+  };
+
+  return {
+    wirelessDeviceConfigRepo,
+    credentialsRepo,
+    rebooter,
+    deviceReach
+  };
 }
 
 function makeUseCase() {
@@ -117,6 +130,7 @@ function makeUseCase() {
     mocks.wirelessDeviceConfigRepo,
     mocks.credentialsRepo,
     mocks.rebooter,
+    mocks.deviceReach,
     logger
   );
   return { useCase, ...mocks, logger };
@@ -125,6 +139,46 @@ function makeUseCase() {
 // ---------------------------------------------------------------------------
 
 describe('[WLS-024] RebootWirelessDeviceUseCase', () => {
+  describe("[WLS-029] Out of this server's reach", () => {
+    it("refuses without loading the device's config or credentials", async () => {
+      const {
+        useCase,
+        deviceReach,
+        wirelessDeviceConfigRepo,
+        rebooter
+      } = makeUseCase();
+      deviceReach.isOutOfReach.mockResolvedValue(Result.ok(true));
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe(
+        `Cannot reboot device — ${OUT_OF_SERVER_REACH}`
+      );
+      expect(
+        wirelessDeviceConfigRepo.findByDeviceId
+      ).not.toHaveBeenCalled();
+      expect(rebooter.reboot).not.toHaveBeenCalled();
+    });
+
+    it('fails when the reach check itself fails', async () => {
+      const { useCase, deviceReach, rebooter } = makeUseCase();
+      deviceReach.isOutOfReach.mockResolvedValue(
+        Result.fail('DB error')
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('reach');
+      expect(rebooter.reboot).not.toHaveBeenCalled();
+    });
+  });
+
   describe('Happy Path', () => {
     it('should reboot the device and return the acknowledgement', async () => {
       const {

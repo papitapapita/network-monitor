@@ -20,6 +20,7 @@ import {
 import { PrismaWirelessDeviceConfigRepository } from 'infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository';
 import { PrismaWirelessSnapshotRepository } from 'infrastructure/wireless-monitoring/repositories/PrismaWirelessSnapshotRepository';
 import { WirelessDeviceRepositoryAdapter } from 'infrastructure/wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter';
+import { DeviceReachAdapter } from 'infrastructure/wireless-monitoring/adapters/DeviceReachAdapter';
 import { DeviceVendorAdapter } from 'infrastructure/wireless-monitoring/adapters/DeviceVendorAdapter';
 import { ContractedCapacityAdapter } from 'infrastructure/wireless-monitoring/adapters/ContractedCapacityAdapter';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
@@ -49,7 +50,8 @@ export function buildLinkDiagnosis(
   prisma: PrismaClient,
   hub: IEventStreamHub,
   fakes: { ping: IPingService; collector: FakeWirelessCollector },
-  config: LinkDiagnosisRunnerConfig = {}
+  config: LinkDiagnosisRunnerConfig = {},
+  serverOnSite = true
 ): LinkDiagnosisStack {
   const logger = new WinstonLogger();
   const deviceRepo = new PrismaDeviceRepository(prisma);
@@ -77,6 +79,7 @@ export function buildLinkDiagnosis(
       deviceRepo,
       new DeviceEligibilityService()
     ),
+    new DeviceReachAdapter(deviceRepo, serverOnSite),
     new ContractedCapacityAdapter(
       new PrismaContractedServiceRepository(prisma),
       new PrismaServicePlanRepository(prisma)

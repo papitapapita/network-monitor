@@ -1,7 +1,10 @@
 import { Request, Response } from 'express';
 import { ILogger } from 'application/shared/interfaces';
 import { ScanNetworkSegmentInput } from '../validation/scan.schemas';
-import { ScanNetworkSegmentUseCase } from 'application/device-inventory/use-cases';
+import {
+  ScanNetworkSegmentUseCase,
+  SCAN_NEEDS_SERVER_ON_SITE
+} from 'application/device-inventory/use-cases';
 
 export class ScanController {
   constructor(
@@ -35,6 +38,10 @@ export class ScanController {
   };
 
   private getErrorStatusCode(errorMessage: string): number {
+    if (errorMessage === SCAN_NEEDS_SERVER_ON_SITE) {
+      return 409;
+    }
+
     if (errorMessage.includes('not found')) {
       return 404;
     }

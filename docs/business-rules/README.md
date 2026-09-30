@@ -11,7 +11,7 @@ different document for a different audience.
 
 | Context             | File                                             | Rules                 |
 | ------------------- | ------------------------------------------------ | --------------------- |
-| Device Inventory    | [device-inventory.md](device-inventory.md)       | `DEV-001` … `DEV-170` |
+| Device Inventory    | [device-inventory.md](device-inventory.md)       | `DEV-001` … `DEV-171` |
 | Customers           | [customers.md](customers.md)                     | `CUS-001` … `CUS-140` |
 | Billing             | [billing.md](billing.md)                         | `BIL-001` … `BIL-264` |
 | Quoting             | [quoting.md](quoting.md)                         | `QUO-001` … `QUO-142` |
@@ -22,7 +22,7 @@ different document for a different audience.
 | Identity & Access   | [identity.md](identity.md)                       | `IDN-001` … `IDN-123` |
 | Tickets             | [tickets.md](tickets.md)                         | `TKT-001` … `TKT-114` |
 | Shared Kernel       | [shared.md](shared.md)                           | `SHR-001` … `SHR-104` |
-| Installation        | [installation.md](installation.md)               | `INS-001` … `INS-040` |
+| Installation        | [installation.md](installation.md)               | `INS-001` … `INS-041` |
 | Probe Agents        | [probe-agents.md](probe-agents.md)               | `AGT-001` … `AGT-068` |
 
 Every context now has a file. Two conventions settled while filling them in:

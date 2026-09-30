@@ -25,7 +25,11 @@ type RawPollingConfig = {
 export class PrismaWirelessDeviceConfigRepository
   implements IWirelessDeviceConfigRepository
 {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    // Only findAllDue reads it: which devices this server polls itself.
+    private readonly serverOnSite = true
+  ) {}
 
   async save(
     config: WirelessDeviceConfig
@@ -174,6 +178,8 @@ export class PrismaWirelessDeviceConfigRepository
           AND wpc.ip_address IS NOT NULL
           AND d.deleted_at IS NULL
           AND d.status IN ('ACTIVE', 'COMMISSIONING')
+          -- Off site, a device behind an agent is out of reach (WLS-029)
+          AND (${this.serverOnSite} OR d.agent_id IS NULL)
           AND (
             wpc.last_polled_at IS NULL
             OR wpc.last_polled_at + (wpc.interval_secs || ' seconds')::interval <= ${now}
