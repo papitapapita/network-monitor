@@ -20,6 +20,7 @@ describe('Agent Routes — /api/agents', () => {
   let app: Application;
   let container: DependencyContainer;
   let prisma: PrismaClient;
+  let vendorToken: string;
   let adminToken: string;
   let operatorToken: string;
   let viewerToken: string;
@@ -37,6 +38,7 @@ describe('Agent Routes — /api/agents', () => {
 
   beforeEach(async () => {
     await cleanAgents(prisma);
+    vendorToken = await seedAndGetToken(app, prisma, 'VENDOR');
     adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
     operatorToken = await seedAndGetToken(app, prisma, 'OPERATOR');
     viewerToken = await seedAndGetToken(app, prisma, 'VIEWER');
@@ -60,11 +62,13 @@ describe('Agent Routes — /api/agents', () => {
   });
 
   describe('Authorization (RBAC)', () => {
-    it.each([
+    const writes = [
       ['create', '/api/agents'],
       ['reissue', `/api/agents/${GHOST_ID}/pairing-key`],
       ['revoke', `/api/agents/${GHOST_ID}/revoke`]
-    ])(
+    ];
+
+    it.each(writes)(
       '[AGT-009] 403 — an OPERATOR cannot %s',
       async (_label, path) => {
         const res = await request(app)
@@ -75,6 +79,32 @@ describe('Agent Routes — /api/agents', () => {
         expect(res.status).toBe(403);
       }
     );
+
+    it.each(writes)(
+      '[AGT-009] 403 — the customer ADMIN cannot %s',
+      async (_label, path) => {
+        const res = await request(app)
+          .post(path)
+          .set('Authorization', as(adminToken))
+          .send({ name: 'Torre Norte' });
+
+        expect(res.status).toBe(403);
+      }
+    );
+
+    it('[AGT-009] 200 — the customer ADMIN can list and read agents', async () => {
+      const { id } = await seedAgent(prisma);
+
+      const list = await request(app)
+        .get('/api/agents')
+        .set('Authorization', as(adminToken));
+      const one = await request(app)
+        .get(`/api/agents/${id}`)
+        .set('Authorization', as(adminToken));
+
+      expect(list.status).toBe(200);
+      expect(one.status).toBe(200);
+    });
 
     it('[AGT-009] 200 — a VIEWER can list and read agents', async () => {
       const { id } = await seedAgent(prisma);
@@ -95,7 +125,7 @@ describe('Agent Routes — /api/agents', () => {
     it('[AGT-001] 201 — returns the agent and a pairing key once', async () => {
       const res = await request(app)
         .post('/api/agents')
-        .set('Authorization', as(adminToken))
+        .set('Authorization', as(vendorToken))
         .send({ name: 'Torre Norte' });
 
       expect(res.status).toBe(201);
@@ -111,12 +141,12 @@ describe('Agent Routes — /api/agents', () => {
     it('[AGT-002] the key is never shown again', async () => {
       const created = await request(app)
         .post('/api/agents')
-        .set('Authorization', as(adminToken))
+        .set('Authorization', as(vendorToken))
         .send({ name: 'Torre Norte' });
 
       const read = await request(app)
         .get(`/api/agents/${created.body.data.agent.id}`)
-        .set('Authorization', as(adminToken));
+        .set('Authorization', as(vendorToken));
 
       expect(read.body.data).not.toHaveProperty('pairingKey');
       expect(JSON.stringify(read.body)).not.toContain(
@@ -129,7 +159,7 @@ describe('Agent Routes — /api/agents', () => {
 
       const res = await request(app)
         .post('/api/agents')
-        .set('Authorization', as(adminToken))
+        .set('Authorization', as(vendorToken))
         .send({ name: 'Torre Norte' });
 
       expect(res.status).toBe(409);
@@ -138,11 +168,11 @@ describe('Agent Routes — /api/agents', () => {
     it('400 — missing or too long name', async () => {
       const missing = await request(app)
         .post('/api/agents')
-        .set('Authorization', as(adminToken))
+        .set('Authorization', as(vendorToken))
         .send({});
       const long = await request(app)
         .post('/api/agents')
-        .set('Authorization', as(adminToken))
+        .set('Authorization', as(vendorToken))
         .send({ name: 'a'.repeat(61) });
 
       expect(missing.status).toBe(400);
@@ -269,7 +299,7 @@ describe('Agent Routes — /api/agents', () => {
 
       const res = await request(app)
         .post(`/api/agents/${id}/pairing-key`)
-        .set('Authorization', as(adminToken));
+        .set('Authorization', as(vendorToken));
 
       expect(res.status).toBe(200);
       expect(
@@ -282,7 +312,7 @@ describe('Agent Routes — /api/agents', () => {
 
       const res = await request(app)
         .post(`/api/agents/${id}/pairing-key`)
-        .set('Authorization', as(adminToken));
+        .set('Authorization', as(vendorToken));
 
       expect(res.status).toBe(409);
     });
@@ -290,7 +320,7 @@ describe('Agent Routes — /api/agents', () => {
     it('404 — unknown agent', async () => {
       const res = await request(app)
         .post(`/api/agents/${GHOST_ID}/pairing-key`)
-        .set('Authorization', as(adminToken));
+        .set('Authorization', as(vendorToken));
 
       expect(res.status).toBe(404);
     });
@@ -302,7 +332,7 @@ describe('Agent Routes — /api/agents', () => {
 
       const res = await request(app)
         .post(`/api/agents/${id}/revoke`)
-        .set('Authorization', as(adminToken));
+        .set('Authorization', as(vendorToken));
 
       expect(res.status).toBe(200);
       expect(res.body.data.status).toBe('REVOKED');
@@ -313,7 +343,7 @@ describe('Agent Routes — /api/agents', () => {
 
       const res = await request(app)
         .post(`/api/agents/${id}/revoke`)
-        .set('Authorization', as(adminToken));
+        .set('Authorization', as(vendorToken));
 
       expect(res.status).toBe(409);
     });
@@ -321,7 +351,7 @@ describe('Agent Routes — /api/agents', () => {
     it('400 — malformed id', async () => {
       const res = await request(app)
         .post(`/api/agents/${INVALID_ID}/revoke`)
-        .set('Authorization', as(adminToken));
+        .set('Authorization', as(vendorToken));
 
       expect(res.status).toBe(400);
     });

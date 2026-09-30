@@ -9,7 +9,7 @@ export function createAdminRoutes(
 
   router.post(
     '/data-retention/purge',
-    authorize('delete'),
+    authorize('manage-installation'),
     createRateLimiter('delete'),
     controller.purgeStaleData
   );

@@ -8,6 +8,26 @@ import { UserRole } from '../../../../src/domain/identity/value-objects/UserRole
 
 describe('ROLE_PERMISSIONS', () => {
   // =========================================================================
+  describe('[IDN-030] VENDOR permissions', () => {
+    const vendorPerms: Permission[] =
+      ROLE_PERMISSIONS[UserRole.VENDOR];
+
+    it('should grant everything ADMIN has', () => {
+      expect(vendorPerms).toEqual(
+        expect.arrayContaining(ROLE_PERMISSIONS[UserRole.ADMIN])
+      );
+    });
+
+    it('should grant exactly 8 permissions', () => {
+      expect(vendorPerms).toHaveLength(8);
+    });
+
+    it('should include manage-installation', () => {
+      expect(vendorPerms).toContain('manage-installation');
+    });
+  });
+
+  // =========================================================================
   describe('ADMIN permissions', () => {
     const adminPerms: Permission[] = ROLE_PERMISSIONS[UserRole.ADMIN];
 
@@ -41,6 +61,10 @@ describe('ROLE_PERMISSIONS', () => {
 
     it('should include manage-credentials', () => {
       expect(adminPerms).toContain('manage-credentials');
+    });
+
+    it('[IDN-033] should NOT include manage-installation', () => {
+      expect(adminPerms).not.toContain('manage-installation');
     });
   });
 
@@ -80,6 +104,10 @@ describe('ROLE_PERMISSIONS', () => {
     it('should NOT include manage-credentials', () => {
       expect(operatorPerms).not.toContain('manage-credentials');
     });
+
+    it('should NOT include manage-installation', () => {
+      expect(operatorPerms).not.toContain('manage-installation');
+    });
   });
 
   // =========================================================================
@@ -118,7 +146,8 @@ describe('ROLE_PERMISSIONS', () => {
 
   // =========================================================================
   describe('permission set completeness', () => {
-    it('should define entries for all three roles', () => {
+    it('should define entries for all four roles', () => {
+      expect(ROLE_PERMISSIONS).toHaveProperty(UserRole.VENDOR);
       expect(ROLE_PERMISSIONS).toHaveProperty(UserRole.ADMIN);
       expect(ROLE_PERMISSIONS).toHaveProperty(UserRole.OPERATOR);
       expect(ROLE_PERMISSIONS).toHaveProperty(UserRole.VIEWER);

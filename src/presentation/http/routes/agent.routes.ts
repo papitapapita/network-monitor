@@ -12,7 +12,8 @@ import {
 } from '../validation';
 
 // Issuing a pairing key or revoking an agent grants or removes network
-// access to a customer's site, so writes sit on the credential tier.
+// access to a customer's site. That is the vendor's job, not the customer's:
+// the customer reads its agents and nothing more.
 export function createAgentRoutes(
   controller: AgentController
 ): Router {
@@ -20,7 +21,7 @@ export function createAgentRoutes(
 
   router.post(
     '/',
-    authorize('manage-credentials'),
+    authorize('manage-installation'),
     createRateLimiter('write'),
     validateRequest(createAgentSchema),
     controller.create
@@ -51,7 +52,7 @@ export function createAgentRoutes(
 
   router.post(
     '/:id/pairing-key',
-    authorize('manage-credentials'),
+    authorize('manage-installation'),
     createRateLimiter('write'),
     validateRequest(agentIdParamSchema),
     controller.reissuePairingKey
@@ -59,7 +60,7 @@ export function createAgentRoutes(
 
   router.post(
     '/:id/revoke',
-    authorize('manage-credentials'),
+    authorize('manage-installation'),
     createRateLimiter('write'),
     validateRequest(agentIdParamSchema),
     controller.revoke

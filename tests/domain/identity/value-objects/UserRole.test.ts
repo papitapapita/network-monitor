@@ -6,6 +6,13 @@ describe('UserRole', () => {
   // =========================================================================
   describe('create()', () => {
     describe('happy path', () => {
+      it('[IDN-020] should succeed for VENDOR', () => {
+        const result = UserRole.create('VENDOR');
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.value).toBe('VENDOR');
+      });
+
       it('should succeed for ADMIN', () => {
         const result = UserRole.create('ADMIN');
 
@@ -95,6 +102,7 @@ describe('UserRole', () => {
         const result = UserRole.create('UNKNOWN');
 
         expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('VENDOR');
         expect(result.error).toContain('ADMIN');
         expect(result.error).toContain('OPERATOR');
         expect(result.error).toContain('VIEWER');
@@ -126,6 +134,16 @@ describe('UserRole', () => {
 
   // =========================================================================
   describe('predicate methods', () => {
+    describe('isVendor()', () => {
+      it('should return true for VENDOR', () => {
+        expect(UserRole.reconstitute('VENDOR').isVendor()).toBe(true);
+      });
+
+      it('should return false for ADMIN', () => {
+        expect(UserRole.reconstitute('ADMIN').isVendor()).toBe(false);
+      });
+    });
+
     describe('isAdmin()', () => {
       it('should return true only for ADMIN role', () => {
         expect(UserRole.reconstitute('ADMIN').isAdmin()).toBe(true);

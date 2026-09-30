@@ -58,7 +58,18 @@ describe('Admin Routes — POST /api/admin/data-retention/purge', () => {
   // Role guard
   // ─────────────────────────────────────────────────────────────
 
-  it('403 — OPERATOR token is denied (no delete permission)', async () => {
+  it('[IDN-033] 403 — the customer ADMIN is denied (vendor action)', async () => {
+    const token = await seedAndGetToken(app, prisma, 'ADMIN');
+
+    const res = await request(app)
+      .post('/api/admin/data-retention/purge')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body.success).toBe(false);
+  });
+
+  it('403 — OPERATOR token is denied (vendor action)', async () => {
     const token = await seedAndGetToken(app, prisma, 'OPERATOR');
 
     const res = await request(app)
@@ -69,7 +80,7 @@ describe('Admin Routes — POST /api/admin/data-retention/purge', () => {
     expect(res.body.success).toBe(false);
   });
 
-  it('403 — VIEWER token is denied (no delete permission)', async () => {
+  it('403 — VIEWER token is denied (vendor action)', async () => {
     const token = await seedAndGetToken(app, prisma, 'VIEWER');
 
     const res = await request(app)
@@ -84,8 +95,8 @@ describe('Admin Routes — POST /api/admin/data-retention/purge', () => {
   // Happy path — no data
   // ─────────────────────────────────────────────────────────────
 
-  it('200 — ADMIN token succeeds with all counts = 0 when no data exists', async () => {
-    const token = await seedAndGetToken(app, prisma, 'ADMIN');
+  it('200 — VENDOR token succeeds with all counts = 0 when no data exists', async () => {
+    const token = await seedAndGetToken(app, prisma, 'VENDOR');
 
     const res = await request(app)
       .post('/api/admin/data-retention/purge')
@@ -106,7 +117,7 @@ describe('Admin Routes — POST /api/admin/data-retention/purge', () => {
   // ─────────────────────────────────────────────────────────────
 
   it('200 — deletes old ping results, resolved alerts, wireless snapshots, and cleared wireless alert records', async () => {
-    const token = await seedAndGetToken(app, prisma, 'ADMIN');
+    const token = await seedAndGetToken(app, prisma, 'VENDOR');
 
     // Seed a ping result older than 30 days
     await prisma.pingResult.create({
@@ -171,7 +182,7 @@ describe('Admin Routes — POST /api/admin/data-retention/purge', () => {
   // ─────────────────────────────────────────────────────────────
 
   it('does not delete an open alert event (no resolvedAt) even when startedAt is old', async () => {
-    const token = await seedAndGetToken(app, prisma, 'ADMIN');
+    const token = await seedAndGetToken(app, prisma, 'VENDOR');
 
     const openAlert = await prisma.alertEvent.create({
       data: {
@@ -194,7 +205,7 @@ describe('Admin Routes — POST /api/admin/data-retention/purge', () => {
   });
 
   it('does not delete an active wireless alert record (isActive=true, no clearedAt) even when triggeredAt is old', async () => {
-    const token = await seedAndGetToken(app, prisma, 'ADMIN');
+    const token = await seedAndGetToken(app, prisma, 'VENDOR');
 
     const activeRecord = await prisma.wirelessAlertRecord.create({
       data: {

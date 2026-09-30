@@ -2430,7 +2430,8 @@ meaningful. /31 and /32 are exempt because they have no reserved pair.
 **Since:** 2026-08-01
 
 `PUT` and `DELETE /api/devices/:id/credentials` require a dedicated
-`manage-credentials` permission, granted to ADMIN alone. `GET` stays on `read`
+`manage-credentials` permission, granted to ADMIN (and VENDOR, which holds
+everything ADMIN does — IDN-030). `GET` stays on `read`
 (DEV-141) because the response is masked (DEV-129).
 
 **Why:** These endpoints write the passwords and SNMP keys that open the

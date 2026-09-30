@@ -30,8 +30,8 @@ Format and conventions: [README.md](README.md).
 | Presentation (middleware)     | 10    |
 | Infrastructure                | 8     |
 | Domain (value object)         | 4     |
-| Application                   | 3     |
-| Presentation                  | 2     |
+| Application                   | 5     |
+| Presentation                  | 3     |
 | Domain (permission table)     | 2     |
 | Domain (aggregate)            | 2     |
 | Infrastructure + Presentation | 1     |
@@ -43,8 +43,9 @@ constant under `domain/identity/permissions/` precisely so the question "may an
 operator delete things" has one answer, testable without an HTTP request, that
 no route can disagree with.
 
-`User` is intentionally almost empty: it has no mutators. Password changes, role
-changes and deactivation do not exist as operations — see `IDN-010`.
+`User` is intentionally almost empty: its one mutator is `changeRole`, used only
+to make the configured account the vendor at boot (`IDN-011`). Password changes
+and deactivation do not exist as operations — see `IDN-010`.
 
 ---
 
@@ -147,11 +148,12 @@ invalidates nothing, since bcrypt hashes carry their own cost.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Domain
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Revised:** 2026-09-30
 
-`User` has no mutators — no password change, no role change, no deactivation —
-and there are no user-management endpoints. Accounts are created by the seed
-script, which is idempotent and skips an email that already exists.
+There are no user-management endpoints — no password change, no role change, no
+deactivation through the API. Accounts are created by the seed script, which is
+idempotent and skips an email that already exists, and the vendor account by
+`IDN-011` at boot, which is also the one place a role changes.
 
 **Why:** Recorded because it is a real limitation, not an oversight to be
 "fixed" by adding setters. This is a small operation with a handful of staff
@@ -164,37 +166,94 @@ the same time, not afterwards.
 **Enforced at:** `src/domain/identity/aggregates/User.ts`, `prisma/seed.ts`
 **Tests:** `tests/domain/identity/aggregates/User.test.ts`
 
+### IDN-011 — The vendor account is put in place from the environment at boot
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-30
+
+When `VENDOR_EMAIL` is set, every boot makes sure that account exists and is a
+`VENDOR`:
+
+| The account              | What happens                               |
+| ------------------------ | ------------------------------------------ |
+| does not exist           | created as `VENDOR` with `VENDOR_PASSWORD` |
+| exists with another role | promoted to `VENDOR`; its password is kept |
+| is already a `VENDOR`    | nothing                                    |
+
+`VENDOR_PASSWORD` is read only to create the account, so it can be removed from
+the environment afterwards. A failure — a malformed email, a missing password
+for a new account, a database error — stops the boot. `VENDOR_PASSWORD` set
+without `VENDOR_EMAIL` also stops it. With neither set the install runs with no
+vendor account and logs a warning.
+
+Changing `VENDOR_EMAIL` later promotes the new address and leaves the old one a
+`VENDOR`; taking the role away from an account is a database change for now.
+
+**Why:** The vendor account is what separates the company that runs the install
+from the customer using it (`IDN-033`), so it cannot depend on someone
+remembering to insert a row. Promoting an existing account is how an install
+whose owner is also the vendor (Insetel) moves its owner over without a second
+login. Keeping the existing password means a restart never overwrites a password
+the owner already uses.
+
+**Enforced at:** `src/application/identity/use-cases/EnsureVendorAccountUseCase.ts`,
+`src/infrastructure/di/vendorAccount.ts`, `src/infrastructure/di/container.ts`
+(`ensureVendorAccount`), `src/main.ts`
+**Message:** `Vendor account: …` (boot error) / `VENDOR_PASSWORD is set but VENDOR_EMAIL is not`
+**Tests:** `tests/application/identity/use-cases/EnsureVendorAccountUseCase.test.ts`,
+`tests/infrastructure/di/vendorAccount.test.ts`,
+`tests/integration/use-cases/identity/EnsureVendorAccountUseCase.integration.test.ts`,
+`tests/domain/identity/aggregates/User.test.ts`
+
+### IDN-012 — A new vendor account needs a password of at least 12 characters
+
+**Type:** Validation · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-30
+
+**Why:** It is the one account that can pair machines onto a customer's network
+(`IDN-033`), and it is typed into an environment file rather than chosen at a
+login screen, so a short placeholder would otherwise go live unnoticed. Other
+accounts have no length rule yet; that belongs with user management.
+
+**Enforced at:** `src/application/identity/use-cases/EnsureVendorAccountUseCase.ts` (`VENDOR_PASSWORD_MIN_LENGTH`)
+**Message:** `A password of at least 12 characters is required to create the vendor account`
+**Tests:** `tests/application/identity/use-cases/EnsureVendorAccountUseCase.test.ts`,
+`tests/integration/use-cases/identity/EnsureVendorAccountUseCase.integration.test.ts`
+
 ---
 
 ## Roles and permissions
 
-### IDN-020 — A user is an ADMIN, an OPERATOR or a VIEWER
+### IDN-020 — A user is a VENDOR, an ADMIN, an OPERATOR or a VIEWER
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain (value object)
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Revised:** 2026-09-30
 
 Any other value is rejected. The role is stored uppercase and trimmed, so
 `admin` and `ADMIN` are the same role.
 
-**Why:** Three roles because there are three jobs: the person who runs the
-network, the person who works in it day to day, and the person who only needs to
-look. A fourth would need a fourth column in `ROLE_PERMISSIONS`, which is the
-right place for that argument to happen.
+**Why:** Four roles because there are four jobs: the company that sells and runs
+the install (`VENDOR`, added 2026-09-30 — `IDN-033`), the customer's person who
+runs the network, the person who works in it day to day, and the person who only
+needs to look. A fifth would need a fifth entry in `ROLE_PERMISSIONS`, which is
+the right place for that argument to happen.
 
 **Enforced at:** `src/domain/identity/value-objects/UserRole.ts` (`create`)
 **Backed by:** `UserRole` enum in `prisma/schema.prisma`
-**Message:** `Invalid role: <value>. Must be one of: ADMIN, OPERATOR, VIEWER`
+**Message:** `Invalid role: <value>. Must be one of: VENDOR, ADMIN, OPERATOR, VIEWER`
 **Tests:** `tests/domain/identity/value-objects/UserRole.test.ts`
 
-### IDN-021 — There are seven permissions
+### IDN-021 — There are eight permissions
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain (permission table)
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Revised:** 2026-09-30
 
 `read`, `create`, `update`, `delete`, `activate`, `bulk-import`,
-`manage-credentials`.
+`manage-credentials`, `manage-installation`.
 
 **Why:** Permissions are verbs, not resources — one `delete` covers customers,
 devices and alerts alike. That keeps the table small enough to hold in your head,
@@ -209,15 +268,17 @@ endpoint is omitted entirely instead (`BIL-140`).
 
 **Type:** Policy · **Status:** Active
 **Layer:** Domain (permission table)
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Revised:** 2026-09-30
 
 | Role         | Permissions                                                                           |
 | ------------ | ------------------------------------------------------------------------------------- |
+| **VENDOR**   | everything ADMIN has, plus `manage-installation`                                      |
 | **ADMIN**    | `read`, `create`, `update`, `delete`, `activate`, `bulk-import`, `manage-credentials` |
 | **OPERATOR** | `read`, `create`, `update`, `activate`, `bulk-import`                                 |
 | **VIEWER**   | `read`                                                                                |
 
-The two an operator lacks are `delete` and `manage-credentials`.
+The two an operator lacks are `delete` and `manage-credentials`; the one an
+administrator lacks is `manage-installation` (`IDN-033`).
 
 **Why:** An operator does the daily work — adding subscribers, commissioning
 devices, activating service — and none of that destroys anything. The two
@@ -258,6 +319,39 @@ permission to a route _weaken_ it, which is the opposite of what someone writing
 
 **Enforced at:** `src/presentation/http/middleware/authorize.ts`
 **Tests:** `tests/presentation/http/middleware/authorize.test.ts`
+
+### IDN-033 — Running the install is the vendor's, not the customer's
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-09-30
+
+`manage-installation`, held by `VENDOR` alone, gates:
+
+| Endpoint                               | What it does                          |
+| -------------------------------------- | ------------------------------------- |
+| `POST /api/agents`                     | create an agent and its pairing key   |
+| `POST /api/agents/:id/pairing-key`     | issue a new pairing key               |
+| `POST /api/agents/:id/revoke`          | revoke an agent                       |
+| `POST /api/admin/data-retention/purge` | purge stale data across every context |
+
+A customer's `ADMIN` answers `403` on all four, and still reads its agents
+(`AGT-009`).
+
+**Why:** These are the actions of whoever installs and maintains the system,
+not of whoever uses it. Pairing an agent puts a machine on the customer's
+network with access to its measurements; a customer who could do that could
+also undo the vendor's installation without the vendor knowing. The purge is a
+maintenance lever on the database the vendor is answerable for. Keeping all of
+it on one permission means the customer's dashboard can hide every vendor
+control by checking one thing.
+
+**Enforced at:** `src/domain/identity/permissions/Permission.ts`,
+`src/presentation/http/routes/agent.routes.ts`,
+`src/presentation/http/routes/admin.routes.ts`
+**Tests:** `tests/integration/agent.routes.test.ts`,
+`tests/integration/admin.routes.test.ts`,
+`tests/domain/identity/permissions/Permission.test.ts`
 
 ---
 

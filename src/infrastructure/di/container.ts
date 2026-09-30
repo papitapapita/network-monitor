@@ -62,6 +62,7 @@ import {
   HttpImageFetcher
 } from '../quoting';
 import { LoginUseCase } from 'application/identity/use-cases/LoginUseCase';
+import { EnsureVendorAccountUseCase } from 'application/identity/use-cases/EnsureVendorAccountUseCase';
 import { AuthController } from 'presentation/http/controllers/AuthController';
 import { ITokenService } from 'application/identity/interfaces/ITokenService';
 import {
@@ -405,6 +406,7 @@ import { AdminController } from 'presentation/http/controllers/AdminController';
 import { loadCollectionAccountIssuerConfig } from '../billing/config/collectionAccountIssuerConfig';
 import { EnabledModules } from './enabledModules';
 import { loadServerOnSite } from './serverOnSite';
+import { loadVendorAccount } from './vendorAccount';
 
 export class DependencyContainer {
   private prisma: PrismaClient;
@@ -446,6 +448,7 @@ export class DependencyContainer {
 
   // Identity
   public tokenService: ITokenService;
+  private ensureVendorAccountUseCase: EnsureVendorAccountUseCase;
   public authController: AuthController;
 
   // Controllers
@@ -512,7 +515,8 @@ export class DependencyContainer {
     ),
     public readonly serverOnSite: boolean = loadServerOnSite(
       process.env
-    )
+    ),
+    private readonly vendorAccount = loadVendorAccount(process.env)
   ) {
     // Initialize infrastructure
     const adapter = new PrismaPg({
@@ -922,6 +926,12 @@ export class DependencyContainer {
       userRepository,
       bcryptPasswordService,
       jwtTokenService,
+      this.logger
+    );
+
+    this.ensureVendorAccountUseCase = new EnsureVendorAccountUseCase(
+      userRepository,
+      bcryptPasswordService,
       this.logger
     );
 
@@ -2210,6 +2220,24 @@ export class DependencyContainer {
       );
       throw error;
     }
+  }
+
+  // A vendor account that cannot be put in place stops the boot: the install
+  // would otherwise run with nobody able to manage its agents.
+  public async ensureVendorAccount(): Promise<void> {
+    if (!this.vendorAccount) {
+      this.logger.warn('No vendor account configured (VENDOR_EMAIL)');
+      return;
+    }
+    const result = await this.ensureVendorAccountUseCase.execute(
+      this.vendorAccount
+    );
+    if (result.isFailure) {
+      throw new Error(`Vendor account: ${result.error}`);
+    }
+    this.logger.info(
+      `Vendor account ${this.vendorAccount.email}: ${result.value.outcome}`
+    );
   }
 
   public async disconnect(): Promise<void> {

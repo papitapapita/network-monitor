@@ -242,4 +242,49 @@ describe('User', () => {
       expect(user.domainEvents).toHaveLength(0);
     });
   });
+
+  // =========================================================================
+  describe('changeRole()', () => {
+    it('[IDN-011] should replace the role and touch updatedAt', () => {
+      const user = User.reconstitute(
+        UserId.create(),
+        makeUserProps()
+      );
+      const before = user.updatedAt;
+
+      const result = user.changeRole(makeRole('VENDOR'));
+
+      expect(result.isSuccess).toBe(true);
+      expect(user.role.isVendor()).toBe(true);
+      expect(user.updatedAt.getTime()).toBeGreaterThan(
+        before.getTime()
+      );
+    });
+
+    it('should keep the email and password hash', () => {
+      const user = User.reconstitute(
+        UserId.create(),
+        makeUserProps()
+      );
+
+      user.changeRole(makeRole('VENDOR'));
+
+      expect(user.email.toString()).toBe('user@example.com');
+      expect(user.passwordHash).toBe('$2b$10$hashedpassword');
+    });
+
+    it('should refuse a missing role and leave the user unchanged', () => {
+      const user = User.reconstitute(
+        UserId.create(),
+        makeUserProps()
+      );
+
+      const result = user.changeRole(
+        undefined as unknown as UserRole
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(user.role.toString()).toBe('OPERATOR');
+    });
+  });
 });

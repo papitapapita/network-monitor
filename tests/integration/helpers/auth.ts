@@ -3,7 +3,7 @@ import request from 'supertest';
 import { Application } from 'express';
 import { PrismaClient } from '../../../src/generated/prisma/client';
 
-export type TestRole = 'ADMIN' | 'OPERATOR' | 'VIEWER';
+export type TestRole = 'VENDOR' | 'ADMIN' | 'OPERATOR' | 'VIEWER';
 
 export async function seedUser(
   prisma: PrismaClient,

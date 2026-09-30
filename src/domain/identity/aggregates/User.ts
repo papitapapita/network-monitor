@@ -34,22 +34,9 @@ export class User extends AggregateRoot<UserProps, UserId> {
     role: UserRole;
     passwordHash: string;
   }): Result<User> {
-    const guardResult = Guard.combine([
-      Guard.againstNullOrUndefined(props.email, 'email'),
-      Guard.againstNullOrUndefined(props.role, 'role'),
-      Guard.againstNullOrUndefined(
-        props.passwordHash,
-        'passwordHash'
-      ),
-      Guard.isString(props.passwordHash, 'passwordHash')
-    ]);
-
-    if (!guardResult.succeeded) {
-      return Result.fail<User>(guardResult.message!);
-    }
-
-    if (props.passwordHash.trim().length === 0) {
-      return Result.fail<User>('passwordHash cannot be empty');
+    const invalid = User.validate(props);
+    if (invalid) {
+      return Result.fail<User>(invalid);
     }
 
     const id = UserId.create();
@@ -69,7 +56,42 @@ export class User extends AggregateRoot<UserProps, UserId> {
     );
   }
 
+  public changeRole(role: UserRole): Result<void> {
+    const invalid = User.validate({ ...this.props, role });
+    if (invalid) {
+      return Result.fail<void>(invalid);
+    }
+    this.props.role = role;
+    this.props.updatedAt = new Date();
+    return Result.ok<void>();
+  }
+
   public static reconstitute(id: UserId, props: UserProps): User {
     return new User(props, id);
+  }
+
+  private static validate(props: {
+    email: UserEmail;
+    role: UserRole;
+    passwordHash: string;
+  }): string | null {
+    const guardResult = Guard.combine([
+      Guard.againstNullOrUndefined(props.email, 'email'),
+      Guard.againstNullOrUndefined(props.role, 'role'),
+      Guard.againstNullOrUndefined(
+        props.passwordHash,
+        'passwordHash'
+      ),
+      Guard.isString(props.passwordHash, 'passwordHash')
+    ]);
+    if (!guardResult.succeeded) {
+      return guardResult.message!;
+    }
+
+    if (props.passwordHash.trim().length === 0) {
+      return 'passwordHash cannot be empty';
+    }
+
+    return null;
   }
 }

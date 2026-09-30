@@ -47,6 +47,7 @@ async function bootstrap(): Promise<Server> {
 
   // Setup dependency injection and routes
   const container = await setupDependencies();
+  await container.ensureVendorAccount();
   setupRoutes(app, container);
 
   // Polling and the other background jobs run only while the subscription

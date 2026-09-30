@@ -65,15 +65,23 @@ Missing or invalid tokens return `401`. Insufficient role returns `403`.
 
 | Role       | Allowed operations                                                      |
 | ---------- | ----------------------------------------------------------------------- |
+| `VENDOR`   | everything `ADMIN` has, plus manage-installation                        |
 | `ADMIN`    | read, create, update, delete, activate, bulk-import, manage-credentials |
 | `OPERATOR` | read, create, update, activate, bulk-import                             |
 | `VIEWER`   | read only                                                               |
 
-`manage-credentials` gates writes to `/api/devices/:id/credentials` and to
-`/api/agents` — the first carry device passwords and SNMP keys, the second issue
-and revoke agent pairing keys, so neither is covered by the generic `update`
-permission. Reading them stays on `read` because the response is
-masked.
+`VENDOR` is the company that sells and runs the install; `ADMIN` is the
+customer's own administrator. There is one vendor account per install, set up
+from the server's environment at boot (IDN-011) — it cannot be created through
+the API. Wherever an endpoint below lists `ADMIN`, `VENDOR` is allowed too.
+
+`manage-credentials` gates writes to `/api/devices/:id/credentials`: they carry
+device passwords and SNMP keys, so they are not covered by the generic `update`
+permission. Reading them stays on `read` because the response is masked.
+
+`manage-installation` (VENDOR only, IDN-033) gates agent create, re-key and
+revoke and the data-retention purge. **Hide those controls unless
+`user.role === 'VENDOR'`**; for any other role they answer `403`.
 
 ### Rate limits (per authenticated user)
 
@@ -119,7 +127,7 @@ user and 200 per server, exceeding either returns `429` with
     user: {
       id: string    // UUID
       email: string
-      role: 'ADMIN' | 'OPERATOR' | 'VIEWER'
+      role: 'VENDOR' | 'ADMIN' | 'OPERATOR' | 'VIEWER'
     }
   }
 }
@@ -2766,7 +2774,7 @@ WirelessAlertDTO[]
 
 ## Probe agents `/api/agents`
 
-On-site agents that measure a customer's network from inside it and report to this backend (ADR 0002). An administrator creates an agent and gets a **pairing key** — the only thing the installer asks for. The key is shown **once**, in the create (or re-key) response; store nothing, show it with a copy button and a "this will not be shown again" warning.
+On-site agents that measure a customer's network from inside it and report to this backend (ADR 0002). The vendor creates an agent and gets a **pairing key** — the only thing the installer asks for. The key is shown **once**, in the create (or re-key) response; store nothing, show it with a copy button and a "this will not be shown again" warning.
 
 **Lifecycle:** `PENDING → ACTIVE → REVOKED`. `PENDING` until the installer pairs; the key expires 24 h after it was issued (`pairingExpiresAt`) — offer "new key" for an expired pending agent. `REVOKED` is final. `lastSeenAt`, `agentVersion` and `clockOffsetMs` are set each time the agent connects and every 30 s while connected (`null` until it first connects). `clockDriftSince` is set when the PC's clock is more than a minute off and cleared once it is back within 30 s — show a "fix this PC's clock" hint while it is set; the results themselves are already corrected.
 
@@ -2803,7 +2811,7 @@ interface AgentPairingDTO {
 ### `POST /api/agents` — Create
 
 **Status:** 201 | 400 | 409 | 503  
-**Roles:** ADMIN
+**Roles:** VENDOR (`manage-installation`; the customer's ADMIN gets `403`)
 
 ```ts
 // Request body
@@ -2884,7 +2892,7 @@ interface AgentOutageDTO {
 ### `POST /api/agents/:id/pairing-key` — Issue a new pairing key
 
 **Status:** 200 | 400 | 404 | 409 | 503  
-**Roles:** ADMIN
+**Roles:** VENDOR (`manage-installation`; the customer's ADMIN gets `403`)
 
 ```ts
 // No body. Response
@@ -2898,7 +2906,7 @@ interface AgentOutageDTO {
 ### `POST /api/agents/:id/revoke` — Revoke
 
 **Status:** 200 | 400 | 404 | 409  
-**Roles:** ADMIN
+**Roles:** VENDOR (`manage-installation`; the customer's ADMIN gets `403`)
 
 ```ts
 // No body. Response
@@ -4658,6 +4666,30 @@ interface InstallationDTO {
 > the network scan are the core and always present. A module that is off has
 > no routes at all (`404`). The values change only when the vendor edits the
 > install's settings and restarts it, so there is no need to poll.
+
+## Admin `/api/admin`
+
+### `POST /api/admin/data-retention/purge` — Purge stale data now
+
+**Status:** 200  
+**Roles:** VENDOR (`manage-installation`)
+
+```ts
+// No body. Response
+{
+  success: true,
+  data: {
+    pingResultsDeleted: number;
+    alertsDeleted: number; // resolved alerts only
+    wirelessSnapshotsDeleted: number;
+    wirelessAlertRecordsDeleted: number; // cleared records only
+  }
+}
+```
+
+> Runs the daily retention sweep immediately (NOT-131): every table past its configured window, open alerts and active wireless alert records never touched. A vendor maintenance action — do not show it to the customer.
+
+---
 
 ## Other
 

@@ -20,6 +20,7 @@ datasource db {
 // ============================================================================
 
 enum UserRole {
+  VENDOR
   ADMIN
   OPERATOR
   VIEWER

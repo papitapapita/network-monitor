@@ -213,26 +213,27 @@ through the tunnel.
 **Message:** `Invalid or expired pairing code`
 **Tests:** `tests/integration/agent-enrollment.routes.test.ts`, `tests/integration/use-cases/probe-agents/EnrollAgentUseCase.integration.test.ts`
 
-### AGT-009 — Only administrators create, re-key or revoke agents; every role can read them
+### AGT-009 — Only the vendor creates, re-keys or revokes agents; every role can read them
 
 **Type:** Policy · **Status:** Active
 **Layer:** Presentation
-**Since:** 2026-09-28
+**Since:** 2026-09-28 · **Revised:** 2026-09-30
 
-| Endpoint                           | Permission           |
-| ---------------------------------- | -------------------- |
-| `POST /api/agents`                 | `manage-credentials` |
-| `GET /api/agents`                  | `read`               |
-| `GET /api/agents/:id`              | `read`               |
-| `GET /api/agents/:id/outages`      | `read`               |
-| `POST /api/agents/:id/pairing-key` | `manage-credentials` |
-| `POST /api/agents/:id/revoke`      | `manage-credentials` |
-| `POST /agent/v1/enroll`            | none (pairing code)  |
+| Endpoint                           | Permission            |
+| ---------------------------------- | --------------------- |
+| `POST /api/agents`                 | `manage-installation` |
+| `GET /api/agents`                  | `read`                |
+| `GET /api/agents/:id`              | `read`                |
+| `GET /api/agents/:id/outages`      | `read`                |
+| `POST /api/agents/:id/pairing-key` | `manage-installation` |
+| `POST /api/agents/:id/revoke`      | `manage-installation` |
+| `POST /agent/v1/enroll`            | none (pairing code)   |
 
-**Why:** A pairing key grants a machine access to the customer's network data,
-the same weight as device credentials, so it sits on the same tier
-(`manage-credentials`, administrators only). Agent status is operational
-information everyone who watches the network needs.
+**Why:** A pairing key puts a machine on the customer's network with access to
+its measurements, and installing agents is the vendor's work, so writes sit on
+the vendor's permission (`IDN-033`); the customer's administrator gets `403`.
+Agent status is operational information everyone who watches the network needs,
+the customer included.
 
 **Enforced at:** `src/presentation/http/routes/agent.routes.ts` (`authorize`)
 **Tests:** `tests/integration/agent.routes.test.ts`

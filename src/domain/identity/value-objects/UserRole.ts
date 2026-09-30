@@ -5,11 +5,13 @@ interface UserRoleProps {
 }
 
 export class UserRole extends ValueObject<UserRoleProps> {
+  static readonly VENDOR = 'VENDOR';
   static readonly ADMIN = 'ADMIN';
   static readonly OPERATOR = 'OPERATOR';
   static readonly VIEWER = 'VIEWER';
 
   private static readonly VALID_ROLES = [
+    UserRole.VENDOR,
     UserRole.ADMIN,
     UserRole.OPERATOR,
     UserRole.VIEWER
@@ -51,6 +53,10 @@ export class UserRole extends ValueObject<UserRoleProps> {
     return UserRole.VALID_ROLES.includes(
       value as (typeof UserRole.VALID_ROLES)[number]
     );
+  }
+
+  public isVendor(): boolean {
+    return this._props.value === UserRole.VENDOR;
   }
 
   public isAdmin(): boolean {
