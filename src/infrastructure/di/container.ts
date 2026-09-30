@@ -1978,6 +1978,9 @@ export class DependencyContainer {
     // the vendor's. The vendor copy skips quiet hours and mutes — those are
     // the customer's settings, not the vendor's.
     const vendorChatId = process.env.TELEGRAM_VENDOR_CHAT_ID?.trim();
+    const vendorBotToken =
+      process.env.TELEGRAM_VENDOR_BOT_TOKEN?.trim() ||
+      process.env.TELEGRAM_BOT_TOKEN;
     const agentHealthPublisher = vendorChatId
       ? new FanOutAlertPublisher([
           alertPublisher,
@@ -1986,7 +1989,10 @@ export class DependencyContainer {
               new AlertPublisher(
                 new SendAlertNotificationUseCase(
                   this.deviceRepository,
-                  new TelegramNotificationService(vendorChatId),
+                  new TelegramNotificationService(
+                    vendorChatId,
+                    vendorBotToken
+                  ),
                   this.logger
                 )
               ),

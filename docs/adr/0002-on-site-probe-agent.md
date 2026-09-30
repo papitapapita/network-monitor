@@ -215,6 +215,10 @@ Each customer install sends its operational alerts through Telegram, as
 Insetel's does today: one product-branded bot (not Insetel's) shared by all
 customer installs, with each install configured with its customer's chat id.
 The vendor chat for R6 is a separate chat id on the same bot.
+*Revised 2026-09-30:* the vendor chat may use its own bot
+(`TELEGRAM_VENDOR_BOT_TOKEN`, falling back to the install's bot). Insetel's
+install keeps its own bot for its network's alerts and reaches the vendor
+chat through the product bot, which is never added to Insetel's group.
 
 A future customer app with in-app notifications is another delivery adapter
 behind the path ADR 0001 established (`IAlertPublisher` →

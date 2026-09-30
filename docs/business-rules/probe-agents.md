@@ -343,7 +343,9 @@ Both events are published through the shared `IAlertPublisher` as alerts with
 no device (`NOT-100`): critical when the agent goes offline, resolved when it
 comes back, type `agent_offline`, naming the agent. When
 `TELEGRAM_VENDOR_CHAT_ID` is set, the same message also goes to that chat,
-with the install's host (from `AGENT_PUBLIC_URL`) added to the source. One
+with the install's host (from `AGENT_PUBLIC_URL`) added to the source,
+through the bot in `TELEGRAM_VENDOR_BOT_TOKEN` — or the install's own bot
+when that is unset (revised 2026-09-30). One
 chat failing does not stop delivery to the other. Neither copy is subject to
 quiet hours or mutes (`NOT-196`). These messages are not recorded in the alert
 list: an alert record belongs to a device.
@@ -352,10 +354,11 @@ list: an alert record belongs to a device.
 the vendor needs to know first, because a silent agent looks like a broken
 product. The vendor chat hears from every customer's install, so each message
 says which one. The vendor chat receives only agent-health messages, never
-device alerts.
+device alerts. A separate vendor bot lets an install keep its own bot for its
+network's alerts without the vendor's bot joining that chat.
 
-**Enforced at:** `src/application/notifications/event-handlers/AgentWentOfflineNotificationHandler.ts`, `src/application/notifications/event-handlers/AgentCameBackNotificationHandler.ts`, `src/infrastructure/notifications/FanOutAlertPublisher.ts`, `src/infrastructure/notifications/InstallLabelAlertPublisher.ts`, `src/infrastructure/di/container.ts`
-**Tests:** `tests/application/notifications/event-handlers/AgentHealthNotificationHandlers.test.ts`, `tests/infrastructure/notifications/FanOutAlertPublisher.test.ts`
+**Enforced at:** `src/application/notifications/event-handlers/AgentWentOfflineNotificationHandler.ts`, `src/application/notifications/event-handlers/AgentCameBackNotificationHandler.ts`, `src/infrastructure/notifications/FanOutAlertPublisher.ts`, `src/infrastructure/notifications/InstallLabelAlertPublisher.ts`, `src/infrastructure/notifications/TelegramNotificationService.ts`, `src/infrastructure/di/container.ts`
+**Tests:** `tests/application/notifications/event-handlers/AgentHealthNotificationHandlers.test.ts`, `tests/infrastructure/notifications/FanOutAlertPublisher.test.ts`, `tests/infrastructure/notifications/TelegramNotificationService.test.ts`
 
 ---
 

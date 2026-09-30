@@ -10,16 +10,15 @@ export class TelegramNotificationService
   private readonly botToken: string;
   private readonly chatId: string;
 
-  // A chat id other than the install's own is the vendor chat (ADR 0002, R6):
-  // same bot, different audience.
+  // A chat id other than the install's own is the vendor chat (ADR 0002, R6),
+  // which may be reached through the vendor's own bot (AGT-023).
   constructor(
-    chatId: string | undefined = process.env.TELEGRAM_CHAT_ID
+    chatId: string | undefined = process.env.TELEGRAM_CHAT_ID,
+    token: string | undefined = process.env.TELEGRAM_BOT_TOKEN
   ) {
-    const token = process.env.TELEGRAM_BOT_TOKEN;
-
     if (!token || !chatId) {
       throw new Error(
-        'TelegramNotificationService: TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set in environment'
+        'TelegramNotificationService: a bot token and a chat id must be set in environment'
       );
     }
 
