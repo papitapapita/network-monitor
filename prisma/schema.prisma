@@ -415,6 +415,18 @@ model MutedAlertType {
   @@map("muted_alert_types")
 }
 
+/// The install's notification settings, edited from the dashboard (NOT-200).
+/// One row at most (id is always 1); no row means the env defaults apply.
+model NotificationSettings {
+  id                    Int      @id @default(1) @db.SmallInt
+  telegramChatId        String?  @map("telegram_chat_id") @db.VarChar(64)
+  downAlertDelayMinutes Int      @map("down_alert_delay_minutes")
+  wirelessAlertsEnabled Boolean  @map("wireless_alerts_enabled")
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("notification_settings")
+}
+
 // ============================================================================
 // WIRELESS MONITORING MODELS
 // ============================================================================

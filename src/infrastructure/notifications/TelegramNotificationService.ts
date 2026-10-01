@@ -4,29 +4,45 @@ import {
   NotificationMessage
 } from 'application/notifications/interfaces';
 
+// Looked up on every send, so a chat changed from the dashboard (NOT-200)
+// takes effect on the next alert. null means no chat is configured.
+export type TelegramChatSource = () => Promise<string | null>;
+
+export const NO_TELEGRAM_CHAT_CONFIGURED =
+  'Telegram chat is not configured';
+
 export class TelegramNotificationService
   implements INotificationService
 {
   private readonly botToken: string;
-  private readonly chatId: string;
+  private readonly chatSource: TelegramChatSource;
 
-  // A chat id other than the install's own is the vendor chat (ADR 0002, R6),
-  // which may be reached through the vendor's own bot (AGT-023).
+  // A fixed chat id other than the install's own is the vendor chat (ADR
+  // 0002, R6), which may be reached through the vendor's own bot (AGT-023).
   constructor(
-    chatId: string | undefined = process.env.TELEGRAM_CHAT_ID,
+    chat: string | TelegramChatSource | undefined = process.env
+      .TELEGRAM_CHAT_ID,
     token: string | undefined = process.env.TELEGRAM_BOT_TOKEN
   ) {
-    if (!token || !chatId) {
+    if (!token || !chat) {
       throw new Error(
         'TelegramNotificationService: a bot token and a chat id must be set in environment'
       );
     }
 
     this.botToken = token;
-    this.chatId = chatId;
+    this.chatSource =
+      typeof chat === 'string' ? async () => chat : chat;
   }
 
   async send(message: NotificationMessage): Promise<Result<void>> {
+    const chatId = await this.chatSource();
+    if (!chatId) return Result.fail(NO_TELEGRAM_CHAT_CONFIGURED);
+    return this.sendTo(chatId, message.body);
+  }
+
+  // Also behind the dashboard's test message (NOT-202), which names its chat.
+  async sendTo(chatId: string, text: string): Promise<Result<void>> {
     const url = `https://api.telegram.org/bot${this.botToken}/sendMessage`;
 
     try {
@@ -34,8 +50,8 @@ export class TelegramNotificationService
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id: this.chatId,
-          text: message.body,
+          chat_id: chatId,
+          text,
           parse_mode: 'MarkdownV2'
         }),
         signal: AbortSignal.timeout(10_000)

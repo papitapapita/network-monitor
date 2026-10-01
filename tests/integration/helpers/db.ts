@@ -16,6 +16,8 @@ export async function cleanDatabase(
   await prisma.device.deleteMany();
   await prisma.location.deleteMany();
   await prisma.user.deleteMany();
+  // No row means the env defaults apply (NOT-201).
+  await prisma.notificationSettings.deleteMany();
 }
 
 /**

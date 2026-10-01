@@ -23,3 +23,4 @@ export * from './GetDeviceNotificationPolicyDTO';
 export * from './DeleteDeviceNotificationPolicyDTO';
 export * from './MutedAlertTypesResponseDTO';
 export * from './SetMutedAlertTypesDTO';
+export * from './NotificationSettingsDTO';

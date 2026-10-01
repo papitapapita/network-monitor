@@ -10,6 +10,7 @@ import {
   createNotificationPolicyBulkRoutes
 } from './notification-policy.routes';
 import { createNotificationMuteRoutes } from './notification-mute.routes';
+import { createNotificationSettingsRoutes } from './notification-settings.routes';
 import { createAlertRoutes } from './alert.routes';
 import { createScanRoutes } from './scan.routes';
 import { createWirelessRoutes } from './wireless.routes';
@@ -261,6 +262,14 @@ export function setupRoutes(
   apiRouter.use(
     '/notification-mutes',
     createNotificationMuteRoutes(container.notificationMuteController)
+  );
+
+  // Install notification settings: /api/notification-settings
+  apiRouter.use(
+    '/notification-settings',
+    createNotificationSettingsRoutes(
+      container.notificationSettingsController
+    )
   );
 
   // =====================================

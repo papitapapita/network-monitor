@@ -24,3 +24,4 @@ export * from './wireless-diagnosis.schemas';
 export * from './agent.schemas';
 export * from './installation.schemas';
 export * from './user.schemas';
+export * from './notification-settings.schemas';

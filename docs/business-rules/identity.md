@@ -296,17 +296,18 @@ endpoint is omitted entirely instead (`BIL-140`).
 
 **Type:** Policy · **Status:** Active
 **Layer:** Domain (permission table)
-**Since:** 2026-08-05 · **Revised:** 2026-09-30
+**Since:** 2026-08-05 · **Revised:** 2026-09-30 (`manage-settings`, IDN-034)
 
 | Role         | Permissions                                                                                           |
 | ------------ | ----------------------------------------------------------------------------------------------------- |
-| **VENDOR**   | everything ADMIN has, plus `manage-installation`                                                      |
-| **ADMIN**    | `read`, `create`, `update`, `delete`, `activate`, `bulk-import`, `manage-credentials`, `manage-users` |
+| **VENDOR**   | everything ADMIN has, plus `manage-installation`                                                                         |
+| **ADMIN**    | `read`, `create`, `update`, `delete`, `activate`, `bulk-import`, `manage-credentials`, `manage-users`, `manage-settings` |
 | **OPERATOR** | `read`, `create`, `update`, `activate`, `bulk-import`                                                 |
 | **VIEWER**   | `read`                                                                                                |
 
-An operator lacks `delete`, `manage-credentials` and `manage-users`; an
-administrator lacks only `manage-installation` (`IDN-033`).
+An operator lacks `delete`, `manage-credentials`, `manage-users` and
+`manage-settings`; an administrator lacks only `manage-installation`
+(`IDN-033`).
 
 **Why:** An operator does the daily work — adding subscribers, commissioning
 devices, activating service — and none of that destroys anything. The two
@@ -380,6 +381,27 @@ control by checking one thing.
 **Tests:** `tests/integration/agent.routes.test.ts`,
 `tests/integration/admin.routes.test.ts`,
 `tests/domain/identity/permissions/Permission.test.ts`
+
+### IDN-034 — The customer's administrator changes the install's settings
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-09-30
+
+`manage-settings`, held by `ADMIN` (and so by `VENDOR`), gates changing the
+install's settings from the dashboard: today the notification settings
+(`PUT /api/notification-settings` and its test message, `NOT-204`). Reading
+them stays on `read`. An `OPERATOR` or `VIEWER` answers `403`.
+
+**Why:** Where alerts go and how long the system waits before paging are
+decisions for whoever answers for the install, not for every member of staff;
+a wrong chat silently stops every alert. They are the customer's own, so they
+sit below `manage-installation`, which stays the vendor's.
+
+**Enforced at:** `src/domain/identity/permissions/Permission.ts`,
+`src/presentation/http/routes/notification-settings.routes.ts`
+**Tests:** `tests/domain/identity/permissions/Permission.test.ts`,
+`tests/integration/notification-settings.routes.test.ts`
 
 ---
 

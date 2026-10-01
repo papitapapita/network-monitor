@@ -23,15 +23,17 @@ Format and conventions: [README.md](README.md).
 | `NOT-150` … `NOT-169` | Cross-cutting (access control)                           |
 | `NOT-170` … `NOT-189` | Device notification policy (quiet hours, delay override) |
 | `NOT-190` … `NOT-199` | Global alert-type muting                                 |
+| `NOT-200` … `NOT-219` | Install notification settings (dashboard)                |
 
 ## Layer coverage
 
 | Layer                     | Rules |
 | ------------------------- | ----- |
-| Application               | 36    |
-| Domain (aggregate/entity) | 18    |
-| Presentation              | 4     |
-| Infrastructure (database) | 2     |
+| Application                  | 37    |
+| Domain (aggregate/entity/VO) | 19    |
+| Presentation                 | 5     |
+| Infrastructure (database)    | 2     |
+| Infrastructure (composition) | 2     |
 
 `Alert` is a deliberately thin aggregate — it holds one three-flag lifecycle
 (`resolvedAt`, `notifiedAt`, `recoveryNotifiedAt`) and refuses to move any of
@@ -459,8 +461,9 @@ ever gets announced (`NOT-097`). A periodic scan
 (`RaiseOverdueDeviceDownAlertsUseCase`) separately decides when to actually
 notify: once a device has been continuously DOWN for at least its effective
 alert delay — the per-device override on `DeviceNotificationPolicy`
-(`NOT-173`) if one is set, otherwise `DEVICE_DOWN_ALERT_DELAY_MINUTES`
-(default 60). `SendDeviceDownAlertUseCase` refreshes the alert's details
+(`NOT-173`) if one is set, otherwise the install's down-alert delay from its
+notification settings (`NOT-201`; `DEVICE_DOWN_ALERT_DELAY_MINUTES`, default 60,
+until saved from the dashboard). `SendDeviceDownAlertUseCase` refreshes the alert's details
 (consecutive failure count, IP) to their current value right before
 publishing, so a fault recorded hours before it is announced still shows an
 accurate failure count.
@@ -1094,7 +1097,7 @@ calendar day.
 `DeviceNotificationPolicy.alertDelayMinutes` is `null` unless explicitly
 set; `effectiveAlertDelayMs(defaultMs)` returns the override in
 milliseconds when present, otherwise `defaultMs`
-(`DEVICE_DOWN_ALERT_DELAY_MINUTES`, `NOT-090`). `RaiseOverdueDeviceDownAlertsUseCase`
+(the install's down-alert delay, `NOT-090`, `NOT-201`). `RaiseOverdueDeviceDownAlertsUseCase`
 looks up each currently-down device's policy independently and compares its
 own `downSince` against its own effective delay (`NOT-097`), so a device
 with a 5-minute override and one on the 60-minute system default are both
@@ -1408,3 +1411,118 @@ preferences.
 
 **Enforced at:** `src/infrastructure/notifications/MutedTypeAlertPublisher.ts`
 **Tests:** `tests/infrastructure/notifications/MutedTypeAlertPublisher.test.ts`
+
+---
+
+## Install notification settings
+
+### NOT-200 — The install's Telegram chat, down-alert delay and wireless switch are edited from the dashboard
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain · Application · Infrastructure
+**Since:** 2026-09-30
+
+Three settings are stored per install and replaced together:
+
+| Setting                 | Allowed values                                                                     |
+| ----------------------- | ---------------------------------------------------------------------------------- |
+| `telegramChatId`        | a numeric chat id (groups are negative) or a public `@channel` name; `null` = none |
+| `downAlertDelayMinutes` | a whole number from 0 to 1440                                                      |
+| `wirelessAlertsEnabled` | `true` or `false`                                                                  |
+
+Spaces around the chat id are trimmed and an empty one means `null`. A save
+takes effect on the next alert, with no restart: the chat is looked up on
+every send, the delay on every overdue scan (`NOT-097`), and the wireless
+switch on every wireless notification (`NOT-203`). With no chat, alerts are
+still recorded and listed; the send fails and they stay unnotified. The bot
+token never leaves the server's environment.
+
+**Why:** Until now each of these needed the vendor to edit the server's env
+and restart it. They are the customer's own preferences — where their alerts
+go and how patient the system is — so the customer's administrator sets them.
+The token is a secret that lets anyone post as the bot; it stays where only the
+vendor can see it.
+
+**Enforced at:** `src/domain/notifications/value-objects/NotificationSettings.ts`, `src/application/notifications/use-cases/UpdateNotificationSettingsUseCase.ts`, `src/infrastructure/persistence/PrismaNotificationSettingsRepository.ts`, `src/infrastructure/notifications/TelegramNotificationService.ts`, `src/infrastructure/di/container.ts`
+**Reached from:** `GET`, `PUT /api/notification-settings`
+**Tests:** `tests/domain/notifications/value-objects/NotificationSettings.test.ts`, `tests/application/notifications/use-cases/NotificationSettingsUseCases.test.ts`, `tests/infrastructure/notifications/TelegramNotificationService.test.ts`, `tests/integration/use-cases/notifications/UpdateNotificationSettingsUseCase.integration.test.ts`, `tests/integration/notification-settings.routes.test.ts`
+
+### NOT-201 — Until the administrator saves them, the settings come from the env
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (composition)
+**Since:** 2026-09-30
+
+With nothing saved, the settings are `TELEGRAM_CHAT_ID` (unset = no chat),
+`DEVICE_DOWN_ALERT_DELAY_MINUTES` (unset = 60) and
+`WIRELESS_ALERT_NOTIFICATIONS_ENABLED` (anything but `false` = on). An env
+value that `NOT-200` would refuse stops the boot. Once saved, the stored values
+win and the env ones are ignored. The table holds at most one row.
+
+**Why:** Every install ran on these env values before the dashboard could edit
+them; reading them as defaults means an upgrade changes nothing until someone
+saves. Refusing a bad env value at boot keeps the defaults inside the same
+rules as a save, instead of failing quietly at the first alert.
+
+**Enforced at:** `src/infrastructure/di/notificationSettingsDefaults.ts`, `src/infrastructure/persistence/PrismaNotificationSettingsRepository.ts`, `src/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.ts`
+**Tests:** `tests/infrastructure/di/notificationSettingsDefaults.test.ts`, `tests/integration/use-cases/notifications/GetNotificationSettingsUseCase.integration.test.ts`, `tests/integration/use-cases/notifications/RaiseOverdueDeviceDownAlertsUseCase.integration.test.ts`, `tests/integration/notification-settings.routes.test.ts`
+
+### NOT-202 — A test message checks a chat before relying on it
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-09-30
+
+`POST /api/notification-settings/test` sends one message, in Spanish, to the
+chat given in the body — or the saved chat when none is given — and stores
+nothing. The given chat must pass the same check as a save (`400`). With no
+chat at all it answers `409`; when Telegram refuses the message it answers
+`502` with Telegram's reason (for example, the bot is not in that group).
+
+**Why:** A wrong chat id, or a group the bot was never added to, is the usual
+way alerts silently go nowhere. Trying the chat from the form, before saving,
+lets the administrator see the message arrive and fix it on the spot.
+
+**Enforced at:** `src/application/notifications/use-cases/SendTestNotificationUseCase.ts`, `src/infrastructure/notifications/TelegramTestMessageSender.ts`
+**Reached from:** `POST /api/notification-settings/test`
+**Tests:** `tests/application/notifications/use-cases/NotificationSettingsUseCases.test.ts`, `tests/integration/use-cases/notifications/SendTestNotificationUseCase.integration.test.ts`, `tests/integration/notification-settings.routes.test.ts`
+
+### NOT-203 — Switching wireless alert notifications off withholds the message, never the alert
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (composition)
+**Since:** 2026-09-30
+
+While `wirelessAlertsEnabled` is `false`, every wireless alert and clear
+notification is withheld, the same way quiet hours withhold one (`NOT-174`):
+the alert record is created and listed as usual and stays unnotified. Alerts
+still open when the switch goes back on are sent then. Device down and
+recovery alerts are not affected. If the settings cannot be read, the message
+goes out.
+
+**Why:** Wireless polling is worth running before its thresholds are tuned,
+and paging staff during that time teaches them to ignore the chat. Keeping the
+records means nothing is lost while it is off. Failing open matches mutes
+(`NOT-190`): a lost alert costs more than an unwanted one.
+
+**Enforced at:** `src/infrastructure/notifications/SwitchedOffAlertPublisher.ts`, `src/application/shared/interfaces/IAlertPublisher.ts` (`WIRELESS_ALERTS_OFF_SUPPRESSED`), `src/infrastructure/di/container.ts`
+**Tests:** `tests/infrastructure/notifications/SwitchedOffAlertPublisher.test.ts`
+
+### NOT-204 — Everyone reads the notification settings; the administrator changes them
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-09-30
+
+| Endpoint                               | Permission        |
+| -------------------------------------- | ----------------- |
+| `GET /api/notification-settings`       | `read`            |
+| `PUT /api/notification-settings`       | `manage-settings` |
+| `POST /api/notification-settings/test` | `manage-settings` |
+
+**Why:** Staff may want to know where alerts go, but redirecting them is a
+decision for whoever answers for the install (`IDN-034`). The test message is
+on the same permission because it posts to a chat of the caller's choosing.
+
+**Enforced at:** `src/presentation/http/routes/notification-settings.routes.ts` (`authorize`)
+**Tests:** `tests/integration/notification-settings.routes.test.ts`

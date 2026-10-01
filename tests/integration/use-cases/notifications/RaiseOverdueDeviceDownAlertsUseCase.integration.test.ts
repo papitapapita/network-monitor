@@ -11,6 +11,8 @@ import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceR
 import { PrismaDeviceStateRepository } from 'infrastructure/persistence/PrismaDeviceStateRepository';
 import { PrismaPollingConfigurationRepository } from 'infrastructure/persistence/PrismaPollingConfigurationRepository';
 import { PrismaAgentStatusQuery } from 'infrastructure/probe-agents/queries';
+import { PrismaNotificationSettingsRepository } from 'infrastructure/persistence/PrismaNotificationSettingsRepository';
+import { NotificationSettings } from 'domain/notifications/value-objects';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import { DeviceEligibilityService } from 'domain/device-inventory/services';
 import {
@@ -63,7 +65,14 @@ describe('RaiseOverdueDeviceDownAlertsUseCase — integration', () => {
         new PrismaDeviceStateRepository(prisma),
         new PrismaDeviceNotificationPolicyRepository(prisma),
         sendDeviceDownAlert,
-        ALERT_DELAY_MS,
+        new PrismaNotificationSettingsRepository(
+          prisma,
+          NotificationSettings.reconstitute({
+            telegramChatId: null,
+            downAlertDelayMinutes: ALERT_DELAY_MS / 60_000,
+            wirelessAlertsEnabled: true
+          })
+        ),
         logger,
         new PrismaAgentStatusQuery(prisma, serverOnSite)
       );
@@ -140,6 +149,28 @@ describe('RaiseOverdueDeviceDownAlertsUseCase — integration', () => {
 
     expect(await openAlerts(deviceId)).toBe(1);
     expect(fakeNotification.callCount).toBe(1);
+  });
+
+  describe('[NOT-201] the delay saved from the dashboard', () => {
+    afterEach(async () => {
+      await prisma.notificationSettings.deleteMany();
+    });
+
+    it('takes over from the default on the next scan, no restart', async () => {
+      const deviceId = await seedDownDevice(minutesAgo(10));
+      await prisma.notificationSettings.create({
+        data: {
+          id: 1,
+          downAlertDelayMinutes: 30,
+          wirelessAlertsEnabled: true
+        }
+      });
+
+      const result = await useCase.execute();
+
+      expect(result.value).toBe(0);
+      expect(await openAlerts(deviceId)).toBe(0);
+    });
   });
 
   describe('[NOT-101] a server hosted off site', () => {

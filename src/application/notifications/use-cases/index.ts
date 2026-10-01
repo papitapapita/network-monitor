@@ -19,3 +19,6 @@ export * from './BulkUpsertDeviceNotificationPoliciesUseCase';
 export * from './GetMutedAlertTypesUseCase';
 export * from './SetMutedAlertTypesUseCase';
 export * from './SendSubscriptionReminderUseCase';
+export * from './GetNotificationSettingsUseCase';
+export * from './UpdateNotificationSettingsUseCase';
+export * from './SendTestNotificationUseCase';

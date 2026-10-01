@@ -7,3 +7,5 @@ export * from './AlertRecorder';
 export * from './FanOutAlertPublisher';
 export * from './InstallLabelAlertPublisher';
 export * from './SubscriptionAlertPublisher';
+export * from './SwitchedOffAlertPublisher';
+export * from './TelegramTestMessageSender';

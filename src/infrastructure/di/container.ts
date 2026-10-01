@@ -85,7 +85,8 @@ import {
   PrismaAlertListQuery,
   PrismaDeviceCredentialsRepository,
   PrismaDeviceNotificationPolicyRepository,
-  PrismaMutedAlertTypeRepository
+  PrismaMutedAlertTypeRepository,
+  PrismaNotificationSettingsRepository
 } from '../persistence/';
 import {
   LocationController,
@@ -95,6 +96,7 @@ import {
   PollingController,
   NotificationPolicyController,
   NotificationMuteController,
+  NotificationSettingsController,
   AlertController,
   ScanController,
   WirelessController,
@@ -246,7 +248,9 @@ import {
   AlertRecorder,
   FanOutAlertPublisher,
   InstallLabelAlertPublisher,
-  SubscriptionAlertPublisher
+  SubscriptionAlertPublisher,
+  SwitchedOffAlertPublisher,
+  TelegramTestMessageSender
 } from '../notifications';
 import {
   OverdueDeviceDownAlertOrchestrator,
@@ -336,7 +340,10 @@ import {
   BulkUpsertDeviceNotificationPoliciesUseCase,
   GetMutedAlertTypesUseCase,
   SetMutedAlertTypesUseCase,
-  SendSubscriptionReminderUseCase
+  SendSubscriptionReminderUseCase,
+  GetNotificationSettingsUseCase,
+  UpdateNotificationSettingsUseCase,
+  SendTestNotificationUseCase
 } from 'application/notifications/use-cases';
 import {
   DeviceCameOnlineNotificationHandler,
@@ -414,6 +421,7 @@ import { AdminController } from 'presentation/http/controllers/AdminController';
 import { loadCollectionAccountIssuerConfig } from '../billing/config/collectionAccountIssuerConfig';
 import { EnabledModules } from './enabledModules';
 import { loadServerOnSite } from './serverOnSite';
+import { loadNotificationSettingsDefaults } from './notificationSettingsDefaults';
 import { loadVendorAccount } from './vendorAccount';
 import { loadInstallersDir } from './installersDir';
 import { FileSystemInstallerStore } from '../installation/FileSystemInstallerStore';
@@ -433,6 +441,7 @@ export class DependencyContainer {
   private alertRepository: PrismaAlertRepository;
   private deviceNotificationPolicyRepository: PrismaDeviceNotificationPolicyRepository;
   private mutedAlertTypeRepository: PrismaMutedAlertTypeRepository;
+  private notificationSettingsRepository: PrismaNotificationSettingsRepository;
 
   // Wireless repositories
   private wirelessSnapshotRepository: PrismaWirelessSnapshotRepository;
@@ -473,6 +482,7 @@ export class DependencyContainer {
   public pollingController: PollingController;
   public notificationPolicyController: NotificationPolicyController;
   public notificationMuteController: NotificationMuteController;
+  public notificationSettingsController: NotificationSettingsController;
   public agentController: AgentController;
   public subscriptionController: SubscriptionController;
   public installationController: InstallationController;
@@ -572,6 +582,11 @@ export class DependencyContainer {
       new PrismaDeviceNotificationPolicyRepository(this.prisma);
     this.mutedAlertTypeRepository =
       new PrismaMutedAlertTypeRepository(this.prisma);
+    this.notificationSettingsRepository =
+      new PrismaNotificationSettingsRepository(
+        this.prisma,
+        loadNotificationSettingsDefaults(process.env)
+      );
     this.wirelessDeviceConfigRepository =
       new PrismaWirelessDeviceConfigRepository(
         this.prisma,
@@ -1451,9 +1466,34 @@ export class DependencyContainer {
       this.logger
     );
 
-    // Initialize notification service (fail-fast if env vars missing)
+    // Fail-fast without a bot token. The install's chat is read from the
+    // dashboard settings on each send (NOT-200), env TELEGRAM_CHAT_ID being
+    // only their default.
     const telegramNotificationService =
-      new TelegramNotificationService();
+      new TelegramNotificationService(async () => {
+        const settings =
+          await this.notificationSettingsRepository.get();
+        return settings.isSuccess
+          ? settings.value.telegramChatId
+          : null;
+      });
+    this.notificationSettingsController =
+      new NotificationSettingsController(
+        new GetNotificationSettingsUseCase(
+          this.notificationSettingsRepository,
+          this.logger
+        ),
+        new UpdateNotificationSettingsUseCase(
+          this.notificationSettingsRepository,
+          this.logger
+        ),
+        new SendTestNotificationUseCase(
+          this.notificationSettingsRepository,
+          new TelegramTestMessageSender(telegramNotificationService),
+          this.logger
+        ),
+        this.logger
+      );
 
     // Initialize notification use cases. The single renderer +
     // AlertPublisher adapter are built first so every alert-producing
@@ -1499,19 +1539,12 @@ export class DependencyContainer {
         this.logger
       );
 
-    const deviceDownAlertDelayMs =
-      parseInt(
-        process.env.DEVICE_DOWN_ALERT_DELAY_MINUTES ?? '60',
-        10
-      ) *
-      60 *
-      1_000;
     const raiseOverdueDeviceDownAlertsUseCase =
       new RaiseOverdueDeviceDownAlertsUseCase(
         this.deviceStateRepository,
         this.deviceNotificationPolicyRepository,
         sendDeviceDownAlertUseCase,
-        deviceDownAlertDelayMs,
+        this.notificationSettingsRepository,
         this.logger,
         agentStatusQuery
       );
@@ -1522,18 +1555,14 @@ export class DependencyContainer {
         this.logger
       );
 
-    // Wireless alert delivery is independently disableable so wireless
-    // polling can run without paging anyone. Device-availability alerts
-    // (down/recovery) are unaffected by this flag.
-    const wirelessAlertPublisher =
-      process.env.WIRELESS_ALERT_NOTIFICATIONS_ENABLED === 'false'
-        ? null
-        : alertPublisher;
-    if (!wirelessAlertPublisher) {
-      this.logger.warn(
-        'WIRELESS_ALERT_NOTIFICATIONS_ENABLED=false — wireless alert notifications disabled'
-      );
-    }
+    // Wireless alert delivery can be switched off from the dashboard so
+    // wireless polling runs without paging anyone (NOT-203). Device
+    // availability alerts (down/recovery) are unaffected by the switch.
+    const wirelessAlertPublisher = new SwitchedOffAlertPublisher(
+      alertPublisher,
+      this.notificationSettingsRepository,
+      this.logger
+    );
     const listAlertsUseCase = new ListAlertsUseCase(
       new PrismaAlertListQuery(this.prisma),
       this.logger
@@ -2068,15 +2097,13 @@ export class DependencyContainer {
       )
     );
 
-    if (wirelessAlertPublisher) {
-      EventDispatcher.register(
-        WirelessAlertClearedEvent.name,
-        new WirelessAlertClearedNotificationHandler(
-          wirelessAlertPublisher,
-          this.logger
-        )
-      );
-    }
+    EventDispatcher.register(
+      WirelessAlertClearedEvent.name,
+      new WirelessAlertClearedNotificationHandler(
+        wirelessAlertPublisher,
+        this.logger
+      )
+    );
 
     // Every stored poll feeds the live throughput streams. The handler
     // short-circuits when nobody is subscribed, so this costs nothing idle.

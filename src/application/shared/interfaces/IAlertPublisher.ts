@@ -42,6 +42,11 @@ export const TYPE_MUTED_SUPPRESSED =
 export const SUBSCRIPTION_EXPIRED_SUPPRESSED =
   'Notification suppressed: subscription expired';
 
+// Same idea, for wireless alerts while the administrator has switched their
+// notifications off (NOT-203) — see SwitchedOffAlertPublisher.
+export const WIRELESS_ALERTS_OFF_SUPPRESSED =
+  'Notification suppressed: wireless alert notifications are off';
+
 // A publish a decorator withheld on purpose. Callers leave the alert
 // unnotified — so it is retried once the reason lifts — and do not log it as
 // a delivery failure.
@@ -51,6 +56,7 @@ export function isSuppressedPublish(
   return (
     error === QUIET_HOURS_SUPPRESSED ||
     error === TYPE_MUTED_SUPPRESSED ||
-    error === SUBSCRIPTION_EXPIRED_SUPPRESSED
+    error === SUBSCRIPTION_EXPIRED_SUPPRESSED ||
+    error === WIRELESS_ALERTS_OFF_SUPPRESSED
   );
 }

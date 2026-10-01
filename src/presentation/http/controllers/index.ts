@@ -28,3 +28,4 @@ export * from './AgentEnrollmentController';
 export * from './SubscriptionController';
 export * from './InstallationController';
 export * from './UserController';
+export * from './NotificationSettingsController';

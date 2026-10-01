@@ -13,11 +13,30 @@ import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { IAgentStatusQuery } from '../../../../src/application/shared/interfaces/IAgentStatusQuery';
+import { INotificationSettingsRepository } from '../../../../src/domain/notifications/repository/INotificationSettingsRepository';
+import { NotificationSettings } from '../../../../src/domain/notifications/value-objects/NotificationSettings';
 
 const VALID_DEVICE_UUID_1 = '550e8400-e29b-41d4-a716-446655440070';
 const VALID_DEVICE_UUID_2 = '550e8400-e29b-41d4-a716-446655440071';
 const FIXED_DATE = new Date('2024-06-01T10:00:00.000Z');
 const ALERT_DELAY_MS = 60 * 60 * 1_000;
+
+function makeSettings(
+  downAlertDelayMinutes = 60
+): NotificationSettings {
+  return NotificationSettings.reconstitute({
+    telegramChatId: '-100',
+    downAlertDelayMinutes,
+    wirelessAlertsEnabled: true
+  });
+}
+
+function makeSettingsRepo(): jest.Mocked<INotificationSettingsRepository> {
+  return {
+    get: jest.fn().mockResolvedValue(Result.ok(makeSettings())),
+    save: jest.fn()
+  };
+}
 
 function makeDeviceId(uuid: string): DeviceId {
   return DeviceId.parse(uuid).value;
@@ -118,6 +137,7 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
   >;
   let logger: jest.Mocked<ILogger>;
   let agentStatusQuery: jest.Mocked<IAgentStatusQuery>;
+  let settingsRepo: jest.Mocked<INotificationSettingsRepository>;
   let useCase: RaiseOverdueDeviceDownAlertsUseCase;
 
   beforeEach(() => {
@@ -131,11 +151,12 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
         .fn()
         .mockResolvedValue(Result.ok(new Set()))
     };
+    settingsRepo = makeSettingsRepo();
     useCase = new RaiseOverdueDeviceDownAlertsUseCase(
       deviceStateRepo,
       policyRepo,
       sendDeviceDownAlertUseCase as unknown as SendDeviceDownAlertUseCase,
-      ALERT_DELAY_MS,
+      settingsRepo,
       logger,
       agentStatusQuery
     );
@@ -344,6 +365,58 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
       const result = await useCase.execute();
 
       expect(result.error).toContain('DB unavailable');
+    });
+
+    it('should fail without alerting when the settings cannot be read', async () => {
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([makeDeviceState(VALID_DEVICE_UUID_1)])
+      );
+      settingsRepo.get.mockResolvedValue(
+        Result.fail('DB unavailable')
+      );
+
+      const result = await useCase.execute();
+
+      expect(result.error).toContain(
+        'Failed to load notification settings'
+      );
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('[NOT-201] the install-wide delay from the settings', () => {
+    it('waits for a longer delay saved from the dashboard', async () => {
+      settingsRepo.get.mockResolvedValue(Result.ok(makeSettings(90)));
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([makeDeviceState(VALID_DEVICE_UUID_1)])
+      );
+
+      const result = await useCase.execute();
+
+      expect(result.value).toBe(0);
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).not.toHaveBeenCalled();
+    });
+
+    it('alerts at once with a delay of 0', async () => {
+      settingsRepo.get.mockResolvedValue(Result.ok(makeSettings(0)));
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([
+          makeDeviceState(VALID_DEVICE_UUID_1, {
+            downSince: new Date(FIXED_DATE.getTime() - 1_000)
+          })
+        ])
+      );
+      sendDeviceDownAlertUseCase.execute.mockResolvedValue(
+        Result.ok(STUB_ALERT_DTO)
+      );
+
+      const result = await useCase.execute();
+
+      expect(result.value).toBe(1);
     });
   });
 

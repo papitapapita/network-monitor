@@ -72,7 +72,7 @@ before 2026-09-30 are all refused once, when this ships.
 | Role       | Allowed operations                                                      |
 | ---------- | ----------------------------------------------------------------------- |
 | `VENDOR`   | everything `ADMIN` has, plus manage-installation                        |
-| `ADMIN`    | read, create, update, delete, activate, bulk-import, manage-credentials, manage-users |
+| `ADMIN`    | read, create, update, delete, activate, bulk-import, manage-credentials, manage-users, manage-settings |
 | `OPERATOR` | read, create, update, activate, bulk-import                             |
 | `VIEWER`   | read only                                                               |
 
@@ -87,6 +87,9 @@ permission. Reading them stays on `read` because the response is masked.
 
 `manage-users` gates `/api/users` except `/api/users/me/password`, which every
 role may use (IDN-140).
+
+`manage-settings` gates changing the install's settings from the dashboard:
+today `PUT /api/notification-settings` and its test message (IDN-034).
 
 `manage-installation` (VENDOR only, IDN-033) gates agent create, re-key and
 revoke and the data-retention purge. **Hide those controls unless
@@ -1630,7 +1633,9 @@ Controls, per device: an optional **quiet-hours window** that mutes outbound
 alert notifications (device-down, device-recovery, and wireless alerts —
 never the alert record itself, which still opens/lists normally), and an
 optional **override of the down-alert delay**
-(`DEVICE_DOWN_ALERT_DELAY_MINUTES` otherwise).
+(the install's `downAlertDelayMinutes` from
+[Notification Settings](#notification-settings-apinotification-settings)
+otherwise).
 
 > **A device with no window configured always notifies.** There is no
 > separate "important device" flag — leaving both `quietHoursStart` and
@@ -1776,6 +1781,77 @@ so one entry silences both its WARNING and CRITICAL severities.
 > malformed entry (uppercase, spaces, empty) is rejected with `400` before
 > anything is written; an unknown-but-well-formed metric is accepted and
 > simply never matches a real alert.
+
+---
+
+## Notification Settings `/api/notification-settings`
+
+The install's own notification settings, edited by the customer's
+administrator (NOT-200). A save applies from the next alert, with no restart.
+Until the first save the values are the server's env defaults (NOT-201), so
+`GET` always answers. Bot tokens are not here: they stay in the server's
+environment.
+
+```ts
+interface NotificationSettingsDTO {
+  telegramChatId: string | null; // '-1001234567890' or '@channel'; null = no chat, alerts are recorded but not sent
+  downAlertDelayMinutes: number; // 0–1440: how long a device stays DOWN before its alert is sent (a device's own override wins)
+  wirelessAlertsEnabled: boolean; // false: wireless alerts are recorded but not sent (NOT-203)
+}
+```
+
+### `GET /api/notification-settings`
+
+**Status:** 200 | 401  
+**Roles:** all
+
+```ts
+{ success: true, data: NotificationSettingsDTO }
+```
+
+---
+
+### `PUT /api/notification-settings` — Save
+
+**Status:** 200 | 400 | 401 | 403  
+**Roles:** ADMIN (`manage-settings`; OPERATOR and VIEWER get `403`)
+
+```ts
+// Request body — all three, nothing else
+NotificationSettingsDTO
+
+// Response
+{ success: true, data: NotificationSettingsDTO } // as stored: chat id trimmed, '' → null
+```
+
+> `400` with the rule's message, e.g.
+> `"telegramChatId must be a numeric chat id or a @channel name"` or
+> `"downAlertDelayMinutes must be a whole number from 0 to 1440"`.
+> Warn before saving `telegramChatId: null`: alerts stop reaching anyone.
+
+---
+
+### `POST /api/notification-settings/test` — Send a test message
+
+**Status:** 200 | 400 | 401 | 403 | 409 | 502  
+**Roles:** ADMIN (`manage-settings`)
+
+Sends one Spanish test message to a chat and stores nothing (NOT-202). Offer
+it next to the chat field, sending the value **as typed**, before saving.
+
+```ts
+// Request body (optional) — omit telegramChatId to test the saved chat
+{ telegramChatId?: string }
+
+// Response
+{ success: true, data: { telegramChatId: string } } // the chat it was sent to
+```
+
+> `400` for a chat id a save would refuse. `409`
+> `"No Telegram chat is configured for this install"` with nothing saved or
+> given. `502` `"Test message not delivered: Telegram API error: …"` when
+> Telegram refuses — most often `chat not found` (wrong id, or the bot was
+> never added to that group). Show Telegram's reason to the user.
 
 ---
 

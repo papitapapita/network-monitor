@@ -1,7 +1,10 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 import { IDeviceStateRepository } from 'domain/device-monitoring/repository';
-import { IDeviceNotificationPolicyRepository } from 'domain/notifications/repository';
+import {
+  IDeviceNotificationPolicyRepository,
+  INotificationSettingsRepository
+} from 'domain/notifications/repository';
 import {
   IAgentStatusQuery,
   ILogger
@@ -10,8 +13,8 @@ import { SendDeviceDownAlertUseCase } from './SendDeviceDownAlertUseCase';
 
 // Scans every device currently DOWN and opens the down alert for any that
 // has been down for at least its effective alert delay — the per-device
-// override on DeviceNotificationPolicy if one is set, otherwise
-// defaultAlertDelayMs. Independent of any device's own poll interval — a
+// override on DeviceNotificationPolicy if one is set, otherwise the install's
+// down-alert delay (NOT-201), read on every scan. Independent of any device's own poll interval — a
 // device polled once a day would otherwise wait a day for its alert to
 // reconsider. SendDeviceDownAlertUseCase already dedupes against an
 // existing open alert, so re-selecting a device on every scan is safe.
@@ -24,7 +27,7 @@ export class RaiseOverdueDeviceDownAlertsUseCase {
     private readonly deviceStateRepository: IDeviceStateRepository,
     private readonly policyRepository: IDeviceNotificationPolicyRepository,
     private readonly sendDeviceDownAlertUseCase: SendDeviceDownAlertUseCase,
-    private readonly defaultAlertDelayMs: number,
+    private readonly settingsRepository: INotificationSettingsRepository,
     private readonly logger: ILogger,
     private readonly agentStatusQuery: IAgentStatusQuery
   ) {}
@@ -36,6 +39,14 @@ export class RaiseOverdueDeviceDownAlertsUseCase {
         `Failed to load down devices: ${downResult.error}`
       );
     }
+
+    const settingsResult = await this.settingsRepository.get();
+    if (settingsResult.isFailure) {
+      return Result.fail(
+        `Failed to load notification settings: ${settingsResult.error}`
+      );
+    }
+    const defaultAlertDelayMs = settingsResult.value.downAlertDelayMs;
 
     const unmeasuredResult =
       await this.agentStatusQuery.findUnmeasuredDevices(
@@ -55,7 +66,8 @@ export class RaiseOverdueDeviceDownAlertsUseCase {
       if (unmeasured.has(state.deviceId.toString())) continue;
 
       const delayMs = await this.effectiveAlertDelayMs(
-        state.deviceId
+        state.deviceId,
+        defaultAlertDelayMs
       );
       if (now - state.downSince.getTime() < delayMs) continue;
 
@@ -80,16 +92,17 @@ export class RaiseOverdueDeviceDownAlertsUseCase {
   }
 
   private async effectiveAlertDelayMs(
-    deviceId: DeviceId
+    deviceId: DeviceId,
+    defaultAlertDelayMs: number
   ): Promise<number> {
     const policyResult =
       await this.policyRepository.findByDeviceId(deviceId);
     if (policyResult.isFailure || !policyResult.value) {
-      return this.defaultAlertDelayMs;
+      return defaultAlertDelayMs;
     }
 
     return policyResult.value.effectiveAlertDelayMs(
-      this.defaultAlertDelayMs
+      defaultAlertDelayMs
     );
   }
 }
