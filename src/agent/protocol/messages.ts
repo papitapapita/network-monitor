@@ -1,3 +1,5 @@
+import type { AgentPlatform } from './release';
+
 // Wire protocol between an on-site agent and the backend (ADR 0002). Plain
 // types and constants, plus the pairing key's encoding: imported by both
 // sides, so nothing here may depend on the backend's layers.
@@ -7,6 +9,10 @@ export const PROTOCOL_VERSION = 1;
 export const AGENT_WS_PATH = '/agent/v1/ws';
 
 export const AGENT_ENROLL_PATH = '/agent/v1/enroll';
+
+// Where an agent downloads a release binary, with its token (AGT-083):
+// `${AGENT_UPDATES_PATH}/<file>`.
+export const AGENT_UPDATES_PATH = '/agent/v1/updates';
 
 // 4000–4999 is the range RFC 6455 leaves to applications.
 export const CloseCode = {
@@ -30,6 +36,9 @@ export interface HelloMessage {
   type: 'hello';
   protocolVersion: number;
   agentVersion: string;
+  // Which release binary fits this agent (AGT-082). Absent from agents
+  // older than self-update, which are offered none.
+  platform?: AgentPlatform;
   // Agent's clock, epoch milliseconds.
   sentAt: number;
 }
@@ -71,11 +80,22 @@ export interface ResultsMessage {
   results: PingResultWire[];
 }
 
+// How the agent's last attempt to update itself ended (AGT-084). Sent after
+// every welcome until the backend has it; the backend ignores a repeat.
+export interface UpdateResultMessage {
+  type: 'update.result';
+  version: string;
+  outcome: 'installed' | 'rolled-back' | 'rejected';
+  // Why it failed; absent once installed.
+  reason?: string;
+}
+
 export type AgentMessage =
   | HelloMessage
   | HeartbeatMessage
   | ConfigAckMessage
-  | ResultsMessage;
+  | ResultsMessage
+  | UpdateResultMessage;
 
 // ── Backend → agent ───────────────────────────────────────────────────────
 
@@ -108,7 +128,21 @@ export interface ResultsAckMessage {
   ids: string[];
 }
 
+// A newer release for this agent (AGT-082). The agent downloads `file` from
+// AGENT_UPDATES_PATH and installs it only if the binary matches `sha256` and
+// the vendor's key signed it (AGT-080).
+export interface UpdateMessage {
+  type: 'update';
+  version: string;
+  file: string;
+  sha256: string;
+  // The binary's size once unzipped.
+  bytes: number;
+  signature: string;
+}
+
 export type BackendMessage =
   | WelcomeMessage
   | ConfigMessage
-  | ResultsAckMessage;
+  | ResultsAckMessage
+  | UpdateMessage;

@@ -6,6 +6,8 @@ import { Result } from '../../../src/domain/shared/core/Result';
 import {
   AgentPingResult,
   AgentPollingTarget,
+  AgentReleaseDownload,
+  IAgentReleaseCatalog,
   IAgentDeviceCountQuery,
   IAgentDeviceIndex,
   IAgentPingResultSink,
@@ -13,6 +15,7 @@ import {
   IAgentSecretService
 } from '../../../src/application/probe-agents/interfaces';
 import { ILogger } from '../../../src/application/shared/interfaces/ILogger';
+import { ReleaseManifest } from '../../../src/agent/protocol';
 
 export const BACKEND_URL = 'https://api.example.com';
 
@@ -233,5 +236,39 @@ export class FakeResultSink implements IAgentPingResultSink {
       return Result.fail('db down');
     this.accepted.push(result);
     return Result.ok();
+  }
+}
+
+// The releases an install offers, set by the test (AGT-082).
+export class FakeReleaseCatalog implements IAgentReleaseCatalog {
+  release: ReleaseManifest | null = null;
+  files = new Map<string, AgentReleaseDownload>();
+  failWith: string | null = null;
+
+  async latest(): Promise<Result<ReleaseManifest | null>> {
+    if (this.failWith) return Result.fail(this.failWith);
+    return Result.ok(this.release);
+  }
+
+  async open(
+    fileName: string
+  ): Promise<Result<AgentReleaseDownload | null>> {
+    if (this.failWith) return Result.fail(this.failWith);
+    return Result.ok(this.files.get(fileName) ?? null);
+  }
+
+  publish(version: string): ReleaseManifest {
+    this.release = {
+      version,
+      files: {
+        'linux-x64': {
+          file: `nms-agent-${version}-linux-x64.gz`,
+          sha256: 'a'.repeat(64),
+          bytes: 1000,
+          signature: 'c2ln'
+        }
+      }
+    };
+    return this.release;
   }
 }

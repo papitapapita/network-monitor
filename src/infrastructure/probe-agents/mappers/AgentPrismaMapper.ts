@@ -1,9 +1,15 @@
 import { Result } from 'domain/shared/core';
 import { AgentId } from 'domain/shared/ids';
-import { Agent, AgentName, AgentStatus } from 'domain/probe-agents';
+import {
+  Agent,
+  AgentName,
+  AgentStatus,
+  AgentUpdateOutcome
+} from 'domain/probe-agents';
 import {
   ProbeAgent,
-  AgentStatus as PrismaAgentStatus
+  AgentStatus as PrismaAgentStatus,
+  AgentUpdateOutcome as PrismaAgentUpdateOutcome
 } from 'generated/prisma/client';
 
 export class AgentPrismaMapper {
@@ -33,6 +39,15 @@ export class AgentPrismaMapper {
         clockOffsetMs: raw.clockOffsetMs,
         offlineSince: raw.offlineSince,
         clockDriftSince: raw.clockDriftSince,
+        lastUpdate:
+          raw.lastUpdateVersion === null
+            ? null
+            : {
+                version: raw.lastUpdateVersion,
+                outcome: raw.lastUpdateOutcome as AgentUpdateOutcome,
+                reason: raw.lastUpdateReason,
+                at: raw.lastUpdateAt!
+              },
         createdAt: raw.createdAt,
         updatedAt: raw.updatedAt
       })
@@ -58,6 +73,12 @@ export class AgentPrismaMapper {
       clockOffsetMs: agent.clockOffsetMs,
       offlineSince: agent.offlineSince,
       clockDriftSince: agent.clockDriftSince,
+      lastUpdateVersion: agent.lastUpdate?.version ?? null,
+      lastUpdateOutcome:
+        (agent.lastUpdate?.outcome as PrismaAgentUpdateOutcome) ??
+        null,
+      lastUpdateReason: agent.lastUpdate?.reason ?? null,
+      lastUpdateAt: agent.lastUpdate?.at ?? null,
       createdAt: agent.createdAt,
       updatedAt: agent.updatedAt
     };

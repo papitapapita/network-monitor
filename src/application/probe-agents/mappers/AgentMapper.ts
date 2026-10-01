@@ -20,6 +20,12 @@ export class AgentMapper {
       clockOffsetMs: agent.clockOffsetMs,
       offlineSince: agent.offlineSince?.toISOString() ?? null,
       clockDriftSince: agent.clockDriftSince?.toISOString() ?? null,
+      lastUpdate: agent.lastUpdate && {
+        version: agent.lastUpdate.version,
+        outcome: agent.lastUpdate.outcome,
+        reason: agent.lastUpdate.reason,
+        at: agent.lastUpdate.at.toISOString()
+      },
       deviceCount: deviceCounts.get(agent.id.toString()) ?? 0,
       createdAt: agent.createdAt.toISOString(),
       updatedAt: agent.updatedAt.toISOString()

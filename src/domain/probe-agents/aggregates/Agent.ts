@@ -1,17 +1,20 @@
 import { AggregateRoot, Result, Guard } from 'domain/shared/core';
 import { AgentId } from 'domain/shared/ids';
-import { AgentStatus } from '../enums';
+import { AgentStatus, AgentUpdateOutcome } from '../enums';
 import {
   AgentCameBackEvent,
   AgentClockCorrectedEvent,
   AgentClockDriftedEvent,
+  AgentUpdateFailedEvent,
   AgentWentOfflineEvent
 } from '../events';
-import { AgentProps } from '../props';
+import { AgentProps, AgentUpdateRecord } from '../props';
 import { AgentName } from '../value-objects';
 
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
 const MAX_VERSION_LENGTH = 32;
+const RELEASE_VERSION = /^\d+\.\d+\.\d+$/;
+const MAX_UPDATE_REASON_LENGTH = 500;
 
 export class Agent extends AggregateRoot<AgentProps, AgentId> {
   static readonly PAIRING_KEY_TTL_MS = 24 * 60 * 60 * 1000;
@@ -75,6 +78,10 @@ export class Agent extends AggregateRoot<AgentProps, AgentId> {
     return this.props.clockDriftSince;
   }
 
+  get lastUpdate(): AgentUpdateRecord | null {
+    return this.props.lastUpdate;
+  }
+
   get isOffline(): boolean {
     return this.props.offlineSince !== null;
   }
@@ -105,6 +112,7 @@ export class Agent extends AggregateRoot<AgentProps, AgentId> {
       clockOffsetMs: null,
       offlineSince: null,
       clockDriftSince: null,
+      lastUpdate: null,
       createdAt: now,
       updatedAt: now
     };
@@ -235,6 +243,67 @@ export class Agent extends AggregateRoot<AgentProps, AgentId> {
     return result;
   }
 
+  // What the agent reports after trying to update itself (AGT-084). A report
+  // it repeats, after a reconnect say, changes nothing and alerts no one
+  // twice.
+  public recordUpdateOutcome(
+    version: string,
+    outcome: AgentUpdateOutcome,
+    reason: string | null,
+    now: Date = new Date()
+  ): Result<void> {
+    if (this.props.status !== AgentStatus.ACTIVE) {
+      return Result.fail(
+        'Only an enrolled agent can report an update'
+      );
+    }
+    const record: AgentUpdateRecord = {
+      version: version?.trim() ?? '',
+      outcome,
+      reason:
+        outcome === AgentUpdateOutcome.INSTALLED
+          ? null
+          : (reason?.trim() ?? ''),
+      at: now
+    };
+    const previous = this.props.lastUpdate;
+    if (
+      previous !== null &&
+      previous.version === record.version &&
+      previous.outcome === record.outcome
+    ) {
+      return Result.ok();
+    }
+
+    const result = this.apply({ lastUpdate: record, updatedAt: now });
+    if (result.isFailure) return result;
+    if (outcome !== AgentUpdateOutcome.INSTALLED) {
+      this.addDomainEvent(
+        new AgentUpdateFailedEvent({
+          aggregateId: this.id,
+          agentName: this.props.name.value,
+          runningVersion: this.props.agentVersion,
+          targetVersion: record.version,
+          outcome,
+          reason: record.reason!,
+          dateTimeOccurred: now
+        })
+      );
+    }
+    return result;
+  }
+
+  // AGT-082: a release that already failed on this agent is not offered to
+  // it again; the vendor fixes it with a newer one.
+  public hasFailedUpdateTo(version: string): boolean {
+    const last = this.props.lastUpdate;
+    return (
+      last !== null &&
+      last.version === version &&
+      last.outcome !== AgentUpdateOutcome.INSTALLED
+    );
+  }
+
   // Measured from the last contact, or from enrollment for an agent that was
   // installed but never connected — that is an outage worth reporting too.
   // A pending agent has never run, so it cannot be overdue.
@@ -341,6 +410,35 @@ export class Agent extends AggregateRoot<AgentProps, AgentId> {
       return Result.fail(
         'Only an active agent can have a drifting clock'
       );
+    }
+
+    const update = state.lastUpdate;
+    if (update !== null) {
+      if (!RELEASE_VERSION.test(update.version)) {
+        return Result.fail(
+          'An update version must be major.minor.patch'
+        );
+      }
+      if (
+        !Object.values(AgentUpdateOutcome).includes(update.outcome)
+      ) {
+        return Result.fail('Unknown update outcome');
+      }
+      const failed = update.outcome !== AgentUpdateOutcome.INSTALLED;
+      if (failed !== (update.reason !== null)) {
+        return Result.fail(
+          'A failed update carries its reason; an installed one none'
+        );
+      }
+      if (
+        update.reason !== null &&
+        (update.reason.length === 0 ||
+          update.reason.length > MAX_UPDATE_REASON_LENGTH)
+      ) {
+        return Result.fail(
+          `An update failure reason must be 1-${MAX_UPDATE_REASON_LENGTH} characters`
+        );
+      }
     }
 
     switch (state.status) {

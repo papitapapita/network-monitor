@@ -11,3 +11,4 @@ export * from './AgentConfigSnapshotDTO';
 export * from './AcceptAgentResultsDTOs';
 export * from './MarkSilentAgentsOfflineResponseDTO';
 export * from './AgentOutageDTOs';
+export * from './AgentUpdateDTOs';

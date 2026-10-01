@@ -10,3 +10,6 @@ export * from './BuildAgentConfigSnapshotUseCase';
 export * from './AcceptAgentResultsUseCase';
 export * from './MarkSilentAgentsOfflineUseCase';
 export * from './ListAgentOutagesUseCase';
+export * from './GetAgentUpdateOfferUseCase';
+export * from './RecordAgentUpdateOutcomeUseCase';
+export * from './OpenAgentReleaseFileUseCase';

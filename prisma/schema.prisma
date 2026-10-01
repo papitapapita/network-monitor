@@ -1031,6 +1031,14 @@ enum AgentStatus {
   @@map("agent_status")
 }
 
+enum AgentUpdateOutcome {
+  INSTALLED
+  ROLLED_BACK
+  REJECTED
+
+  @@map("agent_update_outcome")
+}
+
 model ProbeAgent {
   id               String      @id @default(uuid()) @db.Uuid
   name             String      @unique @db.VarChar(60)
@@ -1049,6 +1057,13 @@ model ProbeAgent {
   // Set when the PC's clock drifted more than a minute from ours (R12);
   // cleared once it is back within 30 seconds. Null means the clock is fine.
   clockDriftSince  DateTime?   @map("clock_drift_since") @db.Timestamptz
+  // How the last self-update the agent reported ended (AGT-084): the version
+  // it tried, the outcome, and why it failed. All null until the first one;
+  // a CHECK constraint (migration 20261001120000) keeps them together.
+  lastUpdateVersion String?             @map("last_update_version") @db.VarChar(32)
+  lastUpdateOutcome AgentUpdateOutcome? @map("last_update_outcome")
+  lastUpdateReason  String?             @map("last_update_reason") @db.VarChar(500)
+  lastUpdateAt      DateTime?           @map("last_update_at") @db.Timestamptz
   // Source of the short per-device indexes in config snapshots (R19). Only
   // ever increases, so an index is never handed to a second device — not even
   // after the first one is purged.

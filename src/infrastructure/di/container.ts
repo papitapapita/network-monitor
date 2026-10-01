@@ -26,9 +26,13 @@ import {
   RecordAgentContactUseCase,
   BuildAgentConfigSnapshotUseCase,
   AcceptAgentResultsUseCase,
-  MarkSilentAgentsOfflineUseCase
+  MarkSilentAgentsOfflineUseCase,
+  GetAgentUpdateOfferUseCase,
+  RecordAgentUpdateOutcomeUseCase,
+  OpenAgentReleaseFileUseCase
 } from '../../application/probe-agents/use-cases';
 import { AgentLivenessOrchestrator } from '../probe-agents/orchestrator';
+import { FileSystemAgentReleaseCatalog } from '../probe-agents/releases';
 import { loadVendorSettingsDefaults } from './vendorSettingsDefaults';
 import {
   SubscriptionJobSupervisor,
@@ -39,7 +43,8 @@ import {
   AgentWentOfflineEvent,
   AgentCameBackEvent,
   AgentClockDriftedEvent,
-  AgentClockCorrectedEvent
+  AgentClockCorrectedEvent,
+  AgentUpdateFailedEvent
 } from 'domain/probe-agents/events';
 import { JwtTokenService } from '../identity/services/JwtTokenService';
 import { BcryptPasswordService } from '../identity/services/BcryptPasswordService';
@@ -113,6 +118,7 @@ import {
   BankAccountController,
   AgentController,
   AgentEnrollmentController,
+  AgentUpdateController,
   SubscriptionController,
   InstallationController,
   UserController,
@@ -355,7 +361,8 @@ import {
   AgentWentOfflineNotificationHandler,
   AgentCameBackNotificationHandler,
   AgentClockDriftedNotificationHandler,
-  AgentClockCorrectedNotificationHandler
+  AgentClockCorrectedNotificationHandler,
+  AgentUpdateFailedNotificationHandler
 } from 'application/notifications/event-handlers';
 import {
   WirelessAlertClearedNotificationHandler,
@@ -495,6 +502,7 @@ export class DependencyContainer {
   public installationController: InstallationController;
   public getSubscriptionStatusUseCase: GetSubscriptionStatusUseCase;
   public agentEnrollmentController: AgentEnrollmentController;
+  public agentUpdateController: AgentUpdateController;
   // Attached to the HTTP server by main.ts, once it is listening.
   public agentGateway: AgentGateway;
   public alertController: AlertController;
@@ -1445,12 +1453,24 @@ export class DependencyContainer {
     );
 
     const agentDeviceIndex = new PrismaAgentDeviceIndex(this.prisma);
+    const authenticateAgentUseCase = new AuthenticateAgentUseCase(
+      agentRepository,
+      agentSecrets,
+      this.logger
+    );
+    // Releases sit beside the installers (AGT-082); without the folder no
+    // release is offered.
+    const agentReleases = new FileSystemAgentReleaseCatalog(
+      installersDir,
+      this.logger
+    );
+    this.agentUpdateController = new AgentUpdateController(
+      authenticateAgentUseCase,
+      new OpenAgentReleaseFileUseCase(agentReleases, this.logger),
+      this.logger
+    );
     this.agentGateway = new AgentGateway(
-      new AuthenticateAgentUseCase(
-        agentRepository,
-        agentSecrets,
-        this.logger
-      ),
+      authenticateAgentUseCase,
       {
         recordContact: new RecordAgentContactUseCase(
           agentRepository,
@@ -1470,7 +1490,16 @@ export class DependencyContainer {
           this.logger
         ),
         getAgent: getAgentUseCase,
-        subscriptionStatus: getSubscriptionStatusUseCase
+        subscriptionStatus: getSubscriptionStatusUseCase,
+        updateOffer: new GetAgentUpdateOfferUseCase(
+          agentRepository,
+          agentReleases,
+          this.logger
+        ),
+        recordUpdateOutcome: new RecordAgentUpdateOutcomeUseCase(
+          agentRepository,
+          this.logger
+        )
       },
       this.logger
     );
@@ -2025,30 +2054,31 @@ export class DependencyContainer {
     const vendorBotToken =
       process.env.TELEGRAM_VENDOR_BOT_TOKEN?.trim() ||
       process.env.TELEGRAM_BOT_TOKEN;
+    const vendorPublisher = new WhenConfiguredAlertPublisher(
+      new SubscriptionAlertPublisher(
+        new InstallLabelAlertPublisher(
+          new AlertPublisher(
+            new SendAlertNotificationUseCase(
+              this.deviceRepository,
+              new TelegramNotificationService(
+                vendorChatId,
+                vendorBotToken
+              ),
+              this.logger
+            )
+          ),
+          agentPublicUrl
+            ? new URL(agentPublicUrl).host
+            : 'sin AGENT_PUBLIC_URL'
+        ),
+        getSubscriptionStatusUseCase,
+        this.logger
+      ),
+      async () => (await vendorChatId()) !== null
+    );
     const agentHealthPublisher = new FanOutAlertPublisher([
       alertPublisher,
-      new WhenConfiguredAlertPublisher(
-        new SubscriptionAlertPublisher(
-          new InstallLabelAlertPublisher(
-            new AlertPublisher(
-              new SendAlertNotificationUseCase(
-                this.deviceRepository,
-                new TelegramNotificationService(
-                  vendorChatId,
-                  vendorBotToken
-                ),
-                this.logger
-              )
-            ),
-            agentPublicUrl
-              ? new URL(agentPublicUrl).host
-              : 'sin AGENT_PUBLIC_URL'
-          ),
-          getSubscriptionStatusUseCase,
-          this.logger
-        ),
-        async () => (await vendorChatId()) !== null
-      )
+      vendorPublisher
     ]);
     EventDispatcher.register(
       AgentWentOfflineEvent.name,
@@ -2075,6 +2105,14 @@ export class DependencyContainer {
       AgentClockCorrectedEvent.name,
       new AgentClockCorrectedNotificationHandler(
         agentHealthPublisher,
+        this.logger
+      )
+    );
+    // AGT-084: the vendor's alone; nothing changes for the customer.
+    EventDispatcher.register(
+      AgentUpdateFailedEvent.name,
+      new AgentUpdateFailedNotificationHandler(
+        vendorPublisher,
         this.logger
       )
     );

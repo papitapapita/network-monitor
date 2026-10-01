@@ -12,6 +12,14 @@ export interface AgentResponseDTO {
   offlineSince: string | null;
   // Set while the PC's clock is off by more than a minute (R12).
   clockDriftSince: string | null;
+  // How the last self-update the agent reported ended (AGT-084); null until
+  // it reports one.
+  lastUpdate: {
+    version: string;
+    outcome: 'INSTALLED' | 'ROLLED_BACK' | 'REJECTED';
+    reason: string | null;
+    at: string;
+  } | null;
   // Live devices behind this agent; the recycle bin is not counted (AGT-010).
   deviceCount: number;
   createdAt: string;

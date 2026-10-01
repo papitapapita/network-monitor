@@ -45,3 +45,16 @@ export const enrollAgentSchema = z.object({
       .max(128)
   })
 });
+
+// AGT-083: only a release binary's name; anything else never reaches the
+// folder.
+export const agentReleaseFileSchema = z.object({
+  params: z.object({
+    fileName: z
+      .string()
+      .regex(
+        /^nms-agent-\d+\.\d+\.\d+-[a-z0-9]+-[a-z0-9]+\.gz$/,
+        'Invalid release file name'
+      )
+  })
+});

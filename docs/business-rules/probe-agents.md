@@ -43,10 +43,10 @@ A rule enforced in two layers counts in both.
 
 | Layer                        | Rules |
 | ---------------------------- | ----- |
-| Domain                       | 10    |
-| Application                  | 16    |
-| Infrastructure (composition) | 11    |
-| Presentation                 | 7     |
+| Domain                       | 11    |
+| Application                  | 19    |
+| Infrastructure (composition) | 13    |
+| Presentation                 | 10    |
 | Agent program                | 10    |
 
 ---
@@ -341,7 +341,7 @@ the threshold produces neither.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application · Infrastructure (composition)
-**Since:** 2026-09-28
+**Since:** 2026-09-28 · **Revised:** 2026-10-01
 
 Both events are published through the shared `IAlertPublisher` as alerts with
 no device (`NOT-100`): critical when the agent goes offline, resolved when it
@@ -360,7 +360,8 @@ the vendor needs to know first, because a silent agent looks like a broken
 product. The vendor chat hears from every customer's install, so each message
 says which one. The vendor chat receives only agent-health messages, never
 device alerts. A separate vendor bot lets an install keep its own bot for its
-network's alerts without the vendor's bot joining that chat.
+network's alerts without the vendor's bot joining that chat. A failed
+self-update goes to the vendor's chat alone (`AGT-084`).
 
 **Enforced at:** `src/application/notifications/event-handlers/AgentWentOfflineNotificationHandler.ts`, `src/application/notifications/event-handlers/AgentCameBackNotificationHandler.ts`, `src/infrastructure/notifications/FanOutAlertPublisher.ts`, `src/infrastructure/notifications/InstallLabelAlertPublisher.ts`, `src/infrastructure/notifications/TelegramNotificationService.ts`, `src/infrastructure/di/container.ts`
 **Tests:** `tests/application/notifications/event-handlers/AgentHealthNotificationHandlers.test.ts`, `tests/infrastructure/notifications/FanOutAlertPublisher.test.ts`, `tests/infrastructure/notifications/TelegramNotificationService.test.ts`
@@ -546,13 +547,15 @@ forever. Duplicate and stale results are handled by the ingest rules of slice
 
 **Type:** Policy · **Status:** Active
 **Layer:** Presentation
-**Since:** 2026-09-28
+**Since:** 2026-09-28 · **Revised:** 2026-10-01
 
 The hello carries the agent's protocol version. Below the minimum the backend
 accepts (today `1`), the connection is closed with `4002` and a reason naming
 the version, before the contact is recorded or any configuration is sent. Any
 version number is read, however old, so the agent always gets that answer
-rather than a bare protocol error.
+rather than a bare protocol error. When a release is available for it
+(`AGT-082`), the update offer is sent just before the close, so an agent that
+can update itself gets out of that state on its own.
 
 **Why:** ADR 0002, R18. An outdated agent must be visibly outdated, on the agent
 and to support, rather than half-working. Recording nothing keeps it from
@@ -893,3 +896,105 @@ agents trusting a new key need one manual reinstall.
 
 **Enforced at:** `src/agent/protocol/release.ts` (`verifyReleaseSignature`, `isNewerVersion`, `RELEASE_PUBLIC_KEY`), `scripts/agent/package.mjs` (`packageRelease`), `scripts/agent/release-key.mjs`
 **Tests:** `tests/agent/protocol/release.test.ts`
+
+### AGT-082 — An install offers its newest signed release to each agent running something older, once per connection, and never one that already failed there
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Infrastructure (composition) · Presentation
+**Since:** 2026-10-01
+
+Releases live in the installer folder (`INSTALLERS_DIR`). The newest release
+counts, among the manifests that pass every check:
+
+- the name, `nms-agent-<version>.manifest.json`, matches the version inside
+- each binary is listed under its own name and exists beside the manifest
+- each signature verifies against the vendor's key (`AGT-080`)
+
+A manifest that fails any check is skipped and logged, each new reason once.
+A platform the backend does not know is ignored. The folder is read again on
+every check, so a release copied in reaches connected agents within a minute,
+with no restart, even if its binary arrives after the manifest. Without the
+folder, nothing is offered.
+
+The agent's hello names its platform (`win-x64` or `linux-x64`). An agent is
+offered the release when all of the following hold:
+
+- the release has a binary for that platform
+- the release's version is newer than the one the agent runs
+- the agent has not already reported that very version as rolled back or
+  rejected
+
+An agent that names no platform, as those older than self-update do, is
+offered nothing. The offer is an `update` message after the configuration,
+on connect and at every configuration refresh. It gives the version, the
+binary's name, SHA-256, unzipped size and signature, and is sent once per
+release per connection.
+
+**Why:** ADR 0002, phase 2, and the vendor's decision of 2026-10-01: updates
+are automatic, and publishing means copying files. Each customer is its own
+install, so which folder the vendor copies into chooses who gets the release.
+The backend checks the signature too, so it never offers a download every
+agent would refuse. A release that failed on an agent would fail again the
+same way; the vendor fixes it with a newer one instead of the agent trying
+forever.
+
+**Enforced at:** `src/application/probe-agents/use-cases/GetAgentUpdateOfferUseCase.ts`, `src/infrastructure/probe-agents/releases/FileSystemAgentReleaseCatalog.ts`, `src/presentation/ws/agent/AgentSession.ts` (`offerUpdate`), `src/presentation/ws/agent/agentMessageSchema.ts`, `src/domain/probe-agents/aggregates/Agent.ts` (`hasFailedUpdateTo`)
+**Tests:** `tests/application/probe-agents/use-cases/GetAgentUpdateOfferUseCase.test.ts`, `tests/infrastructure/probe-agents/releases/FileSystemAgentReleaseCatalog.test.ts`, `tests/integration/use-cases/probe-agents/GetAgentUpdateOfferUseCase.integration.test.ts`, `tests/integration/agent-gateway.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/domain/probe-agents/aggregates/Agent.test.ts`
+
+### AGT-083 — A release binary is downloaded with the agent's own token, and only if a valid release lists it
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application · Presentation
+**Since:** 2026-10-01
+
+`GET /agent/v1/updates/<file>` streams a binary to an agent presenting the
+token of an active agent. It answers:
+
+- `401` to a missing, unknown or revoked token, and to a user's JWT. This is
+  checked before anything about the name.
+- `400` to a name that is not shaped like a release binary
+- `404` to one that no valid manifest lists (`AGT-082`)
+
+Installers, manifests and any path outside the folder are never served from
+here. Like the other agent routes, it answers `402` once the subscription is
+locked.
+
+**Why:** ADR 0002, R4: the agent's token is its identity, and nothing on the
+agent routes answers to a dashboard login. Serving only what a valid manifest
+names keeps the route from becoming a way to read the folder, or anything
+next to it.
+
+**Enforced at:** `src/presentation/http/controllers/AgentUpdateController.ts`, `src/presentation/http/routes/agent-update.routes.ts`, `src/presentation/http/validation/agent.schemas.ts` (`agentReleaseFileSchema`), `src/application/probe-agents/use-cases/OpenAgentReleaseFileUseCase.ts`, `src/infrastructure/probe-agents/releases/FileSystemAgentReleaseCatalog.ts` (`open`)
+**Tests:** `tests/integration/agent-update.routes.test.ts`, `tests/application/probe-agents/use-cases/OpenAgentReleaseFileUseCase.test.ts`, `tests/integration/use-cases/probe-agents/OpenAgentReleaseFileUseCase.integration.test.ts`, `tests/infrastructure/probe-agents/releases/FileSystemAgentReleaseCatalog.test.ts`
+
+### AGT-084 — How the last self-update ended is kept on the agent, and a failure reaches the vendor once
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain · Application · Infrastructure (composition) · Presentation
+**Since:** 2026-10-01
+
+After trying to update itself, the agent reports an `update.result`:
+
+- `installed`: the new version runs and reached the backend
+- `rolled-back`: it did not reach the backend in time, and the previous
+  version was put back
+- `rejected`: the download, checksum, signature or self-test failed, and
+  nothing changed
+
+The backend keeps the latest report on the agent: the version tried, the
+outcome, when, and for a failure the agent's reason (required, at most 500
+characters). The version must be `major.minor.patch`, and only an active
+agent can report. Reporting the same version and outcome again changes
+nothing.
+
+A new rolled-back or rejected report sends one warning, with no device, to
+the vendor's chat only, never the install's. It names the agent, the version
+it tried and the version it still runs, and the reason.
+
+**Why:** ADR 0002, phase 2: an update that fails must be visible without
+anyone opening the PC. The customer's monitoring continues on the version
+that runs, so only the vendor needs to act. The agent repeats its report
+until it is sure the backend has it, so a repeat must not alert twice.
+
+**Enforced at:** `src/domain/probe-agents/aggregates/Agent.ts` (`recordUpdateOutcome`), `src/application/probe-agents/use-cases/RecordAgentUpdateOutcomeUseCase.ts`, `src/application/notifications/event-handlers/AgentUpdateFailedNotificationHandler.ts`, `src/presentation/ws/agent/AgentSession.ts` (`onUpdateResult`), `src/infrastructure/di/container.ts`, `prisma/migrations/20261001120000_agent_last_update/migration.sql`
+**Tests:** `tests/domain/probe-agents/aggregates/Agent.test.ts`, `tests/application/probe-agents/use-cases/RecordAgentUpdateOutcomeUseCase.test.ts`, `tests/integration/use-cases/probe-agents/RecordAgentUpdateOutcomeUseCase.integration.test.ts`, `tests/application/notifications/event-handlers/AgentUpdateFailedNotificationHandler.test.ts`, `tests/integration/agent-gateway.test.ts`, `tests/infrastructure/probe-agents/mappers/AgentPrismaMapper.test.ts`

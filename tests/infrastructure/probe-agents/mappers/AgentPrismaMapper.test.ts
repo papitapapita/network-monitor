@@ -1,7 +1,8 @@
 import { AgentPrismaMapper } from '../../../../src/infrastructure/probe-agents/mappers';
 import {
   Agent,
-  AgentName
+  AgentName,
+  AgentUpdateOutcome
 } from '../../../../src/domain/probe-agents';
 import { ProbeAgent } from '../../../../src/generated/prisma/client';
 
@@ -21,6 +22,38 @@ describe('AgentPrismaMapper', () => {
 
     expect(AgentPrismaMapper.toPersistence(back)).toEqual(row);
     expect(back.id.equals(agent.id)).toBe(true);
+  });
+
+  it('[AGT-084] round-trips the last update, or its absence', () => {
+    const agent = Agent.create(
+      AgentName.create('Torre Norte').value,
+      'a'.repeat(64),
+      NOW
+    ).value;
+    agent.enroll('b'.repeat(64), NOW);
+    expect(AgentPrismaMapper.toPersistence(agent)).toMatchObject({
+      lastUpdateVersion: null,
+      lastUpdateOutcome: null,
+      lastUpdateReason: null,
+      lastUpdateAt: null
+    });
+
+    agent.recordUpdateOutcome(
+      '0.2.1',
+      AgentUpdateOutcome.ROLLED_BACK,
+      'timeout',
+      NOW
+    );
+    const back = AgentPrismaMapper.toDomain(
+      AgentPrismaMapper.toPersistence(agent)
+    ).value;
+
+    expect(back.lastUpdate).toEqual({
+      version: '0.2.1',
+      outcome: AgentUpdateOutcome.ROLLED_BACK,
+      reason: 'timeout',
+      at: NOW
+    });
   });
 
   it('fails on a row with a malformed id', () => {

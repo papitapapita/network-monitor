@@ -25,6 +25,7 @@ export * from './BankAccountController';
 export * from './LinkDiagnosisController';
 export * from './AgentController';
 export * from './AgentEnrollmentController';
+export * from './AgentUpdateController';
 export * from './SubscriptionController';
 export * from './InstallationController';
 export * from './UserController';

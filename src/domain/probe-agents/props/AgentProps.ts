@@ -1,4 +1,4 @@
-import { AgentStatus } from '../enums';
+import { AgentStatus, AgentUpdateOutcome } from '../enums';
 import { AgentName } from '../value-objects';
 
 export interface AgentProps {
@@ -18,6 +18,17 @@ export interface AgentProps {
   offlineSince: Date | null;
   // Set while the agent's clock is off by more than a minute (R12).
   clockDriftSince: Date | null;
+  // How the last self-update this agent reported ended (AGT-084).
+  lastUpdate: AgentUpdateRecord | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface AgentUpdateRecord {
+  // The version the agent tried to move to.
+  version: string;
+  outcome: AgentUpdateOutcome;
+  // Why it failed, in the agent's words; null once installed.
+  reason: string | null;
+  at: Date;
 }

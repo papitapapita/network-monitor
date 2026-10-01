@@ -4,3 +4,4 @@ export * from './ContractedServiceSuspendedNotificationHandler';
 export * from './AgentWentOfflineNotificationHandler';
 export * from './AgentCameBackNotificationHandler';
 export * from './AgentClockNotificationHandlers';
+export * from './AgentUpdateFailedNotificationHandler';

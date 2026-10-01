@@ -32,6 +32,7 @@ import { createTechnicianRoutes } from './technician.routes';
 import { createQuotationRoutes } from './quotation.routes';
 import { createAgentRoutes } from './agent.routes';
 import { createAgentEnrollmentRoutes } from './agent-enrollment.routes';
+import { createAgentUpdateRoutes } from './agent-update.routes';
 import { createSubscriptionRoutes } from './subscription.routes';
 import { createInstallationRoutes } from './installation.routes';
 import { createVendorSettingsRoutes } from './vendor-settings.routes';
@@ -357,6 +358,7 @@ export function setupRoutes(
       container.getSubscriptionStatusUseCase,
       container.getLogger()
     ),
-    createAgentEnrollmentRoutes(container.agentEnrollmentController)
+    createAgentEnrollmentRoutes(container.agentEnrollmentController),
+    createAgentUpdateRoutes(container.agentUpdateController)
   );
 }

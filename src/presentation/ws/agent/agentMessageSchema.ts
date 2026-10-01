@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AgentMessage } from 'agent/protocol';
+import { AGENT_PLATFORMS, AgentMessage } from 'agent/protocol';
 
 const epochMs = z.number().int().nonnegative();
 const version = z.string().trim().min(1).max(32);
@@ -29,6 +29,12 @@ const agentMessage = z.discriminatedUnion('type', [
     // with "update required" (R18) instead of a bare protocol error.
     protocolVersion: z.number().int().nonnegative(),
     agentVersion: version,
+    // A platform this backend does not know is dropped, not refused: the
+    // agent still connects, it is just offered no release (AGT-082).
+    platform: z
+      .string()
+      .optional()
+      .transform((p) => AGENT_PLATFORMS.find((known) => known === p)),
     sentAt: epochMs
   }),
   z.object({
@@ -39,6 +45,12 @@ const agentMessage = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('config.ack'),
     version: z.string().min(1).max(64)
+  }),
+  z.object({
+    type: z.literal('update.result'),
+    version,
+    outcome: z.enum(['installed', 'rolled-back', 'rejected']),
+    reason: z.string().trim().min(1).max(500).optional()
   }),
   z.object({
     type: z.literal('results'),

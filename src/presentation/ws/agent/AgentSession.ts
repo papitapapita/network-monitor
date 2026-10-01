@@ -3,17 +3,21 @@ import { ILogger } from 'application/shared/interfaces';
 import {
   AcceptAgentResultsUseCase,
   BuildAgentConfigSnapshotUseCase,
+  GetAgentUpdateOfferUseCase,
   GetAgentUseCase,
-  RecordAgentContactUseCase
+  RecordAgentContactUseCase,
+  RecordAgentUpdateOutcomeUseCase
 } from 'application/probe-agents/use-cases';
 import { GetSubscriptionStatusUseCase } from 'application/shared/use-cases/GetSubscriptionStatusUseCase';
 import { AgentResultDTO } from 'application/probe-agents/dtos';
 import {
   AgentMessage,
+  AgentPlatform,
   BackendMessage,
   CloseCode,
   PingResultWire,
-  ResultsMessage
+  ResultsMessage,
+  UpdateResultMessage
 } from 'agent/protocol';
 import { parseAgentMessage } from './agentMessageSchema';
 
@@ -23,7 +27,15 @@ export interface AgentSessionUseCases {
   acceptResults: AcceptAgentResultsUseCase;
   getAgent: GetAgentUseCase;
   subscriptionStatus: GetSubscriptionStatusUseCase;
+  updateOffer: GetAgentUpdateOfferUseCase;
+  recordUpdateOutcome: RecordAgentUpdateOutcomeUseCase;
 }
+
+const UPDATE_OUTCOMES = {
+  installed: 'INSTALLED',
+  'rolled-back': 'ROLLED_BACK',
+  rejected: 'REJECTED'
+} as const;
 
 export interface AgentSessionConfig {
   minProtocolVersion: number;
@@ -40,6 +52,9 @@ export class AgentSession {
   private greeted = false;
   private closed = false;
   private configVersion: string | null = null;
+  private platform: AgentPlatform | null = null;
+  private runningVersion = '';
+  private offeredVersion: string | null = null;
   private alive = true;
   private queue: Promise<void> = Promise.resolve();
   private readonly timers: ReturnType<typeof setTimeout>[] = [];
@@ -130,6 +145,7 @@ export class AgentSession {
       case 'hello':
         return this.onHello(message, receivedAt);
       case 'heartbeat':
+        this.runningVersion = message.agentVersion;
         return this.recordContact(
           message.agentVersion,
           message.sentAt,
@@ -139,6 +155,8 @@ export class AgentSession {
         return this.onConfigAck(message.version);
       case 'results':
         return this.onResults(message, receivedAt);
+      case 'update.result':
+        return this.onUpdateResult(message);
     }
   }
 
@@ -150,9 +168,13 @@ export class AgentSession {
       this.close(CloseCode.PROTOCOL_ERROR, 'Duplicate hello');
       return;
     }
+    this.platform = message.platform ?? null;
+    this.runningVersion = message.agentVersion;
     // R18: refuse before anything is recorded, so an outdated agent never
-    // counts as having reported in.
+    // counts as having reported in. One that can update itself is told
+    // where the update is first (AGT-082).
     if (message.protocolVersion < this.config.minProtocolVersion) {
+      await this.offerUpdate();
       this.logger.warn('Agent protocol too old', {
         agentId: this.agentId,
         protocolVersion: message.protocolVersion,
@@ -187,6 +209,7 @@ export class AgentSession {
       heartbeatIntervalMs: this.config.heartbeatIntervalMs
     });
     await this.pushConfig();
+    await this.offerUpdate();
     this.addTimer(
       setInterval(
         () => this.enqueue(() => this.refresh()),
@@ -233,6 +256,52 @@ export class AgentSession {
       return;
     }
     await this.pushConfig();
+    await this.offerUpdate();
+  }
+
+  // AGT-082: each release is offered once per connection; the refresh picks
+  // up one published while the agent is connected.
+  private async offerUpdate(): Promise<void> {
+    const offer = await this.useCases.updateOffer.execute({
+      agentId: this.agentId,
+      platform: this.platform,
+      runningVersion: this.runningVersion
+    });
+    if (offer.isFailure) {
+      this.logger.warn('Agent update offer unavailable', {
+        agentId: this.agentId,
+        error: offer.error
+      });
+      return;
+    }
+    const release = offer.value;
+    if (release === null || release.version === this.offeredVersion) {
+      return;
+    }
+    this.offeredVersion = release.version;
+    this.logger.info('Agent offered an update', {
+      agentId: this.agentId,
+      from: this.runningVersion,
+      to: release.version
+    });
+    this.send({ type: 'update', ...release });
+  }
+
+  private async onUpdateResult(
+    message: UpdateResultMessage
+  ): Promise<void> {
+    const result = await this.useCases.recordUpdateOutcome.execute({
+      agentId: this.agentId,
+      version: message.version,
+      outcome: UPDATE_OUTCOMES[message.outcome],
+      reason: message.reason ?? null
+    });
+    if (result.isFailure) {
+      this.logger.warn('Agent update outcome not recorded', {
+        agentId: this.agentId,
+        error: result.error
+      });
+    }
   }
 
   // A failure to read the status never cuts off a paying customer.

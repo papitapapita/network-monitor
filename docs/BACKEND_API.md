@@ -2874,6 +2874,8 @@ On-site agents that measure a customer's network from inside it and report to th
 
 **What still runs from the server:** ping of a device with an `agentId` is always the agent's (manual poll `409`, MON-022). When the server sits on the monitored network (the default, and Insetel's case) it pings every device with no agent, and wireless poll, reboot and link diagnosis stay with it for every device. An install hosted off site (`SERVER_ON_SITE=false`) talks to no device at all: it pings nothing, answers `409` for manual ping, wireless poll, reboot and diagnosis of any device, and refuses the network scan (MON-023, WLS-029, DEV-171). There a device with no agent shows `UNKNOWN` and raises no down alert (MON-006, NOT-101) until it is moved behind an agent. Read the setting from `GET /api/installation` (`serverOnSite`) and, when it is `false`, hide those actions for every device and point devices with no agent at "move to an agent".
 
+**Updates:** agents update themselves (`AGT-080` … `AGT-084`). The vendor copies a signed release (`nms-agent-<version>.manifest.json` plus one `nms-agent-<version>-<platform>.gz` per platform) into `INSTALLERS_DIR`, next to the installers. Every connected agent running an older version is offered it within a minute, downloads it, checks the vendor's signature and installs it; `agentVersion` then shows the new version. `lastUpdate` tells how the last attempt ended: `INSTALLED`, `ROLLED_BACK` (the new version never reached the backend, so the previous one was put back) or `REJECTED` (download, checksum, signature or self-test failed; nothing changed), with the agent's `reason` for a failure. Show a failure as a warning on the agent page; the agent keeps measuring with the version it runs, and the vendor gets one Telegram message. A release that failed on an agent is not offered to it again — the vendor publishes a newer one. Agents installed before self-update (`0.1.0`) need one manual reinstall to get it.
+
 **Online / offline:** an `ACTIVE` agent silent for 5 minutes (since `lastSeenAt`, or since `enrolledAt` if it never connected) gets `offlineSince` set, checked once a minute; its next contact clears it. `offlineSince !== null` is the offline badge — no need to compare `lastSeenAt` against the clock. `PENDING` and `REVOKED` agents are never offline. Going offline and coming back each send one Telegram message (to the install's chat and the vendor's); they are not device alerts, so they do not appear in `GET /api/alerts`.
 
 ```ts
@@ -2889,6 +2891,13 @@ interface AgentDTO {
   clockOffsetMs: number | null;
   offlineSince: string | null; // set only while ACTIVE and offline
   clockDriftSince: string | null; // set while the PC clock is >1 min off
+  // How the last self-update ended (AGT-084); null until the agent reports one.
+  lastUpdate: {
+    version: string; // the version it tried to install
+    outcome: 'INSTALLED' | 'ROLLED_BACK' | 'REJECTED';
+    reason: string | null; // the agent's words; null once INSTALLED
+    at: string;
+  } | null;
   deviceCount: number; // live devices behind it; the recycle bin is not counted (AGT-010)
   createdAt: string;
   updatedAt: string;
@@ -3011,7 +3020,15 @@ interface AgentOutageDTO {
 
 ### `GET /agent/v1/ws` — Agent WebSocket (agents only)
 
-The agents' live connection, authenticated with the agent token from enrollment (`Authorization: Bearer <token>`); never called by the dashboard. Protocol and close codes: `src/agent/protocol/` and `docs/business-rules/probe-agents.md` (`AGT-040` … `AGT-045`).
+The agents' live connection, authenticated with the agent token from enrollment (`Authorization: Bearer <token>`); never called by the dashboard. Protocol and close codes: `src/agent/protocol/` and `docs/business-rules/probe-agents.md` (`AGT-040` … `AGT-045`, updates `AGT-082`, `AGT-084`).
+
+---
+
+### `GET /agent/v1/updates/:fileName` — Download a release binary (agents only)
+
+Outside `/api`; the agent token is the credential (`Authorization: Bearer <token>`), a user's JWT is refused. Serves only a binary that a valid, signed release in `INSTALLERS_DIR` lists (`AGT-083`). Never called by the dashboard.
+
+**Status:** 200 (`application/gzip`) | 400 (not a release binary name) | 401 (checked before the name) | 404 | 402 (subscription locked)
 
 ---
 
@@ -4717,7 +4734,7 @@ subscription. The terms are the vendor's, changed through
 
 ### `402 Payment Required`
 
-Any `/api` route (and `POST /agent/v1/enroll`) can answer `402` once the
+Any `/api` route (and `POST /agent/v1/enroll`, `GET /agent/v1/updates/:fileName`) can answer `402` once the
 subscription is past its grace:
 
 ```ts

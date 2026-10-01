@@ -16,8 +16,10 @@ import {
   AcceptAgentResultsUseCase,
   AuthenticateAgentUseCase,
   BuildAgentConfigSnapshotUseCase,
+  GetAgentUpdateOfferUseCase,
   GetAgentUseCase,
-  RecordAgentContactUseCase
+  RecordAgentContactUseCase,
+  RecordAgentUpdateOutcomeUseCase
 } from '../../src/application/probe-agents/use-cases';
 import { IngestPingResultsUseCase } from '../../src/application/device-monitoring/use-cases/IngestPingResultsUseCase';
 import { PrismaAgentRepository } from '../../src/infrastructure/probe-agents/repositories';
@@ -48,9 +50,11 @@ import {
   seedDeviceModel,
   seedMonitoredDevice
 } from './helpers/db';
+import { FakeAgentReleaseCatalog } from './helpers/FakeAgentReleaseCatalog';
 
 interface Client {
   ws: WebSocket;
+  inbox: BackendMessage[];
   next(type: BackendMessage['type']): Promise<BackendMessage>;
   closed: Promise<{ code: number; reason: string }>;
   send(message: object): void;
@@ -64,6 +68,7 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
   let url: string;
   let deviceModelId: string;
   const openClients: WebSocket[] = [];
+  const releases = new FakeAgentReleaseCatalog();
   // The terms are fixed at boot, so a test flips the answer instead.
   let subscriptionExpired = false;
   const subscriptionStatus = {
@@ -117,7 +122,16 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
           new PrismaAgentDeviceCountQuery(prisma),
           logger
         ),
-        subscriptionStatus
+        subscriptionStatus,
+        updateOffer: new GetAgentUpdateOfferUseCase(
+          agents,
+          releases,
+          logger
+        ),
+        recordUpdateOutcome: new RecordAgentUpdateOutcomeUseCase(
+          agents,
+          logger
+        )
       },
       logger,
       {
@@ -143,6 +157,7 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
 
   beforeEach(async () => {
     subscriptionExpired = false;
+    releases.release = null;
     await cleanAgents(prisma);
     await cleanDatabase(prisma);
   });
@@ -176,6 +191,7 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
     );
     return {
       ws,
+      inbox,
       closed,
       send: (message) => {
         const payload = JSON.stringify(message);
@@ -192,12 +208,20 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
     };
   }
 
-  const hello = (protocolVersion = PROTOCOL_VERSION) => ({
+  const hello = (
+    protocolVersion = PROTOCOL_VERSION,
+    platform: string | undefined = undefined
+  ) => ({
     type: 'hello',
     protocolVersion,
     agentVersion: '1.0.0',
+    ...(platform ? { platform } : {}),
     sentAt: Date.now()
   });
+
+  // Long enough for at least one configuration refresh (250 ms here).
+  const settle = () =>
+    new Promise((resolve) => setTimeout(resolve, 400));
 
   function rejectedStatus(token: string | null, path?: string) {
     const { ws } = connect(token, path);
@@ -340,6 +364,114 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
         where: { id }
       });
       expect(row!.lastSeenAt).toBeNull();
+    });
+  });
+
+  describe('[AGT-082] updates', () => {
+    it('offers a newer release for the agent’s platform after its configuration', async () => {
+      const { token } = await agentWithDevice();
+      releases.publish('1.1.0', 'linux-x64');
+      const client = connect(token);
+
+      client.send(hello(PROTOCOL_VERSION, 'linux-x64'));
+
+      await client.next('config');
+      expect(await client.next('update')).toEqual({
+        type: 'update',
+        version: '1.1.0',
+        file: 'nms-agent-1.1.0-linux-x64.gz',
+        sha256: 'a'.repeat(64),
+        bytes: 1000,
+        signature: 'c2lnbmF0dXJl'
+      });
+    });
+
+    it('offers a release published while the agent is connected, once', async () => {
+      const { token } = await agentWithDevice();
+      const client = connect(token);
+      client.send(hello(PROTOCOL_VERSION, 'win-x64'));
+      await client.next('config');
+
+      releases.publish('1.1.0', 'win-x64');
+
+      expect(
+        (await client.next('update')) as { version: string }
+      ).toMatchObject({ version: '1.1.0' });
+      await settle();
+      expect(
+        client.inbox.filter((m) => m.type === 'update')
+      ).toHaveLength(0);
+    });
+
+    it.each([
+      ['names no platform', undefined, '1.1.0'],
+      ['runs on the other platform', 'win-x64', '1.1.0'],
+      ['already runs that version', 'linux-x64', '1.0.0']
+    ])(
+      'offers nothing to an agent that %s',
+      async (_label, platform, version) => {
+        const { token } = await agentWithDevice();
+        releases.publish(version, 'linux-x64');
+        const client = connect(token);
+
+        client.send(hello(PROTOCOL_VERSION, platform));
+        await client.next('config');
+        await settle();
+
+        expect(client.inbox.some((m) => m.type === 'update')).toBe(
+          false
+        );
+      }
+    );
+
+    it('[AGT-044] tells an outdated agent where the update is, then closes', async () => {
+      const { token } = await agentWithDevice();
+      releases.publish('1.1.0', 'linux-x64');
+      const client = connect(token);
+
+      client.send(hello(0, 'linux-x64'));
+
+      expect(
+        (await client.next('update')) as { version: string }
+      ).toMatchObject({ version: '1.1.0' });
+      expect((await client.closed).code).toBe(
+        CloseCode.UPDATE_REQUIRED
+      );
+    });
+
+    it('[AGT-084] records the outcome the agent reports, and stops offering a release that failed', async () => {
+      const { token, id } = await agentWithDevice();
+      releases.publish('1.1.0', 'linux-x64');
+      const first = connect(token);
+      first.send(hello(PROTOCOL_VERSION, 'linux-x64'));
+      await first.next('update');
+
+      first.send({
+        type: 'update.result',
+        version: '1.1.0',
+        outcome: 'rolled-back',
+        reason: 'No connection within 2 minutes'
+      });
+      await settle();
+
+      const row = await prisma.probeAgent.findUnique({
+        where: { id }
+      });
+      expect(row).toMatchObject({
+        lastUpdateVersion: '1.1.0',
+        lastUpdateOutcome: 'ROLLED_BACK',
+        lastUpdateReason: 'No connection within 2 minutes'
+      });
+      expect(row!.lastUpdateAt).not.toBeNull();
+
+      first.ws.close();
+      const second = connect(token);
+      second.send(hello(PROTOCOL_VERSION, 'linux-x64'));
+      await second.next('config');
+      await settle();
+      expect(second.inbox.some((m) => m.type === 'update')).toBe(
+        false
+      );
     });
   });
 

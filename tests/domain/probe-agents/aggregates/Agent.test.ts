@@ -2,12 +2,14 @@ import {
   Agent,
   AgentName,
   AgentProps,
-  AgentStatus
+  AgentStatus,
+  AgentUpdateOutcome
 } from '../../../../src/domain/probe-agents';
 import {
   AgentCameBackEvent,
   AgentClockCorrectedEvent,
   AgentClockDriftedEvent,
+  AgentUpdateFailedEvent,
   AgentWentOfflineEvent
 } from '../../../../src/domain/probe-agents/events';
 import { AgentId } from '../../../../src/domain/shared/ids';
@@ -39,6 +41,7 @@ function makeProps(overrides: Partial<AgentProps> = {}): AgentProps {
     clockOffsetMs: null,
     offlineSince: null,
     clockDriftSince: null,
+    lastUpdate: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides
@@ -398,6 +401,137 @@ describe('Agent', () => {
       agent.revoke(at(1_000));
 
       expect(agent.clockDriftSince).toBeNull();
+    });
+  });
+
+  describe('[AGT-084] update outcome', () => {
+    function running(version = '0.2.0'): Agent {
+      const agent = makeAgent();
+      agent.enroll(TOKEN_HASH, at(1_000));
+      agent.recordContact(version, 0, at(2_000));
+      agent.clearEvents();
+      return agent;
+    }
+
+    it('records an installed update without alerting anyone', () => {
+      const agent = running('0.2.1');
+
+      const result = agent.recordUpdateOutcome(
+        '0.2.1',
+        AgentUpdateOutcome.INSTALLED,
+        'ignored',
+        at(5_000)
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(agent.lastUpdate).toEqual({
+        version: '0.2.1',
+        outcome: AgentUpdateOutcome.INSTALLED,
+        reason: null,
+        at: at(5_000)
+      });
+      expect(agent.domainEvents).toHaveLength(0);
+    });
+
+    it.each([
+      AgentUpdateOutcome.ROLLED_BACK,
+      AgentUpdateOutcome.REJECTED
+    ])(
+      'records a %s update with its reason and raises one event',
+      (outcome) => {
+        const agent = running('0.2.0');
+
+        agent.recordUpdateOutcome(
+          '0.2.1',
+          outcome,
+          '  No connection within 2 minutes  ',
+          at(5_000)
+        );
+
+        expect(agent.lastUpdate?.reason).toBe(
+          'No connection within 2 minutes'
+        );
+        expect(agent.domainEvents).toHaveLength(1);
+        const event = agent.domainEvents[0] as AgentUpdateFailedEvent;
+        expect(event).toBeInstanceOf(AgentUpdateFailedEvent);
+        expect(event.runningVersion).toBe('0.2.0');
+        expect(event.targetVersion).toBe('0.2.1');
+        expect(event.outcome).toBe(outcome);
+        expect(event.reason).toBe('No connection within 2 minutes');
+      }
+    );
+
+    it('ignores the same report sent again', () => {
+      const agent = running();
+      agent.recordUpdateOutcome(
+        '0.2.1',
+        AgentUpdateOutcome.ROLLED_BACK,
+        'timeout',
+        at(5_000)
+      );
+      agent.clearEvents();
+
+      const result = agent.recordUpdateOutcome(
+        '0.2.1',
+        AgentUpdateOutcome.ROLLED_BACK,
+        'timeout',
+        at(9_000)
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(agent.lastUpdate?.at).toEqual(at(5_000));
+      expect(agent.domainEvents).toHaveLength(0);
+    });
+
+    it('[AGT-082] remembers a version that failed, until another outcome replaces it', () => {
+      const agent = running();
+      agent.recordUpdateOutcome(
+        '0.2.1',
+        AgentUpdateOutcome.REJECTED,
+        'Signature does not verify',
+        at(5_000)
+      );
+
+      expect(agent.hasFailedUpdateTo('0.2.1')).toBe(true);
+      expect(agent.hasFailedUpdateTo('0.2.2')).toBe(false);
+
+      agent.recordUpdateOutcome(
+        '0.2.1',
+        AgentUpdateOutcome.INSTALLED,
+        null,
+        at(9_000)
+      );
+      expect(agent.hasFailedUpdateTo('0.2.1')).toBe(false);
+    });
+
+    it.each([
+      ['a version that is not major.minor.patch', 'v0.2', 'x'],
+      ['a failure with no reason', '0.2.1', '   '],
+      ['a reason over 500 characters', '0.2.1', 'x'.repeat(501)]
+    ])('rejects %s', (_label, version, reason) => {
+      const agent = running();
+
+      const result = agent.recordUpdateOutcome(
+        version,
+        AgentUpdateOutcome.REJECTED,
+        reason,
+        at(5_000)
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(agent.lastUpdate).toBeNull();
+      expect(agent.domainEvents).toHaveLength(0);
+    });
+
+    it('refuses an agent that is not enrolled', () => {
+      expect(
+        makeAgent().recordUpdateOutcome(
+          '0.2.1',
+          AgentUpdateOutcome.INSTALLED,
+          null,
+          NOW
+        ).isFailure
+      ).toBe(true);
     });
   });
 });

@@ -9,6 +9,7 @@ import {
   AgentCameBackEvent,
   AgentClockCorrectedEvent,
   AgentClockDriftedEvent,
+  AgentUpdateFailedEvent,
   AgentWentOfflineEvent
 } from 'domain/probe-agents/events';
 
@@ -33,7 +34,8 @@ export function captureAgentHealthEvents(): IDomainEvent[] {
     AgentWentOfflineEvent.name,
     AgentCameBackEvent.name,
     AgentClockDriftedEvent.name,
-    AgentClockCorrectedEvent.name
+    AgentClockCorrectedEvent.name,
+    AgentUpdateFailedEvent.name
   ]) {
     EventDispatcher.register(name, {
       handle: async (event: IDomainEvent) => {
