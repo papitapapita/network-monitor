@@ -9,3 +9,4 @@ export * from './InstallLabelAlertPublisher';
 export * from './SubscriptionAlertPublisher';
 export * from './SwitchedOffAlertPublisher';
 export * from './TelegramTestMessageSender';
+export * from './WhenConfiguredAlertPublisher';

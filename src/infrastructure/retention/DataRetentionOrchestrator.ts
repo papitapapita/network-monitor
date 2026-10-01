@@ -6,12 +6,11 @@ import {
 } from 'application/wireless-monitoring/use-cases';
 import { PurgeDeletedDevicesUseCase } from 'application/device-inventory/use-cases';
 import { ILogger } from 'application/shared/interfaces';
+import { IVendorSettingsRepository } from 'domain/shared/interfaces';
 
+// The retention windows themselves are the vendor's settings (INS-028), read
+// at every run so a change applies from the next one.
 interface RetentionConfig {
-  pingResultRetentionDays: number;
-  wirelessSnapshotRetentionDays: number;
-  alertRetentionDays: number;
-  wirelessAlertRecordRetentionDays: number;
   // Grace period, not a retention window: how long a soft-deleted device stays
   // restorable before it is removed for good.
   deletedDeviceGraceDays: number;
@@ -30,6 +29,7 @@ export class DataRetentionOrchestrator {
     private readonly purgeOldWirelessAlertRecords: PurgeOldWirelessAlertRecordsUseCase,
     private readonly purgeDeletedDevices: PurgeDeletedDevicesUseCase,
     private readonly config: RetentionConfig,
+    private readonly vendorSettings: IVendorSettingsRepository,
     private readonly logger: ILogger
   ) {
     this.checkIntervalMs =
@@ -42,12 +42,6 @@ export class DataRetentionOrchestrator {
     this.isRunning = true;
     this.logger.info('[DataRetentionOrchestrator] Started', {
       checkIntervalMs: this.checkIntervalMs,
-      pingResultRetentionDays: this.config.pingResultRetentionDays,
-      wirelessSnapshotRetentionDays:
-        this.config.wirelessSnapshotRetentionDays,
-      alertRetentionDays: this.config.alertRetentionDays,
-      wirelessAlertRecordRetentionDays:
-        this.config.wirelessAlertRecordRetentionDays,
       deletedDeviceGraceDays: this.config.deletedDeviceGraceDays
     });
 
@@ -73,18 +67,36 @@ export class DataRetentionOrchestrator {
   private async runPurge(): Promise<void> {
     if (!this.isRunning) return;
 
-    this.logger.info('[DataRetentionOrchestrator] Running purge');
+    // Unknown windows delete nothing: the next run tries again.
+    const settings = await this.vendorSettings.get();
+    if (settings.isFailure) {
+      this.logger.error(
+        '[DataRetentionOrchestrator] Failed to read the retention windows; purge skipped',
+        new Error(settings.error)
+      );
+      return;
+    }
+    const windows = settings.value;
+
+    this.logger.info('[DataRetentionOrchestrator] Running purge', {
+      pingResultRetentionDays: windows.pingResultRetentionDays,
+      alertRetentionDays: windows.alertRetentionDays,
+      wirelessSnapshotRetentionDays:
+        windows.wirelessSnapshotRetentionDays,
+      wirelessAlertRecordRetentionDays:
+        windows.wirelessAlertRecordRetentionDays
+    });
 
     const results = await Promise.all([
       this.purgeOldPingResults.execute(
-        this.config.pingResultRetentionDays
+        windows.pingResultRetentionDays
       ),
-      this.purgeOldAlerts.execute(this.config.alertRetentionDays),
+      this.purgeOldAlerts.execute(windows.alertRetentionDays),
       this.purgeOldWirelessSnapshots.execute(
-        this.config.wirelessSnapshotRetentionDays
+        windows.wirelessSnapshotRetentionDays
       ),
       this.purgeOldWirelessAlertRecords.execute(
-        this.config.wirelessAlertRecordRetentionDays
+        windows.wirelessAlertRecordRetentionDays
       ),
       this.purgeDeletedDevices.execute(
         this.config.deletedDeviceGraceDays

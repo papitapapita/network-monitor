@@ -853,8 +853,10 @@ the open flag would quietly erase the longest-running problems.
 **Since:** 2026-08-05
 
 Ping results, alerts, wireless snapshots and wireless alert records are purged
-in one pass, each with its own configured window, each returning its own count.
-Any one failing fails the run.
+in one pass, each with its own window — the vendor's settings, read at the
+start of each run (INS-028) — each returning its own count. Any one failing
+fails the run; settings that cannot be read fail it before anything is
+deleted.
 
 **Why:** One scheduled job is easier to reason about than four, and the separate
 counts are what make it possible to tell an empty window from a purge that never

@@ -8,6 +8,12 @@ import { PurgeOldWirelessAlertRecordsUseCase } from '../../../src/application/wi
 import { PurgeDeletedDevicesUseCase } from '../../../src/application/device-inventory/use-cases/PurgeDeletedDevicesUseCase';
 import { ILogger } from '../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../src/domain/shared/core/Result';
+import {
+  makeVendorSettingsProps,
+  vendorSettingsRepo
+} from '../../fixtures/vendorSettings';
+import { VendorSettings } from '../../../src/domain/shared/value-objects/VendorSettings';
+import { IVendorSettingsRepository } from '../../../src/domain/shared/interfaces/IVendorSettingsRepository';
 
 // ---------------------------------------------------------------------------
 // Factories
@@ -62,6 +68,7 @@ interface OrchestratorFixture {
   purgeAlertRecords: jest.Mocked<PurgeOldWirelessAlertRecordsUseCase>;
   purgeDeletedDevices: jest.Mocked<PurgeDeletedDevicesUseCase>;
   logger: jest.Mocked<ILogger>;
+  vendorSettings: jest.Mocked<IVendorSettingsRepository>;
   orchestrator: DataRetentionOrchestrator;
 }
 
@@ -74,6 +81,12 @@ function makeOrchestrator(
   const purgeAlertRecords = makePurgeAlertRecords();
   const purgeDeletedDevices = makePurgeDeletedDevices();
   const logger = makeLogger();
+  const vendorSettings = vendorSettingsRepo({
+    pingResultRetentionDays: 30,
+    alertRetentionDays: 90,
+    wirelessSnapshotRetentionDays: 7,
+    wirelessAlertRecordRetentionDays: 60
+  });
 
   purgePing.execute.mockResolvedValue(Result.ok(0));
   purgeAlerts.execute.mockResolvedValue(Result.ok(0));
@@ -87,14 +100,8 @@ function makeOrchestrator(
     purgeSnapshots,
     purgeAlertRecords,
     purgeDeletedDevices,
-    {
-      pingResultRetentionDays: 30,
-      alertRetentionDays: 90,
-      wirelessSnapshotRetentionDays: 7,
-      wirelessAlertRecordRetentionDays: 60,
-      deletedDeviceGraceDays: 7,
-      checkIntervalMs
-    },
+    { deletedDeviceGraceDays: 7, checkIntervalMs },
+    vendorSettings,
     logger
   );
 
@@ -105,8 +112,15 @@ function makeOrchestrator(
     purgeAlertRecords,
     purgeDeletedDevices,
     logger,
+    vendorSettings,
     orchestrator
   };
+}
+
+// A purge run awaits the settings and then the purges; drain every promise it
+// queued without advancing the fake clock.
+async function flushPurge(): Promise<void> {
+  for (let i = 0; i < 10; i++) await Promise.resolve();
 }
 
 // ---------------------------------------------------------------------------
@@ -136,8 +150,7 @@ describe('DataRetentionOrchestrator', () => {
 
         orchestrator.start();
         // Flush only the microtasks queued by the immediate void runPurge()
-        await Promise.resolve();
-        await Promise.resolve();
+        await flushPurge();
 
         expect(purgePing.execute).toHaveBeenCalledTimes(1);
         expect(purgeAlerts.execute).toHaveBeenCalledTimes(1);
@@ -170,8 +183,7 @@ describe('DataRetentionOrchestrator', () => {
 
         // Advance one full interval to trigger the setInterval callback
         jest.advanceTimersByTime(INTERVAL_MS);
-        await Promise.resolve();
-        await Promise.resolve();
+        await flushPurge();
 
         expect(purgePing.execute).toHaveBeenCalledTimes(2);
       });
@@ -247,8 +259,7 @@ describe('DataRetentionOrchestrator', () => {
 
       orchestrator.stop();
       jest.advanceTimersByTime(INTERVAL_MS * 3);
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushPurge();
 
       // Only the single immediate call should have happened
       expect(purgePing.execute).toHaveBeenCalledTimes(1);
@@ -301,8 +312,7 @@ describe('DataRetentionOrchestrator', () => {
       );
 
       orchestrator.start();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushPurge();
 
       expect(logger.error).toHaveBeenCalledWith(
         '[DataRetentionOrchestrator] Failed to purge ping results',
@@ -318,8 +328,7 @@ describe('DataRetentionOrchestrator', () => {
       );
 
       orchestrator.start();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushPurge();
 
       expect(logger.error).toHaveBeenCalledWith(
         '[DataRetentionOrchestrator] Failed to purge alerts',
@@ -335,8 +344,7 @@ describe('DataRetentionOrchestrator', () => {
       );
 
       orchestrator.start();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushPurge();
 
       expect(logger.error).toHaveBeenCalledWith(
         '[DataRetentionOrchestrator] Failed to purge wireless snapshots',
@@ -352,8 +360,7 @@ describe('DataRetentionOrchestrator', () => {
       );
 
       orchestrator.start();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushPurge();
 
       expect(logger.error).toHaveBeenCalledWith(
         '[DataRetentionOrchestrator] Failed to purge wireless alert records',
@@ -372,8 +379,7 @@ describe('DataRetentionOrchestrator', () => {
       purgePing.execute.mockResolvedValue(Result.fail('ping error'));
 
       orchestrator.start();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushPurge();
 
       expect(purgeAlerts.execute).toHaveBeenCalledTimes(1);
       expect(purgeSnapshots.execute).toHaveBeenCalledTimes(1);
@@ -389,14 +395,54 @@ describe('DataRetentionOrchestrator', () => {
       );
 
       orchestrator.start();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushPurge();
 
       expect(logger.error).toHaveBeenCalledTimes(2);
     });
   });
 
   // =========================================================================
+  describe('[INS-028] retention windows from the vendor settings', () => {
+    it('reads the windows on every run, so a change applies to the next one', async () => {
+      const { orchestrator, vendorSettings, purgePing } =
+        makeOrchestrator(1_000);
+      orchestrator.start();
+      await flushPurge();
+
+      vendorSettings.get.mockResolvedValue(
+        Result.ok(
+          VendorSettings.reconstitute(
+            makeVendorSettingsProps({ pingResultRetentionDays: 5 })
+          )
+        )
+      );
+      await jest.advanceTimersByTimeAsync(1_000);
+      orchestrator.stop();
+
+      expect(purgePing.execute).toHaveBeenNthCalledWith(1, 30);
+      expect(purgePing.execute).toHaveBeenLastCalledWith(5);
+    });
+
+    it('purges nothing when the windows cannot be read', async () => {
+      const {
+        orchestrator,
+        vendorSettings,
+        purgePing,
+        purgeDeletedDevices,
+        logger
+      } = makeOrchestrator();
+      vendorSettings.get.mockResolvedValue(Result.fail('DB down'));
+
+      orchestrator.start();
+      await jest.advanceTimersByTimeAsync(0);
+      orchestrator.stop();
+
+      expect(purgePing.execute).not.toHaveBeenCalled();
+      expect(purgeDeletedDevices.execute).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalled();
+    });
+  });
+
   describe('success logging', () => {
     it('should log purge complete with the deleted counts after a successful run', async () => {
       const {
@@ -415,8 +461,7 @@ describe('DataRetentionOrchestrator', () => {
       purgeDeletedDevices.execute.mockResolvedValue(Result.ok(2));
 
       orchestrator.start();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushPurge();
 
       expect(logger.info).toHaveBeenCalledWith(
         '[DataRetentionOrchestrator] Purge complete',
@@ -436,8 +481,7 @@ describe('DataRetentionOrchestrator', () => {
       purgePing.execute.mockResolvedValue(Result.fail('ping error'));
 
       orchestrator.start();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushPurge();
 
       const completeCalls = (
         logger.info as jest.Mock

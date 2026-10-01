@@ -1,4 +1,5 @@
 import { Result } from 'domain/shared/core';
+import { IVendorSettingsRepository } from 'domain/shared/interfaces';
 import { PurgeOldPingResultsUseCase } from 'application/device-monitoring/use-cases';
 import { PurgeOldAlertsUseCase } from 'application/notifications/use-cases';
 import {
@@ -13,23 +14,25 @@ export interface DataRetentionSummary {
   wirelessAlertRecordsDeleted: number;
 }
 
-export interface DataRetentionConfig {
-  pingResultRetentionDays: number;
-  alertRetentionDays: number;
-  wirelessSnapshotRetentionDays: number;
-  wirelessAlertRecordRetentionDays: number;
-}
-
 export class TriggerDataRetentionUseCase {
   constructor(
     private readonly purgeOldPingResults: PurgeOldPingResultsUseCase,
     private readonly purgeOldAlerts: PurgeOldAlertsUseCase,
     private readonly purgeOldWirelessSnapshots: PurgeOldWirelessSnapshotsUseCase,
     private readonly purgeOldWirelessAlertRecords: PurgeOldWirelessAlertRecordsUseCase,
-    private readonly config: DataRetentionConfig
+    private readonly vendorSettings: IVendorSettingsRepository
   ) {}
 
+  // The windows are the vendor's settings (INS-028), read on each run.
   async execute(): Promise<Result<DataRetentionSummary>> {
+    const settings = await this.vendorSettings.get();
+    if (settings.isFailure) {
+      return Result.fail(
+        `Failed to read the retention windows: ${settings.error}`
+      );
+    }
+    const windows = settings.value;
+
     const [
       pingResult,
       alertResult,
@@ -37,14 +40,14 @@ export class TriggerDataRetentionUseCase {
       wirelessAlertResult
     ] = await Promise.all([
       this.purgeOldPingResults.execute(
-        this.config.pingResultRetentionDays
+        windows.pingResultRetentionDays
       ),
-      this.purgeOldAlerts.execute(this.config.alertRetentionDays),
+      this.purgeOldAlerts.execute(windows.alertRetentionDays),
       this.purgeOldWirelessSnapshots.execute(
-        this.config.wirelessSnapshotRetentionDays
+        windows.wirelessSnapshotRetentionDays
       ),
       this.purgeOldWirelessAlertRecords.execute(
-        this.config.wirelessAlertRecordRetentionDays
+        windows.wirelessAlertRecordRetentionDays
       )
     ]);
 

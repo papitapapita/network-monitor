@@ -34,6 +34,7 @@ import { createAgentRoutes } from './agent.routes';
 import { createAgentEnrollmentRoutes } from './agent-enrollment.routes';
 import { createSubscriptionRoutes } from './subscription.routes';
 import { createInstallationRoutes } from './installation.routes';
+import { createVendorSettingsRoutes } from './vendor-settings.routes';
 import {
   createAuditLogMiddleware,
   createAuthenticateMiddleware,
@@ -65,9 +66,12 @@ export function setupRoutes(
     createSubscriptionGuard(
       container.getSubscriptionStatusUseCase,
       container.getLogger(),
+      // The vendor records a payment here, so a read-only or locked install
+      // must still let it through (INS-030); the route itself is VENDOR-only.
       (req) =>
         req.path.startsWith('/auth/') ||
-        (req.method === 'GET' && req.path === '/subscription')
+        (req.method === 'GET' && req.path === '/subscription') ||
+        /^\/installation\/settings\/?$/.test(req.path)
     )
   );
 
@@ -316,6 +320,12 @@ export function setupRoutes(
   apiRouter.use(
     '/subscription',
     createSubscriptionRoutes(container.subscriptionController)
+  );
+
+  // The vendor's settings: /api/installation/settings
+  apiRouter.use(
+    '/installation/settings',
+    createVendorSettingsRoutes(container.vendorSettingsController)
   );
 
   // Installation settings: /api/installation

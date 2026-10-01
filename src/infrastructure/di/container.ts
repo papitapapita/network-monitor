@@ -29,7 +29,7 @@ import {
   MarkSilentAgentsOfflineUseCase
 } from '../../application/probe-agents/use-cases';
 import { AgentLivenessOrchestrator } from '../probe-agents/orchestrator';
-import { loadSubscriptionTerms } from './subscriptionTerms';
+import { loadVendorSettingsDefaults } from './vendorSettingsDefaults';
 import {
   SubscriptionJobSupervisor,
   SupervisedJob
@@ -86,7 +86,8 @@ import {
   PrismaDeviceCredentialsRepository,
   PrismaDeviceNotificationPolicyRepository,
   PrismaMutedAlertTypeRepository,
-  PrismaNotificationSettingsRepository
+  PrismaNotificationSettingsRepository,
+  PrismaVendorSettingsRepository
 } from '../persistence/';
 import {
   LocationController,
@@ -97,6 +98,7 @@ import {
   NotificationPolicyController,
   NotificationMuteController,
   NotificationSettingsController,
+  VendorSettingsController,
   AlertController,
   ScanController,
   WirelessController,
@@ -250,7 +252,8 @@ import {
   InstallLabelAlertPublisher,
   SubscriptionAlertPublisher,
   SwitchedOffAlertPublisher,
-  TelegramTestMessageSender
+  TelegramTestMessageSender,
+  WhenConfiguredAlertPublisher
 } from '../notifications';
 import {
   OverdueDeviceDownAlertOrchestrator,
@@ -417,6 +420,8 @@ import {
 } from 'application/wireless-monitoring/use-cases';
 import { DataRetentionOrchestrator } from '../retention/DataRetentionOrchestrator';
 import { TriggerDataRetentionUseCase } from 'application/shared/use-cases/TriggerDataRetentionUseCase';
+import { GetVendorSettingsUseCase } from 'application/shared/use-cases/GetVendorSettingsUseCase';
+import { UpdateVendorSettingsUseCase } from 'application/shared/use-cases/UpdateVendorSettingsUseCase';
 import { AdminController } from 'presentation/http/controllers/AdminController';
 import { loadCollectionAccountIssuerConfig } from '../billing/config/collectionAccountIssuerConfig';
 import { EnabledModules } from './enabledModules';
@@ -442,6 +447,7 @@ export class DependencyContainer {
   private deviceNotificationPolicyRepository: PrismaDeviceNotificationPolicyRepository;
   private mutedAlertTypeRepository: PrismaMutedAlertTypeRepository;
   private notificationSettingsRepository: PrismaNotificationSettingsRepository;
+  private vendorSettingsRepository: PrismaVendorSettingsRepository;
 
   // Wireless repositories
   private wirelessSnapshotRepository: PrismaWirelessSnapshotRepository;
@@ -483,6 +489,7 @@ export class DependencyContainer {
   public notificationPolicyController: NotificationPolicyController;
   public notificationMuteController: NotificationMuteController;
   public notificationSettingsController: NotificationSettingsController;
+  public vendorSettingsController: VendorSettingsController;
   public agentController: AgentController;
   public subscriptionController: SubscriptionController;
   public installationController: InstallationController;
@@ -586,6 +593,11 @@ export class DependencyContainer {
       new PrismaNotificationSettingsRepository(
         this.prisma,
         loadNotificationSettingsDefaults(process.env)
+      );
+    this.vendorSettingsRepository =
+      new PrismaVendorSettingsRepository(
+        this.prisma,
+        loadVendorSettingsDefaults(process.env)
       );
     this.wirelessDeviceConfigRepository =
       new PrismaWirelessDeviceConfigRepository(
@@ -1248,14 +1260,25 @@ export class DependencyContainer {
       suspendDeviceMonitoringUseCase,
       this.logger
     );
-    // R17: vendor-set terms; unset means not enforced. Read once at boot, so
-    // a renewal takes a restart with the new date.
+    // R17: vendor-set terms, read on every call so a payment recorded from
+    // the dashboard applies at once (INS-028); none means not enforced.
     const getSubscriptionStatusUseCase =
       (this.getSubscriptionStatusUseCase =
         new GetSubscriptionStatusUseCase(
-          loadSubscriptionTerms(process.env),
+          this.vendorSettingsRepository,
           this.logger
         ));
+    this.vendorSettingsController = new VendorSettingsController(
+      new GetVendorSettingsUseCase(
+        this.vendorSettingsRepository,
+        this.logger
+      ),
+      new UpdateVendorSettingsUseCase(
+        this.vendorSettingsRepository,
+        this.logger
+      ),
+      this.logger
+    );
     this.subscriptionController = new SubscriptionController(
       getSubscriptionStatusUseCase,
       this.logger
@@ -1896,33 +1919,13 @@ export class DependencyContainer {
       this.logger
     );
 
-    const retentionConfig = {
-      pingResultRetentionDays: parseInt(
-        process.env.PING_RESULT_RETENTION_DAYS ?? '30',
-        10
-      ),
-      wirelessSnapshotRetentionDays: parseInt(
-        process.env.WIRELESS_SNAPSHOT_RETENTION_DAYS ?? '30',
-        10
-      ),
-      alertRetentionDays: parseInt(
-        process.env.ALERT_RETENTION_DAYS ?? '90',
-        10
-      ),
-      wirelessAlertRecordRetentionDays: parseInt(
-        process.env.WIRELESS_ALERT_RECORD_RETENTION_DAYS ?? '90',
-        10
-      ),
-      deletedDeviceGraceDays
-    };
-
     const triggerDataRetentionUseCase =
       new TriggerDataRetentionUseCase(
         purgeOldPingResultsUseCase,
         purgeOldAlertsUseCase,
         purgeOldWirelessSnapshotsUseCase,
         purgeOldWirelessAlertRecordsUseCase,
-        retentionConfig
+        this.vendorSettingsRepository
       );
 
     this.adminController = new AdminController(
@@ -1936,7 +1939,8 @@ export class DependencyContainer {
       purgeOldWirelessSnapshotsUseCase,
       purgeOldWirelessAlertRecordsUseCase,
       purgeDeletedDevicesUseCase,
-      retentionConfig,
+      { deletedDeviceGraceDays },
+      this.vendorSettingsRepository,
       this.logger
     );
 
@@ -2009,35 +2013,42 @@ export class DependencyContainer {
 
     // R6: agent health goes to the install's chat and, when configured, to
     // the vendor's. The vendor copy skips quiet hours and mutes — those are
-    // the customer's settings, not the vendor's.
-    const vendorChatId = process.env.TELEGRAM_VENDOR_CHAT_ID?.trim();
+    // the customer's settings, not the vendor's. The vendor chat is read from
+    // the vendor settings on every send (INS-028).
+    const vendorChatId = async (): Promise<string | null> => {
+      const settings = await this.vendorSettingsRepository.get();
+      return settings.isSuccess
+        ? settings.value.vendorTelegramChatId
+        : null;
+    };
     const vendorBotToken =
       process.env.TELEGRAM_VENDOR_BOT_TOKEN?.trim() ||
       process.env.TELEGRAM_BOT_TOKEN;
-    const agentHealthPublisher = vendorChatId
-      ? new FanOutAlertPublisher([
-          alertPublisher,
-          new SubscriptionAlertPublisher(
-            new InstallLabelAlertPublisher(
-              new AlertPublisher(
-                new SendAlertNotificationUseCase(
-                  this.deviceRepository,
-                  new TelegramNotificationService(
-                    vendorChatId,
-                    vendorBotToken
-                  ),
-                  this.logger
-                )
-              ),
-              agentPublicUrl
-                ? new URL(agentPublicUrl).host
-                : 'sin AGENT_PUBLIC_URL'
+    const agentHealthPublisher = new FanOutAlertPublisher([
+      alertPublisher,
+      new WhenConfiguredAlertPublisher(
+        new SubscriptionAlertPublisher(
+          new InstallLabelAlertPublisher(
+            new AlertPublisher(
+              new SendAlertNotificationUseCase(
+                this.deviceRepository,
+                new TelegramNotificationService(
+                  vendorChatId,
+                  vendorBotToken
+                ),
+                this.logger
+              )
             ),
-            getSubscriptionStatusUseCase,
-            this.logger
-          )
-        ])
-      : alertPublisher;
+            agentPublicUrl
+              ? new URL(agentPublicUrl).host
+              : 'sin AGENT_PUBLIC_URL'
+          ),
+          getSubscriptionStatusUseCase,
+          this.logger
+        ),
+        async () => (await vendorChatId()) !== null
+      )
+    ]);
     EventDispatcher.register(
       AgentWentOfflineEvent.name,
       new AgentWentOfflineNotificationHandler(

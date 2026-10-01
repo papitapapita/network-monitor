@@ -1,6 +1,8 @@
 import { GetSubscriptionStatusUseCase } from '../../../../src/application/shared/use-cases/GetSubscriptionStatusUseCase';
 import { SubscriptionTerms } from '../../../../src/domain/shared/value-objects';
 import { makeLogger } from '../../probe-agents/fixtures';
+import { vendorSettingsRepoWithTerms } from '../../../fixtures/vendorSettings';
+import { Result } from '../../../../src/domain/shared/core/Result';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -16,7 +18,7 @@ function termsEndingIn(offsetMs: number) {
 describe('GetSubscriptionStatusUseCase', () => {
   it('[INS-020] reports NOT_ENFORCED without terms', async () => {
     const result = await new GetSubscriptionStatusUseCase(
-      null,
+      vendorSettingsRepoWithTerms(null),
       makeLogger()
     ).execute();
 
@@ -41,7 +43,7 @@ describe('GetSubscriptionStatusUseCase', () => {
       const terms = termsEndingIn(offsetMs);
 
       const result = await new GetSubscriptionStatusUseCase(
-        terms,
+        vendorSettingsRepoWithTerms(terms),
         makeLogger()
       ).execute();
 
@@ -55,4 +57,18 @@ describe('GetSubscriptionStatusUseCase', () => {
       });
     }
   );
+
+  it('[INS-028] fails when the settings cannot be read, so callers fail open', async () => {
+    const repo = vendorSettingsRepoWithTerms(null);
+    repo.get.mockResolvedValue(Result.fail('DB down'));
+
+    const result = await new GetSubscriptionStatusUseCase(
+      repo,
+      makeLogger()
+    ).execute();
+
+    expect(result.error).toBe(
+      'Failed to read the subscription terms: DB down'
+    );
+  });
 });

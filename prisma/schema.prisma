@@ -427,6 +427,24 @@ model NotificationSettings {
   @@map("notification_settings")
 }
 
+/// What the vendor runs the install with, edited from the dashboard (INS-028):
+/// its own alert chat, the customer's subscription terms and how long data is
+/// kept. One row at most (id is always 1); no row means the env defaults apply.
+model VendorSettings {
+  id                               Int       @id @default(1) @db.SmallInt
+  vendorTelegramChatId             String?   @map("vendor_telegram_chat_id") @db.VarChar(64)
+  subscriptionPaidUntil            DateTime? @map("subscription_paid_until") @db.Date
+  subscriptionGraceDays            Int       @map("subscription_grace_days")
+  subscriptionReadOnlyDays         Int       @map("subscription_read_only_days")
+  pingResultRetentionDays          Int       @map("ping_result_retention_days")
+  alertRetentionDays               Int       @map("alert_retention_days")
+  wirelessSnapshotRetentionDays    Int       @map("wireless_snapshot_retention_days")
+  wirelessAlertRecordRetentionDays Int       @map("wireless_alert_record_retention_days")
+  updatedAt                        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("vendor_settings")
+}
+
 // ============================================================================
 // WIRELESS MONITORING MODELS
 // ============================================================================

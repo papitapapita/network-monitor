@@ -1,9 +1,6 @@
 import { ValueObject, Result } from 'domain/shared/core';
+import { isTelegramChatId } from 'domain/shared/value-objects';
 import { NotificationSettingsProps } from '../props';
-
-// A numeric chat id (groups and supergroups are negative) or a public
-// channel's @username, the two forms the Bot API accepts as chat_id.
-const TELEGRAM_CHAT_ID = /^(-?\d{1,20}|@[A-Za-z][A-Za-z0-9_]{4,31})$/;
 
 export const MAX_DOWN_ALERT_DELAY_MINUTES = 1440;
 
@@ -54,7 +51,7 @@ export class NotificationSettings extends ValueObject<NotificationSettingsProps>
   ): string | null {
     if (
       props.telegramChatId !== null &&
-      !TELEGRAM_CHAT_ID.test(props.telegramChatId)
+      !isTelegramChatId(props.telegramChatId)
     ) {
       return 'telegramChatId must be a numeric chat id or a @channel name';
     }

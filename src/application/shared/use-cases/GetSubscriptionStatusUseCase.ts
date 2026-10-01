@@ -1,5 +1,5 @@
 import { Result } from 'domain/shared/core';
-import { SubscriptionTerms } from 'domain/shared/value-objects';
+import { IVendorSettingsRepository } from 'domain/shared/interfaces';
 import { UseCase } from '../core';
 import { ILogger } from '../interfaces';
 import { SubscriptionStatusDTO } from '../dtos';
@@ -12,7 +12,7 @@ export class GetSubscriptionStatusUseCase extends UseCase<
   SubscriptionStatusDTO
 > {
   constructor(
-    private readonly terms: SubscriptionTerms | null,
+    private readonly vendorSettings: IVendorSettingsRepository,
     logger: ILogger
   ) {
     super(logger, 'GetSubscriptionStatusUseCase');
@@ -21,7 +21,16 @@ export class GetSubscriptionStatusUseCase extends UseCase<
   protected async executeImpl(): Promise<
     Result<SubscriptionStatusDTO>
   > {
-    if (this.terms === null) {
+    // Read on every call, so a payment recorded from the dashboard applies
+    // at once (INS-028).
+    const settings = await this.vendorSettings.get();
+    if (settings.isFailure) {
+      return this.fail(
+        `Failed to read the subscription terms: ${settings.error}`
+      );
+    }
+    const terms = settings.value.subscriptionTerms();
+    if (terms === null) {
       return this.ok({
         state: 'NOT_ENFORCED',
         paidThrough: null,
@@ -31,12 +40,12 @@ export class GetSubscriptionStatusUseCase extends UseCase<
         locked: false
       });
     }
-    const state = this.terms.stateAt(new Date());
+    const state = terms.stateAt(new Date());
     return this.ok({
       state,
-      paidThrough: this.terms.paidThrough.toISOString(),
-      graceEndsAt: this.terms.graceEndsAt.toISOString(),
-      lockedAt: this.terms.lockedAt.toISOString(),
+      paidThrough: terms.paidThrough.toISOString(),
+      graceEndsAt: terms.graceEndsAt.toISOString(),
+      lockedAt: terms.lockedAt.toISOString(),
       readOnly: state === 'READ_ONLY' || state === 'LOCKED',
       locked: state === 'LOCKED'
     });

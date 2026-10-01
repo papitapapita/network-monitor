@@ -7,6 +7,7 @@ import { INotificationService } from '../../../../src/application/notifications/
 import { SubscriptionTerms } from '../../../../src/domain/shared/value-objects';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { makeLogger } from '../../probe-agents/fixtures';
+import { vendorSettingsRepoWithTerms } from '../../../fixtures/vendorSettings';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -30,7 +31,10 @@ describe('SendSubscriptionReminderUseCase', () => {
             7
           ).value;
     return new SendSubscriptionReminderUseCase(
-      new GetSubscriptionStatusUseCase(terms, makeLogger()),
+      new GetSubscriptionStatusUseCase(
+        vendorSettingsRepoWithTerms(terms),
+        makeLogger()
+      ),
       notifications,
       makeLogger()
     );

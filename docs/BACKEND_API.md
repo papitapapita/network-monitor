@@ -92,7 +92,8 @@ role may use (IDN-140).
 today `PUT /api/notification-settings` and its test message (IDN-034).
 
 `manage-installation` (VENDOR only, IDN-033) gates agent create, re-key and
-revoke and the data-retention purge. **Hide those controls unless
+revoke, the data-retention purge and the vendor's settings
+(`/api/installation/settings`). **Hide those controls unless
 `user.role === 'VENDOR'`**; for any other role they answer `403`.
 
 ### Rate limits (per authenticated user)
@@ -4709,8 +4710,9 @@ interface SubscriptionStatusDTO {
 ```
 
 `NOT_ENFORCED` (all dates `null`) means the install is not billed by
-subscription. The terms are set by the vendor; there is no endpoint to change
-them.
+subscription. The terms are the vendor's, changed through
+[`/api/installation/settings`](#vendor-settings-apiinstallationsettings)
+(VENDOR only); the new terms apply on the next request.
 
 ### `402 Payment Required`
 
@@ -4800,6 +4802,66 @@ blob and save it (or show progress from `Content-Length`).
 > `404` for any name the list above does not return (INS-043). `400` for a
 > name with `/`, `\` or a leading `.`. Error bodies are the usual JSON
 > envelope.
+
+## Vendor Settings `/api/installation/settings`
+
+What the vendor runs this install with (INS-028): its own Telegram chat for
+agent alerts, the customer's subscription terms and how long data is kept.
+**VENDOR only, reads included** — the customer's `ADMIN` gets `403`; show this
+screen only when `user.role === 'VENDOR'`. A save applies on the next request,
+alert or purge, with no restart. Until the first save the values are the
+server's env defaults (INS-029). Bot tokens are not here: they stay in env.
+
+The route is exempt from the subscription guard (INS-030): it answers on a
+read-only or **locked** install, so the vendor can record a payment there. Give
+the vendor a way to reach this screen from the lock screen.
+
+```ts
+interface VendorSettingsDTO {
+  vendorTelegramChatId: string | null; // '8468052749' or '@channel'; null = agent alerts go to the install's chat only
+  subscriptionPaidUntil: string | null; // 'YYYY-MM-DD', last day paid (covered to its end, Colombian time); null = not enforced
+  subscriptionGraceDays: number; // 0–90, full service after paidUntil
+  subscriptionReadOnlyDays: number; // 0–90, read-only after grace, then locked
+  pingResultRetentionDays: number; // 1–3650
+  alertRetentionDays: number; // 1–3650, resolved alerts only
+  wirelessSnapshotRetentionDays: number; // 1–3650
+  wirelessAlertRecordRetentionDays: number; // 1–3650, cleared records only
+}
+```
+
+### `GET /api/installation/settings`
+
+**Status:** 200 | 401 | 403  
+**Roles:** VENDOR (`manage-installation`)
+
+```ts
+{ success: true, data: VendorSettingsDTO }
+```
+
+---
+
+### `PUT /api/installation/settings` — Save
+
+**Status:** 200 | 400 | 401 | 403  
+**Roles:** VENDOR (`manage-installation`)
+
+```ts
+// Request body — all eight, nothing else
+VendorSettingsDTO
+
+// Response
+{ success: true, data: VendorSettingsDTO } // as stored: strings trimmed, '' → null
+```
+
+> `400` with the rule's message, e.g.
+> `"subscriptionPaidUntil must be a real date as YYYY-MM-DD"`,
+> `"Grace days must be a whole number from 0 to 90"` or
+> `"alertRetentionDays must be a whole number from 1 to 3650"`.
+> To record a payment, send the new last paid day; `GET /api/subscription`
+> reflects it immediately. Shortening a retention window deletes the older
+> data at the next daily purge (or the manual purge) — confirm before saving.
+
+---
 
 ## Users `/api/users`
 

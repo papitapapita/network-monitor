@@ -2114,7 +2114,7 @@ legitimate, dozens are a leaking reconnect loop. _(inferred)_
 **Since:** 2026-08-03
 
 `PurgeOldWirelessSnapshotsUseCase` deletes snapshots collected before the
-cutoff. The window is `WIRELESS_SNAPSHOT_RETENTION_DAYS`, defaulting to 30, and
+cutoff. The window is the vendor's `wirelessSnapshotRetentionDays` (INS-028; `WIRELESS_SNAPSHOT_RETENTION_DAYS`, default 30, until saved), and
 the purge is driven by the shared data-retention orchestrator.
 
 **Why:** A snapshot per device per interval is the highest-volume table in the
@@ -2135,7 +2135,7 @@ looks back. It matches the ping-history window in MON-040.
 
 `deleteClearedOlderThan` removes only records that have been cleared. An alert
 still active is retained regardless of age. The window is
-`WIRELESS_ALERT_RECORD_RETENTION_DAYS`, defaulting to 90.
+the vendor's `wirelessAlertRecordRetentionDays` (INS-028; `WIRELESS_ALERT_RECORD_RETENTION_DAYS`, default 90, until saved).
 
 **Why:** Alert records are far sparser than snapshots and are the evidence
 behind a service-quality dispute, so they outlive the metrics that produced them

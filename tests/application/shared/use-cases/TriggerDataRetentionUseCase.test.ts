@@ -2,9 +2,13 @@
 
 import {
   TriggerDataRetentionUseCase,
-  DataRetentionConfig,
   DataRetentionSummary
 } from '../../../../src/application/shared/use-cases/TriggerDataRetentionUseCase';
+import {
+  makeVendorSettingsProps,
+  vendorSettingsRepo
+} from '../../../fixtures/vendorSettings';
+import { VendorSettingsProps } from '../../../../src/domain/shared/props/VendorSettingsProps';
 import { PurgeOldPingResultsUseCase } from '../../../../src/application/device-monitoring/use-cases/PurgeOldPingResultsUseCase';
 import { PurgeOldAlertsUseCase } from '../../../../src/application/notifications/use-cases/PurgeOldAlertsUseCase';
 import { PurgeOldWirelessSnapshotsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/PurgeOldWirelessSnapshotsUseCase';
@@ -40,15 +44,15 @@ function makePurgeAlertRecords(): jest.Mocked<PurgeOldWirelessAlertRecordsUseCas
 }
 
 function makeConfig(
-  overrides: Partial<DataRetentionConfig> = {}
-): DataRetentionConfig {
-  return {
+  overrides: Partial<VendorSettingsProps> = {}
+): VendorSettingsProps {
+  return makeVendorSettingsProps({
     pingResultRetentionDays: 30,
     alertRetentionDays: 90,
     wirelessSnapshotRetentionDays: 7,
     wirelessAlertRecordRetentionDays: 60,
     ...overrides
-  };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -58,7 +62,7 @@ describe('TriggerDataRetentionUseCase', () => {
   let purgeAlerts: jest.Mocked<PurgeOldAlertsUseCase>;
   let purgeSnapshots: jest.Mocked<PurgeOldWirelessSnapshotsUseCase>;
   let purgeAlertRecords: jest.Mocked<PurgeOldWirelessAlertRecordsUseCase>;
-  let config: DataRetentionConfig;
+  let config: VendorSettingsProps;
   let useCase: TriggerDataRetentionUseCase;
 
   beforeEach(() => {
@@ -73,7 +77,7 @@ describe('TriggerDataRetentionUseCase', () => {
       purgeAlerts,
       purgeSnapshots,
       purgeAlertRecords,
-      config
+      vendorSettingsRepo(config)
     );
   });
 
@@ -248,7 +252,7 @@ describe('TriggerDataRetentionUseCase', () => {
           purgeAlerts,
           purgeSnapshots,
           purgeAlertRecords,
-          customConfig
+          vendorSettingsRepo(customConfig)
         );
         purgePing.execute.mockResolvedValue(Result.ok(0));
         purgeAlerts.execute.mockResolvedValue(Result.ok(0));
@@ -267,7 +271,7 @@ describe('TriggerDataRetentionUseCase', () => {
           purgeAlerts,
           purgeSnapshots,
           purgeAlertRecords,
-          customConfig
+          vendorSettingsRepo(customConfig)
         );
         purgePing.execute.mockResolvedValue(Result.ok(0));
         purgeAlerts.execute.mockResolvedValue(Result.ok(0));
@@ -278,6 +282,25 @@ describe('TriggerDataRetentionUseCase', () => {
 
         expect(purgeAlerts.execute).toHaveBeenCalledWith(180);
       });
+    });
+
+    it('[INS-028] purges nothing when the windows cannot be read', async () => {
+      const repo = vendorSettingsRepo();
+      repo.get.mockResolvedValue(Result.fail('DB down'));
+      const failing = new TriggerDataRetentionUseCase(
+        purgePing,
+        purgeAlerts,
+        purgeSnapshots,
+        purgeAlertRecords,
+        repo
+      );
+
+      const result = await failing.execute();
+
+      expect(result.error).toBe(
+        'Failed to read the retention windows: DB down'
+      );
+      expect(purgePing.execute).not.toHaveBeenCalled();
     });
   });
 });

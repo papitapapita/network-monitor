@@ -29,3 +29,4 @@ export * from './SubscriptionController';
 export * from './InstallationController';
 export * from './UserController';
 export * from './NotificationSettingsController';
+export * from './VendorSettingsController';

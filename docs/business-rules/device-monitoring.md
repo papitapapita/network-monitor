@@ -354,7 +354,8 @@ install keeps pinging its network from the server, as before.
 **Since:** 2026-08-03
 
 Raw `ping_results` rows are deleted once they are older than
-`PING_RESULT_RETENTION_DAYS` (default 30). The sweep runs daily. Pausing a device
+the vendor's `pingResultRetentionDays` (INS-028; `PING_RESULT_RETENTION_DAYS`,
+default 30, until saved). The sweep runs daily. Pausing a device
 does not delete its history, and re-enabling does not restore anything, because
 nothing was removed.
 

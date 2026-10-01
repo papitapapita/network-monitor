@@ -34,6 +34,8 @@ function bootWith(lastPaidDay: string) {
     ctx.app = built.app;
     ctx.container = built.container;
     ctx.prisma = built.container.getPrisma();
+    // Saved terms would win over the env ones (INS-029).
+    await ctx.prisma.vendorSettings.deleteMany();
   });
 
   afterAll(async () => {

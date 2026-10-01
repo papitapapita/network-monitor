@@ -1,6 +1,7 @@
 import { SendSubscriptionReminderUseCase } from 'application/notifications/use-cases/SendSubscriptionReminderUseCase';
 import { GetSubscriptionStatusUseCase } from 'application/shared/use-cases/GetSubscriptionStatusUseCase';
-import { loadSubscriptionTerms } from 'infrastructure/di/subscriptionTerms';
+import { loadVendorSettingsDefaults } from 'infrastructure/di/vendorSettingsDefaults';
+import { Result } from 'domain/shared/core';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import { FakeNotificationService } from '../../helpers/FakeNotificationService';
 
@@ -24,7 +25,10 @@ describe('SendSubscriptionReminderUseCase — integration', () => {
   function reminderFor(env: NodeJS.ProcessEnv) {
     return new SendSubscriptionReminderUseCase(
       new GetSubscriptionStatusUseCase(
-        loadSubscriptionTerms(env),
+        {
+          get: async () => Result.ok(loadVendorSettingsDefaults(env)),
+          save: async () => Result.ok()
+        },
         logger
       ),
       notifications,

@@ -342,7 +342,8 @@ the threshold produces neither.
 Both events are published through the shared `IAlertPublisher` as alerts with
 no device (`NOT-100`): critical when the agent goes offline, resolved when it
 comes back, type `agent_offline`, naming the agent. When
-`TELEGRAM_VENDOR_CHAT_ID` is set, the same message also goes to that chat,
+the vendor has a chat set (`vendorTelegramChatId`, INS-028; `TELEGRAM_VENDOR_CHAT_ID`
+until saved), the same message also goes to that chat,
 with the install's host (from `AGENT_PUBLIC_URL`) added to the source,
 through the bot in `TELEGRAM_VENDOR_BOT_TOKEN` — or the install's own bot
 when that is unset (revised 2026-09-30). One

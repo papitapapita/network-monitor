@@ -14,7 +14,7 @@ const MAX_STAGE_DAYS = 90;
 
 // What the install has paid for. `paidThrough` is the first instant no longer
 // covered; grace and then read-only run on from there. Only the vendor sets
-// these, so there is no in-app way to change them.
+// these, from its own settings (INS-028).
 export class SubscriptionTerms {
   private constructor(
     readonly paidThrough: Date,

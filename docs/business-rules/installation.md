@@ -18,7 +18,7 @@ Format and conventions: [README.md](README.md).
 | Range                 | Area            |
 | --------------------- | --------------- |
 | `INS-001` … `INS-019` | Module switches |
-| `INS-020` … `INS-039` | Subscription    |
+| `INS-020` … `INS-039` | Subscription and the vendor's settings |
 | `INS-040` … `INS-059` | Hosting         |
 
 ## Layer coverage
@@ -237,27 +237,29 @@ data means paying again is all it takes to come back.
 **Enforced at:** `src/domain/shared/value-objects/SubscriptionTerms.ts`, `src/application/shared/use-cases/GetSubscriptionStatusUseCase.ts`
 **Tests:** `tests/domain/shared/value-objects/SubscriptionTerms.test.ts`, `tests/application/shared/use-cases/GetSubscriptionStatusUseCase.test.ts`, `tests/integration/use-cases/shared/GetSubscriptionStatusUseCase.integration.test.ts`
 
-### INS-021 — The terms are the last paid day and two stage lengths, set by the vendor at boot
+### INS-021 — The terms are the last paid day and two stage lengths, set by the vendor
 
 **Type:** Validation · **Status:** Active
-**Layer:** Infrastructure (composition)
-**Since:** 2026-09-29
+**Layer:** Domain · Infrastructure (composition)
+**Since:** 2026-09-29 · **Revised:** 2026-09-30 (set from the dashboard, INS-028)
 
-`SUBSCRIPTION_PAID_UNTIL` is the last day paid for, as `YYYY-MM-DD`, covered
-to its end in Colombian time (UTC−5). `SUBSCRIPTION_GRACE_DAYS` (default 3)
-and `SUBSCRIPTION_READ_ONLY_DAYS` (default 7) are whole numbers from 0 to 90.
-With `SUBSCRIPTION_PAID_UNTIL` unset or blank nothing is enforced — Insetel's
-own install sets none of them. A date that is not a real calendar day, or a
-stage length outside the range, stops the boot. All three are read once at
-start-up, so a renewal is a new date and a restart.
+The last day paid for is a `YYYY-MM-DD` date, covered to its end in Colombian
+time (UTC−5). The grace days (default 3) and read-only days (default 7) are
+whole numbers from 0 to 90, checked even while no date is set. With no date
+nothing is enforced — Insetel's own install sets none. The vendor sets them
+from its settings (INS-028), read on every status check, so a renewal applies
+at once; until the first save they come from `SUBSCRIPTION_PAID_UNTIL`,
+`SUBSCRIPTION_GRACE_DAYS` and `SUBSCRIPTION_READ_ONLY_DAYS` (INS-029), where a
+date that is not a real calendar day, or a stage length outside the range,
+stops the boot.
 
 **Why:** The vendor, not the customer, controls billing. Failing the boot on a
 typo is safer than guessing: a wrong guess either cuts off a paying customer
 or never cuts off anyone. The whole last day is covered so "paid until the
 31st" means what it says.
 
-**Enforced at:** `src/infrastructure/di/subscriptionTerms.ts`, `src/domain/shared/value-objects/SubscriptionTerms.ts`
-**Tests:** `tests/infrastructure/di/subscriptionTerms.test.ts`, `tests/domain/shared/value-objects/SubscriptionTerms.test.ts`
+**Enforced at:** `src/domain/shared/value-objects/VendorSettings.ts` (`subscriptionTerms`), `src/domain/shared/value-objects/SubscriptionTerms.ts`, `src/infrastructure/di/vendorSettingsDefaults.ts`
+**Tests:** `tests/domain/shared/value-objects/VendorSettings.test.ts`, `tests/infrastructure/di/vendorSettingsDefaults.test.ts`, `tests/domain/shared/value-objects/SubscriptionTerms.test.ts`, `tests/integration/use-cases/shared/GetSubscriptionStatusUseCase.integration.test.ts`
 
 ### INS-022 — A read-only or locked install refuses its agents
 
@@ -382,6 +384,85 @@ next stage and its date, so the customer knows exactly how long they have.
 ---
 
 ## Hosting
+
+### INS-028 — The vendor sets its chat, the subscription terms and the retention windows from the dashboard
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain · Application · Infrastructure
+**Since:** 2026-09-30
+
+The vendor's settings for an install are stored together and replaced as a
+whole:
+
+| Setting                             | Allowed values                                         | Read by                                   |
+| ----------------------------------- | ------------------------------------------------------ | ----------------------------------------- |
+| `vendorTelegramChatId`              | numeric chat id or `@channel`; `null` = none           | agent-health alerts to the vendor (AGT-023) |
+| `subscriptionPaidUntil`             | real `YYYY-MM-DD` date; `null` = not enforced          | subscription status (INS-020, INS-021)    |
+| `subscriptionGraceDays`             | whole number 0–90                                      | subscription status                       |
+| `subscriptionReadOnlyDays`          | whole number 0–90                                      | subscription status                       |
+| `pingResultRetentionDays`           | whole number 1–3650                                    | daily purge and the vendor's manual purge |
+| `alertRetentionDays`                | whole number 1–3650                                    | same                                      |
+| `wirelessSnapshotRetentionDays`     | whole number 1–3650                                    | same                                      |
+| `wirelessAlertRecordRetentionDays`  | whole number 1–3650                                    | same                                      |
+
+Each is read where it is used, every time: the subscription on every status
+check, the vendor chat on every agent-health alert, the windows on every
+purge. A save therefore applies with no restart — a payment recorded here
+unlocks a locked install on its next request. If the settings cannot be read
+the subscription fails open (the guard of INS-025 lets the request through) and the
+purge skips that run. Bot tokens and how long a deleted device stays
+restorable (`DEVICE_DELETE_GRACE_DAYS`) stay in the environment.
+
+**Why:** These are the levers the vendor pulls for each customer — recording a
+payment, keeping data for as long as the customer paid for, getting alerts
+about their agents — and each needed shell access to the host and a restart.
+The retention windows are the vendor's, not the customer's, because on an
+install the vendor hosts they decide how much of the vendor's disk the
+customer uses.
+
+**Enforced at:** `src/domain/shared/value-objects/VendorSettings.ts`, `src/application/shared/use-cases/UpdateVendorSettingsUseCase.ts`, `src/application/shared/use-cases/GetSubscriptionStatusUseCase.ts`, `src/application/shared/use-cases/TriggerDataRetentionUseCase.ts`, `src/infrastructure/retention/DataRetentionOrchestrator.ts`, `src/infrastructure/persistence/PrismaVendorSettingsRepository.ts`, `src/infrastructure/di/container.ts`
+**Reached from:** `GET`, `PUT /api/installation/settings`
+**Tests:** `tests/domain/shared/value-objects/VendorSettings.test.ts`, `tests/application/shared/use-cases/VendorSettingsUseCases.test.ts`, `tests/application/shared/use-cases/GetSubscriptionStatusUseCase.test.ts`, `tests/application/shared/use-cases/TriggerDataRetentionUseCase.test.ts`, `tests/infrastructure/retention/DataRetentionOrchestrator.test.ts`, `tests/integration/use-cases/shared/UpdateVendorSettingsUseCase.integration.test.ts`, `tests/integration/vendor-settings.routes.test.ts`
+
+### INS-029 — Until the vendor saves them, its settings come from the env
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (composition)
+**Since:** 2026-09-30
+
+With nothing saved, the settings are `TELEGRAM_VENDOR_CHAT_ID` (unset = none),
+`SUBSCRIPTION_PAID_UNTIL` (unset = not enforced), `SUBSCRIPTION_GRACE_DAYS`
+(3), `SUBSCRIPTION_READ_ONLY_DAYS` (7), `PING_RESULT_RETENTION_DAYS` (30),
+`ALERT_RETENTION_DAYS` (90), `WIRELESS_SNAPSHOT_RETENTION_DAYS` (30) and
+`WIRELESS_ALERT_RECORD_RETENTION_DAYS` (90). An env value that INS-028 would
+refuse stops the boot, naming the variable. Once saved, the stored values win
+and the env ones are ignored. The table holds at most one row.
+
+**Why:** Every install ran on these env values before; reading them as defaults
+means an upgrade changes nothing until the vendor saves. Naming the variable in
+the boot error tells the vendor which line to fix.
+
+**Enforced at:** `src/infrastructure/di/vendorSettingsDefaults.ts`, `src/infrastructure/persistence/PrismaVendorSettingsRepository.ts`
+**Tests:** `tests/infrastructure/di/vendorSettingsDefaults.test.ts`, `tests/integration/use-cases/shared/GetVendorSettingsUseCase.integration.test.ts`, `tests/integration/use-cases/shared/GetSubscriptionStatusUseCase.integration.test.ts`
+
+### INS-030 — Only the vendor reads or changes its settings, even on a locked install
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-09-30
+
+`GET` and `PUT /api/installation/settings` need `manage-installation`
+(VENDOR, IDN-033); the customer's `ADMIN` answers `403` on both. The route is
+exempt from the subscription guard (INS-025), so it answers on a read-only or
+locked install too.
+
+**Why:** The subscription terms and the vendor's own chat are not the
+customer's business, and changing them is the vendor's lever. Exempting the
+route is what lets the vendor record a payment on an install that is locked
+for non-payment; the role check still keeps everyone else out.
+
+**Enforced at:** `src/presentation/http/routes/vendor-settings.routes.ts`, `src/presentation/http/routes/index.ts` (guard exemption)
+**Tests:** `tests/integration/vendor-settings.routes.test.ts`
 
 ### INS-040 — Behind a proxy, only the proxy named in `TRUST_PROXY` may say who the caller is
 

@@ -363,8 +363,9 @@ permission to a route _weaken_ it, which is the opposite of what someone writing
 | `POST /api/agents/:id/pairing-key`     | issue a new pairing key               |
 | `POST /api/agents/:id/revoke`          | revoke an agent                       |
 | `POST /api/admin/data-retention/purge` | purge stale data across every context |
+| `GET`, `PUT /api/installation/settings` | the vendor's settings (INS-028, INS-030) |
 
-A customer's `ADMIN` answers `403` on all four, and still reads its agents
+A customer's `ADMIN` answers `403` on all of them, and still reads its agents
 (`AGT-009`).
 
 **Why:** These are the actions of whoever installs and maintains the system,
