@@ -10,6 +10,7 @@
     "build:agent": "esbuild src/agent/main.ts --bundle --platform=node --format=cjs --target=node22 --outfile=dist/agent/nms-agent.cjs",
     "dev:agent": "tsx src/agent/main.ts",
     "package:agent": "node scripts/agent/package.mjs",
+    "agent:release-key": "node scripts/agent/release-key.mjs",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write src tests docs",
     "format:check": "prettier --check src tests docs",

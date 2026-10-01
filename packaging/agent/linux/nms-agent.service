@@ -23,6 +23,8 @@ TimeoutStopSec=15
 # the system ping gets its right to send ICMP from setuid or a file
 # capability, which NoNewPrivileges would strip.
 ProtectSystem=strict
+# The one place outside its data it may write: its own program, to update it.
+ReadWritePaths=/opt/nms-agent
 ProtectHome=true
 PrivateTmp=true
 

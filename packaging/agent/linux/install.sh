@@ -35,7 +35,11 @@ if ! id nms-agent >/dev/null 2>&1; then
 fi
 
 systemctl stop nms-agent 2>/dev/null || true
-install -D -m 0755 "$HERE/nms-agent" /opt/nms-agent/nms-agent
+# The agent replaces its own binary when it updates itself, so the
+# program's directory belongs to its user.
+install -d -m 0755 -o nms-agent -g nms-agent /opt/nms-agent
+install -m 0755 -o nms-agent -g nms-agent "$HERE/nms-agent" /opt/nms-agent/nms-agent
+rm -f /opt/nms-agent/nms-agent.old /opt/nms-agent/nms-agent.new
 install -m 0644 "$HERE/nms-agent.service" /etc/systemd/system/nms-agent.service
 install -d -m 0700 -o nms-agent -g nms-agent "$DATA_DIR"
 

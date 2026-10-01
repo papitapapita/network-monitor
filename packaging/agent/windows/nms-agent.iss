@@ -57,6 +57,12 @@ Source: "{#SourceDir}\nms-agent.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\{#ServiceExe}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\nms-agent-service.xml"; DestDir: "{app}"; Flags: ignoreversion
 
+[InstallDelete]
+; An installer run replaces the program outright; a rollback copy or a
+; half-finished download from a self-update means nothing after it.
+Type: files; Name: "{app}\nms-agent.exe.old"
+Type: files; Name: "{app}\nms-agent.exe.new"
+
 [UninstallRun]
 Filename: "{app}\{#ServiceExe}"; Parameters: "stop"; Flags: runhidden waituntilterminated; RunOnceId: "StopService"
 Filename: "{app}\{#ServiceExe}"; Parameters: "uninstall"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveService"
@@ -65,6 +71,10 @@ Filename: "powershell.exe"; Parameters: "-NoProfile -NonInteractive -Command ""R
 [UninstallDelete]
 ; The token, the device list and unsent results: nothing stays behind.
 Type: filesandordirs; Name: "{#DataDir}"
+; What a self-update leaves beside the program: the previous
+; version, kept for a rollback, and a download not yet swapped in.
+Type: files; Name: "{app}\nms-agent.exe.old"
+Type: files; Name: "{app}\nms-agent.exe.new"
 
 [Code]
 var

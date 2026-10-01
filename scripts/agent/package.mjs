@@ -12,12 +12,20 @@
 //   nms-agent-setup-<version>.exe   with Inno Setup 6 on Windows (also seen
 //                                   from WSL), or else Inno Setup in Docker
 //   nms-agent-<version>-linux-x64.tar.gz   binary, systemd unit, install.sh
+//   nms-agent-<version>-<platform>.gz, nms-agent-<version>.manifest.json
+//                                   the update (AGT-080), signed with the
+//                                   release key; skipped without one
 //
 // Downloads are cached in dist/agent/.cache and checked against pinned or
 // published SHA-256 sums before use.
 
 import { build } from 'esbuild';
-import { createHash } from 'crypto';
+import {
+  createHash,
+  createPrivateKey,
+  createPublicKey,
+  sign
+} from 'crypto';
 import { execFileSync } from 'child_process';
 import {
   chmodSync,
@@ -28,8 +36,10 @@ import {
   rmSync,
   writeFileSync
 } from 'fs';
+import { homedir } from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { gzipSync } from 'zlib';
 import postject from 'postject';
 
 const ROOT = path.resolve(
@@ -305,6 +315,86 @@ async function packageLinux(blob, version) {
   log(`  dist/agent/${name}.tar.gz`);
 }
 
+// The release key's private half (scripts/agent/release-key.mjs). It must
+// match the public key the agents carry, or every agent built here would
+// refuse the very update it was shipped with.
+function releaseKey() {
+  const file =
+    process.env.NMS_AGENT_RELEASE_KEY ??
+    path.join(homedir(), '.config/nms-agent/release-key.pem');
+  if (!existsSync(file)) return null;
+  const privateKey = createPrivateKey(readFileSync(file));
+  const source = readFileSync(
+    path.join(ROOT, 'src/agent/protocol/release.ts'),
+    'utf8'
+  );
+  const shipped = source.match(
+    /-----BEGIN PUBLIC KEY-----[\s\S]*?-----END PUBLIC KEY-----/
+  );
+  const derived = createPublicKey(privateKey)
+    .export({ type: 'spki', format: 'pem' })
+    .toString()
+    .trim();
+  if (!shipped || shipped[0].trim() !== derived) {
+    throw new Error(
+      `${file} does not match RELEASE_PUBLIC_KEY in src/agent/protocol/release.ts`
+    );
+  }
+  return privateKey;
+}
+
+// Same string as releaseSignaturePayload in src/agent/protocol/release.ts.
+const signaturePayload = (version, platform, sha256) =>
+  `nms-agent-release:v1:${version}:${platform}:${sha256}`;
+
+const BINARIES = {
+  'win-x64': () => path.join(OUT, 'win-x64/nms-agent.exe'),
+  'linux-x64': (version) =>
+    path.join(OUT, `nms-agent-${version}-linux-x64/nms-agent`)
+};
+
+// AGT-080: what an install offers its agents as an update. Copied into
+// INSTALLERS_DIR beside the installers.
+function packageRelease(targets, version) {
+  const key = releaseKey();
+  if (!key) {
+    log(
+      'No release key (npm run agent:release-key): installers only, no update files'
+    );
+    return;
+  }
+  const files = {};
+  for (const platform of targets) {
+    const binary = readFileSync(BINARIES[platform](version));
+    const sha256 = createHash('sha256').update(binary).digest('hex');
+    const file = `nms-agent-${version}-${platform}.gz`;
+    writeFileSync(
+      path.join(OUT, file),
+      gzipSync(binary, { level: 9 })
+    );
+    files[platform] = {
+      file,
+      sha256,
+      bytes: binary.length,
+      signature: sign(
+        null,
+        Buffer.from(
+          signaturePayload(version, platform, sha256),
+          'utf8'
+        ),
+        key
+      ).toString('base64')
+    };
+    log(`  dist/agent/${file}`);
+  }
+  const manifest = `nms-agent-${version}.manifest.json`;
+  writeFileSync(
+    path.join(OUT, manifest),
+    `${JSON.stringify({ version, files }, null, 2)}\n`
+  );
+  log(`  dist/agent/${manifest}`);
+}
+
 async function main() {
   const flag = process.argv.indexOf('--target');
   const targets = flag >= 0 ? [process.argv[flag + 1]] : TARGETS;
@@ -323,6 +413,8 @@ async function main() {
     if (target === 'win-x64') await packageWindows(blob, version);
     else await packageLinux(blob, version);
   }
+  log('Packaging the update');
+  packageRelease(targets, version);
 }
 
 main().catch((error) => {

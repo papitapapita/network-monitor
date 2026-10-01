@@ -13,6 +13,9 @@ wrong, and who is told. How a result is judged once it reaches a device —
 duplicates, backlog, out-of-order — is device-monitoring's (`MON-007`,
 `MON-008`).
 
+The update rules cover how a new version of the agent is packaged, signed,
+offered and installed without anyone visiting the PC (ADR 0002, phase 2).
+
 The agent program rules cover the agent's own side (`src/agent/`): pairing,
 polling, buffering while offline and reacting to what the backend tells it.
 The agent is a separate program with its own composition root
@@ -32,6 +35,7 @@ Format and conventions: [README.md](README.md).
 | `AGT-020` … `AGT-039` | Liveness                |
 | `AGT-040` … `AGT-059` | Connection and protocol |
 | `AGT-060` … `AGT-079` | The agent program       |
+| `AGT-080` … `AGT-099` | Updates                 |
 
 ## Layer coverage
 
@@ -43,7 +47,7 @@ A rule enforced in two layers counts in both.
 | Application                  | 16    |
 | Infrastructure (composition) | 11    |
 | Presentation                 | 7     |
-| Agent program                | 9     |
+| Agent program                | 10    |
 
 ---
 
@@ -779,7 +783,7 @@ than exiting lets an administrator pair the same PC again without reinstalling.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Agent program
-**Since:** 2026-09-29
+**Since:** 2026-09-29 · **Revised:** 2026-10-01
 
 `nms-agent-setup-<version>.exe` needs administrator rights and asks one
 question, the pairing key, only on a PC that is not paired yet. It checks the
@@ -800,8 +804,9 @@ the rest. It also accepts the key as `/PAIRINGKEY=<key>` for a silent install
 Running the installer again upgrades in place: it stops the service, replaces
 the files and starts it, keeping the pairing. Uninstalling stops and removes
 the service, removes the Defender exclusion and deletes the data folder with
-the token, configuration and unsent results. The installer speaks Spanish or
-English.
+the token, configuration and unsent results. Both also delete what a
+self-update leaves beside the program: `nms-agent.exe.old` and
+`nms-agent.exe.new`. The installer speaks Spanish or English.
 
 **Why:** ADR 0002, "Packaging": the customer's PC is Windows and whoever
 installs it is not technical. A sleeping PC measures nothing, and Defender
@@ -816,21 +821,23 @@ network's addresses, so other users of the PC cannot read it.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Agent program
-**Since:** 2026-09-29
+**Since:** 2026-09-29 · **Revised:** 2026-10-01
 
 `nms-agent-<version>-linux-x64.tar.gz` holds the agent binary, a systemd unit
 and `install.sh`. Run as root, `install.sh <pairing-key>` does the following:
 
 - checks that systemd and the system `ping` are present
 - creates the system user `nms-agent`, which cannot log in
-- installs the binary to `/opt/nms-agent/nms-agent`
+- installs the binary to `/opt/nms-agent/nms-agent`, in a directory owned by
+  that user so that the agent can update itself
 - creates `/var/lib/nms-agent`, readable by that user alone (`0700`), and
   leaves the key there as `pairing.key` (`0600`)
 - enables and starts `nms-agent.service`
 
-Without a key it only upgrades a PC that is already paired. The service
-restarts 10 seconds after any exit; the rest of the system is read-only to
-it, and it cannot see home directories. Logs go to the journal
+Without a key it only upgrades a PC that is already paired, and removes any
+`.old` or `.new` copy a self-update left behind. The service restarts 10
+seconds after any exit. Apart from its data directory and its own program
+directory, the system is read-only to it, and it cannot see home directories. Logs go to the journal
 (`journalctl -u nms-agent`). `uninstall.sh` removes the service, the binary,
 the data directory and the user.
 
@@ -842,3 +849,47 @@ capability, which that option would strip.
 
 **Enforced at:** `packaging/agent/linux/nms-agent.service`, `packaging/agent/linux/install.sh`, `packaging/agent/linux/uninstall.sh`, `scripts/agent/package.mjs`
 **Tests:** `tests/agent/packaging.test.ts`
+
+---
+
+## Updates
+
+An agent updates itself without anyone visiting the PC. The vendor builds a
+release, signs it with a key that only the vendor holds, and copies it into
+the install's installer folder. That install then offers it to its agents
+(ADR 0002, phase 2).
+
+### AGT-080 — A release is one signed binary per platform, and an agent installs nothing the vendor's key did not sign
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Agent program
+**Since:** 2026-10-01
+
+`npm run package:agent` writes a release next to the installers:
+
+- one gzipped binary per platform, `nms-agent-<version>-<platform>.gz`, where
+  the platform is `win-x64` or `linux-x64`
+- a manifest, `nms-agent-<version>.manifest.json`, giving each binary's
+  SHA-256 and size once unzipped, and its signature
+
+The signature is Ed25519, made with the vendor's release key over
+`nms-agent-release:v1:<version>:<platform>:<sha256>`. The same binary therefore
+cannot be presented as another version or for the other platform. The private
+key lives on the vendor's machine (`~/.config/nms-agent/release-key.pem`,
+created once by `npm run agent:release-key`), never in the repository or on a
+server. Packaging refuses to sign with a key that does not match the public key
+built into the agent. Without the key, it builds the installers and no release.
+
+A version is plain `major.minor.patch`, compared number by number. Anything
+else is never newer than anything.
+
+**Why:** The agent runs as SYSTEM on Windows and as a service on Linux, on the
+customer's PCs. If whoever controls a backend could push any program, one
+breached server would be a way into every customer network behind it. The
+signature confines that risk to the vendor's own key. Signing the version too
+stops a backend from offering an old, signed release with a known fault as if
+it were new. The cost: if the key is lost, nothing more can be signed, and
+agents trusting a new key need one manual reinstall.
+
+**Enforced at:** `src/agent/protocol/release.ts` (`verifyReleaseSignature`, `isNewerVersion`, `RELEASE_PUBLIC_KEY`), `scripts/agent/package.mjs` (`packageRelease`), `scripts/agent/release-key.mjs`
+**Tests:** `tests/agent/protocol/release.test.ts`

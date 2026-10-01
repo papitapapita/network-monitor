@@ -65,6 +65,14 @@ describe('agent packaging', () => {
         /\[UninstallDelete\][\s\S]*filesandordirs; Name: "\{#DataDir\}"/
       );
     });
+
+    it('[AGT-067] leaves no rollback copy or half-swapped download behind, on reinstall or uninstall', () => {
+      for (const section of ['InstallDelete', 'UninstallDelete']) {
+        const body = iss.split(`[${section}]`)[1].split('\n[')[0];
+        expect(body).toContain('{app}\\nms-agent.exe.old');
+        expect(body).toContain('{app}\\nms-agent.exe.new');
+      }
+    });
   });
 
   describe('Linux', () => {
@@ -91,6 +99,17 @@ describe('agent packaging', () => {
     it('[AGT-068] keeps the data directory private to the agent', () => {
       expect(unit).toContain('StateDirectoryMode=0700');
       expect(install).toContain('umask 077');
+    });
+
+    it('[AGT-068] lets the agent replace its own binary and nothing else outside its data', () => {
+      expect(install).toContain(
+        'install -d -m 0755 -o nms-agent -g nms-agent /opt/nms-agent'
+      );
+      expect(install).toContain(
+        'install -m 0755 -o nms-agent -g nms-agent "$HERE/nms-agent" /opt/nms-agent/nms-agent'
+      );
+      expect(unit).toContain('ProtectSystem=strict');
+      expect(unit).toContain('ReadWritePaths=/opt/nms-agent');
     });
 
     it('[AGT-068] does not set NoNewPrivileges, which would stop ping', () => {
