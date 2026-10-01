@@ -1447,6 +1447,12 @@ monitoring before polling it"`. A manual poll would write a real reading over
 > `"Cannot poll device <id> — it is polled by an on-site agent, and polling it on demand is not available yet"`
 > (MON-022). Hide "poll now" for devices with an `agentId`.
 
+> On an install whose server is not on the monitored network
+> (`SERVER_ON_SITE=false`), a device **without** an agent returns `409`
+> `"Cannot poll device <id> — this server is not on the monitored network"`
+> (MON-023): such a server pings nothing. Hide "poll now" for every device
+> when `GET /api/installation` says `serverOnSite: false`.
+
 > A device whose status is not polled (e.g. `RETIRED`) also returns `409`,
 > `"Cannot poll device <id> — Device is <STATUS> and is not polled"`. A deleted
 > or non-existent device returns `404`,
@@ -2513,10 +2519,10 @@ WirelessAlertDTO; // isActive: false
 > The poll attempts real device connectivity — expect 400/500 in environments without reachable devices.
 
 > **Off-site server (WLS-029):** on an install whose server is not on the
-> monitored network (`SERVER_ON_SITE=false`), a device with an `agentId`
-> answers `409` `"Cannot poll device — it sits behind an on-site agent, and this server is not on its network"`.
-> Hide the wireless "poll now" button for devices with an `agentId` on such installs. An on-site
-> install (the default) keeps it working for them.
+> monitored network (`SERVER_ON_SITE=false`), every device — with or without
+> an `agentId` — answers `409` `"Cannot poll device — this server is not on the monitored network"`.
+> Hide the wireless "poll now" button for every device on such installs. An on-site
+> install (the default) keeps it working for every device.
 
 ---
 
@@ -2544,10 +2550,10 @@ Reboots the antenna remotely via its AirOS 8 HTTP API. Requires the device to ha
 > This is a destructive-ish action — put it behind a confirmation dialog in the UI.
 
 > **Off-site server (WLS-029):** on an install whose server is not on the
-> monitored network (`SERVER_ON_SITE=false`), a device with an `agentId`
-> answers `409` `"Cannot reboot device — it sits behind an on-site agent, and this server is not on its network"`.
-> Hide the reboot button for devices with an `agentId` on such installs. An on-site
-> install (the default) keeps it working for them.
+> monitored network (`SERVER_ON_SITE=false`), every device — with or without
+> an `agentId` — answers `409` `"Cannot reboot device — this server is not on the monitored network"`.
+> Hide the reboot button for every device on such installs. An on-site
+> install (the default) keeps it working for every device.
 
 ---
 
@@ -2683,10 +2689,10 @@ interface LinkDiagnosisDTO {
 > `DIAGNOSIS_MAX_SESSIONS` sessions at once (default 5).
 
 > **Off-site server (WLS-029):** on an install whose server is not on the
-> monitored network (`SERVER_ON_SITE=false`), a device with an `agentId`
-> answers `409` `"Cannot diagnose device — it sits behind an on-site agent, and this server is not on its network"`.
-> Hide the diagnosis button for devices with an `agentId` on such installs. An on-site
-> install (the default) keeps it working for them.
+> monitored network (`SERVER_ON_SITE=false`), every device — with or without
+> an `agentId` — answers `409` `"Cannot diagnose device — this server is not on the monitored network"`.
+> Hide the diagnosis button for every device on such installs. An on-site
+> install (the default) keeps it working for every device.
 > The `GET`, `DELETE` and stream routes below then answer `404`: no session can
 > exist for such a device.
 
@@ -2789,7 +2795,7 @@ On-site agents that measure a customer's network from inside it and report to th
 
 **On the PC:** the key is pasted into the agent's installer (or passed as `--pair <key>` on Linux); the agent pairs itself, which turns it `ACTIVE`. A key the backend refuses is thrown away by the agent, so the fix is always "new key", never "retry". Revoking makes the connected agent delete its token, its device list and its unsent results, then wait for a new key — the same PC can be paired again without reinstalling (`AGT-060`, `AGT-066`).
 
-**What still runs from the server:** ping of a device with an `agentId` is always the agent's (manual poll `409`, MON-022). Wireless poll, reboot and link diagnosis stay with the server when it sits on the monitored network (the default, and Insetel's case); an install hosted off site (`SERVER_ON_SITE=false`) answers `409` for them and refuses the network scan (WLS-029, DEV-171). Read the setting from `GET /api/installation` (`serverOnSite`) and hide those actions for devices with an `agentId` when it is `false`.
+**What still runs from the server:** ping of a device with an `agentId` is always the agent's (manual poll `409`, MON-022). When the server sits on the monitored network (the default, and Insetel's case) it pings every device with no agent, and wireless poll, reboot and link diagnosis stay with it for every device. An install hosted off site (`SERVER_ON_SITE=false`) talks to no device at all: it pings nothing, answers `409` for manual ping, wireless poll, reboot and diagnosis of any device, and refuses the network scan (MON-023, WLS-029, DEV-171). There a device with no agent shows `UNKNOWN` and raises no down alert (MON-006, NOT-101) until it is moved behind an agent. Read the setting from `GET /api/installation` (`serverOnSite`) and, when it is `false`, hide those actions for every device and point devices with no agent at "move to an agent".
 
 **Online / offline:** an `ACTIVE` agent silent for 5 minutes (since `lastSeenAt`, or since `enrolledAt` if it never connected) gets `offlineSince` set, checked once a minute; its next contact clears it. `offlineSince !== null` is the offline badge — no need to compare `lastSeenAt` against the clock. `PENDING` and `REVOKED` agents are never offline. Going offline and coming back each send one Telegram message (to the install's chat and the vendor's); they are not device alerts, so they do not appear in `GET /api/alerts`.
 
@@ -4664,7 +4670,7 @@ interface InstallationDTO {
     tickets: boolean; // /api/tickets, /api/technicians
     enforcement: boolean; // /api/enforcement/suspensions, /api/contracted-services/:id/enforcement
   };
-  serverOnSite: boolean; // false: hide wireless poll, reboot, diagnosis for devices with an agentId, and the network scan
+  serverOnSite: boolean; // false: the server talks to no device — hide manual ping, wireless poll, reboot, diagnosis and the network scan; devices with no agent show UNKNOWN
   agentPairingAvailable: boolean; // false: creating an agent or a new key answers 503
   installersAvailable: boolean; // false: hide installer downloads — the routes below answer 503
 }

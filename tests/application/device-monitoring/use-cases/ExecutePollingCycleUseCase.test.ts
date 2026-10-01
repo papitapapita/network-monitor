@@ -1,6 +1,9 @@
 // Source: src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.ts
 
-import { ExecutePollingCycleUseCase } from '../../../../src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase';
+import {
+  ExecutePollingCycleUseCase,
+  NOT_ON_MONITORED_NETWORK
+} from '../../../../src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase';
 import { IPollingConfigurationRepository } from '../../../../src/domain/device-monitoring/repository/IPollingConfigurationRepository';
 import { IPingResultRepository } from '../../../../src/domain/device-monitoring/repository/IPingResultRepository';
 import { IDeviceStateRepository } from '../../../../src/domain/device-monitoring/repository/IDeviceStateRepository';
@@ -30,7 +33,10 @@ import {
   DeviceStatus,
   SerialNumber
 } from '../../../../src/domain/device-inventory';
-import { AgentId, DeviceModelId } from '../../../../src/domain/shared';
+import {
+  AgentId,
+  DeviceModelId
+} from '../../../../src/domain/shared';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -195,6 +201,7 @@ describe('ExecutePollingCycleUseCase', () => {
     overrides: {
       probeHealth?: IProbeHealthReporter;
       deviceRepo?: IDeviceRepository;
+      serverOnSite?: boolean;
     } = {}
   ): ExecutePollingCycleUseCase {
     return new ExecutePollingCycleUseCase(
@@ -210,7 +217,8 @@ describe('ExecutePollingCycleUseCase', () => {
         logger
       ),
       logger,
-      overrides.probeHealth
+      overrides.probeHealth,
+      overrides.serverOnSite
     );
   }
 
@@ -1123,7 +1131,9 @@ describe('ExecutePollingCycleUseCase', () => {
         makeDevice({ agentId: AgentId.create() })
       );
       useCase = makeUseCase();
-      configRepo.findByDeviceId.mockResolvedValue(Result.ok(makeConfig()));
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
     });
 
     it('is skipped by the scheduler without being pinged', async () => {
@@ -1140,6 +1150,45 @@ describe('ExecutePollingCycleUseCase', () => {
       );
 
       expect(result.error).toContain('polled by an on-site agent');
+      expect(pingService.ping).not.toHaveBeenCalled();
+    });
+
+    it('gives the agent reason on a server hosted off site too', async () => {
+      useCase = makeUseCase({ serverOnSite: false });
+
+      const result = await useCase.execute(
+        makeRequest({ forceExecution: true })
+      );
+
+      expect(result.error).toContain('polled by an on-site agent');
+    });
+  });
+
+  // ===========================================================================
+  describe('[MON-023] a server hosted off site', () => {
+    beforeEach(() => {
+      useCase = makeUseCase({ serverOnSite: false });
+      configRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeConfig())
+      );
+    });
+
+    it('skips a device with no agent without pinging it', async () => {
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.value.status).toBe('SKIPPED');
+      expect(pingService.ping).not.toHaveBeenCalled();
+      expect(deviceStateRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('refuses a manual poll of a device with no agent', async () => {
+      const result = await useCase.execute(
+        makeRequest({ forceExecution: true })
+      );
+
+      expect(result.error).toBe(
+        `Cannot poll device ${VALID_DEVICE_UUID} — ${NOT_ON_MONITORED_NETWORK}`
+      );
       expect(pingService.ping).not.toHaveBeenCalled();
     });
   });

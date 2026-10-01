@@ -237,6 +237,28 @@ describe('StartLinkDiagnosisUseCase — integration', () => {
       );
       expect(collector.calls).toHaveLength(0);
     });
+
+    it('is refused by a server hosted off site with no agent either', async () => {
+      const offSite = buildLinkDiagnosis(
+        prisma,
+        new SseBroadcaster(new WinstonLogger()),
+        { ping, collector },
+        {},
+        false
+      );
+      const deviceId = await seedDiagnosableDevice(
+        prisma,
+        deviceModelId,
+        { ip: '192.168.80.32' }
+      );
+
+      const result = await offSite.start.execute({ deviceId });
+
+      expect(result.error).toBe(
+        `Cannot diagnose device — ${OUT_OF_SERVER_REACH}`
+      );
+      expect(collector.calls).toHaveLength(0);
+    });
   });
 
   describe('refusals', () => {

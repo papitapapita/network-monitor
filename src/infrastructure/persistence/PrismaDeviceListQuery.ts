@@ -17,8 +17,8 @@ import {
   buildDeviceOrderBy
 } from './device-listing';
 import {
-  DEVICE_BEHIND_SILENT_AGENT,
-  isBehindSilentAgent
+  isUnmeasured,
+  unmeasuredDevices
 } from '../probe-agents/queries';
 
 const INCLUDE = {
@@ -34,7 +34,10 @@ type DeviceListRecord = Prisma.DeviceGetPayload<{
 }>;
 
 export class PrismaDeviceListQuery implements IDeviceListQuery {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly serverOnSite = true
+  ) {}
 
   public async list(
     criteria: DeviceListCriteria
@@ -102,20 +105,21 @@ export class PrismaDeviceListQuery implements IDeviceListQuery {
     // AND rather than assigning monitoringEnabled directly: a caller asking
     // for monitoringEnabled=false and a connectivity at the same time must get
     // nothing, not have one filter silently overwrite the other.
-    // A device behind an agent that is not reporting is UNKNOWN whatever its
-    // stored state says (ADR 0002, R7), and never UP or DOWN.
+    // A device nobody is measuring — behind an agent that is not reporting,
+    // or off site behind no agent at all — is UNKNOWN whatever its stored
+    // state says (MON-006), and never UP or DOWN.
     const stateMatch: Prisma.DeviceWhereInput =
       connectivity === 'UNKNOWN'
         ? {
             OR: [
               { deviceState: { is: null } },
               { deviceState: { is: { status: 'UNKNOWN' } } },
-              DEVICE_BEHIND_SILENT_AGENT
+              unmeasuredDevices(this.serverOnSite)
             ]
           }
         : {
             deviceState: { is: { status: connectivity } },
-            NOT: DEVICE_BEHIND_SILENT_AGENT
+            NOT: unmeasuredDevices(this.serverOnSite)
           };
 
     return {
@@ -160,7 +164,7 @@ export class PrismaDeviceListQuery implements IDeviceListQuery {
     if (!state) {
       return { status: 'UNKNOWN', downSince: null, lastSeen: null };
     }
-    if (isBehindSilentAgent(raw)) {
+    if (isUnmeasured(raw, this.serverOnSite)) {
       return {
         status: 'UNKNOWN',
         downSince: null,

@@ -921,4 +921,20 @@ describe('[WLS-029] Wireless Routes — a server hosted off site', () => {
       `Cannot reboot device — ${OUT_OF_SERVER_REACH}`
     );
   });
+
+  it('409 — refuses a manual poll of a device with no agent too', async () => {
+    await prisma.device.update({
+      where: { id: deviceId },
+      data: { agentId: null }
+    });
+
+    const res = await request(app)
+      .post(`/api/devices/${deviceId}/wireless/poll`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe(
+      `Cannot poll device — ${OUT_OF_SERVER_REACH}`
+    );
+  });
 });

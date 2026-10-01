@@ -164,4 +164,28 @@ describe('GetDevicePollingStatusUseCase — integration', () => {
       expect(result.value.currentStatus).toBe('ONLINE');
     });
   });
+
+  describe('[MON-006] a server hosted off site', () => {
+    it('reports UNKNOWN for a device with no agent, keeping the stored state', async () => {
+      await executeUseCase.execute({
+        deviceId,
+        forceExecution: true
+      });
+      const offSite = new GetDevicePollingStatusUseCase(
+        new PrismaPollingConfigurationRepository(prisma),
+        new PrismaDeviceStateRepository(prisma),
+        new PrismaPingResultRepository(prisma),
+        new WinstonLogger(),
+        new PrismaAgentStatusQuery(prisma, false)
+      );
+
+      const result = await offSite.execute({ deviceId });
+
+      expect(result.value.currentStatus).toBe('UNKNOWN');
+      const state = await prisma.deviceState.findUnique({
+        where: { deviceId }
+      });
+      expect(state!.status).toBe('UP');
+    });
+  });
 });

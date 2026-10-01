@@ -2,7 +2,10 @@
 
 import { Request, Response } from 'express';
 import { PollingController } from '../../../../src/presentation/http/controllers/PollingController';
-import { ExecutePollingCycleUseCase } from '../../../../src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase';
+import {
+  ExecutePollingCycleUseCase,
+  NOT_ON_MONITORED_NETWORK
+} from '../../../../src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase';
 import { GetDevicePollingStatusUseCase } from '../../../../src/application/device-monitoring/use-cases/GetDevicePollingStatusUseCase';
 import { GetDevicePollingHistoryUseCase } from '../../../../src/application/device-monitoring/use-cases/GetDevicePollingHistoryUseCase';
 import { ConfigureDevicePollingUseCase } from '../../../../src/application/device-monitoring/use-cases/ConfigureDevicePollingUseCase';
@@ -263,6 +266,25 @@ describe('PollingController', () => {
         ).mockResolvedValue(
           Result.fail(
             `Cannot poll device ${DEVICE_UUID} — Device is RETIRED and is not polled`
+          )
+        );
+
+        await controller.poll(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(409);
+      });
+
+      it('[MON-023] should return 409 when a server hosted off site refuses to ping', async () => {
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (
+          mockExecutePollingCycleUseCase.execute as jest.Mock
+        ).mockResolvedValue(
+          Result.fail(
+            `Cannot poll device ${DEVICE_UUID} — ${NOT_ON_MONITORED_NETWORK}`
           )
         );
 

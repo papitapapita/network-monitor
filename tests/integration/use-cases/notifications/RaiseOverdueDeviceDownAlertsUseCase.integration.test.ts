@@ -30,6 +30,9 @@ const minutesAgo = (minutes: number) =>
 describe('RaiseOverdueDeviceDownAlertsUseCase — integration', () => {
   let prisma: PrismaClient;
   let useCase: RaiseOverdueDeviceDownAlertsUseCase;
+  let buildUseCase: (
+    serverOnSite: boolean
+  ) => RaiseOverdueDeviceDownAlertsUseCase;
   let fakeNotification: FakeNotificationService;
   let deviceModelId: string;
   let ipCounter = 0;
@@ -55,14 +58,16 @@ describe('RaiseOverdueDeviceDownAlertsUseCase — integration', () => {
       ),
       logger
     );
-    useCase = new RaiseOverdueDeviceDownAlertsUseCase(
-      new PrismaDeviceStateRepository(prisma),
-      new PrismaDeviceNotificationPolicyRepository(prisma),
-      sendDeviceDownAlert,
-      ALERT_DELAY_MS,
-      logger,
-      new PrismaAgentStatusQuery(prisma)
-    );
+    buildUseCase = (serverOnSite) =>
+      new RaiseOverdueDeviceDownAlertsUseCase(
+        new PrismaDeviceStateRepository(prisma),
+        new PrismaDeviceNotificationPolicyRepository(prisma),
+        sendDeviceDownAlert,
+        ALERT_DELAY_MS,
+        logger,
+        new PrismaAgentStatusQuery(prisma, serverOnSite)
+      );
+    useCase = buildUseCase(true);
   });
 
   afterAll(async () => {
@@ -135,6 +140,30 @@ describe('RaiseOverdueDeviceDownAlertsUseCase — integration', () => {
 
     expect(await openAlerts(deviceId)).toBe(1);
     expect(fakeNotification.callCount).toBe(1);
+  });
+
+  describe('[NOT-101] a server hosted off site', () => {
+    it('raises nothing for a device with no agent, which nobody measures', async () => {
+      const deviceId = await seedDownDevice(minutesAgo(10));
+
+      const result = await buildUseCase(false).execute();
+
+      expect(result.value).toBe(0);
+      expect(await openAlerts(deviceId)).toBe(0);
+      expect(fakeNotification.callCount).toBe(0);
+    });
+
+    it('alerts normally for a device behind an agent that is reporting', async () => {
+      const { id: agentId } = await seedAgent(prisma, {
+        status: 'ACTIVE'
+      });
+      const deviceId = await seedDownDevice(minutesAgo(10), agentId);
+
+      const result = await buildUseCase(false).execute();
+
+      expect(result.value).toBe(1);
+      expect(await openAlerts(deviceId)).toBe(1);
+    });
   });
 
   describe('[NOT-101] devices behind an agent that is not reporting', () => {

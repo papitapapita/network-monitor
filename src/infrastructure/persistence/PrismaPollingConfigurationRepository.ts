@@ -8,7 +8,11 @@ import { PollingConfigurationMapper } from '../mappers';
 export class PrismaPollingConfigurationRepository
   implements IPollingConfigurationRepository
 {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    // Only findAllDue reads it: whether this server pings at all.
+    private readonly serverOnSite = true
+  ) {}
 
   async findById(
     id: PollingConfigurationId
@@ -51,6 +55,10 @@ export class PrismaPollingConfigurationRepository
   async findAllDue(
     now: Date
   ): Promise<Result<PollingConfiguration[]>> {
+    // Off site, the server pings nothing: its agents measure everything
+    // (MON-023).
+    if (!this.serverOnSite) return Result.ok([]);
+
     try {
       const records = await this.prisma.$queryRaw<
         Array<{

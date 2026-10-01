@@ -237,6 +237,18 @@ describe('PrismaPollingConfigurationRepository', () => {
       failures_before_down: 3
     };
 
+    it('[MON-023] returns nothing without querying on a server hosted off site', async () => {
+      const offSite = new PrismaPollingConfigurationRepository(
+        prisma as any,
+        false
+      );
+
+      const result = await offSite.findAllDue(FIXED_DATE);
+
+      expect(result.value).toEqual([]);
+      expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    });
+
     it('should call prisma.$queryRaw with the current date', async () => {
       prisma.$queryRaw.mockResolvedValue([]);
 

@@ -158,6 +158,9 @@ export class PrismaWirelessDeviceConfigRepository
   async findAllDue(
     now: Date
   ): Promise<Result<WirelessDeviceConfig[]>> {
+    // Off site, no device is within this server's reach (WLS-029).
+    if (!this.serverOnSite) return Result.ok([]);
+
     try {
       const records = await this.prisma.$queryRaw<RawPollingConfig[]>`
         SELECT
@@ -178,8 +181,6 @@ export class PrismaWirelessDeviceConfigRepository
           AND wpc.ip_address IS NOT NULL
           AND d.deleted_at IS NULL
           AND d.status IN ('ACTIVE', 'COMMISSIONING')
-          -- Off site, a device behind an agent is out of reach (WLS-029)
-          AND (${this.serverOnSite} OR d.agent_id IS NULL)
           AND (
             wpc.last_polled_at IS NULL
             OR wpc.last_polled_at + (wpc.interval_secs || ' seconds')::interval <= ${now}

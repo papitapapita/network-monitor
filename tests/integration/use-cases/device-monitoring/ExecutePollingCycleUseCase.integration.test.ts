@@ -1,5 +1,8 @@
 import { PrismaClient } from '../../../../src/generated/prisma/client';
-import { ExecutePollingCycleUseCase } from 'application/device-monitoring/use-cases/ExecutePollingCycleUseCase';
+import {
+  ExecutePollingCycleUseCase,
+  NOT_ON_MONITORED_NETWORK
+} from 'application/device-monitoring/use-cases/ExecutePollingCycleUseCase';
 import { IngestPingResultsUseCase } from 'application/device-monitoring/use-cases/IngestPingResultsUseCase';
 import { PingCycleProbe } from 'application/device-monitoring/services';
 import { ConfigureDevicePollingUseCase } from 'application/device-monitoring/use-cases/ConfigureDevicePollingUseCase';
@@ -269,6 +272,57 @@ describe('ExecutePollingCycleUseCase — integration', () => {
       });
 
       expect(result.error).toContain('polled by an on-site agent');
+      expect(
+        await prisma.pingResult.count({ where: { deviceId } })
+      ).toBe(0);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────
+  // A server hosted off site pings nothing
+  // ──────────────────────────────────────────────────────────────
+
+  describe('[MON-023] a server hosted off site', () => {
+    it('leaves a device with no agent out of the due-devices query', async () => {
+      const onSite = await new DueRepo(prisma).findAllDue(new Date());
+      const offSite = await new DueRepo(prisma, false).findAllDue(
+        new Date()
+      );
+
+      expect(
+        onSite.value.map((c) => c.deviceId.toString())
+      ).toContain(deviceId);
+      expect(offSite.value).toEqual([]);
+    });
+
+    it('refuses a manual poll of a device with no agent and writes nothing', async () => {
+      const pollingConfigRepo =
+        new PrismaPollingConfigurationRepository(prisma, false);
+      const logger = new WinstonLogger();
+      const offSite = new ExecutePollingCycleUseCase(
+        pollingConfigRepo,
+        new PrismaDeviceRepository(prisma),
+        new DeviceEligibilityService(),
+        new PingCycleProbe(fakePing, 0),
+        new IngestPingResultsUseCase(
+          pollingConfigRepo,
+          new PrismaPingResultRepository(prisma),
+          new PrismaDeviceStateRepository(prisma),
+          logger
+        ),
+        logger,
+        undefined,
+        false
+      );
+
+      const result = await offSite.execute({
+        deviceId,
+        forceExecution: true
+      });
+
+      expect(result.error).toBe(
+        `Cannot poll device ${deviceId} — ${NOT_ON_MONITORED_NETWORK}`
+      );
       expect(
         await prisma.pingResult.count({ where: { deviceId } })
       ).toBe(0);

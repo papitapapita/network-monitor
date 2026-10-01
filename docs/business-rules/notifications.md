@@ -714,14 +714,15 @@ policy apply to something that is not a device.
 
 ---
 
-### NOT-101 — No down alert is raised for a device behind an agent that is not reporting
+### NOT-101 — No down alert is raised for a device nobody is measuring
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
-**Since:** 2026-09-28
+**Since:** 2026-09-28 · **Revised:** 2026-09-30 (off site, devices with no agent too)
 
 The overdue down-alert scan (`NOT-097`) skips every device whose agent is not
-reporting: offline, pending or revoked (`MON-006`). No alert is opened, no
+reporting: offline, pending or revoked — and, on a server hosted off site,
+every device with no agent (`MON-006`, `MON-023`). No alert is opened, no
 notification is sent and no ticket is opened for it. Once the agent reports
 again, a device still DOWN past its delay is alerted on the next scan as
 usual. If the agents' status cannot be read, the scan raises nothing that

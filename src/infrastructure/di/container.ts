@@ -557,7 +557,10 @@ export class DependencyContainer {
     );
     this.vendorRepository = new PrismaVendorRepository(this.prisma);
     this.pollingConfigRepository =
-      new PrismaPollingConfigurationRepository(this.prisma);
+      new PrismaPollingConfigurationRepository(
+        this.prisma,
+        this.serverOnSite
+      );
     this.pingResultRepository = new PrismaPingResultRepository(
       this.prisma
     );
@@ -1030,7 +1033,7 @@ export class DependencyContainer {
       this.logger
     );
     const listDevicesUseCase = new ListDevicesUseCase(
-      new PrismaDeviceListQuery(this.prisma),
+      new PrismaDeviceListQuery(this.prisma, this.serverOnSite),
       this.logger
     );
     const updateDeviceUseCase = new UpdateDeviceUseCase(
@@ -1222,7 +1225,8 @@ export class DependencyContainer {
       new PingCycleProbe(pingService),
       ingestPingResultsUseCase,
       this.logger,
-      probeHealthReporter
+      probeHealthReporter,
+      this.serverOnSite
     );
     const configurePollingUseCase = new ConfigureDevicePollingUseCase(
       this.pollingConfigRepository,
@@ -1243,7 +1247,10 @@ export class DependencyContainer {
     );
 
     // R7: what monitoring and notifications know about agents, read-only.
-    const agentStatusQuery = new PrismaAgentStatusQuery(this.prisma);
+    const agentStatusQuery = new PrismaAgentStatusQuery(
+      this.prisma,
+      this.serverOnSite
+    );
     const getPollingStatusUseCase = new GetDevicePollingStatusUseCase(
       this.pollingConfigRepository,
       this.deviceStateRepository,
@@ -1615,10 +1622,7 @@ export class DependencyContainer {
       this.deviceRepository,
       deviceEligibilityService
     );
-    const deviceReach = new DeviceReachAdapter(
-      this.deviceRepository,
-      this.serverOnSite
-    );
+    const deviceReach = new DeviceReachAdapter(this.serverOnSite);
     const contractedCapacityProvider = new ContractedCapacityAdapter(
       this.contractedServiceRepository,
       this.servicePlanRepository

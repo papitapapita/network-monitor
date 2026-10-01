@@ -356,3 +356,57 @@ describe('[MON-041] DELETE /api/devices/:id/polling/history', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('[MON-023] POST /api/devices/:id/poll — a server hosted off site', () => {
+  let app: Application;
+  let container: DependencyContainer;
+  let prisma: PrismaClient;
+  let deviceId: string;
+  let adminToken: string;
+
+  beforeAll(async () => {
+    process.env.SERVER_ON_SITE = 'false';
+    try {
+      ({ app, container } = await createTestApp());
+    } finally {
+      delete process.env.SERVER_ON_SITE;
+    }
+    prisma = container.getPrisma();
+  });
+
+  afterAll(async () => {
+    await container.disconnect();
+  });
+
+  beforeEach(async () => {
+    await cleanDatabase(prisma);
+    adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
+    ({ deviceId } = await seedMonitoredDevice(
+      prisma,
+      await seedDeviceModel(prisma)
+    ));
+  });
+
+  it('409 — refuses to ping a device with no agent', async () => {
+    const res = await request(app)
+      .post(`/api/devices/${deviceId}/poll`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain(
+      'this server is not on the monitored network'
+    );
+    expect(
+      await prisma.pingResult.count({ where: { deviceId } })
+    ).toBe(0);
+  });
+
+  it('200 — still reports the device, as UNKNOWN', async () => {
+    const res = await request(app)
+      .get(`/api/devices/${deviceId}/polling/status`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.currentStatus).toBe('UNKNOWN');
+  });
+});

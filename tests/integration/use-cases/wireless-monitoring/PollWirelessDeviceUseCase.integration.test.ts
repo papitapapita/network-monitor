@@ -79,7 +79,7 @@ describe('PollWirelessDeviceUseCase — integration', () => {
         deviceRepo,
         new DeviceEligibilityService()
       ),
-      new DeviceReachAdapter(deviceRepo, serverOnSite),
+      new DeviceReachAdapter(serverOnSite),
       new ContractedCapacityAdapter(
         new PrismaContractedServiceRepository(prisma),
         new PrismaServicePlanRepository(prisma)
@@ -111,15 +111,12 @@ describe('PollWirelessDeviceUseCase — integration', () => {
   };
 
   describe('[WLS-029] a server hosted off site', () => {
-    it('leaves devices behind an agent out of the scheduled polling', async () => {
-      const behindAgent = await seedRadioBehindAgent('192.168.90.10');
-      const direct = await seedRadio('192.168.90.11');
+    it('leaves every device out of the scheduled polling, with or without an agent', async () => {
+      await seedRadioBehindAgent('192.168.90.10');
+      await seedRadio('192.168.90.11');
       const { configRepo } = build(false);
 
-      const due = await dueIds(configRepo);
-
-      expect(due).toContain(direct);
-      expect(due).not.toContain(behindAgent);
+      expect(await dueIds(configRepo)).toEqual([]);
     });
 
     it('refuses a manual poll of a device behind an agent', async () => {
@@ -137,7 +134,7 @@ describe('PollWirelessDeviceUseCase — integration', () => {
       expect(collector.calls).toHaveLength(0);
     });
 
-    it('still polls a device it reaches itself', async () => {
+    it('refuses a manual poll of a device with no agent too', async () => {
       const deviceId = await seedRadio('192.168.90.13');
       const { useCase } = build(false);
 
@@ -146,17 +143,23 @@ describe('PollWirelessDeviceUseCase — integration', () => {
         forceExecution: true
       });
 
-      expect(result.isSuccess).toBe(true);
-      expect(collector.calls).toHaveLength(1);
+      expect(result.error).toBe(
+        `Cannot poll device — ${OUT_OF_SERVER_REACH}`
+      );
+      expect(collector.calls).toHaveLength(0);
     });
   });
 
   describe('[WLS-029] a server on the monitored network', () => {
-    it('keeps devices behind an agent in the scheduled polling', async () => {
+    it('keeps every device in the scheduled polling, with or without an agent', async () => {
       const behindAgent = await seedRadioBehindAgent('192.168.90.20');
+      const direct = await seedRadio('192.168.90.22');
       const { configRepo } = build(true);
 
-      expect(await dueIds(configRepo)).toContain(behindAgent);
+      const due = await dueIds(configRepo);
+
+      expect(due).toContain(behindAgent);
+      expect(due).toContain(direct);
     });
 
     it('polls a device behind an agent on demand', async () => {

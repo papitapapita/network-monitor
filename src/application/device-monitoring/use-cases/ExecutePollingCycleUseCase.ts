@@ -17,6 +17,10 @@ import {
 } from '../dtos';
 import { IngestPingResultsUseCase } from './IngestPingResultsUseCase';
 
+// Shared with the controller, which answers 409 when a failure carries it.
+export const NOT_ON_MONITORED_NETWORK =
+  'this server is not on the monitored network';
+
 // The in-process poll: decides whether the device may be polled, measures it
 // with PingCycleProbe and hands the outcome to IngestPingResultsUseCase.
 export class ExecutePollingCycleUseCase extends UseCase<
@@ -32,7 +36,8 @@ export class ExecutePollingCycleUseCase extends UseCase<
     private readonly probe: PingCycleProbe,
     private readonly ingestPingResults: IngestPingResultsUseCase,
     logger: ILogger,
-    private readonly probeHealth: IProbeHealthReporter = NullProbeHealthReporter
+    private readonly probeHealth: IProbeHealthReporter = NullProbeHealthReporter,
+    private readonly serverOnSite = true
   ) {
     super(logger, 'ExecutePollingCycleUseCase');
   }
@@ -194,6 +199,10 @@ export class ExecutePollingCycleUseCase extends UseCase<
         'it is polled by an on-site agent, and polling it on demand is not available yet'
       );
     }
+    // MON-023: off site the server pings nothing, not even a device that has
+    // no agent — it would time out against the customer's private address.
+    if (!this.serverOnSite)
+      return Result.ok(NOT_ON_MONITORED_NETWORK);
     return Result.ok(null);
   }
 

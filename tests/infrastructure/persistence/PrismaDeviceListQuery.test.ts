@@ -2,7 +2,7 @@
 import { PrismaClient } from '../../../src/generated/prisma/client';
 import { PrismaDeviceListQuery } from '../../../src/infrastructure/persistence/PrismaDeviceListQuery';
 import { DeviceStatus } from '../../../src/domain/device-inventory/value-objects';
-import { DEVICE_BEHIND_SILENT_AGENT } from '../../../src/infrastructure/probe-agents/queries';
+import { unmeasuredDevices } from '../../../src/infrastructure/probe-agents/queries';
 
 const DEVICE_ID = '550e8400-e29b-41d4-a716-446655440001';
 const MODEL_ID = '550e8400-e29b-41d4-a716-446655440002';
@@ -155,6 +155,74 @@ describe('PrismaDeviceListQuery', () => {
   });
 
   // =========================================================================
+  describe('[MON-006] a server hosted off site', () => {
+    const DOWN_STATE = {
+      status: 'DOWN',
+      downSince: new Date('2026-09-26T10:00:00Z'),
+      lastSeen: new Date('2026-09-26T09:59:00Z')
+    };
+
+    beforeEach(() => {
+      query = new PrismaDeviceListQuery(
+        prisma as unknown as PrismaClient,
+        false
+      );
+    });
+
+    it('reports UNKNOWN for a device with no agent, whatever its stored state', async () => {
+      prisma.device.findMany.mockResolvedValue([
+        makeRow({
+          agentId: null,
+          agent: null,
+          deviceState: DOWN_STATE
+        })
+      ]);
+
+      const result = await query.list({});
+
+      expect(result.value[0].connectivity).toEqual({
+        status: 'UNKNOWN',
+        downSince: null,
+        lastSeen: '2026-09-26T09:59:00.000Z'
+      });
+    });
+
+    it('reports the recorded state of a device behind a reporting agent', async () => {
+      prisma.device.findMany.mockResolvedValue([
+        makeRow({
+          agentId: '550e8400-e29b-41d4-a716-446655440009',
+          agent: { status: 'ACTIVE', offlineSince: null },
+          deviceState: DOWN_STATE
+        })
+      ]);
+
+      const result = await query.list({});
+
+      expect(result.value[0].connectivity?.status).toBe('DOWN');
+    });
+
+    it('counts devices with no agent as UNKNOWN in the connectivity filter', async () => {
+      prisma.device.findMany.mockResolvedValue([]);
+
+      await query.list({ connectivity: 'DOWN' });
+
+      expect(lastFindManyArgs().where).toEqual({
+        deletedAt: null,
+        AND: [
+          { monitoringEnabled: true },
+          {
+            deviceState: { is: { status: 'DOWN' } },
+            NOT: unmeasuredDevices(false)
+          }
+        ]
+      });
+      expect(unmeasuredDevices(false)).toEqual({
+        OR: [{ agentId: null }, unmeasuredDevices(true)]
+      });
+    });
+  });
+
+  // =========================================================================
   describe('[DEV-149] connectivity filter', () => {
     beforeEach(() => {
       prisma.device.findMany.mockResolvedValue([]);
@@ -178,7 +246,7 @@ describe('PrismaDeviceListQuery', () => {
           { monitoringEnabled: true },
           {
             deviceState: { is: { status: 'DOWN' } },
-            NOT: DEVICE_BEHIND_SILENT_AGENT
+            NOT: unmeasuredDevices(true)
           }
         ]
       });
@@ -195,7 +263,7 @@ describe('PrismaDeviceListQuery', () => {
             OR: [
               { deviceState: { is: null } },
               { deviceState: { is: { status: 'UNKNOWN' } } },
-              DEVICE_BEHIND_SILENT_AGENT
+              unmeasuredDevices(true)
             ]
           }
         ]

@@ -416,9 +416,12 @@ which is how every install ran before agents. Set it to `false` when the
 backend is hosted off site (a VPS) and its devices are reached through
 on-site agents. Anything else stops the boot.
 
-Off site, devices behind an agent get no wireless polling, reboot or link
-diagnosis from the server (WLS-029), and the network scan is refused
-(DEV-171). Ping is the agent's either way (MON-022).
+Off site, the server talks to no device: it pings nothing (MON-023), gives no
+wireless polling, reboot or link diagnosis (WLS-029), and refuses the network
+scan (DEV-171). Devices are measured only by their agents; a device with no
+agent shows as UNKNOWN (MON-006). On site, the server pings every device with
+no agent, and ping of a device behind an agent is the agent's either way
+(MON-022).
 
 **Why:** The backend cannot find out by itself whether a private address is
 reachable: a timeout looks the same as a dead radio. The vendor who installs it
@@ -427,7 +430,7 @@ the existing on-site install unchanged, and it continues to use these features
 for devices it moves behind an agent.
 
 **Enforced at:** `src/infrastructure/di/serverOnSite.ts`, `src/infrastructure/di/container.ts`
-**Tests:** `tests/infrastructure/di/serverOnSite.test.ts`, `tests/integration/wireless.routes.test.ts`, `tests/integration/scan.routes.test.ts`
+**Tests:** `tests/infrastructure/di/serverOnSite.test.ts`, `tests/integration/wireless.routes.test.ts`, `tests/integration/scan.routes.test.ts`, `tests/integration/polling.routes.test.ts`
 
 ### INS-042 — Agent installers are served from the folder in `INSTALLERS_DIR`
 

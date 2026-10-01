@@ -6,7 +6,8 @@ import {
   GetDevicePollingHistoryUseCase,
   ConfigureDevicePollingUseCase,
   CreateDevicePollingUseCase,
-  DeleteDevicePingHistoryUseCase
+  DeleteDevicePingHistoryUseCase,
+  NOT_ON_MONITORED_NETWORK
 } from 'application/device-monitoring/use-cases';
 
 export class PollingController {
@@ -184,7 +185,8 @@ export class PollingController {
     if (
       errorMessage.includes('Monitoring is disabled') ||
       errorMessage.includes('and is not polled') ||
-      errorMessage.includes('polled by an on-site agent')
+      errorMessage.includes('polled by an on-site agent') ||
+      errorMessage.includes(NOT_ON_MONITORED_NETWORK)
     ) {
       return 409;
     }

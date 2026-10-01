@@ -154,15 +154,17 @@ device and records no history sample.
 
 ---
 
-### MON-006 — A device behind an agent that is not reporting shows as UNKNOWN
+### MON-006 — A device nobody is measuring shows as UNKNOWN
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application · Infrastructure (read model)
-**Since:** 2026-09-28
+**Since:** 2026-09-28 · **Revised:** 2026-09-30 (off site, devices with no agent too)
 
 A device placed behind an on-site agent (`MON-022`) is shown as UNKNOWN while
 that agent is not reporting: offline (`AGT-021`), paired but never connected
-(pending) or revoked. This covers the device list (`connectivity.status` is
+(pending) or revoked. On a server hosted off site, which pings nothing
+(`MON-023`), a device with no agent is shown as UNKNOWN too. This covers the
+device list (`connectivity.status` is
 `UNKNOWN`, `downSince` is `null`, `lastSeen` is kept; the `UNKNOWN` filter
 includes it and the `UP`/`DOWN` filters leave it out) and the polling status
 (`currentStatus` is `UNKNOWN`). The stored `DeviceState` is not touched: when
@@ -174,8 +176,9 @@ state.
 the device, so its last state is only what the agent saw before it went
 silent; showing it as DOWN would send a technician to a site whose only
 problem may be a PC that was switched off. A pending or revoked agent measures
-nothing either, so its devices are no better known. Leaving the stored state
-alone keeps the history honest and lets the next live result decide.
+nothing either, so its devices are no better known; neither is a device with
+no agent on a server that never pings it. Leaving the stored state alone keeps
+the history honest and lets the next live result decide.
 
 **Enforced at:** `src/application/device-monitoring/use-cases/GetDevicePollingStatusUseCase.ts`, `src/application/device-monitoring/mappers/PollingMapper.ts`, `src/infrastructure/persistence/PrismaDeviceListQuery.ts`, `src/infrastructure/probe-agents/queries/PrismaAgentStatusQuery.ts`
 **Tests:** `tests/application/device-monitoring/use-cases/GetDevicePollingStatusUseCase.test.ts`, `tests/infrastructure/persistence/PrismaDeviceListQuery.test.ts`, `tests/integration/use-cases/device-monitoring/GetDevicePollingStatusUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/ListDevicesUseCase.integration.test.ts`
@@ -298,7 +301,8 @@ query; its agent polls it and its results arrive through the agent gateway
 (AGT-043). A manual poll of such a device is refused with `409`: this server may
 not be able to reach it, and on-demand polls through an agent arrive with ADR
 0002 phase 4. Wireless polling stays with the server while it is on the
-monitored network; a server hosted off site leaves such devices alone (WLS-029).
+monitored network; a server hosted off site polls no device at all (WLS-029,
+MON-023).
 It moves to agents in phase 3.
 
 **Why:** One writer per device. Two sources applying results to the same
@@ -311,6 +315,34 @@ back if needed, not polling each device twice.
 **Reached from:** `POST /api/devices/:id/poll` via `PollingController.poll`
 **Message:** `Cannot poll device <id> — it is polled by an on-site agent, and polling it on demand is not available yet`
 **Tests:** `tests/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/ExecutePollingCycleUseCase.integration.test.ts`, `tests/integration/polling.routes.test.ts`
+
+---
+
+### MON-023 — A server hosted off site pings nothing
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Infrastructure
+**Since:** 2026-09-30
+
+When the install says its server is not on the monitored network
+(`SERVER_ON_SITE=false`, INS-041), the in-process scheduler polls no device at
+all: the due query is empty, so a device left with no agent is not pinged
+either. A manual poll of such a device is refused with `409`; a device behind
+an agent keeps its own reason (`MON-022`). The device is shown as UNKNOWN
+(`MON-006`) and raises no down alert (`NOT-101`) until it is moved behind an
+agent. A server on the monitored network (the default) keeps pinging every
+device that has no agent.
+
+**Why:** Off site, every device is on the customer's private network, out of
+the server's reach. Pinging it anyway would mark the whole network DOWN, send
+an alert for every device and spend the host's CPU on pings that can only time
+out — on a host that may serve several customers. The vendor's own on-site
+install keeps pinging its network from the server, as before.
+
+**Enforced at:** `src/infrastructure/persistence/PrismaPollingConfigurationRepository.ts` (`findAllDue`), `src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.ts` (`findIneligibilityReason`)
+**Reached from:** `POST /api/devices/:id/poll` via `PollingController.poll`, and the in-process polling scheduler
+**Message:** `Cannot poll device <id> — this server is not on the monitored network`
+**Tests:** `tests/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.test.ts`, `tests/infrastructure/persistence/PrismaPollingConfigurationRepository.test.ts`, `tests/presentation/http/controllers/PollingController.test.ts`, `tests/integration/use-cases/device-monitoring/ExecutePollingCycleUseCase.integration.test.ts`, `tests/integration/polling.routes.test.ts`
 
 ---
 
