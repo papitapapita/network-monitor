@@ -47,7 +47,7 @@ A rule enforced in two layers counts in both.
 | Application                  | 19    |
 | Infrastructure (composition) | 13    |
 | Presentation                 | 10    |
-| Agent program                | 10    |
+| Agent program                | 14    |
 
 ---
 
@@ -897,10 +897,61 @@ agents trusting a new key need one manual reinstall.
 **Enforced at:** `src/agent/protocol/release.ts` (`verifyReleaseSignature`, `isNewerVersion`, `RELEASE_PUBLIC_KEY`), `scripts/agent/package.mjs` (`packageRelease`), `scripts/agent/release-key.mjs`
 **Tests:** `tests/agent/protocol/release.test.ts`
 
+### AGT-081 — An agent replaces itself only with a newer binary whose signature, checksum and self-test all pass
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Agent program
+**Since:** 2026-10-01
+
+When the backend offers an update (`AGT-082`), the agent first checks the
+offer itself:
+
+- it ignores a version that is not newer than its own, and one that already
+  failed on this PC
+- it handles one offer at a time
+- it refuses a file that is not the binary for its own platform, and a
+  signature that does not verify against the vendor's key built into it
+  (`AGT-080`), before downloading anything
+
+It then downloads the binary with its own token (`AGT-083`) and unzips it next
+to itself as `.new`. It refuses the binary if it is larger or smaller than
+announced, or if its SHA-256 differs. Last, it runs the new binary with
+`--self-test`, which must exit within 30 seconds and print the offered
+version. The self-test also loads the vendor's key, so the new version can
+check the update after it.
+
+Only then does it swap: the running binary becomes `.old` and the new one
+takes its place. The agent then stops cleanly and exits with code `75`, and
+the service manager starts the new binary (WinSW restarts on any failure
+exit, systemd on any exit). The new version is on trial until it reaches the
+backend (`AGT-085`).
+
+A refusal leaves the running binary untouched and removes the download. The
+version is remembered as failed, never tried again here, and reported as
+`rejected` with the reason (`AGT-084`). A download that does not complete
+(network, timeout, or any answer but `200`) is not held against the version:
+it is tried again after 15 minutes, up to 3 attempts, and the backend offers
+it again on the next connection.
+
+Only a packaged agent updates itself, on `win-x64` and `linux-x64`. Run from
+source, the agent has no binary of its own to replace.
+
+**Why:** ADR 0002, phase 2. The agent runs unattended as SYSTEM or as a
+service, so whatever it installs has to be the vendor's, intact, and able to
+start, before the working version is touched. Checking the signature before
+downloading saves 30 MB on a link that may be slow. A broken download says
+nothing about the release, while a bad checksum or a failed self-test would
+fail the same way every time. Renaming instead of deleting is what Windows
+allows for a running program, and keeps the previous version at hand for a
+rollback.
+
+**Enforced at:** `src/agent/update/AgentUpdater.ts` (`offer`, `prepare`, `download`, `swap`), `src/agent/update/selfTest.ts`, `src/agent/main.ts`, `src/agent/AgentRuntime.ts`, `src/agent/connection/BackendConnection.ts`
+**Tests:** `tests/agent/update/AgentUpdater.test.ts`, `tests/agent/update/selfTest.test.ts`, `tests/agent/AgentRuntime.test.ts`, `tests/agent/connection/BackendConnection.test.ts`
+
 ### AGT-082 — An install offers its newest signed release to each agent running something older, once per connection, and never one that already failed there
 
 **Type:** Policy · **Status:** Active
-**Layer:** Application · Infrastructure (composition) · Presentation
+**Layer:** Application · Infrastructure (composition) · Presentation · Agent program
 **Since:** 2026-10-01
 
 Releases live in the installer folder (`INSTALLERS_DIR`). The newest release
@@ -916,16 +967,17 @@ every check, so a release copied in reaches connected agents within a minute,
 with no restart, even if its binary arrives after the manifest. Without the
 folder, nothing is offered.
 
-The agent's hello names its platform (`win-x64` or `linux-x64`). An agent is
-offered the release when all of the following hold:
+The agent's hello names its platform (`win-x64` or `linux-x64`), when it is a
+packaged agent on one of them. An agent is offered the release when all of
+the following hold:
 
 - the release has a binary for that platform
 - the release's version is newer than the one the agent runs
 - the agent has not already reported that very version as rolled back or
   rejected
 
-An agent that names no platform, as those older than self-update do, is
-offered nothing. The offer is an `update` message after the configuration,
+An agent that names no platform is offered nothing: those older than
+self-update, and one run from source. The offer is an `update` message after the configuration,
 on connect and at every configuration refresh. It gives the version, the
 binary's name, SHA-256, unzipped size and signature, and is sent once per
 release per connection.
@@ -938,8 +990,8 @@ agent would refuse. A release that failed on an agent would fail again the
 same way; the vendor fixes it with a newer one instead of the agent trying
 forever.
 
-**Enforced at:** `src/application/probe-agents/use-cases/GetAgentUpdateOfferUseCase.ts`, `src/infrastructure/probe-agents/releases/FileSystemAgentReleaseCatalog.ts`, `src/presentation/ws/agent/AgentSession.ts` (`offerUpdate`), `src/presentation/ws/agent/agentMessageSchema.ts`, `src/domain/probe-agents/aggregates/Agent.ts` (`hasFailedUpdateTo`)
-**Tests:** `tests/application/probe-agents/use-cases/GetAgentUpdateOfferUseCase.test.ts`, `tests/infrastructure/probe-agents/releases/FileSystemAgentReleaseCatalog.test.ts`, `tests/integration/use-cases/probe-agents/GetAgentUpdateOfferUseCase.integration.test.ts`, `tests/integration/agent-gateway.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/domain/probe-agents/aggregates/Agent.test.ts`
+**Enforced at:** `src/application/probe-agents/use-cases/GetAgentUpdateOfferUseCase.ts`, `src/infrastructure/probe-agents/releases/FileSystemAgentReleaseCatalog.ts`, `src/presentation/ws/agent/AgentSession.ts` (`offerUpdate`), `src/presentation/ws/agent/agentMessageSchema.ts`, `src/domain/probe-agents/aggregates/Agent.ts` (`hasFailedUpdateTo`), `src/agent/update/selfTest.ts` (`agentPlatform`), `src/agent/connection/BackendConnection.ts`
+**Tests:** `tests/application/probe-agents/use-cases/GetAgentUpdateOfferUseCase.test.ts`, `tests/infrastructure/probe-agents/releases/FileSystemAgentReleaseCatalog.test.ts`, `tests/integration/use-cases/probe-agents/GetAgentUpdateOfferUseCase.integration.test.ts`, `tests/integration/agent-gateway.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/domain/probe-agents/aggregates/Agent.test.ts`, `tests/agent/update/selfTest.test.ts`, `tests/agent/connection/BackendConnection.test.ts`
 
 ### AGT-083 — A release binary is downloaded with the agent's own token, and only if a valid release lists it
 
@@ -970,7 +1022,7 @@ next to it.
 ### AGT-084 — How the last self-update ended is kept on the agent, and a failure reaches the vendor once
 
 **Type:** Policy · **Status:** Active
-**Layer:** Domain · Application · Infrastructure (composition) · Presentation
+**Layer:** Domain · Application · Infrastructure (composition) · Presentation · Agent program
 **Since:** 2026-10-01
 
 After trying to update itself, the agent reports an `update.result`:
@@ -978,8 +1030,12 @@ After trying to update itself, the agent reports an `update.result`:
 - `installed`: the new version runs and reached the backend
 - `rolled-back`: it did not reach the backend in time, and the previous
   version was put back
-- `rejected`: the download, checksum, signature or self-test failed, and
-  nothing changed
+- `rejected`: the binary's size, checksum, signature or self-test failed, or
+  it could not be swapped in (`AGT-081`), and nothing changed
+
+The agent keeps its last report in `update.json` in its data directory and
+sends it after every welcome, so a report survives the restarts that an
+update involves and a connection dropped before it was sent.
 
 The backend keeps the latest report on the agent: the version tried, the
 outcome, when, and for a failure the agent's reason (required, at most 500
@@ -994,7 +1050,45 @@ it tried and the version it still runs, and the reason.
 **Why:** ADR 0002, phase 2: an update that fails must be visible without
 anyone opening the PC. The customer's monitoring continues on the version
 that runs, so only the vendor needs to act. The agent repeats its report
-until it is sure the backend has it, so a repeat must not alert twice.
+after every welcome, so a repeat must not alert twice.
 
-**Enforced at:** `src/domain/probe-agents/aggregates/Agent.ts` (`recordUpdateOutcome`), `src/application/probe-agents/use-cases/RecordAgentUpdateOutcomeUseCase.ts`, `src/application/notifications/event-handlers/AgentUpdateFailedNotificationHandler.ts`, `src/presentation/ws/agent/AgentSession.ts` (`onUpdateResult`), `src/infrastructure/di/container.ts`, `prisma/migrations/20261001120000_agent_last_update/migration.sql`
-**Tests:** `tests/domain/probe-agents/aggregates/Agent.test.ts`, `tests/application/probe-agents/use-cases/RecordAgentUpdateOutcomeUseCase.test.ts`, `tests/integration/use-cases/probe-agents/RecordAgentUpdateOutcomeUseCase.integration.test.ts`, `tests/application/notifications/event-handlers/AgentUpdateFailedNotificationHandler.test.ts`, `tests/integration/agent-gateway.test.ts`, `tests/infrastructure/probe-agents/mappers/AgentPrismaMapper.test.ts`
+**Enforced at:** `src/domain/probe-agents/aggregates/Agent.ts` (`recordUpdateOutcome`), `src/application/probe-agents/use-cases/RecordAgentUpdateOutcomeUseCase.ts`, `src/application/notifications/event-handlers/AgentUpdateFailedNotificationHandler.ts`, `src/presentation/ws/agent/AgentSession.ts` (`onUpdateResult`), `src/infrastructure/di/container.ts`, `prisma/migrations/20261001120000_agent_last_update/migration.sql`, `src/agent/update/UpdateStateStore.ts`, `src/agent/AgentRuntime.ts` (`reportUpdate`)
+**Tests:** `tests/domain/probe-agents/aggregates/Agent.test.ts`, `tests/application/probe-agents/use-cases/RecordAgentUpdateOutcomeUseCase.test.ts`, `tests/integration/use-cases/probe-agents/RecordAgentUpdateOutcomeUseCase.integration.test.ts`, `tests/application/notifications/event-handlers/AgentUpdateFailedNotificationHandler.test.ts`, `tests/integration/agent-gateway.test.ts`, `tests/infrastructure/probe-agents/mappers/AgentPrismaMapper.test.ts`, `tests/agent/update/AgentUpdater.test.ts`, `tests/agent/AgentRuntime.test.ts`, `tests/agent/connection/BackendConnection.test.ts`
+
+### AGT-085 — A new version that does not reach the backend within 2 minutes is replaced by the previous one
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program
+**Since:** 2026-10-01
+
+Before the swap (`AGT-081`), the agent records a trial in `update.json`: the
+new version and the one it replaces. The new version is on trial from its
+first start until its first welcome from the backend. That welcome ends the
+trial: the agent reports `installed` and deletes `.old`.
+
+The previous version is put back when, during the trial:
+
+- no welcome arrives within 2 minutes of a start
+- the new version starts a fourth time, after stopping three times without a
+  welcome
+
+Putting it back renames the new binary to `.new` and `.old` back into place,
+then exits so that the service manager starts the previous version. That
+version deletes `.new` on its start. The new version is reported as
+`rolled-back` with the reason, and never tried again here.
+
+If the previous version starts while a trial is still recorded, because a
+power cut interrupted the rollback or the swap, it records the update as
+`rolled-back` too. If some other version starts, installed by hand, the trial
+is dropped without a report. A version on trial takes no offers.
+
+**Why:** ADR 0002, phase 2: an update must never cost a customer their
+monitoring. A welcome is the one proof that the new version works end to end:
+it starts, reads its token, connects and speaks the protocol. Two minutes is
+far more than a working agent needs, since it reconnects within seconds. The
+start count covers a version that crashes before the timer can run out. The
+trial is recorded before the swap, so whatever interrupts it, the next start
+still knows what was being tried.
+
+**Enforced at:** `src/agent/update/AgentUpdater.ts` (`recover`, `welcomed`, `rollBack`), `src/agent/update/UpdateStateStore.ts`, `src/agent/main.ts`
+**Tests:** `tests/agent/update/AgentUpdater.test.ts`, `tests/agent/AgentRuntime.test.ts`

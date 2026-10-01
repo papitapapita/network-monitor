@@ -12,7 +12,11 @@ import {
   BackendConnection,
   ConnectionCallbacks
 } from '../../src/agent/connection/BackendConnection';
-import { ConfigMessage } from '../../src/agent/protocol';
+import {
+  ConfigMessage,
+  UpdateMessage
+} from '../../src/agent/protocol';
+import { AgentUpdater } from '../../src/agent/update/AgentUpdater';
 import { silentLogger, tempDir } from './helpers';
 
 const credentials = {
@@ -44,7 +48,16 @@ describe('AgentRuntime', () => {
   let configStore: ConfigStore;
   let enroll: jest.Mock<Promise<EnrollOutcome>, [string]>;
   let callbacks: ConnectionCallbacks | null;
-  let connection: { start: jest.Mock; stop: jest.Mock };
+  let connection: {
+    start: jest.Mock;
+    stop: jest.Mock;
+    sendUpdateResult: jest.Mock;
+  };
+  let updater: {
+    offer: jest.Mock;
+    welcomed: jest.Mock;
+    stop: jest.Mock;
+  };
 
   const build = async (pairingKey: string | null = null) => {
     buffer = await ResultBuffer.open(dir, silentLogger());
@@ -72,6 +85,7 @@ describe('AgentRuntime', () => {
         return connection as unknown as BackendConnection;
       },
       logger: silentLogger(),
+      updater: updater as unknown as AgentUpdater,
       pairingCheckMs: 20,
       enrollRetryMs: 20
     });
@@ -94,7 +108,16 @@ describe('AgentRuntime', () => {
     configStore = new ConfigStore(dir);
     enroll = jest.fn();
     callbacks = null;
-    connection = { start: jest.fn(), stop: jest.fn() };
+    connection = {
+      start: jest.fn(),
+      stop: jest.fn(),
+      sendUpdateResult: jest.fn()
+    };
+    updater = {
+      offer: jest.fn().mockResolvedValue(undefined),
+      welcomed: jest.fn().mockResolvedValue(null),
+      stop: jest.fn()
+    };
   });
 
   afterEach(async () => {
@@ -183,6 +206,48 @@ describe('AgentRuntime', () => {
 
     callbacks!.onWelcome();
     expect(scheduler.isRunning).toBe(true);
+  });
+
+  it('[AGT-081] hands an offer to the updater with the agent’s credentials', async () => {
+    await store.save(credentials);
+    await (await build()).start();
+    const offer = {
+      type: 'update',
+      version: '0.2.1'
+    } as UpdateMessage;
+
+    callbacks!.onUpdate(offer);
+
+    expect(updater.offer).toHaveBeenCalledWith(offer, credentials);
+  });
+
+  it('[AGT-084] [AGT-085] every welcome confirms a trial and sends the last update result', async () => {
+    const report = {
+      type: 'update.result',
+      version: '0.2.1',
+      outcome: 'installed'
+    };
+    updater.welcomed.mockResolvedValue(report);
+    await store.save(credentials);
+    await (await build()).start();
+
+    callbacks!.onWelcome();
+    callbacks!.onWelcome();
+
+    await eventually(
+      () => connection.sendUpdateResult.mock.calls.length === 2
+    );
+    expect(connection.sendUpdateResult).toHaveBeenCalledWith(report);
+  });
+
+  it('[AGT-084] sends nothing when no update was ever tried', async () => {
+    await store.save(credentials);
+    await (await build()).start();
+
+    callbacks!.onWelcome();
+    await eventually(() => updater.welcomed.mock.calls.length === 1);
+
+    expect(connection.sendUpdateResult).not.toHaveBeenCalled();
   });
 
   it('[AGT-066] revocation removes the token, configuration and results, then waits to be paired again', async () => {

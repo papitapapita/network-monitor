@@ -9,6 +9,7 @@ import { EnrollOutcome } from './identity/enrollAgent';
 import { PairingKeySource } from './identity/PairingKeySource';
 import { PollScheduler } from './polling/PollScheduler';
 import { ResultBuffer } from './results/ResultBuffer';
+import { AgentUpdater } from './update/AgentUpdater';
 import {
   BackendConnection,
   ConnectionCallbacks
@@ -26,6 +27,8 @@ export interface AgentRuntimeDeps {
     callbacks: ConnectionCallbacks
   ) => BackendConnection;
   logger: ILogger;
+  // Absent where the agent cannot replace its own binary (not packaged).
+  updater?: AgentUpdater;
   pairingCheckMs?: number;
   enrollRetryMs?: number;
   subscriptionRetryMs?: number;
@@ -76,6 +79,7 @@ export class AgentRuntime {
     this.stopping = true;
     if (this.waitTimer) clearTimeout(this.waitTimer);
     if (this.pruneTimer) clearInterval(this.pruneTimer);
+    this.deps.updater?.stop();
     this.deps.scheduler.stop();
     await this.connection?.stop();
     // A cycle mid-retry can take several seconds; a service stop must not.
@@ -132,7 +136,21 @@ export class AgentRuntime {
   private connectWith(credentials: AgentCredentials): void {
     const { scheduler, config, logger } = this.deps;
     this.connection = this.deps.connect(credentials, {
-      onWelcome: () => scheduler.start(),
+      onWelcome: () => {
+        scheduler.start();
+        void this.reportUpdate();
+      },
+      onUpdate: (offer) =>
+        void this.deps.updater
+          ?.offer(offer, credentials)
+          .catch((error) =>
+            logger.error(
+              'Update attempt failed',
+              error instanceof Error
+                ? error
+                : new Error(String(error))
+            )
+          ),
       onConfig: async (message: ConfigMessage, first: boolean) => {
         scheduler.applyConfig(message.devices);
         if (first) scheduler.pollAllNow();
@@ -155,10 +173,27 @@ export class AgentRuntime {
     this.connection.start();
   }
 
+  // AGT-084: confirms a version on trial (AGT-085), then tells the backend
+  // how the last update ended.
+  private async reportUpdate(): Promise<void> {
+    const { updater, logger } = this.deps;
+    if (!updater) return;
+    try {
+      const report = await updater.welcomed();
+      if (report) this.connection?.sendUpdateResult(report);
+    } catch (error) {
+      logger.error(
+        'Could not record the update',
+        error instanceof Error ? error : new Error(String(error))
+      );
+    }
+  }
+
   // R3: a revoked agent keeps no token, no addresses and no results, and
   // waits to be paired again.
   private async forgetEverything(): Promise<void> {
     const { scheduler, buffer, config, credentials } = this.deps;
+    this.deps.updater?.stop();
     scheduler.stop();
     await scheduler.drain();
     scheduler.clear();

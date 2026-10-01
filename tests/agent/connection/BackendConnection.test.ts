@@ -181,6 +181,7 @@ describe('BackendConnection', () => {
     callbacks = {
       onConfig: jest.fn().mockResolvedValue(undefined),
       onWelcome: jest.fn(),
+      onUpdate: jest.fn(),
       onSubscriptionExpired: jest.fn(),
       onRevoked: jest.fn()
     };
@@ -367,6 +368,58 @@ describe('BackendConnection', () => {
     await backend.until(() => backend.authorizations.length >= 3);
 
     expect(callbacks.onRevoked).not.toHaveBeenCalled();
+  });
+
+  it('[AGT-082] names its platform in the hello when it can update itself', async () => {
+    connect({ platform: 'linux-x64' });
+
+    await backend.until(() => backend.received.length > 0);
+
+    expect(backend.received[0]).toMatchObject({
+      type: 'hello',
+      platform: 'linux-x64'
+    });
+  });
+
+  it('[AGT-081] hands an update offer to the updater', async () => {
+    connect();
+    await backend.until(() => backend.received.length > 0);
+    backend.welcome();
+    const offer = {
+      type: 'update',
+      version: '9.9.10',
+      file: 'nms-agent-9.9.10-linux-x64.gz',
+      sha256: 'a'.repeat(64),
+      bytes: 10,
+      signature: 'c2ln'
+    };
+
+    backend.send(offer);
+
+    await backend.until(
+      () => callbacks.onUpdate.mock.calls.length > 0
+    );
+    expect(callbacks.onUpdate).toHaveBeenCalledWith(offer);
+  });
+
+  it('[AGT-084] sends an update result only once welcomed', async () => {
+    connect();
+    await backend.until(() => backend.received.length > 0);
+    const result = {
+      type: 'update.result' as const,
+      version: '9.9.10',
+      outcome: 'installed' as const
+    };
+
+    connection.sendUpdateResult(result);
+    backend.welcome();
+    await backend.until(() => connection.isConnected);
+    connection.sendUpdateResult(result);
+
+    await backend.until(
+      () => backend.messages('update.result').length > 0
+    );
+    expect(backend.messages('update.result')).toEqual([result]);
   });
 
   it('stop closes the connection and does not reconnect', async () => {

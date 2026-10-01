@@ -4,11 +4,14 @@ import type { ILogger } from 'application/shared/interfaces';
 import {
   AGENT_WS_PATH,
   AgentMessage,
+  AgentPlatform,
   BackendMessage,
   CloseCode,
   ConfigMessage,
   PROTOCOL_VERSION,
-  PingResultWire
+  PingResultWire,
+  UpdateMessage,
+  UpdateResultMessage
 } from 'agent/protocol';
 import { AgentCredentials } from '../identity/CredentialStore';
 
@@ -18,6 +21,8 @@ export interface ConnectionCallbacks {
     firstSinceConnect: boolean
   ): Promise<void>;
   onWelcome(): void;
+  // A newer release to install (AGT-081).
+  onUpdate(offer: UpdateMessage): void;
   // 4003: the backend takes nothing until the subscription is paid.
   onSubscriptionExpired(): void;
   // 4001: the agent must forget its identity and stop.
@@ -33,6 +38,8 @@ export interface OutboundResults {
 
 export interface BackendConnectionOptions {
   agentVersion: string;
+  // Named in the hello only by an agent that can update itself (AGT-082).
+  platform?: AgentPlatform;
   flushEveryMs: number;
   batchSize: number;
   maxBatchesInFlight: number;
@@ -134,6 +141,9 @@ export class BackendConnection {
         type: 'hello',
         protocolVersion: PROTOCOL_VERSION,
         agentVersion: this.options.agentVersion,
+        ...(this.options.platform && {
+          platform: this.options.platform
+        }),
         sentAt: Date.now()
       });
     });
@@ -188,11 +198,18 @@ export class BackendConnection {
       case 'results.ack':
         this.onResultsAck(message.batchId, message.ids);
         return;
+      case 'update':
+        this.callbacks.onUpdate(message);
+        return;
       default:
         this.logger.warn('Backend sent an unknown message', {
           type: (message as { type?: unknown }).type
         });
     }
+  }
+
+  sendUpdateResult(result: UpdateResultMessage): void {
+    if (this.welcomed) this.send(result);
   }
 
   private onResultsAck(batchId: string, ids: string[]): void {

@@ -81,7 +81,7 @@ export interface ResultsMessage {
 }
 
 // How the agent's last attempt to update itself ended (AGT-084). Sent after
-// every welcome until the backend has it; the backend ignores a repeat.
+// every welcome, from `update.json`; the backend ignores a repeat.
 export interface UpdateResultMessage {
   type: 'update.result';
   version: string;
