@@ -16,6 +16,9 @@ export function makeVendorSettingsProps(
     alertRetentionDays: 90,
     wirelessSnapshotRetentionDays: 30,
     wirelessAlertRecordRetentionDays: 90,
+    issuer: null,
+    whatsApp: null,
+    enforcementRouter: null,
     ...overrides
   };
 }
@@ -50,3 +53,21 @@ export function vendorSettingsRepoWithTerms(
     save: jest.fn()
   };
 }
+
+export const ISSUER = {
+  name: 'Insetel',
+  documentLabel: 'NIT',
+  document: '11685533-3',
+  address: 'Calle 10 # 31-28',
+  city: 'Villavicencio',
+  contactPhone: '310 226 3770',
+  contactEmail: 'facturacion@insetel.example',
+  accentColorHex: '#1F4E79'
+};
+
+export const WHATSAPP = {
+  phoneNumberId: '123456789',
+  templateName: 'suspension_notice',
+  templateLanguage: 'es',
+  apiVersion: 'v21.0'
+};

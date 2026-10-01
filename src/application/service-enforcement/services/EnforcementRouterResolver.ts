@@ -1,25 +1,39 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 import { IDeviceRepository } from 'domain/device-inventory/repository';
+import { IVendorSettingsRepository } from 'domain/shared/interfaces';
 import {
   IDeviceCredentialsReader,
   RouterConnection
 } from '../interfaces';
 
-export interface EnforcementRouterConfig {
-  routerDeviceId: string;
-  apiPort: number;
-}
+// Shared with the reconciliation job, which waits quietly for a router instead
+// of warning every minute (SVC-060).
+export const ENFORCEMENT_ROUTER_NOT_CONFIGURED =
+  'Enforcement router is not configured';
 
+// Which router applies suspensions is the vendor's setting (INS-028), read on
+// every resolve so setting it from the dashboard needs no restart.
 export class EnforcementRouterResolver {
   constructor(
     private readonly deviceRepo: IDeviceRepository,
     private readonly credentialsReader: IDeviceCredentialsReader,
-    private readonly config: EnforcementRouterConfig
+    private readonly vendorSettings: IVendorSettingsRepository
   ) {}
 
   async resolve(): Promise<Result<RouterConnection>> {
-    const deviceIdResult = DeviceId.parse(this.config.routerDeviceId);
+    const settings = await this.vendorSettings.get();
+    if (settings.isFailure) {
+      return Result.fail(
+        `Failed to read the enforcement router setting: ${settings.error}`
+      );
+    }
+    const router = settings.value.enforcementRouter;
+    if (router === null) {
+      return Result.fail(ENFORCEMENT_ROUTER_NOT_CONFIGURED);
+    }
+
+    const deviceIdResult = DeviceId.parse(router.deviceId);
     if (deviceIdResult.isFailure) {
       return Result.fail(
         `Invalid enforcement router device ID: ${deviceIdResult.error}`
@@ -63,7 +77,7 @@ export class EnforcementRouterResolver {
 
     return Result.ok({
       host: device.ipAddress.value,
-      port: this.config.apiPort,
+      port: router.apiPort,
       username: credentials.httpUsername,
       password: credentials.httpPassword
     });

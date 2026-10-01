@@ -3755,7 +3755,7 @@ interface CollectionAccountDTO {
 
 ### `GET /api/collection-accounts/:id/pdf` — Download as PDF
 
-**Status:** 200 | 400 | 404
+**Status:** 200 | 400 | 404 | 409
 
 Returns the document as a **PDF** — not the JSON envelope.
 
@@ -3766,7 +3766,8 @@ Content-Disposition: attachment; filename="cuenta-de-cobro-CC-0007.pdf"
 
 The PDF shows the issuer header, the `CC-NNNN` number, city and issue date, due date (if any), the customer block, "DEBE A" / "LA SUMA DE" with the total written in Spanish words, the line items table, total, observaciones, "Forma de pago" (one line per payment account, e.g. _Transferencia a cuenta de ahorros Bancolombia No. 39500002227_) and a signature line. Paid and cancelled documents are stamped `PAGADA` / `ANULADA`. Issuer name, NIT, address and contact details come from `src/infrastructure/billing/config/collectionAccountIssuerConfig.ts`.
 
-> Error responses (400/404) still use the standard JSON envelope. Fetch with the Bearer token and download via a blob URL.
+> Error responses (400/404/409) still use the standard JSON envelope. Fetch with the Bearer token and download via a blob URL.
+> `409` `"Cannot print the cuenta de cobro: the issuer is not configured"` until the vendor sets the issuer (BIL-232).
 
 ---
 
@@ -4806,11 +4807,13 @@ blob and save it (or show progress from `Content-Length`).
 ## Vendor Settings `/api/installation/settings`
 
 What the vendor runs this install with (INS-028): its own Telegram chat for
-agent alerts, the customer's subscription terms and how long data is kept.
+agent alerts, the customer's subscription terms, how long data is kept, the
+issuer printed on cuentas de cobro, WhatsApp, and the enforcement router.
 **VENDOR only, reads included** — the customer's `ADMIN` gets `403`; show this
 screen only when `user.role === 'VENDOR'`. A save applies on the next request,
 alert or purge, with no restart. Until the first save the values are the
-server's env defaults (INS-029). Bot tokens are not here: they stay in env.
+server's env defaults (INS-029). Secrets are not here: bot tokens and the
+WhatsApp access token stay in env.
 
 The route is exempt from the subscription guard (INS-030): it answers on a
 read-only or **locked** install, so the vendor can record a payment there. Give
@@ -4826,6 +4829,29 @@ interface VendorSettingsDTO {
   alertRetentionDays: number; // 1–3650, resolved alerts only
   wirelessSnapshotRetentionDays: number; // 1–3650
   wirelessAlertRecordRetentionDays: number; // 1–3650, cleared records only
+  issuer: {
+    // null = not configured: cuenta de cobro PDFs answer 409 (BIL-232)
+    name: string;
+    documentLabel: string; // 'NIT'
+    document: string;
+    address: string;
+    city: string;
+    contactPhone: string;
+    contactEmail: string; // an email address
+    accentColorHex: string; // '#1F4E79'
+  } | null;
+  whatsApp: {
+    // null = not configured: subscriber notices fail and are logged (NOT-115)
+    phoneNumberId: string; // digits
+    templateName: string; // lowercase, digits, underscores
+    templateLanguage: string; // 'es', 'es_CO'
+    apiVersion: string; // 'v21.0'
+  } | null;
+  enforcementRouter: {
+    // null = not configured: /api/enforcement/* answers 503 (SVC-060)
+    deviceId: string; // UUID of the MikroTik in the inventory
+    apiPort: number; // 1–65535, default 8728
+  } | null;
 }
 ```
 
@@ -4856,7 +4882,10 @@ VendorSettingsDTO
 > `400` with the rule's message, e.g.
 > `"subscriptionPaidUntil must be a real date as YYYY-MM-DD"`,
 > `"Grace days must be a whole number from 0 to 90"` or
-> `"alertRetentionDays must be a whole number from 1 to 3650"`.
+> `"alertRetentionDays must be a whole number from 1 to 3650"`,
+> `"issuer.contactEmail must be an email address"`,
+> `"enforcementRouter.deviceId must be a device id"`. A group is all or
+> nothing: send it complete, or `null`.
 > To record a payment, send the new last paid day; `GET /api/subscription`
 > reflects it immediately. Shortening a retention window deletes the older
 > data at the next daily purge (or the manual purge) — confirm before saving.

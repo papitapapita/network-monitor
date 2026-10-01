@@ -4,7 +4,11 @@ import {
   VendorSettings,
   MAX_RETENTION_DAYS
 } from '../../../../src/domain/shared/value-objects/VendorSettings';
-import { makeVendorSettingsProps } from '../../../fixtures/vendorSettings';
+import {
+  ISSUER,
+  WHATSAPP,
+  makeVendorSettingsProps
+} from '../../../fixtures/vendorSettings';
 
 describe('[INS-028] VendorSettings', () => {
   it('accepts the defaults', () => {
@@ -124,6 +128,126 @@ describe('[INS-028] VendorSettings', () => {
       expect(result.error).toBe(
         `${field} must be a whole number from 1 to ${MAX_RETENTION_DAYS}`
       );
+    });
+  });
+
+  describe('[BIL-232] issuer', () => {
+    it('accepts a complete issuer and trims every field', () => {
+      const result = VendorSettings.create(
+        makeVendorSettingsProps({
+          issuer: { ...ISSUER, city: ' Granada ' }
+        })
+      );
+
+      expect(result.value.issuer).toEqual({
+        ...ISSUER,
+        city: 'Granada'
+      });
+    });
+
+    it.each([
+      ['name', '  ', 'issuer.name is required'],
+      [
+        'contactEmail',
+        'cobros',
+        'issuer.contactEmail must be an email address'
+      ],
+      [
+        'accentColorHex',
+        'blue',
+        'issuer.accentColorHex must be a colour as #RRGGBB'
+      ],
+      [
+        'address',
+        'x'.repeat(201),
+        'issuer.address must be at most 200 characters'
+      ]
+    ] as const)('refuses issuer.%s=%s', (field, value, message) => {
+      const result = VendorSettings.create(
+        makeVendorSettingsProps({
+          issuer: { ...ISSUER, [field]: value }
+        })
+      );
+
+      expect(result.error).toBe(message);
+    });
+  });
+
+  describe('WhatsApp', () => {
+    it('accepts the defaults and a regional language', () => {
+      expect(
+        VendorSettings.create(
+          makeVendorSettingsProps({
+            whatsApp: { ...WHATSAPP, templateLanguage: 'es_CO' }
+          })
+        ).isSuccess
+      ).toBe(true);
+    });
+
+    it.each([
+      [
+        'phoneNumberId',
+        '+57 300',
+        'whatsApp.phoneNumberId must be digits only'
+      ],
+      [
+        'templateName',
+        'Suspension Notice',
+        'whatsApp.templateName must be lowercase letters, digits and underscores'
+      ],
+      [
+        'templateLanguage',
+        'spanish',
+        "whatsApp.templateLanguage must be a language code such as 'es' or 'es_CO'"
+      ],
+      [
+        'apiVersion',
+        '21',
+        "whatsApp.apiVersion must be a Graph API version such as 'v21.0'"
+      ]
+    ] as const)('refuses whatsApp.%s=%s', (field, value, message) => {
+      const result = VendorSettings.create(
+        makeVendorSettingsProps({
+          whatsApp: { ...WHATSAPP, [field]: value }
+        })
+      );
+
+      expect(result.error).toBe(message);
+    });
+  });
+
+  describe('[SVC-060] enforcement router', () => {
+    const ROUTER = '550e8400-e29b-41d4-a716-446655440000';
+
+    it('accepts a device id and port', () => {
+      expect(
+        VendorSettings.create(
+          makeVendorSettingsProps({
+            enforcementRouter: { deviceId: ROUTER, apiPort: 8728 }
+          })
+        ).value.enforcementRouter
+      ).toEqual({ deviceId: ROUTER, apiPort: 8728 });
+    });
+
+    it.each([
+      [
+        { deviceId: 'router-1', apiPort: 8728 },
+        'enforcementRouter.deviceId must be a device id'
+      ],
+      [
+        { deviceId: ROUTER, apiPort: 0 },
+        'enforcementRouter.apiPort must be a port from 1 to 65535'
+      ],
+      [
+        { deviceId: ROUTER, apiPort: 70000 },
+        'enforcementRouter.apiPort must be a port from 1 to 65535'
+      ]
+    ])('refuses %o', (enforcementRouter, message) => {
+      expect(
+        VendorSettings.create(
+          makeVendorSettingsProps({ enforcementRouter })
+        ).error
+      ).toBe(message);
     });
   });
 });

@@ -385,11 +385,11 @@ next stage and its date, so the customer knows exactly how long they have.
 
 ## Hosting
 
-### INS-028 — The vendor sets its chat, the subscription terms and the retention windows from the dashboard
+### INS-028 — The vendor sets its chat, the subscription, retention and the install's integrations from the dashboard
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain · Application · Infrastructure
-**Since:** 2026-09-30
+**Since:** 2026-09-30 · **Revised:** 2026-09-30 (issuer, WhatsApp, enforcement router)
 
 The vendor's settings for an install are stored together and replaced as a
 whole:
@@ -404,14 +404,19 @@ whole:
 | `alertRetentionDays`                | whole number 1–3650                                    | same                                      |
 | `wirelessSnapshotRetentionDays`     | whole number 1–3650                                    | same                                      |
 | `wirelessAlertRecordRetentionDays`  | whole number 1–3650                                    | same                                      |
+| `issuer`                            | all eight fields (BIL-232); `null` = not configured    | every cuenta de cobro PDF                  |
+| `whatsApp`                          | phone number id, template, language, API version; `null` = not configured | every subscriber and technician notice (NOT-115) |
+| `enforcementRouter`                 | device id and API port 1–65535; `null` = not configured | every enforcement operation (SVC-060)     |
 
 Each is read where it is used, every time: the subscription on every status
 check, the vendor chat on every agent-health alert, the windows on every
-purge. A save therefore applies with no restart — a payment recorded here
+purge, the issuer on every PDF, WhatsApp on every send, the router on every
+enforcement operation. A save therefore applies with no restart — a payment recorded here
 unlocks a locked install on its next request. If the settings cannot be read
 the subscription fails open (the guard of INS-025 lets the request through) and the
-purge skips that run. Bot tokens and how long a deleted device stays
-restorable (`DEVICE_DELETE_GRACE_DAYS`) stay in the environment.
+purge skips that run. Secrets — bot tokens, the WhatsApp access token — the
+issuer's logo file, and how long a deleted device stays restorable
+(`DEVICE_DELETE_GRACE_DAYS`) stay in the environment.
 
 **Why:** These are the levers the vendor pulls for each customer — recording a
 payment, keeping data for as long as the customer paid for, getting alerts
@@ -433,9 +438,12 @@ customer uses.
 With nothing saved, the settings are `TELEGRAM_VENDOR_CHAT_ID` (unset = none),
 `SUBSCRIPTION_PAID_UNTIL` (unset = not enforced), `SUBSCRIPTION_GRACE_DAYS`
 (3), `SUBSCRIPTION_READ_ONLY_DAYS` (7), `PING_RESULT_RETENTION_DAYS` (30),
-`ALERT_RETENTION_DAYS` (90), `WIRELESS_SNAPSHOT_RETENTION_DAYS` (30) and
-`WIRELESS_ALERT_RECORD_RETENTION_DAYS` (90). An env value that INS-028 would
-refuse stops the boot, naming the variable. Once saved, the stored values win
+`ALERT_RETENTION_DAYS` (90), `WIRELESS_SNAPSHOT_RETENTION_DAYS` (30),
+`WIRELESS_ALERT_RECORD_RETENTION_DAYS` (90), the `ISSUER_*` variables
+(BIL-232), the non-secret `WHATSAPP_*` ones (NOT-115) and
+`ENFORCEMENT_ROUTER_DEVICE_ID` / `ENFORCEMENT_ROUTER_API_PORT` (SVC-060). An
+env value that INS-028 would refuse stops the boot, naming the variable, and so
+does a group given only in part. Once saved, the stored values win
 and the env ones are ignored. The table holds at most one row.
 
 **Why:** Every install ran on these env values before; reading them as defaults

@@ -4,40 +4,47 @@ import {
   ICustomerNotificationService,
   CustomerTemplateMessage
 } from 'application/notifications/interfaces';
+import { WhatsAppSettingsProps } from 'domain/shared/props';
+
+// The vendor's WhatsApp settings (INS-028), looked up on every send so a
+// change from the dashboard needs no restart; null while not configured.
+export type WhatsAppSettingsSource =
+  () => Promise<WhatsAppSettingsProps | null>;
+
+export const WHATSAPP_NOT_CONFIGURED = 'WhatsApp is not configured';
 
 export class WhatsAppNotificationService
   implements ICustomerNotificationService
 {
   private readonly accessToken: string;
-  private readonly phoneNumberId: string;
-  private readonly templateName: string;
-  private readonly templateLanguage: string;
-  private readonly apiVersion: string;
 
-  constructor() {
-    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    const templateName = process.env.WHATSAPP_TEMPLATE_NAME;
-
-    if (!accessToken || !phoneNumberId || !templateName) {
+  // The access token is a secret and stays in env.
+  constructor(
+    private readonly settings: WhatsAppSettingsSource,
+    accessToken: string | undefined = process.env
+      .WHATSAPP_ACCESS_TOKEN
+  ) {
+    if (!accessToken) {
       throw new Error(
-        'WhatsAppNotificationService: WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_TEMPLATE_NAME must be set in environment'
+        'WhatsAppNotificationService: WHATSAPP_ACCESS_TOKEN must be set in environment'
       );
     }
-
     this.accessToken = accessToken;
-    this.phoneNumberId = phoneNumberId;
-    this.templateName = templateName;
-    this.templateLanguage =
-      process.env.WHATSAPP_TEMPLATE_LANGUAGE ?? 'es';
-    this.apiVersion = process.env.WHATSAPP_API_VERSION ?? 'v21.0';
   }
 
   async sendTemplate(
     to: PhoneNumber,
     message: CustomerTemplateMessage
   ): Promise<Result<void>> {
-    const url = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}/messages`;
+    const settings = await this.settings();
+    if (!settings) return Result.fail(WHATSAPP_NOT_CONFIGURED);
+    const {
+      apiVersion,
+      phoneNumberId,
+      templateName,
+      templateLanguage
+    } = settings;
+    const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
 
     try {
       const response = await fetch(url, {
@@ -52,8 +59,8 @@ export class WhatsAppNotificationService
           to: to.value.replace(/^\+/, ''),
           type: 'template',
           template: {
-            name: this.templateName,
-            language: { code: this.templateLanguage },
+            name: templateName,
+            language: { code: templateLanguage },
             components: [
               {
                 type: 'body',

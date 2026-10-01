@@ -1139,27 +1139,33 @@ amount in words is what makes the figure hard to alter on a printed copy.
 **Enforced at:** `src/infrastructure/billing/services/PdfKitCollectionAccountPdfRenderer.ts` (`drawStatusStamp`)
 **Tests:** `tests/infrastructure/billing/services/PdfKitCollectionAccountPdfRenderer.test.ts`
 
-### BIL-232 — The issuer comes from the install's configuration, and billing will not start without it
+### BIL-232 — The issuer is the vendor's setting, and no cuenta de cobro prints without it
 
 **Type:** Validation · **Status:** Active
-**Layer:** Infrastructure (config)
-**Since:** 2026-09-28
+**Layer:** Domain · Infrastructure
+**Since:** 2026-09-28 · **Revised:** 2026-09-30 (set from the dashboard; no longer a boot requirement)
 
-The issuer's name, document, address, city, phone and email are read from
-`ISSUER_NAME`, `ISSUER_DOCUMENT`, `ISSUER_ADDRESS`, `ISSUER_CITY`,
-`ISSUER_CONTACT_PHONE` and `ISSUER_CONTACT_EMAIL`. All six are required while
-the billing module is enabled (`INS-001`), and a missing one stops the boot.
-The document label (`NIT`), accent colour (`#1F4E79`), logo (none), locale
-(`es-CO`) and time zone (`America/Bogota`) have defaults.
+The issuer's name, document label (`NIT`), document, address, city, phone,
+email and accent colour (`#1F4E79`) are the vendor's settings (`INS-028`),
+read for every PDF. All are required, the email must be an address and the
+colour `#RRGGBB`. Until the vendor saves them they come from `ISSUER_NAME`,
+`ISSUER_DOCUMENT_LABEL`, `ISSUER_DOCUMENT`, `ISSUER_ADDRESS`, `ISSUER_CITY`,
+`ISSUER_CONTACT_PHONE`, `ISSUER_CONTACT_EMAIL` and `ISSUER_ACCENT_COLOR`:
+none of the six required ones set leaves the issuer unset; only some set stops
+the boot, naming the missing ones. With no issuer, downloading a cuenta de cobro
+answers `409`. The logo (`ISSUER_LOGO_PATH`, a file on the server), locale
+(`es-CO`) and time zone (`America/Bogota`) stay in env.
 
-**Why:** Each install bills as its own company. Hard-coded in the source, every
-customer's cuentas de cobro would have been issued in Insetel's name. Refusing
-to boot surfaces the gap on the day of the install, not on the first document
-a customer's client receives. An install without billing needs none of it.
+**Why:** Each install bills as its own company; hard-coded, every customer's
+cuentas de cobro would have been issued in Insetel's name. It used to stop the
+boot, to surface the gap on install day — but now that the vendor sets it from
+the dashboard, a new install has to boot to be configured, so the gap shows on
+the document instead, with a reason the dashboard can act on. A partial env is
+still refused: that is a typo, not an unconfigured install.
 
-**Enforced at:** `src/infrastructure/billing/config/collectionAccountIssuerConfig.ts` (`loadCollectionAccountIssuerConfig`), `src/infrastructure/di/container.ts`
-**Message:** `Billing is enabled but the issuer is not configured: <missing variables>`
-**Tests:** `tests/infrastructure/billing/config/collectionAccountIssuerConfig.test.ts`
+**Enforced at:** `src/domain/shared/value-objects/VendorSettings.ts`, `src/infrastructure/di/vendorSettingsDefaults.ts`, `src/infrastructure/billing/services/SettingsIssuerPdfRenderer.ts`, `src/infrastructure/billing/config/collectionAccountIssuerConfig.ts`
+**Message:** `Cannot print the cuenta de cobro: the issuer is not configured`
+**Tests:** `tests/domain/shared/value-objects/VendorSettings.test.ts`, `tests/infrastructure/di/vendorSettingsDefaults.test.ts`, `tests/infrastructure/billing/config/collectionAccountIssuerConfig.test.ts`, `tests/integration/use-cases/billing/GetCollectionAccountPdfUseCase.integration.test.ts`
 
 ### BIL-240 — Listings return 20 rows by default and 100 at most, filterable by customer and status
 

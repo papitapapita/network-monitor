@@ -827,6 +827,29 @@ or billing.
 `tests/application/notifications/event-handlers/DeviceWentOfflineNotificationHandler.test.ts`,
 `tests/application/notifications/event-handlers/ContractedServiceSuspendedNotificationHandler.test.ts`
 
+### NOT-115 — WhatsApp notices run on the env token and the vendor's settings
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (composition)
+**Since:** 2026-09-30
+
+`WHATSAPP_ACCESS_TOKEN` in the environment turns subscriber and technician
+notices on; without it they are not wired and the boot logs it. The phone
+number id, template name, template language and API version are the vendor's
+settings (`INS-028`; `WHATSAPP_*` until saved), read on every send. With the
+token but no phone number or template set, each send fails with `WhatsApp is
+not configured` and, like any failed notice, never fails the suspension
+(`NOT-113`).
+
+**Why:** The token is a secret that lets anyone message from the business
+number, so it stays where only the vendor sees it; the rest is ordinary
+configuration the vendor adjusts per install — a new template, a newer API
+version — without a restart.
+
+**Enforced at:** `src/infrastructure/notifications/WhatsAppNotificationService.ts`, `src/infrastructure/di/container.ts`
+**Message:** `WhatsApp is not configured`
+**Tests:** `tests/infrastructure/notifications/WhatsAppNotificationService.test.ts`, `tests/infrastructure/di/vendorSettingsDefaults.test.ts`
+
 ---
 
 ## Retention, listing and deletion

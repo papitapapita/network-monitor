@@ -17,7 +17,24 @@ const SETTINGS = {
   pingResultRetentionDays: 15,
   alertRetentionDays: 60,
   wirelessSnapshotRetentionDays: 10,
-  wirelessAlertRecordRetentionDays: 45
+  wirelessAlertRecordRetentionDays: 45,
+  issuer: {
+    name: 'Otro ISP',
+    documentLabel: 'NIT',
+    document: '900123456-7',
+    address: 'Calle 1 # 2-3',
+    city: 'Granada',
+    contactPhone: '300 000 0000',
+    contactEmail: 'cobros@otro.example',
+    accentColorHex: '#336699'
+  },
+  whatsApp: {
+    phoneNumberId: '123456789',
+    templateName: 'suspension_notice',
+    templateLanguage: 'es',
+    apiVersion: 'v21.0'
+  },
+  enforcementRouter: null
 };
 
 describe('Vendor Settings Routes — /api/installation/settings', () => {
@@ -58,7 +75,11 @@ describe('Vendor Settings Routes — /api/installation/settings', () => {
         pingResultRetentionDays: 30,
         alertRetentionDays: 90,
         wirelessSnapshotRetentionDays: 30,
-        wirelessAlertRecordRetentionDays: 90
+        wirelessAlertRecordRetentionDays: 90,
+        // tests/integration/setup.ts sets ISSUER_* for the billing suites
+        issuer: expect.objectContaining({ documentLabel: 'NIT' }),
+        whatsApp: null,
+        enforcementRouter: null
       });
     });
 
@@ -113,7 +134,10 @@ describe('Vendor Settings Routes — /api/installation/settings', () => {
       ['subscriptionPaidUntil', '31/12/2099'],
       ['vendorTelegramChatId', 'jonathan'],
       ['alertRetentionDays', 0],
-      ['subscriptionGraceDays', 120]
+      ['subscriptionGraceDays', 120],
+      ['issuer', { ...SETTINGS.issuer, contactEmail: 'cobros' }],
+      ['whatsApp', { ...SETTINGS.whatsApp, apiVersion: '21' }],
+      ['enforcementRouter', { deviceId: 'router-1', apiPort: 8728 }]
     ])(
       '[INS-028] 400 — refuses %s=%s and saves nothing',
       async (field, value) => {
@@ -126,6 +150,18 @@ describe('Vendor Settings Routes — /api/installation/settings', () => {
         expect(await prisma.vendorSettings.count()).toBe(0);
       }
     );
+
+    it('400 — refuses an unknown field inside a group', async () => {
+      const res = await request(app)
+        .put('/api/installation/settings')
+        .set('Authorization', `Bearer ${vendorToken}`)
+        .send({
+          ...SETTINGS,
+          whatsApp: { ...SETTINGS.whatsApp, accessToken: 'secret' }
+        });
+
+      expect(res.status).toBe(400);
+    });
 
     it('400 — refuses a body missing a setting', async () => {
       const { alertRetentionDays: _omit, ...partial } = SETTINGS;

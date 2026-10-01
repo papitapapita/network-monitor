@@ -6,6 +6,7 @@ import { PrismaVendorSettingsRepository } from 'infrastructure/persistence/Prism
 import { loadVendorSettingsDefaults } from 'infrastructure/di/vendorSettingsDefaults';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import { createTestPrisma } from '../../helpers/db';
+import { ISSUER, WHATSAPP } from '../../../fixtures/vendorSettings';
 
 const SETTINGS = {
   vendorTelegramChatId: '@isp_vendor',
@@ -15,7 +16,10 @@ const SETTINGS = {
   pingResultRetentionDays: 30,
   alertRetentionDays: 90,
   wirelessSnapshotRetentionDays: 30,
-  wirelessAlertRecordRetentionDays: 90
+  wirelessAlertRecordRetentionDays: 90,
+  issuer: null,
+  whatsApp: null,
+  enforcementRouter: null
 };
 
 describe('[INS-028] UpdateVendorSettingsUseCase — integration', () => {
@@ -36,6 +40,8 @@ describe('[INS-028] UpdateVendorSettingsUseCase — integration', () => {
   });
 
   afterAll(async () => {
+    // The row would override the env defaults in every later suite.
+    await prisma.vendorSettings.deleteMany();
     await prisma.$disconnect();
   });
 
@@ -62,6 +68,26 @@ describe('[INS-028] UpdateVendorSettingsUseCase — integration', () => {
     const rows = await prisma.vendorSettings.findMany();
     expect(rows).toHaveLength(1);
     expect(rows[0].subscriptionPaidUntil).toBeNull();
+  });
+
+  it('round-trips the issuer, WhatsApp and router groups', async () => {
+    const groups = {
+      issuer: ISSUER,
+      whatsApp: WHATSAPP,
+      enforcementRouter: {
+        deviceId: '550e8400-e29b-41d4-a716-446655440000',
+        apiPort: 8729
+      }
+    };
+
+    await useCase.execute({ ...SETTINGS, ...groups });
+    const read = await repo.get();
+
+    expect(read.value.issuer).toEqual(ISSUER);
+    expect(read.value.whatsApp).toEqual(WHATSAPP);
+    expect(read.value.enforcementRouter).toEqual(
+      groups.enforcementRouter
+    );
   });
 
   it('writes nothing when a value is refused', async () => {

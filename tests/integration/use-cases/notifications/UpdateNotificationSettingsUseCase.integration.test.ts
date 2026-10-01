@@ -28,6 +28,8 @@ describe('[NOT-200] UpdateNotificationSettingsUseCase — integration', () => {
   });
 
   afterAll(async () => {
+    // The row would override the env defaults in every later suite.
+    await prisma.notificationSettings.deleteMany();
     await prisma.$disconnect();
   });
 

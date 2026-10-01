@@ -1,10 +1,25 @@
 import { Result } from '../core/Result';
 import { ValueObject } from '../core/ValueObject';
-import { VendorSettingsProps } from '../props/VendorSettingsProps';
+import {
+  EnforcementRouterSettingsProps,
+  IssuerSettingsProps,
+  VendorSettingsProps,
+  WhatsAppSettingsProps
+} from '../props/VendorSettingsProps';
+import { DeviceId } from '../ids/DeviceId';
 import { SubscriptionTerms } from './SubscriptionTerms';
 import { isTelegramChatId } from './TelegramChatId';
 
 export const MAX_RETENTION_DAYS = 3650;
+const MAX_TEXT = 200;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/;
+const WHATSAPP = {
+  phoneNumberId: /^\d{1,30}$/,
+  templateName: /^[a-z0-9_]{1,512}$/,
+  templateLanguage: /^[a-z]{2,3}(_[A-Z]{2})?$/,
+  apiVersion: /^v\d+\.\d+$/
+};
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Customers are Colombian ISPs; Colombia is UTC-5 with no daylight saving.
 const INSTALL_UTC_OFFSET_MS = -5 * 60 * 60 * 1000;
@@ -52,6 +67,18 @@ export class VendorSettings extends ValueObject<VendorSettingsProps> {
     return this._props.wirelessAlertRecordRetentionDays;
   }
 
+  get issuer(): IssuerSettingsProps | null {
+    return this._props.issuer;
+  }
+
+  get whatsApp(): WhatsAppSettingsProps | null {
+    return this._props.whatsApp;
+  }
+
+  get enforcementRouter(): EnforcementRouterSettingsProps | null {
+    return this._props.enforcementRouter;
+  }
+
   private constructor(props: VendorSettingsProps) {
     super(props);
   }
@@ -64,7 +91,15 @@ export class VendorSettings extends ValueObject<VendorSettingsProps> {
       vendorTelegramChatId:
         props.vendorTelegramChatId?.trim() || null,
       subscriptionPaidUntil:
-        props.subscriptionPaidUntil?.trim() || null
+        props.subscriptionPaidUntil?.trim() || null,
+      issuer: VendorSettings.trimAll(props.issuer),
+      whatsApp: VendorSettings.trimAll(props.whatsApp),
+      enforcementRouter: props.enforcementRouter
+        ? {
+            ...props.enforcementRouter,
+            deviceId: props.enforcementRouter.deviceId?.trim()
+          }
+        : null
     };
     const error = VendorSettings.validate(normalized);
     if (error) return Result.fail<VendorSettings>(error);
@@ -110,6 +145,18 @@ export class VendorSettings extends ValueObject<VendorSettingsProps> {
     return new Date(utcMidnight + DAY_MS - INSTALL_UTC_OFFSET_MS);
   }
 
+  private static trimAll<T extends object>(
+    group: T | null
+  ): T | null {
+    if (!group) return null;
+    return Object.fromEntries(
+      Object.entries(group).map(([key, value]) => [
+        key,
+        typeof value === 'string' ? value.trim() : value
+      ])
+    ) as T;
+  }
+
   private static validate(props: VendorSettingsProps): string | null {
     if (
       props.vendorTelegramChatId !== null &&
@@ -140,6 +187,79 @@ export class VendorSettings extends ValueObject<VendorSettingsProps> {
       ) {
         return `${field} must be a whole number from 1 to ${MAX_RETENTION_DAYS}`;
       }
+    }
+    return (
+      VendorSettings.validateIssuer(props.issuer) ??
+      VendorSettings.validateWhatsApp(props.whatsApp) ??
+      VendorSettings.validateEnforcementRouter(
+        props.enforcementRouter
+      )
+    );
+  }
+
+  private static validateIssuer(
+    issuer: IssuerSettingsProps | null
+  ): string | null {
+    if (issuer === null) return null;
+    for (const field of [
+      'name',
+      'documentLabel',
+      'document',
+      'address',
+      'city',
+      'contactPhone',
+      'contactEmail'
+    ] as const) {
+      const value = issuer[field];
+      if (typeof value !== 'string' || value.length === 0) {
+        return `issuer.${field} is required`;
+      }
+      if (value.length > MAX_TEXT) {
+        return `issuer.${field} must be at most ${MAX_TEXT} characters`;
+      }
+    }
+    if (!EMAIL.test(issuer.contactEmail)) {
+      return 'issuer.contactEmail must be an email address';
+    }
+    if (!HEX_COLOR.test(issuer.accentColorHex ?? '')) {
+      return 'issuer.accentColorHex must be a colour as #RRGGBB';
+    }
+    return null;
+  }
+
+  private static validateWhatsApp(
+    whatsApp: WhatsAppSettingsProps | null
+  ): string | null {
+    if (whatsApp === null) return null;
+    const expected: Record<keyof WhatsAppSettingsProps, string> = {
+      phoneNumberId: 'digits only',
+      templateName: 'lowercase letters, digits and underscores',
+      templateLanguage: "a language code such as 'es' or 'es_CO'",
+      apiVersion: "a Graph API version such as 'v21.0'"
+    };
+    for (const field of Object.keys(
+      WHATSAPP
+    ) as (keyof WhatsAppSettingsProps)[]) {
+      if (!WHATSAPP[field].test(whatsApp[field] ?? '')) {
+        return `whatsApp.${field} must be ${expected[field]}`;
+      }
+    }
+    return null;
+  }
+
+  private static validateEnforcementRouter(
+    router: EnforcementRouterSettingsProps | null
+  ): string | null {
+    if (router === null) return null;
+    if (DeviceId.parse(router.deviceId ?? '').isFailure) {
+      return 'enforcementRouter.deviceId must be a device id';
+    }
+    if (
+      !Number.isInteger(router.apiPort) ||
+      router.apiPort < 1 ||
+      router.apiPort > 65535
+    ) {
+      return 'enforcementRouter.apiPort must be a port from 1 to 65535';
     }
     return null;
   }

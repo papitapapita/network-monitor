@@ -26,6 +26,8 @@ describe('[INS-029] GetVendorSettingsUseCase — integration', () => {
   });
 
   afterAll(async () => {
+    // The row would override the env defaults in every later suite.
+    await prisma.vendorSettings.deleteMany();
     await prisma.$disconnect();
   });
 
@@ -65,7 +67,10 @@ describe('[INS-029] GetVendorSettingsUseCase — integration', () => {
       pingResultRetentionDays: 3,
       alertRetentionDays: 4,
       wirelessSnapshotRetentionDays: 5,
-      wirelessAlertRecordRetentionDays: 6
+      wirelessAlertRecordRetentionDays: 6,
+      issuer: null,
+      whatsApp: null,
+      enforcementRouter: null
     });
   });
 });

@@ -49,6 +49,8 @@ describe('GetSubscriptionStatusUseCase — integration', () => {
   });
 
   afterAll(async () => {
+    // The row would override the env defaults in every later suite.
+    await prisma.vendorSettings.deleteMany();
     await prisma.$disconnect();
   });
 

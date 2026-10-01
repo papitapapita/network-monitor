@@ -54,7 +54,7 @@ import {
   PdfKitBillPdfRenderer,
   PrismaCollectionAccountRepository,
   PrismaBankAccountRepository,
-  PdfKitCollectionAccountPdfRenderer
+  SettingsIssuerPdfRenderer
 } from '../billing';
 import {
   PrismaQuotationRepository,
@@ -423,7 +423,7 @@ import { TriggerDataRetentionUseCase } from 'application/shared/use-cases/Trigge
 import { GetVendorSettingsUseCase } from 'application/shared/use-cases/GetVendorSettingsUseCase';
 import { UpdateVendorSettingsUseCase } from 'application/shared/use-cases/UpdateVendorSettingsUseCase';
 import { AdminController } from 'presentation/http/controllers/AdminController';
-import { loadCollectionAccountIssuerConfig } from '../billing/config/collectionAccountIssuerConfig';
+import { loadIssuerDisplayConfig } from '../billing/config/collectionAccountIssuerConfig';
 import { EnabledModules } from './enabledModules';
 import { loadServerOnSite } from './serverOnSite';
 import { loadNotificationSettingsDefaults } from './notificationSettingsDefaults';
@@ -763,8 +763,9 @@ export class DependencyContainer {
           ),
           new GetCollectionAccountPdfUseCase(
             this.collectionAccountRepository,
-            new PdfKitCollectionAccountPdfRenderer(
-              loadCollectionAccountIssuerConfig(process.env)
+            new SettingsIssuerPdfRenderer(
+              this.vendorSettingsRepository,
+              loadIssuerDisplayConfig(process.env)
             ),
             this.logger
           ),
@@ -2130,14 +2131,15 @@ export class DependencyContainer {
     );
 
     // WhatsApp suspension notices are optional — existing deployments
-    // without the env vars must keep booting.
-    if (
-      process.env.WHATSAPP_ACCESS_TOKEN &&
-      process.env.WHATSAPP_PHONE_NUMBER_ID &&
-      process.env.WHATSAPP_TEMPLATE_NAME
-    ) {
+    // without them must keep booting. The access token turns them on; the
+    // phone number and template are the vendor's settings, read on every send
+    // (INS-028).
+    if (process.env.WHATSAPP_ACCESS_TOKEN) {
       const whatsAppNotificationService =
-        new WhatsAppNotificationService();
+        new WhatsAppNotificationService(async () => {
+          const settings = await this.vendorSettingsRepository.get();
+          return settings.isSuccess ? settings.value.whatsApp : null;
+        });
       const sendSuspensionNoticeUseCase =
         new SendSuspensionNoticeUseCase(
           this.contractedServiceRepository,
@@ -2171,31 +2173,26 @@ export class DependencyContainer {
       }
     } else {
       this.logger.warn(
-        'WhatsApp env vars not set — suspension notices disabled'
+        'WHATSAPP_ACCESS_TOKEN not set — WhatsApp notices disabled'
       );
     }
 
     // The module switch decides whether enforcement exists at all; the router
-    // variable alone must never turn it on. Within the module the router is
-    // still optional, so an install without one keeps booting.
-    const enforcementRouterDeviceId =
-      process.env.ENFORCEMENT_ROUTER_DEVICE_ID;
+    // setting alone must never turn it on (SVC-063). Within the module the
+    // router is the vendor's setting, read on every operation (INS-028):
+    // until it is set, operations answer "not configured" and the
+    // reconciliation job waits.
     if (!this.modules.has('enforcement')) {
-      if (enforcementRouterDeviceId) {
+      if (process.env.ENFORCEMENT_ROUTER_DEVICE_ID) {
         this.logger.warn(
           'ENFORCEMENT_ROUTER_DEVICE_ID is set but the enforcement module is disabled — ignoring it'
         );
       }
-    } else if (enforcementRouterDeviceId) {
+    } else {
       const routerResolver = new EnforcementRouterResolver(
         this.deviceRepository,
         this.deviceCredentialsRepository,
-        {
-          routerDeviceId: enforcementRouterDeviceId,
-          apiPort: Number(
-            process.env.ENFORCEMENT_ROUTER_API_PORT ?? 8728
-          )
-        }
+        this.vendorSettingsRepository
       );
       const routerQueueService = new RouterOsQueueService(
         this.logger
@@ -2244,16 +2241,6 @@ export class DependencyContainer {
           routerQueueService,
           this.logger
         ),
-        this.logger
-      );
-    } else {
-      this.logger.warn(
-        'ENFORCEMENT_ROUTER_DEVICE_ID not set — suspension enforcement disabled'
-      );
-      // routes stay mounted; endpoints answer 503 until configured
-      this.enforcementController = new EnforcementController(
-        null,
-        null,
         this.logger
       );
     }

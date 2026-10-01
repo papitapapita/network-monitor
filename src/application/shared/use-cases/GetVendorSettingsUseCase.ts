@@ -18,7 +18,12 @@ export function toVendorSettingsDTO(
     wirelessSnapshotRetentionDays:
       settings.wirelessSnapshotRetentionDays,
     wirelessAlertRecordRetentionDays:
-      settings.wirelessAlertRecordRetentionDays
+      settings.wirelessAlertRecordRetentionDays,
+    issuer: settings.issuer ? { ...settings.issuer } : null,
+    whatsApp: settings.whatsApp ? { ...settings.whatsApp } : null,
+    enforcementRouter: settings.enforcementRouter
+      ? { ...settings.enforcementRouter }
+      : null
   };
 }
 

@@ -5,12 +5,12 @@ import {
   GetServiceEnforcementStatusUseCase
 } from 'application/service-enforcement/use-cases';
 
-// Use cases are null when ENFORCEMENT_ROUTER_DEVICE_ID is not configured;
-// endpoints then answer 503 instead of the routes not existing at all.
+// With no router set yet the use cases fail with "Enforcement router is not
+// configured", which answers 503 like every other router problem.
 export class EnforcementController {
   constructor(
-    private readonly listSuspensionEnforcementsUseCase: ListSuspensionEnforcementsUseCase | null,
-    private readonly getServiceEnforcementStatusUseCase: GetServiceEnforcementStatusUseCase | null,
+    private readonly listSuspensionEnforcementsUseCase: ListSuspensionEnforcementsUseCase,
+    private readonly getServiceEnforcementStatusUseCase: GetServiceEnforcementStatusUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -18,10 +18,6 @@ export class EnforcementController {
     _req: Request,
     res: Response
   ): Promise<void> => {
-    if (!this.listSuspensionEnforcementsUseCase) {
-      this.respondNotConfigured(res);
-      return;
-    }
     try {
       const result =
         await this.listSuspensionEnforcementsUseCase.execute({});
@@ -41,10 +37,6 @@ export class EnforcementController {
     req: Request,
     res: Response
   ): Promise<void> => {
-    if (!this.getServiceEnforcementStatusUseCase) {
-      this.respondNotConfigured(res);
-      return;
-    }
     try {
       const result =
         await this.getServiceEnforcementStatusUseCase.execute({
@@ -61,13 +53,6 @@ export class EnforcementController {
       this.handleUnexpectedError(error, res);
     }
   };
-
-  private respondNotConfigured(res: Response): void {
-    res.status(503).json({
-      success: false,
-      error: 'Suspension enforcement is not configured'
-    });
-  }
 
   private getErrorStatusCode(errorMessage: string): number {
     if (

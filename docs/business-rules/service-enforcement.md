@@ -263,14 +263,18 @@ system flows through this same handler.
 
 ## The enforcement router
 
-### SVC-060 — There is exactly one enforcement router, named in configuration
+### SVC-060 — There is exactly one enforcement router, named in the vendor's settings
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application (service)
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Revised:** 2026-09-30 (set from the dashboard, INS-028)
 
-Its device id and API port come from configuration; the resolver looks that
-device up in the inventory to find its address and credentials.
+Its device id and API port are the vendor's settings (`INS-028`;
+`ENFORCEMENT_ROUTER_DEVICE_ID` and `ENFORCEMENT_ROUTER_API_PORT`, default 8728,
+until saved), read on every resolve; the resolver looks that device up in the
+inventory to find its address and credentials. With none set, every operation
+fails with `Enforcement router is not configured` — `503` on the read
+endpoints — and the reconciliation job waits without warning.
 
 **Why:** Naming the router by device id rather than by IP means its address and
 credentials are maintained in one place — the device inventory — and enforcement
@@ -278,8 +282,9 @@ picks up a re-addressed router without a config change. The single-router
 assumption is the real constraint: a second point of presence would need this
 rule rewritten to choose a router per subscriber.
 
-**Enforced at:** `src/application/service-enforcement/services/EnforcementRouterResolver.ts`
-**Tests:** `tests/application/service-enforcement/services/EnforcementRouterResolver.test.ts`
+**Enforced at:** `src/application/service-enforcement/services/EnforcementRouterResolver.ts`, `src/infrastructure/service-enforcement/orchestrator/SuspensionReconciliationOrchestrator.ts`
+**Message:** `Enforcement router is not configured`
+**Tests:** `tests/application/service-enforcement/services/EnforcementRouterResolver.test.ts`, `tests/presentation/http/controllers/EnforcementController.test.ts`
 
 ### SVC-061 — The router must exist, have an IP, and have both credentials
 
@@ -324,9 +329,9 @@ that follows.
 
 With `enforcement` absent from `ENABLED_MODULES`, nothing of this context is
 built: no event handler, no reconciliation orchestrator, no routes. That holds
-even when `ENFORCEMENT_ROUTER_DEVICE_ID` is set, which is then logged and
-ignored. With the module enabled and no router configured, the routes stay
-mounted and answer `503`, as before.
+even when a router is set, which is then logged and ignored. With the module
+enabled the whole context is built whether or not a router is set yet; until
+one is, the routes answer `503` (`SVC-060`).
 
 **Why:** This context writes queues onto a live router. Before the switch, it
 was turned on by the router variable alone, so an install copied from Insetel's

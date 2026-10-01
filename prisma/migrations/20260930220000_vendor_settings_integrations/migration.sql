@@ -1,0 +1,15 @@
+-- AlterTable
+ALTER TABLE "vendor_settings" ADD COLUMN     "issuer_name" VARCHAR(200),
+ADD COLUMN     "issuer_document_label" VARCHAR(200),
+ADD COLUMN     "issuer_document" VARCHAR(200),
+ADD COLUMN     "issuer_address" VARCHAR(200),
+ADD COLUMN     "issuer_city" VARCHAR(200),
+ADD COLUMN     "issuer_contact_phone" VARCHAR(200),
+ADD COLUMN     "issuer_contact_email" VARCHAR(200),
+ADD COLUMN     "issuer_accent_color_hex" CHAR(7),
+ADD COLUMN     "whatsapp_phone_number_id" VARCHAR(30),
+ADD COLUMN     "whatsapp_template_name" VARCHAR(512),
+ADD COLUMN     "whatsapp_template_language" VARCHAR(10),
+ADD COLUMN     "whatsapp_api_version" VARCHAR(10),
+ADD COLUMN     "enforcement_router_device_id" UUID,
+ADD COLUMN     "enforcement_router_api_port" INTEGER;

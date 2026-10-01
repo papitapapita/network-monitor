@@ -1,3 +1,5 @@
+import { IssuerSettingsProps } from 'domain/shared/props';
+
 export interface CollectionAccountIssuerConfig {
   issuerName: string;
   issuerDocumentLabel: string;
@@ -14,45 +16,38 @@ export interface CollectionAccountIssuerConfig {
   timeZone: string;
 }
 
-const REQUIRED = {
-  issuerName: 'ISSUER_NAME',
-  issuerDocument: 'ISSUER_DOCUMENT',
-  issuerAddress: 'ISSUER_ADDRESS',
-  issuerCity: 'ISSUER_CITY',
-  contactPhone: 'ISSUER_CONTACT_PHONE',
-  contactEmail: 'ISSUER_CONTACT_EMAIL'
-} as const;
+// What stays in env: a file on the server, and formatting every install of a
+// Colombian ISP shares. The issuer's identity is the vendor's setting
+// (BIL-232, INS-028).
+export interface IssuerDisplayConfig {
+  logoPath: string | null;
+  locale: string;
+  timeZone: string;
+}
 
-// Issuer identity printed on every cuenta de cobro — one per install, so it
-// comes from the environment. Bank accounts are not here: they are managed
-// through /api/bank-accounts and picked per document.
-export function loadCollectionAccountIssuerConfig(
+export function loadIssuerDisplayConfig(
   env: NodeJS.ProcessEnv
-): CollectionAccountIssuerConfig {
-  const missing = Object.values(REQUIRED).filter(
-    (name) => !env[name]?.trim()
-  );
-  if (missing.length > 0) {
-    throw new Error(
-      `Billing is enabled but the issuer is not configured: ${missing.join(', ')}`
-    );
-  }
-
-  const read = (name: string): string => env[name]!.trim();
-  const readOr = (name: string, fallback: string): string =>
-    env[name]?.trim() || fallback;
-
+): IssuerDisplayConfig {
   return {
-    issuerName: read(REQUIRED.issuerName),
-    issuerDocumentLabel: readOr('ISSUER_DOCUMENT_LABEL', 'NIT'),
-    issuerDocument: read(REQUIRED.issuerDocument),
-    issuerAddress: read(REQUIRED.issuerAddress),
-    issuerCity: read(REQUIRED.issuerCity),
-    contactPhone: read(REQUIRED.contactPhone),
-    contactEmail: read(REQUIRED.contactEmail),
-    accentColorHex: readOr('ISSUER_ACCENT_COLOR', '#1F4E79'),
     logoPath: env.ISSUER_LOGO_PATH?.trim() || null,
-    locale: readOr('ISSUER_LOCALE', 'es-CO'),
-    timeZone: readOr('ISSUER_TIME_ZONE', 'America/Bogota')
+    locale: env.ISSUER_LOCALE?.trim() || 'es-CO',
+    timeZone: env.ISSUER_TIME_ZONE?.trim() || 'America/Bogota'
+  };
+}
+
+export function toIssuerConfig(
+  issuer: IssuerSettingsProps,
+  display: IssuerDisplayConfig
+): CollectionAccountIssuerConfig {
+  return {
+    issuerName: issuer.name,
+    issuerDocumentLabel: issuer.documentLabel,
+    issuerDocument: issuer.document,
+    issuerAddress: issuer.address,
+    issuerCity: issuer.city,
+    contactPhone: issuer.contactPhone,
+    contactEmail: issuer.contactEmail,
+    accentColorHex: issuer.accentColorHex,
+    ...display
   };
 }

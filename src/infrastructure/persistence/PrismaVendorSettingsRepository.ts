@@ -35,7 +35,37 @@ export class PrismaVendorSettingsRepository
           wirelessSnapshotRetentionDays:
             row.wirelessSnapshotRetentionDays,
           wirelessAlertRecordRetentionDays:
-            row.wirelessAlertRecordRetentionDays
+            row.wirelessAlertRecordRetentionDays,
+          // A group is saved all or nothing; one column answers for it.
+          issuer:
+            row.issuerName === null
+              ? null
+              : {
+                  name: row.issuerName,
+                  documentLabel: row.issuerDocumentLabel!,
+                  document: row.issuerDocument!,
+                  address: row.issuerAddress!,
+                  city: row.issuerCity!,
+                  contactPhone: row.issuerContactPhone!,
+                  contactEmail: row.issuerContactEmail!,
+                  accentColorHex: row.issuerAccentColorHex!
+                },
+          whatsApp:
+            row.whatsAppPhoneNumberId === null
+              ? null
+              : {
+                  phoneNumberId: row.whatsAppPhoneNumberId,
+                  templateName: row.whatsAppTemplateName!,
+                  templateLanguage: row.whatsAppTemplateLanguage!,
+                  apiVersion: row.whatsAppApiVersion!
+                },
+          enforcementRouter:
+            row.enforcementRouterDeviceId === null
+              ? null
+              : {
+                  deviceId: row.enforcementRouterDeviceId,
+                  apiPort: row.enforcementRouterApiPort!
+                }
         })
       );
     } catch (error) {
@@ -46,6 +76,7 @@ export class PrismaVendorSettingsRepository
   }
 
   async save(settings: VendorSettings): Promise<Result<void>> {
+    const { issuer, whatsApp, enforcementRouter: router } = settings;
     const data = {
       vendorTelegramChatId: settings.vendorTelegramChatId,
       subscriptionPaidUntil: settings.subscriptionPaidUntil
@@ -58,7 +89,21 @@ export class PrismaVendorSettingsRepository
       wirelessSnapshotRetentionDays:
         settings.wirelessSnapshotRetentionDays,
       wirelessAlertRecordRetentionDays:
-        settings.wirelessAlertRecordRetentionDays
+        settings.wirelessAlertRecordRetentionDays,
+      issuerName: issuer?.name ?? null,
+      issuerDocumentLabel: issuer?.documentLabel ?? null,
+      issuerDocument: issuer?.document ?? null,
+      issuerAddress: issuer?.address ?? null,
+      issuerCity: issuer?.city ?? null,
+      issuerContactPhone: issuer?.contactPhone ?? null,
+      issuerContactEmail: issuer?.contactEmail ?? null,
+      issuerAccentColorHex: issuer?.accentColorHex ?? null,
+      whatsAppPhoneNumberId: whatsApp?.phoneNumberId ?? null,
+      whatsAppTemplateName: whatsApp?.templateName ?? null,
+      whatsAppTemplateLanguage: whatsApp?.templateLanguage ?? null,
+      whatsAppApiVersion: whatsApp?.apiVersion ?? null,
+      enforcementRouterDeviceId: router?.deviceId ?? null,
+      enforcementRouterApiPort: router?.apiPort ?? null
     };
     try {
       await this.prisma.vendorSettings.upsert({

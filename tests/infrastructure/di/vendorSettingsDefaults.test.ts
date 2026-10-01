@@ -105,4 +105,93 @@ describe('[INS-029] loadVendorSettingsDefaults', () => {
       loadVendorSettingsDefaults({ ...PAID, [name]: raw })
     ).toThrow(new RegExp(`^${name}: `));
   });
+
+  describe('[BIL-232] issuer', () => {
+    const ISSUER_ENV = {
+      ISSUER_NAME: 'Insetel',
+      ISSUER_DOCUMENT: '11685533-3',
+      ISSUER_ADDRESS: 'Calle 10 # 31-28',
+      ISSUER_CITY: 'Villavicencio',
+      ISSUER_CONTACT_PHONE: '310 226 3770',
+      ISSUER_CONTACT_EMAIL: 'facturacion@insetel.example'
+    };
+
+    it('reads all six, with NIT and the default colour', () => {
+      expect(loadVendorSettingsDefaults(ISSUER_ENV).issuer).toEqual({
+        name: 'Insetel',
+        documentLabel: 'NIT',
+        document: '11685533-3',
+        address: 'Calle 10 # 31-28',
+        city: 'Villavicencio',
+        contactPhone: '310 226 3770',
+        contactEmail: 'facturacion@insetel.example',
+        accentColorHex: '#1F4E79'
+      });
+    });
+
+    it('leaves it unset, for the dashboard, when none is given', () => {
+      expect(loadVendorSettingsDefaults({}).issuer).toBeNull();
+    });
+
+    it('stops the boot when only some are given, naming the missing ones', () => {
+      const { ISSUER_CITY: _city, ...partial } = ISSUER_ENV;
+
+      expect(() => loadVendorSettingsDefaults(partial)).toThrow(
+        'The issuer is only partly configured in env; missing ISSUER_CITY'
+      );
+    });
+
+    it('stops the boot on a bad value, naming the variable', () => {
+      expect(() =>
+        loadVendorSettingsDefaults({
+          ...ISSUER_ENV,
+          ISSUER_CONTACT_EMAIL: 'not-an-email'
+        })
+      ).toThrow(/^ISSUER_CONTACT_EMAIL: /);
+    });
+  });
+
+  describe('WhatsApp', () => {
+    it('reads the phone number and template, with es and v21.0', () => {
+      expect(
+        loadVendorSettingsDefaults({
+          WHATSAPP_PHONE_NUMBER_ID: '123',
+          WHATSAPP_TEMPLATE_NAME: 'suspension_notice'
+        }).whatsApp
+      ).toEqual({
+        phoneNumberId: '123',
+        templateName: 'suspension_notice',
+        templateLanguage: 'es',
+        apiVersion: 'v21.0'
+      });
+    });
+
+    it('stops the boot when only one of the two is given', () => {
+      expect(() =>
+        loadVendorSettingsDefaults({
+          WHATSAPP_PHONE_NUMBER_ID: '123'
+        })
+      ).toThrow('WhatsApp is only partly configured in env');
+    });
+  });
+
+  describe('[SVC-060] enforcement router', () => {
+    const ROUTER = '550e8400-e29b-41d4-a716-446655440000';
+
+    it('reads the device id, with port 8728 by default', () => {
+      expect(
+        loadVendorSettingsDefaults({
+          ENFORCEMENT_ROUTER_DEVICE_ID: ROUTER
+        }).enforcementRouter
+      ).toEqual({ deviceId: ROUTER, apiPort: 8728 });
+    });
+
+    it('stops the boot on a device id that is not one', () => {
+      expect(() =>
+        loadVendorSettingsDefaults({
+          ENFORCEMENT_ROUTER_DEVICE_ID: 'router-1'
+        })
+      ).toThrow(/^ENFORCEMENT_ROUTER_DEVICE_ID: /);
+    });
+  });
 });

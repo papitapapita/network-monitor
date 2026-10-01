@@ -32,7 +32,10 @@ export class UpdateVendorSettingsUseCase extends UseCase<
       wirelessSnapshotRetentionDays:
         request.wirelessSnapshotRetentionDays,
       wirelessAlertRecordRetentionDays:
-        request.wirelessAlertRecordRetentionDays
+        request.wirelessAlertRecordRetentionDays,
+      issuer: request.issuer,
+      whatsApp: request.whatsApp,
+      enforcementRouter: request.enforcementRouter
     });
     if (settings.isFailure) return this.fail(settings.error);
 

@@ -7,7 +7,10 @@ import {
   SuspensionQueue,
   suspensionQueueName
 } from 'application/service-enforcement/interfaces';
-import { EnforcementRouterResolver } from 'application/service-enforcement/services';
+import {
+  EnforcementRouterResolver,
+  ENFORCEMENT_ROUTER_NOT_CONFIGURED
+} from 'application/service-enforcement/services';
 import { ILogger } from 'application/shared/interfaces';
 
 interface OrchestratorConfig {
@@ -89,6 +92,12 @@ export class SuspensionReconciliationOrchestrator {
       const desired = desiredResult;
 
       const connectionResult = await this.routerResolver.resolve();
+      // No router yet is a setting not made, not a fault: wait quietly.
+      if (
+        connectionResult.error === ENFORCEMENT_ROUTER_NOT_CONFIGURED
+      ) {
+        return;
+      }
       if (connectionResult.isFailure) {
         this.logger.warn(
           '[SuspensionReconciliationOrchestrator] Cannot resolve router connection',

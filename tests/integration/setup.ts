@@ -17,7 +17,8 @@ process.env.DEVICE_CREDENTIALS_KEY ??= '0'.repeat(63) + '1';
 // Baked into pairing keys; agents are never actually contacted in tests.
 process.env.AGENT_PUBLIC_URL ??= 'https://agents.test.local';
 
-// Cuenta de cobro issuer — required whenever billing is enabled.
+// Cuenta de cobro issuer: the env default for the vendor's issuer setting
+// (BIL-232), so the billing suites can print a PDF.
 process.env.ISSUER_NAME ??= 'Test ISP';
 process.env.ISSUER_DOCUMENT ??= '900123456-7';
 process.env.ISSUER_ADDRESS ??= 'Calle 1 # 2-3';

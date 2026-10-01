@@ -48,11 +48,15 @@ describe('EnforcementController', () => {
     jest.clearAllMocks();
   });
 
-  describe('when enforcement is not configured (null use cases)', () => {
-    it('listSuspensions should return 503', async () => {
+  describe('[SVC-060] when no router is set yet', () => {
+    it('listSuspensions should return 503 with the reason', async () => {
+      const listUseCase = createMockListUseCase();
+      (listUseCase.execute as jest.Mock).mockResolvedValue(
+        Result.fail('Enforcement router is not configured')
+      );
       const controller = new EnforcementController(
-        null,
-        null,
+        listUseCase,
+        createMockGetUseCase(),
         createMockLogger()
       );
       const { res, statusMock, jsonMock } = createMockResponse();
@@ -65,24 +69,8 @@ describe('EnforcementController', () => {
       expect(statusMock).toHaveBeenCalledWith(503);
       expect(jsonMock).toHaveBeenCalledWith({
         success: false,
-        error: 'Suspension enforcement is not configured'
+        error: 'Enforcement router is not configured'
       });
-    });
-
-    it('getServiceEnforcement should return 503', async () => {
-      const controller = new EnforcementController(
-        null,
-        null,
-        createMockLogger()
-      );
-      const { res, statusMock } = createMockResponse();
-
-      await controller.getServiceEnforcement(
-        { params: { id: CS_UUID } } as unknown as Request,
-        res as Response
-      );
-
-      expect(statusMock).toHaveBeenCalledWith(503);
     });
   });
 

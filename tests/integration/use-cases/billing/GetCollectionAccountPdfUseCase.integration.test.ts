@@ -8,8 +8,11 @@ import {
   setupDependencies,
   DependencyContainer
 } from 'infrastructure/di/container';
-import { PdfKitCollectionAccountPdfRenderer } from 'infrastructure/billing/services';
-import { loadCollectionAccountIssuerConfig } from 'infrastructure/billing/config/collectionAccountIssuerConfig';
+import { SettingsIssuerPdfRenderer } from 'infrastructure/billing/services';
+import { loadIssuerDisplayConfig } from 'infrastructure/billing/config/collectionAccountIssuerConfig';
+import { PrismaVendorSettingsRepository } from 'infrastructure/persistence/PrismaVendorSettingsRepository';
+import { loadVendorSettingsDefaults } from 'infrastructure/di/vendorSettingsDefaults';
+import { ISSUER_NOT_CONFIGURED } from 'application/billing/interfaces';
 import {
   cleanCollectionAccounts,
   seedCollectionAccount,
@@ -26,8 +29,12 @@ describe('GetCollectionAccountPdfUseCase — integration', () => {
     prisma = container.getPrisma();
     useCase = new GetCollectionAccountPdfUseCase(
       new PrismaCollectionAccountRepository(prisma),
-      new PdfKitCollectionAccountPdfRenderer(
-        loadCollectionAccountIssuerConfig(process.env)
+      new SettingsIssuerPdfRenderer(
+        new PrismaVendorSettingsRepository(
+          prisma,
+          loadVendorSettingsDefaults(process.env)
+        ),
+        loadIssuerDisplayConfig(process.env)
       ),
       new WinstonLogger()
     );
@@ -39,6 +46,9 @@ describe('GetCollectionAccountPdfUseCase — integration', () => {
 
   beforeEach(async () => {
     await cleanCollectionAccounts(prisma);
+    // The issuer must come from the env defaults, not a row left by another
+    // suite (BIL-232).
+    await prisma.vendorSettings.deleteMany();
   });
 
   it('[BIL-230] renders a PDF named after the stored sequence number', async () => {
@@ -68,6 +78,49 @@ describe('GetCollectionAccountPdfUseCase — integration', () => {
     const result = await useCase.execute({ id });
 
     expect(result.isSuccess).toBe(true);
+  });
+
+  it('[BIL-232] is refused while no issuer is set, and renders once the vendor saves one', async () => {
+    const id = await seedCollectionAccount(prisma);
+    const noIssuer = new GetCollectionAccountPdfUseCase(
+      new PrismaCollectionAccountRepository(prisma),
+      new SettingsIssuerPdfRenderer(
+        new PrismaVendorSettingsRepository(
+          prisma,
+          loadVendorSettingsDefaults({})
+        ),
+        loadIssuerDisplayConfig({})
+      ),
+      new WinstonLogger()
+    );
+
+    const refused = await noIssuer.execute({ id });
+    await prisma.vendorSettings.create({
+      data: {
+        id: 1,
+        subscriptionGraceDays: 3,
+        subscriptionReadOnlyDays: 7,
+        pingResultRetentionDays: 30,
+        alertRetentionDays: 90,
+        wirelessSnapshotRetentionDays: 30,
+        wirelessAlertRecordRetentionDays: 90,
+        issuerName: 'Otro ISP',
+        issuerDocumentLabel: 'NIT',
+        issuerDocument: '900123456-7',
+        issuerAddress: 'Calle 1 # 2-3',
+        issuerCity: 'Granada',
+        issuerContactPhone: '300 000 0000',
+        issuerContactEmail: 'cobros@otro.example',
+        issuerAccentColorHex: '#336699'
+      }
+    });
+    const rendered = await noIssuer.execute({ id });
+    await prisma.vendorSettings.deleteMany();
+
+    expect(refused.error).toBe(ISSUER_NOT_CONFIGURED);
+    expect(rendered.value.content.subarray(0, 4).toString()).toBe(
+      '%PDF'
+    );
   });
 
   it('fails when the account does not exist', async () => {

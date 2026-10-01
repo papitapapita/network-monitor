@@ -1,6 +1,9 @@
 // Source: src/application/service-enforcement/services/EnforcementRouterResolver.ts
 
-import { EnforcementRouterResolver } from '../../../../src/application/service-enforcement/services/EnforcementRouterResolver';
+import {
+  EnforcementRouterResolver,
+  ENFORCEMENT_ROUTER_NOT_CONFIGURED
+} from '../../../../src/application/service-enforcement/services/EnforcementRouterResolver';
 import { IDeviceCredentialsReader } from '../../../../src/application/service-enforcement/interfaces';
 import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository';
 import { Device } from '../../../../src/domain/device-inventory/aggregates';
@@ -15,6 +18,11 @@ import {
 } from '../../../../src/domain/shared/ids';
 import { IPAddress } from '../../../../src/domain/shared/value-objects/IPAddress';
 import { Result } from '../../../../src/domain/shared/core/Result';
+import {
+  makeVendorSettingsProps,
+  vendorSettingsRepo
+} from '../../../fixtures/vendorSettings';
+import { VendorSettings } from '../../../../src/domain/shared/value-objects/VendorSettings';
 
 const ROUTER_UUID = '550e8400-e29b-41d4-a716-4466554400b1';
 const MODEL_UUID = '550e8400-e29b-41d4-a716-4466554400b2';
@@ -73,12 +81,15 @@ function makeSetup(routerDeviceId: string = ROUTER_UUID) {
   const credentialsReader: jest.Mocked<IDeviceCredentialsReader> = {
     findByDeviceId: jest.fn()
   };
+  const vendorSettings = vendorSettingsRepo({
+    enforcementRouter: { deviceId: routerDeviceId, apiPort: 8728 }
+  });
   const resolver = new EnforcementRouterResolver(
     deviceRepo,
     credentialsReader,
-    { routerDeviceId, apiPort: 8728 }
+    vendorSettings
   );
-  return { resolver, deviceRepo, credentialsReader };
+  return { resolver, deviceRepo, credentialsReader, vendorSettings };
 }
 
 describe('EnforcementRouterResolver', () => {
@@ -104,6 +115,61 @@ describe('EnforcementRouterResolver', () => {
       username: 'api',
       password: 'secret'
     });
+  });
+
+  it('[SVC-060] should fail as not configured while no router is set', async () => {
+    const setup = makeSetup();
+    setup.vendorSettings.get.mockResolvedValue(
+      Result.ok(
+        VendorSettings.reconstitute(makeVendorSettingsProps())
+      )
+    );
+
+    const result = await setup.resolver.resolve();
+
+    expect(result.error).toBe(ENFORCEMENT_ROUTER_NOT_CONFIGURED);
+    expect(setup.deviceRepo.findById).not.toHaveBeenCalled();
+  });
+
+  it('[SVC-062] should read the router setting on every resolve', async () => {
+    const setup = makeSetup();
+    setup.deviceRepo.findById.mockResolvedValue(
+      Result.ok(makeRouterDevice())
+    );
+    setup.credentialsReader.findByDeviceId.mockResolvedValue(
+      Result.ok({ httpUsername: 'api', httpPassword: 'secret' })
+    );
+
+    await setup.resolver.resolve();
+    setup.vendorSettings.get.mockResolvedValue(
+      Result.ok(
+        VendorSettings.reconstitute(
+          makeVendorSettingsProps({
+            enforcementRouter: {
+              deviceId: ROUTER_UUID,
+              apiPort: 8729
+            }
+          })
+        )
+      )
+    );
+    const second = await setup.resolver.resolve();
+
+    expect(setup.vendorSettings.get).toHaveBeenCalledTimes(2);
+    expect(second.value.port).toBe(8729);
+  });
+
+  it('should fail when the settings cannot be read', async () => {
+    const setup = makeSetup();
+    setup.vendorSettings.get.mockResolvedValue(
+      Result.fail('DB down')
+    );
+
+    const result = await setup.resolver.resolve();
+
+    expect(result.error).toBe(
+      'Failed to read the enforcement router setting: DB down'
+    );
   });
 
   it('should fail when the configured device ID is not a valid UUID', async () => {

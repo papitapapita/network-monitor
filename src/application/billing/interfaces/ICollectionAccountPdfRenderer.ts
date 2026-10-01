@@ -31,6 +31,11 @@ export interface CollectionAccountPdfRenderModel {
   total: number;
 }
 
+// No issuer saved or in env yet (BIL-232). "Cannot" maps it to 409: the
+// document exists, the install is not ready to print it.
+export const ISSUER_NOT_CONFIGURED =
+  'Cannot print the cuenta de cobro: the issuer is not configured';
+
 export interface ICollectionAccountPdfRenderer {
   render(
     model: CollectionAccountPdfRenderModel

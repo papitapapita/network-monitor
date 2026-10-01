@@ -1,6 +1,9 @@
 // Source: src/infrastructure/notifications/WhatsAppNotificationService.ts
 
-import { WhatsAppNotificationService } from '../../../src/infrastructure/notifications/WhatsAppNotificationService';
+import {
+  WhatsAppNotificationService,
+  WHATSAPP_NOT_CONFIGURED
+} from '../../../src/infrastructure/notifications/WhatsAppNotificationService';
 import { PhoneNumber } from '../../../src/domain/customers/value-objects/PhoneNumber';
 
 const ENV_KEYS = [
@@ -19,6 +22,16 @@ function setEnv(): void {
   process.env.WHATSAPP_TEMPLATE_NAME = 'suspension_notice';
   delete process.env.WHATSAPP_TEMPLATE_LANGUAGE;
   delete process.env.WHATSAPP_API_VERSION;
+}
+
+// The settings as the vendor's defaults would build them from this env.
+function makeService(): WhatsAppNotificationService {
+  return new WhatsAppNotificationService(async () => ({
+    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID!,
+    templateName: process.env.WHATSAPP_TEMPLATE_NAME!,
+    templateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE ?? 'es',
+    apiVersion: process.env.WHATSAPP_API_VERSION ?? 'v21.0'
+  }));
 }
 
 describe('WhatsAppNotificationService', () => {
@@ -50,8 +63,45 @@ describe('WhatsAppNotificationService', () => {
     it('should throw when required env vars are missing', () => {
       delete process.env.WHATSAPP_ACCESS_TOKEN;
 
-      expect(() => new WhatsAppNotificationService()).toThrow(
-        'WHATSAPP_ACCESS_TOKEN'
+      expect(() => makeService()).toThrow('WHATSAPP_ACCESS_TOKEN');
+    });
+  });
+
+  describe('[INS-028] settings', () => {
+    it('fails without calling Meta while WhatsApp is not configured', async () => {
+      const service = new WhatsAppNotificationService(
+        async () => null
+      );
+
+      const result = await service.sendTemplate(PHONE, {
+        bodyParams: ['x']
+      });
+
+      expect(result.error).toBe(WHATSAPP_NOT_CONFIGURED);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('reads the settings on every send', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ messages: [{ id: 'wamid.1' }] })
+      });
+      const versions = ['v21.0', 'v22.0'];
+      const service = new WhatsAppNotificationService(async () => ({
+        phoneNumberId: '42',
+        templateName: 'suspension_notice',
+        templateLanguage: 'es',
+        apiVersion: versions.shift()!
+      }));
+
+      await service.sendTemplate(PHONE, { bodyParams: ['x'] });
+      await service.sendTemplate(PHONE, { bodyParams: ['x'] });
+
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        'https://graph.facebook.com/v21.0/42/messages'
+      );
+      expect(fetchMock.mock.calls[1][0]).toBe(
+        'https://graph.facebook.com/v22.0/42/messages'
       );
     });
   });
@@ -60,7 +110,7 @@ describe('WhatsAppNotificationService', () => {
     it('should POST the template payload to the Graph API', async () => {
       fetchMock.mockResolvedValue({ ok: true });
 
-      const service = new WhatsAppNotificationService();
+      const service = makeService();
       const result = await service.sendTemplate(PHONE, {
         bodyParams: ['Juan Perez']
       });
@@ -95,7 +145,7 @@ describe('WhatsAppNotificationService', () => {
     it('should strip the leading + from the phone number', async () => {
       fetchMock.mockResolvedValue({ ok: true });
 
-      const service = new WhatsAppNotificationService();
+      const service = makeService();
       await service.sendTemplate(PHONE, { bodyParams: [] });
 
       const body = JSON.parse(fetchMock.mock.calls[0][1].body);
@@ -108,7 +158,7 @@ describe('WhatsAppNotificationService', () => {
       process.env.WHATSAPP_API_VERSION = 'v22.0';
       fetchMock.mockResolvedValue({ ok: true });
 
-      const service = new WhatsAppNotificationService();
+      const service = makeService();
       await service.sendTemplate(PHONE, { bodyParams: [] });
 
       const [url, init] = fetchMock.mock.calls[0];
@@ -129,7 +179,7 @@ describe('WhatsAppNotificationService', () => {
         })
       });
 
-      const service = new WhatsAppNotificationService();
+      const service = makeService();
       const result = await service.sendTemplate(PHONE, {
         bodyParams: ['Juan']
       });
@@ -147,7 +197,7 @@ describe('WhatsAppNotificationService', () => {
         }
       });
 
-      const service = new WhatsAppNotificationService();
+      const service = makeService();
       const result = await service.sendTemplate(PHONE, {
         bodyParams: []
       });
@@ -159,7 +209,7 @@ describe('WhatsAppNotificationService', () => {
     it('should fail on network error', async () => {
       fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
 
-      const service = new WhatsAppNotificationService();
+      const service = makeService();
       const result = await service.sendTemplate(PHONE, {
         bodyParams: []
       });
@@ -173,7 +223,7 @@ describe('WhatsAppNotificationService', () => {
       timeoutError.name = 'TimeoutError';
       fetchMock.mockRejectedValue(timeoutError);
 
-      const service = new WhatsAppNotificationService();
+      const service = makeService();
       const result = await service.sendTemplate(PHONE, {
         bodyParams: []
       });

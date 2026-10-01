@@ -440,6 +440,21 @@ model VendorSettings {
   alertRetentionDays               Int       @map("alert_retention_days")
   wirelessSnapshotRetentionDays    Int       @map("wireless_snapshot_retention_days")
   wirelessAlertRecordRetentionDays Int       @map("wireless_alert_record_retention_days")
+  /// Each group is all null (not configured) or all set.
+  issuerName                       String?   @map("issuer_name") @db.VarChar(200)
+  issuerDocumentLabel              String?   @map("issuer_document_label") @db.VarChar(200)
+  issuerDocument                   String?   @map("issuer_document") @db.VarChar(200)
+  issuerAddress                    String?   @map("issuer_address") @db.VarChar(200)
+  issuerCity                       String?   @map("issuer_city") @db.VarChar(200)
+  issuerContactPhone               String?   @map("issuer_contact_phone") @db.VarChar(200)
+  issuerContactEmail               String?   @map("issuer_contact_email") @db.VarChar(200)
+  issuerAccentColorHex             String?   @map("issuer_accent_color_hex") @db.Char(7)
+  whatsAppPhoneNumberId            String?   @map("whatsapp_phone_number_id") @db.VarChar(30)
+  whatsAppTemplateName             String?   @map("whatsapp_template_name") @db.VarChar(512)
+  whatsAppTemplateLanguage         String?   @map("whatsapp_template_language") @db.VarChar(10)
+  whatsAppApiVersion               String?   @map("whatsapp_api_version") @db.VarChar(10)
+  enforcementRouterDeviceId        String?   @map("enforcement_router_device_id") @db.Uuid
+  enforcementRouterApiPort         Int?      @map("enforcement_router_api_port")
   updatedAt                        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("vendor_settings")

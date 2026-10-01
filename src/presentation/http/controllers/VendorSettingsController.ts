@@ -26,7 +26,10 @@ export class VendorSettingsController {
         wirelessSnapshotRetentionDays:
           req.body.wirelessSnapshotRetentionDays,
         wirelessAlertRecordRetentionDays:
-          req.body.wirelessAlertRecordRetentionDays
+          req.body.wirelessAlertRecordRetentionDays,
+        issuer: req.body.issuer,
+        whatsApp: req.body.whatsApp,
+        enforcementRouter: req.body.enforcementRouter
       })
     );
 

@@ -34,6 +34,8 @@ describe('[NOT-202] SendTestNotificationUseCase — integration', () => {
   });
 
   afterAll(async () => {
+    // The row would override the env defaults in every later suite.
+    await prisma.notificationSettings.deleteMany();
     await prisma.$disconnect();
   });
 
