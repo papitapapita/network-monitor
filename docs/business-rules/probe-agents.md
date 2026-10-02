@@ -917,7 +917,8 @@ It then downloads the binary with its own token (`AGT-083`) and unzips it next
 to itself as `.new`. It refuses the binary if it is larger or smaller than
 announced, or if its SHA-256 differs. Last, it runs the new binary with
 `--self-test`, which must exit within 30 seconds and print the offered
-version. The self-test also loads the vendor's key, so the new version can
+version. A failing self-test prints its reason, and that line becomes the
+reason reported (`AGT-084`). The self-test also loads the vendor's key, so the new version can
 check the update after it.
 
 Only then does it swap: the running binary becomes `.old` and the new one
@@ -1033,9 +1034,10 @@ After trying to update itself, the agent reports an `update.result`:
 - `rejected`: the binary's size, checksum, signature or self-test failed, or
   it could not be swapped in (`AGT-081`), and nothing changed
 
-The agent keeps its last report in `update.json` in its data directory and
-sends it after every welcome, so a report survives the restarts that an
-update involves and a connection dropped before it was sent.
+The agent keeps its last report in `update.json` in its data directory. It
+sends a refusal at once if it is connected, and the last report again after
+every welcome, so a report survives the restarts that an update involves and
+a connection dropped before it was sent.
 
 The backend keeps the latest report on the agent: the version tried, the
 outcome, when, and for a failure the agent's reason (required, at most 500

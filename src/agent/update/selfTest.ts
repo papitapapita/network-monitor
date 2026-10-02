@@ -14,16 +14,27 @@ export function selfTest(version: string): string {
   return version;
 }
 
-// Runs a downloaded binary's self-test; resolves to the version it printed.
+// Runs a downloaded binary's self-test; resolves to the version it printed,
+// or rejects with what it printed on stderr as the reason.
 export function runSelfTest(binary: string): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
       binary,
       [SELF_TEST_FLAG],
       { timeout: SELF_TEST_TIMEOUT_MS, windowsHide: true },
-      (error, stdout) => {
-        if (error) reject(error);
-        else resolve(stdout.trim());
+      (error, stdout, stderr) => {
+        if (!error) {
+          resolve(stdout.trim());
+          return;
+        }
+        const said = stderr.trim().split('\n').pop();
+        reject(
+          new Error(
+            error.killed
+              ? `no answer within ${SELF_TEST_TIMEOUT_MS / 1000} seconds`
+              : said || `exit code ${error.code ?? 'unknown'}`
+          )
+        );
       }
     );
   });

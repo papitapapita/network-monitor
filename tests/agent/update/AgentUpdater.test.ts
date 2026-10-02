@@ -216,6 +216,25 @@ describe('AgentUpdater', () => {
       }
     );
 
+    it('[AGT-084] hands a refusal over at once, to be sent while still connected', async () => {
+      const agent = updater();
+      const reports = jest.fn();
+      agent.onReport(reports);
+      await agent.recover();
+
+      await agent.offer(
+        { ...offerFor(NEW), signature: 'AAAA' },
+        credentials
+      );
+
+      expect(reports).toHaveBeenCalledWith({
+        type: 'update.result',
+        version: '0.2.1',
+        outcome: 'rejected',
+        reason: 'the signature does not verify'
+      });
+    });
+
     it('[AGT-081] ignores a version that is not newer than its own', async () => {
       const agent = updater();
       await agent.recover();

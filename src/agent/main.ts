@@ -40,7 +40,14 @@ async function main(): Promise<void> {
     return;
   }
   if (process.argv.includes(SELF_TEST_FLAG)) {
-    process.stdout.write(`${selfTest(AGENT_VERSION)}\n`);
+    try {
+      process.stdout.write(`${selfTest(AGENT_VERSION)}\n`);
+    } catch (error) {
+      process.stderr.write(
+        `${error instanceof Error ? error.message : String(error)}\n`
+      );
+      process.exitCode = 1;
+    }
     return;
   }
   const settings = loadAgentSettings(

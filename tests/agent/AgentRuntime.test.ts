@@ -57,6 +57,7 @@ describe('AgentRuntime', () => {
     offer: jest.Mock;
     welcomed: jest.Mock;
     stop: jest.Mock;
+    onReport: jest.Mock;
   };
 
   const build = async (pairingKey: string | null = null) => {
@@ -116,7 +117,8 @@ describe('AgentRuntime', () => {
     updater = {
       offer: jest.fn().mockResolvedValue(undefined),
       welcomed: jest.fn().mockResolvedValue(null),
-      stop: jest.fn()
+      stop: jest.fn(),
+      onReport: jest.fn()
     };
   });
 
@@ -237,6 +239,21 @@ describe('AgentRuntime', () => {
     await eventually(
       () => connection.sendUpdateResult.mock.calls.length === 2
     );
+    expect(connection.sendUpdateResult).toHaveBeenCalledWith(report);
+  });
+
+  it('[AGT-084] sends a refusal as soon as the updater reports it', async () => {
+    await store.save(credentials);
+    await (await build()).start();
+    const report = {
+      type: 'update.result',
+      version: '0.2.1',
+      outcome: 'rejected',
+      reason: 'the signature does not verify'
+    };
+
+    updater.onReport.mock.calls[0][0](report);
+
     expect(connection.sendUpdateResult).toHaveBeenCalledWith(report);
   });
 

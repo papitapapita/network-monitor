@@ -52,6 +52,9 @@ export class AgentRuntime {
     this.enrollRetryMs = deps.enrollRetryMs ?? 60_000;
     this.subscriptionRetryMs =
       deps.subscriptionRetryMs ?? 60 * 60 * 1000;
+    deps.updater?.onReport((report) =>
+      this.connection?.sendUpdateResult(report)
+    );
   }
 
   async start(): Promise<void> {

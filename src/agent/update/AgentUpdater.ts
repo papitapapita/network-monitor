@@ -66,6 +66,8 @@ export class AgentUpdater {
   private rollingBack = false;
   private trialTimer: ReturnType<typeof setTimeout> | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private reportListener: (report: UpdateResultMessage) => void =
+    () => {};
   private readonly oldPath: string;
   private readonly newPath: string;
 
@@ -209,6 +211,11 @@ export class AgentUpdater {
     } finally {
       this.busy = false;
     }
+  }
+
+  // A failure found while connected is sent at once, not at the next welcome.
+  onReport(listener: (report: UpdateResultMessage) => void): void {
+    this.reportListener = listener;
   }
 
   stop(): void {
@@ -431,6 +438,7 @@ export class AgentUpdater {
         target
       ]
     });
+    this.reportListener(this.state.report!);
   }
 
   private async save(state: UpdateState): Promise<void> {
