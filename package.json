@@ -49,7 +49,7 @@
     "test:integration:routes:tickets": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js --runInBand --testPathPattern=\"(technician|ticket)\\.routes\\.test\\.ts$\"",
     "test:integration:routes:identity": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js --runInBand --testPathPattern=\"auth\\.routes\\.test\\.ts$\"",
     "test:integration:routes:admin": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js --runInBand --testPathPattern=\"admin\\.routes\\.test\\.ts$\"",
-    "test:integration:routes:probe-agents": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js --runInBand --testPathPattern=\"agent(-enrollment|-update)?\\.routes\\.test\\.ts$|agent-gateway\\.test\\.ts$|agent-app\\.test\\.ts$\"",
+    "test:integration:routes:probe-agents": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.config.js --runInBand --testPathPattern=\"agent(-enrollment|-update)?\\.routes\\.test\\.ts$|agent-gateway\\.test\\.ts$|agent-app\\.test\\.ts$|agent-probes\\.test\\.ts$\"",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:prod": "NODE_ENV=production prisma migrate deploy",
     "db:studio:dev": "prisma studio",

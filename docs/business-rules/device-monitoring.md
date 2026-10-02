@@ -331,7 +331,7 @@ the 30 seconds the HTTP proxy in front of the API allows.
 **Enforced at:** `src/infrastructure/persistence/PrismaPollingConfigurationRepository.ts` (`findAllDue`), `src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.ts` (`checkEligibility`, `AGENT_POLL_FAILURES`), `src/infrastructure/probe-agents/adapters/AgentChannelPingProbe.ts`, `src/presentation/http/controllers/PollingController.ts`
 **Reached from:** `POST /api/devices/:id/poll` via `PollingController.poll`
 **Message:** see the table above
-**Tests:** `tests/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/ExecutePollingCycleUseCase.integration.test.ts`, `tests/integration/polling.routes.test.ts`, `tests/presentation/http/controllers/PollingController.test.ts`, `tests/infrastructure/probe-agents/adapters/AgentChannelPingProbe.test.ts`
+**Tests:** `tests/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/ExecutePollingCycleUseCase.integration.test.ts`, `tests/integration/polling.routes.test.ts`, `tests/presentation/http/controllers/PollingController.test.ts`, `tests/infrastructure/probe-agents/adapters/AgentChannelPingProbe.test.ts`, `tests/integration/agent-probes.test.ts`
 
 ---
 

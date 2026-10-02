@@ -1163,7 +1163,7 @@ keeps a burst of requests from swamping the PC or the radios, and answering
 "busy" lets the backend report a reason instead of a timeout.
 
 **Enforced at:** `src/agent/probes/ProbeRunner.ts`, `src/agent/connection/BackendConnection.ts`, `src/agent/AgentRuntime.ts`, `src/agent/protocol/messages.ts`
-**Tests:** `tests/agent/probes/ProbeRunner.test.ts`, `tests/agent/connection/BackendConnection.test.ts`, `tests/agent/AgentRuntime.test.ts`, `tests/agent/importBoundary.test.ts`
+**Tests:** `tests/agent/probes/ProbeRunner.test.ts`, `tests/agent/connection/BackendConnection.test.ts`, `tests/agent/AgentRuntime.test.ts`, `tests/agent/importBoundary.test.ts`, `tests/integration/agent-probes.test.ts`
 
 ### AGT-102 — The credentials in a probe request are used for that request and kept nowhere
 
@@ -1181,7 +1181,7 @@ rather than with the configuration, means they are never on the customer's PC
 for longer than one reading, and a stolen PC holds none.
 
 **Enforced at:** `src/agent/probes/ProbeRunner.ts`
-**Tests:** `tests/agent/probes/ProbeRunner.test.ts`
+**Tests:** `tests/agent/probes/ProbeRunner.test.ts`, `tests/integration/agent-probes.test.ts`
 
 ### AGT-103 — The backend asks only a connected agent that answers probes, and every request ends with a reading or a reason
 
@@ -1217,7 +1217,7 @@ read by hand too (WLS-029), so both give up before the 30-second HTTP proxy
 does. A login and a status read take a few seconds on a healthy radio.
 
 **Enforced at:** `src/presentation/ws/agent/ConnectedAgents.ts` (`ping`, `readRadio`), `src/presentation/ws/agent/AgentSession.ts` (`probe`, `onProbeResult`), `src/presentation/ws/agent/agentMessageSchema.ts`, `src/presentation/ws/agent/probeWire.ts`, `src/application/probe-agents/interfaces/IAgentProbeChannel.ts`
-**Tests:** `tests/integration/agent-gateway.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/presentation/ws/agent/probeWire.test.ts`
+**Tests:** `tests/integration/agent-gateway.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/presentation/ws/agent/probeWire.test.ts`, `tests/integration/agent-probes.test.ts`
 
 ### AGT-104 — A probe reading is timed on the backend's clock, between asking and the answer
 
