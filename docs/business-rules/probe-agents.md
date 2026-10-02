@@ -53,7 +53,7 @@ A rule enforced in two layers counts in both.
 | Domain                       | 11    |
 | Application                  | 19    |
 | Infrastructure (composition) | 13    |
-| Presentation                 | 10    |
+| Presentation                 | 13    |
 | Agent program                | 17    |
 
 ---
@@ -1113,21 +1113,22 @@ and how its radio is read at all, since only the agent can reach it.
 ### AGT-100 — An agent says in its hello which requests it answers
 
 **Type:** Invariant · **Status:** Active
-**Layer:** Agent program
+**Layer:** Presentation · Agent program
 **Since:** 2026-10-01
 
 From version `0.3.0`, the agent's hello carries `capabilities: ["probe"]`.
 An agent that does not name `probe` is never sent a probe request. Older
 agents name nothing, and a backend that does not know the field ignores it,
-so either side can be upgraded first.
+so either side can be upgraded first. The backend keeps only the
+capabilities it knows and drops the rest without refusing the hello.
 
 **Why:** The backend cannot tell from a version number alone what an agent
 can do, and an agent that does not understand a request would leave the
 backend waiting until its timeout. Naming the capability lets agents that
 have not updated yet keep working exactly as before.
 
-**Enforced at:** `src/agent/protocol/messages.ts` (`AGENT_CAPABILITIES`), `src/agent/connection/BackendConnection.ts`, `src/agent/main.ts`
-**Tests:** `tests/agent/connection/BackendConnection.test.ts`
+**Enforced at:** `src/agent/protocol/messages.ts` (`AGENT_CAPABILITIES`), `src/agent/connection/BackendConnection.ts`, `src/agent/main.ts`, `src/presentation/ws/agent/agentMessageSchema.ts`, `src/presentation/ws/agent/AgentSession.ts` (`canProbe`)
+**Tests:** `tests/agent/connection/BackendConnection.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/integration/agent-gateway.test.ts`
 
 ### AGT-101 — An agent measures a device when asked, with the backend's own probe and collectors, and answers the same request
 
@@ -1181,3 +1182,55 @@ for longer than one reading, and a stolen PC holds none.
 
 **Enforced at:** `src/agent/probes/ProbeRunner.ts`
 **Tests:** `tests/agent/probes/ProbeRunner.test.ts`
+
+### AGT-103 — The backend asks only a connected agent that answers probes, and every request ends with a reading or a reason
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-10-01
+
+The backend sends a probe request on the agent's live connection and waits
+for the answer with the same request id. Each request ends in exactly one
+of:
+
+| Outcome             | When                                                                   |
+| ------------------- | ---------------------------------------------------------------------- |
+| A reading           | The agent answered with a ping result or a radio reading               |
+| `AGENT_OFFLINE`     | The agent has no connection, or it dropped while the request waited    |
+| `PROBE_UNSUPPORTED` | The agent is connected but did not name `probe` in its hello (AGT-100) |
+| `TIMEOUT`           | No answer within 60 seconds for a ping or 45 for a radio read          |
+| `AGENT_ERROR`       | The agent answered with an error, which is passed on as it came        |
+
+Nothing is sent to an agent that is offline or cannot answer. An answer that
+arrives after its request timed out, or for a request the backend never made,
+is dropped, and the connection stays open. A radio reading must match the
+shape the collectors produce, byte counters included; an answer that does not
+is a protocol error and closes the connection like any other malformed
+message. The device's credentials go in the request and are not logged.
+
+**Why:** A manual poll and a scheduled radio read both need a definite
+answer: a reading, or a reason that can be shown to the user or let the
+schedule skip the device. A request left open forever, or a stale answer
+landing on the wrong request, would show a wrong reading. The timeouts cover
+ten ping attempts and a radio login with its reads.
+
+**Enforced at:** `src/presentation/ws/agent/AgentGateway.ts` (`ping`, `readRadio`), `src/presentation/ws/agent/AgentSession.ts` (`probe`, `onProbeResult`), `src/presentation/ws/agent/agentMessageSchema.ts`, `src/presentation/ws/agent/probeWire.ts`, `src/application/probe-agents/interfaces/IAgentProbeChannel.ts`
+**Tests:** `tests/integration/agent-gateway.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/presentation/ws/agent/probeWire.test.ts`
+
+### AGT-104 — A probe reading is timed on the backend's clock, between asking and the answer
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-10-01
+
+The agent says when it started measuring, by its own clock. The backend
+keeps that time only if it falls between the moment it sent the request and
+the moment the answer arrived; otherwise it uses the nearer of those two.
+
+**Why:** A PC clock can be minutes or hours off (AGT-025). Both ends of the
+window are on the backend's clock and the measurement certainly happened
+inside it, so the reading is never placed before it was asked for or after
+it arrived.
+
+**Enforced at:** `src/presentation/ws/agent/probeWire.ts` (`measuredAt`), `src/presentation/ws/agent/AgentGateway.ts`
+**Tests:** `tests/presentation/ws/agent/probeWire.test.ts`, `tests/integration/agent-gateway.test.ts`

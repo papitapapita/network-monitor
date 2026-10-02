@@ -5,3 +5,4 @@ export * from './IAgentPingResultSink';
 export * from './IAgentDeviceCountQuery';
 export * from './IAgentOutageQuery';
 export * from './IAgentReleaseCatalog';
+export * from './IAgentProbeChannel';

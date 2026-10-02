@@ -1,4 +1,6 @@
 import { parseAgentMessage } from '../../../../src/presentation/ws/agent/agentMessageSchema';
+import { toWirelessReadingWire } from '../../../../src/agent/probes/ProbeRunner';
+import { makeWirelessCollectionResult } from '../../../fixtures/wirelessCollection';
 
 const ok = (message: unknown) =>
   parseAgentMessage(JSON.stringify(message));
@@ -31,6 +33,88 @@ describe('parseAgentMessage', () => {
     expect(
       (unknown as { platform?: string }).platform
     ).toBeUndefined();
+  });
+
+  it('[AGT-100] keeps the capabilities it knows from the hello and drops the rest', () => {
+    const hello = (capabilities?: unknown) =>
+      ok({
+        type: 'hello',
+        protocolVersion: 1,
+        agentVersion: '0.3.0',
+        ...(capabilities === undefined ? {} : { capabilities }),
+        sentAt: 1
+      });
+
+    expect(hello(['probe', 'teleport'])).toMatchObject({
+      capabilities: ['probe']
+    });
+    expect(hello()).toMatchObject({ capabilities: [] });
+    expect(hello('probe')).toBeNull();
+  });
+
+  it('[AGT-103] accepts a ping answer, a radio reading and an error', () => {
+    const answers = [
+      {
+        type: 'probe.result',
+        requestId: 'r-1',
+        kind: 'ping',
+        at: 1,
+        reading: { reachable: true, latencyMs: 3, attempts: 1 }
+      },
+      {
+        type: 'probe.result',
+        requestId: 'r-2',
+        kind: 'ping',
+        at: 1,
+        reading: { probeError: 'spawn ping ENOENT', attempts: 3 }
+      },
+      {
+        type: 'probe.result',
+        requestId: 'r-3',
+        kind: 'wireless',
+        at: 1,
+        reading: toWirelessReadingWire(makeWirelessCollectionResult())
+      },
+      {
+        type: 'probe.result',
+        requestId: 'r-4',
+        error: 'Login failed'
+      }
+    ];
+
+    for (const answer of answers) {
+      expect(ok(answer)).toEqual(answer);
+    }
+  });
+
+  it.each([
+    [
+      'a byte counter that is not a whole number',
+      { wirelessTxBytes: '1e9' }
+    ],
+    ['a byte counter sent as a number', { wirelessRxBytes: 5 }],
+    ['an unknown radio mode', { mode: 'mesh' }],
+    ['a missing field', { deviceName: undefined }]
+  ])(
+    '[AGT-103] rejects a radio reading with %s',
+    (_label, change) => {
+      expect(
+        ok({
+          type: 'probe.result',
+          requestId: 'r-1',
+          kind: 'wireless',
+          at: 1,
+          reading: {
+            ...toWirelessReadingWire(makeWirelessCollectionResult()),
+            ...change
+          }
+        })
+      ).toBeNull();
+    }
+  );
+
+  it('[AGT-103] rejects an answer without a request id', () => {
+    expect(ok({ type: 'probe.result', error: 'x' })).toBeNull();
   });
 
   it('[AGT-084] accepts an update result, with a reason or without', () => {

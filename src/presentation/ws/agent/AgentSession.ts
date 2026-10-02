@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import WebSocket from 'ws';
 import { ILogger } from 'application/shared/interfaces';
 import {
@@ -11,11 +12,14 @@ import {
 import { GetSubscriptionStatusUseCase } from 'application/shared/use-cases/GetSubscriptionStatusUseCase';
 import { AgentResultDTO } from 'application/probe-agents/dtos';
 import {
+  AgentCapability,
   AgentMessage,
   AgentPlatform,
   BackendMessage,
   CloseCode,
   PingResultWire,
+  ProbeRequestMessage,
+  ProbeResultMessage,
   ResultsMessage,
   UpdateResultMessage
 } from 'agent/protocol';
@@ -37,6 +41,25 @@ const UPDATE_OUTCOMES = {
   rejected: 'REJECTED'
 } as const;
 
+type Unsent<T> = T extends unknown ? Omit<T, 'requestId'> : never;
+export type ProbeRequest = Unsent<ProbeRequestMessage>;
+
+export type ProbeAnswer =
+  | {
+      kind: 'answered';
+      result: ProbeResultMessage;
+      sentAt: Date;
+      receivedAt: Date;
+    }
+  | { kind: 'timeout' }
+  | { kind: 'closed' };
+
+interface PendingProbe {
+  sentAt: Date;
+  timer: ReturnType<typeof setTimeout>;
+  settle(answer: ProbeAnswer): void;
+}
+
 export interface AgentSessionConfig {
   minProtocolVersion: number;
   heartbeatIntervalMs: number;
@@ -55,6 +78,8 @@ export class AgentSession {
   private platform: AgentPlatform | null = null;
   private runningVersion = '';
   private offeredVersion: string | null = null;
+  private capabilities: readonly AgentCapability[] = [];
+  private readonly pending = new Map<string, PendingProbe>();
   private alive = true;
   private queue: Promise<void> = Promise.resolve();
   private readonly timers: ReturnType<typeof setTimeout>[] = [];
@@ -116,6 +141,43 @@ export class AgentSession {
     this.socket.close(code, reason);
   }
 
+  // AGT-100: only an agent that said it answers probes is ever sent one.
+  get canProbe(): boolean {
+    return (
+      this.greeted &&
+      !this.closed &&
+      this.capabilities.includes('probe')
+    );
+  }
+
+  // AGT-103: sent at once, outside the message queue, and answered by
+  // request id; an answer that never comes ends as a timeout, and closing
+  // the session ends every request still waiting.
+  probe(
+    request: ProbeRequest,
+    timeoutMs: number
+  ): Promise<ProbeAnswer> {
+    if (!this.canProbe) return Promise.resolve({ kind: 'closed' });
+    const requestId = randomUUID();
+    return new Promise((resolve) => {
+      const settle = (answer: ProbeAnswer) => {
+        clearTimeout(pending.timer);
+        this.pending.delete(requestId);
+        resolve(answer);
+      };
+      const pending: PendingProbe = {
+        sentAt: new Date(),
+        timer: setTimeout(
+          () => settle({ kind: 'timeout' }),
+          timeoutMs
+        ),
+        settle
+      };
+      this.pending.set(requestId, pending);
+      this.send({ ...request, requestId } as ProbeRequestMessage);
+    });
+  }
+
   // A failed step is logged and the queue carries on, so one bad message
   // cannot stall every message after it.
   private enqueue(step: () => Promise<void> | void): void {
@@ -157,6 +219,8 @@ export class AgentSession {
         return this.onResults(message, receivedAt);
       case 'update.result':
         return this.onUpdateResult(message);
+      case 'probe.result':
+        return this.onProbeResult(message, receivedAt);
     }
   }
 
@@ -169,6 +233,7 @@ export class AgentSession {
       return;
     }
     this.platform = message.platform ?? null;
+    this.capabilities = message.capabilities ?? [];
     this.runningVersion = message.agentVersion;
     // R18: refuse before anything is recorded, so an outdated agent never
     // counts as having reported in. One that can update itself is told
@@ -379,6 +444,27 @@ export class AgentSession {
     });
   }
 
+  // An answer nobody waits for any more (it timed out) is dropped.
+  private onProbeResult(
+    message: ProbeResultMessage,
+    receivedAt: Date
+  ): void {
+    const pending = this.pending.get(message.requestId);
+    if (!pending) {
+      this.logger.debug('Agent answered a probe nobody waits for', {
+        agentId: this.agentId,
+        requestId: message.requestId
+      });
+      return;
+    }
+    pending.settle({
+      kind: 'answered',
+      result: message,
+      sentAt: pending.sentAt,
+      receivedAt
+    });
+  }
+
   private send(message: BackendMessage): void {
     if (this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(message));
@@ -404,6 +490,9 @@ export class AgentSession {
   private dispose(): void {
     this.closed = true;
     this.stopTimers();
+    for (const pending of [...this.pending.values()]) {
+      pending.settle({ kind: 'closed' });
+    }
     this.onClosed(this);
   }
 }

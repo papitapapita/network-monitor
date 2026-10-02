@@ -15,6 +15,7 @@ import type {
 } from '../../../src/application/wireless-monitoring/interfaces';
 import { WirelessCollectorRegistry } from '../../../src/infrastructure/wireless-monitoring/collectors';
 import { silentLogger } from '../helpers';
+import { makeWirelessCollectionResult } from '../../fixtures/wirelessCollection';
 
 // The wire types are written out in the protocol, which may not import the
 // backend's; these fail to compile the day the two drift apart.
@@ -54,76 +55,6 @@ const CREDENTIALS: ProbeCredentialsWire = {
   snmpPort: 161,
   httpPort: 443
 };
-
-function reading(): WirelessCollectionResult {
-  return {
-    deviceName: 'Torre Norte',
-    firmwareVersion: 'v8.7',
-    uptimeSeconds: 100,
-    deviceTimeEpoch: null,
-    cpuLoadPercent: 10,
-    memoryUsedPercent: 40,
-    essid: 'norte',
-    mode: 'ap-ptmp',
-    frequencyMhz: 5800,
-    channelWidthMhz: 20,
-    noiseFloorDbm: -95,
-    throughputTxBps: 1000,
-    throughputRxBps: 2000,
-    wirelessTxBytes: 12345678901234567890n,
-    wirelessRxBytes: null,
-    distanceM: 1200,
-    clientsConnected: 1,
-    ccqPercent: null,
-    signalRxDbm: -60,
-    signalTxDbm: null,
-    latencyMs: 2,
-    remoteApMac: null,
-    remoteApName: null,
-    remoteApIp: null,
-    capacityTxKbps: null,
-    capacityRxKbps: null,
-    lanStatus: 'UP',
-    lanSpeedMbps: 100,
-    macAddress: 'AA:BB:CC:DD:EE:FF',
-    deviceModel: 'LiteBeam',
-    clients: [
-      {
-        macAddress: '11:22:33:44:55:66',
-        ipAddress: '10.0.0.20',
-        signalRxDbm: -62,
-        noiseFloorDbm: -95,
-        distanceM: 800,
-        uptimeSeconds: 50,
-        txLatencyMs: 1,
-        dlLinkScore: null,
-        ulLinkScore: null,
-        dlCapacityKbps: null,
-        ulCapacityKbps: null,
-        dlCinr: null,
-        ulCinr: null,
-        txBytesTotal: 42n,
-        rxBytesTotal: null,
-        txPps: null,
-        rxPps: null,
-        remoteHostname: null,
-        remotePlatform: null,
-        remoteVersion: null,
-        remoteCpuLoad: null,
-        remoteTotalRam: null,
-        remoteFreeRam: null,
-        remoteSignal: null,
-        remoteNoiseFloor: null,
-        remoteTxPower: null,
-        remoteTxThroughputKbps: null,
-        remoteRxThroughputKbps: null,
-        remoteIpAddresses: [],
-        dlAirtimePercent: null,
-        ulAirtimePercent: null
-      }
-    ]
-  };
-}
 
 const pingRequest = (
   overrides: Partial<{ requestId: string; attempts: number }> = {}
@@ -165,7 +96,9 @@ describe('ProbeRunner', () => {
     };
     collector = {
       method: 'http_api',
-      collect: jest.fn().mockResolvedValue(Result.ok(reading()))
+      collect: jest
+        .fn()
+        .mockResolvedValue(Result.ok(makeWirelessCollectionResult()))
     };
     logger = silentLogger();
     runner = new ProbeRunner(
@@ -242,7 +175,9 @@ describe('ProbeRunner', () => {
   });
 
   it('[AGT-101] sends the byte counters as decimal strings', () => {
-    const wire = toWirelessReadingWire(reading());
+    const wire = toWirelessReadingWire(
+      makeWirelessCollectionResult()
+    );
 
     expect(wire.wirelessTxBytes).toBe('12345678901234567890');
     expect(wire.wirelessRxBytes).toBeNull();

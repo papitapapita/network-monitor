@@ -51,6 +51,8 @@ import {
   seedMonitoredDevice
 } from './helpers/db';
 import { FakeAgentReleaseCatalog } from './helpers/FakeAgentReleaseCatalog';
+import { toWirelessReadingWire } from '../../src/agent/probes/ProbeRunner';
+import { makeWirelessCollectionResult } from '../fixtures/wirelessCollection';
 
 interface Client {
   ws: WebSocket;
@@ -140,7 +142,8 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
         helloTimeoutMs: 300,
         configRefreshMs: 250,
         pingIntervalMs: 30_000
-      }
+      },
+      { pingMs: 300, wirelessMs: 300 }
     );
 
     server = createServer();
@@ -210,12 +213,14 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
 
   const hello = (
     protocolVersion = PROTOCOL_VERSION,
-    platform: string | undefined = undefined
+    platform: string | undefined = undefined,
+    capabilities: string[] | undefined = undefined
   ) => ({
     type: 'hello',
     protocolVersion,
     agentVersion: '1.0.0',
     ...(platform ? { platform } : {}),
+    ...(capabilities ? { capabilities } : {}),
     sentAt: Date.now()
   });
 
@@ -503,6 +508,215 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
       expect((await client.closed).code).toBe(
         CloseCode.SUBSCRIPTION_EXPIRED
       );
+    });
+  });
+
+  describe('[AGT-103] probe requests', () => {
+    const CREDENTIALS = {
+      snmpVersion: 2 as const,
+      snmpCommunity: 'public',
+      snmpV3AuthUser: null,
+      snmpV3AuthProto: null,
+      snmpV3AuthKey: null,
+      snmpV3PrivProto: null,
+      snmpV3PrivKey: null,
+      httpUsername: 'ubnt',
+      httpPassword: 'secreto',
+      snmpPort: 161,
+      httpPort: 443
+    };
+
+    async function probingAgent(capabilities = ['probe']) {
+      const agent = await agentWithDevice();
+      const client = connect(agent.token);
+      client.send(hello(PROTOCOL_VERSION, undefined, capabilities));
+      await client.next('config');
+      return { ...agent, client };
+    }
+
+    it('answers "offline" for an agent that is not connected', async () => {
+      const { id } = await agentWithDevice();
+
+      expect(await gateway.ping(id, '10.20.0.5', 3)).toEqual({
+        ok: false,
+        reason: 'AGENT_OFFLINE',
+        error: 'The agent is not connected'
+      });
+    });
+
+    it('[AGT-100] never asks an agent that did not say it answers probes', async () => {
+      const { id, client } = await probingAgent([]);
+
+      const outcome = await gateway.ping(id, '10.20.0.5', 3);
+      await settle();
+
+      expect(outcome).toMatchObject({
+        ok: false,
+        reason: 'PROBE_UNSUPPORTED'
+      });
+      expect(client.inbox.map((m) => m.type)).not.toContain('probe');
+      expect(gateway.isConnected(id)).toBe(true);
+    });
+
+    it('[AGT-104] sends a ping and gives back the answer, timed on the backend clock', async () => {
+      const { id, client } = await probingAgent();
+      const before = Date.now();
+
+      const pending = gateway.ping(id, '10.20.0.5', 3);
+      const request = await client.next('probe');
+      client.send({
+        type: 'probe.result',
+        requestId: (request as { requestId: string }).requestId,
+        kind: 'ping',
+        // An agent clock an hour behind.
+        at: before - 3_600_000,
+        reading: { reachable: true, latencyMs: 4, attempts: 1 }
+      });
+      const outcome = await pending;
+
+      expect(request).toMatchObject({
+        type: 'probe',
+        kind: 'ping',
+        ip: '10.20.0.5',
+        attempts: 3
+      });
+      expect(outcome).toEqual({
+        ok: true,
+        reading: {
+          kind: 'measured',
+          isReachable: true,
+          latencyMs: 4,
+          attempts: 1
+        },
+        measuredAt: expect.any(Date)
+      });
+      const at = (
+        outcome as { measuredAt: Date }
+      ).measuredAt.getTime();
+      expect(at).toBeGreaterThanOrEqual(before);
+      expect(at).toBeLessThanOrEqual(Date.now());
+    });
+
+    it('sends the credentials with a radio read and gives back the reading', async () => {
+      const { id, client } = await probingAgent();
+      const reading = makeWirelessCollectionResult();
+
+      const pending = gateway.readRadio(id, {
+        ipAddress: '10.20.0.5',
+        vendor: 'ubiquiti',
+        deviceType: 'ACCESS_POINT',
+        credentials: CREDENTIALS
+      });
+      const request = (await client.next('probe')) as {
+        requestId: string;
+      };
+      client.send({
+        type: 'probe.result',
+        requestId: request.requestId,
+        kind: 'wireless',
+        at: Date.now(),
+        reading: toWirelessReadingWire(reading)
+      });
+
+      expect(request).toMatchObject({
+        kind: 'wireless',
+        ip: '10.20.0.5',
+        vendor: 'ubiquiti',
+        deviceType: 'ACCESS_POINT',
+        credentials: CREDENTIALS
+      });
+      expect(await pending).toMatchObject({ ok: true, reading });
+    });
+
+    it('passes on the error the agent answers', async () => {
+      const { id, client } = await probingAgent();
+
+      const pending = gateway.ping(id, '10.20.0.5', 3);
+      const request = (await client.next('probe')) as {
+        requestId: string;
+      };
+      client.send({
+        type: 'probe.result',
+        requestId: request.requestId,
+        error: 'The agent is busy with other probes'
+      });
+
+      expect(await pending).toEqual({
+        ok: false,
+        reason: 'AGENT_ERROR',
+        error: 'The agent is busy with other probes'
+      });
+    });
+
+    it('gives up on an agent that does not answer, and drops its late answer', async () => {
+      const { id, client } = await probingAgent();
+
+      const outcome = await gateway.ping(id, '10.20.0.5', 3);
+      const request = (await client.next('probe')) as {
+        requestId: string;
+      };
+      client.send({
+        type: 'probe.result',
+        requestId: request.requestId,
+        kind: 'ping',
+        at: Date.now(),
+        reading: { reachable: true, latencyMs: 1, attempts: 1 }
+      });
+      await settle();
+
+      expect(outcome).toMatchObject({ ok: false, reason: 'TIMEOUT' });
+      expect(gateway.isConnected(id)).toBe(true);
+    });
+
+    it('ends a request at once when the agent disconnects', async () => {
+      const { id, client } = await probingAgent();
+
+      const pending = gateway.ping(id, '10.20.0.5', 3);
+      await client.next('probe');
+      client.ws.close();
+
+      expect(await pending).toMatchObject({
+        ok: false,
+        reason: 'AGENT_OFFLINE',
+        error: 'The agent disconnected'
+      });
+    });
+
+    it('matches each answer to its own request', async () => {
+      const { id, client } = await probingAgent();
+
+      const first = gateway.ping(id, '10.20.0.5', 1);
+      const second = gateway.ping(id, '10.20.0.6', 1);
+      const requests = [
+        (await client.next('probe')) as {
+          requestId: string;
+          ip: string;
+        },
+        (await client.next('probe')) as {
+          requestId: string;
+          ip: string;
+        }
+      ];
+      for (const request of [...requests].reverse()) {
+        client.send({
+          type: 'probe.result',
+          requestId: request.requestId,
+          kind: 'ping',
+          at: Date.now(),
+          reading: {
+            reachable: request.ip === '10.20.0.5',
+            latencyMs: 1,
+            attempts: 1
+          }
+        });
+      }
+
+      expect(await first).toMatchObject({
+        reading: { isReachable: true }
+      });
+      expect(await second).toMatchObject({
+        reading: { isReachable: false }
+      });
     });
   });
 
