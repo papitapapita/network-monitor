@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+logs
+.git
+.claude
+.env*
+!.env.example
+src/generated
+tests
+docs
+packaging

@@ -1,45 +1,32 @@
-# ---------- Stage 1: Build ----------
-FROM node:24-alpine AS builder
+# Backend image for one customer install (docs/operations/new-customer.md).
+# On start it applies pending migrations, then runs the backend.
 
-# Set working directory
+FROM node:24-bookworm-slim AS builder
 WORKDIR /app
-
-# Copy package files first for better cache
-COPY package*.json ./
-
-# Install dependencies
-RUN npm install
-
-# Copy rest of the source code
+COPY package.json package-lock.json ./
+RUN npm ci
 COPY . .
+RUN npx prisma generate && npm run build
 
-# Generate Prisma client (needed before build)
-RUN npx prisma generate
-
-# Build TypeScript to JavaScript
-RUN npm run build
-
-
-# ---------- Stage 2: Run ----------
-FROM node:24-alpine AS runner
-
+FROM node:24-bookworm-slim
 WORKDIR /app
-
-ENV NODE_ENV=production
-
-# Copy built app and package files
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/package*.json ./
-
-# Copy Prisma client (needed at runtime)
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-
-# Install only production dependencies
-RUN npm install --omit=dev
-
-# Expose app port
+ENV NODE_ENV=production NPM_CONFIG_UPDATE_NOTIFIER=false
+# ping for an install on the monitored network (SERVER_ON_SITE); harmless off site
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends iputils-ping openssl \
+  && rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json ./
+# The Prisma CLI is a dev dependency; the container needs it for migrate deploy,
+# pinned to the version the lockfile resolved.
+RUN npm ci --omit=dev \
+  && npm install --no-save "prisma@$(node -p "require('./package-lock.json').packages['node_modules/prisma'].version")" \
+  && npm cache clean --force
+COPY prisma ./prisma
+COPY prisma.config.ts ./
+COPY --from=builder /app/dist/main.js ./dist/main.js
+RUN mkdir logs && chown node:node logs
+USER node
 EXPOSE 3000
-
-# Start the app
-CMD ["node", "dist/index.js"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+CMD ["sh", "-c", "npx prisma migrate deploy && exec node dist/main.js"]
