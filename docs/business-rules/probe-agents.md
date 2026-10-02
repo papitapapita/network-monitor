@@ -1187,7 +1187,7 @@ for longer than one reading, and a stolen PC holds none.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Presentation
-**Since:** 2026-10-01
+**Since:** 2026-10-01 · **Revised:** 2026-10-01 (radio reads give up after 25 s, not 45)
 
 The backend sends a probe request on the agent's live connection and waits
 for the answer with the same request id. Each request ends in exactly one
@@ -1198,7 +1198,7 @@ of:
 | A reading           | The agent answered with a ping result or a radio reading               |
 | `AGENT_OFFLINE`     | The agent has no connection, or it dropped while the request waited    |
 | `PROBE_UNSUPPORTED` | The agent is connected but did not name `probe` in its hello (AGT-100) |
-| `TIMEOUT`           | No answer within 25 seconds for a ping or 45 for a radio read          |
+| `TIMEOUT`           | No answer within 25 seconds                                            |
 | `AGENT_ERROR`       | The agent answered with an error, which is passed on as it came        |
 
 Nothing is sent to an agent that is offline or cannot answer. An answer that
@@ -1212,8 +1212,9 @@ message. The device's credentials go in the request and are not logged.
 answer: a reading, or a reason that can be shown to the user or let the
 schedule skip the device. A request left open forever, or a stale answer
 landing on the wrong request, would show a wrong reading. A ping is only
-asked for by hand, at up to 3 attempts (MON-021, MON-022), so it gives up before the
-30-second HTTP proxy does; a radio read allows for a login and its reads.
+asked for by hand, at up to 3 attempts (MON-021, MON-022), and a radio can be
+read by hand too (WLS-029), so both give up before the 30-second HTTP proxy
+does. A login and a status read take a few seconds on a healthy radio.
 
 **Enforced at:** `src/presentation/ws/agent/ConnectedAgents.ts` (`ping`, `readRadio`), `src/presentation/ws/agent/AgentSession.ts` (`probe`, `onProbeResult`), `src/presentation/ws/agent/agentMessageSchema.ts`, `src/presentation/ws/agent/probeWire.ts`, `src/application/probe-agents/interfaces/IAgentProbeChannel.ts`
 **Tests:** `tests/integration/agent-gateway.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/presentation/ws/agent/probeWire.test.ts`

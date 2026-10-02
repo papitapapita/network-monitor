@@ -581,31 +581,53 @@ denial of service against the device.
 **Reached from:** `poll`
 **Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`
 
-### WLS-029 — A server hosted off site does not talk to any device
+### WLS-029 — A server hosted off site reads a radio only through its agent
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application + infrastructure
-**Since:** 2026-09-29 · **Revised:** 2026-09-30 (devices with no agent too)
+**Since:** 2026-09-29 · **Revised:** 2026-09-30 (devices with no agent too), 2026-10-01 (radios behind an agent are read through it)
 
 When the install says its server is not on the monitored network
-(`SERVER_ON_SITE=false`, INS-041), every device is out of this server's reach,
-with or without an `agentId` (DEV-164). The scheduler's due query is empty, and
-a manual poll, a reboot, or a link diagnosis is refused with `409`. A server on
-the monitored network (the default) keeps doing all of this for every device,
-behind an agent or not; only ping belongs to the agent there (MON-022).
+(`SERVER_ON_SITE=false`, INS-041), no device is within this server's reach.
+A radio behind an agent (`agentId`, DEV-164) is read through that agent: the
+backend sends it the device's address, vendor, type and credentials, and the
+agent reads the radio with the same collectors (AGT-101). A radio with no
+agent is not polled: the scheduler leaves it out and a manual poll is refused
+with `409`. Reboot and link diagnosis are refused with `409` for every device,
+behind an agent or not.
+
+A read through the agent ends one of these ways (AGT-103):
+
+| The agent…                                    | Scheduled poll                 | Manual poll | Message                                                     |
+| --------------------------------------------- | ------------------------------ | ----------- | ----------------------------------------------------------- |
+| Answered with a reading                       | Stored like any other          | `200`       | —                                                           |
+| Is not connected                              | Skipped, tried again next tick | `409`       | `its on-site agent is not connected`                        |
+| Is older than 0.3.0 and cannot read on demand | Skipped, tried again next tick | `409`       | `its on-site agent must be updated to read it on demand`    |
+| Did not answer within 25 seconds              | Failed, like a failed read     | `504`       | `its on-site agent did not answer in time`                  |
+| Answered with an error                        | Failed, like a failed read     | `502`       | `its on-site agent could not read it: <the agent's error>`  |
+
+A reading from the agent is timed when the agent took it (AGT-104): the
+snapshot, its alerts and the next scheduled poll count from that time.
+
+A server on the monitored network (the default) reads every radio itself,
+behind an agent or not, and keeps reboot and link diagnosis for every device;
+only ping belongs to the agent there (MON-022).
 
 **Why:** Off site, the device's address is a private one on the customer's
-network. Trying anyway means every scheduled poll times out and raises a
-connection alert about a radio that is fine, and every button waits out its
-timeout before failing. Refusing up front with one stable reason lets the
-dashboard hide these actions on such installs. A device with no agent is no
-closer off site than one behind an agent (MON-023). Wireless polling through
-the agent is ADR 0002 phase 3.
+network. Trying from the server means every scheduled poll times out and
+raises a connection alert about a radio that is fine, and every button waits
+out its timeout before failing. The agent sits on that network, so it reads
+the radio for the server; credentials travel with each request and are never
+kept on the customer's PC (AGT-102). A skipped poll leaves the radio due, so
+it is read as soon as its agent is back or updated, without raising alerts
+while it is away. On site, the server keeps reading the radio itself so that
+an agent being down never stops wireless monitoring of a network the server
+can reach. Reboot and diagnosis through the agent are later phases of ADR 0002.
 
-**Enforced at:** `src/infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository.ts` (`findAllDue`), `src/infrastructure/wireless-monitoring/adapters/DeviceReachAdapter.ts`, and `PollWirelessDeviceUseCase`, `RebootWirelessDeviceUseCase`, `StartLinkDiagnosisUseCase` in `src/application/wireless-monitoring/use-cases/`
+**Enforced at:** `src/infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository.ts` (`findAllDue`), `src/infrastructure/wireless-monitoring/adapters/DeviceReachAdapter.ts` (`readerFor`, `isOutOfReach`), `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts` (`AGENT_READ_FAILURES`), `src/infrastructure/probe-agents/adapters/AgentChannelRadioReader.ts`, `src/presentation/http/controllers/WirelessController.ts`, and `RebootWirelessDeviceUseCase`, `StartLinkDiagnosisUseCase` in `src/application/wireless-monitoring/use-cases/`
 **Reached from:** `POST /api/devices/:id/wireless/poll`, `POST /api/devices/:id/wireless/reboot`, `POST /api/devices/:id/wireless/diagnosis`, and the wireless polling scheduler
-**Message:** `Cannot poll device — this server is not on the monitored network` (`Cannot reboot device — …`, `Cannot diagnose device — …` with the same reason)
-**Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/application/wireless-monitoring/use-cases/RebootWirelessDeviceUseCase.test.ts`, `tests/application/wireless-monitoring/use-cases/StartLinkDiagnosisUseCase.test.ts`, `tests/infrastructure/wireless-monitoring/adapters/DeviceReachAdapter.test.ts`, `tests/integration/use-cases/wireless-monitoring/PollWirelessDeviceUseCase.integration.test.ts`, `tests/integration/use-cases/wireless-monitoring/StartLinkDiagnosisUseCase.integration.test.ts`, `tests/integration/wireless.routes.test.ts`
+**Message:** `Cannot poll device — this server is not on the monitored network` (`Cannot reboot device — …`, `Cannot diagnose device — …` with the same reason), and the table above for a radio behind an agent
+**Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/application/wireless-monitoring/use-cases/RebootWirelessDeviceUseCase.test.ts`, `tests/application/wireless-monitoring/use-cases/StartLinkDiagnosisUseCase.test.ts`, `tests/infrastructure/wireless-monitoring/adapters/DeviceReachAdapter.test.ts`, `tests/infrastructure/probe-agents/adapters/AgentChannelRadioReader.test.ts`, `tests/presentation/http/controllers/WirelessController.test.ts`, `tests/integration/use-cases/wireless-monitoring/PollWirelessDeviceUseCase.integration.test.ts`, `tests/integration/use-cases/wireless-monitoring/StartLinkDiagnosisUseCase.integration.test.ts`, `tests/integration/wireless.routes.test.ts`
 
 ---
 

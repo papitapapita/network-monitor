@@ -112,7 +112,8 @@ function makeMocks() {
   };
 
   const deviceReach: jest.Mocked<IDeviceReach> = {
-    isOutOfReach: jest.fn().mockResolvedValue(Result.ok(false))
+    isOutOfReach: jest.fn().mockResolvedValue(Result.ok(false)),
+    readerFor: jest.fn()
   };
 
   return {

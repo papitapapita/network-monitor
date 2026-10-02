@@ -25,13 +25,26 @@ import {
   IWirelessPollOrchestrator,
   IContractedCapacityProvider,
   IDeviceReach,
-  OUT_OF_SERVER_REACH
+  OUT_OF_SERVER_REACH,
+  IAgentRadioReader,
+  NoAgentRadioReader,
+  AgentReadRefusal,
+  WirelessCollectionResult
 } from '../interfaces';
 import {
   PollWirelessDeviceRequestDTO,
   PollWirelessDeviceResponseDTO
 } from '../dtos';
 import { CollectedMetricsMapper } from '../mappers';
+
+// Shared with the controller, which picks the status from them (WLS-029).
+export const AGENT_READ_FAILURES: Record<AgentReadRefusal, string> = {
+  AGENT_OFFLINE: 'its on-site agent is not connected',
+  PROBE_UNSUPPORTED:
+    'its on-site agent must be updated to read it on demand',
+  TIMEOUT: 'its on-site agent did not answer in time',
+  AGENT_ERROR: 'its on-site agent could not read it'
+};
 
 export class PollWirelessDeviceUseCase
   extends UseCase<
@@ -54,7 +67,8 @@ export class PollWirelessDeviceUseCase
     private readonly deviceReach: IDeviceReach,
     private readonly contractedCapacity: IContractedCapacityProvider,
     private readonly alertPublisher: IAlertPublisher | null,
-    logger: ILogger
+    logger: ILogger,
+    private readonly agentReader: IAgentRadioReader = NoAgentRadioReader
   ) {
     super(logger, 'PollWirelessDeviceUseCase');
   }
@@ -80,15 +94,7 @@ export class PollWirelessDeviceUseCase
     const now = new Date();
 
     if (this.activePolls.has(deviceIdStr)) {
-      return this.ok({
-        deviceId: request.deviceId,
-        collectedAt: now.toISOString(),
-        metricsCollected: false,
-        alertsTriggered: 0,
-        alertsCleared: 0,
-        collectionMethod: 'http_api',
-        skipped: true
-      });
+      return this.ok(this.skipped(request, now));
     }
 
     this.activePolls.add(deviceIdStr);
@@ -117,28 +123,21 @@ export class PollWirelessDeviceUseCase
     }
     // The scheduler already leaves such devices out (WLS-029); this refuses
     // the manual poll.
-    const outOfReach = await this.deviceReach.isOutOfReach(deviceId);
-    if (outOfReach.isFailure) {
+    const readerResult = await this.deviceReach.readerFor(deviceId);
+    if (readerResult.isFailure) {
       return this.fail(
-        `Failed to check device reach: ${outOfReach.error}`
+        `Failed to check device reach: ${readerResult.error}`
       );
     }
+    const reader = readerResult.value;
     const refusal =
       ineligibleReason.value ??
-      (outOfReach.value ? OUT_OF_SERVER_REACH : null);
+      (reader.by === 'none' ? OUT_OF_SERVER_REACH : null);
     if (refusal !== null) {
       if (request.forceExecution) {
         return this.fail(`Cannot poll device — ${refusal}`);
       }
-      return this.ok({
-        deviceId: request.deviceId,
-        collectedAt: now.toISOString(),
-        metricsCollected: false,
-        alertsTriggered: 0,
-        alertsCleared: 0,
-        collectionMethod: 'http_api',
-        skipped: true
-      });
+      return this.ok(this.skipped(request, now));
     }
 
     const configResult =
@@ -156,15 +155,7 @@ export class PollWirelessDeviceUseCase
     }
 
     if (!config.enabled && !request.forceExecution) {
-      return this.ok({
-        deviceId: request.deviceId,
-        collectedAt: now.toISOString(),
-        metricsCollected: false,
-        alertsTriggered: 0,
-        alertsCleared: 0,
-        collectionMethod: 'http_api',
-        skipped: true
-      });
+      return this.ok(this.skipped(request, now));
     }
 
     const credentialsResult =
@@ -210,28 +201,68 @@ export class PollWirelessDeviceUseCase
     this.logger.info('[PollWirelessDeviceUseCase] polling device', {
       ip: ipAddress,
       vendor: vendorSlug,
-      method: collector.method
+      method: collector.method,
+      by: reader.by
     });
 
-    const collectResult = await collector.collect(
-      ipAddress,
-      credentials,
-      config.deviceType
-    );
-
-    if (collectResult.isFailure) {
-      this.logger.warn('Wireless collector failed', {
-        ip: ipAddress,
+    let collected: WirelessCollectionResult;
+    // The rest of the cycle is timed by the reading, which an agent may have
+    // taken some seconds after this poll started.
+    let collectedAt = now;
+    if (reader.by === 'agent') {
+      const answer = await this.agentReader.read(reader.agentId, {
+        ipAddress,
         vendor: vendorSlug,
-        method: collector.method,
-        error: collectResult.error
+        deviceType: config.deviceType,
+        credentials
       });
-      return this.fail(
-        `Failed to collect metrics: ${collectResult.error}`
+      if (answer.kind === 'refused') {
+        // The schedule waits for the agent to come back (or be updated)
+        // instead of counting each cycle as a failed poll.
+        if (
+          !request.forceExecution &&
+          (answer.reason === 'AGENT_OFFLINE' ||
+            answer.reason === 'PROBE_UNSUPPORTED')
+        ) {
+          return this.ok(this.skipped(request, now));
+        }
+        this.logger.warn('Agent could not read the radio', {
+          ip: ipAddress,
+          vendor: vendorSlug,
+          reason: answer.reason,
+          error: answer.error
+        });
+        const reason = AGENT_READ_FAILURES[answer.reason];
+        return this.fail(
+          `Cannot poll device — ${
+            answer.reason === 'AGENT_ERROR'
+              ? `${reason}: ${answer.error}`
+              : reason
+          }`
+        );
+      }
+      collected = answer.reading;
+      collectedAt = answer.measuredAt;
+    } else {
+      const collectResult = await collector.collect(
+        ipAddress,
+        credentials,
+        config.deviceType
       );
-    }
 
-    const collected = collectResult.value;
+      if (collectResult.isFailure) {
+        this.logger.warn('Wireless collector failed', {
+          ip: ipAddress,
+          vendor: vendorSlug,
+          method: collector.method,
+          error: collectResult.error
+        });
+        return this.fail(
+          `Failed to collect metrics: ${collectResult.error}`
+        );
+      }
+      collected = collectResult.value;
+    }
 
     // Auto-calibrate this device's LAN-speed baseline off its first
     // reported speed, so WLS-089 can warn on degradation from whatever
@@ -279,7 +310,7 @@ export class PollWirelessDeviceUseCase
       clientsProvisionedLimit: config.clientsProvisionedLimit,
       provisionedLanSpeedMbps: config.provisionedLanSpeedMbps,
       previousMetrics,
-      collectedAt: now
+      collectedAt
     };
 
     let remoteApDeviceId = null;
@@ -342,7 +373,7 @@ export class PollWirelessDeviceUseCase
           decision.severity
         );
       if (findResult.isSuccess && findResult.value) {
-        const clearResult = findResult.value.clear(now);
+        const clearResult = findResult.value.clear(collectedAt);
         if (clearResult.isSuccess) {
           const saveResult = await this.alertRecordRepo.save(
             findResult.value
@@ -361,7 +392,10 @@ export class PollWirelessDeviceUseCase
       }
     }
 
-    await this.deliverPendingAlertNotifications(deviceId, now);
+    await this.deliverPendingAlertNotifications(
+      deviceId,
+      collectedAt
+    );
 
     const clients: WirelessClientEntry[] =
       config.deviceType === 'ACCESS_POINT'
@@ -412,14 +446,14 @@ export class PollWirelessDeviceUseCase
         threshold: d.threshold,
         currentValue: d.currentValue,
         message: d.message,
-        triggeredAt: now
+        triggeredAt: collectedAt
       })
     );
 
     const snapshot = WirelessSnapshot.create({
       deviceId,
       deviceType: config.deviceType,
-      collectedAt: now,
+      collectedAt,
       collectionMethod: collector.method,
       metrics,
       clients,
@@ -439,7 +473,7 @@ export class PollWirelessDeviceUseCase
       );
     }
 
-    config.markPolled(now);
+    config.markPolled(collectedAt);
     const configSaveResult =
       await this.wirelessDeviceConfigRepo.save(config);
     if (configSaveResult.isFailure) {
@@ -455,12 +489,27 @@ export class PollWirelessDeviceUseCase
 
     return this.ok({
       deviceId: request.deviceId,
-      collectedAt: now.toISOString(),
+      collectedAt: collectedAt.toISOString(),
       metricsCollected: true,
       alertsTriggered: openDecisions.length,
       alertsCleared: clearDecisions.length,
       collectionMethod: collector.method
     });
+  }
+
+  private skipped(
+    request: PollWirelessDeviceRequestDTO,
+    now: Date
+  ): PollWirelessDeviceResponseDTO {
+    return {
+      deviceId: request.deviceId,
+      collectedAt: now.toISOString(),
+      metricsCollected: false,
+      alertsTriggered: 0,
+      alertsCleared: 0,
+      collectionMethod: 'http_api',
+      skipped: true
+    };
   }
 
   // Retries alerts opened on earlier cycles whose delivery failed, so an

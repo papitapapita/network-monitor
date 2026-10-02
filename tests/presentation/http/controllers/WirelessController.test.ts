@@ -17,6 +17,7 @@ import { UpdateWirelessConfigUseCase } from '../../../../src/application/wireles
 import { DeleteWirelessConfigUseCase } from '../../../../src/application/wireless-monitoring/use-cases/DeleteWirelessConfigUseCase';
 import { ClearWirelessAlertUseCase } from '../../../../src/application/wireless-monitoring/use-cases/ClearWirelessAlertUseCase';
 import { BulkClearWirelessAlertsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/BulkClearWirelessAlertsUseCase';
+import { AGENT_READ_FAILURES } from '../../../../src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
@@ -1253,6 +1254,34 @@ describe('WirelessController', () => {
         );
 
         expect(statusMock).toHaveBeenCalledWith(400);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe("[WLS-029] Error Path — the radio's agent", () => {
+      it.each([
+        [AGENT_READ_FAILURES.AGENT_OFFLINE, 409],
+        [AGENT_READ_FAILURES.PROBE_UNSUPPORTED, 409],
+        [AGENT_READ_FAILURES.TIMEOUT, 504],
+        [`${AGENT_READ_FAILURES.AGENT_ERROR}: Device not found`, 502]
+      ])('answers "%s" with %p', async (reason, status) => {
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (
+          mockTriggerPollUseCase.execute as jest.Mock
+        ).mockResolvedValue(
+          Result.fail(`Cannot poll device — ${reason}`)
+        );
+
+        await controller.triggerPoll(
+          mockReq as Request,
+          res as Response
+        );
+
+        expect(statusMock).toHaveBeenCalledWith(status);
       });
     });
 

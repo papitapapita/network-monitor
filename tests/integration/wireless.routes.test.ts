@@ -15,6 +15,7 @@ import {
 import { seedAndGetToken } from './helpers/auth';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
 import { OUT_OF_SERVER_REACH } from '../../src/application/wireless-monitoring/interfaces';
+import { AGENT_READ_FAILURES } from '../../src/application/wireless-monitoring/use-cases';
 import { seedDiagnosableDevice } from './helpers/linkDiagnosis';
 
 // ─────────────────────────────────────────────────────────────
@@ -899,14 +900,14 @@ describe('[WLS-029] Wireless Routes — a server hosted off site', () => {
     });
   });
 
-  it('409 — refuses a manual poll of a device behind an agent', async () => {
+  it('409 — asks the agent for a manual poll, and says when it is not connected', async () => {
     const res = await request(app)
       .post(`/api/devices/${deviceId}/wireless/poll`)
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(409);
     expect(res.body.error).toBe(
-      `Cannot poll device — ${OUT_OF_SERVER_REACH}`
+      `Cannot poll device — ${AGENT_READ_FAILURES.AGENT_OFFLINE}`
     );
   });
 

@@ -19,13 +19,14 @@ export interface ProbeTimeouts {
   // Pings are asked for by hand only, at up to 3 attempts (MON-022), and
   // must give up before the 30 s HTTP proxy in front of the API does.
   pingMs: number;
-  // A radio login plus its status reads, at up to 10 s each.
+  // A manual radio read (WLS-029) sits behind the same proxy. A login and a
+  // status read take a few seconds on a healthy radio.
   wirelessMs: number;
 }
 
 export const DEFAULT_PROBE_TIMEOUTS: ProbeTimeouts = {
   pingMs: 25_000,
-  wirelessMs: 45_000
+  wirelessMs: 25_000
 };
 
 // The agents connected right now, one session each (AGT-045), and the way

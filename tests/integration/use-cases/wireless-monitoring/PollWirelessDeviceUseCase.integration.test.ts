@@ -3,7 +3,10 @@ import {
   setupDependencies,
   DependencyContainer
 } from 'infrastructure/di/container';
-import { PollWirelessDeviceUseCase } from 'application/wireless-monitoring/use-cases';
+import {
+  AGENT_READ_FAILURES,
+  PollWirelessDeviceUseCase
+} from 'application/wireless-monitoring/use-cases';
 import { OUT_OF_SERVER_REACH } from 'application/wireless-monitoring/interfaces';
 import { DeviceEligibilityService } from 'domain/device-inventory/services';
 import { WirelessAlertEvaluator } from 'domain/wireless-monitoring/services';
@@ -31,16 +34,18 @@ import {
   seedWirelessDeviceModel
 } from '../../helpers/db';
 import { FakeWirelessCollector } from '../../helpers/FakeWirelessCollector';
+import { FakeAgentRadioReader } from '../../helpers/FakeAgentRadioReader';
 import { seedDiagnosableDevice } from '../../helpers/linkDiagnosis';
 
-// Covers where this server's reach decides what it polls (WLS-029): the
-// scheduler's due query and the manual poll, against the real device rows.
-// The radio itself is a fake.
+// Covers where this server's reach decides what it polls and who reads the
+// radio (WLS-029): the scheduler's due query and the manual poll, against the
+// real device rows. The radio and the agent are fakes.
 describe('PollWirelessDeviceUseCase — integration', () => {
   let container: DependencyContainer;
   let prisma: PrismaClient;
   let deviceModelId: string;
   const collector = new FakeWirelessCollector();
+  let agent: FakeAgentRadioReader;
 
   beforeAll(async () => {
     container = await setupDependencies();
@@ -53,6 +58,7 @@ describe('PollWirelessDeviceUseCase — integration', () => {
 
   beforeEach(async () => {
     collector.reset();
+    agent = new FakeAgentRadioReader();
     await cleanDatabase(prisma);
     deviceModelId = await seedWirelessDeviceModel(prisma);
   });
@@ -79,13 +85,14 @@ describe('PollWirelessDeviceUseCase — integration', () => {
         deviceRepo,
         new DeviceEligibilityService()
       ),
-      new DeviceReachAdapter(serverOnSite),
+      new DeviceReachAdapter(serverOnSite, deviceRepo),
       new ContractedCapacityAdapter(
         new PrismaContractedServiceRepository(prisma),
         new PrismaServicePlanRepository(prisma)
       ),
       null,
-      new WinstonLogger()
+      new WinstonLogger(),
+      agent
     );
     return { useCase, configRepo };
   };
@@ -95,12 +102,12 @@ describe('PollWirelessDeviceUseCase — integration', () => {
 
   const seedRadioBehindAgent = async (ip: string) => {
     const deviceId = await seedRadio(ip);
-    const agent = await seedAgent(prisma, { status: 'ACTIVE' });
+    const seeded = await seedAgent(prisma, { status: 'ACTIVE' });
     await prisma.device.update({
       where: { id: deviceId },
-      data: { agentId: agent.id }
+      data: { agentId: seeded.id }
     });
-    return deviceId;
+    return { deviceId, agentId: seeded.id };
   };
 
   const dueIds = async (
@@ -111,16 +118,51 @@ describe('PollWirelessDeviceUseCase — integration', () => {
   };
 
   describe('[WLS-029] a server hosted off site', () => {
-    it('leaves every device out of the scheduled polling, with or without an agent', async () => {
-      await seedRadioBehindAgent('192.168.90.10');
+    it('schedules only the devices behind an agent', async () => {
+      const { deviceId: behindAgent } =
+        await seedRadioBehindAgent('192.168.90.10');
       await seedRadio('192.168.90.11');
       const { configRepo } = build(false);
 
-      expect(await dueIds(configRepo)).toEqual([]);
+      expect(await dueIds(configRepo)).toEqual([behindAgent]);
     });
 
-    it('refuses a manual poll of a device behind an agent', async () => {
-      const deviceId = await seedRadioBehindAgent('192.168.90.12');
+    it('reads a device behind an agent through that agent and stores the reading', async () => {
+      const { deviceId, agentId } =
+        await seedRadioBehindAgent('192.168.90.12');
+      const measuredAt = new Date(Date.now() - 2_000);
+      agent.answer = {
+        kind: 'measured',
+        reading: FakeWirelessCollector.reading(),
+        measuredAt
+      };
+      const { useCase } = build(false);
+
+      const result = await useCase.execute({
+        deviceId,
+        forceExecution: true
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(agent.calls).toEqual([
+        {
+          agentId,
+          request: expect.objectContaining({
+            ipAddress: '192.168.90.12',
+            deviceType: 'STATION'
+          })
+        }
+      ]);
+      expect(collector.calls).toHaveLength(0);
+      const snapshot = await prisma.wirelessSnapshot.findFirst({
+        where: { deviceId }
+      });
+      expect(snapshot?.collectedAt).toEqual(measuredAt);
+    });
+
+    it('refuses a manual poll while the agent is not connected', async () => {
+      const { deviceId } =
+        await seedRadioBehindAgent('192.168.90.14');
       const { useCase } = build(false);
 
       const result = await useCase.execute({
@@ -129,12 +171,22 @@ describe('PollWirelessDeviceUseCase — integration', () => {
       });
 
       expect(result.error).toBe(
-        `Cannot poll device — ${OUT_OF_SERVER_REACH}`
+        `Cannot poll device — ${AGENT_READ_FAILURES.AGENT_OFFLINE}`
       );
-      expect(collector.calls).toHaveLength(0);
     });
 
-    it('refuses a manual poll of a device with no agent too', async () => {
+    it('skips a scheduled poll while the agent is not connected', async () => {
+      const { deviceId } =
+        await seedRadioBehindAgent('192.168.90.15');
+      const { useCase, configRepo } = build(false);
+
+      const result = await useCase.execute({ deviceId });
+
+      expect(result.value.skipped).toBe(true);
+      expect(await dueIds(configRepo)).toEqual([deviceId]);
+    });
+
+    it('refuses a manual poll of a device with no agent', async () => {
       const deviceId = await seedRadio('192.168.90.13');
       const { useCase } = build(false);
 
@@ -147,12 +199,14 @@ describe('PollWirelessDeviceUseCase — integration', () => {
         `Cannot poll device — ${OUT_OF_SERVER_REACH}`
       );
       expect(collector.calls).toHaveLength(0);
+      expect(agent.calls).toHaveLength(0);
     });
   });
 
   describe('[WLS-029] a server on the monitored network', () => {
     it('keeps every device in the scheduled polling, with or without an agent', async () => {
-      const behindAgent = await seedRadioBehindAgent('192.168.90.20');
+      const { deviceId: behindAgent } =
+        await seedRadioBehindAgent('192.168.90.20');
       const direct = await seedRadio('192.168.90.22');
       const { configRepo } = build(true);
 
@@ -162,8 +216,9 @@ describe('PollWirelessDeviceUseCase — integration', () => {
       expect(due).toContain(direct);
     });
 
-    it('polls a device behind an agent on demand', async () => {
-      const deviceId = await seedRadioBehindAgent('192.168.90.21');
+    it('polls a device behind an agent itself, without asking the agent', async () => {
+      const { deviceId } =
+        await seedRadioBehindAgent('192.168.90.21');
       const { useCase } = build(true);
 
       const result = await useCase.execute({
@@ -173,6 +228,7 @@ describe('PollWirelessDeviceUseCase — integration', () => {
 
       expect(result.isSuccess).toBe(true);
       expect(collector.calls).toHaveLength(1);
+      expect(agent.calls).toHaveLength(0);
     });
   });
 });

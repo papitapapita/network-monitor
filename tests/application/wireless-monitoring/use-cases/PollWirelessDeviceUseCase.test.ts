@@ -24,6 +24,11 @@ import {
   IDeviceReach,
   OUT_OF_SERVER_REACH
 } from '../../../../src/application/wireless-monitoring/interfaces/IDeviceReach';
+import {
+  AgentReadRefusal,
+  IAgentRadioReader
+} from '../../../../src/application/wireless-monitoring/interfaces/IAgentRadioReader';
+import { AGENT_READ_FAILURES } from '../../../../src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase';
 import { IContractedCapacityProvider } from '../../../../src/application/wireless-monitoring/interfaces/IContractedCapacityProvider';
 import { IAlertPublisher } from '../../../../src/application/shared/interfaces/IAlertPublisher';
 import { WirelessDeviceConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig';
@@ -235,7 +240,14 @@ function makeMocks() {
   };
 
   const deviceReach: jest.Mocked<IDeviceReach> = {
-    isOutOfReach: jest.fn().mockResolvedValue(Result.ok(false))
+    isOutOfReach: jest.fn().mockResolvedValue(Result.ok(false)),
+    readerFor: jest
+      .fn()
+      .mockResolvedValue(Result.ok({ by: 'server' }))
+  };
+
+  const agentReader: jest.Mocked<IAgentRadioReader> = {
+    read: jest.fn()
   };
 
   const contractedCapacity: jest.Mocked<IContractedCapacityProvider> =
@@ -263,6 +275,7 @@ function makeMocks() {
     alertEvaluator,
     deviceRepo,
     deviceReach,
+    agentReader,
     contractedCapacity,
     alertPublisher,
     logger
@@ -284,7 +297,8 @@ function makeUseCase(
     mocks.deviceReach,
     mocks.contractedCapacity,
     mocks.alertPublisher,
-    mocks.logger
+    mocks.logger,
+    mocks.agentReader
   );
 }
 
@@ -532,8 +546,8 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
   // ===========================================================================
   describe("[WLS-029] executeImpl — devices out of this server's reach", () => {
     beforeEach(() => {
-      mocks.deviceReach.isOutOfReach.mockResolvedValue(
-        Result.ok(true)
+      mocks.deviceReach.readerFor.mockResolvedValue(
+        Result.ok({ by: 'none' })
       );
     });
 
@@ -561,7 +575,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
     });
 
     it('fails when the reach check itself fails', async () => {
-      mocks.deviceReach.isOutOfReach.mockResolvedValue(
+      mocks.deviceReach.readerFor.mockResolvedValue(
         Result.fail('DB error')
       );
 
@@ -572,6 +586,147 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('reach');
+    });
+  });
+
+  // ===========================================================================
+  describe('[WLS-029] executeImpl — a radio behind an agent, off site', () => {
+    const AGENT_ID = '7d1f0c5e-3b2a-4c8e-9f10-2a3b4c5d6e7f';
+    const measuredAt = new Date('2026-10-01T12:00:05.000Z');
+
+    beforeEach(() => {
+      configureHappyPath(mocks);
+      mocks.deviceReach.readerFor.mockResolvedValue(
+        Result.ok({ by: 'agent', agentId: AGENT_ID })
+      );
+      mocks.agentReader.read.mockResolvedValue({
+        kind: 'measured',
+        reading: makeHttpResult(),
+        measuredAt
+      });
+    });
+
+    it('reads the radio through its agent with the vendor and the credentials', async () => {
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.metricsCollected).toBe(true);
+      expect(mocks.agentReader.read).toHaveBeenCalledWith(AGENT_ID, {
+        ipAddress: VALID_IP,
+        vendor: 'ubiquiti',
+        deviceType: 'STATION',
+        credentials: makeCredentials()
+      });
+      expect(mocks.collector.collect).not.toHaveBeenCalled();
+    });
+
+    it("times the snapshot and the schedule by the agent's reading", async () => {
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      const saved = mocks.snapshotRepo.save.mock.calls[0]![0];
+      expect(saved.collectedAt).toEqual(measuredAt);
+      expect(saved.collectionMethod).toBe('http_api');
+      const config =
+        mocks.wirelessDeviceConfigRepo.save.mock.calls[0]![0];
+      expect(config.lastPolledAt).toEqual(measuredAt);
+      expect(result.value.collectedAt).toBe(measuredAt.toISOString());
+    });
+
+    it.each<AgentReadRefusal>(['AGENT_OFFLINE', 'PROBE_UNSUPPORTED'])(
+      'skips a scheduled poll while the agent answers %s',
+      async (reason) => {
+        mocks.agentReader.read.mockResolvedValue({
+          kind: 'refused',
+          reason,
+          error: 'x'
+        });
+
+        const result = await useCase.execute({
+          deviceId: VALID_DEVICE_UUID
+        });
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.skipped).toBe(true);
+        expect(mocks.snapshotRepo.save).not.toHaveBeenCalled();
+        expect(
+          mocks.wirelessDeviceConfigRepo.save
+        ).not.toHaveBeenCalled();
+      }
+    );
+
+    it.each<[AgentReadRefusal, string]>([
+      ['AGENT_OFFLINE', AGENT_READ_FAILURES.AGENT_OFFLINE],
+      ['PROBE_UNSUPPORTED', AGENT_READ_FAILURES.PROBE_UNSUPPORTED],
+      ['TIMEOUT', AGENT_READ_FAILURES.TIMEOUT],
+      [
+        'AGENT_ERROR',
+        `${AGENT_READ_FAILURES.AGENT_ERROR}: Login failed`
+      ]
+    ])(
+      'refuses a manual poll the agent answers %s',
+      async (reason, message) => {
+        mocks.agentReader.read.mockResolvedValue({
+          kind: 'refused',
+          reason,
+          error: 'Login failed'
+        });
+
+        const result = await useCase.execute({
+          deviceId: VALID_DEVICE_UUID,
+          forceExecution: true
+        });
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toBe(`Cannot poll device — ${message}`);
+        expect(mocks.snapshotRepo.save).not.toHaveBeenCalled();
+      }
+    );
+
+    it('fails a scheduled poll the agent took too long on, like any failed read', async () => {
+      mocks.agentReader.read.mockResolvedValue({
+        kind: 'refused',
+        reason: 'TIMEOUT',
+        error: 'x'
+      });
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(
+        mocks.wirelessDeviceConfigRepo.save
+      ).not.toHaveBeenCalled();
+    });
+
+    it('refuses a vendor with no collector before asking the agent', async () => {
+      mocks.collectors.forVendor.mockReturnValue(null);
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID,
+        forceExecution: true
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(mocks.agentReader.read).not.toHaveBeenCalled();
+    });
+
+    it('never asks an agent for a radio this server reads itself', async () => {
+      mocks.deviceReach.readerFor.mockResolvedValue(
+        Result.ok({ by: 'server' })
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(mocks.collector.collect).toHaveBeenCalled();
+      expect(mocks.agentReader.read).not.toHaveBeenCalled();
     });
   });
 

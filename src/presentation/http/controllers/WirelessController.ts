@@ -18,6 +18,7 @@ import {
   BulkClearWirelessAlertsUseCase
 } from 'application/wireless-monitoring/use-cases';
 import { OUT_OF_SERVER_REACH } from 'application/wireless-monitoring/interfaces';
+import { AGENT_READ_FAILURES } from 'application/wireless-monitoring/use-cases';
 
 export class WirelessController {
   constructor(
@@ -427,6 +428,12 @@ export class WirelessController {
   };
 
   private getErrorStatusCode(errorMessage: string): number {
+    // WLS-029: the radio's agent was asked and let the request down.
+    if (errorMessage.includes(AGENT_READ_FAILURES.TIMEOUT))
+      return 504;
+    if (errorMessage.includes(AGENT_READ_FAILURES.AGENT_ERROR))
+      return 502;
+
     if (
       errorMessage.includes('not found') ||
       errorMessage.includes('NOT_FOUND') ||
@@ -444,7 +451,9 @@ export class WirelessController {
 
     if (
       errorMessage.includes('already exists') ||
-      errorMessage.includes(OUT_OF_SERVER_REACH)
+      errorMessage.includes(OUT_OF_SERVER_REACH) ||
+      errorMessage.includes(AGENT_READ_FAILURES.AGENT_OFFLINE) ||
+      errorMessage.includes(AGENT_READ_FAILURES.PROBE_UNSUPPORTED)
     ) {
       return 409;
     }

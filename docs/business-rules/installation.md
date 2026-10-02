@@ -498,19 +498,19 @@ everyone instead would let an attacker set a fresh address on each guess.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure (composition)
-**Since:** 2026-09-29
+**Since:** 2026-09-29 · **Revised:** 2026-10-01 (off site, radios are read through their agents)
 
 `SERVER_ON_SITE` is `true` or `false`, case-insensitive. Unset means `true`,
 which is how every install ran before agents. Set it to `false` when the
 backend is hosted off site (a VPS) and its devices are reached through
 on-site agents. Anything else stops the boot.
 
-Off site, the server talks to no device: it pings nothing (MON-023), gives no
-wireless polling, reboot or link diagnosis (WLS-029), and refuses the network
-scan (DEV-171). Devices are measured only by their agents; a device with no
-agent shows as UNKNOWN (MON-006). On site, the server pings every device with
-no agent, and ping of a device behind an agent is the agent's either way
-(MON-022).
+Off site, the server talks to no device: it pings nothing (MON-023), reads a
+radio only through its agent and gives no reboot or link diagnosis (WLS-029),
+and refuses the network scan (DEV-171). Devices are measured only by their
+agents; a device with no agent shows as UNKNOWN (MON-006). On site, the server
+pings every device with no agent and reads every radio itself, and ping of a
+device behind an agent is the agent's either way (MON-022).
 
 **Why:** The backend cannot find out by itself whether a private address is
 reachable: a timeout looks the same as a dead radio. The vendor who installs it

@@ -7,3 +7,4 @@ export * from './IWirelessPollOrchestrator';
 export * from './IContractedCapacityProvider';
 export * from './ILinkDiagnosisRunner';
 export * from './IDeviceReach';
+export * from './IAgentRadioReader';

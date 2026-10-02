@@ -317,7 +317,7 @@ An agent whose ping program cannot run is the agent's fault, not this
 server's: it does not count towards this server's probe health.
 
 Wireless polling stays with the server while it is on the monitored network;
-a server hosted off site polls no radio at all (WLS-029, MON-023).
+a server hosted off site reads a radio only through its agent (WLS-029).
 
 **Why:** One writer per device. Two sources applying results to the same
 `DeviceState` would flip it between their views and raise alerts from

@@ -14,6 +14,7 @@ import {
 } from '../probe-agents/queries';
 import {
   AgentChannelPingProbe,
+  AgentChannelRadioReader,
   DeviceMonitoringPingResultSink
 } from '../probe-agents/adapters';
 import {
@@ -1715,7 +1716,10 @@ export class DependencyContainer {
       this.deviceRepository,
       deviceEligibilityService
     );
-    const deviceReach = new DeviceReachAdapter(this.serverOnSite);
+    const deviceReach = new DeviceReachAdapter(
+      this.serverOnSite,
+      this.deviceRepository
+    );
     const contractedCapacityProvider = new ContractedCapacityAdapter(
       this.contractedServiceRepository,
       this.servicePlanRepository
@@ -1733,7 +1737,8 @@ export class DependencyContainer {
       deviceReach,
       contractedCapacityProvider,
       wirelessAlertPublisher,
-      this.logger
+      this.logger,
+      new AgentChannelRadioReader(connectedAgents)
     );
     const getWirelessDeviceStatusUseCase =
       new GetWirelessDeviceStatusUseCase(

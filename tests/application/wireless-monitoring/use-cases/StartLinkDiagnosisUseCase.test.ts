@@ -120,7 +120,8 @@ function setup() {
       .mockResolvedValue(Result.ok(null))
   };
   const deviceReach = {
-    isOutOfReach: jest.fn().mockResolvedValue(Result.ok(false))
+    isOutOfReach: jest.fn().mockResolvedValue(Result.ok(false)),
+    readerFor: jest.fn()
   };
   const contracted = {
     findKbpsByDeviceId: jest.fn().mockResolvedValue(Result.ok(null))

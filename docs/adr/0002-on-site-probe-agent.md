@@ -444,11 +444,29 @@ restarts, and **rolls back** if no heartbeat arrives within a minute.
 AirOS and SNMP reads run on the agent with credentials delivered per R15;
 wireless ingest in `application/wireless-monitoring`, same R8–R12 rules.
 
+*Revised 2026-10-01:* the backend asks and the agent answers. The backend
+keeps the wireless scheduler and `PollWirelessDeviceUseCase`; for a radio
+behind an agent on an off-site install it sends a probe request on the
+agent's connection (address, vendor, type and the decrypted credentials), and
+the agent reads the radio with the same collectors and answers with the
+reading (AGT-100…104, WLS-029). The agent schedules, buffers and replays
+nothing for wireless, and keeps no credentials: they live for one request,
+which also covers R15's "no credentials at rest". A radio whose agent is
+offline is skipped, so the outage leaves a gap in its wireless history; the
+agent's ping (phase 1) still records the outage itself. An install on the
+monitored network keeps reading every radio in process, so an agent being
+down never stops its wireless monitoring.
+
 ### Phase 4 — On-demand commands
 
 Live link diagnosis, force-poll and the network scanner as commands over the
 same connection, behind their existing ports (e.g. a remote
 `ILinkDiagnosisRunner` adapter).
+
+*Revised 2026-10-01:* force-poll came with phase 3, over the same probe
+requests: a manual ping of a device behind an agent asks that agent
+(MON-022), and so does a manual wireless poll off site (WLS-029). Link
+diagnosis, reboot and the network scanner remain.
 
 **Insetel's in-process path** stays until phase 4 so Insetel loses no feature;
 it is then removed. There is no permanent second code path.

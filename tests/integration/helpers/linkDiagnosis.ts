@@ -79,7 +79,7 @@ export function buildLinkDiagnosis(
       deviceRepo,
       new DeviceEligibilityService()
     ),
-    new DeviceReachAdapter(serverOnSite),
+    new DeviceReachAdapter(serverOnSite, deviceRepo),
     new ContractedCapacityAdapter(
       new PrismaContractedServiceRepository(prisma),
       new PrismaServicePlanRepository(prisma)
