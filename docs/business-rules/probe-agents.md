@@ -16,10 +16,16 @@ duplicates, backlog, out-of-order — is device-monitoring's (`MON-007`,
 The update rules cover how a new version of the agent is packaged, signed,
 offered and installed without anyone visiting the PC (ADR 0002, phase 2).
 
+The probe request rules cover measurements the backend asks for on the spot:
+a ping right now, or a reading of a radio. The backend still decides what
+each reading means; the agent only takes it, because only the agent can reach
+the device.
+
 The agent program rules cover the agent's own side (`src/agent/`): pairing,
 polling, buffering while offline and reacting to what the backend tells it.
 The agent is a separate program with its own composition root
-(`src/agent/main.ts`); it reuses the backend's ping probe but never its
+(`src/agent/main.ts`); it reuses the backend's ping probe and wireless
+collectors but never its
 database, HTTP server, DI container or use cases, which ESLint and
 `tests/agent/importBoundary.test.ts` both check. It keeps its files in one data
 directory — `%ProgramData%\NmsAgent` on Windows, `/var/lib/nms-agent` on Linux,
@@ -36,6 +42,7 @@ Format and conventions: [README.md](README.md).
 | `AGT-040` … `AGT-059` | Connection and protocol |
 | `AGT-060` … `AGT-079` | The agent program       |
 | `AGT-080` … `AGT-099` | Updates                 |
+| `AGT-100` … `AGT-119` | Probe requests          |
 
 ## Layer coverage
 
@@ -47,7 +54,7 @@ A rule enforced in two layers counts in both.
 | Application                  | 19    |
 | Infrastructure (composition) | 13    |
 | Presentation                 | 10    |
-| Agent program                | 14    |
+| Agent program                | 17    |
 
 ---
 
@@ -1094,3 +1101,83 @@ still knows what was being tried.
 
 **Enforced at:** `src/agent/update/AgentUpdater.ts` (`recover`, `welcomed`, `rollBack`), `src/agent/update/UpdateStateStore.ts`, `src/agent/main.ts`
 **Tests:** `tests/agent/update/AgentUpdater.test.ts`, `tests/agent/AgentRuntime.test.ts`
+
+---
+
+## Probe requests
+
+A probe request asks an agent to measure one device now and answer on the
+same connection. It is how a device behind an agent can be polled by hand,
+and how its radio is read at all, since only the agent can reach it.
+
+### AGT-100 — An agent says in its hello which requests it answers
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Agent program
+**Since:** 2026-10-01
+
+From version `0.3.0`, the agent's hello carries `capabilities: ["probe"]`.
+An agent that does not name `probe` is never sent a probe request. Older
+agents name nothing, and a backend that does not know the field ignores it,
+so either side can be upgraded first.
+
+**Why:** The backend cannot tell from a version number alone what an agent
+can do, and an agent that does not understand a request would leave the
+backend waiting until its timeout. Naming the capability lets agents that
+have not updated yet keep working exactly as before.
+
+**Enforced at:** `src/agent/protocol/messages.ts` (`AGENT_CAPABILITIES`), `src/agent/connection/BackendConnection.ts`, `src/agent/main.ts`
+**Tests:** `tests/agent/connection/BackendConnection.test.ts`
+
+### AGT-101 — An agent measures a device when asked, with the backend's own probe and collectors, and answers the same request
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program
+**Since:** 2026-10-01
+
+A probe request names a request id and either:
+
+- `ping`: an address and the device's attempt budget, kept between 1 and 10.
+  The agent runs the same ping loop it uses on its schedule, so the answer is
+  reachable or not with a latency, or "the probe could not run", just as in a
+  scheduled result.
+- `wireless`: an address, the device's vendor, whether it is an access point
+  or a station, and its credentials. The agent reads the radio with the
+  collector the backend uses in process for that vendor (Ubiquiti over HTTP,
+  Mimosa over SNMP), with the same timeouts.
+
+The answer carries the same request id and when the measurement started, by
+the agent's clock. Byte counters travel as decimal strings. A vendor with no
+collector, a radio that refuses or does not answer, or a probe that crashes
+is answered with an error, never left unanswered.
+
+At most 4 requests run at once. Up to 100 more wait their turn; beyond that
+the agent answers "busy" at once. A slow request holds up nothing else on
+the connection: configuration, update offers and results keep flowing.
+
+**Why:** ADR 0002: the agent measures and the backend decides. Reusing the
+probe and collectors, rather than rewriting them, means a reading taken
+through an agent is the same reading the server would have taken. The limit
+keeps a burst of requests from swamping the PC or the radios, and answering
+"busy" lets the backend report a reason instead of a timeout.
+
+**Enforced at:** `src/agent/probes/ProbeRunner.ts`, `src/agent/connection/BackendConnection.ts`, `src/agent/AgentRuntime.ts`, `src/agent/protocol/messages.ts`
+**Tests:** `tests/agent/probes/ProbeRunner.test.ts`, `tests/agent/connection/BackendConnection.test.ts`, `tests/agent/AgentRuntime.test.ts`, `tests/agent/importBoundary.test.ts`
+
+### AGT-102 — The credentials in a probe request are used for that request and kept nowhere
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Agent program
+**Since:** 2026-10-01
+
+A wireless probe request carries the device's credentials. The agent uses
+them for that one reading and keeps no copy: they are not written to its data
+directory, not part of its saved configuration, and not logged.
+
+**Why:** ADR 0002, R15: device credentials stay encrypted in the backend's
+database and reach the agent only over TLS. Sending them with each request,
+rather than with the configuration, means they are never on the customer's PC
+for longer than one reading, and a stolen PC holds none.
+
+**Enforced at:** `src/agent/probes/ProbeRunner.ts`
+**Tests:** `tests/agent/probes/ProbeRunner.test.ts`

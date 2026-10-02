@@ -65,22 +65,23 @@ describe('agent import boundary', () => {
         )
       )
     ).toEqual([]);
-    // Everything it borrows from the backend: the probe, its result type,
-    // the logger, and Result.
+    // Everything it borrows from the backend: the ping probe and the
+    // wireless collectors it runs for the backend (AGT-101), the logger,
+    // and Result.
     expect(
-      backendCode.filter(
-        (input) => !input.startsWith('src/domain/shared/')
-      )
-    ).toEqual(
-      expect.arrayContaining([
-        'src/infrastructure/monitoring/ping/PingService.ts',
-        'src/application/device-monitoring/services/PingCycleProbe.ts'
-      ])
-    );
-    expect(
-      backendCode.filter(
-        (input) => !input.startsWith('src/domain/shared/')
-      )
-    ).toHaveLength(3);
+      backendCode
+        .filter((input) => !input.startsWith('src/domain/shared/'))
+        .sort()
+    ).toEqual([
+      'src/application/device-monitoring/services/PingCycleProbe.ts',
+      'src/infrastructure/logging/WinstonLogger.ts',
+      'src/infrastructure/monitoring/ping/PingService.ts',
+      'src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts',
+      'src/infrastructure/wireless-monitoring/collectors/MimosaSnmpCollector.ts',
+      'src/infrastructure/wireless-monitoring/collectors/SnmpClient.ts',
+      'src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts',
+      'src/infrastructure/wireless-monitoring/collectors/WirelessCollectorRegistry.ts',
+      'src/infrastructure/wireless-monitoring/collectors/index.ts'
+    ]);
   });
 });

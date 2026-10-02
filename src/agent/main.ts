@@ -1,5 +1,13 @@
 import { PingService } from 'infrastructure/monitoring/ping/PingService';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
+import {
+  AirOsHttpClient,
+  MimosaSnmpCollector,
+  SnmpClient,
+  UbiquitiHttpCollector,
+  WirelessCollectorRegistry
+} from 'infrastructure/wireless-monitoring/collectors';
+import { AGENT_CAPABILITIES } from 'agent/protocol';
 import { PingCycleProbe } from 'application/device-monitoring/services/PingCycleProbe';
 import { promises as fs } from 'fs';
 import { isSea } from 'node:sea';
@@ -16,6 +24,7 @@ import {
 import { enrollAgent } from './identity/enrollAgent';
 import { PollScheduler } from './polling/PollScheduler';
 import { ResultBuffer } from './results/ResultBuffer';
+import { ProbeRunner } from './probes/ProbeRunner';
 import {
   BackendConnection,
   DEFAULT_CONNECTION_OPTIONS
@@ -88,9 +97,21 @@ async function main(): Promise<void> {
   if (updater && !(await updater.recover())) return;
 
   const buffer = await ResultBuffer.open(settings.dataDir, logger);
+  const pingProbe = new PingCycleProbe(new PingService());
   const scheduler = new PollScheduler(
-    new PingCycleProbe(new PingService()),
+    pingProbe,
     (result) => buffer.add(result),
+    logger
+  );
+  // The same collectors, and timeouts, the backend uses in process.
+  const probes = new ProbeRunner(
+    pingProbe,
+    new WirelessCollectorRegistry({
+      ubiquiti: new UbiquitiHttpCollector(
+        new AirOsHttpClient(10_000, logger)
+      ),
+      mimosa: new MimosaSnmpCollector(new SnmpClient(5_000))
+    }),
     logger
   );
   runtime = new AgentRuntime({
@@ -108,10 +129,12 @@ async function main(): Promise<void> {
     config: new ConfigStore(settings.dataDir),
     buffer,
     scheduler,
+    probes,
     connect: (credentials, callbacks) =>
       new BackendConnection(credentials, buffer, callbacks, logger, {
         ...DEFAULT_CONNECTION_OPTIONS,
         agentVersion: AGENT_VERSION,
+        capabilities: AGENT_CAPABILITIES,
         ...(platform && { platform })
       }),
     logger,

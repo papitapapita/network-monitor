@@ -182,6 +182,7 @@ describe('BackendConnection', () => {
       onConfig: jest.fn().mockResolvedValue(undefined),
       onWelcome: jest.fn(),
       onUpdate: jest.fn(),
+      onProbe: jest.fn(),
       onSubscriptionExpired: jest.fn(),
       onRevoked: jest.fn()
     };
@@ -379,6 +380,77 @@ describe('BackendConnection', () => {
       type: 'hello',
       platform: 'linux-x64'
     });
+  });
+
+  it('[AGT-100] names its capabilities in the hello', async () => {
+    connect({ capabilities: ['probe'] });
+
+    await backend.until(() => backend.received.length > 0);
+
+    expect(backend.received[0]).toMatchObject({
+      type: 'hello',
+      capabilities: ['probe']
+    });
+  });
+
+  it('[AGT-100] names no capabilities when it has none', async () => {
+    connect();
+
+    await backend.until(() => backend.received.length > 0);
+
+    expect(backend.received[0]).not.toHaveProperty('capabilities');
+  });
+
+  it('[AGT-101] answers a probe request with the result of the same request', async () => {
+    callbacks.onProbe.mockResolvedValue({
+      type: 'probe.result',
+      requestId: 'r-1',
+      kind: 'ping',
+      at: 5,
+      reading: { reachable: true, latencyMs: 3, attempts: 1 }
+    });
+    connect();
+    await backend.until(() => backend.received.length > 0);
+    backend.welcome();
+    const request = {
+      type: 'probe',
+      requestId: 'r-1',
+      kind: 'ping',
+      ip: '10.0.0.9',
+      attempts: 3
+    };
+
+    backend.send(request);
+
+    await backend.until(
+      () => backend.messages('probe.result').length > 0
+    );
+    expect(callbacks.onProbe).toHaveBeenCalledWith(request);
+    expect(backend.messages('probe.result')[0]).toMatchObject({
+      requestId: 'r-1',
+      reading: { reachable: true }
+    });
+  });
+
+  it('[AGT-101] keeps handling messages while a probe is still running', async () => {
+    callbacks.onProbe.mockReturnValue(new Promise(() => {}));
+    connect();
+    await backend.until(() => backend.received.length > 0);
+    backend.welcome();
+
+    backend.send({
+      type: 'probe',
+      requestId: 'slow',
+      kind: 'ping',
+      ip: '10.0.0.9',
+      attempts: 1
+    });
+    backend.send(config('v1'));
+
+    await backend.until(
+      () => backend.messages('config.ack').length > 0
+    );
+    expect(backend.messages('probe.result')).toEqual([]);
   });
 
   it('[AGT-081] hands an update offer to the updater', async () => {

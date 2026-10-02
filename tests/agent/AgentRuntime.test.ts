@@ -8,6 +8,7 @@ import { FilePermissionProtector } from '../../src/agent/identity/SecretProtecto
 import { EnrollOutcome } from '../../src/agent/identity/enrollAgent';
 import { PollScheduler } from '../../src/agent/polling/PollScheduler';
 import { ResultBuffer } from '../../src/agent/results/ResultBuffer';
+import { ProbeRunner } from '../../src/agent/probes/ProbeRunner';
 import {
   BackendConnection,
   ConnectionCallbacks
@@ -60,6 +61,8 @@ describe('AgentRuntime', () => {
     onReport: jest.Mock;
   };
 
+  const probes = { run: jest.fn() };
+
   const build = async (pairingKey: string | null = null) => {
     buffer = await ResultBuffer.open(dir, silentLogger());
     scheduler = new PollScheduler(
@@ -81,6 +84,7 @@ describe('AgentRuntime', () => {
       config: configStore,
       buffer,
       scheduler,
+      probes: probes as unknown as ProbeRunner,
       connect: (_credentials, given) => {
         callbacks = given;
         return connection as unknown as BackendConnection;
@@ -208,6 +212,27 @@ describe('AgentRuntime', () => {
 
     callbacks!.onWelcome();
     expect(scheduler.isRunning).toBe(true);
+  });
+
+  it('[AGT-101] hands a probe request to the probe runner and returns its answer', async () => {
+    const answer = {
+      type: 'probe.result',
+      requestId: 'r-1',
+      error: 'x'
+    };
+    probes.run.mockResolvedValue(answer);
+    await store.save(credentials);
+    await (await build()).start();
+    const request = {
+      type: 'probe',
+      requestId: 'r-1',
+      kind: 'ping',
+      ip: '10.0.0.9',
+      attempts: 1
+    } as const;
+
+    await expect(callbacks!.onProbe(request)).resolves.toBe(answer);
+    expect(probes.run).toHaveBeenCalledWith(request);
   });
 
   it('[AGT-081] hands an offer to the updater with the agent’s credentials', async () => {

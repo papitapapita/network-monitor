@@ -18,6 +18,8 @@ import { FilePermissionProtector } from '../../src/agent/identity/SecretProtecto
 import { enrollAgent } from '../../src/agent/identity/enrollAgent';
 import { PollScheduler } from '../../src/agent/polling/PollScheduler';
 import { ResultBuffer } from '../../src/agent/results/ResultBuffer';
+import { ProbeRunner } from '../../src/agent/probes/ProbeRunner';
+import { WirelessCollectorRegistry } from '../../src/infrastructure/wireless-monitoring/collectors';
 import {
   BackendConnection,
   DEFAULT_CONNECTION_OPTIONS
@@ -81,15 +83,16 @@ describe('Agent app — end to end', () => {
     const logger = new WinstonLogger({ component: 'agent-e2e' });
     logger.setLevel('error' as never);
     buffer = await ResultBuffer.open(dataDir, logger);
+    const ping = {
+      run: async () => ({
+        kind: 'measured' as const,
+        isReachable: reachable,
+        latencyMs: reachable ? 4 : null,
+        attempts: reachable ? 1 : 3
+      })
+    };
     const scheduler = new PollScheduler(
-      {
-        run: async () => ({
-          kind: 'measured',
-          isReachable: reachable,
-          latencyMs: reachable ? 4 : null,
-          attempts: reachable ? 1 : 3
-        })
-      },
+      ping,
       (result) => buffer.add(result),
       logger,
       { tickMs: 50 }
@@ -104,6 +107,11 @@ describe('Agent app — end to end', () => {
       config: new ConfigStore(dataDir),
       buffer,
       scheduler,
+      probes: new ProbeRunner(
+        ping,
+        new WirelessCollectorRegistry({}),
+        logger
+      ),
       connect: (credentials, callbacks) =>
         new BackendConnection(
           credentials,

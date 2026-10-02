@@ -3,6 +3,7 @@ import WebSocket from 'ws';
 import type { ILogger } from 'application/shared/interfaces';
 import {
   AGENT_WS_PATH,
+  AgentCapability,
   AgentMessage,
   AgentPlatform,
   BackendMessage,
@@ -10,6 +11,8 @@ import {
   ConfigMessage,
   PROTOCOL_VERSION,
   PingResultWire,
+  ProbeRequestMessage,
+  ProbeResultMessage,
   UpdateMessage,
   UpdateResultMessage
 } from 'agent/protocol';
@@ -23,6 +26,8 @@ export interface ConnectionCallbacks {
   onWelcome(): void;
   // A newer release to install (AGT-081).
   onUpdate(offer: UpdateMessage): void;
+  // Measure one device now; the answer goes back on this connection (AGT-101).
+  onProbe(request: ProbeRequestMessage): Promise<ProbeResultMessage>;
   // 4003: the backend takes nothing until the subscription is paid.
   onSubscriptionExpired(): void;
   // 4001: the agent must forget its identity and stop.
@@ -40,6 +45,8 @@ export interface BackendConnectionOptions {
   agentVersion: string;
   // Named in the hello only by an agent that can update itself (AGT-082).
   platform?: AgentPlatform;
+  // Named in the hello so the backend knows what it may ask (AGT-100).
+  capabilities?: readonly AgentCapability[];
   flushEveryMs: number;
   batchSize: number;
   maxBatchesInFlight: number;
@@ -144,6 +151,9 @@ export class BackendConnection {
         ...(this.options.platform && {
           platform: this.options.platform
         }),
+        ...(this.options.capabilities?.length && {
+          capabilities: [...this.options.capabilities]
+        }),
         sentAt: Date.now()
       });
     });
@@ -200,6 +210,12 @@ export class BackendConnection {
         return;
       case 'update':
         this.callbacks.onUpdate(message);
+        return;
+      case 'probe':
+        // Not awaited: a slow radio must not hold up the messages behind it.
+        void this.callbacks
+          .onProbe(message)
+          .then((result) => this.send(result));
         return;
       default:
         this.logger.warn('Backend sent an unknown message', {
