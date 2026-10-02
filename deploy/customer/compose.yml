@@ -1,0 +1,57 @@
+# One customer install (docs/operations/new-customer.md). Copied into the
+# customer's folder by new-customer.sh and refreshed by update-customers.sh;
+# the values below come from that folder's .env.
+name: nms-${CUSTOMER}
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    env_file: db.env
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # The dashboard reaches it as http://backend:3000 (frontend Dockerfile).
+  backend:
+    image: nms-backend:latest
+    restart: unless-stopped
+    env_file: backend.env
+    environment:
+      INSTALLERS_DIR: /installers
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:${BACKEND_PORT}:3000'
+    volumes:
+      - '${INSTALLERS_DIR}:/installers:ro'
+      - logs:/app/logs
+
+  frontend:
+    image: nms-frontend:latest
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '127.0.0.1:${WEB_PORT}:3001'
+
+# Fixed per customer so TRUST_PROXY can name it: cloudflared arrives through
+# its gateway, the dashboard's /api proxy from inside it.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${SUBNET}
+
+volumes:
+  db:
+  logs:
