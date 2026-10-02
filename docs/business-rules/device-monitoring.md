@@ -294,27 +294,44 @@ instead of a result. Three attempts answer in under 20 seconds.
 ### MON-022 — A device behind an on-site agent is polled by that agent only
 
 **Type:** Policy · **Status:** Active
-**Since:** 2026-09-28
+**Since:** 2026-09-28 · **Revised:** 2026-10-01
 
 A device with an `agentId` (DEV-164) leaves the in-process scheduler's due
 query; its agent polls it and its results arrive through the agent gateway
-(AGT-043). A manual poll of such a device is refused with `409`: this server may
-not be able to reach it, and on-demand polls through an agent arrive with ADR
-0002 phase 4. Wireless polling stays with the server while it is on the
-monitored network; a server hosted off site polls no device at all (WLS-029,
-MON-023).
-It moves to agents in phase 3.
+(AGT-043). A manual poll of such a device asks that agent to ping it now
+(AGT-103), with the same attempt cap as any manual poll (MON-021), and the
+answer is applied as a live reading, timed on this server's clock (AGT-104).
+This works whether the server is on the monitored network or not (MON-023).
+The server never pings the device itself.
+
+When the agent gives no reading, nothing is recorded and the poll fails:
+
+| Agent                                             | Status | Message ends with                                          |
+| ------------------------------------------------- | ------ | ---------------------------------------------------------- |
+| Not connected                                     | `409`  | `its on-site agent is not connected`                       |
+| Connected, but older than `0.3.0` (AGT-100)       | `409`  | `its on-site agent must be updated to poll it on demand`   |
+| No answer within 25 seconds                       | `504`  | `its on-site agent did not answer in time`                 |
+| Answered with an error, or its ping could not run | `502`  | `its on-site agent could not poll it: <the agent's error>` |
+
+An agent whose ping program cannot run is the agent's fault, not this
+server's: it does not count towards this server's probe health.
+
+Wireless polling stays with the server while it is on the monitored network;
+a server hosted off site polls no radio at all (WLS-029, MON-023).
 
 **Why:** One writer per device. Two sources applying results to the same
 `DeviceState` would flip it between their views and raise alerts from
 whichever is wrong. Running an agent alongside in-process polling (ADR 0002,
 1.9) therefore means moving devices over in groups (DEV-168) and moving them
-back if needed, not polling each device twice.
+back if needed, not polling each device twice. A manual poll through the
+agent keeps that single writer: the reading is the agent's, measured from the
+customer's network, like its scheduled ones. The 25-second limit stays under
+the 30 seconds the HTTP proxy in front of the API allows.
 
-**Enforced at:** `src/infrastructure/persistence/PrismaPollingConfigurationRepository.ts` (`findAllDue`), `src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.ts` (`findIneligibilityReason`)
+**Enforced at:** `src/infrastructure/persistence/PrismaPollingConfigurationRepository.ts` (`findAllDue`), `src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.ts` (`checkEligibility`, `AGENT_POLL_FAILURES`), `src/infrastructure/probe-agents/adapters/AgentChannelPingProbe.ts`, `src/presentation/http/controllers/PollingController.ts`
 **Reached from:** `POST /api/devices/:id/poll` via `PollingController.poll`
-**Message:** `Cannot poll device <id> — it is polled by an on-site agent, and polling it on demand is not available yet`
-**Tests:** `tests/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/ExecutePollingCycleUseCase.integration.test.ts`, `tests/integration/polling.routes.test.ts`
+**Message:** see the table above
+**Tests:** `tests/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/ExecutePollingCycleUseCase.integration.test.ts`, `tests/integration/polling.routes.test.ts`, `tests/presentation/http/controllers/PollingController.test.ts`, `tests/infrastructure/probe-agents/adapters/AgentChannelPingProbe.test.ts`
 
 ---
 
@@ -328,7 +345,7 @@ When the install says its server is not on the monitored network
 (`SERVER_ON_SITE=false`, INS-041), the in-process scheduler polls no device at
 all: the due query is empty, so a device left with no agent is not pinged
 either. A manual poll of such a device is refused with `409`; a device behind
-an agent keeps its own reason (`MON-022`). The device is shown as UNKNOWN
+an agent is polled through that agent (`MON-022`). The device is shown as UNKNOWN
 (`MON-006`) and raises no down alert (`NOT-101`) until it is moved behind an
 agent. A server on the monitored network (the default) keeps pinging every
 device that has no agent.
@@ -339,7 +356,7 @@ an alert for every device and spend the host's CPU on pings that can only time
 out — on a host that may serve several customers. The vendor's own on-site
 install keeps pinging its network from the server, as before.
 
-**Enforced at:** `src/infrastructure/persistence/PrismaPollingConfigurationRepository.ts` (`findAllDue`), `src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.ts` (`findIneligibilityReason`)
+**Enforced at:** `src/infrastructure/persistence/PrismaPollingConfigurationRepository.ts` (`findAllDue`), `src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.ts` (`checkEligibility`)
 **Reached from:** `POST /api/devices/:id/poll` via `PollingController.poll`, and the in-process polling scheduler
 **Message:** `Cannot poll device <id> — this server is not on the monitored network`
 **Tests:** `tests/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.test.ts`, `tests/infrastructure/persistence/PrismaPollingConfigurationRepository.test.ts`, `tests/presentation/http/controllers/PollingController.test.ts`, `tests/integration/use-cases/device-monitoring/ExecutePollingCycleUseCase.integration.test.ts`, `tests/integration/polling.routes.test.ts`

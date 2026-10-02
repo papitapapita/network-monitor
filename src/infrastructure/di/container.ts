@@ -12,8 +12,14 @@ import {
   PrismaAgentOutageQuery,
   PrismaAgentStatusQuery
 } from '../probe-agents/queries';
-import { DeviceMonitoringPingResultSink } from '../probe-agents/adapters';
-import { AgentGateway } from '../../presentation/ws/agent';
+import {
+  AgentChannelPingProbe,
+  DeviceMonitoringPingResultSink
+} from '../probe-agents/adapters';
+import {
+  AgentGateway,
+  ConnectedAgents
+} from '../../presentation/ws/agent';
 import {
   CreateAgentUseCase,
   ListAgentsUseCase,
@@ -1254,6 +1260,9 @@ export class DependencyContainer {
       this.deviceStateRepository,
       this.logger
     );
+    // Filled by the agent gateway further down; built here so a manual poll
+    // can ask a device's agent (MON-022).
+    const connectedAgents = new ConnectedAgents(this.logger);
     const executePollingCycleUseCase = new ExecutePollingCycleUseCase(
       this.pollingConfigRepository,
       this.deviceRepository,
@@ -1262,7 +1271,8 @@ export class DependencyContainer {
       ingestPingResultsUseCase,
       this.logger,
       probeHealthReporter,
-      this.serverOnSite
+      this.serverOnSite,
+      new AgentChannelPingProbe(connectedAgents)
     );
     const configurePollingUseCase = new ConfigureDevicePollingUseCase(
       this.pollingConfigRepository,
@@ -1501,6 +1511,7 @@ export class DependencyContainer {
           this.logger
         )
       },
+      connectedAgents,
       this.logger
     );
     this.agentLivenessOrchestrator = new AgentLivenessOrchestrator(

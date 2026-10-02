@@ -587,7 +587,7 @@ the old socket is dead. The new connection is the one that reflects the
 agent's state; two open sessions would each push configuration and handle
 results for the same agent.
 
-**Enforced at:** `src/presentation/ws/agent/AgentGateway.ts`, `src/presentation/ws/agent/AgentSession.ts`
+**Enforced at:** `src/presentation/ws/agent/AgentGateway.ts`, `src/presentation/ws/agent/ConnectedAgents.ts`, `src/presentation/ws/agent/AgentSession.ts`
 **Tests:** `tests/integration/agent-gateway.test.ts`
 
 ---
@@ -1198,7 +1198,7 @@ of:
 | A reading           | The agent answered with a ping result or a radio reading               |
 | `AGENT_OFFLINE`     | The agent has no connection, or it dropped while the request waited    |
 | `PROBE_UNSUPPORTED` | The agent is connected but did not name `probe` in its hello (AGT-100) |
-| `TIMEOUT`           | No answer within 60 seconds for a ping or 45 for a radio read          |
+| `TIMEOUT`           | No answer within 25 seconds for a ping or 45 for a radio read          |
 | `AGENT_ERROR`       | The agent answered with an error, which is passed on as it came        |
 
 Nothing is sent to an agent that is offline or cannot answer. An answer that
@@ -1211,10 +1211,11 @@ message. The device's credentials go in the request and are not logged.
 **Why:** A manual poll and a scheduled radio read both need a definite
 answer: a reading, or a reason that can be shown to the user or let the
 schedule skip the device. A request left open forever, or a stale answer
-landing on the wrong request, would show a wrong reading. The timeouts cover
-ten ping attempts and a radio login with its reads.
+landing on the wrong request, would show a wrong reading. A ping is only
+asked for by hand, at up to 3 attempts (MON-021, MON-022), so it gives up before the
+30-second HTTP proxy does; a radio read allows for a login and its reads.
 
-**Enforced at:** `src/presentation/ws/agent/AgentGateway.ts` (`ping`, `readRadio`), `src/presentation/ws/agent/AgentSession.ts` (`probe`, `onProbeResult`), `src/presentation/ws/agent/agentMessageSchema.ts`, `src/presentation/ws/agent/probeWire.ts`, `src/application/probe-agents/interfaces/IAgentProbeChannel.ts`
+**Enforced at:** `src/presentation/ws/agent/ConnectedAgents.ts` (`ping`, `readRadio`), `src/presentation/ws/agent/AgentSession.ts` (`probe`, `onProbeResult`), `src/presentation/ws/agent/agentMessageSchema.ts`, `src/presentation/ws/agent/probeWire.ts`, `src/application/probe-agents/interfaces/IAgentProbeChannel.ts`
 **Tests:** `tests/integration/agent-gateway.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/presentation/ws/agent/probeWire.test.ts`
 
 ### AGT-104 — A probe reading is timed on the backend's clock, between asking and the answer
@@ -1232,5 +1233,5 @@ window are on the backend's clock and the measurement certainly happened
 inside it, so the reading is never placed before it was asked for or after
 it arrived.
 
-**Enforced at:** `src/presentation/ws/agent/probeWire.ts` (`measuredAt`), `src/presentation/ws/agent/AgentGateway.ts`
+**Enforced at:** `src/presentation/ws/agent/probeWire.ts` (`measuredAt`), `src/presentation/ws/agent/ConnectedAgents.ts`
 **Tests:** `tests/presentation/ws/agent/probeWire.test.ts`, `tests/integration/agent-gateway.test.ts`

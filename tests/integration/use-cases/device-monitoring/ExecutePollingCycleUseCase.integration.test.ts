@@ -1,5 +1,6 @@
 import { PrismaClient } from '../../../../src/generated/prisma/client';
 import {
+  AGENT_POLL_FAILURES,
   ExecutePollingCycleUseCase,
   NOT_ON_MONITORED_NETWORK
 } from 'application/device-monitoring/use-cases/ExecutePollingCycleUseCase';
@@ -25,6 +26,7 @@ import {
 } from '../../helpers/db';
 import { PrismaPollingConfigurationRepository as DueRepo } from 'infrastructure/persistence/PrismaPollingConfigurationRepository';
 import { FakePingService } from '../../helpers/FakePingService';
+import { FakeAgentPingProbe } from '../../helpers/FakeAgentPingProbe';
 import { SuspendDeviceMonitoringUseCase } from 'application/device-monitoring/use-cases/SuspendDeviceMonitoringUseCase';
 import { ResolveAlertUseCase } from 'application/notifications/use-cases/ResolveAlertUseCase';
 import { PrismaAlertRepository } from 'infrastructure/persistence/PrismaAlertRepository';
@@ -35,6 +37,7 @@ describe('ExecutePollingCycleUseCase — integration', () => {
   let useCase: ExecutePollingCycleUseCase;
   let configureUseCase: ConfigureDevicePollingUseCase;
   let fakePing: FakePingService;
+  let fakeAgent: FakeAgentPingProbe;
   let deviceModelId: string;
   let deviceId: string;
 
@@ -50,6 +53,7 @@ describe('ExecutePollingCycleUseCase — integration', () => {
     const logger = new WinstonLogger();
 
     fakePing = new FakePingService();
+    fakeAgent = new FakeAgentPingProbe();
     useCase = new ExecutePollingCycleUseCase(
       pollingConfigRepo,
       new PrismaDeviceRepository(prisma),
@@ -61,7 +65,10 @@ describe('ExecutePollingCycleUseCase — integration', () => {
         deviceStateRepo,
         logger
       ),
-      logger
+      logger,
+      undefined,
+      true,
+      fakeAgent
     );
     const suspend = new SuspendDeviceMonitoringUseCase(
       pollingConfigRepo,
@@ -243,14 +250,17 @@ describe('ExecutePollingCycleUseCase — integration', () => {
   // ──────────────────────────────────────────────────────────────
 
   describe('[MON-022] a device behind an on-site agent', () => {
+    let agentId: string;
+
     beforeEach(async () => {
-      const { id: agentId } = await seedAgent(prisma, {
+      ({ id: agentId } = await seedAgent(prisma, {
         status: 'ACTIVE'
-      });
+      }));
       await prisma.device.update({
         where: { id: deviceId },
         data: { agentId }
       });
+      fakeAgent.calls.length = 0;
     });
 
     afterEach(async () => {
@@ -265,13 +275,54 @@ describe('ExecutePollingCycleUseCase — integration', () => {
       ).not.toContain(deviceId);
     });
 
-    it('refuses a manual poll and writes nothing', async () => {
+    it('asks the agent on a manual poll and stores its reading as live', async () => {
+      const measuredAt = new Date(Date.now() - 1_000);
+      fakeAgent.answer = {
+        kind: 'measured',
+        outcome: {
+          kind: 'measured',
+          isReachable: true,
+          latencyMs: 6,
+          attempts: 1
+        },
+        measuredAt
+      };
+
       const result = await useCase.execute({
         deviceId,
         forceExecution: true
       });
 
-      expect(result.error).toContain('polled by an on-site agent');
+      expect(result.value.status).toBe('SUCCESS');
+      expect(fakeAgent.calls).toEqual([
+        { agentId, ipAddress: expect.any(String), attempts: 3 }
+      ]);
+      const stored = await prisma.pingResult.findMany({
+        where: { deviceId }
+      });
+      expect(stored).toHaveLength(1);
+      expect(stored[0].checkedAt).toEqual(measuredAt);
+      const state = await prisma.deviceState.findUnique({
+        where: { deviceId }
+      });
+      expect(state!.lastCheckedAt).toEqual(measuredAt);
+    });
+
+    it('refuses a manual poll while the agent is offline and writes nothing', async () => {
+      fakeAgent.answer = {
+        kind: 'refused',
+        reason: 'AGENT_OFFLINE',
+        error: 'The agent is not connected'
+      };
+
+      const result = await useCase.execute({
+        deviceId,
+        forceExecution: true
+      });
+
+      expect(result.error).toContain(
+        AGENT_POLL_FAILURES.AGENT_OFFLINE
+      );
       expect(
         await prisma.pingResult.count({ where: { deviceId } })
       ).toBe(0);

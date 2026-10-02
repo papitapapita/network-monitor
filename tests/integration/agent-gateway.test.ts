@@ -11,7 +11,10 @@ import {
   setupDependencies,
   DependencyContainer
 } from '../../src/infrastructure/di/container';
-import { AgentGateway } from '../../src/presentation/ws/agent';
+import {
+  AgentGateway,
+  ConnectedAgents
+} from '../../src/presentation/ws/agent';
 import {
   AcceptAgentResultsUseCase,
   AuthenticateAgentUseCase,
@@ -67,6 +70,7 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
   let prisma: PrismaClient;
   let server: Server;
   let gateway: AgentGateway;
+  let connected: ConnectedAgents;
   let url: string;
   let deviceModelId: string;
   const openClients: WebSocket[] = [];
@@ -93,6 +97,10 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
     const logger = new WinstonLogger();
     const agents = new PrismaAgentRepository(prisma);
     const index = new PrismaAgentDeviceIndex(prisma);
+    connected = new ConnectedAgents(logger, {
+      pingMs: 300,
+      wirelessMs: 300
+    });
     gateway = new AgentGateway(
       new AuthenticateAgentUseCase(
         agents,
@@ -135,6 +143,7 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
           logger
         )
       },
+      connected,
       logger,
       {
         minProtocolVersion: PROTOCOL_VERSION,
@@ -142,8 +151,7 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
         helloTimeoutMs: 300,
         configRefreshMs: 250,
         pingIntervalMs: 30_000
-      },
-      { pingMs: 300, wirelessMs: 300 }
+      }
     );
 
     server = createServer();
@@ -305,7 +313,7 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
       });
       expect(row!.lastSeenAt).not.toBeNull();
       expect(row!.agentVersion).toBe('1.0.0');
-      expect(gateway.isConnected(id)).toBe(true);
+      expect(connected.isConnected(id)).toBe(true);
     });
 
     it('[AGT-043] stores a results batch and acknowledges each result', async () => {
@@ -537,7 +545,7 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
     it('answers "offline" for an agent that is not connected', async () => {
       const { id } = await agentWithDevice();
 
-      expect(await gateway.ping(id, '10.20.0.5', 3)).toEqual({
+      expect(await connected.ping(id, '10.20.0.5', 3)).toEqual({
         ok: false,
         reason: 'AGENT_OFFLINE',
         error: 'The agent is not connected'
@@ -547,7 +555,7 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
     it('[AGT-100] never asks an agent that did not say it answers probes', async () => {
       const { id, client } = await probingAgent([]);
 
-      const outcome = await gateway.ping(id, '10.20.0.5', 3);
+      const outcome = await connected.ping(id, '10.20.0.5', 3);
       await settle();
 
       expect(outcome).toMatchObject({
@@ -555,14 +563,14 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
         reason: 'PROBE_UNSUPPORTED'
       });
       expect(client.inbox.map((m) => m.type)).not.toContain('probe');
-      expect(gateway.isConnected(id)).toBe(true);
+      expect(connected.isConnected(id)).toBe(true);
     });
 
     it('[AGT-104] sends a ping and gives back the answer, timed on the backend clock', async () => {
       const { id, client } = await probingAgent();
       const before = Date.now();
 
-      const pending = gateway.ping(id, '10.20.0.5', 3);
+      const pending = connected.ping(id, '10.20.0.5', 3);
       const request = await client.next('probe');
       client.send({
         type: 'probe.result',
@@ -601,7 +609,7 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
       const { id, client } = await probingAgent();
       const reading = makeWirelessCollectionResult();
 
-      const pending = gateway.readRadio(id, {
+      const pending = connected.readRadio(id, {
         ipAddress: '10.20.0.5',
         vendor: 'ubiquiti',
         deviceType: 'ACCESS_POINT',
@@ -631,7 +639,7 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
     it('passes on the error the agent answers', async () => {
       const { id, client } = await probingAgent();
 
-      const pending = gateway.ping(id, '10.20.0.5', 3);
+      const pending = connected.ping(id, '10.20.0.5', 3);
       const request = (await client.next('probe')) as {
         requestId: string;
       };
@@ -651,7 +659,7 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
     it('gives up on an agent that does not answer, and drops its late answer', async () => {
       const { id, client } = await probingAgent();
 
-      const outcome = await gateway.ping(id, '10.20.0.5', 3);
+      const outcome = await connected.ping(id, '10.20.0.5', 3);
       const request = (await client.next('probe')) as {
         requestId: string;
       };
@@ -665,13 +673,13 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
       await settle();
 
       expect(outcome).toMatchObject({ ok: false, reason: 'TIMEOUT' });
-      expect(gateway.isConnected(id)).toBe(true);
+      expect(connected.isConnected(id)).toBe(true);
     });
 
     it('ends a request at once when the agent disconnects', async () => {
       const { id, client } = await probingAgent();
 
-      const pending = gateway.ping(id, '10.20.0.5', 3);
+      const pending = connected.ping(id, '10.20.0.5', 3);
       await client.next('probe');
       client.ws.close();
 
@@ -685,8 +693,8 @@ describe('Agent Gateway — ' + AGENT_WS_PATH, () => {
     it('matches each answer to its own request', async () => {
       const { id, client } = await probingAgent();
 
-      const first = gateway.ping(id, '10.20.0.5', 1);
-      const second = gateway.ping(id, '10.20.0.6', 1);
+      const first = connected.ping(id, '10.20.0.5', 1);
+      const second = connected.ping(id, '10.20.0.6', 1);
       const requests = [
         (await client.next('probe')) as {
           requestId: string;

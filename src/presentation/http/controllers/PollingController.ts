@@ -7,6 +7,7 @@ import {
   ConfigureDevicePollingUseCase,
   CreateDevicePollingUseCase,
   DeleteDevicePingHistoryUseCase,
+  AGENT_POLL_FAILURES,
   NOT_ON_MONITORED_NETWORK
 } from 'application/device-monitoring/use-cases';
 
@@ -185,11 +186,16 @@ export class PollingController {
     if (
       errorMessage.includes('Monitoring is disabled') ||
       errorMessage.includes('and is not polled') ||
-      errorMessage.includes('polled by an on-site agent') ||
-      errorMessage.includes(NOT_ON_MONITORED_NETWORK)
+      errorMessage.includes(NOT_ON_MONITORED_NETWORK) ||
+      errorMessage.includes(AGENT_POLL_FAILURES.AGENT_OFFLINE) ||
+      errorMessage.includes(AGENT_POLL_FAILURES.PROBE_UNSUPPORTED)
     ) {
       return 409;
     }
+
+    // MON-022: the agent was asked and let the request down.
+    if (errorMessage.includes(AGENT_POLL_FAILURES.TIMEOUT)) return 504;
+    if (errorMessage.includes(AGENT_POLL_FAILURES.AGENT_ERROR)) return 502;
 
     if (
       errorMessage.includes('not found') ||

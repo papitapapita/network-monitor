@@ -1447,9 +1447,21 @@ monitoring before polling it"`. A manual poll would write a real reading over
 > (from `GET /api/devices/:id/polling/status`) rather than letting the call fail;
 > on a `409`, offer "enable monitoring" instead of a retry.
 
-> A device behind an on-site agent (`agentId` set) returns `409`
-> `"Cannot poll device <id> — it is polled by an on-site agent, and polling it on demand is not available yet"`
-> (MON-022). Hide "poll now" for devices with an `agentId`.
+> **⚠ Changed 2026-10-01: a device behind an on-site agent (`agentId` set) is
+> polled through that agent** (MON-022). The response is the same as for any
+> other device, timed when the agent measured it. When the agent gives no
+> reading, nothing is recorded and the error starts with
+> `"Cannot poll device <id> — "`:
+>
+> | Status | Error ends with                                            | Show                                  |
+> | ------ | ---------------------------------------------------------- | ------------------------------------- |
+> | `409`  | `its on-site agent is not connected`                       | "the agent is offline"                |
+> | `409`  | `its on-site agent must be updated to poll it on demand`   | "update the agent" (older than 0.3.0) |
+> | `504`  | `its on-site agent did not answer in time` (25 s)          | a retry                               |
+> | `502`  | `its on-site agent could not poll it: <the agent's error>` | the agent's error                     |
+>
+> **Frontend:** show "poll now" for agent devices again; it works on an
+> install hosted off site too.
 
 > On an install whose server is not on the monitored network
 > (`SERVER_ON_SITE=false`), a device **without** an agent returns `409`
@@ -2872,7 +2884,7 @@ On-site agents that measure a customer's network from inside it and report to th
 
 **On the PC:** the key is pasted into the agent's installer (or passed as `--pair <key>` on Linux); the agent pairs itself, which turns it `ACTIVE`. A key the backend refuses is thrown away by the agent, so the fix is always "new key", never "retry". Revoking makes the connected agent delete its token, its device list and its unsent results, then wait for a new key — the same PC can be paired again without reinstalling (`AGT-060`, `AGT-066`).
 
-**What still runs from the server:** ping of a device with an `agentId` is always the agent's (manual poll `409`, MON-022). When the server sits on the monitored network (the default, and Insetel's case) it pings every device with no agent, and wireless poll, reboot and link diagnosis stay with it for every device. An install hosted off site (`SERVER_ON_SITE=false`) talks to no device at all: it pings nothing, answers `409` for manual ping, wireless poll, reboot and diagnosis of any device, and refuses the network scan (MON-023, WLS-029, DEV-171). There a device with no agent shows `UNKNOWN` and raises no down alert (MON-006, NOT-101) until it is moved behind an agent. Read the setting from `GET /api/installation` (`serverOnSite`) and, when it is `false`, hide those actions for every device and point devices with no agent at "move to an agent".
+**What still runs from the server:** ping of a device with an `agentId` is always the agent's, a manual poll included, which asks the agent (MON-022). When the server sits on the monitored network (the default, and Insetel's case) it pings every device with no agent, and wireless poll, reboot and link diagnosis stay with it for every device. An install hosted off site (`SERVER_ON_SITE=false`) talks to no device at all: it pings nothing, answers `409` for manual ping of a device with no agent and for wireless poll, reboot and diagnosis of any device, and refuses the network scan (MON-023, WLS-029, DEV-171). There a device with no agent shows `UNKNOWN` and raises no down alert (MON-006, NOT-101) until it is moved behind an agent. Read the setting from `GET /api/installation` (`serverOnSite`) and, when it is `false`, hide those actions for every device and point devices with no agent at "move to an agent".
 
 **Updates:** agents update themselves (`AGT-080` … `AGT-085`). The vendor copies a signed release (`nms-agent-<version>.manifest.json` plus one `nms-agent-<version>-<platform>.gz` per platform) into `INSTALLERS_DIR`, next to the installers. Every connected agent running an older version is offered it within a minute, downloads it, checks the vendor's signature and installs it; `agentVersion` then shows the new version. `lastUpdate` tells how the last attempt ended: `INSTALLED`, `ROLLED_BACK` (the new version never reached the backend, so the previous one was put back) or `REJECTED` (size, checksum, signature or self-test failed; nothing changed), with the agent's `reason` for a failure. Show a failure as a warning on the agent page; the agent keeps measuring with the version it runs, and the vendor gets one Telegram message. A release that failed on an agent is not offered to it again — the vendor publishes a newer one. Agents installed before self-update (`0.1.0`) need one manual reinstall to get it.
 

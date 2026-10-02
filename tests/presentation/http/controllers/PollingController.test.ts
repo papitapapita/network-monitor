@@ -3,6 +3,7 @@
 import { Request, Response } from 'express';
 import { PollingController } from '../../../../src/presentation/http/controllers/PollingController';
 import {
+  AGENT_POLL_FAILURES,
   ExecutePollingCycleUseCase,
   NOT_ON_MONITORED_NETWORK
 } from '../../../../src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase';
@@ -291,6 +292,30 @@ describe('PollingController', () => {
         await controller.poll(mockReq as Request, res as Response);
 
         expect(statusMock).toHaveBeenCalledWith(409);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('[MON-022] a poll through an on-site agent', () => {
+      it.each([
+        [AGENT_POLL_FAILURES.AGENT_OFFLINE, 409],
+        [AGENT_POLL_FAILURES.PROBE_UNSUPPORTED, 409],
+        [AGENT_POLL_FAILURES.TIMEOUT, 504],
+        [`${AGENT_POLL_FAILURES.AGENT_ERROR}: Login failed`, 502]
+      ])('answers "%s" with %p', async (reason, status) => {
+        const mockReq = createMockRequest({
+          params: { id: DEVICE_UUID }
+        });
+        const { res, statusMock } = createMockResponse();
+        (
+          mockExecutePollingCycleUseCase.execute as jest.Mock
+        ).mockResolvedValue(
+          Result.fail(`Cannot poll device ${DEVICE_UUID} — ${reason}`)
+        );
+
+        await controller.poll(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(status);
       });
     });
 

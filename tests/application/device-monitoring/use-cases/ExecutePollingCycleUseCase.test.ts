@@ -1,6 +1,7 @@
 // Source: src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.ts
 
 import {
+  AGENT_POLL_FAILURES,
   ExecutePollingCycleUseCase,
   NOT_ON_MONITORED_NETWORK
 } from '../../../../src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase';
@@ -9,6 +10,7 @@ import { IPingResultRepository } from '../../../../src/domain/device-monitoring/
 import { IDeviceStateRepository } from '../../../../src/domain/device-monitoring/repository/IDeviceStateRepository';
 import { IPingService } from '../../../../src/application/device-monitoring/interfaces/IPingService';
 import { IProbeHealthReporter } from '../../../../src/application/device-monitoring/interfaces/IProbeHealthReporter';
+import { IAgentPingProbe } from '../../../../src/application/device-monitoring/interfaces/IAgentPingProbe';
 import { IngestPingResultsUseCase } from '../../../../src/application/device-monitoring/use-cases/IngestPingResultsUseCase';
 import { PingCycleProbe } from '../../../../src/application/device-monitoring/services/PingCycleProbe';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
@@ -202,6 +204,7 @@ describe('ExecutePollingCycleUseCase', () => {
       probeHealth?: IProbeHealthReporter;
       deviceRepo?: IDeviceRepository;
       serverOnSite?: boolean;
+      agentProbe?: IAgentPingProbe;
     } = {}
   ): ExecutePollingCycleUseCase {
     return new ExecutePollingCycleUseCase(
@@ -218,7 +221,8 @@ describe('ExecutePollingCycleUseCase', () => {
       ),
       logger,
       overrides.probeHealth,
-      overrides.serverOnSite
+      overrides.serverOnSite,
+      overrides.agentProbe
     );
   }
 
@@ -1126,41 +1130,140 @@ describe('ExecutePollingCycleUseCase', () => {
 
   // ===========================================================================
   describe('[MON-022] a device behind an on-site agent', () => {
+    const AGENT_ID = AgentId.create();
+    const MEASURED_AT = new Date('2026-10-01T12:00:00.000Z');
+    let agentProbe: { ping: jest.Mock };
+    let probeHealth: jest.Mocked<IProbeHealthReporter>;
+
     beforeEach(() => {
-      deviceRepo = makeDeviceRepo(
-        makeDevice({ agentId: AgentId.create() })
-      );
-      useCase = makeUseCase();
+      deviceRepo = makeDeviceRepo(makeDevice({ agentId: AGENT_ID }));
+      agentProbe = {
+        ping: jest.fn().mockResolvedValue({
+          kind: 'measured',
+          outcome: {
+            kind: 'measured',
+            isReachable: true,
+            latencyMs: 8,
+            attempts: 1
+          },
+          measuredAt: MEASURED_AT
+        })
+      };
+      probeHealth = {
+        recordProbeExecutionFailure: jest.fn(),
+        recordProbeExecuted: jest.fn()
+      };
+      useCase = makeUseCase({ agentProbe, probeHealth });
       configRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeConfig())
+        Result.ok(makeConfig({ thresholdCount: 5 }))
       );
     });
 
-    it('is skipped by the scheduler without being pinged', async () => {
+    it('is skipped by the scheduler without being pinged or asked of its agent', async () => {
       const result = await useCase.execute(makeRequest());
 
       expect(result.value.status).toBe('SKIPPED');
       expect(pingService.ping).not.toHaveBeenCalled();
+      expect(agentProbe.ping).not.toHaveBeenCalled();
       expect(deviceStateRepo.save).not.toHaveBeenCalled();
     });
 
-    it('refuses a manual poll and says why', async () => {
+    it('[MON-021] asks its agent on a manual poll, capped at 3 attempts, and applies the answer as a live reading', async () => {
       const result = await useCase.execute(
         makeRequest({ forceExecution: true })
       );
 
-      expect(result.error).toContain('polled by an on-site agent');
+      expect(agentProbe.ping).toHaveBeenCalledWith(
+        AGENT_ID.toString(),
+        TEST_IP,
+        3
+      );
       expect(pingService.ping).not.toHaveBeenCalled();
+      expect(result.value).toMatchObject({
+        status: 'SUCCESS',
+        message: 'Device responded in 8ms',
+        timestamp: MEASURED_AT
+      });
+      expect(pingResultRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ checkedAt: MEASURED_AT })
+      );
+      expect(deviceStateRepo.save).toHaveBeenCalled();
+      expect(probeHealth.recordProbeExecuted).not.toHaveBeenCalled();
     });
 
-    it('gives the agent reason on a server hosted off site too', async () => {
-      useCase = makeUseCase({ serverOnSite: false });
+    it('asks its agent on a server hosted off site too', async () => {
+      useCase = makeUseCase({ agentProbe, serverOnSite: false });
 
       const result = await useCase.execute(
         makeRequest({ forceExecution: true })
       );
 
-      expect(result.error).toContain('polled by an on-site agent');
+      expect(result.isSuccess).toBe(true);
+      expect(agentProbe.ping).toHaveBeenCalled();
+    });
+
+    it.each([
+      ['AGENT_OFFLINE', AGENT_POLL_FAILURES.AGENT_OFFLINE],
+      ['PROBE_UNSUPPORTED', AGENT_POLL_FAILURES.PROBE_UNSUPPORTED],
+      ['TIMEOUT', AGENT_POLL_FAILURES.TIMEOUT],
+      [
+        'AGENT_ERROR',
+        `${AGENT_POLL_FAILURES.AGENT_ERROR}: Login failed`
+      ]
+    ])(
+      'says why when the agent answers %s, and records nothing',
+      async (reason, message) => {
+        agentProbe.ping.mockResolvedValue({
+          kind: 'refused',
+          reason,
+          error: 'Login failed'
+        });
+
+        const result = await useCase.execute(
+          makeRequest({ forceExecution: true })
+        );
+
+        expect(result.error).toBe(
+          `Cannot poll device ${VALID_DEVICE_UUID} — ${message}`
+        );
+        expect(pingResultRepo.save).not.toHaveBeenCalled();
+        expect(deviceStateRepo.save).not.toHaveBeenCalled();
+      }
+    );
+
+    it('reports an agent whose ping could not run without blaming this server', async () => {
+      agentProbe.ping.mockResolvedValue({
+        kind: 'measured',
+        outcome: {
+          kind: 'probe-unavailable',
+          error: 'spawn ping ENOENT',
+          attempts: 3
+        },
+        measuredAt: MEASURED_AT
+      });
+
+      const result = await useCase.execute(
+        makeRequest({ forceExecution: true })
+      );
+
+      expect(result.error).toBe(
+        `Cannot poll device ${VALID_DEVICE_UUID} — ${AGENT_POLL_FAILURES.AGENT_ERROR}: spawn ping ENOENT`
+      );
+      expect(
+        probeHealth.recordProbeExecutionFailure
+      ).not.toHaveBeenCalled();
+    });
+
+    it('is refused as offline when no agent channel is wired', async () => {
+      useCase = makeUseCase();
+
+      const result = await useCase.execute(
+        makeRequest({ forceExecution: true })
+      );
+
+      expect(result.error).toContain(
+        AGENT_POLL_FAILURES.AGENT_OFFLINE
+      );
     });
   });
 

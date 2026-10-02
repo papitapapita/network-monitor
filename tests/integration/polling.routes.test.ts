@@ -95,7 +95,7 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
       expect(res.status).toBe(400);
     });
 
-    it('[MON-022] 409 — the device is polled by an on-site agent', async () => {
+    it('[MON-022] 409 — the device is behind an on-site agent that is not connected', async () => {
       const { id: agentId } = await seedAgent(prisma, {
         status: 'ACTIVE'
       });
@@ -109,7 +109,9 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
         .set('Authorization', `Bearer ${adminToken}`);
 
       expect(res.status).toBe(409);
-      expect(res.body.error).toContain('polled by an on-site agent');
+      expect(res.body.error).toContain(
+        'its on-site agent is not connected'
+      );
       await cleanAgents(prisma);
     });
   });
