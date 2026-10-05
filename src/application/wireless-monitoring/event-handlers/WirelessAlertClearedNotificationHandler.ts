@@ -28,8 +28,10 @@ export class WirelessAlertClearedNotificationHandler
         deviceId: event.deviceId.toString(),
         severity: AlertSeverity.CRITICAL,
         source: SOURCE,
-        subject: event.metric,
-        detail: `La condición de alerta en ${event.metric} se ha normalizado.`,
+        summary:
+          event.reason ??
+          `Alerta ${event.metric} cerrada manualmente`,
+        detail: null,
         occurredAt: event.clearedAt,
         resolved: true,
         type: `wireless:${event.metric}:${event.severity}`

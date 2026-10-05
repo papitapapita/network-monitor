@@ -31,13 +31,15 @@ function makeLogger(): jest.Mocked<ILogger> {
 
 function makeEvent(
   severity: 'WARNING' | 'CRITICAL',
-  metric = 'signal_rx_dbm'
+  metric = 'signal_rx_dbm',
+  reason: string | null = null
 ): WirelessAlertClearedEvent {
   return new WirelessAlertClearedEvent({
     aggregateId: WirelessAlertRecordId.create(),
     deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
     metric,
     severity,
+    reason,
     clearedAt: FIXED_DATE,
     dateTimeOccurred: FIXED_DATE
   });
@@ -80,20 +82,35 @@ describe('[WLS-123] WirelessAlertClearedNotificationHandler', () => {
   });
 
   describe('handle — envelope', () => {
-    it('should publish a resolved CRITICAL wireless-link alert', async () => {
-      await handler.handle(makeEvent('CRITICAL', 'lan_status'));
+    it("should publish a resolved CRITICAL wireless-link alert led by the rule's own sentence", async () => {
+      await handler.handle(
+        makeEvent(
+          'CRITICAL',
+          'lan_status',
+          'Puerto LAN recuperado en equipo Torre Norte'
+        )
+      );
 
       expect(publisher.publish).toHaveBeenCalledWith({
         deviceId: VALID_DEVICE_UUID,
         severity: AlertSeverity.CRITICAL,
         source: 'Enlace inalámbrico',
-        subject: 'lan_status',
-        detail:
-          'La condición de alerta en lan_status se ha normalizado.',
+        summary: 'Puerto LAN recuperado en equipo Torre Norte',
+        detail: null,
         occurredAt: FIXED_DATE,
         resolved: true,
         type: 'wireless:lan_status:CRITICAL'
       });
+    });
+
+    it('should say the alert was closed by hand when there is no rule sentence', async () => {
+      await handler.handle(makeEvent('CRITICAL', 'lan_status'));
+
+      expect(publisher.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          summary: 'Alerta lan_status cerrada manualmente'
+        })
+      );
     });
   });
 

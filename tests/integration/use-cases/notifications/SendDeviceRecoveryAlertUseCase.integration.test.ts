@@ -56,7 +56,7 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
     );
     recoveryUseCase = new SendDeviceRecoveryAlertUseCase(
       alertRepo,
-      pollingConfigRepo,
+      deviceRepo,
       alertPublisher,
       logger
     );
@@ -136,9 +136,10 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
     const msg = fakeNotification.lastMessage!;
     expect(msg.metadata.deviceId).toBe(deviceId);
     expect(msg.metadata.timestamp).toBe(recoveredAt.toISOString());
-    // latency + offline duration now live in the rendered body detail
-    expect(msg.body).toContain('45ms');
-    expect(msg.body).toContain('1h');
+    expect(msg.body).toContain(
+      'Monitored Test Device volvió a responder tras 1 hora sin conexión'
+    );
+    expect(msg.body).toContain('Latencia: 45 ms');
   });
 
   it('includes device name and IP in the recovery notification', async () => {
@@ -157,8 +158,7 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
 
     const msg = fakeNotification.lastMessage!;
     expect(msg.metadata.deviceName).toBe('Monitored Test Device');
-    // IP now lives in the rendered body detail (MarkdownV2-escaped), not metadata
-    expect(msg.body.replace(/\\/g, '')).toContain('192.168.99.1');
+    expect(msg.body).toContain('(http://192.168.99.1)');
   });
 
   it('resolves and saves the alert even when recovery notification fails', async () => {

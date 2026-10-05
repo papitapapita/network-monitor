@@ -1,5 +1,6 @@
 import { WirelessAlertRecord } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
+import { WirelessAlertClearedEvent } from '../../../../src/domain/wireless-monitoring/events/WirelessAlertCleared';
 
 const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
 const NOTIFIED_AT = new Date('2024-06-01T10:00:00.000Z');
@@ -64,5 +65,30 @@ describe('[WLS-120] [WLS-125] WirelessAlertRecord — notification tracking', ()
 
       expect(record.domainEvents).toHaveLength(0);
     });
+  });
+});
+
+describe('[WLS-121] WirelessAlertRecord — clear', () => {
+  it('should carry the rule sentence into the cleared event', () => {
+    const record = makeRecord();
+    record.clearEvents();
+
+    record.clear(NOTIFIED_AT, 'Señal normalizada: -70 dBm');
+
+    const [event] =
+      record.domainEvents as WirelessAlertClearedEvent[];
+    expect(event).toBeInstanceOf(WirelessAlertClearedEvent);
+    expect(event.reason).toBe('Señal normalizada: -70 dBm');
+  });
+
+  it('should leave the reason null for a clear by hand', () => {
+    const record = makeRecord();
+    record.clearEvents();
+
+    record.clear(NOTIFIED_AT);
+
+    const [event] =
+      record.domainEvents as WirelessAlertClearedEvent[];
+    expect(event.reason).toBeNull();
   });
 });

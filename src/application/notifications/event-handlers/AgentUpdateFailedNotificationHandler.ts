@@ -33,10 +33,8 @@ export class AgentUpdateFailedNotificationHandler
         deviceId: null,
         severity: AlertSeverity.WARNING,
         source: AGENT_HEALTH_SOURCE,
-        subject: 'Actualización del agente fallida',
-        detail:
-          `El agente "${event.agentName}" no pudo actualizarse a la ` +
-          `versión ${event.targetVersion} y ${where}. Motivo: ${event.reason}`,
+        summary: `El agente "${event.agentName}" no pudo actualizarse a la versión ${event.targetVersion}`,
+        detail: `${capitalize(where)}. Motivo: ${event.reason}`,
         occurredAt: event.dateTimeOccurred,
         resolved: false,
         type: AGENT_UPDATE_ALERT_TYPE
@@ -58,4 +56,8 @@ export class AgentUpdateFailedNotificationHandler
       );
     }
   }
+}
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }

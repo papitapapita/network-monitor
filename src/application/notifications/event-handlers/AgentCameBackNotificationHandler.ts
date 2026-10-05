@@ -23,15 +23,15 @@ export class AgentCameBackNotificationHandler
 
   async handle(event: AgentCameBackEvent): Promise<void> {
     try {
-      const offlineSince = TelegramFormatting.formatLocalTime(
+      const offlineSince = TelegramFormatting.formatSince(
         event.offlineSince
       );
       const result = await this.alertPublisher.publish({
         deviceId: null,
         severity: AlertSeverity.CRITICAL,
         source: AGENT_HEALTH_SOURCE,
-        subject: 'Agente reconectado',
-        detail: `El agente "${event.agentName}" volvió a reportar. Estaba sin conexión desde ${offlineSince}.`,
+        summary: `El agente "${event.agentName}" volvió a reportar`,
+        detail: `Estaba sin conexión desde ${offlineSince}.`,
         occurredAt: event.dateTimeOccurred,
         resolved: true,
         type: AGENT_OFFLINE_ALERT_TYPE

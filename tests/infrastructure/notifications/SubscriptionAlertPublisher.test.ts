@@ -14,7 +14,7 @@ const NOTIFICATION: AlertNotification = {
   deviceId: '550e8400-e29b-41d4-a716-446655440070',
   severity: AlertSeverity.CRITICAL,
   source: 'Disponibilidad',
-  subject: 'Dispositivo fuera de línea',
+  summary: 'Dispositivo fuera de línea',
   detail: 'No responde',
   occurredAt: new Date('2026-09-29T10:00:00.000Z'),
   resolved: false,

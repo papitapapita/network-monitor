@@ -23,6 +23,10 @@ export class WirelessAlertClearedEvent extends DomainEvent<WirelessAlertClearedE
     return this.props.severity;
   }
 
+  get reason(): string | null {
+    return this.props.reason;
+  }
+
   get clearedAt(): Date {
     return this.props.clearedAt;
   }

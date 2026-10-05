@@ -20,12 +20,16 @@ function makeLogger(): jest.Mocked<ILogger> {
 }
 
 function makeDeviceRepo(
-  name = 'Antena Cliente 42'
+  name = 'Antena Cliente 42',
+  ipAddress: string | null = '10.0.5.42'
 ): jest.Mocked<Pick<IDeviceRepository, 'findById'>> {
   return {
-    findById: jest
-      .fn()
-      .mockResolvedValue(Result.ok({ name: { value: name } }))
+    findById: jest.fn().mockResolvedValue(
+      Result.ok({
+        name: { value: name },
+        ipAddress: ipAddress === null ? null : { value: ipAddress }
+      })
+    )
   } as unknown as jest.Mocked<Pick<IDeviceRepository, 'findById'>>;
 }
 
@@ -40,8 +44,8 @@ function makeRequest(
     deviceId: VALID_DEVICE_UUID,
     severity: AlertSeverity.CRITICAL,
     source: 'Enlace inalámbrico',
-    subject: 'signal_rx_dbm',
-    detail: 'Señal crítica en equipo X: -83 dBm',
+    summary: 'Señal crítica en equipo X: -83 dBm',
+    detail: null,
     occurredAt: FIXED_DATE,
     resolved: false,
     ...overrides
@@ -73,9 +77,9 @@ describe('SendAlertNotificationUseCase', () => {
       expect(notificationService.send).not.toHaveBeenCalled();
     });
 
-    it('should fail when detail is empty', async () => {
+    it('should fail when summary is empty', async () => {
       const result = await useCase.execute(
-        makeRequest({ detail: '' })
+        makeRequest({ summary: '  ' })
       );
 
       expect(result.isFailure).toBe(true);
@@ -92,28 +96,32 @@ describe('SendAlertNotificationUseCase', () => {
     });
   });
 
-  describe('executeImpl — severity in the delivered message', () => {
-    it('should mark a CRITICAL alert with the critical header', async () => {
+  describe('[NOT-102] executeImpl — the summary leads, under the severity icon', () => {
+    it('should open a CRITICAL alert with the red icon and the bold summary', async () => {
       await useCase.execute(
-        makeRequest({ severity: AlertSeverity.CRITICAL })
+        makeRequest({
+          severity: AlertSeverity.CRITICAL,
+          summary: 'AP Norte no responde'
+        })
       );
 
       const message = notificationService.send.mock.calls[0][0];
-      expect(message.body).toContain('ALERTA CRÍTICA');
-      expect(message.title).toBe('🔴 Alerta crítica');
+      expect(message.body.split('\n')[0]).toBe(
+        '🔴 *AP Norte no responde*'
+      );
+      expect(message.title).toBe('🔴 AP Norte no responde');
     });
 
-    it('should mark a WARNING alert with the warning header', async () => {
+    it('should open a WARNING alert with the yellow icon', async () => {
       await useCase.execute(
         makeRequest({ severity: AlertSeverity.WARNING })
       );
 
       const message = notificationService.send.mock.calls[0][0];
-      expect(message.body).toContain('ADVERTENCIA');
-      expect(message.title).toBe('🟡 Advertencia');
+      expect(message.body.startsWith('🟡 *')).toBe(true);
     });
 
-    it('should mark a resolved alert as resolved regardless of severity', async () => {
+    it('should open a resolved alert with the check icon regardless of severity', async () => {
       await useCase.execute(
         makeRequest({
           severity: AlertSeverity.CRITICAL,
@@ -122,8 +130,36 @@ describe('SendAlertNotificationUseCase', () => {
       );
 
       const message = notificationService.send.mock.calls[0][0];
-      expect(message.body).toContain('ALERTA RESUELTA');
-      expect(message.title).toBe('✅ Alerta resuelta');
+      expect(message.body.startsWith('✅ *')).toBe(true);
+    });
+
+    it('should carry no title-style header any more', async () => {
+      await useCase.execute(makeRequest());
+
+      const message = notificationService.send.mock.calls[0][0];
+      expect(message.body).not.toContain('ALERTA CRÍTICA');
+      expect(message.body).not.toContain('Severidad');
+    });
+
+    it('should put the detail right under the summary', async () => {
+      await useCase.execute(
+        makeRequest({
+          summary: 'AP Norte',
+          detail: 'Latencia: 12 ms'
+        })
+      );
+
+      const lines =
+        notificationService.send.mock.calls[0][0].body.split('\n');
+      expect(lines[1]).toBe('Latencia: 12 ms');
+    });
+
+    it('should leave a blank line under the summary when there is no detail', async () => {
+      await useCase.execute(makeRequest({ detail: null }));
+
+      const lines =
+        notificationService.send.mock.calls[0][0].body.split('\n');
+      expect(lines[1]).toBe('');
     });
 
     it('should carry the severity through the metadata', async () => {
@@ -141,7 +177,7 @@ describe('SendAlertNotificationUseCase', () => {
       await useCase.execute(makeRequest());
 
       const message = notificationService.send.mock.calls[0][0];
-      expect(message.body).toContain('Antena Cliente 42');
+      expect(message.body).toContain('📛 Antena Cliente 42');
       expect(message.metadata.deviceName).toBe('Antena Cliente 42');
     });
 
@@ -163,21 +199,80 @@ describe('SendAlertNotificationUseCase', () => {
       expect(message.metadata.deviceName).toBe('Unknown Device');
     });
 
-    it('should escape MarkdownV2 reserved characters in the detail', async () => {
+    it('should escape MarkdownV2 reserved characters in the summary and detail', async () => {
       await useCase.execute(
-        makeRequest({ detail: 'Señal: -83 dBm (umbral: -80 dBm)' })
+        makeRequest({
+          summary: 'Señal: -83 dBm (umbral: -80 dBm)',
+          detail: 'Latencia: 1.5 ms'
+        })
       );
 
       const message = notificationService.send.mock.calls[0][0];
       expect(message.body).toContain('\\-83');
       expect(message.body).toContain('\\(umbral');
+      expect(message.body).toContain('1\\.5');
     });
 
-    it('should include the metric as the subject line', async () => {
-      await useCase.execute(makeRequest({ subject: 'lan_status' }));
+    it('should end with the time and the source', async () => {
+      await useCase.execute(
+        makeRequest({ source: 'Enlace inalámbrico · isp.example' })
+      );
+
+      const lines =
+        notificationService.send.mock.calls[0][0].body.split('\n');
+      expect(lines[lines.length - 1]).toBe(
+        '🕐 01/06/2024, 05:00:00 · Enlace inalámbrico · isp\\.example'
+      );
+    });
+  });
+
+  describe('[NOT-103] executeImpl — links to the device', () => {
+    it('should link the device IP to its own web page', async () => {
+      await useCase.execute(makeRequest());
 
       const message = notificationService.send.mock.calls[0][0];
-      expect(message.body).toContain('lan\\_status');
+      expect(message.body).toContain(
+        '🌐 [10\\.0\\.5\\.42](http://10.0.5.42)'
+      );
+      expect(message.metadata.ipAddress).toBe('10.0.5.42');
+    });
+
+    it('should leave the IP line out for a device with no IP', async () => {
+      deviceRepo = makeDeviceRepo('Antena Cliente 42', null);
+      useCase = new SendAlertNotificationUseCase(
+        deviceRepo as unknown as IDeviceRepository,
+        notificationService,
+        makeLogger()
+      );
+
+      await useCase.execute(makeRequest());
+
+      const message = notificationService.send.mock.calls[0][0];
+      expect(message.body).not.toContain('🌐');
+      expect(message.metadata.ipAddress).toBeNull();
+    });
+
+    it('should leave the app link out when no app URL is configured', async () => {
+      await useCase.execute(makeRequest());
+
+      const message = notificationService.send.mock.calls[0][0];
+      expect(message.body).not.toContain('📱');
+    });
+
+    it('should link to the device page in the app when an app URL is configured', async () => {
+      useCase = new SendAlertNotificationUseCase(
+        deviceRepo as unknown as IDeviceRepository,
+        notificationService,
+        makeLogger(),
+        'http://192.168.1.10:3001'
+      );
+
+      await useCase.execute(makeRequest());
+
+      const message = notificationService.send.mock.calls[0][0];
+      expect(message.body).toContain(
+        `📱 [Ver en la app](http://192.168.1.10:3001/devices/${VALID_DEVICE_UUID})`
+      );
     });
   });
 
@@ -212,13 +307,22 @@ describe('SendAlertNotificationUseCase', () => {
       expect(deviceRepo.findById).not.toHaveBeenCalled();
     });
 
-    it('should leave the device line out of the message', async () => {
+    it('should leave the device lines out of the message', async () => {
+      useCase = new SendAlertNotificationUseCase(
+        deviceRepo as unknown as IDeviceRepository,
+        notificationService,
+        makeLogger(),
+        'https://app.example.com'
+      );
+
       await useCase.execute(
         makeRequest({ deviceId: null, source: 'Agente Torre Norte' })
       );
 
       const message = notificationService.send.mock.calls[0][0];
-      expect(message.body).not.toContain('Dispositivo');
+      expect(message.body).not.toContain('📛');
+      expect(message.body).not.toContain('🌐');
+      expect(message.body).not.toContain('📱');
       expect(message.body).toContain('Agente Torre Norte');
       expect(message.metadata.deviceId).toBeNull();
       expect(message.metadata.deviceName).toBeNull();

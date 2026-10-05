@@ -29,7 +29,7 @@ Format and conventions: [README.md](README.md).
 
 | Layer                     | Rules |
 | ------------------------- | ----- |
-| Application                  | 37    |
+| Application                  | 40    |
 | Domain (aggregate/entity/VO) | 19    |
 | Presentation                 | 5     |
 | Infrastructure (database)    | 2     |
@@ -518,8 +518,10 @@ deployment without tickets.
 **Layer:** Application
 **Since:** 2026-08-05
 
-Every interpolated value — device name, source, metric, detail, timestamp — is
-run through `escapeMd` before it reaches the message body.
+Every interpolated value — summary, detail, device name, IP, source,
+timestamp — is run through `escapeMd` before it reaches the message body. A
+link's label is escaped the same way; its target escapes only `)` and `\`,
+the two characters MarkdownV2 treats as special there (`TelegramFormatting.link`).
 
 **Why:** Device names are operator-supplied and routinely contain characters
 Telegram treats as markup (`-`, `.`, `_`). Unescaped, a name like
@@ -534,16 +536,19 @@ a naming choice into a silent notification outage.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Revised:** 2026-10-05
 
-Duration is formatted `1h 5m 3s`, dropping empty leading units; an unknown
-duration reads `desconocido` and an unknown latency `N/A`.
+The summary reads `<device> volvió a responder tras 1 hora y 5 minutos sin conexión`,
+the duration worded per `NOT-104`; an unknown duration drops the
+`tras … sin conexión` clause. The detail reads `Latencia: 42 ms`, or
+`Latencia: N/A` when unknown. `<device>` is the device's name, `El
+dispositivo` when it cannot be loaded.
 
 **Why:** "It is back" is not actionable on its own. How long it was gone is what
 tells the operator whether this was a blip or an outage worth a ticket, and the
 latency says whether it came back healthy.
 
-**Enforced at:** `src/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.ts` (`formatDuration`)
+**Enforced at:** `src/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.ts`, `src/domain/shared/utils/formatDuration.ts`
 **Tests:** `tests/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.test.ts`
 
 ### NOT-094 — Times in operator messages are Bogotá local time
@@ -553,7 +558,8 @@ latency says whether it came back healthy.
 **Since:** 2026-08-05
 
 Formatted `es-CO`, 24-hour, in `America/Bogota`, regardless of where the server
-runs.
+runs. A time inside a summary line (`formatSince`) is `las 14:05` when it falls
+on the current Bogotá day and `el 04/10 a las 14:05` otherwise.
 
 **Why:** The people reading these messages are in one place. A UTC timestamp
 would need mental arithmetic during an incident, which is exactly when nobody
@@ -634,13 +640,14 @@ exists to prevent, just in the ticketing system instead of the phone.
 **Layer:** Application
 **Since:** 2026-08-05
 
-The same applies to a missing IP, which is simply omitted from the message.
+The same applies to a missing IP, whose link line is simply left out
+(`NOT-103`).
 
 **Why:** The message is worth sending with a missing label; it is not worth
 losing over one. The lookup is a convenience on top of the device id that is
 already in the metadata, so failing it costs nothing that matters.
 
-**Enforced at:** `src/application/notifications/use-cases/SendAlertNotificationUseCase.ts` (`resolveDeviceName`)
+**Enforced at:** `src/application/notifications/use-cases/SendAlertNotificationUseCase.ts` (`resolveDevice`)
 **Tests:** `tests/application/notifications/use-cases/SendAlertNotificationUseCase.test.ts`
 
 ### NOT-097 — The down alert is recorded on transition; only the notification waits for the outage to outlast the alert delay
@@ -703,8 +710,8 @@ revision removed it.
 `AlertNotification.deviceId` is `null` when the alert is not about a device
 — an on-site probe agent going offline (ADR 0002, R6) is the first case. Such
 an alert is rendered the same way as any other except that no device is looked
-up and the "Dispositivo" line is left out; the `source` line names what the
-alert is about. The field is nullable, not optional, so every producer must
+up and the device lines (name, IP link, app link — `NOT-103`) are left out;
+the summary names what the alert is about. The field is nullable, not optional, so every producer must
 state which kind of alert it is sending.
 
 **Why:** An agent going offline leaves a whole site blind, and its alert has to
@@ -714,8 +721,6 @@ policy apply to something that is not a device.
 
 **Enforced at:** `src/application/shared/interfaces/IAlertPublisher.ts`, `src/application/notifications/use-cases/SendAlertNotificationUseCase.ts`
 **Tests:** `tests/application/notifications/use-cases/SendAlertNotificationUseCase.test.ts`, `tests/infrastructure/notifications/AlertPublisher.test.ts`
-
----
 
 ### NOT-101 — No down alert is raised for a device nobody is measuring
 
@@ -739,6 +744,80 @@ are fine.
 
 **Enforced at:** `src/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.ts`, `src/infrastructure/probe-agents/queries/PrismaAgentStatusQuery.ts`
 **Tests:** `tests/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.test.ts`, `tests/integration/use-cases/notifications/RaiseOverdueDeviceDownAlertsUseCase.integration.test.ts`
+
+### NOT-102 — An operator message leads with a one-line summary, not a title
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+Every producer writes `AlertNotification.summary`: one sentence saying what
+happened, to what, and since when (`AP Norte no responde desde las 12:00`,
+`Señal crítica en equipo AP Norte: -83 dBm (umbral: -80 dBm)`). The message
+opens with the severity icon and the summary in bold — 🔴 critical, 🟡 warning,
+✅ resolved — then `detail` on the next line when the producer has one
+(`null` when the summary says it all), then the device lines (`NOT-103`), and
+ends with `🕐 <time> · <source>`. There is no title line and no severity,
+source or metric field block. A summary is required; an empty one fails the
+send.
+
+Wireless summaries are the rule's own sentence: `WirelessAlertRecord.message`
+when an alert opens, and the clearing rule's sentence (`WLS-121`) when it
+clears.
+
+**Why:** A phone shows the first line of a message in its notification preview.
+A title like `ALERTA CRÍTICA` spends that line on something the icon already
+says; the summary lets whoever is on call decide from the lock screen whether
+to get up. The detail that used to close the message moved to the top for the
+same reason.
+
+**Enforced at:** `src/application/shared/interfaces/IAlertPublisher.ts`, `src/application/notifications/use-cases/SendAlertNotificationUseCase.ts` (`formatBody`), each producer (`SendDeviceDownAlertUseCase`, `SendDeviceRecoveryAlertUseCase`, the agent-health handlers, `PollWirelessDeviceUseCase`, `WirelessAlertClearedNotificationHandler`)
+**Tests:** `tests/application/notifications/use-cases/SendAlertNotificationUseCase.test.ts`, `tests/application/notifications/use-cases/SendDeviceDownAlertUseCase.test.ts`, `tests/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.test.ts`, `tests/application/notifications/event-handlers/AgentHealthNotificationHandlers.test.ts`, `tests/application/wireless-monitoring/event-handlers/WirelessAlertClearedNotificationHandler.test.ts`
+
+### NOT-103 — A device message links to the device's own page and to the device in the app
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Infrastructure (composition)
+**Since:** 2026-10-05
+
+Under the summary, a message about a device carries `📛 <name>`, then
+`🌐 <ip>` linked to `http://<ip>` when the device has an IP, then
+`📱 Ver en la app` linked to `<APP_PUBLIC_URL>/devices/<id>` when
+`APP_PUBLIC_URL` is set. This covers every device alert — availability and
+wireless alike, since all are rendered by the one `SendAlertNotificationUseCase`.
+The IP is the device's inventory IP. `APP_PUBLIC_URL` must be an http(s) URL
+with no query or fragment; a trailing slash is dropped, and a malformed value
+stops the boot.
+
+**Why:** The first thing an operator does with an alert is open the antenna's
+own web interface or the device in the dashboard; a link saves looking up
+either. The IP link is plain `http://` because AirOS and RouterOS redirect to
+their HTTPS port themselves. The app's address depends on how each install is
+reached (LAN IP, tunnel hostname), so it is configured per install rather than
+derived, and an unset value simply drops the link.
+
+**Enforced at:** `src/application/notifications/use-cases/SendAlertNotificationUseCase.ts` (`deviceLines`), `src/application/notifications/shared/TelegramFormatting.ts` (`link`), `src/infrastructure/notifications/config/appPublicUrl.ts`, `src/infrastructure/di/container.ts`
+**Tests:** `tests/application/notifications/use-cases/SendAlertNotificationUseCase.test.ts`, `tests/application/notifications/shared/TelegramFormatting.test.ts`, `tests/infrastructure/notifications/config/appPublicUrl.test.ts`
+
+### NOT-104 — Durations in operator messages are worded in their two largest units
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (shared kernel) · Application
+**Since:** 2026-10-05
+
+Any length of time a message quotes — an outage (`NOT-093`), an agent's clock
+offset (`AGT-025`), a radio's clock drift (`WLS` clock rule) — goes through
+`formatDuration`: Spanish, singular or plural, years / days / hours / minutes
+/ seconds, at most the two largest units joined by `y`. 318 hours reads
+`13 días y 6 horas`; a zero or non-adjacent second unit is dropped (`1 hora`,
+`2 días`); zero reads `0 segundos`.
+
+**Why:** `312 horas` or `1123200 s` has to be divided in someone's head before
+it means anything; `13 días` does not. Past the second unit the precision is
+noise — nobody acts differently on `13 días, 6 horas y 4 minutos`.
+
+**Enforced at:** `src/domain/shared/utils/formatDuration.ts`, used by `SendDeviceRecoveryAlertUseCase`, `AgentClockNotificationHandlers`, `ClockSyncRule`
+**Tests:** `tests/domain/shared/utils/formatDuration.test.ts`, `tests/application/notifications/event-handlers/AgentClockNotificationHandlers.test.ts`, `tests/domain/wireless-monitoring/services/rules/ClockSyncRule.test.ts`
 
 ---
 

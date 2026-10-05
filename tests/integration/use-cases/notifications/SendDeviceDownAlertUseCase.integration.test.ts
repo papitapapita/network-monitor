@@ -104,8 +104,9 @@ describe('SendDeviceDownAlertUseCase — integration', () => {
     expect(msg.metadata.deviceId).toBe(deviceId);
     expect(msg.metadata.severity).toBe('CRITICAL');
     expect(msg.metadata.timestamp).toBe(occurredAt.toISOString());
-    // consecutive failures now live in the rendered body detail
-    expect(msg.body).toContain('5');
+    expect(msg.body).toContain(
+      'Monitored Test Device no responde desde'
+    );
   });
 
   it('includes device name and IP from database in the notification', async () => {
@@ -117,8 +118,8 @@ describe('SendDeviceDownAlertUseCase — integration', () => {
 
     const msg = fakeNotification.lastMessage!;
     expect(msg.metadata.deviceName).toBe('Monitored Test Device');
-    // IP now lives in the rendered body detail (MarkdownV2-escaped), not metadata
-    expect(msg.body.replace(/\\/g, '')).toContain('192.168.99.1');
+    expect(msg.metadata.ipAddress).toBe('192.168.99.1');
+    expect(msg.body).toContain('(http://192.168.99.1)');
   });
 
   it('still creates and saves the alert when notification fails', async () => {
@@ -186,8 +187,7 @@ describe('SendDeviceDownAlertUseCase — integration', () => {
     });
 
     expect(result.isSuccess).toBe(true);
-    // No polling config → no IP folded into the body detail
-    expect(fakeNotification.lastMessage!.body).not.toContain('IP:');
+    expect(fakeNotification.lastMessage!.body).not.toContain('🌐');
   });
 
   // ──────────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import {
   EvaluationContext
 } from '../IWirelessAlertEvaluator';
 import { IAlertRule } from './IAlertRule';
+import { formatDuration } from 'domain/shared/utils';
 
 const MAX_CLOCK_DRIFT_S = 300;
 
@@ -32,7 +33,7 @@ export class ClockSyncRule implements IAlertRule {
           severity: 'WARNING',
           currentValue: drift,
           threshold: MAX_CLOCK_DRIFT_S,
-          message: `Desfase de reloj detectado en ${context.deviceName}: ${drift} s de diferencia (máximo permitido: ${MAX_CLOCK_DRIFT_S} s). Posible falla de NTP.`
+          message: `Desfase de reloj detectado en ${context.deviceName}: ${formatDuration(drift)} de diferencia (máximo permitido: ${formatDuration(MAX_CLOCK_DRIFT_S)}). Posible falla de NTP.`
         }
       ];
     }
@@ -45,7 +46,7 @@ export class ClockSyncRule implements IAlertRule {
           severity: 'WARNING',
           currentValue: drift,
           threshold: MAX_CLOCK_DRIFT_S,
-          message: `Reloj sincronizado en ${context.deviceName}: desfase reducido a ${drift} s`
+          message: `Reloj sincronizado en ${context.deviceName}: desfase reducido a ${formatDuration(drift)}`
         }
       ];
     }

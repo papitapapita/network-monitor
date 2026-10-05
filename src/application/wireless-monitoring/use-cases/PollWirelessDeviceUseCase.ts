@@ -373,7 +373,10 @@ export class PollWirelessDeviceUseCase
           decision.severity
         );
       if (findResult.isSuccess && findResult.value) {
-        const clearResult = findResult.value.clear(collectedAt);
+        const clearResult = findResult.value.clear(
+          collectedAt,
+          decision.message
+        );
         if (clearResult.isSuccess) {
           const saveResult = await this.alertRecordRepo.save(
             findResult.value
@@ -541,8 +544,8 @@ export class PollWirelessDeviceUseCase
             ? AlertSeverity.CRITICAL
             : AlertSeverity.WARNING,
         source: 'Enlace inalámbrico',
-        subject: record.metric,
-        detail: record.message,
+        summary: record.message,
+        detail: null,
         occurredAt: record.triggeredAt,
         resolved: false,
         type: `wireless:${record.metric}:${record.severity}`

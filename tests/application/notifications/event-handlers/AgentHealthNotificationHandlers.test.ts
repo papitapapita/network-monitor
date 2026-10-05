@@ -43,7 +43,7 @@ describe('AgentWentOfflineNotificationHandler', () => {
         resolved: false,
         type: 'agent_offline',
         occurredAt: OCCURRED,
-        detail: expect.stringContaining('"Torre Norte"')
+        summary: expect.stringContaining('"Torre Norte" no reporta')
       })
     );
   });
@@ -98,7 +98,8 @@ describe('AgentCameBackNotificationHandler', () => {
         resolved: true,
         type: 'agent_offline',
         occurredAt: OCCURRED,
-        detail: expect.stringContaining('"Torre Norte"')
+        summary: 'El agente "Torre Norte" volvió a reportar',
+        detail: expect.stringContaining('Estaba sin conexión desde')
       })
     );
   });

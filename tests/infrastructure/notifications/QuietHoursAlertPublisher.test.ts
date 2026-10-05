@@ -65,7 +65,7 @@ function makeNotification(): AlertNotification {
     deviceId: VALID_DEVICE_UUID,
     severity: AlertSeverity.CRITICAL,
     source: 'Disponibilidad',
-    subject: 'Dispositivo fuera de línea',
+    summary: 'Dispositivo fuera de línea',
     detail: 'Sin conexión',
     occurredAt: FIXED_DATE,
     resolved: false,

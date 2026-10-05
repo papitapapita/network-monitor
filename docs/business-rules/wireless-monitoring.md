@@ -1521,7 +1521,7 @@ they are needed.
 
 **Enforced at:** `src/domain/wireless-monitoring/services/rules/ClockSyncRule.ts:9`
 **Reached from:** `WirelessAlertEvaluator.evaluate`
-**Message:** `Desfase de reloj detectado en <name>: <v> s de diferencia (máximo permitido: 300 s). Posible falla de NTP.`
+**Message:** `Desfase de reloj detectado en <name>: <v> de diferencia (máximo permitido: 5 minutos). Posible falla de NTP.` — `<v>` worded in its two largest units, e.g. `13 días y 6 horas` (`formatDuration`, NOT-104)
 **Tests:** `tests/domain/wireless-monitoring/services/rules/ClockSyncRule.test.ts`
 
 ### WLS-097 — A firmware version change is a warning
@@ -1626,7 +1626,9 @@ notification per poll for one continuous fault.
 
 `WirelessAlertRecord.clear()` raises `WirelessAlertClearedEvent`. There is no
 matching event on `open()` — the opening side is announced by the snapshot
-instead (WLS-122).
+instead (WLS-122). The event's `reason` is the clearing rule's own sentence
+(`Latencia normalizada en AP Norte: 30 ms`) when a poll clears the alert, and
+`null` when an operator clears it by hand (WLS-127).
 
 **Why:** A clear is a single transition on a single record, and the record is
 the only thing that knows it happened. An open, by contrast, is already carried
@@ -1666,7 +1668,9 @@ event per device per interval forever.
 
 `WirelessAlertClearedNotificationHandler` returns immediately unless the cleared
 alert was CRITICAL. Warnings clear silently — the record is updated and the
-shared alert store is resolved (WLS-124), but nothing is sent.
+shared alert store is resolved (WLS-124), but nothing is sent. The notice's
+summary (NOT-102) is the event's `reason`, or `Alerta <metric> cerrada
+manualmente` for a clear by hand.
 
 **Why:** Recovery notices are only worth sending for faults whose onset was
 worth waking someone for. There is a second reason the filter is drawn at

@@ -22,6 +22,7 @@ function makeEvent(
     deviceId: DeviceId.create(),
     metric: 'signalRxDbm',
     severity: 'WARNING',
+    reason: null,
     clearedAt: FIXED_CLEARED,
     dateTimeOccurred: FIXED_DATE,
     ...overrides
@@ -91,6 +92,7 @@ describe('[WLS-121] WirelessAlertClearedEvent', () => {
         deviceId: DeviceId.create(),
         metric: 'ccq',
         severity: 'WARNING',
+        reason: null,
         clearedAt: FIXED_CLEARED,
         dateTimeOccurred: FIXED_DATE
       };

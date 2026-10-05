@@ -14,11 +14,10 @@ import {
 } from 'application/shared/interfaces';
 import { ITicketOpener } from 'application/tickets/interfaces';
 import { AlertMapper } from '../mappers';
-import { openTicketForAlert } from '../shared';
+import { openTicketForAlert, TelegramFormatting } from '../shared';
 import { AlertResponseDTO, SendDeviceDownAlertDTO } from '../dtos';
 
 const SOURCE = 'Disponibilidad';
-const SUBJECT = 'Dispositivo fuera de línea';
 const ALERT_TYPE = 'device_unreachable';
 
 export class SendDeviceDownAlertUseCase extends UseCase<
@@ -62,11 +61,12 @@ export class SendDeviceDownAlertUseCase extends UseCase<
     }
     const deviceId = deviceIdResult.value;
 
-    const eligible = await this.isDeviceStillAlertable(deviceId);
+    const eligible = await this.alertableDeviceName(deviceId);
     if (eligible.isFailure) {
       return this.fail(eligible.error);
     }
-    if (!eligible.value) {
+    const deviceName = eligible.value;
+    if (deviceName === null) {
       return this.ok(null);
     }
 
@@ -89,7 +89,11 @@ export class SendDeviceDownAlertUseCase extends UseCase<
       if (existingResult.value.notifiedAt !== null) {
         return this.ok(AlertMapper.toDTO(existingResult.value));
       }
-      return this.notifyAndSave(existingResult.value, request);
+      return this.notifyAndSave(
+        existingResult.value,
+        request,
+        deviceName
+      );
     }
 
     const ipAddress = await this.resolveIpAddress(deviceId);
@@ -112,12 +116,13 @@ export class SendDeviceDownAlertUseCase extends UseCase<
       );
     }
 
-    return this.notifyAndSave(alertResult.value, request);
+    return this.notifyAndSave(alertResult.value, request, deviceName);
   }
 
   private async notifyAndSave(
     alert: Alert,
-    request: SendDeviceDownAlertDTO
+    request: SendDeviceDownAlertDTO,
+    deviceName: string
   ): Promise<Result<AlertResponseDTO | null>> {
     // The alert may have been recorded well before this call — refresh the
     // details so the operator sees the failure count as of the moment
@@ -142,8 +147,8 @@ export class SendDeviceDownAlertUseCase extends UseCase<
       deviceId: alert.deviceId.toString(),
       severity: AlertSeverity.CRITICAL,
       source: SOURCE,
-      subject: SUBJECT,
-      detail: alert.description,
+      summary: `${deviceName} no responde desde ${TelegramFormatting.formatSince(request.occurredAt)}`,
+      detail: null,
       occurredAt: request.occurredAt,
       resolved: false,
       type: ALERT_TYPE
@@ -186,9 +191,10 @@ export class SendDeviceDownAlertUseCase extends UseCase<
   // dispatch time is the check that cannot go stale. Only the opening path is
   // gated; recovery stays open so an alert raised while the device was live
   // can still be resolved.
-  private async isDeviceStillAlertable(
+  // The device's name when it may still alert, null when it may not.
+  private async alertableDeviceName(
     deviceId: DeviceId
-  ): Promise<Result<boolean>> {
+  ): Promise<Result<string | null>> {
     const deviceResult =
       await this.deviceRepository.findById(deviceId);
     if (deviceResult.isFailure) {
@@ -203,7 +209,7 @@ export class SendDeviceDownAlertUseCase extends UseCase<
         'Suppressed a device-down alert for a device that no longer exists',
         { deviceId: deviceId.toString() }
       );
-      return Result.ok(false);
+      return Result.ok(null);
     }
 
     const decision = this.eligibility.canAlert(deviceResult.value);
@@ -215,10 +221,10 @@ export class SendDeviceDownAlertUseCase extends UseCase<
           reason: decision.reason
         }
       );
-      return Result.ok(false);
+      return Result.ok(null);
     }
 
-    return Result.ok(true);
+    return Result.ok(deviceResult.value.name.value);
   }
 
   private async resolveIpAddress(

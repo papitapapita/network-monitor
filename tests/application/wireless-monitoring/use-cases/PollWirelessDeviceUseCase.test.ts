@@ -1185,7 +1185,8 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       expect(mocks.alertPublisher.publish).toHaveBeenCalledWith(
         expect.objectContaining({
           severity: AlertSeverity.WARNING,
-          subject: 'signal_rx_dbm',
+          summary: record.message,
+          detail: null,
           resolved: false
         })
       );

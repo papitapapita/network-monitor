@@ -43,7 +43,7 @@ function makeNotification(
     deviceId: VALID_DEVICE_UUID,
     severity: AlertSeverity.CRITICAL,
     source: 'Enlace inalámbrico',
-    subject: 'cpu_load_percent',
+    summary: 'cpu_load_percent',
     detail: 'CPU crítico',
     occurredAt: FIXED_DATE,
     resolved: false,

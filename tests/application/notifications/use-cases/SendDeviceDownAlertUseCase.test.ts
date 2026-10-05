@@ -418,10 +418,13 @@ describe('SendDeviceDownAlertUseCase', () => {
       );
     });
 
-    it('should fold the IP into the detail', async () => {
+    it('[NOT-102] should lead with the device name and when it went down', async () => {
       await useCase.execute(makeRequest({ consecutiveFailures: 5 }));
       const envelope = alertPublisher.publish.mock.calls[0][0];
-      expect(envelope.detail).toContain('192.168.1.1');
+      expect(envelope.summary).toBe(
+        'CPE-Vargas no responde desde el 01/06 a las 05:00'
+      );
+      expect(envelope.detail).toBeNull();
     });
 
     it('should save the alert with notifiedAt set when publish succeeds', async () => {
@@ -498,7 +501,7 @@ describe('SendDeviceDownAlertUseCase', () => {
 
   // ===========================================================================
   describe('executeImpl — IP address fallback', () => {
-    it('should still publish (without IP in detail) when polling config lookup fails', async () => {
+    it('should still publish when polling config lookup fails', async () => {
       alertRepo.findOpenByDeviceAndType.mockResolvedValue(
         Result.ok(null)
       );
@@ -508,8 +511,7 @@ describe('SendDeviceDownAlertUseCase', () => {
       alertRepo.save.mockResolvedValue(Result.ok(makeOpenAlert()));
 
       await useCase.execute(makeRequest());
-      const envelope = alertPublisher.publish.mock.calls[0][0];
-      expect(envelope.detail).not.toContain('IP:');
+      expect(alertPublisher.publish).toHaveBeenCalledTimes(1);
     });
 
     it('should still publish when pollingConfigRepository.findByDeviceId throws', async () => {

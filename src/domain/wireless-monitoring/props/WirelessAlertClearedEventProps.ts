@@ -5,6 +5,7 @@ export interface WirelessAlertClearedEventProps {
   readonly deviceId: DeviceId;
   readonly metric: string;
   readonly severity: 'WARNING' | 'CRITICAL';
+  readonly reason: string | null;
   readonly clearedAt: Date;
   readonly dateTimeOccurred: Date;
 }

@@ -8,8 +8,11 @@ export interface AlertNotification {
   deviceId: string | null;
   severity: AlertSeverity;
   source: string;
-  subject: string;
-  detail: string;
+  // The message's first line, which is all a phone's notification preview
+  // shows: what happened, to what, since when — written as a sentence.
+  summary: string;
+  // Anything worth reading after the summary; null when it says it all.
+  detail: string | null;
   occurredAt: Date;
   resolved: boolean;
   // The producer's own alert-type vocabulary (`device_unreachable`,
@@ -17,7 +20,7 @@ export interface AlertNotification {
   // an import of any producer's domain, kept to the same bar ADR-0001 sets
   // for this envelope: used by 2+ contexts, imports nothing context-specific.
   // Lets a publisher decorator key a decision (mute, in particular) off which
-  // condition this is without parsing `subject`/`detail`.
+  // condition this is without parsing `summary`/`detail`.
   type: string;
 }
 

@@ -23,16 +23,15 @@ export class AgentWentOfflineNotificationHandler
 
   async handle(event: AgentWentOfflineEvent): Promise<void> {
     try {
-      const silentSince = TelegramFormatting.formatLocalTime(
+      const silentSince = TelegramFormatting.formatSince(
         event.silentSince
       );
       const result = await this.alertPublisher.publish({
         deviceId: null,
         severity: AlertSeverity.CRITICAL,
         source: AGENT_HEALTH_SOURCE,
-        subject: 'Agente sin conexión',
+        summary: `El agente "${event.agentName}" no reporta desde ${silentSince}`,
         detail:
-          `El agente "${event.agentName}" no reporta desde ${silentSince}. ` +
           'Los dispositivos que monitorea quedan sin medición hasta que vuelva.',
         occurredAt: event.dateTimeOccurred,
         resolved: false,

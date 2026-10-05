@@ -20,7 +20,7 @@ function makeNotification(
     deviceId: VALID_DEVICE_UUID,
     severity: AlertSeverity.CRITICAL,
     source: 'Enlace inalámbrico',
-    subject: 'signal_rx_dbm',
+    summary: 'signal_rx_dbm',
     detail: 'Señal crítica: -83 dBm',
     occurredAt: FIXED_DATE,
     resolved: false,
@@ -53,7 +53,7 @@ describe('AlertPublisher', () => {
       deviceId: VALID_DEVICE_UUID,
       severity: AlertSeverity.CRITICAL,
       source: 'Enlace inalámbrico',
-      subject: 'signal_rx_dbm',
+      summary: 'signal_rx_dbm',
       detail: 'Señal crítica: -83 dBm',
       occurredAt: FIXED_DATE,
       resolved: false

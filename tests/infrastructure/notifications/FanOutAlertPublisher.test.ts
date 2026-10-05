@@ -11,7 +11,7 @@ const NOTIFICATION: AlertNotification = {
   deviceId: null,
   severity: AlertSeverity.CRITICAL,
   source: 'Agente de sondeo',
-  subject: 'Agente sin conexión',
+  summary: 'Agente sin conexión',
   detail: 'El agente "Torre Norte" no reporta',
   occurredAt: new Date('2026-09-28T17:05:00.000Z'),
   resolved: false,

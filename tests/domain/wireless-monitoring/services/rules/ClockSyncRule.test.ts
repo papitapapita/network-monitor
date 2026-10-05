@@ -121,6 +121,20 @@ describe('[WLS-096] ClockSyncRule', () => {
       expect(decision!.threshold).toBe(300);
     });
 
+    it('should word the drift and the limit in days, hours and minutes', () => {
+      const metrics = makeMetrics({
+        deviceTimeEpoch: COLLECTED_AT_S - 318 * 3_600
+      });
+      const [decision] = rule.evaluate(
+        metrics,
+        makeContext(),
+        new Map()
+      );
+      expect(decision.message).toContain(
+        '13 días y 6 horas de diferencia (máximo permitido: 5 minutos)'
+      );
+    });
+
     it('should not emit OPEN when alert is already active and drift still exceeds threshold', () => {
       const metrics = makeMetrics({
         deviceTimeEpoch: COLLECTED_AT_S - 600

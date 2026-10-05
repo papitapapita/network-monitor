@@ -37,6 +37,7 @@ function makeEvent(
     deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
     metric,
     severity,
+    reason: null,
     clearedAt: CLEARED_AT,
     dateTimeOccurred: CLEARED_AT
   });

@@ -17,7 +17,7 @@ const NOTIFICATION: AlertNotification = {
   deviceId: '550e8400-e29b-41d4-a716-446655440001',
   severity: AlertSeverity.WARNING,
   source: 'Enlace inalámbrico',
-  subject: 'signal_rx_dbm',
+  summary: 'signal_rx_dbm',
   detail: 'Señal baja',
   occurredAt: new Date('2026-09-30T20:00:00Z'),
   resolved: false,

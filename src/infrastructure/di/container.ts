@@ -4,6 +4,7 @@ import { WinstonLogger } from '../logging';
 import { PrismaAgentRepository } from '../probe-agents/repositories';
 import { NodeAgentSecretService } from '../probe-agents/crypto';
 import { loadAgentPublicUrl } from '../probe-agents/config';
+import { loadAppPublicUrl } from '../notifications/config';
 import {
   PrismaAgentAssignmentQuery,
   PrismaAgentDeviceIndex,
@@ -1563,11 +1564,13 @@ export class DependencyContainer {
     // Initialize notification use cases. The single renderer +
     // AlertPublisher adapter are built first so every alert-producing
     // use case can deliver through the one shared spine.
+    const appPublicUrl = loadAppPublicUrl(process.env);
     const sendAlertNotificationUseCase =
       new SendAlertNotificationUseCase(
         this.deviceRepository,
         telegramNotificationService,
-        this.logger
+        this.logger,
+        appPublicUrl
       );
     // Wraps the real publisher so every alert-producing path below (down,
     // recovery, wireless — they all share this one instance) gets
@@ -1599,7 +1602,7 @@ export class DependencyContainer {
     const sendDeviceRecoveryAlertUseCase =
       new SendDeviceRecoveryAlertUseCase(
         this.alertRepository,
-        this.pollingConfigRepository,
+        this.deviceRepository,
         alertPublisher,
         this.logger
       );

@@ -17,7 +17,7 @@ export class AlertPublisher implements IAlertPublisher {
       deviceId: notification.deviceId,
       severity: notification.severity,
       source: notification.source,
-      subject: notification.subject,
+      summary: notification.summary,
       detail: notification.detail,
       occurredAt: notification.occurredAt,
       resolved: notification.resolved

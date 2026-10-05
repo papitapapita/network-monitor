@@ -4,8 +4,8 @@ export interface SendAlertNotificationDTO {
   deviceId: string | null;
   severity: AlertSeverity;
   source: string;
-  subject: string;
-  detail: string;
+  summary: string;
+  detail: string | null;
   occurredAt: Date;
   resolved: boolean;
 }

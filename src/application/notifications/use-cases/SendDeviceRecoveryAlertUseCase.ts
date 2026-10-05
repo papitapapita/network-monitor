@@ -1,7 +1,8 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
+import { formatDuration } from 'domain/shared/utils';
 import { IAlertRepository } from 'domain/notifications/repository';
-import { IPollingConfigurationRepository } from 'domain/device-monitoring/repository';
+import { IDeviceRepository } from 'domain/device-inventory/repository';
 import { UseCase } from 'application/shared/core';
 import {
   ILogger,
@@ -15,7 +16,6 @@ import {
 } from '../dtos';
 
 const SOURCE = 'Disponibilidad';
-const SUBJECT = 'Dispositivo recuperado';
 const ALERT_TYPE = 'device_unreachable';
 
 export class SendDeviceRecoveryAlertUseCase extends UseCase<
@@ -24,7 +24,7 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
 > {
   constructor(
     private readonly alertRepository: IAlertRepository,
-    private readonly pollingConfigRepository: IPollingConfigurationRepository,
+    private readonly deviceRepository: IDeviceRepository,
     private readonly alertPublisher: IAlertPublisher,
     logger: ILogger
   ) {
@@ -87,18 +87,20 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
       return this.ok(AlertMapper.toDTO(saveResult.value));
     }
 
-    const ipAddress = await this.resolveIpAddress(deviceId);
+    const deviceName = await this.resolveDeviceName(deviceId);
+    const summary =
+      openAlert.durationSecs === null
+        ? `${deviceName} volvió a responder`
+        : `${deviceName} volvió a responder tras ${formatDuration(openAlert.durationSecs)} sin conexión`;
+    const latency =
+      request.latencyMs !== null ? `${request.latencyMs} ms` : 'N/A';
 
     const publishResult = await this.alertPublisher.publish({
       deviceId: deviceId.toString(),
       severity: openAlert.severity,
       source: SOURCE,
-      subject: SUBJECT,
-      detail: this.buildDetail({
-        ipAddress,
-        latencyMs: request.latencyMs,
-        durationSecs: openAlert.durationSecs
-      }),
+      summary,
+      detail: `Latencia: ${latency}`,
       occurredAt: request.occurredAt,
       resolved: true,
       type: ALERT_TYPE
@@ -130,45 +132,17 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
     return this.ok(AlertMapper.toDTO(saveResult.value));
   }
 
-  private async resolveIpAddress(
+  private async resolveDeviceName(
     deviceId: DeviceId
-  ): Promise<string | null> {
+  ): Promise<string> {
     try {
-      const result =
-        await this.pollingConfigRepository.findByDeviceId(deviceId);
-      if (result.isSuccess && result.value?.ipAddress) {
-        return result.value.ipAddress.value;
+      const result = await this.deviceRepository.findById(deviceId);
+      if (result.isSuccess && result.value) {
+        return result.value.name.value;
       }
     } catch {
       // fallback
     }
-    return null;
-  }
-
-  private buildDetail(params: {
-    ipAddress: string | null;
-    latencyMs: number | null;
-    durationSecs: number | null;
-  }): string {
-    const ip = params.ipAddress ? ` IP: ${params.ipAddress}.` : '';
-    const latency =
-      params.latencyMs !== null ? `${params.latencyMs}ms` : 'N/A';
-    const duration = this.formatDuration(params.durationSecs);
-    return [
-      `Conexión restablecida.${ip}`,
-      `Latencia: ${latency}. Tiempo fuera de línea: ${duration}.`
-    ].join('\n');
-  }
-
-  private formatDuration(secs: number | null): string {
-    if (secs === null) return 'desconocido';
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = secs % 60;
-    const parts: string[] = [];
-    if (h > 0) parts.push(`${h}h`);
-    if (m > 0) parts.push(`${m}m`);
-    parts.push(`${s}s`);
-    return parts.join(' ');
+    return 'El dispositivo';
   }
 }

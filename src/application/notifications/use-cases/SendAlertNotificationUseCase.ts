@@ -8,14 +8,22 @@ import { INotificationService } from '../interfaces';
 import { TelegramFormatting } from '../shared';
 import { SendAlertNotificationDTO } from '../dtos';
 
+interface DeviceLabel {
+  name: string;
+  ipAddress: string | null;
+}
+
 export class SendAlertNotificationUseCase extends UseCase<
   SendAlertNotificationDTO,
   void
 > {
+  // appPublicUrl is the dashboard's origin as the operator's phone reaches
+  // it; null leaves the "open in the app" link out.
   constructor(
     private readonly deviceRepository: IDeviceRepository,
     private readonly notificationService: INotificationService,
-    logger: ILogger
+    logger: ILogger,
+    private readonly appPublicUrl: string | null = null
   ) {
     super(logger, 'SendAlertNotificationUseCase');
   }
@@ -26,8 +34,8 @@ export class SendAlertNotificationUseCase extends UseCase<
     if (request.deviceId !== null && !request.deviceId?.trim()) {
       return Result.fail('deviceId is required');
     }
-    if (!request.detail?.trim()) {
-      return Result.fail('detail is required');
+    if (!request.summary?.trim()) {
+      return Result.fail('summary is required');
     }
     return null;
   }
@@ -35,7 +43,7 @@ export class SendAlertNotificationUseCase extends UseCase<
   protected async executeImpl(
     request: SendAlertNotificationDTO
   ): Promise<Result<void>> {
-    let deviceName: string | null = null;
+    let device: DeviceLabel | null = null;
     if (request.deviceId !== null) {
       const deviceIdResult = DeviceId.parse(request.deviceId);
       if (deviceIdResult.isFailure) {
@@ -43,16 +51,16 @@ export class SendAlertNotificationUseCase extends UseCase<
           `Invalid device ID: ${deviceIdResult.error}`
         );
       }
-      deviceName = await this.resolveDeviceName(deviceIdResult.value);
+      device = await this.resolveDevice(deviceIdResult.value);
     }
 
     const sendResult = await this.notificationService.send({
-      title: this.buildTitle(request),
-      body: this.formatBody(request, deviceName),
+      title: `${this.icon(request)} ${request.summary}`,
+      body: this.formatBody(request, device),
       metadata: {
         deviceId: request.deviceId,
-        deviceName,
-        ipAddress: null,
+        deviceName: device?.name ?? null,
+        ipAddress: device?.ipAddress ?? null,
         severity: request.severity,
         timestamp: request.occurredAt.toISOString()
       }
@@ -67,60 +75,63 @@ export class SendAlertNotificationUseCase extends UseCase<
     return this.ok(undefined);
   }
 
-  private buildTitle(request: SendAlertNotificationDTO): string {
-    if (request.resolved) return '✅ Alerta resuelta';
-    return request.severity === AlertSeverity.CRITICAL
-      ? '🔴 Alerta crítica'
-      : '🟡 Advertencia';
+  private icon(request: SendAlertNotificationDTO): string {
+    if (request.resolved) return '✅';
+    return request.severity === AlertSeverity.CRITICAL ? '🔴' : '🟡';
   }
 
   private formatBody(
     request: SendAlertNotificationDTO,
-    deviceName: string | null
+    device: DeviceLabel | null
   ): string {
     const e = (text: string) => TelegramFormatting.escapeMd(text);
-    const ts = e(
-      TelegramFormatting.formatLocalTime(request.occurredAt)
-    );
-
-    const header = request.resolved
-      ? '✅ *ALERTA RESUELTA*'
-      : request.severity === AlertSeverity.CRITICAL
-        ? '🔴 *ALERTA CRÍTICA*'
-        : '🟡 *ADVERTENCIA*';
-
-    const severityLabel =
-      request.severity === AlertSeverity.CRITICAL
-        ? 'CRÍTICA'
-        : 'ADVERTENCIA';
+    const ts = TelegramFormatting.formatLocalTime(request.occurredAt);
+    const detail = request.detail?.trim();
 
     return [
-      header,
+      `${this.icon(request)} *${e(request.summary)}*`,
+      ...(detail ? [e(detail)] : []),
       '',
-      ...(deviceName !== null
-        ? [`📛 *Dispositivo:* ${e(deviceName)}`]
+      ...(device !== null
+        ? this.deviceLines(request.deviceId as string, device)
         : []),
-      `📡 *Origen:* ${e(request.source)}`,
-      `📊 *Métrica:* ${e(request.subject)}`,
-      `⚠️ *Severidad:* ${e(severityLabel)}`,
-      '',
-      e(request.detail),
-      '',
-      `🕐 ${ts}`
+      `🕐 ${e(`${ts} · ${request.source}`)}`
     ].join('\n');
   }
 
-  private async resolveDeviceName(
+  private deviceLines(
+    deviceId: string,
+    device: DeviceLabel
+  ): string[] {
+    const e = (text: string) => TelegramFormatting.escapeMd(text);
+    const lines = [`📛 ${e(device.name)}`];
+    if (device.ipAddress !== null) {
+      lines.push(
+        `🌐 ${TelegramFormatting.link(device.ipAddress, `http://${device.ipAddress}`)}`
+      );
+    }
+    if (this.appPublicUrl !== null) {
+      lines.push(
+        `📱 ${TelegramFormatting.link('Ver en la app', `${this.appPublicUrl}/devices/${deviceId}`)}`
+      );
+    }
+    return lines;
+  }
+
+  private async resolveDevice(
     deviceId: DeviceId
-  ): Promise<string> {
+  ): Promise<DeviceLabel> {
     try {
       const result = await this.deviceRepository.findById(deviceId);
       if (result.isSuccess && result.value) {
-        return result.value.name.value;
+        return {
+          name: result.value.name.value,
+          ipAddress: result.value.ipAddress?.value ?? null
+        };
       }
     } catch {
       // fallback
     }
-    return 'Unknown Device';
+    return { name: 'Unknown Device', ipAddress: null };
   }
 }

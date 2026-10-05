@@ -28,9 +28,10 @@ function makePublisher(): jest.Mocked<IAlertPublisher> {
 
 describe('Agent clock notification handlers', () => {
   it.each([
-    [90_000, 'adelantado 90 segundos'],
+    [90_000, 'adelantado 1 minuto y 30 segundos'],
     [-600_000, 'atrasado 10 minutos'],
-    [-3 * 3_600_000, 'atrasado 3 horas']
+    [-3 * 3_600_000, 'atrasado 3 horas'],
+    [-318 * 3_600_000, 'atrasado 13 días y 6 horas']
   ])(
     '[AGT-025] warns with no device for an offset of %i ms',
     async (offset, phrase) => {
@@ -47,7 +48,7 @@ describe('Agent clock notification handlers', () => {
           severity: AlertSeverity.WARNING,
           type: 'agent_clock',
           resolved: false,
-          detail: expect.stringContaining(phrase)
+          summary: expect.stringContaining(phrase)
         })
       );
     }

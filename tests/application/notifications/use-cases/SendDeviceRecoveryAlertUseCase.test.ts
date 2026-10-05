@@ -2,7 +2,7 @@
 
 import { SendDeviceRecoveryAlertUseCase } from '../../../../src/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase';
 import { IAlertRepository } from '../../../../src/domain/notifications/repository/IAlertRepository';
-import { IPollingConfigurationRepository } from '../../../../src/domain/device-monitoring/repository/IPollingConfigurationRepository';
+import { IDeviceRepository } from '../../../../src/domain/device-inventory/repository/IDeviceRepository';
 import { QUIET_HOURS_SUPPRESSED } from '../../../../src/application/shared/interfaces/IAlertPublisher';
 import { IAlertPublisher } from '../../../../src/application/shared/interfaces/IAlertPublisher';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
@@ -12,7 +12,6 @@ import { AlertId } from '../../../../src/domain/shared/ids/AlertId';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
 import { SendDeviceRecoveryAlertDTO } from '../../../../src/application/notifications/dtos/SendDeviceRecoveryAlertDTO';
-import { PollingConfiguration } from '../../../../src/domain/device-monitoring/entities/PollingConfiguration';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -52,14 +51,10 @@ function makeAlertRepo(): jest.Mocked<IAlertRepository> {
   };
 }
 
-function makePollingConfigRepo(): jest.Mocked<IPollingConfigurationRepository> {
-  return {
-    save: jest.fn(),
-    findById: jest.fn(),
-    findByDeviceId: jest.fn(),
-    findAllDue: jest.fn(),
-    delete: jest.fn()
-  };
+function makeDeviceRepo(): jest.Mocked<
+  Pick<IDeviceRepository, 'findById'>
+> {
+  return { findById: jest.fn() };
 }
 
 function makeAlertPublisher(): jest.Mocked<IAlertPublisher> {
@@ -94,30 +89,28 @@ function makeOpenAlert(notifiedAt: Date | null = STARTED_AT): Alert {
   });
 }
 
-/** Minimal fake polling config stub (only the field the use case reads). */
-function makePollingConfig(ip = '192.168.1.1'): PollingConfiguration {
-  return {
-    ipAddress: { value: ip }
-  } as unknown as PollingConfiguration;
+/** Minimal device stub (only the field the use case reads). */
+function makeDevice(name = 'AP Torre Norte') {
+  return { name: { value: name } };
 }
 
 // ---------------------------------------------------------------------------
 
 describe('SendDeviceRecoveryAlertUseCase', () => {
   let alertRepo: jest.Mocked<IAlertRepository>;
-  let pollingConfigRepo: jest.Mocked<IPollingConfigurationRepository>;
+  let deviceRepo: ReturnType<typeof makeDeviceRepo>;
   let alertPublisher: jest.Mocked<IAlertPublisher>;
   let logger: ILogger;
   let useCase: SendDeviceRecoveryAlertUseCase;
 
   beforeEach(() => {
     alertRepo = makeAlertRepo();
-    pollingConfigRepo = makePollingConfigRepo();
+    deviceRepo = makeDeviceRepo();
     alertPublisher = makeAlertPublisher();
     logger = makeLogger();
     useCase = new SendDeviceRecoveryAlertUseCase(
       alertRepo,
-      pollingConfigRepo,
+      deviceRepo as unknown as IDeviceRepository,
       alertPublisher,
       logger
     );
@@ -199,8 +192,8 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
       alertRepo.findOpenByDeviceAndType.mockResolvedValue(
         Result.ok(makeOpenAlert())
       );
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makePollingConfig())
+      deviceRepo.findById.mockResolvedValue(
+        Result.ok(makeDevice() as never)
       );
       alertRepo.save.mockImplementation(async (a) => Result.ok(a));
     });
@@ -285,7 +278,7 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
 
     it('never looks up the IP, since no message is being built', async () => {
       await useCase.execute(makeRequest());
-      expect(pollingConfigRepo.findByDeviceId).not.toHaveBeenCalled();
+      expect(deviceRepo.findById).not.toHaveBeenCalled();
     });
   });
 
@@ -295,8 +288,8 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
       alertRepo.findOpenByDeviceAndType.mockResolvedValue(
         Result.ok(makeOpenAlert())
       );
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makePollingConfig())
+      deviceRepo.findById.mockResolvedValue(
+        Result.ok(makeDevice() as never)
       );
       alertPublisher.publish.mockResolvedValue(
         Result.fail('Telegram down')
@@ -312,8 +305,8 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
       alertRepo.findOpenByDeviceAndType.mockResolvedValue(
         Result.ok(makeOpenAlert())
       );
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makePollingConfig())
+      deviceRepo.findById.mockResolvedValue(
+        Result.ok(makeDevice() as never)
       );
       alertPublisher.publish.mockResolvedValue(
         Result.fail('Telegram down')
@@ -334,8 +327,8 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
       alertRepo.findOpenByDeviceAndType.mockResolvedValue(
         Result.ok(makeOpenAlert())
       );
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makePollingConfig())
+      deviceRepo.findById.mockResolvedValue(
+        Result.ok(makeDevice() as never)
       );
       alertPublisher.publish.mockResolvedValue(
         Result.fail(QUIET_HOURS_SUPPRESSED)
@@ -354,8 +347,8 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
       alertRepo.findOpenByDeviceAndType.mockResolvedValue(
         Result.ok(makeOpenAlert())
       );
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makePollingConfig())
+      deviceRepo.findById.mockResolvedValue(
+        Result.ok(makeDevice() as never)
       );
       alertRepo.save.mockResolvedValue(Result.fail('Write conflict'));
 
@@ -366,42 +359,46 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
   });
 
   // ===========================================================================
-  describe('executeImpl — IP + latency detail', () => {
-    it('should fold IP and latency into the detail', async () => {
+  describe('[NOT-093] [NOT-102] executeImpl — summary and detail', () => {
+    it('should lead with the device name and how long it was out', async () => {
       alertRepo.findOpenByDeviceAndType.mockResolvedValue(
         Result.ok(makeOpenAlert())
       );
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makePollingConfig())
+      deviceRepo.findById.mockResolvedValue(
+        Result.ok(makeDevice() as never)
       );
       alertRepo.save.mockImplementation(async (a) => Result.ok(a));
 
       await useCase.execute(makeRequest({ latencyMs: 42 }));
       const envelope = alertPublisher.publish.mock.calls[0][0];
-      expect(envelope.detail).toContain('192.168.1.1');
-      expect(envelope.detail).toContain('42ms');
+      expect(envelope.summary).toBe(
+        'AP Torre Norte volvió a responder tras 1 minuto y 40 segundos sin conexión'
+      );
+      expect(envelope.detail).toBe('Latencia: 42 ms');
     });
 
-    it('should still publish (no IP in detail) when polling config lookup fails', async () => {
+    it('should still publish under a generic name when the device lookup fails', async () => {
       alertRepo.findOpenByDeviceAndType.mockResolvedValue(
         Result.ok(makeOpenAlert())
       );
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(
+      deviceRepo.findById.mockResolvedValue(
         Result.fail('Unavailable')
       );
       alertRepo.save.mockImplementation(async (a) => Result.ok(a));
 
       await useCase.execute(makeRequest());
       const envelope = alertPublisher.publish.mock.calls[0][0];
-      expect(envelope.detail).not.toContain('IP:');
+      expect(envelope.summary).toMatch(
+        /^El dispositivo volvió a responder/
+      );
     });
 
     it('should succeed when latencyMs is null (no latency data)', async () => {
       alertRepo.findOpenByDeviceAndType.mockResolvedValue(
         Result.ok(makeOpenAlert())
       );
-      pollingConfigRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makePollingConfig())
+      deviceRepo.findById.mockResolvedValue(
+        Result.ok(makeDevice() as never)
       );
       alertRepo.save.mockImplementation(async (a) => Result.ok(a));
 
@@ -409,6 +406,9 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
         makeRequest({ latencyMs: null })
       );
       expect(result.isSuccess).toBe(true);
+      expect(alertPublisher.publish.mock.calls[0][0].detail).toBe(
+        'Latencia: N/A'
+      );
     });
   });
 });

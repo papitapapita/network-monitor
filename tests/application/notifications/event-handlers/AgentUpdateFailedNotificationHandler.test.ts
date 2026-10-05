@@ -40,9 +40,12 @@ describe('AgentUpdateFailedNotificationHandler', () => {
           severity: AlertSeverity.WARNING,
           type: 'agent_update',
           resolved: false,
+          summary:
+            'El agente "Torre Norte" no pudo actualizarse a la versión 0.2.1',
           detail: expect.stringMatching(
             new RegExp(
-              `"Torre Norte".*0\\.2\\.1.*${phrase}.*No connection within 2 minutes`
+              `${phrase}.*No connection within 2 minutes`,
+              'i'
             )
           )
         })

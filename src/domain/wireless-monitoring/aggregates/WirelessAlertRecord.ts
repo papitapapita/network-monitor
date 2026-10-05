@@ -97,7 +97,12 @@ export class WirelessAlertRecord extends AggregateRoot<
     return Result.ok();
   }
 
-  public clear(clearedAt: Date): Result<void> {
+  // reason is the rule's own "back to normal" sentence; null for an alert
+  // an operator cleared by hand.
+  public clear(
+    clearedAt: Date,
+    reason: string | null = null
+  ): Result<void> {
     if (!this.props.isActive) {
       return Result.fail('Alert is already cleared');
     }
@@ -109,6 +114,7 @@ export class WirelessAlertRecord extends AggregateRoot<
         deviceId: this.props.deviceId,
         metric: this.props.metric,
         severity: this.props.severity,
+        reason,
         clearedAt,
         dateTimeOccurred: new Date()
       })

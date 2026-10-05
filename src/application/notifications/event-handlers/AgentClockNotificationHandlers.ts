@@ -1,5 +1,6 @@
 import { IHandle } from 'domain/shared/interfaces';
 import { AlertSeverity } from 'domain/shared/enums';
+import { formatDuration } from 'domain/shared/utils';
 import {
   AgentClockCorrectedEvent,
   AgentClockDriftedEvent
@@ -31,11 +32,10 @@ export class AgentClockDriftedNotificationHandler
       event.clockOffsetMs > 0 ? 'adelantado' : 'atrasado';
     await publish(this.alertPublisher, this.logger, event, {
       severity: AlertSeverity.WARNING,
-      subject: 'Reloj del agente desfasado',
+      summary: `El reloj del PC del agente "${event.agentName}" está ${direction} ${formatDuration(event.clockOffsetMs / 1000)}`,
       detail:
-        `El reloj del PC del agente "${event.agentName}" está ${direction} ` +
-        `${formatOffset(event.clockOffsetMs)}. Las mediciones se corrigen, ` +
-        'pero ajusta la hora del PC (sincronización automática de Windows).',
+        'Las mediciones se corrigen, pero ajusta la hora del PC ' +
+        '(sincronización automática de Windows).',
       resolved: false
     });
   }
@@ -52,8 +52,8 @@ export class AgentClockCorrectedNotificationHandler
   async handle(event: AgentClockCorrectedEvent): Promise<void> {
     await publish(this.alertPublisher, this.logger, event, {
       severity: AlertSeverity.WARNING,
-      subject: 'Reloj del agente corregido',
-      detail: `El reloj del PC del agente "${event.agentName}" vuelve a estar en hora.`,
+      summary: `El reloj del PC del agente "${event.agentName}" vuelve a estar en hora`,
+      detail: null,
       resolved: true
     });
   }
@@ -65,7 +65,7 @@ async function publish(
   event: AgentClockDriftedEvent | AgentClockCorrectedEvent,
   content: Pick<
     AlertNotification,
-    'severity' | 'subject' | 'detail' | 'resolved'
+    'severity' | 'summary' | 'detail' | 'resolved'
   >
 ): Promise<void> {
   try {
@@ -88,12 +88,4 @@ async function publish(
       error instanceof Error ? error : new Error(String(error))
     );
   }
-}
-
-function formatOffset(offsetMs: number): string {
-  const seconds = Math.round(Math.abs(offsetMs) / 1000);
-  if (seconds < 120) return `${seconds} segundos`;
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 120) return `${minutes} minutos`;
-  return `${Math.round(minutes / 60)} horas`;
 }

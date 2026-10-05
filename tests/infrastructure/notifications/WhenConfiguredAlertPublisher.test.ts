@@ -12,7 +12,7 @@ const NOTIFICATION: AlertNotification = {
   deviceId: null,
   severity: AlertSeverity.CRITICAL,
   source: 'Agente',
-  subject: 'Oficina',
+  summary: 'Oficina',
   detail: 'Sin conexión',
   occurredAt: new Date('2026-09-30T20:00:00Z'),
   resolved: false,
