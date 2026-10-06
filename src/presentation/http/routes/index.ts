@@ -1,5 +1,6 @@
 import { Application, Router } from 'express';
 import { DependencyContainer } from '../../../infrastructure/di/container';
+import { loadAllowedOrigins } from '../../../infrastructure/di/allowedOrigins';
 import { createLocationRoutes } from './location.routes';
 import { createDeviceRoutes } from './device.routes';
 import { createDeviceModelRoutes } from './device-model.routes';
@@ -111,7 +112,8 @@ export function setupRoutes(
     createAuditLogMiddleware(container.getLogger()),
     createAuthenticateMiddleware(
       container.tokenService,
-      container.sessionValidator
+      container.sessionValidator,
+      loadAllowedOrigins(process.env)
     )
   );
 

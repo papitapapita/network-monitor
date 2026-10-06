@@ -49,13 +49,33 @@ Everything else (monitoring) is always present. A monitoring-only install
 
 ## Authentication
 
-All endpoints except the sign-in steps under `/api/auth` and the agent-facing `/agent/v1/*` (see Probe agents) require a valid JWT in the `Authorization` header:
+All endpoints except the sign-in steps under `/api/auth` and the agent-facing `/agent/v1/*` (see Probe agents) require a session: the `nms_session` cookie, or a JWT in the `Authorization` header:
 
 ```
 Authorization: Bearer <token>
 ```
 
-Missing or invalid tokens return `401`. Insufficient role returns `403`.
+Missing or invalid sessions return `401`. Insufficient role returns `403`.
+
+> **⚠ Changed 2026-10-05 — the browser session is a cookie (IDN-066, IDN-084, IDN-085).**
+> Every answer that signs in (the two-factor steps, a remembered-browser login,
+> `POST /api/users/me/password`) sets the `nms_session` cookie: `HttpOnly`,
+> `Secure`, `SameSite=Strict`, 24 hours. The dashboard should:
+>
+> - send every request with `credentials: 'include'` (axios: `withCredentials: true`);
+> - stop storing the token from the answer body and stop sending `Authorization`
+>   (the body still carries it, for non-browser clients);
+> - stop storing `trustedBrowserToken` too — it comes as the `nms_trusted_browser`
+>   cookie and goes back to login on its own;
+> - open streams with `new EventSource(url, { withCredentials: true })` and no
+>   `?token=`;
+> - sign out with `POST /api/auth/logout`, which clears the cookie;
+> - be served from the same main domain as the API (`app.x.com` + `api.x.com`),
+>   and be listed in the backend's `ALLOWED_ORIGINS`.
+>
+> A cookie-signed `POST`/`PUT`/`PATCH`/`DELETE` whose `Origin` is not in
+> `ALLOWED_ORIGINS` answers `403 Cross-site request refused`. Browsers send
+> `Origin` on their own; nothing to add.
 
 A token also stops working (`401 Invalid token`) as soon as its account is
 disabled or has its role or password changed (IDN-065) — **on any `401`, drop the
@@ -65,7 +85,7 @@ before 2026-09-30 are all refused once, when this ships.
 
 > **SSE exception:** the two wireless throughput streams also accept
 > `?token=<jwt>`, because the browser `EventSource` API cannot set headers. No
-> other endpoint does.
+> other endpoint does. With the cookie it is no longer needed.
 
 ### Roles
 
@@ -142,7 +162,7 @@ user and 200 per server, exceeding either returns `429` with
 {
   email: string                 // required
   password: string              // required
-  trustedBrowserToken?: string  // from an earlier "remember this browser" (IDN-171)
+  trustedBrowserToken?: string  // from an earlier "remember this browser" (IDN-171); browsers send the cookie instead
 }
 
 // Response 200 — the two-factor step
@@ -181,8 +201,9 @@ user and 200 per server, exceeding either returns `429` with
 3. `twoFactor === 'verify'`: `POST /two-factor/verify { code }`, or
    `{ recoveryCode }` behind a "lost my phone" link → session.
 4. Offer a "remember this browser for 30 days" checkbox on the code screens and
-   send it as `rememberBrowser: true`. Store the `trustedBrowserToken` it
-   returns and send it with every later login from this browser. It stops
+   send it as `rememberBrowser: true`. The browser keeps the
+   `nms_trusted_browser` cookie it returns and sends it with every later
+   login on its own (a non-browser client sends `trustedBrowserToken`). It stops
    working after 30 days, or at once when the account's password, role or
    status changes or its two-factor is reset (IDN-171).
 
@@ -201,6 +222,21 @@ to the password screen.
 > Show both as "try again in a few minutes"; neither means the password is wrong.
 > A new password set by an administrator lifts the account's wait at once.
 > Wrong two-factor codes count toward both, the same as wrong passwords.
+
+### `POST /api/auth/logout` — Sign out this browser
+
+**Status:** 200  
+**Auth required:** No
+
+```ts
+// No body
+// Response 200
+{ success: true, data: null }
+```
+
+> Clears the `nms_session` cookie (IDN-062). The remembered browser stays, so
+> the next sign-in from here still skips the code. Tokens are not revoked: to
+> end every session of an account, change its password.
 
 ### `POST /api/auth/two-factor/setup` — Start two-factor setup
 

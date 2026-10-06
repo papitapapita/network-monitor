@@ -37,5 +37,7 @@ export function createAuthRoutes(controller: AuthController): Router {
     controller.verifyTwoFactor
   );
 
+  router.post('/logout', controller.logout);
+
   return router;
 }

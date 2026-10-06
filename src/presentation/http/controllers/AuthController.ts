@@ -19,6 +19,12 @@ import {
   LoginInput,
   VerifyTwoFactorInput
 } from '../validation/auth.schemas';
+import {
+  clearSessionCookie,
+  readCookie,
+  setSessionCookies,
+  TRUSTED_BROWSER_COOKIE
+} from '../middleware/sessionCookies';
 
 const FAILURES: Record<string, { status: number; error: string }> = {
   [SIGN_IN_PAUSED]: {
@@ -58,7 +64,9 @@ export class AuthController {
       this.loginUseCase.execute({
         email: body.email,
         password: body.password,
-        trustedBrowserToken: body.trustedBrowserToken ?? null,
+        trustedBrowserToken:
+          body.trustedBrowserToken ??
+          readCookie(req, TRUSTED_BROWSER_COOKIE),
         sourceIp: req.ip ?? null
       })
     );
@@ -106,6 +114,13 @@ export class AuthController {
     );
   };
 
+  // Forgets the session in this browser only; the remembered browser stays
+  // (IDN-062).
+  public logout = (_req: Request, res: Response): void => {
+    clearSessionCookie(res);
+    res.status(200).json({ success: true, data: null });
+  };
+
   private async answer<T>(
     res: Response,
     run: () => Promise<Result<T>>
@@ -113,6 +128,7 @@ export class AuthController {
     try {
       const result = await run();
       if (result.isSuccess) {
+        setSessionCookies(res, result.value as object);
         res.status(200).json({ success: true, data: result.value });
         return;
       }

@@ -1,7 +1,10 @@
 // Source: src/presentation/http/middleware/authenticate.ts
 
 import { Request, Response, NextFunction } from 'express';
-import { createAuthenticateMiddleware } from '../../../../src/presentation/http/middleware/authenticate';
+import {
+  createAuthenticateMiddleware,
+  CROSS_SITE_REFUSED
+} from '../../../../src/presentation/http/middleware/authenticate';
 import {
   ITokenService,
   TokenPayload
@@ -369,6 +372,77 @@ describe('createAuthenticateMiddleware', () => {
         success: false,
         error: 'Internal server error'
       });
+    });
+  });
+
+  // =========================================================================
+  describe('session cookie', () => {
+    const DASHBOARD = 'https://app.isp.example';
+
+    const run = async (
+      method: string,
+      headers: Record<string, string>
+    ) => {
+      tokenService.verify.mockReturnValue(Result.ok(VALID_PAYLOAD));
+      const { res, statusMock, jsonMock } = createMockResponse();
+      const req = createMockRequest({ method, headers });
+      await createAuthenticateMiddleware(
+        tokenService,
+        sessions as unknown as SessionValidator,
+        [DASHBOARD]
+      )(req as Request, res as Response, mockNext);
+      return { statusMock, jsonMock };
+    };
+
+    it('[IDN-084] signs a read in with the cookie alone', async () => {
+      await run('GET', { cookie: 'other=1; nms_session=cookie.jwt' });
+
+      expect(tokenService.verify).toHaveBeenCalledWith('cookie.jwt');
+      expect(mockNext).toHaveBeenCalled();
+    });
+
+    it('[IDN-084] prefers the Bearer header over the cookie', async () => {
+      await run('GET', {
+        authorization: 'Bearer header.jwt',
+        cookie: 'nms_session=cookie.jwt'
+      });
+
+      expect(tokenService.verify).toHaveBeenCalledWith('header.jwt');
+    });
+
+    it('[IDN-085] accepts a change from an allowed dashboard', async () => {
+      await run('POST', {
+        cookie: 'nms_session=cookie.jwt',
+        origin: DASHBOARD
+      });
+
+      expect(mockNext).toHaveBeenCalled();
+    });
+
+    it.each([
+      ['another site', { origin: 'https://evil.example' }],
+      ['no Origin at all', {}]
+    ])(
+      '[IDN-085] refuses a cookie-signed change from %s',
+      async (_label, extra) => {
+        const { statusMock, jsonMock } = await run('DELETE', {
+          cookie: 'nms_session=cookie.jwt',
+          ...extra
+        });
+
+        expect(statusMock).toHaveBeenCalledWith(403);
+        expect(jsonMock).toHaveBeenCalledWith({
+          success: false,
+          error: CROSS_SITE_REFUSED
+        });
+        expect(tokenService.verify).not.toHaveBeenCalled();
+      }
+    );
+
+    it('[IDN-085] a Bearer change needs no Origin', async () => {
+      await run('POST', { authorization: 'Bearer header.jwt' });
+
+      expect(mockNext).toHaveBeenCalled();
     });
   });
 });

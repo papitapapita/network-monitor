@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { ILogger } from 'application/shared/interfaces';
 import { Result } from 'domain/shared/core';
 import { TWO_FACTOR_OFF } from 'domain/identity';
+import { setSessionCookies } from '../middleware/sessionCookies';
 import {
   ListUsersUseCase,
   CreateUserUseCase,
@@ -65,18 +66,24 @@ export class UserController {
     req: Request,
     res: Response
   ): Promise<void> =>
-    this.run(res, 200, () =>
-      this.changeOwnPasswordUseCase.execute({
-        userId: req.user!.userId,
-        currentPassword: req.body.currentPassword,
-        newPassword: req.body.newPassword
-      })
+    this.run(
+      res,
+      200,
+      () =>
+        this.changeOwnPasswordUseCase.execute({
+          userId: req.user!.userId,
+          currentPassword: req.body.currentPassword,
+          newPassword: req.body.newPassword
+        }),
+      // The old cookie stopped working with the change (IDN-065).
+      true
     );
 
   private async run<T>(
     res: Response,
     status: number,
-    action: () => Promise<Result<T>>
+    action: () => Promise<Result<T>>,
+    renewsSession = false
   ): Promise<void> {
     try {
       const result = await action();
@@ -85,6 +92,9 @@ export class UserController {
           .status(this.getErrorStatusCode(result.error!))
           .json({ success: false, error: result.error });
         return;
+      }
+      if (renewsSession) {
+        setSessionCookies(res, result.value as object);
       }
       res.status(status).json({ success: true, data: result.value });
     } catch (error) {

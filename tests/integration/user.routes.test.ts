@@ -425,6 +425,28 @@ describe('User Routes — /api/users', () => {
       expect(fresh.status).toBe(200);
     });
 
+    it('[IDN-066] a cookie-signed change replaces the session cookie', async () => {
+      const { token } = await staff('viewer@isp.example', 'VIEWER');
+
+      const res = await request(app)
+        .post(`${PATH}/me/password`)
+        .set('Cookie', `nms_session=${token}`)
+        .set('Origin', 'http://localhost:3001')
+        .send({
+          currentPassword: PASSWORD,
+          newPassword: 'my-new-password'
+        });
+
+      const cookie = (
+        res.headers['set-cookie'] as unknown as string[]
+      )[0].split(';')[0];
+      expect(cookie).toBe(`nms_session=${res.body.data.token}`);
+      const fresh = await request(app)
+        .get('/api/installation')
+        .set('Cookie', cookie);
+      expect(fresh.status).toBe(200);
+    });
+
     it('400 — the current password is wrong', async () => {
       const { token } = await staff();
 

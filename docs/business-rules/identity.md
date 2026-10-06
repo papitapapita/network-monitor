@@ -29,11 +29,11 @@ Format and conventions: [README.md](README.md).
 
 | Layer                         | Rules |
 | ----------------------------- | ----- |
-| Presentation (middleware)     | 12    |
+| Presentation (middleware)     | 14    |
 | Infrastructure                | 11    |
 | Domain (value object)         | 4     |
 | Application                   | 18    |
-| Presentation                  | 4     |
+| Presentation                  | 5     |
 | Domain (permission table)     | 2     |
 | Domain (aggregate)            | 8     |
 | Infrastructure + Presentation | 1     |
@@ -587,15 +587,17 @@ there is — see `IDN-062`.
 **Enforced at:** `src/infrastructure/identity/services/JwtTokenService.ts`
 **Tests:** `tests/integration/auth.routes.test.ts`
 
-### IDN-062 — There is no logout; a session ends when it expires or when the account changes
+### IDN-062 — Logout forgets this browser's session; only the account ends a token early
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-08-05 · **Revised:** 2026-09-30
+**Since:** 2026-08-05 · **Revised:** 2026-10-05
 
-There is no session store and no logout endpoint: signing out is the client
-forgetting its token. What ends a token early is the account — disabling it, or
-changing its role or password, invalidates every token it holds (`IDN-065`).
+There is no session store. `POST /api/auth/logout` clears the session cookie
+(`IDN-066`) in the browser that calls it and leaves its remembered browser
+(`IDN-171`) alone; the token itself stays valid until it expires. What ends a
+token early is the account — disabling it, or changing its role or password,
+invalidates every token it holds (`IDN-065`).
 
 **Why:** Until 2026-09-30 tokens could not be revoked at all, which is what made
 user management unsafe to add (`IDN-010`). Versioning the account rather than
@@ -603,8 +605,10 @@ listing revoked tokens keeps nothing to store per session and needs no cleanup.
 Its limit: it ends all of an account's sessions at once, never one device's.
 
 **Enforced at:** `src/infrastructure/identity/services/JwtTokenService.ts`,
-`src/application/identity/services/SessionValidator.ts`
-**Tests:** `tests/integration/auth.routes.test.ts`, `tests/integration/user.routes.test.ts`
+`src/application/identity/services/SessionValidator.ts`,
+`src/presentation/http/controllers/AuthController.ts` (`logout`)
+**Tests:** `tests/integration/auth.routes.test.ts`, `tests/integration/user.routes.test.ts`,
+`tests/presentation/http/middleware/sessionCookies.test.ts`
 
 ### IDN-063 — The signing secret comes from the environment and is required
 
@@ -671,15 +675,46 @@ demoted administrator loses the rights on their next click.
 `tests/presentation/http/middleware/authenticate.test.ts`,
 `tests/integration/user.routes.test.ts`
 
+### IDN-066 — A browser holds its session in a cookie scripts cannot read
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-10-05
+
+Every answer that hands out a session — the two-factor steps (`IDN-169`,
+`IDN-170`), a login from a remembered browser (`IDN-171`) and a password
+change (`IDN-144`) — also sets it as the `nms_session` cookie: `HttpOnly`,
+`Secure`, `SameSite=Strict`, for the whole site, for 24 hours like the token
+(`IDN-061`). A remembered browser gets `nms_trusted_browser` the same way,
+sent only to `/api/auth`, for 30 days. The token is still in the answer's
+body for clients that are not browsers; a browser should ignore it.
+
+The dashboard and the API must share a main domain (`app.example.com` and
+`api.example.com`), or `Strict` keeps the browser from sending the cookie.
+
+**Why:** A token in the page's storage is one injected script away from being
+copied and used from anywhere for a day. A script cannot read an `HttpOnly`
+cookie, and `Strict` stops the browser attaching it to a request another site
+started.
+
+**Enforced at:** `src/presentation/http/middleware/sessionCookies.ts`,
+`src/presentation/http/controllers/AuthController.ts`,
+`src/presentation/http/controllers/UserController.ts`
+**Tests:** `tests/presentation/http/middleware/sessionCookies.test.ts`,
+`tests/integration/auth.routes.test.ts`,
+`tests/integration/user.routes.test.ts`
+
 ---
 
 ## Request-level enforcement
 
-### IDN-080 — Every `/api` route except login requires a valid Bearer token
+### IDN-080 — Every `/api` route except login requires a valid session
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Presentation (middleware)
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Revised:** 2026-10-05
+
+The session comes as a Bearer token or as the session cookie (`IDN-084`).
 
 `/api/auth` is mounted before the authentication middleware; everything mounted
 after it is behind the gate. The two-factor routes under it take a challenge
@@ -743,6 +778,52 @@ provisioned their account.
 **Enforced at:** `src/presentation/http/middleware/authorize.ts`
 **Message:** `Forbidden`
 **Tests:** `tests/presentation/http/middleware/authorize.test.ts`
+
+### IDN-084 — A request signs in with a Bearer header or the session cookie
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation (middleware)
+**Since:** 2026-10-05
+
+The authentication middleware takes the `Authorization: Bearer` header when
+there is one and the `nms_session` cookie (`IDN-066`) otherwise; both then
+pass the same checks (`IDN-065`). Streams accept the cookie as well as
+`?token=`, so an `EventSource` opened `withCredentials` needs no token in its
+address.
+
+**Why:** Browsers move to the cookie; scripts, tests and other clients keep
+the header. The header wins so a client that sends one is never judged by a
+stale cookie it did not mean to send.
+
+**Enforced at:** `src/presentation/http/middleware/authenticate.ts` (`findSessionToken`),
+`src/presentation/http/middleware/authenticateStream.ts`
+**Tests:** `tests/presentation/http/middleware/authenticate.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-085 — A change signed by the cookie must come from one of our dashboards
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Presentation (middleware)
+**Since:** 2026-10-05
+
+A request signed by the session cookie with any method other than `GET`,
+`HEAD` or `OPTIONS` must carry an `Origin` listed in `ALLOWED_ORIGINS`;
+otherwise it answers `403 Cross-site request refused` before the token is
+checked. A missing `Origin` is refused too. Requests signed with a Bearer
+header are not affected.
+
+**Why:** The browser attaches the cookie to any request a page makes, which is
+what cross-site request forgery abuses. `SameSite=Strict` already stops other
+sites; this also stops a page on a sibling subdomain, which counts as the same
+site. Browsers always send `Origin` on these requests, so refusing its absence
+costs a real dashboard nothing. A header is something a forging page cannot
+add, so Bearer requests need no such check.
+
+**Enforced at:** `src/presentation/http/middleware/authenticate.ts`,
+`src/infrastructure/di/allowedOrigins.ts`
+**Message:** `Cross-site request refused` (`403`)
+**Tests:** `tests/presentation/http/middleware/authenticate.test.ts`,
+`tests/integration/auth.routes.test.ts`
 
 ---
 

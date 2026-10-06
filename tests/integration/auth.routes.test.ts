@@ -610,6 +610,81 @@ describe('Auth Routes — /api/auth', () => {
       expect(res.status).toBe(401);
     });
 
+    const cookieFrom = (res: request.Response, name: string) =>
+      ((res.headers['set-cookie'] ?? []) as unknown as string[])
+        .find((c) => c.startsWith(`${name}=`))
+        ?.split(';')[0];
+
+    const cookieSession = async () => {
+      const { secret } = await enrolled();
+      const res = await post(
+        '/verify',
+        (await login()).challengeToken,
+        {
+          code: appCode(secret, 1),
+          rememberBrowser: true
+        }
+      );
+      return {
+        session: cookieFrom(res, 'nms_session')!,
+        browser: cookieFrom(res, 'nms_trusted_browser')!,
+        setCookies: res.headers['set-cookie'] as unknown as string[]
+      };
+    };
+
+    it('[IDN-066] the sign-in sets an httpOnly session cookie that opens the API alone', async () => {
+      const { session, setCookies } = await cookieSession();
+
+      const res = await request(freshApp)
+        .get('/api/locations')
+        .set('Cookie', session);
+
+      expect(setCookies.join('\n')).toMatch(
+        /nms_session=[^;]+;.*HttpOnly.*Secure.*SameSite=Strict/
+      );
+      expect(res.status).toBe(200);
+    });
+
+    it('[IDN-085] 403 — a cookie-signed change without our Origin', async () => {
+      const { session } = await cookieSession();
+
+      const foreign = await request(freshApp)
+        .post('/api/locations')
+        .set('Cookie', session)
+        .set('Origin', 'https://evil.example')
+        .send({});
+      const ours = await request(freshApp)
+        .post('/api/locations')
+        .set('Cookie', session)
+        .set('Origin', 'http://localhost:3001')
+        .send({});
+
+      expect(foreign.status).toBe(403);
+      expect(foreign.body.error).toBe('Cross-site request refused');
+      expect(ours.status).toBe(400);
+    });
+
+    it('[IDN-171] the remembered-browser cookie skips the code at login', async () => {
+      const { browser } = await cookieSession();
+
+      const res = await request(freshApp)
+        .post('/api/auth/login')
+        .set('Cookie', browser)
+        .send({ email: ADMIN_EMAIL, password: ADMIN_PASS });
+
+      expect(res.status).toBe(200);
+      expect(cookieFrom(res, 'nms_session')).toBeDefined();
+    });
+
+    it('[IDN-062] logout clears the session cookie', async () => {
+      const res = await request(freshApp).post('/api/auth/logout');
+
+      expect(res.status).toBe(200);
+      expect(
+        (res.headers['set-cookie'] as unknown as string[])[0]
+      ).toMatch(/^nms_session=;.*Expires=Thu, 01 Jan 1970/);
+    });
+
     it('[IDN-167] 401 — no challenge at all', async () => {
       const res = await post('/setup', null);
 
