@@ -18,7 +18,9 @@ describe('[IDN-144] ChangeOwnPasswordUseCase', () => {
     const repo = makeUserRepo([user]);
     const tokens: jest.Mocked<ITokenService> = {
       sign: jest.fn().mockReturnValue('fresh.token'),
-      verify: jest.fn()
+      verify: jest.fn(),
+      signChallenge: jest.fn(),
+      verifyChallenge: jest.fn()
     };
     const logger = makeLogger();
     const useCase = new ChangeOwnPasswordUseCase(

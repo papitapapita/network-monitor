@@ -8,7 +8,24 @@ export interface TokenPayload {
   tokenVersion: number;
 }
 
+// The step a password opens: typing a code, or setting the app up first
+// (IDN-166).
+export type ChallengeKind = 'two-factor' | 'two-factor-setup';
+
+export interface ChallengePayload {
+  userId: string;
+  tokenVersion: number;
+  kind: ChallengeKind;
+}
+
 export interface ITokenService {
   sign(payload: TokenPayload): string;
+  // Refuses challenge tokens: they never open a session (IDN-167).
   verify(token: string): Result<TokenPayload>;
+  signChallenge(payload: ChallengePayload): string;
+  // Refuses session tokens and challenges of another kind (IDN-167).
+  verifyChallenge(
+    token: string,
+    kind: ChallengeKind
+  ): Result<ChallengePayload>;
 }

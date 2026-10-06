@@ -49,7 +49,7 @@ Everything else (monitoring) is always present. A monitoring-only install
 
 ## Authentication
 
-All endpoints except `POST /api/auth/login` and the agent-facing `/agent/v1/*` (see Probe agents) require a valid JWT in the `Authorization` header:
+All endpoints except the sign-in steps under `/api/auth` and the agent-facing `/agent/v1/*` (see Probe agents) require a valid JWT in the `Authorization` header:
 
 ```
 Authorization: Bearer <token>
@@ -105,7 +105,7 @@ revoke, the data-retention purge and the vendor's settings
 | Delete (`DELETE`)              | 60 / min  |
 | Bulk import                    | 5 / hr    |
 | Agent enrollment (per IP)      | 10 / 15 min |
-| Failed sign-ins (per IP)       | 10 / 15 min |
+| Failed sign-ins and codes (per IP) | 10 / 15 min |
 
 Counters are keyed by user id, falling back to IP for unauthenticated requests,
 so operators sharing one office address do not share a budget. Each resource
@@ -126,6 +126,11 @@ user and 200 per server, exceeding either returns `429` with
 **Status:** 200 | 400 | 401 | 429  
 **Auth required:** No
 
+> **⚠ Changed 2026-10-05 — login no longer returns a session.** A right
+> password returns a `challengeToken` and the next step; the session comes from
+> `/two-factor/setup/confirm` or `/two-factor/verify` below (IDN-166). The
+> frontend must follow this before the backend is deployed, or nobody can sign in.
+
 ```ts
 // Request body
 {
@@ -137,18 +142,28 @@ user and 200 per server, exceeding either returns `429` with
 {
   success: true,
   data: {
-    token: string   // JWT — include as Bearer token on all subsequent requests
-    user: {
-      id: string    // UUID
-      email: string
-      role: 'VENDOR' | 'ADMIN' | 'OPERATOR' | 'VIEWER'
-    }
+    twoFactor: 'verify' | 'setup'  // 'setup' the first time, 'verify' after
+    challengeToken: string         // Bearer token for the two-factor routes; 5 minutes
   }
 }
 ```
 
-> Returns `401` for a wrong password, an unknown email and a disabled account alike (identical error message — no credential enumeration).  
-> Token expires after 24 hours; obtain a new one by logging in again.
+> Returns `401` for a wrong password, an unknown email and a disabled account alike (identical error message — no credential enumeration).
+
+**Sign-in flow**
+
+1. `POST /api/auth/login` → `{ twoFactor, challengeToken }`.
+2. `twoFactor === 'setup'`: `POST /two-factor/setup` → show the QR code of
+   `otpauthUri` (and `secret` for typing in by hand), then
+   `POST /two-factor/setup/confirm { code }` → session + recovery codes. Show the
+   recovery codes once, with a "I saved them" confirmation.
+3. `twoFactor === 'verify'`: `POST /two-factor/verify { code }`, or
+   `{ recoveryCode }` behind a "lost my phone" link → session.
+
+Send the challenge as `Authorization: Bearer <challengeToken>` on every
+two-factor route. It does not work on any other route, and a session token does
+not work here (IDN-167). On `401 Sign-in step expired. Sign in again.` go back
+to the password screen.
 
 > **⚠ Changed 2026-10-05 — two new `429` answers:**
 >
@@ -159,6 +174,88 @@ user and 200 per server, exceeding either returns `429` with
 >
 > Show both as "try again in a few minutes"; neither means the password is wrong.
 > A new password set by an administrator lifts the account's wait at once.
+> Wrong two-factor codes count toward both, the same as wrong passwords.
+
+### `POST /api/auth/two-factor/setup` — Start two-factor setup
+
+**Status:** 200 | 401 | 409 | 429  
+**Auth required:** setup challenge (`twoFactor: 'setup'` from login)
+
+```ts
+// No body
+
+// Response 200
+{
+  success: true,
+  data: {
+    secret: string      // base32, for typing into the app by hand
+    otpauthUri: string  // otpauth://totp/... — render as a QR code
+  }
+}
+```
+
+> Calling it again before confirming gives a new secret; the old QR code stops
+> working. `409 Two-factor sign-in is already on` when setup was already
+> confirmed (IDN-168).
+
+### `POST /api/auth/two-factor/setup/confirm` — Confirm setup and sign in
+
+**Status:** 200 | 400 | 401 | 409 | 429  
+**Auth required:** setup challenge
+
+```ts
+// Request body
+{
+  code: string  // the 6 digits the app shows
+}
+
+// Response 200
+{
+  success: true,
+  data: {
+    token: string   // JWT session — Bearer token on all other requests; 24 hours
+    user: {
+      id: string
+      email: string
+      role: 'VENDOR' | 'ADMIN' | 'OPERATOR' | 'VIEWER'
+    }
+    recoveryCodes: string[]  // 10 codes like 'K7M2P-QX4RT'; shown only now
+  }
+}
+```
+
+| Status | `error` | Meaning |
+| ------ | ------- | ------- |
+| `401` | `Invalid code` | Wrong code; counts as a failed sign-in |
+| `401` | `Sign-in step expired. Sign in again.` | Challenge missing, expired or of the wrong kind |
+| `409` | `Two-factor setup has not been started` | Call `/two-factor/setup` first |
+| `429` | `Too many failed sign-in attempts. Try again later.` | Account paused (IDN-044) |
+
+### `POST /api/auth/two-factor/verify` — Finish sign-in with a code
+
+**Status:** 200 | 400 | 401 | 429  
+**Auth required:** code challenge (`twoFactor: 'verify'` from login)
+
+```ts
+// Request body — exactly one of the two
+{
+  code?: string          // the 6 digits the app shows
+  recoveryCode?: string  // one of the recovery codes; case, spaces and dash ignored
+}
+
+// Response 200
+{
+  success: true,
+  data: {
+    token: string
+    user: { id: string; email: string; role: 'VENDOR' | 'ADMIN' | 'OPERATOR' | 'VIEWER' }
+  }
+}
+```
+
+> `401 Invalid code` for a wrong code, a code already used and an unknown or
+> spent recovery code alike. Each recovery code works once (IDN-170).
+> Other errors as for `/setup/confirm`.
 
 ---
 

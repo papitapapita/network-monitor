@@ -76,6 +76,13 @@ import {
   HttpImageFetcher
 } from '../quoting';
 import { LoginUseCase } from 'application/identity/use-cases/LoginUseCase';
+import { StartTwoFactorSetupUseCase } from 'application/identity/use-cases/StartTwoFactorSetupUseCase';
+import { ConfirmTwoFactorSetupUseCase } from 'application/identity/use-cases/ConfirmTwoFactorSetupUseCase';
+import { VerifyTwoFactorUseCase } from 'application/identity/use-cases/VerifyTwoFactorUseCase';
+import { SignInSteps } from 'application/identity/services/SignInSteps';
+import { TotpTwoFactorCodes } from '../identity/services/TotpTwoFactorCodes';
+import { HashedRecoveryCodes } from '../identity/services/HashedRecoveryCodes';
+import { AesSecretCipher } from '../identity/services/AesSecretCipher';
 import { SessionValidator } from 'application/identity/services/SessionValidator';
 import {
   ListUsersUseCase,
@@ -985,10 +992,17 @@ export class DependencyContainer {
     const jwtTokenService = new JwtTokenService();
     const bcryptPasswordService = new BcryptPasswordService();
     const userRepository = new PrismaUserRepository(this.prisma);
+    const signInSteps = new SignInSteps(
+      userRepository,
+      jwtTokenService
+    );
+    const twoFactorCodes = new TotpTwoFactorCodes();
+    const recoveryCodes = new HashedRecoveryCodes();
+    const secretCipher = new AesSecretCipher();
     const loginUseCase = new LoginUseCase(
       userRepository,
       bcryptPasswordService,
-      jwtTokenService,
+      signInSteps,
       this.logger
     );
 
@@ -1022,6 +1036,29 @@ export class DependencyContainer {
     );
     this.authController = new AuthController(
       loginUseCase,
+      new StartTwoFactorSetupUseCase(
+        userRepository,
+        signInSteps,
+        twoFactorCodes,
+        secretCipher,
+        this.logger
+      ),
+      new ConfirmTwoFactorSetupUseCase(
+        userRepository,
+        signInSteps,
+        twoFactorCodes,
+        recoveryCodes,
+        secretCipher,
+        this.logger
+      ),
+      new VerifyTwoFactorUseCase(
+        userRepository,
+        signInSteps,
+        twoFactorCodes,
+        recoveryCodes,
+        secretCipher,
+        this.logger
+      ),
       this.logger
     );
 

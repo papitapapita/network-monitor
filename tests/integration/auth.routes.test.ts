@@ -4,7 +4,13 @@ import { PrismaClient } from '../../src/generated/prisma/client';
 import { createTestApp } from './helpers/createTestApp';
 import { cleanDatabase } from './helpers/db';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
-import { seedUser, seedAndGetToken } from './helpers/auth';
+import {
+  appCode,
+  passwordStep,
+  seedUser,
+  seedAndGetToken,
+  setUpTwoFactor
+} from './helpers/auth';
 import { GHOST_ID } from './helpers/db';
 
 const ADMIN_EMAIL = 'admin@test.local';
@@ -33,7 +39,7 @@ describe('Auth Routes — /api/auth', () => {
   // ─────────────────────────────────────────────────────────────
 
   describe('POST /api/auth/login', () => {
-    it('200 — returns token and user payload on valid credentials', async () => {
+    it('[IDN-166] 200 — the right password opens two-factor setup, not a session', async () => {
       await seedUser(prisma, ADMIN_EMAIL, ADMIN_PASS, 'ADMIN');
 
       const res = await request(app)
@@ -41,40 +47,13 @@ describe('Auth Routes — /api/auth', () => {
         .send({ email: ADMIN_EMAIL, password: ADMIN_PASS });
 
       expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-      expect(typeof res.body.data.token).toBe('string');
-      expect(res.body.data.token.length).toBeGreaterThan(0);
-      expect(res.body.data.user.email).toBe(ADMIN_EMAIL);
-      expect(res.body.data.user.role).toBe('ADMIN');
-      expect(res.body.data.user.id).toBeDefined();
-    });
-
-    it('200 — user object does not include passwordHash', async () => {
-      await seedUser(prisma, ADMIN_EMAIL, ADMIN_PASS, 'ADMIN');
-
-      const res = await request(app)
-        .post('/api/auth/login')
-        .send({ email: ADMIN_EMAIL, password: ADMIN_PASS });
-
-      expect(res.status).toBe(200);
-      expect(res.body.data.user.passwordHash).toBeUndefined();
-      expect(res.body.data.user.password).toBeUndefined();
-    });
-
-    it('200 — preserves OPERATOR role in response', async () => {
-      await seedUser(
-        prisma,
-        'operator@test.local',
-        'op-pass',
-        'OPERATOR'
-      );
-
-      const res = await request(app)
-        .post('/api/auth/login')
-        .send({ email: 'operator@test.local', password: 'op-pass' });
-
-      expect(res.status).toBe(200);
-      expect(res.body.data.user.role).toBe('OPERATOR');
+      expect(res.body).toEqual({
+        success: true,
+        data: {
+          twoFactor: 'setup',
+          challengeToken: expect.any(String)
+        }
+      });
     });
 
     it('200 — normalises email to lowercase before lookup', async () => {
@@ -365,6 +344,205 @@ describe('Auth Routes — /api/auth', () => {
           200
         );
       }
+    });
+  });
+
+  // Its own app, so wrong codes here do not spend the address budget the
+  // tests above share.
+  describe('Two-factor sign-in — /api/auth/two-factor', () => {
+    let freshApp: Application;
+    let freshContainer: DependencyContainer;
+
+    beforeEach(async () => {
+      ({ app: freshApp, container: freshContainer } =
+        await createTestApp());
+      await seedUser(prisma, ADMIN_EMAIL, ADMIN_PASS, 'ADMIN');
+    });
+
+    afterEach(async () => {
+      await freshContainer.disconnect();
+    });
+
+    const bearer = (token: string) => `Bearer ${token}`;
+    const post = (path: string, token: string | null, body = {}) => {
+      const req = request(freshApp).post(
+        `/api/auth/two-factor${path}`
+      );
+      return (
+        token ? req.set('Authorization', bearer(token)) : req
+      ).send(body);
+    };
+    const login = () =>
+      passwordStep(freshApp, ADMIN_EMAIL, ADMIN_PASS);
+    const enrolled = async () =>
+      setUpTwoFactor(freshApp, (await login()).challengeToken);
+
+    it('[IDN-168] 200 — setup returns the secret and the app link', async () => {
+      const { challengeToken } = await login();
+
+      const res = await post('/setup', challengeToken);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.secret).toMatch(/^[A-Z2-7]+$/);
+      expect(res.body.data.otpauthUri).toMatch(/^otpauth:\/\/totp\//);
+    });
+
+    it('[IDN-169] 200 — confirm returns a working session and ten recovery codes', async () => {
+      const { token, recoveryCodes } = await enrolled();
+
+      const res = await request(freshApp)
+        .get('/api/locations')
+        .set('Authorization', bearer(token));
+
+      expect(recoveryCodes).toHaveLength(10);
+      expect(res.status).toBe(200);
+    });
+
+    it('[IDN-169] 401 — a wrong code during setup', async () => {
+      const { challengeToken } = await login();
+      await post('/setup', challengeToken);
+
+      const res = await post('/setup/confirm', challengeToken, {
+        code: '000000'
+      });
+
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe('Invalid code');
+    });
+
+    it('[IDN-169] 400 — a code that is not six digits', async () => {
+      const { challengeToken } = await login();
+
+      const res = await post('/setup/confirm', challengeToken, {
+        code: '12ab'
+      });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('[IDN-165] 409 — setup cannot replace a working one', async () => {
+      const { challengeToken } = await login();
+      await setUpTwoFactor(freshApp, challengeToken);
+
+      const res = await post('/setup', challengeToken);
+
+      expect(res.status).toBe(409);
+    });
+
+    it('[IDN-166] once on, the password leads to the code step', async () => {
+      await enrolled();
+
+      expect((await login()).twoFactor).toBe('verify');
+    });
+
+    it('[IDN-170] 200 — a fresh app code signs in', async () => {
+      const { secret } = await enrolled();
+      const { challengeToken } = await login();
+
+      const res = await post('/verify', challengeToken, {
+        code: appCode(secret, 1)
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.user.email).toBe(ADMIN_EMAIL);
+      expect(typeof res.body.data.token).toBe('string');
+    });
+
+    it('[IDN-164] 401 — the code used during setup is not accepted again', async () => {
+      const { secret } = await enrolled();
+      const { challengeToken } = await login();
+
+      const res = await post('/verify', challengeToken, {
+        code: appCode(secret)
+      });
+
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe('Invalid code');
+    });
+
+    it('[IDN-163] 200 — a recovery code signs in once', async () => {
+      const { recoveryCodes } = await enrolled();
+      const first = await post(
+        '/verify',
+        (await login()).challengeToken,
+        {
+          recoveryCode: recoveryCodes[0]
+        }
+      );
+      const again = await post(
+        '/verify',
+        (await login()).challengeToken,
+        {
+          recoveryCode: recoveryCodes[0]
+        }
+      );
+
+      expect(first.status).toBe(200);
+      expect(again.status).toBe(401);
+    });
+
+    it('[IDN-170] 400 — both a code and a recovery code, or neither', async () => {
+      const { recoveryCodes } = await enrolled();
+      const { challengeToken } = await login();
+
+      const both = await post('/verify', challengeToken, {
+        code: '123456',
+        recoveryCode: recoveryCodes[0]
+      });
+      const neither = await post('/verify', challengeToken, {});
+
+      expect(both.status).toBe(400);
+      expect(neither.status).toBe(400);
+    });
+
+    it('[IDN-044] 429 — five wrong codes pause the account', async () => {
+      const { secret } = await enrolled();
+      const { challengeToken } = await login();
+      for (let i = 0; i < 5; i++)
+        await post('/verify', challengeToken, { code: '000000' });
+
+      const res = await post('/verify', challengeToken, {
+        code: appCode(secret, 1)
+      });
+
+      expect(res.status).toBe(429);
+    });
+
+    it('[IDN-167] 401 — a challenge never opens a protected route', async () => {
+      const { challengeToken } = await login();
+
+      const res = await request(freshApp)
+        .get('/api/locations')
+        .set('Authorization', bearer(challengeToken));
+
+      expect(res.status).toBe(401);
+    });
+
+    it('[IDN-167] 401 — a session token does not pass as a challenge', async () => {
+      const { token } = await enrolled();
+
+      const res = await post('/verify', token, { code: '123456' });
+
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe(
+        'Sign-in step expired. Sign in again.'
+      );
+    });
+
+    it('[IDN-167] 401 — a setup challenge does not open the code step', async () => {
+      const { challengeToken } = await login();
+
+      const res = await post('/verify', challengeToken, {
+        code: '123456'
+      });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('[IDN-167] 401 — no challenge at all', async () => {
+      const res = await post('/setup', null);
+
+      expect(res.status).toBe(401);
     });
   });
 });

@@ -30,9 +30,9 @@ Format and conventions: [README.md](README.md).
 | Layer                         | Rules |
 | ----------------------------- | ----- |
 | Presentation (middleware)     | 11    |
-| Infrastructure                | 10    |
+| Infrastructure                | 11    |
 | Domain (value object)         | 4     |
-| Application                   | 11    |
+| Application                   | 15    |
 | Presentation                  | 4     |
 | Domain (permission table)     | 2     |
 | Domain (aggregate)            | 8     |
@@ -469,13 +469,15 @@ _malformed_ from _wrong_, but never _unknown user_ from _wrong password_.
 **Message:** `Email is not valid` / `Password is required`
 **Tests:** `tests/integration/auth.routes.test.ts`
 
-### IDN-043 — A successful login returns a token and the user, never the hash
+### IDN-043 — A finished sign-in returns a token and the user, never the hash
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Application
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Revised:** 2026-10-05
 
-`UserMapper.toDTO` omits `passwordHash`.
+A sign-in finishes at the two-factor step (`IDN-169`, `IDN-170`), not at login
+(`IDN-166`). `UserMapper.toDTO` omits `passwordHash` and every two-factor
+field.
 
 **Why:** The DTO is what crosses the wire. A hash leaving the system is a
 credential handed to an offline attacker with unlimited time — the mapper is the
@@ -488,16 +490,18 @@ single place that guarantees it does not.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Domain (aggregate)
-**Since:** 2026-10-05
+**Since:** 2026-10-05 · **Revised:** 2026-10-05
 
-Each wrong password for an existing, enabled account is counted on the account.
+Each wrong password for an existing, enabled account is counted on the account,
+and so is each wrong two-factor code or recovery code (`IDN-169`, `IDN-170`).
 The first four cost nothing. The fifth pauses sign-in for 1 minute, and each
 further wrong password doubles the pause, up to 15 minutes. While a pause runs,
 every attempt is refused before the password is checked — even the right one —
 and is not counted, so it neither stretches the pause nor raises the next one.
 The count survives the pause's end: the first wrong password after it pauses
-for twice as long. A successful sign-in clears the count and the pause, and so
-does a new password (the failures were against the old one), so an
+for twice as long. A finished sign-in — the right code after the right
+password — clears the count and the pause; the right password alone does not
+(`IDN-166`). A new password clears them too (the failures were against the old one), so an
 administrator can let a person in at once by resetting their password.
 
 The count is kept in the database, so a restart does not reset it.
@@ -511,6 +515,9 @@ guessing slows to four tries an hour.
 
 **Enforced at:** `src/domain/identity/aggregates/User.ts` (`recordFailedSignIn`, `signInPauseAfter`),
 `src/application/identity/use-cases/LoginUseCase.ts`,
+`src/application/identity/services/SignInSteps.ts` (`recordFailure`),
+`src/application/identity/use-cases/VerifyTwoFactorUseCase.ts`,
+`src/application/identity/use-cases/ConfirmTwoFactorSetupUseCase.ts`,
 `prisma/migrations/20261005120000_user_sign_in_pause/migration.sql` (`users_sign_in_pause_check`)
 **Message:** `Too many failed sign-in attempts. Try again later.` (`429`)
 **Tests:** `tests/domain/identity/aggregates/User.test.ts`,
@@ -548,10 +555,11 @@ them it is happening without letting an attacker flood their phones.
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-08-05 · **Revised:** 2026-09-30
+**Since:** 2026-08-05 · **Revised:** 2026-10-05
 
 Nothing else. `verify` reconstructs exactly these four fields and discards any
-other claim present in the token; a token without a token version is invalid.
+other claim present in the token; a token without a token version is invalid,
+and so is one with a `kind`, which marks a two-factor challenge (`IDN-167`).
 The role in the token is not what authorisation uses: each request takes the
 role from the account (`IDN-065`).
 
@@ -671,7 +679,8 @@ demoted administrator loses the rights on their next click.
 **Since:** 2026-08-05
 
 `/api/auth` is mounted before the authentication middleware; everything mounted
-after it is behind the gate. There is no per-route opt-in.
+after it is behind the gate. The two-factor routes under it take a challenge
+token instead (`IDN-167`). There is no per-route opt-in.
 
 **Why:** This is the rule the entire book depends on. Ordering rather than
 decoration means a new route file cannot forget to be protected — the only way
@@ -759,13 +768,13 @@ the limit a property of the account rather than the building.
 **Layer:** Presentation (middleware)
 **Since:** 2026-08-05
 
-| Budget        | Limit          |
-| ------------- | -------------- |
-| `read`        | 100 per minute |
-| `write`       | 60 per minute  |
-| `delete`      | 60 per minute  |
-| `bulk-import` | 5 per hour     |
-| `enroll`      | 10 per 15 min  |
+| Budget        | Limit                  |
+| ------------- | ---------------------- |
+| `read`        | 100 per minute         |
+| `write`       | 60 per minute          |
+| `delete`      | 60 per minute          |
+| `bulk-import` | 5 per hour             |
+| `enroll`      | 10 per 15 min          |
 | `sign-in`     | 10 failures per 15 min |
 
 **Why:** Reads are cheap and are what a dashboard does on a timer, so they get
@@ -803,10 +812,11 @@ than one. Making them real means a shared store.
 **Layer:** Presentation (middleware)
 **Since:** 2026-08-05 · **Revised:** 2026-10-05
 
-`POST /api/auth/login` carries the `sign-in` budget (`IDN-101`), keyed by the
-caller's address. Only failed attempts spend it — any answer of `400` or
-above — so an office whose staff all sign in from one address is never held up
-by its own successes. The eleventh failure within 15 minutes answers `429`
+Login and the three two-factor routes share one `sign-in` budget (`IDN-101`),
+keyed by the caller's address, so wrong passwords and wrong codes add up.
+Only failed attempts spend it — any answer of `400` or above — so an office
+whose staff all sign in from one address is never held up by its own
+successes. The eleventh failure within 15 minutes answers `429`
 `Too many requests`.
 
 Behind Cloudflare Tunnel the address is only the caller's own when
@@ -1033,8 +1043,8 @@ that had the old one is signed out.
 
 Every account signs in with a password and a six-digit code from an
 authenticator app (Google Authenticator, Microsoft Authenticator and the like).
-The rules below are the account's side of it; the sign-in steps that ask for
-the code are being added on 2026-10-05 and are not live yet.
+`IDN-160` to `IDN-165` are the account's side of it; `IDN-166` to `IDN-170`
+are the sign-in steps that ask for the code.
 
 ### IDN-160 — Two-factor turns on only with its first valid code
 
@@ -1153,3 +1163,120 @@ become permanent access with the thief's own phone.
 **Message:** `Two-factor sign-in is already on`
 **Tests:** `tests/domain/identity/aggregates/User.test.ts`
 
+### IDN-166 — A right password opens the two-factor step, never a session
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+Login no longer returns a session. A right password answers with a challenge
+token (`IDN-167`) and which step comes next: `verify` when the account has
+two-factor on, `setup` when it does not yet. Every role takes the same path,
+the vendor account included. The right password does not clear the count of
+failures (`IDN-044`); only the right code does.
+
+An account that has not set two-factor up yet is enrolled by whoever signs in
+with its password first. That window closes once the owner sets it up; an
+administrator's reset opens it again.
+
+**Why:** A password alone is what phishing pages and leaked password lists
+deliver. With a code from a phone on top, a stolen password no longer opens
+the dashboard. Leaving the count for the code to clear stops someone who has
+the password from wiping their wrong codes with it.
+
+**Enforced at:** `src/application/identity/use-cases/LoginUseCase.ts`,
+`src/application/identity/services/SignInSteps.ts` (`challenge`)
+**Tests:** `tests/application/identity/use-cases/LoginUseCase.test.ts`,
+`tests/integration/use-cases/identity/LoginUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-167 — A challenge lasts five minutes and opens only its own step
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-10-05
+
+A challenge is a signed token like a session's, carrying the user id, the
+token version and a `kind`: `two-factor` for the code step, `two-factor-setup`
+for setup. It expires after five minutes. It is sent as the Bearer token of
+the two-factor routes. A session token is refused there, a challenge is
+refused everywhere a session is expected, and a challenge of one kind does not
+open the other step. Like a session (`IDN-065`), a challenge stops working when
+the account is disabled or its sessions are ended.
+
+**Why:** Without the kind, a token proving only the password would pass the
+session check, and two-factor would stop nothing. Five minutes is enough to
+open the app and type a code.
+
+**Enforced at:** `src/infrastructure/identity/services/JwtTokenService.ts` (`verify`, `verifyChallenge`),
+`src/application/identity/services/SignInSteps.ts` (`open`)
+**Message:** `Sign-in step expired. Sign in again.` (`401`)
+**Tests:** `tests/infrastructure/identity/services/JwtTokenService.test.ts`,
+`tests/integration/use-cases/identity/StartTwoFactorSetupUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-168 — Setup hands out a new secret and the link the app scans
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+`POST /api/auth/two-factor/setup` makes a new secret, stores it encrypted
+(`IDN-162`) and returns it in plain text once, with the `otpauth://` link the
+QR code encodes. The app shows the account as `Mi Red Control (email)`.
+Starting again before confirming replaces the secret; once two-factor is on,
+starting again is refused (`IDN-165`).
+
+**Why:** The person needs the secret exactly once, to put it in their app.
+After that the server only ever needs it to check codes.
+
+**Enforced at:** `src/application/identity/use-cases/StartTwoFactorSetupUseCase.ts`
+**Message:** `Two-factor sign-in is already on` (`409`)
+**Tests:** `tests/application/identity/use-cases/StartTwoFactorSetupUseCase.test.ts`,
+`tests/integration/use-cases/identity/StartTwoFactorSetupUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-169 — The first code turns two-factor on and finishes the sign-in
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+`POST /api/auth/two-factor/setup/confirm` checks the code against the secret
+from setup. A right code turns two-factor on (`IDN-160`), clears the failure
+count, and answers with the session and the ten recovery codes, which are
+never shown again. A wrong code counts as a failed sign-in (`IDN-044`).
+
+**Why:** Ending setup with a session saves the person a second sign-in.
+Showing the recovery codes at that moment is the only chance to see them,
+because only their hashes are stored (`IDN-163`).
+
+**Enforced at:** `src/application/identity/use-cases/ConfirmTwoFactorSetupUseCase.ts`
+**Message:** `Invalid code` (`401`), `Two-factor setup has not been started` (`409`)
+**Tests:** `tests/application/identity/use-cases/ConfirmTwoFactorSetupUseCase.test.ts`,
+`tests/integration/use-cases/identity/ConfirmTwoFactorSetupUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-170 — A code from the app, or one recovery code, finishes the sign-in
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+`POST /api/auth/two-factor/verify` takes either `code` or `recoveryCode`,
+never both. A right answer clears the failure count and returns the session.
+A wrong code, a code already used (`IDN-164`) and an unknown or spent
+recovery code all count as a failed sign-in (`IDN-044`) and answer the same
+way. While the account is paused, the answer is `429` before any code is
+checked. If the used code cannot be saved, no session is given.
+
+**Why:** A replayed code comes from someone who saw it, so it is treated as
+an attack, not a typo. Refusing the session when the save fails keeps a code
+or a recovery code from working twice.
+
+**Enforced at:** `src/application/identity/use-cases/VerifyTwoFactorUseCase.ts`,
+`src/presentation/http/validation/auth.schemas.ts`
+**Message:** `Invalid code` (`401`)
+**Tests:** `tests/application/identity/use-cases/VerifyTwoFactorUseCase.test.ts`,
+`tests/integration/use-cases/identity/VerifyTwoFactorUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`

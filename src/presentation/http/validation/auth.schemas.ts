@@ -11,3 +11,33 @@ export const loginSchema = z.object({
 });
 
 export type LoginInput = z.infer<typeof loginSchema>['body'];
+
+const appCode = z
+  .string()
+  .regex(/^\d{6}$/, 'Code must be the 6 digits the app shows');
+
+export const confirmTwoFactorSetupSchema = z.object({
+  body: z.object({ code: appCode })
+});
+
+export type ConfirmTwoFactorSetupInput = z.infer<
+  typeof confirmTwoFactorSetupSchema
+>['body'];
+
+export const verifyTwoFactorSchema = z.object({
+  body: z
+    .object({
+      code: appCode.optional(),
+      recoveryCode: z.string().trim().min(1).max(40).optional()
+    })
+    .refine(
+      (body) =>
+        (body.code === undefined) !==
+        (body.recoveryCode === undefined),
+      { message: 'Send either code or recoveryCode' }
+    )
+});
+
+export type VerifyTwoFactorInput = z.infer<
+  typeof verifyTwoFactorSchema
+>['body'];

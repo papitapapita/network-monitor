@@ -20,8 +20,9 @@ describe('LoginUseCase — integration', () => {
   beforeAll(async () => {
     container = await setupDependencies();
     prisma = container.getPrisma();
-    const { users, passwords, tokens, logger } = makeAdapters(prisma);
-    useCase = new LoginUseCase(users, passwords, tokens, logger);
+    const { users, passwords, signInSteps, logger } =
+      makeAdapters(prisma);
+    useCase = new LoginUseCase(users, passwords, signInSteps, logger);
   });
 
   afterAll(async () => {
@@ -49,10 +50,18 @@ describe('LoginUseCase — integration', () => {
   const row = () =>
     prisma.user.findUniqueOrThrow({ where: { email: EMAIL } });
 
-  it('signs in with the right password', async () => {
+  it('[IDN-166] the right password opens two-factor setup', async () => {
     const result = await signIn(PASSWORD);
 
-    expect(result.isSuccess).toBe(true);
+    expect(result.value.twoFactor).toBe('setup');
+  });
+
+  it('[IDN-044] the right password leaves the count for the code to clear', async () => {
+    await signIn('wrong');
+
+    await signIn(PASSWORD);
+
+    expect((await row()).failedSignIns).toBe(1);
   });
 
   it('[IDN-044] stores each wrong password', async () => {
@@ -84,7 +93,7 @@ describe('LoginUseCase — integration', () => {
     expect(result.error).toBe(SIGN_IN_PAUSED);
   });
 
-  it('[IDN-044] accepts the right password once the pause ends, and clears the count', async () => {
+  it('[IDN-044] accepts the right password once the pause ends', async () => {
     for (let i = 0; i < 5; i++) await signIn('wrong');
     await prisma.user.update({
       where: { email: EMAIL },
@@ -94,10 +103,6 @@ describe('LoginUseCase — integration', () => {
     const result = await signIn(PASSWORD);
 
     expect(result.isSuccess).toBe(true);
-    expect(await row()).toMatchObject({
-      failedSignIns: 0,
-      signInPausedUntil: null
-    });
   });
 
   it('[IDN-044] the database refuses a pause before five failures', async () => {

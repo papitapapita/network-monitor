@@ -19,7 +19,9 @@ import {
 function makeTokenService(): jest.Mocked<ITokenService> {
   return {
     sign: jest.fn(),
-    verify: jest.fn()
+    verify: jest.fn(),
+    signChallenge: jest.fn(),
+    verifyChallenge: jest.fn()
   };
 }
 

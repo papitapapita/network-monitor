@@ -1,8 +1,12 @@
+export interface UserDTO {
+  id: string;
+  email: string;
+  role: string;
+}
+
+// A right password never signs in on its own: it opens the two-factor step
+// (IDN-166).
 export interface LoginResponseDTO {
-  token: string;
-  user: {
-    id: string;
-    email: string;
-    role: string;
-  };
+  twoFactor: 'verify' | 'setup';
+  challengeToken: string;
 }
