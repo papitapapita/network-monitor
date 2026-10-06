@@ -5,3 +5,4 @@ export * from './BankAccountDetails';
 export * from './BillingSettings';
 export * from './BillingCycle';
 export * from './ServicePeriod';
+export * from './BillPayment';

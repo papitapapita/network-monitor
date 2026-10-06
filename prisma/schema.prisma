@@ -693,6 +693,7 @@ model Bill {
 
   customer  Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
   lineItems BillLineItem[]
+  payment   BillPayment?
 
   @@index([customerId])
   @@index([status])
@@ -717,6 +718,34 @@ model BillLineItem {
 
   @@index([billId])
   @@map("bill_line_items")
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  NEQUI
+  DAVIPLATA
+  BRE_B
+  OTHER
+
+  @@map("payment_method")
+}
+
+// How a bill was paid (BIL-300). One per bill while only full payments are
+// taken. recordedByUserId has no foreign key: the record outlives the user.
+model BillPayment {
+  id               String        @id @default(uuid()) @db.Uuid
+  billId           String        @unique @map("bill_id") @db.Uuid
+  method           PaymentMethod
+  reference        String?       @db.VarChar(100)
+  amount           Decimal       @db.Decimal(12, 2)
+  paidAt           DateTime      @map("paid_at") @db.Timestamptz
+  recordedByUserId String?       @map("recorded_by_user_id") @db.Uuid
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  bill Bill @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@map("bill_payments")
 }
 
 enum BillingMode {

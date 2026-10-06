@@ -29,6 +29,8 @@ import { Result } from '../../../../src/domain/shared/core/Result';
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
 const NOW = new Date('2024-03-01T00:00:00.000Z');
 const DUE_DATE = new Date('2024-03-16T00:00:00.000Z');
+const USER_UUID = '6a1f3c2e-8b4d-4e7f-9a0b-1c2d3e4f5a6b';
+const CASH = { id: VALID_UUID, method: 'CASH' };
 
 function makeLogger(): jest.Mocked<ILogger> {
   const child: jest.Mocked<ILogger> = {
@@ -97,7 +99,7 @@ describe('MarkBillPaidUseCase', () => {
   it('should fail when the bill does not exist', async () => {
     (billRepo.findById as any).mockResolvedValue(Result.ok(null));
 
-    const result = await useCase.execute({ id: VALID_UUID });
+    const result = await useCase.execute(CASH);
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toContain('Bill not found');
@@ -109,7 +111,7 @@ describe('MarkBillPaidUseCase', () => {
       Result.ok(makeBill(BillStatus.PAID))
     );
 
-    const result = await useCase.execute({ id: VALID_UUID });
+    const result = await useCase.execute(CASH);
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toContain('Cannot mark a PAID bill as paid');
@@ -121,7 +123,7 @@ describe('MarkBillPaidUseCase', () => {
       Result.ok(makeBill(BillStatus.CANCELLED))
     );
 
-    const result = await useCase.execute({ id: VALID_UUID });
+    const result = await useCase.execute(CASH);
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toContain(
@@ -135,11 +137,100 @@ describe('MarkBillPaidUseCase', () => {
       Result.ok(makeBill(BillStatus.PENDING))
     );
 
-    const result = await useCase.execute({ id: VALID_UUID });
+    const result = await useCase.execute(CASH);
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.status).toBe('PAID');
     expect(result.value.paidAt).not.toBeNull();
     expect(billRepo.save).toHaveBeenCalledTimes(1);
+  });
+
+  describe('the payment record', () => {
+    beforeEach(() => {
+      (billRepo.findById as any).mockResolvedValue(
+        Result.ok(makeBill(BillStatus.PENDING))
+      );
+    });
+
+    it('[BIL-300] keeps the method, reference, amount, date and who entered it', async () => {
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        method: 'NEQUI',
+        reference: '  M123456  ',
+        amount: 19.99,
+        paidAt: '2024-03-05T15:00:00.000Z',
+        recordedByUserId: USER_UUID
+      });
+
+      expect(result.value.payment).toEqual({
+        method: 'NEQUI',
+        reference: 'M123456',
+        amount: 19.99,
+        paidAt: '2024-03-05T15:00:00.000Z',
+        recordedByUserId: USER_UUID
+      });
+      expect(result.value.paidAt).toBe('2024-03-05T15:00:00.000Z');
+    });
+
+    it('[BIL-301] the amount defaults to the bill total', async () => {
+      const result = await useCase.execute(CASH);
+
+      expect(result.value.payment).toMatchObject({
+        method: 'CASH',
+        reference: null,
+        amount: 19.99,
+        recordedByUserId: null
+      });
+    });
+
+    it('[BIL-301] refuses part of the total', async () => {
+      const result = await useCase.execute({ ...CASH, amount: 10 });
+
+      expect(result.error).toBe(
+        "Invalid payment amount: must be the bill's full total of 19.99"
+      );
+      expect(billRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('[BIL-302] refuses a payment date in the future', async () => {
+      const result = await useCase.execute({
+        ...CASH,
+        paidAt: '2999-01-01T00:00:00.000Z'
+      });
+
+      expect(result.error).toBe(
+        'Invalid payment date: cannot be in the future'
+      );
+    });
+
+    it('[BIL-300] refuses an unknown method', async () => {
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        method: 'BITCOIN'
+      });
+
+      expect(result.error).toContain('Invalid payment method');
+      expect(billRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('refuses a malformed payment date', async () => {
+      const result = await useCase.execute({
+        ...CASH,
+        paidAt: 'yesterday'
+      });
+
+      expect(result.error).toBe(
+        'Invalid payment date: not a valid date'
+      );
+    });
+
+    it('refuses a malformed user id', async () => {
+      const result = await useCase.execute({
+        ...CASH,
+        recordedByUserId: 'nope'
+      });
+
+      expect(result.error).toContain('Invalid recordedByUserId');
+    });
   });
 });

@@ -1,4 +1,6 @@
-import { BillId } from 'domain/shared/ids';
+import { BillId, UserId } from 'domain/shared/ids';
+import { Money } from 'domain/shared/value-objects';
+import { BillPayment, PaymentMethod } from 'domain/billing';
 import { IBillRepository } from 'domain/billing/repository';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
@@ -6,6 +8,7 @@ import { ILogger } from 'application/shared/interfaces';
 import { BillMapper } from '../mappers';
 import { MarkBillPaidRequestDTO, BillResponseDTO } from '../dtos';
 
+// BIL-300: paying a bill records how, by whom and when it was paid.
 export class MarkBillPaidUseCase extends UseCase<
   MarkBillPaidRequestDTO,
   BillResponseDTO
@@ -45,9 +48,15 @@ export class MarkBillPaidUseCase extends UseCase<
     }
 
     const bill = findResult.value;
-    const markResult = bill.markPaid();
-    if (markResult.isFailure) {
-      return this.fail(markResult.error!);
+
+    const paymentResult = this.buildPayment(request, bill.total);
+    if (paymentResult.isFailure) {
+      return this.fail(paymentResult.error!);
+    }
+
+    const recordResult = bill.recordPayment(paymentResult.value);
+    if (recordResult.isFailure) {
+      return this.fail(recordResult.error!);
     }
 
     const saveResult = await this.billRepository.save(bill);
@@ -56,5 +65,48 @@ export class MarkBillPaidUseCase extends UseCase<
     }
 
     return this.ok(BillMapper.toDTO(saveResult.value));
+  }
+
+  private buildPayment(
+    request: MarkBillPaidRequestDTO,
+    total: Money
+  ): Result<BillPayment> {
+    let amount = total;
+    if (request.amount !== undefined) {
+      const amountResult = Money.create(request.amount);
+      if (amountResult.isFailure) {
+        return Result.fail(
+          `Invalid payment amount: ${amountResult.error}`
+        );
+      }
+      amount = amountResult.value;
+    }
+
+    let paidAt = new Date();
+    if (request.paidAt !== undefined) {
+      paidAt = new Date(request.paidAt);
+      if (isNaN(paidAt.getTime())) {
+        return Result.fail('Invalid payment date: not a valid date');
+      }
+    }
+
+    let recordedBy: UserId | null = null;
+    if (request.recordedByUserId !== undefined) {
+      const userIdResult = UserId.parse(request.recordedByUserId);
+      if (userIdResult.isFailure) {
+        return Result.fail(
+          `Invalid recordedByUserId: ${userIdResult.error}`
+        );
+      }
+      recordedBy = userIdResult.value;
+    }
+
+    return BillPayment.create({
+      method: request.method as PaymentMethod,
+      reference: request.reference ?? null,
+      amount,
+      paidAt,
+      recordedBy
+    });
   }
 }

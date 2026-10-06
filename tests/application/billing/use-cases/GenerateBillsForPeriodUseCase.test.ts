@@ -98,6 +98,7 @@ function makeBillDTO(customerId: string): BillResponseDTO {
     status: 'PENDING',
     issueDate: NOW.toISOString(),
     dueDate: NOW.toISOString(),
+    payment: null,
     paidAt: null,
     total: 100,
     lineItems: [],

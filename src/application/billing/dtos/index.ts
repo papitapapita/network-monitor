@@ -1,4 +1,5 @@
 export * from './BillLineItemDTO';
+export * from './BillPaymentDTO';
 export * from './BillResponseDTO';
 export * from './BillListResponseDTO';
 export * from './GenerateBillRequestDTO';

@@ -3,7 +3,11 @@ import { BillId, CustomerId } from 'domain/shared/ids';
 import { Money } from 'domain/shared/value-objects';
 import { BillStatus } from '../enums';
 import { BillProps } from '../props';
-import { BillingPeriod, BillLineItem } from '../value-objects';
+import {
+  BillingPeriod,
+  BillLineItem,
+  BillPayment
+} from '../value-objects';
 import {
   BillGeneratedEvent,
   BillPaidEvent,
@@ -44,6 +48,10 @@ export class Bill extends AggregateRoot<BillProps, BillId> {
     return this.props.paidAt;
   }
 
+  get payment(): BillPayment | null {
+    return this.props.payment ?? null;
+  }
+
   get createdAt(): Date {
     return this.props.createdAt;
   }
@@ -62,7 +70,7 @@ export class Bill extends AggregateRoot<BillProps, BillId> {
   public static create(
     props: Omit<
       BillProps,
-      'status' | 'paidAt' | 'createdAt' | 'updatedAt'
+      'status' | 'paidAt' | 'payment' | 'createdAt' | 'updatedAt'
     >
   ): Result<Bill> {
     const now = new Date();
@@ -100,7 +108,12 @@ export class Bill extends AggregateRoot<BillProps, BillId> {
     return new Bill(props, id);
   }
 
-  public markPaid(): Result<void> {
+  // BIL-300..302: a PENDING or OVERDUE bill is paid by one payment of its
+  // full total, made no later than now.
+  public recordPayment(
+    payment: BillPayment,
+    now: Date = new Date()
+  ): Result<void> {
     if (
       this.props.status !== BillStatus.PENDING &&
       this.props.status !== BillStatus.OVERDUE
@@ -110,11 +123,23 @@ export class Bill extends AggregateRoot<BillProps, BillId> {
       );
     }
 
-    const now = new Date();
+    if (payment.amount.cents !== this.total.cents) {
+      return Result.fail<void>(
+        `Invalid payment amount: must be the bill's full total of ${this.total.format()}`
+      );
+    }
+
+    if (payment.paidAt > now) {
+      return Result.fail<void>(
+        'Invalid payment date: cannot be in the future'
+      );
+    }
+
     const candidate: BillProps = {
       ...this.props,
       status: BillStatus.PAID,
-      paidAt: now,
+      paidAt: payment.paidAt,
+      payment,
       updatedAt: now
     };
 
@@ -128,7 +153,7 @@ export class Bill extends AggregateRoot<BillProps, BillId> {
     this.addDomainEvent(
       new BillPaidEvent({
         aggregateId: this.id,
-        paidAt: now,
+        paidAt: payment.paidAt,
         dateTimeOccurred: now
       })
     );
@@ -237,6 +262,17 @@ export class Bill extends AggregateRoot<BillProps, BillId> {
     if (!isPaid && state.paidAt !== null) {
       return Result.fail<void>(
         'Only a PAID bill can have a paidAt date'
+      );
+    }
+
+    const payment = state.payment ?? null;
+    if (
+      payment !== null &&
+      (!isPaid ||
+        state.paidAt?.getTime() !== payment.paidAt.getTime())
+    ) {
+      return Result.fail<void>(
+        'A payment belongs only to a PAID bill, paid when the payment was made'
       );
     }
 

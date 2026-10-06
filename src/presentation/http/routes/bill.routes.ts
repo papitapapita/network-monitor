@@ -10,7 +10,8 @@ import {
   generateBillsForPeriodSchema,
   listBillsSchema,
   getBillByIdSchema,
-  billIdParamSchema
+  billIdParamSchema,
+  payBillSchema
 } from '../validation';
 
 export function createBillRoutes(controller: BillController): Router {
@@ -60,7 +61,7 @@ export function createBillRoutes(controller: BillController): Router {
     '/:id/pay',
     authorize('update'),
     createRateLimiter('write'),
-    validateRequest(billIdParamSchema),
+    validateRequest(payBillSchema),
     controller.markPaid
   );
 

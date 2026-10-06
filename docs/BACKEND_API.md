@@ -3505,6 +3505,22 @@ interface BillLineItemDTO {
   serviceTo: string | null; // 'YYYY-MM-DD', last day charged (included)
 }
 
+type PaymentMethod =
+  | 'CASH'
+  | 'BANK_TRANSFER'
+  | 'NEQUI'
+  | 'DAVIPLATA'
+  | 'BRE_B'
+  | 'OTHER';
+
+interface BillPaymentDTO {
+  method: PaymentMethod;
+  reference: string | null; // receipt or transaction number
+  amount: number; // always the bill's total
+  paidAt: string; // ISO 8601 — when the customer paid
+  recordedByUserId: string | null; // UUID of the user who entered it
+}
+
 interface BillDTO {
   id: string; // UUID
   customerId: string; // UUID
@@ -3513,6 +3529,7 @@ interface BillDTO {
   issueDate: string; // ISO 8601
   dueDate: string; // ISO 8601
   paidAt: string | null; // ISO 8601 — null until marked paid
+  payment: BillPaymentDTO | null; // null until paid, and on bills paid before 2026-10-06
   total: number; // sum of lineItems amount
   lineItems: BillLineItemDTO[];
   createdAt: string; // ISO 8601
@@ -3640,19 +3657,25 @@ The PDF includes the bill header (period, status, issue/due/paid dates), the cus
 
 ---
 
-### `POST /api/bills/:id/pay` — Mark as Paid
+### `POST /api/bills/:id/pay` — Record a Payment
 
 **Status:** 200 | 400 | 404 | 409  
 **Roles:** ADMIN, OPERATOR
 
 ```ts
-// No request body
+// Request body
+{
+  method: PaymentMethod      // required
+  reference?: string | null  // max 100 chars, trimmed; blank = none
+  amount?: number            // default: the bill's total; any other amount → 400
+  paidAt?: string            // ISO 8601 datetime; default: now; future → 400
+}
 
-// Response — BillDTO with status 'PAID' and paidAt set
+// Response — BillDTO with status 'PAID', paidAt = the payment's paidAt, and payment set
 { success: true, data: BillDTO }
 ```
 
-> Allowed from `PENDING` or `OVERDUE`. Returns 409 if the bill is already `PAID` or `CANCELLED`.
+> Allowed from `PENDING` or `OVERDUE`. Returns 409 if the bill is already `PAID` or `CANCELLED`. The signed-in user is recorded as `recordedByUserId`. One payment per bill, never edited (BIL-300…303). **Breaking:** `method` is now required; a body-less request gets 400.
 
 ---
 

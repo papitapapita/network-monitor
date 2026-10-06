@@ -26,16 +26,17 @@ Format and conventions: [README.md](README.md).
 | `BIL-200` … `BIL-259` | Cuentas de cobro                |
 | `BIL-260` … `BIL-279` | Bank accounts                   |
 | `BIL-280` … `BIL-299` | Automatic billing cycle         |
+| `BIL-300` … `BIL-319` | Payments                        |
 
 ## Layer coverage
 
 | Layer                     | Rules |
 | ------------------------- | ----- |
 | Application               | 28    |
-| Domain (aggregate)        | 28    |
-| Domain (value object)     | 15    |
+| Domain (aggregate)        | 30    |
+| Domain (value object)     | 16    |
 | Presentation              | 6     |
-| Infrastructure (database) | 7     |
+| Infrastructure (database) | 8     |
 | Infrastructure (PDF)      | 1     |
 | Infrastructure (config)   | 1     |
 
@@ -66,7 +67,7 @@ Authentication, roles and rate limiting are declared in
 the payment, the eventual suspension for non-payment — starts from who owes it.
 
 **Enforced at:** `src/domain/billing/aggregates/Bill.ts` (`validate`)
-**Reached from:** `create`, `markPaid`, `markOverdue`, `cancel`
+**Reached from:** `create`, `recordPayment`, `markOverdue`, `cancel`
 **Message:** `customerId is null or undefined`
 **Tests:** `tests/domain/billing/aggregates/Bill.test.ts`
 
@@ -80,7 +81,7 @@ the payment, the eventual suspension for non-payment — starts from who owes it
 documents rather than a duplicate. It is also the key `BIL-007` deduplicates on.
 
 **Enforced at:** `src/domain/billing/aggregates/Bill.ts` (`validate`)
-**Reached from:** `create`, `markPaid`, `markOverdue`, `cancel`
+**Reached from:** `create`, `recordPayment`, `markOverdue`, `cancel`
 **Message:** `period is null or undefined`
 **Tests:** `tests/domain/billing/aggregates/Bill.test.ts`
 
@@ -131,7 +132,7 @@ when it becomes late. `BIL-056` refuses to age a bill without the second, so a
 bill missing either can never move out of PENDING.
 
 **Enforced at:** `src/domain/billing/aggregates/Bill.ts` (`validate`)
-**Reached from:** `create`, `markPaid`, `markOverdue`, `cancel`
+**Reached from:** `create`, `recordPayment`, `markOverdue`, `cancel`
 **Message:** `issueDate is null or undefined` / `dueDate is not a valid date`
 **Tests:** `tests/domain/billing/aggregates/Bill.test.ts`
 
@@ -149,7 +150,7 @@ avoid. Same-day is allowed because a bill payable on receipt is a real
 arrangement.
 
 **Enforced at:** `src/domain/billing/aggregates/Bill.ts` (`validate`)
-**Reached from:** `create`, `markPaid`, `markOverdue`, `cancel`
+**Reached from:** `create`, `recordPayment`, `markOverdue`, `cancel`
 **Message:** `dueDate cannot be before issueDate`
 **Tests:** `tests/domain/billing/aggregates/Bill.test.ts`
 
@@ -252,7 +253,7 @@ generation or a document that should not have been produced. `BIL-082` is the
 same rule stated at the point where it can be explained usefully.
 
 **Enforced at:** `src/domain/billing/aggregates/Bill.ts` (`validate`)
-**Reached from:** `create`, `markPaid`, `markOverdue`, `cancel`
+**Reached from:** `create`, `recordPayment`, `markOverdue`, `cancel`
 **Message:** `A bill must have at least one line item`
 **Tests:** `tests/domain/billing/aggregates/Bill.test.ts`
 
@@ -405,7 +406,7 @@ A PAID bill cannot be paid twice; a CANCELLED one cannot be paid at all.
 was wrong, and reversing that should be an explicit decision, not a side effect
 of someone clicking pay.
 
-**Enforced at:** `src/domain/billing/aggregates/Bill.ts` (`markPaid`)
+**Enforced at:** `src/domain/billing/aggregates/Bill.ts` (`recordPayment`)
 **Message:** `Cannot mark a <status> bill as paid`
 **Tests:** `tests/application/billing/use-cases/MarkBillPaidUseCase.test.ts`,
 `tests/domain/billing/aggregates/Bill.test.ts`
@@ -424,7 +425,7 @@ rule in both directions is what makes the status and the date incapable of
 disagreeing — a bill cannot be PENDING while carrying evidence it was settled.
 
 **Enforced at:** `src/domain/billing/aggregates/Bill.ts` (`validate`)
-**Reached from:** `create`, `markPaid`, `markOverdue`, `cancel`
+**Reached from:** `create`, `recordPayment`, `markOverdue`, `cancel`
 **Message:** `A PAID bill must have a paidAt date` /
 `Only a PAID bill can have a paidAt date`
 **Tests:** `tests/domain/billing/aggregates/Bill.test.ts`
@@ -503,7 +504,7 @@ means a rejected transition cannot have partially happened. It is also what lets
 one `validate` cover creation and every transition, so a rule added there cannot
 be forgotten by a mutator written later.
 
-**Enforced at:** `src/domain/billing/aggregates/Bill.ts` (`markPaid`, `markOverdue`, `cancel`)
+**Enforced at:** `src/domain/billing/aggregates/Bill.ts` (`recordPayment`, `markOverdue`, `cancel`)
 **Tests:** `tests/domain/billing/aggregates/Bill.test.ts`
 
 ### BIL-059 — Every transition announces itself
@@ -1516,3 +1517,85 @@ silently change it.
 
 **Enforced at:** `src/application/billing/use-cases/GenerateBillUseCase.ts`, `src/presentation/http/controllers/BillController.ts` (`generate` passes only the request's documented fields)
 **Tests:** `tests/application/billing/use-cases/GenerateBillUseCase.test.ts`, `tests/integration/bill.routes.test.ts`
+
+---
+
+## Payments
+
+Payments are entered by hand for now: the operator records how the customer
+paid, from the bill's pay action ([ADR 0003](../adr/0003-billing-automation.md)).
+
+### BIL-300 — Paying a bill records how, when and by whom
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (value object)
+**Since:** 2026-10-06
+
+`POST /api/bills/:id/pay` records one payment:
+
+| Field        | Rule                                                                                   |
+| ------------ | -------------------------------------------------------------------------------------- |
+| `method`     | required: `CASH`, `BANK_TRANSFER`, `NEQUI`, `DAVIPLATA`, `BRE_B`, `OTHER`              |
+| `reference`  | optional receipt or transaction number, trimmed, at most 100 characters; blank is none |
+| `amount`     | the bill's total (`BIL-301`)                                                           |
+| `paidAt`     | when the customer paid (`BIL-302`)                                                     |
+| `recordedBy` | the signed-in user who entered it                                                      |
+
+A bill has at most one payment, and it never changes once recorded
+(`BIL-052`). Bills marked paid before 2026-10-06 have no payment record.
+
+**Why:** "Paid" alone cannot be reconciled against the cash box or the bank
+statement. A fixed list of methods can be filtered and totalled; `OTHER`
+covers the rest.
+
+**Enforced at:** `src/domain/billing/value-objects/BillPayment.ts` (`create`), `src/application/billing/use-cases/MarkBillPaidUseCase.ts`, `src/presentation/http/validation/bill.schemas.ts` (`payBillSchema`), `src/presentation/http/controllers/BillController.ts` (`markPaid`)
+**Backed by:** `BillPayment` (`bill_payments`, unique `bill_id`) in `prisma/schema.prisma`
+**Message:** `Invalid payment method: must be one of CASH, BANK_TRANSFER, NEQUI, DAVIPLATA, BRE_B, OTHER` / `Invalid payment reference: cannot exceed 100 characters`
+**Tests:** `tests/domain/billing/aggregates/Bill.test.ts`, `tests/application/billing/use-cases/MarkBillPaidUseCase.test.ts`, `tests/integration/use-cases/billing/MarkBillPaidUseCase.integration.test.ts`, `tests/integration/bill.routes.test.ts`
+
+### BIL-301 — A bill is paid only by its full total
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain (aggregate)
+**Since:** 2026-10-06
+
+The amount defaults to the bill's total; any other amount is refused and the
+bill stays as it was.
+
+**Why:** The ISP takes full payments only. A partial amount accepted as
+payment would mark a debt settled that is not.
+
+**Enforced at:** `src/domain/billing/aggregates/Bill.ts` (`recordPayment`), `src/application/billing/use-cases/MarkBillPaidUseCase.ts` (default)
+**Message:** `Invalid payment amount: must be the bill's full total of <total>`
+**Tests:** `tests/domain/billing/aggregates/Bill.test.ts`, `tests/application/billing/use-cases/MarkBillPaidUseCase.test.ts`, `tests/integration/use-cases/billing/MarkBillPaidUseCase.integration.test.ts`, `tests/integration/bill.routes.test.ts`
+
+### BIL-302 — The payment date can be earlier than the entry, never later than now
+
+**Type:** Validation · **Status:** Active
+**Layer:** Domain (aggregate)
+**Since:** 2026-10-06
+
+`paidAt` defaults to now. An earlier date is accepted — cash taken yesterday is
+entered today — and becomes the bill's `paidAt`. A date after now is refused.
+
+**Why:** The cut and the reports count from when the customer paid, not from
+when someone typed it in. A future date would be a promise, not a payment.
+
+**Enforced at:** `src/domain/billing/aggregates/Bill.ts` (`recordPayment`, `validate`)
+**Message:** `Invalid payment date: cannot be in the future`
+**Tests:** `tests/domain/billing/aggregates/Bill.test.ts`, `tests/application/billing/use-cases/MarkBillPaidUseCase.test.ts`, `tests/integration/bill.routes.test.ts`
+
+### BIL-303 — A payment lives and dies with its bill, and outlives the user who entered it
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (database)
+**Since:** 2026-10-06
+
+Deleting a bill deletes its payment. The user who entered it is kept as an id
+with no foreign key.
+
+**Why:** A payment means nothing without the bill it paid. Who entered it is
+history: removing a user must not erase or block it.
+
+**Backed by:** `BillPayment.bill … onDelete: Cascade`, `BillPayment.recordedByUserId` in `prisma/schema.prisma`; `prisma/migrations/20261006200000_bill_payments`
+**Tests:** `tests/integration/use-cases/billing/MarkBillPaidUseCase.integration.test.ts`

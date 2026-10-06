@@ -3,17 +3,22 @@ import {
   BillId,
   CustomerId,
   ContractedServiceId,
-  ServicePlanId
+  ServicePlanId,
+  UserId
 } from 'domain/shared/ids';
 import { Money } from 'domain/shared/value-objects';
 import { Bill } from 'domain/billing/aggregates';
-import { BillStatus } from 'domain/billing/enums';
+import { BillStatus, PaymentMethod } from 'domain/billing/enums';
 import {
   BillingPeriod,
   BillLineItem,
+  BillPayment,
   ServicePeriod
 } from 'domain/billing/value-objects';
-import { BillStatus as PrismaBillStatus } from 'generated/prisma/client';
+import {
+  BillStatus as PrismaBillStatus,
+  PaymentMethod as PrismaPaymentMethod
+} from 'generated/prisma/client';
 
 interface BillLineItemRecord {
   id: string;
@@ -25,6 +30,14 @@ interface BillLineItemRecord {
   amount: number | { toNumber(): number };
   serviceFrom: Date | null;
   serviceTo: Date | null;
+}
+
+interface BillPaymentRecord {
+  method: string;
+  reference: string | null;
+  amount: number | { toNumber(): number };
+  paidAt: Date;
+  recordedByUserId: string | null;
 }
 
 interface BillRecord {
@@ -39,6 +52,7 @@ interface BillRecord {
   createdAt: Date;
   updatedAt: Date;
   lineItems: BillLineItemRecord[];
+  payment?: BillPaymentRecord | null;
 }
 
 export class BillPrismaMapper {
@@ -74,6 +88,15 @@ export class BillPrismaMapper {
       lineItems.push(lineItemResult.value);
     }
 
+    let payment: BillPayment | null = null;
+    if (raw.payment) {
+      const paymentResult = this.paymentToDomain(raw.payment);
+      if (paymentResult.isFailure) {
+        return Result.fail<Bill>(paymentResult.error);
+      }
+      payment = paymentResult.value;
+    }
+
     return Result.ok<Bill>(
       Bill.reconstitute(idResult.value, {
         customerId: customerIdResult.value,
@@ -83,6 +106,7 @@ export class BillPrismaMapper {
         issueDate: raw.issueDate,
         dueDate: raw.dueDate,
         paidAt: raw.paidAt,
+        payment,
         createdAt: raw.createdAt,
         updatedAt: raw.updatedAt
       })
@@ -113,6 +137,15 @@ export class BillPrismaMapper {
       serviceFrom: Date | null;
       serviceTo: Date | null;
     }[];
+    payment: {
+      id: string;
+      billId: string;
+      method: PrismaPaymentMethod;
+      reference: string | null;
+      amount: number;
+      paidAt: Date;
+      recordedByUserId: string | null;
+    } | null;
   } {
     const billId = bill.id.toString();
 
@@ -139,8 +172,60 @@ export class BillPrismaMapper {
         amount: item.amount.toNumber(),
         serviceFrom: item.servicePeriod?.from ?? null,
         serviceTo: item.servicePeriod?.to ?? null
-      }))
+      })),
+      payment:
+        bill.payment === null
+          ? null
+          : {
+              id: crypto.randomUUID(),
+              billId,
+              method: bill.payment.method,
+              reference: bill.payment.reference,
+              amount: bill.payment.amount.toNumber(),
+              paidAt: bill.payment.paidAt,
+              recordedByUserId:
+                bill.payment.recordedBy?.toString() ?? null
+            }
     };
+  }
+
+  private static paymentToDomain(
+    raw: BillPaymentRecord
+  ): Result<BillPayment> {
+    const methods = Object.values(PaymentMethod) as string[];
+    if (!methods.includes(raw.method)) {
+      return Result.fail<BillPayment>(
+        `Data integrity violation: unrecognised PaymentMethod "${raw.method}"`
+      );
+    }
+
+    const amountResult = Money.create(Number(raw.amount));
+    if (amountResult.isFailure) {
+      return Result.fail<BillPayment>(
+        `Invalid payment amount: ${amountResult.error}`
+      );
+    }
+
+    let recordedBy: UserId | null = null;
+    if (raw.recordedByUserId !== null) {
+      const userIdResult = UserId.parse(raw.recordedByUserId);
+      if (userIdResult.isFailure) {
+        return Result.fail<BillPayment>(
+          `Invalid recordedByUserId: ${userIdResult.error}`
+        );
+      }
+      recordedBy = userIdResult.value;
+    }
+
+    return Result.ok(
+      BillPayment.reconstitute({
+        method: raw.method as PaymentMethod,
+        reference: raw.reference,
+        amount: amountResult.value,
+        paidAt: raw.paidAt,
+        recordedBy
+      })
+    );
   }
 
   private static lineItemToDomain(

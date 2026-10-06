@@ -152,8 +152,14 @@ export class BillController {
     res: Response
   ): Promise<void> => {
     try {
+      const { method, reference, amount, paidAt } = req.body;
       const result = await this.markPaidUseCase.execute({
-        id: req.params.id
+        id: req.params.id,
+        method,
+        reference,
+        amount,
+        paidAt,
+        recordedByUserId: req.user?.userId
       });
       if (result.isFailure) {
         res

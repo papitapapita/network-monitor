@@ -44,8 +44,10 @@ network.
 
 ### Payments
 
-- Payments are **marked by hand** first: method (cash, transfer, Bre-B…),
-  reference, amount, and the user who entered it.
+- Payments are **marked by hand** first: method (cash, bank transfer, Nequi,
+  Daviplata, Bre-B or other), reference, amount, the date paid (earlier than
+  the entry is fine, never in the future), and the user who entered it. The
+  bill's existing pay action records it.
 - A bill is paid only when the **full amount** is recorded.
 - Paying every overdue bill of a suspended customer restores the service.
 - Online sources (a gateway webhook or a bank's collection file) arrive later

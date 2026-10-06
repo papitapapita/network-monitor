@@ -73,6 +73,39 @@ export const billIdParamSchema = z.object({
   })
 });
 
+const PAYMENT_METHOD_VALUES = [
+  'CASH',
+  'BANK_TRANSFER',
+  'NEQUI',
+  'DAVIPLATA',
+  'BRE_B',
+  'OTHER'
+] as const;
+
+export const payBillSchema = z.object({
+  params: z.object({
+    id: uuidField('bill ID')
+  }),
+  body: z.object({
+    method: z.enum(PAYMENT_METHOD_VALUES, {
+      message: `method must be one of ${PAYMENT_METHOD_VALUES.join(', ')}`
+    }),
+    reference: z
+      .string()
+      .max(100, 'reference cannot exceed 100 characters')
+      .nullable()
+      .optional(),
+    amount: z
+      .number()
+      .nonnegative('amount cannot be negative')
+      .optional(),
+    paidAt: z
+      .string()
+      .datetime({ message: 'paidAt must be an ISO 8601 datetime' })
+      .optional()
+  })
+});
+
 export const listBillsSchema = z.object({
   query: z.object({
     customerId: uuidField('customerId').optional(),

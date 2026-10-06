@@ -336,11 +336,108 @@ describe('Bill Routes — /api/bills', () => {
 
       const res = await request(app)
         .post(`/api/bills/${billId}/pay`)
-        .set('Authorization', auth());
+        .set('Authorization', auth())
+        .send({ method: 'CASH' });
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.status).toBe('PAID');
       expect(res.body.data.paidAt).not.toBeNull();
+    });
+
+    it('[BIL-300] 200 — records how, when and by whom the bill was paid', async () => {
+      const generated = await generateBill({
+        customerId,
+        year: 2026,
+        month: 5
+      });
+      const billId = generated.body.data.id;
+      const admin = await prisma.user.findUniqueOrThrow({
+        where: { email: 'admin-test@example.local' }
+      });
+
+      const res = await request(app)
+        .post(`/api/bills/${billId}/pay`)
+        .set('Authorization', auth())
+        .send({
+          method: 'BANK_TRANSFER',
+          reference: 'TR-0042',
+          amount: 80000,
+          paidAt: '2026-05-04T15:00:00.000Z'
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.paidAt).toBe('2026-05-04T15:00:00.000Z');
+      expect(res.body.data.payment).toEqual({
+        method: 'BANK_TRANSFER',
+        reference: 'TR-0042',
+        amount: 80000,
+        paidAt: '2026-05-04T15:00:00.000Z',
+        recordedByUserId: admin.id
+      });
+
+      const fetched = await request(app)
+        .get(`/api/bills/${billId}`)
+        .set('Authorization', auth());
+      expect(fetched.body.data.payment).toEqual(
+        res.body.data.payment
+      );
+    });
+
+    it('[BIL-300] 400 — the method is required and must be known', async () => {
+      const generated = await generateBill({
+        customerId,
+        year: 2026,
+        month: 4
+      });
+      const billId = generated.body.data.id;
+
+      const missing = await request(app)
+        .post(`/api/bills/${billId}/pay`)
+        .set('Authorization', auth())
+        .send({});
+      const unknown = await request(app)
+        .post(`/api/bills/${billId}/pay`)
+        .set('Authorization', auth())
+        .send({ method: 'CHEQUE' });
+
+      expect(missing.status).toBe(400);
+      expect(unknown.status).toBe(400);
+    });
+
+    it('[BIL-301] 400 — part of the total is refused and the bill stays unpaid', async () => {
+      const generated = await generateBill({
+        customerId,
+        year: 2026,
+        month: 3
+      });
+      const billId = generated.body.data.id;
+
+      const res = await request(app)
+        .post(`/api/bills/${billId}/pay`)
+        .set('Authorization', auth())
+        .send({ method: 'CASH', amount: 40000 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe(
+        "Invalid payment amount: must be the bill's full total of 80000.00"
+      );
+      expect(await prisma.billPayment.count()).toBe(0);
+    });
+
+    it('[BIL-302] 400 — a payment date in the future is refused', async () => {
+      const generated = await generateBill({
+        customerId,
+        year: 2026,
+        month: 2
+      });
+      const billId = generated.body.data.id;
+
+      const res = await request(app)
+        .post(`/api/bills/${billId}/pay`)
+        .set('Authorization', auth())
+        .send({ method: 'CASH', paidAt: '2999-01-01T00:00:00.000Z' });
+
+      expect(res.status).toBe(400);
     });
 
     it('409 — paying an already-paid bill is rejected', async () => {
@@ -353,12 +450,14 @@ describe('Bill Routes — /api/bills', () => {
 
       const first = await request(app)
         .post(`/api/bills/${billId}/pay`)
-        .set('Authorization', auth());
+        .set('Authorization', auth())
+        .send({ method: 'CASH' });
       expect(first.status).toBe(200);
 
       const second = await request(app)
         .post(`/api/bills/${billId}/pay`)
-        .set('Authorization', auth());
+        .set('Authorization', auth())
+        .send({ method: 'CASH' });
       expect(second.status).toBe(409);
       expect(second.body.success).toBe(false);
     });
@@ -375,7 +474,8 @@ describe('Bill Routes — /api/bills', () => {
 
       const paid = await request(app)
         .post(`/api/bills/${billId}/pay`)
-        .set('Authorization', auth());
+        .set('Authorization', auth())
+        .send({ method: 'CASH' });
       expect(paid.status).toBe(200);
 
       const cancelRes = await request(app)

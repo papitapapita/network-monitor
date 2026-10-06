@@ -22,8 +22,11 @@ export class PrismaBillRepository implements IBillRepository {
 
   public async save(bill: Bill): Promise<Result<Bill>> {
     try {
-      const { bill: billData, lineItems } =
-        BillPrismaMapper.toPersistence(bill);
+      const {
+        bill: billData,
+        lineItems,
+        payment
+      } = BillPrismaMapper.toPersistence(bill);
 
       await this.prisma.$transaction([
         this.prisma.bill.upsert({
@@ -40,7 +43,17 @@ export class PrismaBillRepository implements IBillRepository {
         this.prisma.billLineItem.deleteMany({
           where: { billId: billData.id }
         }),
-        this.prisma.billLineItem.createMany({ data: lineItems })
+        this.prisma.billLineItem.createMany({ data: lineItems }),
+        // A payment is never changed once recorded.
+        ...(payment === null
+          ? []
+          : [
+              this.prisma.billPayment.upsert({
+                where: { billId: billData.id },
+                create: payment,
+                update: {}
+              })
+            ])
       ]);
 
       EventDispatcher.dispatchEventsForAggregate(bill.id);
@@ -71,7 +84,7 @@ export class PrismaBillRepository implements IBillRepository {
     try {
       const raw = await this.prisma.bill.findUnique({
         where: { id: id.toString() },
-        include: { lineItems: true }
+        include: { lineItems: true, payment: true }
       });
 
       if (!raw) return Result.ok<Bill | null>(null);
@@ -101,7 +114,7 @@ export class PrismaBillRepository implements IBillRepository {
     try {
       const rawRecords = await this.prisma.bill.findMany({
         where: { customerId: customerId.toString() },
-        include: { lineItems: true },
+        include: { lineItems: true, payment: true },
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset
@@ -125,7 +138,7 @@ export class PrismaBillRepository implements IBillRepository {
     try {
       const rawRecords = await this.prisma.bill.findMany({
         where: this.buildWhere(filters),
-        include: { lineItems: true },
+        include: { lineItems: true, payment: true },
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset
@@ -202,7 +215,7 @@ export class PrismaBillRepository implements IBillRepository {
     try {
       const rawRecords = await this.prisma.bill.findMany({
         where: { status: 'PENDING', dueDate: { lt: instant } },
-        include: { lineItems: true },
+        include: { lineItems: true, payment: true },
         orderBy: { dueDate: 'asc' }
       });
 

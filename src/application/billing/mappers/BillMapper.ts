@@ -1,6 +1,12 @@
-import { Bill, BillLineItem, isoDay } from 'domain/billing';
+import {
+  Bill,
+  BillLineItem,
+  BillPayment,
+  isoDay
+} from 'domain/billing';
 import {
   BillLineItemDTO,
+  BillPaymentDTO,
   BillResponseDTO,
   BillListResponseDTO
 } from '../dtos';
@@ -15,6 +21,10 @@ export class BillMapper {
       issueDate: bill.issueDate.toISOString(),
       dueDate: bill.dueDate.toISOString(),
       paidAt: bill.paidAt !== null ? bill.paidAt.toISOString() : null,
+      payment:
+        bill.payment !== null
+          ? this.toPaymentDTO(bill.payment)
+          : null,
       total: bill.total.toNumber(),
       lineItems: bill.lineItems.map((item) =>
         this.toLineItemDTO(item)
@@ -36,6 +46,16 @@ export class BillMapper {
       hasMore: offset + bills.length < total,
       limit,
       offset
+    };
+  }
+
+  private static toPaymentDTO(payment: BillPayment): BillPaymentDTO {
+    return {
+      method: payment.method,
+      reference: payment.reference,
+      amount: payment.amount.toNumber(),
+      paidAt: payment.paidAt.toISOString(),
+      recordedByUserId: payment.recordedBy?.toString() ?? null
     };
   }
 

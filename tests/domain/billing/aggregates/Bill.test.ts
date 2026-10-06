@@ -9,7 +9,9 @@ import {
   BillGeneratedEvent,
   BillPaidEvent,
   BillCancelledEvent,
-  BillOverdueEvent
+  BillOverdueEvent,
+  BillPayment,
+  PaymentMethod
 } from '../../../../src/domain/billing';
 import {
   BillId,
@@ -147,46 +149,125 @@ describe('Bill', () => {
     });
   });
 
-  describe('markPaid()', () => {
-    it('should succeed from PENDING, set paidAt, and emit BillPaidEvent', () => {
+  describe('recordPayment()', () => {
+    const PAID_AT = new Date('2024-03-05T15:00:00.000Z');
+
+    function payment(
+      overrides: Record<string, unknown> = {}
+    ): BillPayment {
+      return BillPayment.create({
+        method: PaymentMethod.CASH,
+        reference: null,
+        amount: Money.create(19.99).value,
+        paidAt: PAID_AT,
+        recordedBy: null,
+        ...overrides
+      }).value;
+    }
+
+    it('[BIL-300] should succeed from PENDING, keep the payment, take its date, and emit BillPaidEvent', () => {
       const bill = reconstituteBill(BillStatus.PENDING);
       bill.clearEvents();
 
-      const result = bill.markPaid();
+      const result = bill.recordPayment(payment(), FUTURE_NOW);
 
       expect(result.isSuccess).toBe(true);
       expect(bill.status).toBe(BillStatus.PAID);
-      expect(bill.paidAt).not.toBeNull();
+      expect(bill.paidAt).toEqual(PAID_AT);
+      expect(bill.payment!.method).toBe(PaymentMethod.CASH);
       expect(bill.domainEvents[0]).toBeInstanceOf(BillPaidEvent);
+      expect((bill.domainEvents[0] as BillPaidEvent).paidAt).toEqual(
+        PAID_AT
+      );
     });
 
-    it('should succeed from OVERDUE, set paidAt, and emit BillPaidEvent', () => {
+    it('should succeed from OVERDUE', () => {
       const bill = reconstituteBill(BillStatus.OVERDUE);
-      bill.clearEvents();
 
-      const result = bill.markPaid();
+      const result = bill.recordPayment(payment(), FUTURE_NOW);
 
       expect(result.isSuccess).toBe(true);
       expect(bill.status).toBe(BillStatus.PAID);
-      expect(bill.paidAt).not.toBeNull();
-      expect(bill.domainEvents[0]).toBeInstanceOf(BillPaidEvent);
     });
 
     it('should fail from PAID (terminal)', () => {
       const bill = reconstituteBill(BillStatus.PAID);
-      const result = bill.markPaid();
-      expect(result.isFailure).toBe(true);
-      expect(result.error).toContain(
-        'Cannot mark a PAID bill as paid'
-      );
+      const result = bill.recordPayment(payment(), FUTURE_NOW);
+      expect(result.error).toBe('Cannot mark a PAID bill as paid');
     });
 
     it('should fail from CANCELLED (terminal)', () => {
       const bill = reconstituteBill(BillStatus.CANCELLED);
-      const result = bill.markPaid();
-      expect(result.isFailure).toBe(true);
-      expect(result.error).toContain(
+      const result = bill.recordPayment(payment(), FUTURE_NOW);
+      expect(result.error).toBe(
         'Cannot mark a CANCELLED bill as paid'
+      );
+    });
+
+    it('[BIL-301] should refuse anything but the full total', () => {
+      const bill = reconstituteBill(BillStatus.PENDING);
+
+      const result = bill.recordPayment(
+        payment({ amount: Money.create(20).value }),
+        FUTURE_NOW
+      );
+
+      expect(result.error).toBe(
+        "Invalid payment amount: must be the bill's full total of 19.99"
+      );
+      expect(bill.status).toBe(BillStatus.PENDING);
+    });
+
+    it('[BIL-302] should refuse a payment made after now', () => {
+      const bill = reconstituteBill(BillStatus.PENDING);
+
+      const result = bill.recordPayment(
+        payment(),
+        new Date('2024-03-05T14:59:59.999Z')
+      );
+
+      expect(result.error).toBe(
+        'Invalid payment date: cannot be in the future'
+      );
+    });
+
+    it('[BIL-302] should accept a payment dated exactly now', () => {
+      const bill = reconstituteBill(BillStatus.PENDING);
+
+      expect(bill.recordPayment(payment(), PAID_AT).isSuccess).toBe(
+        true
+      );
+    });
+  });
+
+  describe('BillPayment', () => {
+    function create(overrides: Record<string, unknown> = {}) {
+      return BillPayment.create({
+        method: PaymentMethod.BANK_TRANSFER,
+        reference: null,
+        amount: Money.create(10).value,
+        paidAt: ISSUE_DATE,
+        recordedBy: null,
+        ...overrides
+      });
+    }
+
+    it('[BIL-300] stores a blank reference as none and trims the rest', () => {
+      expect(create({ reference: '   ' }).value.reference).toBeNull();
+      expect(create({ reference: ' TX-1 ' }).value.reference).toBe(
+        'TX-1'
+      );
+    });
+
+    it('[BIL-300] refuses a reference over 100 characters', () => {
+      expect(create({ reference: 'x'.repeat(101) }).error).toBe(
+        'Invalid payment reference: cannot exceed 100 characters'
+      );
+    });
+
+    it('[BIL-300] refuses an unknown method', () => {
+      expect(create({ method: 'CHEQUE' }).error).toBe(
+        'Invalid payment method: must be one of CASH, BANK_TRANSFER, NEQUI, DAVIPLATA, BRE_B, OTHER'
       );
     });
   });
