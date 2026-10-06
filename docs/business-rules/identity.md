@@ -30,13 +30,15 @@ Format and conventions: [README.md](README.md).
 
 | Layer                         | Rules |
 | ----------------------------- | ----- |
-| Presentation (middleware)     | 15    |
+| Application                   | 21    |
+| Presentation (middleware)     | 16    |
 | Infrastructure                | 12    |
+| Domain (aggregate)            | 6     |
 | Domain (value object)         | 4     |
-| Application                   | 22    |
-| Presentation                  | 5     |
+| Presentation                  | 4     |
+| Domain                        | 2     |
 | Domain (permission table)     | 2     |
-| Domain (aggregate)            | 8     |
+| Application · Presentation    | 1     |
 | Infrastructure + Presentation | 1     |
 | Infrastructure (database)     | 1     |
 
@@ -146,7 +148,8 @@ expensive to attack at scale; raising it is a one-constant change that
 invalidates nothing, since bcrypt hashes carry their own cost.
 
 **Enforced at:** `src/infrastructure/identity/services/BcryptPasswordService.ts` (`COST`)
-**Tests:** `tests/integration/auth.routes.test.ts`
+**Tests:** `tests/infrastructure/identity/services/BcryptPasswordService.test.ts`,
+`tests/integration/auth.routes.test.ts`
 
 ### IDN-010 — Users are managed by the customer's administrator, through the API
 
@@ -442,10 +445,12 @@ to wait rather than to doubt their password.
 **Layer:** Application
 **Since:** 2026-08-05
 
-`LoginUseCase` and the two-factor steps strip every sign-in secret before the
-base `UseCase` records the request or its answer: the password, codes,
-recovery codes, the two-factor secret and link, challenges, session tokens and
-remembered-browser tokens (`withoutSignInSecrets`).
+`LoginUseCase`, the two-factor steps and the password reset (`IDN-183`)
+strip every sign-in secret before the base `UseCase` records the request or
+its answer: the password, codes, recovery codes, the two-factor secret and
+link, challenges, session tokens, remembered-browser tokens and reset or
+invitation tokens (`withoutSignInSecrets`). User management strips the
+passwords it handles the same way (`withoutPasswords`).
 
 **Why:** The base class logs every request it handles, which is what makes the
 audit trail useful — and would put every password in the log file in plaintext.
@@ -453,7 +458,9 @@ Stripping at the use case rather than at the logger keeps the rule next to the
 only request that carries one.
 
 **Enforced at:** `src/application/identity/use-cases/LoginUseCase.ts` (`sanitizeForLogging`),
-`src/application/identity/services/SignInSteps.ts` (`withoutSignInSecrets`)
+`src/application/identity/services/SignInSteps.ts` (`withoutSignInSecrets`),
+`src/application/identity/use-cases/ResetPasswordUseCase.ts` (`sanitizeForLogging`),
+`src/application/identity/services/userAccountPolicy.ts` (`withoutPasswords`)
 **Tests:** `tests/application/identity/use-cases/LoginUseCase.test.ts`
 
 ### IDN-042 — Login requires a syntactically valid email and a non-empty password
@@ -1120,8 +1127,10 @@ promotes it (`IDN-011`).
 **Layer:** Application
 **Since:** 2026-09-30 · **Revised:** 2026-10-05
 
-On creation, on reset and on a change of one's own password, the same 12 as the
-vendor account (`IDN-012`). It was 8 until 2026-10-05; a shorter password set
+On creation, on an administrator's reset, on a change of one's own password
+and from a reset or invitation link (`IDN-183`, `IDN-184`), the same 12 as the
+vendor account (`IDN-012`). An invited account has no password until its
+owner chooses one this way. It was 8 until 2026-10-05; a shorter password set
 before then keeps working until it is next changed. Passwords over 200 characters are refused at the edge.
 
 **Why:** The floor stops the obvious placeholders (`1234`, the company name)
@@ -1129,11 +1138,14 @@ without forcing rules people work around by writing passwords down. The ceiling
 keeps a request from handing bcrypt an arbitrarily long string.
 
 **Enforced at:** `src/application/identity/services/userAccountPolicy.ts` (`USER_PASSWORD_MIN_LENGTH`),
-`src/presentation/http/validation/user.schemas.ts`
+`src/presentation/http/validation/user.schemas.ts`,
+`src/presentation/http/validation/auth.schemas.ts` (`resetPasswordSchema`)
 **Message:** `Password must be at least 12 characters`
 **Tests:** `tests/application/identity/use-cases/CreateUserUseCase.test.ts`,
 `tests/application/identity/use-cases/UpdateUserUseCase.test.ts`,
-`tests/integration/user.routes.test.ts`
+`tests/application/identity/use-cases/ResetPasswordUseCase.test.ts`,
+`tests/integration/user.routes.test.ts`,
+`tests/integration/auth.routes.test.ts`
 
 ### IDN-143 — An administrator cannot change their own account through user management
 
@@ -1344,6 +1356,11 @@ the two-factor routes. A session token is refused there, a challenge is
 refused everywhere a session is expected, and a challenge of one kind does not
 open the other step. Like a session (`IDN-065`), a challenge stops working when
 the account is disabled or its sessions are ended.
+
+The same signed form, with a kind of its own and its own lifetime, carries a
+remembered browser (`trusted-browser`, 30 days, `IDN-171`), a password reset
+link (`password-reset`, one hour, `IDN-183`) and an invitation (`invitation`,
+seven days, `IDN-184`). Each opens only what its kind names.
 
 **Why:** Without the kind, a token proving only the password would pass the
 session check, and two-factor would stop nothing. Five minutes is enough to
