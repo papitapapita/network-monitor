@@ -11,6 +11,8 @@ import {
   ConfigMessage,
   PROTOCOL_VERSION,
   PingResultWire,
+  EnforceRequestMessage,
+  EnforceResultMessage,
   ProbeRequestMessage,
   ProbeResultMessage,
   UpdateMessage,
@@ -28,6 +30,10 @@ export interface ConnectionCallbacks {
   onUpdate(offer: UpdateMessage): void;
   // Measure one device now; the answer goes back on this connection (AGT-101).
   onProbe(request: ProbeRequestMessage): Promise<ProbeResultMessage>;
+  // Read or change the router's suspension queues (AGT-111).
+  onEnforce(
+    request: EnforceRequestMessage
+  ): Promise<EnforceResultMessage>;
   // 4003: the backend takes nothing until the subscription is paid.
   onSubscriptionExpired(): void;
   // 4001: the agent must forget its identity and stop.
@@ -215,6 +221,11 @@ export class BackendConnection {
         // Not awaited: a slow radio must not hold up the messages behind it.
         void this.callbacks
           .onProbe(message)
+          .then((result) => this.send(result));
+        return;
+      case 'enforce':
+        void this.callbacks
+          .onEnforce(message)
           .then((result) => this.send(result));
         return;
       default:

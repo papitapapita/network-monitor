@@ -10,6 +10,7 @@ import { PairingKeySource } from './identity/PairingKeySource';
 import { PollScheduler } from './polling/PollScheduler';
 import { ResultBuffer } from './results/ResultBuffer';
 import { ProbeRunner } from './probes/ProbeRunner';
+import { EnforceRunner } from './enforce/EnforceRunner';
 import { AgentUpdater } from './update/AgentUpdater';
 import {
   BackendConnection,
@@ -24,6 +25,7 @@ export interface AgentRuntimeDeps {
   buffer: ResultBuffer;
   scheduler: PollScheduler;
   probes: ProbeRunner;
+  enforcer: EnforceRunner;
   connect: (
     credentials: AgentCredentials,
     callbacks: ConnectionCallbacks
@@ -157,6 +159,7 @@ export class AgentRuntime {
             )
           ),
       onProbe: (request) => this.deps.probes.run(request),
+      onEnforce: (request) => this.deps.enforcer.run(request),
       onConfig: async (message: ConfigMessage, first: boolean) => {
         scheduler.applyConfig(message.devices);
         if (first) scheduler.pollAllNow();

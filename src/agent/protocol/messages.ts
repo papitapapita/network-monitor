@@ -31,12 +31,14 @@ export const CloseCode = {
 } as const;
 
 // What an agent can do beyond its scheduled pings (AGT-100). The backend
-// sends a probe request only to an agent that named `probe` in its hello, so
-// an older agent never receives one.
-export type AgentCapability = 'probe';
+// sends a probe request only to an agent that named `probe` in its hello,
+// and an enforce request only to one that named `enforce` (AGT-110), so an
+// older agent never receives either.
+export type AgentCapability = 'probe' | 'enforce';
 
 export const AGENT_CAPABILITIES: readonly AgentCapability[] = [
-  'probe'
+  'probe',
+  'enforce'
 ];
 
 // ── Agent → backend ───────────────────────────────────────────────────────
@@ -195,13 +197,24 @@ export type ProbeResultMessage =
     }
   | { type: 'probe.result'; requestId: string; error: string };
 
+// The answer to one enforce request (AGT-111): the router's suspension
+// queues for a `list`, null for an `add` or `remove` that went through.
+export type EnforceResultMessage =
+  | {
+      type: 'enforce.result';
+      requestId: string;
+      queues: SuspensionQueueWire[] | null;
+    }
+  | { type: 'enforce.result'; requestId: string; error: string };
+
 export type AgentMessage =
   | HelloMessage
   | HeartbeatMessage
   | ConfigAckMessage
   | ResultsMessage
   | UpdateResultMessage
-  | ProbeResultMessage;
+  | ProbeResultMessage
+  | EnforceResultMessage;
 
 // ── Backend → agent ───────────────────────────────────────────────────────
 
@@ -284,9 +297,48 @@ export type ProbeRequestMessage =
       credentials: ProbeCredentialsWire;
     };
 
+// The enforcement router's address and API login, sent with each enforce
+// request and held by the agent only until it answers (AGT-112).
+export interface RouterConnectionWire {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+}
+
+export interface SuspensionQueueWire {
+  name: string;
+  targetIp: string;
+}
+
+// Read or change the router's suspension queues and answer with an
+// enforce.result of the same requestId (AGT-111).
+export type EnforceRequestMessage =
+  | {
+      type: 'enforce';
+      requestId: string;
+      router: RouterConnectionWire;
+      action: 'list';
+    }
+  | {
+      type: 'enforce';
+      requestId: string;
+      router: RouterConnectionWire;
+      action: 'add';
+      queue: SuspensionQueueWire;
+    }
+  | {
+      type: 'enforce';
+      requestId: string;
+      router: RouterConnectionWire;
+      action: 'remove';
+      name: string;
+    };
+
 export type BackendMessage =
   | WelcomeMessage
   | ConfigMessage
   | ResultsAckMessage
   | UpdateMessage
-  | ProbeRequestMessage;
+  | ProbeRequestMessage
+  | EnforceRequestMessage;

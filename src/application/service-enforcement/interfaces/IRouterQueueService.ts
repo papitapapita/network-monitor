@@ -13,6 +13,9 @@ export interface RouterConnection {
   port: number;
   username: string;
   password: string;
+  // The agent the router device belongs to, if any; off site the queues are
+  // changed through it (SVC-070).
+  agentId?: string | null;
 }
 
 export interface SuspensionQueue {

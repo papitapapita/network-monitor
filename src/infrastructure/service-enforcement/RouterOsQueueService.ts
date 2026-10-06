@@ -5,7 +5,7 @@ import {
   RouterConnection,
   SuspensionQueue,
   SUSPENSION_QUEUE_PREFIX
-} from 'application/service-enforcement/interfaces';
+} from 'application/service-enforcement/interfaces/IRouterQueueService';
 import { ILogger } from 'application/shared/interfaces';
 
 const SUSPENSION_MAX_LIMIT = '1k/1k';

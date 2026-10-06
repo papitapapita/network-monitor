@@ -183,6 +183,7 @@ describe('BackendConnection', () => {
       onWelcome: jest.fn(),
       onUpdate: jest.fn(),
       onProbe: jest.fn(),
+      onEnforce: jest.fn(),
       onSubscriptionExpired: jest.fn(),
       onRevoked: jest.fn()
     };
@@ -429,6 +430,41 @@ describe('BackendConnection', () => {
     expect(backend.messages('probe.result')[0]).toMatchObject({
       requestId: 'r-1',
       reading: { reachable: true }
+    });
+  });
+
+  it('[AGT-111] answers an enforce request with the result of the same request', async () => {
+    callbacks.onEnforce.mockResolvedValue({
+      type: 'enforce.result',
+      requestId: 'e-1',
+      queues: null
+    });
+    connect();
+    await backend.until(() => backend.received.length > 0);
+    backend.welcome();
+    const request = {
+      type: 'enforce',
+      requestId: 'e-1',
+      router: {
+        host: '10.0.0.1',
+        port: 8728,
+        username: 'api',
+        password: 'secret'
+      },
+      action: 'add',
+      queue: { name: 'suspend-a', targetIp: '10.0.0.5' }
+    };
+
+    backend.send(request);
+
+    await backend.until(
+      () => backend.messages('enforce.result').length > 0
+    );
+    expect(callbacks.onEnforce).toHaveBeenCalledWith(request);
+    expect(backend.messages('enforce.result')[0]).toEqual({
+      type: 'enforce.result',
+      requestId: 'e-1',
+      queues: null
     });
   });
 

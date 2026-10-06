@@ -44,7 +44,7 @@ repository, no persistence of its own. That is deliberate and is itself a rule
 | Infrastructure (orchestrator)    | 8     |
 | Application (use case)           | 8     |
 | Application (service)            | 4     |
-| Infrastructure (composition)     | 1     |
+| Infrastructure (composition)     | 2     |
 | Application (event handler)      | 4     |
 | Infrastructure (RouterOS client) | 2     |
 | Presentation                     | 1     |
@@ -167,7 +167,7 @@ this is reachable rather than theoretical.
 `Customer device has no IP address`
 **Tests:** `tests/application/service-enforcement/use-cases/EnforceSuspensionUseCase.test.ts`
 
-### SVC-022 — Suspension throttles to 1 Mbit rather than cutting the line
+### SVC-022 — Suspension throttles to 1 kbit/s rather than cutting the line
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure (RouterOS client)
@@ -340,6 +340,27 @@ now takes an explicit decision.
 
 **Enforced at:** `src/infrastructure/di/container.ts`
 **Tests:** `tests/integration/enabled-modules.routes.test.ts`
+
+### SVC-070 — Off site, the router is changed through its agent
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (composition)
+**Since:** 2026-10-06
+
+On an install hosted off site, every queue read and change — enforcing,
+releasing, reconciling, and the enforcement screens — is sent to the agent
+the router device belongs to (`AGT-111`). A router that belongs to no agent
+fails with `The enforcement router is not behind an agent`. An offline or
+outdated agent fails the operation like an unreachable router, and
+reconciliation tries again on its next pass. On site, the server talks to the
+router itself, as before.
+
+**Why:** ADR 0003: off site the server cannot reach the client's network, so
+an automatic cut needs the agent beside the router.
+
+**Enforced at:** `src/infrastructure/service-enforcement/AgentRouterQueueService.ts`, `src/application/service-enforcement/services/EnforcementRouterResolver.ts` (`agentId`), `src/infrastructure/di/container.ts`
+**Message:** `The enforcement router is not behind an agent`
+**Tests:** `tests/infrastructure/service-enforcement/AgentRouterQueueService.test.ts`, `tests/application/service-enforcement/services/EnforcementRouterResolver.test.ts`, `tests/integration/agent-probes.test.ts`
 
 ---
 

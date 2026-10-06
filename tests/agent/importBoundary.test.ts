@@ -66,16 +66,19 @@ describe('agent import boundary', () => {
       )
     ).toEqual([]);
     // Everything it borrows from the backend: the ping probe and the
-    // wireless collectors it runs for the backend (AGT-101), the logger,
-    // and Result.
+    // wireless collectors it runs for the backend (AGT-101), the RouterOS
+    // client it changes suspension queues with (AGT-111), the logger, and
+    // Result.
     expect(
       backendCode
         .filter((input) => !input.startsWith('src/domain/shared/'))
         .sort()
     ).toEqual([
       'src/application/device-monitoring/services/PingCycleProbe.ts',
+      'src/application/service-enforcement/interfaces/IRouterQueueService.ts',
       'src/infrastructure/logging/WinstonLogger.ts',
       'src/infrastructure/monitoring/ping/PingService.ts',
+      'src/infrastructure/service-enforcement/RouterOsQueueService.ts',
       'src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts',
       'src/infrastructure/wireless-monitoring/collectors/MimosaSnmpCollector.ts',
       'src/infrastructure/wireless-monitoring/collectors/SnmpClient.ts',

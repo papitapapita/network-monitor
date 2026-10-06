@@ -25,6 +25,8 @@ import { enrollAgent } from './identity/enrollAgent';
 import { PollScheduler } from './polling/PollScheduler';
 import { ResultBuffer } from './results/ResultBuffer';
 import { ProbeRunner } from './probes/ProbeRunner';
+import { EnforceRunner } from './enforce/EnforceRunner';
+import { RouterOsQueueService } from 'infrastructure/service-enforcement/RouterOsQueueService';
 import {
   BackendConnection,
   DEFAULT_CONNECTION_OPTIONS
@@ -130,6 +132,10 @@ async function main(): Promise<void> {
     buffer,
     scheduler,
     probes,
+    enforcer: new EnforceRunner(
+      new RouterOsQueueService(logger),
+      logger
+    ),
     connect: (credentials, callbacks) =>
       new BackendConnection(credentials, buffer, callbacks, logger, {
         ...DEFAULT_CONNECTION_OPTIONS,

@@ -3436,6 +3436,8 @@ offset?:     number  // ≥0, default 0
 
 Live view of which suspensions are **actually enforced on the router** (vs. just `status: SUSPENDED` in the DB). These endpoints query the MikroTik router in real time — the answer is always current, but each call costs a router round-trip (~100–300 ms).
 
+On an install hosted off site (`serverOnSite: false`) the router is read and changed through the agent the router device belongs to, which must run agent `0.4.0` or later; an offline or older agent, or a router with no agent, fails the call like an unreachable router (SVC-070, AGT-110).
+
 A suspended service is "enforced" when its throttle queue exists on the router. It can be un-enforced because: the service has no device/IP, the router was unreachable when suspension happened (the reconciler will fix it within ~60 s), or someone removed the queue by hand.
 
 Uses the standard `{ success, data }` envelope.

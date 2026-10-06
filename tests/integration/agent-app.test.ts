@@ -19,6 +19,8 @@ import { enrollAgent } from '../../src/agent/identity/enrollAgent';
 import { PollScheduler } from '../../src/agent/polling/PollScheduler';
 import { ResultBuffer } from '../../src/agent/results/ResultBuffer';
 import { ProbeRunner } from '../../src/agent/probes/ProbeRunner';
+import { EnforceRunner } from '../../src/agent/enforce/EnforceRunner';
+import { RouterOsQueueService } from '../../src/infrastructure/service-enforcement/RouterOsQueueService';
 import { WirelessCollectorRegistry } from '../../src/infrastructure/wireless-monitoring/collectors';
 import {
   BackendConnection,
@@ -110,6 +112,10 @@ describe('Agent app — end to end', () => {
       probes: new ProbeRunner(
         ping,
         new WirelessCollectorRegistry({}),
+        logger
+      ),
+      enforcer: new EnforceRunner(
+        new RouterOsQueueService(logger),
         logger
       ),
       connect: (credentials, callbacks) =>

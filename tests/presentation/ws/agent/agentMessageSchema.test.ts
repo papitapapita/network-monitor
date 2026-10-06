@@ -87,6 +87,32 @@ describe('parseAgentMessage', () => {
     }
   });
 
+  it('[AGT-111] accepts every shape of enforce answer', () => {
+    const answers = [
+      {
+        type: 'enforce.result',
+        requestId: 'e-1',
+        queues: [{ name: 'suspend-a', targetIp: '10.0.0.5' }]
+      },
+      { type: 'enforce.result', requestId: 'e-2', queues: null },
+      {
+        type: 'enforce.result',
+        requestId: 'e-3',
+        error: 'Login failed'
+      }
+    ];
+
+    for (const answer of answers) {
+      expect(ok(answer)).toEqual(answer);
+    }
+  });
+
+  it('[AGT-111] rejects an enforce answer with neither queues nor error', () => {
+    expect(
+      ok({ type: 'enforce.result', requestId: 'e-4' })
+    ).toBeNull();
+  });
+
   it.each([
     [
       'a byte counter that is not a whole number',

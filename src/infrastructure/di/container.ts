@@ -286,6 +286,7 @@ import {
 } from '../notifications/orchestrator';
 import {
   RouterOsQueueService,
+  AgentRouterQueueService,
   SuspensionReconciliationOrchestrator
 } from '../service-enforcement';
 import {
@@ -2307,9 +2308,10 @@ export class DependencyContainer {
         this.deviceCredentialsRepository,
         this.vendorSettingsRepository
       );
-      const routerQueueService = new RouterOsQueueService(
-        this.logger
-      );
+      // Off site the router is reached through its agent (SVC-070).
+      const routerQueueService = this.serverOnSite
+        ? new RouterOsQueueService(this.logger)
+        : new AgentRouterQueueService(connectedAgents);
       const enforceSuspensionUseCase = new EnforceSuspensionUseCase(
         this.contractedServiceRepository,
         this.deviceRepository,

@@ -63,8 +63,8 @@ network.
   ISP's pages and WhatsApp, and the CPE stays pingable.
 - Off site, the server asks the client's **on-site agent** to apply or remove
   the queue: a new backend-sent agent request beside `probe`, announced as an
-  `enforce` capability in the agent's hello. Reconciliation goes through the
-  agent too.
+  `enforce` capability in the agent's hello (agent `0.4.0`). Reconciliation
+  goes through the agent too.
 
 ### Notices
 

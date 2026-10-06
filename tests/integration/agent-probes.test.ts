@@ -23,6 +23,12 @@ import { enrollAgent } from '../../src/agent/identity/enrollAgent';
 import { PollScheduler } from '../../src/agent/polling/PollScheduler';
 import { ResultBuffer } from '../../src/agent/results/ResultBuffer';
 import { ProbeRunner } from '../../src/agent/probes/ProbeRunner';
+import { EnforceRunner } from '../../src/agent/enforce/EnforceRunner';
+import type {
+  IRouterQueueService,
+  RouterConnection,
+  SuspensionQueue
+} from '../../src/application/service-enforcement/interfaces';
 import {
   BackendConnection,
   DEFAULT_CONNECTION_OPTIONS
@@ -43,8 +49,11 @@ import { WinstonLogger } from '../../src/infrastructure/logging/WinstonLogger';
 import { createTestApp } from './helpers/createTestApp';
 import { seedAndGetToken } from './helpers/auth';
 import {
+  cleanCustomers,
   cleanDatabase,
   seedAgent,
+  seedCustomer,
+  seedServicePlan,
   seedDeviceModel,
   seedMonitoredDevice,
   seedWirelessDeviceModel
@@ -72,6 +81,30 @@ describe('Agent probes — end to end, server hosted off site', () => {
   let radioAnswer: Result<
     ReturnType<typeof FakeWirelessCollector.reading>
   >;
+  // The router behind the agent: what it was asked, and its queues.
+  let routerCalls: Array<{
+    action: string;
+    router: RouterConnection;
+    queue?: SuspensionQueue;
+    name?: string;
+  }>;
+  let routerQueues: SuspensionQueue[];
+  const fakeRouter: IRouterQueueService = {
+    listSuspensionQueues: async (router) => {
+      routerCalls.push({ action: 'list', router });
+      return Result.ok([...routerQueues]);
+    },
+    addSuspensionQueue: async (router, queue) => {
+      routerCalls.push({ action: 'add', router, queue });
+      routerQueues.push(queue);
+      return Result.ok();
+    },
+    removeSuspensionQueue: async (router, name) => {
+      routerCalls.push({ action: 'remove', router, name });
+      routerQueues = routerQueues.filter((q) => q.name !== name);
+      return Result.ok();
+    }
+  };
 
   beforeAll(async () => {
     process.env.SERVER_ON_SITE = 'false';
@@ -103,6 +136,8 @@ describe('Agent probes — end to end, server hosted off site', () => {
     runtime = null;
     pings = [];
     radioReads = [];
+    routerCalls = [];
+    routerQueues = [];
     radioAnswer = Result.ok(
       FakeWirelessCollector.reading({
         deviceName: 'CPE Torre Norte',
@@ -164,6 +199,7 @@ describe('Agent probes — end to end, server hosted off site', () => {
         new WirelessCollectorRegistry({ ubiquiti: radio }),
         logger
       ),
+      enforcer: new EnforceRunner(fakeRouter, logger),
       connect: (credentials, callbacks) =>
         new BackendConnection(
           credentials,
@@ -380,6 +416,109 @@ describe('Agent probes — end to end, server hosted off site', () => {
         AGENT_READ_FAILURES.PROBE_UNSUPPORTED
       );
       expect(radioReads).toHaveLength(0);
+    });
+  });
+
+  describe("[SVC-070] [AGT-111] suspensions go through the router's agent", () => {
+    let routerId: string;
+
+    beforeEach(async () => {
+      await cleanCustomers(prisma);
+      routerId = await seedDiagnosableDevice(
+        prisma,
+        await seedWirelessDeviceModel(prisma),
+        { ip: '192.168.77.1', withConfig: false }
+      );
+      await prisma.vendorSettings.create({
+        data: {
+          id: 1,
+          subscriptionPaidUntil: new Date('2099-01-01T00:00:00Z'),
+          subscriptionGraceDays: 1,
+          subscriptionReadOnlyDays: 2,
+          pingResultRetentionDays: 3,
+          alertRetentionDays: 4,
+          wirelessSnapshotRetentionDays: 5,
+          wirelessAlertRecordRetentionDays: 6,
+          enforcementRouterDeviceId: routerId,
+          enforcementRouterApiPort: 8728
+        }
+      });
+    });
+
+    afterAll(async () => {
+      await cleanCustomers(prisma);
+    });
+
+    async function suspendedService(): Promise<string> {
+      const customerId = await seedCustomer(prisma, {
+        phone: '3000000777'
+      });
+      const planId = await seedServicePlan(prisma, {
+        name: 'Plan 50',
+        monthlyPrice: 80000
+      });
+      const cpe = await seedMonitoredDevice(
+        prisma,
+        await seedDeviceModel(prisma),
+        '192.168.77.30'
+      );
+      const service = await prisma.contractedService.create({
+        data: {
+          customerId,
+          servicePlanId: planId,
+          deviceId: cpe.deviceId,
+          status: 'SUSPENDED',
+          startDate: new Date('2026-01-10T15:00:00Z')
+        }
+      });
+      return service.id;
+    }
+
+    it('reconciliation applies the 1k queue through the agent, with the router login', async () => {
+      await connectedAgentWith(routerId);
+      const serviceId = await suspendedService();
+
+      await container.suspensionReconciliationOrchestrator!.reconcile();
+
+      expect(routerCalls.map((c) => c.action)).toEqual([
+        'list',
+        'add'
+      ]);
+      expect(routerCalls[0].router).toEqual({
+        host: '192.168.77.1',
+        port: 8728,
+        username: 'ubnt',
+        password: 'secret'
+      });
+      expect(routerCalls[1].queue).toEqual({
+        name: `suspend-${serviceId}`,
+        targetIp: '192.168.77.30'
+      });
+    });
+
+    it('the suspensions list is read from the router through the agent', async () => {
+      await connectedAgentWith(routerId);
+      routerQueues = [
+        { name: 'suspend-x', targetIp: '192.168.77.99' }
+      ];
+
+      const res = await request(app)
+        .get('/api/enforcement/suspensions')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+      expect(JSON.stringify(res.body.data)).toContain(
+        '192.168.77.99'
+      );
+    });
+
+    it('an agent without enforce is never sent the router login', async () => {
+      await connectedAgentWith(routerId, ['probe']);
+      await suspendedService();
+
+      await container.suspensionReconciliationOrchestrator!.reconcile();
+
+      expect(routerCalls).toHaveLength(0);
     });
   });
 });

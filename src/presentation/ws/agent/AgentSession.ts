@@ -17,6 +17,8 @@ import {
   AgentPlatform,
   BackendMessage,
   CloseCode,
+  EnforceRequestMessage,
+  EnforceResultMessage,
   PingResultWire,
   ProbeRequestMessage,
   ProbeResultMessage,
@@ -43,21 +45,29 @@ const UPDATE_OUTCOMES = {
 
 type Unsent<T> = T extends unknown ? Omit<T, 'requestId'> : never;
 export type ProbeRequest = Unsent<ProbeRequestMessage>;
+export type EnforceRequest = Unsent<EnforceRequestMessage>;
 
-export type ProbeAnswer =
+type AnswerMessage = ProbeResultMessage | EnforceResultMessage;
+
+export type RequestAnswer<M extends AnswerMessage> =
   | {
       kind: 'answered';
-      result: ProbeResultMessage;
+      result: M;
       sentAt: Date;
       receivedAt: Date;
     }
   | { kind: 'timeout' }
   | { kind: 'closed' };
 
-interface PendingProbe {
+export type ProbeAnswer = RequestAnswer<ProbeResultMessage>;
+export type EnforceAnswer = RequestAnswer<EnforceResultMessage>;
+
+interface PendingRequest {
   sentAt: Date;
   timer: ReturnType<typeof setTimeout>;
-  settle(answer: ProbeAnswer): void;
+  // An answer of another type for this id is not this request's answer.
+  answerType: AnswerMessage['type'];
+  settle(answer: RequestAnswer<AnswerMessage>): void;
 }
 
 export interface AgentSessionConfig {
@@ -79,7 +89,7 @@ export class AgentSession {
   private runningVersion = '';
   private offeredVersion: string | null = null;
   private capabilities: readonly AgentCapability[] = [];
-  private readonly pending = new Map<string, PendingProbe>();
+  private readonly pending = new Map<string, PendingRequest>();
   private alive = true;
   private queue: Promise<void> = Promise.resolve();
   private readonly timers: ReturnType<typeof setTimeout>[] = [];
@@ -150,6 +160,15 @@ export class AgentSession {
     );
   }
 
+  // AGT-110: only an agent that said it applies queues is ever asked to.
+  get canEnforce(): boolean {
+    return (
+      this.greeted &&
+      !this.closed &&
+      this.capabilities.includes('enforce')
+    );
+  }
+
   // AGT-103: sent at once, outside the message queue, and answered by
   // request id; an answer that never comes ends as a timeout, and closing
   // the session ends every request still waiting.
@@ -158,23 +177,51 @@ export class AgentSession {
     timeoutMs: number
   ): Promise<ProbeAnswer> {
     if (!this.canProbe) return Promise.resolve({ kind: 'closed' });
+    return this.request<ProbeResultMessage>(
+      (requestId) =>
+        ({ ...request, requestId }) as ProbeRequestMessage,
+      'probe.result',
+      timeoutMs
+    );
+  }
+
+  // AGT-111: answered like a probe, by request id.
+  enforce(
+    request: EnforceRequest,
+    timeoutMs: number
+  ): Promise<EnforceAnswer> {
+    if (!this.canEnforce) return Promise.resolve({ kind: 'closed' });
+    return this.request<EnforceResultMessage>(
+      (requestId) =>
+        ({ ...request, requestId }) as EnforceRequestMessage,
+      'enforce.result',
+      timeoutMs
+    );
+  }
+
+  private request<M extends AnswerMessage>(
+    build: (requestId: string) => BackendMessage,
+    answerType: M['type'],
+    timeoutMs: number
+  ): Promise<RequestAnswer<M>> {
     const requestId = randomUUID();
     return new Promise((resolve) => {
-      const settle = (answer: ProbeAnswer) => {
+      const settle = (answer: RequestAnswer<AnswerMessage>) => {
         clearTimeout(pending.timer);
         this.pending.delete(requestId);
-        resolve(answer);
+        resolve(answer as RequestAnswer<M>);
       };
-      const pending: PendingProbe = {
+      const pending: PendingRequest = {
         sentAt: new Date(),
         timer: setTimeout(
           () => settle({ kind: 'timeout' }),
           timeoutMs
         ),
+        answerType,
         settle
       };
       this.pending.set(requestId, pending);
-      this.send({ ...request, requestId } as ProbeRequestMessage);
+      this.send(build(requestId));
     });
   }
 
@@ -220,7 +267,8 @@ export class AgentSession {
       case 'update.result':
         return this.onUpdateResult(message);
       case 'probe.result':
-        return this.onProbeResult(message, receivedAt);
+      case 'enforce.result':
+        return this.onAnswer(message, receivedAt);
     }
   }
 
@@ -445,15 +493,13 @@ export class AgentSession {
   }
 
   // An answer nobody waits for any more (it timed out) is dropped.
-  private onProbeResult(
-    message: ProbeResultMessage,
-    receivedAt: Date
-  ): void {
+  private onAnswer(message: AnswerMessage, receivedAt: Date): void {
     const pending = this.pending.get(message.requestId);
-    if (!pending) {
-      this.logger.debug('Agent answered a probe nobody waits for', {
+    if (!pending || pending.answerType !== message.type) {
+      this.logger.debug('Agent answered a request nobody waits for', {
         agentId: this.agentId,
-        requestId: message.requestId
+        requestId: message.requestId,
+        type: message.type
       });
       return;
     }

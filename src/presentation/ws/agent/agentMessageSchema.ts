@@ -141,6 +141,24 @@ const probeResult = z.union([
   })
 ]);
 
+const suspensionQueue = z.object({
+  name: z.string().max(128),
+  targetIp: z.string().max(64)
+});
+
+const enforceResult = z.union([
+  z.object({
+    type: z.literal('enforce.result'),
+    requestId,
+    queues: z.array(suspensionQueue).max(10_000).nullable()
+  }),
+  z.object({
+    type: z.literal('enforce.result'),
+    requestId,
+    error: z.string().max(500)
+  })
+]);
+
 const agentMessage = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('hello'),
@@ -193,6 +211,8 @@ export function parseAgentMessage(raw: string): AgentMessage | null {
   } catch {
     return null;
   }
-  const parsed = z.union([agentMessage, probeResult]).safeParse(json);
+  const parsed = z
+    .union([agentMessage, probeResult, enforceResult])
+    .safeParse(json);
   return parsed.success ? (parsed.data as AgentMessage) : null;
 }

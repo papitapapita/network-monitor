@@ -18,6 +18,7 @@ import {
 } from '../../../../src/domain/shared/ids';
 import { IPAddress } from '../../../../src/domain/shared/value-objects/IPAddress';
 import { Result } from '../../../../src/domain/shared/core/Result';
+import { AgentId } from '../../../../src/domain/shared/ids';
 import {
   makeVendorSettingsProps,
   vendorSettingsRepo
@@ -53,7 +54,7 @@ function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
 }
 
 function makeRouterDevice(
-  overrides: { ipAddress?: IPAddress | null } = {}
+  overrides: { ipAddress?: IPAddress | null; agentId?: AgentId } = {}
 ): Device {
   return Device.reconstitute(DeviceId.parse(ROUTER_UUID).value, {
     deviceModelId: DeviceModelId.parse(MODEL_UUID).value,
@@ -72,7 +73,8 @@ function makeRouterDevice(
     installedDate: null,
     createdAt: NOW,
     updatedAt: NOW,
-    monitoringEnabled: false
+    monitoringEnabled: false,
+    agentId: overrides.agentId ?? null
   });
 }
 
@@ -113,8 +115,24 @@ describe('EnforcementRouterResolver', () => {
       host: ROUTER_IP,
       port: 8728,
       username: 'api',
-      password: 'secret'
+      password: 'secret',
+      agentId: null
     });
+  });
+
+  it('[SVC-070] should name the agent the router device belongs to', async () => {
+    const setup = makeSetup();
+    const agentId = AgentId.create();
+    setup.deviceRepo.findById.mockResolvedValue(
+      Result.ok(makeRouterDevice({ agentId }))
+    );
+    setup.credentialsReader.findByDeviceId.mockResolvedValue(
+      Result.ok({ httpUsername: 'api', httpPassword: 'secret' })
+    );
+
+    const result = await setup.resolver.resolve();
+
+    expect(result.value.agentId).toBe(agentId.toString());
   });
 
   it('[SVC-060] should fail as not configured while no router is set', async () => {

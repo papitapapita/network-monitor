@@ -8,6 +8,7 @@ import { FilePermissionProtector } from '../../src/agent/identity/SecretProtecto
 import { EnrollOutcome } from '../../src/agent/identity/enrollAgent';
 import { PollScheduler } from '../../src/agent/polling/PollScheduler';
 import { ResultBuffer } from '../../src/agent/results/ResultBuffer';
+import { EnforceRunner } from '../../src/agent/enforce/EnforceRunner';
 import { ProbeRunner } from '../../src/agent/probes/ProbeRunner';
 import {
   BackendConnection,
@@ -62,6 +63,7 @@ describe('AgentRuntime', () => {
   };
 
   const probes = { run: jest.fn() };
+  const enforcer = { run: jest.fn() };
 
   const build = async (pairingKey: string | null = null) => {
     buffer = await ResultBuffer.open(dir, silentLogger());
@@ -85,6 +87,7 @@ describe('AgentRuntime', () => {
       buffer,
       scheduler,
       probes: probes as unknown as ProbeRunner,
+      enforcer: enforcer as unknown as EnforceRunner,
       connect: (_credentials, given) => {
         callbacks = given;
         return connection as unknown as BackendConnection;

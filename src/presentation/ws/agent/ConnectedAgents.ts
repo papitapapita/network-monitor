@@ -1,14 +1,22 @@
 import { ILogger } from 'application/shared/interfaces';
 import type {
+  AgentEnforceOutcome,
+  AgentEnforceRequest,
   AgentPingOutcome,
   AgentProbeFailure,
   AgentProbeOutcome,
   AgentRadioRequest,
+  IAgentEnforceChannel,
   IAgentProbeChannel
 } from 'application/probe-agents/interfaces';
+import type { RouterConnection } from 'application/service-enforcement/interfaces';
 import type { WirelessCollectionResult } from 'application/wireless-monitoring/interfaces';
 import { ProbeResultMessage } from 'agent/protocol';
-import { AgentSession, ProbeRequest } from './AgentSession';
+import {
+  AgentSession,
+  EnforceRequest,
+  ProbeRequest
+} from './AgentSession';
 import {
   fromPingReadingWire,
   fromWirelessReadingWire,
@@ -22,18 +30,25 @@ export interface ProbeTimeouts {
   // A manual radio read (WLS-029) sits behind the same proxy. A login and a
   // status read take a few seconds on a healthy radio.
   wirelessMs: number;
+  // A router login plus one queue command; a cut run sends them in a row.
+  enforceMs?: number;
 }
 
 export const DEFAULT_PROBE_TIMEOUTS: ProbeTimeouts = {
   pingMs: 25_000,
-  wirelessMs: 25_000
+  wirelessMs: 25_000,
+  enforceMs: 20_000
 };
+
+const DEFAULT_ENFORCE_MS = 20_000;
 
 // The agents connected right now, one session each (AGT-045), and the way
 // the rest of the backend asks one of them to measure a device (AGT-103).
 // Built before the gateway that fills it, so the use cases that probe
 // through an agent need not wait for the WebSocket server.
-export class ConnectedAgents implements IAgentProbeChannel {
+export class ConnectedAgents
+  implements IAgentProbeChannel, IAgentEnforceChannel
+{
   private readonly sessions = new Map<string, AgentSession>();
 
   constructor(
@@ -108,6 +123,52 @@ export class ConnectedAgents implements IAgentProbeChannel {
       reading: fromWirelessReadingWire(answer.result.reading),
       measuredAt: answer.measuredAt
     };
+  }
+
+  async enforce(
+    agentId: string,
+    router: RouterConnection,
+    request: AgentEnforceRequest
+  ): Promise<AgentEnforceOutcome> {
+    const session = this.sessions.get(agentId);
+    if (!session) {
+      return fail('AGENT_OFFLINE', 'The agent is not connected');
+    }
+    if (!session.canEnforce) {
+      return fail(
+        'PROBE_UNSUPPORTED',
+        'The agent must be updated to apply suspensions'
+      );
+    }
+    const timeoutMs =
+      this.probeTimeouts.enforceMs ?? DEFAULT_ENFORCE_MS;
+    const answer = await session.enforce(
+      {
+        type: 'enforce',
+        router: {
+          host: router.host,
+          port: router.port,
+          username: router.username,
+          password: router.password
+        },
+        ...request
+      } as EnforceRequest,
+      timeoutMs
+    );
+    switch (answer.kind) {
+      case 'closed':
+        return fail('AGENT_OFFLINE', 'The agent disconnected');
+      case 'timeout':
+        this.logger.warn('Agent enforce request timed out', {
+          agentId,
+          action: request.action,
+          timeoutMs
+        });
+        return fail('TIMEOUT', 'The agent did not answer in time');
+    }
+    const { result } = answer;
+    if ('error' in result) return fail('AGENT_ERROR', result.error);
+    return { ok: true, queues: result.queues };
   }
 
   private async probe(

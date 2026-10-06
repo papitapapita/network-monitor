@@ -6,3 +6,4 @@ export * from './IAgentDeviceCountQuery';
 export * from './IAgentOutageQuery';
 export * from './IAgentReleaseCatalog';
 export * from './IAgentProbeChannel';
+export * from './IAgentEnforceChannel';

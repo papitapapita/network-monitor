@@ -35,14 +35,14 @@ Format and conventions: [README.md](README.md).
 
 ## ID ranges
 
-| Range                 | Area                    |
-| --------------------- | ----------------------- |
-| `AGT-001` … `AGT-019` | Enrollment and identity |
-| `AGT-020` … `AGT-039` | Liveness                |
-| `AGT-040` … `AGT-059` | Connection and protocol |
-| `AGT-060` … `AGT-079` | The agent program       |
-| `AGT-080` … `AGT-099` | Updates                 |
-| `AGT-100` … `AGT-119` | Probe requests          |
+| Range                 | Area                      |
+| --------------------- | ------------------------- |
+| `AGT-001` … `AGT-019` | Enrollment and identity   |
+| `AGT-020` … `AGT-039` | Liveness                  |
+| `AGT-040` … `AGT-059` | Connection and protocol   |
+| `AGT-060` … `AGT-079` | The agent program         |
+| `AGT-080` … `AGT-099` | Updates                   |
+| `AGT-100` … `AGT-119` | Requests from the backend |
 
 ## Layer coverage
 
@@ -53,8 +53,8 @@ A rule enforced in two layers counts in both.
 | Domain                       | 11    |
 | Application                  | 19    |
 | Infrastructure (composition) | 13    |
-| Presentation                 | 13    |
-| Agent program                | 17    |
+| Presentation                 | 15    |
+| Agent program                | 20    |
 
 ---
 
@@ -1216,7 +1216,7 @@ asked for by hand, at up to 3 attempts (MON-021, MON-022), and a radio can be
 read by hand too (WLS-029), so both give up before the 30-second HTTP proxy
 does. A login and a status read take a few seconds on a healthy radio.
 
-**Enforced at:** `src/presentation/ws/agent/ConnectedAgents.ts` (`ping`, `readRadio`), `src/presentation/ws/agent/AgentSession.ts` (`probe`, `onProbeResult`), `src/presentation/ws/agent/agentMessageSchema.ts`, `src/presentation/ws/agent/probeWire.ts`, `src/application/probe-agents/interfaces/IAgentProbeChannel.ts`
+**Enforced at:** `src/presentation/ws/agent/ConnectedAgents.ts` (`ping`, `readRadio`), `src/presentation/ws/agent/AgentSession.ts` (`probe`, `onAnswer`), `src/presentation/ws/agent/agentMessageSchema.ts`, `src/presentation/ws/agent/probeWire.ts`, `src/application/probe-agents/interfaces/IAgentProbeChannel.ts`
 **Tests:** `tests/integration/agent-gateway.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/presentation/ws/agent/probeWire.test.ts`, `tests/integration/agent-probes.test.ts`
 
 ### AGT-104 — A probe reading is timed on the backend's clock, between asking and the answer
@@ -1236,3 +1236,64 @@ it arrived.
 
 **Enforced at:** `src/presentation/ws/agent/probeWire.ts` (`measuredAt`), `src/presentation/ws/agent/ConnectedAgents.ts`
 **Tests:** `tests/presentation/ws/agent/probeWire.test.ts`, `tests/integration/agent-gateway.test.ts`
+
+### AGT-110 — Only an agent that names `enforce` is asked to change the router
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Presentation · Agent program
+**Since:** 2026-10-06
+
+From version `0.4.0` the hello names `enforce` beside `probe`. The backend
+sends an enforce request only to an agent that named it; any other answers
+`PROBE_UNSUPPORTED` ("The agent must be updated to apply suspensions")
+without being asked, and is never sent the router's login.
+
+**Why:** As `AGT-100`: an agent that does not understand the request would
+leave the backend waiting, and an older one must never receive the router's
+password.
+
+**Enforced at:** `src/agent/protocol/messages.ts` (`AGENT_CAPABILITIES`), `src/presentation/ws/agent/AgentSession.ts` (`canEnforce`), `src/presentation/ws/agent/ConnectedAgents.ts` (`enforce`)
+**Tests:** `tests/integration/agent-probes.test.ts`
+
+### AGT-111 — An agent reads and changes the router's suspension queues when asked, one request at a time
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program · Presentation
+**Since:** 2026-10-06
+
+An enforce request names a request id, the router's address, API port and
+login, and one action:
+
+| Action   | Carries            | Answer                         |
+| -------- | ------------------ | ------------------------------ |
+| `list`   | —                  | the router's suspension queues |
+| `add`    | queue name, target | `queues: null`                 |
+| `remove` | queue name         | `queues: null`                 |
+
+The agent uses the backend's own RouterOS client, so a queue it writes is the
+one the server would write (`SVC-022`, `SVC-023`). A router that refuses or a
+request that crashes is answered with an error. Requests run one at a time,
+in arrival order. The backend waits 20 seconds for an answer; offline,
+unsupported, timeout and error end the request as in `AGT-103`.
+
+**Why:** ADR 0002 and 0003: off site the server cannot reach the router, and
+the agent sits beside it. One at a time, because the router's API is one
+login and a cut run sends requests in a burst.
+
+**Enforced at:** `src/agent/enforce/EnforceRunner.ts`, `src/agent/connection/BackendConnection.ts`, `src/agent/AgentRuntime.ts`, `src/agent/main.ts`, `src/presentation/ws/agent/AgentSession.ts` (`enforce`, `onAnswer`), `src/presentation/ws/agent/ConnectedAgents.ts` (`enforce`), `src/presentation/ws/agent/agentMessageSchema.ts`, `src/application/probe-agents/interfaces/IAgentEnforceChannel.ts`
+**Tests:** `tests/agent/enforce/EnforceRunner.test.ts`, `tests/agent/connection/BackendConnection.test.ts`, `tests/agent/importBoundary.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/integration/agent-probes.test.ts`
+
+### AGT-112 — The router login in an enforce request is used for that request and kept nowhere
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Agent program
+**Since:** 2026-10-06
+
+As `AGT-102`, for the router: its login is used for the one request, not
+saved, and not logged.
+
+**Why:** The router's API login can change every customer's service. It must
+never sit on the customer's PC.
+
+**Enforced at:** `src/agent/enforce/EnforceRunner.ts`
+**Tests:** `tests/agent/enforce/EnforceRunner.test.ts`

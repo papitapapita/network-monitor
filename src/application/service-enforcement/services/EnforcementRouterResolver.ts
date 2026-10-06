@@ -79,7 +79,8 @@ export class EnforcementRouterResolver {
       host: device.ipAddress.value,
       port: router.apiPort,
       username: credentials.httpUsername,
-      password: credentials.httpPassword
+      password: credentials.httpPassword,
+      agentId: device.agentId?.toString() ?? null
     });
   }
 }
