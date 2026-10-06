@@ -166,4 +166,52 @@ describe('BillingCycle.openAt', () => {
 
     expect(cycle!.period.toString()).toBe('2026-12');
   });
+
+  it("[BIL-289] knows last month's issue day for the same customer", () => {
+    const cycle = BillingCycle.openAt(
+      bogota('2026-10-12T06:00:00'),
+      15,
+      settings()
+    );
+
+    expect(cycle!.previousIssueDay.toISOString()).toBe(
+      '2026-09-10T00:00:00.000Z'
+    );
+  });
+
+  it("[BIL-289] last month's issue day follows a short month's last day", () => {
+    const cycle = BillingCycle.openAt(
+      bogota('2027-03-26T06:00:00'),
+      30,
+      settings()
+    );
+
+    // February 2027 has 28 days: due the 28th, issued the 23rd.
+    expect(cycle!.previousIssueDay.toISOString()).toBe(
+      '2027-02-23T00:00:00.000Z'
+    );
+  });
+
+  it("[BIL-289] January's cycle looks back to December", () => {
+    const cycle = BillingCycle.openAt(
+      bogota('2027-01-12T06:00:00'),
+      15,
+      settings()
+    );
+
+    expect(cycle!.previousIssueDay.toISOString()).toBe(
+      '2026-12-10T00:00:00.000Z'
+    );
+  });
+
+  it('[BIL-287] covers a service that starts by the last local day of the billed month', () => {
+    const cycle = BillingCycle.openAt(
+      bogota('2026-10-12T06:00:00'),
+      15,
+      settings({ billingMode: BillingMode.ARREARS })
+    )!;
+
+    expect(cycle.covers(bogota('2026-09-30T23:59:59'))).toBe(true);
+    expect(cycle.covers(bogota('2026-10-01T00:00:00'))).toBe(false);
+  });
 });

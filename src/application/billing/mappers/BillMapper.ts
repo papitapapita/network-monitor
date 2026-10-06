@@ -1,4 +1,4 @@
-import { Bill, BillLineItem } from 'domain/billing';
+import { Bill, BillLineItem, isoDay } from 'domain/billing';
 import {
   BillLineItemDTO,
   BillResponseDTO,
@@ -44,7 +44,14 @@ export class BillMapper {
       contractedServiceId: item.contractedServiceId.toString(),
       servicePlanId: item.servicePlanId.toString(),
       planName: item.planName,
-      monthlyPrice: item.monthlyPrice.toNumber()
+      monthlyPrice: item.monthlyPrice.toNumber(),
+      amount: item.amount.toNumber(),
+      serviceFrom: item.servicePeriod
+        ? isoDay(item.servicePeriod.from)
+        : null,
+      serviceTo: item.servicePeriod
+        ? isoDay(item.servicePeriod.to)
+        : null
     };
   }
 }

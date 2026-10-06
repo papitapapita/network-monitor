@@ -10,7 +10,8 @@ import { Bill } from 'domain/billing/aggregates';
 import { BillStatus } from 'domain/billing/enums';
 import {
   BillingPeriod,
-  BillLineItem
+  BillLineItem,
+  ServicePeriod
 } from 'domain/billing/value-objects';
 import { BillStatus as PrismaBillStatus } from 'generated/prisma/client';
 
@@ -21,6 +22,9 @@ interface BillLineItemRecord {
   servicePlanId: string;
   planName: string;
   monthlyPrice: number | { toNumber(): number };
+  amount: number | { toNumber(): number };
+  serviceFrom: Date | null;
+  serviceTo: Date | null;
 }
 
 interface BillRecord {
@@ -105,6 +109,9 @@ export class BillPrismaMapper {
       servicePlanId: string;
       planName: string;
       monthlyPrice: number;
+      amount: number;
+      serviceFrom: Date | null;
+      serviceTo: Date | null;
     }[];
   } {
     const billId = bill.id.toString();
@@ -128,7 +135,10 @@ export class BillPrismaMapper {
         contractedServiceId: item.contractedServiceId.toString(),
         servicePlanId: item.servicePlanId.toString(),
         planName: item.planName,
-        monthlyPrice: item.monthlyPrice.toNumber()
+        monthlyPrice: item.monthlyPrice.toNumber(),
+        amount: item.amount.toNumber(),
+        serviceFrom: item.servicePeriod?.from ?? null,
+        serviceTo: item.servicePeriod?.to ?? null
       }))
     };
   }
@@ -162,11 +172,34 @@ export class BillPrismaMapper {
       );
     }
 
+    const amountResult = Money.create(Number(raw.amount));
+    if (amountResult.isFailure) {
+      return Result.fail<BillLineItem>(
+        `Invalid amount: ${amountResult.error}`
+      );
+    }
+
+    let servicePeriod: ServicePeriod | null = null;
+    if (raw.serviceFrom !== null && raw.serviceTo !== null) {
+      const periodResult = ServicePeriod.create(
+        raw.serviceFrom,
+        raw.serviceTo
+      );
+      if (periodResult.isFailure) {
+        return Result.fail<BillLineItem>(
+          `Invalid service period: ${periodResult.error}`
+        );
+      }
+      servicePeriod = periodResult.value;
+    }
+
     return BillLineItem.create({
       contractedServiceId: contractedServiceIdResult.value,
       servicePlanId: servicePlanIdResult.value,
       planName: raw.planName,
-      monthlyPrice: moneyResult.value
+      monthlyPrice: moneyResult.value,
+      amount: amountResult.value,
+      servicePeriod
     });
   }
 

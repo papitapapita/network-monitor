@@ -3490,7 +3490,7 @@ Uses the standard `{ success, data }` envelope.
 
 ## Bills `/api/bills`
 
-One bill per customer per billing period (`'YYYY-MM'`). Line items snapshot the plan name and price **at generation time** — later plan price changes never affect existing bills. `total` is the sum of line items.
+One bill per customer per billing period (`'YYYY-MM'`). Line items snapshot the plan name and price **at generation time** — later plan price changes never affect existing bills. Each line's `amount` is what it charges: the monthly price, or a prorated share on bills from the daily automatic run (BIL-287…290). `total` is the sum of the line amounts.
 
 **Lifecycle:** `PENDING → PAID | OVERDUE | CANCELLED`. `PAID` and `CANCELLED` are terminal. `OVERDUE` bills can still be paid or cancelled.
 
@@ -3500,6 +3500,9 @@ interface BillLineItemDTO {
   servicePlanId: string; // UUID
   planName: string; // snapshot at generation time
   monthlyPrice: number; // snapshot at generation time
+  amount: number; // charged: monthlyPrice, or a prorated share in whole pesos
+  serviceFrom: string | null; // 'YYYY-MM-DD', first day charged; null on lines before 2026-10-06
+  serviceTo: string | null; // 'YYYY-MM-DD', last day charged (included)
 }
 
 interface BillDTO {
@@ -3510,7 +3513,7 @@ interface BillDTO {
   issueDate: string; // ISO 8601
   dueDate: string; // ISO 8601
   paidAt: string | null; // ISO 8601 — null until marked paid
-  total: number; // sum of lineItems monthlyPrice
+  total: number; // sum of lineItems amount
   lineItems: BillLineItemDTO[];
   createdAt: string; // ISO 8601
   updatedAt: string;
@@ -3539,6 +3542,7 @@ interface BillDTO {
 **Business rules:**
 
 - One line item per **ACTIVE** contracted service of the customer (PENDING/SUSPENDED/CANCELLED services are excluded).
+- Every line charges the full monthly price for the whole month (`serviceFrom`/`serviceTo` = the period's first and last day), whatever the service's start date. Only the automatic run prorates (BIL-291).
 - Returns 409 if the customer has no ACTIVE contracted services.
 - Returns 409 if a non-cancelled bill already exists for this customer + period. Cancelled bills don't block regeneration.
 - Returns 404 if the customer does not exist.
@@ -3701,6 +3705,12 @@ issues each customer's bill on its own and marks unpaid bills `OVERDUE`:
 - Only customers with an `ACTIVE` service are billed; a period that already
   has a bill — even a cancelled one — is never billed again by the run
   (BIL-284).
+- Its bills are prorated: a service that started inside the billed month is
+  charged from its start day, at monthly price × days ÷ days in that month, in
+  whole pesos; one starting after the month waits for the next bill
+  (BIL-287, BIL-288, BIL-290). In `ADVANCE` mode a service started on or after
+  last month's issue day that no bill for last month holds also pays last
+  month's remaining days (BIL-289).
 - After the due date, every `PENDING` bill goes `OVERDUE`, hand-made ones too
   (BIL-286).
 

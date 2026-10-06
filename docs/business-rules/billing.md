@@ -31,9 +31,9 @@ Format and conventions: [README.md](README.md).
 
 | Layer                     | Rules |
 | ------------------------- | ----- |
-| Application               | 27    |
+| Application               | 28    |
 | Domain (aggregate)        | 28    |
-| Domain (value object)     | 11    |
+| Domain (value object)     | 15    |
 | Presentation              | 6     |
 | Infrastructure (database) | 7     |
 | Infrastructure (PDF)      | 1     |
@@ -263,7 +263,10 @@ same rule stated at the point where it can be explained usefully.
 **Since:** 2026-08-05
 
 All four of `contractedServiceId`, `servicePlanId`, `planName` and
-`monthlyPrice` are required.
+`monthlyPrice` are required. Each line also records its `amount` — what it
+charges, the monthly price unless prorated (`BIL-290`) — and the days it covers
+(`serviceFrom` … `serviceTo`). Lines issued before 2026-10-06 have their monthly
+price as the amount and no days.
 
 **Why:** The ids let the line be traced back to what was being billed; the name
 and price are what the subscriber reads. Neither pair substitutes for the other
@@ -316,7 +319,7 @@ rely on the catalogue to have checked.
 **Layer:** Domain
 **Since:** 2026-08-05
 
-`total` sums the line items in cents each time it is read.
+`total` sums the line items' amounts in cents each time it is read.
 
 **Why:** A stored total is a second source of truth that can disagree with the
 lines beneath it — and when it does, nobody can tell which is right. Summing on
@@ -335,7 +338,7 @@ counts cents (`SHR-040`).
 **Why:** The `CUS-037` reasoning, applied to the frozen copy. A float column
 would let a total drift by a cent between what was billed and what is displayed.
 
-**Backed by:** `BillLineItem.monthlyPrice @db.Decimal(12, 2)` in `prisma/schema.prisma`
+**Backed by:** `BillLineItem.monthlyPrice @db.Decimal(12, 2)`, `BillLineItem.amount @db.Decimal(12, 2)` in `prisma/schema.prisma`
 **Tests:** `tests/application/billing/mappers/BillMapper.test.ts`
 
 ### BIL-036 — Deleting a bill deletes its line items
@@ -548,8 +551,8 @@ PENDING, SUSPENDED and CANCELLED subscriptions produce no line item.
 A pending installation has not started; a suspended line is not being provided.
 Billing either would charge for something the subscriber did not receive.
 
-**Enforced at:** `src/application/billing/use-cases/GenerateBillUseCase.ts`
-**Tests:** `tests/application/billing/use-cases/GenerateBillUseCase.test.ts`
+**Enforced at:** `src/application/billing/use-cases/GenerateBillUseCase.ts`, `src/presentation/http/controllers/BillController.ts` (`generate` passes only the request's documented fields)
+**Tests:** `tests/application/billing/use-cases/GenerateBillUseCase.test.ts`, `tests/integration/bill.routes.test.ts`
 
 **Note on partial months.** The rule reads status at the moment of generation,
 not across the period. A subscription suspended on the 28th is billed in full
@@ -1424,3 +1427,92 @@ depend on someone remembering to press a button.
 
 **Enforced at:** `src/application/billing/use-cases/RunBillingCycleUseCase.ts`
 **Tests:** `tests/application/billing/use-cases/RunBillingCycleUseCase.test.ts`, `tests/integration/use-cases/billing/RunBillingCycleUseCase.integration.test.ts`
+
+### BIL-287 — A service that starts after the billed month is left off the bill
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (value object)
+**Since:** 2026-10-06
+
+The daily run leaves off any service whose start day, in Colombian time, falls
+after the billed month. A customer whose services all start after it gets no
+bill that cycle, and the run does not count it as a failure.
+
+**Why:** Paid after use, a customer who joined on 2 October owes nothing for
+September; their first bill, in November, charges from 2 October (`BIL-288`).
+
+**Enforced at:** `src/domain/billing/value-objects/ServicePeriod.ts` (`forAutomaticBill`), `src/domain/billing/value-objects/BillingCycle.ts` (`covers`), `src/application/billing/use-cases/RunBillingCycleUseCase.ts`
+**Message:** `Customer has no services to bill for period <YYYY-MM>`
+**Tests:** `tests/domain/billing/value-objects/ServicePeriod.test.ts`, `tests/domain/billing/value-objects/BillingCycle.test.ts`, `tests/application/billing/use-cases/GenerateBillUseCase.test.ts`, `tests/application/billing/use-cases/RunBillingCycleUseCase.test.ts`, `tests/integration/use-cases/billing/RunBillingCycleUseCase.integration.test.ts`
+
+### BIL-288 — A service that started inside the billed month is charged from its first day
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (value object)
+**Since:** 2026-10-06
+
+On a bill from the daily run, a service that started inside the billed month is
+charged from its start day (Colombian date) to the month's last day. A service
+that started earlier is charged the whole month.
+
+**Why:** A new customer pays for the days they had service, not for the whole
+month.
+
+**Enforced at:** `src/domain/billing/value-objects/ServicePeriod.ts` (`forAutomaticBill`)
+**Tests:** `tests/domain/billing/value-objects/ServicePeriod.test.ts`, `tests/application/billing/use-cases/GenerateBillUseCase.test.ts`, `tests/integration/use-cases/billing/RunBillingCycleUseCase.integration.test.ts`
+
+### BIL-289 — Paid in advance, a first bill also charges the days missed last month
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (value object)
+**Since:** 2026-10-06
+
+In `ADVANCE` mode, a service that started on or after last month's issue day
+for the same customer, and is on none of the customer's non-cancelled bills for
+last month, is charged from its start day. Its line covers the rest of last
+month plus the whole billed month. Example (15th group, issued the 10th): a
+service starting 20 September is billed in October for 20 September through
+31 October.
+
+**Why:** Paid in advance, September's bill went out before the service existed,
+so without this rule those days would never be billed. A service that was
+already on a September bill is not charged for them twice.
+
+**Enforced at:** `src/domain/billing/value-objects/ServicePeriod.ts` (`forAutomaticBill`), `src/domain/billing/value-objects/BillingCycle.ts` (`previousIssueDay`), `src/application/billing/use-cases/GenerateBillUseCase.ts` (`billedLastPeriod`)
+**Tests:** `tests/domain/billing/value-objects/ServicePeriod.test.ts`, `tests/domain/billing/value-objects/BillingCycle.test.ts`, `tests/application/billing/use-cases/GenerateBillUseCase.test.ts`, `tests/integration/use-cases/billing/RunBillingCycleUseCase.integration.test.ts`
+
+### BIL-290 — Part of a month costs its share of the monthly price, in whole pesos
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (value object)
+**Since:** 2026-10-06
+
+Each whole month in a line's days costs the monthly price. Each partial month
+costs monthly price × days used ÷ days in that month; the partial share is
+rounded to the nearest whole peso. For example, 21 of October's 31 days at
+80 000 is 54 194. The line keeps the plan's monthly price and the charged
+`amount` side by side, and the bill's total sums the amounts (`BIL-034`).
+
+**Why:** Dividing by the month's own length makes a full month cost exactly the
+monthly price, whatever the month. Rounding to whole pesos keeps cents off a
+Colombian bill.
+
+**Enforced at:** `src/domain/billing/value-objects/ServicePeriod.ts` (`chargeFor`), `src/domain/billing/aggregates/Bill.ts` (`total`)
+**Backed by:** `BillLineItem.amount`, `serviceFrom`, `serviceTo` in `prisma/schema.prisma`; `prisma/migrations/20261006180000_bill_line_item_amount` (existing lines get amount = monthly price)
+**Tests:** `tests/domain/billing/value-objects/ServicePeriod.test.ts`, `tests/domain/billing/aggregates/Bill.test.ts`, `tests/application/billing/mappers/BillMapper.test.ts`
+
+### BIL-291 — A bill made by hand charges the whole month
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-06
+
+`POST /api/bills/generate` and `POST /api/bills/generate-bulk` charge every active
+service the full monthly price for the whole period, whatever its start day.
+Only the daily run prorates.
+
+**Why:** An operator who bills by hand decides the amount; the system does not
+silently change it.
+
+**Enforced at:** `src/application/billing/use-cases/GenerateBillUseCase.ts`, `src/presentation/http/controllers/BillController.ts` (`generate` passes only the request's documented fields)
+**Tests:** `tests/application/billing/use-cases/GenerateBillUseCase.test.ts`, `tests/integration/bill.routes.test.ts`

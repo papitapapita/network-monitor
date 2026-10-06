@@ -71,7 +71,8 @@ export class GetBillPdfUseCase extends UseCase<
       total: bill.total.toNumber(),
       lineItems: bill.lineItems.map((item) => ({
         planName: item.planName,
-        monthlyPrice: item.monthlyPrice.toNumber()
+        amount: item.amount.toNumber(),
+        servicePeriod: item.servicePeriod?.toString() ?? null
       })),
       customer: {
         fullName: customer.fullName,

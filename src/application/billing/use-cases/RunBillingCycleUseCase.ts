@@ -2,7 +2,8 @@ import { Result } from 'domain/shared/core';
 import { CustomerId } from 'domain/shared/ids';
 import {
   BillingCycle,
-  BillingSettings
+  BillingSettings,
+  isoDay
 } from 'domain/billing/value-objects';
 import {
   IBillRepository,
@@ -22,7 +23,9 @@ type Failures = BillingCycleRunResultDTO['failed'];
 // The daily billing run (BIL-284): marks unpaid bills overdue once their due
 // date has passed, then issues the bills whose issue window is open. Does
 // nothing while automatic billing is off. Safe to repeat: a period already
-// billed — even cancelled — is never billed again by the run.
+// billed — even cancelled — is never billed again by the run. Bills it issues
+// are prorated (BIL-287..290); a customer whose services all start after the
+// billed month waits for the next cycle.
 export class RunBillingCycleUseCase extends UseCase<
   RunBillingCycleRequestDTO,
   BillingCycleRunResultDTO
@@ -118,6 +121,8 @@ export class RunBillingCycleUseCase extends UseCase<
         settings
       );
       if (cycle === null) continue;
+      if (!cycle.covers(new Date(customer.firstServiceStart)))
+        continue;
 
       const id = customer.customerId;
       const customerId = CustomerId.parse(id);
@@ -141,7 +146,11 @@ export class RunBillingCycleUseCase extends UseCase<
         year: cycle.period.year,
         month: cycle.period.month,
         issueDate: now.toISOString(),
-        dueDate: cycle.dueDate.toISOString()
+        dueDate: cycle.dueDate.toISOString(),
+        proration: {
+          billingMode: settings.billingMode,
+          previousIssueDay: isoDay(cycle.previousIssueDay)
+        }
       });
       if (bill.isFailure) {
         failed.push({ id, error: bill.error! });

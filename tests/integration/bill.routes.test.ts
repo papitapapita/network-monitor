@@ -156,9 +156,44 @@ describe('Bill Routes — /api/bills', () => {
       expect(res.body.data.lineItems[0]).toMatchObject({
         servicePlanId,
         planName: 'Test Plan 50/10',
-        monthlyPrice: 80000
+        monthlyPrice: 80000,
+        amount: 80000,
+        serviceFrom: '2026-01-01',
+        serviceTo: '2026-01-31'
       });
       expect(res.body.data.paidAt).toBeNull();
+    });
+
+    it('[BIL-291] 201 — a bill made by hand charges the whole month, even when asked to prorate', async () => {
+      const joinedLate = await seedCustomer(prisma, {
+        phone: '3001234568'
+      });
+      await seedActiveContractedService(
+        prisma,
+        joinedLate,
+        servicePlanId,
+        { startDate: new Date('2026-01-20T15:00:00.000Z') }
+      );
+
+      const res = await request(app)
+        .post('/api/bills/generate')
+        .set('Authorization', auth())
+        .send({
+          customerId: joinedLate,
+          year: 2026,
+          month: 1,
+          proration: {
+            billingMode: 'ADVANCE',
+            previousIssueDay: '2025-12-10'
+          }
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.total).toBe(80000);
+      expect(res.body.data.lineItems[0]).toMatchObject({
+        amount: 80000,
+        serviceFrom: '2026-01-01'
+      });
     });
 
     it('409 — a duplicate bill for the same customer and period is rejected', async () => {

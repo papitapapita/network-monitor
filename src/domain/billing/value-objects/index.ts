@@ -4,3 +4,4 @@ export * from './CollectionAccountLineItem';
 export * from './BankAccountDetails';
 export * from './BillingSettings';
 export * from './BillingCycle';
+export * from './ServicePeriod';

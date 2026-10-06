@@ -221,7 +221,7 @@ describe('GetBillPdfUseCase', () => {
     expect(model.status).toBe('PENDING');
     expect(model.total).toBe(19.99);
     expect(model.lineItems).toEqual([
-      { planName: 'Fiber 50/10', monthlyPrice: 19.99 }
+      { planName: 'Fiber 50/10', amount: 19.99, servicePeriod: null }
     ]);
     expect(model.customer.fullName).toBe('Juan Perez');
     expect(model.customer.email).toBeNull();

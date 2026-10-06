@@ -21,10 +21,18 @@ import {
   ServicePlan
 } from '../../../../src/domain/customers';
 import {
+  BillId,
   CustomerId,
   ServicePlanId,
   DeviceId
 } from '../../../../src/domain/shared/ids';
+import {
+  Bill,
+  BillLineItem,
+  BillStatus,
+  BillingPeriod
+} from '../../../../src/domain/billing';
+import { Money } from '../../../../src/domain/shared/value-objects';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
@@ -104,15 +112,41 @@ function makePlanRepo(): jest.Mocked<IServicePlanRepository> {
 
 function makeActiveService(
   customerId: CustomerId,
-  servicePlanId: ServicePlanId
+  servicePlanId: ServicePlanId,
+  startDate: Date = NOW
 ): ContractedService {
   return ContractedService.create({
     customerId,
     servicePlanId,
     deviceId: DeviceId.create(),
     status: ContractedServiceStatus.ACTIVE,
-    startDate: NOW
+    startDate
   }).value;
+}
+
+function makeLastMonthBill(
+  customerId: CustomerId,
+  service: ContractedService,
+  status: BillStatus
+): Bill {
+  return Bill.reconstitute(BillId.create(), {
+    customerId,
+    period: BillingPeriod.create(2024, 2).value,
+    status,
+    lineItems: [
+      BillLineItem.create({
+        contractedServiceId: service.id,
+        servicePlanId: service.servicePlanId,
+        planName: 'Fiber 50/10',
+        monthlyPrice: Money.create(19990).value
+      }).value
+    ],
+    issueDate: NOW,
+    dueDate: NOW,
+    paidAt: status === BillStatus.PAID ? NOW : null,
+    createdAt: NOW,
+    updatedAt: NOW
+  });
 }
 
 function makePlan(
@@ -207,6 +241,182 @@ describe('GenerateBillUseCase', () => {
     expect(dto.total).toBe(44990.75);
     expect(dto.status).toBe('PENDING');
     expect(billRepo.save).toHaveBeenCalledTimes(1);
+  });
+
+  it('[BIL-291] a bill made by hand charges every active service the whole month', async () => {
+    const plan = makePlan({ monthlyPrice: 19990 });
+    const service = makeActiveService(
+      customerId,
+      plan.id,
+      new Date('2024-03-20T15:00:00.000Z')
+    );
+    (serviceRepo.findByCustomerId as any).mockResolvedValue(
+      Result.ok([service])
+    );
+    (planRepo.findById as any).mockResolvedValue(Result.ok(plan));
+
+    const result = await useCase.execute({
+      customerId: CUSTOMER_UUID,
+      year: 2024,
+      month: 3
+    });
+
+    expect(result.value.lineItems[0]).toMatchObject({
+      monthlyPrice: 19990,
+      amount: 19990,
+      serviceFrom: '2024-03-01',
+      serviceTo: '2024-03-31'
+    });
+    expect(billRepo.findAll).not.toHaveBeenCalled();
+  });
+
+  describe('prorated (automatic run)', () => {
+    const PRORATION = {
+      billingMode: 'ADVANCE',
+      previousIssueDay: '2024-02-10'
+    };
+    let plan: ServicePlan;
+
+    function startedOn(iso: string): ContractedService {
+      const service = makeActiveService(
+        customerId,
+        plan.id,
+        new Date(iso)
+      );
+      (serviceRepo.findByCustomerId as any).mockResolvedValue(
+        Result.ok([service])
+      );
+      return service;
+    }
+
+    function run(proration: Record<string, string> = PRORATION) {
+      return useCase.execute({
+        customerId: CUSTOMER_UUID,
+        year: 2024,
+        month: 3,
+        proration: proration as any
+      });
+    }
+
+    beforeEach(() => {
+      plan = makePlan({ monthlyPrice: 19990 });
+      (planRepo.findById as any).mockResolvedValue(Result.ok(plan));
+      (billRepo.findAll as any).mockResolvedValue(Result.ok([]));
+    });
+
+    it('[BIL-288] charges a service that started inside the month from its first day', async () => {
+      // 20 Mar in Bogotá: 12 of March's 31 days.
+      startedOn('2024-03-20T15:00:00.000Z');
+
+      const result = await run();
+
+      expect(result.value.lineItems[0]).toMatchObject({
+        monthlyPrice: 19990,
+        amount: 7738,
+        serviceFrom: '2024-03-20',
+        serviceTo: '2024-03-31'
+      });
+      expect(result.value.total).toBe(7738);
+    });
+
+    it("[BIL-289] adds last month's days for a service started after last month's issue day and on no bill for it", async () => {
+      // 20 Feb 2024: 10 of February's 29 days.
+      startedOn('2024-02-20T15:00:00.000Z');
+
+      const result = await run();
+
+      expect(
+        billRepo.findAll.mock.calls[0][0]!.period!.toString()
+      ).toBe('2024-02');
+      expect(result.value.lineItems[0]).toMatchObject({
+        amount: 19990 + 6893,
+        serviceFrom: '2024-02-20',
+        serviceTo: '2024-03-31'
+      });
+    });
+
+    it("[BIL-289] does not charge last month's days again when last month's bill holds the service", async () => {
+      const service = startedOn('2024-02-20T15:00:00.000Z');
+      (billRepo.findAll as any).mockResolvedValue(
+        Result.ok([
+          makeLastMonthBill(customerId, service, BillStatus.PAID)
+        ])
+      );
+
+      const result = await run();
+
+      expect(result.value.lineItems[0]).toMatchObject({
+        amount: 19990,
+        serviceFrom: '2024-03-01'
+      });
+    });
+
+    it('[BIL-289] a cancelled bill for last month does not count as billed', async () => {
+      const service = startedOn('2024-02-20T15:00:00.000Z');
+      (billRepo.findAll as any).mockResolvedValue(
+        Result.ok([
+          makeLastMonthBill(customerId, service, BillStatus.CANCELLED)
+        ])
+      );
+
+      const result = await run();
+
+      expect(result.value.lineItems[0].serviceFrom).toBe(
+        '2024-02-20'
+      );
+    });
+
+    it("[BIL-289] paid after use, last month's days are never added", async () => {
+      startedOn('2024-02-20T15:00:00.000Z');
+
+      const result = await run({
+        billingMode: 'ARREARS',
+        previousIssueDay: '2024-02-10'
+      });
+
+      expect(billRepo.findAll).not.toHaveBeenCalled();
+      expect(result.value.lineItems[0]).toMatchObject({
+        amount: 19990,
+        serviceFrom: '2024-03-01'
+      });
+    });
+
+    it('[BIL-287] fails when every service starts after the month', async () => {
+      startedOn('2024-04-02T15:00:00.000Z');
+
+      const result = await run();
+
+      expect(result.error).toBe(
+        'Customer has no services to bill for period 2024-03'
+      );
+      expect(billRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects an unknown billing mode', async () => {
+      startedOn('2024-03-20T15:00:00.000Z');
+
+      const result = await run({
+        billingMode: 'WEEKLY',
+        previousIssueDay: '2024-02-10'
+      });
+
+      expect(result.error).toBe(
+        'billingMode must be one of ADVANCE, ARREARS'
+      );
+    });
+
+    it('rejects a malformed previous issue day', async () => {
+      startedOn('2024-03-20T15:00:00.000Z');
+
+      const result = await run({
+        billingMode: 'ADVANCE',
+        previousIssueDay: '10/02/2024'
+      });
+
+      expect(result.error).toBe(
+        'previousIssueDay must be a YYYY-MM-DD date'
+      );
+    });
   });
 
   it('should fail when the customer does not exist', async () => {

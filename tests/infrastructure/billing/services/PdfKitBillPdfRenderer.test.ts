@@ -16,8 +16,12 @@ function makeModel(
     paidAt: null,
     total: 59.98,
     lineItems: [
-      { planName: 'Fiber 100/20', monthlyPrice: 39.99 },
-      { planName: 'TV Basic', monthlyPrice: 19.99 }
+      {
+        planName: 'Fiber 100/20',
+        amount: 39.99,
+        servicePeriod: '2026-07-01..2026-07-31'
+      },
+      { planName: 'TV Basic', amount: 19.99, servicePeriod: null }
     ],
     customer: {
       fullName: 'Juan Perez',
@@ -61,7 +65,8 @@ describe('PdfKitBillPdfRenderer', () => {
   it('should render a bill with many line items', async () => {
     const lineItems = Array.from({ length: 30 }, (_, i) => ({
       planName: `Plan ${i + 1}`,
-      monthlyPrice: 10.5
+      amount: 10.5,
+      servicePeriod: null
     }));
     const result = await renderer.render(
       makeModel({ lineItems, total: 315 })

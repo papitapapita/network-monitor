@@ -4,6 +4,7 @@ import {
   ServicePlanId
 } from 'domain/shared/ids';
 import { Money } from 'domain/shared/value-objects';
+import { ServicePeriod } from './ServicePeriod';
 
 const MAX_PLAN_NAME_LENGTH = 100;
 
@@ -12,7 +13,17 @@ interface BillLineItemProps {
   readonly servicePlanId: ServicePlanId;
   readonly planName: string;
   readonly monthlyPrice: Money;
+  // What this line charges: the monthly price, or a prorated share of it.
+  readonly amount: Money;
+  // Null on lines issued before service periods were recorded.
+  readonly servicePeriod: ServicePeriod | null;
 }
+
+type BillLineItemInput = Omit<
+  BillLineItemProps,
+  'amount' | 'servicePeriod'
+> &
+  Partial<Pick<BillLineItemProps, 'amount' | 'servicePeriod'>>;
 
 export class BillLineItem extends ValueObject<BillLineItemProps> {
   private constructor(props: BillLineItemProps) {
@@ -35,8 +46,17 @@ export class BillLineItem extends ValueObject<BillLineItemProps> {
     return this._props.monthlyPrice;
   }
 
+  get amount(): Money {
+    return this._props.amount;
+  }
+
+  get servicePeriod(): ServicePeriod | null {
+    return this._props.servicePeriod;
+  }
+
+  // amount defaults to the full monthly price.
   public static create(
-    props: BillLineItemProps
+    props: BillLineItemInput
   ): Result<BillLineItem> {
     const guardResult = Guard.combine([
       Guard.againstNullOrUndefined(
@@ -66,7 +86,12 @@ export class BillLineItem extends ValueObject<BillLineItemProps> {
     }
 
     return Result.ok<BillLineItem>(
-      new BillLineItem({ ...props, planName })
+      new BillLineItem({
+        ...props,
+        planName,
+        amount: props.amount ?? props.monthlyPrice,
+        servicePeriod: props.servicePeriod ?? null
+      })
     );
   }
 }

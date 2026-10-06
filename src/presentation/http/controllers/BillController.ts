@@ -29,7 +29,16 @@ export class BillController {
     res: Response
   ): Promise<void> => {
     try {
-      const result = await this.generateUseCase.execute(req.body);
+      // Picked field by field: proration is the daily run's alone (BIL-291).
+      const { customerId, year, month, issueDate, dueDate } =
+        req.body;
+      const result = await this.generateUseCase.execute({
+        customerId,
+        year,
+        month,
+        issueDate,
+        dueDate
+      });
       if (result.isFailure) {
         res
           .status(this.getErrorStatusCode(result.error!))

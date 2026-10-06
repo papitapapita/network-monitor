@@ -118,6 +118,22 @@ describe('Bill', () => {
       expect(bill.total.toNumber()).toBe(59.98);
     });
 
+    it('[BIL-290] should total what each line charges, not its monthly price', () => {
+      const bill = Bill.create(
+        validProps({
+          lineItems: [
+            makeLineItem({
+              monthlyPrice: Money.create(80000).value,
+              amount: Money.create(54194).value
+            }),
+            makeLineItem({ monthlyPrice: Money.create(20000).value })
+          ]
+        })
+      ).value;
+
+      expect(bill.total.toNumber()).toBe(74194);
+    });
+
     it('should succeed with valid props', () => {
       const result = Bill.create(validProps());
       expect(result.isSuccess).toBe(true);

@@ -1,6 +1,13 @@
 import { CustomerId } from 'domain/shared/ids';
 import { Money } from 'domain/shared/value-objects';
-import { Bill, BillLineItem, BillingPeriod } from 'domain/billing';
+import {
+  Bill,
+  BillLineItem,
+  BillingMode,
+  BillingPeriod,
+  BillStatus,
+  ServicePeriod
+} from 'domain/billing';
 import { IBillRepository } from 'domain/billing/repository';
 import {
   ContractedService,
@@ -18,6 +25,11 @@ import { BillMapper } from '../mappers';
 import { GenerateBillRequestDTO, BillResponseDTO } from '../dtos';
 
 const DEFAULT_DUE_DAYS = 15;
+
+interface Proration {
+  billingMode: BillingMode;
+  previousIssueDay: Date;
+}
 
 export class GenerateBillUseCase extends UseCase<
   GenerateBillRequestDTO,
@@ -78,6 +90,12 @@ export class GenerateBillUseCase extends UseCase<
     }
     const { issueDate, dueDate } = datesResult.value;
 
+    const prorationResult = this.resolveProration(request.proration);
+    if (prorationResult.isFailure) {
+      return this.fail(prorationResult.error!);
+    }
+    const proration = prorationResult.value;
+
     const customerExists =
       await this.customerRepository.exists(customerId);
     if (customerExists.isFailure) {
@@ -118,9 +136,19 @@ export class GenerateBillUseCase extends UseCase<
       );
     }
 
-    const lineItemsResult = await this.buildLineItems(activeServices);
+    const lineItemsResult = await this.buildLineItems(
+      customerId,
+      period,
+      activeServices,
+      proration
+    );
     if (lineItemsResult.isFailure) {
       return this.fail(lineItemsResult.error!);
+    }
+    if (lineItemsResult.value.length === 0) {
+      return this.fail(
+        `Customer has no services to bill for period ${period.toString()}`
+      );
     }
 
     const billResult = Bill.create({
@@ -173,12 +201,91 @@ export class GenerateBillUseCase extends UseCase<
     return Result.ok({ issueDate, dueDate });
   }
 
+  private resolveProration(
+    raw: GenerateBillRequestDTO['proration']
+  ): Result<Proration | null> {
+    if (raw === undefined) return Result.ok(null);
+
+    const modes = Object.values(BillingMode) as string[];
+    if (!modes.includes(raw.billingMode)) {
+      return Result.fail(
+        `billingMode must be one of ${modes.join(', ')}`
+      );
+    }
+    const previousIssueDay = new Date(
+      `${raw.previousIssueDay}T00:00:00Z`
+    );
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(raw.previousIssueDay) ||
+      isNaN(previousIssueDay.getTime())
+    ) {
+      return Result.fail(
+        'previousIssueDay must be a YYYY-MM-DD date'
+      );
+    }
+    return Result.ok({
+      billingMode: raw.billingMode as BillingMode,
+      previousIssueDay
+    });
+  }
+
+  // Services on a live bill for the month before `period`.
+  private async billedLastPeriod(
+    customerId: CustomerId,
+    period: BillingPeriod
+  ): Promise<Result<Set<string>>> {
+    const previous =
+      period.month === 1
+        ? BillingPeriod.create(period.year - 1, 12)
+        : BillingPeriod.create(period.year, period.month - 1);
+    if (previous.isFailure) return Result.ok(new Set());
+
+    const bills = await this.billRepository.findAll({
+      customerId,
+      period: previous.value
+    });
+    if (bills.isFailure) return Result.fail(bills.error!);
+
+    const billed = new Set<string>();
+    for (const bill of bills.value) {
+      if (bill.status === BillStatus.CANCELLED) continue;
+      for (const item of bill.lineItems) {
+        billed.add(item.contractedServiceId.toString());
+      }
+    }
+    return Result.ok(billed);
+  }
+
   private async buildLineItems(
-    services: ContractedService[]
+    customerId: CustomerId,
+    period: BillingPeriod,
+    services: ContractedService[],
+    proration: Proration | null
   ): Promise<Result<BillLineItem[]>> {
     const lineItems: BillLineItem[] = [];
 
+    let billedLastPeriod = new Set<string>();
+    if (proration?.billingMode === BillingMode.ADVANCE) {
+      const billed = await this.billedLastPeriod(customerId, period);
+      if (billed.isFailure) return Result.fail(billed.error!);
+      billedLastPeriod = billed.value;
+    }
+
     for (const service of services) {
+      const servicePeriod =
+        proration === null
+          ? ServicePeriod.ofPeriod(period)
+          : ServicePeriod.forAutomaticBill({
+              period,
+              billingMode: proration.billingMode,
+              serviceStart: service.startDate,
+              previousIssueDay: proration.previousIssueDay,
+              billedLastPeriod: billedLastPeriod.has(
+                service.id.toString()
+              )
+            });
+      if (servicePeriod === null) continue;
+
       const planResult = await this.servicePlanRepository.findById(
         service.servicePlanId
       );
@@ -204,7 +311,12 @@ export class GenerateBillUseCase extends UseCase<
         contractedServiceId: service.id,
         servicePlanId: plan.id,
         planName: plan.name,
-        monthlyPrice: priceResult.value
+        monthlyPrice: priceResult.value,
+        amount:
+          proration === null
+            ? priceResult.value
+            : servicePeriod.chargeFor(priceResult.value),
+        servicePeriod
       });
       if (lineItemResult.isFailure) {
         return Result.fail(lineItemResult.error!);

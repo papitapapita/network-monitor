@@ -54,7 +54,7 @@ export class Bill extends AggregateRoot<BillProps, BillId> {
 
   get total(): Money {
     return this.props.lineItems.reduce(
-      (sum, item) => sum.add(item.monthlyPrice),
+      (sum, item) => sum.add(item.amount),
       Money.zero()
     );
   }

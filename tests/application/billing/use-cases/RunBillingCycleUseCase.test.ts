@@ -29,6 +29,7 @@ import { makeLogger } from '../../probe-agents/fixtures';
 const NOW = new Date('2026-10-12T11:00:00.000Z');
 const CUSTOMER_15 = '11111111-1111-4111-8111-111111111111';
 const CUSTOMER_30 = '33333333-3333-4333-8333-333333333333';
+const STARTED = '2026-01-10T15:00:00.000Z';
 
 function enabled(
   billingMode: BillingMode = BillingMode.ADVANCE
@@ -77,8 +78,16 @@ describe('RunBillingCycleUseCase', () => {
     query = {
       listBillable: jest.fn().mockResolvedValue(
         Result.ok([
-          { customerId: CUSTOMER_15, paymentDay: 15 },
-          { customerId: CUSTOMER_30, paymentDay: 30 }
+          {
+            customerId: CUSTOMER_15,
+            paymentDay: 15,
+            firstServiceStart: STARTED
+          },
+          {
+            customerId: CUSTOMER_30,
+            paymentDay: 30,
+            firstServiceStart: STARTED
+          }
         ])
       )
     };
@@ -140,9 +149,53 @@ describe('RunBillingCycleUseCase', () => {
       year: 2026,
       month: 10,
       issueDate: NOW.toISOString(),
-      dueDate: '2026-10-16T04:59:59.999Z'
+      dueDate: '2026-10-16T04:59:59.999Z',
+      proration: {
+        billingMode: 'ADVANCE',
+        previousIssueDay: '2026-09-10'
+      }
     });
     expect(result.value.generated).toBe(1);
+  });
+
+  it('[BIL-287] paid after use, a customer whose services all start after the billed month waits', async () => {
+    settingsRepo.get.mockResolvedValue(
+      Result.ok(enabled(BillingMode.ARREARS))
+    );
+    query.listBillable.mockResolvedValue(
+      Result.ok([
+        {
+          customerId: CUSTOMER_15,
+          paymentDay: 15,
+          firstServiceStart: '2026-10-01T05:00:00.000Z'
+        }
+      ])
+    );
+
+    const result = await useCase.execute({ now: NOW });
+
+    expect(generate.execute).not.toHaveBeenCalled();
+    expect(result.value.failed).toEqual([]);
+  });
+
+  it("[BIL-287] a service starting on the billed month's last local day is billed", async () => {
+    settingsRepo.get.mockResolvedValue(
+      Result.ok(enabled(BillingMode.ARREARS))
+    );
+    query.listBillable.mockResolvedValue(
+      Result.ok([
+        {
+          customerId: CUSTOMER_15,
+          paymentDay: 15,
+          // 30 Sep, 23:00 in Bogotá
+          firstServiceStart: '2026-10-01T04:00:00.000Z'
+        }
+      ])
+    );
+
+    await useCase.execute({ now: NOW });
+
+    expect(generate.execute).toHaveBeenCalledTimes(1);
   });
 
   it('[BIL-282] paid after use, the bill covers the month before', async () => {
@@ -174,10 +227,15 @@ describe('RunBillingCycleUseCase', () => {
   it('[BIL-284] records a customer that could not be billed and goes on', async () => {
     query.listBillable.mockResolvedValue(
       Result.ok([
-        { customerId: CUSTOMER_15, paymentDay: 15 },
+        {
+          customerId: CUSTOMER_15,
+          paymentDay: 15,
+          firstServiceStart: STARTED
+        },
         {
           customerId: '22222222-2222-4222-8222-222222222222',
-          paymentDay: 15
+          paymentDay: 15,
+          firstServiceStart: STARTED
         }
       ])
     );

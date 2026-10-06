@@ -28,6 +28,7 @@ import {
 // 06:00 on 12 Oct in Bogotá: the 15th group's window is open, the 30th's not.
 const NOW = new Date('2026-10-12T11:00:00.000Z');
 const DUE_15_OCT = new Date('2026-10-16T04:59:59.999Z');
+const LONG_AGO = new Date('2026-01-10T15:00:00.000Z');
 
 describe('RunBillingCycleUseCase — integration', () => {
   let prisma: PrismaClient;
@@ -83,14 +84,30 @@ describe('RunBillingCycleUseCase — integration', () => {
 
   async function seedBillable(
     phone: string,
-    paymentDay: number
+    paymentDay: number,
+    startDate: Date = LONG_AGO
   ): Promise<string> {
     const customerId = await seedCustomer(prisma, {
       phone,
       paymentDay
     });
-    await seedActiveContractedService(prisma, customerId, planId);
+    await seedActiveContractedService(prisma, customerId, planId, {
+      startDate
+    });
     return customerId;
+  }
+
+  async function onlyLine() {
+    const bill = await prisma.bill.findFirstOrThrow({
+      include: { lineItems: true }
+    });
+    const line = bill.lineItems[0];
+    return {
+      period: `${bill.periodYear}-${bill.periodMonth}`,
+      amount: Number(line.amount),
+      from: line.serviceFrom!.toISOString().slice(0, 10),
+      to: line.serviceTo!.toISOString().slice(0, 10)
+    };
   }
 
   async function seedBill(
@@ -117,7 +134,8 @@ describe('RunBillingCycleUseCase — integration', () => {
             contractedServiceId: service.id,
             servicePlanId: planId,
             planName: 'Plan 50',
-            monthlyPrice: 80000
+            monthlyPrice: 80000,
+            amount: 80000
           }
         }
       }
@@ -162,6 +180,118 @@ describe('RunBillingCycleUseCase — integration', () => {
     expect(bills[0].issueDate).toEqual(NOW);
     expect(bills[0].dueDate).toEqual(DUE_15_OCT);
     expect(Number(bills[0].lineItems[0].monthlyPrice)).toBe(80000);
+    expect(Number(bills[0].lineItems[0].amount)).toBe(80000);
+  });
+
+  it('[BIL-288] a service that started inside the billed month is charged from its first day', async () => {
+    await enableBilling();
+    // 11 Oct in Bogotá: 21 of October's 31 days.
+    await seedBillable(
+      '3000000015',
+      15,
+      new Date('2026-10-11T14:00:00.000Z')
+    );
+
+    await useCase.execute({ now: NOW });
+
+    expect(await onlyLine()).toMatchObject({
+      period: '2026-10',
+      amount: 54194,
+      from: '2026-10-11',
+      to: '2026-10-31'
+    });
+  });
+
+  it("[BIL-289] in advance, a service started after last month's issue day and never billed also pays last month's days", async () => {
+    await enableBilling();
+    // 20 Sep: after the 10 Sep issue day; 11 of September's 30 days.
+    await seedBillable(
+      '3000000015',
+      15,
+      new Date('2026-09-20T14:00:00.000Z')
+    );
+
+    await useCase.execute({ now: NOW });
+
+    expect(await onlyLine()).toMatchObject({
+      period: '2026-10',
+      amount: 80000 + 29333,
+      from: '2026-09-20',
+      to: '2026-10-31'
+    });
+  });
+
+  it("[BIL-289] in advance, last month's days are not charged again when last month's bill holds the service", async () => {
+    await enableBilling();
+    const customerId = await seedBillable(
+      '3000000015',
+      15,
+      new Date('2026-09-20T14:00:00.000Z')
+    );
+    await seedBill(
+      customerId,
+      'PAID',
+      new Date('2026-09-16T04:59:59.999Z')
+    );
+
+    await useCase.execute({ now: NOW });
+
+    const line = await prisma.billLineItem.findFirstOrThrow({
+      where: { bill: { periodMonth: 10 } }
+    });
+    expect(Number(line.amount)).toBe(80000);
+    expect(line.serviceFrom!.toISOString().slice(0, 10)).toBe(
+      '2026-10-01'
+    );
+  });
+
+  it("[BIL-289] in advance, a service started before last month's issue day is charged this month only", async () => {
+    await enableBilling();
+    await seedBillable(
+      '3000000015',
+      15,
+      new Date('2026-09-05T14:00:00.000Z')
+    );
+
+    await useCase.execute({ now: NOW });
+
+    expect(await onlyLine()).toMatchObject({
+      amount: 80000,
+      from: '2026-10-01'
+    });
+  });
+
+  it('[BIL-288] paid after use, a service that started inside the billed month is charged from its first day', async () => {
+    await enableBilling('ARREARS');
+    await seedBillable(
+      '3000000015',
+      15,
+      new Date('2026-09-20T14:00:00.000Z')
+    );
+
+    await useCase.execute({ now: NOW });
+
+    expect(await onlyLine()).toMatchObject({
+      period: '2026-9',
+      amount: 29333,
+      from: '2026-09-20',
+      to: '2026-09-30'
+    });
+  });
+
+  it('[BIL-287] paid after use, a service that starts after the billed month waits for the next bill', async () => {
+    await enableBilling('ARREARS');
+    await seedBillable(
+      '3000000015',
+      15,
+      new Date('2026-10-02T14:00:00.000Z')
+    );
+
+    const result = await useCase.execute({ now: NOW });
+
+    expect(result.value.generated).toBe(0);
+    expect(result.value.failed).toEqual([]);
+    expect(await prisma.bill.count()).toBe(0);
   });
 
   it('[BIL-282] paid after use, the bill is for the month before', async () => {

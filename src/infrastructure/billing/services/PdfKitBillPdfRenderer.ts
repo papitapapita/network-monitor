@@ -94,7 +94,7 @@ export class PdfKitBillPdfRenderer implements IBillPdfRenderer {
     doc.fontSize(12).font('Helvetica-Bold');
     const headerY = doc.y;
     doc.text('Service plan', MARGIN, headerY);
-    doc.text('Monthly price', priceColX, headerY, {
+    doc.text('Amount', priceColX, headerY, {
       width: PRICE_COL_WIDTH,
       align: 'right'
     });
@@ -108,10 +108,14 @@ export class PdfKitBillPdfRenderer implements IBillPdfRenderer {
     doc.fontSize(10).font('Helvetica');
     for (const item of model.lineItems) {
       const rowY = doc.y;
-      doc.text(item.planName, MARGIN, rowY, {
+      const label =
+        item.servicePeriod !== null
+          ? `${item.planName} (${item.servicePeriod.replace('..', ' to ')})`
+          : item.planName;
+      doc.text(label, MARGIN, rowY, {
         width: CONTENT_WIDTH - PRICE_COL_WIDTH - 10
       });
-      doc.text(this.formatMoney(item.monthlyPrice), priceColX, rowY, {
+      doc.text(this.formatMoney(item.amount), priceColX, rowY, {
         width: PRICE_COL_WIDTH,
         align: 'right'
       });

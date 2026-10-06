@@ -2,7 +2,9 @@ import { Result } from 'domain/shared/core';
 
 export interface BillPdfLineItem {
   planName: string;
-  monthlyPrice: number;
+  amount: number;
+  // "YYYY-MM-DD..YYYY-MM-DD"; null when not recorded.
+  servicePeriod: string | null;
 }
 
 export interface BillPdfRenderModel {

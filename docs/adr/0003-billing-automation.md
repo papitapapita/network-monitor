@@ -37,7 +37,8 @@ network.
   is for October) or after use (for September). ISPs do both.
 - Customers with only suspended services are not billed.
 - A new customer's first bill is **prorated** from the day their service
-  started.
+  started. Paid in advance, it also covers the days of the joining month that
+  no bill charged. Bills made by hand stay whole-month.
 - Automatic billing is **off until the admin turns it on**, so an install that
   bills by hand today (Insetel) is not changed by the upgrade.
 

@@ -6,7 +6,8 @@ import {
   Bill,
   BillStatus,
   BillingPeriod,
-  BillLineItem
+  BillLineItem,
+  ServicePeriod
 } from '../../../../src/domain/billing';
 import {
   BillId,
@@ -61,9 +62,40 @@ describe('BillMapper.toDTO', () => {
         contractedServiceId: expect.any(String),
         servicePlanId: expect.any(String),
         planName: 'Fiber 50/10',
-        monthlyPrice: 19.99
+        monthlyPrice: 19.99,
+        amount: 19.99,
+        serviceFrom: null,
+        serviceTo: null
       }
     ]);
+  });
+
+  it('[BIL-290] should serialize what a line charges and the days it covers', () => {
+    const bill = makeBill({
+      lineItems: [
+        BillLineItem.create({
+          contractedServiceId: ContractedServiceId.create(),
+          servicePlanId: ServicePlanId.create(),
+          planName: 'Fibra 50',
+          monthlyPrice: Money.create(80000).value,
+          amount: Money.create(54194).value,
+          servicePeriod: ServicePeriod.create(
+            new Date('2026-10-11T00:00:00Z'),
+            new Date('2026-10-31T00:00:00Z')
+          ).value
+        }).value
+      ]
+    });
+
+    const dto = BillMapper.toDTO(bill);
+
+    expect(dto.lineItems[0]).toMatchObject({
+      monthlyPrice: 80000,
+      amount: 54194,
+      serviceFrom: '2026-10-11',
+      serviceTo: '2026-10-31'
+    });
+    expect(dto.total).toBe(54194);
   });
 
   it('should represent total as a plain number', () => {

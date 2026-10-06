@@ -14,13 +14,24 @@ export class PrismaBillableCustomersQuery
     try {
       const rows = await this.prisma.customer.findMany({
         where: { contractedServices: { some: { status: 'ACTIVE' } } },
-        select: { id: true, paymentDay: true },
+        select: {
+          id: true,
+          paymentDay: true,
+          contractedServices: {
+            where: { status: 'ACTIVE' },
+            select: { startDate: true },
+            orderBy: { startDate: 'asc' },
+            take: 1
+          }
+        },
         orderBy: { createdAt: 'asc' }
       });
       return Result.ok(
         rows.map((r) => ({
           customerId: r.id,
-          paymentDay: r.paymentDay
+          paymentDay: r.paymentDay,
+          firstServiceStart:
+            r.contractedServices[0].startDate.toISOString()
         }))
       );
     } catch (error) {
