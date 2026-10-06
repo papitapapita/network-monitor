@@ -137,6 +137,21 @@ describe('Auth Routes — /api/auth', () => {
   // Authentication enforcement on protected routes
   // ─────────────────────────────────────────────────────────────
 
+  describe('[IDN-104] per-address budget', () => {
+    it('counts requests that carry no token', async () => {
+      const res = await request(app).get('/api/locations');
+
+      expect(res.status).toBe(401);
+      expect(res.headers['ratelimit-limit']).toBe('1000');
+    });
+
+    it('counts the agent door too', async () => {
+      const res = await request(app).get('/agent/v1/not-a-route');
+
+      expect(res.headers['ratelimit-limit']).toBe('1000');
+    });
+  });
+
   describe('Authentication enforcement on protected routes', () => {
     it('401 — GET /api/locations without a token', async () => {
       const res = await request(app).get('/api/locations');

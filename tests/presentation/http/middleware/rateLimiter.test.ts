@@ -134,4 +134,38 @@ describe('createRateLimiter', () => {
       expect(statuses.every((s) => s === 200)).toBe(true);
     });
   });
+
+  describe('[IDN-104] per-address limiter', () => {
+    const makeAddressApp = (userIds: string[]): Express => {
+      let next = 0;
+      const app = express();
+      app.use((req: Request, _res: Response, done: NextFunction) => {
+        req.user = {
+          userId: userIds[next++ % userIds.length],
+          email: 'operator@isp.test',
+          role: 'ADMIN'
+        };
+        done();
+      });
+      app.get(
+        '/anything',
+        createRateLimiter('address'),
+        (_req, res) => {
+          res.status(200).send();
+        }
+      );
+      return app;
+    };
+
+    it('refuses the address after 1000 requests in a minute, whoever signs them', async () => {
+      const app = makeAddressApp(['user-a', 'user-b']);
+      const statuses: number[] = [];
+      for (let i = 0; i < 1001; i++) {
+        statuses.push((await request(app).get('/anything')).status);
+      }
+
+      expect(statuses[999]).toBe(200);
+      expect(statuses[1000]).toBe(429);
+    });
+  });
 });

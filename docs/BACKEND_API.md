@@ -106,14 +106,20 @@ revoke, the data-retention purge and the vendor's settings
 | Bulk import                    | 5 / hr    |
 | Agent enrollment (per IP)      | 10 / 15 min |
 | Failed sign-ins and codes (per IP) | 10 / 15 min |
+| Everything under `/api` and `/agent/v1` (per IP) | 1000 / min |
 
 Counters are keyed by user id, falling back to IP for unauthenticated requests,
 so operators sharing one office address do not share a budget. Each resource
 has its own counter — 60 device deletes and 60 vendor deletes in the same minute
 is fine. Exceeding a bucket returns `429` with `{ success: false, error: 'Too many requests' }`.
 
-SSE streams are not rate-limited — a connection held open for hours is the wrong
-thing to count per minute. They are capped by concurrency instead: 5 streams per
+The per-IP total (added 2026-10-05, IDN-104) is counted before the token is
+checked, so requests without one or with a bad one count too. It is high enough
+that an office sharing one address never meets it in normal use.
+
+SSE streams are not rate-limited beyond opening them, which counts toward the
+per-IP total — a connection held open for hours is the wrong thing to count per
+minute. They are capped by concurrency instead: 5 streams per
 user and 200 per server, exceeding either returns `429` with
 `{ error: 'Too many streams' }`.
 

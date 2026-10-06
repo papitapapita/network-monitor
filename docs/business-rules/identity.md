@@ -29,7 +29,7 @@ Format and conventions: [README.md](README.md).
 
 | Layer                         | Rules |
 | ----------------------------- | ----- |
-| Presentation (middleware)     | 11    |
+| Presentation (middleware)     | 12    |
 | Infrastructure                | 11    |
 | Domain (value object)         | 4     |
 | Application                   | 18    |
@@ -765,7 +765,7 @@ the limit a property of the account rather than the building.
 **Enforced at:** `src/presentation/http/middleware/rateLimiter.ts` (`keyGenerator`)
 **Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`
 
-### IDN-101 — There are six rate budgets
+### IDN-101 — There are seven rate budgets
 
 **Type:** Policy · **Status:** Active
 **Layer:** Presentation (middleware)
@@ -779,6 +779,7 @@ the limit a property of the account rather than the building.
 | `bulk-import` | 5 per hour             |
 | `enroll`      | 10 per 15 min          |
 | `sign-in`     | 10 failures per 15 min |
+| `address`     | 1000 per minute        |
 
 **Why:** Reads are cheap and are what a dashboard does on a timer, so they get
 the loosest budget. `bulk-import` is three orders of magnitude tighter because
@@ -787,6 +788,7 @@ what that protects. `write` and `delete` are currently identical; the separate
 name exists so deletion can be tightened without touching every write route.
 `enroll` and `sign-in` are the budgets for a caller with no user — agent
 enrollment (`AGT-008`) and login (`IDN-103`) — keyed by IP address.
+`address` sits in front of all the others (`IDN-104`).
 
 **Enforced at:** `src/presentation/http/middleware/rateLimiter.ts` (`LIMITS`)
 **Message:** `Too many requests`
@@ -834,6 +836,32 @@ across many.
 
 **Enforced at:** `src/presentation/http/routes/auth.routes.ts`,
 `src/presentation/http/middleware/rateLimiter.ts` (`skipSuccessfulRequests`)
+**Message:** `Too many requests`
+**Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-104 — An address gets 1000 requests a minute across the whole API
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation (middleware)
+**Since:** 2026-10-05
+
+Every request under `/api` and `/agent/v1` spends one shared `address` budget
+(`IDN-101`), keyed by the caller's address whoever is signed in, before the
+subscription check, the token check or any other budget runs. The 1001st
+request within a minute answers `429` `Too many requests`. The other budgets
+still apply on top of it.
+
+**Why:** The per-user budgets run only after the token is checked, so a flood
+with no token or a forged one was unlimited — and each such request still
+costs a signature check and, for a well-formed token, a database lookup
+(`IDN-065`). A thousand a minute is ten people's worth of `read` budget, so an
+office sharing one address does not meet it in normal use, while a single
+source can no longer hammer the install. Like the others, the count lives in
+memory (`IDN-102`).
+
+**Enforced at:** `src/presentation/http/routes/index.ts` (`perAddress`),
+`src/presentation/http/middleware/rateLimiter.ts`
 **Message:** `Too many requests`
 **Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`,
 `tests/integration/auth.routes.test.ts`

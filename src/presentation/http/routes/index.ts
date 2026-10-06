@@ -39,6 +39,7 @@ import { createVendorSettingsRoutes } from './vendor-settings.routes';
 import {
   createAuditLogMiddleware,
   createAuthenticateMiddleware,
+  createRateLimiter,
   createSubscriptionGuard
 } from '../middleware';
 
@@ -56,6 +57,9 @@ export function setupRoutes(
   container: DependencyContainer
 ): void {
   const apiRouter = Router();
+  // One budget for both doors, so an address cannot double it by splitting
+  // its requests between them (IDN-104).
+  const perAddress = createRateLimiter('address');
 
   // =====================================
   // SUBSCRIPTION GUARD — ahead of everything (ADR 0002, R17)
@@ -348,12 +352,13 @@ export function setupRoutes(
     createAdminRoutes(container.adminController)
   );
 
-  app.use('/api', apiRouter);
+  app.use('/api', perAddress, apiRouter);
 
   // Agent-facing endpoints live outside /api: agents authenticate with a
   // pairing code or their own token, never a user's JWT (ADR 0002, R4).
   app.use(
     '/agent/v1',
+    perAddress,
     createSubscriptionGuard(
       container.getSubscriptionStatusUseCase,
       container.getLogger()
