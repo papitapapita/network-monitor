@@ -19,6 +19,7 @@ import {
   SignInSteps,
   withoutSignInSecrets
 } from '../services/SignInSteps';
+import { NewSignInWarning } from '../services/NewSignInWarning';
 
 // IDN-169: the first code from the app turns two-factor on and signs in.
 export class ConfirmTwoFactorSetupUseCase extends UseCase<
@@ -31,6 +32,7 @@ export class ConfirmTwoFactorSetupUseCase extends UseCase<
     private readonly twoFactorCodes: ITwoFactorCodes,
     private readonly recoveryCodes: IRecoveryCodes,
     private readonly secretCipher: ISecretCipher,
+    private readonly newSignInWarning: NewSignInWarning,
     logger: ILogger
   ) {
     super(logger, 'ConfirmTwoFactorSetupUseCase');
@@ -81,6 +83,7 @@ export class ConfirmTwoFactorSetupUseCase extends UseCase<
       return this.fail(`Failed to save two-factor: ${saved.error}`);
     }
 
+    void this.newSignInWarning.send(user, request.sourceIp);
     return this.ok({
       ...this.signInSteps.session(user, request.rememberBrowser),
       recoveryCodes: codes

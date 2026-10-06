@@ -322,6 +322,10 @@ to the password screen.
 > `401 Invalid code` for a wrong code, a code already used and an unknown or
 > spent recovery code alike. Each recovery code works once (IDN-170).
 > Other errors as for `/setup/confirm`.
+>
+> Every sign-in finished here or at `/setup/confirm` emails the account a
+> warning with the time and the caller's address (IDN-181). A login from a
+> remembered browser sends none. The email never delays or fails the answer.
 
 ---
 

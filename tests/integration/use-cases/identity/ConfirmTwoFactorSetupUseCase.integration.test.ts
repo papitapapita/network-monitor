@@ -31,6 +31,7 @@ describe('[IDN-169] ConfirmTwoFactorSetupUseCase — integration', () => {
       adapters.twoFactorCodes,
       adapters.recoveryCodes,
       adapters.cipher,
+      adapters.newSignInWarning,
       adapters.logger
     );
   });

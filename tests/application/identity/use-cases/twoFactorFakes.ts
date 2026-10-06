@@ -1,4 +1,5 @@
 import { Result } from '../../../../src/domain/shared/core/Result';
+import { NewSignInWarning } from '../../../../src/application/identity/services/NewSignInWarning';
 import { User } from '../../../../src/domain/identity/aggregates/User';
 import {
   ChallengeKind,
@@ -80,4 +81,10 @@ export function withTwoFactor(user: User): User {
   user.startTwoFactorSetup('enc:SECRET');
   user.confirmTwoFactor(GOOD_STEP - 5, ['h:AAAAABBBBB'], new Date());
   return user;
+}
+
+export function makeWarning(): jest.Mocked<NewSignInWarning> {
+  return {
+    send: jest.fn().mockResolvedValue(undefined)
+  } as unknown as jest.Mocked<NewSignInWarning>;
 }

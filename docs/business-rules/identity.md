@@ -24,15 +24,16 @@ Format and conventions: [README.md](README.md).
 | `IDN-120` … `IDN-139` | Audit and transport hardening |
 | `IDN-140` … `IDN-159` | User management               |
 | `IDN-160` … `IDN-179` | Two-factor sign-in            |
+| `IDN-180` … `IDN-199` | Account email                 |
 
 ## Layer coverage
 
 | Layer                         | Rules |
 | ----------------------------- | ----- |
 | Presentation (middleware)     | 14    |
-| Infrastructure                | 11    |
+| Infrastructure                | 12    |
 | Domain (value object)         | 4     |
-| Application                   | 18    |
+| Application                   | 19    |
 | Presentation                  | 5     |
 | Domain (permission table)     | 2     |
 | Domain (aggregate)            | 8     |
@@ -1477,3 +1478,67 @@ unexpected reset is noticed the same day.
 **Tests:** `tests/domain/identity/aggregates/User.test.ts`,
 `tests/application/notifications/event-handlers/UserTwoFactorResetNotificationHandler.test.ts`,
 `tests/application/identity/use-cases/ResetTwoFactorUseCase.test.ts`
+
+---
+
+## Account email
+
+The install emails the people who use it about their own accounts, through
+any SMTP server. `IDN-180` is the mail server; `IDN-181` is the warning of a
+new sign-in.
+
+### IDN-180 — Email goes through the install's SMTP server, when it has one
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-10-05
+
+`SMTP_HOST` turns email on. With it set, `SMTP_USER`, `SMTP_PASSWORD` and
+`SMTP_FROM` are required and a missing one stops the boot; `SMTP_PORT`
+defaults to 587. Port 465 speaks TLS from the start; any other port must
+upgrade with STARTTLS or the message is not sent. Messages are plain text, and
+the mailer reads no files or URLs into them.
+
+Without `SMTP_HOST` nothing is sent: each message that would have gone out is
+logged as a warning with its recipient and subject, never its body.
+
+**Why:** Any provider's free tier works, so the choice is a deploy setting,
+not code. A half-configured server would fail every message silently, so it
+fails at boot instead. A body can carry a sign-in link, so it never reaches
+the log.
+
+**Enforced at:** `src/infrastructure/email/smtpConfig.ts`,
+`src/infrastructure/email/SmtpEmailSender.ts`,
+`src/infrastructure/email/UnconfiguredEmailSender.ts`
+**Tests:** `tests/infrastructure/email/smtpConfig.test.ts`,
+`tests/infrastructure/email/SmtpEmailSender.test.ts`,
+`tests/infrastructure/email/UnconfiguredEmailSender.test.ts`
+
+### IDN-181 — A sign-in that took a code is announced to the account by email
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+When a sign-in finishes with a code or a recovery code (`IDN-169`,
+`IDN-170`), the account's email address gets a message, in Spanish, with the
+time in Colombia and the caller's address. A login from a remembered browser
+(`IDN-171`) sends none. A wrong code sends none.
+
+The sign-in does not wait for the email. A mail server that is slow, down or
+not configured (`IDN-180`) neither delays nor refuses it; the failure is
+logged.
+
+**Why:** A browser that is not remembered is a new browser, or one more than
+30 days old. If the person did not sign in, someone has both their password
+and a code, and the email is how they find out the same day. The sign-in
+itself must not depend on a third-party mail server.
+
+**Enforced at:** `src/application/identity/services/NewSignInWarning.ts`,
+`src/application/identity/services/accountEmails.ts`,
+`src/application/identity/use-cases/VerifyTwoFactorUseCase.ts`,
+`src/application/identity/use-cases/ConfirmTwoFactorSetupUseCase.ts`
+**Tests:** `tests/application/identity/services/NewSignInWarning.test.ts`,
+`tests/application/identity/use-cases/VerifyTwoFactorUseCase.test.ts`,
+`tests/application/identity/use-cases/ConfirmTwoFactorSetupUseCase.test.ts`,
+`tests/integration/use-cases/identity/VerifyTwoFactorUseCase.integration.test.ts`

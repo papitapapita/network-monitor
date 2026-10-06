@@ -21,6 +21,7 @@ import {
   makeCodes,
   makeRecoveryCodes,
   makeTokens,
+  makeWarning,
   withTwoFactor
 } from './twoFactorFakes';
 
@@ -35,12 +36,14 @@ describe('[IDN-169] ConfirmTwoFactorSetupUseCase', () => {
     const repo = makeUserRepo([user]);
     const tokens = makeTokens();
     const codes = makeCodes();
+    const warning = makeWarning();
     const useCase = new ConfirmTwoFactorSetupUseCase(
       repo,
       new SignInSteps(repo, tokens),
       codes,
       makeRecoveryCodes(),
       makeCipher(),
+      warning,
       makeLogger()
     );
     const confirm = (code = GOOD_CODE, rememberBrowser = false) =>
@@ -50,8 +53,25 @@ describe('[IDN-169] ConfirmTwoFactorSetupUseCase', () => {
         rememberBrowser,
         sourceIp: '203.0.113.7'
       });
-    return { user, repo, tokens, codes, confirm };
+    return { user, repo, tokens, codes, warning, confirm };
   };
+
+  it('[IDN-181] warns the account of the sign-in by email', async () => {
+    const { user, warning, confirm } = build();
+
+    await confirm();
+
+    expect(warning.send).toHaveBeenCalledWith(user, '203.0.113.7');
+  });
+
+  it('[IDN-181] sends no warning for a wrong code', async () => {
+    const { codes, warning, confirm } = build();
+    codes.matchStep.mockReturnValue(null);
+
+    await confirm('000000');
+
+    expect(warning.send).not.toHaveBeenCalled();
+  });
 
   it('turns two-factor on and signs in with the recovery codes', async () => {
     const { user, repo, confirm } = build();
@@ -142,6 +162,7 @@ describe('[IDN-169] ConfirmTwoFactorSetupUseCase', () => {
       makeCodes(),
       makeRecoveryCodes(),
       makeCipher(),
+      makeWarning(),
       makeLogger()
     );
 

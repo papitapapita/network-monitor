@@ -83,6 +83,11 @@ import { StartTwoFactorSetupUseCase } from 'application/identity/use-cases/Start
 import { ConfirmTwoFactorSetupUseCase } from 'application/identity/use-cases/ConfirmTwoFactorSetupUseCase';
 import { VerifyTwoFactorUseCase } from 'application/identity/use-cases/VerifyTwoFactorUseCase';
 import { SignInSteps } from 'application/identity/services/SignInSteps';
+import { NewSignInWarning } from 'application/identity/services/NewSignInWarning';
+import { IEmailSender } from 'application/shared/interfaces';
+import { loadSmtpConfig } from '../email/smtpConfig';
+import { SmtpEmailSender } from '../email/SmtpEmailSender';
+import { UnconfiguredEmailSender } from '../email/UnconfiguredEmailSender';
 import { TotpTwoFactorCodes } from '../identity/services/TotpTwoFactorCodes';
 import { HashedRecoveryCodes } from '../identity/services/HashedRecoveryCodes';
 import { AesSecretCipher } from '../identity/services/AesSecretCipher';
@@ -1004,6 +1009,14 @@ export class DependencyContainer {
     const twoFactorCodes = new TotpTwoFactorCodes();
     const recoveryCodes = new HashedRecoveryCodes();
     const secretCipher = new AesSecretCipher();
+    const smtpConfig = loadSmtpConfig(process.env);
+    const emailSender: IEmailSender = smtpConfig
+      ? new SmtpEmailSender(smtpConfig)
+      : new UnconfiguredEmailSender(this.logger);
+    const newSignInWarning = new NewSignInWarning(
+      emailSender,
+      this.logger
+    );
     const loginUseCase = new LoginUseCase(
       userRepository,
       bcryptPasswordService,
@@ -1055,6 +1068,7 @@ export class DependencyContainer {
         twoFactorCodes,
         recoveryCodes,
         secretCipher,
+        newSignInWarning,
         this.logger
       ),
       new VerifyTwoFactorUseCase(
@@ -1063,6 +1077,7 @@ export class DependencyContainer {
         twoFactorCodes,
         recoveryCodes,
         secretCipher,
+        newSignInWarning,
         this.logger
       ),
       this.logger

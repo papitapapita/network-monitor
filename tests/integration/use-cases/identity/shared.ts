@@ -6,11 +6,15 @@ import { TotpTwoFactorCodes } from 'infrastructure/identity/services/TotpTwoFact
 import { HashedRecoveryCodes } from 'infrastructure/identity/services/HashedRecoveryCodes';
 import { AesSecretCipher } from 'infrastructure/identity/services/AesSecretCipher';
 import { SignInSteps } from 'application/identity/services/SignInSteps';
+import { NewSignInWarning } from '../../../../src/application/identity/services/NewSignInWarning';
+import { FakeEmailSender } from '../../helpers/FakeEmailSender';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 
 export function makeAdapters(prisma: PrismaClient) {
   const users = new PrismaUserRepository(prisma);
   const tokens = new JwtTokenService();
+  const emails = new FakeEmailSender();
+  const logger = new WinstonLogger();
   return {
     users,
     passwords: new BcryptPasswordService(),
@@ -19,6 +23,8 @@ export function makeAdapters(prisma: PrismaClient) {
     twoFactorCodes: new TotpTwoFactorCodes(),
     recoveryCodes: new HashedRecoveryCodes(),
     cipher: new AesSecretCipher(),
-    logger: new WinstonLogger()
+    emails,
+    newSignInWarning: new NewSignInWarning(emails, logger),
+    logger
   };
 }

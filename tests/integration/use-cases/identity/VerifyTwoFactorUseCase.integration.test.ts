@@ -35,6 +35,7 @@ describe('[IDN-170] VerifyTwoFactorUseCase — integration', () => {
       adapters.twoFactorCodes,
       adapters.recoveryCodes,
       adapters.cipher,
+      adapters.newSignInWarning,
       adapters.logger
     );
   });
@@ -45,6 +46,7 @@ describe('[IDN-170] VerifyTwoFactorUseCase — integration', () => {
 
   beforeEach(async () => {
     await cleanDatabase(prisma);
+    adapters.emails.sent = [];
     secret = adapters.twoFactorCodes.generateSecret();
     ({ id: userId } = await prisma.user.create({
       data: {
@@ -81,6 +83,18 @@ describe('[IDN-170] VerifyTwoFactorUseCase — integration', () => {
     expect((await row()).twoFactorLastStep).toBe(
       Math.floor(Date.now() / 30_000)
     );
+  });
+
+  it('[IDN-181] emails the account about the sign-in', async () => {
+    await verify({ code: appCode(secret) });
+
+    expect(adapters.emails.sent).toEqual([
+      expect.objectContaining({
+        to: EMAIL,
+        subject: 'Nuevo inicio de sesión en su cuenta',
+        text: expect.stringContaining('203.0.113.7')
+      })
+    ]);
   });
 
   it('[IDN-164] the same code is refused the second time, across requests', async () => {

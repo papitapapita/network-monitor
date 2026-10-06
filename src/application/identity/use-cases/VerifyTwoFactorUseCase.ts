@@ -15,6 +15,7 @@ import {
   SignInSteps,
   withoutSignInSecrets
 } from '../services/SignInSteps';
+import { NewSignInWarning } from '../services/NewSignInWarning';
 
 // IDN-170: a code from the app, or one recovery code, finishes the sign-in.
 export class VerifyTwoFactorUseCase extends UseCase<
@@ -27,6 +28,7 @@ export class VerifyTwoFactorUseCase extends UseCase<
     private readonly twoFactorCodes: ITwoFactorCodes,
     private readonly recoveryCodes: IRecoveryCodes,
     private readonly secretCipher: ISecretCipher,
+    private readonly newSignInWarning: NewSignInWarning,
     logger: ILogger
   ) {
     super(logger, 'VerifyTwoFactorUseCase');
@@ -84,6 +86,7 @@ export class VerifyTwoFactorUseCase extends UseCase<
       return this.fail(`Failed to save sign-in: ${saved.error}`);
     }
 
+    void this.newSignInWarning.send(user, request.sourceIp);
     return this.ok(
       this.signInSteps.session(user, request.rememberBrowser)
     );

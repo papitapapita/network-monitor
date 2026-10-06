@@ -19,6 +19,7 @@ import {
   makeCodes,
   makeRecoveryCodes,
   makeTokens,
+  makeWarning,
   withTwoFactor
 } from './twoFactorFakes';
 
@@ -28,12 +29,14 @@ describe('[IDN-170] VerifyTwoFactorUseCase', () => {
     const tokens = makeTokens();
     const codes = makeCodes();
     const logger = makeLogger();
+    const warning = makeWarning();
     const useCase = new VerifyTwoFactorUseCase(
       repo,
       new SignInSteps(repo, tokens),
       codes,
       makeRecoveryCodes(),
       makeCipher(),
+      warning,
       logger
     );
     const verify = (
@@ -51,8 +54,25 @@ describe('[IDN-170] VerifyTwoFactorUseCase', () => {
         rememberBrowser: answer.rememberBrowser ?? false,
         sourceIp: '203.0.113.7'
       });
-    return { user, repo, tokens, codes, logger, verify };
+    return { user, repo, tokens, codes, logger, warning, verify };
   };
+
+  it('[IDN-181] warns the account of the sign-in by email', async () => {
+    const { user, warning, verify } = build();
+
+    await verify({ code: GOOD_CODE });
+
+    expect(warning.send).toHaveBeenCalledWith(user, '203.0.113.7');
+  });
+
+  it('[IDN-181] sends no warning for a wrong code', async () => {
+    const { codes, warning, verify } = build();
+    codes.matchStep.mockReturnValue(null);
+
+    await verify({ code: '000000' });
+
+    expect(warning.send).not.toHaveBeenCalled();
+  });
 
   it('signs in with a code from the app and remembers its step', async () => {
     const { user, repo, codes, verify } = build();
