@@ -3,6 +3,26 @@ import { UserId } from 'domain/shared/ids';
 import { UserEmail } from '../value-objects/UserEmail';
 import { UserRole } from '../value-objects/UserRole';
 import { UserProps } from '../props/UserProps';
+import { UserSignInPausedEvent } from '../events/UserSignInPausedEvent';
+
+// IDN-044: the first few wrong passwords cost nothing; from then on each one
+// pauses sign-in for twice as long as the last, up to a cap. A pause that
+// ended stays counted, so the next wrong password pauses for longer still.
+export const FREE_FAILED_SIGN_INS = 5;
+const FIRST_PAUSE_MS = 60_000;
+const MAX_PAUSE_MS = 15 * 60_000;
+
+export const SIGN_IN_PAUSED =
+  'Sign-in is paused after too many failures';
+
+export function signInPauseAfter(failedSignIns: number): number {
+  if (failedSignIns < FREE_FAILED_SIGN_INS) return 0;
+  const doublings = failedSignIns - FREE_FAILED_SIGN_INS;
+  return Math.min(
+    FIRST_PAUSE_MS * 2 ** Math.min(doublings, 10),
+    MAX_PAUSE_MS
+  );
+}
 
 // Every change that should end the sessions a user already has open bumps
 // tokenVersion; a token carrying an older version is refused (IDN-065).
@@ -35,6 +55,21 @@ export class User extends AggregateRoot<UserProps, UserId> {
     return this.props.tokenVersion;
   }
 
+  get failedSignIns(): number {
+    return this.props.failedSignIns;
+  }
+
+  get signInPausedUntil(): Date | null {
+    return this.props.signInPausedUntil;
+  }
+
+  public isSignInPaused(now: Date): boolean {
+    return (
+      this.props.signInPausedUntil !== null &&
+      now < this.props.signInPausedUntil
+    );
+  }
+
   get createdAt(): Date {
     return this.props.createdAt;
   }
@@ -55,6 +90,8 @@ export class User extends AggregateRoot<UserProps, UserId> {
       passwordHash: props.passwordHash,
       disabledAt: null,
       tokenVersion: 0,
+      failedSignIns: 0,
+      signInPausedUntil: null,
       createdAt: now,
       updatedAt: now
     };
@@ -69,8 +106,13 @@ export class User extends AggregateRoot<UserProps, UserId> {
     return this.apply({ role }, true);
   }
 
+  // A new password also lifts a sign-in pause: the failures were against
+  // the old one (IDN-044).
   public changePassword(passwordHash: string): Result<void> {
-    return this.apply({ passwordHash }, true);
+    return this.apply(
+      { passwordHash, failedSignIns: 0, signInPausedUntil: null },
+      true
+    );
   }
 
   public disable(): Result<void> {
@@ -85,6 +127,50 @@ export class User extends AggregateRoot<UserProps, UserId> {
       return Result.fail<void>('User is not disabled');
     }
     return this.apply({ disabledAt: null }, false);
+  }
+
+  // Refused while a pause runs, so attempts during it neither count nor
+  // stretch it (IDN-044).
+  public recordFailedSignIn(
+    now: Date,
+    sourceIp: string | null
+  ): Result<void> {
+    if (this.isSignInPaused(now)) {
+      return Result.fail<void>(SIGN_IN_PAUSED);
+    }
+    const failedSignIns = this.props.failedSignIns + 1;
+    const pauseMs = signInPauseAfter(failedSignIns);
+    const signInPausedUntil =
+      pauseMs > 0 ? new Date(now.getTime() + pauseMs) : null;
+    const applied = this.apply(
+      { failedSignIns, signInPausedUntil },
+      false
+    );
+    if (applied.isFailure) return applied;
+
+    // Only the first pause is announced (IDN-045): one message per run of
+    // failures, not one per attempt.
+    if (failedSignIns === FREE_FAILED_SIGN_INS && signInPausedUntil) {
+      this.addDomainEvent(
+        new UserSignInPausedEvent({
+          aggregateId: this.id,
+          email: this.props.email.toString(),
+          failedSignIns,
+          pausedUntil: signInPausedUntil,
+          sourceIp,
+          dateTimeOccurred: now
+        })
+      );
+    }
+    return applied;
+  }
+
+  public recordSuccessfulSignIn(): Result<void> {
+    if (this.props.failedSignIns === 0) return Result.ok<void>();
+    return this.apply(
+      { failedSignIns: 0, signInPausedUntil: null },
+      false
+    );
   }
 
   public static reconstitute(id: UserId, props: UserProps): User {
@@ -132,6 +218,20 @@ export class User extends AggregateRoot<UserProps, UserId> {
       props.tokenVersion < 0
     ) {
       return 'tokenVersion must be a non-negative integer';
+    }
+
+    if (
+      !Number.isInteger(props.failedSignIns) ||
+      props.failedSignIns < 0
+    ) {
+      return 'failedSignIns must be a non-negative integer';
+    }
+
+    if (
+      props.signInPausedUntil !== null &&
+      props.failedSignIns < FREE_FAILED_SIGN_INS
+    ) {
+      return `Sign-in can only be paused after ${FREE_FAILED_SIGN_INS} failures`;
     }
 
     return null;

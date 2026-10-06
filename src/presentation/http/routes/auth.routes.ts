@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { AuthController } from '../controllers/AuthController';
-import { validateRequest } from '../middleware';
+import { createRateLimiter, validateRequest } from '../middleware';
 import { loginSchema } from '../validation/auth.schemas';
 
 export function createAuthRoutes(controller: AuthController): Router {
@@ -8,6 +8,7 @@ export function createAuthRoutes(controller: AuthController): Router {
 
   router.post(
     '/login',
+    createRateLimiter('sign-in'),
     validateRequest(loginSchema),
     controller.login
   );

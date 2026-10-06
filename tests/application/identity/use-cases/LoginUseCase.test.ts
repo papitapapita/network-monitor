@@ -12,7 +12,11 @@ import {
   LogContext
 } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
-import { User } from '../../../../src/domain/identity/aggregates/User';
+import {
+  User,
+  SIGN_IN_PAUSED
+} from '../../../../src/domain/identity/aggregates/User';
+import { UserSignInPausedEvent } from '../../../../src/domain/identity/events/UserSignInPausedEvent';
 import { UserEmail } from '../../../../src/domain/identity/value-objects/UserEmail';
 import { UserRole } from '../../../../src/domain/identity/value-objects/UserRole';
 import { UserId } from '../../../../src/domain/shared/ids/UserId';
@@ -39,7 +43,7 @@ function makeLogger(): ILogger {
 
 function makeUserRepo(): jest.Mocked<IUserRepository> {
   return {
-    save: jest.fn(),
+    save: jest.fn(async (u: User) => Result.ok<User>(u)),
     findById: jest.fn(),
     findAll: jest.fn(),
     findByEmail: jest.fn()
@@ -73,6 +77,8 @@ function makeUser(
     passwordHash,
     disabledAt: null,
     tokenVersion: 0,
+    failedSignIns: 0,
+    signInPausedUntil: null,
     createdAt: now,
     updatedAt: now
   };
@@ -85,6 +91,7 @@ function makeRequest(
   return {
     email: 'alice@example.com',
     password: 'secret123',
+    sourceIp: '203.0.113.7',
     ...overrides
   };
 }
@@ -343,6 +350,106 @@ describe('LoginUseCase', () => {
       for (const req of loggedRequests) {
         expect(req).not.toHaveProperty('password');
       }
+    });
+  });
+
+  // =========================================================================
+  describe('sign-in failures', () => {
+    function pausedUser(): User {
+      const user = makeUser();
+      for (let i = 0; i < 5; i++)
+        user.recordFailedSignIn(new Date(), null);
+      user.clearEvents();
+      return user;
+    }
+
+    it('[IDN-044] counts a wrong password and saves it', async () => {
+      const user = makeUser();
+      userRepo.findByEmail.mockResolvedValue(Result.ok(user));
+      passwordService.compare.mockResolvedValue(false);
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.error).toBe('Invalid credentials');
+      expect(user.failedSignIns).toBe(1);
+      expect(userRepo.save).toHaveBeenCalledWith(user);
+    });
+
+    it('[IDN-045] passes the caller address to the fifth failure', async () => {
+      const user = makeUser();
+      for (let i = 0; i < 4; i++)
+        user.recordFailedSignIn(new Date(), null);
+      userRepo.findByEmail.mockResolvedValue(Result.ok(user));
+      passwordService.compare.mockResolvedValue(false);
+
+      await useCase.execute(
+        makeRequest({ sourceIp: '198.51.100.4' })
+      );
+
+      const event = user.domainEvents[0] as UserSignInPausedEvent;
+      expect(event.sourceIp).toBe('198.51.100.4');
+    });
+
+    it('[IDN-044] refuses a paused account before checking the password', async () => {
+      const user = pausedUser();
+      userRepo.findByEmail.mockResolvedValue(Result.ok(user));
+      passwordService.compare.mockResolvedValue(true);
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.error).toBe(SIGN_IN_PAUSED);
+      expect(passwordService.compare).not.toHaveBeenCalled();
+      expect(tokenService.sign).not.toHaveBeenCalled();
+      expect(userRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('[IDN-040] answers a disabled paused account like any wrong credentials', async () => {
+      const user = pausedUser();
+      user.disable();
+      userRepo.findByEmail.mockResolvedValue(Result.ok(user));
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.error).toBe('Invalid credentials');
+    });
+
+    it('[IDN-044] clears the count on a successful sign-in', async () => {
+      const user = makeUser();
+      user.recordFailedSignIn(new Date(), null);
+      userRepo.findByEmail.mockResolvedValue(Result.ok(user));
+      passwordService.compare.mockResolvedValue(true);
+      tokenService.sign.mockReturnValue('tok');
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.isSuccess).toBe(true);
+      expect(user.failedSignIns).toBe(0);
+      expect(userRepo.save).toHaveBeenCalledWith(user);
+    });
+
+    it('does not save on a successful sign-in with nothing to clear', async () => {
+      userRepo.findByEmail.mockResolvedValue(Result.ok(makeUser()));
+      passwordService.compare.mockResolvedValue(true);
+      tokenService.sign.mockReturnValue('tok');
+
+      await useCase.execute(makeRequest());
+
+      expect(userRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('keeps the answer when the count cannot be saved', async () => {
+      userRepo.findByEmail.mockResolvedValue(Result.ok(makeUser()));
+      passwordService.compare.mockResolvedValue(false);
+      userRepo.save.mockResolvedValue(Result.fail('db down'));
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.error).toBe('Invalid credentials');
+      expect(logger.error).toHaveBeenCalledWith(
+        'LoginUseCase: sign-in counter not saved',
+        undefined,
+        expect.objectContaining({ error: 'db down' })
+      );
     });
   });
 });

@@ -7,6 +7,9 @@ export interface UserProps {
   passwordHash: string;
   disabledAt: Date | null;
   tokenVersion: number;
+  // Wrong passwords since the last successful sign-in (IDN-044).
+  failedSignIns: number;
+  signInPausedUntil: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

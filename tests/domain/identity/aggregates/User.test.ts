@@ -1,6 +1,11 @@
 // Source: src/domain/identity/aggregates/User.ts
 
-import { User } from '../../../../src/domain/identity/aggregates/User';
+import {
+  User,
+  SIGN_IN_PAUSED,
+  signInPauseAfter
+} from '../../../../src/domain/identity/aggregates/User';
+import { UserSignInPausedEvent } from '../../../../src/domain/identity/events/UserSignInPausedEvent';
 import { UserEmail } from '../../../../src/domain/identity/value-objects/UserEmail';
 import { UserRole } from '../../../../src/domain/identity/value-objects/UserRole';
 import { UserId } from '../../../../src/domain/shared/ids/UserId';
@@ -43,6 +48,8 @@ function makeUserProps(
     passwordHash: '$2b$10$hashedpassword',
     disabledAt: null,
     tokenVersion: 0,
+    failedSignIns: 0,
+    signInPausedUntil: null,
     createdAt: now,
     updatedAt: now,
     ...overrides
@@ -356,5 +363,123 @@ describe('User', () => {
     it('refuses to enable an enabled user', () => {
       expect(fresh().enable().error).toBe('User is not disabled');
     });
+  });
+});
+
+describe('User sign-in failures', () => {
+  const at = new Date('2026-10-05T12:00:00.000Z');
+  const later = (ms: number) => new Date(at.getTime() + ms);
+
+  function user(overrides: Partial<UserProps> = {}): User {
+    return User.reconstitute(
+      UserId.create(),
+      makeUserProps(overrides)
+    );
+  }
+
+  function failTimes(u: User, n: number, now = at): void {
+    for (let i = 0; i < n; i++)
+      u.recordFailedSignIn(now, '203.0.113.7');
+  }
+
+  it('[IDN-044] counts the first four failures without pausing', () => {
+    const u = user();
+    failTimes(u, 4);
+
+    expect(u.failedSignIns).toBe(4);
+    expect(u.signInPausedUntil).toBeNull();
+    expect(u.isSignInPaused(at)).toBe(false);
+  });
+
+  it('[IDN-044] pauses for one minute on the fifth failure', () => {
+    const u = user();
+    failTimes(u, 5);
+
+    expect(u.signInPausedUntil).toEqual(later(60_000));
+    expect(u.isSignInPaused(later(59_999))).toBe(true);
+    expect(u.isSignInPaused(later(60_000))).toBe(false);
+  });
+
+  it('[IDN-044] doubles the pause with each failure after it, up to 15 minutes', () => {
+    expect(signInPauseAfter(4)).toBe(0);
+    expect(signInPauseAfter(5)).toBe(60_000);
+    expect(signInPauseAfter(6)).toBe(120_000);
+    expect(signInPauseAfter(8)).toBe(480_000);
+    expect(signInPauseAfter(9)).toBe(900_000);
+    expect(signInPauseAfter(500)).toBe(900_000);
+  });
+
+  it('[IDN-044] refuses a failure during a pause, so it neither counts nor stretches it', () => {
+    const u = user();
+    failTimes(u, 5);
+
+    const result = u.recordFailedSignIn(later(30_000), null);
+
+    expect(result.error).toBe(SIGN_IN_PAUSED);
+    expect(u.failedSignIns).toBe(5);
+    expect(u.signInPausedUntil).toEqual(later(60_000));
+  });
+
+  it('[IDN-044] pauses for longer on the first failure after a pause ends', () => {
+    const u = user();
+    failTimes(u, 5);
+
+    u.recordFailedSignIn(later(60_000), null);
+
+    expect(u.failedSignIns).toBe(6);
+    expect(u.signInPausedUntil).toEqual(later(60_000 + 120_000));
+  });
+
+  it('[IDN-044] a successful sign-in clears the count and the pause', () => {
+    const u = user({
+      failedSignIns: 6,
+      signInPausedUntil: null
+    });
+
+    u.recordSuccessfulSignIn();
+
+    expect(u.failedSignIns).toBe(0);
+    expect(u.signInPausedUntil).toBeNull();
+  });
+
+  it('[IDN-044] a new password lifts the pause and ends sessions', () => {
+    const u = user();
+    failTimes(u, 5);
+
+    u.changePassword('$2b$10$fresh');
+
+    expect(u.failedSignIns).toBe(0);
+    expect(u.isSignInPaused(at)).toBe(false);
+    expect(u.tokenVersion).toBe(1);
+  });
+
+  it('[IDN-044] does not end sessions or touch the version when counting', () => {
+    const u = user();
+    failTimes(u, 5);
+
+    expect(u.tokenVersion).toBe(0);
+  });
+
+  it('[IDN-045] raises one pause event, on the fifth failure only', () => {
+    const u = user();
+    failTimes(u, 5);
+    u.recordFailedSignIn(later(60_000), null);
+
+    const events = u.domainEvents.filter(
+      (e) => e instanceof UserSignInPausedEvent
+    ) as UserSignInPausedEvent[];
+    expect(events).toHaveLength(1);
+    expect(events[0].failedSignIns).toBe(5);
+    expect(events[0].pausedUntil).toEqual(later(60_000));
+    expect(events[0].sourceIp).toBe('203.0.113.7');
+    expect(events[0].email).toBe(u.email.toString());
+  });
+
+  it('[IDN-044] refuses any change to a state paused before the free failures', () => {
+    const u = user({ failedSignIns: 2, signInPausedUntil: later(1) });
+
+    expect(u.changeRole(UserRole.reconstitute('ADMIN')).error).toBe(
+      'Sign-in can only be paused after 5 failures'
+    );
   });
 });

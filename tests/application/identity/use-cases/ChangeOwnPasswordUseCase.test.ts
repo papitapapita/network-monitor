@@ -72,7 +72,7 @@ describe('[IDN-144] ChangeOwnPasswordUseCase', () => {
     });
 
     expect(result.error).toBe(
-      'Password must be at least 8 characters'
+      'Password must be at least 12 characters'
     );
   });
 

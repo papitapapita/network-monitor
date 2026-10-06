@@ -309,4 +309,62 @@ describe('Auth Routes — /api/auth', () => {
       expect(res.status).toBe(404);
     });
   });
+
+  // Its own app: the per-address budget lives in the limiter instance, and
+  // the failures above would otherwise share it.
+  describe('POST /api/auth/login — repeated failures', () => {
+    let freshApp: Application;
+    let freshContainer: DependencyContainer;
+
+    beforeEach(async () => {
+      ({ app: freshApp, container: freshContainer } =
+        await createTestApp());
+    });
+
+    afterEach(async () => {
+      await freshContainer.disconnect();
+    });
+
+    const login = (email: string, password: string) =>
+      request(freshApp)
+        .post('/api/auth/login')
+        .send({ email, password });
+
+    it('[IDN-044] 429 — the right password is refused after five wrong ones', async () => {
+      await seedUser(prisma, ADMIN_EMAIL, ADMIN_PASS, 'ADMIN');
+      for (let i = 0; i < 5; i++)
+        await login(ADMIN_EMAIL, 'wrong-password');
+
+      const res = await login(ADMIN_EMAIL, ADMIN_PASS);
+
+      expect(res.status).toBe(429);
+      expect(res.body).toEqual({
+        success: false,
+        error: 'Too many failed sign-in attempts. Try again later.'
+      });
+    });
+
+    it('[IDN-103] 429 — an address is refused after ten failed sign-ins', async () => {
+      for (let i = 0; i < 10; i++) {
+        expect(
+          (await login(`ghost${i}@test.local`, 'pass')).status
+        ).toBe(401);
+      }
+
+      const res = await login('ghost@test.local', 'pass');
+
+      expect(res.status).toBe(429);
+      expect(res.body.error).toBe('Too many requests');
+    });
+
+    it('[IDN-103] successful sign-ins never spend the address budget', async () => {
+      await seedUser(prisma, ADMIN_EMAIL, ADMIN_PASS, 'ADMIN');
+
+      for (let i = 0; i < 12; i++) {
+        expect((await login(ADMIN_EMAIL, ADMIN_PASS)).status).toBe(
+          200
+        );
+      }
+    });
+  });
 });

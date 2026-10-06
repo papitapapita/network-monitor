@@ -27,7 +27,7 @@ describe('CreateUserUseCase', () => {
 
     const result = await useCase.execute({
       email: 'New@ISP.example',
-      password: 'eight-ch',
+      password: 'twelve-chars',
       role: 'operator'
     });
 
@@ -37,7 +37,7 @@ describe('CreateUserUseCase', () => {
       disabled: false
     });
     expect(repo.save.mock.calls[0][0].passwordHash).toBe(
-      'hashed:eight-ch'
+      'hashed:twelve-chars'
     );
   });
 
@@ -46,7 +46,7 @@ describe('CreateUserUseCase', () => {
 
     const result = await useCase.execute({
       email: 'new@isp.example',
-      password: 'long-enough',
+      password: 'long-enough-pass',
       role: 'VENDOR'
     });
 
@@ -54,12 +54,12 @@ describe('CreateUserUseCase', () => {
     expect(repo.save).not.toHaveBeenCalled();
   });
 
-  it('[IDN-142] refuses a password under 8 characters', async () => {
+  it('[IDN-142] refuses a password under 12 characters', async () => {
     const { useCase } = build();
 
     const result = await useCase.execute({
       email: 'new@isp.example',
-      password: 'seven-c',
+      password: 'eleven-char',
       role: 'VIEWER'
     });
 
@@ -73,7 +73,7 @@ describe('CreateUserUseCase', () => {
       (
         await useCase.execute({
           email: 'nope',
-          password: 'long-enough',
+          password: 'long-enough-pass',
           role: 'VIEWER'
         })
       ).error
@@ -82,7 +82,7 @@ describe('CreateUserUseCase', () => {
       (
         await useCase.execute({
           email: 'a@b.co',
-          password: 'long-enough',
+          password: 'long-enough-pass',
           role: 'ROOT'
         })
       ).error
@@ -97,7 +97,7 @@ describe('CreateUserUseCase', () => {
 
     const result = await useCase.execute({
       email: 'taken@isp.example',
-      password: 'long-enough',
+      password: 'long-enough-pass',
       role: 'VIEWER'
     });
 

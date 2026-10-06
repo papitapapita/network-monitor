@@ -6,7 +6,8 @@ type RateLimitType =
   | 'write'
   | 'delete'
   | 'bulk-import'
-  | 'enroll';
+  | 'enroll'
+  | 'sign-in';
 
 const LIMITS: Record<
   RateLimitType,
@@ -16,7 +17,8 @@ const LIMITS: Record<
   write: { max: 60, windowMs: 60_000 },
   delete: { max: 60, windowMs: 60_000 },
   'bulk-import': { max: 5, windowMs: 3_600_000 },
-  enroll: { max: 10, windowMs: 900_000 }
+  enroll: { max: 10, windowMs: 900_000 },
+  'sign-in': { max: 10, windowMs: 900_000 }
 };
 
 // Authenticated callers get their own bucket so several operators behind one
@@ -31,6 +33,10 @@ export function createRateLimiter(type: RateLimitType) {
     windowMs,
     limit: max,
     keyGenerator,
+    // Only failed sign-ins spend the budget, so an office whose staff all
+    // sign in from one address is never held up by its own successes
+    // (IDN-103).
+    skipSuccessfulRequests: type === 'sign-in',
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, error: 'Too many requests' }

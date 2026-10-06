@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { ILogger } from 'application/shared/interfaces';
 import { LoginUseCase } from 'application/identity/use-cases/LoginUseCase';
+import { SIGN_IN_PAUSED } from 'domain/identity';
 import { LoginInput } from '../validation/auth.schemas';
 
 export class AuthController {
@@ -18,8 +19,17 @@ export class AuthController {
 
       const result = await this.loginUseCase.execute({
         email: body.email,
-        password: body.password
+        password: body.password,
+        sourceIp: req.ip ?? null
       });
+
+      if (result.isFailure && result.error === SIGN_IN_PAUSED) {
+        res.status(429).json({
+          success: false,
+          error: 'Too many failed sign-in attempts. Try again later.'
+        });
+        return;
+      }
 
       if (result.isFailure) {
         res

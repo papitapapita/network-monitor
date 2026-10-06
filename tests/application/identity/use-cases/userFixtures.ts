@@ -17,6 +17,8 @@ export function makeUser(
     passwordHash: '$2b$10$existing',
     disabledAt: null,
     tokenVersion: 0,
+    failedSignIns: 0,
+    signInPausedUntil: null,
     createdAt: now,
     updatedAt: now
   });

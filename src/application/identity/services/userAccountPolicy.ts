@@ -1,7 +1,7 @@
 import { Result } from 'domain/shared/core';
 import { User, UserRole } from 'domain/identity';
 
-export const USER_PASSWORD_MIN_LENGTH = 8;
+export const USER_PASSWORD_MIN_LENGTH = 12;
 export const VENDOR_ACCOUNT_PROTECTED =
   'The vendor account is managed by the vendor';
 export const VENDOR_ROLE_NOT_ASSIGNABLE =

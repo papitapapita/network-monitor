@@ -55,6 +55,7 @@ import {
   AgentUpdateFailedEvent
 } from 'domain/probe-agents/events';
 import { JwtTokenService } from '../identity/services/JwtTokenService';
+import { UserSignInPausedEvent } from 'domain/identity/events';
 import { BcryptPasswordService } from '../identity/services/BcryptPasswordService';
 import { PrismaUserRepository } from '../identity/repositories/PrismaUserRepository';
 import {
@@ -367,6 +368,7 @@ import {
   DeviceWentOfflineAlertRecordHandler,
   ContractedServiceSuspendedNotificationHandler,
   AgentWentOfflineNotificationHandler,
+  UserSignInPausedNotificationHandler,
   AgentCameBackNotificationHandler,
   AgentClockDriftedNotificationHandler,
   AgentClockCorrectedNotificationHandler,
@@ -2099,6 +2101,13 @@ export class DependencyContainer {
       alertPublisher,
       vendorPublisher
     ]);
+    EventDispatcher.register(
+      UserSignInPausedEvent.name,
+      new UserSignInPausedNotificationHandler(
+        alertPublisher,
+        this.logger
+      )
+    );
     EventDispatcher.register(
       AgentWentOfflineEvent.name,
       new AgentWentOfflineNotificationHandler(

@@ -31,10 +31,10 @@ Format and conventions: [README.md](README.md).
 | Presentation (middleware)     | 11    |
 | Infrastructure                | 8     |
 | Domain (value object)         | 4     |
-| Application                   | 10    |
+| Application                   | 11    |
 | Presentation                  | 4     |
 | Domain (permission table)     | 2     |
-| Domain (aggregate)            | 3     |
+| Domain (aggregate)            | 4     |
 | Infrastructure + Presentation | 1     |
 | Infrastructure (database)     | 1     |
 
@@ -44,9 +44,10 @@ constant under `domain/identity/permissions/` precisely so the question "may an
 operator delete things" has one answer, testable without an HTTP request, that
 no route can disagree with.
 
-`User` is small: a role change, a password change, disabling and re-enabling.
-Every one of them except re-enabling ends the sessions the account has open
-(`IDN-065`).
+`User` is small: a role change, a password change, disabling and re-enabling,
+and the count of wrong passwords that pauses its sign-in (`IDN-044`). Every
+change except re-enabling and that count ends the sessions the account has
+open (`IDN-065`).
 
 ---
 
@@ -423,6 +424,12 @@ real, and that is the expensive half of the work. The one exception is a
 repository failure, which is reported as itself — it is an outage, not an
 authentication answer.
 
+A paused account (`IDN-044`) is the accepted leak: it answers `429` where an
+unknown email answers `401`, so five wrong passwords reveal that an address
+has an account. `IDN-103` caps that at two addresses per caller address every
+15 minutes, too slow to map a directory, and a person locked out needs to know
+to wait rather than to doubt their password.
+
 **Enforced at:** `src/application/identity/use-cases/LoginUseCase.ts`
 **Message:** `Invalid credentials`
 **Tests:** `tests/application/identity/use-cases/LoginUseCase.test.ts`
@@ -475,6 +482,62 @@ single place that guarantees it does not.
 
 **Enforced at:** `src/application/identity/mappers/UserMapper.ts`
 **Tests:** `tests/integration/auth.routes.test.ts`
+
+### IDN-044 — Five wrong passwords in a row pause the account's sign-in
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (aggregate)
+**Since:** 2026-10-05
+
+Each wrong password for an existing, enabled account is counted on the account.
+The first four cost nothing. The fifth pauses sign-in for 1 minute, and each
+further wrong password doubles the pause, up to 15 minutes. While a pause runs,
+every attempt is refused before the password is checked — even the right one —
+and is not counted, so it neither stretches the pause nor raises the next one.
+The count survives the pause's end: the first wrong password after it pauses
+for twice as long. A successful sign-in clears the count and the pause, and so
+does a new password (the failures were against the old one), so an
+administrator can let a person in at once by resetting their password.
+
+The count is kept in the database, so a restart does not reset it.
+
+**Why:** A per-address limit (`IDN-103`) does not stop a guessing run spread
+over many addresses; the account is the one thing every such attempt shares.
+A doubling pause rather than a lock is deliberate: a lock that only an
+administrator can lift lets anyone who knows an email shut its owner out. Here
+the worst an attacker can do is make the owner wait up to 15 minutes, while
+guessing slows to four tries an hour.
+
+**Enforced at:** `src/domain/identity/aggregates/User.ts` (`recordFailedSignIn`, `signInPauseAfter`),
+`src/application/identity/use-cases/LoginUseCase.ts`,
+`prisma/migrations/20261005120000_user_sign_in_pause/migration.sql` (`users_sign_in_pause_check`)
+**Message:** `Too many failed sign-in attempts. Try again later.` (`429`)
+**Tests:** `tests/domain/identity/aggregates/User.test.ts`,
+`tests/application/identity/use-cases/LoginUseCase.test.ts`,
+`tests/integration/use-cases/identity/LoginUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-045 — A paused sign-in is announced in the install's alert chat
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+When an account's fifth wrong password in a row starts a pause (`IDN-044`),
+one alert goes to the install's own Telegram chat: the account, the caller's
+address and how long it waits. Further pauses in the same run of failures send
+nothing more. The alert has no device, so quiet hours do not apply; it can be
+muted like any other type (`sign_in_paused`).
+
+**Why:** Five misses are either a forgotten password or someone guessing, and
+only the people who run the install can tell which. One message per run tells
+them it is happening without letting an attacker flood their phones.
+
+**Enforced at:** `src/domain/identity/aggregates/User.ts` (`UserSignInPausedEvent`),
+`src/application/notifications/event-handlers/UserSignInPausedNotificationHandler.ts`
+**Tests:** `tests/domain/identity/aggregates/User.test.ts`,
+`tests/application/notifications/event-handlers/UserSignInPausedNotificationHandler.test.ts`,
+`tests/application/identity/use-cases/LoginUseCase.test.ts`
 
 ---
 
@@ -689,7 +752,7 @@ the limit a property of the account rather than the building.
 **Enforced at:** `src/presentation/http/middleware/rateLimiter.ts` (`keyGenerator`)
 **Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`
 
-### IDN-101 — There are five rate budgets
+### IDN-101 — There are six rate budgets
 
 **Type:** Policy · **Status:** Active
 **Layer:** Presentation (middleware)
@@ -702,14 +765,15 @@ the limit a property of the account rather than the building.
 | `delete`      | 60 per minute  |
 | `bulk-import` | 5 per hour     |
 | `enroll`      | 10 per 15 min  |
+| `sign-in`     | 10 failures per 15 min |
 
 **Why:** Reads are cheap and are what a dashboard does on a timer, so they get
 the loosest budget. `bulk-import` is three orders of magnitude tighter because
 one call does the work of hundreds and can run for minutes — `BIL-141` explains
 what that protects. `write` and `delete` are currently identical; the separate
 name exists so deletion can be tightened without touching every write route.
-`enroll` is the only budget for a caller with no user: agent enrollment
-(`AGT-008`), keyed by IP address.
+`enroll` and `sign-in` are the budgets for a caller with no user — agent
+enrollment (`AGT-008`) and login (`IDN-103`) — keyed by IP address.
 
 **Enforced at:** `src/presentation/http/middleware/rateLimiter.ts` (`LIMITS`)
 **Message:** `Too many requests`
@@ -732,26 +796,33 @@ than one. Making them real means a shared store.
 **Enforced at:** `src/presentation/http/middleware/rateLimiter.ts`
 **Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`
 
-### IDN-103 — Login is not rate limited
+### IDN-103 — An address gets ten failed sign-ins per 15 minutes
 
 **Type:** Policy · **Status:** Active
-**Layer:** Presentation
-**Since:** 2026-08-05
+**Layer:** Presentation (middleware)
+**Since:** 2026-08-05 · **Revised:** 2026-10-05
 
-`POST /api/auth/login` carries `validateRequest` and nothing else — no
-`createRateLimiter`, because the limiter is applied per route and `/api/auth` is
-mounted above the point where anything global would catch it.
+`POST /api/auth/login` carries the `sign-in` budget (`IDN-101`), keyed by the
+caller's address. Only failed attempts spend it — any answer of `400` or
+above — so an office whose staff all sign in from one address is never held up
+by its own successes. The eleventh failure within 15 minutes answers `429`
+`Too many requests`.
 
-**Why:** Recorded as a gap, not a decision. This is the one endpoint that is
-reachable without credentials and the one where unlimited attempts are directly
-useful to an attacker. `IDN-006` makes each attempt cost a bcrypt comparison,
-which slows a guessing run down but also means an unthrottled flood is an
-effective way to exhaust the process. The fix is a per-IP limiter on the login
-route specifically — `IDN-100`'s user-id key is unavailable here, since there is
-no authenticated user yet.
+Behind Cloudflare Tunnel the address is only the caller's own when
+`TRUST_PROXY` names the tunnel (`loopback` when `cloudflared` runs on the same
+machine); otherwise every caller shares one budget.
 
-**Enforced at:** `src/presentation/http/routes/auth.routes.ts`
-**Tests:** `tests/integration/auth.routes.test.ts`
+**Why:** Until 2026-10-05 login had no limit at all — the one endpoint reachable
+without credentials and the one where unlimited attempts help an attacker most.
+Each attempt costs a bcrypt comparison (`IDN-006`), so a flood also wears the
+process down. This budget slows one source; `IDN-044` covers guessing spread
+across many.
+
+**Enforced at:** `src/presentation/http/routes/auth.routes.ts`,
+`src/presentation/http/middleware/rateLimiter.ts` (`skipSuccessfulRequests`)
+**Message:** `Too many requests`
+**Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`,
+`tests/integration/auth.routes.test.ts`
 
 ---
 
@@ -893,14 +964,15 @@ promotes it (`IDN-011`).
 `tests/integration/use-cases/identity/UpdateUserUseCase.integration.test.ts`,
 `tests/integration/user.routes.test.ts`
 
-### IDN-142 — A staff password is at least 8 characters
+### IDN-142 — A staff password is at least 12 characters
 
 **Type:** Validation · **Status:** Active
 **Layer:** Application
-**Since:** 2026-09-30
+**Since:** 2026-09-30 · **Revised:** 2026-10-05
 
-On creation, on reset and on a change of one's own password. The vendor account
-needs 12 (`IDN-012`). Passwords over 200 characters are refused at the edge.
+On creation, on reset and on a change of one's own password, the same 12 as the
+vendor account (`IDN-012`). It was 8 until 2026-10-05; a shorter password set
+before then keeps working until it is next changed. Passwords over 200 characters are refused at the edge.
 
 **Why:** The floor stops the obvious placeholders (`1234`, the company name)
 without forcing rules people work around by writing passwords down. The ceiling
@@ -908,7 +980,7 @@ keeps a request from handing bcrypt an arbitrarily long string.
 
 **Enforced at:** `src/application/identity/services/userAccountPolicy.ts` (`USER_PASSWORD_MIN_LENGTH`),
 `src/presentation/http/validation/user.schemas.ts`
-**Message:** `Password must be at least 8 characters`
+**Message:** `Password must be at least 12 characters`
 **Tests:** `tests/application/identity/use-cases/CreateUserUseCase.test.ts`,
 `tests/application/identity/use-cases/UpdateUserUseCase.test.ts`,
 `tests/integration/user.routes.test.ts`

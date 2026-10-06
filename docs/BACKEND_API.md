@@ -105,6 +105,7 @@ revoke, the data-retention purge and the vendor's settings
 | Delete (`DELETE`)              | 60 / min  |
 | Bulk import                    | 5 / hr    |
 | Agent enrollment (per IP)      | 10 / 15 min |
+| Failed sign-ins (per IP)       | 10 / 15 min |
 
 Counters are keyed by user id, falling back to IP for unauthenticated requests,
 so operators sharing one office address do not share a budget. Each resource
@@ -122,7 +123,7 @@ user and 200 per server, exceeding either returns `429` with
 
 ### `POST /api/auth/login` — Login
 
-**Status:** 200 | 400 | 401  
+**Status:** 200 | 400 | 401 | 429  
 **Auth required:** No
 
 ```ts
@@ -148,6 +149,16 @@ user and 200 per server, exceeding either returns `429` with
 
 > Returns `401` for a wrong password, an unknown email and a disabled account alike (identical error message — no credential enumeration).  
 > Token expires after 24 hours; obtain a new one by logging in again.
+
+> **⚠ Changed 2026-10-05 — two new `429` answers:**
+>
+> | When | Body `error` |
+> | ---- | ------------ |
+> | The account had 5 wrong passwords in a row: it waits 1 minute, and each further wrong password doubles the wait, up to 15 minutes. Even the right password is refused while it waits (IDN-044). | `Too many failed sign-in attempts. Try again later.` |
+> | The caller's address had 10 failed sign-ins in 15 minutes (IDN-103). | `Too many requests` |
+>
+> Show both as "try again in a few minutes"; neither means the password is wrong.
+> A new password set by an administrator lifts the account's wait at once.
 
 ---
 
@@ -4976,7 +4987,7 @@ interface UserAccountDTO {
 // Request body
 {
   email: string; // stored lowercase; unique
-  password: string; // 8–200 chars
+  password: string; // 12–200 chars (8 before 2026-10-05)
   role: 'ADMIN' | 'OPERATOR' | 'VIEWER'; // VENDOR is refused (400)
 }
 
@@ -4998,7 +5009,7 @@ interface UserAccountDTO {
 {
   role?: 'ADMIN' | 'OPERATOR' | 'VIEWER';
   disabled?: boolean; // true disables, false re-enables
-  password?: string; // 8–200 chars — a reset, no current password needed
+  password?: string; // 12–200 chars — a reset, no current password needed
 }
 
 // Response
@@ -5020,7 +5031,7 @@ interface UserAccountDTO {
 
 ```ts
 // Request body
-{ currentPassword: string; newPassword: string } // new: 8–200 chars (12 for the vendor)
+{ currentPassword: string; newPassword: string } // new: 12–200 chars (was 8 before 2026-10-05)
 
 // Response
 { success: true, data: { token: string } }

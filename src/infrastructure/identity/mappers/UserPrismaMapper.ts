@@ -11,6 +11,8 @@ interface UserRecord {
   role: string;
   disabledAt: Date | null;
   tokenVersion: number;
+  failedSignIns: number;
+  signInPausedUntil: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,6 +31,8 @@ export class UserPrismaMapper {
         passwordHash: raw.passwordHash,
         disabledAt: raw.disabledAt,
         tokenVersion: raw.tokenVersion,
+        failedSignIns: raw.failedSignIns,
+        signInPausedUntil: raw.signInPausedUntil,
         createdAt: raw.createdAt,
         updatedAt: raw.updatedAt
       })
@@ -43,6 +47,8 @@ export class UserPrismaMapper {
       role: user.role.toString(),
       disabledAt: user.disabledAt,
       tokenVersion: user.tokenVersion,
+      failedSignIns: user.failedSignIns,
+      signInPausedUntil: user.signInPausedUntil,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     };

@@ -93,4 +93,45 @@ describe('createRateLimiter', () => {
       expect(status).toBe(204);
     });
   });
+
+  describe('[IDN-103] sign-in limiter', () => {
+    const makeSignInApp = (status: () => number): Express => {
+      const app = express();
+      app.post(
+        '/login',
+        createRateLimiter('sign-in'),
+        (_req, res) => {
+          res.status(status()).send();
+        }
+      );
+      return app;
+    };
+
+    const postTimes = async (app: Express, count: number) => {
+      const statuses: number[] = [];
+      for (let i = 0; i < count; i++) {
+        statuses.push((await request(app).post('/login')).status);
+      }
+      return statuses;
+    };
+
+    it('refuses an address after ten failed sign-ins', async () => {
+      const statuses = await postTimes(
+        makeSignInApp(() => 401),
+        11
+      );
+
+      expect(statuses[9]).toBe(401);
+      expect(statuses[10]).toBe(429);
+    });
+
+    it('does not spend the budget on successful sign-ins', async () => {
+      const statuses = await postTimes(
+        makeSignInApp(() => 200),
+        30
+      );
+
+      expect(statuses.every((s) => s === 200)).toBe(true);
+    });
+  });
 });
