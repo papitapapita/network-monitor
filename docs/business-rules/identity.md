@@ -49,9 +49,10 @@ operator delete things" has one answer, testable without an HTTP request, that
 no route can disagree with.
 
 `User` is small: a role change, a password change, disabling and re-enabling,
-and the count of wrong passwords that pauses its sign-in (`IDN-044`). Every
-change except re-enabling and that count ends the sessions the account has
-open (`IDN-065`).
+the count of wrong passwords that pauses its sign-in (`IDN-044`), and its
+two-factor secret and recovery codes (`IDN-160` … `IDN-165`). A role or
+password change, disabling and a two-factor reset end the sessions the account
+has open (`IDN-065`); re-enabling, the count and the two-factor steps do not.
 
 ---
 
@@ -239,7 +240,10 @@ accounts need 8 (`IDN-142`).
 **Since:** 2026-09-30
 
 `disable()` sets `disabledAt` and ends the account's sessions (`IDN-065`);
-login answers a disabled account exactly as a wrong password (`IDN-040`).
+login answers a disabled account exactly as a wrong password (`IDN-040`). Its
+two-factor challenges (`IDN-167`), remembered browsers (`IDN-171`) and reset
+or invitation links (`IDN-183`, `IDN-184`) stop working too, and it is sent no
+reset link (`IDN-182`).
 `enable()` clears it. Disabling twice, or enabling an enabled account, is
 refused by the aggregate; `PATCH /api/users/:id` treats both as no change.
 
@@ -588,9 +592,11 @@ signed in before versioning existed — the price of making revocation work.
 **Layer:** Infrastructure
 **Since:** 2026-08-05
 
+The session cookie lasts the same 24 hours (`IDN-066`).
+
 **Why:** Twenty-four hours means staff log in once a shift rather than once an
-hour, and it bounds how long a leaked token stays useful. It is the only bound
-there is — see `IDN-062`.
+hour, and it bounds how long a leaked token stays useful when nobody notices.
+Once someone does, the account ends it at once (`IDN-062`, `IDN-065`).
 
 **Enforced at:** `src/infrastructure/identity/services/JwtTokenService.ts`
 **Tests:** `tests/integration/auth.routes.test.ts`
@@ -1008,7 +1014,8 @@ mounted _before_ authentication precisely so rejected requests are captured too.
 
 Helmet's default header set is applied to every response, and CORS allows only
 the origins in `ALLOWED_ORIGINS` (defaulting to `http://localhost:3001`), with
-credentials permitted.
+credentials permitted. The same list decides which pages may send a change
+signed by the session cookie (`IDN-085`).
 
 **Why:** The browser is the client, so these are the controls that stop another
 site from driving this API with a logged-in operator's session. The allow-list
@@ -1016,7 +1023,7 @@ defaults to the local dev front end, which means a deployment that forgets to
 set `ALLOWED_ORIGINS` fails visibly in the browser rather than silently
 accepting every origin.
 
-**Enforced at:** `src/main.ts`
+**Enforced at:** `src/main.ts`, `src/infrastructure/di/allowedOrigins.ts`
 **Tests:** `tests/integration/auth.routes.test.ts`
 
 ### IDN-122 — An unhandled error never reaches the client
@@ -1175,7 +1182,8 @@ undo it.
 `POST /api/users/me/password`, any role, with `currentPassword` and
 `newPassword`. A wrong current password is a `400`. The change ends every
 session of the account, the caller's included, so the response carries a new
-token to continue with.
+token to continue with, and a browser gets it as its session cookie
+(`IDN-066`).
 
 **Why:** Asking for the current password means a token left on an unattended
 screen cannot be turned into a permanent takeover. Returning a fresh token keeps
