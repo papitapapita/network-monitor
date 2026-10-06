@@ -4,20 +4,31 @@ import { LoginUseCase } from '../../../../src/application/identity/use-cases/Log
 import { IUserRepository } from '../../../../src/domain/identity/repository/IUserRepository';
 import { IPasswordService } from '../../../../src/application/identity/interfaces/IPasswordService';
 import {
-  ITokenService,
-  TokenPayload
+  ChallengePayload,
+  ITokenService
 } from '../../../../src/application/identity/interfaces/ITokenService';
+import { SignInSteps } from '../../../../src/application/identity/services/SignInSteps';
 import {
   ILogger,
   LogContext
 } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
-import { User } from '../../../../src/domain/identity/aggregates/User';
+import {
+  User,
+  SIGN_IN_PAUSED
+} from '../../../../src/domain/identity/aggregates/User';
+import { UserSignInPausedEvent } from '../../../../src/domain/identity/events/UserSignInPausedEvent';
 import { UserEmail } from '../../../../src/domain/identity/value-objects/UserEmail';
 import { UserRole } from '../../../../src/domain/identity/value-objects/UserRole';
 import { UserId } from '../../../../src/domain/shared/ids/UserId';
 import { UserProps } from '../../../../src/domain/identity/props/UserProps';
 import { LoginRequestDTO } from '../../../../src/application/identity/dtos/LoginRequestDTO';
+import { TwoFactorStepDTO } from '../../../../src/application/identity/dtos/LoginResponseDTO';
+import {
+  challengeFor,
+  makeTokens,
+  withTwoFactor
+} from './twoFactorFakes';
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
@@ -39,7 +50,7 @@ function makeLogger(): ILogger {
 
 function makeUserRepo(): jest.Mocked<IUserRepository> {
   return {
-    save: jest.fn(),
+    save: jest.fn(async (u: User) => Result.ok<User>(u)),
     findById: jest.fn(),
     findAll: jest.fn(),
     findByEmail: jest.fn()
@@ -49,14 +60,17 @@ function makeUserRepo(): jest.Mocked<IUserRepository> {
 function makePasswordService(): jest.Mocked<IPasswordService> {
   return {
     hash: jest.fn(),
-    compare: jest.fn()
+    compare: jest.fn(),
+    unusableHash: jest.fn()
   };
 }
 
 function makeTokenService(): jest.Mocked<ITokenService> {
   return {
     sign: jest.fn(),
-    verify: jest.fn()
+    verify: jest.fn(),
+    signChallenge: jest.fn().mockReturnValue('challenge.jwt'),
+    verifyChallenge: jest.fn()
   };
 }
 
@@ -73,6 +87,12 @@ function makeUser(
     passwordHash,
     disabledAt: null,
     tokenVersion: 0,
+    failedSignIns: 0,
+    signInPausedUntil: null,
+    twoFactorSecret: null,
+    twoFactorEnabledAt: null,
+    twoFactorLastStep: null,
+    recoveryCodeHashes: [],
     createdAt: now,
     updatedAt: now
   };
@@ -85,6 +105,8 @@ function makeRequest(
   return {
     email: 'alice@example.com',
     password: 'secret123',
+    trustedBrowserToken: null,
+    sourceIp: '203.0.113.7',
     ...overrides
   };
 }
@@ -106,7 +128,7 @@ describe('LoginUseCase', () => {
     useCase = new LoginUseCase(
       userRepo,
       passwordService,
-      tokenService,
+      new SignInSteps(userRepo, tokenService),
       logger
     );
   });
@@ -117,45 +139,48 @@ describe('LoginUseCase', () => {
 
   // =========================================================================
   describe('happy path', () => {
-    it('should return Result.ok with a token and user DTO on valid credentials', async () => {
+    it('[IDN-166] answers the right password with a setup challenge while two-factor is off', async () => {
       const user = makeUser();
       userRepo.findByEmail.mockResolvedValue(Result.ok(user));
       passwordService.compare.mockResolvedValue(true);
-      tokenService.sign.mockReturnValue('signed.jwt.token');
 
       const result = await useCase.execute(makeRequest());
 
-      expect(result.isSuccess).toBe(true);
-      expect(result.value.token).toBe('signed.jwt.token');
+      expect(result.value).toEqual({
+        twoFactor: 'setup',
+        challengeToken: 'challenge.jwt'
+      });
+      expect(tokenService.signChallenge).toHaveBeenCalledWith({
+        userId: user.id.toString(),
+        tokenVersion: 0,
+        kind: 'two-factor-setup'
+      } satisfies ChallengePayload);
     });
 
-    it('should include id, email, and role in the user DTO', async () => {
-      const user = makeUser('alice@example.com', 'ADMIN');
+    it('[IDN-166] answers the right password with a code challenge once two-factor is on', async () => {
+      const user = makeUser();
+      user.startTwoFactorSetup('encrypted');
+      user.confirmTwoFactor(1, [], new Date());
       userRepo.findByEmail.mockResolvedValue(Result.ok(user));
       passwordService.compare.mockResolvedValue(true);
-      tokenService.sign.mockReturnValue('tok');
 
       const result = await useCase.execute(makeRequest());
 
-      expect(result.value.user.id).toBe(user.id.toString());
-      expect(result.value.user.email).toBe('alice@example.com');
-      expect(result.value.user.role).toBe('ADMIN');
+      expect((result.value as TwoFactorStepDTO).twoFactor).toBe(
+        'verify'
+      );
+      expect(tokenService.signChallenge.mock.calls[0][0].kind).toBe(
+        'two-factor'
+      );
     });
 
-    it('should call tokenService.sign with userId, email, and role', async () => {
-      const user = makeUser('alice@example.com', 'OPERATOR');
-      userRepo.findByEmail.mockResolvedValue(Result.ok(user));
+    it('[IDN-166] never opens a session on the password alone', async () => {
+      userRepo.findByEmail.mockResolvedValue(Result.ok(makeUser()));
       passwordService.compare.mockResolvedValue(true);
-      tokenService.sign.mockReturnValue('tok');
 
       await useCase.execute(makeRequest());
 
-      expect(tokenService.sign).toHaveBeenCalledWith({
-        userId: user.id.toString(),
-        email: 'alice@example.com',
-        role: 'OPERATOR',
-        tokenVersion: 0
-      } satisfies TokenPayload);
+      expect(tokenService.sign).not.toHaveBeenCalled();
     });
 
     it('[IDN-013] should refuse a disabled account like any wrong credentials', async () => {
@@ -167,7 +192,7 @@ describe('LoginUseCase', () => {
       const result = await useCase.execute(makeRequest());
 
       expect(result.error).toBe('Invalid credentials');
-      expect(tokenService.sign).not.toHaveBeenCalled();
+      expect(tokenService.signChallenge).not.toHaveBeenCalled();
     });
 
     it('[IDN-065] should sign the current token version', async () => {
@@ -175,11 +200,12 @@ describe('LoginUseCase', () => {
       user.changePassword('$2b$10$newer');
       userRepo.findByEmail.mockResolvedValue(Result.ok(user));
       passwordService.compare.mockResolvedValue(true);
-      tokenService.sign.mockReturnValue('tok');
 
       await useCase.execute(makeRequest());
 
-      expect(tokenService.sign.mock.calls[0][0].tokenVersion).toBe(1);
+      expect(
+        tokenService.signChallenge.mock.calls[0][0].tokenVersion
+      ).toBe(1);
     });
 
     it('should call passwordService.compare with the plain password and stored hash', async () => {
@@ -190,7 +216,6 @@ describe('LoginUseCase', () => {
       );
       userRepo.findByEmail.mockResolvedValue(Result.ok(user));
       passwordService.compare.mockResolvedValue(true);
-      tokenService.sign.mockReturnValue('tok');
 
       await useCase.execute(makeRequest({ password: 'plain-pass' }));
 
@@ -204,7 +229,6 @@ describe('LoginUseCase', () => {
       const user = makeUser();
       userRepo.findByEmail.mockResolvedValue(Result.ok(user));
       passwordService.compare.mockResolvedValue(true);
-      tokenService.sign.mockReturnValue('tok');
 
       await useCase.execute(
         makeRequest({ email: 'alice@example.com' })
@@ -236,12 +260,12 @@ describe('LoginUseCase', () => {
       expect(passwordService.compare).not.toHaveBeenCalled();
     });
 
-    it('should not call tokenService when user is not found', async () => {
+    it('should not issue a challenge when user is not found', async () => {
       userRepo.findByEmail.mockResolvedValue(Result.ok(null));
 
       await useCase.execute(makeRequest());
 
-      expect(tokenService.sign).not.toHaveBeenCalled();
+      expect(tokenService.signChallenge).not.toHaveBeenCalled();
     });
   });
 
@@ -257,13 +281,13 @@ describe('LoginUseCase', () => {
       expect(result.error).toBe('Invalid credentials');
     });
 
-    it('should not call tokenService when password does not match', async () => {
+    it('should not issue a challenge when password does not match', async () => {
       userRepo.findByEmail.mockResolvedValue(Result.ok(makeUser()));
       passwordService.compare.mockResolvedValue(false);
 
       await useCase.execute(makeRequest());
 
-      expect(tokenService.sign).not.toHaveBeenCalled();
+      expect(tokenService.signChallenge).not.toHaveBeenCalled();
     });
   });
 
@@ -327,7 +351,6 @@ describe('LoginUseCase', () => {
     it('should strip the password field before the use case logs the request', async () => {
       userRepo.findByEmail.mockResolvedValue(Result.ok(makeUser()));
       passwordService.compare.mockResolvedValue(true);
-      tokenService.sign.mockReturnValue('tok');
 
       await useCase.execute(
         makeRequest({ password: 'super-secret' })
@@ -343,6 +366,242 @@ describe('LoginUseCase', () => {
       for (const req of loggedRequests) {
         expect(req).not.toHaveProperty('password');
       }
+    });
+  });
+
+  // =========================================================================
+  describe('sign-in failures', () => {
+    function pausedUser(): User {
+      const user = makeUser();
+      for (let i = 0; i < 5; i++)
+        user.recordFailedSignIn(new Date(), null);
+      user.clearEvents();
+      return user;
+    }
+
+    it('[IDN-044] counts a wrong password and saves it', async () => {
+      const user = makeUser();
+      userRepo.findByEmail.mockResolvedValue(Result.ok(user));
+      passwordService.compare.mockResolvedValue(false);
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.error).toBe('Invalid credentials');
+      expect(user.failedSignIns).toBe(1);
+      expect(userRepo.save).toHaveBeenCalledWith(user);
+    });
+
+    it('[IDN-045] passes the caller address to the fifth failure', async () => {
+      const user = makeUser();
+      for (let i = 0; i < 4; i++)
+        user.recordFailedSignIn(new Date(), null);
+      userRepo.findByEmail.mockResolvedValue(Result.ok(user));
+      passwordService.compare.mockResolvedValue(false);
+
+      await useCase.execute(
+        makeRequest({ sourceIp: '198.51.100.4' })
+      );
+
+      const event = user.domainEvents[0] as UserSignInPausedEvent;
+      expect(event.sourceIp).toBe('198.51.100.4');
+    });
+
+    it('[IDN-044] refuses a paused account before checking the password', async () => {
+      const user = pausedUser();
+      userRepo.findByEmail.mockResolvedValue(Result.ok(user));
+      passwordService.compare.mockResolvedValue(true);
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.error).toBe(SIGN_IN_PAUSED);
+      expect(passwordService.compare).not.toHaveBeenCalled();
+      expect(tokenService.signChallenge).not.toHaveBeenCalled();
+      expect(userRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('[IDN-040] answers a disabled paused account like any wrong credentials', async () => {
+      const user = pausedUser();
+      user.disable();
+      userRepo.findByEmail.mockResolvedValue(Result.ok(user));
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.error).toBe('Invalid credentials');
+    });
+
+    it('[IDN-044] keeps the count after the right password: only the code clears it', async () => {
+      const user = makeUser();
+      user.recordFailedSignIn(new Date(), null);
+      userRepo.findByEmail.mockResolvedValue(Result.ok(user));
+      passwordService.compare.mockResolvedValue(true);
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.isSuccess).toBe(true);
+      expect(user.failedSignIns).toBe(1);
+      expect(userRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('does not save on the right password', async () => {
+      userRepo.findByEmail.mockResolvedValue(Result.ok(makeUser()));
+      passwordService.compare.mockResolvedValue(true);
+
+      await useCase.execute(makeRequest());
+
+      expect(userRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('keeps the answer when the count cannot be saved', async () => {
+      userRepo.findByEmail.mockResolvedValue(Result.ok(makeUser()));
+      passwordService.compare.mockResolvedValue(false);
+      userRepo.save.mockResolvedValue(Result.fail('db down'));
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.error).toBe('Invalid credentials');
+      expect(logger.error).toHaveBeenCalledWith(
+        'SignInSteps: sign-in counter not saved',
+        undefined,
+        expect.objectContaining({ error: 'db down' })
+      );
+    });
+  });
+
+  // =========================================================================
+  describe('remembered browser', () => {
+    let tokens: jest.Mocked<ITokenService>;
+    let remembered: LoginUseCase;
+
+    beforeEach(() => {
+      tokens = makeTokens();
+      remembered = new LoginUseCase(
+        userRepo,
+        passwordService,
+        new SignInSteps(userRepo, tokens),
+        logger
+      );
+      passwordService.compare.mockResolvedValue(true);
+    });
+
+    const signInWith = (user: User, trustedBrowserToken: string) => {
+      userRepo.findByEmail.mockResolvedValue(Result.ok(user));
+      return remembered.execute(makeRequest({ trustedBrowserToken }));
+    };
+
+    it('[IDN-171] signs in without a code from a remembered browser', async () => {
+      const user = withTwoFactor(makeUser());
+
+      const result = await signInWith(
+        user,
+        challengeFor(user, 'trusted-browser')
+      );
+
+      expect(result.value).toEqual({
+        token: 'session.jwt',
+        user: expect.objectContaining({ id: user.id.toString() })
+      });
+    });
+
+    it('[IDN-171] clears the failure count when it skips the code', async () => {
+      const user = withTwoFactor(makeUser());
+      user.recordFailedSignIn(new Date(), null);
+
+      await signInWith(user, challengeFor(user, 'trusted-browser'));
+
+      expect(user.failedSignIns).toBe(0);
+      expect(userRepo.save).toHaveBeenCalledWith(user);
+    });
+
+    it('[IDN-171] still asks for the code once the sessions were ended', async () => {
+      const user = withTwoFactor(makeUser());
+      const token = challengeFor(user, 'trusted-browser');
+      user.changeRole(UserRole.reconstitute('VIEWER'));
+
+      const result = await signInWith(user, token);
+
+      expect((result.value as TwoFactorStepDTO).twoFactor).toBe(
+        'verify'
+      );
+    });
+
+    it("[IDN-171] does not trust another account's browser", async () => {
+      const user = withTwoFactor(makeUser());
+      const other = withTwoFactor(makeUser('bob@example.com'));
+
+      const result = await signInWith(
+        user,
+        challengeFor(other, 'trusted-browser')
+      );
+
+      expect((result.value as TwoFactorStepDTO).twoFactor).toBe(
+        'verify'
+      );
+    });
+
+    it('[IDN-171] a challenge is no remembered browser', async () => {
+      const user = withTwoFactor(makeUser());
+
+      const result = await signInWith(
+        user,
+        challengeFor(user, 'two-factor')
+      );
+
+      expect((result.value as TwoFactorStepDTO).twoFactor).toBe(
+        'verify'
+      );
+    });
+
+    it('[IDN-171] an account without two-factor sets it up anyway', async () => {
+      const user = makeUser();
+
+      const result = await signInWith(
+        user,
+        challengeFor(user, 'trusted-browser')
+      );
+
+      expect((result.value as TwoFactorStepDTO).twoFactor).toBe(
+        'setup'
+      );
+    });
+
+    it('[IDN-171] the password is still checked', async () => {
+      const user = withTwoFactor(makeUser());
+      passwordService.compare.mockResolvedValue(false);
+
+      const result = await signInWith(
+        user,
+        challengeFor(user, 'trusted-browser')
+      );
+
+      expect(result.error).toBe('Invalid credentials');
+      expect(tokens.sign).not.toHaveBeenCalled();
+    });
+
+    it('[IDN-171] gives no session when the sign-in cannot be saved', async () => {
+      const user = withTwoFactor(makeUser());
+      userRepo.save.mockResolvedValueOnce(
+        Result.fail<User>('db down')
+      );
+
+      const result = await signInWith(
+        user,
+        challengeFor(user, 'trusted-browser')
+      );
+
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('[IDN-041] never logs the remembered-browser token', async () => {
+      const user = withTwoFactor(makeUser());
+      const token = challengeFor(user, 'trusted-browser');
+
+      await signInWith(user, token);
+
+      const logged = JSON.stringify(
+        (logger.info as jest.Mock).mock.calls
+      );
+      expect(logged).not.toContain(token);
+      expect(logged).not.toContain('session.jwt');
     });
   });
 });

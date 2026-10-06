@@ -23,18 +23,22 @@ Format and conventions: [README.md](README.md).
 | `IDN-100` … `IDN-119` | Rate limiting                 |
 | `IDN-120` … `IDN-139` | Audit and transport hardening |
 | `IDN-140` … `IDN-159` | User management               |
+| `IDN-160` … `IDN-179` | Two-factor sign-in            |
+| `IDN-180` … `IDN-199` | Account email                 |
 
 ## Layer coverage
 
 | Layer                         | Rules |
 | ----------------------------- | ----- |
-| Presentation (middleware)     | 11    |
-| Infrastructure                | 8     |
+| Application                   | 21    |
+| Presentation (middleware)     | 16    |
+| Infrastructure                | 12    |
+| Domain (aggregate)            | 6     |
 | Domain (value object)         | 4     |
-| Application                   | 10    |
 | Presentation                  | 4     |
+| Domain                        | 2     |
 | Domain (permission table)     | 2     |
-| Domain (aggregate)            | 3     |
+| Application · Presentation    | 1     |
 | Infrastructure + Presentation | 1     |
 | Infrastructure (database)     | 1     |
 
@@ -44,9 +48,11 @@ constant under `domain/identity/permissions/` precisely so the question "may an
 operator delete things" has one answer, testable without an HTTP request, that
 no route can disagree with.
 
-`User` is small: a role change, a password change, disabling and re-enabling.
-Every one of them except re-enabling ends the sessions the account has open
-(`IDN-065`).
+`User` is small: a role change, a password change, disabling and re-enabling,
+the count of wrong passwords that pauses its sign-in (`IDN-044`), and its
+two-factor secret and recovery codes (`IDN-160` … `IDN-165`). A role or
+password change, disabling and a two-factor reset end the sessions the account
+has open (`IDN-065`); re-enabling, the count and the two-factor steps do not.
 
 ---
 
@@ -143,7 +149,8 @@ expensive to attack at scale; raising it is a one-constant change that
 invalidates nothing, since bcrypt hashes carry their own cost.
 
 **Enforced at:** `src/infrastructure/identity/services/BcryptPasswordService.ts` (`COST`)
-**Tests:** `tests/integration/auth.routes.test.ts`
+**Tests:** `tests/infrastructure/identity/services/BcryptPasswordService.test.ts`,
+`tests/integration/auth.routes.test.ts`
 
 ### IDN-010 — Users are managed by the customer's administrator, through the API
 
@@ -233,7 +240,10 @@ accounts need 8 (`IDN-142`).
 **Since:** 2026-09-30
 
 `disable()` sets `disabledAt` and ends the account's sessions (`IDN-065`);
-login answers a disabled account exactly as a wrong password (`IDN-040`).
+login answers a disabled account exactly as a wrong password (`IDN-040`). Its
+two-factor challenges (`IDN-167`), remembered browsers (`IDN-171`) and reset
+or invitation links (`IDN-183`, `IDN-184`) stop working too, and it is sent no
+reset link (`IDN-182`).
 `enable()` clears it. Disabling twice, or enabling an enabled account, is
 refused by the aggregate; `PATCH /api/users/:id` treats both as no change.
 
@@ -423,6 +433,12 @@ real, and that is the expensive half of the work. The one exception is a
 repository failure, which is reported as itself — it is an outage, not an
 authentication answer.
 
+A paused account (`IDN-044`) is the accepted leak: it answers `429` where an
+unknown email answers `401`, so five wrong passwords reveal that an address
+has an account. `IDN-103` caps that at two addresses per caller address every
+15 minutes, too slow to map a directory, and a person locked out needs to know
+to wait rather than to doubt their password.
+
 **Enforced at:** `src/application/identity/use-cases/LoginUseCase.ts`
 **Message:** `Invalid credentials`
 **Tests:** `tests/application/identity/use-cases/LoginUseCase.test.ts`
@@ -433,15 +449,22 @@ authentication answer.
 **Layer:** Application
 **Since:** 2026-08-05
 
-`LoginUseCase` overrides `sanitizeForLogging` to strip `password` from the
-request before the base `UseCase` records it.
+`LoginUseCase`, the two-factor steps and the password reset (`IDN-183`)
+strip every sign-in secret before the base `UseCase` records the request or
+its answer: the password, codes, recovery codes, the two-factor secret and
+link, challenges, session tokens, remembered-browser tokens and reset or
+invitation tokens (`withoutSignInSecrets`). User management strips the
+passwords it handles the same way (`withoutPasswords`).
 
 **Why:** The base class logs every request it handles, which is what makes the
 audit trail useful — and would put every password in the log file in plaintext.
 Stripping at the use case rather than at the logger keeps the rule next to the
 only request that carries one.
 
-**Enforced at:** `src/application/identity/use-cases/LoginUseCase.ts` (`sanitizeForLogging`)
+**Enforced at:** `src/application/identity/use-cases/LoginUseCase.ts` (`sanitizeForLogging`),
+`src/application/identity/services/SignInSteps.ts` (`withoutSignInSecrets`),
+`src/application/identity/use-cases/ResetPasswordUseCase.ts` (`sanitizeForLogging`),
+`src/application/identity/services/userAccountPolicy.ts` (`withoutPasswords`)
 **Tests:** `tests/application/identity/use-cases/LoginUseCase.test.ts`
 
 ### IDN-042 — Login requires a syntactically valid email and a non-empty password
@@ -461,13 +484,15 @@ _malformed_ from _wrong_, but never _unknown user_ from _wrong password_.
 **Message:** `Email is not valid` / `Password is required`
 **Tests:** `tests/integration/auth.routes.test.ts`
 
-### IDN-043 — A successful login returns a token and the user, never the hash
+### IDN-043 — A finished sign-in returns a token and the user, never the hash
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Application
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Revised:** 2026-10-05
 
-`UserMapper.toDTO` omits `passwordHash`.
+A sign-in finishes at the two-factor step (`IDN-169`, `IDN-170`), not at login
+(`IDN-166`). `UserMapper.toDTO` omits `passwordHash` and every two-factor
+field.
 
 **Why:** The DTO is what crosses the wire. A hash leaving the system is a
 credential handed to an offline attacker with unlimited time — the mapper is the
@@ -475,6 +500,67 @@ single place that guarantees it does not.
 
 **Enforced at:** `src/application/identity/mappers/UserMapper.ts`
 **Tests:** `tests/integration/auth.routes.test.ts`
+
+### IDN-044 — Five wrong passwords in a row pause the account's sign-in
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (aggregate)
+**Since:** 2026-10-05 · **Revised:** 2026-10-05
+
+Each wrong password for an existing, enabled account is counted on the account,
+and so is each wrong two-factor code or recovery code (`IDN-169`, `IDN-170`).
+The first four cost nothing. The fifth pauses sign-in for 1 minute, and each
+further wrong password doubles the pause, up to 15 minutes. While a pause runs,
+every attempt is refused before the password is checked — even the right one —
+and is not counted, so it neither stretches the pause nor raises the next one.
+The count survives the pause's end: the first wrong password after it pauses
+for twice as long. A finished sign-in — the right code after the right
+password — clears the count and the pause; the right password alone does not
+(`IDN-166`). A new password clears them too (the failures were against the old one), so an
+administrator can let a person in at once by resetting their password.
+
+The count is kept in the database, so a restart does not reset it.
+
+**Why:** A per-address limit (`IDN-103`) does not stop a guessing run spread
+over many addresses; the account is the one thing every such attempt shares.
+A doubling pause rather than a lock is deliberate: a lock that only an
+administrator can lift lets anyone who knows an email shut its owner out. Here
+the worst an attacker can do is make the owner wait up to 15 minutes, while
+guessing slows to four tries an hour.
+
+**Enforced at:** `src/domain/identity/aggregates/User.ts` (`recordFailedSignIn`, `signInPauseAfter`),
+`src/application/identity/use-cases/LoginUseCase.ts`,
+`src/application/identity/services/SignInSteps.ts` (`recordFailure`),
+`src/application/identity/use-cases/VerifyTwoFactorUseCase.ts`,
+`src/application/identity/use-cases/ConfirmTwoFactorSetupUseCase.ts`,
+`prisma/migrations/20261005120000_user_sign_in_pause/migration.sql` (`users_sign_in_pause_check`)
+**Message:** `Too many failed sign-in attempts. Try again later.` (`429`)
+**Tests:** `tests/domain/identity/aggregates/User.test.ts`,
+`tests/application/identity/use-cases/LoginUseCase.test.ts`,
+`tests/integration/use-cases/identity/LoginUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-045 — A paused sign-in is announced in the install's alert chat
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+When an account's fifth wrong password in a row starts a pause (`IDN-044`),
+one alert goes to the install's own Telegram chat: the account, the caller's
+address and how long it waits. Further pauses in the same run of failures send
+nothing more. The alert has no device, so quiet hours do not apply; it can be
+muted like any other type (`sign_in_paused`).
+
+**Why:** Five misses are either a forgotten password or someone guessing, and
+only the people who run the install can tell which. One message per run tells
+them it is happening without letting an attacker flood their phones.
+
+**Enforced at:** `src/domain/identity/aggregates/User.ts` (`UserSignInPausedEvent`),
+`src/application/notifications/event-handlers/UserSignInPausedNotificationHandler.ts`
+**Tests:** `tests/domain/identity/aggregates/User.test.ts`,
+`tests/application/notifications/event-handlers/UserSignInPausedNotificationHandler.test.ts`,
+`tests/application/identity/use-cases/LoginUseCase.test.ts`
 
 ---
 
@@ -484,10 +570,11 @@ single place that guarantees it does not.
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-08-05 · **Revised:** 2026-09-30
+**Since:** 2026-08-05 · **Revised:** 2026-10-05
 
 Nothing else. `verify` reconstructs exactly these four fields and discards any
-other claim present in the token; a token without a token version is invalid.
+other claim present in the token; a token without a token version is invalid,
+and so is one with a `kind`, which marks a two-factor challenge (`IDN-167`).
 The role in the token is not what authorisation uses: each request takes the
 role from the account (`IDN-065`).
 
@@ -505,22 +592,26 @@ signed in before versioning existed — the price of making revocation work.
 **Layer:** Infrastructure
 **Since:** 2026-08-05
 
+The session cookie lasts the same 24 hours (`IDN-066`).
+
 **Why:** Twenty-four hours means staff log in once a shift rather than once an
-hour, and it bounds how long a leaked token stays useful. It is the only bound
-there is — see `IDN-062`.
+hour, and it bounds how long a leaked token stays useful when nobody notices.
+Once someone does, the account ends it at once (`IDN-062`, `IDN-065`).
 
 **Enforced at:** `src/infrastructure/identity/services/JwtTokenService.ts`
 **Tests:** `tests/integration/auth.routes.test.ts`
 
-### IDN-062 — There is no logout; a session ends when it expires or when the account changes
+### IDN-062 — Logout forgets this browser's session; only the account ends a token early
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-08-05 · **Revised:** 2026-09-30
+**Since:** 2026-08-05 · **Revised:** 2026-10-05
 
-There is no session store and no logout endpoint: signing out is the client
-forgetting its token. What ends a token early is the account — disabling it, or
-changing its role or password, invalidates every token it holds (`IDN-065`).
+There is no session store. `POST /api/auth/logout` clears the session cookie
+(`IDN-066`) in the browser that calls it and leaves its remembered browser
+(`IDN-171`) alone; the token itself stays valid until it expires. What ends a
+token early is the account — disabling it, or changing its role or password,
+invalidates every token it holds (`IDN-065`).
 
 **Why:** Until 2026-09-30 tokens could not be revoked at all, which is what made
 user management unsafe to add (`IDN-010`). Versioning the account rather than
@@ -528,8 +619,10 @@ listing revoked tokens keeps nothing to store per session and needs no cleanup.
 Its limit: it ends all of an account's sessions at once, never one device's.
 
 **Enforced at:** `src/infrastructure/identity/services/JwtTokenService.ts`,
-`src/application/identity/services/SessionValidator.ts`
-**Tests:** `tests/integration/auth.routes.test.ts`, `tests/integration/user.routes.test.ts`
+`src/application/identity/services/SessionValidator.ts`,
+`src/presentation/http/controllers/AuthController.ts` (`logout`)
+**Tests:** `tests/integration/auth.routes.test.ts`, `tests/integration/user.routes.test.ts`,
+`tests/presentation/http/middleware/sessionCookies.test.ts`
 
 ### IDN-063 — The signing secret comes from the environment and is required
 
@@ -596,18 +689,51 @@ demoted administrator loses the rights on their next click.
 `tests/presentation/http/middleware/authenticate.test.ts`,
 `tests/integration/user.routes.test.ts`
 
+### IDN-066 — A browser holds its session in a cookie scripts cannot read
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-10-05
+
+Every answer that hands out a session — the two-factor steps (`IDN-169`,
+`IDN-170`), a login from a remembered browser (`IDN-171`) and a password
+change (`IDN-144`) — also sets it as the `nms_session` cookie: `HttpOnly`,
+`Secure`, `SameSite=Strict`, for the whole site, for 24 hours like the token
+(`IDN-061`). A remembered browser gets `nms_trusted_browser` the same way,
+sent only to `/api/auth`, for 30 days. The token is still in the answer's
+body for clients that are not browsers; a browser should ignore it.
+
+The dashboard and the API must share a main domain (`app.example.com` and
+`api.example.com`), or `Strict` keeps the browser from sending the cookie.
+
+**Why:** A token in the page's storage is one injected script away from being
+copied and used from anywhere for a day. A script cannot read an `HttpOnly`
+cookie, and `Strict` stops the browser attaching it to a request another site
+started.
+
+**Enforced at:** `src/presentation/http/middleware/sessionCookies.ts`,
+`src/presentation/http/controllers/AuthController.ts`,
+`src/presentation/http/controllers/UserController.ts`
+**Tests:** `tests/presentation/http/middleware/sessionCookies.test.ts`,
+`tests/integration/auth.routes.test.ts`,
+`tests/integration/user.routes.test.ts`
+
 ---
 
 ## Request-level enforcement
 
-### IDN-080 — Every `/api` route except login requires a valid Bearer token
+### IDN-080 — Every `/api` route except login requires a valid session
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Presentation (middleware)
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Revised:** 2026-10-05
+
+The session comes as a Bearer token or as the session cookie (`IDN-084`).
 
 `/api/auth` is mounted before the authentication middleware; everything mounted
-after it is behind the gate. There is no per-route opt-in.
+after it is behind the gate. The two-factor routes under it take a challenge
+token instead (`IDN-167`), and the password reset takes the link's token
+(`IDN-183`). There is no per-route opt-in.
 
 **Why:** This is the rule the entire book depends on. Ordering rather than
 decoration means a new route file cannot forget to be protected — the only way
@@ -668,6 +794,52 @@ provisioned their account.
 **Message:** `Forbidden`
 **Tests:** `tests/presentation/http/middleware/authorize.test.ts`
 
+### IDN-084 — A request signs in with a Bearer header or the session cookie
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation (middleware)
+**Since:** 2026-10-05
+
+The authentication middleware takes the `Authorization: Bearer` header when
+there is one and the `nms_session` cookie (`IDN-066`) otherwise; both then
+pass the same checks (`IDN-065`). Streams accept the cookie as well as
+`?token=`, so an `EventSource` opened `withCredentials` needs no token in its
+address.
+
+**Why:** Browsers move to the cookie; scripts, tests and other clients keep
+the header. The header wins so a client that sends one is never judged by a
+stale cookie it did not mean to send.
+
+**Enforced at:** `src/presentation/http/middleware/authenticate.ts` (`findSessionToken`),
+`src/presentation/http/middleware/authenticateStream.ts`
+**Tests:** `tests/presentation/http/middleware/authenticate.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-085 — A change signed by the cookie must come from one of our dashboards
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Presentation (middleware)
+**Since:** 2026-10-05
+
+A request signed by the session cookie with any method other than `GET`,
+`HEAD` or `OPTIONS` must carry an `Origin` listed in `ALLOWED_ORIGINS`;
+otherwise it answers `403 Cross-site request refused` before the token is
+checked. A missing `Origin` is refused too. Requests signed with a Bearer
+header are not affected.
+
+**Why:** The browser attaches the cookie to any request a page makes, which is
+what cross-site request forgery abuses. `SameSite=Strict` already stops other
+sites; this also stops a page on a sibling subdomain, which counts as the same
+site. Browsers always send `Origin` on these requests, so refusing its absence
+costs a real dashboard nothing. A header is something a forging page cannot
+add, so Bearer requests need no such check.
+
+**Enforced at:** `src/presentation/http/middleware/authenticate.ts`,
+`src/infrastructure/di/allowedOrigins.ts`
+**Message:** `Cross-site request refused` (`403`)
+**Tests:** `tests/presentation/http/middleware/authenticate.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
 ---
 
 ## Rate limiting
@@ -689,27 +861,32 @@ the limit a property of the account rather than the building.
 **Enforced at:** `src/presentation/http/middleware/rateLimiter.ts` (`keyGenerator`)
 **Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`
 
-### IDN-101 — There are five rate budgets
+### IDN-101 — There are eight rate budgets
 
 **Type:** Policy · **Status:** Active
 **Layer:** Presentation (middleware)
 **Since:** 2026-08-05
 
-| Budget        | Limit          |
-| ------------- | -------------- |
-| `read`        | 100 per minute |
-| `write`       | 60 per minute  |
-| `delete`      | 60 per minute  |
-| `bulk-import` | 5 per hour     |
-| `enroll`      | 10 per 15 min  |
+| Budget           | Limit                  |
+| ---------------- | ---------------------- |
+| `read`           | 100 per minute         |
+| `write`          | 60 per minute          |
+| `delete`         | 60 per minute          |
+| `bulk-import`    | 5 per hour             |
+| `enroll`         | 10 per 15 min          |
+| `sign-in`        | 10 failures per 15 min |
+| `password-reset` | 10 per hour            |
+| `address`        | 1000 per minute        |
 
 **Why:** Reads are cheap and are what a dashboard does on a timer, so they get
 the loosest budget. `bulk-import` is three orders of magnitude tighter because
 one call does the work of hundreds and can run for minutes — `BIL-141` explains
 what that protects. `write` and `delete` are currently identical; the separate
 name exists so deletion can be tightened without touching every write route.
-`enroll` is the only budget for a caller with no user: agent enrollment
-(`AGT-008`), keyed by IP address.
+`enroll` and `sign-in` are the budgets for a caller with no user — agent
+enrollment (`AGT-008`) and login (`IDN-103`) — keyed by IP address.
+`password-reset` is the third such budget (`IDN-105`). `address` sits in front
+of all the others (`IDN-104`).
 
 **Enforced at:** `src/presentation/http/middleware/rateLimiter.ts` (`LIMITS`)
 **Message:** `Too many requests`
@@ -732,26 +909,80 @@ than one. Making them real means a shared store.
 **Enforced at:** `src/presentation/http/middleware/rateLimiter.ts`
 **Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`
 
-### IDN-103 — Login is not rate limited
+### IDN-103 — An address gets ten failed sign-ins per 15 minutes
 
 **Type:** Policy · **Status:** Active
-**Layer:** Presentation
-**Since:** 2026-08-05
+**Layer:** Presentation (middleware)
+**Since:** 2026-08-05 · **Revised:** 2026-10-05
 
-`POST /api/auth/login` carries `validateRequest` and nothing else — no
-`createRateLimiter`, because the limiter is applied per route and `/api/auth` is
-mounted above the point where anything global would catch it.
+Login and the three two-factor routes share one `sign-in` budget (`IDN-101`),
+keyed by the caller's address, so wrong passwords and wrong codes add up.
+Only failed attempts spend it — any answer of `400` or above — so an office
+whose staff all sign in from one address is never held up by its own
+successes. The eleventh failure within 15 minutes answers `429`
+`Too many requests`.
 
-**Why:** Recorded as a gap, not a decision. This is the one endpoint that is
-reachable without credentials and the one where unlimited attempts are directly
-useful to an attacker. `IDN-006` makes each attempt cost a bcrypt comparison,
-which slows a guessing run down but also means an unthrottled flood is an
-effective way to exhaust the process. The fix is a per-IP limiter on the login
-route specifically — `IDN-100`'s user-id key is unavailable here, since there is
-no authenticated user yet.
+Behind Cloudflare Tunnel the address is only the caller's own when
+`TRUST_PROXY` names the tunnel (`loopback` when `cloudflared` runs on the same
+machine); otherwise every caller shares one budget.
 
-**Enforced at:** `src/presentation/http/routes/auth.routes.ts`
-**Tests:** `tests/integration/auth.routes.test.ts`
+**Why:** Until 2026-10-05 login had no limit at all — the one endpoint reachable
+without credentials and the one where unlimited attempts help an attacker most.
+Each attempt costs a bcrypt comparison (`IDN-006`), so a flood also wears the
+process down. This budget slows one source; `IDN-044` covers guessing spread
+across many.
+
+**Enforced at:** `src/presentation/http/routes/auth.routes.ts`,
+`src/presentation/http/middleware/rateLimiter.ts` (`skipSuccessfulRequests`)
+**Message:** `Too many requests`
+**Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-104 — An address gets 1000 requests a minute across the whole API
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation (middleware)
+**Since:** 2026-10-05
+
+Every request under `/api` and `/agent/v1` spends one shared `address` budget
+(`IDN-101`), keyed by the caller's address whoever is signed in, before the
+subscription check, the token check or any other budget runs. The 1001st
+request within a minute answers `429` `Too many requests`. The other budgets
+still apply on top of it.
+
+**Why:** The per-user budgets run only after the token is checked, so a flood
+with no token or a forged one was unlimited — and each such request still
+costs a signature check and, for a well-formed token, a database lookup
+(`IDN-065`). A thousand a minute is ten people's worth of `read` budget, so an
+office sharing one address does not meet it in normal use, while a single
+source can no longer hammer the install. Like the others, the count lives in
+memory (`IDN-102`).
+
+**Enforced at:** `src/presentation/http/routes/index.ts` (`perAddress`),
+`src/presentation/http/middleware/rateLimiter.ts`
+**Message:** `Too many requests`
+**Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-105 — An address asks for ten password reset links, or uses them, an hour
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation (middleware)
+**Since:** 2026-10-05
+
+`POST /api/auth/password/forgot` and `POST /api/auth/password/reset` share one
+budget of ten requests an hour per address, whatever the answer. The eleventh
+is a `429`.
+
+**Why:** Each request for a link can send an email, so without a limit the
+endpoint is a way to flood someone's inbox from our mail server and spend its
+free quota. Ten an hour is far more than a person who forgot a password needs.
+
+**Enforced at:** `src/presentation/http/routes/auth.routes.ts`,
+`src/presentation/http/middleware/rateLimiter.ts` (`LIMITS`)
+**Message:** `Too many requests`
+**Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`,
+`tests/integration/auth.routes.test.ts`
 
 ---
 
@@ -783,7 +1014,8 @@ mounted _before_ authentication precisely so rejected requests are captured too.
 
 Helmet's default header set is applied to every response, and CORS allows only
 the origins in `ALLOWED_ORIGINS` (defaulting to `http://localhost:3001`), with
-credentials permitted.
+credentials permitted. The same list decides which pages may send a change
+signed by the session cookie (`IDN-085`).
 
 **Why:** The browser is the client, so these are the controls that stop another
 site from driving this API with a logged-in operator's session. The allow-list
@@ -791,7 +1023,7 @@ defaults to the local dev front end, which means a deployment that forgets to
 set `ALLOWED_ORIGINS` fails visibly in the browser rather than silently
 accepting every origin.
 
-**Enforced at:** `src/main.ts`
+**Enforced at:** `src/main.ts`, `src/infrastructure/di/allowedOrigins.ts`
 **Tests:** `tests/integration/auth.routes.test.ts`
 
 ### IDN-122 — An unhandled error never reaches the client
@@ -839,13 +1071,15 @@ the process is up — no version, no database state, no dependency detail.
 
 `manage-users` (ADMIN, and VENDOR through `IDN-030`) gates:
 
-| Endpoint               | What it does                                        |
-| ---------------------- | --------------------------------------------------- |
-| `GET /api/users`       | list accounts, oldest first                         |
-| `POST /api/users`      | create an account (`ADMIN`, `OPERATOR` or `VIEWER`) |
-| `PATCH /api/users/:id` | change `role`, `disabled` and/or `password`         |
+| Endpoint                               | What it does                                        |
+| -------------------------------------- | --------------------------------------------------- |
+| `GET /api/users`                       | list accounts, oldest first                         |
+| `POST /api/users`                      | create or invite an account (`IDN-184`)             |
+| `PATCH /api/users/:id`                 | change `role`, `disabled` and/or `password`         |
+| `POST /api/users/:id/two-factor/reset` | reset two-factor sign-in (`IDN-172`)                |
 
-The list leaves out the vendor account unless the caller is the vendor. A
+The list leaves out the vendor account unless the caller is the vendor, and
+shows whether each account has two-factor on (`twoFactorEnabled`). A
 password reset replaces the old password at once and, like a role change or
 disabling, ends the account's sessions. Setting a field to its current value
 changes nothing.
@@ -872,7 +1106,8 @@ vendor account is not part of that team, so it is not shown among it.
 **Layer:** Application · Presentation
 **Since:** 2026-09-30
 
-`PATCH /api/users/:id` on a `VENDOR` account answers `403`, whoever asks. The
+`PATCH /api/users/:id` and a two-factor reset (`IDN-172`) on a `VENDOR`
+account answer `403`, whoever asks. The
 `VENDOR` role cannot be given to anyone: creating or changing a user to it is a
 `400`. The vendor changes its own password like anyone else (`IDN-144`).
 
@@ -893,25 +1128,31 @@ promotes it (`IDN-011`).
 `tests/integration/use-cases/identity/UpdateUserUseCase.integration.test.ts`,
 `tests/integration/user.routes.test.ts`
 
-### IDN-142 — A staff password is at least 8 characters
+### IDN-142 — A staff password is at least 12 characters
 
 **Type:** Validation · **Status:** Active
 **Layer:** Application
-**Since:** 2026-09-30
+**Since:** 2026-09-30 · **Revised:** 2026-10-05
 
-On creation, on reset and on a change of one's own password. The vendor account
-needs 12 (`IDN-012`). Passwords over 200 characters are refused at the edge.
+On creation, on an administrator's reset, on a change of one's own password
+and from a reset or invitation link (`IDN-183`, `IDN-184`), the same 12 as the
+vendor account (`IDN-012`). An invited account has no password until its
+owner chooses one this way. It was 8 until 2026-10-05; a shorter password set
+before then keeps working until it is next changed. Passwords over 200 characters are refused at the edge.
 
 **Why:** The floor stops the obvious placeholders (`1234`, the company name)
 without forcing rules people work around by writing passwords down. The ceiling
 keeps a request from handing bcrypt an arbitrarily long string.
 
 **Enforced at:** `src/application/identity/services/userAccountPolicy.ts` (`USER_PASSWORD_MIN_LENGTH`),
-`src/presentation/http/validation/user.schemas.ts`
-**Message:** `Password must be at least 8 characters`
+`src/presentation/http/validation/user.schemas.ts`,
+`src/presentation/http/validation/auth.schemas.ts` (`resetPasswordSchema`)
+**Message:** `Password must be at least 12 characters`
 **Tests:** `tests/application/identity/use-cases/CreateUserUseCase.test.ts`,
 `tests/application/identity/use-cases/UpdateUserUseCase.test.ts`,
-`tests/integration/user.routes.test.ts`
+`tests/application/identity/use-cases/ResetPasswordUseCase.test.ts`,
+`tests/integration/user.routes.test.ts`,
+`tests/integration/auth.routes.test.ts`
 
 ### IDN-143 — An administrator cannot change their own account through user management
 
@@ -941,7 +1182,8 @@ undo it.
 `POST /api/users/me/password`, any role, with `currentPassword` and
 `newPassword`. A wrong current password is a `400`. The change ends every
 session of the account, the caller's included, so the response carries a new
-token to continue with.
+token to continue with, and a browser gets it as its session cookie
+(`IDN-066`).
 
 **Why:** Asking for the current password means a token left on an unattended
 screen cannot be turned into a permanent takeover. Returning a fresh token keeps
@@ -952,4 +1194,496 @@ that had the old one is signed out.
 **Message:** `Current password is incorrect`
 **Tests:** `tests/application/identity/use-cases/ChangeOwnPasswordUseCase.test.ts`,
 `tests/integration/use-cases/identity/ChangeOwnPasswordUseCase.integration.test.ts`,
+`tests/integration/user.routes.test.ts`
+
+---
+
+## Two-factor sign-in
+
+Every account signs in with a password and a six-digit code from an
+authenticator app (Google Authenticator, Microsoft Authenticator and the like).
+`IDN-160` to `IDN-165` are the account's side of it; `IDN-166` to `IDN-170`
+are the sign-in steps that ask for the code; `IDN-171` lets a browser skip the
+code for 30 days; `IDN-172` and `IDN-173` are the administrator's reset.
+
+### IDN-160 — Two-factor turns on only with its first valid code
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain (aggregate)
+**Since:** 2026-10-05
+
+Setup stores a new secret but leaves two-factor off. It turns on when the
+person enters a valid code from their app, which also stores their recovery
+codes (`IDN-163`). While two-factor is off the account keeps no recovery codes
+and no last-used code, and it can never be on without a secret; the database
+enforces the same (`users_two_factor_check`). Using a code never ends a
+session.
+
+**Why:** Turning two-factor on before a code proves the app holds the secret
+would lock out anyone whose scan failed — they would be asked for codes their
+phone cannot make.
+
+**Enforced at:** `src/domain/identity/aggregates/User.ts` (`confirmTwoFactor`, `validate`),
+`prisma/migrations/20261005130000_user_two_factor/migration.sql`
+**Message:** `Two-factor setup has not been started`
+**Tests:** `tests/domain/identity/aggregates/User.test.ts`,
+`tests/integration/use-cases/identity/LoginUseCase.integration.test.ts`
+
+### IDN-161 — Codes follow RFC 6238, accepting one step of clock drift
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-10-05
+
+Codes are TOTP as every authenticator app makes them by default: HMAC-SHA1, a
+new six-digit code every 30 seconds, from a 160-bit secret. A code from the
+step before or after the current one is accepted too, so a phone whose clock
+is up to 30 seconds off still works. The setup QR code encodes an `otpauth://`
+link naming the product and the account.
+
+**Why:** The defaults are the only settings every app honours; some ignore any
+other algorithm or length silently and then show codes that never match. One
+step either way absorbs ordinary clock drift and the seconds it takes to type
+the code.
+
+**Enforced at:** `src/infrastructure/identity/services/TotpTwoFactorCodes.ts`
+**Tests:** `tests/infrastructure/identity/services/TotpTwoFactorCodes.test.ts` (the RFC 6238 test vectors)
+
+### IDN-162 — The two-factor secret is stored encrypted with the install's key
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-10-05
+
+The secret is encrypted with AES-256-GCM under `DEVICE_CREDENTIALS_KEY`, the
+same key that protects device passwords, and is decrypted only to check a code.
+
+**Why:** Unlike a password, the server must read the secret back, so it cannot
+be hashed. Encrypting it means a copy of the database alone — a stolen backup —
+does not let anyone make valid codes. Reusing the install's existing key keeps
+one key to back up and rotate.
+
+**Enforced at:** `src/infrastructure/identity/services/AesSecretCipher.ts`
+**Tests:** `tests/infrastructure/identity/services/AesSecretCipher.test.ts`
+
+### IDN-163 — Ten single-use recovery codes, stored only as hashes
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (aggregate)
+**Since:** 2026-10-05
+
+Turning two-factor on hands out ten recovery codes like `K7MPQ-3WXRT`, shown
+once. Each replaces the app's code for one sign-in and is then gone. Only their
+SHA-256 hashes are stored. Case, spaces and the dash do not matter when typing
+one; the alphabet leaves out `0`, `O`, `1`, `I` and `L`.
+
+**Why:** A lost phone is the common way to lose two-factor; recovery codes let
+the person back in without waiting for an administrator (`IDN-165`). At about
+50 bits each they cannot be guessed within the sign-in limits (`IDN-044`), so a
+fast hash is enough — a stolen database does not reveal them.
+
+**Enforced at:** `src/domain/identity/aggregates/User.ts` (`useRecoveryCode`),
+`src/infrastructure/identity/services/HashedRecoveryCodes.ts`
+**Message:** `Unknown or used recovery code`
+**Tests:** `tests/domain/identity/aggregates/User.test.ts`,
+`tests/infrastructure/identity/services/HashedRecoveryCodes.test.ts`
+
+### IDN-164 — No code is accepted twice
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain (aggregate)
+**Since:** 2026-10-05
+
+The account remembers the time step of the last code it accepted and refuses
+any code from that step or an earlier one.
+
+**Why:** A code stays valid for up to 90 seconds (`IDN-161`). Without this, a
+code read over someone's shoulder or captured on its way could be replayed
+within that window.
+
+**Enforced at:** `src/domain/identity/aggregates/User.ts` (`acceptTwoFactorCode`)
+**Message:** `This code was already used`
+**Tests:** `tests/domain/identity/aggregates/User.test.ts`
+
+### IDN-165 — Only a reset replaces a working two-factor setup
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain (aggregate)
+**Since:** 2026-10-05
+
+A setup that was started but never confirmed can be started again with a new
+secret. Once two-factor is on, starting again is refused; it takes a reset,
+which clears the secret and the recovery codes and ends every session and
+remembered browser of the account, so the person sets two-factor up again at
+their next sign-in. Only an administrator runs a reset (`IDN-172`).
+
+**Why:** If a signed-in session could swap the secret, a stolen session would
+become permanent access with the thief's own phone.
+
+**Enforced at:** `src/domain/identity/aggregates/User.ts` (`startTwoFactorSetup`, `resetTwoFactor`)
+**Message:** `Two-factor sign-in is already on`
+**Tests:** `tests/domain/identity/aggregates/User.test.ts`
+
+### IDN-166 — A right password opens the two-factor step, never a session
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+Login no longer returns a session. A right password answers with a challenge
+token (`IDN-167`) and which step comes next: `verify` when the account has
+two-factor on, `setup` when it does not yet. Every role takes the same path,
+the vendor account included. The right password does not clear the count of
+failures (`IDN-044`); only the right code does.
+
+An account that has not set two-factor up yet is enrolled by whoever signs in
+with its password first. That window closes once the owner sets it up; an
+administrator's reset opens it again.
+
+**Why:** A password alone is what phishing pages and leaked password lists
+deliver. With a code from a phone on top, a stolen password no longer opens
+the dashboard. Leaving the count for the code to clear stops someone who has
+the password from wiping their wrong codes with it.
+
+**Enforced at:** `src/application/identity/use-cases/LoginUseCase.ts`,
+`src/application/identity/services/SignInSteps.ts` (`challenge`)
+**Tests:** `tests/application/identity/use-cases/LoginUseCase.test.ts`,
+`tests/integration/use-cases/identity/LoginUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-167 — A challenge lasts five minutes and opens only its own step
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-10-05
+
+A challenge is a signed token like a session's, carrying the user id, the
+token version and a `kind`: `two-factor` for the code step, `two-factor-setup`
+for setup. It expires after five minutes. It is sent as the Bearer token of
+the two-factor routes. A session token is refused there, a challenge is
+refused everywhere a session is expected, and a challenge of one kind does not
+open the other step. Like a session (`IDN-065`), a challenge stops working when
+the account is disabled or its sessions are ended.
+
+The same signed form, with a kind of its own and its own lifetime, carries a
+remembered browser (`trusted-browser`, 30 days, `IDN-171`), a password reset
+link (`password-reset`, one hour, `IDN-183`) and an invitation (`invitation`,
+seven days, `IDN-184`). Each opens only what its kind names.
+
+**Why:** Without the kind, a token proving only the password would pass the
+session check, and two-factor would stop nothing. Five minutes is enough to
+open the app and type a code.
+
+**Enforced at:** `src/infrastructure/identity/services/JwtTokenService.ts` (`verify`, `verifyChallenge`),
+`src/application/identity/services/SignInSteps.ts` (`open`)
+**Message:** `Sign-in step expired. Sign in again.` (`401`)
+**Tests:** `tests/infrastructure/identity/services/JwtTokenService.test.ts`,
+`tests/integration/use-cases/identity/StartTwoFactorSetupUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-168 — Setup hands out a new secret and the link the app scans
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+`POST /api/auth/two-factor/setup` makes a new secret, stores it encrypted
+(`IDN-162`) and returns it in plain text once, with the `otpauth://` link the
+QR code encodes. The app shows the account as `Mi Red Control (email)`.
+Starting again before confirming replaces the secret; once two-factor is on,
+starting again is refused (`IDN-165`).
+
+**Why:** The person needs the secret exactly once, to put it in their app.
+After that the server only ever needs it to check codes.
+
+**Enforced at:** `src/application/identity/use-cases/StartTwoFactorSetupUseCase.ts`
+**Message:** `Two-factor sign-in is already on` (`409`)
+**Tests:** `tests/application/identity/use-cases/StartTwoFactorSetupUseCase.test.ts`,
+`tests/integration/use-cases/identity/StartTwoFactorSetupUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-169 — The first code turns two-factor on and finishes the sign-in
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+`POST /api/auth/two-factor/setup/confirm` checks the code against the secret
+from setup. A right code turns two-factor on (`IDN-160`), clears the failure
+count, and answers with the session and the ten recovery codes, which are
+never shown again. A wrong code counts as a failed sign-in (`IDN-044`).
+
+**Why:** Ending setup with a session saves the person a second sign-in.
+Showing the recovery codes at that moment is the only chance to see them,
+because only their hashes are stored (`IDN-163`).
+
+**Enforced at:** `src/application/identity/use-cases/ConfirmTwoFactorSetupUseCase.ts`
+**Message:** `Invalid code` (`401`), `Two-factor setup has not been started` (`409`)
+**Tests:** `tests/application/identity/use-cases/ConfirmTwoFactorSetupUseCase.test.ts`,
+`tests/integration/use-cases/identity/ConfirmTwoFactorSetupUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-170 — A code from the app, or one recovery code, finishes the sign-in
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+`POST /api/auth/two-factor/verify` takes either `code` or `recoveryCode`,
+never both. A right answer clears the failure count and returns the session.
+A wrong code, a code already used (`IDN-164`) and an unknown or spent
+recovery code all count as a failed sign-in (`IDN-044`) and answer the same
+way. While the account is paused, the answer is `429` before any code is
+checked. If the used code cannot be saved, no session is given.
+
+**Why:** A replayed code comes from someone who saw it, so it is treated as
+an attack, not a typo. Refusing the session when the save fails keeps a code
+or a recovery code from working twice.
+
+**Enforced at:** `src/application/identity/use-cases/VerifyTwoFactorUseCase.ts`,
+`src/presentation/http/validation/auth.schemas.ts`
+**Message:** `Invalid code` (`401`)
+**Tests:** `tests/application/identity/use-cases/VerifyTwoFactorUseCase.test.ts`,
+`tests/integration/use-cases/identity/VerifyTwoFactorUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-171 — A browser can skip the code for 30 days
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+Sending `rememberBrowser: true` with the code (`IDN-169`, `IDN-170`) adds a
+`trustedBrowserToken` to the answer. Sent back with the email and password at
+login, it signs in straight away, with no code, and clears the failure count.
+It is a signed token like a challenge (`IDN-167`) with the kind
+`trusted-browser`, valid 30 days from the code that made it; it is never a
+session and never opens a two-factor step. It names the account and its token
+version, so anything that ends the account's sessions (`IDN-065`) — a new
+password, a role change, disabling, a two-factor reset — forgets every
+remembered browser too. A token that no longer fits leads to the code step as
+usual. The password is always checked.
+
+**Why:** Asking a technician for a code every day on the office computer
+teaches them to resent it. A stolen laptop with a remembered browser still
+needs the password, and the administrator can end it at once by changing the
+password or resetting two-factor.
+
+**Enforced at:** `src/application/identity/services/SignInSteps.ts` (`session`, `remembers`),
+`src/application/identity/use-cases/LoginUseCase.ts`,
+`src/infrastructure/identity/services/JwtTokenService.ts`
+**Tests:** `tests/application/identity/use-cases/LoginUseCase.test.ts`,
+`tests/application/identity/use-cases/VerifyTwoFactorUseCase.test.ts`,
+`tests/application/identity/use-cases/ConfirmTwoFactorSetupUseCase.test.ts`,
+`tests/infrastructure/identity/services/JwtTokenService.test.ts`,
+`tests/integration/use-cases/identity/LoginUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-172 — An administrator resets a lost two-factor; only the vendor resets an administrator's
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+`POST /api/users/:id/two-factor/reset` (`manage-users`) clears the account's
+two-factor and ends its sessions and remembered browsers (`IDN-165`); the
+person sets it up again at their next sign-in. An `ADMIN` account can be reset
+only by the vendor, and nobody resets the vendor account (`IDN-141`). An
+account that never started setup has nothing to reset.
+
+**Why:** Someone who lost both their phone and their recovery codes needs a
+way back in. Keeping administrators' resets with the vendor means one stolen
+administrator session cannot strip the second factor from the other
+administrators, or from itself, and the vendor stays reachable for the case
+where the customer's only administrator is the one locked out.
+
+**Enforced at:** `src/application/identity/use-cases/ResetTwoFactorUseCase.ts`,
+`src/presentation/http/routes/user.routes.ts`
+**Message:** `Only the vendor can reset an administrator's two-factor sign-in` (`403`),
+`The vendor account is managed by the vendor` (`403`),
+`Two-factor sign-in is not on` (`409`)
+**Tests:** `tests/application/identity/use-cases/ResetTwoFactorUseCase.test.ts`,
+`tests/integration/use-cases/identity/ResetTwoFactorUseCase.integration.test.ts`,
+`tests/integration/user.routes.test.ts`
+
+### IDN-173 — Every two-factor reset is announced in the install's alert chat
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+Each reset sends one alert to the install's own Telegram chat naming the
+account and who reset it. It has no device, so quiet hours do not apply; it
+can be muted like any other type (`two_factor_reset`).
+
+**Why:** A reset followed by a sign-in with a known password is how an
+insider, or someone with a stolen administrator session, would take over an
+account. The people who run the install should hear of every one, so an
+unexpected reset is noticed the same day.
+
+**Enforced at:** `src/domain/identity/aggregates/User.ts` (`UserTwoFactorResetEvent`),
+`src/application/notifications/event-handlers/UserTwoFactorResetNotificationHandler.ts`
+**Tests:** `tests/domain/identity/aggregates/User.test.ts`,
+`tests/application/notifications/event-handlers/UserTwoFactorResetNotificationHandler.test.ts`,
+`tests/application/identity/use-cases/ResetTwoFactorUseCase.test.ts`
+
+---
+
+## Account email
+
+The install emails the people who use it about their own accounts, through
+any SMTP server. `IDN-180` is the mail server; `IDN-181` is the warning of a
+new sign-in; `IDN-182` and `IDN-183` are the forgotten password; `IDN-184`
+is the invitation.
+
+### IDN-180 — Email goes through the install's SMTP server, when it has one
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-10-05
+
+`SMTP_HOST` turns email on. With it set, `SMTP_USER`, `SMTP_PASSWORD` and
+`SMTP_FROM` are required and a missing one stops the boot; `SMTP_PORT`
+defaults to 587. Port 465 speaks TLS from the start; any other port must
+upgrade with STARTTLS or the message is not sent. Messages are plain text, and
+the mailer reads no files or URLs into them.
+
+Without `SMTP_HOST` nothing is sent: each message that would have gone out is
+logged as a warning with its recipient and subject, never its body.
+
+**Why:** Any provider's free tier works, so the choice is a deploy setting,
+not code. A half-configured server would fail every message silently, so it
+fails at boot instead. A body can carry a sign-in link, so it never reaches
+the log.
+
+**Enforced at:** `src/infrastructure/email/smtpConfig.ts`,
+`src/infrastructure/email/SmtpEmailSender.ts`,
+`src/infrastructure/email/UnconfiguredEmailSender.ts`
+**Tests:** `tests/infrastructure/email/smtpConfig.test.ts`,
+`tests/infrastructure/email/SmtpEmailSender.test.ts`,
+`tests/infrastructure/email/UnconfiguredEmailSender.test.ts`
+
+### IDN-181 — A sign-in that took a code is announced to the account by email
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+When a sign-in finishes with a code or a recovery code (`IDN-169`,
+`IDN-170`), the account's email address gets a message, in Spanish, with the
+time in Colombia and the caller's address. A login from a remembered browser
+(`IDN-171`) sends none. A wrong code sends none.
+
+The sign-in does not wait for the email. A mail server that is slow, down or
+not configured (`IDN-180`) neither delays nor refuses it; the failure is
+logged.
+
+**Why:** A browser that is not remembered is a new browser, or one more than
+30 days old. If the person did not sign in, someone has both their password
+and a code, and the email is how they find out the same day. The sign-in
+itself must not depend on a third-party mail server.
+
+**Enforced at:** `src/application/identity/services/NewSignInWarning.ts`,
+`src/application/identity/services/accountEmails.ts`,
+`src/application/identity/use-cases/VerifyTwoFactorUseCase.ts`,
+`src/application/identity/use-cases/ConfirmTwoFactorSetupUseCase.ts`
+**Tests:** `tests/application/identity/services/NewSignInWarning.test.ts`,
+`tests/application/identity/use-cases/VerifyTwoFactorUseCase.test.ts`,
+`tests/application/identity/use-cases/ConfirmTwoFactorSetupUseCase.test.ts`,
+`tests/integration/use-cases/identity/VerifyTwoFactorUseCase.integration.test.ts`
+
+### IDN-182 — Anyone can ask for a password reset link, and the answer never says whether the account exists
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+`POST /api/auth/password/forgot` with an email answers `200` with no data,
+always. Only when the address belongs to an account that is not disabled does
+the account get an email, in Spanish, with a link to
+`<APP_PUBLIC_URL>/reset-password#token=<token>`. The request does not wait for
+the email. Without `APP_PUBLIC_URL` there is no link to send: the request is
+logged and nothing goes out.
+
+**Why:** A different answer, or a slower one, for a real account would let
+anyone test which addresses have accounts here. The token sits in the URL
+fragment, which the browser sends to no server and puts in no `Referer`
+header, so it never reaches a log.
+
+**Enforced at:** `src/application/identity/use-cases/RequestPasswordResetUseCase.ts`,
+`src/application/identity/services/accountEmails.ts`
+**Tests:** `tests/application/identity/use-cases/RequestPasswordResetUseCase.test.ts`,
+`tests/integration/use-cases/identity/RequestPasswordResetUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-183 — A reset link works once, for one hour, and ends every session
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+The link's token is signed with the account's token version and lasts one
+hour. `POST /api/auth/password/reset` with the token and a new password sets
+it, under the same length rule as any other (`IDN-142`, `IDN-012`). The change
+moves the token version on (`IDN-065`), which ends every session and
+remembered browser, lifts a sign-in pause (`IDN-044`) and spends the link: the
+same link, or any older one, then answers
+`400 Reset link expired or already used`. So does an expired link, a token of
+another kind, and a disabled account. A password that is too short leaves the
+link usable.
+
+Two-factor stays as it was: the next sign-in still asks for a code.
+
+**Why:** The link is as good as the password while it lives, so it lives
+briefly and only once. Ending the sessions throws out whoever was using the
+old password. Keeping two-factor means a stolen mailbox alone does not open the
+account.
+
+**Enforced at:** `src/application/identity/use-cases/ResetPasswordUseCase.ts`,
+`src/infrastructure/identity/services/JwtTokenService.ts` (`LIFETIMES`)
+**Message:** `Reset link expired or already used`
+**Tests:** `tests/application/identity/use-cases/ResetPasswordUseCase.test.ts`,
+`tests/infrastructure/identity/services/JwtTokenService.test.ts`,
+`tests/integration/use-cases/identity/ResetPasswordUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-184 — A new account can be an invitation to choose a password
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+`POST /api/users` without a `password` invites the person. The account is
+created with the hash of a random password nobody is told, and its address
+gets an email, in Spanish, with a link to
+`<APP_PUBLIC_URL>/accept-invitation#token=<token>`. The token is of its own
+kind, lasts seven days and is bound to the token version, so
+`POST /api/auth/password/reset` accepts it once, exactly like a reset link
+(`IDN-183`). After seven days the person uses the forgotten-password link
+instead (`IDN-182`).
+
+The email is sent before the account is saved, and the request waits for it.
+If it cannot be sent — no `APP_PUBLIC_URL`, no mail server (`IDN-180`), or the
+server refused — the answer is `503` and nothing is created. An address that
+already has an account gets no email (`IDN-004`).
+
+With a `password`, the account is created with it, as before.
+
+**Why:** A password typed by an administrator passes through the
+administrator, and usually through a chat message, before it reaches its
+owner. An invitation lets the owner choose it, and nobody else ever knows it.
+Waiting for the email is affordable here, unlike at sign-in, and it means an
+administrator is told at once when the invitation did not go out, instead of
+leaving behind an account nobody can open.
+
+**Enforced at:** `src/application/identity/use-cases/CreateUserUseCase.ts`,
+`src/application/identity/use-cases/ResetPasswordUseCase.ts`,
+`src/infrastructure/identity/services/BcryptPasswordService.ts` (`unusableHash`),
+`src/infrastructure/identity/services/JwtTokenService.ts` (`LIFETIMES`)
+**Message:** `The invitation email could not be sent. Try again, or set a password instead.`
+**Tests:** `tests/application/identity/use-cases/CreateUserUseCase.test.ts`,
+`tests/application/identity/use-cases/ResetPasswordUseCase.test.ts`,
+`tests/infrastructure/identity/services/BcryptPasswordService.test.ts`,
+`tests/infrastructure/identity/services/JwtTokenService.test.ts`,
+`tests/integration/use-cases/identity/CreateUserUseCase.integration.test.ts`,
 `tests/integration/user.routes.test.ts`

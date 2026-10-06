@@ -6,16 +6,13 @@ import { setupRoutes } from './presentation/http/routes';
 import { setupDependencies } from './infrastructure/di/container';
 import { WinstonLogger } from './infrastructure/logging/WinstonLogger';
 import { loadTrustProxy } from './infrastructure/di/trustProxy';
+import { loadAllowedOrigins } from './infrastructure/di/allowedOrigins';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 const PORT = process.env.PORT || 3000;
-const ALLOWED_ORIGINS = (
-  process.env.ALLOWED_ORIGINS || 'http://localhost:3001'
-)
-  .split(',')
-  .map((o) => o.trim());
+const ALLOWED_ORIGINS = loadAllowedOrigins(process.env);
 
 const logger = new WinstonLogger();
 

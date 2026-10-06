@@ -80,7 +80,7 @@
     "mac-oui-lookup": "^1.1.4",
     "net-snmp": "^3.26.3",
     "node-routeros": "^1.6.8",
-    "nodemailer": "^9.0.5",
+    "nodemailer": "^10.0.15",
     "pdfkit": "^0.19.1",
     "pg": "^8.19.0",
     "ping": "^0.4.4",

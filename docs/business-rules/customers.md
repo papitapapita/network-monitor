@@ -447,7 +447,7 @@ per customer.
 **Enforced at:** `src/domain/customers/value-objects/PaymentDay.ts` (`create`)
 **Reached from:** `Customer.create`, `Customer.changePaymentDay`
 **Backed by:** `customers_payment_day_check` in
-`prisma/migrations/20261005120000_customer_payment_day/migration.sql`
+`prisma/migrations/20261005140000_customer_payment_day/migration.sql`
 **Message:** `Payment day must be one of 15, 30`
 **Tests:** `tests/domain/customers/value-objects/PaymentDay.test.ts`,
 `tests/domain/customers/aggregates/Customer.test.ts`,

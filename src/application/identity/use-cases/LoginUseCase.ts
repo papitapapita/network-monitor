@@ -1,13 +1,15 @@
 import { Result } from 'domain/shared/core';
-import { UserEmail } from 'domain/identity';
+import { SIGN_IN_PAUSED, UserEmail } from 'domain/identity';
 import { IUserRepository } from 'domain/identity/repository/IUserRepository';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import { LoginRequestDTO } from '../dtos/LoginRequestDTO';
 import { LoginResponseDTO } from '../dtos/LoginResponseDTO';
 import { IPasswordService } from '../interfaces/IPasswordService';
-import { ITokenService } from '../interfaces/ITokenService';
-import { UserMapper } from '../mappers/UserMapper';
+import {
+  SignInSteps,
+  withoutSignInSecrets
+} from '../services/SignInSteps';
 
 export class LoginUseCase extends UseCase<
   LoginRequestDTO,
@@ -16,21 +18,14 @@ export class LoginUseCase extends UseCase<
   constructor(
     private readonly userRepository: IUserRepository,
     private readonly passwordService: IPasswordService,
-    private readonly tokenService: ITokenService,
+    private readonly signInSteps: SignInSteps,
     logger: ILogger
   ) {
     super(logger, 'LoginUseCase');
   }
 
   protected sanitizeForLogging(data: unknown): unknown {
-    if (data && typeof data === 'object' && 'password' in data) {
-      const { password: _omit, ...safe } = data as Record<
-        string,
-        unknown
-      >;
-      return safe;
-    }
-    return data;
+    return withoutSignInSecrets(data);
   }
 
   protected async executeImpl(
@@ -53,21 +48,39 @@ export class LoginUseCase extends UseCase<
       return this.fail('Invalid credentials');
     }
 
+    // Checked before the password, so a pause holds even for the right one
+    // (IDN-044).
+    if (user.isSignInPaused(new Date())) {
+      return this.fail(SIGN_IN_PAUSED);
+    }
+
     const passwordMatch = await this.passwordService.compare(
       request.password,
       user.passwordHash
     );
     if (!passwordMatch) {
+      await this.signInSteps.recordFailure(
+        user,
+        request.sourceIp,
+        this.logger
+      );
       return this.fail('Invalid credentials');
     }
 
-    const token = this.tokenService.sign({
-      userId: user.id.toString(),
-      email: user.email.toString(),
-      role: user.role.toString(),
-      tokenVersion: user.tokenVersion
-    });
+    if (
+      request.trustedBrowserToken !== null &&
+      this.signInSteps.remembers(user, request.trustedBrowserToken)
+    ) {
+      user.recordSuccessfulSignIn();
+      const saved = await this.userRepository.save(user);
+      if (saved.isFailure) {
+        return this.fail(`Failed to save sign-in: ${saved.error}`);
+      }
+      return this.ok(this.signInSteps.session(user));
+    }
 
-    return this.ok({ token, user: UserMapper.toDTO(user) });
+    // The count is cleared only once the code is right too, so the password
+    // alone cannot reset the code's budget (IDN-044).
+    return this.ok(this.signInSteps.challenge(user));
   }
 }

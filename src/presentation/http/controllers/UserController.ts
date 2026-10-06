@@ -1,11 +1,16 @@
 import { Request, Response } from 'express';
 import { ILogger } from 'application/shared/interfaces';
 import { Result } from 'domain/shared/core';
+import { TWO_FACTOR_OFF } from 'domain/identity';
+import { setSessionCookies } from '../middleware/sessionCookies';
 import {
   ListUsersUseCase,
   CreateUserUseCase,
+  INVITATION_NOT_SENT,
   UpdateUserUseCase,
   ChangeOwnPasswordUseCase,
+  ResetTwoFactorUseCase,
+  ADMIN_RESET_NEEDS_VENDOR,
   OWN_ACCOUNT_REFUSED,
   VENDOR_ACCOUNT_PROTECTED,
   WRONG_CURRENT_PASSWORD
@@ -17,6 +22,7 @@ export class UserController {
     private readonly createUserUseCase: CreateUserUseCase,
     private readonly updateUserUseCase: UpdateUserUseCase,
     private readonly changeOwnPasswordUseCase: ChangeOwnPasswordUseCase,
+    private readonly resetTwoFactorUseCase: ResetTwoFactorUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -29,7 +35,7 @@ export class UserController {
     this.run(res, 201, () =>
       this.createUserUseCase.execute({
         email: req.body.email,
-        password: req.body.password,
+        password: req.body.password ?? null,
         role: req.body.role
       })
     );
@@ -45,22 +51,40 @@ export class UserController {
       })
     );
 
-  public changeOwnPassword = (
+  public resetTwoFactor = (
     req: Request,
     res: Response
   ): Promise<void> =>
     this.run(res, 200, () =>
-      this.changeOwnPasswordUseCase.execute({
-        userId: req.user!.userId,
-        currentPassword: req.body.currentPassword,
-        newPassword: req.body.newPassword
+      this.resetTwoFactorUseCase.execute({
+        id: req.params.id,
+        callerRole: req.user!.role,
+        callerEmail: req.user!.email
       })
+    );
+
+  public changeOwnPassword = (
+    req: Request,
+    res: Response
+  ): Promise<void> =>
+    this.run(
+      res,
+      200,
+      () =>
+        this.changeOwnPasswordUseCase.execute({
+          userId: req.user!.userId,
+          currentPassword: req.body.currentPassword,
+          newPassword: req.body.newPassword
+        }),
+      // The old cookie stopped working with the change (IDN-065).
+      true
     );
 
   private async run<T>(
     res: Response,
     status: number,
-    action: () => Promise<Result<T>>
+    action: () => Promise<Result<T>>,
+    renewsSession = false
   ): Promise<void> {
     try {
       const result = await action();
@@ -69,6 +93,9 @@ export class UserController {
           .status(this.getErrorStatusCode(result.error!))
           .json({ success: false, error: result.error });
         return;
+      }
+      if (renewsSession) {
+        setSessionCookies(res, result.value as object);
       }
       res.status(status).json({ success: true, data: result.value });
     } catch (error) {
@@ -79,10 +106,13 @@ export class UserController {
   private getErrorStatusCode(errorMessage: string): number {
     if (
       errorMessage === VENDOR_ACCOUNT_PROTECTED ||
-      errorMessage === OWN_ACCOUNT_REFUSED
+      errorMessage === OWN_ACCOUNT_REFUSED ||
+      errorMessage === ADMIN_RESET_NEEDS_VENDOR
     ) {
       return 403;
     }
+    if (errorMessage === TWO_FACTOR_OFF) return 409;
+    if (errorMessage === INVITATION_NOT_SENT) return 503;
     if (errorMessage.includes('not found')) return 404;
     if (errorMessage.includes('already exists')) return 409;
     if (

@@ -21,6 +21,7 @@ export class UserMapper {
       role: user.role.toString(),
       disabled: user.isDisabled,
       disabledAt: user.disabledAt?.toISOString() ?? null,
+      twoFactorEnabled: user.hasTwoFactor,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString()
     };

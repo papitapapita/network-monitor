@@ -5,3 +5,4 @@ export * from './authorize';
 export * from './rateLimiter';
 export * from './auditLog';
 export * from './subscriptionGuard';
+export * from './sessionCookies';

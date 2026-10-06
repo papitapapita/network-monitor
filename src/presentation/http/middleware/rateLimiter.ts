@@ -6,7 +6,10 @@ type RateLimitType =
   | 'write'
   | 'delete'
   | 'bulk-import'
-  | 'enroll';
+  | 'enroll'
+  | 'sign-in'
+  | 'password-reset'
+  | 'address';
 
 const LIMITS: Record<
   RateLimitType,
@@ -16,7 +19,12 @@ const LIMITS: Record<
   write: { max: 60, windowMs: 60_000 },
   delete: { max: 60, windowMs: 60_000 },
   'bulk-import': { max: 5, windowMs: 3_600_000 },
-  enroll: { max: 10, windowMs: 900_000 }
+  enroll: { max: 10, windowMs: 900_000 },
+  'sign-in': { max: 10, windowMs: 900_000 },
+  // Asking for a link and using one, together (IDN-105).
+  'password-reset': { max: 10, windowMs: 3_600_000 },
+  // Every request from one address, before anything else runs (IDN-104).
+  address: { max: 1000, windowMs: 60_000 }
 };
 
 // Authenticated callers get their own bucket so several operators behind one
@@ -30,7 +38,14 @@ export function createRateLimiter(type: RateLimitType) {
   return rateLimit({
     windowMs,
     limit: max,
-    keyGenerator,
+    keyGenerator:
+      type === 'address'
+        ? (req: Request) => ipKeyGenerator(req.ip ?? '')
+        : keyGenerator,
+    // Only failed sign-ins spend the budget, so an office whose staff all
+    // sign in from one address is never held up by its own successes
+    // (IDN-103).
+    skipSuccessfulRequests: type === 'sign-in',
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, error: 'Too many requests' }

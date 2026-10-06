@@ -55,6 +55,10 @@ import {
   AgentUpdateFailedEvent
 } from 'domain/probe-agents/events';
 import { JwtTokenService } from '../identity/services/JwtTokenService';
+import {
+  UserSignInPausedEvent,
+  UserTwoFactorResetEvent
+} from 'domain/identity/events';
 import { BcryptPasswordService } from '../identity/services/BcryptPasswordService';
 import { PrismaUserRepository } from '../identity/repositories/PrismaUserRepository';
 import {
@@ -79,11 +83,26 @@ import {
   HttpImageFetcher
 } from '../quoting';
 import { LoginUseCase } from 'application/identity/use-cases/LoginUseCase';
+import { StartTwoFactorSetupUseCase } from 'application/identity/use-cases/StartTwoFactorSetupUseCase';
+import { ConfirmTwoFactorSetupUseCase } from 'application/identity/use-cases/ConfirmTwoFactorSetupUseCase';
+import { VerifyTwoFactorUseCase } from 'application/identity/use-cases/VerifyTwoFactorUseCase';
+import { RequestPasswordResetUseCase } from 'application/identity/use-cases/RequestPasswordResetUseCase';
+import { ResetPasswordUseCase } from 'application/identity/use-cases/ResetPasswordUseCase';
+import { SignInSteps } from 'application/identity/services/SignInSteps';
+import { NewSignInWarning } from 'application/identity/services/NewSignInWarning';
+import { IEmailSender } from 'application/shared/interfaces';
+import { loadSmtpConfig } from '../email/smtpConfig';
+import { SmtpEmailSender } from '../email/SmtpEmailSender';
+import { UnconfiguredEmailSender } from '../email/UnconfiguredEmailSender';
+import { TotpTwoFactorCodes } from '../identity/services/TotpTwoFactorCodes';
+import { HashedRecoveryCodes } from '../identity/services/HashedRecoveryCodes';
+import { AesSecretCipher } from '../identity/services/AesSecretCipher';
 import { SessionValidator } from 'application/identity/services/SessionValidator';
 import {
   ListUsersUseCase,
   CreateUserUseCase,
   UpdateUserUseCase,
+  ResetTwoFactorUseCase,
   ChangeOwnPasswordUseCase
 } from 'application/identity';
 import { EnsureVendorAccountUseCase } from 'application/identity/use-cases/EnsureVendorAccountUseCase';
@@ -379,6 +398,8 @@ import {
   DeviceWentOfflineAlertRecordHandler,
   ContractedServiceSuspendedNotificationHandler,
   AgentWentOfflineNotificationHandler,
+  UserSignInPausedNotificationHandler,
+  UserTwoFactorResetNotificationHandler,
   AgentCameBackNotificationHandler,
   AgentClockDriftedNotificationHandler,
   AgentClockCorrectedNotificationHandler,
@@ -1040,10 +1061,26 @@ export class DependencyContainer {
     const jwtTokenService = new JwtTokenService();
     const bcryptPasswordService = new BcryptPasswordService();
     const userRepository = new PrismaUserRepository(this.prisma);
+    const signInSteps = new SignInSteps(
+      userRepository,
+      jwtTokenService
+    );
+    const twoFactorCodes = new TotpTwoFactorCodes();
+    const recoveryCodes = new HashedRecoveryCodes();
+    const secretCipher = new AesSecretCipher();
+    const smtpConfig = loadSmtpConfig(process.env);
+    const emailSender: IEmailSender = smtpConfig
+      ? new SmtpEmailSender(smtpConfig)
+      : new UnconfiguredEmailSender(this.logger);
+    const accountLinksUrl = loadAppPublicUrl(process.env);
+    const newSignInWarning = new NewSignInWarning(
+      emailSender,
+      this.logger
+    );
     const loginUseCase = new LoginUseCase(
       userRepository,
       bcryptPasswordService,
-      jwtTokenService,
+      signInSteps,
       this.logger
     );
 
@@ -1060,6 +1097,9 @@ export class DependencyContainer {
       new CreateUserUseCase(
         userRepository,
         bcryptPasswordService,
+        jwtTokenService,
+        emailSender,
+        accountLinksUrl,
         this.logger
       ),
       new UpdateUserUseCase(
@@ -1073,10 +1113,49 @@ export class DependencyContainer {
         jwtTokenService,
         this.logger
       ),
+      new ResetTwoFactorUseCase(userRepository, this.logger),
       this.logger
     );
     this.authController = new AuthController(
       loginUseCase,
+      new StartTwoFactorSetupUseCase(
+        userRepository,
+        signInSteps,
+        twoFactorCodes,
+        secretCipher,
+        this.logger
+      ),
+      new ConfirmTwoFactorSetupUseCase(
+        userRepository,
+        signInSteps,
+        twoFactorCodes,
+        recoveryCodes,
+        secretCipher,
+        newSignInWarning,
+        this.logger
+      ),
+      new VerifyTwoFactorUseCase(
+        userRepository,
+        signInSteps,
+        twoFactorCodes,
+        recoveryCodes,
+        secretCipher,
+        newSignInWarning,
+        this.logger
+      ),
+      new RequestPasswordResetUseCase(
+        userRepository,
+        jwtTokenService,
+        emailSender,
+        accountLinksUrl,
+        this.logger
+      ),
+      new ResetPasswordUseCase(
+        userRepository,
+        bcryptPasswordService,
+        jwtTokenService,
+        this.logger
+      ),
       this.logger
     );
 
@@ -2156,6 +2235,20 @@ export class DependencyContainer {
       alertPublisher,
       vendorPublisher
     ]);
+    EventDispatcher.register(
+      UserSignInPausedEvent.name,
+      new UserSignInPausedNotificationHandler(
+        alertPublisher,
+        this.logger
+      )
+    );
+    EventDispatcher.register(
+      UserTwoFactorResetEvent.name,
+      new UserTwoFactorResetNotificationHandler(
+        alertPublisher,
+        this.logger
+      )
+    );
     EventDispatcher.register(
       AgentWentOfflineEvent.name,
       new AgentWentOfflineNotificationHandler(

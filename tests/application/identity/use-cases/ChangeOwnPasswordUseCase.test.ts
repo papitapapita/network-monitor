@@ -18,7 +18,9 @@ describe('[IDN-144] ChangeOwnPasswordUseCase', () => {
     const repo = makeUserRepo([user]);
     const tokens: jest.Mocked<ITokenService> = {
       sign: jest.fn().mockReturnValue('fresh.token'),
-      verify: jest.fn()
+      verify: jest.fn(),
+      signChallenge: jest.fn(),
+      verifyChallenge: jest.fn()
     };
     const logger = makeLogger();
     const useCase = new ChangeOwnPasswordUseCase(
@@ -72,7 +74,7 @@ describe('[IDN-144] ChangeOwnPasswordUseCase', () => {
     });
 
     expect(result.error).toBe(
-      'Password must be at least 8 characters'
+      'Password must be at least 12 characters'
     );
   });
 

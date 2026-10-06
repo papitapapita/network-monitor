@@ -47,5 +47,12 @@ export function createUserRoutes(controller: UserController): Router {
     controller.update
   );
 
+  router.post(
+    '/:id/two-factor/reset',
+    authorize('manage-users'),
+    createRateLimiter('write'),
+    controller.resetTwoFactor
+  );
+
   return router;
 }

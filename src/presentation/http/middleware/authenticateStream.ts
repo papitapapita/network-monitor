@@ -1,11 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { ITokenService } from 'application/identity/interfaces/ITokenService';
 import { SessionValidator } from 'application/identity/services/SessionValidator';
-import { authenticateToken } from './authenticate';
+import { authenticateToken, findSessionToken } from './authenticate';
 
 /**
  * Authenticates SSE routes, which accept `?token=` in addition to the Bearer
- * header. Browser `EventSource` has no API for setting headers, so a stream is
+ * header and the session cookie. Browser `EventSource` has no API for setting headers, so a stream is
  * unreachable without it.
  *
  * Deliberately separate from createAuthenticateMiddleware so no ordinary route
@@ -21,14 +21,12 @@ export function createStreamAuthenticateMiddleware(
     res: Response,
     next: NextFunction
   ): Promise<void> => {
-    const authHeader = req.headers.authorization;
     const queryToken = req.query.token;
 
-    const token = authHeader?.startsWith('Bearer ')
-      ? authHeader.slice(7)
-      : typeof queryToken === 'string'
-        ? queryToken
-        : null;
+    // EventSource sends the session cookie when opened withCredentials.
+    const token =
+      findSessionToken(req)?.token ??
+      (typeof queryToken === 'string' ? queryToken : null);
 
     if (!token) {
       res

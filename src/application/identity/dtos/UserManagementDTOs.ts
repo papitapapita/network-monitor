@@ -4,6 +4,7 @@ export interface UserAccountDTO {
   role: string;
   disabled: boolean;
   disabledAt: string | null;
+  twoFactorEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -18,7 +19,8 @@ export interface ListUsersResponseDTO {
 
 export interface CreateUserRequestDTO {
   email: string;
-  password: string;
+  // null invites the person to choose their own (IDN-184).
+  password: string | null;
   role: string;
 }
 
@@ -28,6 +30,12 @@ export interface UpdateUserRequestDTO {
   role?: string;
   disabled?: boolean;
   password?: string;
+}
+
+export interface ResetTwoFactorRequestDTO {
+  id: string;
+  callerRole: string;
+  callerEmail: string;
 }
 
 export interface ChangeOwnPasswordRequestDTO {

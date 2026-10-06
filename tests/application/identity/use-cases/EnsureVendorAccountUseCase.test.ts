@@ -46,7 +46,8 @@ function makeUserRepo(
 function makePasswordService(): jest.Mocked<IPasswordService> {
   return {
     hash: jest.fn(async (plain: string) => `hashed:${plain}`),
-    compare: jest.fn()
+    compare: jest.fn(),
+    unusableHash: jest.fn()
   };
 }
 
@@ -58,6 +59,12 @@ function makeUser(role: string): User {
     passwordHash: '$2b$10$existing',
     disabledAt: null,
     tokenVersion: 0,
+    failedSignIns: 0,
+    signInPausedUntil: null,
+    twoFactorSecret: null,
+    twoFactorEnabledAt: null,
+    twoFactorLastStep: null,
+    recoveryCodeHashes: [],
     createdAt: now,
     updatedAt: now
   });

@@ -17,6 +17,12 @@ export function makeUser(
     passwordHash: '$2b$10$existing',
     disabledAt: null,
     tokenVersion: 0,
+    failedSignIns: 0,
+    signInPausedUntil: null,
+    twoFactorSecret: null,
+    twoFactorEnabledAt: null,
+    twoFactorLastStep: null,
+    recoveryCodeHashes: [],
     createdAt: now,
     updatedAt: now
   });
@@ -44,6 +50,7 @@ export function makePasswordService(): jest.Mocked<IPasswordService> {
       async (plain: string, hash: string) =>
         hash === `hashed:${plain}` ||
         (hash === '$2b$10$existing' && plain === 'current-pass')
-    )
+    ),
+    unusableHash: jest.fn(async () => 'hashed:unusable')
   };
 }

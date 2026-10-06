@@ -5,3 +5,5 @@ export * from './AgentWentOfflineNotificationHandler';
 export * from './AgentCameBackNotificationHandler';
 export * from './AgentClockNotificationHandlers';
 export * from './AgentUpdateFailedNotificationHandler';
+export * from './UserSignInPausedNotificationHandler';
+export * from './UserTwoFactorResetNotificationHandler';

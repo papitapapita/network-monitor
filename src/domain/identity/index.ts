@@ -4,3 +4,4 @@ export * from './value-objects/UserRole';
 export * from './props/UserProps';
 export * from './repository/IUserRepository';
 export * from './permissions/Permission';
+export * from './events';

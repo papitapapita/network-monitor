@@ -2,7 +2,7 @@ import {
   PrismaClient,
   UserRole as PrismaUserRole
 } from 'generated/prisma/client';
-import { Result } from 'domain/shared/core';
+import { EventDispatcher, Result } from 'domain/shared/core';
 import { UserId } from 'domain/shared/ids';
 import { User } from 'domain/identity/aggregates/User';
 import { UserEmail } from 'domain/identity/value-objects/UserEmail';
@@ -25,6 +25,12 @@ export class PrismaUserRepository implements IUserRepository {
           role: data.role as PrismaUserRole,
           disabledAt: data.disabledAt,
           tokenVersion: data.tokenVersion,
+          failedSignIns: data.failedSignIns,
+          signInPausedUntil: data.signInPausedUntil,
+          twoFactorSecret: data.twoFactorSecret,
+          twoFactorEnabledAt: data.twoFactorEnabledAt,
+          twoFactorLastStep: data.twoFactorLastStep,
+          recoveryCodeHashes: data.recoveryCodeHashes,
           createdAt: data.createdAt,
           updatedAt: data.updatedAt
         },
@@ -34,9 +40,16 @@ export class PrismaUserRepository implements IUserRepository {
           role: data.role as PrismaUserRole,
           disabledAt: data.disabledAt,
           tokenVersion: data.tokenVersion,
+          failedSignIns: data.failedSignIns,
+          signInPausedUntil: data.signInPausedUntil,
+          twoFactorSecret: data.twoFactorSecret,
+          twoFactorEnabledAt: data.twoFactorEnabledAt,
+          twoFactorLastStep: data.twoFactorLastStep,
+          recoveryCodeHashes: data.recoveryCodeHashes,
           updatedAt: data.updatedAt
         }
       });
+      EventDispatcher.dispatchEventsForAggregate(user.id);
       return Result.ok<User>(user);
     } catch (error) {
       const msg =

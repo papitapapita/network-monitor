@@ -49,13 +49,33 @@ Everything else (monitoring) is always present. A monitoring-only install
 
 ## Authentication
 
-All endpoints except `POST /api/auth/login` and the agent-facing `/agent/v1/*` (see Probe agents) require a valid JWT in the `Authorization` header:
+All endpoints except the sign-in steps under `/api/auth` and the agent-facing `/agent/v1/*` (see Probe agents) require a session: the `nms_session` cookie, or a JWT in the `Authorization` header:
 
 ```
 Authorization: Bearer <token>
 ```
 
-Missing or invalid tokens return `401`. Insufficient role returns `403`.
+Missing or invalid sessions return `401`. Insufficient role returns `403`.
+
+> **⚠ Changed 2026-10-05 — the browser session is a cookie (IDN-066, IDN-084, IDN-085).**
+> Every answer that signs in (the two-factor steps, a remembered-browser login,
+> `POST /api/users/me/password`) sets the `nms_session` cookie: `HttpOnly`,
+> `Secure`, `SameSite=Strict`, 24 hours. The dashboard should:
+>
+> - send every request with `credentials: 'include'` (axios: `withCredentials: true`);
+> - stop storing the token from the answer body and stop sending `Authorization`
+>   (the body still carries it, for non-browser clients);
+> - stop storing `trustedBrowserToken` too — it comes as the `nms_trusted_browser`
+>   cookie and goes back to login on its own;
+> - open streams with `new EventSource(url, { withCredentials: true })` and no
+>   `?token=`;
+> - sign out with `POST /api/auth/logout`, which clears the cookie;
+> - be served from the same main domain as the API (`app.x.com` + `api.x.com`),
+>   and be listed in the backend's `ALLOWED_ORIGINS`.
+>
+> A cookie-signed `POST`/`PUT`/`PATCH`/`DELETE` whose `Origin` is not in
+> `ALLOWED_ORIGINS` answers `403 Cross-site request refused`. Browsers send
+> `Origin` on their own; nothing to add.
 
 A token also stops working (`401 Invalid token`) as soon as its account is
 disabled or has its role or password changed (IDN-065) — **on any `401`, drop the
@@ -65,7 +85,7 @@ before 2026-09-30 are all refused once, when this ships.
 
 > **SSE exception:** the two wireless throughput streams also accept
 > `?token=<jwt>`, because the browser `EventSource` API cannot set headers. No
-> other endpoint does.
+> other endpoint does. With the cookie it is no longer needed.
 
 ### Roles
 
@@ -106,14 +126,21 @@ revoke, the data-retention purge and the vendor's settings
 | Delete (`DELETE`)              | 60 / min  |
 | Bulk import                    | 5 / hr    |
 | Agent enrollment (per IP)      | 10 / 15 min |
+| Failed sign-ins and codes (per IP) | 10 / 15 min |
+| Everything under `/api` and `/agent/v1` (per IP) | 1000 / min |
 
 Counters are keyed by user id, falling back to IP for unauthenticated requests,
 so operators sharing one office address do not share a budget. Each resource
 has its own counter — 60 device deletes and 60 vendor deletes in the same minute
 is fine. Exceeding a bucket returns `429` with `{ success: false, error: 'Too many requests' }`.
 
-SSE streams are not rate-limited — a connection held open for hours is the wrong
-thing to count per minute. They are capped by concurrency instead: 5 streams per
+The per-IP total (added 2026-10-05, IDN-104) is counted before the token is
+checked, so requests without one or with a bad one count too. It is high enough
+that an office sharing one address never meets it in normal use.
+
+SSE streams are not rate-limited beyond opening them, which counts toward the
+per-IP total — a connection held open for hours is the wrong thing to count per
+minute. They are capped by concurrency instead: 5 streams per
 user and 200 per server, exceeding either returns `429` with
 `{ error: 'Too many streams' }`.
 
@@ -123,32 +150,229 @@ user and 200 per server, exceeding either returns `429` with
 
 ### `POST /api/auth/login` — Login
 
-**Status:** 200 | 400 | 401  
+**Status:** 200 | 400 | 401 | 429  
 **Auth required:** No
+
+> **⚠ Changed 2026-10-05 — login no longer returns a session.** A right
+> password returns a `challengeToken` and the next step; the session comes from
+> `/two-factor/setup/confirm` or `/two-factor/verify` below (IDN-166). The
+> frontend must follow this before the backend is deployed, or nobody can sign in.
 
 ```ts
 // Request body
 {
-  email: string     // required
-  password: string  // required
+  email: string                 // required
+  password: string              // required
+  trustedBrowserToken?: string  // from an earlier "remember this browser" (IDN-171); browsers send the cookie instead
+}
+
+// Response 200 — the two-factor step
+{
+  success: true,
+  data: {
+    twoFactor: 'verify' | 'setup'  // 'setup' the first time, 'verify' after
+    challengeToken: string         // Bearer token for the two-factor routes; 5 minutes
+  }
+}
+
+// Response 200 — a remembered browser: the session, no code needed
+{
+  success: true,
+  data: {
+    token: string
+    user: { id: string; email: string; role: 'VENDOR' | 'ADMIN' | 'OPERATOR' | 'VIEWER' }
+  }
+}
+```
+
+> **⚠ Changed 2026-10-05 — remembered browsers.** When `data.token` is present
+> the person is signed in; otherwise follow `data.twoFactor`. A
+> `trustedBrowserToken` that has expired or was revoked is ignored, never an
+> error: the answer is the usual two-factor step.
+
+> Returns `401` for a wrong password, an unknown email and a disabled account alike (identical error message — no credential enumeration).
+
+**Sign-in flow**
+
+1. `POST /api/auth/login` → `{ twoFactor, challengeToken }`.
+2. `twoFactor === 'setup'`: `POST /two-factor/setup` → show the QR code of
+   `otpauthUri` (and `secret` for typing in by hand), then
+   `POST /two-factor/setup/confirm { code }` → session + recovery codes. Show the
+   recovery codes once, with a "I saved them" confirmation.
+3. `twoFactor === 'verify'`: `POST /two-factor/verify { code }`, or
+   `{ recoveryCode }` behind a "lost my phone" link → session.
+4. Offer a "remember this browser for 30 days" checkbox on the code screens and
+   send it as `rememberBrowser: true`. The browser keeps the
+   `nms_trusted_browser` cookie it returns and sends it with every later
+   login on its own (a non-browser client sends `trustedBrowserToken`). It stops
+   working after 30 days, or at once when the account's password, role or
+   status changes or its two-factor is reset (IDN-171).
+
+Send the challenge as `Authorization: Bearer <challengeToken>` on every
+two-factor route. It does not work on any other route, and a session token does
+not work here (IDN-167). On `401 Sign-in step expired. Sign in again.` go back
+to the password screen.
+
+> **⚠ Changed 2026-10-05 — two new `429` answers:**
+>
+> | When | Body `error` |
+> | ---- | ------------ |
+> | The account had 5 wrong passwords in a row: it waits 1 minute, and each further wrong password doubles the wait, up to 15 minutes. Even the right password is refused while it waits (IDN-044). | `Too many failed sign-in attempts. Try again later.` |
+> | The caller's address had 10 failed sign-ins in 15 minutes (IDN-103). | `Too many requests` |
+>
+> Show both as "try again in a few minutes"; neither means the password is wrong.
+> A new password set by an administrator lifts the account's wait at once.
+> Wrong two-factor codes count toward both, the same as wrong passwords.
+
+### `POST /api/auth/logout` — Sign out this browser
+
+**Status:** 200  
+**Auth required:** No
+
+```ts
+// No body
+// Response 200
+{ success: true, data: null }
+```
+
+> Clears the `nms_session` cookie (IDN-062). The remembered browser stays, so
+> the next sign-in from here still skips the code. Tokens are not revoked: to
+> end every session of an account, change its password.
+
+### `POST /api/auth/password/forgot` — Ask for a password reset link
+
+**Status:** 200 | 400 | 429  
+**Auth required:** No
+
+```ts
+// Request body
+{ email: string }
+
+// Response 200 — the same whether or not the address has an account
+{ success: true, data: null }
+```
+
+> When the address belongs to an active account, it gets an email with a link
+> to `<APP_PUBLIC_URL>/reset-password#token=<token>` (IDN-182). The dashboard
+> needs that page: read the token from `location.hash`, ask for the new
+> password, and call `/password/reset`. Show the same "if the address has an
+> account, we sent a link" message whatever happens.
+> `429 Too many requests` after ten requests an hour from one address,
+> counting `/password/reset` too (IDN-105).
+
+### `POST /api/auth/password/reset` — Set a new password from the link
+
+**Status:** 200 | 400 | 429  
+**Auth required:** the link's token, in the body
+
+```ts
+// Request body
+{
+  token: string     // from the link's #token=
+  password: string  // at least 12 characters
+}
+
+// Response 200
+{ success: true, data: null }
+```
+
+> Signs nobody in: send the person to the login page. Every session of the
+> account ends, and two-factor stays on (IDN-183).
+> Also accepts an invitation's token (IDN-184).
+>
+> | Status | `error`                                    | When                                                              |
+> | ------ | ------------------------------------------ | ----------------------------------------------------------------- |
+> | `400`  | `Reset link expired or already used`       | Older than an hour, used already, or the account is disabled      |
+> | `400`  | `Password must be at least 12 characters`  | The link stays usable; ask again                                  |
+
+### `POST /api/auth/two-factor/setup` — Start two-factor setup
+
+**Status:** 200 | 401 | 409 | 429  
+**Auth required:** setup challenge (`twoFactor: 'setup'` from login)
+
+```ts
+// No body
+
+// Response 200
+{
+  success: true,
+  data: {
+    secret: string      // base32, for typing into the app by hand
+    otpauthUri: string  // otpauth://totp/... — render as a QR code
+  }
+}
+```
+
+> Calling it again before confirming gives a new secret; the old QR code stops
+> working. `409 Two-factor sign-in is already on` when setup was already
+> confirmed (IDN-168).
+
+### `POST /api/auth/two-factor/setup/confirm` — Confirm setup and sign in
+
+**Status:** 200 | 400 | 401 | 409 | 429  
+**Auth required:** setup challenge
+
+```ts
+// Request body
+{
+  code: string               // the 6 digits the app shows
+  rememberBrowser?: boolean  // default false (IDN-171)
 }
 
 // Response 200
 {
   success: true,
   data: {
-    token: string   // JWT — include as Bearer token on all subsequent requests
+    token: string   // JWT session — Bearer token on all other requests; 24 hours
     user: {
-      id: string    // UUID
+      id: string
       email: string
       role: 'VENDOR' | 'ADMIN' | 'OPERATOR' | 'VIEWER'
     }
+    recoveryCodes: string[]  // 10 codes like 'K7M2P-QX4RT'; shown only now
+    trustedBrowserToken?: string  // only with rememberBrowser: true; 30 days
   }
 }
 ```
 
-> Returns `401` for a wrong password, an unknown email and a disabled account alike (identical error message — no credential enumeration).  
-> Token expires after 24 hours; obtain a new one by logging in again.
+| Status | `error` | Meaning |
+| ------ | ------- | ------- |
+| `401` | `Invalid code` | Wrong code; counts as a failed sign-in |
+| `401` | `Sign-in step expired. Sign in again.` | Challenge missing, expired or of the wrong kind |
+| `409` | `Two-factor setup has not been started` | Call `/two-factor/setup` first |
+| `429` | `Too many failed sign-in attempts. Try again later.` | Account paused (IDN-044) |
+
+### `POST /api/auth/two-factor/verify` — Finish sign-in with a code
+
+**Status:** 200 | 400 | 401 | 429  
+**Auth required:** code challenge (`twoFactor: 'verify'` from login)
+
+```ts
+// Request body — exactly one of the two
+{
+  code?: string              // the 6 digits the app shows
+  recoveryCode?: string      // one of the recovery codes; case, spaces and dash ignored
+  rememberBrowser?: boolean  // default false (IDN-171)
+}
+
+// Response 200
+{
+  success: true,
+  data: {
+    token: string
+    user: { id: string; email: string; role: 'VENDOR' | 'ADMIN' | 'OPERATOR' | 'VIEWER' }
+    trustedBrowserToken?: string  // only with rememberBrowser: true; 30 days
+  }
+}
+```
+
+> `401 Invalid code` for a wrong code, a code already used and an unknown or
+> spent recovery code alike. Each recovery code works once (IDN-170).
+> Other errors as for `/setup/confirm`.
+>
+> Every sign-in finished here or at `/setup/confirm` emails the account a
+> warning with the time and the caller's address (IDN-181). A login from a
+> remembered browser sends none. The email never delays or fails the answer.
 
 ---
 
@@ -5054,6 +5278,7 @@ interface UserAccountDTO {
   role: 'VENDOR' | 'ADMIN' | 'OPERATOR' | 'VIEWER';
   disabled: boolean;
   disabledAt: string | null;
+  twoFactorEnabled: boolean; // added 2026-10-05
   createdAt: string;
   updatedAt: string;
 }
@@ -5074,14 +5299,14 @@ interface UserAccountDTO {
 
 ### `POST /api/users` — Create
 
-**Status:** 201 | 400 | 401 | 403 | 409  
+**Status:** 201 | 400 | 401 | 403 | 409 | 503  
 **Roles:** ADMIN (`manage-users`)
 
 ```ts
 // Request body
 {
   email: string; // stored lowercase; unique
-  password: string; // 8–200 chars
+  password?: string; // 12–200 chars; leave out to invite (IDN-184)
   role: 'ADMIN' | 'OPERATOR' | 'VIEWER'; // VENDOR is refused (400)
 }
 
@@ -5090,6 +5315,15 @@ interface UserAccountDTO {
 ```
 
 > `409` when the email is taken (case-insensitive).
+>
+> Without `password`, the person gets an email with a seven-day link to
+> `<APP_PUBLIC_URL>/accept-invitation#token=<token>` and chooses their own
+> (IDN-184). That page works like `/reset-password`: read the token from
+> `location.hash` and call `POST /api/auth/password/reset`. Prefer this to
+> typing a password for someone. `503` with
+> `The invitation email could not be sent. Try again, or set a password instead.`
+> when email or `APP_PUBLIC_URL` is not set up, or the mail server refused;
+> nothing is created then.
 
 ---
 
@@ -5103,7 +5337,7 @@ interface UserAccountDTO {
 {
   role?: 'ADMIN' | 'OPERATOR' | 'VIEWER';
   disabled?: boolean; // true disables, false re-enables
-  password?: string; // 8–200 chars — a reset, no current password needed
+  password?: string; // 12–200 chars — a reset, no current password needed
 }
 
 // Response
@@ -5118,6 +5352,34 @@ interface UserAccountDTO {
 
 ---
 
+### `POST /api/users/:id/two-factor/reset` — Reset two-factor sign-in
+
+**Status:** 200 | 400 | 401 | 403 | 404 | 409  
+**Roles:** ADMIN (`manage-users`); only VENDOR resets an `ADMIN` account
+
+```ts
+// No body
+
+// Response
+{ success: true, data: UserAccountDTO } // twoFactorEnabled: false
+```
+
+> For someone who lost their phone and their recovery codes (IDN-172). Signs
+> the account out everywhere and forgets its remembered browsers; at the next
+> sign-in it sets two-factor up again. Every reset sends an alert to the
+> install's chat (IDN-173, type `two_factor_reset`).
+>
+> | Status | `error` |
+> | ------ | ------- |
+> | `403` | `Only the vendor can reset an administrator's two-factor sign-in` |
+> | `403` | `The vendor account is managed by the vendor` |
+> | `409` | `Two-factor sign-in is not on` |
+>
+> Show the action only on rows with `twoFactorEnabled: true`, never on the
+> vendor's row, and on `ADMIN` rows only when the signed-in user is the vendor.
+
+---
+
 ### `POST /api/users/me/password` — Change my password
 
 **Status:** 200 | 400 | 401  
@@ -5125,7 +5387,7 @@ interface UserAccountDTO {
 
 ```ts
 // Request body
-{ currentPassword: string; newPassword: string } // new: 8–200 chars (12 for the vendor)
+{ currentPassword: string; newPassword: string } // new: 12–200 chars (was 8 before 2026-10-05)
 
 // Response
 { success: true, data: { token: string } }
