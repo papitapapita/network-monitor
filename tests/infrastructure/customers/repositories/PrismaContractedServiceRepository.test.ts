@@ -9,7 +9,11 @@ import {
   jest
 } from '@jest/globals';
 import { PrismaContractedServiceRepository } from '../../../../src/infrastructure/customers/repositories/PrismaContractedServiceRepository';
-import { ContractedService } from '../../../../src/domain/customers';
+import {
+  ContractedService,
+  ContractedServiceStatus
+} from '../../../../src/domain/customers';
+import { ContractedServiceStatusChangedEvent } from '../../../../src/domain/customers/events';
 import {
   ContractedServiceId,
   CustomerId,
@@ -101,6 +105,36 @@ describe('PrismaContractedServiceRepository', () => {
 
       expect(result.isSuccess).toBe(true);
       expect(dispatchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('[SVC-041] a saved status change reaches the registered handlers', async () => {
+      dispatchSpy.mockRestore();
+      // Earlier saves here had dispatch mocked and left the same id marked.
+      EventDispatcher.clearMarkedAggregates();
+      (prisma.contractedService.upsert as any).mockResolvedValue(
+        makeRaw({ status: 'SUSPENDED' })
+      );
+      const handle = jest.fn<(event: unknown) => void>();
+      EventDispatcher.register(
+        ContractedServiceStatusChangedEvent.name,
+        {
+          handle
+        }
+      );
+      const service = makeService();
+      service.suspend();
+
+      try {
+        await repository.save(service);
+      } finally {
+        EventDispatcher.clearHandlers();
+      }
+
+      expect(handle).toHaveBeenCalledTimes(1);
+      const event = handle.mock
+        .calls[0][0] as ContractedServiceStatusChangedEvent;
+      expect(event.newStatus).toBe(ContractedServiceStatus.SUSPENDED);
+      expect(service.domainEvents).toHaveLength(0);
     });
 
     it('should map P2002 to a device-already-assigned failure', async () => {

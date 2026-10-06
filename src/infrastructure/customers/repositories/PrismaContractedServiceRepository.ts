@@ -41,6 +41,7 @@ export class PrismaContractedServiceRepository
         }
       });
 
+      EventDispatcher.markAggregateForDispatch(service);
       EventDispatcher.dispatchEventsForAggregate(service.id);
 
       return Result.ok<ContractedService>(service);
