@@ -3,7 +3,12 @@
 import {
   User,
   SIGN_IN_PAUSED,
-  signInPauseAfter
+  signInPauseAfter,
+  TWO_FACTOR_NOT_STARTED,
+  TWO_FACTOR_ALREADY_ON,
+  TWO_FACTOR_OFF,
+  CODE_ALREADY_USED,
+  RECOVERY_CODE_UNKNOWN
 } from '../../../../src/domain/identity/aggregates/User';
 import { UserSignInPausedEvent } from '../../../../src/domain/identity/events/UserSignInPausedEvent';
 import { UserEmail } from '../../../../src/domain/identity/value-objects/UserEmail';
@@ -50,6 +55,10 @@ function makeUserProps(
     tokenVersion: 0,
     failedSignIns: 0,
     signInPausedUntil: null,
+    twoFactorSecret: null,
+    twoFactorEnabledAt: null,
+    twoFactorLastStep: null,
+    recoveryCodeHashes: [],
     createdAt: now,
     updatedAt: now,
     ...overrides
@@ -482,4 +491,161 @@ describe('User sign-in failures', () => {
       'Sign-in can only be paused after 5 failures'
     );
   });
+});
+
+describe('User two-factor sign-in', () => {
+  const at = new Date('2026-10-05T12:00:00.000Z');
+  const HASHES = Array.from({ length: 10 }, (_, i) => `hash-${i}`);
+
+  function user(overrides: Partial<UserProps> = {}): User {
+    return User.reconstitute(
+      UserId.create(),
+      makeUserProps(overrides)
+    );
+  }
+
+  function enrolled(): User {
+    const u = user();
+    u.startTwoFactorSetup('encrypted-secret');
+    u.confirmTwoFactor(100, HASHES, at);
+    return u;
+  }
+
+  it('[IDN-160] starts with two-factor off', () => {
+    const u = user();
+
+    expect(u.hasTwoFactor).toBe(false);
+    expect(u.twoFactorSecret).toBeNull();
+  });
+
+  it('[IDN-160] keeps a started setup off until its first code', () => {
+    const u = user();
+    u.startTwoFactorSetup('encrypted-secret');
+
+    expect(u.twoFactorSecret).toBe('encrypted-secret');
+    expect(u.hasTwoFactor).toBe(false);
+  });
+
+  it('[IDN-160] turns on with the first code and the recovery codes', () => {
+    const u = enrolled();
+
+    expect(u.hasTwoFactor).toBe(true);
+    expect(u.twoFactorEnabledAt).toEqual(at);
+    expect(u.twoFactorLastStep).toBe(100);
+    expect(u.recoveryCodeHashes).toEqual(HASHES);
+  });
+
+  it('[IDN-160] cannot confirm a setup that was never started', () => {
+    expect(user().confirmTwoFactor(1, HASHES, at).error).toBe(
+      TWO_FACTOR_NOT_STARTED
+    );
+  });
+
+  it('[IDN-165] a new setup replaces an unfinished one', () => {
+    const u = user();
+    u.startTwoFactorSetup('first');
+
+    expect(u.startTwoFactorSetup('second').isSuccess).toBe(true);
+    expect(u.twoFactorSecret).toBe('second');
+  });
+
+  it('[IDN-165] a working setup cannot be replaced by starting again', () => {
+    const u = enrolled();
+
+    expect(u.startTwoFactorSetup('other').error).toBe(
+      TWO_FACTOR_ALREADY_ON
+    );
+    expect(u.twoFactorSecret).toBe('encrypted-secret');
+  });
+
+  it('[IDN-164] accepts a code from a later step', () => {
+    const u = enrolled();
+
+    expect(u.acceptTwoFactorCode(101).isSuccess).toBe(true);
+    expect(u.twoFactorLastStep).toBe(101);
+  });
+
+  it('[IDN-164] refuses a code from the same or an earlier step', () => {
+    const u = enrolled();
+
+    expect(u.acceptTwoFactorCode(100).error).toBe(CODE_ALREADY_USED);
+    expect(u.acceptTwoFactorCode(99).error).toBe(CODE_ALREADY_USED);
+    expect(u.twoFactorLastStep).toBe(100);
+  });
+
+  it('[IDN-160] refuses a code while two-factor is off', () => {
+    expect(user().acceptTwoFactorCode(1).error).toBe(TWO_FACTOR_OFF);
+  });
+
+  it('[IDN-163] a recovery code works once', () => {
+    const u = enrolled();
+
+    expect(u.useRecoveryCode('hash-3').isSuccess).toBe(true);
+    expect(u.recoveryCodeHashes).toHaveLength(9);
+    expect(u.useRecoveryCode('hash-3').error).toBe(
+      RECOVERY_CODE_UNKNOWN
+    );
+  });
+
+  it('[IDN-163] refuses an unknown recovery code', () => {
+    expect(enrolled().useRecoveryCode('nope').error).toBe(
+      RECOVERY_CODE_UNKNOWN
+    );
+  });
+
+  it('[IDN-165] a reset clears everything and ends sessions', () => {
+    const u = enrolled();
+
+    u.resetTwoFactor();
+
+    expect(u.hasTwoFactor).toBe(false);
+    expect(u.twoFactorSecret).toBeNull();
+    expect(u.twoFactorLastStep).toBeNull();
+    expect(u.recoveryCodeHashes).toEqual([]);
+    expect(u.tokenVersion).toBe(1);
+  });
+
+  it('[IDN-165] there is nothing to reset before setup starts', () => {
+    expect(user().resetTwoFactor().error).toBe(TWO_FACTOR_OFF);
+  });
+
+  it('[IDN-160] using codes does not end sessions', () => {
+    const u = enrolled();
+    u.acceptTwoFactorCode(101);
+    u.useRecoveryCode('hash-0');
+
+    expect(u.tokenVersion).toBe(0);
+  });
+
+  it.each<[string, Partial<UserProps>, string]>([
+    [
+      'on without a secret',
+      { twoFactorEnabledAt: at, twoFactorSecret: null },
+      'Two-factor sign-in cannot be on without a secret'
+    ],
+    [
+      'recovery codes while off',
+      { twoFactorSecret: 's', recoveryCodeHashes: ['h'] },
+      'Codes are only kept while two-factor sign-in is on'
+    ],
+    [
+      'more than ten recovery codes',
+      {
+        twoFactorSecret: 's',
+        twoFactorEnabledAt: at,
+        recoveryCodeHashes: Array.from(
+          { length: 11 },
+          (_, i) => `h${i}`
+        )
+      },
+      'At most 10 recovery codes'
+    ]
+  ])(
+    '[IDN-160] refuses a change to a state with %s',
+    (_, props, message) => {
+      expect(
+        user(props).changeRole(UserRole.reconstitute('ADMIN')).error
+      ).toBe(message);
+    }
+  );
 });

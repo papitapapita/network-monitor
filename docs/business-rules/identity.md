@@ -23,18 +23,19 @@ Format and conventions: [README.md](README.md).
 | `IDN-100` … `IDN-119` | Rate limiting                 |
 | `IDN-120` … `IDN-139` | Audit and transport hardening |
 | `IDN-140` … `IDN-159` | User management               |
+| `IDN-160` … `IDN-179` | Two-factor sign-in            |
 
 ## Layer coverage
 
 | Layer                         | Rules |
 | ----------------------------- | ----- |
 | Presentation (middleware)     | 11    |
-| Infrastructure                | 8     |
+| Infrastructure                | 10    |
 | Domain (value object)         | 4     |
 | Application                   | 11    |
 | Presentation                  | 4     |
 | Domain (permission table)     | 2     |
-| Domain (aggregate)            | 4     |
+| Domain (aggregate)            | 8     |
 | Infrastructure + Presentation | 1     |
 | Infrastructure (database)     | 1     |
 
@@ -1025,3 +1026,130 @@ that had the old one is signed out.
 **Tests:** `tests/application/identity/use-cases/ChangeOwnPasswordUseCase.test.ts`,
 `tests/integration/use-cases/identity/ChangeOwnPasswordUseCase.integration.test.ts`,
 `tests/integration/user.routes.test.ts`
+
+---
+
+## Two-factor sign-in
+
+Every account signs in with a password and a six-digit code from an
+authenticator app (Google Authenticator, Microsoft Authenticator and the like).
+The rules below are the account's side of it; the sign-in steps that ask for
+the code are being added on 2026-10-05 and are not live yet.
+
+### IDN-160 — Two-factor turns on only with its first valid code
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain (aggregate)
+**Since:** 2026-10-05
+
+Setup stores a new secret but leaves two-factor off. It turns on when the
+person enters a valid code from their app, which also stores their recovery
+codes (`IDN-163`). While two-factor is off the account keeps no recovery codes
+and no last-used code, and it can never be on without a secret; the database
+enforces the same (`users_two_factor_check`). Using a code never ends a
+session.
+
+**Why:** Turning two-factor on before a code proves the app holds the secret
+would lock out anyone whose scan failed — they would be asked for codes their
+phone cannot make.
+
+**Enforced at:** `src/domain/identity/aggregates/User.ts` (`confirmTwoFactor`, `validate`),
+`prisma/migrations/20261005130000_user_two_factor/migration.sql`
+**Message:** `Two-factor setup has not been started`
+**Tests:** `tests/domain/identity/aggregates/User.test.ts`,
+`tests/integration/use-cases/identity/LoginUseCase.integration.test.ts`
+
+### IDN-161 — Codes follow RFC 6238, accepting one step of clock drift
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-10-05
+
+Codes are TOTP as every authenticator app makes them by default: HMAC-SHA1, a
+new six-digit code every 30 seconds, from a 160-bit secret. A code from the
+step before or after the current one is accepted too, so a phone whose clock
+is up to 30 seconds off still works. The setup QR code encodes an `otpauth://`
+link naming the product and the account.
+
+**Why:** The defaults are the only settings every app honours; some ignore any
+other algorithm or length silently and then show codes that never match. One
+step either way absorbs ordinary clock drift and the seconds it takes to type
+the code.
+
+**Enforced at:** `src/infrastructure/identity/services/TotpTwoFactorCodes.ts`
+**Tests:** `tests/infrastructure/identity/services/TotpTwoFactorCodes.test.ts` (the RFC 6238 test vectors)
+
+### IDN-162 — The two-factor secret is stored encrypted with the install's key
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-10-05
+
+The secret is encrypted with AES-256-GCM under `DEVICE_CREDENTIALS_KEY`, the
+same key that protects device passwords, and is decrypted only to check a code.
+
+**Why:** Unlike a password, the server must read the secret back, so it cannot
+be hashed. Encrypting it means a copy of the database alone — a stolen backup —
+does not let anyone make valid codes. Reusing the install's existing key keeps
+one key to back up and rotate.
+
+**Enforced at:** `src/infrastructure/identity/services/AesSecretCipher.ts`
+**Tests:** `tests/infrastructure/identity/services/AesSecretCipher.test.ts`
+
+### IDN-163 — Ten single-use recovery codes, stored only as hashes
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (aggregate)
+**Since:** 2026-10-05
+
+Turning two-factor on hands out ten recovery codes like `K7MPQ-3WXRT`, shown
+once. Each replaces the app's code for one sign-in and is then gone. Only their
+SHA-256 hashes are stored. Case, spaces and the dash do not matter when typing
+one; the alphabet leaves out `0`, `O`, `1`, `I` and `L`.
+
+**Why:** A lost phone is the common way to lose two-factor; recovery codes let
+the person back in without waiting for an administrator (`IDN-165`). At about
+50 bits each they cannot be guessed within the sign-in limits (`IDN-044`), so a
+fast hash is enough — a stolen database does not reveal them.
+
+**Enforced at:** `src/domain/identity/aggregates/User.ts` (`useRecoveryCode`),
+`src/infrastructure/identity/services/HashedRecoveryCodes.ts`
+**Message:** `Unknown or used recovery code`
+**Tests:** `tests/domain/identity/aggregates/User.test.ts`,
+`tests/infrastructure/identity/services/HashedRecoveryCodes.test.ts`
+
+### IDN-164 — No code is accepted twice
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain (aggregate)
+**Since:** 2026-10-05
+
+The account remembers the time step of the last code it accepted and refuses
+any code from that step or an earlier one.
+
+**Why:** A code stays valid for up to 90 seconds (`IDN-161`). Without this, a
+code read over someone's shoulder or captured on its way could be replayed
+within that window.
+
+**Enforced at:** `src/domain/identity/aggregates/User.ts` (`acceptTwoFactorCode`)
+**Message:** `This code was already used`
+**Tests:** `tests/domain/identity/aggregates/User.test.ts`
+
+### IDN-165 — Only a reset replaces a working two-factor setup
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain (aggregate)
+**Since:** 2026-10-05
+
+A setup that was started but never confirmed can be started again with a new
+secret. Once two-factor is on, starting again is refused; it takes a reset,
+which clears the secret and the recovery codes and ends every session of the
+account, so the person sets two-factor up again at their next sign-in.
+
+**Why:** If a signed-in session could swap the secret, a stolen session would
+become permanent access with the thief's own phone.
+
+**Enforced at:** `src/domain/identity/aggregates/User.ts` (`startTwoFactorSetup`, `resetTwoFactor`)
+**Message:** `Two-factor sign-in is already on`
+**Tests:** `tests/domain/identity/aggregates/User.test.ts`
+

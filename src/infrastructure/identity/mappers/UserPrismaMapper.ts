@@ -13,6 +13,10 @@ interface UserRecord {
   tokenVersion: number;
   failedSignIns: number;
   signInPausedUntil: Date | null;
+  twoFactorSecret: string | null;
+  twoFactorEnabledAt: Date | null;
+  twoFactorLastStep: number | null;
+  recoveryCodeHashes: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,6 +37,10 @@ export class UserPrismaMapper {
         tokenVersion: raw.tokenVersion,
         failedSignIns: raw.failedSignIns,
         signInPausedUntil: raw.signInPausedUntil,
+        twoFactorSecret: raw.twoFactorSecret,
+        twoFactorEnabledAt: raw.twoFactorEnabledAt,
+        twoFactorLastStep: raw.twoFactorLastStep,
+        recoveryCodeHashes: raw.recoveryCodeHashes,
         createdAt: raw.createdAt,
         updatedAt: raw.updatedAt
       })
@@ -49,6 +57,10 @@ export class UserPrismaMapper {
       tokenVersion: user.tokenVersion,
       failedSignIns: user.failedSignIns,
       signInPausedUntil: user.signInPausedUntil,
+      twoFactorSecret: user.twoFactorSecret,
+      twoFactorEnabledAt: user.twoFactorEnabledAt,
+      twoFactorLastStep: user.twoFactorLastStep,
+      recoveryCodeHashes: user.recoveryCodeHashes,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     };

@@ -60,6 +60,10 @@ function makeUser(role: string): User {
     tokenVersion: 0,
     failedSignIns: 0,
     signInPausedUntil: null,
+    twoFactorSecret: null,
+    twoFactorEnabledAt: null,
+    twoFactorLastStep: null,
+    recoveryCodeHashes: [],
     createdAt: now,
     updatedAt: now
   });

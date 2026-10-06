@@ -27,6 +27,10 @@ export class PrismaUserRepository implements IUserRepository {
           tokenVersion: data.tokenVersion,
           failedSignIns: data.failedSignIns,
           signInPausedUntil: data.signInPausedUntil,
+          twoFactorSecret: data.twoFactorSecret,
+          twoFactorEnabledAt: data.twoFactorEnabledAt,
+          twoFactorLastStep: data.twoFactorLastStep,
+          recoveryCodeHashes: data.recoveryCodeHashes,
           createdAt: data.createdAt,
           updatedAt: data.updatedAt
         },
@@ -38,6 +42,10 @@ export class PrismaUserRepository implements IUserRepository {
           tokenVersion: data.tokenVersion,
           failedSignIns: data.failedSignIns,
           signInPausedUntil: data.signInPausedUntil,
+          twoFactorSecret: data.twoFactorSecret,
+          twoFactorEnabledAt: data.twoFactorEnabledAt,
+          twoFactorLastStep: data.twoFactorLastStep,
+          recoveryCodeHashes: data.recoveryCodeHashes,
           updatedAt: data.updatedAt
         }
       });

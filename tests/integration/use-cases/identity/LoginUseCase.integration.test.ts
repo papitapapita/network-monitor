@@ -108,4 +108,19 @@ describe('LoginUseCase — integration', () => {
       })
     ).rejects.toThrow();
   });
+
+  it('[IDN-160] the database refuses two-factor on without a secret, or recovery codes while off', async () => {
+    await expect(
+      prisma.user.update({
+        where: { email: EMAIL },
+        data: { twoFactorEnabledAt: new Date() }
+      })
+    ).rejects.toThrow();
+    await expect(
+      prisma.user.update({
+        where: { email: EMAIL },
+        data: { twoFactorSecret: 'x', recoveryCodeHashes: ['h'] }
+      })
+    ).rejects.toThrow();
+  });
 });

@@ -41,6 +41,12 @@ model User {
   // earned (IDN-044).
   failedSignIns     Int       @default(0) @map("failed_sign_ins")
   signInPausedUntil DateTime? @map("sign_in_paused_until") @db.Timestamptz
+  // Two-factor sign-in (IDN-160…): the secret encrypted with the install's
+  // key, set before `twoFactorEnabledAt` while setup awaits its first code.
+  twoFactorSecret    String?   @map("two_factor_secret") @db.VarChar(255)
+  twoFactorEnabledAt DateTime? @map("two_factor_enabled_at") @db.Timestamptz
+  twoFactorLastStep  Int?      @map("two_factor_last_step")
+  recoveryCodeHashes String[]  @default([]) @map("recovery_code_hashes") @db.VarChar(64)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
