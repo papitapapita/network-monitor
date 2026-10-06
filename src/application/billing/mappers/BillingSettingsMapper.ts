@@ -8,7 +8,8 @@ export class BillingSettingsMapper {
       billingMode: settings.billingMode,
       issueLeadDays: settings.issueLeadDays,
       graceDays: settings.graceDays,
-      automaticCutEnabled: settings.automaticCutEnabled
+      automaticCutEnabled: settings.automaticCutEnabled,
+      reminderWhatsAppTemplate: settings.reminderWhatsAppTemplate
     };
   }
 }

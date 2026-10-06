@@ -68,9 +68,10 @@ network.
 
 ### Notices
 
-- Sent by WhatsApp and email, near the cut: in the last two grace days.
-- The exact set (whether the bill itself is also sent when issued) is settled
-  in the notices phase.
+- Reminders by WhatsApp and email, near the cut: in the last two grace days.
+- The bill itself is emailed with its PDF when issued; WhatsApp only carries
+  the reminders, since each template message costs money.
+- Email uses the install's SMTP sender (Resend), shared with sign-in emails.
 
 ### Deferred (not built now)
 

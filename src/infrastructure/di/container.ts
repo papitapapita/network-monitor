@@ -73,6 +73,8 @@ import {
   PrismaBankAccountRepository,
   PrismaBillingSettingsRepository,
   PrismaBillableCustomersQuery,
+  PrismaBillingContactsQuery,
+  PrismaBillReminderLog,
   BillingCycleOrchestrator,
   ContractedServiceAccessAdapter,
   SettingsIssuerPdfRenderer
@@ -183,6 +185,8 @@ import {
   UpdateBillingSettingsUseCase,
   RunBillingCycleUseCase,
   RestoreServicesAfterPaymentUseCase,
+  SendBillEmailUseCase,
+  SendPaymentRemindersUseCase,
   GetBillUseCase,
   GetBillPdfUseCase,
   ListBillsUseCase,
@@ -652,6 +656,11 @@ export class DependencyContainer {
         this.prisma,
         loadVendorSettingsDefaults(process.env)
       );
+    // Shared by sign-in emails and billing notices.
+    const smtpConfig = loadSmtpConfig(process.env);
+    const emailSender: IEmailSender = smtpConfig
+      ? new SmtpEmailSender(smtpConfig)
+      : new UnconfiguredEmailSender(this.logger);
     this.wirelessDeviceConfigRepository =
       new PrismaWirelessDeviceConfigRepository(
         this.prisma,
@@ -768,6 +777,13 @@ export class DependencyContainer {
         this.logger
       );
 
+      const getBillPdfUseCase = new GetBillPdfUseCase(
+        this.billRepository,
+        this.customerRepository,
+        new PdfKitBillPdfRenderer(),
+        this.logger
+      );
+
       this.billController = new BillController(
         generateBillUseCase,
         new GenerateBillsForPeriodUseCase(
@@ -778,12 +794,7 @@ export class DependencyContainer {
         ),
         new ListBillsUseCase(this.billRepository, this.logger),
         new GetBillUseCase(this.billRepository, this.logger),
-        new GetBillPdfUseCase(
-          this.billRepository,
-          this.customerRepository,
-          new PdfKitBillPdfRenderer(),
-          this.logger
-        ),
+        getBillPdfUseCase,
         new MarkBillPaidUseCase(this.billRepository, this.logger),
         new MarkBillOverdueUseCase(this.billRepository, this.logger),
         new CancelBillUseCase(this.billRepository, this.logger),
@@ -803,6 +814,9 @@ export class DependencyContainer {
         ),
         this.logger
       );
+      const billingContacts = new PrismaBillingContactsQuery(
+        this.prisma
+      );
       const serviceAccess = new ContractedServiceAccessAdapter(
         this.contractedServiceRepository
       );
@@ -813,6 +827,30 @@ export class DependencyContainer {
           this.billRepository,
           generateBillUseCase,
           serviceAccess,
+          new SendBillEmailUseCase(
+            this.billRepository,
+            billingContacts,
+            getBillPdfUseCase,
+            emailSender,
+            this.logger
+          ),
+          new SendPaymentRemindersUseCase(
+            this.billRepository,
+            new PrismaBillReminderLog(this.prisma),
+            billingContacts,
+            emailSender,
+            // Reminders by WhatsApp need the token, like suspension notices.
+            process.env.WHATSAPP_ACCESS_TOKEN
+              ? new WhatsAppNotificationService(async () => {
+                  const settings =
+                    await this.vendorSettingsRepository.get();
+                  return settings.isSuccess
+                    ? settings.value.whatsApp
+                    : null;
+                })
+              : null,
+            this.logger
+          ),
           this.logger
         ),
         {},
@@ -1068,10 +1106,6 @@ export class DependencyContainer {
     const twoFactorCodes = new TotpTwoFactorCodes();
     const recoveryCodes = new HashedRecoveryCodes();
     const secretCipher = new AesSecretCipher();
-    const smtpConfig = loadSmtpConfig(process.env);
-    const emailSender: IEmailSender = smtpConfig
-      ? new SmtpEmailSender(smtpConfig)
-      : new UnconfiguredEmailSender(this.logger);
     const accountLinksUrl = loadAppPublicUrl(process.env);
     const newSignInWarning = new NewSignInWarning(
       emailSender,

@@ -34,7 +34,14 @@ export class SmtpEmailSender implements IEmailSender {
         from: this.config.from,
         to: message.to,
         subject: message.subject,
-        text: message.text
+        text: message.text,
+        ...(message.attachments?.length && {
+          attachments: message.attachments.map((a) => ({
+            filename: a.filename,
+            content: a.content,
+            contentType: a.contentType
+          }))
+        })
       });
       return Result.ok<void>();
     } catch (error) {

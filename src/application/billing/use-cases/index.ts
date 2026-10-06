@@ -21,3 +21,5 @@ export * from './GetBillingSettingsUseCase';
 export * from './UpdateBillingSettingsUseCase';
 export * from './RunBillingCycleUseCase';
 export * from './RestoreServicesAfterPaymentUseCase';
+export * from './SendBillEmailUseCase';
+export * from './SendPaymentRemindersUseCase';

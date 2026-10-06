@@ -704,6 +704,7 @@ model Bill {
   customer  Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
   lineItems BillLineItem[]
   payment   BillPayment?
+  reminders BillReminder[]
 
   @@index([customerId])
   @@index([status])
@@ -758,6 +759,20 @@ model BillPayment {
   @@map("bill_payments")
 }
 
+// One row per bill per Colombian day a payment reminder went out (BIL-323),
+// so a run repeated that day sends nothing twice.
+model BillReminder {
+  id        String   @id @default(uuid()) @db.Uuid
+  billId    String   @map("bill_id") @db.Uuid
+  sentOn    DateTime @map("sent_on") @db.Date
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  bill Bill @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@unique([billId, sentOn])
+  @@map("bill_reminders")
+}
+
 enum BillingMode {
   ADVANCE
   ARREARS
@@ -768,13 +783,14 @@ enum BillingMode {
 /// The install's billing cycle (BIL-280). One row at most (id is always 1);
 /// no row means the defaults apply: automatic billing off (BIL-281).
 model BillingSettings {
-  id                      Int         @id @default(1) @db.SmallInt
-  automaticBillingEnabled Boolean     @map("automatic_billing_enabled")
-  billingMode             BillingMode @map("billing_mode")
-  issueLeadDays           Int         @map("issue_lead_days") @db.SmallInt
-  graceDays               Int         @map("grace_days") @db.SmallInt
-  automaticCutEnabled     Boolean     @default(false) @map("automatic_cut_enabled")
-  updatedAt               DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+  id                       Int         @id @default(1) @db.SmallInt
+  automaticBillingEnabled  Boolean     @map("automatic_billing_enabled")
+  billingMode              BillingMode @map("billing_mode")
+  issueLeadDays            Int         @map("issue_lead_days") @db.SmallInt
+  graceDays                Int         @map("grace_days") @db.SmallInt
+  automaticCutEnabled      Boolean     @default(false) @map("automatic_cut_enabled")
+  reminderWhatsAppTemplate String?     @map("reminder_whatsapp_template") @db.VarChar(512)
+  updatedAt                DateTime    @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("billing_settings")
 }

@@ -20,6 +20,8 @@ import {
   BillingCycleRunResultDTO
 } from '../dtos';
 import { GenerateBillUseCase } from './GenerateBillUseCase';
+import { SendBillEmailUseCase } from './SendBillEmailUseCase';
+import { SendPaymentRemindersUseCase } from './SendPaymentRemindersUseCase';
 
 type Failures = BillingCycleRunResultDTO['failed'];
 
@@ -27,7 +29,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 // The daily billing run (BIL-284): marks unpaid bills overdue once their due
 // date has passed, cuts customers still unpaid after the grace days when the
-// automatic cut is on (BIL-310), then issues the bills whose issue window is open. Does
+// automatic cut is on (BIL-310), sends the payment reminders of the last two
+// grace days (BIL-321), then issues and emails the bills whose issue window is open. Does
 // nothing while automatic billing is off. Safe to repeat: a period already
 // billed — even cancelled — is never billed again by the run. Bills it issues
 // are prorated (BIL-287..290); a customer whose services all start after the
@@ -42,6 +45,8 @@ export class RunBillingCycleUseCase extends UseCase<
     private readonly billRepository: IBillRepository,
     private readonly generateBillUseCase: GenerateBillUseCase,
     private readonly serviceAccess: ICustomerServiceAccess,
+    private readonly sendBillEmail: SendBillEmailUseCase,
+    private readonly sendReminders: SendPaymentRemindersUseCase,
     logger: ILogger
   ) {
     super(logger, 'RunBillingCycleUseCase');
@@ -63,6 +68,8 @@ export class RunBillingCycleUseCase extends UseCase<
         generated: 0,
         markedOverdue: 0,
         cut: 0,
+        reminded: 0,
+        emailed: 0,
         failed: []
       });
     }
@@ -77,6 +84,13 @@ export class RunBillingCycleUseCase extends UseCase<
       : Result.ok(0);
     if (cut.isFailure) return this.fail(cut.error!);
 
+    const reminders = await this.sendReminders.execute({
+      now: request.now,
+      settings
+    });
+    if (reminders.isFailure) return this.fail(reminders.error!);
+    failed.push(...reminders.value.failed);
+
     const generated = await this.issueBills(
       request.now,
       settings,
@@ -86,9 +100,11 @@ export class RunBillingCycleUseCase extends UseCase<
 
     return this.ok({
       automaticBillingEnabled: true,
-      generated: generated.value,
+      generated: generated.value.generated,
       markedOverdue: overdue.value,
       cut: cut.value,
+      reminded: reminders.value.reminded,
+      emailed: generated.value.emailed,
       failed
     });
   }
@@ -150,11 +166,12 @@ export class RunBillingCycleUseCase extends UseCase<
     now: Date,
     settings: BillingSettings,
     failed: Failures
-  ): Promise<Result<number>> {
+  ): Promise<Result<{ generated: number; emailed: number }>> {
     const customers = await this.billableCustomers.listBillable();
     if (customers.isFailure) return Result.fail(customers.error!);
 
     let generated = 0;
+    let emailed = 0;
     for (const customer of customers.value) {
       const cycle = BillingCycle.openAt(
         now,
@@ -198,7 +215,17 @@ export class RunBillingCycleUseCase extends UseCase<
         continue;
       }
       generated++;
+
+      // BIL-320: a bill that could not be emailed is still issued.
+      const email = await this.sendBillEmail.execute({
+        billId: bill.value.id
+      });
+      if (email.isFailure) {
+        failed.push({ id: bill.value.id, error: email.error! });
+      } else if (email.value.sent) {
+        emailed++;
+      }
     }
-    return Result.ok(generated);
+    return Result.ok({ generated, emailed });
   }
 }

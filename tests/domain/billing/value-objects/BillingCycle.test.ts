@@ -18,7 +18,8 @@ function settings(
     billingMode: overrides.billingMode ?? BillingMode.ADVANCE,
     issueLeadDays: overrides.issueLeadDays ?? 5,
     graceDays: 3,
-    automaticCutEnabled: false
+    automaticCutEnabled: false,
+    reminderWhatsAppTemplate: null
   });
 }
 

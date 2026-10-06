@@ -25,7 +25,8 @@ const SAVED = {
   billingMode: BillingMode.ARREARS,
   issueLeadDays: 7,
   graceDays: 2,
-  automaticCutEnabled: false
+  automaticCutEnabled: false,
+  reminderWhatsAppTemplate: null
 };
 
 describe('GetBillingSettingsUseCase', () => {
@@ -42,7 +43,8 @@ describe('GetBillingSettingsUseCase', () => {
       billingMode: 'ADVANCE',
       issueLeadDays: 5,
       graceDays: 3,
-      automaticCutEnabled: false
+      automaticCutEnabled: false,
+      reminderWhatsAppTemplate: null
     });
   });
 

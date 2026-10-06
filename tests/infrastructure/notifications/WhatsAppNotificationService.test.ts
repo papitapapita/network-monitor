@@ -142,6 +142,19 @@ describe('WhatsAppNotificationService', () => {
       });
     });
 
+    it('[BIL-322] sends another approved template when the message names one', async () => {
+      fetchMock.mockResolvedValue({ ok: true });
+
+      await makeService().sendTemplate(PHONE, {
+        bodyParams: [],
+        templateName: 'recordatorio_pago'
+      });
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.template.name).toBe('recordatorio_pago');
+      expect(body.template.language).toEqual({ code: 'es' });
+    });
+
     it('should strip the leading + from the phone number', async () => {
       fetchMock.mockResolvedValue({ ok: true });
 

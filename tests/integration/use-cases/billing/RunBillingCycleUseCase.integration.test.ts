@@ -4,13 +4,22 @@
 import { PrismaClient } from 'generated/prisma/client';
 import {
   GenerateBillUseCase,
-  RunBillingCycleUseCase
+  GetBillPdfUseCase,
+  RunBillingCycleUseCase,
+  SendBillEmailUseCase,
+  SendPaymentRemindersUseCase
 } from 'application/billing/use-cases';
+import { PdfKitBillPdfRenderer } from 'infrastructure/billing/services';
+import { FakeEmailSender } from '../../helpers/FakeEmailSender';
 import {
   PrismaBillRepository,
+  PrismaBillReminderLog,
   PrismaBillingSettingsRepository
 } from 'infrastructure/billing/repositories';
-import { PrismaBillableCustomersQuery } from 'infrastructure/billing/queries';
+import {
+  PrismaBillableCustomersQuery,
+  PrismaBillingContactsQuery
+} from 'infrastructure/billing/queries';
 import { ContractedServiceAccessAdapter } from 'infrastructure/billing/adapters';
 import {
   PrismaCustomerRepository,
@@ -35,24 +44,48 @@ describe('RunBillingCycleUseCase — integration', () => {
   let prisma: PrismaClient;
   let useCase: RunBillingCycleUseCase;
   let planId: string;
+  let email: FakeEmailSender;
 
   beforeAll(() => {
     prisma = createTestPrisma();
     const logger = new WinstonLogger();
     const billRepository = new PrismaBillRepository(prisma);
+    const customerRepository = new PrismaCustomerRepository(prisma);
+    const contacts = new PrismaBillingContactsQuery(prisma);
+    email = new FakeEmailSender();
     useCase = new RunBillingCycleUseCase(
       new PrismaBillingSettingsRepository(prisma),
       new PrismaBillableCustomersQuery(prisma),
       billRepository,
       new GenerateBillUseCase(
         billRepository,
-        new PrismaCustomerRepository(prisma),
+        customerRepository,
         new PrismaContractedServiceRepository(prisma),
         new PrismaServicePlanRepository(prisma),
         logger
       ),
       new ContractedServiceAccessAdapter(
         new PrismaContractedServiceRepository(prisma)
+      ),
+      new SendBillEmailUseCase(
+        billRepository,
+        contacts,
+        new GetBillPdfUseCase(
+          billRepository,
+          customerRepository,
+          new PdfKitBillPdfRenderer(),
+          logger
+        ),
+        email,
+        logger
+      ),
+      new SendPaymentRemindersUseCase(
+        billRepository,
+        new PrismaBillReminderLog(prisma),
+        contacts,
+        email,
+        null,
+        logger
       ),
       logger
     );
@@ -67,6 +100,7 @@ describe('RunBillingCycleUseCase — integration', () => {
   beforeEach(async () => {
     await prisma.billingSettings.deleteMany();
     await cleanCustomers(prisma);
+    email.sent = [];
     planId = await seedServicePlan(prisma, {
       name: 'Plan 50',
       monthlyPrice: 80000
@@ -91,11 +125,13 @@ describe('RunBillingCycleUseCase — integration', () => {
   async function seedBillable(
     phone: string,
     paymentDay: number,
-    startDate: Date = LONG_AGO
+    startDate: Date = LONG_AGO,
+    emailAddress: string | null = null
   ): Promise<string> {
     const customerId = await seedCustomer(prisma, {
       phone,
-      paymentDay
+      paymentDay,
+      email: emailAddress
     });
     await seedActiveContractedService(prisma, customerId, planId, {
       startDate
@@ -455,6 +491,64 @@ describe('RunBillingCycleUseCase — integration', () => {
       await useCase.execute({ now: NOW });
 
       expect(await serviceStatus(customerId)).toBe('ACTIVE');
+    });
+  });
+
+  describe('[BIL-320] [BIL-321] notices', () => {
+    it('emails each issued bill with its PDF to customers who have an email', async () => {
+      await enableBilling();
+      await seedBillable(
+        '3000000015',
+        15,
+        LONG_AGO,
+        'ana@example.com'
+      );
+      await seedBillable('3000000016', 15);
+
+      const result = await useCase.execute({ now: NOW });
+
+      expect(result.value.generated).toBe(2);
+      expect(result.value.emailed).toBe(1);
+      expect(email.sent).toHaveLength(1);
+      expect(email.sent[0].to).toBe('ana@example.com');
+      expect(email.sent[0].attachments![0].contentType).toBe(
+        'application/pdf'
+      );
+      expect(
+        email.sent[0]
+          .attachments![0].content.subarray(0, 4)
+          .toString()
+      ).toBe('%PDF');
+    });
+
+    it('reminds an overdue customer on a late grace day, once that day', async () => {
+      await enableBilling('ADVANCE', true);
+      const customerId = await seedBillable(
+        '3000000015',
+        15,
+        LONG_AGO,
+        'ana@example.com'
+      );
+      // Due 10 Oct: 12 Oct is the second of three grace days.
+      await seedBill(
+        customerId,
+        'OVERDUE',
+        new Date('2026-10-11T04:59:59.999Z')
+      );
+
+      const first = await useCase.execute({ now: NOW });
+      const again = await useCase.execute({
+        now: new Date('2026-10-12T15:00:00.000Z')
+      });
+
+      expect(first.value.reminded).toBe(1);
+      expect(again.value.reminded).toBe(0);
+      const reminders = email.sent.filter((m) =>
+        m.subject.startsWith('Recordatorio')
+      );
+      expect(reminders).toHaveLength(1);
+      expect(reminders[0].text).toContain('14 de octubre de 2026');
+      expect(await prisma.billReminder.count()).toBe(1);
     });
   });
 });

@@ -11,7 +11,8 @@ const VALID = {
   billingMode: BillingMode.ARREARS,
   issueLeadDays: 7,
   graceDays: 2,
-  automaticCutEnabled: false
+  automaticCutEnabled: false,
+  reminderWhatsAppTemplate: null
 };
 
 describe('BillingSettings', () => {
@@ -22,6 +23,37 @@ describe('BillingSettings', () => {
     expect(defaults.billingMode).toBe(BillingMode.ADVANCE);
     expect(defaults.issueLeadDays).toBe(5);
     expect(defaults.graceDays).toBe(3);
+  });
+
+  it('[BIL-322] keeps a WhatsApp reminder template name, trimmed', () => {
+    const result = BillingSettings.create({
+      ...VALID,
+      reminderWhatsAppTemplate: ' recordatorio_pago '
+    });
+
+    expect(result.value.reminderWhatsAppTemplate).toBe(
+      'recordatorio_pago'
+    );
+  });
+
+  it('[BIL-322] stores a blank template as none', () => {
+    const result = BillingSettings.create({
+      ...VALID,
+      reminderWhatsAppTemplate: '  '
+    });
+
+    expect(result.value.reminderWhatsAppTemplate).toBeNull();
+  });
+
+  it('[BIL-322] refuses a template name Meta would not accept', () => {
+    const result = BillingSettings.create({
+      ...VALID,
+      reminderWhatsAppTemplate: 'Recordatorio Pago'
+    });
+
+    expect(result.error).toContain(
+      'reminderWhatsAppTemplate must be'
+    );
   });
 
   it('[BIL-310] the automatic cut is off by default', () => {
@@ -56,7 +88,8 @@ describe('BillingSettings', () => {
         ...VALID,
         issueLeadDays: 1,
         graceDays: 0,
-        automaticCutEnabled: false
+        automaticCutEnabled: false,
+        reminderWhatsAppTemplate: null
       }).isSuccess
     ).toBe(true);
     expect(
@@ -64,7 +97,8 @@ describe('BillingSettings', () => {
         ...VALID,
         issueLeadDays: 14,
         graceDays: 14,
-        automaticCutEnabled: false
+        automaticCutEnabled: false,
+        reminderWhatsAppTemplate: null
       }).isSuccess
     ).toBe(true);
   });

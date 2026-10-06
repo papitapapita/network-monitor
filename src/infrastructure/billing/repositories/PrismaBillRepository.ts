@@ -230,6 +230,27 @@ export class PrismaBillRepository implements IBillRepository {
     }
   }
 
+  public async findOverdueDueBetween(
+    from: Date,
+    to: Date
+  ): Promise<Result<Bill[]>> {
+    try {
+      const rawRecords = await this.prisma.bill.findMany({
+        where: { status: 'OVERDUE', dueDate: { gte: from, lte: to } },
+        include: { lineItems: true, payment: true },
+        orderBy: { dueDate: 'asc' }
+      });
+
+      return this.mapMany(rawRecords);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<Bill[]>(
+        `Database error finding overdue bills: ${errorMessage}`
+      );
+    }
+  }
+
   public async findCustomersOverdueBefore(
     instant: Date
   ): Promise<Result<CustomerId[]>> {

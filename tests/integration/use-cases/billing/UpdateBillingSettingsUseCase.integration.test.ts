@@ -12,7 +12,8 @@ const SAVED = {
   billingMode: BillingMode.ARREARS,
   issueLeadDays: 7,
   graceDays: 2,
-  automaticCutEnabled: false
+  automaticCutEnabled: false,
+  reminderWhatsAppTemplate: null
 };
 
 describe('[BIL-280] UpdateBillingSettingsUseCase — integration', () => {

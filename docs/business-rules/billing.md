@@ -27,17 +27,18 @@ Format and conventions: [README.md](README.md).
 | `BIL-260` … `BIL-279` | Bank accounts                   |
 | `BIL-280` … `BIL-299` | Automatic billing cycle         |
 | `BIL-300` … `BIL-309` | Payments                        |
-| `BIL-310` … `BIL-329` | Automatic cut and restore       |
+| `BIL-310` … `BIL-319` | Automatic cut and restore       |
+| `BIL-320` … `BIL-339` | Notices                         |
 
 ## Layer coverage
 
 | Layer                     | Rules |
 | ------------------------- | ----- |
-| Application               | 30    |
+| Application               | 32    |
 | Domain (aggregate)        | 30    |
-| Domain (value object)     | 16    |
+| Domain (value object)     | 17    |
 | Presentation              | 6     |
-| Infrastructure (database) | 8     |
+| Infrastructure (database) | 9     |
 | Infrastructure (PDF)      | 1     |
 | Infrastructure (config)   | 1     |
 
@@ -1305,21 +1306,22 @@ The install bills on its own once the ISP's administrator turns it on
 collection group, the 15th or the 30th (`CUS-024`); that day is when their bill
 falls due. Days are Colombian days (UTC-5).
 
-### BIL-280 — Billing settings are five values, saved together
+### BIL-280 — Billing settings are six values, saved together
 
 **Type:** Validation · **Status:** Active
 **Layer:** Domain (value object)
 **Since:** 2026-10-06
 
-| Setting                   | Allowed                |
-| ------------------------- | ---------------------- |
-| `automaticBillingEnabled` | true or false          |
-| `billingMode`             | `ADVANCE` or `ARREARS` |
-| `issueLeadDays`           | whole number, 1 … 14   |
-| `graceDays`               | whole number, 0 … 14   |
-| `automaticCutEnabled`     | true or false          |
+| Setting                    | Allowed                                      |
+| -------------------------- | -------------------------------------------- |
+| `automaticBillingEnabled`  | true or false                                |
+| `billingMode`              | `ADVANCE` or `ARREARS`                       |
+| `issueLeadDays`            | whole number, 1 … 14                         |
+| `graceDays`                | whole number, 0 … 14                         |
+| `automaticCutEnabled`      | true or false                                |
+| `reminderWhatsAppTemplate` | a WhatsApp template name or null (`BIL-322`) |
 
-A save replaces all five; a refused value saves nothing. The next daily run
+A save replaces all six; a refused value saves nothing. The next daily run
 reads them, with no restart.
 
 **Why:** A lead of at most 14 days keeps the 15th group's issue day inside its
@@ -1336,7 +1338,7 @@ own month, so a bill is never issued in the month before it is due.
 **Since:** 2026-10-06
 
 With nothing saved: off, `ADVANCE`, issued 5 days ahead, 3 grace days, and
-the automatic cut off (`BIL-310`).
+the automatic cut off (`BIL-310`), and no WhatsApp reminder template.
 
 **Why:** An install that bills by hand today must not start issuing bills, or
 marking them overdue, because it was upgraded.
@@ -1650,3 +1652,91 @@ service was suspended.
 
 **Enforced at:** `src/application/billing/use-cases/RestoreServicesAfterPaymentUseCase.ts`, `src/application/billing/event-handlers/RestoreServicesOnPaymentHandler.ts` (on `BillPaidEvent`), `src/infrastructure/billing/adapters/ContractedServiceAccessAdapter.ts`
 **Tests:** `tests/application/billing/use-cases/RestoreServicesAfterPaymentUseCase.test.ts`, `tests/application/billing/event-handlers/RestoreServicesOnPaymentHandler.test.ts`, `tests/infrastructure/billing/adapters/ContractedServiceAccessAdapter.test.ts`, `tests/integration/use-cases/billing/RestoreServicesAfterPaymentUseCase.integration.test.ts`, `tests/integration/bill.routes.test.ts`
+
+---
+
+## Notices
+
+What the customer hears from the billing run. Email goes through the
+install's SMTP sender (`SMTP_*`, shared with sign-in emails); WhatsApp through
+the install's WhatsApp sender (`INS-028`).
+
+### BIL-320 — A bill the daily run issues is emailed with its PDF
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-06
+
+Right after issuing a bill, the daily run emails it to the customer with the
+bill PDF attached: the period, the amount in pesos and the last day to pay. A
+customer with no email address is skipped. An email that fails is recorded
+in the run's failures; the bill stays issued. Bills made by hand are not
+emailed.
+
+**Why:** The bill is what the customer pays against; sending it when issued
+gives them the whole issue window to pay. WhatsApp is kept for reminders,
+because each template message costs money.
+
+**Enforced at:** `src/application/billing/use-cases/SendBillEmailUseCase.ts`, `src/application/billing/use-cases/RunBillingCycleUseCase.ts` (`issueBills`), `src/application/billing/services/billNoticeText.ts`, `src/infrastructure/email/SmtpEmailSender.ts` (attachments)
+**Tests:** `tests/application/billing/use-cases/SendBillEmailUseCase.test.ts`, `tests/application/billing/use-cases/RunBillingCycleUseCase.test.ts`, `tests/application/billing/services/billNoticeText.test.ts`, `tests/infrastructure/email/SmtpEmailSender.test.ts`, `tests/integration/use-cases/billing/SendBillEmailUseCase.integration.test.ts`, `tests/integration/use-cases/billing/RunBillingCycleUseCase.integration.test.ts`
+
+### BIL-321 — Unpaid customers are reminded on the last two grace days
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (value object) · Application
+**Since:** 2026-10-06
+
+While the automatic cut is on, the daily run reminds each customer holding an
+`OVERDUE` bill on the last two grace days before their cut day (`BIL-310`):
+with 3 grace days, a bill due on the 15th is reminded on the 17th and 18th
+and cut on the 19th. With one grace day, the reminder goes out on that day;
+with none, there is no reminder. Each reminder goes by email when the customer
+has an address, and by WhatsApp when a reminder template is set (`BIL-322`).
+It names the period, the amount and the cut day. A bill counts as reminded
+when at least one channel delivered; a channel that failed is recorded in the
+run's failures.
+
+**Why:** The cut should never come as a surprise. Reminding only near the cut
+keeps the number of paid WhatsApp messages low. The reminder names the cut
+day, so it only goes out when the cut is actually on.
+
+**Enforced at:** `src/domain/billing/value-objects/ReminderDays.ts`, `src/application/billing/use-cases/SendPaymentRemindersUseCase.ts`, `src/application/billing/services/billNoticeText.ts`, `src/infrastructure/billing/repositories/PrismaBillRepository.ts` (`findOverdueDueBetween`)
+**Tests:** `tests/domain/billing/value-objects/ReminderDays.test.ts`, `tests/application/billing/use-cases/SendPaymentRemindersUseCase.test.ts`, `tests/application/billing/services/billNoticeText.test.ts`, `tests/integration/use-cases/billing/SendPaymentRemindersUseCase.integration.test.ts`, `tests/integration/use-cases/billing/RunBillingCycleUseCase.integration.test.ts`
+
+### BIL-322 — WhatsApp reminders use the ISP's own approved template
+
+**Type:** Validation · **Status:** Active
+**Layer:** Domain (value object)
+**Since:** 2026-10-06
+
+`reminderWhatsAppTemplate` names a template the ISP had approved by Meta,
+separate from the suspension notice's template. It uses Meta's naming rule:
+lowercase letters, digits and underscores, up to 512 characters. It is
+stored trimmed, and blank counts as none. The template takes four body
+parameters, in order: the customer's name, the period, the amount, and the
+cut day. It is sent in the language of the install's WhatsApp settings. With
+no template, or no WhatsApp on the install, reminders go by email only.
+
+**Why:** Meta sends a business-initiated WhatsApp message only from an
+approved template, and the template belongs to the ISP's own Meta account.
+
+**Enforced at:** `src/domain/billing/value-objects/BillingSettings.ts`, `src/infrastructure/notifications/WhatsAppNotificationService.ts` (`templateName`)
+**Message:** `reminderWhatsAppTemplate must be a WhatsApp template name: lowercase letters, digits and underscores, up to 512`
+**Tests:** `tests/domain/billing/value-objects/BillingSettings.test.ts`, `tests/infrastructure/notifications/WhatsAppNotificationService.test.ts`, `tests/integration/billing-settings.routes.test.ts`
+
+### BIL-323 — A bill is reminded at most once a day
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Infrastructure (database)
+**Since:** 2026-10-06
+
+Each reminder is logged with its bill and Colombian day, and the pair is
+unique. A run repeated the same day, after a restart or a retry, skips bills
+already reminded. Deleting a bill deletes its log.
+
+**Why:** A duplicate WhatsApp message costs money and annoys the customer.
+The daily run keeps no memory across restarts, so the database has to.
+
+**Enforced at:** `src/application/billing/use-cases/SendPaymentRemindersUseCase.ts`, `src/infrastructure/billing/repositories/PrismaBillReminderLog.ts`
+**Backed by:** `BillReminder` (`bill_reminders`, unique `bill_id, sent_on`, cascade on bill delete) in `prisma/schema.prisma`; `prisma/migrations/20261007120000_bill_notices`
+**Tests:** `tests/application/billing/use-cases/SendPaymentRemindersUseCase.test.ts`, `tests/integration/use-cases/billing/SendPaymentRemindersUseCase.integration.test.ts`

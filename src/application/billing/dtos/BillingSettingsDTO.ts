@@ -6,4 +6,5 @@ export interface BillingSettingsDTO {
   issueLeadDays: number;
   graceDays: number;
   automaticCutEnabled: boolean;
+  reminderWhatsAppTemplate: string | null;
 }

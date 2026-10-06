@@ -2,6 +2,8 @@
 
 import { RunBillingCycleUseCase } from '../../../../src/application/billing/use-cases/RunBillingCycleUseCase';
 import { GenerateBillUseCase } from '../../../../src/application/billing/use-cases/GenerateBillUseCase';
+import { SendBillEmailUseCase } from '../../../../src/application/billing/use-cases/SendBillEmailUseCase';
+import { SendPaymentRemindersUseCase } from '../../../../src/application/billing/use-cases/SendPaymentRemindersUseCase';
 import {
   IBillableCustomersQuery,
   ICustomerServiceAccess
@@ -43,7 +45,8 @@ function enabled(
     billingMode,
     issueLeadDays: 5,
     graceDays: 3,
-    automaticCutEnabled
+    automaticCutEnabled,
+    reminderWhatsAppTemplate: null
   });
 }
 
@@ -74,6 +77,8 @@ describe('RunBillingCycleUseCase', () => {
   let billRepo: jest.Mocked<IBillRepository>;
   let generate: { execute: jest.Mock };
   let serviceAccess: jest.Mocked<ICustomerServiceAccess>;
+  let sendBillEmail: { execute: jest.Mock };
+  let sendReminders: { execute: jest.Mock };
   let useCase: RunBillingCycleUseCase;
 
   beforeEach(() => {
@@ -108,9 +113,18 @@ describe('RunBillingCycleUseCase', () => {
       findPendingDueBefore: jest
         .fn()
         .mockResolvedValue(Result.ok([])),
+      findOverdueDueBetween: jest.fn(),
       findCustomersOverdueBefore: jest
         .fn()
         .mockResolvedValue(Result.ok([]))
+    };
+    sendBillEmail = {
+      execute: jest.fn().mockResolvedValue(Result.ok({ sent: true }))
+    };
+    sendReminders = {
+      execute: jest
+        .fn()
+        .mockResolvedValue(Result.ok({ reminded: 0, failed: [] }))
     };
     serviceAccess = {
       suspendActiveServices: jest
@@ -119,7 +133,9 @@ describe('RunBillingCycleUseCase', () => {
       restoreSuspendedServices: jest.fn()
     };
     generate = {
-      execute: jest.fn().mockResolvedValue(Result.ok({}))
+      execute: jest
+        .fn()
+        .mockResolvedValue(Result.ok({ id: 'bill-1' }))
     };
     useCase = new RunBillingCycleUseCase(
       settingsRepo,
@@ -127,6 +143,8 @@ describe('RunBillingCycleUseCase', () => {
       billRepo,
       generate as unknown as GenerateBillUseCase,
       serviceAccess,
+      sendBillEmail as unknown as SendBillEmailUseCase,
+      sendReminders as unknown as SendPaymentRemindersUseCase,
       makeLogger()
     );
   });
@@ -143,6 +161,8 @@ describe('RunBillingCycleUseCase', () => {
       generated: 0,
       markedOverdue: 0,
       cut: 0,
+      reminded: 0,
+      emailed: 0,
       failed: []
     });
     expect(billRepo.findPendingDueBefore).not.toHaveBeenCalled();
@@ -260,7 +280,7 @@ describe('RunBillingCycleUseCase', () => {
     );
     generate.execute
       .mockResolvedValueOnce(Result.fail('plan missing'))
-      .mockResolvedValueOnce(Result.ok({}));
+      .mockResolvedValueOnce(Result.ok({ id: 'bill-2' }));
 
     const result = await useCase.execute({ now: NOW });
 
@@ -402,6 +422,72 @@ describe('RunBillingCycleUseCase', () => {
         serviceAccess.suspendActiveServices
       ).not.toHaveBeenCalled();
       expect(result.value.cut).toBe(0);
+    });
+  });
+
+  describe('[BIL-320] [BIL-321] notices', () => {
+    it('emails each bill it issues', async () => {
+      const result = await useCase.execute({ now: NOW });
+
+      expect(sendBillEmail.execute).toHaveBeenCalledWith({
+        billId: 'bill-1'
+      });
+      expect(result.value.emailed).toBe(1);
+    });
+
+    it('does not count a customer with no email', async () => {
+      sendBillEmail.execute.mockResolvedValue(
+        Result.ok({ sent: false })
+      );
+
+      const result = await useCase.execute({ now: NOW });
+
+      expect(result.value.generated).toBe(1);
+      expect(result.value.emailed).toBe(0);
+    });
+
+    it('keeps the bill when its email fails, and records why', async () => {
+      sendBillEmail.execute.mockResolvedValue(
+        Result.fail('Email not sent: timeout')
+      );
+
+      const result = await useCase.execute({ now: NOW });
+
+      expect(result.value.generated).toBe(1);
+      expect(result.value.failed).toEqual([
+        { id: 'bill-1', error: 'Email not sent: timeout' }
+      ]);
+    });
+
+    it("asks for the day's reminders with the settings it read", async () => {
+      sendReminders.execute.mockResolvedValue(
+        Result.ok({
+          reminded: 2,
+          failed: [{ id: 'bill-9', error: 'WhatsApp: down' }]
+        })
+      );
+
+      const result = await useCase.execute({ now: NOW });
+
+      expect(sendReminders.execute.mock.calls[0][0].now).toBe(NOW);
+      expect(
+        sendReminders.execute.mock.calls[0][0].settings.graceDays
+      ).toBe(3);
+      expect(result.value.reminded).toBe(2);
+      expect(result.value.failed).toContainEqual({
+        id: 'bill-9',
+        error: 'WhatsApp: down'
+      });
+    });
+
+    it('sends no reminders while automatic billing is off', async () => {
+      settingsRepo.get.mockResolvedValue(
+        Result.ok(BillingSettings.defaults())
+      );
+
+      await useCase.execute({ now: NOW });
+
+      expect(sendReminders.execute).not.toHaveBeenCalled();
     });
   });
 });

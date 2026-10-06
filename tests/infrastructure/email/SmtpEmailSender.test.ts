@@ -36,6 +36,30 @@ describe('SmtpEmailSender', () => {
     });
   });
 
+  it('[BIL-320] attaches files when the message carries them', async () => {
+    const sendMail = jest.fn().mockResolvedValue({});
+    const pdf = Buffer.from('%PDF-1.4');
+
+    await build(sendMail).send({
+      ...message,
+      attachments: [
+        {
+          filename: 'cuenta.pdf',
+          content: pdf,
+          contentType: 'application/pdf'
+        }
+      ]
+    });
+
+    expect(sendMail.mock.calls[0][0].attachments).toEqual([
+      {
+        filename: 'cuenta.pdf',
+        content: pdf,
+        contentType: 'application/pdf'
+      }
+    ]);
+  });
+
   it('turns a server error into a failure', async () => {
     const sendMail = jest
       .fn()

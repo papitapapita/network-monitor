@@ -59,7 +59,7 @@ export class WhatsAppNotificationService
           to: to.value.replace(/^\+/, ''),
           type: 'template',
           template: {
-            name: templateName,
+            name: message.templateName ?? templateName,
             language: { code: templateLanguage },
             components: [
               {

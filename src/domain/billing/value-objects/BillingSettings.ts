@@ -5,6 +5,8 @@ import { BillingSettingsProps } from '../props';
 export const MIN_ISSUE_LEAD_DAYS = 1;
 export const MAX_ISSUE_LEAD_DAYS = 14;
 export const MAX_GRACE_DAYS = 14;
+// Meta's rule for template names.
+const WHATSAPP_TEMPLATE_NAME = /^[a-z0-9_]{1,512}$/;
 
 // The install's billing cycle settings (BIL-280), edited by the ISP's
 // administrator and replaced as a whole.
@@ -29,6 +31,10 @@ export class BillingSettings extends ValueObject<BillingSettingsProps> {
     return this._props.automaticCutEnabled;
   }
 
+  get reminderWhatsAppTemplate(): string | null {
+    return this._props.reminderWhatsAppTemplate;
+  }
+
   private constructor(props: BillingSettingsProps) {
     super(props);
   }
@@ -38,7 +44,13 @@ export class BillingSettings extends ValueObject<BillingSettingsProps> {
   ): Result<BillingSettings> {
     const error = BillingSettings.validate(props);
     if (error) return Result.fail<BillingSettings>(error);
-    return Result.ok(new BillingSettings({ ...props }));
+    const template = props.reminderWhatsAppTemplate?.trim() || null;
+    return Result.ok(
+      new BillingSettings({
+        ...props,
+        reminderWhatsAppTemplate: template
+      })
+    );
   }
 
   // What applies until the administrator saves the settings (BIL-281). Off,
@@ -49,7 +61,8 @@ export class BillingSettings extends ValueObject<BillingSettingsProps> {
       billingMode: BillingMode.ADVANCE,
       issueLeadDays: 5,
       graceDays: 3,
-      automaticCutEnabled: false
+      automaticCutEnabled: false,
+      reminderWhatsAppTemplate: null
     });
   }
 
@@ -85,6 +98,15 @@ export class BillingSettings extends ValueObject<BillingSettingsProps> {
     }
     if (typeof props.automaticCutEnabled !== 'boolean') {
       return 'automaticCutEnabled must be true or false';
+    }
+    const template = props.reminderWhatsAppTemplate;
+    if (
+      template !== null &&
+      (typeof template !== 'string' ||
+        (template.trim() !== '' &&
+          !WHATSAPP_TEMPLATE_NAME.test(template.trim())))
+    ) {
+      return 'reminderWhatsAppTemplate must be a WhatsApp template name: lowercase letters, digits and underscores, up to 512';
     }
     return null;
   }

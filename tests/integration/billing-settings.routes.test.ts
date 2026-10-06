@@ -13,7 +13,8 @@ const DEFAULTS = {
   billingMode: 'ADVANCE',
   issueLeadDays: 5,
   graceDays: 3,
-  automaticCutEnabled: false
+  automaticCutEnabled: false,
+  reminderWhatsAppTemplate: null
 };
 
 const SAVED = {
@@ -21,7 +22,8 @@ const SAVED = {
   billingMode: 'ARREARS',
   issueLeadDays: 7,
   graceDays: 2,
-  automaticCutEnabled: true
+  automaticCutEnabled: true,
+  reminderWhatsAppTemplate: 'recordatorio_pago'
 };
 
 describe('Billing Settings Routes — /api/billing-settings', () => {

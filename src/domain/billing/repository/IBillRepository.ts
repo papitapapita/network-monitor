@@ -31,6 +31,11 @@ export interface IBillRepository {
   exists(id: BillId): Promise<Result<boolean>>;
   // Every PENDING bill whose due date is before `instant`, unpaged.
   findPendingDueBefore(instant: Date): Promise<Result<Bill[]>>;
+  // Every OVERDUE bill due between `from` and `to`, both included, unpaged.
+  findOverdueDueBetween(
+    from: Date,
+    to: Date
+  ): Promise<Result<Bill[]>>;
   // Each customer, once, holding an OVERDUE bill due before `instant`.
   findCustomersOverdueBefore(
     instant: Date
