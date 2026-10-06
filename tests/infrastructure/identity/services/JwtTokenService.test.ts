@@ -76,6 +76,18 @@ describe('JwtTokenService', () => {
     expect(exp! - iat!).toBe(30 * 24 * 60 * 60);
   });
 
+  it('[IDN-183] a password reset link lasts one hour', () => {
+    const token = tokens.signChallenge({
+      userId: 'u-1',
+      tokenVersion: 0,
+      kind: 'password-reset'
+    });
+    const { iat, exp } = jwt.decode(token) as jwt.JwtPayload;
+
+    expect(exp! - iat!).toBe(60 * 60);
+    expect(tokens.verify(token).isFailure).toBe(true);
+  });
+
   it('[IDN-171] a remembered browser is neither a session nor a challenge', () => {
     const token = tokens.signChallenge({
       userId: 'u-1',

@@ -168,4 +168,26 @@ describe('createRateLimiter', () => {
       expect(statuses[1000]).toBe(429);
     });
   });
+
+  describe('[IDN-105] password reset limiter', () => {
+    it('refuses an address after ten requests in an hour, whatever the answer', async () => {
+      const app = express();
+      app.post(
+        '/password/forgot',
+        createRateLimiter('password-reset'),
+        (_req, res) => {
+          res.status(200).send();
+        }
+      );
+      const statuses: number[] = [];
+      for (let i = 0; i < 11; i++) {
+        statuses.push(
+          (await request(app).post('/password/forgot')).status
+        );
+      }
+
+      expect(statuses[9]).toBe(200);
+      expect(statuses[10]).toBe(429);
+    });
+  });
 });

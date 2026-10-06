@@ -82,6 +82,8 @@ import { LoginUseCase } from 'application/identity/use-cases/LoginUseCase';
 import { StartTwoFactorSetupUseCase } from 'application/identity/use-cases/StartTwoFactorSetupUseCase';
 import { ConfirmTwoFactorSetupUseCase } from 'application/identity/use-cases/ConfirmTwoFactorSetupUseCase';
 import { VerifyTwoFactorUseCase } from 'application/identity/use-cases/VerifyTwoFactorUseCase';
+import { RequestPasswordResetUseCase } from 'application/identity/use-cases/RequestPasswordResetUseCase';
+import { ResetPasswordUseCase } from 'application/identity/use-cases/ResetPasswordUseCase';
 import { SignInSteps } from 'application/identity/services/SignInSteps';
 import { NewSignInWarning } from 'application/identity/services/NewSignInWarning';
 import { IEmailSender } from 'application/shared/interfaces';
@@ -1078,6 +1080,19 @@ export class DependencyContainer {
         recoveryCodes,
         secretCipher,
         newSignInWarning,
+        this.logger
+      ),
+      new RequestPasswordResetUseCase(
+        userRepository,
+        jwtTokenService,
+        emailSender,
+        loadAppPublicUrl(process.env),
+        this.logger
+      ),
+      new ResetPasswordUseCase(
+        userRepository,
+        bcryptPasswordService,
+        jwtTokenService,
         this.logger
       ),
       this.logger

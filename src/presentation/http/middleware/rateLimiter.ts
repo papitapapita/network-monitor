@@ -8,6 +8,7 @@ type RateLimitType =
   | 'bulk-import'
   | 'enroll'
   | 'sign-in'
+  | 'password-reset'
   | 'address';
 
 const LIMITS: Record<
@@ -20,6 +21,8 @@ const LIMITS: Record<
   'bulk-import': { max: 5, windowMs: 3_600_000 },
   enroll: { max: 10, windowMs: 900_000 },
   'sign-in': { max: 10, windowMs: 900_000 },
+  // Asking for a link and using one, together (IDN-105).
+  'password-reset': { max: 10, windowMs: 3_600_000 },
   // Every request from one address, before anything else runs (IDN-104).
   address: { max: 1000, windowMs: 60_000 }
 };

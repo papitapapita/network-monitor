@@ -9,11 +9,13 @@ export interface TokenPayload {
 }
 
 // The step a password opens: typing a code, or setting the app up first
-// (IDN-166); or a browser that may skip the code for 30 days (IDN-171).
+// (IDN-166); a browser that may skip the code for 30 days (IDN-171); or a
+// link that sets a forgotten password (IDN-183).
 export type ChallengeKind =
   | 'two-factor'
   | 'two-factor-setup'
-  | 'trusted-browser';
+  | 'trusted-browser'
+  | 'password-reset';
 
 export interface ChallengePayload {
   userId: string;

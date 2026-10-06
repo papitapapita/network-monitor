@@ -238,6 +238,51 @@ to the password screen.
 > the next sign-in from here still skips the code. Tokens are not revoked: to
 > end every session of an account, change its password.
 
+### `POST /api/auth/password/forgot` — Ask for a password reset link
+
+**Status:** 200 | 400 | 429  
+**Auth required:** No
+
+```ts
+// Request body
+{ email: string }
+
+// Response 200 — the same whether or not the address has an account
+{ success: true, data: null }
+```
+
+> When the address belongs to an active account, it gets an email with a link
+> to `<APP_PUBLIC_URL>/reset-password#token=<token>` (IDN-182). The dashboard
+> needs that page: read the token from `location.hash`, ask for the new
+> password, and call `/password/reset`. Show the same "if the address has an
+> account, we sent a link" message whatever happens.
+> `429 Too many requests` after ten requests an hour from one address,
+> counting `/password/reset` too (IDN-105).
+
+### `POST /api/auth/password/reset` — Set a new password from the link
+
+**Status:** 200 | 400 | 429  
+**Auth required:** the link's token, in the body
+
+```ts
+// Request body
+{
+  token: string     // from the link's #token=
+  password: string  // at least 12 characters
+}
+
+// Response 200
+{ success: true, data: null }
+```
+
+> Signs nobody in: send the person to the login page. Every session of the
+> account ends, and two-factor stays on (IDN-183).
+>
+> | Status | `error`                                    | When                                                              |
+> | ------ | ------------------------------------------ | ----------------------------------------------------------------- |
+> | `400`  | `Reset link expired or already used`       | Older than an hour, used already, or the account is disabled      |
+> | `400`  | `Password must be at least 12 characters`  | The link stays usable; ask again                                  |
+
 ### `POST /api/auth/two-factor/setup` — Start two-factor setup
 
 **Status:** 200 | 401 | 409 | 429  

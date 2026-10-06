@@ -3,7 +3,9 @@ import { AuthController } from '../controllers/AuthController';
 import { createRateLimiter, validateRequest } from '../middleware';
 import {
   confirmTwoFactorSetupSchema,
+  forgotPasswordSchema,
   loginSchema,
+  resetPasswordSchema,
   verifyTwoFactorSchema
 } from '../validation/auth.schemas';
 
@@ -35,6 +37,20 @@ export function createAuthRoutes(controller: AuthController): Router {
     signIn,
     validateRequest(verifyTwoFactorSchema),
     controller.verifyTwoFactor
+  );
+
+  const passwordReset = createRateLimiter('password-reset');
+  router.post(
+    '/password/forgot',
+    passwordReset,
+    validateRequest(forgotPasswordSchema),
+    controller.forgotPassword
+  );
+  router.post(
+    '/password/reset',
+    passwordReset,
+    validateRequest(resetPasswordSchema),
+    controller.resetPassword
   );
 
   router.post('/logout', controller.logout);

@@ -37,3 +37,25 @@ export function newSignInEmail(
     ].join('\n')
   };
 }
+
+// IDN-182.
+export function passwordResetEmail(
+  to: string,
+  link: string
+): EmailMessage {
+  return {
+    to,
+    subject: 'Restablecer su contraseña',
+    text: [
+      'Hola,',
+      '',
+      `Alguien pidió restablecer la contraseña de su cuenta ${to}. Para elegir una nueva, abra este enlace:`,
+      '',
+      link,
+      '',
+      'El enlace vence en una hora y sirve una sola vez. Al cambiar la contraseña se cierran todas sus sesiones; la verificación en dos pasos sigue igual.',
+      '',
+      'Si no lo pidió usted, ignore este correo: su contraseña no cambia.'
+    ].join('\n')
+  };
+}

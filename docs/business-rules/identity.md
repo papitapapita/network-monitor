@@ -30,10 +30,10 @@ Format and conventions: [README.md](README.md).
 
 | Layer                         | Rules |
 | ----------------------------- | ----- |
-| Presentation (middleware)     | 14    |
+| Presentation (middleware)     | 15    |
 | Infrastructure                | 12    |
 | Domain (value object)         | 4     |
-| Application                   | 19    |
+| Application                   | 21    |
 | Presentation                  | 5     |
 | Domain (permission table)     | 2     |
 | Domain (aggregate)            | 8     |
@@ -719,7 +719,8 @@ The session comes as a Bearer token or as the session cookie (`IDN-084`).
 
 `/api/auth` is mounted before the authentication middleware; everything mounted
 after it is behind the gate. The two-factor routes under it take a challenge
-token instead (`IDN-167`). There is no per-route opt-in.
+token instead (`IDN-167`), and the password reset takes the link's token
+(`IDN-183`). There is no per-route opt-in.
 
 **Why:** This is the rule the entire book depends on. Ordering rather than
 decoration means a new route file cannot forget to be protected — the only way
@@ -847,21 +848,22 @@ the limit a property of the account rather than the building.
 **Enforced at:** `src/presentation/http/middleware/rateLimiter.ts` (`keyGenerator`)
 **Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`
 
-### IDN-101 — There are seven rate budgets
+### IDN-101 — There are eight rate budgets
 
 **Type:** Policy · **Status:** Active
 **Layer:** Presentation (middleware)
 **Since:** 2026-08-05
 
-| Budget        | Limit                  |
-| ------------- | ---------------------- |
-| `read`        | 100 per minute         |
-| `write`       | 60 per minute          |
-| `delete`      | 60 per minute          |
-| `bulk-import` | 5 per hour             |
-| `enroll`      | 10 per 15 min          |
-| `sign-in`     | 10 failures per 15 min |
-| `address`     | 1000 per minute        |
+| Budget           | Limit                  |
+| ---------------- | ---------------------- |
+| `read`           | 100 per minute         |
+| `write`          | 60 per minute          |
+| `delete`         | 60 per minute          |
+| `bulk-import`    | 5 per hour             |
+| `enroll`         | 10 per 15 min          |
+| `sign-in`        | 10 failures per 15 min |
+| `password-reset` | 10 per hour            |
+| `address`        | 1000 per minute        |
 
 **Why:** Reads are cheap and are what a dashboard does on a timer, so they get
 the loosest budget. `bulk-import` is three orders of magnitude tighter because
@@ -870,7 +872,8 @@ what that protects. `write` and `delete` are currently identical; the separate
 name exists so deletion can be tightened without touching every write route.
 `enroll` and `sign-in` are the budgets for a caller with no user — agent
 enrollment (`AGT-008`) and login (`IDN-103`) — keyed by IP address.
-`address` sits in front of all the others (`IDN-104`).
+`password-reset` is the third such budget (`IDN-105`). `address` sits in front
+of all the others (`IDN-104`).
 
 **Enforced at:** `src/presentation/http/middleware/rateLimiter.ts` (`LIMITS`)
 **Message:** `Too many requests`
@@ -944,6 +947,26 @@ memory (`IDN-102`).
 
 **Enforced at:** `src/presentation/http/routes/index.ts` (`perAddress`),
 `src/presentation/http/middleware/rateLimiter.ts`
+**Message:** `Too many requests`
+**Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-105 — An address asks for ten password reset links, or uses them, an hour
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation (middleware)
+**Since:** 2026-10-05
+
+`POST /api/auth/password/forgot` and `POST /api/auth/password/reset` share one
+budget of ten requests an hour per address, whatever the answer. The eleventh
+is a `429`.
+
+**Why:** Each request for a link can send an email, so without a limit the
+endpoint is a way to flood someone's inbox from our mail server and spend its
+free quota. Ten an hour is far more than a person who forgot a password needs.
+
+**Enforced at:** `src/presentation/http/routes/auth.routes.ts`,
+`src/presentation/http/middleware/rateLimiter.ts` (`LIMITS`)
 **Message:** `Too many requests`
 **Tests:** `tests/presentation/http/middleware/rateLimiter.test.ts`,
 `tests/integration/auth.routes.test.ts`
@@ -1485,7 +1508,7 @@ unexpected reset is noticed the same day.
 
 The install emails the people who use it about their own accounts, through
 any SMTP server. `IDN-180` is the mail server; `IDN-181` is the warning of a
-new sign-in.
+new sign-in; `IDN-182` and `IDN-183` are the forgotten password.
 
 ### IDN-180 — Email goes through the install's SMTP server, when it has one
 
@@ -1542,3 +1565,58 @@ itself must not depend on a third-party mail server.
 `tests/application/identity/use-cases/VerifyTwoFactorUseCase.test.ts`,
 `tests/application/identity/use-cases/ConfirmTwoFactorSetupUseCase.test.ts`,
 `tests/integration/use-cases/identity/VerifyTwoFactorUseCase.integration.test.ts`
+
+### IDN-182 — Anyone can ask for a password reset link, and the answer never says whether the account exists
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+`POST /api/auth/password/forgot` with an email answers `200` with no data,
+always. Only when the address belongs to an account that is not disabled does
+the account get an email, in Spanish, with a link to
+`<APP_PUBLIC_URL>/reset-password#token=<token>`. The request does not wait for
+the email. Without `APP_PUBLIC_URL` there is no link to send: the request is
+logged and nothing goes out.
+
+**Why:** A different answer, or a slower one, for a real account would let
+anyone test which addresses have accounts here. The token sits in the URL
+fragment, which the browser sends to no server and puts in no `Referer`
+header, so it never reaches a log.
+
+**Enforced at:** `src/application/identity/use-cases/RequestPasswordResetUseCase.ts`,
+`src/application/identity/services/accountEmails.ts`
+**Tests:** `tests/application/identity/use-cases/RequestPasswordResetUseCase.test.ts`,
+`tests/integration/use-cases/identity/RequestPasswordResetUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-183 — A reset link works once, for one hour, and ends every session
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+The link's token is signed with the account's token version and lasts one
+hour. `POST /api/auth/password/reset` with the token and a new password sets
+it, under the same length rule as any other (`IDN-142`, `IDN-012`). The change
+moves the token version on (`IDN-065`), which ends every session and
+remembered browser, lifts a sign-in pause (`IDN-044`) and spends the link: the
+same link, or any older one, then answers
+`400 Reset link expired or already used`. So does an expired link, a token of
+another kind, and a disabled account. A password that is too short leaves the
+link usable.
+
+Two-factor stays as it was: the next sign-in still asks for a code.
+
+**Why:** The link is as good as the password while it lives, so it lives
+briefly and only once. Ending the sessions throws out whoever was using the
+old password. Keeping two-factor means a stolen mailbox alone does not open the
+account.
+
+**Enforced at:** `src/application/identity/use-cases/ResetPasswordUseCase.ts`,
+`src/infrastructure/identity/services/JwtTokenService.ts` (`LIFETIMES`)
+**Message:** `Reset link expired or already used`
+**Tests:** `tests/application/identity/use-cases/ResetPasswordUseCase.test.ts`,
+`tests/infrastructure/identity/services/JwtTokenService.test.ts`,
+`tests/integration/use-cases/identity/ResetPasswordUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`

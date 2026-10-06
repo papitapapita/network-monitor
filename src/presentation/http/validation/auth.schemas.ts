@@ -45,3 +45,27 @@ export const verifyTwoFactorSchema = z.object({
 export type VerifyTwoFactorInput = z.infer<
   typeof verifyTwoFactorSchema
 >['body'];
+
+export const forgotPasswordSchema = z.object({
+  body: z.object({
+    email: z
+      .string()
+      .min(1, 'Email is required')
+      .email('Email is not valid')
+  })
+});
+
+export type ForgotPasswordInput = z.infer<
+  typeof forgotPasswordSchema
+>['body'];
+
+export const resetPasswordSchema = z.object({
+  body: z.object({
+    token: z.string().min(1, 'Token is required').max(2000),
+    password: z.string().min(1, 'Password is required').max(200)
+  })
+});
+
+export type ResetPasswordInput = z.infer<
+  typeof resetPasswordSchema
+>['body'];

@@ -12,6 +12,7 @@ import {
   setUpTwoFactor
 } from './helpers/auth';
 import { GHOST_ID } from './helpers/db';
+import { JwtTokenService } from '../../src/infrastructure/identity/services/JwtTokenService';
 
 const ADMIN_EMAIL = 'admin@test.local';
 const ADMIN_PASS = 'admin-secret-pass';
@@ -689,6 +690,139 @@ describe('Auth Routes — /api/auth', () => {
       const res = await post('/setup', null);
 
       expect(res.status).toBe(401);
+    });
+  });
+
+  // Its own app: the password reset budget (IDN-105) lives in the limiter
+  // instance and is ten an hour.
+  describe('Forgotten password — /api/auth/password', () => {
+    let resetApp: Application;
+    let resetContainer: DependencyContainer;
+    const tokens = new JwtTokenService();
+
+    beforeAll(async () => {
+      ({ app: resetApp, container: resetContainer } =
+        await createTestApp());
+    });
+
+    afterAll(async () => {
+      await resetContainer.disconnect();
+    });
+
+    const linkFor = async (email: string) => {
+      const user = await prisma.user.findUniqueOrThrow({
+        where: { email }
+      });
+      return tokens.signChallenge({
+        userId: user.id,
+        tokenVersion: user.tokenVersion,
+        kind: 'password-reset'
+      });
+    };
+
+    it('[IDN-182] 200 — the same answer for a known and an unknown address', async () => {
+      await seedUser(prisma, ADMIN_EMAIL, ADMIN_PASS, 'ADMIN');
+
+      const known = await request(resetApp)
+        .post('/api/auth/password/forgot')
+        .send({ email: ADMIN_EMAIL });
+      const unknown = await request(resetApp)
+        .post('/api/auth/password/forgot')
+        .send({ email: 'nobody@test.local' });
+
+      expect(known.status).toBe(200);
+      expect(unknown.status).toBe(200);
+      expect(known.body).toEqual({ success: true, data: null });
+      expect(unknown.body).toEqual(known.body);
+    });
+
+    it('[IDN-183] 200 — the link sets the password once and ends the sessions', async () => {
+      await seedUser(prisma, ADMIN_EMAIL, ADMIN_PASS, 'ADMIN');
+      const token = await linkFor(ADMIN_EMAIL);
+
+      const res = await request(resetApp)
+        .post('/api/auth/password/reset')
+        .send({ token, password: 'a-brand-new-password' });
+      const again = await request(resetApp)
+        .post('/api/auth/password/reset')
+        .send({ token, password: 'another-new-password' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, data: null });
+      expect(res.headers['set-cookie']).toBeUndefined();
+      expect(again.status).toBe(400);
+      expect(again.body.error).toBe(
+        'Reset link expired or already used'
+      );
+      const step = await passwordStep(
+        resetApp,
+        ADMIN_EMAIL,
+        'a-brand-new-password'
+      );
+      expect(step.twoFactor).toBe('setup');
+      const row = await prisma.user.findUniqueOrThrow({
+        where: { email: ADMIN_EMAIL }
+      });
+      expect(row.tokenVersion).toBe(1);
+    });
+
+    it('[IDN-142] 400 — a short password, and the link still works', async () => {
+      await seedUser(prisma, ADMIN_EMAIL, ADMIN_PASS, 'ADMIN');
+      const token = await linkFor(ADMIN_EMAIL);
+
+      const res = await request(resetApp)
+        .post('/api/auth/password/reset')
+        .send({ token, password: 'short' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe(
+        'Password must be at least 12 characters'
+      );
+    });
+
+    it('[IDN-183] 400 — a session token is not a reset link', async () => {
+      const session = await seedAndGetToken(
+        resetApp,
+        prisma,
+        'VIEWER'
+      );
+
+      const res = await request(resetApp)
+        .post('/api/auth/password/reset')
+        .send({ token: session, password: 'a-brand-new-password' });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('400 — validates both bodies', async () => {
+      const forgot = await request(resetApp)
+        .post('/api/auth/password/forgot')
+        .send({ email: 'not-an-email' });
+      const reset = await request(resetApp)
+        .post('/api/auth/password/reset')
+        .send({ password: 'a-brand-new-password' });
+
+      expect(forgot.status).toBe(400);
+      expect(reset.status).toBe(400);
+    });
+
+    it('[IDN-105] 429 — an address gets ten requests an hour', async () => {
+      const { app: fresh, container: freshContainer } =
+        await createTestApp();
+      try {
+        const statuses: number[] = [];
+        for (let i = 0; i < 11; i++) {
+          const res = await request(fresh)
+            .post('/api/auth/password/forgot')
+            .send({ email: 'nobody@test.local' });
+          statuses.push(res.status);
+        }
+
+        expect(statuses[9]).toBe(200);
+        expect(statuses[10]).toBe(429);
+      } finally {
+        await freshContainer.disconnect();
+      }
     });
   });
 });

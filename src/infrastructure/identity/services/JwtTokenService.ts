@@ -9,12 +9,13 @@ import {
 
 const INVALID_TOKEN = 'Invalid or expired token';
 
-// IDN-167, IDN-171.
+// IDN-167, IDN-171, IDN-183.
 const LIFETIMES: Record<ChallengeKind, jwt.SignOptions['expiresIn']> =
   {
     'two-factor': '5m',
     'two-factor-setup': '5m',
-    'trusted-browser': '30d'
+    'trusted-browser': '30d',
+    'password-reset': '1h'
   };
 
 export class JwtTokenService implements ITokenService {
