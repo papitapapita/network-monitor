@@ -25,6 +25,7 @@ import { createServicePlanRoutes } from './service-plan.routes';
 import { createContractedServiceRoutes } from './contracted-service.routes';
 import { createEnforcementRoutes } from './enforcement.routes';
 import { createBillRoutes } from './bill.routes';
+import { createBillingSettingsRoutes } from './billing-settings.routes';
 import { createCollectionAccountRoutes } from './collection-account.routes';
 import { createBankAccountRoutes } from './bank-account.routes';
 import { createTicketRoutes } from './ticket.routes';
@@ -156,6 +157,7 @@ export function setupRoutes(
     contractedServiceController,
     enforcementController,
     billController,
+    billingSettingsController,
     collectionAccountController,
     bankAccountController,
     quotationController,
@@ -192,9 +194,16 @@ export function setupRoutes(
     );
   }
 
-  // Billing: /api/bills, /api/collection-accounts, /api/bank-accounts
+  // Billing: /api/bills, /api/billing-settings, /api/collection-accounts,
+  // /api/bank-accounts
   if (billController) {
     apiRouter.use('/bills', createBillRoutes(billController));
+  }
+  if (billingSettingsController) {
+    apiRouter.use(
+      '/billing-settings',
+      createBillingSettingsRoutes(billingSettingsController)
+    );
   }
   if (collectionAccountController) {
     apiRouter.use(

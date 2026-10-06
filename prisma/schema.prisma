@@ -714,6 +714,26 @@ model BillLineItem {
   @@map("bill_line_items")
 }
 
+enum BillingMode {
+  ADVANCE
+  ARREARS
+
+  @@map("billing_mode")
+}
+
+/// The install's billing cycle (BIL-280). One row at most (id is always 1);
+/// no row means the defaults apply: automatic billing off (BIL-281).
+model BillingSettings {
+  id                      Int         @id @default(1) @db.SmallInt
+  automaticBillingEnabled Boolean     @map("automatic_billing_enabled")
+  billingMode             BillingMode @map("billing_mode")
+  issueLeadDays           Int         @map("issue_lead_days") @db.SmallInt
+  graceDays               Int         @map("grace_days") @db.SmallInt
+  updatedAt               DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("billing_settings")
+}
+
 // Cuentas de cobro: one-off charges for work outside the internet service
 // (camera installs, equipment, repairs). Deliberately separate from Bill,
 // which is tied to subscriptions and one-per-period.

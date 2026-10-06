@@ -25,15 +25,16 @@ Format and conventions: [README.md](README.md).
 | `BIL-140` … `BIL-159` | Cross-cutting (access control)  |
 | `BIL-200` … `BIL-259` | Cuentas de cobro                |
 | `BIL-260` … `BIL-279` | Bank accounts                   |
+| `BIL-280` … `BIL-299` | Automatic billing cycle         |
 
 ## Layer coverage
 
 | Layer                     | Rules |
 | ------------------------- | ----- |
-| Application               | 25    |
+| Application               | 27    |
 | Domain (aggregate)        | 28    |
-| Domain (value object)     | 7     |
-| Presentation              | 5     |
+| Domain (value object)     | 11    |
+| Presentation              | 6     |
 | Infrastructure (database) | 7     |
 | Infrastructure (PDF)      | 1     |
 | Infrastructure (config)   | 1     |
@@ -1289,3 +1290,137 @@ formatting them in one place keeps the wording consistent with the PDF.
 
 **Enforced at:** `src/application/billing/mappers/BankAccountMapper.ts`
 **Tests:** `tests/application/billing/use-cases/CreateBankAccountUseCase.test.ts`, `tests/integration/use-cases/billing/ListBankAccountsUseCase.integration.test.ts`
+
+---
+
+## Automatic billing cycle
+
+The install bills on its own once the ISP's administrator turns it on
+([ADR 0003](../adr/0003-billing-automation.md)). Each customer belongs to a
+collection group, the 15th or the 30th (`CUS-024`); that day is when their bill
+falls due. Days are Colombian days (UTC-5).
+
+### BIL-280 — Billing settings are four values, saved together
+
+**Type:** Validation · **Status:** Active
+**Layer:** Domain (value object)
+**Since:** 2026-10-06
+
+| Setting                   | Allowed                |
+| ------------------------- | ---------------------- |
+| `automaticBillingEnabled` | true or false          |
+| `billingMode`             | `ADVANCE` or `ARREARS` |
+| `issueLeadDays`           | whole number, 1 … 14   |
+| `graceDays`               | whole number, 0 … 14   |
+
+A save replaces all four; a refused value saves nothing. The next daily run
+reads them, with no restart. `graceDays` is stored now and used by automatic
+cutting.
+
+**Why:** A lead of at most 14 days keeps the 15th group's issue day inside its
+own month, so a bill is never issued in the month before it is due.
+
+**Enforced at:** `src/domain/billing/value-objects/BillingSettings.ts`, `prisma/migrations/20261006120000_billing_settings` (single row)
+**Message:** `issueLeadDays must be a whole number from 1 to 14` / `graceDays must be a whole number from 0 to 14` / `billingMode must be one of ADVANCE, ARREARS` / `automaticBillingEnabled must be true or false`
+**Tests:** `tests/domain/billing/value-objects/BillingSettings.test.ts`, `tests/application/billing/use-cases/BillingSettingsUseCases.test.ts`, `tests/integration/use-cases/billing/UpdateBillingSettingsUseCase.integration.test.ts`, `tests/integration/billing-settings.routes.test.ts`
+
+### BIL-281 — Automatic billing is off until the administrator turns it on
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (value object)
+**Since:** 2026-10-06
+
+With nothing saved: off, `ADVANCE`, issued 5 days ahead, 3 grace days.
+
+**Why:** An install that bills by hand today must not start issuing bills, or
+marking them overdue, because it was upgraded.
+
+**Enforced at:** `src/domain/billing/value-objects/BillingSettings.ts` (`defaults`), `src/infrastructure/billing/repositories/PrismaBillingSettingsRepository.ts`
+**Tests:** `tests/domain/billing/value-objects/BillingSettings.test.ts`, `tests/integration/use-cases/billing/GetBillingSettingsUseCase.integration.test.ts`, `tests/integration/use-cases/billing/RunBillingCycleUseCase.integration.test.ts`
+
+### BIL-282 — The billing mode decides which month a bill pays for
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (value object)
+**Since:** 2026-10-06
+
+`ADVANCE`: the month the bill falls due in (due 15 October → October).
+`ARREARS`: the month before (due 15 October → September; due in January →
+December of the year before).
+
+**Why:** Some ISPs charge up front and others after use; both bill on the same
+dates.
+
+**Enforced at:** `src/domain/billing/value-objects/BillingCycle.ts`
+**Tests:** `tests/domain/billing/value-objects/BillingCycle.test.ts`, `tests/application/billing/use-cases/RunBillingCycleUseCase.test.ts`, `tests/integration/use-cases/billing/RunBillingCycleUseCase.integration.test.ts`
+
+### BIL-283 — A bill is due at the end of the payment day and issued lead days before
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (value object)
+**Since:** 2026-10-06
+
+The due date is 23:59:59.999 Colombian time on the customer's payment day; the
+30th is the last day of February. The bill is issued from `issueLeadDays`
+before the due day through the due day itself, so a run missed on the issue
+day still issues it on a later day of that window.
+
+**Why:** A due date that ends at local midnight gives the customer the whole
+day to pay. Issuing late rather than never keeps a server outage from
+silently skipping a month.
+
+**Enforced at:** `src/domain/billing/value-objects/BillingCycle.ts`
+**Tests:** `tests/domain/billing/value-objects/BillingCycle.test.ts`, `tests/integration/use-cases/billing/RunBillingCycleUseCase.integration.test.ts`
+
+### BIL-284 — The billing run happens once a day and is safe to repeat
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-06
+
+From 6:00 Colombian time, once per day while automatic billing is on; a failed
+run is retried on the next check (every 15 minutes). It bills each customer
+holding an `ACTIVE` service whose issue window is open, unless that period
+already has a bill — even a cancelled one. One customer's failure is recorded
+and the run goes on (`BIL-087`).
+
+**Why:** A restart or a retry must never bill twice. A bill the operator
+cancelled was cancelled on purpose; reissuing it the next morning would undo
+that. Suspended customers are not billed (`BIL-081`), so a cut customer's debt
+does not keep growing.
+
+**Enforced at:** `src/application/billing/use-cases/RunBillingCycleUseCase.ts`, `src/infrastructure/billing/orchestrator/BillingCycleOrchestrator.ts`, `src/infrastructure/billing/queries/PrismaBillableCustomersQuery.ts`
+**Tests:** `tests/application/billing/use-cases/RunBillingCycleUseCase.test.ts`, `tests/infrastructure/billing/orchestrator/BillingCycleOrchestrator.test.ts`, `tests/integration/use-cases/billing/RunBillingCycleUseCase.integration.test.ts`
+
+### BIL-285 — Everyone reads the billing settings; only the administrator changes them
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-10-06
+
+| Endpoint                    | Permission        |
+| --------------------------- | ----------------- |
+| `GET /api/billing-settings` | `read`            |
+| `PUT /api/billing-settings` | `manage-settings` |
+
+**Why:** Turning automatic billing on sends bills to every customer; that is
+the owner's decision, like the install's other settings.
+
+**Enforced at:** `src/presentation/http/routes/billing-settings.routes.ts`
+**Tests:** `tests/integration/billing-settings.routes.test.ts`
+
+### BIL-286 — An unpaid bill goes overdue on its own after its due date
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-06
+
+While automatic billing is on, the daily run marks every `PENDING` bill whose
+due date has passed `OVERDUE` — hand-made bills too. A bill that cannot be
+saved is recorded and the run goes on.
+
+**Why:** Overdue is what the grace days and the cut count from; it cannot
+depend on someone remembering to press a button.
+
+**Enforced at:** `src/application/billing/use-cases/RunBillingCycleUseCase.ts`
+**Tests:** `tests/application/billing/use-cases/RunBillingCycleUseCase.test.ts`, `tests/integration/use-cases/billing/RunBillingCycleUseCase.integration.test.ts`

@@ -28,3 +28,5 @@ export * from './CreateBankAccountRequestDTO';
 export * from './UpdateBankAccountRequestDTO';
 export * from './GetBankAccountRequestDTO';
 export * from './DeleteBankAccountRequestDTO';
+export * from './BillingSettingsDTO';
+export * from './BillingCycleRunDTO';

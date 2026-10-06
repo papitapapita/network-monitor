@@ -33,6 +33,11 @@ network.
 - After the due date the bill goes **OVERDUE**; **3 grace days** follow.
 - The day after the last grace day, unpaid customers are **cut**.
 - Lead days and grace days are install settings, editable by the ISP's admin.
+- The **billing mode** is a setting too: paid in advance (a bill due in October
+  is for October) or after use (for September). ISPs do both.
+- Customers with only suspended services are not billed.
+- A new customer's first bill is **prorated** from the day their service
+  started.
 - Automatic billing is **off until the admin turns it on**, so an install that
   bills by hand today (Insetel) is not changed by the upgrade.
 
@@ -79,7 +84,7 @@ One commit per slice, reviewed before the next.
 
 1. Payment day on the customer (CUS-024, CUS-025).
 2. Billing settings and the automatic cycle: generate on the issue day, mark
-   overdue after the due date.
+   overdue after the due date. Then prorated first bills.
 3. Manual payments.
 4. Automatic cut after the grace days, restore on payment.
 5. Enforcement through the on-site agent.

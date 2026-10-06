@@ -67,6 +67,9 @@ import {
   PdfKitBillPdfRenderer,
   PrismaCollectionAccountRepository,
   PrismaBankAccountRepository,
+  PrismaBillingSettingsRepository,
+  PrismaBillableCustomersQuery,
+  BillingCycleOrchestrator,
   SettingsIssuerPdfRenderer
 } from '../billing';
 import {
@@ -122,6 +125,7 @@ import {
   ServicePlanController,
   ContractedServiceController,
   BillController,
+  BillingSettingsController,
   CollectionAccountController,
   BankAccountController,
   AgentController,
@@ -155,6 +159,9 @@ import {
 import {
   GenerateBillUseCase,
   GenerateBillsForPeriodUseCase,
+  GetBillingSettingsUseCase,
+  UpdateBillingSettingsUseCase,
+  RunBillingCycleUseCase,
   GetBillUseCase,
   GetBillPdfUseCase,
   ListBillsUseCase,
@@ -526,6 +533,10 @@ export class DependencyContainer {
   public contractedServiceController: ContractedServiceController | null =
     null;
   public billController: BillController | null = null;
+  public billingSettingsController: BillingSettingsController | null =
+    null;
+  public billingCycleOrchestrator: BillingCycleOrchestrator | null =
+    null;
   public collectionAccountController: CollectionAccountController | null =
     null;
   public bankAccountController: BankAccountController | null = null;
@@ -750,6 +761,31 @@ export class DependencyContainer {
         new MarkBillPaidUseCase(this.billRepository, this.logger),
         new MarkBillOverdueUseCase(this.billRepository, this.logger),
         new CancelBillUseCase(this.billRepository, this.logger),
+        this.logger
+      );
+
+      const billingSettingsRepository =
+        new PrismaBillingSettingsRepository(this.prisma);
+      this.billingSettingsController = new BillingSettingsController(
+        new GetBillingSettingsUseCase(
+          billingSettingsRepository,
+          this.logger
+        ),
+        new UpdateBillingSettingsUseCase(
+          billingSettingsRepository,
+          this.logger
+        ),
+        this.logger
+      );
+      this.billingCycleOrchestrator = new BillingCycleOrchestrator(
+        new RunBillingCycleUseCase(
+          billingSettingsRepository,
+          new PrismaBillableCustomersQuery(this.prisma),
+          this.billRepository,
+          generateBillUseCase,
+          this.logger
+        ),
+        {},
         this.logger
       );
     }
@@ -2320,6 +2356,12 @@ export class DependencyContainer {
         ...bindJob(this.overdueDeviceDownAlertOrchestrator)
       }
     ];
+    if (this.billingCycleOrchestrator) {
+      supervisedJobs.push({
+        name: 'billing-cycle',
+        ...bindJob(this.billingCycleOrchestrator)
+      });
+    }
     if (this.suspensionReconciliationOrchestrator) {
       supervisedJobs.push({
         name: 'suspension-reconciliation',

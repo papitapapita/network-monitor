@@ -196,6 +196,26 @@ export class PrismaBillRepository implements IBillRepository {
     }
   }
 
+  public async findPendingDueBefore(
+    instant: Date
+  ): Promise<Result<Bill[]>> {
+    try {
+      const rawRecords = await this.prisma.bill.findMany({
+        where: { status: 'PENDING', dueDate: { lt: instant } },
+        include: { lineItems: true },
+        orderBy: { dueDate: 'asc' }
+      });
+
+      return this.mapMany(rawRecords);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<Bill[]>(
+        `Database error finding bills past due: ${errorMessage}`
+      );
+    }
+  }
+
   private buildWhere(filters: BillFilters): {
     customerId?: string;
     status?: BillStatus;

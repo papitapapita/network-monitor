@@ -34,13 +34,13 @@ module's endpoints are not mounted: an authenticated request gets **`404`** (`40
 first without a token). The frontend should hide those sections rather than treat the `404` as an
 error.
 
-| Module        | Endpoints                                                                  |
-| ------------- | -------------------------------------------------------------------------- |
-| `customers`   | `/api/customers`, `/api/service-plans`, `/api/contracted-services`         |
-| `billing`     | `/api/bills`, `/api/collection-accounts`, `/api/bank-accounts`             |
-| `quoting`     | `/api/quotations`                                                          |
-| `tickets`     | `/api/tickets`, `/api/technicians`                                         |
-| `enforcement` | `/api/enforcement/suspensions`, `/api/contracted-services/:id/enforcement` |
+| Module        | Endpoints                                                                               |
+| ------------- | --------------------------------------------------------------------------------------- |
+| `customers`   | `/api/customers`, `/api/service-plans`, `/api/contracted-services`                      |
+| `billing`     | `/api/bills`, `/api/billing-settings`, `/api/collection-accounts`, `/api/bank-accounts` |
+| `quoting`     | `/api/quotations`                                                                       |
+| `tickets`     | `/api/tickets`, `/api/technicians`                                                      |
+| `enforcement` | `/api/enforcement/suspensions`, `/api/contracted-services/:id/enforcement`              |
 
 Everything else (monitoring) is always present. A monitoring-only install
 (`ENABLED_MODULES=monitoring`) serves none of the endpoints above.
@@ -89,7 +89,8 @@ permission. Reading them stays on `read` because the response is masked.
 role may use (IDN-140).
 
 `manage-settings` gates changing the install's settings from the dashboard:
-today `PUT /api/notification-settings` and its test message (IDN-034).
+today `PUT /api/notification-settings` and its test message (IDN-034), and
+`PUT /api/billing-settings` (BIL-285).
 
 `manage-installation` (VENDOR only, IDN-033) gates agent create, re-key and
 revoke, the data-retention purge and the vendor's settings
@@ -3663,7 +3664,7 @@ The PDF includes the bill header (period, status, issue/due/paid dates), the cus
 { success: true, data: BillDTO }
 ```
 
-> Allowed only from `PENDING`, and only once the bill is **past its due date** — returns 409 otherwise. There is no automatic overdue job; the frontend (or an operator) triggers this explicitly.
+> Allowed only from `PENDING`, and only once the bill is **past its due date** — returns 409 otherwise. While automatic billing is on, the daily run does this on its own (BIL-286); otherwise the frontend (or an operator) triggers it.
 
 ---
 
@@ -3681,6 +3682,66 @@ The PDF includes the bill header (period, status, issue/due/paid dates), the cus
 
 > Allowed from `PENDING` or `OVERDUE`. Returns 409 for a `PAID` bill ("Cannot cancel a paid bill") or an already-cancelled one.  
 > Cancelling frees the customer + period for regeneration via `POST /generate`.
+
+---
+
+## Billing Settings `/api/billing-settings`
+
+The install's billing cycle (BIL-280), edited by the ISP's administrator. Until
+the first save the defaults apply, with automatic billing **off** (BIL-281), so
+`GET` always answers. A save applies from the next daily run, with no restart.
+
+While `automaticBillingEnabled` is true, a daily run (from 6:00, Colombian time)
+issues each customer's bill on its own and marks unpaid bills `OVERDUE`:
+
+- A customer's bill is due at the end of their `paymentDay` (15 or 30; the 30th
+  is the month's last day in February) — see `CustomerDTO.paymentDay`.
+- It is issued from `issueLeadDays` before that day; a run missed that day
+  issues it on any later day up to the due date (BIL-283).
+- Only customers with an `ACTIVE` service are billed; a period that already
+  has a bill — even a cancelled one — is never billed again by the run
+  (BIL-284).
+- After the due date, every `PENDING` bill goes `OVERDUE`, hand-made ones too
+  (BIL-286).
+
+```ts
+type BillingMode = 'ADVANCE' | 'ARREARS';
+
+interface BillingSettingsDTO {
+  automaticBillingEnabled: boolean; // false: nothing is issued or marked overdue on its own
+  billingMode: BillingMode; // ADVANCE: a bill due in October is for October; ARREARS: for September
+  issueLeadDays: number; // 1–14: days before the due date the bill is issued
+  graceDays: number; // 0–14: days after the due date before service is cut (used once automatic cutting ships)
+}
+```
+
+### `GET /api/billing-settings`
+
+**Status:** 200 | 401  
+**Roles:** all
+
+```ts
+{ success: true, data: BillingSettingsDTO }
+```
+
+---
+
+### `PUT /api/billing-settings` — Save
+
+**Status:** 200 | 400 | 401 | 403  
+**Roles:** ADMIN (`manage-settings`; OPERATOR and VIEWER get `403`)
+
+```ts
+// Request body — all four, nothing else
+BillingSettingsDTO
+
+// Response
+{ success: true, data: BillingSettingsDTO }
+```
+
+> `400` with the rule's message, e.g.
+> `"issueLeadDays must be a whole number from 1 to 14"` or
+> `"billingMode must be one of ADVANCE, ARREARS"`.
 
 ---
 
@@ -4792,7 +4853,7 @@ click fail.
 interface InstallationDTO {
   modules: {
     customers: boolean; // /api/customers, /api/service-plans, /api/contracted-services
-    billing: boolean; // /api/bills, /api/collection-accounts, /api/bank-accounts
+    billing: boolean; // /api/bills, /api/billing-settings, /api/collection-accounts, /api/bank-accounts
     quoting: boolean; // /api/quotations
     tickets: boolean; // /api/tickets, /api/technicians
     enforcement: boolean; // /api/enforcement/suspensions, /api/contracted-services/:id/enforcement

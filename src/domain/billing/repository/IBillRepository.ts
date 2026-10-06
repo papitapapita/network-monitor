@@ -29,4 +29,6 @@ export interface IBillRepository {
     period: BillingPeriod
   ): Promise<Result<boolean>>;
   exists(id: BillId): Promise<Result<boolean>>;
+  // Every PENDING bill whose due date is before `instant`, unpaged.
+  findPendingDueBefore(instant: Date): Promise<Result<Bill[]>>;
 }

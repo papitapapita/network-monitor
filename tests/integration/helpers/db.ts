@@ -18,6 +18,8 @@ export async function cleanDatabase(
   await prisma.user.deleteMany();
   // No row means the env defaults apply (NOT-201).
   await prisma.notificationSettings.deleteMany();
+  // No row means automatic billing is off (BIL-281).
+  await prisma.billingSettings.deleteMany();
   await prisma.vendorSettings.deleteMany();
 }
 

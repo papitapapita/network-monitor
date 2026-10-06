@@ -8,3 +8,4 @@ export * from './CollectionAccountIssuedEventProps';
 export * from './CollectionAccountPaidEventProps';
 export * from './CollectionAccountCancelledEventProps';
 export * from './BankAccountProps';
+export * from './BillingSettingsProps';
