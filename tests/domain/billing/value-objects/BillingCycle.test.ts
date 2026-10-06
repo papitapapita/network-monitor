@@ -17,7 +17,8 @@ function settings(
     automaticBillingEnabled: true,
     billingMode: overrides.billingMode ?? BillingMode.ADVANCE,
     issueLeadDays: overrides.issueLeadDays ?? 5,
-    graceDays: 3
+    graceDays: 3,
+    automaticCutEnabled: false
   });
 }
 

@@ -22,7 +22,8 @@ export class BillingSettingsController {
         automaticBillingEnabled: req.body.automaticBillingEnabled,
         billingMode: req.body.billingMode,
         issueLeadDays: req.body.issueLeadDays,
-        graceDays: req.body.graceDays
+        graceDays: req.body.graceDays,
+        automaticCutEnabled: req.body.automaticCutEnabled
       })
     );
 

@@ -26,13 +26,14 @@ Format and conventions: [README.md](README.md).
 | `BIL-200` … `BIL-259` | Cuentas de cobro                |
 | `BIL-260` … `BIL-279` | Bank accounts                   |
 | `BIL-280` … `BIL-299` | Automatic billing cycle         |
-| `BIL-300` … `BIL-319` | Payments                        |
+| `BIL-300` … `BIL-309` | Payments                        |
+| `BIL-310` … `BIL-329` | Automatic cut and restore       |
 
 ## Layer coverage
 
 | Layer                     | Rules |
 | ------------------------- | ----- |
-| Application               | 28    |
+| Application               | 30    |
 | Domain (aggregate)        | 30    |
 | Domain (value object)     | 16    |
 | Presentation              | 6     |
@@ -1304,7 +1305,7 @@ The install bills on its own once the ISP's administrator turns it on
 collection group, the 15th or the 30th (`CUS-024`); that day is when their bill
 falls due. Days are Colombian days (UTC-5).
 
-### BIL-280 — Billing settings are four values, saved together
+### BIL-280 — Billing settings are five values, saved together
 
 **Type:** Validation · **Status:** Active
 **Layer:** Domain (value object)
@@ -1316,16 +1317,16 @@ falls due. Days are Colombian days (UTC-5).
 | `billingMode`             | `ADVANCE` or `ARREARS` |
 | `issueLeadDays`           | whole number, 1 … 14   |
 | `graceDays`               | whole number, 0 … 14   |
+| `automaticCutEnabled`     | true or false          |
 
-A save replaces all four; a refused value saves nothing. The next daily run
-reads them, with no restart. `graceDays` is stored now and used by automatic
-cutting.
+A save replaces all five; a refused value saves nothing. The next daily run
+reads them, with no restart.
 
 **Why:** A lead of at most 14 days keeps the 15th group's issue day inside its
 own month, so a bill is never issued in the month before it is due.
 
 **Enforced at:** `src/domain/billing/value-objects/BillingSettings.ts`, `prisma/migrations/20261006120000_billing_settings` (single row)
-**Message:** `issueLeadDays must be a whole number from 1 to 14` / `graceDays must be a whole number from 0 to 14` / `billingMode must be one of ADVANCE, ARREARS` / `automaticBillingEnabled must be true or false`
+**Message:** `issueLeadDays must be a whole number from 1 to 14` / `graceDays must be a whole number from 0 to 14` / `billingMode must be one of ADVANCE, ARREARS` / `automaticBillingEnabled must be true or false` / `automaticCutEnabled must be true or false`
 **Tests:** `tests/domain/billing/value-objects/BillingSettings.test.ts`, `tests/application/billing/use-cases/BillingSettingsUseCases.test.ts`, `tests/integration/use-cases/billing/UpdateBillingSettingsUseCase.integration.test.ts`, `tests/integration/billing-settings.routes.test.ts`
 
 ### BIL-281 — Automatic billing is off until the administrator turns it on
@@ -1334,7 +1335,8 @@ own month, so a bill is never issued in the month before it is due.
 **Layer:** Domain (value object)
 **Since:** 2026-10-06
 
-With nothing saved: off, `ADVANCE`, issued 5 days ahead, 3 grace days.
+With nothing saved: off, `ADVANCE`, issued 5 days ahead, 3 grace days, and
+the automatic cut off (`BIL-310`).
 
 **Why:** An install that bills by hand today must not start issuing bills, or
 marking them overdue, because it was upgraded.
@@ -1599,3 +1601,52 @@ history: removing a user must not erase or block it.
 
 **Backed by:** `BillPayment.bill … onDelete: Cascade`, `BillPayment.recordedByUserId` in `prisma/schema.prisma`; `prisma/migrations/20261006200000_bill_payments`
 **Tests:** `tests/integration/use-cases/billing/MarkBillPaidUseCase.integration.test.ts`
+
+---
+
+## Automatic cut and restore
+
+Cutting means suspending the customer's subscriptions. What a suspension does
+on the network — the `1k/1k` queue — and the customer's notice belong to
+[service-enforcement.md](service-enforcement.md).
+
+### BIL-310 — A customer still unpaid after the grace days is cut
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-06
+
+While both automatic billing and `automaticCutEnabled` are on, the daily run
+suspends every `ACTIVE` service of each customer holding an `OVERDUE` bill
+whose due date is more than `graceDays` days past. With 3 grace days, a bill
+due on the 15th is cut on the 19th. Bills made by hand count too. The run
+marks bills overdue first, so a bill that turns overdue that morning is
+counted. It repeats every morning: a service reactivated by hand while a bill
+is still overdue is suspended again the next day. One customer's failure is
+recorded and the run goes on.
+
+**Why:** Cutting is the reason for the grace days and the overdue state, and it
+cannot depend on someone remembering. It has its own switch, off by default
+(`BIL-281`), so an ISP can bill automatically and still cut by hand until it
+trusts the system.
+
+**Enforced at:** `src/application/billing/use-cases/RunBillingCycleUseCase.ts` (`cutUnpaid`), `src/infrastructure/billing/adapters/ContractedServiceAccessAdapter.ts`, `src/infrastructure/billing/repositories/PrismaBillRepository.ts` (`findCustomersOverdueBefore`)
+**Tests:** `tests/application/billing/use-cases/RunBillingCycleUseCase.test.ts`, `tests/infrastructure/billing/adapters/ContractedServiceAccessAdapter.test.ts`, `tests/integration/use-cases/billing/RunBillingCycleUseCase.integration.test.ts`
+
+### BIL-311 — Paying the last overdue bill brings every suspended service back
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-06
+
+As soon as a payment is saved, if `automaticCutEnabled` is on and the customer
+has no `OVERDUE` bill left, all of their `SUSPENDED` services are reactivated —
+including ones an operator suspended by hand. A service with no device cannot
+be reactivated; it is logged and the rest still come back.
+
+**Why:** A customer who has paid should be back online in seconds, not the
+next morning. The ISP chose to restore everything rather than track why each
+service was suspended.
+
+**Enforced at:** `src/application/billing/use-cases/RestoreServicesAfterPaymentUseCase.ts`, `src/application/billing/event-handlers/RestoreServicesOnPaymentHandler.ts` (on `BillPaidEvent`), `src/infrastructure/billing/adapters/ContractedServiceAccessAdapter.ts`
+**Tests:** `tests/application/billing/use-cases/RestoreServicesAfterPaymentUseCase.test.ts`, `tests/application/billing/event-handlers/RestoreServicesOnPaymentHandler.test.ts`, `tests/infrastructure/billing/adapters/ContractedServiceAccessAdapter.test.ts`, `tests/integration/use-cases/billing/RestoreServicesAfterPaymentUseCase.integration.test.ts`, `tests/integration/bill.routes.test.ts`

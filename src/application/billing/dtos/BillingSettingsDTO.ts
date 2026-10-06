@@ -5,4 +5,5 @@ export interface BillingSettingsDTO {
   billingMode: BillingMode;
   issueLeadDays: number;
   graceDays: number;
+  automaticCutEnabled: boolean;
 }

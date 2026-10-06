@@ -763,6 +763,7 @@ model BillingSettings {
   billingMode             BillingMode @map("billing_mode")
   issueLeadDays           Int         @map("issue_lead_days") @db.SmallInt
   graceDays               Int         @map("grace_days") @db.SmallInt
+  automaticCutEnabled     Boolean     @default(false) @map("automatic_cut_enabled")
   updatedAt               DateTime    @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("billing_settings")

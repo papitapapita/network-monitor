@@ -56,6 +56,7 @@ export class PrismaBillRepository implements IBillRepository {
             ])
       ]);
 
+      EventDispatcher.markAggregateForDispatch(bill);
       EventDispatcher.dispatchEventsForAggregate(bill.id);
 
       return Result.ok<Bill>(bill);
@@ -225,6 +226,33 @@ export class PrismaBillRepository implements IBillRepository {
         error instanceof Error ? error.message : String(error);
       return Result.fail<Bill[]>(
         `Database error finding bills past due: ${errorMessage}`
+      );
+    }
+  }
+
+  public async findCustomersOverdueBefore(
+    instant: Date
+  ): Promise<Result<CustomerId[]>> {
+    try {
+      const rows = await this.prisma.bill.findMany({
+        where: { status: 'OVERDUE', dueDate: { lt: instant } },
+        select: { customerId: true },
+        distinct: ['customerId'],
+        orderBy: { customerId: 'asc' }
+      });
+
+      const ids: CustomerId[] = [];
+      for (const row of rows) {
+        const id = CustomerId.parse(row.customerId);
+        if (id.isFailure) return Result.fail(id.error);
+        ids.push(id.value);
+      }
+      return Result.ok(ids);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<CustomerId[]>(
+        `Database error finding overdue customers: ${errorMessage}`
       );
     }
   }

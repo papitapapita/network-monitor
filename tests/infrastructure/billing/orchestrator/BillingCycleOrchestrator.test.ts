@@ -9,6 +9,7 @@ const RUN = {
   automaticBillingEnabled: true,
   generated: 2,
   markedOverdue: 1,
+  cut: 0,
   failed: []
 };
 

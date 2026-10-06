@@ -31,3 +31,4 @@ export * from './GetBankAccountRequestDTO';
 export * from './DeleteBankAccountRequestDTO';
 export * from './BillingSettingsDTO';
 export * from './BillingCycleRunDTO';
+export * from './RestoreServicesAfterPaymentDTO';

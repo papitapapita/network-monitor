@@ -12,14 +12,16 @@ const DEFAULTS = {
   automaticBillingEnabled: false,
   billingMode: 'ADVANCE',
   issueLeadDays: 5,
-  graceDays: 3
+  graceDays: 3,
+  automaticCutEnabled: false
 };
 
 const SAVED = {
   automaticBillingEnabled: true,
   billingMode: 'ARREARS',
   issueLeadDays: 7,
-  graceDays: 2
+  graceDays: 2,
+  automaticCutEnabled: true
 };
 
 describe('Billing Settings Routes — /api/billing-settings', () => {

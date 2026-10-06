@@ -49,7 +49,10 @@ network.
   the entry is fine, never in the future), and the user who entered it. The
   bill's existing pay action records it.
 - A bill is paid only when the **full amount** is recorded.
-- Paying every overdue bill of a suspended customer restores the service.
+- Paying every overdue bill of a suspended customer restores the service —
+  all of their suspended services, at once.
+- The automatic cut has its own switch, off by default, separate from
+  automatic billing.
 - Online sources (a gateway webhook or a bank's collection file) arrive later
   as further payment methods on the same record. Each is verified and
   idempotent on the provider's transaction id.

@@ -153,6 +153,7 @@ export class Bill extends AggregateRoot<BillProps, BillId> {
     this.addDomainEvent(
       new BillPaidEvent({
         aggregateId: this.id,
+        customerId: this.customerId,
         paidAt: payment.paidAt,
         dateTimeOccurred: now
       })

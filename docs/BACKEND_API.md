@@ -3675,7 +3675,7 @@ The PDF includes the bill header (period, status, issue/due/paid dates), the cus
 { success: true, data: BillDTO }
 ```
 
-> Allowed from `PENDING` or `OVERDUE`. Returns 409 if the bill is already `PAID` or `CANCELLED`. The signed-in user is recorded as `recordedByUserId`. One payment per bill, never edited (BIL-300…303). **Breaking:** `method` is now required; a body-less request gets 400.
+> Allowed from `PENDING` or `OVERDUE`. Returns 409 if the bill is already `PAID` or `CANCELLED`. The signed-in user is recorded as `recordedByUserId`. One payment per bill, never edited (BIL-300…303). With the automatic cut on, paying the customer's last `OVERDUE` bill reactivates their suspended services right after the response (BIL-311). **Breaking:** `method` is now required; a body-less request gets 400.
 
 ---
 
@@ -3736,6 +3736,11 @@ issues each customer's bill on its own and marks unpaid bills `OVERDUE`:
   month's remaining days (BIL-289).
 - After the due date, every `PENDING` bill goes `OVERDUE`, hand-made ones too
   (BIL-286).
+- With `automaticCutEnabled`, the day after the last grace day every customer
+  still holding an `OVERDUE` bill has their `ACTIVE` services suspended, and
+  again each morning while it stays unpaid (BIL-310). Recording a payment that
+  leaves the customer with no `OVERDUE` bill reactivates **all** their
+  suspended services at once, hand-suspended ones included (BIL-311).
 
 ```ts
 type BillingMode = 'ADVANCE' | 'ARREARS';
@@ -3744,7 +3749,8 @@ interface BillingSettingsDTO {
   automaticBillingEnabled: boolean; // false: nothing is issued or marked overdue on its own
   billingMode: BillingMode; // ADVANCE: a bill due in October is for October; ARREARS: for September
   issueLeadDays: number; // 1–14: days before the due date the bill is issued
-  graceDays: number; // 0–14: days after the due date before service is cut (used once automatic cutting ships)
+  graceDays: number; // 0–14: days after the due date before service is cut
+  automaticCutEnabled: boolean; // false (default): nobody is cut or restored on their own
 }
 ```
 
@@ -3765,7 +3771,7 @@ interface BillingSettingsDTO {
 **Roles:** ADMIN (`manage-settings`; OPERATOR and VIEWER get `403`)
 
 ```ts
-// Request body — all four, nothing else
+// Request body — all five, nothing else
 BillingSettingsDTO
 
 // Response

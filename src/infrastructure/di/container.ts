@@ -70,6 +70,7 @@ import {
   PrismaBillingSettingsRepository,
   PrismaBillableCustomersQuery,
   BillingCycleOrchestrator,
+  ContractedServiceAccessAdapter,
   SettingsIssuerPdfRenderer
 } from '../billing';
 import {
@@ -162,6 +163,7 @@ import {
   GetBillingSettingsUseCase,
   UpdateBillingSettingsUseCase,
   RunBillingCycleUseCase,
+  RestoreServicesAfterPaymentUseCase,
   GetBillUseCase,
   GetBillPdfUseCase,
   ListBillsUseCase,
@@ -180,6 +182,8 @@ import {
   UpdateBankAccountUseCase,
   DeleteBankAccountUseCase
 } from 'application/billing/use-cases';
+import { RestoreServicesOnPaymentHandler } from 'application/billing/event-handlers';
+import { BillPaidEvent } from 'domain/billing/events';
 import {
   CreateQuotationUseCase,
   UpdateQuotationLineItemsUseCase,
@@ -777,16 +781,32 @@ export class DependencyContainer {
         ),
         this.logger
       );
+      const serviceAccess = new ContractedServiceAccessAdapter(
+        this.contractedServiceRepository
+      );
       this.billingCycleOrchestrator = new BillingCycleOrchestrator(
         new RunBillingCycleUseCase(
           billingSettingsRepository,
           new PrismaBillableCustomersQuery(this.prisma),
           this.billRepository,
           generateBillUseCase,
+          serviceAccess,
           this.logger
         ),
         {},
         this.logger
+      );
+      EventDispatcher.register(
+        BillPaidEvent.name,
+        new RestoreServicesOnPaymentHandler(
+          new RestoreServicesAfterPaymentUseCase(
+            billingSettingsRepository,
+            this.billRepository,
+            serviceAccess,
+            this.logger
+          ),
+          this.logger
+        )
       );
     }
 

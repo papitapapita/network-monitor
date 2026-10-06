@@ -25,7 +25,8 @@ export class UpdateBillingSettingsUseCase extends UseCase<
       automaticBillingEnabled: request.automaticBillingEnabled,
       billingMode: request.billingMode,
       issueLeadDays: request.issueLeadDays,
-      graceDays: request.graceDays
+      graceDays: request.graceDays,
+      automaticCutEnabled: request.automaticCutEnabled
     });
     if (settings.isFailure) return this.fail(settings.error);
 

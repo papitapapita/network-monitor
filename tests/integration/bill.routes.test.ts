@@ -12,6 +12,8 @@ import {
   seedCustomer,
   seedServicePlan,
   seedActiveContractedService,
+  seedDevice,
+  seedDeviceModel,
   GHOST_ID,
   INVALID_ID
 } from './helpers/db';
@@ -326,6 +328,72 @@ describe('Bill Routes — /api/bills', () => {
   });
 
   describe('POST /api/bills/:id/pay', () => {
+    it('[BIL-311] 200 — paying the last overdue bill brings a cut customer back', async () => {
+      await prisma.billingSettings.deleteMany();
+      await prisma.billingSettings.create({
+        data: {
+          automaticBillingEnabled: true,
+          billingMode: 'ADVANCE',
+          issueLeadDays: 5,
+          graceDays: 3,
+          automaticCutEnabled: true
+        }
+      });
+      const deviceId = await seedDevice(
+        prisma,
+        await seedDeviceModel(prisma),
+        { serialNumber: 'SN-BIL-311' }
+      );
+      const service = await prisma.contractedService.findFirstOrThrow(
+        {
+          where: { customerId }
+        }
+      );
+      const generated = await generateBill({
+        customerId,
+        year: 2026,
+        month: 1,
+        issueDate: '2026-01-10T11:00:00.000Z',
+        dueDate: '2026-01-16T04:59:59.999Z'
+      });
+      const billId = generated.body.data.id;
+      await prisma.bill.update({
+        where: { id: billId },
+        data: { status: 'OVERDUE' }
+      });
+      await prisma.contractedService.update({
+        where: { id: service.id },
+        data: { deviceId, status: 'SUSPENDED' }
+      });
+
+      try {
+        const res = await request(app)
+          .post(`/api/bills/${billId}/pay`)
+          .set('Authorization', auth())
+          .send({ method: 'CASH' });
+        expect(res.status).toBe(200);
+
+        // The restore runs after the response, off the BillPaidEvent.
+        let status = 'SUSPENDED';
+        for (let i = 0; i < 50 && status !== 'ACTIVE'; i++) {
+          await new Promise((r) => setTimeout(r, 50));
+          status = (
+            await prisma.contractedService.findUniqueOrThrow({
+              where: { id: service.id }
+            })
+          ).status;
+        }
+        expect(status).toBe('ACTIVE');
+      } finally {
+        await prisma.billingSettings.deleteMany();
+        await prisma.contractedService.update({
+          where: { id: service.id },
+          data: { deviceId: null }
+        });
+        await prisma.device.delete({ where: { id: deviceId } });
+      }
+    });
+
     it('200 — marks a pending bill paid and sets paidAt', async () => {
       const generated = await generateBill({
         customerId,

@@ -11,6 +11,7 @@ import {
   PrismaBillingSettingsRepository
 } from 'infrastructure/billing/repositories';
 import { PrismaBillableCustomersQuery } from 'infrastructure/billing/queries';
+import { ContractedServiceAccessAdapter } from 'infrastructure/billing/adapters';
 import {
   PrismaCustomerRepository,
   PrismaContractedServiceRepository,
@@ -50,6 +51,9 @@ describe('RunBillingCycleUseCase — integration', () => {
         new PrismaServicePlanRepository(prisma),
         logger
       ),
+      new ContractedServiceAccessAdapter(
+        new PrismaContractedServiceRepository(prisma)
+      ),
       logger
     );
   });
@@ -70,14 +74,16 @@ describe('RunBillingCycleUseCase — integration', () => {
   });
 
   async function enableBilling(
-    billingMode: 'ADVANCE' | 'ARREARS' = 'ADVANCE'
+    billingMode: 'ADVANCE' | 'ARREARS' = 'ADVANCE',
+    automaticCutEnabled = false
   ): Promise<void> {
     await prisma.billingSettings.create({
       data: {
         automaticBillingEnabled: true,
         billingMode,
         issueLeadDays: 5,
-        graceDays: 3
+        graceDays: 3,
+        automaticCutEnabled
       }
     });
   }
@@ -112,7 +118,7 @@ describe('RunBillingCycleUseCase — integration', () => {
 
   async function seedBill(
     customerId: string,
-    status: 'PENDING' | 'PAID' | 'CANCELLED',
+    status: 'PENDING' | 'PAID' | 'CANCELLED' | 'OVERDUE',
     dueDate: Date,
     period = { year: 2026, month: 9 }
   ): Promise<string> {
@@ -377,5 +383,78 @@ describe('RunBillingCycleUseCase — integration', () => {
     expect(await status(pastDue)).toBe('OVERDUE');
     expect(await status(paid)).toBe('PAID');
     expect(await status(notYetDue)).toBe('PENDING');
+  });
+
+  describe('[BIL-310] the automatic cut', () => {
+    async function serviceStatus(
+      customerId: string
+    ): Promise<string> {
+      const service = await prisma.contractedService.findFirstOrThrow(
+        {
+          where: { customerId }
+        }
+      );
+      return service.status;
+    }
+
+    it('suspends a customer still unpaid after the grace days', async () => {
+      await enableBilling('ADVANCE', true);
+      const customerId = await seedBillable('3000000030', 30);
+      // Due 30 Sep: grace ran 1–3 Oct.
+      await seedBill(
+        customerId,
+        'OVERDUE',
+        new Date('2026-10-01T04:59:59.999Z')
+      );
+
+      const result = await useCase.execute({ now: NOW });
+
+      expect(result.value.cut).toBe(1);
+      expect(await serviceStatus(customerId)).toBe('SUSPENDED');
+    });
+
+    it('cuts a bill that only went overdue in the same run', async () => {
+      await enableBilling('ADVANCE', true);
+      const customerId = await seedBillable('3000000030', 30);
+      await seedBill(
+        customerId,
+        'PENDING',
+        new Date('2026-10-01T04:59:59.999Z')
+      );
+
+      await useCase.execute({ now: NOW });
+
+      expect(await serviceStatus(customerId)).toBe('SUSPENDED');
+    });
+
+    it('leaves a customer alone during the grace days', async () => {
+      await enableBilling('ADVANCE', true);
+      const customerId = await seedBillable('3000000030', 30);
+      // Due 10 Oct: the last grace day is 13 Oct.
+      await seedBill(
+        customerId,
+        'OVERDUE',
+        new Date('2026-10-11T04:59:59.999Z')
+      );
+
+      const result = await useCase.execute({ now: NOW });
+
+      expect(result.value.cut).toBe(0);
+      expect(await serviceStatus(customerId)).toBe('ACTIVE');
+    });
+
+    it('cuts nobody while the cut is off', async () => {
+      await enableBilling('ADVANCE', false);
+      const customerId = await seedBillable('3000000030', 30);
+      await seedBill(
+        customerId,
+        'OVERDUE',
+        new Date('2026-10-01T04:59:59.999Z')
+      );
+
+      await useCase.execute({ now: NOW });
+
+      expect(await serviceStatus(customerId)).toBe('ACTIVE');
+    });
   });
 });

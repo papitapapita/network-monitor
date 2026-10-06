@@ -7,7 +7,8 @@ export class BillingSettingsMapper {
       automaticBillingEnabled: settings.automaticBillingEnabled,
       billingMode: settings.billingMode,
       issueLeadDays: settings.issueLeadDays,
-      graceDays: settings.graceDays
+      graceDays: settings.graceDays,
+      automaticCutEnabled: settings.automaticCutEnabled
     };
   }
 }

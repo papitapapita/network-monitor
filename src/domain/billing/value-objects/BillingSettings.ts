@@ -25,6 +25,10 @@ export class BillingSettings extends ValueObject<BillingSettingsProps> {
     return this._props.graceDays;
   }
 
+  get automaticCutEnabled(): boolean {
+    return this._props.automaticCutEnabled;
+  }
+
   private constructor(props: BillingSettingsProps) {
     super(props);
   }
@@ -44,7 +48,8 @@ export class BillingSettings extends ValueObject<BillingSettingsProps> {
       automaticBillingEnabled: false,
       billingMode: BillingMode.ADVANCE,
       issueLeadDays: 5,
-      graceDays: 3
+      graceDays: 3,
+      automaticCutEnabled: false
     });
   }
 
@@ -77,6 +82,9 @@ export class BillingSettings extends ValueObject<BillingSettingsProps> {
       props.graceDays > MAX_GRACE_DAYS
     ) {
       return `graceDays must be a whole number from 0 to ${MAX_GRACE_DAYS}`;
+    }
+    if (typeof props.automaticCutEnabled !== 'boolean') {
+      return 'automaticCutEnabled must be true or false';
     }
     return null;
   }

@@ -71,6 +71,7 @@ export class BillingCycleOrchestrator {
         {
           generated: run.generated,
           markedOverdue: run.markedOverdue,
+          cut: run.cut,
           failed: run.failed.length
         }
       );

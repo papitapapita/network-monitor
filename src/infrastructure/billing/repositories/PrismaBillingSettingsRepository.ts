@@ -24,7 +24,8 @@ export class PrismaBillingSettingsRepository
           automaticBillingEnabled: row.automaticBillingEnabled,
           billingMode: row.billingMode as BillingMode,
           issueLeadDays: row.issueLeadDays,
-          graceDays: row.graceDays
+          graceDays: row.graceDays,
+          automaticCutEnabled: row.automaticCutEnabled
         })
       );
     } catch (error) {
@@ -39,7 +40,8 @@ export class PrismaBillingSettingsRepository
       automaticBillingEnabled: settings.automaticBillingEnabled,
       billingMode: settings.billingMode,
       issueLeadDays: settings.issueLeadDays,
-      graceDays: settings.graceDays
+      graceDays: settings.graceDays,
+      automaticCutEnabled: settings.automaticCutEnabled
     };
     try {
       await this.prisma.billingSettings.upsert({

@@ -20,3 +20,4 @@ export * from './DeleteBankAccountUseCase';
 export * from './GetBillingSettingsUseCase';
 export * from './UpdateBillingSettingsUseCase';
 export * from './RunBillingCycleUseCase';
+export * from './RestoreServicesAfterPaymentUseCase';

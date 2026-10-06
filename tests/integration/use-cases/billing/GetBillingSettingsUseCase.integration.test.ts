@@ -34,7 +34,8 @@ describe('[BIL-281] GetBillingSettingsUseCase — integration', () => {
       automaticBillingEnabled: false,
       billingMode: 'ADVANCE',
       issueLeadDays: 5,
-      graceDays: 3
+      graceDays: 3,
+      automaticCutEnabled: false
     });
   });
 
@@ -44,7 +45,8 @@ describe('[BIL-281] GetBillingSettingsUseCase — integration', () => {
         automaticBillingEnabled: true,
         billingMode: 'ARREARS',
         issueLeadDays: 10,
-        graceDays: 0
+        graceDays: 0,
+        automaticCutEnabled: false
       }
     });
 
@@ -54,7 +56,8 @@ describe('[BIL-281] GetBillingSettingsUseCase — integration', () => {
       automaticBillingEnabled: true,
       billingMode: 'ARREARS',
       issueLeadDays: 10,
-      graceDays: 0
+      graceDays: 0,
+      automaticCutEnabled: false
     });
   });
 });

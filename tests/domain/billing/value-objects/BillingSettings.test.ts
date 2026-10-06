@@ -10,7 +10,8 @@ const VALID = {
   automaticBillingEnabled: true,
   billingMode: BillingMode.ARREARS,
   issueLeadDays: 7,
-  graceDays: 2
+  graceDays: 2,
+  automaticCutEnabled: false
 };
 
 describe('BillingSettings', () => {
@@ -21,6 +22,23 @@ describe('BillingSettings', () => {
     expect(defaults.billingMode).toBe(BillingMode.ADVANCE);
     expect(defaults.issueLeadDays).toBe(5);
     expect(defaults.graceDays).toBe(3);
+  });
+
+  it('[BIL-310] the automatic cut is off by default', () => {
+    expect(BillingSettings.defaults().automaticCutEnabled).toBe(
+      false
+    );
+  });
+
+  it('[BIL-280] refuses a cut switch that is not true or false', () => {
+    const result = BillingSettings.create({
+      ...VALID,
+      automaticCutEnabled: 'yes' as unknown as boolean
+    });
+
+    expect(result.error).toBe(
+      'automaticCutEnabled must be true or false'
+    );
   });
 
   it('[BIL-280] accepts valid settings', () => {
@@ -37,14 +55,16 @@ describe('BillingSettings', () => {
       BillingSettings.create({
         ...VALID,
         issueLeadDays: 1,
-        graceDays: 0
+        graceDays: 0,
+        automaticCutEnabled: false
       }).isSuccess
     ).toBe(true);
     expect(
       BillingSettings.create({
         ...VALID,
         issueLeadDays: 14,
-        graceDays: 14
+        graceDays: 14,
+        automaticCutEnabled: false
       }).isSuccess
     ).toBe(true);
   });

@@ -7,7 +7,8 @@ export const updateBillingSettingsSchema = z.object({
       automaticBillingEnabled: z.boolean(),
       billingMode: z.string(),
       issueLeadDays: z.number(),
-      graceDays: z.number()
+      graceDays: z.number(),
+      automaticCutEnabled: z.boolean()
     })
     .strict()
 });

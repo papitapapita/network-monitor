@@ -11,7 +11,10 @@ import {
 } from 'domain/billing/repository';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
-import { IBillableCustomersQuery } from '../interfaces';
+import {
+  IBillableCustomersQuery,
+  ICustomerServiceAccess
+} from '../interfaces';
 import {
   RunBillingCycleRequestDTO,
   BillingCycleRunResultDTO
@@ -20,8 +23,11 @@ import { GenerateBillUseCase } from './GenerateBillUseCase';
 
 type Failures = BillingCycleRunResultDTO['failed'];
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 // The daily billing run (BIL-284): marks unpaid bills overdue once their due
-// date has passed, then issues the bills whose issue window is open. Does
+// date has passed, cuts customers still unpaid after the grace days when the
+// automatic cut is on (BIL-310), then issues the bills whose issue window is open. Does
 // nothing while automatic billing is off. Safe to repeat: a period already
 // billed — even cancelled — is never billed again by the run. Bills it issues
 // are prorated (BIL-287..290); a customer whose services all start after the
@@ -35,6 +41,7 @@ export class RunBillingCycleUseCase extends UseCase<
     private readonly billableCustomers: IBillableCustomersQuery,
     private readonly billRepository: IBillRepository,
     private readonly generateBillUseCase: GenerateBillUseCase,
+    private readonly serviceAccess: ICustomerServiceAccess,
     logger: ILogger
   ) {
     super(logger, 'RunBillingCycleUseCase');
@@ -55,6 +62,7 @@ export class RunBillingCycleUseCase extends UseCase<
         automaticBillingEnabled: false,
         generated: 0,
         markedOverdue: 0,
+        cut: 0,
         failed: []
       });
     }
@@ -63,6 +71,11 @@ export class RunBillingCycleUseCase extends UseCase<
 
     const overdue = await this.markOverdue(request.now, failed);
     if (overdue.isFailure) return this.fail(overdue.error!);
+
+    const cut = settings.automaticCutEnabled
+      ? await this.cutUnpaid(request.now, settings.graceDays, failed)
+      : Result.ok(0);
+    if (cut.isFailure) return this.fail(cut.error!);
 
     const generated = await this.issueBills(
       request.now,
@@ -75,6 +88,7 @@ export class RunBillingCycleUseCase extends UseCase<
       automaticBillingEnabled: true,
       generated: generated.value,
       markedOverdue: overdue.value,
+      cut: cut.value,
       failed
     });
   }
@@ -103,6 +117,33 @@ export class RunBillingCycleUseCase extends UseCase<
       marked++;
     }
     return Result.ok(marked);
+  }
+
+  // BIL-310: the day after the last grace day, every customer still holding
+  // an OVERDUE bill has their active services suspended.
+  private async cutUnpaid(
+    now: Date,
+    graceDays: number,
+    failed: Failures
+  ): Promise<Result<number>> {
+    const graceEnd = new Date(now.getTime() - graceDays * DAY_MS);
+    const customers =
+      await this.billRepository.findCustomersOverdueBefore(graceEnd);
+    if (customers.isFailure) return Result.fail(customers.error!);
+
+    let cut = 0;
+    for (const customerId of customers.value) {
+      const id = customerId.toString();
+      const outcome =
+        await this.serviceAccess.suspendActiveServices(id);
+      if (outcome.isFailure) {
+        failed.push({ id, error: outcome.error! });
+        continue;
+      }
+      failed.push(...outcome.value.failed);
+      if (outcome.value.changed > 0) cut++;
+    }
+    return Result.ok(cut);
   }
 
   private async issueBills(

@@ -2,7 +2,10 @@
 
 import { RunBillingCycleUseCase } from '../../../../src/application/billing/use-cases/RunBillingCycleUseCase';
 import { GenerateBillUseCase } from '../../../../src/application/billing/use-cases/GenerateBillUseCase';
-import { IBillableCustomersQuery } from '../../../../src/application/billing/interfaces';
+import {
+  IBillableCustomersQuery,
+  ICustomerServiceAccess
+} from '../../../../src/application/billing/interfaces';
 import {
   IBillRepository,
   IBillingSettingsRepository
@@ -32,13 +35,15 @@ const CUSTOMER_30 = '33333333-3333-4333-8333-333333333333';
 const STARTED = '2026-01-10T15:00:00.000Z';
 
 function enabled(
-  billingMode: BillingMode = BillingMode.ADVANCE
+  billingMode: BillingMode = BillingMode.ADVANCE,
+  automaticCutEnabled = false
 ): BillingSettings {
   return BillingSettings.reconstitute({
     automaticBillingEnabled: true,
     billingMode,
     issueLeadDays: 5,
-    graceDays: 3
+    graceDays: 3,
+    automaticCutEnabled
   });
 }
 
@@ -68,6 +73,7 @@ describe('RunBillingCycleUseCase', () => {
   let query: jest.Mocked<IBillableCustomersQuery>;
   let billRepo: jest.Mocked<IBillRepository>;
   let generate: { execute: jest.Mock };
+  let serviceAccess: jest.Mocked<ICustomerServiceAccess>;
   let useCase: RunBillingCycleUseCase;
 
   beforeEach(() => {
@@ -99,7 +105,18 @@ describe('RunBillingCycleUseCase', () => {
       count: jest.fn().mockResolvedValue(Result.ok(0)),
       existsForCustomerAndPeriod: jest.fn(),
       exists: jest.fn(),
-      findPendingDueBefore: jest.fn().mockResolvedValue(Result.ok([]))
+      findPendingDueBefore: jest
+        .fn()
+        .mockResolvedValue(Result.ok([])),
+      findCustomersOverdueBefore: jest
+        .fn()
+        .mockResolvedValue(Result.ok([]))
+    };
+    serviceAccess = {
+      suspendActiveServices: jest
+        .fn()
+        .mockResolvedValue(Result.ok({ changed: 1, failed: [] })),
+      restoreSuspendedServices: jest.fn()
     };
     generate = {
       execute: jest.fn().mockResolvedValue(Result.ok({}))
@@ -109,6 +126,7 @@ describe('RunBillingCycleUseCase', () => {
       query,
       billRepo,
       generate as unknown as GenerateBillUseCase,
+      serviceAccess,
       makeLogger()
     );
   });
@@ -124,6 +142,7 @@ describe('RunBillingCycleUseCase', () => {
       automaticBillingEnabled: false,
       generated: 0,
       markedOverdue: 0,
+      cut: 0,
       failed: []
     });
     expect(billRepo.findPendingDueBefore).not.toHaveBeenCalled();
@@ -293,5 +312,96 @@ describe('RunBillingCycleUseCase', () => {
     expect(result.value.failed).toEqual([
       { id: first.id.toString(), error: 'DB down' }
     ]);
+  });
+
+  describe('[BIL-310] the automatic cut', () => {
+    const OWING = CustomerId.parse(CUSTOMER_15).value;
+
+    beforeEach(() => {
+      settingsRepo.get.mockResolvedValue(
+        Result.ok(enabled(BillingMode.ADVANCE, true))
+      );
+      billRepo.findCustomersOverdueBefore.mockResolvedValue(
+        Result.ok([OWING])
+      );
+    });
+
+    it('suspends customers whose overdue bill fell due before the grace days began', async () => {
+      const result = await useCase.execute({ now: NOW });
+
+      // 3 grace days before 06:00 on 12 Oct
+      expect(
+        billRepo.findCustomersOverdueBefore
+      ).toHaveBeenCalledWith(new Date('2026-10-09T11:00:00.000Z'));
+      expect(
+        serviceAccess.suspendActiveServices
+      ).toHaveBeenCalledWith(CUSTOMER_15);
+      expect(result.value.cut).toBe(1);
+    });
+
+    it('marks bills overdue before deciding who to cut', async () => {
+      const order: string[] = [];
+      billRepo.findPendingDueBefore.mockImplementation(async () => {
+        order.push('overdue');
+        return Result.ok([]);
+      });
+      billRepo.findCustomersOverdueBefore.mockImplementation(
+        async () => {
+          order.push('cut');
+          return Result.ok([]);
+        }
+      );
+
+      await useCase.execute({ now: NOW });
+
+      expect(order).toEqual(['overdue', 'cut']);
+    });
+
+    it('does not count a customer already cut', async () => {
+      serviceAccess.suspendActiveServices.mockResolvedValue(
+        Result.ok({ changed: 0, failed: [] })
+      );
+
+      const result = await useCase.execute({ now: NOW });
+
+      expect(result.value.cut).toBe(0);
+    });
+
+    it('records services that could not be suspended and goes on', async () => {
+      const other = CustomerId.create();
+      billRepo.findCustomersOverdueBefore.mockResolvedValue(
+        Result.ok([OWING, other])
+      );
+      serviceAccess.suspendActiveServices
+        .mockResolvedValueOnce(Result.fail('DB down'))
+        .mockResolvedValueOnce(
+          Result.ok({
+            changed: 1,
+            failed: [{ id: 'svc-2', error: 'save failed' }]
+          })
+        );
+
+      const result = await useCase.execute({ now: NOW });
+
+      expect(result.value.cut).toBe(1);
+      expect(result.value.failed).toEqual([
+        { id: CUSTOMER_15, error: 'DB down' },
+        { id: 'svc-2', error: 'save failed' }
+      ]);
+    });
+
+    it('is skipped while the cut is off', async () => {
+      settingsRepo.get.mockResolvedValue(Result.ok(enabled()));
+
+      const result = await useCase.execute({ now: NOW });
+
+      expect(
+        billRepo.findCustomersOverdueBefore
+      ).not.toHaveBeenCalled();
+      expect(
+        serviceAccess.suspendActiveServices
+      ).not.toHaveBeenCalled();
+      expect(result.value.cut).toBe(0);
+    });
   });
 });
