@@ -35,10 +35,17 @@ export class ResetPasswordUseCase extends UseCase<
   protected async executeImpl(
     request: ResetPasswordRequestDTO
   ): Promise<Result<void>> {
-    const verified = this.tokenService.verifyChallenge(
+    // An invitation sets the first password the same way (IDN-184).
+    let verified = this.tokenService.verifyChallenge(
       request.token,
       'password-reset'
     );
+    if (verified.isFailure) {
+      verified = this.tokenService.verifyChallenge(
+        request.token,
+        'invitation'
+      );
+    }
     if (verified.isFailure) return this.fail(RESET_LINK_EXPIRED);
 
     const id = UserId.parse(verified.value.userId);

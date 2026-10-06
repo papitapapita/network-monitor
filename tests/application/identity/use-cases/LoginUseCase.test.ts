@@ -60,7 +60,8 @@ function makeUserRepo(): jest.Mocked<IUserRepository> {
 function makePasswordService(): jest.Mocked<IPasswordService> {
   return {
     hash: jest.fn(),
-    compare: jest.fn()
+    compare: jest.fn(),
+    unusableHash: jest.fn()
   };
 }
 

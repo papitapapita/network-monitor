@@ -33,7 +33,7 @@ Format and conventions: [README.md](README.md).
 | Presentation (middleware)     | 15    |
 | Infrastructure                | 12    |
 | Domain (value object)         | 4     |
-| Application                   | 21    |
+| Application                   | 22    |
 | Presentation                  | 5     |
 | Domain (permission table)     | 2     |
 | Domain (aggregate)            | 8     |
@@ -1060,7 +1060,7 @@ the process is up — no version, no database state, no dependency detail.
 | Endpoint                               | What it does                                        |
 | -------------------------------------- | --------------------------------------------------- |
 | `GET /api/users`                       | list accounts, oldest first                         |
-| `POST /api/users`                      | create an account (`ADMIN`, `OPERATOR` or `VIEWER`) |
+| `POST /api/users`                      | create or invite an account (`IDN-184`)             |
 | `PATCH /api/users/:id`                 | change `role`, `disabled` and/or `password`         |
 | `POST /api/users/:id/two-factor/reset` | reset two-factor sign-in (`IDN-172`)                |
 
@@ -1508,7 +1508,8 @@ unexpected reset is noticed the same day.
 
 The install emails the people who use it about their own accounts, through
 any SMTP server. `IDN-180` is the mail server; `IDN-181` is the warning of a
-new sign-in; `IDN-182` and `IDN-183` are the forgotten password.
+new sign-in; `IDN-182` and `IDN-183` are the forgotten password; `IDN-184`
+is the invitation.
 
 ### IDN-180 — Email goes through the install's SMTP server, when it has one
 
@@ -1620,3 +1621,44 @@ account.
 `tests/infrastructure/identity/services/JwtTokenService.test.ts`,
 `tests/integration/use-cases/identity/ResetPasswordUseCase.integration.test.ts`,
 `tests/integration/auth.routes.test.ts`
+
+### IDN-184 — A new account can be an invitation to choose a password
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+`POST /api/users` without a `password` invites the person. The account is
+created with the hash of a random password nobody is told, and its address
+gets an email, in Spanish, with a link to
+`<APP_PUBLIC_URL>/accept-invitation#token=<token>`. The token is of its own
+kind, lasts seven days and is bound to the token version, so
+`POST /api/auth/password/reset` accepts it once, exactly like a reset link
+(`IDN-183`). After seven days the person uses the forgotten-password link
+instead (`IDN-182`).
+
+The email is sent before the account is saved, and the request waits for it.
+If it cannot be sent — no `APP_PUBLIC_URL`, no mail server (`IDN-180`), or the
+server refused — the answer is `503` and nothing is created. An address that
+already has an account gets no email (`IDN-004`).
+
+With a `password`, the account is created with it, as before.
+
+**Why:** A password typed by an administrator passes through the
+administrator, and usually through a chat message, before it reaches its
+owner. An invitation lets the owner choose it, and nobody else ever knows it.
+Waiting for the email is affordable here, unlike at sign-in, and it means an
+administrator is told at once when the invitation did not go out, instead of
+leaving behind an account nobody can open.
+
+**Enforced at:** `src/application/identity/use-cases/CreateUserUseCase.ts`,
+`src/application/identity/use-cases/ResetPasswordUseCase.ts`,
+`src/infrastructure/identity/services/BcryptPasswordService.ts` (`unusableHash`),
+`src/infrastructure/identity/services/JwtTokenService.ts` (`LIFETIMES`)
+**Message:** `The invitation email could not be sent. Try again, or set a password instead.`
+**Tests:** `tests/application/identity/use-cases/CreateUserUseCase.test.ts`,
+`tests/application/identity/use-cases/ResetPasswordUseCase.test.ts`,
+`tests/infrastructure/identity/services/BcryptPasswordService.test.ts`,
+`tests/infrastructure/identity/services/JwtTokenService.test.ts`,
+`tests/integration/use-cases/identity/CreateUserUseCase.integration.test.ts`,
+`tests/integration/user.routes.test.ts`

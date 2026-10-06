@@ -159,6 +159,23 @@ describe('User Routes — /api/users', () => {
       ).resolves.toEqual(expect.any(String));
     });
 
+    it('[IDN-184] 503 — an invitation that cannot be emailed creates nothing', async () => {
+      const res = await create({
+        email: 'invited@isp.example',
+        role: 'VIEWER'
+      });
+
+      expect(res.status).toBe(503);
+      expect(res.body.error).toBe(
+        'The invitation email could not be sent. Try again, or set a password instead.'
+      );
+      expect(
+        await prisma.user.count({
+          where: { email: 'invited@isp.example' }
+        })
+      ).toBe(0);
+    });
+
     it('[IDN-004] 409 — the email is taken', async () => {
       await staff('taken@isp.example');
 

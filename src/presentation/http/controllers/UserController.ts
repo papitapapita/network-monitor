@@ -6,6 +6,7 @@ import { setSessionCookies } from '../middleware/sessionCookies';
 import {
   ListUsersUseCase,
   CreateUserUseCase,
+  INVITATION_NOT_SENT,
   UpdateUserUseCase,
   ChangeOwnPasswordUseCase,
   ResetTwoFactorUseCase,
@@ -34,7 +35,7 @@ export class UserController {
     this.run(res, 201, () =>
       this.createUserUseCase.execute({
         email: req.body.email,
-        password: req.body.password,
+        password: req.body.password ?? null,
         role: req.body.role
       })
     );
@@ -111,6 +112,7 @@ export class UserController {
       return 403;
     }
     if (errorMessage === TWO_FACTOR_OFF) return 409;
+    if (errorMessage === INVITATION_NOT_SENT) return 503;
     if (errorMessage.includes('not found')) return 404;
     if (errorMessage.includes('already exists')) return 409;
     if (

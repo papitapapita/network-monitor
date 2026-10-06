@@ -277,6 +277,7 @@ to the password screen.
 
 > Signs nobody in: send the person to the login page. Every session of the
 > account ends, and two-factor stays on (IDN-183).
+> Also accepts an invitation's token (IDN-184).
 >
 > | Status | `error`                                    | When                                                              |
 > | ------ | ------------------------------------------ | ----------------------------------------------------------------- |
@@ -5193,14 +5194,14 @@ interface UserAccountDTO {
 
 ### `POST /api/users` — Create
 
-**Status:** 201 | 400 | 401 | 403 | 409  
+**Status:** 201 | 400 | 401 | 403 | 409 | 503  
 **Roles:** ADMIN (`manage-users`)
 
 ```ts
 // Request body
 {
   email: string; // stored lowercase; unique
-  password: string; // 12–200 chars (8 before 2026-10-05)
+  password?: string; // 12–200 chars; leave out to invite (IDN-184)
   role: 'ADMIN' | 'OPERATOR' | 'VIEWER'; // VENDOR is refused (400)
 }
 
@@ -5209,6 +5210,15 @@ interface UserAccountDTO {
 ```
 
 > `409` when the email is taken (case-insensitive).
+>
+> Without `password`, the person gets an email with a seven-day link to
+> `<APP_PUBLIC_URL>/accept-invitation#token=<token>` and chooses their own
+> (IDN-184). That page works like `/reset-password`: read the token from
+> `location.hash` and call `POST /api/auth/password/reset`. Prefer this to
+> typing a password for someone. `503` with
+> `The invitation email could not be sent. Try again, or set a password instead.`
+> when email or `APP_PUBLIC_URL` is not set up, or the mail server refused;
+> nothing is created then.
 
 ---
 

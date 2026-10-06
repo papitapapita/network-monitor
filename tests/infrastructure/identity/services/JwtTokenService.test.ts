@@ -88,6 +88,17 @@ describe('JwtTokenService', () => {
     expect(tokens.verify(token).isFailure).toBe(true);
   });
 
+  it('[IDN-184] an invitation lasts seven days', () => {
+    const token = tokens.signChallenge({
+      userId: 'u-1',
+      tokenVersion: 0,
+      kind: 'invitation'
+    });
+    const { iat, exp } = jwt.decode(token) as jwt.JwtPayload;
+
+    expect(exp! - iat!).toBe(7 * 24 * 60 * 60);
+  });
+
   it('[IDN-171] a remembered browser is neither a session nor a challenge', () => {
     const token = tokens.signChallenge({
       userId: 'u-1',

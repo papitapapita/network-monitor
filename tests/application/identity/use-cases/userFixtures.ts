@@ -50,6 +50,7 @@ export function makePasswordService(): jest.Mocked<IPasswordService> {
       async (plain: string, hash: string) =>
         hash === `hashed:${plain}` ||
         (hash === '$2b$10$existing' && plain === 'current-pass')
-    )
+    ),
+    unusableHash: jest.fn(async () => 'hashed:unusable')
   };
 }

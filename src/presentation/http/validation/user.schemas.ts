@@ -14,7 +14,8 @@ const password = z
 export const createUserSchema = z.object({
   body: z.object({
     email: z.string().trim().min(1, 'email is required').max(255),
-    password,
+    // Left out, the person is invited to choose one (IDN-184).
+    password: password.optional(),
     role: staffRole
   })
 });

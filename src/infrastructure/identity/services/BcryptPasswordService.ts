@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import bcrypt from 'bcrypt';
 import { IPasswordService } from 'application/identity/interfaces/IPasswordService';
 
@@ -13,5 +14,9 @@ export class BcryptPasswordService implements IPasswordService {
     hash: string
   ): Promise<boolean> {
     return bcrypt.compare(plain, hash);
+  }
+
+  public async unusableHash(): Promise<string> {
+    return bcrypt.hash(randomBytes(32).toString('base64'), COST);
   }
 }

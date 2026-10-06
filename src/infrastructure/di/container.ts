@@ -1015,6 +1015,7 @@ export class DependencyContainer {
     const emailSender: IEmailSender = smtpConfig
       ? new SmtpEmailSender(smtpConfig)
       : new UnconfiguredEmailSender(this.logger);
+    const accountLinksUrl = loadAppPublicUrl(process.env);
     const newSignInWarning = new NewSignInWarning(
       emailSender,
       this.logger
@@ -1039,6 +1040,9 @@ export class DependencyContainer {
       new CreateUserUseCase(
         userRepository,
         bcryptPasswordService,
+        jwtTokenService,
+        emailSender,
+        accountLinksUrl,
         this.logger
       ),
       new UpdateUserUseCase(
@@ -1086,7 +1090,7 @@ export class DependencyContainer {
         userRepository,
         jwtTokenService,
         emailSender,
-        loadAppPublicUrl(process.env),
+        accountLinksUrl,
         this.logger
       ),
       new ResetPasswordUseCase(

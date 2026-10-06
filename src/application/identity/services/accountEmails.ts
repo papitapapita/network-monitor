@@ -59,3 +59,25 @@ export function passwordResetEmail(
     ].join('\n')
   };
 }
+
+// IDN-184.
+export function invitationEmail(
+  to: string,
+  link: string
+): EmailMessage {
+  return {
+    to,
+    subject: 'Su cuenta está lista',
+    text: [
+      'Hola,',
+      '',
+      `Un administrador creó una cuenta para usted con el correo ${to}. Para elegir su contraseña, abra este enlace:`,
+      '',
+      link,
+      '',
+      'El enlace vence en siete días y sirve una sola vez. Si vence, use "Olvidé mi contraseña" en la página de inicio de sesión.',
+      '',
+      'En su primer inicio de sesión configurará la verificación en dos pasos con una app de códigos, como Google Authenticator o Microsoft Authenticator.'
+    ].join('\n')
+  };
+}

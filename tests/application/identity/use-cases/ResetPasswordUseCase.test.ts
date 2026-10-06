@@ -22,7 +22,8 @@ describe('[IDN-183] ResetPasswordUseCase', () => {
     const repo = makeUserRepo([user]);
     const passwords: jest.Mocked<IPasswordService> = {
       hash: jest.fn(async (p: string) => `hash:${p}`),
-      compare: jest.fn()
+      compare: jest.fn(),
+      unusableHash: jest.fn()
     };
     const useCase = new ResetPasswordUseCase(
       repo,
@@ -69,6 +70,15 @@ describe('[IDN-183] ResetPasswordUseCase', () => {
     await reset();
 
     expect(user.isSignInPaused(new Date())).toBe(false);
+  });
+
+  it('[IDN-184] accepts an invitation, once', async () => {
+    const user = makeUser();
+    const { reset } = build(user);
+    const token = challengeFor(user, 'invitation');
+
+    expect((await reset(token)).isSuccess).toBe(true);
+    expect((await reset(token)).error).toBe(RESET_LINK_EXPIRED);
   });
 
   it('refuses another kind of token', async () => {

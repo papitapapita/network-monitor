@@ -46,7 +46,8 @@ function makeUserRepo(
 function makePasswordService(): jest.Mocked<IPasswordService> {
   return {
     hash: jest.fn(async (plain: string) => `hashed:${plain}`),
-    compare: jest.fn()
+    compare: jest.fn(),
+    unusableHash: jest.fn()
   };
 }
 

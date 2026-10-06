@@ -19,7 +19,8 @@ export interface ListUsersResponseDTO {
 
 export interface CreateUserRequestDTO {
   email: string;
-  password: string;
+  // null invites the person to choose their own (IDN-184).
+  password: string | null;
   role: string;
 }
 
