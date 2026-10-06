@@ -12,7 +12,8 @@ import { UpdateCustomerUseCase } from '../../../../src/application/customers/use
 import { ICustomerRepository } from '../../../../src/domain/customers/repository';
 import {
   Customer,
-  PhoneNumber
+  PhoneNumber,
+  PaymentDay
 } from '../../../../src/domain/customers';
 import { CustomerId } from '../../../../src/domain/shared/ids';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
@@ -58,6 +59,7 @@ function makeCustomer(): Customer {
     phone: PhoneNumber.reconstitute('3001234567'),
     email: null,
     cedula: null,
+    paymentDay: PaymentDay.reconstitute(30),
     createdAt: NOW,
     updatedAt: NOW
   });
@@ -110,6 +112,7 @@ describe('UpdateCustomerUseCase', () => {
       phone: PhoneNumber.reconstitute('3009999999'),
       email: null,
       cedula: null,
+      paymentDay: PaymentDay.reconstitute(30),
       createdAt: NOW,
       updatedAt: NOW
     });
@@ -142,5 +145,24 @@ describe('UpdateCustomerUseCase', () => {
     });
     expect(result.isSuccess).toBe(true);
     expect(result.value.email).toBeNull();
+  });
+
+  it('should move the customer to the 15th group', async () => {
+    const result = await useCase.execute({
+      id: VALID_UUID,
+      paymentDay: 15
+    });
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.paymentDay).toBe(15);
+  });
+
+  it('should reject a payment day outside 15 and 30', async () => {
+    const result = await useCase.execute({
+      id: VALID_UUID,
+      paymentDay: 31
+    });
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toBe('Payment day must be one of 15, 30');
+    expect(repo.save).not.toHaveBeenCalled();
   });
 });

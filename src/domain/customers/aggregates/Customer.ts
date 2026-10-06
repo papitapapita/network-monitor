@@ -1,6 +1,11 @@
 import { AggregateRoot, Result, Guard } from 'domain/shared/core';
 import { CustomerId } from 'domain/shared/ids';
-import { PhoneNumber, Cedula, EmailAddress } from '../value-objects';
+import {
+  PhoneNumber,
+  Cedula,
+  EmailAddress,
+  PaymentDay
+} from '../value-objects';
 import { CustomerProps } from '../props';
 import {
   CustomerCreatedEvent,
@@ -33,6 +38,10 @@ export class Customer extends AggregateRoot<
     return this.props.cedula;
   }
 
+  get paymentDay(): PaymentDay {
+    return this.props.paymentDay;
+  }
+
   get createdAt(): Date {
     return this.props.createdAt;
   }
@@ -49,10 +58,10 @@ export class Customer extends AggregateRoot<
       return Result.fail<Customer>(nameResult.error);
     }
 
-    const guardResult = Guard.againstNullOrUndefined(
-      props.phone,
-      'phone'
-    );
+    const guardResult = Guard.combine([
+      Guard.againstNullOrUndefined(props.phone, 'phone'),
+      Guard.againstNullOrUndefined(props.paymentDay, 'paymentDay')
+    ]);
     if (!guardResult.succeeded) {
       return Result.fail<Customer>(guardResult.message!);
     }
@@ -154,6 +163,24 @@ export class Customer extends AggregateRoot<
 
     this.props.cedula = newCedula;
     this.emitUpdated(['cedula']);
+    return Result.ok<void>();
+  }
+
+  public changePaymentDay(newPaymentDay: PaymentDay): Result<void> {
+    const guardResult = Guard.againstNullOrUndefined(
+      newPaymentDay,
+      'paymentDay'
+    );
+    if (!guardResult.succeeded) {
+      return Result.fail<void>(guardResult.message!);
+    }
+
+    if (this.props.paymentDay.equals(newPaymentDay)) {
+      return Result.ok<void>();
+    }
+
+    this.props.paymentDay = newPaymentDay;
+    this.emitUpdated(['paymentDay']);
     return Result.ok<void>();
   }
 

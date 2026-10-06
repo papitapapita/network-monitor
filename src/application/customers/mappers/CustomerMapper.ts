@@ -16,6 +16,7 @@ export class CustomerMapper {
         customer.email !== null ? customer.email.toString() : null,
       cedula:
         customer.cedula !== null ? customer.cedula.toString() : null,
+      paymentDay: customer.paymentDay.value,
       createdAt: customer.createdAt.toISOString(),
       updatedAt: customer.updatedAt.toISOString()
     };
@@ -41,7 +42,8 @@ export class CustomerMapper {
       fullName: dto.fullName,
       phone: dto.phone,
       email: dto.email ?? null,
-      cedula: dto.cedula ?? null
+      cedula: dto.cedula ?? null,
+      paymentDay: dto.paymentDay ?? null
     };
   }
 
@@ -51,11 +53,14 @@ export class CustomerMapper {
       phone?: string;
       email?: string | null;
       cedula?: string | null;
+      paymentDay?: number;
     } = {};
     if (dto.fullName !== undefined) updates.fullName = dto.fullName;
     if (dto.phone !== undefined) updates.phone = dto.phone;
     if (dto.email !== undefined) updates.email = dto.email;
     if (dto.cedula !== undefined) updates.cedula = dto.cedula;
+    if (dto.paymentDay !== undefined)
+      updates.paymentDay = dto.paymentDay;
     return updates;
   }
 }

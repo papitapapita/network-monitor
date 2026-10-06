@@ -3087,6 +3087,7 @@ interface CustomerDTO {
   phone: string;
   email: string | null;
   cedula: string | null;
+  paymentDay: 15 | 30; // the day of the month the bill is due (CUS-024)
   createdAt: string; // ISO 8601
   updatedAt: string;
 }
@@ -3103,6 +3104,7 @@ interface CustomerDTO {
   phone: string            // required, 7–20 chars, digits/spaces/()/.-/+ allowed
   email?: string | null    // max 255 chars, valid email format
   cedula?: string | null   // 6–15 chars, digits/dots/spaces
+  paymentDay?: number      // 15 or 30, default 30 (CUS-024, CUS-025)
 }
 
 // Response
@@ -3157,6 +3159,7 @@ offset?: number  // ≥0, default 0
   phone?: string
   email?: string | null
   cedula?: string | null
+  paymentDay?: number      // 15 or 30
 }
 
 // Response

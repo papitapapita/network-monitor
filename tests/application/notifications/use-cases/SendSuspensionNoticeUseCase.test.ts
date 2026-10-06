@@ -8,6 +8,7 @@ import { ContractedService } from '../../../../src/domain/customers/aggregates/C
 import { Customer } from '../../../../src/domain/customers/aggregates/Customer';
 import { ContractedServiceStatus } from '../../../../src/domain/customers/enums/ContractedServiceStatus';
 import { PhoneNumber } from '../../../../src/domain/customers/value-objects/PhoneNumber';
+import { PaymentDay } from '../../../../src/domain/customers/value-objects/PaymentDay';
 import { ContractedServiceId } from '../../../../src/domain/shared/ids/ContractedServiceId';
 import { CustomerId } from '../../../../src/domain/shared/ids/CustomerId';
 import { ServicePlanId } from '../../../../src/domain/shared/ids/ServicePlanId';
@@ -87,6 +88,7 @@ function makeCustomer(): Customer {
       phone: PhoneNumber.reconstitute('+573001234567'),
       email: null,
       cedula: null,
+      paymentDay: PaymentDay.reconstitute(30),
       createdAt: NOW,
       updatedAt: NOW
     }

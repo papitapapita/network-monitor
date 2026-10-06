@@ -230,6 +230,7 @@ export async function seedCustomer(
     phone?: string;
     email?: string | null;
     cedula?: string | null;
+    paymentDay?: number;
   } = {}
 ): Promise<string> {
   const phone = overrides.phone ?? '3001234567';
@@ -240,7 +241,8 @@ export async function seedCustomer(
       fullName: overrides.fullName ?? 'Test Customer',
       phone,
       email: overrides.email ?? null,
-      cedula: overrides.cedula ?? null
+      cedula: overrides.cedula ?? null,
+      paymentDay: overrides.paymentDay
     }
   });
   return customer.id;

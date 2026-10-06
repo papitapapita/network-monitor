@@ -5,6 +5,7 @@ import { CustomerPrismaMapper } from '../../../../src/infrastructure/customers/m
 import {
   Customer,
   PhoneNumber,
+  PaymentDay,
   Cedula,
   EmailAddress
 } from '../../../../src/domain/customers';
@@ -20,6 +21,7 @@ function makeRaw(overrides: Record<string, unknown> = {}) {
     phone: '3001234567',
     email: 'juan@example.com',
     cedula: '1036612',
+    paymentDay: 30,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides
@@ -32,6 +34,7 @@ function makeCustomer() {
     phone: PhoneNumber.reconstitute('3001234567'),
     email: EmailAddress.reconstitute('juan@example.com'),
     cedula: Cedula.reconstitute('1036612'),
+    paymentDay: PaymentDay.reconstitute(30),
     createdAt: NOW,
     updatedAt: NOW
   });
@@ -46,6 +49,7 @@ describe('CustomerPrismaMapper', () => {
       expect(result.value.phone.value).toBe('3001234567');
       expect(result.value.email?.value).toBe('juan@example.com');
       expect(result.value.cedula?.value).toBe('1036612');
+      expect(result.value.paymentDay.value).toBe(30);
     });
 
     it('should map null email and cedula', () => {
@@ -73,6 +77,7 @@ describe('CustomerPrismaMapper', () => {
         phone: '3001234567',
         email: 'juan@example.com',
         cedula: '1036612',
+        paymentDay: 30,
         createdAt: NOW,
         updatedAt: NOW
       });

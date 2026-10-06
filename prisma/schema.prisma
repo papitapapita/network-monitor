@@ -612,13 +612,15 @@ enum ContractedServiceStatus {
 }
 
 model Customer {
-  id        String   @id @default(uuid()) @db.Uuid
-  fullName  String   @map("full_name") @db.VarChar(150)
-  phone     String   @unique @db.VarChar(20)
-  email     String?  @unique @db.VarChar(255)
-  cedula    String?  @unique @db.VarChar(20)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  id         String   @id @default(uuid()) @db.Uuid
+  fullName   String   @map("full_name") @db.VarChar(150)
+  phone      String   @unique @db.VarChar(20)
+  email      String?  @unique @db.VarChar(255)
+  cedula     String?  @unique @db.VarChar(20)
+  /// 15 or 30: the day of the month the bill is due (CUS-024).
+  paymentDay Int      @default(30) @map("payment_day") @db.SmallInt
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   contractedServices ContractedService[]
   bills              Bill[]

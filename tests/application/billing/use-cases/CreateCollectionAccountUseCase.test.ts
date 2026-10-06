@@ -15,7 +15,8 @@ import { Customer } from '../../../../src/domain/customers/aggregates';
 import {
   Cedula,
   EmailAddress,
-  PhoneNumber
+  PhoneNumber,
+  PaymentDay
 } from '../../../../src/domain/customers/value-objects';
 import { CustomerId } from '../../../../src/domain/shared/ids';
 import { Result } from '../../../../src/domain/shared/core/Result';
@@ -45,6 +46,7 @@ function makeCustomer(
       phone: PhoneNumber.reconstitute('3001234567'),
       email: EmailAddress.reconstitute('juan@example.com'),
       cedula: cedula !== null ? Cedula.reconstitute(cedula) : null,
+      paymentDay: PaymentDay.reconstitute(30),
       createdAt: NOW,
       updatedAt: NOW
     }

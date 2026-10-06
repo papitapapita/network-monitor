@@ -19,7 +19,10 @@ import {
 } from '../../../../src/domain/billing';
 import { ICustomerRepository } from '../../../../src/domain/customers/repository';
 import { Customer } from '../../../../src/domain/customers/aggregates';
-import { PhoneNumber } from '../../../../src/domain/customers/value-objects';
+import {
+  PhoneNumber,
+  PaymentDay
+} from '../../../../src/domain/customers/value-objects';
 import {
   BillId,
   CustomerId,
@@ -64,6 +67,7 @@ function makeCustomer(): Customer {
       phone: PhoneNumber.reconstitute('3001234567'),
       email: null,
       cedula: null,
+      paymentDay: PaymentDay.reconstitute(30),
       createdAt: NOW,
       updatedAt: NOW
     }

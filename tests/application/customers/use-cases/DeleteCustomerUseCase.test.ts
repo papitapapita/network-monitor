@@ -16,6 +16,7 @@ import {
 import {
   Customer,
   PhoneNumber,
+  PaymentDay,
   ContractedService
 } from '../../../../src/domain/customers';
 import {
@@ -80,6 +81,7 @@ function makeCustomer(): Customer {
     phone: PhoneNumber.reconstitute('3001234567'),
     email: null,
     cedula: null,
+    paymentDay: PaymentDay.reconstitute(30),
     createdAt: NOW,
     updatedAt: NOW
   });

@@ -2,7 +2,8 @@ import {
   Customer,
   PhoneNumber,
   Cedula,
-  EmailAddress
+  EmailAddress,
+  PaymentDay
 } from 'domain/customers';
 import { ICustomerRepository } from 'domain/customers/repository';
 import { Result } from 'domain/shared/core';
@@ -65,6 +66,15 @@ export class CreateCustomerUseCase extends UseCase<
       cedula = cedulaResult.value;
     }
 
+    let paymentDay = PaymentDay.default();
+    if (data.paymentDay !== null) {
+      const paymentDayResult = PaymentDay.create(data.paymentDay);
+      if (paymentDayResult.isFailure) {
+        return this.fail(paymentDayResult.error!);
+      }
+      paymentDay = paymentDayResult.value;
+    }
+
     const uniqueCheck = await this.ensureUnique(
       phoneResult.value,
       email,
@@ -78,7 +88,8 @@ export class CreateCustomerUseCase extends UseCase<
       fullName: data.fullName.trim(),
       phone: phoneResult.value,
       email,
-      cedula
+      cedula,
+      paymentDay
     });
     if (customerResult.isFailure) {
       return this.fail(customerResult.error!);

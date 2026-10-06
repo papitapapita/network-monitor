@@ -23,8 +23,8 @@ Format and conventions: [README.md](README.md).
 | Layer                              | Rules |
 | ---------------------------------- | ----- |
 | Domain (aggregate)                 | 32    |
-| Domain (value object)              | 9     |
-| Application                        | 9     |
+| Domain (value object)              | 10    |
+| Application                        | 10    |
 | Application + database constraint  | 7     |
 | Presentation                       | 3     |
 | Presentation + Application         | 1     |
@@ -409,7 +409,7 @@ the whole record on every save would otherwise make both meaningless.
 **Enforced at:** `src/domain/customers/aggregates/Customer.ts`,
 `src/domain/customers/aggregates/ServicePlan.ts`
 **Reached from:** `rename`, `changePhone`, `changeEmail`, `changeCedula`,
-`updatePricing`, `updateBandwidth`, `updateDescription`, `activate`, `deactivate`
+`changePaymentDay`, `updatePricing`, `updateBandwidth`, `updateDescription`, `activate`, `deactivate`
 **Tests:** `tests/domain/customers/aggregates/Customer.test.ts`,
 `tests/domain/customers/aggregates/ServicePlan.test.ts`
 
@@ -427,6 +427,48 @@ diff the aggregate to find out whether one happened. The same shape is used by
 
 **Enforced at:** `src/domain/customers/aggregates/Customer.ts` (`emitUpdated`)
 **Tests:** `tests/domain/customers/aggregates/Customer.test.ts`
+
+### CUS-024 — A customer pays by the 15th or by the 30th
+
+**Type:** Validation · **Status:** Active
+**Layer:** Domain (value object) + database constraint
+**Since:** 2026-10-05
+
+Every customer belongs to one of two collection groups: their bill is due on the
+15th or on the 30th of the month. In February the 30th group pays by the
+month's last day. Billing reads the group to set each bill's due date
+(ADR 0003).
+
+**Why:** Colombian ISPs collect in two waves so the office is not swamped on a
+single day, and a customer picks the wave that matches their payday. Two fixed
+groups keep the reminder and cut-off schedule one rule per group instead of one
+per customer.
+
+**Enforced at:** `src/domain/customers/value-objects/PaymentDay.ts` (`create`)
+**Reached from:** `Customer.create`, `Customer.changePaymentDay`
+**Backed by:** `customers_payment_day_check` in
+`prisma/migrations/20261005120000_customer_payment_day/migration.sql`
+**Message:** `Payment day must be one of 15, 30`
+**Tests:** `tests/domain/customers/value-objects/PaymentDay.test.ts`,
+`tests/domain/customers/aggregates/Customer.test.ts`,
+`tests/integration/use-cases/customers/CreateCustomerUseCase.integration.test.ts`
+
+### CUS-025 — An omitted payment day means the 30th
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application + database default
+**Since:** 2026-10-05
+
+A customer created without a payment day joins the 30th group, and every
+customer that existed before the field did was placed there by the migration.
+
+**Why:** The 30th is the group most customers pay in, and the default keeps
+existing clients of the API working unchanged.
+
+**Enforced at:** `src/application/customers/use-cases/CreateCustomerUseCase.ts`
+**Backed by:** `Customer.paymentDay @default(30)` in `prisma/schema.prisma`
+**Tests:** `tests/application/customers/use-cases/CreateCustomerUseCase.test.ts`,
+`tests/integration/use-cases/customers/CreateCustomerUseCase.integration.test.ts`
 
 ---
 
