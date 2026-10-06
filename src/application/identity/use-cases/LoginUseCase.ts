@@ -6,7 +6,10 @@ import { ILogger } from 'application/shared/interfaces';
 import { LoginRequestDTO } from '../dtos/LoginRequestDTO';
 import { LoginResponseDTO } from '../dtos/LoginResponseDTO';
 import { IPasswordService } from '../interfaces/IPasswordService';
-import { SignInSteps } from '../services/SignInSteps';
+import {
+  SignInSteps,
+  withoutSignInSecrets
+} from '../services/SignInSteps';
 
 export class LoginUseCase extends UseCase<
   LoginRequestDTO,
@@ -22,14 +25,7 @@ export class LoginUseCase extends UseCase<
   }
 
   protected sanitizeForLogging(data: unknown): unknown {
-    if (data && typeof data === 'object' && 'password' in data) {
-      const { password: _omit, ...safe } = data as Record<
-        string,
-        unknown
-      >;
-      return safe;
-    }
-    return data;
+    return withoutSignInSecrets(data);
   }
 
   protected async executeImpl(
@@ -69,6 +65,18 @@ export class LoginUseCase extends UseCase<
         this.logger
       );
       return this.fail('Invalid credentials');
+    }
+
+    if (
+      request.trustedBrowserToken !== null &&
+      this.signInSteps.remembers(user, request.trustedBrowserToken)
+    ) {
+      user.recordSuccessfulSignIn();
+      const saved = await this.userRepository.save(user);
+      if (saved.isFailure) {
+        return this.fail(`Failed to save sign-in: ${saved.error}`);
+      }
+      return this.ok(this.signInSteps.session(user));
     }
 
     // The count is cleared only once the code is right too, so the password

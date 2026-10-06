@@ -55,7 +55,10 @@ import {
   AgentUpdateFailedEvent
 } from 'domain/probe-agents/events';
 import { JwtTokenService } from '../identity/services/JwtTokenService';
-import { UserSignInPausedEvent } from 'domain/identity/events';
+import {
+  UserSignInPausedEvent,
+  UserTwoFactorResetEvent
+} from 'domain/identity/events';
 import { BcryptPasswordService } from '../identity/services/BcryptPasswordService';
 import { PrismaUserRepository } from '../identity/repositories/PrismaUserRepository';
 import {
@@ -88,6 +91,7 @@ import {
   ListUsersUseCase,
   CreateUserUseCase,
   UpdateUserUseCase,
+  ResetTwoFactorUseCase,
   ChangeOwnPasswordUseCase
 } from 'application/identity';
 import { EnsureVendorAccountUseCase } from 'application/identity/use-cases/EnsureVendorAccountUseCase';
@@ -376,6 +380,7 @@ import {
   ContractedServiceSuspendedNotificationHandler,
   AgentWentOfflineNotificationHandler,
   UserSignInPausedNotificationHandler,
+  UserTwoFactorResetNotificationHandler,
   AgentCameBackNotificationHandler,
   AgentClockDriftedNotificationHandler,
   AgentClockCorrectedNotificationHandler,
@@ -1032,6 +1037,7 @@ export class DependencyContainer {
         jwtTokenService,
         this.logger
       ),
+      new ResetTwoFactorUseCase(userRepository, this.logger),
       this.logger
     );
     this.authController = new AuthController(
@@ -2141,6 +2147,13 @@ export class DependencyContainer {
     EventDispatcher.register(
       UserSignInPausedEvent.name,
       new UserSignInPausedNotificationHandler(
+        alertPublisher,
+        this.logger
+      )
+    );
+    EventDispatcher.register(
+      UserTwoFactorResetEvent.name,
+      new UserTwoFactorResetNotificationHandler(
         alertPublisher,
         this.logger
       )

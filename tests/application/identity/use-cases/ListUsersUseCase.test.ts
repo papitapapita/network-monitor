@@ -32,7 +32,7 @@ describe('[IDN-140] ListUsersUseCase', () => {
     expect(await emails('VENDOR')).toContain('vendor@nms.example');
   });
 
-  it('reports status, never the password hash', async () => {
+  it('reports status and two-factor, never the password hash or secret', async () => {
     const useCase = new ListUsersUseCase(
       makeUserRepo([viewer]),
       makeLogger()
@@ -47,6 +47,7 @@ describe('[IDN-140] ListUsersUseCase', () => {
       role: 'VIEWER',
       disabled: true,
       disabledAt: expect.any(String),
+      twoFactorEnabled: false,
       createdAt: '2024-01-01T00:00:00.000Z',
       updatedAt: expect.any(String)
     });

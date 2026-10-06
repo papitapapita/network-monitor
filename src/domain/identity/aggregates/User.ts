@@ -4,6 +4,7 @@ import { UserEmail } from '../value-objects/UserEmail';
 import { UserRole } from '../value-objects/UserRole';
 import { UserProps } from '../props/UserProps';
 import { UserSignInPausedEvent } from '../events/UserSignInPausedEvent';
+import { UserTwoFactorResetEvent } from '../events/UserTwoFactorResetEvent';
 
 // IDN-044: the first few wrong passwords cost nothing; from then on each one
 // pauses sign-in for twice as long as the last, up to a cap. A pause that
@@ -263,12 +264,12 @@ export class User extends AggregateRoot<UserProps, UserId> {
   }
 
   // Ends every session and remembered browser; the person sets two-factor
-  // up again at their next sign-in (IDN-165).
-  public resetTwoFactor(): Result<void> {
+  // up again at their next sign-in (IDN-165, IDN-173).
+  public resetTwoFactor(resetBy: string, now: Date): Result<void> {
     if (this.props.twoFactorSecret === null) {
       return Result.fail<void>(TWO_FACTOR_OFF);
     }
-    return this.apply(
+    const applied = this.apply(
       {
         twoFactorSecret: null,
         twoFactorEnabledAt: null,
@@ -277,6 +278,16 @@ export class User extends AggregateRoot<UserProps, UserId> {
       },
       true
     );
+    if (applied.isFailure) return applied;
+    this.addDomainEvent(
+      new UserTwoFactorResetEvent({
+        aggregateId: this.id,
+        email: this.props.email.toString(),
+        resetBy,
+        dateTimeOccurred: now
+      })
+    );
+    return applied;
   }
 
   public static reconstitute(id: UserId, props: UserProps): User {

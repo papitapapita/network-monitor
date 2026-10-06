@@ -65,6 +65,30 @@ describe('JwtTokenService', () => {
     expect(exp! - iat!).toBe(300);
   });
 
+  it('[IDN-171] a remembered browser lasts 30 days', () => {
+    const token = tokens.signChallenge({
+      userId: 'u-1',
+      tokenVersion: 0,
+      kind: 'trusted-browser'
+    });
+    const { iat, exp } = jwt.decode(token) as jwt.JwtPayload;
+
+    expect(exp! - iat!).toBe(30 * 24 * 60 * 60);
+  });
+
+  it('[IDN-171] a remembered browser is neither a session nor a challenge', () => {
+    const token = tokens.signChallenge({
+      userId: 'u-1',
+      tokenVersion: 0,
+      kind: 'trusted-browser'
+    });
+
+    expect(tokens.verify(token).isFailure).toBe(true);
+    expect(
+      tokens.verifyChallenge(token, 'two-factor').isFailure
+    ).toBe(true);
+  });
+
   it('refuses a challenge signed with another secret', () => {
     const forged = jwt.sign(challenge, 'other-secret');
 

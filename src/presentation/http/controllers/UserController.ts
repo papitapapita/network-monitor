@@ -1,11 +1,14 @@
 import { Request, Response } from 'express';
 import { ILogger } from 'application/shared/interfaces';
 import { Result } from 'domain/shared/core';
+import { TWO_FACTOR_OFF } from 'domain/identity';
 import {
   ListUsersUseCase,
   CreateUserUseCase,
   UpdateUserUseCase,
   ChangeOwnPasswordUseCase,
+  ResetTwoFactorUseCase,
+  ADMIN_RESET_NEEDS_VENDOR,
   OWN_ACCOUNT_REFUSED,
   VENDOR_ACCOUNT_PROTECTED,
   WRONG_CURRENT_PASSWORD
@@ -17,6 +20,7 @@ export class UserController {
     private readonly createUserUseCase: CreateUserUseCase,
     private readonly updateUserUseCase: UpdateUserUseCase,
     private readonly changeOwnPasswordUseCase: ChangeOwnPasswordUseCase,
+    private readonly resetTwoFactorUseCase: ResetTwoFactorUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -42,6 +46,18 @@ export class UserController {
         role: req.body.role,
         disabled: req.body.disabled,
         password: req.body.password
+      })
+    );
+
+  public resetTwoFactor = (
+    req: Request,
+    res: Response
+  ): Promise<void> =>
+    this.run(res, 200, () =>
+      this.resetTwoFactorUseCase.execute({
+        id: req.params.id,
+        callerRole: req.user!.role,
+        callerEmail: req.user!.email
       })
     );
 
@@ -79,10 +95,12 @@ export class UserController {
   private getErrorStatusCode(errorMessage: string): number {
     if (
       errorMessage === VENDOR_ACCOUNT_PROTECTED ||
-      errorMessage === OWN_ACCOUNT_REFUSED
+      errorMessage === OWN_ACCOUNT_REFUSED ||
+      errorMessage === ADMIN_RESET_NEEDS_VENDOR
     ) {
       return 403;
     }
+    if (errorMessage === TWO_FACTOR_OFF) return 409;
     if (errorMessage.includes('not found')) return 404;
     if (errorMessage.includes('already exists')) return 409;
     if (

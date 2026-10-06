@@ -1,12 +1,16 @@
+import type { SessionResponseDTO } from './TwoFactorDTOs';
+
 export interface UserDTO {
   id: string;
   email: string;
   role: string;
 }
 
-// A right password never signs in on its own: it opens the two-factor step
-// (IDN-166).
-export interface LoginResponseDTO {
+export interface TwoFactorStepDTO {
   twoFactor: 'verify' | 'setup';
   challengeToken: string;
 }
+
+// A right password alone opens the two-factor step (IDN-166); from a
+// remembered browser it signs in (IDN-171).
+export type LoginResponseDTO = TwoFactorStepDTO | SessionResponseDTO;

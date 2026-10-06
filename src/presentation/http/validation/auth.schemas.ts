@@ -6,7 +6,8 @@ export const loginSchema = z.object({
       .string()
       .min(1, 'Email is required')
       .email('Email is not valid'),
-    password: z.string().min(1, 'Password is required')
+    password: z.string().min(1, 'Password is required'),
+    trustedBrowserToken: z.string().min(1).max(2000).optional()
   })
 });
 
@@ -16,8 +17,10 @@ const appCode = z
   .string()
   .regex(/^\d{6}$/, 'Code must be the 6 digits the app shows');
 
+const rememberBrowser = z.boolean().optional();
+
 export const confirmTwoFactorSetupSchema = z.object({
-  body: z.object({ code: appCode })
+  body: z.object({ code: appCode, rememberBrowser })
 });
 
 export type ConfirmTwoFactorSetupInput = z.infer<
@@ -28,7 +31,8 @@ export const verifyTwoFactorSchema = z.object({
   body: z
     .object({
       code: appCode.optional(),
-      recoveryCode: z.string().trim().min(1).max(40).optional()
+      recoveryCode: z.string().trim().min(1).max(40).optional(),
+      rememberBrowser
     })
     .refine(
       (body) =>

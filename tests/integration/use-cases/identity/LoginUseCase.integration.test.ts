@@ -2,6 +2,9 @@ import bcrypt from 'bcrypt';
 import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { LoginUseCase } from 'application/identity/use-cases/LoginUseCase';
 import { SIGN_IN_PAUSED } from 'domain/identity';
+import { TwoFactorStepDTO } from 'application/identity/dtos/LoginResponseDTO';
+import { SessionResponseDTO } from 'application/identity/dtos/TwoFactorDTOs';
+import { CredentialsEncryption } from 'infrastructure/crypto';
 import {
   setupDependencies,
   DependencyContainer
@@ -16,12 +19,13 @@ describe('LoginUseCase — integration', () => {
   let container: DependencyContainer;
   let prisma: PrismaClient;
   let useCase: LoginUseCase;
+  let adapters: ReturnType<typeof makeAdapters>;
 
   beforeAll(async () => {
     container = await setupDependencies();
     prisma = container.getPrisma();
-    const { users, passwords, signInSteps, logger } =
-      makeAdapters(prisma);
+    adapters = makeAdapters(prisma);
+    const { users, passwords, signInSteps, logger } = adapters;
     useCase = new LoginUseCase(users, passwords, signInSteps, logger);
   });
 
@@ -40,10 +44,14 @@ describe('LoginUseCase — integration', () => {
     });
   });
 
-  const signIn = (password: string) =>
+  const signIn = (
+    password: string,
+    trustedBrowserToken: string | null = null
+  ) =>
     useCase.execute({
       email: EMAIL,
       password,
+      trustedBrowserToken,
       sourceIp: '203.0.113.7'
     });
 
@@ -53,7 +61,58 @@ describe('LoginUseCase — integration', () => {
   it('[IDN-166] the right password opens two-factor setup', async () => {
     const result = await signIn(PASSWORD);
 
-    expect(result.value.twoFactor).toBe('setup');
+    expect((result.value as TwoFactorStepDTO).twoFactor).toBe(
+      'setup'
+    );
+  });
+
+  describe('remembered browser', () => {
+    beforeEach(async () => {
+      await prisma.user.update({
+        where: { email: EMAIL },
+        data: {
+          twoFactorSecret: CredentialsEncryption.encrypt('SECRET'),
+          twoFactorEnabledAt: new Date()
+        }
+      });
+    });
+
+    const remembered = async () =>
+      adapters.tokens.signChallenge({
+        userId: (await row()).id,
+        tokenVersion: (await row()).tokenVersion,
+        kind: 'trusted-browser'
+      });
+
+    it('[IDN-171] signs in without a code', async () => {
+      const result = await signIn(PASSWORD, await remembered());
+
+      expect((result.value as SessionResponseDTO).token).toEqual(
+        expect.any(String)
+      );
+    });
+
+    it("[IDN-171] is forgotten once the account's sessions end", async () => {
+      const token = await remembered();
+      await prisma.user.update({
+        where: { email: EMAIL },
+        data: { tokenVersion: { increment: 1 } }
+      });
+
+      const result = await signIn(PASSWORD, token);
+
+      expect((result.value as TwoFactorStepDTO).twoFactor).toBe(
+        'verify'
+      );
+    });
+
+    it('[IDN-171] clears the stored failure count', async () => {
+      await signIn('wrong');
+
+      await signIn(PASSWORD, await remembered());
+
+      expect((await row()).failedSignIns).toBe(0);
+    });
   });
 
   it('[IDN-044] the right password leaves the count for the code to clear', async () => {

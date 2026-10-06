@@ -65,8 +65,11 @@ export class SignInSteps {
     return Result.ok(user);
   }
 
-  public session(user: User): SessionResponseDTO {
-    return {
+  public session(
+    user: User,
+    rememberBrowser = false
+  ): SessionResponseDTO {
+    const session: SessionResponseDTO = {
       token: this.tokenService.sign({
         userId: user.id.toString(),
         email: user.email.toString(),
@@ -75,6 +78,29 @@ export class SignInSteps {
       }),
       user: UserMapper.toDTO(user)
     };
+    if (rememberBrowser) {
+      session.trustedBrowserToken = this.tokenService.signChallenge({
+        userId: user.id.toString(),
+        tokenVersion: user.tokenVersion,
+        kind: 'trusted-browser'
+      });
+    }
+    return session;
+  }
+
+  // Bound to the token version, so whatever ends the account's sessions
+  // forgets its browsers too (IDN-171).
+  public remembers(user: User, trustedBrowserToken: string): boolean {
+    if (!user.hasTwoFactor) return false;
+    const verified = this.tokenService.verifyChallenge(
+      trustedBrowserToken,
+      'trusted-browser'
+    );
+    return (
+      verified.isSuccess &&
+      verified.value.userId === user.id.toString() &&
+      verified.value.tokenVersion === user.tokenVersion
+    );
   }
 
   // A wrong code counts like a wrong password (IDN-044). A counter that fails
@@ -100,7 +126,18 @@ export class SignInSteps {
   }
 }
 
-const SECRET_FIELDS = ['challengeToken', 'code', 'recoveryCode'];
+// Kept out of the requests and answers the base UseCase logs.
+const SECRET_FIELDS = [
+  'password',
+  'challengeToken',
+  'code',
+  'recoveryCode',
+  'trustedBrowserToken',
+  'token',
+  'recoveryCodes',
+  'secret',
+  'otpauthUri'
+];
 
 export function withoutSignInSecrets(data: unknown): unknown {
   if (!data || typeof data !== 'object') return data;

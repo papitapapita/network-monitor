@@ -43,10 +43,11 @@ describe('[IDN-169] ConfirmTwoFactorSetupUseCase', () => {
       makeCipher(),
       makeLogger()
     );
-    const confirm = (code = GOOD_CODE) =>
+    const confirm = (code = GOOD_CODE, rememberBrowser = false) =>
       useCase.execute({
         challengeToken: challengeFor(user, 'two-factor-setup'),
         code,
+        rememberBrowser,
         sourceIp: '203.0.113.7'
       });
     return { user, repo, tokens, codes, confirm };
@@ -147,6 +148,7 @@ describe('[IDN-169] ConfirmTwoFactorSetupUseCase', () => {
     const result = await useCase.execute({
       challengeToken: challengeFor(user, 'two-factor'),
       code: GOOD_CODE,
+      rememberBrowser: false,
       sourceIp: null
     });
 
@@ -161,5 +163,23 @@ describe('[IDN-169] ConfirmTwoFactorSetupUseCase', () => {
 
     expect(result.isFailure).toBe(true);
     expect(tokens.sign).not.toHaveBeenCalled();
+  });
+
+  it('[IDN-171] remembers the browser when asked', async () => {
+    const { user, confirm } = build();
+
+    const result = await confirm(GOOD_CODE, true);
+
+    expect(result.value.trustedBrowserToken).toBe(
+      challengeFor(user, 'trusted-browser')
+    );
+  });
+
+  it('[IDN-171] remembers nothing unless asked', async () => {
+    const { confirm } = build();
+
+    const result = await confirm();
+
+    expect(result.value.trustedBrowserToken).toBeUndefined();
   });
 });

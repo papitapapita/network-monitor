@@ -55,6 +55,7 @@ describe('User Routes — /api/users', () => {
         request(app).get(PATH),
         request(app).post(PATH),
         request(app).patch(`${PATH}/${GHOST_ID}`),
+        request(app).post(`${PATH}/${GHOST_ID}/two-factor/reset`),
         request(app).post(`${PATH}/me/password`)
       ]);
 
@@ -79,7 +80,10 @@ describe('User Routes — /api/users', () => {
           request(app)
             .patch(`${PATH}/${GHOST_ID}`)
             .set('Authorization', as(token))
-            .send({ disabled: true })
+            .send({ disabled: true }),
+          request(app)
+            .post(`${PATH}/${GHOST_ID}/two-factor/reset`)
+            .set('Authorization', as(token))
         ]);
 
         for (const res of responses) expect(res.status).toBe(403);
@@ -300,6 +304,101 @@ describe('User Routes — /api/users', () => {
       const { id } = await staff();
 
       expect((await patch(id, body)).status).toBe(400);
+    });
+  });
+
+  describe('[IDN-172] POST /api/users/:id/two-factor/reset', () => {
+    const reset = (id: string, token = adminToken) =>
+      request(app)
+        .post(`${PATH}/${id}/two-factor/reset`)
+        .set('Authorization', as(token));
+
+    it('200 — ends the sessions and the next sign-in sets two-factor up again', async () => {
+      const { id, token } = await staff();
+
+      const res = await reset(id);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.twoFactorEnabled).toBe(false);
+      const stale = await request(app)
+        .get('/api/installation')
+        .set('Authorization', as(token));
+      expect(stale.status).toBe(401);
+      const login = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'staff@isp.example', password: PASSWORD });
+      expect(login.body.data.twoFactor).toBe('setup');
+    });
+
+    it('[IDN-140] the account list shows who has two-factor on', async () => {
+      await staff();
+
+      const res = await request(app)
+        .get(PATH)
+        .set('Authorization', as(adminToken));
+
+      expect(
+        res.body.data.users.every(
+          (u: { twoFactorEnabled: boolean }) => u.twoFactorEnabled
+        )
+      ).toBe(true);
+    });
+
+    it('403 — an administrator cannot reset an administrator', async () => {
+      const { id } = await staff('second-admin@isp.example', 'ADMIN');
+
+      const res = await reset(id);
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe(
+        "Only the vendor can reset an administrator's two-factor sign-in"
+      );
+    });
+
+    it('200 — the vendor resets an administrator', async () => {
+      const vendorToken = await seedAndGetToken(
+        app,
+        prisma,
+        'VENDOR'
+      );
+
+      const res = await reset(
+        await idOf('admin-test@example.local'),
+        vendorToken
+      );
+
+      expect(res.status).toBe(200);
+    });
+
+    it('[IDN-141] 403 — nobody resets the vendor account', async () => {
+      const vendorToken = await seedAndGetToken(
+        app,
+        prisma,
+        'VENDOR'
+      );
+
+      const res = await reset(
+        await idOf('vendor-test@example.local'),
+        vendorToken
+      );
+
+      expect(res.status).toBe(403);
+    });
+
+    it('409 — two-factor was never set up', async () => {
+      await seedUser(prisma, 'new@isp.example', PASSWORD, 'OPERATOR');
+
+      const res = await reset(await idOf('new@isp.example'));
+
+      expect(res.status).toBe(409);
+    });
+
+    it('404 — an unknown user', async () => {
+      expect((await reset(GHOST_ID)).status).toBe(404);
+    });
+
+    it('400 — a malformed id', async () => {
+      expect((await reset('not-a-uuid')).status).toBe(400);
     });
   });
 

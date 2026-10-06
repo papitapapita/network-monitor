@@ -58,6 +58,7 @@ export class AuthController {
       this.loginUseCase.execute({
         email: body.email,
         password: body.password,
+        trustedBrowserToken: body.trustedBrowserToken ?? null,
         sourceIp: req.ip ?? null
       })
     );
@@ -83,6 +84,7 @@ export class AuthController {
       this.confirmTwoFactorSetupUseCase.execute({
         challengeToken: challengeToken(req),
         code: body.code,
+        rememberBrowser: body.rememberBrowser ?? false,
         sourceIp: req.ip ?? null
       })
     );
@@ -98,6 +100,7 @@ export class AuthController {
         challengeToken: challengeToken(req),
         code: body.code ?? null,
         recoveryCode: body.recoveryCode ?? null,
+        rememberBrowser: body.rememberBrowser ?? false,
         sourceIp: req.ip ?? null
       })
     );

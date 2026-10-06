@@ -3,6 +3,8 @@ import { UserDTO } from './LoginResponseDTO';
 export interface SessionResponseDTO {
   token: string;
   user: UserDTO;
+  // Only when the person asked to remember this browser (IDN-171).
+  trustedBrowserToken?: string;
 }
 
 export interface StartTwoFactorSetupRequestDTO {
@@ -18,6 +20,7 @@ export interface StartTwoFactorSetupResponseDTO {
 export interface ConfirmTwoFactorSetupRequestDTO {
   challengeToken: string;
   code: string;
+  rememberBrowser: boolean;
   sourceIp: string | null;
 }
 
@@ -31,5 +34,6 @@ export interface VerifyTwoFactorRequestDTO {
   challengeToken: string;
   code: string | null;
   recoveryCode: string | null;
+  rememberBrowser: boolean;
   sourceIp: string | null;
 }

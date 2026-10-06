@@ -82,7 +82,7 @@ export class ConfirmTwoFactorSetupUseCase extends UseCase<
     }
 
     return this.ok({
-      ...this.signInSteps.session(user),
+      ...this.signInSteps.session(user, request.rememberBrowser),
       recoveryCodes: codes
     });
   }

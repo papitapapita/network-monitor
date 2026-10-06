@@ -32,7 +32,7 @@ Format and conventions: [README.md](README.md).
 | Presentation (middleware)     | 11    |
 | Infrastructure                | 11    |
 | Domain (value object)         | 4     |
-| Application                   | 15    |
+| Application                   | 18    |
 | Presentation                  | 4     |
 | Domain (permission table)     | 2     |
 | Domain (aggregate)            | 8     |
@@ -441,15 +441,18 @@ to wait rather than to doubt their password.
 **Layer:** Application
 **Since:** 2026-08-05
 
-`LoginUseCase` overrides `sanitizeForLogging` to strip `password` from the
-request before the base `UseCase` records it.
+`LoginUseCase` and the two-factor steps strip every sign-in secret before the
+base `UseCase` records the request or its answer: the password, codes,
+recovery codes, the two-factor secret and link, challenges, session tokens and
+remembered-browser tokens (`withoutSignInSecrets`).
 
 **Why:** The base class logs every request it handles, which is what makes the
 audit trail useful — and would put every password in the log file in plaintext.
 Stripping at the use case rather than at the logger keeps the rule next to the
 only request that carries one.
 
-**Enforced at:** `src/application/identity/use-cases/LoginUseCase.ts` (`sanitizeForLogging`)
+**Enforced at:** `src/application/identity/use-cases/LoginUseCase.ts` (`sanitizeForLogging`),
+`src/application/identity/services/SignInSteps.ts` (`withoutSignInSecrets`)
 **Tests:** `tests/application/identity/use-cases/LoginUseCase.test.ts`
 
 ### IDN-042 — Login requires a syntactically valid email and a non-empty password
@@ -921,13 +924,15 @@ the process is up — no version, no database state, no dependency detail.
 
 `manage-users` (ADMIN, and VENDOR through `IDN-030`) gates:
 
-| Endpoint               | What it does                                        |
-| ---------------------- | --------------------------------------------------- |
-| `GET /api/users`       | list accounts, oldest first                         |
-| `POST /api/users`      | create an account (`ADMIN`, `OPERATOR` or `VIEWER`) |
-| `PATCH /api/users/:id` | change `role`, `disabled` and/or `password`         |
+| Endpoint                               | What it does                                        |
+| -------------------------------------- | --------------------------------------------------- |
+| `GET /api/users`                       | list accounts, oldest first                         |
+| `POST /api/users`                      | create an account (`ADMIN`, `OPERATOR` or `VIEWER`) |
+| `PATCH /api/users/:id`                 | change `role`, `disabled` and/or `password`         |
+| `POST /api/users/:id/two-factor/reset` | reset two-factor sign-in (`IDN-172`)                |
 
-The list leaves out the vendor account unless the caller is the vendor. A
+The list leaves out the vendor account unless the caller is the vendor, and
+shows whether each account has two-factor on (`twoFactorEnabled`). A
 password reset replaces the old password at once and, like a role change or
 disabling, ends the account's sessions. Setting a field to its current value
 changes nothing.
@@ -954,7 +959,8 @@ vendor account is not part of that team, so it is not shown among it.
 **Layer:** Application · Presentation
 **Since:** 2026-09-30
 
-`PATCH /api/users/:id` on a `VENDOR` account answers `403`, whoever asks. The
+`PATCH /api/users/:id` and a two-factor reset (`IDN-172`) on a `VENDOR`
+account answer `403`, whoever asks. The
 `VENDOR` role cannot be given to anyone: creating or changing a user to it is a
 `400`. The vendor changes its own password like anyone else (`IDN-144`).
 
@@ -1044,7 +1050,8 @@ that had the old one is signed out.
 Every account signs in with a password and a six-digit code from an
 authenticator app (Google Authenticator, Microsoft Authenticator and the like).
 `IDN-160` to `IDN-165` are the account's side of it; `IDN-166` to `IDN-170`
-are the sign-in steps that ask for the code.
+are the sign-in steps that ask for the code; `IDN-171` lets a browser skip the
+code for 30 days; `IDN-172` and `IDN-173` are the administrator's reset.
 
 ### IDN-160 — Two-factor turns on only with its first valid code
 
@@ -1153,8 +1160,9 @@ within that window.
 
 A setup that was started but never confirmed can be started again with a new
 secret. Once two-factor is on, starting again is refused; it takes a reset,
-which clears the secret and the recovery codes and ends every session of the
-account, so the person sets two-factor up again at their next sign-in.
+which clears the secret and the recovery codes and ends every session and
+remembered browser of the account, so the person sets two-factor up again at
+their next sign-in. Only an administrator runs a reset (`IDN-172`).
 
 **Why:** If a signed-in session could swap the secret, a stolen session would
 become permanent access with the thief's own phone.
@@ -1280,3 +1288,83 @@ or a recovery code from working twice.
 **Tests:** `tests/application/identity/use-cases/VerifyTwoFactorUseCase.test.ts`,
 `tests/integration/use-cases/identity/VerifyTwoFactorUseCase.integration.test.ts`,
 `tests/integration/auth.routes.test.ts`
+
+### IDN-171 — A browser can skip the code for 30 days
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+Sending `rememberBrowser: true` with the code (`IDN-169`, `IDN-170`) adds a
+`trustedBrowserToken` to the answer. Sent back with the email and password at
+login, it signs in straight away, with no code, and clears the failure count.
+It is a signed token like a challenge (`IDN-167`) with the kind
+`trusted-browser`, valid 30 days from the code that made it; it is never a
+session and never opens a two-factor step. It names the account and its token
+version, so anything that ends the account's sessions (`IDN-065`) — a new
+password, a role change, disabling, a two-factor reset — forgets every
+remembered browser too. A token that no longer fits leads to the code step as
+usual. The password is always checked.
+
+**Why:** Asking a technician for a code every day on the office computer
+teaches them to resent it. A stolen laptop with a remembered browser still
+needs the password, and the administrator can end it at once by changing the
+password or resetting two-factor.
+
+**Enforced at:** `src/application/identity/services/SignInSteps.ts` (`session`, `remembers`),
+`src/application/identity/use-cases/LoginUseCase.ts`,
+`src/infrastructure/identity/services/JwtTokenService.ts`
+**Tests:** `tests/application/identity/use-cases/LoginUseCase.test.ts`,
+`tests/application/identity/use-cases/VerifyTwoFactorUseCase.test.ts`,
+`tests/application/identity/use-cases/ConfirmTwoFactorSetupUseCase.test.ts`,
+`tests/infrastructure/identity/services/JwtTokenService.test.ts`,
+`tests/integration/use-cases/identity/LoginUseCase.integration.test.ts`,
+`tests/integration/auth.routes.test.ts`
+
+### IDN-172 — An administrator resets a lost two-factor; only the vendor resets an administrator's
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+`POST /api/users/:id/two-factor/reset` (`manage-users`) clears the account's
+two-factor and ends its sessions and remembered browsers (`IDN-165`); the
+person sets it up again at their next sign-in. An `ADMIN` account can be reset
+only by the vendor, and nobody resets the vendor account (`IDN-141`). An
+account that never started setup has nothing to reset.
+
+**Why:** Someone who lost both their phone and their recovery codes needs a
+way back in. Keeping administrators' resets with the vendor means one stolen
+administrator session cannot strip the second factor from the other
+administrators, or from itself, and the vendor stays reachable for the case
+where the customer's only administrator is the one locked out.
+
+**Enforced at:** `src/application/identity/use-cases/ResetTwoFactorUseCase.ts`,
+`src/presentation/http/routes/user.routes.ts`
+**Message:** `Only the vendor can reset an administrator's two-factor sign-in` (`403`),
+`The vendor account is managed by the vendor` (`403`),
+`Two-factor sign-in is not on` (`409`)
+**Tests:** `tests/application/identity/use-cases/ResetTwoFactorUseCase.test.ts`,
+`tests/integration/use-cases/identity/ResetTwoFactorUseCase.integration.test.ts`,
+`tests/integration/user.routes.test.ts`
+
+### IDN-173 — Every two-factor reset is announced in the install's alert chat
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-05
+
+Each reset sends one alert to the install's own Telegram chat naming the
+account and who reset it. It has no device, so quiet hours do not apply; it
+can be muted like any other type (`two_factor_reset`).
+
+**Why:** A reset followed by a sign-in with a known password is how an
+insider, or someone with a stolen administrator session, would take over an
+account. The people who run the install should hear of every one, so an
+unexpected reset is noticed the same day.
+
+**Enforced at:** `src/domain/identity/aggregates/User.ts` (`UserTwoFactorResetEvent`),
+`src/application/notifications/event-handlers/UserTwoFactorResetNotificationHandler.ts`
+**Tests:** `tests/domain/identity/aggregates/User.test.ts`,
+`tests/application/notifications/event-handlers/UserTwoFactorResetNotificationHandler.test.ts`,
+`tests/application/identity/use-cases/ResetTwoFactorUseCase.test.ts`

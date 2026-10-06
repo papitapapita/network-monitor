@@ -67,6 +67,7 @@ describe('[IDN-170] VerifyTwoFactorUseCase — integration', () => {
       }),
       code: answer.code ?? null,
       recoveryCode: answer.recoveryCode ?? null,
+      rememberBrowser: false,
       sourceIp: '203.0.113.7'
     });
 

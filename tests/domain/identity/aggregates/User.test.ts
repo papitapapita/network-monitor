@@ -11,6 +11,7 @@ import {
   RECOVERY_CODE_UNKNOWN
 } from '../../../../src/domain/identity/aggregates/User';
 import { UserSignInPausedEvent } from '../../../../src/domain/identity/events/UserSignInPausedEvent';
+import { UserTwoFactorResetEvent } from '../../../../src/domain/identity/events/UserTwoFactorResetEvent';
 import { UserEmail } from '../../../../src/domain/identity/value-objects/UserEmail';
 import { UserRole } from '../../../../src/domain/identity/value-objects/UserRole';
 import { UserId } from '../../../../src/domain/shared/ids/UserId';
@@ -596,7 +597,7 @@ describe('User two-factor sign-in', () => {
   it('[IDN-165] a reset clears everything and ends sessions', () => {
     const u = enrolled();
 
-    u.resetTwoFactor();
+    u.resetTwoFactor('admin@isp.example', new Date());
 
     expect(u.hasTwoFactor).toBe(false);
     expect(u.twoFactorSecret).toBeNull();
@@ -606,7 +607,27 @@ describe('User two-factor sign-in', () => {
   });
 
   it('[IDN-165] there is nothing to reset before setup starts', () => {
-    expect(user().resetTwoFactor().error).toBe(TWO_FACTOR_OFF);
+    const u = user();
+
+    expect(
+      u.resetTwoFactor('admin@isp.example', new Date()).error
+    ).toBe(TWO_FACTOR_OFF);
+    expect(u.domainEvents).toHaveLength(0);
+  });
+
+  it('[IDN-173] a reset announces who reset which account', () => {
+    const u = enrolled();
+    const at = new Date('2026-10-05T12:00:00.000Z');
+
+    u.resetTwoFactor('admin@isp.example', at);
+
+    const events = u.domainEvents.filter(
+      (e) => e instanceof UserTwoFactorResetEvent
+    ) as UserTwoFactorResetEvent[];
+    expect(events).toHaveLength(1);
+    expect(events[0].email).toBe(u.email.toString());
+    expect(events[0].resetBy).toBe('admin@isp.example');
+    expect(events[0].dateTimeOccurred).toBe(at);
   });
 
   it('[IDN-160] using codes does not end sessions', () => {

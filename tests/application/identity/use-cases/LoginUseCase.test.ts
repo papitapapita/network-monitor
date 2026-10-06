@@ -23,6 +23,12 @@ import { UserRole } from '../../../../src/domain/identity/value-objects/UserRole
 import { UserId } from '../../../../src/domain/shared/ids/UserId';
 import { UserProps } from '../../../../src/domain/identity/props/UserProps';
 import { LoginRequestDTO } from '../../../../src/application/identity/dtos/LoginRequestDTO';
+import { TwoFactorStepDTO } from '../../../../src/application/identity/dtos/LoginResponseDTO';
+import {
+  challengeFor,
+  makeTokens,
+  withTwoFactor
+} from './twoFactorFakes';
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
@@ -98,6 +104,7 @@ function makeRequest(
   return {
     email: 'alice@example.com',
     password: 'secret123',
+    trustedBrowserToken: null,
     sourceIp: '203.0.113.7',
     ...overrides
   };
@@ -158,7 +165,9 @@ describe('LoginUseCase', () => {
 
       const result = await useCase.execute(makeRequest());
 
-      expect(result.value.twoFactor).toBe('verify');
+      expect((result.value as TwoFactorStepDTO).twoFactor).toBe(
+        'verify'
+      );
       expect(tokenService.signChallenge.mock.calls[0][0].kind).toBe(
         'two-factor'
       );
@@ -454,6 +463,144 @@ describe('LoginUseCase', () => {
         undefined,
         expect.objectContaining({ error: 'db down' })
       );
+    });
+  });
+
+  // =========================================================================
+  describe('remembered browser', () => {
+    let tokens: jest.Mocked<ITokenService>;
+    let remembered: LoginUseCase;
+
+    beforeEach(() => {
+      tokens = makeTokens();
+      remembered = new LoginUseCase(
+        userRepo,
+        passwordService,
+        new SignInSteps(userRepo, tokens),
+        logger
+      );
+      passwordService.compare.mockResolvedValue(true);
+    });
+
+    const signInWith = (user: User, trustedBrowserToken: string) => {
+      userRepo.findByEmail.mockResolvedValue(Result.ok(user));
+      return remembered.execute(makeRequest({ trustedBrowserToken }));
+    };
+
+    it('[IDN-171] signs in without a code from a remembered browser', async () => {
+      const user = withTwoFactor(makeUser());
+
+      const result = await signInWith(
+        user,
+        challengeFor(user, 'trusted-browser')
+      );
+
+      expect(result.value).toEqual({
+        token: 'session.jwt',
+        user: expect.objectContaining({ id: user.id.toString() })
+      });
+    });
+
+    it('[IDN-171] clears the failure count when it skips the code', async () => {
+      const user = withTwoFactor(makeUser());
+      user.recordFailedSignIn(new Date(), null);
+
+      await signInWith(user, challengeFor(user, 'trusted-browser'));
+
+      expect(user.failedSignIns).toBe(0);
+      expect(userRepo.save).toHaveBeenCalledWith(user);
+    });
+
+    it('[IDN-171] still asks for the code once the sessions were ended', async () => {
+      const user = withTwoFactor(makeUser());
+      const token = challengeFor(user, 'trusted-browser');
+      user.changeRole(UserRole.reconstitute('VIEWER'));
+
+      const result = await signInWith(user, token);
+
+      expect((result.value as TwoFactorStepDTO).twoFactor).toBe(
+        'verify'
+      );
+    });
+
+    it("[IDN-171] does not trust another account's browser", async () => {
+      const user = withTwoFactor(makeUser());
+      const other = withTwoFactor(makeUser('bob@example.com'));
+
+      const result = await signInWith(
+        user,
+        challengeFor(other, 'trusted-browser')
+      );
+
+      expect((result.value as TwoFactorStepDTO).twoFactor).toBe(
+        'verify'
+      );
+    });
+
+    it('[IDN-171] a challenge is no remembered browser', async () => {
+      const user = withTwoFactor(makeUser());
+
+      const result = await signInWith(
+        user,
+        challengeFor(user, 'two-factor')
+      );
+
+      expect((result.value as TwoFactorStepDTO).twoFactor).toBe(
+        'verify'
+      );
+    });
+
+    it('[IDN-171] an account without two-factor sets it up anyway', async () => {
+      const user = makeUser();
+
+      const result = await signInWith(
+        user,
+        challengeFor(user, 'trusted-browser')
+      );
+
+      expect((result.value as TwoFactorStepDTO).twoFactor).toBe(
+        'setup'
+      );
+    });
+
+    it('[IDN-171] the password is still checked', async () => {
+      const user = withTwoFactor(makeUser());
+      passwordService.compare.mockResolvedValue(false);
+
+      const result = await signInWith(
+        user,
+        challengeFor(user, 'trusted-browser')
+      );
+
+      expect(result.error).toBe('Invalid credentials');
+      expect(tokens.sign).not.toHaveBeenCalled();
+    });
+
+    it('[IDN-171] gives no session when the sign-in cannot be saved', async () => {
+      const user = withTwoFactor(makeUser());
+      userRepo.save.mockResolvedValueOnce(
+        Result.fail<User>('db down')
+      );
+
+      const result = await signInWith(
+        user,
+        challengeFor(user, 'trusted-browser')
+      );
+
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('[IDN-041] never logs the remembered-browser token', async () => {
+      const user = withTwoFactor(makeUser());
+      const token = challengeFor(user, 'trusted-browser');
+
+      await signInWith(user, token);
+
+      const logged = JSON.stringify(
+        (logger.info as jest.Mock).mock.calls
+      );
+      expect(logged).not.toContain(token);
+      expect(logged).not.toContain('session.jwt');
     });
   });
 });

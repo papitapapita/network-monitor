@@ -134,11 +134,12 @@ user and 200 per server, exceeding either returns `429` with
 ```ts
 // Request body
 {
-  email: string     // required
-  password: string  // required
+  email: string                 // required
+  password: string              // required
+  trustedBrowserToken?: string  // from an earlier "remember this browser" (IDN-171)
 }
 
-// Response 200
+// Response 200 — the two-factor step
 {
   success: true,
   data: {
@@ -146,7 +147,21 @@ user and 200 per server, exceeding either returns `429` with
     challengeToken: string         // Bearer token for the two-factor routes; 5 minutes
   }
 }
+
+// Response 200 — a remembered browser: the session, no code needed
+{
+  success: true,
+  data: {
+    token: string
+    user: { id: string; email: string; role: 'VENDOR' | 'ADMIN' | 'OPERATOR' | 'VIEWER' }
+  }
+}
 ```
+
+> **⚠ Changed 2026-10-05 — remembered browsers.** When `data.token` is present
+> the person is signed in; otherwise follow `data.twoFactor`. A
+> `trustedBrowserToken` that has expired or was revoked is ignored, never an
+> error: the answer is the usual two-factor step.
 
 > Returns `401` for a wrong password, an unknown email and a disabled account alike (identical error message — no credential enumeration).
 
@@ -159,6 +174,11 @@ user and 200 per server, exceeding either returns `429` with
    recovery codes once, with a "I saved them" confirmation.
 3. `twoFactor === 'verify'`: `POST /two-factor/verify { code }`, or
    `{ recoveryCode }` behind a "lost my phone" link → session.
+4. Offer a "remember this browser for 30 days" checkbox on the code screens and
+   send it as `rememberBrowser: true`. Store the `trustedBrowserToken` it
+   returns and send it with every later login from this browser. It stops
+   working after 30 days, or at once when the account's password, role or
+   status changes or its two-factor is reset (IDN-171).
 
 Send the challenge as `Authorization: Bearer <challengeToken>` on every
 two-factor route. It does not work on any other route, and a session token does
@@ -206,7 +226,8 @@ to the password screen.
 ```ts
 // Request body
 {
-  code: string  // the 6 digits the app shows
+  code: string               // the 6 digits the app shows
+  rememberBrowser?: boolean  // default false (IDN-171)
 }
 
 // Response 200
@@ -220,6 +241,7 @@ to the password screen.
       role: 'VENDOR' | 'ADMIN' | 'OPERATOR' | 'VIEWER'
     }
     recoveryCodes: string[]  // 10 codes like 'K7M2P-QX4RT'; shown only now
+    trustedBrowserToken?: string  // only with rememberBrowser: true; 30 days
   }
 }
 ```
@@ -239,8 +261,9 @@ to the password screen.
 ```ts
 // Request body — exactly one of the two
 {
-  code?: string          // the 6 digits the app shows
-  recoveryCode?: string  // one of the recovery codes; case, spaces and dash ignored
+  code?: string              // the 6 digits the app shows
+  recoveryCode?: string      // one of the recovery codes; case, spaces and dash ignored
+  rememberBrowser?: boolean  // default false (IDN-171)
 }
 
 // Response 200
@@ -249,6 +272,7 @@ to the password screen.
   data: {
     token: string
     user: { id: string; email: string; role: 'VENDOR' | 'ADMIN' | 'OPERATOR' | 'VIEWER' }
+    trustedBrowserToken?: string  // only with rememberBrowser: true; 30 days
   }
 }
 ```
@@ -5057,6 +5081,7 @@ interface UserAccountDTO {
   role: 'VENDOR' | 'ADMIN' | 'OPERATOR' | 'VIEWER';
   disabled: boolean;
   disabledAt: string | null;
+  twoFactorEnabled: boolean; // added 2026-10-05
   createdAt: string;
   updatedAt: string;
 }
@@ -5118,6 +5143,34 @@ interface UserAccountDTO {
 > account is managed by the vendor`) and for the caller's own account — hide
 > these actions on the vendor's row and on the signed-in user's row. There is
 > no delete: disable instead.
+
+---
+
+### `POST /api/users/:id/two-factor/reset` — Reset two-factor sign-in
+
+**Status:** 200 | 400 | 401 | 403 | 404 | 409  
+**Roles:** ADMIN (`manage-users`); only VENDOR resets an `ADMIN` account
+
+```ts
+// No body
+
+// Response
+{ success: true, data: UserAccountDTO } // twoFactorEnabled: false
+```
+
+> For someone who lost their phone and their recovery codes (IDN-172). Signs
+> the account out everywhere and forgets its remembered browsers; at the next
+> sign-in it sets two-factor up again. Every reset sends an alert to the
+> install's chat (IDN-173, type `two_factor_reset`).
+>
+> | Status | `error` |
+> | ------ | ------- |
+> | `403` | `Only the vendor can reset an administrator's two-factor sign-in` |
+> | `403` | `The vendor account is managed by the vendor` |
+> | `409` | `Two-factor sign-in is not on` |
+>
+> Show the action only on rows with `twoFactorEnabled: true`, never on the
+> vendor's row, and on `ADMIN` rows only when the signed-in user is the vendor.
 
 ---
 

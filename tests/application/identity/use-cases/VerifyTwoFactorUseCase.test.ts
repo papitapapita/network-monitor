@@ -37,13 +37,18 @@ describe('[IDN-170] VerifyTwoFactorUseCase', () => {
       logger
     );
     const verify = (
-      answer: { code?: string; recoveryCode?: string },
+      answer: {
+        code?: string;
+        recoveryCode?: string;
+        rememberBrowser?: boolean;
+      },
       kind: 'two-factor' | 'two-factor-setup' = 'two-factor'
     ) =>
       useCase.execute({
         challengeToken: challengeFor(user, kind),
         code: answer.code ?? null,
         recoveryCode: answer.recoveryCode ?? null,
+        rememberBrowser: answer.rememberBrowser ?? false,
         sourceIp: '203.0.113.7'
       });
     return { user, repo, tokens, codes, logger, verify };
@@ -187,5 +192,41 @@ describe('[IDN-170] VerifyTwoFactorUseCase', () => {
     expect(JSON.stringify(logger.info.mock.calls)).not.toContain(
       'AAAAA'
     );
+  });
+
+  it('[IDN-171] remembers the browser when asked', async () => {
+    const { user, verify } = build();
+
+    const result = await verify({
+      code: GOOD_CODE,
+      rememberBrowser: true
+    });
+
+    expect(result.value.trustedBrowserToken).toBe(
+      challengeFor(user, 'trusted-browser')
+    );
+  });
+
+  it('[IDN-171] remembers the browser after a recovery code too', async () => {
+    const { verify } = build();
+
+    const result = await verify({
+      recoveryCode: 'AAAAA-BBBBB',
+      rememberBrowser: true
+    });
+
+    expect(result.value.trustedBrowserToken).toBeDefined();
+  });
+
+  it('[IDN-171] remembers nothing after a wrong code', async () => {
+    const { tokens, verify } = build();
+
+    await verify({ code: '000000', rememberBrowser: true });
+
+    expect(
+      tokens.signChallenge.mock.calls.some(
+        ([p]) => p.kind === 'trusted-browser'
+      )
+    ).toBe(false);
   });
 });

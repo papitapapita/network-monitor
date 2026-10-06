@@ -60,6 +60,7 @@ describe('[IDN-169] ConfirmTwoFactorSetupUseCase — integration', () => {
         kind: 'two-factor-setup'
       }),
       code,
+      rememberBrowser: false,
       sourceIp: '203.0.113.7'
     });
 

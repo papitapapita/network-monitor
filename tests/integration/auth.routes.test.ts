@@ -539,6 +539,62 @@ describe('Auth Routes — /api/auth', () => {
       expect(res.status).toBe(401);
     });
 
+    const rememberedBrowser = async () => {
+      const { secret } = await enrolled();
+      const res = await post(
+        '/verify',
+        (await login()).challengeToken,
+        {
+          code: appCode(secret, 1),
+          rememberBrowser: true
+        }
+      );
+      return res.body.data.trustedBrowserToken as string;
+    };
+
+    it('[IDN-171] 200 — a remembered browser signs in with the password alone', async () => {
+      const trustedBrowserToken = await rememberedBrowser();
+
+      const res = await request(freshApp)
+        .post('/api/auth/login')
+        .send({
+          email: ADMIN_EMAIL,
+          password: ADMIN_PASS,
+          trustedBrowserToken
+        });
+      const used = await request(freshApp)
+        .get('/api/locations')
+        .set('Authorization', bearer(res.body.data.token));
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.twoFactor).toBeUndefined();
+      expect(used.status).toBe(200);
+    });
+
+    it('[IDN-171] 401 — a remembered browser is no session', async () => {
+      const trustedBrowserToken = await rememberedBrowser();
+
+      const res = await request(freshApp)
+        .get('/api/locations')
+        .set('Authorization', bearer(trustedBrowserToken));
+
+      expect(res.status).toBe(401);
+    });
+
+    it('[IDN-171] 401 — a remembered browser still needs the right password', async () => {
+      const trustedBrowserToken = await rememberedBrowser();
+
+      const res = await request(freshApp)
+        .post('/api/auth/login')
+        .send({
+          email: ADMIN_EMAIL,
+          password: 'wrong-password',
+          trustedBrowserToken
+        });
+
+      expect(res.status).toBe(401);
+    });
+
     it('[IDN-167] 401 — no challenge at all', async () => {
       const res = await post('/setup', null);
 

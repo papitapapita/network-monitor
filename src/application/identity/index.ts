@@ -21,3 +21,4 @@ export * from './use-cases/ListUsersUseCase';
 export * from './use-cases/CreateUserUseCase';
 export * from './use-cases/UpdateUserUseCase';
 export * from './use-cases/ChangeOwnPasswordUseCase';
+export * from './use-cases/ResetTwoFactorUseCase';

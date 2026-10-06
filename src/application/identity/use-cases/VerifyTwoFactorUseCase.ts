@@ -84,6 +84,8 @@ export class VerifyTwoFactorUseCase extends UseCase<
       return this.fail(`Failed to save sign-in: ${saved.error}`);
     }
 
-    return this.ok(this.signInSteps.session(user));
+    return this.ok(
+      this.signInSteps.session(user, request.rememberBrowser)
+    );
   }
 }

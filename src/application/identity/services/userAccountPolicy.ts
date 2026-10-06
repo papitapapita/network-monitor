@@ -8,6 +8,8 @@ export const VENDOR_ROLE_NOT_ASSIGNABLE =
   'The VENDOR role cannot be assigned through the API';
 export const OWN_ACCOUNT_REFUSED =
   'You cannot change your own account here — use /api/users/me/password for your password';
+export const ADMIN_RESET_NEEDS_VENDOR =
+  "Only the vendor can reset an administrator's two-factor sign-in";
 export const PASSWORD_TOO_SHORT = `Password must be at least ${USER_PASSWORD_MIN_LENGTH} characters`;
 
 // A role the API may hand out: any but VENDOR, which only the boot sets
