@@ -17,6 +17,7 @@ describe('agent import boundary', () => {
       format: 'cjs',
       write: false,
       metafile: true,
+      external: ['*.node', 'cpu-features'],
       logLevel: 'silent',
       absWorkingDir: root
     });
@@ -67,8 +68,8 @@ describe('agent import boundary', () => {
     ).toEqual([]);
     // Everything it borrows from the backend: the ping probe and the
     // wireless collectors it runs for the backend (AGT-101), the RouterOS
-    // client it changes suspension queues with (AGT-111), the logger, and
-    // Result.
+    // client it changes suspension queues with (AGT-111), the config
+    // fetchers it takes backups with (AGT-114), the logger, and Result.
     expect(
       backendCode
         .filter((input) => !input.startsWith('src/domain/shared/'))
@@ -76,6 +77,15 @@ describe('agent import boundary', () => {
     ).toEqual([
       'src/application/device-monitoring/services/PingCycleProbe.ts',
       'src/application/service-enforcement/interfaces/IRouterQueueService.ts',
+      'src/domain/device-backups/enums/BackupFormat.ts',
+      'src/domain/device-backups/enums/BackupOutcome.ts',
+      'src/domain/device-backups/enums/BackupTrigger.ts',
+      'src/domain/device-backups/enums/index.ts',
+      'src/infrastructure/device-backups/fetchers/AirOsConfigFetcher.ts',
+      'src/infrastructure/device-backups/fetchers/ConfigFetcherRegistry.ts',
+      'src/infrastructure/device-backups/fetchers/RouterOsConfigFetcher.ts',
+      'src/infrastructure/device-backups/fetchers/SshCommandClient.ts',
+      'src/infrastructure/device-backups/fetchers/index.ts',
       'src/infrastructure/logging/WinstonLogger.ts',
       'src/infrastructure/monitoring/ping/PingService.ts',
       'src/infrastructure/service-enforcement/RouterOsQueueService.ts',

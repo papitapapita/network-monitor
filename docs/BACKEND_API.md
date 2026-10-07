@@ -1386,17 +1386,20 @@ The SNMP fields are optional and **nothing polls them today** — all polling is
 > Error: `{ error: string }`.
 
 Daily configuration backups of the main devices. A run starts from 03:00
-Colombian time and backs up every **access point** that wireless monitoring
-polls (enabled config) and every device whose model is a **router**,
+Colombian time and backs up every **access point**, that is a device
+wireless monitoring polls as one (enabled config) or, with no polling config,
+whose category is `ACCESS_POINT`, and every device whose model is a **router**,
 **routerboard** or **switch**, in both cases `ACTIVE` or `COMMISSIONING`. A new version is
 stored only when the configuration changed; otherwise the latest version's
 `lastCheckedAt` moves forward. The newest 30 versions per device are kept.
 
 Supported for now: Ubiquiti AirOS access points (HTTPS, `system.cfg`) and any
 MikroTik (SSH `/export show-sensitive`, on the credentials' `sshPort` with the
-HTTP username and password, BKP-054/055), and only when this server reaches
-the devices itself (`SERVER_ON_SITE`). Off site nothing is backed up
-until backups through the agent arrive.
+HTTP username and password, BKP-054/055). On site this server reads every
+device itself. Off site (`serverOnSite: false`) a device with an `agentId` is
+read by its agent, which must run agent `0.5.0` or later, with the same
+fetchers; a device behind no agent is left out of the nightly run and a
+manual backup of it answers 409 (BKP-015, BKP-016, AGT-113, AGT-114).
 
 **Alerts** (Telegram, through the same publisher as device alerts, so quiet
 hours and an expired subscription hold them back):
@@ -1405,8 +1408,9 @@ hours and an expired subscription hold them back):
   already had one (BKP-060). Not sent for a first backup or a manual one.
 - `backup_failing` — the third failed attempt in a row, once per streak
   (BKP-061). Not sent for a device left out because backing it up is not
-  available yet (not a main device, out of reach, unsupported vendor); a
-  missing IP address or login does count (BKP-063).
+  available yet (not a main device, out of reach, unsupported vendor, an
+  agent older than `0.5.0`); a missing IP address or login, an agent that is
+  offline or does not answer, does count (BKP-063, BKP-016).
 
 Both types can be muted for the whole install through
 `PUT /api/notification-mutes`. They are notifications
@@ -1467,11 +1471,16 @@ interface DeviceBackupStateDTO {
 
 - **201** — a new version was saved; **200** — the device still holds the latest one.
 - **409** `Cannot back up this device: …` — the device was not asked: not an
-  access point, router or switch, out of this server's reach, no IP address,
-  no HTTP credentials, or no backup support yet for this kind of device from
-  its vendor (a Ubiquiti router, for one).
+  access point, router or switch, off site and behind no agent, no IP
+  address, no HTTP credentials, no backup support yet for this kind of device
+  from its vendor (a Ubiquiti router, for one), or its agent must be updated
+  first (`The on-site agent must be updated to take backups`).
 - **502** `Backup failed: …` — the device was asked and did not hand over its
-  configuration (timeout, login refused, …).
+  configuration (timeout, login refused, …), or its agent is not connected
+  (`The on-site agent is not connected`) or did not answer within 45 s
+  (`The on-site agent did not answer in time`). Through an agent this can
+  take longer than the 30 s HTTP proxy allows for a large router; the attempt
+  is still recorded, so reload the list if the request times out.
 
 Every attempt, refused or failed included, updates the device's `state`.
 
@@ -3285,7 +3294,7 @@ On-site agents that measure a customer's network from inside it and report to th
 
 **On the PC:** the key is pasted into the agent's installer (or passed as `--pair <key>` on Linux); the agent pairs itself, which turns it `ACTIVE`. A key the backend refuses is thrown away by the agent, so the fix is always "new key", never "retry". Revoking makes the connected agent delete its token, its device list and its unsent results, then wait for a new key — the same PC can be paired again without reinstalling (`AGT-060`, `AGT-066`).
 
-**What still runs from the server:** ping of a device with an `agentId` is always the agent's, a manual poll included, which asks the agent (MON-022). When the server sits on the monitored network (the default, and Insetel's case) it pings every device with no agent, and wireless poll, reboot and link diagnosis stay with it for every device. An install hosted off site (`SERVER_ON_SITE=false`) talks to no device itself: it pings nothing, reads a radio behind an agent through that agent, on schedule and on demand (WLS-029), answers `409` for manual ping and wireless poll of a device with no agent and for reboot and diagnosis of any device, and refuses the network scan (MON-023, WLS-029, DEV-171). There a device with no agent shows `UNKNOWN` and raises no down alert (MON-006, NOT-101) until it is moved behind an agent. Read the setting from `GET /api/installation` (`serverOnSite`) and, when it is `false`, hide reboot and diagnosis for every device, hide ping and wireless poll for devices with no agent, and point those at "move to an agent".
+**What still runs from the server:** ping of a device with an `agentId` is always the agent's, a manual poll included, which asks the agent (MON-022). When the server sits on the monitored network (the default, and Insetel's case) it pings every device with no agent, and wireless poll, reboot and link diagnosis stay with it for every device. An install hosted off site (`SERVER_ON_SITE=false`) talks to no device itself: it pings nothing, reads a radio behind an agent through that agent, on schedule and on demand (WLS-029), backs up a device's configuration through its agent (BKP-015, BKP-016), answers `409` for manual ping and wireless poll of a device with no agent and for reboot and diagnosis of any device, and refuses the network scan (MON-023, WLS-029, DEV-171). There a device with no agent shows `UNKNOWN` and raises no down alert (MON-006, NOT-101) until it is moved behind an agent. Read the setting from `GET /api/installation` (`serverOnSite`) and, when it is `false`, hide reboot and diagnosis for every device, hide ping and wireless poll for devices with no agent, and point those at "move to an agent".
 
 **Updates:** agents update themselves (`AGT-080` … `AGT-085`). The vendor copies a signed release (`nms-agent-<version>.manifest.json` plus one `nms-agent-<version>-<platform>.gz` per platform) into `INSTALLERS_DIR`, next to the installers. Every connected agent running an older version is offered it within a minute, downloads it, checks the vendor's signature and installs it; `agentVersion` then shows the new version. `lastUpdate` tells how the last attempt ended: `INSTALLED`, `ROLLED_BACK` (the new version never reached the backend, so the previous one was put back) or `REJECTED` (size, checksum, signature or self-test failed; nothing changed), with the agent's `reason` for a failure. Show a failure as a warning on the agent page; the agent keeps measuring with the version it runs, and the vendor gets one Telegram message. A release that failed on an agent is not offered to it again — the vendor publishes a newer one. Agents installed before self-update (`0.1.0`) need one manual reinstall to get it.
 
@@ -3433,7 +3442,7 @@ interface AgentOutageDTO {
 
 ### `GET /agent/v1/ws` — Agent WebSocket (agents only)
 
-The agents' live connection, authenticated with the agent token from enrollment (`Authorization: Bearer <token>`); never called by the dashboard. Protocol and close codes: `src/agent/protocol/` and `docs/business-rules/probe-agents.md` (`AGT-040` … `AGT-045`, updates `AGT-082`, `AGT-084`).
+The agents' live connection, authenticated with the agent token from enrollment (`Authorization: Bearer <token>`); never called by the dashboard. Protocol and close codes: `src/agent/protocol/` and `docs/business-rules/probe-agents.md` (`AGT-040` … `AGT-045`, updates `AGT-082`, `AGT-084`, requests from the backend `AGT-100` … `AGT-115`). An agent names what it answers in its hello: `probe` from `0.3.0`, `enforce` from `0.4.0`, `backup` from `0.5.0`.
 
 ---
 

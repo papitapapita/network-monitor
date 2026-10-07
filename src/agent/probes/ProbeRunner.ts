@@ -4,6 +4,7 @@ import type {
   IWirelessCollectorResolver,
   WirelessCollectionResult
 } from 'application/wireless-monitoring/interfaces';
+import type { IConfigFetcherResolver } from 'application/device-backups/interfaces';
 import {
   PingReadingWire,
   ProbeRequestMessage,
@@ -32,10 +33,10 @@ export const DEFAULT_PROBE_RUNNER_OPTIONS: ProbeRunnerOptions = {
 
 const MAX_PING_ATTEMPTS = 10;
 
-// Answers the backend's probe requests (AGT-101) with the same ping loop and
-// wireless collectors the backend runs in process. The credentials in a
-// request live only as long as the request (AGT-102): nothing here stores
-// or logs them.
+// Answers the backend's probe requests (AGT-101) with the same ping loop,
+// wireless collectors and config fetchers (AGT-114) the backend runs in
+// process. The credentials in a request live only as long as the request
+// (AGT-102, AGT-115): nothing here stores or logs them.
 export class ProbeRunner {
   private running = 0;
   private readonly waiting: Array<() => void> = [];
@@ -43,6 +44,7 @@ export class ProbeRunner {
   constructor(
     private readonly ping: PingProbe,
     private readonly collectors: IWirelessCollectorResolver,
+    private readonly fetchers: IConfigFetcherResolver,
     private readonly logger: ILogger,
     private readonly options: ProbeRunnerOptions = DEFAULT_PROBE_RUNNER_OPTIONS
   ) {}
@@ -90,6 +92,28 @@ export class ProbeRunner {
         kind: 'ping',
         at,
         reading: toPingReadingWire(outcome)
+      };
+    }
+
+    if (request.kind === 'backup') {
+      const fetcher = this.fetchers.forDevice(
+        request.vendor,
+        request.deviceKind
+      );
+      if (!fetcher) {
+        return failed(
+          request,
+          'Backups are not supported for this kind of device from this vendor yet'
+        );
+      }
+      const fetched = await fetcher.fetch(request.ip, request.login);
+      if (fetched.isFailure) return failed(request, fetched.error);
+      return {
+        type: 'probe.result',
+        requestId: request.requestId,
+        kind: 'backup',
+        at,
+        config: fetched.value
       };
     }
 

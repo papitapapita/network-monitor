@@ -5,15 +5,20 @@ import {
   setupDependencies,
   DependencyContainer
 } from 'infrastructure/di/container';
-import { BACKUP_REFUSALS } from 'application/device-backups';
+import {
+  AGENT_BACKUP_FAILURES,
+  BACKUP_REFUSALS
+} from 'application/device-backups';
 import { CredentialsEncryption } from 'infrastructure/crypto';
 import {
   cleanDatabase,
+  seedAgent,
   seedWirelessDeviceModel,
   GHOST_ID,
   INVALID_ID
 } from '../../helpers/db';
 import { seedDiagnosableDevice } from '../../helpers/linkDiagnosis';
+import { FakeAgentConfigFetcher } from '../../helpers/FakeAgentConfigFetcher';
 import {
   FakeConfigFetcher,
   FAKE_AIROS_CONFIG
@@ -188,7 +193,88 @@ describe('BackUpDeviceNowUseCase — integration', () => {
     expect(fetcher.calls[0].sshPort).toBe(22);
   });
 
-  it('[BKP-015] should refuse when this server is off site', async () => {
+  describe('[BKP-016] off site, through the agent', () => {
+    let agent: FakeAgentConfigFetcher;
+
+    const behindAgent = async () => {
+      const deviceId = await seedAp();
+      const { id: agentId } = await seedAgent(prisma, {
+        name: 'Torre Norte'
+      });
+      await prisma.device.update({
+        where: { id: deviceId },
+        data: { agentId }
+      });
+      return { deviceId, agentId };
+    };
+
+    const offSite = () =>
+      buildDeviceBackups(prisma, fetcher, {
+        serverOnSite: false,
+        clock: () => now,
+        agent
+      }).backUpNow;
+
+    beforeEach(() => {
+      agent = new FakeAgentConfigFetcher();
+    });
+
+    it('should save what the device agent read', async () => {
+      const { deviceId, agentId } = await behindAgent();
+
+      const result = await offSite().execute({ deviceId });
+
+      expect(result.value.outcome).toBe('SAVED');
+      expect(agent.calls).toEqual([
+        { agentId, ipAddress: '10.0.0.10' }
+      ]);
+      expect(fetcher.calls).toHaveLength(0);
+    });
+
+    it('should refuse when the agent must be updated first', async () => {
+      const { deviceId } = await behindAgent();
+      agent.answer = {
+        kind: 'refused',
+        reason: 'PROBE_UNSUPPORTED',
+        error: 'The agent must be updated to take backups'
+      };
+
+      const result = await offSite().execute({ deviceId });
+
+      expect(result.error).toBe(
+        `Cannot back up this device: ${AGENT_BACKUP_FAILURES.PROBE_UNSUPPORTED}`
+      );
+    });
+
+    it('should fail when the agent is not connected', async () => {
+      const { deviceId } = await behindAgent();
+      agent.answer = {
+        kind: 'refused',
+        reason: 'AGENT_OFFLINE',
+        error: 'The agent is not connected'
+      };
+
+      const result = await offSite().execute({ deviceId });
+
+      expect(result.error).toBe(
+        `Backup failed: ${AGENT_BACKUP_FAILURES.AGENT_OFFLINE}`
+      );
+    });
+  });
+
+  it('[BKP-010] should back up a device categorised as an access point that is not polled', async () => {
+    const deviceId = await seedDiagnosableDevice(prisma, modelId, {
+      ip: '10.0.0.10',
+      deviceType: 'ACCESS_POINT',
+      withConfig: false
+    });
+
+    const result = await build().execute({ deviceId });
+
+    expect(result.value.outcome).toBe('SAVED');
+  });
+
+  it('[BKP-015] should refuse a device behind no agent when this server is off site', async () => {
     const deviceId = await seedAp();
 
     const result = await build(false).execute({ deviceId });

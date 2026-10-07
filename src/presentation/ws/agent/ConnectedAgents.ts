@@ -11,6 +11,11 @@ import type {
 } from 'application/probe-agents/interfaces';
 import type { RouterConnection } from 'application/service-enforcement/interfaces';
 import type { WirelessCollectionResult } from 'application/wireless-monitoring/interfaces';
+import type {
+  AgentConfigFetchRequest,
+  FetchedConfig
+} from 'application/device-backups/interfaces';
+import { BackupFormat } from 'domain/device-backups/enums';
 import { ProbeResultMessage } from 'agent/protocol';
 import {
   AgentSession,
@@ -32,15 +37,21 @@ export interface ProbeTimeouts {
   wirelessMs: number;
   // A router login plus one queue command; a cut run sends them in a row.
   enforceMs?: number;
+  // A login and one download, over SSH or HTTP. Mostly asked for by the
+  // nightly run, which no proxy times, and a large router's export takes
+  // some seconds.
+  backupMs?: number;
 }
 
 export const DEFAULT_PROBE_TIMEOUTS: ProbeTimeouts = {
   pingMs: 25_000,
   wirelessMs: 25_000,
-  enforceMs: 20_000
+  enforceMs: 20_000,
+  backupMs: 45_000
 };
 
 const DEFAULT_ENFORCE_MS = 20_000;
+const DEFAULT_BACKUP_MS = 45_000;
 
 // The agents connected right now, one session each (AGT-045), and the way
 // the rest of the backend asks one of them to measure a device (AGT-103).
@@ -125,6 +136,40 @@ export class ConnectedAgents
     };
   }
 
+  async fetchConfig(
+    agentId: string,
+    request: AgentConfigFetchRequest
+  ): Promise<AgentProbeOutcome<FetchedConfig>> {
+    const { credentials } = request;
+    const answer = await this.probe(
+      agentId,
+      {
+        type: 'probe',
+        kind: 'backup',
+        ip: request.ipAddress,
+        vendor: request.vendorSlug,
+        deviceKind: request.kind,
+        login: {
+          username: credentials.username,
+          password: credentials.password,
+          httpPort: credentials.httpPort,
+          sshPort: credentials.sshPort
+        }
+      },
+      this.probeTimeouts.backupMs ?? DEFAULT_BACKUP_MS
+    );
+    if (!answer.ok) return answer;
+    if (answer.result.kind !== 'backup') return wrongKind();
+    return {
+      ok: true,
+      reading: {
+        format: BackupFormat[answer.result.config.format],
+        content: answer.result.config.content
+      },
+      measuredAt: answer.measuredAt
+    };
+  }
+
   async enforce(
     agentId: string,
     router: RouterConnection,
@@ -187,10 +232,16 @@ export class ConnectedAgents
     if (!session) {
       return fail('AGENT_OFFLINE', 'The agent is not connected');
     }
-    if (!session.canProbe) {
+    if (
+      request.kind === 'backup'
+        ? !session.canBackUp
+        : !session.canProbe
+    ) {
       return fail(
         'PROBE_UNSUPPORTED',
-        'The agent must be updated to answer this request'
+        request.kind === 'backup'
+          ? 'The agent must be updated to take backups'
+          : 'The agent must be updated to answer this request'
       );
     }
     const answer = await session.probe(request, timeoutMs);

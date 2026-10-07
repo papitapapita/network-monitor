@@ -2,12 +2,16 @@ import type {
   DecryptedCredentials,
   WirelessCollectionResult
 } from 'application/wireless-monitoring/interfaces';
+import type {
+  AgentConfigFetchRequest,
+  FetchedConfig
+} from 'application/device-backups/interfaces';
 import { AgentPingOutcome } from './IAgentPingResultSink';
 
 export type AgentProbeFailureReason =
   // No live connection to the agent.
   | 'AGENT_OFFLINE'
-  // Connected, but running a version that answers no probe requests.
+  // Connected, but running a version that does not answer this request.
   | 'PROBE_UNSUPPORTED'
   | 'TIMEOUT'
   // The agent answered with an error: a radio that refused, "busy", ...
@@ -49,4 +53,10 @@ export interface IAgentProbeChannel {
     agentId: string,
     request: AgentRadioRequest
   ): Promise<AgentProbeOutcome<WirelessCollectionResult>>;
+
+  // AGT-113: only an agent that names `backup` is asked.
+  fetchConfig(
+    agentId: string,
+    request: AgentConfigFetchRequest
+  ): Promise<AgentProbeOutcome<FetchedConfig>>;
 }

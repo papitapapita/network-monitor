@@ -2,7 +2,8 @@ import { z } from 'zod';
 import {
   AGENT_CAPABILITIES,
   AGENT_PLATFORMS,
-  AgentMessage
+  AgentMessage,
+  MAX_BACKUP_CONFIG_BYTES
 } from 'agent/protocol';
 
 const epochMs = z.number().int().nonnegative();
@@ -117,7 +118,7 @@ const pingReading = z.union([
   })
 ]);
 
-// Three shapes under one type, so it is its own union inside the
+// Four shapes under one type, so it is its own union inside the
 // discriminated one.
 const probeResult = z.union([
   z.object({
@@ -133,6 +134,16 @@ const probeResult = z.union([
     kind: z.literal('wireless'),
     at: epochMs,
     reading: wirelessReading
+  }),
+  z.object({
+    type: z.literal('probe.result'),
+    requestId,
+    kind: z.literal('backup'),
+    at: epochMs,
+    config: z.object({
+      format: z.enum(['AIROS_CFG', 'ROUTEROS_EXPORT']),
+      content: z.string().max(MAX_BACKUP_CONFIG_BYTES)
+    })
   }),
   z.object({
     type: z.literal('probe.result'),

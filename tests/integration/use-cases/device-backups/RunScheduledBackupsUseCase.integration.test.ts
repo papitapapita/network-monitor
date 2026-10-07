@@ -12,10 +12,12 @@ import {
 } from 'application/device-backups';
 import {
   cleanDatabase,
+  seedAgent,
   seedWirelessDeviceModel
 } from '../../helpers/db';
 import { seedDiagnosableDevice } from '../../helpers/linkDiagnosis';
 import { FakeConfigFetcher } from '../../helpers/FakeConfigFetcher';
+import { FakeAgentConfigFetcher } from '../../helpers/FakeAgentConfigFetcher';
 import {
   buildDeviceBackups,
   seedRouter
@@ -126,6 +128,32 @@ describe('RunScheduledBackupsUseCase — integration', () => {
       }
     );
 
+    it('should back up a device categorised as an access point that wireless monitoring does not poll', async () => {
+      await seedDiagnosableDevice(prisma, modelId, {
+        ip: '10.0.0.10',
+        deviceType: 'ACCESS_POINT',
+        withConfig: false
+      });
+
+      const result = await run();
+
+      expect(result.value.saved).toBe(1);
+      expect(backedUpIps()).toEqual(['10.0.0.10']);
+    });
+
+    it('should leave out a device categorised as an access point that is polled as a station', async () => {
+      const deviceId = await seedAp('10.0.0.10');
+      await prisma.wirelessPollingConfiguration.update({
+        where: { deviceId },
+        data: { deviceType: 'STATION' }
+      });
+
+      const result = await run();
+
+      expect(result.value.saved).toBe(0);
+      expect(fetcher.calls).toHaveLength(0);
+    });
+
     it('should include an access point being commissioned', async () => {
       const deviceId = await seedAp('10.0.0.10');
       await prisma.device.update({
@@ -207,17 +235,53 @@ describe('RunScheduledBackupsUseCase — integration', () => {
       ]);
     });
 
-    it('[BKP-015] should back up nothing when this server is off site', async () => {
-      await seedAp('10.0.0.10');
+    it('[BKP-015] should back up only the devices behind an agent when this server is off site', async () => {
+      const agent = new FakeAgentConfigFetcher();
+      const { id: agentId } = await seedAgent(prisma, {
+        name: 'Torre Norte'
+      });
+      const behindAgent = await seedAp('10.0.0.10');
+      await prisma.device.update({
+        where: { id: behindAgent },
+        data: { agentId }
+      });
+      await seedAp('10.0.0.11');
 
-      const result = await run(now, false);
+      const result = await buildDeviceBackups(prisma, fetcher, {
+        serverOnSite: false,
+        agent
+      }).runScheduled.execute({ now });
 
       expect(result.value).toEqual({
-        saved: 0,
+        saved: 1,
         unchanged: 0,
         skipped: 0,
         failed: []
       });
+      expect(agent.calls).toEqual([
+        { agentId, ipAddress: '10.0.0.10' }
+      ]);
+      expect(fetcher.calls).toHaveLength(0);
+    });
+
+    it('[BKP-015] should still back up every device itself when on site, behind an agent or not', async () => {
+      const agent = new FakeAgentConfigFetcher();
+      const { id: agentId } = await seedAgent(prisma, {
+        name: 'Torre Norte'
+      });
+      const behindAgent = await seedAp('10.0.0.10');
+      await prisma.device.update({
+        where: { id: behindAgent },
+        data: { agentId }
+      });
+
+      const result = await buildDeviceBackups(prisma, fetcher, {
+        agent
+      }).runScheduled.execute({ now });
+
+      expect(result.value.saved).toBe(1);
+      expect(backedUpIps()).toEqual(['10.0.0.10']);
+      expect(agent.calls).toHaveLength(0);
     });
   });
 

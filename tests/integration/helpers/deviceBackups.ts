@@ -14,6 +14,7 @@ import {
 } from 'infrastructure/device-backups';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import { CredentialsEncryption } from 'infrastructure/crypto';
+import { IAgentConfigFetcher } from 'application/device-backups/interfaces';
 import { FakeConfigFetcher } from './FakeConfigFetcher';
 
 export const FAKE_ROUTEROS_EXPORT =
@@ -82,13 +83,18 @@ export interface DeviceBackupStack {
 }
 
 /**
- * The backup use cases over real repositories, with the radio download
- * replaced by a fake. `clock` fixes the time a manual backup is taken at.
+ * The backup use cases over real repositories, with the device download
+ * replaced by a fake, and the agents too when `agent` is given. `clock`
+ * fixes the time a manual backup is taken at.
  */
 export function buildDeviceBackups(
   prisma: PrismaClient,
   fetcher: FakeConfigFetcher,
-  opts: { serverOnSite?: boolean; clock?: () => Date } = {}
+  opts: {
+    serverOnSite?: boolean;
+    clock?: () => Date;
+    agent?: IAgentConfigFetcher;
+  } = {}
 ): DeviceBackupStack {
   const logger = new WinstonLogger();
   const targets = new PrismaBackupTargetsQuery(
@@ -100,7 +106,8 @@ export function buildDeviceBackups(
   const service = new DeviceConfigBackupService(
     fetcher,
     backups,
-    states
+    states,
+    opts.agent
   );
 
   return {

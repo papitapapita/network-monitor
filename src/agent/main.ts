@@ -7,7 +7,10 @@ import {
   UbiquitiHttpCollector,
   WirelessCollectorRegistry
 } from 'infrastructure/wireless-monitoring/collectors';
-import { AGENT_CAPABILITIES } from 'agent/protocol';
+import {
+  AGENT_CAPABILITIES,
+  MAX_BACKUP_CONFIG_BYTES
+} from 'agent/protocol';
 import { PingCycleProbe } from 'application/device-monitoring/services/PingCycleProbe';
 import { promises as fs } from 'fs';
 import { isSea } from 'node:sea';
@@ -27,6 +30,12 @@ import { ResultBuffer } from './results/ResultBuffer';
 import { ProbeRunner } from './probes/ProbeRunner';
 import { EnforceRunner } from './enforce/EnforceRunner';
 import { RouterOsQueueService } from 'infrastructure/service-enforcement/RouterOsQueueService';
+import {
+  AirOsConfigFetcher,
+  ConfigFetcherRegistry,
+  RouterOsConfigFetcher,
+  SshCommandClient
+} from 'infrastructure/device-backups/fetchers';
 import {
   BackendConnection,
   DEFAULT_CONNECTION_OPTIONS
@@ -105,15 +114,31 @@ async function main(): Promise<void> {
     (result) => buffer.add(result),
     logger
   );
-  // The same collectors, and timeouts, the backend uses in process.
+  // The same collectors and config fetchers, and timeouts, the backend uses
+  // in process.
+  const airOsHttpClient = new AirOsHttpClient(10_000, logger);
   const probes = new ProbeRunner(
     pingProbe,
     new WirelessCollectorRegistry({
-      ubiquiti: new UbiquitiHttpCollector(
-        new AirOsHttpClient(10_000, logger)
-      ),
+      ubiquiti: new UbiquitiHttpCollector(airOsHttpClient),
       mimosa: new MimosaSnmpCollector(new SnmpClient(5_000))
     }),
+    new ConfigFetcherRegistry([
+      {
+        vendor: 'ubiquiti',
+        kinds: ['ACCESS_POINT'],
+        fetcher: new AirOsConfigFetcher(airOsHttpClient)
+      },
+      {
+        vendor: 'mikrotik',
+        kinds: ['ACCESS_POINT', 'ROUTER', 'SWITCH'],
+        fetcher: new RouterOsConfigFetcher(
+          new SshCommandClient({
+            maxOutputBytes: MAX_BACKUP_CONFIG_BYTES
+          })
+        )
+      }
+    ]),
     logger
   );
   runtime = new AgentRuntime({

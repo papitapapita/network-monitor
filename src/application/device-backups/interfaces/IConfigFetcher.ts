@@ -1,5 +1,5 @@
 import { Result } from 'domain/shared/core';
-import { BackupFormat } from 'domain/device-backups';
+import { BackupFormat } from 'domain/device-backups/enums';
 import {
   BackupCredentials,
   BackupDeviceKind

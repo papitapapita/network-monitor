@@ -14,6 +14,7 @@ import {
   PrismaAgentStatusQuery
 } from '../probe-agents/queries';
 import {
+  AgentChannelConfigFetcher,
   AgentChannelPingProbe,
   AgentChannelRadioReader,
   DeviceMonitoringPingResultSink
@@ -2231,7 +2232,8 @@ export class DependencyContainer {
         }
       ]),
       configBackupRepository,
-      deviceBackupStateRepository
+      deviceBackupStateRepository,
+      new AgentChannelConfigFetcher(connectedAgents)
     );
     this.deviceBackupController = new DeviceBackupController(
       new ListDeviceBackupsUseCase(

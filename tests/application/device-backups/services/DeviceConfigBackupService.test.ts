@@ -1,10 +1,15 @@
 // Source: src/application/device-backups/services/DeviceConfigBackupService.ts
 
 import {
+  AGENT_BACKUP_FAILURES,
   BACKUP_REFUSALS,
   BACKUP_VERSIONS_KEPT,
   DeviceConfigBackupService
 } from '../../../../src/application/device-backups/services';
+import {
+  AgentConfigAnswer,
+  IAgentConfigFetcher
+} from '../../../../src/application/device-backups/interfaces';
 import {
   BackupFormat,
   BackupOutcome,
@@ -287,7 +292,7 @@ describe('DeviceConfigBackupService', () => {
       ],
       [
         'a device out of the server reach',
-        { reachable: false },
+        { reach: { by: 'none' as const } },
         BACKUP_REFUSALS.OUT_OF_REACH
       ],
       [
@@ -353,7 +358,7 @@ describe('DeviceConfigBackupService', () => {
 
     it.each([
       ['not a main device', { kind: null }],
-      ['out of reach', { reachable: false }],
+      ['out of reach', { reach: { by: 'none' as const } }],
       ['an unsupported vendor', { vendorSlug: 'mimosa' }]
     ])(
       '[BKP-063] should stay quiet for %s, which is not available yet',
@@ -379,5 +384,172 @@ describe('DeviceConfigBackupService', () => {
         );
       }
     );
+  });
+  describe('through the agent (BKP-016)', () => {
+    const ROUTEROS_EXPORT =
+      '# 2026-10-07 03:00:01 by RouterOS 7.15\n/ip address\nadd address=10.0.0.1/24\n';
+    let agent: jest.Mocked<IAgentConfigFetcher>;
+
+    const behindAgent = (
+      over: Parameters<typeof makeCandidate>[0] = {}
+    ) =>
+      makeCandidate({
+        vendorSlug: 'mikrotik',
+        kind: 'ROUTER',
+        ipAddress: '10.0.0.1',
+        reach: { by: 'agent', agentId: 'agent-1' },
+        ...over
+      });
+
+    const answer = (value: AgentConfigAnswer) =>
+      agent.fetch.mockResolvedValue(value);
+
+    beforeEach(() => {
+      agent = { fetch: jest.fn() };
+      answer({
+        kind: 'fetched',
+        config: {
+          format: BackupFormat.ROUTEROS_EXPORT,
+          content: ROUTEROS_EXPORT
+        }
+      });
+      service = new DeviceConfigBackupService(
+        fetcher,
+        backups,
+        states,
+        agent
+      );
+    });
+
+    it('[BKP-016] should save what the agent read, without asking the device itself', async () => {
+      const candidate = behindAgent();
+
+      const result = await service.backUp(
+        candidate,
+        BackupTrigger.SCHEDULED,
+        NOW
+      );
+
+      expect(result.value.outcome).toBe(BackupOutcome.SAVED);
+      expect(backups.rows[0].content).toBe(ROUTEROS_EXPORT);
+      expect(backups.rows[0].backup.format).toBe(
+        BackupFormat.ROUTEROS_EXPORT
+      );
+      expect(fetcher.calls).toHaveLength(0);
+      expect(agent.fetch).toHaveBeenCalledWith('agent-1', {
+        ipAddress: '10.0.0.1',
+        vendorSlug: 'mikrotik',
+        kind: 'ROUTER',
+        credentials: candidate.credentials
+      });
+    });
+
+    it('[BKP-016] should refuse a kind of device its vendor has no backup for without asking the agent', async () => {
+      const result = await service.backUp(
+        behindAgent({ vendorSlug: 'ubiquiti' }),
+        BackupTrigger.MANUAL,
+        NOW
+      );
+
+      expect(result.value).toEqual({
+        outcome: BackupOutcome.FAILED,
+        error: BACKUP_REFUSALS.UNSUPPORTED_VENDOR,
+        refused: true
+      });
+      expect(agent.fetch).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['AGENT_OFFLINE' as const, AGENT_BACKUP_FAILURES.AGENT_OFFLINE],
+      ['TIMEOUT' as const, AGENT_BACKUP_FAILURES.TIMEOUT],
+      [
+        'AGENT_ERROR' as const,
+        'SSH login rejected: check the device username and password'
+      ]
+    ])(
+      '[BKP-016] should record %s as a failed attempt',
+      async (reason, error) => {
+        answer({
+          kind: 'refused',
+          reason,
+          error:
+            'SSH login rejected: check the device username and password'
+        });
+        const candidate = behindAgent();
+
+        const result = await service.backUp(
+          candidate,
+          BackupTrigger.MANUAL,
+          NOW
+        );
+
+        expect(result.value).toEqual({
+          outcome: BackupOutcome.FAILED,
+          error,
+          refused: false
+        });
+        expect(stateOf(candidate.deviceId)?.lastError).toBe(error);
+      }
+    );
+
+    it('[BKP-016] should record an agent too old to take backups as refused', async () => {
+      answer({
+        kind: 'refused',
+        reason: 'PROBE_UNSUPPORTED',
+        error: 'The agent must be updated to take backups'
+      });
+
+      const result = await service.backUp(
+        behindAgent(),
+        BackupTrigger.MANUAL,
+        NOW
+      );
+
+      expect(result.value).toEqual({
+        outcome: BackupOutcome.FAILED,
+        error: AGENT_BACKUP_FAILURES.PROBE_UNSUPPORTED,
+        refused: true
+      });
+    });
+
+    it('[BKP-063] should stay quiet while the agent is too old to take backups', async () => {
+      answer({
+        kind: 'refused',
+        reason: 'PROBE_UNSUPPORTED',
+        error: 'The agent must be updated to take backups'
+      });
+      const candidate = behindAgent();
+
+      for (let night = 0; night < 3; night++)
+        await service.backUp(
+          candidate,
+          BackupTrigger.SCHEDULED,
+          new Date(NOW.getTime() + night * DAY)
+        );
+
+      const state = stateOf(candidate.deviceId)!;
+      expect(state.consecutiveFailures).toBe(3);
+      expect(state.domainEvents).toHaveLength(0);
+    });
+
+    it('[BKP-061] should announce an agent offline three nights in a row', async () => {
+      answer({
+        kind: 'refused',
+        reason: 'AGENT_OFFLINE',
+        error: 'The agent is not connected'
+      });
+      const candidate = behindAgent();
+
+      for (let night = 0; night < 3; night++)
+        await service.backUp(
+          candidate,
+          BackupTrigger.SCHEDULED,
+          new Date(NOW.getTime() + night * DAY)
+        );
+
+      expect(
+        stateOf(candidate.deviceId)!.domainEvents[0]
+      ).toBeInstanceOf(DeviceBackupFailingEvent);
+    });
   });
 });

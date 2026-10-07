@@ -62,6 +62,9 @@ const WINSW = {
 
 const TARGETS = ['win-x64', 'linux-x64'];
 
+// Optional native add-ons of ssh2 (RouterOS backups, AGT-114).
+const AGENT_EXTERNALS = ['*.node', 'cpu-features'];
+
 function agentVersion() {
   const source = readFileSync(
     path.join(ROOT, 'src/agent/version.ts'),
@@ -157,6 +160,9 @@ async function bundle() {
     target: `node${process.versions.node.split('.')[0]}`,
     outfile: bundlePath,
     absWorkingDir: ROOT,
+    // ssh2's native add-ons are optional and cannot live inside a single
+    // executable: left out, its require fails and it uses plain JavaScript.
+    external: AGENT_EXTERNALS,
     logLevel: 'warning'
   });
   return bundlePath;

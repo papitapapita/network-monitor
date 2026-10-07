@@ -48,6 +48,9 @@ describe('parseAgentMessage', () => {
     expect(hello(['probe', 'teleport'])).toMatchObject({
       capabilities: ['probe']
     });
+    expect(hello(['backup', 'probe', 'enforce'])).toMatchObject({
+      capabilities: ['probe', 'enforce', 'backup']
+    });
     expect(hello()).toMatchObject({ capabilities: [] });
     expect(hello('probe')).toBeNull();
   });
@@ -86,6 +89,41 @@ describe('parseAgentMessage', () => {
       expect(ok(answer)).toEqual(answer);
     }
   });
+
+  it('[AGT-114] accepts a backup answer of either format', () => {
+    for (const format of ['AIROS_CFG', 'ROUTEROS_EXPORT']) {
+      const answer = {
+        type: 'probe.result',
+        requestId: 'b-1',
+        kind: 'backup',
+        at: 1,
+        config: { format, content: '/ip address\n' }
+      };
+      expect(ok(answer)).toEqual(answer);
+    }
+  });
+
+  it.each([
+    ['an unknown format', { format: 'JUNOS', content: 'x' }],
+    ['no content', { format: 'AIROS_CFG' }],
+    [
+      'a file over 1,000,000 characters',
+      { format: 'AIROS_CFG', content: 'x'.repeat(1_000_001) }
+    ]
+  ])(
+    '[AGT-114] rejects a backup answer with %s',
+    (_label, config) => {
+      expect(
+        ok({
+          type: 'probe.result',
+          requestId: 'b-1',
+          kind: 'backup',
+          at: 1,
+          config
+        })
+      ).toBeNull();
+    }
+  );
 
   it('[AGT-111] accepts every shape of enforce answer', () => {
     const answers = [

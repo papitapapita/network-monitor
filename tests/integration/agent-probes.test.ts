@@ -39,6 +39,7 @@ import {
   formatPairingKey
 } from '../../src/agent/protocol';
 import { WirelessCollectorRegistry } from '../../src/infrastructure/wireless-monitoring/collectors';
+import { ConfigFetcherRegistry } from '../../src/infrastructure/device-backups/fetchers';
 import type {
   DecryptedCredentials,
   IWirelessCollector
@@ -197,6 +198,7 @@ describe('Agent probes — end to end, server hosted off site', () => {
       probes: new ProbeRunner(
         ping,
         new WirelessCollectorRegistry({ ubiquiti: radio }),
+        new ConfigFetcherRegistry([]),
         logger
       ),
       enforcer: new EnforceRunner(fakeRouter, logger),

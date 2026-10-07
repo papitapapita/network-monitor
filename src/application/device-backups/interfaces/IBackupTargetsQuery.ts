@@ -13,6 +13,13 @@ export interface BackupCredentials {
 // The main devices whose configuration is backed up (BKP-010).
 export type BackupDeviceKind = 'ACCESS_POINT' | 'ROUTER' | 'SWITCH';
 
+// Who reads the device's configuration (BKP-015, BKP-016). On site this
+// server does; off site, the agent the device sits behind, if any.
+export type BackupReach =
+  | { by: 'server' }
+  | { by: 'agent'; agentId: string }
+  | { by: 'none' };
+
 // What the backup context needs to know about a device, read from inventory,
 // wireless monitoring and the stored credentials (decrypted).
 export interface BackupCandidate {
@@ -22,8 +29,7 @@ export interface BackupCandidate {
   vendorSlug: string | null;
   // null: not a main device, such as a station or a server.
   kind: BackupDeviceKind | null;
-  // Whether this server can open a connection to the device itself.
-  reachable: boolean;
+  reach: BackupReach;
   credentials: BackupCredentials | null;
 }
 

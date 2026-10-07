@@ -22,6 +22,7 @@ import { ProbeRunner } from '../../src/agent/probes/ProbeRunner';
 import { EnforceRunner } from '../../src/agent/enforce/EnforceRunner';
 import { RouterOsQueueService } from '../../src/infrastructure/service-enforcement/RouterOsQueueService';
 import { WirelessCollectorRegistry } from '../../src/infrastructure/wireless-monitoring/collectors';
+import { ConfigFetcherRegistry } from '../../src/infrastructure/device-backups/fetchers';
 import {
   BackendConnection,
   DEFAULT_CONNECTION_OPTIONS
@@ -112,6 +113,7 @@ describe('Agent app — end to end', () => {
       probes: new ProbeRunner(
         ping,
         new WirelessCollectorRegistry({}),
+        new ConfigFetcherRegistry([]),
         logger
       ),
       enforcer: new EnforceRunner(

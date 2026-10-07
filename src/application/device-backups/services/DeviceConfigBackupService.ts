@@ -11,8 +11,12 @@ import {
   IDeviceBackupStateRepository
 } from 'domain/device-backups';
 import {
+  AgentBackupRefusal,
   BackupCandidate,
-  IConfigFetcherResolver
+  FetchedConfig,
+  IAgentConfigFetcher,
+  IConfigFetcherResolver,
+  NoAgentConfigFetcher
 } from '../interfaces';
 
 // BKP-030: enough history to step back a month of daily changes.
@@ -22,7 +26,7 @@ export const BACKUP_REFUSALS = {
   NOT_MAIN_DEVICE:
     'Only access points, routers and switches are backed up for now',
   OUT_OF_REACH:
-    'This server cannot reach the device, and backups through an agent are not available yet',
+    'This server cannot reach the device, and it is not behind an on-site agent',
   NO_IP_ADDRESS: 'The device has no IP address',
   NO_CREDENTIALS:
     'No HTTP credentials are configured for this device',
@@ -30,12 +34,25 @@ export const BACKUP_REFUSALS = {
     'Backups are not supported for this kind of device from this vendor yet'
 } as const;
 
+// BKP-016: why a backup through the device's agent did not happen. An
+// AGENT_ERROR is the agent's own message, such as a rejected login.
+export const AGENT_BACKUP_FAILURES: Record<
+  Exclude<AgentBackupRefusal, 'AGENT_ERROR'>,
+  string
+> = {
+  AGENT_OFFLINE: 'The on-site agent is not connected',
+  PROBE_UNSUPPORTED:
+    'The on-site agent must be updated to take backups',
+  TIMEOUT: 'The on-site agent did not answer in time'
+};
+
 // BKP-063: refusals that say the feature is not there yet for this device, as
 // opposed to a missing IP address or login someone can fix.
 const NOT_AVAILABLE_YET: ReadonlySet<string> = new Set([
   BACKUP_REFUSALS.NOT_MAIN_DEVICE,
   BACKUP_REFUSALS.OUT_OF_REACH,
-  BACKUP_REFUSALS.UNSUPPORTED_VENDOR
+  BACKUP_REFUSALS.UNSUPPORTED_VENDOR,
+  AGENT_BACKUP_FAILURES.PROBE_UNSUPPORTED
 ]);
 
 export type BackupAttempt =
@@ -54,7 +71,8 @@ export class DeviceConfigBackupService {
   constructor(
     private readonly fetchers: IConfigFetcherResolver,
     private readonly backups: IConfigBackupRepository,
-    private readonly states: IDeviceBackupStateRepository
+    private readonly states: IDeviceBackupStateRepository,
+    private readonly agentFetcher: IAgentConfigFetcher = NoAgentConfigFetcher
   ) {}
 
   async backUp(
@@ -96,22 +114,11 @@ export class DeviceConfigBackupService {
         refused: true
       });
 
-    const fetcher = this.fetchers.forDevice(
-      candidate.vendorSlug!,
-      candidate.kind!
-    )!;
-    const fetched = await fetcher.fetch(
-      candidate.ipAddress!,
-      candidate.credentials!
-    );
-    if (fetched.isFailure)
-      return Result.ok({
-        outcome: BackupOutcome.FAILED,
-        error: fetched.error,
-        refused: false
-      });
+    const fetched = await this.fetch(candidate);
+    if ('error' in fetched)
+      return Result.ok({ outcome: BackupOutcome.FAILED, ...fetched });
 
-    const { format, content } = fetched.value;
+    const { format, content } = fetched;
     const contentHash = createHash('sha256')
       .update(ConfigNormalizer.normalize(format, content), 'utf8')
       .digest('hex');
@@ -165,10 +172,48 @@ export class DeviceConfigBackupService {
     });
   }
 
-  // BKP-010 … BKP-014, checked before the device is asked anything.
+  // Only called once refusalFor has passed the candidate.
+  private async fetch(
+    candidate: BackupCandidate
+  ): Promise<FetchedConfig | { error: string; refused: boolean }> {
+    const ipAddress = candidate.ipAddress!;
+    const credentials = candidate.credentials!;
+
+    if (candidate.reach.by === 'agent') {
+      const answer = await this.agentFetcher.fetch(
+        candidate.reach.agentId,
+        {
+          ipAddress,
+          vendorSlug: candidate.vendorSlug!,
+          kind: candidate.kind!,
+          credentials
+        }
+      );
+      if (answer.kind === 'fetched') return answer.config;
+      // An agent that does not take backups yet never asked the device.
+      return answer.reason === 'AGENT_ERROR'
+        ? { error: answer.error, refused: false }
+        : {
+            error: AGENT_BACKUP_FAILURES[answer.reason],
+            refused: answer.reason === 'PROBE_UNSUPPORTED'
+          };
+    }
+
+    const fetcher = this.fetchers.forDevice(
+      candidate.vendorSlug!,
+      candidate.kind!
+    )!;
+    const fetched = await fetcher.fetch(ipAddress, credentials);
+    return fetched.isFailure
+      ? { error: fetched.error, refused: false }
+      : fetched.value;
+  }
+
+  // BKP-010 … BKP-015, checked before the device is asked anything.
   private refusalFor(candidate: BackupCandidate): string | null {
     if (!candidate.kind) return BACKUP_REFUSALS.NOT_MAIN_DEVICE;
-    if (!candidate.reachable) return BACKUP_REFUSALS.OUT_OF_REACH;
+    if (candidate.reach.by === 'none')
+      return BACKUP_REFUSALS.OUT_OF_REACH;
     if (!candidate.ipAddress) return BACKUP_REFUSALS.NO_IP_ADDRESS;
     if (!candidate.credentials) return BACKUP_REFUSALS.NO_CREDENTIALS;
     if (

@@ -4,7 +4,8 @@ import type { IAgentProbeChannel } from '../../../../src/application/probe-agent
 describe('AgentChannelPingProbe', () => {
   const channel = {
     ping: jest.fn(),
-    readRadio: jest.fn()
+    readRadio: jest.fn(),
+    fetchConfig: jest.fn()
   } satisfies jest.Mocked<IAgentProbeChannel>;
   const probe = new AgentChannelPingProbe(channel);
 

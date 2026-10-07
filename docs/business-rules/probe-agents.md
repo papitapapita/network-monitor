@@ -53,8 +53,8 @@ A rule enforced in two layers counts in both.
 | Domain                       | 11    |
 | Application                  | 19    |
 | Infrastructure (composition) | 13    |
-| Presentation                 | 15    |
-| Agent program                | 20    |
+| Presentation                 | 17    |
+| Agent program                | 23    |
 
 ---
 
@@ -1297,3 +1297,67 @@ never sit on the customer's PC.
 
 **Enforced at:** `src/agent/enforce/EnforceRunner.ts`
 **Tests:** `tests/agent/enforce/EnforceRunner.test.ts`
+
+### AGT-113 — Only an agent that names `backup` is asked for a device's configuration
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Presentation · Agent program
+**Since:** 2026-10-07
+
+From version `0.5.0` the hello names `backup` beside `probe` and `enforce`.
+The backend sends a backup request only to an agent that named it; any other
+answers `PROBE_UNSUPPORTED` ("The agent must be updated to take backups")
+without being asked, and is never sent the device's login. Offline, timeout
+and error end the request as in `AGT-103`.
+
+**Why:** As `AGT-100` and `AGT-110`: a `0.4.0` agent answers `probe` but does
+not know this kind, and must not receive a login it would not use.
+
+**Enforced at:** `src/agent/protocol/messages.ts` (`AGENT_CAPABILITIES`), `src/presentation/ws/agent/AgentSession.ts` (`canBackUp`, `probe`), `src/presentation/ws/agent/ConnectedAgents.ts` (`probe`)
+**Tests:** `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/integration/agent-backups.test.ts`
+
+### AGT-114 — An agent reads a device's configuration when asked, with the backend's own fetchers
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program · Presentation
+**Since:** 2026-10-07
+
+A backup request is a probe request of kind `backup`: a request id, the
+device's address, its vendor, whether it is an access point, a router or a
+switch, and its login (username, password, HTTP and SSH ports). The agent
+picks the fetcher the backend would use (AirOS over HTTP on a Ubiquiti
+access point, RouterOS over SSH on any MikroTik, `BKP-050` … `BKP-055`) and
+answers with the file exactly as the device sent it and its format,
+`AIROS_CFG` or `ROUTEROS_EXPORT`. A kind of device its vendor has no fetcher
+for, a device that refuses or does not answer, or a fetch that crashes is
+answered with an error. A backup counts toward the 4 requests at once of
+`AGT-101`.
+
+The backend waits 45 seconds for the answer. A file over 1,000,000 characters
+or of an unknown format is a protocol error, like any malformed answer.
+
+**Why:** Off site, only the agent can reach the device (`BKP-016`). Reusing
+the fetchers means a file read through the agent is the file the server would
+have read, so comparing versions works the same either way. The wait is
+longer than a radio read's because the nightly run, not a person behind the
+HTTP proxy, asks for most backups, and an export of a large router takes some
+seconds.
+
+**Enforced at:** `src/agent/probes/ProbeRunner.ts`, `src/agent/main.ts`, `src/agent/protocol/messages.ts`, `src/presentation/ws/agent/ConnectedAgents.ts` (`fetchConfig`), `src/presentation/ws/agent/agentMessageSchema.ts`
+**Tests:** `tests/agent/probes/ProbeRunner.test.ts`, `tests/agent/importBoundary.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/integration/agent-backups.test.ts`
+
+### AGT-115 — The device login in a backup request is used for that request and kept nowhere
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Agent program
+**Since:** 2026-10-07
+
+As `AGT-102` and `AGT-112`: the login is used for the one download, not saved,
+and not logged. The file the agent read goes back in the answer and is not
+written to the agent's data directory either.
+
+**Why:** A device's admin login, and a RouterOS export with its secrets, must
+never sit on the customer's PC.
+
+**Enforced at:** `src/agent/probes/ProbeRunner.ts`
+**Tests:** `tests/agent/probes/ProbeRunner.test.ts`

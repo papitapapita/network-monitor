@@ -27,7 +27,7 @@ Format and conventions: [README.md](README.md).
 | Domain (service)               | 4     |
 | Domain (service) + Application | 1     |
 | Domain + Application           | 5     |
-| Application                    | 4     |
+| Application                    | 5     |
 | Application + Infrastructure   | 2     |
 | Application + Presentation     | 1     |
 | Infrastructure                 | 8     |
@@ -35,9 +35,10 @@ Format and conventions: [README.md](README.md).
 | Presentation                   | 3     |
 
 AirOS access points and MikroTik routers and switches, read by this server
-itself, with change and failure alerts and a comparison of any two versions.
-Stations, other vendors' routers and switches, and backups through the agent
-come later; the refusals in `BKP-014` say which case a device falls into today.
+on site or by the device's on-site agent off site, with change and failure
+alerts and a comparison of any two versions. Stations and other vendors'
+routers and switches come later; the refusals in `BKP-014` say which case a
+device falls into today.
 
 ---
 
@@ -173,21 +174,33 @@ downloaded is byte for byte the device's own.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-10-07 · **Changed:** 2026-10-07 (routers and switches)
+**Since:** 2026-10-07 · **Changed:** 2026-10-07 (routers and switches; access points by category)
 
 A device is in the run when it is `ACTIVE` or `COMMISSIONING`, is not deleted,
-and either has an enabled wireless polling configuration of type
-`ACCESS_POINT` or its model is a `ROUTER`, `ROUTERBOARD` or `SWITCH`. These are
-the main devices; an access point counts as one first. Stations, servers,
-disabled polling configurations, devices in inventory or decommissioned are
-left out.
+and is one of:
+
+- an access point: an enabled wireless polling configuration of type
+  `ACCESS_POINT`, or, for a device with no polling configuration, the
+  category `ACCESS_POINT`;
+- a device whose model is a `ROUTER`, `ROUTERBOARD` or `SWITCH`.
+
+These are the main devices; an access point counts as one first. A polling
+configuration, when there is one, decides over the category: a device polled
+as a station, or an access point whose polling was turned off, is left out
+whatever its category. Servers, devices in inventory or decommissioned are
+left out too. A manual backup recognises an access point the same way, its
+polling turned off or not.
 
 **Why:** Access points carry a whole sector of customers and the routers and
 switches carry the whole network; their configuration is the one worth having.
-Stations come later as an opt-in.
+Stations come later as an opt-in. The category is what an operator sets when
+adding a device, so an access point nobody set up wireless polling for is
+still backed up; a polling configuration is the more deliberate statement, so
+it wins when the two disagree.
 
-**Enforced at:** `src/infrastructure/device-backups/queries/PrismaBackupTargetsQuery.ts` (`listScheduled`)
+**Enforced at:** `src/infrastructure/device-backups/queries/PrismaBackupTargetsQuery.ts` (`listScheduled`, `select`)
 **Tests:** `tests/integration/use-cases/device-backups/RunScheduledBackupsUseCase.integration.test.ts`,
+`tests/integration/use-cases/device-backups/BackUpDeviceNowUseCase.integration.test.ts`,
 `tests/application/device-backups/use-cases/RunScheduledBackupsUseCase.test.ts`,
 `tests/application/device-backups/services/DeviceConfigBackupService.test.ts`,
 `tests/infrastructure/device-backups/fetchers/ConfigFetcherRegistry.test.ts`
@@ -244,8 +257,8 @@ the rest, and the run should never flood the network.
 **Layer:** Application
 **Since:** 2026-10-07
 
-In this order: not a main device (`BKP-010`); out of this server's reach; no
-IP address; no HTTP credentials; no backup support yet for this kind of device
+In this order: not a main device (`BKP-010`); out of reach, that is off site
+and behind no agent (`BKP-015`); no IP address; no HTTP credentials; no backup support yet for this kind of device
 from its vendor. Today that support is AirOS on Ubiquiti access points and
 RouterOS on any MikroTik; a Ubiquiti router, for one, is refused. The refusal
 is recorded like a failed attempt (`BKP-020`).
@@ -255,7 +268,7 @@ login should show up as failing, with the reason, instead of silently missing.
 
 **Enforced at:** `src/application/device-backups/services/DeviceConfigBackupService.ts` (`refusalFor`)
 **Messages:** `Only access points, routers and switches are backed up for now`,
-`This server cannot reach the device, and backups through an agent are not available yet`,
+`This server cannot reach the device, and it is not behind an on-site agent`,
 `The device has no IP address`, `No HTTP credentials are configured for this device`,
 `Backups are not supported for this kind of device from this vendor yet`
 **Tests:** `tests/application/device-backups/services/DeviceConfigBackupService.test.ts`,
@@ -263,21 +276,59 @@ login should show up as failing, with the reason, instead of silently missing.
 `tests/integration/use-cases/device-backups/RunScheduledBackupsUseCase.integration.test.ts`,
 `tests/infrastructure/device-backups/fetchers/ConfigFetcherRegistry.test.ts`
 
-### BKP-015 — Off site, no device is backed up yet
+### BKP-015 — Off site, only the devices behind an agent are backed up
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure
+**Since:** 2026-10-07 · **Revised:** 2026-10-07 (devices behind an agent are backed up through it)
+
+With `SERVER_ON_SITE=false` the daily run takes only the devices assigned to
+an on-site agent, and reads them through it (`BKP-016`). A device behind no
+agent is left out of the run, and a manual backup of it is refused as out of
+reach. On site the server reads every device itself, behind an agent or not.
+
+**Why:** Off site the server reaches a device only through the agent it sits
+behind. On site, reading directly keeps backups working the day an agent is
+down, the same choice wireless polling makes (`WLS-029`).
+
+**Enforced at:** `src/infrastructure/device-backups/queries/PrismaBackupTargetsQuery.ts` (`listScheduled`, `reachOf`)
+**Tests:** `tests/integration/use-cases/device-backups/BackUpDeviceNowUseCase.integration.test.ts`,
+`tests/integration/use-cases/device-backups/RunScheduledBackupsUseCase.integration.test.ts`,
+`tests/integration/agent-backups.test.ts`
+
+### BKP-016 — A device behind an agent is read by the agent, and why it was not is recorded
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
 **Since:** 2026-10-07
 
-With `SERVER_ON_SITE=false` the daily run is empty and a manual backup is
-refused as out of reach.
+The refusals of `BKP-014` are checked first, so the agent is never asked for
+a device the server would refuse. Then the agent reads the device with the
+same fetchers (`AGT-114`), and its file is stored, compared and announced as
+if the server had read it. When it does not come back, the attempt fails
+with:
 
-**Why:** Off site the server reaches devices only through the agent, and the
-agent cannot fetch configurations yet (phase 2).
+| Agent outcome       | Recorded error                                        | Counts toward the alert |
+| ------------------- | ----------------------------------------------------- | ----------------------- |
+| `PROBE_UNSUPPORTED` | `The on-site agent must be updated to take backups`   | No (`BKP-063`)          |
+| `AGENT_OFFLINE`     | `The on-site agent is not connected`                  | Yes                     |
+| `TIMEOUT`           | `The on-site agent did not answer in time`            | Yes                     |
+| `AGENT_ERROR`       | The agent's own message, such as a rejected SSH login | Yes                     |
 
-**Enforced at:** `src/infrastructure/device-backups/queries/PrismaBackupTargetsQuery.ts`
-**Tests:** `tests/integration/use-cases/device-backups/BackUpDeviceNowUseCase.integration.test.ts`,
-`tests/integration/use-cases/device-backups/RunScheduledBackupsUseCase.integration.test.ts`
+An agent too old to take backups is a refusal, so a manual backup answers
+409; the other three are failures and answer 502 (`BKP-051`).
+
+**Why:** Agents update themselves (`AGT-080`), so an old agent fixes itself
+and an alert for it is noise. An agent down three nights in a row, or a login
+that stopped working, is something someone has to look at.
+
+**Enforced at:** `src/application/device-backups/services/DeviceConfigBackupService.ts` (`fetch`, `AGENT_BACKUP_FAILURES`), `src/application/device-backups/interfaces/IAgentConfigFetcher.ts`, `src/infrastructure/probe-agents/adapters/AgentChannelConfigFetcher.ts`
+**Messages:** `The on-site agent must be updated to take backups`,
+`The on-site agent is not connected`, `The on-site agent did not answer in time`
+**Tests:** `tests/application/device-backups/services/DeviceConfigBackupService.test.ts`,
+`tests/infrastructure/probe-agents/adapters/AgentChannelConfigFetcher.test.ts`,
+`tests/integration/use-cases/device-backups/BackUpDeviceNowUseCase.integration.test.ts`,
+`tests/integration/agent-backups.test.ts`
 
 ---
 
@@ -637,10 +688,12 @@ alert at all, and turning it off must not need a code change.
 **Since:** 2026-10-07
 
 A refusal (`BKP-014`) because the device is not a main device, is out of
-this server's reach, or is of a vendor with no backup support yet still counts
-in the device's streak and shows as its last error, but never triggers the
-failing alert (`BKP-061`). A refusal someone can fix (no IP address, no HTTP
-credentials) does.
+reach, or is of a vendor with no backup support yet, or because its agent must
+be updated first (`BKP-016`), still counts in the device's streak and shows as
+its last error, but never triggers the failing alert (`BKP-061`). A refusal
+someone can fix (no IP address, no HTTP credentials) does. A device out of
+reach is never in the daily run (`BKP-015`), so only a manual backup records
+one.
 
 **Why:** The operator cannot do anything about a feature that does not exist
 yet; an alert for it is noise that teaches people to ignore the real ones.

@@ -169,6 +169,15 @@ export class AgentSession {
     );
   }
 
+  // AGT-113: only an agent that said it takes backups is ever asked to.
+  get canBackUp(): boolean {
+    return (
+      this.greeted &&
+      !this.closed &&
+      this.capabilities.includes('backup')
+    );
+  }
+
   // AGT-103: sent at once, outside the message queue, and answered by
   // request id; an answer that never comes ends as a timeout, and closing
   // the session ends every request still waiting.
@@ -176,7 +185,9 @@ export class AgentSession {
     request: ProbeRequest,
     timeoutMs: number
   ): Promise<ProbeAnswer> {
-    if (!this.canProbe) return Promise.resolve({ kind: 'closed' });
+    const supported =
+      request.kind === 'backup' ? this.canBackUp : this.canProbe;
+    if (!supported) return Promise.resolve({ kind: 'closed' });
     return this.request<ProbeResultMessage>(
       (requestId) =>
         ({ ...request, requestId }) as ProbeRequestMessage,

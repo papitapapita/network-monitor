@@ -137,7 +137,7 @@ export function makeCandidate(
     ipAddress: '10.0.0.10',
     vendorSlug: 'ubiquiti',
     kind: 'ACCESS_POINT',
-    reachable: true,
+    reach: { by: 'server' },
     credentials: {
       username: 'ubnt',
       password: 'secret',

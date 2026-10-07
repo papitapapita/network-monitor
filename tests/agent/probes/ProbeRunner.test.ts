@@ -3,11 +3,26 @@ import {
   ProbeRunner,
   toWirelessReadingWire
 } from '../../../src/agent/probes/ProbeRunner';
+import { MAX_BACKUP_CONFIG_BYTES } from '../../../src/agent/protocol';
 import type {
+  BackupConfigWire,
+  BackupDeviceKindWire,
+  BackupLoginWire,
   ProbeCredentialsWire,
   ProbeRequestMessage,
   WirelessReadingWire
 } from '../../../src/agent/protocol';
+import type {
+  BackupCredentials,
+  BackupDeviceKind,
+  FetchedConfig,
+  IConfigFetcher
+} from '../../../src/application/device-backups/interfaces';
+import {
+  BackupFormat,
+  MAX_CONFIG_BYTES
+} from '../../../src/domain/device-backups';
+import { ConfigFetcherRegistry } from '../../../src/infrastructure/device-backups/fetchers';
 import type {
   DecryptedCredentials,
   IWirelessCollector,
@@ -41,6 +56,37 @@ const readingMatches: Same<
   Wire<WirelessCollectionResult>,
   WirelessReadingWire
 > = true;
+const loginMatches: Same<BackupCredentials, BackupLoginWire> = true;
+const kindMatches: Same<BackupDeviceKind, BackupDeviceKindWire> =
+  true;
+const configMatches: Same<
+  Wire<FetchedConfig>,
+  Omit<BackupConfigWire, 'format'> & { format: BackupFormat }
+> = true;
+const formatsMatch: Same<
+  `${BackupFormat}`,
+  BackupConfigWire['format']
+> = true;
+
+const LOGIN: BackupLoginWire = {
+  username: 'admin',
+  password: 'router-secreto',
+  httpPort: 443,
+  sshPort: 2222
+};
+
+const backupRequest = (
+  vendor = 'mikrotik',
+  deviceKind: BackupDeviceKindWire = 'ROUTER'
+): ProbeRequestMessage => ({
+  type: 'probe',
+  requestId: 'b-1',
+  kind: 'backup',
+  ip: '10.0.0.1',
+  vendor,
+  deviceKind,
+  login: LOGIN
+});
 
 const CREDENTIALS: ProbeCredentialsWire = {
   snmpVersion: 2,
@@ -82,6 +128,7 @@ const wirelessRequest = (
 describe('ProbeRunner', () => {
   let ping: { run: jest.Mock };
   let collector: jest.Mocked<IWirelessCollector>;
+  let fetcher: jest.Mocked<IConfigFetcher>;
   let logger: ReturnType<typeof silentLogger>;
   let runner: ProbeRunner;
 
@@ -100,16 +147,98 @@ describe('ProbeRunner', () => {
         .fn()
         .mockResolvedValue(Result.ok(makeWirelessCollectionResult()))
     };
+    fetcher = {
+      fetch: jest.fn().mockResolvedValue(
+        Result.ok({
+          format: BackupFormat.ROUTEROS_EXPORT,
+          content: '/ip address\nadd address=10.0.0.1/24\n'
+        })
+      )
+    };
     logger = silentLogger();
     runner = new ProbeRunner(
       ping,
       new WirelessCollectorRegistry({ ubiquiti: collector }),
+      new ConfigFetcherRegistry([
+        {
+          vendor: 'mikrotik',
+          kinds: ['ACCESS_POINT', 'ROUTER', 'SWITCH'],
+          fetcher
+        }
+      ]),
       logger
     );
   });
 
-  it('keeps the wire types in step with the collectors', () => {
-    expect([credentialsMatch, readingMatches]).toEqual([true, true]);
+  it('keeps the wire types in step with the collectors and fetchers', () => {
+    expect([
+      credentialsMatch,
+      readingMatches,
+      loginMatches,
+      kindMatches,
+      configMatches,
+      formatsMatch
+    ]).toEqual([true, true, true, true, true, true]);
+    expect(MAX_BACKUP_CONFIG_BYTES).toBe(MAX_CONFIG_BYTES);
+  });
+
+  it('[AGT-114] reads the configuration with the fetcher the backend would use', async () => {
+    const before = Date.now();
+
+    const result = await runner.run(backupRequest());
+
+    expect(fetcher.fetch).toHaveBeenCalledWith('10.0.0.1', LOGIN);
+    expect(result).toEqual({
+      type: 'probe.result',
+      requestId: 'b-1',
+      kind: 'backup',
+      at: expect.any(Number),
+      config: {
+        format: 'ROUTEROS_EXPORT',
+        content: '/ip address\nadd address=10.0.0.1/24\n'
+      }
+    });
+    expect((result as { at: number }).at).toBeGreaterThanOrEqual(
+      before
+    );
+  });
+
+  it('[AGT-114] answers an error when the device cannot be read', async () => {
+    fetcher.fetch.mockResolvedValue(
+      Result.fail(
+        'SSH login rejected: check the device username and password'
+      )
+    );
+
+    expect(await runner.run(backupRequest())).toEqual({
+      type: 'probe.result',
+      requestId: 'b-1',
+      error:
+        'SSH login rejected: check the device username and password'
+    });
+  });
+
+  it('[AGT-114] answers an error for a kind of device its vendor has no fetcher for', async () => {
+    expect(
+      await runner.run(backupRequest('ubiquiti', 'ROUTER'))
+    ).toEqual({
+      type: 'probe.result',
+      requestId: 'b-1',
+      error:
+        'Backups are not supported for this kind of device from this vendor yet'
+    });
+    expect(fetcher.fetch).not.toHaveBeenCalled();
+  });
+
+  it('[AGT-115] never logs the login it was given', async () => {
+    await runner.run(backupRequest());
+
+    const logged = JSON.stringify(
+      Object.values(logger)
+        .filter((fn) => jest.isMockFunction(fn))
+        .flatMap((fn) => (fn as jest.Mock).mock.calls)
+    );
+    expect(logged).not.toContain('router-secreto');
   });
 
   it('[AGT-101] pings with the device attempt budget and answers with the reading', async () => {
@@ -251,6 +380,7 @@ describe('ProbeRunner', () => {
     runner = new ProbeRunner(
       ping,
       new WirelessCollectorRegistry({}),
+      new ConfigFetcherRegistry([]),
       logger,
       { maxConcurrent: 2, maxQueued: 1 }
     );

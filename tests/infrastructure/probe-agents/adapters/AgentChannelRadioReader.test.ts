@@ -6,7 +6,8 @@ import { makeWirelessCollectionResult } from '../../../fixtures/wirelessCollecti
 describe('AgentChannelRadioReader', () => {
   const channel = {
     ping: jest.fn(),
-    readRadio: jest.fn()
+    readRadio: jest.fn(),
+    fetchConfig: jest.fn()
   } satisfies jest.Mocked<IAgentProbeChannel>;
   const reader = new AgentChannelRadioReader(channel);
   const request: AgentRadioReadRequest = {

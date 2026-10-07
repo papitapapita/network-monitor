@@ -4,6 +4,7 @@ import { DeviceId } from 'domain/shared/ids';
 import {
   BackupCandidate,
   BackupDeviceKind,
+  BackupReach,
   IBackupTargetsQuery
 } from 'application/device-backups/interfaces';
 import { CredentialsEncryption } from '../../crypto';
@@ -11,6 +12,7 @@ import { CredentialsEncryption } from '../../crypto';
 interface CandidateRow {
   device_id: string;
   device_name: string;
+  agent_id: string | null;
   ip_address: string | null;
   vendor_slug: string | null;
   kind: BackupDeviceKind | null;
@@ -23,21 +25,27 @@ interface CandidateRow {
 export class PrismaBackupTargetsQuery implements IBackupTargetsQuery {
   constructor(
     private readonly prisma: PrismaClient,
-    // Off site the server reaches no device itself; agents come in phase 2.
+    // Off site the server reaches no device itself, only through the agent
+    // a device sits behind (BKP-015).
     private readonly serverOnSite: boolean
   ) {}
 
-  // BKP-010: the access points wireless monitoring polls, and the routers
-  // and switches, in service.
+  // BKP-010: the access points, polled or categorised as such, and the
+  // routers and switches, in service. Off site, only those behind an agent
+  // (BKP-015).
   async listScheduled(): Promise<Result<BackupCandidate[]>> {
-    if (!this.serverOnSite) return Result.ok([]);
+    const reachable = this.serverOnSite
+      ? Prisma.empty
+      : Prisma.sql`AND d.agent_id IS NOT NULL`;
     return this.select(
       Prisma.sql`
         (
           (wpc.device_type = 'ACCESS_POINT' AND wpc.enabled = true)
+          OR (wpc.device_id IS NULL AND d.category = 'ACCESS_POINT')
           OR dm.device_type IN ('ROUTER', 'ROUTERBOARD', 'SWITCH')
         )
         AND d.status IN ('ACTIVE', 'COMMISSIONING')
+        ${reachable}
       `,
       'Database error listing backup targets'
     );
@@ -63,10 +71,15 @@ export class PrismaBackupTargetsQuery implements IBackupTargetsQuery {
       const rows = await this.prisma.$queryRaw<CandidateRow[]>`
         SELECT d.id AS device_id,
                d.name AS device_name,
+               d.agent_id::text AS agent_id,
                COALESCE(wpc.ip_address, d.ip_address) AS ip_address,
                v.slug AS vendor_slug,
+               -- A polling configuration says what the radio is; without
+               -- one, the device's category does (BKP-010).
                CASE
                  WHEN wpc.device_type = 'ACCESS_POINT' THEN 'ACCESS_POINT'
+                 WHEN wpc.device_id IS NULL
+                   AND d.category = 'ACCESS_POINT' THEN 'ACCESS_POINT'
                  WHEN dm.device_type IN ('ROUTER', 'ROUTERBOARD')
                    THEN 'ROUTER'
                  WHEN dm.device_type = 'SWITCH' THEN 'SWITCH'
@@ -93,6 +106,15 @@ export class PrismaBackupTargetsQuery implements IBackupTargetsQuery {
     }
   }
 
+  // On site the server reads every device itself, behind an agent or not,
+  // as wireless polling does (WLS-029).
+  private reachOf(row: CandidateRow): BackupReach {
+    if (this.serverOnSite) return { by: 'server' };
+    return row.agent_id
+      ? { by: 'agent', agentId: row.agent_id }
+      : { by: 'none' };
+  }
+
   private toCandidate(row: CandidateRow): BackupCandidate {
     const hasLogin =
       row.http_username !== null && row.http_password !== null;
@@ -102,7 +124,7 @@ export class PrismaBackupTargetsQuery implements IBackupTargetsQuery {
       ipAddress: row.ip_address,
       vendorSlug: row.vendor_slug,
       kind: row.kind,
-      reachable: this.serverOnSite,
+      reach: this.reachOf(row),
       credentials: hasLogin
         ? {
             username: row.http_username!,

@@ -32,13 +32,15 @@ export const CloseCode = {
 
 // What an agent can do beyond its scheduled pings (AGT-100). The backend
 // sends a probe request only to an agent that named `probe` in its hello,
-// and an enforce request only to one that named `enforce` (AGT-110), so an
-// older agent never receives either.
-export type AgentCapability = 'probe' | 'enforce';
+// an enforce request only to one that named `enforce` (AGT-110), and a
+// backup request only to one that named `backup` (AGT-113), so an older
+// agent never receives a request it does not understand.
+export type AgentCapability = 'probe' | 'enforce' | 'backup';
 
 export const AGENT_CAPABILITIES: readonly AgentCapability[] = [
   'probe',
-  'enforce'
+  'enforce',
+  'backup'
 ];
 
 // ── Agent → backend ───────────────────────────────────────────────────────
@@ -178,6 +180,16 @@ export interface WirelessReadingWire {
   clients: WirelessClientWire[];
 }
 
+// The largest file a backup answer may carry: the backend's own limit
+// (BKP-004), and what the agent stops reading a device at.
+export const MAX_BACKUP_CONFIG_BYTES = 1_000_000;
+
+// The file a backup request read (AGT-114): what the device sent, unchanged.
+export interface BackupConfigWire {
+  format: 'AIROS_CFG' | 'ROUTEROS_EXPORT';
+  content: string;
+}
+
 // The answer to one probe request (AGT-101). `at` is the agent-clock time
 // the measurement started; `error` means it could not be made at all.
 export type ProbeResultMessage =
@@ -194,6 +206,13 @@ export type ProbeResultMessage =
       kind: 'wireless';
       at: number;
       reading: WirelessReadingWire;
+    }
+  | {
+      type: 'probe.result';
+      requestId: string;
+      kind: 'backup';
+      at: number;
+      config: BackupConfigWire;
     }
   | { type: 'probe.result'; requestId: string; error: string };
 
@@ -276,9 +295,25 @@ export interface ProbeCredentialsWire {
   httpPort: number;
 }
 
+// The device's login for a backup request, held by the agent only until it
+// answers (AGT-115). AirOS is read over HTTP, RouterOS over SSH.
+export interface BackupLoginWire {
+  username: string;
+  password: string;
+  httpPort: number;
+  sshPort: number;
+}
+
+export type BackupDeviceKindWire =
+  | 'ACCESS_POINT'
+  | 'ROUTER'
+  | 'SWITCH';
+
 // Measure one device now and answer with a probe.result of the same
 // requestId (AGT-101). `attempts` is the device's failuresBeforeDown;
-// `vendor` picks the collector the backend would have used.
+// `vendor` picks the collector the backend would have used. A `backup`
+// reads the device's configuration with the backend's own fetchers
+// (AGT-114).
 export type ProbeRequestMessage =
   | {
       type: 'probe';
@@ -295,6 +330,15 @@ export type ProbeRequestMessage =
       vendor: string;
       deviceType: 'STATION' | 'ACCESS_POINT';
       credentials: ProbeCredentialsWire;
+    }
+  | {
+      type: 'probe';
+      requestId: string;
+      kind: 'backup';
+      ip: string;
+      vendor: string;
+      deviceKind: BackupDeviceKindWire;
+      login: BackupLoginWire;
     };
 
 // The enforcement router's address and API login, sent with each enforce
