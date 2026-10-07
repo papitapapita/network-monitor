@@ -1,0 +1,362 @@
+// Source: src/application/device-backups/use-cases/RunScheduledBackupsUseCase.ts
+
+import { PrismaClient } from '../../../../src/generated/prisma/client';
+import {
+  setupDependencies,
+  DependencyContainer
+} from 'infrastructure/di/container';
+import {
+  BACKUP_FRESH_FOR_MS,
+  BACKUP_REFUSALS,
+  BACKUP_VERSIONS_KEPT
+} from 'application/device-backups';
+import {
+  cleanDatabase,
+  seedWirelessDeviceModel
+} from '../../helpers/db';
+import { seedDiagnosableDevice } from '../../helpers/linkDiagnosis';
+import { FakeConfigFetcher } from '../../helpers/FakeConfigFetcher';
+import { buildDeviceBackups } from '../../helpers/deviceBackups';
+import { EventDispatcher } from 'domain/shared/core';
+import { IDomainEvent } from 'domain/shared/interfaces';
+import { BACKUP_FAILURES_BEFORE_ALERT } from 'domain/device-backups';
+import {
+  DeviceBackupFailingEvent,
+  DeviceConfigChangedEvent
+} from 'domain/device-backups/events';
+
+const DAY = 24 * 60 * 60 * 1000;
+
+// The nightly run has no HTTP surface, so this suite is its only coverage
+// against real rows: which devices the run picks (BKP-010), what it skips
+// (BKP-012), that retention holds in the table (BKP-030), and which alerts a
+// run raises once its rows are saved (BKP-060, BKP-061).
+describe('RunScheduledBackupsUseCase — integration', () => {
+  let container: DependencyContainer;
+  let prisma: PrismaClient;
+  let modelId: string;
+  const now = new Date('2026-10-07T08:00:00Z');
+  const fetcher = new FakeConfigFetcher();
+
+  beforeAll(async () => {
+    container = await setupDependencies();
+    prisma = container.getPrisma();
+    // The real handlers publish alerts; the retention test alone changes the
+    // config every night for weeks. Only the 'alerts' tests listen.
+    EventDispatcher.clearHandlers();
+  });
+
+  afterAll(async () => {
+    await container.disconnect();
+  });
+
+  beforeEach(async () => {
+    fetcher.reset();
+    await cleanDatabase(prisma);
+    modelId = await seedWirelessDeviceModel(prisma);
+  });
+
+  const run = (at: Date = now, serverOnSite = true) =>
+    buildDeviceBackups(prisma, fetcher, {
+      serverOnSite
+    }).runScheduled.execute({ now: at });
+
+  const seedAp = (
+    ip: string,
+    opts: { withCredentials?: boolean } = {}
+  ) =>
+    seedDiagnosableDevice(prisma, modelId, {
+      ip,
+      deviceType: 'ACCESS_POINT',
+      ...opts
+    });
+
+  const backedUpIps = () =>
+    fetcher.calls.map((c) => c.ipAddress).sort();
+
+  describe('[BKP-010] which devices', () => {
+    it('should back up the polled access points in service', async () => {
+      await seedAp('10.0.0.10');
+      await seedAp('10.0.0.11');
+
+      const result = await run();
+
+      expect(result.value.saved).toBe(2);
+      expect(backedUpIps()).toEqual(['10.0.0.10', '10.0.0.11']);
+    });
+
+    it('should leave out stations', async () => {
+      await seedDiagnosableDevice(prisma, modelId, {
+        ip: '10.0.0.20',
+        deviceType: 'STATION'
+      });
+
+      await run();
+
+      expect(fetcher.calls).toHaveLength(0);
+    });
+
+    it('should leave out an access point whose polling is disabled', async () => {
+      const deviceId = await seedAp('10.0.0.10');
+      await prisma.wirelessPollingConfiguration.update({
+        where: { deviceId },
+        data: { enabled: false }
+      });
+
+      await run();
+
+      expect(fetcher.calls).toHaveLength(0);
+    });
+
+    it.each(['INVENTORY', 'DECOMMISSIONED'] as const)(
+      'should leave out an access point in %s',
+      async (status) => {
+        const deviceId = await seedAp('10.0.0.10');
+        await prisma.device.update({
+          where: { id: deviceId },
+          data: { status }
+        });
+
+        await run();
+
+        expect(fetcher.calls).toHaveLength(0);
+      }
+    );
+
+    it('should include an access point being commissioned', async () => {
+      const deviceId = await seedAp('10.0.0.10');
+      await prisma.device.update({
+        where: { id: deviceId },
+        data: { status: 'COMMISSIONING' }
+      });
+
+      await run();
+
+      expect(backedUpIps()).toEqual(['10.0.0.10']);
+    });
+
+    it('should leave out a deleted access point', async () => {
+      const deviceId = await seedAp('10.0.0.10');
+      await prisma.device.update({
+        where: { id: deviceId },
+        data: { deletedAt: new Date() }
+      });
+
+      await run();
+
+      expect(fetcher.calls).toHaveLength(0);
+    });
+
+    it('[BKP-015] should back up nothing when this server is off site', async () => {
+      await seedAp('10.0.0.10');
+
+      const result = await run(now, false);
+
+      expect(result.value).toEqual({
+        saved: 0,
+        unchanged: 0,
+        skipped: 0,
+        failed: []
+      });
+    });
+  });
+
+  describe('[BKP-014] an access point that cannot be backed up', () => {
+    it('should be reported and recorded, and the others still run', async () => {
+      const noLogin = await seedAp('10.0.0.10', {
+        withCredentials: false
+      });
+      await seedAp('10.0.0.11');
+
+      const result = await run();
+
+      expect(result.value.saved).toBe(1);
+      expect(result.value.failed).toEqual([
+        {
+          deviceId: noLogin,
+          deviceName: 'Radio 10.0.0.10',
+          error: BACKUP_REFUSALS.NO_CREDENTIALS
+        }
+      ]);
+      const state = await prisma.deviceBackupState.findUniqueOrThrow({
+        where: { deviceId: noLogin }
+      });
+      expect(state.lastError).toBe(BACKUP_REFUSALS.NO_CREDENTIALS);
+    });
+  });
+
+  describe('[BKP-012] repeated runs', () => {
+    it('should skip a device backed up within the window', async () => {
+      await seedAp('10.0.0.10');
+      await run();
+      fetcher.reset();
+
+      const result = await run(
+        new Date(now.getTime() + BACKUP_FRESH_FOR_MS - 60_000)
+      );
+
+      expect(result.value.skipped).toBe(1);
+      expect(fetcher.calls).toHaveLength(0);
+    });
+
+    it('should check the device again the next night', async () => {
+      const deviceId = await seedAp('10.0.0.10');
+      await run();
+      const nextNight = new Date(now.getTime() + DAY);
+
+      const result = await run(nextNight);
+
+      expect(result.value.unchanged).toBe(1);
+      const row = await prisma.configBackup.findFirstOrThrow({
+        where: { deviceId }
+      });
+      expect(row.lastCheckedAt).toEqual(nextNight);
+    });
+
+    it('should retry a device that failed, even within the window', async () => {
+      await seedAp('10.0.0.10');
+      fetcher.fail('HTTPS_TIMEOUT (10.0.0.10:443)');
+      await run();
+      fetcher.reset();
+
+      const result = await run(new Date(now.getTime() + 60 * 60_000));
+
+      expect(result.value.saved).toBe(1);
+    });
+  });
+
+  describe('[BKP-030] retention', () => {
+    it(`should keep the newest ${BACKUP_VERSIONS_KEPT} versions in the table`, async () => {
+      const deviceId = await seedAp('10.0.0.10');
+      for (let day = 0; day < BACKUP_VERSIONS_KEPT + 3; day++) {
+        fetcher.serve(`system.revision=${day}\n`);
+        await run(new Date(now.getTime() + day * DAY));
+      }
+
+      const rows = await prisma.configBackup.findMany({
+        where: { deviceId },
+        orderBy: { takenAt: 'asc' }
+      });
+      expect(rows).toHaveLength(BACKUP_VERSIONS_KEPT);
+      expect(rows[0].takenAt).toEqual(
+        new Date(now.getTime() + 3 * DAY)
+      );
+    });
+  });
+
+  describe('alerts', () => {
+    let captured: IDomainEvent[];
+
+    // A recorder of the backup events dispatched after each save.
+    beforeEach(() => {
+      captured = [];
+      EventDispatcher.clearHandlers();
+      for (const name of [
+        DeviceConfigChangedEvent.name,
+        DeviceBackupFailingEvent.name
+      ])
+        EventDispatcher.register(name, {
+          handle: async (event: IDomainEvent) => {
+            captured.push(event);
+          }
+        });
+    });
+
+    afterAll(() => EventDispatcher.clearHandlers());
+
+    it('[BKP-060] should announce a configuration changed since the last night', async () => {
+      const deviceId = await seedAp('10.0.0.10');
+      await prisma.device.update({
+        where: { id: deviceId },
+        data: { name: 'AP Torre Norte' }
+      });
+      await run();
+      fetcher.serve('aaa.1.status=disabled\n');
+
+      await run(new Date(now.getTime() + DAY));
+
+      expect(captured).toHaveLength(1);
+      const event = captured[0] as DeviceConfigChangedEvent;
+      expect(event).toBeInstanceOf(DeviceConfigChangedEvent);
+      expect(event.deviceId.toString()).toBe(deviceId);
+      expect(event.deviceName).toBe('AP Torre Norte');
+      expect(event.previousCheckedAt).toEqual(now);
+      const newest = await prisma.configBackup.findFirstOrThrow({
+        where: { deviceId },
+        orderBy: { takenAt: 'desc' }
+      });
+      expect(event.aggregateId.toString()).toBe(newest.id);
+    });
+
+    it('[BKP-060] should stay quiet for a first backup and for an unchanged one', async () => {
+      await seedAp('10.0.0.10');
+
+      await run();
+      await run(new Date(now.getTime() + DAY));
+
+      expect(captured).toHaveLength(0);
+    });
+
+    it('[BKP-063] should not announce an access point of a vendor with no backup support', async () => {
+      const mimosa = await prisma.vendor.upsert({
+        where: { slug: 'mimosa' },
+        create: { name: 'Mimosa', slug: 'mimosa' },
+        update: {}
+      });
+      const mimosaModel = await prisma.deviceModel.upsert({
+        where: {
+          vendorId_model: { vendorId: mimosa.id, model: 'C5x' }
+        },
+        create: {
+          vendorId: mimosa.id,
+          model: 'C5x',
+          deviceType: 'ANTENNA',
+          isWireless: true
+        },
+        update: {}
+      });
+      const deviceId = await seedDiagnosableDevice(
+        prisma,
+        mimosaModel.id,
+        { ip: '10.0.0.10', deviceType: 'ACCESS_POINT' }
+      );
+
+      for (
+        let night = 0;
+        night < BACKUP_FAILURES_BEFORE_ALERT;
+        night++
+      )
+        await run(new Date(now.getTime() + night * DAY));
+
+      expect(captured).toHaveLength(0);
+      const state = await prisma.deviceBackupState.findUniqueOrThrow({
+        where: { deviceId }
+      });
+      expect(state.consecutiveFailures).toBe(
+        BACKUP_FAILURES_BEFORE_ALERT
+      );
+      expect(state.lastError).toBe(
+        BACKUP_REFUSALS.UNSUPPORTED_VENDOR
+      );
+    });
+
+    it(`[BKP-061] should announce a device failing ${BACKUP_FAILURES_BEFORE_ALERT} nights in a row, once`, async () => {
+      const deviceId = await seedAp('10.0.0.10');
+      fetcher.fail('Login rejected');
+
+      for (
+        let night = 0;
+        night < BACKUP_FAILURES_BEFORE_ALERT + 2;
+        night++
+      )
+        await run(new Date(now.getTime() + night * DAY));
+
+      expect(captured).toHaveLength(1);
+      const event = captured[0] as DeviceBackupFailingEvent;
+      expect(event).toBeInstanceOf(DeviceBackupFailingEvent);
+      expect(event.aggregateId.toString()).toBe(deviceId);
+      expect(event.failingSince).toEqual(now);
+      expect(event.lastError).toBe('Login rejected');
+    });
+  });
+});

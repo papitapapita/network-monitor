@@ -35,6 +35,47 @@ export class AirOsHttpClient {
     port: number,
     creds: AirOsCredentials
   ): Promise<Result<unknown>> {
+    const response = await this.getWithSession(
+      ip,
+      port,
+      creds,
+      '/status.cgi'
+    );
+    if (response.isFailure) return Result.fail(response.error!);
+    return this.parseJson(response.value.body);
+  }
+
+  // The same file the web UI's "Download backup" saves: system.cfg, which the
+  // UI's "Upload configuration" takes back (BKP-050).
+  async fetchConfig(
+    ip: string,
+    port: number,
+    creds: AirOsCredentials
+  ): Promise<Result<string>> {
+    const response = await this.getWithSession(
+      ip,
+      port,
+      creds,
+      '/cfg.cgi'
+    );
+    if (response.isFailure) return Result.fail(response.error!);
+
+    const body = response.value.body;
+    // A login page served with 200 instead of a redirect is not a config.
+    if (!/^[A-Za-z0-9_.]+=/m.test(body) || /^\s*</.test(body))
+      return Result.fail(
+        'cfg.cgi did not return an AirOS configuration file'
+      );
+    return Result.ok(body);
+  }
+
+  private async getWithSession(
+    ip: string,
+    port: number,
+    creds: AirOsCredentials,
+    path: string
+  ): Promise<Result<HttpsResponse>> {
+    const name = path.replace(/^\//, '');
     let session = this.sessions.get(ip);
     if (!session) {
       const authResult = await this.authenticate(ip, port, creds);
@@ -42,12 +83,7 @@ export class AirOsHttpClient {
       session = authResult.value;
     }
 
-    const getResult = await this.doGet(
-      ip,
-      port,
-      '/status.cgi',
-      session
-    );
+    const getResult = await this.doGet(ip, port, path, session);
     if (getResult.isFailure) return Result.fail(getResult.error!);
 
     if (this.isSessionExpired(getResult.value.statusCode)) {
@@ -58,7 +94,7 @@ export class AirOsHttpClient {
       const retryResult = await this.doGet(
         ip,
         port,
-        '/status.cgi',
+        path,
         reAuthResult.value
       );
       if (retryResult.isFailure) {
@@ -68,18 +104,18 @@ export class AirOsHttpClient {
       if (retryResult.value.statusCode !== 200) {
         this.sessions.delete(ip);
         return Result.fail(
-          `status.cgi returned HTTP ${retryResult.value.statusCode} after re-auth`
+          `${name} returned HTTP ${retryResult.value.statusCode} after re-auth`
         );
       }
-      return this.parseJson(retryResult.value.body);
+      return Result.ok(retryResult.value);
     }
 
     if (getResult.value.statusCode !== 200) {
       return Result.fail(
-        `status.cgi returned HTTP ${getResult.value.statusCode}`
+        `${name} returned HTTP ${getResult.value.statusCode}`
       );
     }
-    return this.parseJson(getResult.value.body);
+    return Result.ok(getResult.value);
   }
 
   async reboot(

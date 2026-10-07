@@ -852,4 +852,85 @@ describe('[WLS-040] [WLS-041] [WLS-042] [WLS-043] [WLS-044] [WLS-045] [WLS-046] 
       expect(https.request).toHaveBeenCalledTimes(1);
     });
   });
+
+  // ===========================================================================
+  describe('[BKP-050] fetchConfig', () => {
+    const CONFIG = 'aaa.1.status=enabled\nradio.1.mode=master\n';
+
+    it('should GET /cfg.cgi and return the file as sent', async () => {
+      const paths: string[] = [];
+      stubRequest(AUTH_OK, { statusCode: 200, body: CONFIG });
+      const request = https.request as jest.Mock;
+      const original = request.getMockImplementation()!;
+      request.mockImplementation((opts: https.RequestOptions, cb) => {
+        paths.push(opts.path ?? '');
+        return original(opts, cb);
+      });
+
+      const result = await new AirOsHttpClient().fetchConfig(
+        IP,
+        PORT,
+        CREDS
+      );
+
+      expect(result.value).toBe(CONFIG);
+      expect(paths).toEqual(['/api/auth', '/cfg.cgi']);
+    });
+
+    it('should refuse a login page served with HTTP 200', async () => {
+      stubRequest(AUTH_OK, {
+        statusCode: 200,
+        body: '<html><form action="/login.cgi">a=b</form></html>'
+      });
+
+      const result = await new AirOsHttpClient().fetchConfig(
+        IP,
+        PORT,
+        CREDS
+      );
+
+      expect(result.error).toBe(
+        'cfg.cgi did not return an AirOS configuration file'
+      );
+    });
+
+    it('should refuse a body with no key=value lines', async () => {
+      stubRequest(AUTH_OK, { statusCode: 200, body: 'Not found' });
+
+      const result = await new AirOsHttpClient().fetchConfig(
+        IP,
+        PORT,
+        CREDS
+      );
+
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('should name cfg.cgi when the radio answers an error', async () => {
+      stubRequest(AUTH_OK, { statusCode: 500, body: '' });
+
+      const result = await new AirOsHttpClient().fetchConfig(
+        IP,
+        PORT,
+        CREDS
+      );
+
+      expect(result.error).toBe('cfg.cgi returned HTTP 500');
+    });
+
+    it('should log in again once when the session is refused', async () => {
+      stubRequest(AUTH_OK, { statusCode: 403, body: '' });
+
+      const result = await new AirOsHttpClient().fetchConfig(
+        IP,
+        PORT,
+        CREDS
+      );
+
+      expect(result.error).toBe(
+        'cfg.cgi returned HTTP 403 after re-auth'
+      );
+      expect(https.request).toHaveBeenCalledTimes(4);
+    });
+  });
 });

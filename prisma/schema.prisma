@@ -248,6 +248,8 @@ model Device {
   contractedService            ContractedService?
   tickets                      Ticket[]
   agentIndexes                 ProbeAgentDeviceIndex[]
+  configBackups                ConfigBackup[]
+  backupState                  DeviceBackupState?
 
   @@index([monitoringEnabled])
   @@index([deletedAt])
@@ -1194,4 +1196,64 @@ model ProbeAgentDeviceIndex {
   @@id([agentId, deviceId])
   @@unique([agentId, deviceIndex])
   @@map("probe_agent_device_indexes")
+}
+
+// ============================================================================
+// DEVICE BACKUPS BOUNDED CONTEXT
+// ============================================================================
+
+enum BackupFormat {
+  AIROS_CFG
+
+  @@map("backup_format")
+}
+
+enum BackupTrigger {
+  SCHEDULED
+  MANUAL
+
+  @@map("backup_trigger")
+}
+
+enum BackupOutcome {
+  SAVED
+  UNCHANGED
+  FAILED
+
+  @@map("backup_outcome")
+}
+
+// One saved version of a device's configuration (BKP-001). The file holds
+// device passwords and wireless keys, so it is stored encrypted with
+// DEVICE_CREDENTIALS_KEY (BKP-040).
+model ConfigBackup {
+  id               String        @id @default(uuid()) @db.Uuid
+  deviceId         String        @map("device_id") @db.Uuid
+  format           BackupFormat
+  contentHash      String        @map("content_hash") @db.Char(64)
+  sizeBytes        Int           @map("size_bytes")
+  trigger          BackupTrigger
+  encryptedContent String        @map("encrypted_content") @db.Text
+  takenAt          DateTime      @map("taken_at") @db.Timestamptz
+  lastCheckedAt    DateTime      @map("last_checked_at") @db.Timestamptz
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, takenAt(sort: Desc)])
+  @@map("config_backups")
+}
+
+model DeviceBackupState {
+  deviceId            String         @id @map("device_id") @db.Uuid
+  lastAttemptAt       DateTime?      @map("last_attempt_at") @db.Timestamptz
+  lastOutcome         BackupOutcome? @map("last_outcome")
+  lastError           String?        @map("last_error") @db.VarChar(500)
+  lastSuccessAt       DateTime?      @map("last_success_at") @db.Timestamptz
+  failingSince        DateTime?      @map("failing_since") @db.Timestamptz
+  consecutiveFailures Int            @default(0) @map("consecutive_failures")
+  updatedAt           DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@map("device_backup_states")
 }

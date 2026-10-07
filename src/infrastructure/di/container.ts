@@ -59,6 +59,10 @@ import {
   UserSignInPausedEvent,
   UserTwoFactorResetEvent
 } from 'domain/identity/events';
+import {
+  DeviceConfigChangedEvent,
+  DeviceBackupFailingEvent
+} from 'domain/device-backups/events';
 import { BcryptPasswordService } from '../identity/services/BcryptPasswordService';
 import { PrismaUserRepository } from '../identity/repositories/PrismaUserRepository';
 import {
@@ -408,7 +412,9 @@ import {
   AgentCameBackNotificationHandler,
   AgentClockDriftedNotificationHandler,
   AgentClockCorrectedNotificationHandler,
-  AgentUpdateFailedNotificationHandler
+  AgentUpdateFailedNotificationHandler,
+  DeviceConfigChangedNotificationHandler,
+  DeviceBackupFailingNotificationHandler
 } from 'application/notifications/event-handlers';
 import {
   WirelessAlertClearedNotificationHandler,
@@ -479,6 +485,23 @@ import { AdminController } from 'presentation/http/controllers/AdminController';
 import { loadIssuerDisplayConfig } from '../billing/config/collectionAccountIssuerConfig';
 import { EnabledModules } from './enabledModules';
 import { loadServerOnSite } from './serverOnSite';
+import {
+  BackUpDeviceNowUseCase,
+  DeviceConfigBackupService,
+  DownloadDeviceBackupUseCase,
+  DiffDeviceBackupsUseCase,
+  ListDeviceBackupsUseCase,
+  RunScheduledBackupsUseCase
+} from 'application/device-backups';
+import {
+  AirOsConfigFetcher,
+  ConfigBackupOrchestrator,
+  ConfigFetcherRegistry,
+  PrismaBackupTargetsQuery,
+  PrismaConfigBackupRepository,
+  PrismaDeviceBackupStateRepository
+} from '../device-backups';
+import { DeviceBackupController } from 'presentation/http/controllers/DeviceBackupController';
 import { loadNotificationSettingsDefaults } from './notificationSettingsDefaults';
 import { loadVendorAccount } from './vendorAccount';
 import { loadInstallersDir } from './installersDir';
@@ -557,6 +580,7 @@ export class DependencyContainer {
   public wirelessStreamController: WirelessStreamController;
   public linkDiagnosisController: LinkDiagnosisController;
   public credentialsController: CredentialsController;
+  public deviceBackupController: DeviceBackupController;
   public customerController: CustomerController | null = null;
   public ticketController: TicketController | null = null;
   public technicianController: TechnicianController | null = null;
@@ -580,6 +604,7 @@ export class DependencyContainer {
   // lifecycle managed by main.ts — live diagnosis timers must stop on shutdown
   public linkDiagnosisRunner: LinkDiagnosisRunner;
   public dataRetentionOrchestrator: DataRetentionOrchestrator;
+  public configBackupOrchestrator: ConfigBackupOrchestrator;
   public overdueDeviceDownAlertOrchestrator: OverdueDeviceDownAlertOrchestrator;
   public agentLivenessOrchestrator: AgentLivenessOrchestrator;
   public subscriptionJobSupervisor: SubscriptionJobSupervisor;
@@ -2173,6 +2198,62 @@ export class DependencyContainer {
       this.logger
     );
 
+    // =====================================
+    // DEVICE BACKUPS
+    // =====================================
+
+    // Shares the poller's AirOS client, so a backup reuses its open session.
+    const backupTargets = new PrismaBackupTargetsQuery(
+      this.prisma,
+      this.serverOnSite
+    );
+    const configBackupRepository = new PrismaConfigBackupRepository(
+      this.prisma
+    );
+    const deviceBackupStateRepository =
+      new PrismaDeviceBackupStateRepository(this.prisma);
+    const deviceConfigBackupService = new DeviceConfigBackupService(
+      new ConfigFetcherRegistry({
+        ubiquiti: new AirOsConfigFetcher(airOsHttpClient)
+      }),
+      configBackupRepository,
+      deviceBackupStateRepository
+    );
+    this.deviceBackupController = new DeviceBackupController(
+      new ListDeviceBackupsUseCase(
+        backupTargets,
+        configBackupRepository,
+        deviceBackupStateRepository,
+        this.logger
+      ),
+      new BackUpDeviceNowUseCase(
+        backupTargets,
+        deviceConfigBackupService,
+        this.logger
+      ),
+      new DownloadDeviceBackupUseCase(
+        backupTargets,
+        configBackupRepository,
+        this.logger
+      ),
+      new DiffDeviceBackupsUseCase(
+        backupTargets,
+        configBackupRepository,
+        this.logger
+      ),
+      this.logger
+    );
+    this.configBackupOrchestrator = new ConfigBackupOrchestrator(
+      new RunScheduledBackupsUseCase(
+        backupTargets,
+        deviceBackupStateRepository,
+        deviceConfigBackupService,
+        this.logger
+      ),
+      {},
+      this.logger
+    );
+
     EventDispatcher.setErrorReporter((eventClassName, error) =>
       this.logger.error(
         `Unhandled error in domain event handler`,
@@ -2279,6 +2360,22 @@ export class DependencyContainer {
       alertPublisher,
       vendorPublisher
     ]);
+    // BKP-060 … BKP-062: through the shared publisher, so quiet hours and
+    // muted types apply.
+    EventDispatcher.register(
+      DeviceConfigChangedEvent.name,
+      new DeviceConfigChangedNotificationHandler(
+        alertPublisher,
+        this.logger
+      )
+    );
+    EventDispatcher.register(
+      DeviceBackupFailingEvent.name,
+      new DeviceBackupFailingNotificationHandler(
+        alertPublisher,
+        this.logger
+      )
+    );
     EventDispatcher.register(
       UserSignInPausedEvent.name,
       new UserSignInPausedNotificationHandler(
@@ -2513,6 +2610,10 @@ export class DependencyContainer {
       {
         name: 'overdue-down-alerts',
         ...bindJob(this.overdueDeviceDownAlertOrchestrator)
+      },
+      {
+        name: 'config-backups',
+        ...bindJob(this.configBackupOrchestrator)
       }
     ];
     if (this.billingCycleOrchestrator) {

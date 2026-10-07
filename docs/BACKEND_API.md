@@ -103,7 +103,9 @@ the API. Wherever an endpoint below lists `ADMIN`, `VENDOR` is allowed too.
 
 `manage-credentials` gates writes to `/api/devices/:id/credentials`: they carry
 device passwords and SNMP keys, so they are not covered by the generic `update`
-permission. Reading them stays on `read` because the response is masked.
+permission. Reading them stays on `read` because the response is masked. It
+also gates downloading a configuration backup, which holds the same secrets
+(BKP-041), and comparing two backups (BKP-072).
 
 `manage-users` gates `/api/users` except `/api/users/me/password`, which every
 role may use (IDN-140).
@@ -1372,6 +1374,154 @@ The SNMP fields are optional and **nothing polls them today** — all polling is
 ```
 
 > Removes all stored credentials for the device. Returns 404 if the device does not exist.
+
+---
+
+## Device Backups `/api/devices/:id/backups`
+
+> **Response envelope:** raw data directly — **no `{ success, data }` wrapper**.
+> Error: `{ error: string }`.
+
+Daily configuration backups of the main devices. A run starts from 03:00
+Colombian time and backs up every **access point** that wireless monitoring
+polls (enabled config, device `ACTIVE` or `COMMISSIONING`). A new version is
+stored only when the configuration changed; otherwise the latest version's
+`lastCheckedAt` moves forward. The newest 30 versions per device are kept.
+
+Limits for now: only Ubiquiti AirOS access points, and only when this server
+reaches the devices itself (`SERVER_ON_SITE`). Off site nothing is backed up
+until backups through the agent arrive.
+
+**Alerts** (Telegram, through the same publisher as device alerts, so quiet
+hours and an expired subscription hold them back):
+
+- `config_changed` — the nightly run saved a new version of a device that
+  already had one (BKP-060). Not sent for a first backup or a manual one.
+- `backup_failing` — the third failed attempt in a row, once per streak
+  (BKP-061). Not sent for a device left out because backing it up is not
+  available yet (not an access point, out of reach, unsupported vendor); a
+  missing IP address or login does count (BKP-063).
+
+Both types can be muted for the whole install through
+`PUT /api/notification-mutes`. They are notifications
+only; they do not appear in `GET /api/alerts`.
+
+```ts
+interface ConfigBackupDTO {
+  id: string; // UUID
+  deviceId: string; // UUID
+  format: 'AIROS_CFG';
+  sizeBytes: number;
+  trigger: 'SCHEDULED' | 'MANUAL';
+  takenAt: string; // ISO 8601 — when this configuration was first saved
+  lastCheckedAt: string; // ISO 8601 — last time the device still held it
+}
+
+interface DeviceBackupStateDTO {
+  lastAttemptAt: string | null;
+  lastOutcome: 'SAVED' | 'UNCHANGED' | 'FAILED' | null;
+  lastError: string | null; // only while the last attempt failed
+  lastSuccessAt: string | null;
+  failingSince: string | null; // first failure of the current streak
+  consecutiveFailures: number;
+}
+```
+
+---
+
+### `GET /api/devices/:id/backups` — List versions
+
+**Status:** 200 | 400 | 404
+**Roles:** ADMIN, OPERATOR, VIEWER (`read`)
+
+```ts
+// Response
+{
+  deviceId: string
+  state: DeviceBackupStateDTO | null  // null: never attempted
+  backups: ConfigBackupDTO[]          // newest first; never includes the file
+}
+```
+
+---
+
+### `POST /api/devices/:id/backups` — Back up now
+
+**Status:** 201 | 200 | 400 | 403 | 404 | 409 | 502
+**Roles:** ADMIN, OPERATOR (`update`)
+
+```ts
+// No request body
+// Response
+{
+  outcome: 'SAVED' | 'UNCHANGED';
+  backup: ConfigBackupDTO;
+}
+```
+
+- **201** — a new version was saved; **200** — the device still holds the latest one.
+- **409** `Cannot back up this device: …` — the device was not asked: not an
+  access point, out of this server's reach, no IP address, no HTTP credentials,
+  or a vendor with no backup support yet.
+- **502** `Backup failed: …` — the device was asked and did not hand over its
+  configuration (timeout, login refused, …).
+
+Every attempt, refused or failed included, updates the device's `state`.
+
+---
+
+### `GET /api/devices/:id/backups/:backupId/download` — Download a version
+
+**Status:** 200 | 400 | 403 | 404
+**Roles:** ADMIN (`manage-credentials`)
+
+Responds with the file exactly as the device sent it (AirOS `system.cfg`, which
+the device's own _Upload configuration_ takes back), not JSON:
+
+```
+Content-Type: text/plain; charset=utf-8
+Content-Disposition: attachment; filename="<device-name>-<YYYYMMDD-HHmm>Z.cfg"
+Cache-Control: no-store
+```
+
+The file holds the device's passwords and wireless keys. Returns 404
+`Backup not found` when the backup does not exist or belongs to another device.
+
+---
+
+### `GET /api/devices/:id/backups/diff?from=&to=` — Compare two versions
+
+**Status:** 200 | 400 | 401 | 403 | 404
+**Roles:** ADMIN (`manage-credentials`)
+
+```ts
+// Query: from, to — backup UUIDs of this device, in either order
+// Response (Cache-Control: no-store)
+{
+  from: ConfigBackupDTO;
+  to: ConfigBackupDTO;
+  identical: boolean;
+  added: number;    // lines only in `to`
+  removed: number;  // lines only in `from`
+  hunks: {
+    fromStart: number;  // 1-based; the line before when fromLines is 0
+    fromLines: number;
+    toStart: number;
+    toLines: number;
+    lines: { kind: 'context' | 'added' | 'removed'; text: string }[];
+  }[];
+}
+```
+
+- Both files are compared after normalising line endings and trailing
+  whitespace; each change comes with 3 unchanged lines around it (BKP-070).
+- Passwords, wireless keys and community strings show as `name=********`.
+  Masking happens after comparing, so a changed password still appears as a
+  removed and an added line (BKP-071). Download the file for the real values.
+- **400** — `from` or `to` missing or not a UUID, or
+  `Invalid comparison: the two backups have different formats`.
+- **404** `Backup not found` — either version does not exist or belongs to
+  another device; `Device not found`.
 
 ---
 

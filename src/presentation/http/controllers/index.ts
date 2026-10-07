@@ -32,3 +32,4 @@ export * from './UserController';
 export * from './NotificationSettingsController';
 export * from './VendorSettingsController';
 export * from './BillingSettingsController';
+export * from './DeviceBackupController';

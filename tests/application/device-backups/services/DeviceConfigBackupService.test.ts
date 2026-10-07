@@ -1,0 +1,328 @@
+// Source: src/application/device-backups/services/DeviceConfigBackupService.ts
+
+import {
+  BACKUP_REFUSALS,
+  BACKUP_VERSIONS_KEPT,
+  DeviceConfigBackupService
+} from '../../../../src/application/device-backups/services';
+import {
+  BackupOutcome,
+  BackupTrigger
+} from '../../../../src/domain/device-backups';
+import {
+  DeviceBackupFailingEvent,
+  DeviceConfigChangedEvent
+} from '../../../../src/domain/device-backups/events';
+import { DeviceId } from '../../../../src/domain/shared/ids';
+import {
+  AIROS_CONFIG,
+  FakeFetcher,
+  InMemoryConfigBackupRepository,
+  InMemoryDeviceBackupStateRepository,
+  makeCandidate
+} from '../inMemoryBackups';
+
+const DAY = 24 * 60 * 60 * 1000;
+const NOW = new Date('2026-10-07T08:00:00Z');
+
+describe('DeviceConfigBackupService', () => {
+  let fetcher: FakeFetcher;
+  let backups: InMemoryConfigBackupRepository;
+  let states: InMemoryDeviceBackupStateRepository;
+  let service: DeviceConfigBackupService;
+
+  beforeEach(() => {
+    fetcher = new FakeFetcher();
+    backups = new InMemoryConfigBackupRepository();
+    states = new InMemoryDeviceBackupStateRepository();
+    service = new DeviceConfigBackupService(fetcher, backups, states);
+  });
+
+  const stateOf = (deviceId: string) =>
+    states.states.get(DeviceId.parse(deviceId).value.toString());
+
+  describe('a first backup', () => {
+    it('[BKP-001] should save the file the device sent', async () => {
+      const candidate = makeCandidate();
+
+      const result = await service.backUp(
+        candidate,
+        BackupTrigger.SCHEDULED,
+        NOW
+      );
+
+      expect(result.value.outcome).toBe(BackupOutcome.SAVED);
+      expect(backups.rows).toHaveLength(1);
+      expect(backups.rows[0].content).toBe(AIROS_CONFIG);
+      expect(backups.rows[0].backup.trigger).toBe(
+        BackupTrigger.SCHEDULED
+      );
+      expect(backups.rows[0].backup.sizeBytes).toBe(
+        Buffer.byteLength(AIROS_CONFIG)
+      );
+    });
+
+    it('[BKP-020] should record the success', async () => {
+      const candidate = makeCandidate();
+
+      await service.backUp(candidate, BackupTrigger.MANUAL, NOW);
+
+      expect(stateOf(candidate.deviceId)?.lastOutcome).toBe(
+        BackupOutcome.SAVED
+      );
+      expect(stateOf(candidate.deviceId)?.lastSuccessAt).toEqual(NOW);
+    });
+  });
+
+  describe('a later backup', () => {
+    it('[BKP-006] should keep one version when nothing changed', async () => {
+      const candidate = makeCandidate();
+      await service.backUp(candidate, BackupTrigger.SCHEDULED, NOW);
+      const later = new Date(NOW.getTime() + DAY);
+
+      const result = await service.backUp(
+        candidate,
+        BackupTrigger.SCHEDULED,
+        later
+      );
+
+      expect(result.value.outcome).toBe(BackupOutcome.UNCHANGED);
+      expect(backups.rows).toHaveLength(1);
+      expect(backups.rows[0].backup.lastCheckedAt).toEqual(later);
+    });
+
+    it('[BKP-005] should not count line endings as a change', async () => {
+      const candidate = makeCandidate();
+      await service.backUp(candidate, BackupTrigger.SCHEDULED, NOW);
+      fetcher.serve(AIROS_CONFIG.replace(/\n/g, '\r\n'));
+
+      const result = await service.backUp(
+        candidate,
+        BackupTrigger.SCHEDULED,
+        new Date(NOW.getTime() + DAY)
+      );
+
+      expect(result.value.outcome).toBe(BackupOutcome.UNCHANGED);
+    });
+
+    it('[BKP-001] should add a version when the configuration changed', async () => {
+      const candidate = makeCandidate();
+      await service.backUp(candidate, BackupTrigger.SCHEDULED, NOW);
+      fetcher.serve('aaa.status=disabled\n');
+
+      const result = await service.backUp(
+        candidate,
+        BackupTrigger.SCHEDULED,
+        new Date(NOW.getTime() + DAY)
+      );
+
+      expect(result.value.outcome).toBe(BackupOutcome.SAVED);
+      expect(backups.rows).toHaveLength(2);
+    });
+
+    it('[BKP-060] should announce the change, naming the device and the version it replaces', async () => {
+      const candidate = makeCandidate();
+      await service.backUp(candidate, BackupTrigger.SCHEDULED, NOW);
+      const first = backups.rows[0].backup;
+      fetcher.serve('aaa.status=disabled\n');
+
+      await service.backUp(
+        candidate,
+        BackupTrigger.SCHEDULED,
+        new Date(NOW.getTime() + DAY)
+      );
+
+      expect(first.domainEvents).toHaveLength(0);
+      const [event] = backups.rows[1].backup
+        .domainEvents as DeviceConfigChangedEvent[];
+      expect(event).toBeInstanceOf(DeviceConfigChangedEvent);
+      expect(event.deviceName).toBe('AP Torre Norte');
+      expect(event.previousBackupId.equals(first.id)).toBe(true);
+    });
+
+    it(`[BKP-030] should keep only the newest ${BACKUP_VERSIONS_KEPT} versions`, async () => {
+      const candidate = makeCandidate();
+      for (let day = 0; day < BACKUP_VERSIONS_KEPT + 2; day++) {
+        fetcher.serve(`system.version=${day}\n`);
+        await service.backUp(
+          candidate,
+          BackupTrigger.SCHEDULED,
+          new Date(NOW.getTime() + day * DAY)
+        );
+      }
+
+      expect(backups.rows).toHaveLength(BACKUP_VERSIONS_KEPT);
+      const oldest = Math.min(
+        ...backups.rows.map((r) => r.backup.takenAt.getTime())
+      );
+      expect(oldest).toBe(NOW.getTime() + 2 * DAY);
+    });
+  });
+
+  describe('a device that cannot be read', () => {
+    it('[BKP-061] should announce the streak with the device name', async () => {
+      const candidate = makeCandidate();
+      fetcher.fail('Login rejected');
+
+      for (let day = 0; day < 3; day++)
+        await service.backUp(
+          candidate,
+          BackupTrigger.SCHEDULED,
+          new Date(NOW.getTime() + day * DAY)
+        );
+
+      const [event] = stateOf(candidate.deviceId)!
+        .domainEvents as DeviceBackupFailingEvent[];
+      expect(event).toBeInstanceOf(DeviceBackupFailingEvent);
+      expect(event.deviceName).toBe('AP Torre Norte');
+      expect(event.lastError).toBe('Login rejected');
+    });
+
+    it('[BKP-020] should record the device error as a failed attempt', async () => {
+      const candidate = makeCandidate();
+      fetcher.fail('HTTPS_TIMEOUT (10.0.0.10:443)');
+
+      const result = await service.backUp(
+        candidate,
+        BackupTrigger.SCHEDULED,
+        NOW
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value).toEqual({
+        outcome: BackupOutcome.FAILED,
+        error: 'HTTPS_TIMEOUT (10.0.0.10:443)',
+        refused: false
+      });
+      expect(stateOf(candidate.deviceId)?.lastError).toBe(
+        'HTTPS_TIMEOUT (10.0.0.10:443)'
+      );
+      expect(backups.rows).toHaveLength(0);
+    });
+
+    it('[BKP-003] should fail an empty file rather than save it', async () => {
+      const candidate = makeCandidate();
+      fetcher.serve('');
+
+      const result = await service.backUp(
+        candidate,
+        BackupTrigger.SCHEDULED,
+        NOW
+      );
+
+      expect(result.value.outcome).toBe(BackupOutcome.FAILED);
+      expect(backups.rows).toHaveLength(0);
+    });
+
+    it('should fail the Result when storage fails', async () => {
+      backups.failWith = 'disk full';
+
+      const result = await service.backUp(
+        makeCandidate(),
+        BackupTrigger.SCHEDULED,
+        NOW
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe('disk full');
+    });
+  });
+
+  describe('refusals (BKP-014)', () => {
+    it.each([
+      [
+        'a device that is not an access point',
+        { isAccessPoint: false },
+        BACKUP_REFUSALS.NOT_ACCESS_POINT
+      ],
+      [
+        'a device out of the server reach',
+        { reachable: false },
+        BACKUP_REFUSALS.OUT_OF_REACH
+      ],
+      [
+        'a device with no IP address',
+        { ipAddress: null },
+        BACKUP_REFUSALS.NO_IP_ADDRESS
+      ],
+      [
+        'a device with no credentials',
+        { credentials: null },
+        BACKUP_REFUSALS.NO_CREDENTIALS
+      ],
+      [
+        'a vendor with no fetcher',
+        { vendorSlug: 'mimosa' },
+        BACKUP_REFUSALS.UNSUPPORTED_VENDOR
+      ],
+      [
+        'a device model with no vendor',
+        { vendorSlug: null },
+        BACKUP_REFUSALS.UNSUPPORTED_VENDOR
+      ]
+    ])(
+      'should refuse %s without asking it',
+      async (_l, over, error) => {
+        const candidate = makeCandidate(over);
+
+        const result = await service.backUp(
+          candidate,
+          BackupTrigger.MANUAL,
+          NOW
+        );
+
+        expect(result.value).toEqual({
+          outcome: BackupOutcome.FAILED,
+          error,
+          refused: true
+        });
+        expect(fetcher.calls).toHaveLength(0);
+        expect(stateOf(candidate.deviceId)?.lastError).toBe(error);
+      }
+    );
+  });
+
+  describe('failing alert for refused devices', () => {
+    const refuseThreeNights = async (
+      over: Parameters<typeof makeCandidate>[0]
+    ) => {
+      const candidate = makeCandidate(over);
+      for (let night = 0; night < 3; night++)
+        await service.backUp(
+          candidate,
+          BackupTrigger.SCHEDULED,
+          new Date(NOW.getTime() + night * DAY)
+        );
+      return stateOf(candidate.deviceId)!;
+    };
+
+    it.each([
+      ['not an access point', { isAccessPoint: false }],
+      ['out of reach', { reachable: false }],
+      ['an unsupported vendor', { vendorSlug: 'mimosa' }]
+    ])(
+      '[BKP-063] should stay quiet for %s, which is not available yet',
+      async (_label, over) => {
+        const state = await refuseThreeNights(over);
+
+        expect(state.consecutiveFailures).toBe(3);
+        expect(state.domainEvents).toHaveLength(0);
+      }
+    );
+
+    it.each([
+      ['no IP address', { ipAddress: null }],
+      ['no credentials', { credentials: null }]
+    ])(
+      '[BKP-063] should still announce %s, which someone can fix',
+      async (_label, over) => {
+        const state = await refuseThreeNights(over);
+
+        expect(state.domainEvents).toHaveLength(1);
+        expect(state.domainEvents[0]).toBeInstanceOf(
+          DeviceBackupFailingEvent
+        );
+      }
+    );
+  });
+});
