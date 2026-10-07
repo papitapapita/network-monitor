@@ -45,7 +45,8 @@ function settings(
     reminderWhatsAppTemplate:
       overrides.reminderWhatsAppTemplate === undefined
         ? 'recordatorio_pago'
-        : overrides.reminderWhatsAppTemplate
+        : overrides.reminderWhatsAppTemplate,
+    billWhatsAppTemplate: null
   });
 }
 

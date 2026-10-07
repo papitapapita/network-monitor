@@ -6,6 +6,9 @@ export interface CustomerTemplateMessage {
   // Another approved template than the settings' own (the suspension
   // notice), such as the payment reminder (BIL-322).
   templateName?: string;
+  // A PDF for a template whose header is a document, such as the issued
+  // bill (BIL-324).
+  document?: { filename: string; content: Buffer };
 }
 
 export interface ICustomerNotificationService {

@@ -13,7 +13,8 @@ const SAVED = {
   issueLeadDays: 7,
   graceDays: 2,
   automaticCutEnabled: false,
-  reminderWhatsAppTemplate: null
+  reminderWhatsAppTemplate: null,
+  billWhatsAppTemplate: null
 };
 
 describe('[BIL-280] UpdateBillingSettingsUseCase — integration', () => {

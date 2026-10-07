@@ -3968,7 +3968,10 @@ issues each customer's bill on its own and marks unpaid bills `OVERDUE`:
   leaves the customer with no `OVERDUE` bill reactivates **all** their
   suspended services at once, hand-suspended ones included (BIL-311).
 - Each bill the run issues is emailed with its PDF to customers who have an
-  email (BIL-320). With the cut on, customers with an `OVERDUE` bill are
+  email (BIL-320) and, when `billWhatsAppTemplate` is set, sent by WhatsApp
+  with the PDF as the template's document header (BIL-324). That template
+  takes four body parameters: name, period, amount, last day to pay. A failed
+  send never un-issues the bill (BIL-325). With the cut on, customers with an `OVERDUE` bill are
   reminded on the last two grace days by email and, when
   `reminderWhatsAppTemplate` is set, by WhatsApp — once per bill per day
   (BIL-321…323). The WhatsApp template takes four body parameters: name,
@@ -3984,6 +3987,7 @@ interface BillingSettingsDTO {
   graceDays: number; // 0–14: days after the due date before service is cut
   automaticCutEnabled: boolean; // false (default): nobody is cut or restored on their own
   reminderWhatsAppTemplate: string | null; // Meta-approved template for payment reminders; null = email only
+  billWhatsAppTemplate: string | null; // Meta-approved template with a document header for issued bills; null = email only
 }
 ```
 
@@ -4004,7 +4008,7 @@ interface BillingSettingsDTO {
 **Roles:** ADMIN (`manage-settings`; OPERATOR and VIEWER get `403`)
 
 ```ts
-// Request body — all six, nothing else
+// Request body — all seven, nothing else
 BillingSettingsDTO
 
 // Response

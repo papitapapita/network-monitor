@@ -44,10 +44,35 @@ export class WhatsAppNotificationService
       templateName,
       templateLanguage
     } = settings;
-    const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
+    const base = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}`;
 
     try {
-      const response = await fetch(url, {
+      const components: object[] = [];
+      if (message.document) {
+        const mediaId = await this.upload(base, message.document);
+        if (mediaId.isFailure) return Result.fail(mediaId.error!);
+        components.push({
+          type: 'header',
+          parameters: [
+            {
+              type: 'document',
+              document: {
+                id: mediaId.value,
+                filename: message.document.filename
+              }
+            }
+          ]
+        });
+      }
+      components.push({
+        type: 'body',
+        parameters: message.bodyParams.map((text) => ({
+          type: 'text',
+          text
+        }))
+      });
+
+      const response = await fetch(`${base}/messages`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
@@ -61,26 +86,16 @@ export class WhatsAppNotificationService
           template: {
             name: message.templateName ?? templateName,
             language: { code: templateLanguage },
-            components: [
-              {
-                type: 'body',
-                parameters: message.bodyParams.map((text) => ({
-                  type: 'text',
-                  text
-                }))
-              }
-            ]
+            components
           }
         }),
         signal: AbortSignal.timeout(10_000)
       });
 
       if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        const description =
-          (body as { error?: { message?: string } }).error?.message ??
-          response.statusText;
-        return Result.fail(`WhatsApp API error: ${description}`);
+        return Result.fail(
+          `WhatsApp API error: ${await WhatsAppNotificationService.errorOf(response)}`
+        );
       }
 
       return Result.ok<void>();
@@ -94,5 +109,48 @@ export class WhatsAppNotificationService
         `Network error: ${error instanceof Error ? error.message : String(error)}`
       );
     }
+  }
+
+  // Meta takes a template's document by the id of an uploaded file.
+  private async upload(
+    base: string,
+    document: { filename: string; content: Buffer }
+  ): Promise<Result<string>> {
+    const form = new FormData();
+    form.append('messaging_product', 'whatsapp');
+    form.append('type', 'application/pdf');
+    form.append(
+      'file',
+      new Blob([new Uint8Array(document.content)], {
+        type: 'application/pdf'
+      }),
+      document.filename
+    );
+    const response = await fetch(`${base}/media`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.accessToken}` },
+      body: form,
+      signal: AbortSignal.timeout(10_000)
+    });
+    if (!response.ok) {
+      return Result.fail(
+        `WhatsApp API error uploading ${document.filename}: ${await WhatsAppNotificationService.errorOf(response)}`
+      );
+    }
+    const body = (await response.json()) as { id?: string };
+    if (!body.id) {
+      return Result.fail(
+        'WhatsApp API error: the upload returned no media id'
+      );
+    }
+    return Result.ok(body.id);
+  }
+
+  private static async errorOf(response: Response): Promise<string> {
+    const body = await response.json().catch(() => ({}));
+    return (
+      (body as { error?: { message?: string } }).error?.message ??
+      response.statusText
+    );
   }
 }

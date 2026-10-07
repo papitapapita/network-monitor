@@ -35,6 +35,10 @@ export class BillingSettings extends ValueObject<BillingSettingsProps> {
     return this._props.reminderWhatsAppTemplate;
   }
 
+  get billWhatsAppTemplate(): string | null {
+    return this._props.billWhatsAppTemplate;
+  }
+
   private constructor(props: BillingSettingsProps) {
     super(props);
   }
@@ -44,11 +48,13 @@ export class BillingSettings extends ValueObject<BillingSettingsProps> {
   ): Result<BillingSettings> {
     const error = BillingSettings.validate(props);
     if (error) return Result.fail<BillingSettings>(error);
-    const template = props.reminderWhatsAppTemplate?.trim() || null;
     return Result.ok(
       new BillingSettings({
         ...props,
-        reminderWhatsAppTemplate: template
+        reminderWhatsAppTemplate:
+          props.reminderWhatsAppTemplate?.trim() || null,
+        billWhatsAppTemplate:
+          props.billWhatsAppTemplate?.trim() || null
       })
     );
   }
@@ -62,7 +68,8 @@ export class BillingSettings extends ValueObject<BillingSettingsProps> {
       issueLeadDays: 5,
       graceDays: 3,
       automaticCutEnabled: false,
-      reminderWhatsAppTemplate: null
+      reminderWhatsAppTemplate: null,
+      billWhatsAppTemplate: null
     });
   }
 
@@ -99,15 +106,24 @@ export class BillingSettings extends ValueObject<BillingSettingsProps> {
     if (typeof props.automaticCutEnabled !== 'boolean') {
       return 'automaticCutEnabled must be true or false';
     }
-    const template = props.reminderWhatsAppTemplate;
-    if (
-      template !== null &&
-      (typeof template !== 'string' ||
-        (template.trim() !== '' &&
-          !WHATSAPP_TEMPLATE_NAME.test(template.trim())))
-    ) {
-      return 'reminderWhatsAppTemplate must be a WhatsApp template name: lowercase letters, digits and underscores, up to 512';
+    for (const field of [
+      'reminderWhatsAppTemplate',
+      'billWhatsAppTemplate'
+    ] as const) {
+      if (!BillingSettings.isTemplateName(props[field])) {
+        return `${field} must be a WhatsApp template name: lowercase letters, digits and underscores, up to 512`;
+      }
     }
     return null;
+  }
+
+  // Blank counts as no template.
+  private static isTemplateName(template: unknown): boolean {
+    if (template === null) return true;
+    if (typeof template !== 'string') return false;
+    return (
+      template.trim() === '' ||
+      WHATSAPP_TEMPLATE_NAME.test(template.trim())
+    );
   }
 }

@@ -26,7 +26,8 @@ export class PrismaBillingSettingsRepository
           issueLeadDays: row.issueLeadDays,
           graceDays: row.graceDays,
           automaticCutEnabled: row.automaticCutEnabled,
-          reminderWhatsAppTemplate: row.reminderWhatsAppTemplate
+          reminderWhatsAppTemplate: row.reminderWhatsAppTemplate,
+          billWhatsAppTemplate: row.billWhatsAppTemplate
         })
       );
     } catch (error) {
@@ -43,7 +44,8 @@ export class PrismaBillingSettingsRepository
       issueLeadDays: settings.issueLeadDays,
       graceDays: settings.graceDays,
       automaticCutEnabled: settings.automaticCutEnabled,
-      reminderWhatsAppTemplate: settings.reminderWhatsAppTemplate
+      reminderWhatsAppTemplate: settings.reminderWhatsAppTemplate,
+      billWhatsAppTemplate: settings.billWhatsAppTemplate
     };
     try {
       await this.prisma.billingSettings.upsert({

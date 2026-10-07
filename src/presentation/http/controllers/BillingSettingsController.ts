@@ -24,7 +24,8 @@ export class BillingSettingsController {
         issueLeadDays: req.body.issueLeadDays,
         graceDays: req.body.graceDays,
         automaticCutEnabled: req.body.automaticCutEnabled,
-        reminderWhatsAppTemplate: req.body.reminderWhatsAppTemplate
+        reminderWhatsAppTemplate: req.body.reminderWhatsAppTemplate,
+        billWhatsAppTemplate: req.body.billWhatsAppTemplate
       })
     );
 

@@ -155,6 +155,68 @@ describe('WhatsAppNotificationService', () => {
       expect(body.template.language).toEqual({ code: 'es' });
     });
 
+    it('[BIL-324] uploads a document and sends it as the template header', async () => {
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ id: 'media-1' })
+        })
+        .mockResolvedValueOnce({ ok: true });
+
+      const result = await makeService().sendTemplate(PHONE, {
+        bodyParams: ['Ana'],
+        templateName: 'cuenta_cobro',
+        document: {
+          filename: 'cuenta.pdf',
+          content: Buffer.from('%PDF-1.4')
+        }
+      });
+
+      expect(result.isSuccess).toBe(true);
+      const [uploadUrl, upload] = fetchMock.mock.calls[0];
+      expect(uploadUrl).toMatch(/\/media$/);
+      const form = upload.body as FormData;
+      expect(form.get('messaging_product')).toBe('whatsapp');
+      expect((form.get('file') as File).name).toBe('cuenta.pdf');
+      const body = JSON.parse(fetchMock.mock.calls[1][1].body);
+      expect(body.template.components).toEqual([
+        {
+          type: 'header',
+          parameters: [
+            {
+              type: 'document',
+              document: { id: 'media-1', filename: 'cuenta.pdf' }
+            }
+          ]
+        },
+        {
+          type: 'body',
+          parameters: [{ type: 'text', text: 'Ana' }]
+        }
+      ]);
+    });
+
+    it('[BIL-324] sends nothing when the document upload fails', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        statusText: 'Bad Request',
+        json: async () => ({ error: { message: 'file too large' } })
+      });
+
+      const result = await makeService().sendTemplate(PHONE, {
+        bodyParams: [],
+        document: {
+          filename: 'cuenta.pdf',
+          content: Buffer.from('x')
+        }
+      });
+
+      expect(result.error).toBe(
+        'WhatsApp API error uploading cuenta.pdf: file too large'
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
     it('should strip the leading + from the phone number', async () => {
       fetchMock.mockResolvedValue({ ok: true });
 

@@ -9,7 +9,8 @@ export const updateBillingSettingsSchema = z.object({
       issueLeadDays: z.number(),
       graceDays: z.number(),
       automaticCutEnabled: z.boolean(),
-      reminderWhatsAppTemplate: z.string().nullable()
+      reminderWhatsAppTemplate: z.string().nullable(),
+      billWhatsAppTemplate: z.string().nullable()
     })
     .strict()
 });

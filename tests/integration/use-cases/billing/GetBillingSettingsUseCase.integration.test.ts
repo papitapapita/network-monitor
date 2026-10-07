@@ -36,7 +36,8 @@ describe('[BIL-281] GetBillingSettingsUseCase — integration', () => {
       issueLeadDays: 5,
       graceDays: 3,
       automaticCutEnabled: false,
-      reminderWhatsAppTemplate: null
+      reminderWhatsAppTemplate: null,
+      billWhatsAppTemplate: null
     });
   });
 
@@ -48,7 +49,8 @@ describe('[BIL-281] GetBillingSettingsUseCase — integration', () => {
         issueLeadDays: 10,
         graceDays: 0,
         automaticCutEnabled: false,
-        reminderWhatsAppTemplate: null
+        reminderWhatsAppTemplate: null,
+        billWhatsAppTemplate: null
       }
     });
 
@@ -60,7 +62,8 @@ describe('[BIL-281] GetBillingSettingsUseCase — integration', () => {
       issueLeadDays: 10,
       graceDays: 0,
       automaticCutEnabled: false,
-      reminderWhatsAppTemplate: null
+      reminderWhatsAppTemplate: null,
+      billWhatsAppTemplate: null
     });
   });
 });

@@ -12,7 +12,8 @@ const VALID = {
   issueLeadDays: 7,
   graceDays: 2,
   automaticCutEnabled: false,
-  reminderWhatsAppTemplate: null
+  reminderWhatsAppTemplate: null,
+  billWhatsAppTemplate: null
 };
 
 describe('BillingSettings', () => {
@@ -56,6 +57,29 @@ describe('BillingSettings', () => {
     );
   });
 
+  it('[BIL-324] refuses a bill template name Meta would not accept', () => {
+    const result = BillingSettings.create({
+      ...VALID,
+      billWhatsAppTemplate: 'Cuenta-Cobro'
+    });
+
+    expect(result.error).toContain('billWhatsAppTemplate must be');
+  });
+
+  it('[BIL-324] trims the bill template, and blank means none', () => {
+    const named = BillingSettings.create({
+      ...VALID,
+      billWhatsAppTemplate: ' cuenta_cobro '
+    });
+    const blank = BillingSettings.create({
+      ...VALID,
+      billWhatsAppTemplate: ' '
+    });
+
+    expect(named.value.billWhatsAppTemplate).toBe('cuenta_cobro');
+    expect(blank.value.billWhatsAppTemplate).toBeNull();
+  });
+
   it('[BIL-310] the automatic cut is off by default', () => {
     expect(BillingSettings.defaults().automaticCutEnabled).toBe(
       false
@@ -89,7 +113,8 @@ describe('BillingSettings', () => {
         issueLeadDays: 1,
         graceDays: 0,
         automaticCutEnabled: false,
-        reminderWhatsAppTemplate: null
+        reminderWhatsAppTemplate: null,
+        billWhatsAppTemplate: null
       }).isSuccess
     ).toBe(true);
     expect(
@@ -98,7 +123,8 @@ describe('BillingSettings', () => {
         issueLeadDays: 14,
         graceDays: 14,
         automaticCutEnabled: false,
-        reminderWhatsAppTemplate: null
+        reminderWhatsAppTemplate: null,
+        billWhatsAppTemplate: null
       }).isSuccess
     ).toBe(true);
   });

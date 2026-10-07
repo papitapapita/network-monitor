@@ -69,8 +69,10 @@ network.
 ### Notices
 
 - Reminders by WhatsApp and email, near the cut: in the last two grace days.
-- The bill itself is emailed with its PDF when issued; WhatsApp only carries
-  the reminders, since each template message costs money.
+- The bill itself is emailed with its PDF when issued and, once the ISP has a
+  Meta-approved bill template, also sent by WhatsApp with the PDF as the
+  template's document (changed 2026-10-06: the client wants bills on WhatsApp,
+  accepting the cost per message).
 - Email uses the install's SMTP sender (Resend), shared with sign-in emails.
 
 ### Deferred (not built now)
@@ -96,6 +98,7 @@ One commit per slice, reviewed before the next.
 4. Automatic cut after the grace days, restore on payment.
 5. Enforcement through the on-site agent.
 6. Notices (WhatsApp + email).
+   7a. The bill by WhatsApp with its PDF.
 7. Deferred items above, as the client decides.
 
 ## Consequences

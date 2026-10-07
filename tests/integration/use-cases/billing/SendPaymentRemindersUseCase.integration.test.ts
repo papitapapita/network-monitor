@@ -4,12 +4,6 @@
 import { PrismaClient } from 'generated/prisma/client';
 import { SendPaymentRemindersUseCase } from 'application/billing/use-cases';
 import { BillingMode, BillingSettings } from 'domain/billing';
-import { Result } from 'domain/shared/core';
-import { PhoneNumber } from 'domain/customers/value-objects';
-import {
-  CustomerTemplateMessage,
-  ICustomerNotificationService
-} from 'application/notifications/interfaces';
 import {
   PrismaBillRepository,
   PrismaBillReminderLog
@@ -17,6 +11,7 @@ import {
 import { PrismaBillingContactsQuery } from 'infrastructure/billing/queries';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import { FakeEmailSender } from '../../helpers/FakeEmailSender';
+import { FakeCustomerWhatsApp } from '../../helpers/FakeCustomerWhatsApp';
 import {
   cleanCustomers,
   createTestPrisma,
@@ -35,35 +30,20 @@ const SETTINGS = BillingSettings.reconstitute({
   issueLeadDays: 5,
   graceDays: 3,
   automaticCutEnabled: true,
-  reminderWhatsAppTemplate: 'recordatorio_pago'
+  reminderWhatsAppTemplate: 'recordatorio_pago',
+  billWhatsAppTemplate: null
 });
-
-// Records WhatsApp sends instead of calling Meta.
-class RecordingWhatsApp implements ICustomerNotificationService {
-  sent: { to: string; templateName?: string }[] = [];
-
-  async sendTemplate(
-    to: PhoneNumber,
-    message: CustomerTemplateMessage
-  ): Promise<Result<void>> {
-    this.sent.push({
-      to: to.value,
-      templateName: message.templateName
-    });
-    return Result.ok();
-  }
-}
 
 describe('SendPaymentRemindersUseCase — integration', () => {
   let prisma: PrismaClient;
   let email: FakeEmailSender;
-  let whatsApp: RecordingWhatsApp;
+  let whatsApp: FakeCustomerWhatsApp;
   let useCase: SendPaymentRemindersUseCase;
 
   beforeAll(() => {
     prisma = createTestPrisma();
     email = new FakeEmailSender();
-    whatsApp = new RecordingWhatsApp();
+    whatsApp = new FakeCustomerWhatsApp();
     useCase = new SendPaymentRemindersUseCase(
       new PrismaBillRepository(prisma),
       new PrismaBillReminderLog(prisma),

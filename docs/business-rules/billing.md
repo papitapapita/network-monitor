@@ -34,7 +34,7 @@ Format and conventions: [README.md](README.md).
 
 | Layer                     | Rules |
 | ------------------------- | ----- |
-| Application               | 32    |
+| Application               | 34    |
 | Domain (aggregate)        | 30    |
 | Domain (value object)     | 17    |
 | Presentation              | 6     |
@@ -1320,8 +1320,9 @@ falls due. Days are Colombian days (UTC-5).
 | `graceDays`                | whole number, 0 … 14                         |
 | `automaticCutEnabled`      | true or false                                |
 | `reminderWhatsAppTemplate` | a WhatsApp template name or null (`BIL-322`) |
+| `billWhatsAppTemplate`     | a WhatsApp template name or null (`BIL-324`) |
 
-A save replaces all six; a refused value saves nothing. The next daily run
+A save replaces all seven; a refused value saves nothing. The next daily run
 reads them, with no restart.
 
 **Why:** A lead of at most 14 days keeps the 15th group's issue day inside its
@@ -1674,8 +1675,8 @@ in the run's failures; the bill stays issued. Bills made by hand are not
 emailed.
 
 **Why:** The bill is what the customer pays against; sending it when issued
-gives them the whole issue window to pay. WhatsApp is kept for reminders,
-because each template message costs money.
+gives them the whole issue window to pay. With a bill template, it also goes
+by WhatsApp (`BIL-324`).
 
 **Enforced at:** `src/application/billing/use-cases/SendBillEmailUseCase.ts`, `src/application/billing/use-cases/RunBillingCycleUseCase.ts` (`issueBills`), `src/application/billing/services/billNoticeText.ts`, `src/infrastructure/email/SmtpEmailSender.ts` (attachments)
 **Tests:** `tests/application/billing/use-cases/SendBillEmailUseCase.test.ts`, `tests/application/billing/use-cases/RunBillingCycleUseCase.test.ts`, `tests/application/billing/services/billNoticeText.test.ts`, `tests/infrastructure/email/SmtpEmailSender.test.ts`, `tests/integration/use-cases/billing/SendBillEmailUseCase.integration.test.ts`, `tests/integration/use-cases/billing/RunBillingCycleUseCase.integration.test.ts`
@@ -1740,3 +1741,41 @@ The daily run keeps no memory across restarts, so the database has to.
 **Enforced at:** `src/application/billing/use-cases/SendPaymentRemindersUseCase.ts`, `src/infrastructure/billing/repositories/PrismaBillReminderLog.ts`
 **Backed by:** `BillReminder` (`bill_reminders`, unique `bill_id, sent_on`, cascade on bill delete) in `prisma/schema.prisma`; `prisma/migrations/20261007120000_bill_notices`
 **Tests:** `tests/application/billing/use-cases/SendPaymentRemindersUseCase.test.ts`, `tests/integration/use-cases/billing/SendPaymentRemindersUseCase.integration.test.ts`
+
+### BIL-324 — With a bill template, an issued bill also goes by WhatsApp with its PDF
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-06
+
+When `billWhatsAppTemplate` is set and the install has WhatsApp, the daily
+run sends each bill it issues to the customer's phone with that template, the
+bill PDF as the template's document header. The template takes four body
+parameters, in order: the customer's name, the period, the amount, and the
+last day to pay. The name follows Meta's naming rule, like `BIL-322`: stored
+trimmed, blank counts as none. With no template, or no WhatsApp on the
+install, bills go by email only. Bills made by hand are not sent.
+
+**Why:** Most customers read WhatsApp, not email. Meta only lets a business
+start a conversation from an approved template, and a template carries a file
+only as a document header, uploaded to Meta first.
+
+**Enforced at:** `src/application/billing/use-cases/SendBillWhatsAppUseCase.ts`, `src/application/billing/use-cases/RunBillingCycleUseCase.ts` (`issueBills`), `src/application/billing/services/billNoticeText.ts` (`billTemplateParams`), `src/domain/billing/value-objects/BillingSettings.ts`, `src/infrastructure/notifications/WhatsAppNotificationService.ts` (`upload`)
+**Message:** `billWhatsAppTemplate must be a WhatsApp template name: lowercase letters, digits and underscores, up to 512`
+**Tests:** `tests/application/billing/use-cases/SendBillWhatsAppUseCase.test.ts`, `tests/application/billing/use-cases/RunBillingCycleUseCase.test.ts`, `tests/domain/billing/value-objects/BillingSettings.test.ts`, `tests/infrastructure/notifications/WhatsAppNotificationService.test.ts`, `tests/integration/use-cases/billing/SendBillWhatsAppUseCase.integration.test.ts`, `tests/integration/use-cases/billing/RunBillingCycleUseCase.integration.test.ts`
+
+### BIL-325 — A bill that could not be sent stays issued
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-06
+
+Email and WhatsApp are tried separately for each issued bill: one failing
+does not stop the other. A failure is recorded in the run's failures with the
+bill's id; the bill stays issued and is not sent again by a later run.
+
+**Why:** The bill is owed whether or not the message arrived; re-issuing it
+to retry the message would bill the customer twice.
+
+**Enforced at:** `src/application/billing/use-cases/RunBillingCycleUseCase.ts` (`issueBills`)
+**Tests:** `tests/application/billing/use-cases/RunBillingCycleUseCase.test.ts`

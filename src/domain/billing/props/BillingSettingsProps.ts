@@ -10,4 +10,7 @@ export interface BillingSettingsProps {
   // The ISP's approved WhatsApp template for payment reminders (BIL-322);
   // null sends reminders by email only.
   reminderWhatsAppTemplate: string | null;
+  // The ISP's approved WhatsApp template that carries an issued bill's PDF
+  // (BIL-324); null sends bills by email only.
+  billWhatsAppTemplate: string | null;
 }

@@ -790,6 +790,7 @@ model BillingSettings {
   graceDays                Int         @map("grace_days") @db.SmallInt
   automaticCutEnabled      Boolean     @default(false) @map("automatic_cut_enabled")
   reminderWhatsAppTemplate String?     @map("reminder_whatsapp_template") @db.VarChar(512)
+  billWhatsAppTemplate     String?     @map("bill_whatsapp_template") @db.VarChar(512)
   updatedAt                DateTime    @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("billing_settings")

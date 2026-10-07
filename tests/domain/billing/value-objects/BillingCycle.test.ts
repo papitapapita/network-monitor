@@ -19,7 +19,8 @@ function settings(
     issueLeadDays: overrides.issueLeadDays ?? 5,
     graceDays: 3,
     automaticCutEnabled: false,
-    reminderWhatsAppTemplate: null
+    reminderWhatsAppTemplate: null,
+    billWhatsAppTemplate: null
   });
 }
 

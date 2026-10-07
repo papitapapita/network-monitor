@@ -26,7 +26,8 @@ const SAVED = {
   issueLeadDays: 7,
   graceDays: 2,
   automaticCutEnabled: false,
-  reminderWhatsAppTemplate: null
+  reminderWhatsAppTemplate: null,
+  billWhatsAppTemplate: null
 };
 
 describe('GetBillingSettingsUseCase', () => {
@@ -44,7 +45,8 @@ describe('GetBillingSettingsUseCase', () => {
       issueLeadDays: 5,
       graceDays: 3,
       automaticCutEnabled: false,
-      reminderWhatsAppTemplate: null
+      reminderWhatsAppTemplate: null,
+      billWhatsAppTemplate: null
     });
   });
 

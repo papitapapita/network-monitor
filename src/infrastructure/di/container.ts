@@ -186,6 +186,7 @@ import {
   RunBillingCycleUseCase,
   RestoreServicesAfterPaymentUseCase,
   SendBillEmailUseCase,
+  SendBillWhatsAppUseCase,
   SendPaymentRemindersUseCase,
   GetBillUseCase,
   GetBillPdfUseCase,
@@ -820,6 +821,17 @@ export class DependencyContainer {
       const serviceAccess = new ContractedServiceAccessAdapter(
         this.contractedServiceRepository
       );
+      // Bills and reminders by WhatsApp need the token, like suspension
+      // notices.
+      const customerWhatsApp = process.env.WHATSAPP_ACCESS_TOKEN
+        ? new WhatsAppNotificationService(async () => {
+            const settings =
+              await this.vendorSettingsRepository.get();
+            return settings.isSuccess
+              ? settings.value.whatsApp
+              : null;
+          })
+        : null;
       this.billingCycleOrchestrator = new BillingCycleOrchestrator(
         new RunBillingCycleUseCase(
           billingSettingsRepository,
@@ -834,21 +846,19 @@ export class DependencyContainer {
             emailSender,
             this.logger
           ),
+          new SendBillWhatsAppUseCase(
+            this.billRepository,
+            billingContacts,
+            getBillPdfUseCase,
+            customerWhatsApp,
+            this.logger
+          ),
           new SendPaymentRemindersUseCase(
             this.billRepository,
             new PrismaBillReminderLog(this.prisma),
             billingContacts,
             emailSender,
-            // Reminders by WhatsApp need the token, like suspension notices.
-            process.env.WHATSAPP_ACCESS_TOKEN
-              ? new WhatsAppNotificationService(async () => {
-                  const settings =
-                    await this.vendorSettingsRepository.get();
-                  return settings.isSuccess
-                    ? settings.value.whatsApp
-                    : null;
-                })
-              : null,
+            customerWhatsApp,
             this.logger
           ),
           this.logger

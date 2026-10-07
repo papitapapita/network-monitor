@@ -23,7 +23,8 @@ function settings(automaticCutEnabled: boolean): BillingSettings {
     issueLeadDays: 5,
     graceDays: 3,
     automaticCutEnabled,
-    reminderWhatsAppTemplate: null
+    reminderWhatsAppTemplate: null,
+    billWhatsAppTemplate: null
   });
 }
 

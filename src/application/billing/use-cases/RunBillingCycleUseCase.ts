@@ -21,6 +21,7 @@ import {
 } from '../dtos';
 import { GenerateBillUseCase } from './GenerateBillUseCase';
 import { SendBillEmailUseCase } from './SendBillEmailUseCase';
+import { SendBillWhatsAppUseCase } from './SendBillWhatsAppUseCase';
 import { SendPaymentRemindersUseCase } from './SendPaymentRemindersUseCase';
 
 type Failures = BillingCycleRunResultDTO['failed'];
@@ -30,7 +31,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // The daily billing run (BIL-284): marks unpaid bills overdue once their due
 // date has passed, cuts customers still unpaid after the grace days when the
 // automatic cut is on (BIL-310), sends the payment reminders of the last two
-// grace days (BIL-321), then issues and emails the bills whose issue window is open. Does
+// grace days (BIL-321), then issues the bills whose issue window is open and
+// sends them by email and, with a bill template, WhatsApp (BIL-324). Does
 // nothing while automatic billing is off. Safe to repeat: a period already
 // billed — even cancelled — is never billed again by the run. Bills it issues
 // are prorated (BIL-287..290); a customer whose services all start after the
@@ -46,6 +48,7 @@ export class RunBillingCycleUseCase extends UseCase<
     private readonly generateBillUseCase: GenerateBillUseCase,
     private readonly serviceAccess: ICustomerServiceAccess,
     private readonly sendBillEmail: SendBillEmailUseCase,
+    private readonly sendBillWhatsApp: SendBillWhatsAppUseCase,
     private readonly sendReminders: SendPaymentRemindersUseCase,
     logger: ILogger
   ) {
@@ -70,6 +73,7 @@ export class RunBillingCycleUseCase extends UseCase<
         cut: 0,
         reminded: 0,
         emailed: 0,
+        whatsAppSent: 0,
         failed: []
       });
     }
@@ -105,6 +109,7 @@ export class RunBillingCycleUseCase extends UseCase<
       cut: cut.value,
       reminded: reminders.value.reminded,
       emailed: generated.value.emailed,
+      whatsAppSent: generated.value.whatsAppSent,
       failed
     });
   }
@@ -166,12 +171,19 @@ export class RunBillingCycleUseCase extends UseCase<
     now: Date,
     settings: BillingSettings,
     failed: Failures
-  ): Promise<Result<{ generated: number; emailed: number }>> {
+  ): Promise<
+    Result<{
+      generated: number;
+      emailed: number;
+      whatsAppSent: number;
+    }>
+  > {
     const customers = await this.billableCustomers.listBillable();
     if (customers.isFailure) return Result.fail(customers.error!);
 
     let generated = 0;
     let emailed = 0;
+    let whatsAppSent = 0;
     for (const customer of customers.value) {
       const cycle = BillingCycle.openAt(
         now,
@@ -216,7 +228,7 @@ export class RunBillingCycleUseCase extends UseCase<
       }
       generated++;
 
-      // BIL-320: a bill that could not be emailed is still issued.
+      // BIL-320, BIL-325: a bill that could not be sent is still issued.
       const email = await this.sendBillEmail.execute({
         billId: bill.value.id
       });
@@ -225,7 +237,19 @@ export class RunBillingCycleUseCase extends UseCase<
       } else if (email.value.sent) {
         emailed++;
       }
+
+      const template = settings.billWhatsAppTemplate;
+      if (template === null) continue;
+      const whatsApp = await this.sendBillWhatsApp.execute({
+        billId: bill.value.id,
+        templateName: template
+      });
+      if (whatsApp.isFailure) {
+        failed.push({ id: bill.value.id, error: whatsApp.error! });
+      } else if (whatsApp.value.sent) {
+        whatsAppSent++;
+      }
     }
-    return Result.ok({ generated, emailed });
+    return Result.ok({ generated, emailed, whatsAppSent });
   }
 }

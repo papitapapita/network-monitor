@@ -1,6 +1,6 @@
 import { Money } from 'domain/shared/value-objects';
 
-// What the customer reads (BIL-320, BIL-321), in Spanish, in Colombian
+// What the customer reads (BIL-320, BIL-321, BIL-324), in Spanish, in Colombian
 // pesos and Colombian dates.
 
 const pesos = new Intl.NumberFormat('es-CO', {
@@ -81,5 +81,20 @@ export function reminderTemplateParams(input: {
     input.period,
     formatPesos(input.total),
     formatCalendarDay(input.cutDay)
+  ];
+}
+
+// The order of the bill template's body parameters (BIL-324).
+export function billTemplateParams(input: {
+  fullName: string;
+  period: string;
+  total: Money;
+  dueDate: Date;
+}): string[] {
+  return [
+    input.fullName,
+    input.period,
+    formatPesos(input.total),
+    formatInstant(input.dueDate)
   ];
 }

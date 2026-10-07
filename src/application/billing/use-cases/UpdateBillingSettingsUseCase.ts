@@ -27,7 +27,8 @@ export class UpdateBillingSettingsUseCase extends UseCase<
       issueLeadDays: request.issueLeadDays,
       graceDays: request.graceDays,
       automaticCutEnabled: request.automaticCutEnabled,
-      reminderWhatsAppTemplate: request.reminderWhatsAppTemplate
+      reminderWhatsAppTemplate: request.reminderWhatsAppTemplate,
+      billWhatsAppTemplate: request.billWhatsAppTemplate
     });
     if (settings.isFailure) return this.fail(settings.error);
 

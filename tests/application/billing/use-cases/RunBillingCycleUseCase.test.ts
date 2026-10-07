@@ -3,6 +3,7 @@
 import { RunBillingCycleUseCase } from '../../../../src/application/billing/use-cases/RunBillingCycleUseCase';
 import { GenerateBillUseCase } from '../../../../src/application/billing/use-cases/GenerateBillUseCase';
 import { SendBillEmailUseCase } from '../../../../src/application/billing/use-cases/SendBillEmailUseCase';
+import { SendBillWhatsAppUseCase } from '../../../../src/application/billing/use-cases/SendBillWhatsAppUseCase';
 import { SendPaymentRemindersUseCase } from '../../../../src/application/billing/use-cases/SendPaymentRemindersUseCase';
 import {
   IBillableCustomersQuery,
@@ -38,7 +39,8 @@ const STARTED = '2026-01-10T15:00:00.000Z';
 
 function enabled(
   billingMode: BillingMode = BillingMode.ADVANCE,
-  automaticCutEnabled = false
+  automaticCutEnabled = false,
+  billWhatsAppTemplate: string | null = null
 ): BillingSettings {
   return BillingSettings.reconstitute({
     automaticBillingEnabled: true,
@@ -46,7 +48,8 @@ function enabled(
     issueLeadDays: 5,
     graceDays: 3,
     automaticCutEnabled,
-    reminderWhatsAppTemplate: null
+    reminderWhatsAppTemplate: null,
+    billWhatsAppTemplate
   });
 }
 
@@ -78,6 +81,7 @@ describe('RunBillingCycleUseCase', () => {
   let generate: { execute: jest.Mock };
   let serviceAccess: jest.Mocked<ICustomerServiceAccess>;
   let sendBillEmail: { execute: jest.Mock };
+  let sendBillWhatsApp: { execute: jest.Mock };
   let sendReminders: { execute: jest.Mock };
   let useCase: RunBillingCycleUseCase;
 
@@ -121,6 +125,9 @@ describe('RunBillingCycleUseCase', () => {
     sendBillEmail = {
       execute: jest.fn().mockResolvedValue(Result.ok({ sent: true }))
     };
+    sendBillWhatsApp = {
+      execute: jest.fn().mockResolvedValue(Result.ok({ sent: true }))
+    };
     sendReminders = {
       execute: jest
         .fn()
@@ -144,6 +151,7 @@ describe('RunBillingCycleUseCase', () => {
       generate as unknown as GenerateBillUseCase,
       serviceAccess,
       sendBillEmail as unknown as SendBillEmailUseCase,
+      sendBillWhatsApp as unknown as SendBillWhatsAppUseCase,
       sendReminders as unknown as SendPaymentRemindersUseCase,
       makeLogger()
     );
@@ -163,6 +171,7 @@ describe('RunBillingCycleUseCase', () => {
       cut: 0,
       reminded: 0,
       emailed: 0,
+      whatsAppSent: 0,
       failed: []
     });
     expect(billRepo.findPendingDueBefore).not.toHaveBeenCalled();
@@ -425,7 +434,7 @@ describe('RunBillingCycleUseCase', () => {
     });
   });
 
-  describe('[BIL-320] [BIL-321] notices', () => {
+  describe('[BIL-320] [BIL-321] [BIL-324] notices', () => {
     it('emails each bill it issues', async () => {
       const result = await useCase.execute({ now: NOW });
 
@@ -457,6 +466,57 @@ describe('RunBillingCycleUseCase', () => {
       expect(result.value.failed).toEqual([
         { id: 'bill-1', error: 'Email not sent: timeout' }
       ]);
+    });
+
+    it('[BIL-324] sends no bill by WhatsApp without a bill template', async () => {
+      const result = await useCase.execute({ now: NOW });
+
+      expect(sendBillWhatsApp.execute).not.toHaveBeenCalled();
+      expect(result.value.whatsAppSent).toBe(0);
+    });
+
+    it('[BIL-324] sends each bill it issues by WhatsApp with the bill template', async () => {
+      settingsRepo.get.mockResolvedValue(
+        Result.ok(enabled(BillingMode.ADVANCE, false, 'cuenta_cobro'))
+      );
+
+      const result = await useCase.execute({ now: NOW });
+
+      expect(sendBillWhatsApp.execute).toHaveBeenCalledWith({
+        billId: 'bill-1',
+        templateName: 'cuenta_cobro'
+      });
+      expect(result.value.whatsAppSent).toBe(1);
+    });
+
+    it('[BIL-325] keeps the bill and its email when WhatsApp fails', async () => {
+      settingsRepo.get.mockResolvedValue(
+        Result.ok(enabled(BillingMode.ADVANCE, false, 'cuenta_cobro'))
+      );
+      sendBillWhatsApp.execute.mockResolvedValue(
+        Result.fail('WhatsApp: down')
+      );
+
+      const result = await useCase.execute({ now: NOW });
+
+      expect(result.value.generated).toBe(1);
+      expect(result.value.emailed).toBe(1);
+      expect(result.value.failed).toEqual([
+        { id: 'bill-1', error: 'WhatsApp: down' }
+      ]);
+    });
+
+    it('[BIL-325] still sends by WhatsApp when the email fails', async () => {
+      settingsRepo.get.mockResolvedValue(
+        Result.ok(enabled(BillingMode.ADVANCE, false, 'cuenta_cobro'))
+      );
+      sendBillEmail.execute.mockResolvedValue(
+        Result.fail('Email not sent: timeout')
+      );
+
+      const result = await useCase.execute({ now: NOW });
+
+      expect(result.value.whatsAppSent).toBe(1);
     });
 
     it("asks for the day's reminders with the settings it read", async () => {

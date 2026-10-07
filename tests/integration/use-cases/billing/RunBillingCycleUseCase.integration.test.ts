@@ -7,10 +7,12 @@ import {
   GetBillPdfUseCase,
   RunBillingCycleUseCase,
   SendBillEmailUseCase,
+  SendBillWhatsAppUseCase,
   SendPaymentRemindersUseCase
 } from 'application/billing/use-cases';
 import { PdfKitBillPdfRenderer } from 'infrastructure/billing/services';
 import { FakeEmailSender } from '../../helpers/FakeEmailSender';
+import { FakeCustomerWhatsApp } from '../../helpers/FakeCustomerWhatsApp';
 import {
   PrismaBillRepository,
   PrismaBillReminderLog,
@@ -45,6 +47,7 @@ describe('RunBillingCycleUseCase — integration', () => {
   let useCase: RunBillingCycleUseCase;
   let planId: string;
   let email: FakeEmailSender;
+  let whatsApp: FakeCustomerWhatsApp;
 
   beforeAll(() => {
     prisma = createTestPrisma();
@@ -53,6 +56,13 @@ describe('RunBillingCycleUseCase — integration', () => {
     const customerRepository = new PrismaCustomerRepository(prisma);
     const contacts = new PrismaBillingContactsQuery(prisma);
     email = new FakeEmailSender();
+    whatsApp = new FakeCustomerWhatsApp();
+    const getBillPdf = new GetBillPdfUseCase(
+      billRepository,
+      customerRepository,
+      new PdfKitBillPdfRenderer(),
+      logger
+    );
     useCase = new RunBillingCycleUseCase(
       new PrismaBillingSettingsRepository(prisma),
       new PrismaBillableCustomersQuery(prisma),
@@ -70,13 +80,15 @@ describe('RunBillingCycleUseCase — integration', () => {
       new SendBillEmailUseCase(
         billRepository,
         contacts,
-        new GetBillPdfUseCase(
-          billRepository,
-          customerRepository,
-          new PdfKitBillPdfRenderer(),
-          logger
-        ),
+        getBillPdf,
         email,
+        logger
+      ),
+      new SendBillWhatsAppUseCase(
+        billRepository,
+        contacts,
+        getBillPdf,
+        whatsApp,
         logger
       ),
       new SendPaymentRemindersUseCase(
@@ -101,6 +113,7 @@ describe('RunBillingCycleUseCase — integration', () => {
     await prisma.billingSettings.deleteMany();
     await cleanCustomers(prisma);
     email.sent = [];
+    whatsApp.sent = [];
     planId = await seedServicePlan(prisma, {
       name: 'Plan 50',
       monthlyPrice: 80000
@@ -109,7 +122,8 @@ describe('RunBillingCycleUseCase — integration', () => {
 
   async function enableBilling(
     billingMode: 'ADVANCE' | 'ARREARS' = 'ADVANCE',
-    automaticCutEnabled = false
+    automaticCutEnabled = false,
+    billWhatsAppTemplate: string | null = null
   ): Promise<void> {
     await prisma.billingSettings.create({
       data: {
@@ -117,7 +131,8 @@ describe('RunBillingCycleUseCase — integration', () => {
         billingMode,
         issueLeadDays: 5,
         graceDays: 3,
-        automaticCutEnabled
+        automaticCutEnabled,
+        billWhatsAppTemplate
       }
     });
   }
@@ -494,7 +509,7 @@ describe('RunBillingCycleUseCase — integration', () => {
     });
   });
 
-  describe('[BIL-320] [BIL-321] notices', () => {
+  describe('[BIL-320] [BIL-321] [BIL-324] notices', () => {
     it('emails each issued bill with its PDF to customers who have an email', async () => {
       await enableBilling();
       await seedBillable(
@@ -519,6 +534,30 @@ describe('RunBillingCycleUseCase — integration', () => {
           .attachments![0].content.subarray(0, 4)
           .toString()
       ).toBe('%PDF');
+    });
+
+    it('[BIL-324] sends each issued bill by WhatsApp with its PDF when there is a bill template', async () => {
+      await enableBilling('ADVANCE', false, 'cuenta_cobro');
+      await seedBillable('3000000015', 15);
+
+      const result = await useCase.execute({ now: NOW });
+
+      expect(result.value.whatsAppSent).toBe(1);
+      expect(whatsApp.sent).toHaveLength(1);
+      expect(whatsApp.sent[0].templateName).toBe('cuenta_cobro');
+      expect(
+        whatsApp.sent[0].document!.content.subarray(0, 4).toString()
+      ).toBe('%PDF');
+    });
+
+    it('[BIL-324] sends no bill by WhatsApp without a bill template', async () => {
+      await enableBilling();
+      await seedBillable('3000000015', 15);
+
+      const result = await useCase.execute({ now: NOW });
+
+      expect(result.value.whatsAppSent).toBe(0);
+      expect(whatsApp.sent).toHaveLength(0);
     });
 
     it('reminds an overdue customer on a late grace day, once that day', async () => {

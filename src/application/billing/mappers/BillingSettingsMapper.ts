@@ -9,7 +9,8 @@ export class BillingSettingsMapper {
       issueLeadDays: settings.issueLeadDays,
       graceDays: settings.graceDays,
       automaticCutEnabled: settings.automaticCutEnabled,
-      reminderWhatsAppTemplate: settings.reminderWhatsAppTemplate
+      reminderWhatsAppTemplate: settings.reminderWhatsAppTemplate,
+      billWhatsAppTemplate: settings.billWhatsAppTemplate
     };
   }
 }
