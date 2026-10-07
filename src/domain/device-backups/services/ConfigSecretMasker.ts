@@ -7,6 +7,13 @@ export const MASKED_SECRET = '********';
 // names the key type, not the key.
 const AIROS_SECRET_PART = /pass|psk|secret|community|token|private/i;
 
+// RouterOS arguments are `name=value`, the value quoted when it holds spaces:
+// `wpa2-pre-shared-key="a b"`, `secret=x`, `private-key="..."`.
+const ROUTEROS_ARGUMENT =
+  /(^|\s)([A-Za-z0-9-]+)=("(?:[^"\\]|\\.)*"|\S*)/g;
+const ROUTEROS_SECRET_NAME =
+  /pass|psk|secret|community|token|private|key$/i;
+
 // Hides the values of passwords, wireless keys and community strings in a
 // configuration line, keeping the name so a reader still sees which setting
 // changed (BKP-071).
@@ -15,6 +22,8 @@ export class ConfigSecretMasker {
     switch (format) {
       case BackupFormat.AIROS_CFG:
         return ConfigSecretMasker.maskAirOs(line);
+      case BackupFormat.ROUTEROS_EXPORT:
+        return ConfigSecretMasker.maskRouterOs(line);
     }
   }
 
@@ -28,5 +37,19 @@ export class ConfigSecretMasker {
     return secret && eq < line.length - 1
       ? `${line.slice(0, eq + 1)}${MASKED_SECRET}`
       : line;
+  }
+
+  // BKP-053
+  private static maskRouterOs(line: string): string {
+    if (line.trimStart().startsWith('#')) return line;
+    return line.replace(
+      ROUTEROS_ARGUMENT,
+      (whole, lead: string, name: string, value: string) =>
+        ROUTEROS_SECRET_NAME.test(name) &&
+        value !== '' &&
+        value !== '""'
+          ? `${lead}${name}=${MASKED_SECRET}`
+          : whole
+    );
   }
 }

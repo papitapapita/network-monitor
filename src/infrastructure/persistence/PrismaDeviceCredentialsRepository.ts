@@ -41,7 +41,8 @@ export class PrismaDeviceCredentialsRepository
           ? CredentialsEncryption.decrypt(raw.httpPassword)
           : null,
         snmpPort: raw.snmpPort,
-        httpPort: raw.httpPort
+        httpPort: raw.httpPort,
+        sshPort: raw.sshPort
       });
     } catch (error) {
       return Result.fail(
@@ -107,7 +108,8 @@ export class PrismaDeviceCredentialsRepository
         ? CredentialsEncryption.encrypt(c.httpPassword)
         : null,
       snmpPort: c.snmpPort,
-      httpPort: c.httpPort
+      httpPort: c.httpPort,
+      sshPort: c.sshPort
     };
   }
 }

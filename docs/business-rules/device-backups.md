@@ -24,20 +24,20 @@ Format and conventions: [README.md](README.md).
 | Layer                          | Rules |
 | ------------------------------ | ----- |
 | Domain (aggregate)             | 9     |
-| Domain (service)               | 2     |
+| Domain (service)               | 4     |
 | Domain (service) + Application | 1     |
 | Domain + Application           | 5     |
 | Application                    | 4     |
 | Application + Infrastructure   | 2     |
 | Application + Presentation     | 1     |
-| Infrastructure                 | 6     |
+| Infrastructure                 | 8     |
 | Infrastructure (database)      | 1     |
 | Presentation                   | 3     |
 
-AirOS access points, read by this server itself, with change and failure
-alerts and a comparison of any two versions. Routers, switches, stations and
-backups through the agent come later; the refusals in `BKP-014` say which case
-a device falls into today.
+AirOS access points and MikroTik routers and switches, read by this server
+itself, with change and failure alerts and a comparison of any two versions.
+Stations, other vendors' routers and switches, and backups through the agent
+come later; the refusals in `BKP-014` say which case a device falls into today.
 
 ---
 
@@ -169,23 +169,28 @@ downloaded is byte for byte the device's own.
 
 ## Which devices, when, and what is refused
 
-### BKP-010 — The daily run backs up the access points wireless monitoring polls
+### BKP-010 — The daily run backs up the access points, routers and switches
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-10-07
+**Since:** 2026-10-07 · **Changed:** 2026-10-07 (routers and switches)
 
-A device is in the run when it has a wireless polling configuration of type
-`ACCESS_POINT` that is enabled, is `ACTIVE` or `COMMISSIONING`, and is not
-deleted. Stations, disabled configurations, devices in inventory or
-decommissioned are left out.
+A device is in the run when it is `ACTIVE` or `COMMISSIONING`, is not deleted,
+and either has an enabled wireless polling configuration of type
+`ACCESS_POINT` or its model is a `ROUTER`, `ROUTERBOARD` or `SWITCH`. These are
+the main devices; an access point counts as one first. Stations, servers,
+disabled polling configurations, devices in inventory or decommissioned are
+left out.
 
-**Why:** Access points carry a whole sector of customers; their configuration
-is the one worth having. Stations come later as an opt-in.
+**Why:** Access points carry a whole sector of customers and the routers and
+switches carry the whole network; their configuration is the one worth having.
+Stations come later as an opt-in.
 
 **Enforced at:** `src/infrastructure/device-backups/queries/PrismaBackupTargetsQuery.ts` (`listScheduled`)
 **Tests:** `tests/integration/use-cases/device-backups/RunScheduledBackupsUseCase.integration.test.ts`,
-`tests/application/device-backups/use-cases/RunScheduledBackupsUseCase.test.ts`
+`tests/application/device-backups/use-cases/RunScheduledBackupsUseCase.test.ts`,
+`tests/application/device-backups/services/DeviceConfigBackupService.test.ts`,
+`tests/infrastructure/device-backups/fetchers/ConfigFetcherRegistry.test.ts`
 
 ### BKP-011 — The run starts once a day, from 3:00 Colombian time
 
@@ -239,18 +244,20 @@ the rest, and the run should never flood the network.
 **Layer:** Application
 **Since:** 2026-10-07
 
-In this order: not an access point; out of this server's reach; no IP
-address; no HTTP credentials; a vendor with no backup support yet. The refusal
+In this order: not a main device (`BKP-010`); out of this server's reach; no
+IP address; no HTTP credentials; no backup support yet for this kind of device
+from its vendor. Today that support is AirOS on Ubiquiti access points and
+RouterOS on any MikroTik; a Ubiquiti router, for one, is refused. The refusal
 is recorded like a failed attempt (`BKP-020`).
 
 **Why:** An access point that is never backed up because nobody saved its
 login should show up as failing, with the reason, instead of silently missing.
 
 **Enforced at:** `src/application/device-backups/services/DeviceConfigBackupService.ts` (`refusalFor`)
-**Messages:** `Only access points are backed up for now`,
+**Messages:** `Only access points, routers and switches are backed up for now`,
 `This server cannot reach the device, and backups through an agent are not available yet`,
 `The device has no IP address`, `No HTTP credentials are configured for this device`,
-`Backups are not supported for this vendor yet`
+`Backups are not supported for this kind of device from this vendor yet`
 **Tests:** `tests/application/device-backups/services/DeviceConfigBackupService.test.ts`,
 `tests/integration/use-cases/device-backups/BackUpDeviceNowUseCase.integration.test.ts`,
 `tests/integration/use-cases/device-backups/RunScheduledBackupsUseCase.integration.test.ts`,
@@ -472,6 +479,91 @@ are fixed by different people.
 **Enforced at:** `src/presentation/http/controllers/DeviceBackupController.ts` (`getErrorStatusCode`)
 **Tests:** `tests/integration/device-backup.routes.test.ts`
 
+### BKP-052 — The date a RouterOS export was taken is not a change
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (service)
+**Since:** 2026-10-07
+
+On top of `BKP-005`, the first line of a RouterOS export, `# <date> <time> by
+RouterOS <version>`, is compared without its date and time. The version it
+names still counts, as does every other comment.
+
+**Why:** RouterOS stamps every export with the moment it ran, so without this
+every router would look changed every night. An upgrade of RouterOS is a real
+change worth seeing.
+
+**Enforced at:** `src/domain/device-backups/services/ConfigNormalizer.ts` (`dropExportDate`)
+**Tests:** `tests/domain/device-backups/services/ConfigNormalizer.test.ts`,
+`tests/application/device-backups/services/DeviceConfigBackupService.test.ts`
+
+### BKP-053 — A RouterOS comparison hides the value of each secret argument
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (service)
+**Since:** 2026-10-07
+
+In a RouterOS line, every `name=value` argument whose name contains `pass`,
+`psk`, `secret`, `community`, `token` or `private`, or ends in `key`
+(`wpa2-pre-shared-key`, `private-key`), shows `********` instead of its value,
+quoted or not. Comment lines, empty values and text inside a quoted value are
+left alone. A secret long enough for RouterOS to wrap onto a second line is
+masked on its first line only.
+
+**Why:** Same as `BKP-071`: PPPoE passwords, RADIUS secrets and wireless keys
+are for restoring, not for reading on screen.
+
+**Enforced at:** `src/domain/device-backups/services/ConfigSecretMasker.ts` (`maskRouterOs`)
+**Tests:** `tests/domain/device-backups/services/ConfigSecretMasker.test.ts`
+
+### BKP-054 — A RouterOS backup is the export `/import` takes back, secrets included
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-10-07
+
+The device runs `/export show-sensitive` over SSH. RouterOS 6 does not know
+that argument and already shows the secrets, so when the answer is
+`expected end of command` or `syntax error`, plain `/export` runs instead. An
+answer with no menu line (a line starting with `/`) is not saved. The download
+is named `.rsc`.
+
+**Why:** RouterOS 7 leaves passwords and keys out of a plain export, and a
+backup without them cannot rebuild the router. A permission error printed as
+text must not be kept as a backup.
+
+**Enforced at:** `src/infrastructure/device-backups/fetchers/RouterOsConfigFetcher.ts`,
+`src/application/device-backups/use-cases/DownloadDeviceBackupUseCase.ts` (`EXTENSIONS`)
+**Message:** `The device did not return a RouterOS export`
+**Tests:** `tests/infrastructure/device-backups/fetchers/RouterOsConfigFetcher.test.ts`,
+`tests/infrastructure/device-backups/fetchers/SshCommandClient.test.ts`,
+`tests/integration/use-cases/device-backups/BackUpDeviceNowUseCase.integration.test.ts`,
+`tests/integration/use-cases/device-backups/DownloadDeviceBackupUseCase.integration.test.ts`
+
+### BKP-055 — RouterOS is reached over SSH with the device's HTTP login
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-10-07
+
+The SSH login is the device's HTTP username and password, the same login the
+suspension router uses, on the device's SSH port (22 unless set, `DEV-127`).
+Logging in must finish within 10 seconds and the whole export within 30; an
+answer larger than a backup may be (`BKP-004`) is cut off and fails. The
+router's host key is not checked. Older RouterOS 6 key exchanges (SHA-1) are
+accepted after the modern ones.
+
+**Why:** One login per device keeps the credentials screen simple. Nothing
+pins host keys yet, and the routers are reached on the ISP's own network.
+
+**Enforced at:** `src/infrastructure/device-backups/fetchers/SshCommandClient.ts`,
+`src/infrastructure/device-backups/queries/PrismaBackupTargetsQuery.ts`
+**Messages:** `SSH login rejected: check the device username and password`,
+`SSH connection refused on port <port>`, `SSH did not answer in time`,
+`SSH timed out after 30s`
+**Tests:** `tests/infrastructure/device-backups/fetchers/SshCommandClient.test.ts`,
+`tests/integration/use-cases/device-backups/BackUpDeviceNowUseCase.integration.test.ts`
+
 ---
 
 ## Alerts
@@ -544,7 +636,7 @@ alert at all, and turning it off must not need a code change.
 **Layer:** Domain + Application
 **Since:** 2026-10-07
 
-A refusal (`BKP-014`) because the device is not an access point, is out of
+A refusal (`BKP-014`) because the device is not a main device, is out of
 this server's reach, or is of a vendor with no backup support yet still counts
 in the device's streak and shows as its last error, but never triggers the
 failing alert (`BKP-061`). A refusal someone can fix (no IP address, no HTTP
@@ -594,7 +686,8 @@ taking the server's memory.
 
 In AirOS lines, the value of any setting whose name has a part containing
 `pass`, `psk`, `secret`, `community`, `token` or `private`, or whose last part
-ends in `key`, becomes `********`. Masking happens after comparing, so a
+ends in `key`, becomes `********`. RouterOS lines are masked argument by
+argument (`BKP-053`). Masking happens after comparing, so a
 changed password still shows as a removed and an added line. An empty value
 stays empty.
 

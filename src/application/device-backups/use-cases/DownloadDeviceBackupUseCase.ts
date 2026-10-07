@@ -13,7 +13,9 @@ import {
 import { IBackupTargetsQuery } from '../interfaces';
 
 const EXTENSIONS: Record<BackupFormat, string> = {
-  [BackupFormat.AIROS_CFG]: 'cfg'
+  [BackupFormat.AIROS_CFG]: 'cfg',
+  // BKP-054: what RouterOS's `/import` takes back.
+  [BackupFormat.ROUTEROS_EXPORT]: 'rsc'
 };
 
 export class DownloadDeviceBackupUseCase extends UseCase<

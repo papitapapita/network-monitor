@@ -131,7 +131,7 @@ describe('RunScheduledBackupsUseCase', () => {
     let inFlight = 0;
     let peak = 0;
     const slow = {
-      forVendor: () => slow,
+      forDevice: () => slow,
       fetch: async (_ip: string, _c: BackupCredentials) => {
         inFlight++;
         peak = Math.max(peak, inFlight);

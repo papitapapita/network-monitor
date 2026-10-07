@@ -16,7 +16,12 @@ import {
   FakeConfigFetcher,
   FAKE_AIROS_CONFIG
 } from '../../helpers/FakeConfigFetcher';
-import { buildDeviceBackups } from '../../helpers/deviceBackups';
+import {
+  buildDeviceBackups,
+  FAKE_ROUTEROS_EXPORT,
+  seedRouter
+} from '../../helpers/deviceBackups';
+import { BackupFormat } from 'domain/device-backups';
 
 describe('DownloadDeviceBackupUseCase — integration', () => {
   let container: DependencyContainer;
@@ -72,6 +77,23 @@ describe('DownloadDeviceBackupUseCase — integration', () => {
       fileName: 'AP-Torre-Norte-sector-2-20261007-0805Z.cfg',
       contentType: 'text/plain; charset=utf-8',
       content: FAKE_AIROS_CONFIG
+    });
+  });
+
+  it('[BKP-054] should name a RouterOS export as a script /import takes', async () => {
+    const deviceId = await seedRouter(prisma, { ip: '10.0.0.1' });
+    fetcher.serve(FAKE_ROUTEROS_EXPORT, BackupFormat.ROUTEROS_EXPORT);
+    const saved = await stack().backUpNow.execute({ deviceId });
+
+    const result = await stack().download.execute({
+      deviceId,
+      backupId: saved.value.backup.id
+    });
+
+    expect(result.value).toEqual({
+      fileName: 'Router-10-0-0-1-20261007-0805Z.rsc',
+      contentType: 'text/plain; charset=utf-8',
+      content: FAKE_ROUTEROS_EXPORT
     });
   });
 

@@ -189,6 +189,45 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
     expect(result.value.httpPort).toBe(8443);
   });
 
+  it('[DEV-127] defaults sshPort to 22 and keeps it when a later call omits it', async () => {
+    const first = await useCase.execute({
+      deviceId,
+      httpUsername: 'admin',
+      httpPassword: 'pw'
+    });
+    expect(first.value.sshPort).toBe(22);
+
+    await useCase.execute({
+      deviceId,
+      httpUsername: 'admin',
+      httpPassword: 'pw',
+      sshPort: 2222
+    });
+    const result = await useCase.execute({
+      deviceId,
+      httpUsername: 'admin',
+      httpPassword: 'rotated-pw'
+    });
+
+    expect(result.value.sshPort).toBe(2222);
+    const row = await prisma.deviceCredentials.findUnique({
+      where: { deviceId }
+    });
+    expect(row!.sshPort).toBe(2222);
+  });
+
+  it('[DEV-127] fails with an out-of-range sshPort', async () => {
+    const result = await useCase.execute({
+      deviceId,
+      httpUsername: 'admin',
+      httpPassword: 'pw',
+      sshPort: 70000
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toBe('sshPort must be between 1 and 65535');
+  });
+
   // ──────────────────────────────────────────────────────────────
   // Stored SNMP keys survive an HTTP-only save
   // ──────────────────────────────────────────────────────────────

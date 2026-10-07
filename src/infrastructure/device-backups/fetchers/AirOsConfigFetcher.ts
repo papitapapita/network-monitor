@@ -16,7 +16,7 @@ export class AirOsConfigFetcher implements IConfigFetcher {
   ): Promise<Result<FetchedConfig>> {
     const fetched = await this.client.fetchConfig(
       ipAddress,
-      credentials.port,
+      credentials.httpPort,
       {
         username: credentials.username,
         password: credentials.password

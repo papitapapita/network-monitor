@@ -9,7 +9,6 @@ import { BACKUP_REFUSALS } from 'application/device-backups';
 import { CredentialsEncryption } from 'infrastructure/crypto';
 import {
   cleanDatabase,
-  seedDeviceModel,
   seedWirelessDeviceModel,
   GHOST_ID,
   INVALID_ID
@@ -19,7 +18,12 @@ import {
   FakeConfigFetcher,
   FAKE_AIROS_CONFIG
 } from '../../helpers/FakeConfigFetcher';
-import { buildDeviceBackups } from '../../helpers/deviceBackups';
+import {
+  buildDeviceBackups,
+  FAKE_ROUTEROS_EXPORT,
+  seedRouter
+} from '../../helpers/deviceBackups';
+import { BackupFormat } from 'domain/device-backups';
 
 // Covers a backup taken on request against the real tables: the file is
 // stored encrypted, a repeat keeps one version, and every attempt — refused,
@@ -80,7 +84,7 @@ describe('BackUpDeviceNowUseCase — integration', () => {
       FAKE_AIROS_CONFIG
     );
     expect(fetcher.calls).toEqual([
-      { ipAddress: '10.0.0.10', username: 'ubnt' }
+      { ipAddress: '10.0.0.10', username: 'ubnt', sshPort: 22 }
     ]);
   });
 
@@ -140,34 +144,15 @@ describe('BackUpDeviceNowUseCase — integration', () => {
     const result = await build().execute({ deviceId });
 
     expect(result.error).toBe(
-      `Cannot back up this device: ${BACKUP_REFUSALS.NOT_ACCESS_POINT}`
+      `Cannot back up this device: ${BACKUP_REFUSALS.NOT_MAIN_DEVICE}`
     );
   });
 
-  it('[BKP-014] should refuse a vendor with no fetcher', async () => {
-    const routerId = (
-      await prisma.device.create({
-        data: {
-          name: 'Router',
-          status: 'ACTIVE',
-          ipAddress: '10.0.0.1',
-          deviceModelId: await seedDeviceModel(prisma)
-        }
-      })
-    ).id;
-    await prisma.wirelessPollingConfiguration.create({
-      data: {
-        deviceId: routerId,
-        ipAddress: '10.0.0.1',
-        deviceType: 'ACCESS_POINT'
-      }
-    });
-    await prisma.deviceCredentials.create({
-      data: {
-        deviceId: routerId,
-        httpUsername: 'admin',
-        httpPassword: CredentialsEncryption.encrypt('x')
-      }
+  it('[BKP-014] should refuse a router of a vendor with no RouterOS', async () => {
+    const routerId = await seedRouter(prisma, {
+      ip: '10.0.0.1',
+      vendorSlug: 'ubiquiti',
+      deviceType: 'ROUTER'
     });
 
     const result = await build().execute({ deviceId: routerId });
@@ -175,6 +160,32 @@ describe('BackUpDeviceNowUseCase — integration', () => {
     expect(result.error).toBe(
       `Cannot back up this device: ${BACKUP_REFUSALS.UNSUPPORTED_VENDOR}`
     );
+    expect(fetcher.calls).toHaveLength(0);
+  });
+
+  it('[BKP-054] [BKP-055] should back up a MikroTik router with its login and SSH port', async () => {
+    const routerId = await seedRouter(prisma, {
+      ip: '10.0.0.1',
+      sshPort: 2222
+    });
+    fetcher.serve(FAKE_ROUTEROS_EXPORT, BackupFormat.ROUTEROS_EXPORT);
+
+    const result = await build().execute({ deviceId: routerId });
+
+    expect(result.value.outcome).toBe('SAVED');
+    expect(result.value.backup.format).toBe('ROUTEROS_EXPORT');
+    expect(fetcher.calls).toEqual([
+      { ipAddress: '10.0.0.1', username: 'admin', sshPort: 2222 }
+    ]);
+  });
+
+  it('[BKP-055] should use SSH port 22 when none was set', async () => {
+    const routerId = await seedRouter(prisma, { ip: '10.0.0.1' });
+    fetcher.serve(FAKE_ROUTEROS_EXPORT, BackupFormat.ROUTEROS_EXPORT);
+
+    await build().execute({ deviceId: routerId });
+
+    expect(fetcher.calls[0].sshPort).toBe(22);
   });
 
   it('[BKP-015] should refuse when this server is off site', async () => {

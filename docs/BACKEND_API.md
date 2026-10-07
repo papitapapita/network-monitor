@@ -1293,6 +1293,7 @@ interface DeviceCredentialsResponseDTO {
   httpUsername: string | null;
   httpPassword: '***' | null; // masked; null if not set
   httpPort: number; // default 443
+  sshPort: number; // default 22 — RouterOS backups log in here with the HTTP login
   hasSnmpCredentials: boolean; // true if the effective SNMP secret is present
   hasHttpCredentials: boolean; // true if both httpUsername and httpPassword are set
 }
@@ -1316,6 +1317,8 @@ The SNMP fields are optional and **nothing polls them today** — all polling is
   httpUsername: string
   httpPassword: string
   httpPort?: number   // 1–65535; default 443
+  sshPort?: number    // 1–65535; omit to keep the stored value (default 22).
+                      // RouterOS backups log in on it with httpUsername/httpPassword.
 
   // SNMP — optional, not consumed by any collector yet.
   // Omit to keep the stored value; send null to clear it.
@@ -1384,12 +1387,15 @@ The SNMP fields are optional and **nothing polls them today** — all polling is
 
 Daily configuration backups of the main devices. A run starts from 03:00
 Colombian time and backs up every **access point** that wireless monitoring
-polls (enabled config, device `ACTIVE` or `COMMISSIONING`). A new version is
+polls (enabled config) and every device whose model is a **router**,
+**routerboard** or **switch**, in both cases `ACTIVE` or `COMMISSIONING`. A new version is
 stored only when the configuration changed; otherwise the latest version's
 `lastCheckedAt` moves forward. The newest 30 versions per device are kept.
 
-Limits for now: only Ubiquiti AirOS access points, and only when this server
-reaches the devices itself (`SERVER_ON_SITE`). Off site nothing is backed up
+Supported for now: Ubiquiti AirOS access points (HTTPS, `system.cfg`) and any
+MikroTik (SSH `/export show-sensitive`, on the credentials' `sshPort` with the
+HTTP username and password, BKP-054/055), and only when this server reaches
+the devices itself (`SERVER_ON_SITE`). Off site nothing is backed up
 until backups through the agent arrive.
 
 **Alerts** (Telegram, through the same publisher as device alerts, so quiet
@@ -1399,7 +1405,7 @@ hours and an expired subscription hold them back):
   already had one (BKP-060). Not sent for a first backup or a manual one.
 - `backup_failing` — the third failed attempt in a row, once per streak
   (BKP-061). Not sent for a device left out because backing it up is not
-  available yet (not an access point, out of reach, unsupported vendor); a
+  available yet (not a main device, out of reach, unsupported vendor); a
   missing IP address or login does count (BKP-063).
 
 Both types can be muted for the whole install through
@@ -1410,7 +1416,7 @@ only; they do not appear in `GET /api/alerts`.
 interface ConfigBackupDTO {
   id: string; // UUID
   deviceId: string; // UUID
-  format: 'AIROS_CFG';
+  format: 'AIROS_CFG' | 'ROUTEROS_EXPORT';
   sizeBytes: number;
   trigger: 'SCHEDULED' | 'MANUAL';
   takenAt: string; // ISO 8601 — when this configuration was first saved
@@ -1461,8 +1467,9 @@ interface DeviceBackupStateDTO {
 
 - **201** — a new version was saved; **200** — the device still holds the latest one.
 - **409** `Cannot back up this device: …` — the device was not asked: not an
-  access point, out of this server's reach, no IP address, no HTTP credentials,
-  or a vendor with no backup support yet.
+  access point, router or switch, out of this server's reach, no IP address,
+  no HTTP credentials, or no backup support yet for this kind of device from
+  its vendor (a Ubiquiti router, for one).
 - **502** `Backup failed: …` — the device was asked and did not hand over its
   configuration (timeout, login refused, …).
 
@@ -1475,12 +1482,13 @@ Every attempt, refused or failed included, updates the device's `state`.
 **Status:** 200 | 400 | 403 | 404
 **Roles:** ADMIN (`manage-credentials`)
 
-Responds with the file exactly as the device sent it (AirOS `system.cfg`, which
-the device's own _Upload configuration_ takes back), not JSON:
+Responds with the file exactly as the device sent it, not JSON: an AirOS
+`system.cfg` (`.cfg`, which the device's own _Upload configuration_ takes
+back) or a RouterOS export (`.rsc`, for `/import`):
 
 ```
 Content-Type: text/plain; charset=utf-8
-Content-Disposition: attachment; filename="<device-name>-<YYYYMMDD-HHmm>Z.cfg"
+Content-Disposition: attachment; filename="<device-name>-<YYYYMMDD-HHmm>Z.cfg|.rsc"
 Cache-Control: no-store
 ```
 
@@ -1514,8 +1522,10 @@ The file holds the device's passwords and wireless keys. Returns 404
 ```
 
 - Both files are compared after normalising line endings and trailing
-  whitespace; each change comes with 3 unchanged lines around it (BKP-070).
-- Passwords, wireless keys and community strings show as `name=********`.
+  whitespace, and without the date in a RouterOS export's first line
+  (BKP-052); each change comes with 3 unchanged lines around it (BKP-070).
+- Passwords, wireless keys and community strings show as `name=********`
+  (in RouterOS lines, per argument: `wpa2-pre-shared-key=********`, BKP-053).
   Masking happens after comparing, so a changed password still appears as a
   removed and an added line (BKP-071). Download the file for the real values.
 - **400** — `from` or `to` missing or not a UUID, or

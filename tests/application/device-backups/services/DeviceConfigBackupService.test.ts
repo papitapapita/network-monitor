@@ -6,6 +6,7 @@ import {
   DeviceConfigBackupService
 } from '../../../../src/application/device-backups/services';
 import {
+  BackupFormat,
   BackupOutcome,
   BackupTrigger
 } from '../../../../src/domain/device-backups';
@@ -228,12 +229,61 @@ describe('DeviceConfigBackupService', () => {
     });
   });
 
+  describe('a MikroTik router', () => {
+    const exportAt = (date: string) =>
+      `# ${date} by RouterOS 7.15\n# software id = AB12-CD34\n/ip address\nadd address=10.0.0.1/24 interface=ether1\n`;
+    const router = makeCandidate({
+      deviceName: 'Router Core',
+      vendorSlug: 'mikrotik',
+      kind: 'ROUTER'
+    });
+
+    it('[BKP-010] should back up a router as a RouterOS export', async () => {
+      fetcher.serve(
+        exportAt('2026-10-07 03:00:01'),
+        BackupFormat.ROUTEROS_EXPORT
+      );
+
+      const result = await service.backUp(
+        router,
+        BackupTrigger.SCHEDULED,
+        NOW
+      );
+
+      expect(result.value.outcome).toBe(BackupOutcome.SAVED);
+      expect(backups.rows[0].backup.format).toBe(
+        BackupFormat.ROUTEROS_EXPORT
+      );
+    });
+
+    it('[BKP-052] should not count the export date as a change', async () => {
+      fetcher.serve(
+        exportAt('2026-10-07 03:00:01'),
+        BackupFormat.ROUTEROS_EXPORT
+      );
+      await service.backUp(router, BackupTrigger.SCHEDULED, NOW);
+      fetcher.serve(
+        exportAt('2026-10-08 03:00:04'),
+        BackupFormat.ROUTEROS_EXPORT
+      );
+
+      const result = await service.backUp(
+        router,
+        BackupTrigger.SCHEDULED,
+        new Date(NOW.getTime() + DAY)
+      );
+
+      expect(result.value.outcome).toBe(BackupOutcome.UNCHANGED);
+      expect(backups.rows).toHaveLength(1);
+    });
+  });
+
   describe('refusals (BKP-014)', () => {
     it.each([
       [
-        'a device that is not an access point',
-        { isAccessPoint: false },
-        BACKUP_REFUSALS.NOT_ACCESS_POINT
+        'a device that is not a main device',
+        { kind: null },
+        BACKUP_REFUSALS.NOT_MAIN_DEVICE
       ],
       [
         'a device out of the server reach',
@@ -258,6 +308,11 @@ describe('DeviceConfigBackupService', () => {
       [
         'a device model with no vendor',
         { vendorSlug: null },
+        BACKUP_REFUSALS.UNSUPPORTED_VENDOR
+      ],
+      [
+        'a Ubiquiti router, which does not run AirOS',
+        { kind: 'ROUTER' as const },
         BACKUP_REFUSALS.UNSUPPORTED_VENDOR
       ]
     ])(
@@ -297,7 +352,7 @@ describe('DeviceConfigBackupService', () => {
     };
 
     it.each([
-      ['not an access point', { isAccessPoint: false }],
+      ['not a main device', { kind: null }],
       ['out of reach', { reachable: false }],
       ['an unsupported vendor', { vendorSlug: 'mimosa' }]
     ])(

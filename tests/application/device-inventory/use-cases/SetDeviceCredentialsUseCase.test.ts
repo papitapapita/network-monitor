@@ -148,6 +148,7 @@ function makeStoredCredentials(
     httpPassword: 'stored-pw',
     snmpPort: 1161,
     httpPort: 8443,
+    sshPort: 2222,
     ...overrides
   };
 }
@@ -505,6 +506,20 @@ describe('SetDeviceCredentialsUseCase', () => {
 
       expect(result.isSuccess).toBe(true);
     });
+
+    it.each([0, 65536, 22.5])(
+      '[DEV-127] should fail when sshPort is %s',
+      async (sshPort) => {
+        const result = await useCase.execute(
+          makeV2Request({ sshPort })
+        );
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toBe(
+          'sshPort must be between 1 and 65535'
+        );
+      }
+    );
   });
 
   // =========================================================================
@@ -566,6 +581,15 @@ describe('SetDeviceCredentialsUseCase', () => {
       expect(savedCredentials.snmpCommunity).toBe('my-community');
       expect(savedCredentials.snmpPort).toBe(161);
       expect(savedCredentials.httpPort).toBe(443);
+    });
+
+    it('[DEV-127] should default sshPort to 22 when nothing is stored', async () => {
+      await useCase.execute(makeV2Request());
+
+      const savedCredentials: DeviceCredentials =
+        credentialsRepo.save.mock.calls[0][1];
+
+      expect(savedCredentials.sshPort).toBe(22);
     });
 
     it('should call credentialsRepo.save with data shaped by extractCreateData (SNMPv3)', async () => {
@@ -661,6 +685,24 @@ describe('SetDeviceCredentialsUseCase', () => {
       expect(saved.httpUsername).toBe('ubnt');
       expect(saved.httpPassword).toBe('http-secret');
       expect(saved.httpPort).toBe(443);
+    });
+
+    it('[DEV-127] should keep the stored sshPort when the request omits it', async () => {
+      await useCase.execute(makeHttpRequest());
+
+      const saved: DeviceCredentials =
+        credentialsRepo.save.mock.calls[0][1];
+
+      expect(saved.sshPort).toBe(2222);
+    });
+
+    it('[DEV-127] should save the sshPort the request sends', async () => {
+      await useCase.execute(makeHttpRequest({ sshPort: 2200 }));
+
+      const saved: DeviceCredentials =
+        credentialsRepo.save.mock.calls[0][1];
+
+      expect(saved.sshPort).toBe(2200);
     });
 
     it('should clear a stored SNMP field when the request sends null', async () => {

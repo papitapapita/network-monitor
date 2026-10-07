@@ -3,6 +3,7 @@ import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 import {
   BackupCandidate,
+  BackupDeviceKind,
   IBackupTargetsQuery
 } from 'application/device-backups/interfaces';
 import { CredentialsEncryption } from '../../crypto';
@@ -12,10 +13,11 @@ interface CandidateRow {
   device_name: string;
   ip_address: string | null;
   vendor_slug: string | null;
-  is_access_point: boolean;
+  kind: BackupDeviceKind | null;
   http_username: string | null;
   http_password: string | null;
   http_port: number | null;
+  ssh_port: number | null;
 }
 
 export class PrismaBackupTargetsQuery implements IBackupTargetsQuery {
@@ -25,13 +27,16 @@ export class PrismaBackupTargetsQuery implements IBackupTargetsQuery {
     private readonly serverOnSite: boolean
   ) {}
 
-  // BKP-010: the access points wireless monitoring polls, in service.
+  // BKP-010: the access points wireless monitoring polls, and the routers
+  // and switches, in service.
   async listScheduled(): Promise<Result<BackupCandidate[]>> {
     if (!this.serverOnSite) return Result.ok([]);
     return this.select(
       Prisma.sql`
-        wpc.device_type = 'ACCESS_POINT'
-        AND wpc.enabled = true
+        (
+          (wpc.device_type = 'ACCESS_POINT' AND wpc.enabled = true)
+          OR dm.device_type IN ('ROUTER', 'ROUTERBOARD', 'SWITCH')
+        )
         AND d.status IN ('ACTIVE', 'COMMISSIONING')
       `,
       'Database error listing backup targets'
@@ -60,11 +65,16 @@ export class PrismaBackupTargetsQuery implements IBackupTargetsQuery {
                d.name AS device_name,
                COALESCE(wpc.ip_address, d.ip_address) AS ip_address,
                v.slug AS vendor_slug,
-               COALESCE(wpc.device_type = 'ACCESS_POINT', false)
-                 AS is_access_point,
+               CASE
+                 WHEN wpc.device_type = 'ACCESS_POINT' THEN 'ACCESS_POINT'
+                 WHEN dm.device_type IN ('ROUTER', 'ROUTERBOARD')
+                   THEN 'ROUTER'
+                 WHEN dm.device_type = 'SWITCH' THEN 'SWITCH'
+               END AS kind,
                dc.http_username,
                dc.http_password,
-               dc.http_port
+               dc.http_port,
+               dc.ssh_port
         FROM devices d
         JOIN device_models dm ON dm.id = d.device_model_id
         JOIN vendors v ON v.id = dm.vendor_id
@@ -91,7 +101,7 @@ export class PrismaBackupTargetsQuery implements IBackupTargetsQuery {
       deviceName: row.device_name,
       ipAddress: row.ip_address,
       vendorSlug: row.vendor_slug,
-      isAccessPoint: row.is_access_point,
+      kind: row.kind,
       reachable: this.serverOnSite,
       credentials: hasLogin
         ? {
@@ -99,7 +109,8 @@ export class PrismaBackupTargetsQuery implements IBackupTargetsQuery {
             password: CredentialsEncryption.decrypt(
               row.http_password!
             ),
-            port: row.http_port ?? 443
+            httpPort: row.http_port ?? 443,
+            sshPort: row.ssh_port ?? 22
           }
         : null
     };

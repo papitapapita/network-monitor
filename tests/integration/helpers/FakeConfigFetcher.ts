@@ -2,6 +2,7 @@ import { Result } from 'domain/shared/core/Result';
 import { BackupFormat } from 'domain/device-backups';
 import {
   BackupCredentials,
+  BackupDeviceKind,
   FetchedConfig,
   IConfigFetcher,
   IConfigFetcherResolver
@@ -11,23 +12,33 @@ export const FAKE_AIROS_CONFIG =
   'aaa.1.status=enabled\nradio.1.mode=master\nusers.1.password=$1$secret\n';
 
 /**
- * Stand-in for a radio's configuration download. Answers for `ubiquiti`
- * only, like the real registry. serve() changes the file, fail() makes
- * every download error.
+ * Stand-in for a device's configuration download. Answers like the real
+ * registry: Ubiquiti access points and any MikroTik. serve() changes the
+ * file, fail() makes every download error.
  */
 export class FakeConfigFetcher
   implements IConfigFetcher, IConfigFetcherResolver
 {
-  readonly calls: { ipAddress: string; username: string }[] = [];
+  readonly calls: {
+    ipAddress: string;
+    username: string;
+    sshPort: number;
+  }[] = [];
   private result: Result<FetchedConfig> =
     FakeConfigFetcher.file(FAKE_AIROS_CONFIG);
 
-  private static file(content: string): Result<FetchedConfig> {
-    return Result.ok({ format: BackupFormat.AIROS_CFG, content });
+  private static file(
+    content: string,
+    format: BackupFormat = BackupFormat.AIROS_CFG
+  ): Result<FetchedConfig> {
+    return Result.ok({ format, content });
   }
 
-  serve(content: string): void {
-    this.result = FakeConfigFetcher.file(content);
+  serve(
+    content: string,
+    format: BackupFormat = BackupFormat.AIROS_CFG
+  ): void {
+    this.result = FakeConfigFetcher.file(content, format);
   }
 
   fail(error: string): void {
@@ -39,15 +50,25 @@ export class FakeConfigFetcher
     this.serve(FAKE_AIROS_CONFIG);
   }
 
-  forVendor(vendorSlug: string): IConfigFetcher | null {
-    return vendorSlug === 'ubiquiti' ? this : null;
+  forDevice(
+    vendorSlug: string,
+    kind: BackupDeviceKind
+  ): IConfigFetcher | null {
+    if (vendorSlug === 'mikrotik') return this;
+    return vendorSlug === 'ubiquiti' && kind === 'ACCESS_POINT'
+      ? this
+      : null;
   }
 
   async fetch(
     ipAddress: string,
     credentials: BackupCredentials
   ): Promise<Result<FetchedConfig>> {
-    this.calls.push({ ipAddress, username: credentials.username });
+    this.calls.push({
+      ipAddress,
+      username: credentials.username,
+      sshPort: credentials.sshPort
+    });
     return this.result;
   }
 }

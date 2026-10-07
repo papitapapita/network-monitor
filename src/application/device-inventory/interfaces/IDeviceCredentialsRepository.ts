@@ -13,6 +13,7 @@ export interface DeviceCredentials {
   httpPassword: string | null;
   snmpPort: number;
   httpPort: number;
+  sshPort: number;
 }
 
 export interface IDeviceCredentialsRepository {

@@ -16,7 +16,10 @@ import {
 } from '../../helpers/db';
 import { seedDiagnosableDevice } from '../../helpers/linkDiagnosis';
 import { FakeConfigFetcher } from '../../helpers/FakeConfigFetcher';
-import { buildDeviceBackups } from '../../helpers/deviceBackups';
+import {
+  buildDeviceBackups,
+  seedRouter
+} from '../../helpers/deviceBackups';
 import { EventDispatcher } from 'domain/shared/core';
 import { IDomainEvent } from 'domain/shared/interfaces';
 import { BACKUP_FAILURES_BEFORE_ALERT } from 'domain/device-backups';
@@ -145,6 +148,63 @@ describe('RunScheduledBackupsUseCase — integration', () => {
       await run();
 
       expect(fetcher.calls).toHaveLength(0);
+    });
+
+    it('should back up the routers and switches in service', async () => {
+      await seedRouter(prisma, {
+        ip: '10.0.0.1',
+        deviceType: 'ROUTER'
+      });
+      await seedRouter(prisma, {
+        ip: '10.0.0.2',
+        deviceType: 'ROUTERBOARD'
+      });
+      await seedRouter(prisma, {
+        ip: '10.0.0.3',
+        deviceType: 'SWITCH'
+      });
+
+      const result = await run();
+
+      expect(result.value.saved).toBe(3);
+      expect(backedUpIps()).toEqual([
+        '10.0.0.1',
+        '10.0.0.2',
+        '10.0.0.3'
+      ]);
+    });
+
+    it('should leave out a router in inventory and a server', async () => {
+      await seedRouter(prisma, {
+        ip: '10.0.0.1',
+        status: 'INVENTORY'
+      });
+      await seedRouter(prisma, {
+        ip: '10.0.0.4',
+        deviceType: 'SERVER'
+      });
+
+      await run();
+
+      expect(fetcher.calls).toHaveLength(0);
+    });
+
+    it('[BKP-014] should record a router of a vendor with no RouterOS as failing', async () => {
+      const deviceId = await seedRouter(prisma, {
+        ip: '10.0.0.1',
+        vendorSlug: 'ubiquiti',
+        deviceType: 'ROUTER'
+      });
+
+      const result = await run();
+
+      expect(fetcher.calls).toHaveLength(0);
+      expect(result.value.failed).toEqual([
+        expect.objectContaining({
+          deviceId,
+          error: BACKUP_REFUSALS.UNSUPPORTED_VENDOR
+        })
+      ]);
     });
 
     it('[BKP-015] should back up nothing when this server is off site', async () => {

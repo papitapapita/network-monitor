@@ -1,6 +1,9 @@
 import { Result } from 'domain/shared/core';
 import { BackupFormat } from 'domain/device-backups';
-import { BackupCredentials } from './IBackupTargetsQuery';
+import {
+  BackupCredentials,
+  BackupDeviceKind
+} from './IBackupTargetsQuery';
 
 export interface FetchedConfig {
   format: BackupFormat;
@@ -15,5 +18,9 @@ export interface IConfigFetcher {
 }
 
 export interface IConfigFetcherResolver {
-  forVendor(vendorSlug: string): IConfigFetcher | null;
+  // null: no backup support for this kind of device from this vendor yet.
+  forDevice(
+    vendorSlug: string,
+    kind: BackupDeviceKind
+  ): IConfigFetcher | null;
 }

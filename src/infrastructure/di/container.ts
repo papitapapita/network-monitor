@@ -63,6 +63,7 @@ import {
   DeviceConfigChangedEvent,
   DeviceBackupFailingEvent
 } from 'domain/device-backups/events';
+import { MAX_CONFIG_BYTES } from 'domain/device-backups';
 import { BcryptPasswordService } from '../identity/services/BcryptPasswordService';
 import { PrismaUserRepository } from '../identity/repositories/PrismaUserRepository';
 import {
@@ -498,6 +499,8 @@ import {
   ConfigBackupOrchestrator,
   ConfigFetcherRegistry,
   PrismaBackupTargetsQuery,
+  RouterOsConfigFetcher,
+  SshCommandClient,
   PrismaConfigBackupRepository,
   PrismaDeviceBackupStateRepository
 } from '../device-backups';
@@ -2213,9 +2216,20 @@ export class DependencyContainer {
     const deviceBackupStateRepository =
       new PrismaDeviceBackupStateRepository(this.prisma);
     const deviceConfigBackupService = new DeviceConfigBackupService(
-      new ConfigFetcherRegistry({
-        ubiquiti: new AirOsConfigFetcher(airOsHttpClient)
-      }),
+      new ConfigFetcherRegistry([
+        {
+          vendor: 'ubiquiti',
+          kinds: ['ACCESS_POINT'],
+          fetcher: new AirOsConfigFetcher(airOsHttpClient)
+        },
+        {
+          vendor: 'mikrotik',
+          kinds: ['ACCESS_POINT', 'ROUTER', 'SWITCH'],
+          fetcher: new RouterOsConfigFetcher(
+            new SshCommandClient({ maxOutputBytes: MAX_CONFIG_BYTES })
+          )
+        }
+      ]),
       configBackupRepository,
       deviceBackupStateRepository
     );

@@ -504,6 +504,8 @@ model DeviceCredentials {
   httpPassword    String?  @map("http_password") @db.VarChar(500)
   snmpPort        Int      @default(161) @map("snmp_port")
   httpPort        Int      @default(443) @map("http_port")
+  // RouterOS backups log in over SSH with the HTTP username and password.
+  sshPort         Int      @default(22) @map("ssh_port")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -1204,6 +1206,7 @@ model ProbeAgentDeviceIndex {
 
 enum BackupFormat {
   AIROS_CFG
+  ROUTEROS_EXPORT
 
   @@map("backup_format")
 }

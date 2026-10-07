@@ -298,7 +298,8 @@ describe('ReplaceDeviceUseCase — integration', () => {
         httpUsername: 'ubnt-user',
         httpPassword: 'ubnt-pass',
         snmpPort: 161,
-        httpPort: 443
+        httpPort: 443,
+        sshPort: 22
       }
     );
     expect(seeded.isSuccess).toBe(true);

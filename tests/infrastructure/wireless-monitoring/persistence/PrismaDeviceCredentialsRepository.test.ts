@@ -52,6 +52,7 @@ const makeDecryptedCredentials = (
   httpPassword: 'secret',
   snmpPort: 161,
   httpPort: 80,
+  sshPort: 22,
   ...overrides
 });
 
@@ -67,7 +68,8 @@ const makePrismaRow = () => ({
   httpUsername: 'ubnt',
   httpPassword: 'enc:secret',
   snmpPort: 161,
-  httpPort: 80
+  httpPort: 80,
+  sshPort: 22
 });
 
 describe('PrismaDeviceCredentialsRepository', () => {

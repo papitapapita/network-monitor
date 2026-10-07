@@ -19,19 +19,21 @@ import {
 export const BACKUP_VERSIONS_KEPT = 30;
 
 export const BACKUP_REFUSALS = {
-  NOT_ACCESS_POINT: 'Only access points are backed up for now',
+  NOT_MAIN_DEVICE:
+    'Only access points, routers and switches are backed up for now',
   OUT_OF_REACH:
     'This server cannot reach the device, and backups through an agent are not available yet',
   NO_IP_ADDRESS: 'The device has no IP address',
   NO_CREDENTIALS:
     'No HTTP credentials are configured for this device',
-  UNSUPPORTED_VENDOR: 'Backups are not supported for this vendor yet'
+  UNSUPPORTED_VENDOR:
+    'Backups are not supported for this kind of device from this vendor yet'
 } as const;
 
 // BKP-063: refusals that say the feature is not there yet for this device, as
 // opposed to a missing IP address or login someone can fix.
 const NOT_AVAILABLE_YET: ReadonlySet<string> = new Set([
-  BACKUP_REFUSALS.NOT_ACCESS_POINT,
+  BACKUP_REFUSALS.NOT_MAIN_DEVICE,
   BACKUP_REFUSALS.OUT_OF_REACH,
   BACKUP_REFUSALS.UNSUPPORTED_VENDOR
 ]);
@@ -94,7 +96,10 @@ export class DeviceConfigBackupService {
         refused: true
       });
 
-    const fetcher = this.fetchers.forVendor(candidate.vendorSlug!)!;
+    const fetcher = this.fetchers.forDevice(
+      candidate.vendorSlug!,
+      candidate.kind!
+    )!;
     const fetched = await fetcher.fetch(
       candidate.ipAddress!,
       candidate.credentials!
@@ -162,14 +167,13 @@ export class DeviceConfigBackupService {
 
   // BKP-010 … BKP-014, checked before the device is asked anything.
   private refusalFor(candidate: BackupCandidate): string | null {
-    if (!candidate.isAccessPoint)
-      return BACKUP_REFUSALS.NOT_ACCESS_POINT;
+    if (!candidate.kind) return BACKUP_REFUSALS.NOT_MAIN_DEVICE;
     if (!candidate.reachable) return BACKUP_REFUSALS.OUT_OF_REACH;
     if (!candidate.ipAddress) return BACKUP_REFUSALS.NO_IP_ADDRESS;
     if (!candidate.credentials) return BACKUP_REFUSALS.NO_CREDENTIALS;
     if (
       !candidate.vendorSlug ||
-      !this.fetchers.forVendor(candidate.vendorSlug)
+      !this.fetchers.forDevice(candidate.vendorSlug, candidate.kind)
     )
       return BACKUP_REFUSALS.UNSUPPORTED_VENDOR;
     return null;

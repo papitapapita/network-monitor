@@ -1,11 +1,17 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 
+// The device's login: the HTTP username and password, used over HTTP by
+// AirOS and over SSH by RouterOS (BKP-055).
 export interface BackupCredentials {
   username: string;
   password: string;
-  port: number;
+  httpPort: number;
+  sshPort: number;
 }
+
+// The main devices whose configuration is backed up (BKP-010).
+export type BackupDeviceKind = 'ACCESS_POINT' | 'ROUTER' | 'SWITCH';
 
 // What the backup context needs to know about a device, read from inventory,
 // wireless monitoring and the stored credentials (decrypted).
@@ -14,7 +20,8 @@ export interface BackupCandidate {
   deviceName: string;
   ipAddress: string | null;
   vendorSlug: string | null;
-  isAccessPoint: boolean;
+  // null: not a main device, such as a station or a server.
+  kind: BackupDeviceKind | null;
   // Whether this server can open a connection to the device itself.
   reachable: boolean;
   credentials: BackupCredentials | null;

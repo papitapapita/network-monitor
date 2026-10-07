@@ -13,6 +13,7 @@ import {
 import {
   BackupCandidate,
   BackupCredentials,
+  BackupDeviceKind,
   FetchedConfig,
   IConfigFetcher,
   IConfigFetcherResolver
@@ -98,19 +99,27 @@ export class FakeFetcher
     content: AIROS_CONFIG
   });
 
-  serve(content: string): void {
-    this.result = Result.ok({
-      format: BackupFormat.AIROS_CFG,
-      content
-    });
+  serve(
+    content: string,
+    format: BackupFormat = BackupFormat.AIROS_CFG
+  ): void {
+    this.result = Result.ok({ format, content });
   }
 
   fail(error: string): void {
     this.result = Result.fail(error);
   }
 
-  forVendor(vendorSlug: string): IConfigFetcher | null {
-    return vendorSlug === 'ubiquiti' ? this : null;
+  // Like the real registry: AirOS on Ubiquiti access points, RouterOS on any
+  // MikroTik.
+  forDevice(
+    vendorSlug: string,
+    kind: BackupDeviceKind
+  ): IConfigFetcher | null {
+    if (vendorSlug === 'mikrotik') return this;
+    return vendorSlug === 'ubiquiti' && kind === 'ACCESS_POINT'
+      ? this
+      : null;
   }
 
   async fetch(ipAddress: string, _credentials: BackupCredentials) {
@@ -127,9 +136,14 @@ export function makeCandidate(
     deviceName: 'AP Torre Norte',
     ipAddress: '10.0.0.10',
     vendorSlug: 'ubiquiti',
-    isAccessPoint: true,
+    kind: 'ACCESS_POINT',
     reachable: true,
-    credentials: { username: 'ubnt', password: 'secret', port: 443 },
+    credentials: {
+      username: 'ubnt',
+      password: 'secret',
+      httpPort: 443,
+      sshPort: 22
+    },
     ...overrides
   };
 }

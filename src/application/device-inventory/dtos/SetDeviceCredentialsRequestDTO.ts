@@ -1,12 +1,15 @@
 // httpUsername + httpPassword are the required pair and are replaced on every
 // call. The SNMP fields are optional and nothing polls them yet: omitting one
-// keeps whatever is stored, sending null clears it. Sensitive fields are
+// keeps whatever is stored, sending null clears it. sshPort, the port RouterOS
+// backups log in on with the same username and password, is kept when
+// omitted (default 22). Sensitive fields are
 // encrypted at rest (AES-256-GCM).
 export interface SetDeviceCredentialsRequestDTO {
   deviceId: string;
   httpUsername: string;
   httpPassword: string;
   httpPort?: number;
+  sshPort?: number;
   snmpVersion?: 1 | 2 | 3;
   snmpCommunity?: string | null;
   snmpV3AuthUser?: string | null;
