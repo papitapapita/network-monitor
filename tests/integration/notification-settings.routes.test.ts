@@ -8,10 +8,10 @@ import { seedAndGetToken } from './helpers/auth';
 import { cleanDatabase } from './helpers/db';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
 
-// .env.test supplies the defaults: TELEGRAM_CHAT_ID=-1000000000001,
+// The env defaults: TELEGRAM_CHAT_ID (pinned by setup.ts),
 // DEVICE_DOWN_ALERT_DELAY_MINUTES=60, wireless alerts on.
 const ENV_DEFAULTS = {
-  telegramChatId: '-1000000000001',
+  telegramChatId: process.env.TELEGRAM_CHAT_ID,
   downAlertDelayMinutes: 60,
   wirelessAlertsEnabled: true
 };
