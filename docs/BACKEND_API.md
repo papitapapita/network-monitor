@@ -2155,6 +2155,10 @@ touches the alert record: a muted condition still opens/lists normally on
 metric name — `cpu_load_percent`, not `wireless:cpu_load_percent:WARNING` —
 so one entry silences both its WARNING and CRITICAL severities.
 
+Besides the device and wireless metrics, two backup notifications are muted
+the same way: `config_changed` and `backup_failing` (see Device Backups,
+BKP-060, BKP-061).
+
 ### `GET /api/notification-mutes` — List Muted Alert Types
 
 **Status:** 200
@@ -2638,7 +2642,7 @@ there rather than assuming it.
 
 > **`provisionedLanSpeedMbps` is usually not something you set (WLS-089/WLS-099).** It's the negotiated Ethernet speed (`10`, `100`, `1000`, `2500` or `10000` — WLS-165) this device's LAN port is expected to run at, and it auto-fills itself: the first poll that reports a speed for a device with no baseline yet stores that reading here, and every degradation warning after that compares against it instead of one fixed number shared by every device. Set it explicitly only to correct a baseline captured while the port was already degraded (e.g. right after this feature went live), or to pre-seed it before the first poll.
 
-> **`parentApDeviceId` is declared, not observed (WLS-162).** It's the operator's record of which AP this CPE is *meant* to sit on — separate from whatever the radio's own last poll reported it's actually talking to. Set it to drive `GET /api/devices/:id/wireless/clients/expected` on the AP side; leave it unset and that AP's expected roster simply won't include this device.
+> **`parentApDeviceId` is declared, not observed (WLS-162).** It's the operator's record of which AP this CPE is *meant* to sit on — separate from whatever the radio's own last poll reported it's actually talking to. Set it to drive `GET /api/devices/:id/wireless/clients/expected` on the AP side; leave it unset and that AP's expected roster simply won't include this device. A poll fills an unset value by itself when the AP MAC the radio reports exactly matches a device in inventory (WLS-012). It never overwrites a declared value: a mismatch shows up as a `parentApDeviceId` identity suggestion (WLS-151).
 
 > **Frontend:** set the device's `category` first (`PATCH /api/devices/:id`) — it decides which of the two fields this endpoint will accept, and creating this config **locks it**: the category cannot be changed again until the config is deleted. Sending `deviceType` in the body is now ignored by the schema.  
 > Returns 404 if the device does not exist.  
@@ -2804,9 +2808,11 @@ limit?: number // 1–1000
   polled: boolean              // false if the device has never been polled
   collectedAt: string | null   // ISO 8601 from the latest snapshot
   suggestions: Array<{
-    field: 'name' | 'macAddress'
-    currentValue: string | null   // from device-inventory
+    field: 'name' | 'macAddress' | 'parentApDeviceId'
+    currentValue: string | null   // from device-inventory / the wireless config
     suggestedValue: string        // from the latest AirOS poll
+    currentLabel: string | null   // parentApDeviceId only: declared AP's name
+    suggestedLabel: string | null // parentApDeviceId only: reported AP's name
   }>
 }
 ```
@@ -2820,6 +2826,16 @@ limit?: number // 1–1000
 > **Frontend:** render each suggestion as an accept/dismiss row; accepting one
 > means calling `PATCH /api/devices/:id` with the suggested value — this
 > endpoint never writes to device-inventory itself.
+>
+> **Parent AP (WLS-151, STATION only).** A `parentApDeviceId` suggestion
+> appears when the AP from the latest poll differs from the declared one
+> (`currentValue: null` when none is declared). The AP is matched by the
+> MAC the radio reports and, failing that, by the AP IP it reports. Values
+> are device ids, so show `currentLabel`/`suggestedLabel`. Accepting one
+> means calling `PATCH /api/devices/:id/wireless/config` with
+> `{ parentApDeviceId: suggestedValue }`. Because a poll already declares the
+> AP when the MAC match is exact and none is declared (WLS-012), this
+> suggestion usually means drift or an IP-only match.
 
 ---
 
