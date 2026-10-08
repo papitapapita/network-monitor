@@ -1,4 +1,5 @@
 import { Result } from 'domain/shared/core';
+import { AlertThresholds } from 'domain/wireless-monitoring';
 import { DecryptedCredentials } from './IDeviceCredentialsRepository';
 import { IWirelessCollector } from './IWirelessCollector';
 import { LinkDiagnosisDTO } from '../dtos';
@@ -14,6 +15,7 @@ export interface LinkDiagnosisTarget {
   linkCapacityKbps: number | null;
   clientsProvisionedLimit: number | null;
   provisionedLanSpeedMbps: number | null;
+  thresholds: AlertThresholds;
 }
 
 export interface LinkDiagnosisStart {

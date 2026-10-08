@@ -12,6 +12,7 @@ import { CapacityRule } from '../../../../src/domain/wireless-monitoring/service
 import { DistanceRule } from '../../../../src/domain/wireless-monitoring/services/rules/DistanceRule';
 import { IdentityChangeRule } from '../../../../src/domain/wireless-monitoring/services/rules/IdentityChangeRule';
 import { FirmwareRule } from '../../../../src/domain/wireless-monitoring/services/rules/FirmwareRule';
+import { AlertThresholds } from '../../../../src/domain/wireless-monitoring/value-objects/AlertThresholds';
 import { WirelessMetrics } from '../../../../src/domain/wireless-monitoring/value-objects/WirelessMetrics';
 import { WirelessAlertRecord } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
 import { WirelessMetricsProps } from '../../../../src/domain/wireless-monitoring/props/WirelessMetricsProps';
@@ -81,6 +82,7 @@ function makeContext(
     provisionedLanSpeedMbps: null,
     previousMetrics: null,
     collectedAt: new Date(),
+    thresholds: AlertThresholds.defaults(),
     ...overrides
   };
 }

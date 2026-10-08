@@ -1,4 +1,7 @@
-import { WirelessMetrics } from '../../value-objects';
+import {
+  WirelessMetrics,
+  AlertThresholds
+} from '../../value-objects';
 import { WirelessAlertRecord } from '../../aggregates';
 import {
   AlertDecision,
@@ -14,24 +17,26 @@ interface ThresholdDef {
   formatMessage: (name: string, v: number) => string;
 }
 
-const THRESHOLDS: ThresholdDef[] = [
-  {
-    severity: 'WARNING',
-    breach: (v) => v < 15,
-    clear: (v) => v > 17,
-    threshold: 15,
+const CLEAR_MARGIN_DB = 2;
+
+function thresholdDefs(t: AlertThresholds): ThresholdDef[] {
+  const def = (
+    severity: 'WARNING' | 'CRITICAL',
+    threshold: number,
+    label: string
+  ): ThresholdDef => ({
+    severity,
+    breach: (v) => v < threshold,
+    clear: (v) => v > threshold + CLEAR_MARGIN_DB,
+    threshold,
     formatMessage: (name, v) =>
-      `Relación señal/ruido baja en ${name}: ${v} dB (umbral: 15 dB)`
-  },
-  {
-    severity: 'CRITICAL',
-    breach: (v) => v < 10,
-    clear: (v) => v > 12,
-    threshold: 10,
-    formatMessage: (name, v) =>
-      `Relación señal/ruido crítica en ${name}: ${v} dB (umbral: 10 dB)`
-  }
-];
+      `Relación señal/ruido ${label} en ${name}: ${v} dB (umbral: ${threshold} dB)`
+  });
+  return [
+    def('WARNING', t.snrDb.warning, 'baja'),
+    def('CRITICAL', t.snrDb.critical, 'crítica')
+  ];
+}
 
 export class SnrRule implements IAlertRule {
   evaluate(
@@ -45,7 +50,7 @@ export class SnrRule implements IAlertRule {
 
     const decisions: AlertDecision[] = [];
 
-    for (const def of THRESHOLDS) {
+    for (const def of thresholdDefs(context.thresholds)) {
       const key = `snr_db:${def.severity}`;
       const active = activeAlerts.get(key);
 

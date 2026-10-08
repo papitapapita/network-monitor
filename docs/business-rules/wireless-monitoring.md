@@ -20,6 +20,7 @@ Conventions, rule types and the ID scheme are in [README.md](README.md).
 | `WLS-140` – `WLS-159` | Queries and HTTP surface           |
 | `WLS-160` – `WLS-179` | Retention                          |
 | `WLS-180` – `WLS-199` | Live link diagnosis                |
+| `WLS-200` – `WLS-219` | Alert thresholds                   |
 
 Rationales marked _(inferred)_ were reconstructed from the code, not stated by
 the business. They are the ones to read critically.
@@ -1205,7 +1206,10 @@ losing when the warning started — or refuses to open the critical one.
 **Since:** 2026-08-03
 
 Most numeric rules use a clear condition set inside the breach condition, so a
-value hovering at the threshold does not flap:
+value hovering at the threshold does not flap. The table shows the default
+thresholds ([WLS-200](#wls-200--the-install-sets-the-limits-its-alert-rules-open-at)).
+The margin is fixed per rule and moves with a configured threshold: a signal
+warning set to −65 dBm clears above −63 dBm.
 
 | Metric                                     | Opens at  | Clears at  |
 | ------------------------------------------ | --------- | ---------- |
@@ -1228,7 +1232,7 @@ marginal.
 `throughput_saturation` and `clients_connected` have **no** dead band — they
 clear at the same value they open at. See [G-4](#known-gaps).
 
-**Enforced at:** `src/domain/wireless-monitoring/services/rules/SignalStrengthRule.ts:19`, `SnrRule.ts:17`, `CcqRule.ts:20`, `CpuMemoryRule.ts:18`, `LanHealthRule.ts:50`
+**Enforced at:** `src/domain/wireless-monitoring/services/rules/SignalStrengthRule.ts`, `SnrRule.ts`, `CcqRule.ts`, `CpuMemoryRule.ts` (`CLEAR_MARGIN_*`), `LanHealthRule.ts:50`
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Tests:** `tests/domain/wireless-monitoring/services/rules/SignalStrengthRule.test.ts`, `tests/domain/wireless-monitoring/services/rules/SnrRule.test.ts`, `tests/domain/wireless-monitoring/services/rules/CcqRule.test.ts`, `tests/domain/wireless-monitoring/services/rules/CpuMemoryRule.test.ts`
 
@@ -1257,6 +1261,10 @@ situation where the alert is most likely to be real.
 **Layer:** Domain
 **Since:** 2026-08-03
 
+> The numbers in this rule are the defaults. The install and each device can
+> change them ([WLS-200](#wls-200--the-install-sets-the-limits-its-alert-rules-open-at),
+> [WLS-201](#wls-201--a-device-can-override-any-group-of-the-installs-thresholds)).
+
 `signalRxDbm` and `signalTxDbm` are each checked at two levels: WARNING below
 −70 dBm, CRITICAL below −80 dBm. Four independent alerts in total.
 
@@ -1266,7 +1274,7 @@ deployment, where the link is about to drop entirely. Receive and transmit are
 separate because an asymmetry between them localises the fault — a good rx with
 a bad tx points at the far end's radio rather than the path.
 
-**Enforced at:** `src/domain/wireless-monitoring/services/rules/SignalStrengthRule.ts:19`
+**Enforced at:** `src/domain/wireless-monitoring/services/rules/SignalStrengthRule.ts`; `src/domain/wireless-monitoring/value-objects/AlertThresholds.ts` (defaults)
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Message:** `Señal débil en equipo <name>: <v> dBm (umbral: -70 dBm)` and three siblings
 **Tests:** `tests/domain/wireless-monitoring/services/rules/SignalStrengthRule.test.ts`
@@ -1277,6 +1285,10 @@ a bad tx points at the far end's radio rather than the path.
 **Layer:** Domain
 **Since:** 2026-08-03
 
+> The numbers in this rule are the defaults. The install and each device can
+> change them ([WLS-200](#wls-200--the-install-sets-the-limits-its-alert-rules-open-at),
+> [WLS-201](#wls-201--a-device-can-override-any-group-of-the-installs-thresholds)).
+
 WARNING below 15 dB, CRITICAL below 10 dB, evaluated against `getSnr()` so the
 rule works whether the radio reports SNR or only its two terms (WLS-064).
 
@@ -1285,7 +1297,7 @@ rule works whether the radio reports SNR or only its two terms (WLS-064).
 signal in a noisy band is not. Below 10 dB airMax cannot hold its higher
 modulation rates at all.
 
-**Enforced at:** `src/domain/wireless-monitoring/services/rules/SnrRule.ts:17`
+**Enforced at:** `src/domain/wireless-monitoring/services/rules/SnrRule.ts`; `src/domain/wireless-monitoring/value-objects/AlertThresholds.ts` (defaults)
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Message:** `Relación señal/ruido baja en <name>: <v> dB (umbral: 15 dB)` / `Relación señal/ruido crítica en <name>: <v> dB (umbral: 10 dB)`
 **Tests:** `tests/domain/wireless-monitoring/services/rules/SnrRule.test.ts`
@@ -1295,6 +1307,10 @@ modulation rates at all.
 **Type:** Policy · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-08-03
+
+> The numbers in this rule are the defaults. The install and each device can
+> change them ([WLS-200](#wls-200--the-install-sets-the-limits-its-alert-rules-open-at),
+> [WLS-201](#wls-201--a-device-can-override-any-group-of-the-installs-thresholds)).
 
 The rule runs only when the device model matches `/\bM[259]\d*\b/i` — M2, M5,
 M900 and their variants. On anything else it returns nothing, whatever the
@@ -1306,7 +1322,7 @@ threshold would alert continuously on hardware where the number is not
 comparable. Gating on the model is what lets the threshold stay meaningful for
 the hardware that does report it.
 
-**Enforced at:** `src/domain/wireless-monitoring/services/rules/CcqRule.ts:10`, `:45`
+**Enforced at:** `src/domain/wireless-monitoring/services/rules/CcqRule.ts` (`M_SERIES_PATTERN`); `src/domain/wireless-monitoring/value-objects/AlertThresholds.ts` (defaults)
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Message:** `Calidad de conexión degradada en <name>: <v>% (umbral: 75%)` / `Calidad de conexión crítica en <name>: <v>% (umbral: 50%)`
 **Tests:** `tests/domain/wireless-monitoring/services/rules/CcqRule.test.ts`
@@ -1317,6 +1333,10 @@ the hardware that does report it.
 **Layer:** Domain
 **Since:** 2026-08-03
 
+> The numbers in this rule are the defaults. The install and each device can
+> change them ([WLS-200](#wls-200--the-install-sets-the-limits-its-alert-rules-open-at),
+> [WLS-201](#wls-201--a-device-can-override-any-group-of-the-installs-thresholds)).
+
 WARNING above 50 ms, CRITICAL above 150 ms, read from the station's `tx_latency`.
 
 **Why:** Latency on a wireless link rises before throughput falls — retries and
@@ -1324,7 +1344,7 @@ queueing show up here first, which makes it the earliest warning of a degrading
 path. 150 ms is where interactive traffic becomes unusable for the subscriber.
 _(inferred)_
 
-**Enforced at:** `src/domain/wireless-monitoring/services/rules/LatencyRule.ts:9`, `:10`
+**Enforced at:** `src/domain/wireless-monitoring/services/rules/LatencyRule.ts`; `src/domain/wireless-monitoring/value-objects/AlertThresholds.ts` (defaults)
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Message:** `Latencia elevada en <name>: <v> ms (umbral: 50 ms)` / `Latencia crítica en <name>: <v> ms (umbral: 150 ms)`
 **Tests:** `tests/domain/wireless-monitoring/services/rules/LatencyRule.test.ts`
@@ -1335,6 +1355,10 @@ _(inferred)_
 **Layer:** Domain
 **Since:** 2026-08-03
 
+> The numbers in this rule are the defaults. The install and each device can
+> change them ([WLS-200](#wls-200--the-install-sets-the-limits-its-alert-rules-open-at),
+> [WLS-201](#wls-201--a-device-can-override-any-group-of-the-installs-thresholds)).
+
 CPU above 80 %, memory above 85 %. WARNING only — neither has a critical level.
 
 **Why:** A radio short of CPU or RAM starts dropping management traffic before
@@ -1342,7 +1366,7 @@ it drops user traffic, which is what makes the device stop answering polls. The
 different ceilings reflect that AirOS runs steadily higher on memory than on
 CPU, so 80 % memory is normal where 80 % CPU is not.
 
-**Enforced at:** `src/domain/wireless-monitoring/services/rules/CpuMemoryRule.ts:18`
+**Enforced at:** `src/domain/wireless-monitoring/services/rules/CpuMemoryRule.ts`; `src/domain/wireless-monitoring/value-objects/AlertThresholds.ts` (defaults)
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Message:** `Uso de CPU elevado en <name>: <v>% (umbral: 80%)` / `Uso de memoria elevado en <name>: <v>% (umbral: 85%)`
 **Tests:** `tests/domain/wireless-monitoring/services/rules/CpuMemoryRule.test.ts`
@@ -1447,6 +1471,10 @@ for the throughput and CCQ alerts that follow.
 **Layer:** Domain
 **Since:** 2026-08-03
 
+> The numbers in this rule are the defaults. The install and each device can
+> change them ([WLS-200](#wls-200--the-install-sets-the-limits-its-alert-rules-open-at),
+> [WLS-201](#wls-201--a-device-can-override-any-group-of-the-installs-thresholds)).
+
 Opens when the client count falls below half the previous poll's, and only when
 the previous poll had more than three clients. The 50 % floor is stored as the
 alert's threshold at open time; the clear compares against the record's own
@@ -1463,7 +1491,7 @@ Storing the floor at open time is what lets the alert clear without
 itself, so a freshly computed floor would be half of the _dropped_ count and
 would clear the moment a single client returned.
 
-**Enforced at:** `src/domain/wireless-monitoring/services/rules/ClientCountRule.ts:52`
+**Enforced at:** `src/domain/wireless-monitoring/services/rules/ClientCountRule.ts`; `src/domain/wireless-monitoring/value-objects/AlertThresholds.ts` (defaults)
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Message:** `Caída repentina de clientes en <name>: <previous> → <current> (umbral: <floor>)`
 **Tests:** `tests/domain/wireless-monitoring/services/rules/ClientCountRule.test.ts`
@@ -1473,6 +1501,10 @@ would clear the moment a single client returned.
 **Type:** Policy · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-08-03 · **Revised:** 2026-09-25
+
+> The numbers in this rule are the defaults. The install and each device can
+> change them ([WLS-200](#wls-200--the-install-sets-the-limits-its-alert-rules-open-at),
+> [WLS-201](#wls-201--a-device-can-override-any-group-of-the-installs-thresholds)).
 
 Combined tx + rx throughput at or above 80 % of the station's effective link
 capacity opens a warning. That capacity is the contracted plan, else the
@@ -1489,7 +1521,7 @@ With the plan as the denominator, this alert means "the customer is using most
 of what they pay for" more than "the radio link is congested". See
 [G-7](#g-7--plan-based-saturation-measures-plan-usage-not-link-congestion).
 
-**Enforced at:** `src/domain/wireless-monitoring/services/rules/ThroughputSaturationRule.ts:9`; capacity resolved at `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:260`
+**Enforced at:** `src/domain/wireless-monitoring/services/rules/ThroughputSaturationRule.ts`; `src/domain/wireless-monitoring/value-objects/AlertThresholds.ts` (defaults); capacity resolved at `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts:260`
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Message:** `Saturación de enlace en <name>: <v> Mbps de <capacity> Mbps (<pct>%)`
 **Tests:** `tests/domain/wireless-monitoring/services/rules/ThroughputSaturationRule.test.ts`
@@ -1499,6 +1531,10 @@ of what they pay for" more than "the radio link is congested". See
 **Type:** Policy · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-08-03
+
+> The numbers in this rule are the defaults. The install and each device can
+> change them ([WLS-200](#wls-200--the-install-sets-the-limits-its-alert-rules-open-at),
+> [WLS-201](#wls-201--a-device-can-override-any-group-of-the-installs-thresholds)).
 
 airMax-reported capacity is compared against a floor chosen by channel width —
 20 MHz → 50 Mbps, 40 MHz → 100 Mbps, 80 MHz → 200 Mbps. The alert opens only
@@ -1512,7 +1548,7 @@ asymmetric traffic, where one direction is legitimately idle; clearing on either
 is the deliberately asymmetric counterpart, so a recovering link is not held open
 by its quiet direction.
 
-**Enforced at:** `src/domain/wireless-monitoring/services/rules/CapacityRule.ts:10`, `:36`, `:49`
+**Enforced at:** `src/domain/wireless-monitoring/services/rules/CapacityRule.ts`; `src/domain/wireless-monitoring/value-objects/AlertThresholds.ts` (defaults)
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Message:** `Capacidad de enlace baja en <name> (<width> MHz): <v> Mbps (mínimo esperado: <floor> Mbps)`
 **Tests:** `tests/domain/wireless-monitoring/services/rules/CapacityRule.test.ts`
@@ -1522,6 +1558,10 @@ by its quiet direction.
 **Type:** Policy · **Status:** Active
 **Layer:** Domain
 **Since:** 2026-08-03
+
+> The numbers in this rule are the defaults. The install and each device can
+> change them ([WLS-200](#wls-200--the-install-sets-the-limits-its-alert-rules-open-at),
+> [WLS-201](#wls-201--a-device-can-override-any-group-of-the-installs-thresholds)).
 
 Reported distance is compared against a ceiling chosen by channel width —
 20 MHz → 15 km, 40 MHz → 10 km, 80 MHz → 5 km. A width outside the table is not
@@ -1533,7 +1573,7 @@ misconfiguration — someone widening the channel on a long link to gain
 throughput and losing the link instead — which otherwise shows up only as
 unexplained capacity and CCQ alerts.
 
-**Enforced at:** `src/domain/wireless-monitoring/services/rules/DistanceRule.ts:9`
+**Enforced at:** `src/domain/wireless-monitoring/services/rules/DistanceRule.ts`; `src/domain/wireless-monitoring/value-objects/AlertThresholds.ts` (defaults)
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Message:** `Distancia de enlace excesiva en <name>: <v> m (máximo recomendado para <width> MHz: <max> km)`
 **Tests:** `tests/domain/wireless-monitoring/services/rules/DistanceRule.test.ts`
@@ -1544,6 +1584,10 @@ unexplained capacity and CCQ alerts.
 **Layer:** Domain
 **Since:** 2026-08-03
 
+> The numbers in this rule are the defaults. The install and each device can
+> change them ([WLS-200](#wls-200--the-install-sets-the-limits-its-alert-rules-open-at),
+> [WLS-201](#wls-201--a-device-can-override-any-group-of-the-installs-thresholds)).
+
 The absolute difference between the radio's reported epoch and the collection
 time is compared against 300 seconds.
 
@@ -1552,7 +1596,7 @@ Beyond the drift itself, a wrong clock makes the device's own logs
 uncorrelatable with everything else during an incident, which is exactly when
 they are needed.
 
-**Enforced at:** `src/domain/wireless-monitoring/services/rules/ClockSyncRule.ts:9`
+**Enforced at:** `src/domain/wireless-monitoring/services/rules/ClockSyncRule.ts`; `src/domain/wireless-monitoring/value-objects/AlertThresholds.ts` (defaults)
 **Reached from:** `WirelessAlertEvaluator.evaluate`
 **Message:** `Desfase de reloj detectado en <name>: <v> de diferencia (máximo permitido: 5 minutos). Posible falla de NTP.` — `<v>` worded in its two largest units, e.g. `13 días y 6 horas` (`formatDuration`, NOT-104)
 **Tests:** `tests/domain/wireless-monitoring/services/rules/ClockSyncRule.test.ts`
@@ -2422,8 +2466,9 @@ least 3 probes:
 `latency_spikes` is only reported when `high_latency` is not, and nothing else
 is reported for an unreachable hop.
 
-**Why:** The latency bands match LatencyRule (WLS-086), so a diagnosis and a
-standing alert never disagree about the same number. Loss of a few percent is
+**Why:** The latency bands match LatencyRule's defaults (WLS-086), so a
+diagnosis and a standing alert agree about the same number unless the install
+changes them (G-9). Loss of a few percent is
 already audible on a call, and 10 % breaks most interactive use. Spikes are
 separated from the average because a link that is fine on average but stalls
 every twenty seconds is the classic "it drops sometimes" complaint that an
@@ -2508,6 +2553,98 @@ alerts on it through its own hysteresis. _(inferred)_
 
 ---
 
+## Alert thresholds
+
+### WLS-200 — The install sets the limits its alert rules open at
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain + Application
+**Since:** 2026-10-07
+
+The install has one set of thresholds, edited by its administrator and replaced
+as a whole. It covers every numeric rule:
+
+| Group               | Default                      | Allowed                              | Rule    |
+| ------------------- | ---------------------------- | ------------------------------------ | ------- |
+| `signalDbm`         | warning −70, critical −80    | whole −100…−40, warning > critical   | WLS-083 |
+| `snrDb`             | warning 15, critical 10      | whole 1…60, warning > critical       | WLS-084 |
+| `ccqPercent`        | warning 75, critical 50      | whole 1…95, warning > critical       | WLS-085 |
+| `latencyMs`         | warning 50, critical 150     | whole 1…10000, warning < critical    | WLS-086 |
+| `cpuPercent`        | 80                           | whole 10…99                          | WLS-087 |
+| `memoryPercent`     | 85                           | whole 10…99                          | WLS-087 |
+| `clientDropPercent` | 50                           | whole 10…90                          | WLS-092 |
+| `saturationPercent` | 80                           | whole 10…100                         | WLS-093 |
+| `minCapacityMbps`   | 20 → 50, 40 → 100, 80 → 200  | per width, whole 1…10000             | WLS-094 |
+| `maxDistanceKm`     | 20 → 15, 40 → 10, 80 → 5     | per width, 0.1…200                   | WLS-095 |
+| `clockDriftSeconds` | 300                          | whole 10…86400                       | WLS-096 |
+
+A channel-width table may hold any of 5, 10, 20, 30, 40, 50, 60, 80 and 160 MHz.
+A width with no entry is not checked, which is how an install turns the capacity
+or distance check off for a width. With no saved set, the defaults apply. A
+saved set missing a group, for example one stored before that group existed,
+uses that group's default. A save applies from the next poll and the next
+diagnosis started, with no restart. An alert already open is re-judged on that
+poll and clears once the reading passes the new clear line.
+
+**Why:** What counts as "too far" or "too slow" depends on the operator's gear
+and market. A WISP running 40 MHz PtMP at 3 km wants a different capacity floor
+than one running long 20 MHz links. Hardcoded limits either missed real problems
+or alerted on links the operator considered healthy. The ranges stop values
+that would make an alert impossible to clear. A CCQ warning of 99 % would need
+102 % to clear WLS-081's margin. The other bounds are sanity limits.
+
+**Enforced at:** `src/domain/wireless-monitoring/value-objects/AlertThresholds.ts`; read per poll in `src/application/wireless-monitoring/services/resolveAlertThresholds.ts`
+**Reached from:** `UpdateAlertThresholdsUseCase`, `PollWirelessDeviceUseCase`, `StartLinkDiagnosisUseCase`
+**Message:** e.g. `signalDbm.warning must be higher than signalDbm.critical`, `maxDistanceKm.40 must be from 0.1 to 200`
+**Tests:** `tests/domain/wireless-monitoring/value-objects/AlertThresholds.test.ts`, `tests/application/wireless-monitoring/use-cases/AlertThresholdsUseCases.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetAlertThresholdsUseCase.integration.test.ts`, `tests/integration/use-cases/wireless-monitoring/UpdateAlertThresholdsUseCase.integration.test.ts`, `tests/integration/alert-threshold.routes.test.ts`
+
+### WLS-201 — A device can override any group of the install's thresholds
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain + Application
+**Since:** 2026-10-07
+
+A device with a wireless configuration may hold overrides. Each group it sets
+replaces the install's group whole, both levels of a pair together, and must
+pass the same checks as WLS-200. The two channel-width tables merge per width
+instead. Overriding 40 MHz keeps the install's other widths, and a device cannot
+remove a width the install checks. Saving the overrides replaces them as a
+whole, and saving none removes them. They are deleted with the device.
+
+When a poll cannot read the thresholds it fails rather than fall back to the
+defaults.
+
+**Why:** One install mixes links that need different limits, such as a 20 km
+backhaul next to 2 km subscriber links. Overriding just that device keeps the
+install's limits strict for everything else. Replacing pairs whole keeps every
+stored override valid on its own, whatever the install changes to later.
+Merging the width tables lets an operator fix the one width a link runs at
+without restating the others. Failing the poll is safer than alerting at
+defaults an operator deliberately widened, which would notify for nothing.
+
+**Enforced at:** `src/domain/wireless-monitoring/value-objects/AlertThresholdOverrides.ts`; `AlertThresholds.withOverrides`; `src/application/wireless-monitoring/services/resolveAlertThresholds.ts`
+**Reached from:** `UpdateDeviceAlertThresholdsUseCase`, `PollWirelessDeviceUseCase`, `StartLinkDiagnosisUseCase`
+**Tests:** `tests/domain/wireless-monitoring/value-objects/AlertThresholdOverrides.test.ts`, `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetDeviceAlertThresholdsUseCase.integration.test.ts`, `tests/integration/use-cases/wireless-monitoring/UpdateDeviceAlertThresholdsUseCase.integration.test.ts`, `tests/integration/use-cases/wireless-monitoring/PollWirelessDeviceUseCase.integration.test.ts`
+
+### WLS-202 — The administrator sets the install's thresholds; an operator may override a device
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-10-07
+
+Everyone can read both. Changing the install's set needs `manage-settings`
+(ADMIN, VENDOR). Changing a device's overrides needs `update`, the same as
+editing its wireless configuration (OPERATOR and up).
+
+**Why:** The install's thresholds decide what every operator is notified about,
+like the other notification settings (NOT-204). A single device's limits are
+part of setting that device up, which operators already do. _(inferred)_
+
+**Enforced at:** `src/presentation/http/routes/alert-threshold.routes.ts`
+**Tests:** `tests/integration/alert-threshold.routes.test.ts`
+
+---
+
 ## Known gaps
 
 Where the code and the intent do not quite meet. Each is a real finding, not a
@@ -2583,3 +2720,11 @@ collector reports no interface counters, so a diagnosis of a Mimosa radio falls
 back to `throughputTxBps`/`RxBps`, which on Mimosa is the negotiated PHY rate.
 That is not traffic. Its throughput chart and any saturation finding are
 meaningless until the collector reads `ifHCInOctets`/`ifHCOutOctets`.
+
+### G-9 — Diagnosis ping latency bands do not follow the configured thresholds
+
+WLS-187 judges a hop's average ping latency against fixed 50 / 150 ms bands
+that were chosen to match the default `latencyMs` (WLS-086). The radio findings
+of a diagnosis use the configured thresholds (WLS-188, WLS-200), but these ping
+bands do not. An install that changes `latencyMs` can see a diagnosis and a
+standing alert disagree about the same latency.

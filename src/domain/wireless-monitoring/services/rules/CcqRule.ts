@@ -1,4 +1,7 @@
-import { WirelessMetrics } from '../../value-objects';
+import {
+  WirelessMetrics,
+  AlertThresholds
+} from '../../value-objects';
 import { WirelessAlertRecord } from '../../aggregates';
 import {
   AlertDecision,
@@ -17,24 +20,26 @@ interface ThresholdDef {
   formatMessage: (name: string, v: number) => string;
 }
 
-const THRESHOLDS: ThresholdDef[] = [
-  {
-    severity: 'WARNING',
-    breach: (v) => v < 75,
-    clear: (v) => v > 78,
-    threshold: 75,
+const CLEAR_MARGIN_PERCENT = { WARNING: 3, CRITICAL: 5 };
+
+function thresholdDefs(t: AlertThresholds): ThresholdDef[] {
+  const def = (
+    severity: 'WARNING' | 'CRITICAL',
+    threshold: number,
+    label: string
+  ): ThresholdDef => ({
+    severity,
+    breach: (v) => v < threshold,
+    clear: (v) => v > threshold + CLEAR_MARGIN_PERCENT[severity],
+    threshold,
     formatMessage: (name, v) =>
-      `Calidad de conexión degradada en ${name}: ${v}% (umbral: 75%)`
-  },
-  {
-    severity: 'CRITICAL',
-    breach: (v) => v < 50,
-    clear: (v) => v > 55,
-    threshold: 50,
-    formatMessage: (name, v) =>
-      `Calidad de conexión crítica en ${name}: ${v}% (umbral: 50%)`
-  }
-];
+      `Calidad de conexión ${label} en ${name}: ${v}% (umbral: ${threshold}%)`
+  });
+  return [
+    def('WARNING', t.ccqPercent.warning, 'degradada'),
+    def('CRITICAL', t.ccqPercent.critical, 'crítica')
+  ];
+}
 
 export class CcqRule implements IAlertRule {
   evaluate(
@@ -54,7 +59,7 @@ export class CcqRule implements IAlertRule {
 
     const decisions: AlertDecision[] = [];
 
-    for (const def of THRESHOLDS) {
+    for (const def of thresholdDefs(context.thresholds)) {
       const key = `ccq_percent:${def.severity}`;
       const active = activeAlerts.get(key);
 

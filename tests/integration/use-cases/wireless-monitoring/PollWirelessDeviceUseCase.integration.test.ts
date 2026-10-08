@@ -10,9 +10,12 @@ import {
 import { OUT_OF_SERVER_REACH } from 'application/wireless-monitoring/interfaces';
 import { DeviceEligibilityService } from 'domain/device-inventory/services';
 import { WirelessAlertEvaluator } from 'domain/wireless-monitoring/services';
+import { IAlertRule } from 'domain/wireless-monitoring/services/rules/IAlertRule';
+import { DistanceRule } from 'domain/wireless-monitoring/services/rules/DistanceRule';
 import {
   PrismaWirelessAlertRecordRepository,
   PrismaWirelessDeviceConfigRepository,
+  PrismaAlertThresholdsRepository,
   PrismaWirelessSnapshotRepository
 } from 'infrastructure/wireless-monitoring/repositories';
 import { WirelessDeviceRepositoryAdapter } from 'infrastructure/wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter';
@@ -63,7 +66,7 @@ describe('PollWirelessDeviceUseCase — integration', () => {
     deviceModelId = await seedWirelessDeviceModel(prisma);
   });
 
-  const build = (serverOnSite: boolean) => {
+  const build = (serverOnSite: boolean, rules: IAlertRule[] = []) => {
     const deviceRepo = new PrismaDeviceRepository(prisma);
     const configRepo = new PrismaWirelessDeviceConfigRepository(
       prisma,
@@ -80,7 +83,7 @@ describe('PollWirelessDeviceUseCase — integration', () => {
         new PrismaDeviceModelRepository(prisma),
         new PrismaVendorRepository(prisma)
       ),
-      new WirelessAlertEvaluator([]),
+      new WirelessAlertEvaluator(rules),
       new WirelessDeviceRepositoryAdapter(
         deviceRepo,
         new DeviceEligibilityService()
@@ -90,6 +93,7 @@ describe('PollWirelessDeviceUseCase — integration', () => {
         new PrismaContractedServiceRepository(prisma),
         new PrismaServicePlanRepository(prisma)
       ),
+      new PrismaAlertThresholdsRepository(prisma),
       null,
       new WinstonLogger(),
       agent
@@ -289,6 +293,44 @@ describe('PollWirelessDeviceUseCase — integration', () => {
       await useCase.execute({ deviceId: cpe, forceExecution: true });
 
       expect(await parentOf(cpe)).toBe(declared);
+    });
+  });
+
+  describe('[WLS-201] alert thresholds', () => {
+    // A 15 km link at 40 MHz: past the 10 km default.
+    const longLink = () =>
+      collector.setResult({ channelWidthMhz: 40, distanceM: 15_000 });
+
+    const distanceAlerts = (deviceId: string) =>
+      prisma.wirelessAlertRecord.count({
+        where: { deviceId, metric: 'distance_m', isActive: true }
+      });
+
+    it('opens at the install threshold', async () => {
+      const deviceId = await seedRadio('192.168.90.30');
+      longLink();
+      const { useCase } = build(true, [new DistanceRule()]);
+
+      await useCase.execute({ deviceId, forceExecution: true });
+
+      expect(await distanceAlerts(deviceId)).toBe(1);
+    });
+
+    it("stays quiet within the device's own override", async () => {
+      const deviceId = await seedRadio('192.168.90.31');
+      await prisma.wirelessAlertThresholdOverride.create({
+        data: { deviceId, overrides: { maxDistanceKm: { '40': 20 } } }
+      });
+      longLink();
+      const { useCase } = build(true, [new DistanceRule()]);
+
+      const result = await useCase.execute({
+        deviceId,
+        forceExecution: true
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(await distanceAlerts(deviceId)).toBe(0);
     });
   });
 });

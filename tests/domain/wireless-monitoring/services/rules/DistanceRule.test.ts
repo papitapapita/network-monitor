@@ -5,6 +5,7 @@ import { WirelessMetrics } from '../../../../../src/domain/wireless-monitoring/v
 import { WirelessAlertRecord } from '../../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
 import { WirelessMetricsProps } from '../../../../../src/domain/wireless-monitoring/props/WirelessMetricsProps';
 import { EvaluationContext } from '../../../../../src/domain/wireless-monitoring/services/IWirelessAlertEvaluator';
+import { AlertThresholds } from '../../../../../src/domain/wireless-monitoring/value-objects/AlertThresholds';
 import { DeviceId } from '../../../../../src/domain/shared/ids/DeviceId';
 
 const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
@@ -63,6 +64,7 @@ function makeContext(
     provisionedLanSpeedMbps: null,
     previousMetrics: null,
     collectedAt: new Date(),
+    thresholds: AlertThresholds.defaults(),
     ...overrides
   };
 }
@@ -226,5 +228,39 @@ describe('[WLS-095] DistanceRule', () => {
         rule.evaluate(metrics, makeContext(), new Map())
       ).toHaveLength(0);
     });
+  });
+});
+
+describe('DistanceRule with configured thresholds', () => {
+  const rule = new DistanceRule();
+
+  it('allows a longer link once its width is given a larger maximum', () => {
+    const thresholds = AlertThresholds.defaults().withOverrides({
+      maxDistanceKm: { 40: 20 }
+    });
+    const metrics = makeMetrics({
+      channelWidthMhz: 40,
+      distanceM: 15_000
+    });
+    expect(
+      rule.evaluate(metrics, makeContext({ thresholds }), new Map())
+    ).toEqual([]);
+  });
+
+  it('opens at a fractional kilometre maximum', () => {
+    const thresholds = AlertThresholds.defaults().withOverrides({
+      maxDistanceKm: { 80: 2.5 }
+    });
+    const metrics = makeMetrics({
+      channelWidthMhz: 80,
+      distanceM: 2_600
+    });
+    const result = rule.evaluate(
+      metrics,
+      makeContext({ thresholds }),
+      new Map()
+    );
+    expect(result[0].threshold).toBe(2_500);
+    expect(result[0].message).toContain('2.5 km');
   });
 });

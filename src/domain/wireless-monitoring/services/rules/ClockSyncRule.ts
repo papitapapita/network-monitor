@@ -7,8 +7,6 @@ import {
 import { IAlertRule } from './IAlertRule';
 import { formatDuration } from 'domain/shared/utils';
 
-const MAX_CLOCK_DRIFT_S = 300;
-
 export class ClockSyncRule implements IAlertRule {
   evaluate(
     metrics: WirelessMetrics,
@@ -22,6 +20,7 @@ export class ClockSyncRule implements IAlertRule {
     const drift = Math.round(
       Math.abs(context.collectedAt.getTime() / 1000 - deviceTimeEpoch)
     );
+    const MAX_CLOCK_DRIFT_S = context.thresholds.clockDriftSeconds;
     const key = 'clock_drift_s:WARNING';
     const active = activeAlerts.get(key);
 

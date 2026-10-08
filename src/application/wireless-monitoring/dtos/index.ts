@@ -26,3 +26,4 @@ export * from './GetWirelessThroughputRequestDTO';
 export * from './StartLinkDiagnosisRequestDTO';
 export * from './LinkDiagnosisRequestDTO';
 export * from './LinkDiagnosisDTO';
+export * from './AlertThresholdsDTO';

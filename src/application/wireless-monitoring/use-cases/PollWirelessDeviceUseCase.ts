@@ -9,7 +9,8 @@ import {
   WirelessAlert,
   WirelessSnapshot,
   IWirelessAlertEvaluator,
-  EvaluationContext
+  EvaluationContext,
+  IAlertThresholdsRepository
 } from 'domain/wireless-monitoring';
 import { UseCase } from 'application/shared/core';
 import {
@@ -36,6 +37,7 @@ import {
   PollWirelessDeviceResponseDTO
 } from '../dtos';
 import { CollectedMetricsMapper } from '../mappers';
+import { resolveAlertThresholds } from '../services';
 
 // Shared with the controller, which picks the status from them (WLS-029).
 export const AGENT_READ_FAILURES: Record<AgentReadRefusal, string> = {
@@ -66,6 +68,7 @@ export class PollWirelessDeviceUseCase
     private readonly deviceRepo: IDeviceRepository,
     private readonly deviceReach: IDeviceReach,
     private readonly contractedCapacity: IContractedCapacityProvider,
+    private readonly alertThresholdsRepo: IAlertThresholdsRepository,
     private readonly alertPublisher: IAlertPublisher | null,
     logger: ILogger,
     private readonly agentReader: IAgentRadioReader = NoAgentRadioReader
@@ -303,6 +306,16 @@ export class PollWirelessDeviceUseCase
       contractedResult.isSuccess ? contractedResult.value : null
     );
 
+    const thresholdsResult = await resolveAlertThresholds(
+      this.alertThresholdsRepo,
+      deviceId
+    );
+    if (thresholdsResult.isFailure) {
+      return this.fail(
+        `Failed to load alert thresholds: ${thresholdsResult.error}`
+      );
+    }
+
     const ctx: EvaluationContext = {
       deviceName: collected.deviceName ?? 'Equipo desconocido',
       deviceModel: collected.deviceModel,
@@ -310,7 +323,8 @@ export class PollWirelessDeviceUseCase
       clientsProvisionedLimit: config.clientsProvisionedLimit,
       provisionedLanSpeedMbps: config.provisionedLanSpeedMbps,
       previousMetrics,
-      collectedAt
+      collectedAt,
+      thresholds: thresholdsResult.value
     };
 
     let remoteApDeviceId = null;

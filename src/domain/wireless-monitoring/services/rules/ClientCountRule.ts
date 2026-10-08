@@ -6,7 +6,6 @@ import {
 } from '../IWirelessAlertEvaluator';
 import { IAlertRule } from './IAlertRule';
 
-const SUDDEN_DROP_RATIO = 0.5;
 const SUDDEN_DROP_MIN_PREVIOUS = 3;
 
 export class ClientCountRule implements IAlertRule {
@@ -48,7 +47,8 @@ export class ClientCountRule implements IAlertRule {
       }
     }
 
-    // clients_sudden_drop — WARNING when connected count drops ≥50% vs previous poll
+    // clients_sudden_drop — WARNING when connected count drops by the
+    // configured share vs previous poll
     const previous =
       context.previousMetrics?.clientsConnected ?? null;
     if (
@@ -58,8 +58,11 @@ export class ClientCountRule implements IAlertRule {
     ) {
       const key = 'clients_sudden_drop:WARNING';
       const active = activeAlerts.get(key);
-      // Store the 50% floor computed at OPEN time so CLEAR doesn't need previousMetrics
-      const floor = Math.round(previous * SUDDEN_DROP_RATIO);
+      // Store the floor computed at OPEN time so CLEAR doesn't need previousMetrics
+      const floor = Math.round(
+        (previous * (100 - context.thresholds.clientDropPercent)) /
+          100
+      );
 
       if (!active && current < floor) {
         decisions.push({

@@ -5,6 +5,7 @@ import { WirelessMetrics } from '../../../../../src/domain/wireless-monitoring/v
 import { WirelessAlertRecord } from '../../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
 import { WirelessMetricsProps } from '../../../../../src/domain/wireless-monitoring/props/WirelessMetricsProps';
 import { EvaluationContext } from '../../../../../src/domain/wireless-monitoring/services/IWirelessAlertEvaluator';
+import { AlertThresholds } from '../../../../../src/domain/wireless-monitoring/value-objects/AlertThresholds';
 import { DeviceId } from '../../../../../src/domain/shared/ids/DeviceId';
 
 const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
@@ -63,6 +64,7 @@ function makeContext(
     provisionedLanSpeedMbps: null,
     previousMetrics: null,
     collectedAt: new Date(),
+    thresholds: AlertThresholds.defaults(),
     ...overrides
   };
 }
@@ -264,5 +266,42 @@ describe('[WLS-094] CapacityRule', () => {
       expect(decision!.threshold).toBe(200_000);
       expect(decision!.currentValue).toBe(150_000);
     });
+  });
+});
+
+describe('CapacityRule with configured thresholds', () => {
+  const rule = new CapacityRule();
+
+  it('uses the configured floor for the channel width', () => {
+    const thresholds = AlertThresholds.defaults().withOverrides({
+      minCapacityMbps: { 40: 150 }
+    });
+    const metrics = makeMetrics({
+      channelWidthMhz: 40,
+      capacityTxKbps: 120_000,
+      capacityRxKbps: 120_000
+    });
+    const result = rule.evaluate(
+      metrics,
+      makeContext({ thresholds }),
+      new Map()
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].threshold).toBe(150_000);
+    expect(result[0].message).toContain('mínimo esperado: 150 Mbps');
+  });
+
+  it('checks a width the defaults leave out once it has a floor', () => {
+    const thresholds = AlertThresholds.defaults().withOverrides({
+      minCapacityMbps: { 30: 70 }
+    });
+    const metrics = makeMetrics({
+      channelWidthMhz: 30,
+      capacityTxKbps: 60_000,
+      capacityRxKbps: 60_000
+    });
+    expect(
+      rule.evaluate(metrics, makeContext({ thresholds }), new Map())
+    ).toHaveLength(1);
   });
 });

@@ -1,4 +1,7 @@
-import { WirelessMetrics } from '../../value-objects';
+import {
+  WirelessMetrics,
+  AlertThresholds
+} from '../../value-objects';
 import { WirelessAlertRecord } from '../../aggregates';
 import {
   AlertDecision,
@@ -16,48 +19,57 @@ interface ThresholdDef {
   formatMessage: (name: string, v: number) => string;
 }
 
-const THRESHOLDS: ThresholdDef[] = [
-  {
-    metric: 'signal_rx_dbm',
-    severity: 'WARNING',
-    getValue: (m) => m.signalRxDbm,
-    breach: (v) => v < -70,
-    clear: (v) => v > -68,
-    threshold: -70,
+const CLEAR_MARGIN_DB = 2;
+
+function thresholdDefs(t: AlertThresholds): ThresholdDef[] {
+  const { warning, critical } = t.signalDbm;
+  const def = (
+    metric: string,
+    severity: 'WARNING' | 'CRITICAL',
+    getValue: (m: WirelessMetrics) => number | null,
+    threshold: number,
+    label: string
+  ): ThresholdDef => ({
+    metric,
+    severity,
+    getValue,
+    breach: (v) => v < threshold,
+    clear: (v) => v > threshold + CLEAR_MARGIN_DB,
+    threshold,
     formatMessage: (name, v) =>
-      `Señal débil en equipo ${name}: ${v} dBm (umbral: -70 dBm)`
-  },
-  {
-    metric: 'signal_rx_dbm',
-    severity: 'CRITICAL',
-    getValue: (m) => m.signalRxDbm,
-    breach: (v) => v < -80,
-    clear: (v) => v > -78,
-    threshold: -80,
-    formatMessage: (name, v) =>
-      `Señal crítica en equipo ${name}: ${v} dBm (umbral: -80 dBm)`
-  },
-  {
-    metric: 'signal_tx_dbm',
-    severity: 'WARNING',
-    getValue: (m) => m.signalTxDbm,
-    breach: (v) => v < -70,
-    clear: (v) => v > -68,
-    threshold: -70,
-    formatMessage: (name, v) =>
-      `Señal de transmisión débil en equipo ${name}: ${v} dBm (umbral: -70 dBm)`
-  },
-  {
-    metric: 'signal_tx_dbm',
-    severity: 'CRITICAL',
-    getValue: (m) => m.signalTxDbm,
-    breach: (v) => v < -80,
-    clear: (v) => v > -78,
-    threshold: -80,
-    formatMessage: (name, v) =>
-      `Señal de transmisión crítica en equipo ${name}: ${v} dBm (umbral: -80 dBm)`
-  }
-];
+      `${label} en equipo ${name}: ${v} dBm (umbral: ${threshold} dBm)`
+  });
+  return [
+    def(
+      'signal_rx_dbm',
+      'WARNING',
+      (m) => m.signalRxDbm,
+      warning,
+      'Señal débil'
+    ),
+    def(
+      'signal_rx_dbm',
+      'CRITICAL',
+      (m) => m.signalRxDbm,
+      critical,
+      'Señal crítica'
+    ),
+    def(
+      'signal_tx_dbm',
+      'WARNING',
+      (m) => m.signalTxDbm,
+      warning,
+      'Señal de transmisión débil'
+    ),
+    def(
+      'signal_tx_dbm',
+      'CRITICAL',
+      (m) => m.signalTxDbm,
+      critical,
+      'Señal de transmisión crítica'
+    )
+  ];
+}
 
 export class SignalStrengthRule implements IAlertRule {
   evaluate(
@@ -67,7 +79,7 @@ export class SignalStrengthRule implements IAlertRule {
   ): AlertDecision[] {
     const decisions: AlertDecision[] = [];
 
-    for (const def of THRESHOLDS) {
+    for (const def of thresholdDefs(context.thresholds)) {
       const value = def.getValue(metrics);
       if (value === null) continue;
 

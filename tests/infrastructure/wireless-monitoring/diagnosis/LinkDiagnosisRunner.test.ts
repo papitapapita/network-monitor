@@ -13,6 +13,7 @@ import { IPingService } from '../../../../src/application/device-monitoring/inte
 import { WirelessAlertEvaluator } from '../../../../src/domain/wireless-monitoring/services/WirelessAlertEvaluator';
 import { LinkDiagnosisAnalyzer } from '../../../../src/domain/wireless-monitoring/services/LinkDiagnosisAnalyzer';
 import { Result } from '../../../../src/domain/shared/core/Result';
+import { AlertThresholds } from '../../../../src/domain/wireless-monitoring/value-objects/AlertThresholds';
 
 const DEVICE_A = '550e8400-e29b-41d4-a716-446655440001';
 const DEVICE_B = '550e8400-e29b-41d4-a716-446655440002';
@@ -116,6 +117,7 @@ function setup(config: { maxSessions?: number } = {}) {
     linkCapacityKbps: null,
     clientsProvisionedLimit: null,
     provisionedLanSpeedMbps: null,
+    thresholds: AlertThresholds.defaults(),
     ...overrides
   });
 

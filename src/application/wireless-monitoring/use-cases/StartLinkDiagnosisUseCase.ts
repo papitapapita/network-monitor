@@ -5,7 +5,8 @@ import {
   IWirelessSnapshotRepository,
   WirelessDeviceConfig,
   DiagnosisDuration,
-  DEFAULT_DIAGNOSIS_SECONDS
+  DEFAULT_DIAGNOSIS_SECONDS,
+  IAlertThresholdsRepository
 } from 'domain/wireless-monitoring';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
@@ -24,6 +25,7 @@ import {
   StartLinkDiagnosisRequestDTO,
   StartLinkDiagnosisResponseDTO
 } from '../dtos';
+import { resolveAlertThresholds } from '../services';
 
 export class StartLinkDiagnosisUseCase extends UseCase<
   StartLinkDiagnosisRequestDTO,
@@ -38,6 +40,7 @@ export class StartLinkDiagnosisUseCase extends UseCase<
     private readonly deviceRepo: IDeviceRepository,
     private readonly deviceReach: IDeviceReach,
     private readonly contractedCapacity: IContractedCapacityProvider,
+    private readonly alertThresholdsRepo: IAlertThresholdsRepository,
     private readonly runner: ILinkDiagnosisRunner,
     logger: ILogger
   ) {
@@ -160,6 +163,16 @@ export class StartLinkDiagnosisUseCase extends UseCase<
       contractedResult.isSuccess ? contractedResult.value : null
     );
 
+    const thresholdsResult = await resolveAlertThresholds(
+      this.alertThresholdsRepo,
+      deviceId
+    );
+    if (thresholdsResult.isFailure) {
+      return this.fail(
+        `Failed to load alert thresholds: ${thresholdsResult.error}`
+      );
+    }
+
     const target: LinkDiagnosisTarget = {
       deviceId: deviceId.toString(),
       deviceType: config.deviceType,
@@ -170,7 +183,8 @@ export class StartLinkDiagnosisUseCase extends UseCase<
       durationSeconds: durationResult.value.seconds,
       linkCapacityKbps: linkCapacity?.kbps ?? null,
       clientsProvisionedLimit: config.clientsProvisionedLimit,
-      provisionedLanSpeedMbps: config.provisionedLanSpeedMbps
+      provisionedLanSpeedMbps: config.provisionedLanSpeedMbps,
+      thresholds: thresholdsResult.value
     };
 
     const startResult = this.runner.startOrJoin(target);

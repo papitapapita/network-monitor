@@ -40,6 +40,9 @@ import { PollingInterval } from '../../../../src/domain/wireless-monitoring/valu
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
+import { IAlertThresholdsRepository } from '../../../../src/domain/wireless-monitoring/repository/IAlertThresholdsRepository';
+import { AlertThresholds } from '../../../../src/domain/wireless-monitoring/value-objects/AlertThresholds';
+import { AlertThresholdOverrides } from '../../../../src/domain/wireless-monitoring/value-objects/AlertThresholdOverrides';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -252,6 +255,17 @@ function makeMocks() {
     read: jest.fn()
   };
 
+  const alertThresholdsRepo: jest.Mocked<IAlertThresholdsRepository> =
+    {
+      getGlobal: jest
+        .fn()
+        .mockResolvedValue(Result.ok(AlertThresholds.defaults())),
+      saveGlobal: jest.fn(),
+      findOverrides: jest
+        .fn()
+        .mockResolvedValue(Result.ok(AlertThresholdOverrides.none())),
+      saveOverrides: jest.fn()
+    };
   const contractedCapacity: jest.Mocked<IContractedCapacityProvider> =
     {
       findKbpsByDeviceId: jest
@@ -279,6 +293,7 @@ function makeMocks() {
     deviceReach,
     agentReader,
     contractedCapacity,
+    alertThresholdsRepo,
     alertPublisher,
     logger
   };
@@ -298,6 +313,7 @@ function makeUseCase(
     mocks.deviceRepo,
     mocks.deviceReach,
     mocks.contractedCapacity,
+    mocks.alertThresholdsRepo,
     mocks.alertPublisher,
     mocks.logger,
     mocks.agentReader
@@ -2022,6 +2038,54 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
         'Contracted capacity unavailable for wireless poll',
         expect.objectContaining({ error: 'connection reset' })
       );
+    });
+  });
+
+  describe('[WLS-201] alert thresholds for evaluation', () => {
+    it("evaluates against the install's thresholds with the device's overrides", async () => {
+      configureHappyPath(mocks);
+      mocks.alertThresholdsRepo.getGlobal.mockResolvedValue(
+        Result.ok(
+          AlertThresholds.defaults().withOverrides({ cpuPercent: 60 })
+        )
+      );
+      mocks.alertThresholdsRepo.findOverrides.mockResolvedValue(
+        Result.ok(
+          AlertThresholdOverrides.create({
+            maxDistanceKm: { 40: 30 }
+          }).value
+        )
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(
+        mocks.alertThresholdsRepo.findOverrides.mock.calls[0]![0].toString()
+      ).toBe(VALID_DEVICE_UUID);
+      const ctx = mocks.alertEvaluator.evaluate.mock.calls[0]![2];
+      expect(ctx.thresholds.cpuPercent).toBe(60);
+      expect(ctx.thresholds.maxDistanceKm).toEqual({
+        20: 15,
+        40: 30,
+        80: 5
+      });
+    });
+
+    it('fails rather than alert at the defaults when the thresholds cannot be read', async () => {
+      configureHappyPath(mocks);
+      mocks.alertThresholdsRepo.getGlobal.mockResolvedValue(
+        Result.fail('connection reset')
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe(
+        'Failed to load alert thresholds: connection reset'
+      );
+      expect(mocks.alertEvaluator.evaluate).not.toHaveBeenCalled();
     });
   });
 });

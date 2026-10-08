@@ -8,6 +8,7 @@ import { WirelessAlertEvaluator } from '../../../../src/domain/wireless-monitori
 import { LinkDiagnosisAnalyzer } from '../../../../src/domain/wireless-monitoring/services/LinkDiagnosisAnalyzer';
 import { SignalStrengthRule } from '../../../../src/domain/wireless-monitoring/services/rules/SignalStrengthRule';
 import { ThroughputSaturationRule } from '../../../../src/domain/wireless-monitoring/services/rules/ThroughputSaturationRule';
+import { AlertThresholds } from '../../../../src/domain/wireless-monitoring/value-objects/AlertThresholds';
 
 const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
 const T0 = new Date('2026-09-26T10:00:00.000Z');
@@ -36,6 +37,7 @@ function makeTarget(
     linkCapacityKbps: 10_000,
     clientsProvisionedLimit: null,
     provisionedLanSpeedMbps: null,
+    thresholds: AlertThresholds.defaults(),
     ...overrides
   };
 }

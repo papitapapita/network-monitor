@@ -8,3 +8,4 @@ export * from './WirelessSnapshotCreatedEventProps';
 export * from './WirelessAlertTriggeredEventProps';
 export * from './WirelessAlertClearedEventProps';
 export * from './WirelessDeviceConfigToggledEventProps';
+export * from './AlertThresholdsProps';

@@ -4,3 +4,5 @@ export * from './WirelessClientEntry';
 export * from './WirelessAlert';
 export * from './DiagnosisDuration';
 export * from './PingStatistics';
+export * from './AlertThresholds';
+export * from './AlertThresholdOverrides';

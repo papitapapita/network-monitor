@@ -5,6 +5,7 @@ import { WirelessMetrics } from '../../../../../src/domain/wireless-monitoring/v
 import { WirelessAlertRecord } from '../../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
 import { WirelessMetricsProps } from '../../../../../src/domain/wireless-monitoring/props/WirelessMetricsProps';
 import { EvaluationContext } from '../../../../../src/domain/wireless-monitoring/services/IWirelessAlertEvaluator';
+import { AlertThresholds } from '../../../../../src/domain/wireless-monitoring/value-objects/AlertThresholds';
 import { DeviceId } from '../../../../../src/domain/shared/ids/DeviceId';
 
 const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
@@ -63,6 +64,7 @@ function makeContext(
     provisionedLanSpeedMbps: null,
     previousMetrics: null,
     collectedAt: new Date(),
+    thresholds: AlertThresholds.defaults(),
     ...overrides
   };
 }
@@ -270,5 +272,43 @@ describe('[WLS-081] [WLS-082] [WLS-083] SignalStrengthRule', () => {
         )
       ).toHaveLength(1);
     });
+  });
+});
+
+describe('SignalStrengthRule with configured thresholds', () => {
+  const rule = new SignalStrengthRule();
+  const thresholds = AlertThresholds.defaults().withOverrides({
+    signalDbm: { warning: -65, critical: -75 }
+  });
+
+  it('opens at the configured warning level', () => {
+    const metrics = makeMetrics({ signalRxDbm: -67 });
+    const result = rule.evaluate(
+      metrics,
+      makeContext({ thresholds }),
+      new Map()
+    );
+    expect(result).toEqual([
+      expect.objectContaining({
+        metric: 'signal_rx_dbm',
+        action: 'OPEN',
+        severity: 'WARNING',
+        threshold: -65,
+        message: expect.stringContaining('umbral: -65 dBm')
+      })
+    ]);
+  });
+
+  it('keeps the 2 dB clear margin above the configured level', () => {
+    const alerts = new Map([
+      ['signal_rx_dbm:WARNING', makeActiveAlert('signal_rx_dbm')]
+    ]);
+    const ctx = makeContext({ thresholds });
+    expect(
+      rule.evaluate(makeMetrics({ signalRxDbm: -64 }), ctx, alerts)
+    ).toEqual([]);
+    expect(
+      rule.evaluate(makeMetrics({ signalRxDbm: -62 }), ctx, alerts)
+    ).toEqual([expect.objectContaining({ action: 'CLEAR' })]);
   });
 });

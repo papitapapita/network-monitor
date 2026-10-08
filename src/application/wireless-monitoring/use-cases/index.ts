@@ -21,3 +21,7 @@ export * from './GetFleetWirelessThroughputUseCase';
 export * from './StartLinkDiagnosisUseCase';
 export * from './GetLinkDiagnosisUseCase';
 export * from './StopLinkDiagnosisUseCase';
+export * from './GetAlertThresholdsUseCase';
+export * from './UpdateAlertThresholdsUseCase';
+export * from './GetDeviceAlertThresholdsUseCase';
+export * from './UpdateDeviceAlertThresholdsUseCase';

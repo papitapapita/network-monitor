@@ -6,8 +6,6 @@ import {
 } from '../IWirelessAlertEvaluator';
 import { IAlertRule } from './IAlertRule';
 
-const SATURATION_RATIO = 0.8;
-
 export class ThroughputSaturationRule implements IAlertRule {
   evaluate(
     metrics: WirelessMetrics,
@@ -21,7 +19,10 @@ export class ThroughputSaturationRule implements IAlertRule {
     if (txBps === null || rxBps === null) return [];
 
     const totalKbps = (txBps + rxBps) / 1000;
-    const threshold = context.linkCapacityKbps * SATURATION_RATIO;
+    const threshold =
+      (context.linkCapacityKbps *
+        context.thresholds.saturationPercent) /
+      100;
     const key = 'throughput_saturation:WARNING';
     const active = activeAlerts.get(key);
 

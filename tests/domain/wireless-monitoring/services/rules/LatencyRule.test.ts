@@ -3,6 +3,7 @@ import { WirelessMetrics } from '../../../../../src/domain/wireless-monitoring/v
 import { WirelessAlertRecord } from '../../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
 import { WirelessMetricsProps } from '../../../../../src/domain/wireless-monitoring/props/WirelessMetricsProps';
 import { EvaluationContext } from '../../../../../src/domain/wireless-monitoring/services/IWirelessAlertEvaluator';
+import { AlertThresholds } from '../../../../../src/domain/wireless-monitoring/value-objects/AlertThresholds';
 import { DeviceId } from '../../../../../src/domain/shared/ids/DeviceId';
 
 const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
@@ -61,6 +62,7 @@ function makeContext(
     provisionedLanSpeedMbps: null,
     previousMetrics: null,
     collectedAt: new Date(),
+    thresholds: AlertThresholds.defaults(),
     ...overrides
   };
 }
@@ -245,5 +247,24 @@ describe('[WLS-086] LatencyRule', () => {
       );
       expect(decision!.message).toContain('Torre-01');
     });
+  });
+});
+
+describe('LatencyRule with configured thresholds', () => {
+  const rule = new LatencyRule();
+
+  it('opens both levels at the configured values', () => {
+    const thresholds = AlertThresholds.defaults().withOverrides({
+      latencyMs: { warning: 20, critical: 40 }
+    });
+    const result = rule.evaluate(
+      makeMetrics({ latencyMs: 45 }),
+      makeContext({ thresholds }),
+      new Map()
+    );
+    expect(result.map((d) => [d.severity, d.threshold])).toEqual([
+      ['WARNING', 20],
+      ['CRITICAL', 40]
+    ]);
   });
 });

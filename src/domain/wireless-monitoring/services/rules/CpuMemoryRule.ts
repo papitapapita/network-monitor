@@ -1,4 +1,7 @@
-import { WirelessMetrics } from '../../value-objects';
+import {
+  WirelessMetrics,
+  AlertThresholds
+} from '../../value-objects';
 import { WirelessAlertRecord } from '../../aggregates';
 import {
   AlertDecision,
@@ -15,26 +18,38 @@ interface ThresholdDef {
   formatMessage: (name: string, v: number) => string;
 }
 
-const THRESHOLDS: ThresholdDef[] = [
-  {
-    metric: 'cpu_load_percent',
-    getValue: (m) => m.cpuLoadPercent,
-    breach: (v) => v > 80,
-    clear: (v) => v < 75,
-    threshold: 80,
+const CLEAR_MARGIN_PERCENT = 5;
+
+function thresholdDefs(t: AlertThresholds): ThresholdDef[] {
+  const def = (
+    metric: string,
+    getValue: (m: WirelessMetrics) => number | null,
+    threshold: number,
+    label: string
+  ): ThresholdDef => ({
+    metric,
+    getValue,
+    breach: (v) => v > threshold,
+    clear: (v) => v < threshold - CLEAR_MARGIN_PERCENT,
+    threshold,
     formatMessage: (name, v) =>
-      `Uso de CPU elevado en ${name}: ${v}% (umbral: 80%)`
-  },
-  {
-    metric: 'memory_used_percent',
-    getValue: (m) => m.memoryUsedPercent,
-    breach: (v) => v > 85,
-    clear: (v) => v < 80,
-    threshold: 85,
-    formatMessage: (name, v) =>
-      `Uso de memoria elevado en ${name}: ${v}% (umbral: 85%)`
-  }
-];
+      `Uso de ${label} elevado en ${name}: ${v}% (umbral: ${threshold}%)`
+  });
+  return [
+    def(
+      'cpu_load_percent',
+      (m) => m.cpuLoadPercent,
+      t.cpuPercent,
+      'CPU'
+    ),
+    def(
+      'memory_used_percent',
+      (m) => m.memoryUsedPercent,
+      t.memoryPercent,
+      'memoria'
+    )
+  ];
+}
 
 export class CpuMemoryRule implements IAlertRule {
   evaluate(
@@ -44,7 +59,7 @@ export class CpuMemoryRule implements IAlertRule {
   ): AlertDecision[] {
     const decisions: AlertDecision[] = [];
 
-    for (const def of THRESHOLDS) {
+    for (const def of thresholdDefs(context.thresholds)) {
       const value = def.getValue(metrics);
       if (value === null) continue;
 

@@ -5,6 +5,7 @@ import { WirelessMetrics } from '../../../../../src/domain/wireless-monitoring/v
 import { WirelessAlertRecord } from '../../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
 import { WirelessMetricsProps } from '../../../../../src/domain/wireless-monitoring/props/WirelessMetricsProps';
 import { EvaluationContext } from '../../../../../src/domain/wireless-monitoring/services/IWirelessAlertEvaluator';
+import { AlertThresholds } from '../../../../../src/domain/wireless-monitoring/value-objects/AlertThresholds';
 import { DeviceId } from '../../../../../src/domain/shared/ids/DeviceId';
 
 const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
@@ -63,6 +64,7 @@ function makeContext(
     provisionedLanSpeedMbps: null,
     previousMetrics: null,
     collectedAt: new Date(),
+    thresholds: AlertThresholds.defaults(),
     ...overrides
   };
 }
@@ -349,5 +351,28 @@ describe('[WLS-091] [WLS-092] ClientCountRule', () => {
       );
       expect(opens).toHaveLength(0);
     });
+  });
+});
+
+describe('ClientCountRule with configured thresholds', () => {
+  const rule = new ClientCountRule();
+
+  it('uses the configured drop share for a sudden drop', () => {
+    const thresholds = AlertThresholds.defaults().withOverrides({
+      clientDropPercent: 30
+    });
+    const prev = makeMetrics({ clientsConnected: 10 });
+    const result = rule.evaluate(
+      makeMetrics({ clientsConnected: 6 }),
+      makeContext({ previousMetrics: prev, thresholds }),
+      new Map()
+    );
+    expect(result).toEqual([
+      expect.objectContaining({
+        metric: 'clients_sudden_drop',
+        action: 'OPEN',
+        threshold: 7
+      })
+    ]);
   });
 });

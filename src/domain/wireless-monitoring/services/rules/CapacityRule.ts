@@ -6,13 +6,6 @@ import {
 } from '../IWirelessAlertEvaluator';
 import { IAlertRule } from './IAlertRule';
 
-// Expected minimum capacity floors per channel width (in kbps)
-const CHANNEL_WIDTH_FLOOR_KBPS: Record<number, number> = {
-  20: 50_000,
-  40: 100_000,
-  80: 200_000
-};
-
 export class CapacityRule implements IAlertRule {
   evaluate(
     metrics: WirelessMetrics,
@@ -22,8 +15,8 @@ export class CapacityRule implements IAlertRule {
     const channelWidth = metrics.channelWidthMhz;
     if (channelWidth === null) return [];
 
-    const floor = CHANNEL_WIDTH_FLOOR_KBPS[channelWidth];
-    if (floor === undefined) return [];
+    const floor = context.thresholds.minCapacityKbpsFor(channelWidth);
+    if (floor === null) return [];
 
     const txKbps = metrics.capacityTxKbps;
     const rxKbps = metrics.capacityRxKbps;

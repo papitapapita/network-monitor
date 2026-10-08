@@ -5,6 +5,7 @@ import { WirelessMetrics } from '../../../../../src/domain/wireless-monitoring/v
 import { WirelessAlertRecord } from '../../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
 import { WirelessMetricsProps } from '../../../../../src/domain/wireless-monitoring/props/WirelessMetricsProps';
 import { EvaluationContext } from '../../../../../src/domain/wireless-monitoring/services/IWirelessAlertEvaluator';
+import { AlertThresholds } from '../../../../../src/domain/wireless-monitoring/value-objects/AlertThresholds';
 import { DeviceId } from '../../../../../src/domain/shared/ids/DeviceId';
 
 const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
@@ -63,6 +64,7 @@ function makeContext(
     provisionedLanSpeedMbps: null,
     previousMetrics: null,
     collectedAt: new Date(),
+    thresholds: AlertThresholds.defaults(),
     ...overrides
   };
 }
@@ -220,5 +222,27 @@ describe('[WLS-081] [WLS-082] [WLS-084] SnrRule', () => {
       expect(decision).toBeDefined();
       expect(decision!.action).toBe('CLEAR');
     });
+  });
+});
+
+describe('SnrRule with configured thresholds', () => {
+  const rule = new SnrRule();
+
+  it('opens at the configured warning level', () => {
+    const thresholds = AlertThresholds.defaults().withOverrides({
+      snrDb: { warning: 25, critical: 20 }
+    });
+    const result = rule.evaluate(
+      makeMetrics({ snrDb: 22 }),
+      makeContext({ thresholds }),
+      new Map()
+    );
+    expect(result).toEqual([
+      expect.objectContaining({
+        severity: 'WARNING',
+        threshold: 25,
+        message: expect.stringContaining('umbral: 25 dB')
+      })
+    ]);
   });
 });

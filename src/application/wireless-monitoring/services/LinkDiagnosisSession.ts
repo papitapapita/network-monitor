@@ -124,7 +124,8 @@ export class LinkDiagnosisSession {
         clientsProvisionedLimit: this.target.clientsProvisionedLimit,
         provisionedLanSpeedMbps: this.target.provisionedLanSpeedMbps,
         previousMetrics: null,
-        collectedAt: at
+        collectedAt: at,
+        thresholds: this.target.thresholds
       })
       .filter((d) => d.action === 'OPEN');
 

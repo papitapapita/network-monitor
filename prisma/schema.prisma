@@ -245,6 +245,7 @@ model Device {
   wirelessAlertRecords         WirelessAlertRecord[]
   wirelessPollingConfiguration WirelessPollingConfiguration?
   wirelessConfigsAsParentAp    WirelessPollingConfiguration[] @relation("WirelessConfigParentAp")
+  alertThresholdOverride       WirelessAlertThresholdOverride?
   contractedService            ContractedService?
   tickets                      Ticket[]
   agentIndexes                 ProbeAgentDeviceIndex[]
@@ -610,6 +611,33 @@ model WirelessPollingConfiguration {
   @@index([enabled])
   @@index([parentApDeviceId])
   @@map("wireless_polling_configurations")
+}
+
+/// The install's wireless alert thresholds, edited from the dashboard
+/// (WLS-200). One row at most (id is always 1); no row means the defaults in
+/// AlertThresholds apply. JSON rather than columns: the groups are validated
+/// as a whole by the value object, and a group added later falls back to its
+/// default on rows saved before it existed.
+model WirelessAlertThresholds {
+  id         Int      @id @default(1) @db.SmallInt
+  thresholds Json     @db.JsonB
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("wireless_alert_thresholds")
+}
+
+/// One device's departures from the install's thresholds (WLS-201). Only the
+/// groups it overrides are stored; no row means it follows the install.
+model WirelessAlertThresholdOverride {
+  id        String   @id @default(uuid()) @db.Uuid
+  deviceId  String   @unique @map("device_id") @db.Uuid
+  overrides Json     @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@map("wireless_alert_threshold_overrides")
 }
 
 // ============================================================================

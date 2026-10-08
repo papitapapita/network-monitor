@@ -15,6 +15,7 @@ import { createNotificationSettingsRoutes } from './notification-settings.routes
 import { createAlertRoutes } from './alert.routes';
 import { createScanRoutes } from './scan.routes';
 import { createWirelessRoutes } from './wireless.routes';
+import { createAlertThresholdRoutes } from './alert-threshold.routes';
 import { createWirelessStreamRoutes } from './wireless-stream.routes';
 import { createWirelessDiagnosisRoutes } from './wireless-diagnosis.routes';
 import { createCredentialsRoutes } from './credentials.routes';
@@ -311,6 +312,13 @@ export function setupRoutes(
   apiRouter.use(
     '/',
     createWirelessRoutes(container.wirelessController)
+  );
+
+  // Alert thresholds: /api/wireless/alert-thresholds,
+  // /api/devices/:id/wireless/alert-thresholds
+  apiRouter.use(
+    '/',
+    createAlertThresholdRoutes(container.alertThresholdsController)
   );
 
   // Live diagnosis: /api/devices/:id/wireless/diagnosis

@@ -6,9 +6,6 @@ import {
 } from '../IWirelessAlertEvaluator';
 import { IAlertRule } from './IAlertRule';
 
-const LATENCY_WARNING_MS = 50;
-const LATENCY_CRITICAL_MS = 150;
-
 export class LatencyRule implements IAlertRule {
   evaluate(
     metrics: WirelessMetrics,
@@ -19,6 +16,10 @@ export class LatencyRule implements IAlertRule {
     if (latencyMs === null) return [];
 
     const decisions: AlertDecision[] = [];
+    const {
+      warning: LATENCY_WARNING_MS,
+      critical: LATENCY_CRITICAL_MS
+    } = context.thresholds.latencyMs;
 
     const warningKey = 'latency_ms:WARNING';
     const warningActive = activeAlerts.get(warningKey);

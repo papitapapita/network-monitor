@@ -19,6 +19,7 @@ import {
 } from 'infrastructure/wireless-monitoring/diagnosis/LinkDiagnosisRunner';
 import { PrismaWirelessDeviceConfigRepository } from 'infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository';
 import { PrismaWirelessSnapshotRepository } from 'infrastructure/wireless-monitoring/repositories/PrismaWirelessSnapshotRepository';
+import { PrismaAlertThresholdsRepository } from 'infrastructure/wireless-monitoring/repositories/PrismaAlertThresholdsRepository';
 import { WirelessDeviceRepositoryAdapter } from 'infrastructure/wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter';
 import { DeviceReachAdapter } from 'infrastructure/wireless-monitoring/adapters/DeviceReachAdapter';
 import { DeviceVendorAdapter } from 'infrastructure/wireless-monitoring/adapters/DeviceVendorAdapter';
@@ -84,6 +85,7 @@ export function buildLinkDiagnosis(
       new PrismaContractedServiceRepository(prisma),
       new PrismaServicePlanRepository(prisma)
     ),
+    new PrismaAlertThresholdsRepository(prisma),
     runner,
     logger
   );

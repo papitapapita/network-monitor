@@ -1,4 +1,4 @@
-import { WirelessMetrics } from '../value-objects';
+import { WirelessMetrics, AlertThresholds } from '../value-objects';
 import { WirelessAlertRecord } from '../aggregates';
 
 export interface AlertDecision {
@@ -18,6 +18,8 @@ export interface EvaluationContext {
   provisionedLanSpeedMbps: number | null;
   previousMetrics: WirelessMetrics | null;
   collectedAt: Date;
+  // The install's thresholds with this device's overrides applied.
+  thresholds: AlertThresholds;
 }
 
 export interface IWirelessAlertEvaluator {

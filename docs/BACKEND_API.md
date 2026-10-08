@@ -111,8 +111,9 @@ also gates downloading a configuration backup, which holds the same secrets
 role may use (IDN-140).
 
 `manage-settings` gates changing the install's settings from the dashboard:
-today `PUT /api/notification-settings` and its test message (IDN-034), and
-`PUT /api/billing-settings` (BIL-285).
+today `PUT /api/notification-settings` and its test message (IDN-034),
+`PUT /api/billing-settings` (BIL-285), and `PUT /api/wireless/alert-thresholds`
+(WLS-202).
 
 `manage-installation` (VENDOR only, IDN-033) gates agent create, re-key and
 revoke, the data-retention purge and the vendor's settings
@@ -3299,6 +3300,139 @@ WirelessAlertDTO[]
 
 > Note: `deviceId` is **required** even though the route appears global. Omitting it returns 400.  
 > Prefer `GET /api/devices/:id/wireless/alerts/history` for per-device history.
+
+---
+
+## Wireless Alert Thresholds `/api/wireless/alert-thresholds`, `/api/devices/:id/wireless/alert-thresholds`
+
+> **Response envelope:** unlike the other wireless endpoints, these use
+> `{ success: true, data }` / `{ success: false, error }`.
+
+The limits the wireless alert rules open at (WLS-200). The install has one set,
+edited by its administrator. Until the first save it is the defaults below, so
+`GET` always answers. A device can override any group of it (WLS-201), e.g. a
+long backhaul allowed 20 km at 40 MHz. A save applies from the next poll, with
+no restart. A live diagnosis started afterwards uses it too.
+
+```ts
+interface SeverityThresholdsDTO {
+  warning: number;
+  critical: number;
+}
+
+interface AlertThresholdsDTO {
+  signalDbm: SeverityThresholdsDTO;  // whole, −100…−40; warning above critical. Rx and Tx
+  snrDb: SeverityThresholdsDTO;      // whole, 1…60; warning above critical
+  ccqPercent: SeverityThresholdsDTO; // whole, 1…95; warning above critical. M-series only
+  latencyMs: SeverityThresholdsDTO;  // whole, 1…10000; warning BELOW critical
+  cpuPercent: number;                // whole, 10…99
+  memoryPercent: number;             // whole, 10…99
+  clockDriftSeconds: number;         // whole, 10…86400
+  saturationPercent: number;         // whole, 10…100 — share of link capacity
+  clientDropPercent: number;         // whole, 10…90 — share of an AP's clients lost between polls
+  minCapacityMbps: Record<string, number>; // channel width (MHz) → floor; whole, 1…10000
+  maxDistanceKm: Record<string, number>;   // channel width (MHz) → maximum; 0.1…200, decimals allowed
+}
+```
+
+Channel-width keys must be one of `5, 10, 20, 30, 40, 50, 60, 80, 160`. A width
+missing from a table is not checked at all. Defaults:
+
+| Group               | Default                              |
+| ------------------- | ------------------------------------ |
+| `signalDbm`         | warning −70, critical −80            |
+| `snrDb`             | warning 15, critical 10              |
+| `ccqPercent`        | warning 75, critical 50              |
+| `latencyMs`         | warning 50, critical 150             |
+| `cpuPercent`        | 80                                   |
+| `memoryPercent`     | 85                                   |
+| `clockDriftSeconds` | 300                                  |
+| `saturationPercent` | 80                                   |
+| `clientDropPercent` | 50                                   |
+| `minCapacityMbps`   | `{ "20": 50, "40": 100, "80": 200 }` |
+| `maxDistanceKm`     | `{ "20": 15, "40": 10, "80": 5 }`    |
+
+Each rule still clears slightly past its threshold (signal and SNR 2 dB, CCQ 3 %
+warning / 5 % critical, CPU and memory 5 %), so the margin moves with the value
+you set (WLS-081). An alert already open when a threshold changes is re-judged
+on the next poll. It clears once the reading passes the new clear line.
+
+### `GET /api/wireless/alert-thresholds`
+
+**Status:** 200 | 401  
+**Roles:** all
+
+```ts
+{
+  success: true,
+  data: {
+    thresholds: AlertThresholdsDTO; // what the install alerts at
+    defaults: AlertThresholdsDTO;   // for a "restore defaults" button
+  }
+}
+```
+
+---
+
+### `PUT /api/wireless/alert-thresholds` — Save
+
+**Status:** 200 | 400 | 401 | 403  
+**Roles:** ADMIN (`manage-settings`; OPERATOR and VIEWER get `403`)
+
+```ts
+// Request body — every group, nothing else. Replaces the set as a whole.
+AlertThresholdsDTO
+
+// Response — same shape as GET
+```
+
+> `400` with the rule's message, e.g.
+> `"signalDbm.warning must be higher than signalDbm.critical"`,
+> `"maxDistanceKm.40 must be from 0.1 to 200"` or
+> `"minCapacityMbps channel width must be one of 5, 10, 20, 30, 40, 50, 60, 80, 160 MHz"`.
+
+---
+
+### `GET /api/devices/:id/wireless/alert-thresholds`
+
+**Status:** 200 | 400 | 401 | 404  
+**Roles:** all
+
+```ts
+{
+  success: true,
+  data: {
+    deviceId: string;
+    overrides: Partial<AlertThresholdsDTO>; // {} when the device follows the install
+    install: AlertThresholdsDTO;            // the install's set, to show what is inherited
+    effective: AlertThresholdsDTO;          // what this device actually alerts at
+  }
+}
+```
+
+> `404` when the device has no wireless config.
+
+---
+
+### `PUT /api/devices/:id/wireless/alert-thresholds` — Override
+
+**Status:** 200 | 400 | 401 | 403 | 404  
+**Roles:** ADMIN, OPERATOR (`update`; VIEWER gets `403`)
+
+```ts
+// Request body — replaces the device's overrides as a whole
+{ overrides: Partial<AlertThresholdsDTO> } // {} returns the device to the install
+
+// Response — same shape as GET
+```
+
+> A group in `overrides` replaces the install's group whole: send both
+> `warning` and `critical`. The two channel-width tables are the exception:
+> they merge per width, so `{ "maxDistanceKm": { "40": 20 } }` changes 40 MHz
+> only and keeps the install's 20 and 80 MHz values. A device cannot remove a
+> width the install checks. To stop checking one, set a generous value.  
+> `400` with the same messages as the install `PUT`. `404` when the device
+> has no wireless config.
 
 ---
 

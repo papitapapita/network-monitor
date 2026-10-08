@@ -21,6 +21,8 @@ export async function cleanDatabase(
   // No row means automatic billing is off (BIL-281).
   await prisma.billingSettings.deleteMany();
   await prisma.vendorSettings.deleteMany();
+  // No row means the default alert thresholds apply (WLS-200).
+  await prisma.wirelessAlertThresholds.deleteMany();
 }
 
 /**
@@ -633,4 +635,16 @@ export async function seedAgent(
     }
   });
   return { id: agent.id, pairingCode, token };
+}
+
+/** Registers a device for wireless monitoring. Returns the device UUID. */
+export async function seedWirelessConfig(
+  prisma: PrismaClient,
+  deviceId: string,
+  deviceType: 'STATION' | 'ACCESS_POINT' = 'STATION'
+): Promise<string> {
+  await prisma.wirelessPollingConfiguration.create({
+    data: { deviceId, enabled: true, intervalSecs: 3600, deviceType }
+  });
+  return deviceId;
 }

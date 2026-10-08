@@ -5,6 +5,7 @@ import { WirelessMetrics } from '../../../../../src/domain/wireless-monitoring/v
 import { WirelessAlertRecord } from '../../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
 import { WirelessMetricsProps } from '../../../../../src/domain/wireless-monitoring/props/WirelessMetricsProps';
 import { EvaluationContext } from '../../../../../src/domain/wireless-monitoring/services/IWirelessAlertEvaluator';
+import { AlertThresholds } from '../../../../../src/domain/wireless-monitoring/value-objects/AlertThresholds';
 import { DeviceId } from '../../../../../src/domain/shared/ids/DeviceId';
 
 const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
@@ -63,6 +64,7 @@ function makeContext(
     provisionedLanSpeedMbps: null,
     previousMetrics: null,
     collectedAt: new Date(),
+    thresholds: AlertThresholds.defaults(),
     ...overrides
   };
 }
@@ -239,5 +241,25 @@ describe('[WLS-081] [WLS-087] CpuMemoryRule', () => {
         )
       ).toHaveLength(1);
     });
+  });
+});
+
+describe('CpuMemoryRule with configured thresholds', () => {
+  const rule = new CpuMemoryRule();
+
+  it('opens CPU and memory at their configured levels', () => {
+    const thresholds = AlertThresholds.defaults().withOverrides({
+      cpuPercent: 60,
+      memoryPercent: 70
+    });
+    const result = rule.evaluate(
+      makeMetrics({ cpuLoadPercent: 65, memoryUsedPercent: 75 }),
+      makeContext({ thresholds }),
+      new Map()
+    );
+    expect(result.map((d) => [d.metric, d.threshold])).toEqual([
+      ['cpu_load_percent', 60],
+      ['memory_used_percent', 70]
+    ]);
   });
 });

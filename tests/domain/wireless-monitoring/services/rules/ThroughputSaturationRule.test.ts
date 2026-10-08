@@ -4,6 +4,7 @@ import { ThroughputSaturationRule } from '../../../../../src/domain/wireless-mon
 import { WirelessMetrics } from '../../../../../src/domain/wireless-monitoring/value-objects/WirelessMetrics';
 import { WirelessMetricsProps } from '../../../../../src/domain/wireless-monitoring/props/WirelessMetricsProps';
 import { EvaluationContext } from '../../../../../src/domain/wireless-monitoring/services/IWirelessAlertEvaluator';
+import { AlertThresholds } from '../../../../../src/domain/wireless-monitoring/value-objects/AlertThresholds';
 import { WirelessAlertRecord } from '../../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
 import { DeviceId } from '../../../../../src/domain/shared/ids/DeviceId';
 
@@ -69,6 +70,7 @@ function makeContext(
     provisionedLanSpeedMbps: null,
     previousMetrics: null,
     collectedAt: new Date(),
+    thresholds: AlertThresholds.defaults(),
     ...overrides
   };
 }
@@ -228,5 +230,26 @@ describe('[WLS-093] ThroughputSaturationRule', () => {
       const result = rule.evaluate(metrics, makeContext(), new Map());
       expect(result).toHaveLength(0);
     });
+  });
+});
+
+describe('ThroughputSaturationRule with configured thresholds', () => {
+  const rule = new ThroughputSaturationRule();
+
+  it('saturates at the configured share of capacity', () => {
+    const thresholds = AlertThresholds.defaults().withOverrides({
+      saturationPercent: 50
+    });
+    const result = rule.evaluate(
+      makeMetrics({
+        throughputTxBps: 3_000_000,
+        throughputRxBps: 3_000_000
+      }),
+      makeContext({ linkCapacityKbps: 10_000, thresholds }),
+      new Map()
+    );
+    expect(result).toEqual([
+      expect.objectContaining({ action: 'OPEN', threshold: 5_000 })
+    ]);
   });
 });

@@ -5,6 +5,7 @@ import { WirelessMetrics } from '../../../../../src/domain/wireless-monitoring/v
 import { WirelessAlertRecord } from '../../../../../src/domain/wireless-monitoring/aggregates/WirelessAlertRecord';
 import { WirelessMetricsProps } from '../../../../../src/domain/wireless-monitoring/props/WirelessMetricsProps';
 import { EvaluationContext } from '../../../../../src/domain/wireless-monitoring/services/IWirelessAlertEvaluator';
+import { AlertThresholds } from '../../../../../src/domain/wireless-monitoring/value-objects/AlertThresholds';
 import { DeviceId } from '../../../../../src/domain/shared/ids/DeviceId';
 
 const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
@@ -63,6 +64,7 @@ function makeContext(
     provisionedLanSpeedMbps: null,
     previousMetrics: null,
     collectedAt: new Date(),
+    thresholds: AlertThresholds.defaults(),
     ...overrides
   };
 }
@@ -252,5 +254,23 @@ describe('[WLS-081] [WLS-085] CcqRule', () => {
       const opens = result.filter((d) => d.action === 'OPEN');
       expect(opens).toHaveLength(0);
     });
+  });
+});
+
+describe('CcqRule with configured thresholds', () => {
+  const rule = new CcqRule();
+
+  it('opens at the configured warning level', () => {
+    const thresholds = AlertThresholds.defaults().withOverrides({
+      ccqPercent: { warning: 90, critical: 60 }
+    });
+    const result = rule.evaluate(
+      makeMetrics({ ccqPercent: 85 }),
+      makeContext({ deviceModel: 'NanoStation M5', thresholds }),
+      new Map()
+    );
+    expect(result).toEqual([
+      expect.objectContaining({ severity: 'WARNING', threshold: 90 })
+    ]);
   });
 });

@@ -148,6 +148,7 @@ import {
   WirelessController,
   WirelessStreamController,
   LinkDiagnosisController,
+  AlertThresholdsController,
   CredentialsController,
   CustomerController,
   ServicePlanController,
@@ -230,6 +231,7 @@ import {
   PrismaWirelessSnapshotRepository,
   PrismaWirelessAlertRecordRepository,
   PrismaWirelessDeviceConfigRepository,
+  PrismaAlertThresholdsRepository,
   AirOsHttpClient,
   UbiquitiHttpCollector,
   SnmpClient,
@@ -279,6 +281,10 @@ import {
   ClearWirelessAlertUseCase,
   BulkClearWirelessAlertsUseCase,
   StartLinkDiagnosisUseCase,
+  GetAlertThresholdsUseCase,
+  UpdateAlertThresholdsUseCase,
+  GetDeviceAlertThresholdsUseCase,
+  UpdateDeviceAlertThresholdsUseCase,
   GetLinkDiagnosisUseCase,
   StopLinkDiagnosisUseCase
 } from 'application/wireless-monitoring/use-cases';
@@ -533,6 +539,7 @@ export class DependencyContainer {
   private wirelessSnapshotRepository: PrismaWirelessSnapshotRepository;
   private wirelessAlertRecordRepository: PrismaWirelessAlertRecordRepository;
   private wirelessDeviceConfigRepository: PrismaWirelessDeviceConfigRepository;
+  private alertThresholdsRepository: PrismaAlertThresholdsRepository;
   private deviceCredentialsRepository: PrismaDeviceCredentialsRepository;
 
   // Customers
@@ -583,6 +590,7 @@ export class DependencyContainer {
   public wirelessController: WirelessController;
   public wirelessStreamController: WirelessStreamController;
   public linkDiagnosisController: LinkDiagnosisController;
+  public alertThresholdsController: AlertThresholdsController;
   public credentialsController: CredentialsController;
   public deviceBackupController: DeviceBackupController;
   public customerController: CustomerController | null = null;
@@ -696,6 +704,8 @@ export class DependencyContainer {
         this.prisma,
         this.serverOnSite
       );
+    this.alertThresholdsRepository =
+      new PrismaAlertThresholdsRepository(this.prisma);
     // Sits with the other persistence repositories rather than down in the
     // wireless block: ReplaceDeviceUseCase needs it to move credentials onto
     // the new unit, and that is constructed well before wireless.
@@ -1948,6 +1958,7 @@ export class DependencyContainer {
       wirelessDeviceRepo,
       deviceReach,
       contractedCapacityProvider,
+      this.alertThresholdsRepository,
       wirelessAlertPublisher,
       this.logger,
       new AgentChannelRadioReader(connectedAgents)
@@ -2077,6 +2088,7 @@ export class DependencyContainer {
       wirelessDeviceRepo,
       deviceReach,
       contractedCapacityProvider,
+      this.alertThresholdsRepository,
       this.linkDiagnosisRunner,
       this.logger
     );
@@ -2093,6 +2105,28 @@ export class DependencyContainer {
       startLinkDiagnosisUseCase,
       getLinkDiagnosisUseCase,
       stopLinkDiagnosisUseCase,
+      this.logger
+    );
+
+    this.alertThresholdsController = new AlertThresholdsController(
+      new GetAlertThresholdsUseCase(
+        this.alertThresholdsRepository,
+        this.logger
+      ),
+      new UpdateAlertThresholdsUseCase(
+        this.alertThresholdsRepository,
+        this.logger
+      ),
+      new GetDeviceAlertThresholdsUseCase(
+        this.wirelessDeviceConfigRepository,
+        this.alertThresholdsRepository,
+        this.logger
+      ),
+      new UpdateDeviceAlertThresholdsUseCase(
+        this.wirelessDeviceConfigRepository,
+        this.alertThresholdsRepository,
+        this.logger
+      ),
       this.logger
     );
 

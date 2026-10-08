@@ -23,6 +23,9 @@ import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { IPAddress } from '../../../../src/domain/shared/value-objects/IPAddress';
 import { PollingInterval } from '../../../../src/domain/wireless-monitoring/value-objects/PollingInterval';
 import { Result } from '../../../../src/domain/shared/core/Result';
+import { IAlertThresholdsRepository } from '../../../../src/domain/wireless-monitoring/repository/IAlertThresholdsRepository';
+import { AlertThresholds } from '../../../../src/domain/wireless-monitoring/value-objects/AlertThresholds';
+import { AlertThresholdOverrides } from '../../../../src/domain/wireless-monitoring/value-objects/AlertThresholdOverrides';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 
 const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
@@ -126,6 +129,14 @@ function setup() {
   const contracted = {
     findKbpsByDeviceId: jest.fn().mockResolvedValue(Result.ok(null))
   };
+  const thresholdsRepo = {
+    getGlobal: jest
+      .fn()
+      .mockResolvedValue(Result.ok(AlertThresholds.defaults())),
+    findOverrides: jest
+      .fn()
+      .mockResolvedValue(Result.ok(AlertThresholdOverrides.none()))
+  };
   const runner = {
     find: jest.fn().mockReturnValue(null),
     startOrJoin: jest
@@ -145,6 +156,7 @@ function setup() {
     deviceRepo as unknown as IDeviceRepository,
     deviceReach as unknown as IDeviceReach,
     contracted as unknown as IContractedCapacityProvider,
+    thresholdsRepo as unknown as IAlertThresholdsRepository,
     runner as unknown as ILinkDiagnosisRunner,
     makeLogger()
   );
