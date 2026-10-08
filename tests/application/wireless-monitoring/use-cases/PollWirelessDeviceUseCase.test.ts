@@ -82,6 +82,7 @@ function makePollingConfig(
     clientsProvisionedLimit?: number | null;
     provisionedLanSpeedMbps?: number | null;
     ipAddress?: IPAddress | null;
+    parentApDeviceId?: DeviceId | null;
   } = {}
 ): WirelessDeviceConfig {
   const ipResult = IPAddress.create(VALID_IP);
@@ -109,7 +110,7 @@ function makePollingConfig(
         overrides.provisionedLanSpeedMbps !== undefined
           ? overrides.provisionedLanSpeedMbps
           : null,
-      parentApDeviceId: null,
+      parentApDeviceId: overrides.parentApDeviceId ?? null,
       lastPolledAt: null
     }
   );
@@ -232,6 +233,7 @@ function makeMocks() {
 
   const deviceRepo: jest.Mocked<IDeviceRepository> = {
     findIdByMacAddress: jest.fn().mockResolvedValue(Result.ok(null)),
+    findIdByIpAddress: jest.fn().mockResolvedValue(Result.ok(null)),
     findBasicInfoById: jest.fn().mockResolvedValue(Result.ok(null)),
     // null = eligible; individual tests override to assert suppression
     findWirelessIneligibilityReason: jest
@@ -1773,6 +1775,93 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       expect(result.isSuccess).toBe(true);
       const saved = mocks.snapshotRepo.save.mock.calls[0]![0];
       expect(saved.remoteApDeviceId).toBeNull();
+    });
+  });
+
+  describe('[WLS-012] parent AP declared from the first poll', () => {
+    const apId = DeviceId.parse(
+      '550e8400-e29b-41d4-a716-4466554400ff'
+    ).value;
+
+    function useConfig(config: WirelessDeviceConfig): void {
+      mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
+    }
+
+    it('should declare the AP whose MAC the radio reported when none is declared', async () => {
+      configureHappyPath(mocks);
+      const config = makePollingConfig();
+      useConfig(config);
+      mocks.deviceRepo.findIdByMacAddress.mockResolvedValue(
+        Result.ok(apId)
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(config.parentApDeviceId).toBe(apId);
+      expect(
+        mocks.wirelessDeviceConfigRepo.save
+      ).toHaveBeenCalledWith(config);
+    });
+
+    it('should never overwrite an already-declared AP', async () => {
+      configureHappyPath(mocks);
+      const declared = DeviceId.parse(
+        '550e8400-e29b-41d4-a716-4466554400aa'
+      ).value;
+      const config = makePollingConfig({
+        parentApDeviceId: declared
+      });
+      useConfig(config);
+      mocks.deviceRepo.findIdByMacAddress.mockResolvedValue(
+        Result.ok(apId)
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(config.parentApDeviceId).toBe(declared);
+    });
+
+    it('should declare nothing when the MAC matches no device', async () => {
+      configureHappyPath(mocks);
+      const config = makePollingConfig();
+      useConfig(config);
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(config.parentApDeviceId).toBeNull();
+    });
+
+    it('should not match by IP — only an exact MAC is certain enough', async () => {
+      configureHappyPath(mocks);
+      const config = makePollingConfig();
+      useConfig(config);
+      mocks.deviceRepo.findIdByIpAddress.mockResolvedValue(
+        Result.ok(apId)
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(
+        mocks.deviceRepo.findIdByIpAddress
+      ).not.toHaveBeenCalled();
+      expect(config.parentApDeviceId).toBeNull();
+    });
+
+    it('should never declare a parent on an ACCESS_POINT', async () => {
+      configureHappyPath(mocks);
+      const config = makePollingConfig({
+        deviceType: 'ACCESS_POINT'
+      });
+      useConfig(config);
+      mocks.deviceRepo.findIdByMacAddress.mockResolvedValue(
+        Result.ok(apId)
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(config.parentApDeviceId).toBeNull();
     });
   });
 

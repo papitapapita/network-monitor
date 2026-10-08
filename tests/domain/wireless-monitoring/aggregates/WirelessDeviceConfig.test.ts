@@ -845,6 +845,46 @@ describe('[WLS-008] WirelessDeviceConfig', () => {
   });
 
   // =========================================================================
+  describe('[WLS-012] declareParentApIfUnset(reportedApDeviceId)', () => {
+    it('should declare the reported AP when none is declared', () => {
+      const config = makeConfig();
+      const apId = DeviceId.create();
+      config.declareParentApIfUnset(apId);
+
+      expect(config.parentApDeviceId).toBe(apId);
+    });
+
+    it('should not overwrite an already-declared AP', () => {
+      const declared = DeviceId.create();
+      const config = makeConfig({ parentApDeviceId: declared });
+      config.declareParentApIfUnset(DeviceId.create());
+
+      expect(config.parentApDeviceId).toBe(declared);
+    });
+
+    it('should not declare a parent on an ACCESS_POINT', () => {
+      const config = makeConfig({ deviceType: 'ACCESS_POINT' });
+      config.declareParentApIfUnset(DeviceId.create());
+
+      expect(config.parentApDeviceId).toBeNull();
+    });
+
+    it('should not declare the device as its own parent', () => {
+      const config = makeConfig();
+      config.declareParentApIfUnset(config.deviceId);
+
+      expect(config.parentApDeviceId).toBeNull();
+    });
+
+    it('should emit no domain events', () => {
+      const config = makeConfig();
+      config.declareParentApIfUnset(DeviceId.create());
+
+      expect(config.domainEvents.length).toBe(0);
+    });
+  });
+
+  // =========================================================================
   describe('equals()', () => {
     it('should return true for two configs sharing the same id', () => {
       const id = WirelessDeviceConfigId.create();

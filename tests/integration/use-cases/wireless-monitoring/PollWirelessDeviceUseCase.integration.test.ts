@@ -231,4 +231,64 @@ describe('PollWirelessDeviceUseCase — integration', () => {
       expect(agent.calls).toHaveLength(0);
     });
   });
+
+  describe('[WLS-012] the parent AP declared from a poll', () => {
+    const AP_WLAN_MAC = 'F4:92:BF:00:00:01';
+
+    const seedApWithMac = async (ip: string) => {
+      const apId = await seedDiagnosableDevice(
+        prisma,
+        deviceModelId,
+        {
+          ip,
+          deviceType: 'ACCESS_POINT'
+        }
+      );
+      await prisma.device.update({
+        where: { id: apId },
+        data: { macAddress: AP_WLAN_MAC }
+      });
+      return apId;
+    };
+
+    const parentOf = async (deviceId: string) =>
+      (
+        await prisma.wirelessPollingConfiguration.findUnique({
+          where: { deviceId }
+        })
+      )?.parentApDeviceId;
+
+    it('declares the AP whose MAC the radio reports', async () => {
+      const apId = await seedApWithMac('192.168.90.30');
+      const cpe = await seedRadio('192.168.90.31');
+      collector.setResult({ remoteApMac: AP_WLAN_MAC });
+      const { useCase } = build(true);
+
+      await useCase.execute({ deviceId: cpe, forceExecution: true });
+
+      expect(await parentOf(cpe)).toBe(apId);
+    });
+
+    it('keeps an AP already declared by the operator', async () => {
+      await seedApWithMac('192.168.90.32');
+      const declared = await seedDiagnosableDevice(
+        prisma,
+        deviceModelId,
+        {
+          ip: '192.168.90.33',
+          deviceType: 'ACCESS_POINT'
+        }
+      );
+      const cpe = await seedDiagnosableDevice(prisma, deviceModelId, {
+        ip: '192.168.90.34',
+        parentApDeviceId: declared
+      });
+      collector.setResult({ remoteApMac: AP_WLAN_MAC });
+      const { useCase } = build(true);
+
+      await useCase.execute({ deviceId: cpe, forceExecution: true });
+
+      expect(await parentOf(cpe)).toBe(declared);
+    });
+  });
 });

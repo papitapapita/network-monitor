@@ -470,7 +470,9 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
       expect(res.body.suggestions).toContainEqual({
         field: 'name',
         currentValue: 'Access Point Test Device',
-        suggestedValue: 'Renamed Access Point'
+        suggestedValue: 'Renamed Access Point',
+        currentLabel: null,
+        suggestedLabel: null
       });
     });
 

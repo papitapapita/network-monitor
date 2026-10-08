@@ -267,6 +267,39 @@ which needs one well-formed roster per AP, not a graph.
 **Message:** `parentApDeviceId can only be set for STATION devices` / `parentApDeviceId cannot reference itself`
 **Tests:** `tests/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.test.ts`, `tests/integration/wireless-config.routes.test.ts`
 
+### WLS-012 — A station's parent AP is declared from its first poll when the radio's AP MAC is in inventory
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (called from the poll use case)
+**Since:** 2026-10-07
+
+When a `STATION` with no `parentApDeviceId` is polled, and the AP MAC its
+radio reports (`remoteApMac`) exactly matches a device's MAC in
+device-inventory, that device becomes the declared parent AP. The poll never
+replaces a parent that is already declared, whether an operator set it or an
+earlier poll did. The poll does nothing on an `ACCESS_POINT`, and it never
+declares the station as its own parent ([WLS-162](#wls-162--parentapdeviceid-is-a-station-only-self-reference-free-declared-link)).
+Only an exact MAC match counts. An AP found only by its reported IP is offered
+as a suggestion instead ([WLS-151](#wls-151--identity-suggestions-offer-the-ap-the-radio-reports-as-the-stations-parent-ap)).
+
+**Why:** Linking every CPE to its AP by hand is tedious and easy to forget, and
+without the link the expected-clients roster
+([WLS-163](#wls-163--the-expected-clients-query-diffs-declared-stations-against-a-live-snapshot))
+and link diagnosis
+([WLS-184](#wls-184--the-parent-hop-is-the-declared-ap-else-the-ap-the-radio-last-reported))
+have nothing declared to work from. The AP MAC a station reports is that AP's
+wireless MAC, the same value the AP's own poll suggests for its inventory record
+([WLS-164](#wls-164--identity-suggestions-compare-the-devices-own-polled-hostnamemac-against-device-inventory-casformat-insensitively)).
+An exact match is therefore unambiguous enough to apply without asking. A
+declared parent is never overwritten, because a station that now reports a
+different AP may have moved, or may be roaming for a while. That difference is
+drift for an operator to resolve (WLS-151), not something a poll should
+silently "fix".
+
+**Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts` (`declareParentApIfUnset`), `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts`
+**Reached from:** `PollWirelessDeviceUseCase.poll`
+**Tests:** `tests/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.test.ts`, `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/PollWirelessDeviceUseCase.integration.test.ts`
+
 ### WLS-006 — A polling interval is between 60 seconds and 24 hours
 
 **Type:** Validation · **Status:** Active
@@ -1908,6 +1941,35 @@ like WLS-163 is a read-only diff rather than a reconciliation.
 **Reached from:** `GET /api/devices/:id/wireless/identity/suggestions`
 **Message:** `Device not found`
 **Tests:** `tests/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetDeviceIdentitySuggestionsUseCase.integration.test.ts`, `tests/integration/wireless.routes.test.ts`
+
+### WLS-151 — Identity suggestions offer the AP the radio reports as the station's parent AP
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-10-07
+
+For a `STATION`, `GET /api/devices/:id/wireless/identity/suggestions` also
+returns a `parentApDeviceId` suggestion when the AP from the latest poll
+differs from the declared parent, including when no parent is declared. The
+reported AP is the device matched by the radio's AP MAC (the snapshot's
+`remoteApDeviceId`). If the MAC matches no device, it falls back to the device
+whose IP matches the radio's reported AP IP (`remoteApIp`). There is no
+suggestion when no device matches, when the match is the station itself, or
+when the matched device no longer exists. A failed IP lookup drops only this
+suggestion, not the response. `currentLabel`/`suggestedLabel` carry the device
+names, so the id values can be shown to a person. Nothing is written.
+Accepting a suggestion means updating the wireless config's `parentApDeviceId`.
+
+**Why:** [WLS-012](#wls-012--a-stations-parent-ap-is-declared-from-its-first-poll-when-the-radios-ap-mac-is-in-inventory)
+fills in the parent AP automatically only when it is certain. This rule covers
+everything else. An IP match is weaker than a MAC match: private addresses
+repeat across sites and get reassigned, so the system suggests it and does not
+apply it. When a declared AP differs from the reported one, the station has
+moved, or the declaration was wrong, and only the operator knows which.
+
+**Enforced at:** `src/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.ts` (`suggestParentAp`)
+**Reached from:** `GET /api/devices/:id/wireless/identity/suggestions`
+**Tests:** `tests/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetDeviceIdentitySuggestionsUseCase.integration.test.ts`
 
 ### WLS-142 — A history window must start before it ends
 

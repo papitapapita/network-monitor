@@ -260,4 +260,17 @@ export class WirelessDeviceConfig extends AggregateRoot<
       this.props.provisionedLanSpeedMbps = observedMbps;
     }
   }
+
+  // Fills an undeclared parent AP from the one the radio reports. Never
+  // overwrites a declaration: a mismatch is drift for the operator to
+  // resolve, not something a poll decides.
+  public declareParentApIfUnset(reportedApDeviceId: DeviceId): void {
+    if (
+      this.props.deviceType === 'STATION' &&
+      this.props.parentApDeviceId === null &&
+      !reportedApDeviceId.equals(this.props.deviceId)
+    ) {
+      this.props.parentApDeviceId = reportedApDeviceId;
+    }
+  }
 }

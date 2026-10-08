@@ -1,6 +1,6 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
-import { MACAddress } from 'domain/shared/value-objects';
+import { IPAddress, MACAddress } from 'domain/shared/value-objects';
 import { IDeviceEligibilityService } from 'domain/device-inventory/services';
 import {
   IDeviceRepository,
@@ -39,6 +39,21 @@ export class WirelessDeviceRepositoryAdapter
 
     const result = await this.deviceRepo.findByMacAddress(
       macResult.value
+    );
+    if (result.isFailure) return Result.fail(result.error!);
+    if (!result.value) return Result.ok(null);
+
+    return Result.ok(result.value.id);
+  }
+
+  async findIdByIpAddress(
+    ip: string
+  ): Promise<Result<DeviceId | null>> {
+    const ipResult = IPAddress.create(ip);
+    if (ipResult.isFailure) return Result.ok(null);
+
+    const result = await this.deviceRepo.findByIpAddress(
+      ipResult.value
     );
     if (result.isFailure) return Result.fail(result.error!);
     if (!result.value) return Result.ok(null);

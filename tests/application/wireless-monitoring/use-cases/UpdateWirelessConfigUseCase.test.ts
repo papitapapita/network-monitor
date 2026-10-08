@@ -96,6 +96,7 @@ function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
 function makeDeviceRepo(ineligibleReason: string | null = null) {
   return {
     findIdByMacAddress: jest.fn().mockResolvedValue(Result.ok(null)),
+    findIdByIpAddress: jest.fn().mockResolvedValue(Result.ok(null)),
     findBasicInfoById: jest.fn().mockResolvedValue(Result.ok(null)),
     findWirelessIneligibilityReason: jest
       .fn()

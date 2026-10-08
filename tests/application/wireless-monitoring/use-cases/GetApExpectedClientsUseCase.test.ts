@@ -71,6 +71,7 @@ function makeSnapshotRepo(): jest.Mocked<IWirelessSnapshotRepository> {
 function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
   return {
     findIdByMacAddress: jest.fn(),
+    findIdByIpAddress: jest.fn().mockResolvedValue(Result.ok(null)),
     findBasicInfoById: jest.fn(),
     findWirelessIneligibilityReason: jest.fn()
   };

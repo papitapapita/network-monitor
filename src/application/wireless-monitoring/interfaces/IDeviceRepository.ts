@@ -8,6 +8,7 @@ export interface DeviceBasicInfo {
 
 export interface IDeviceRepository {
   findIdByMacAddress(mac: string): Promise<Result<DeviceId | null>>;
+  findIdByIpAddress(ip: string): Promise<Result<DeviceId | null>>;
 
   // Minimal display info for a device, without exposing device-inventory's
   // domain model to this context.

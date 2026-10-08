@@ -320,6 +320,11 @@ export class PollWirelessDeviceUseCase
       );
       if (apLookup.isSuccess) remoteApDeviceId = apLookup.value;
     }
+    // An exact MAC match is certain enough to declare the AP unattended;
+    // weaker matches only surface as identity suggestions.
+    if (remoteApDeviceId) {
+      config.declareParentApIfUnset(remoteApDeviceId);
+    }
 
     const metricsResult = CollectedMetricsMapper.toMetrics(collected);
     if (metricsResult.isFailure) {

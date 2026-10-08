@@ -1977,6 +1977,7 @@ export class DependencyContainer {
     const getDeviceIdentitySuggestionsUseCase =
       new GetDeviceIdentitySuggestionsUseCase(
         this.wirelessSnapshotRepository,
+        this.wirelessDeviceConfigRepository,
         wirelessDeviceRepo,
         this.logger
       );
