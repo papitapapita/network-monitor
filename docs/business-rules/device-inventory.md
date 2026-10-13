@@ -2167,7 +2167,7 @@ later.
 
 **Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:31-43`
 **Message:** `httpUsername and httpPassword must be set together`
-**Tests:** `tests/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
+**Tests:** `tests/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`, `tests/integration/credentials.routes.test.ts`
 
 ### DEV-121 — Credentials can only be set for a device that exists
 
@@ -2177,7 +2177,7 @@ later.
 
 **Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:145`
 **Message:** `Device not found`
-**Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
+**Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`, `tests/integration/credentials.routes.test.ts`
 
 ### DEV-122 — SNMP is optional, but partial SNMP input is rejected
 
@@ -2285,7 +2285,7 @@ set" from "no password configured" — which changes what the form should show �
 without ever putting the secret on the wire.
 
 **Enforced at:** `src/application/device-inventory/mappers/DeviceCredentialsMapper.ts:8`
-**Tests:** `tests/integration/use-cases/device-inventory/GetDeviceCredentialsUseCase.integration.test.ts`
+**Tests:** `tests/integration/use-cases/device-inventory/GetDeviceCredentialsUseCase.integration.test.ts`, `tests/integration/credentials.routes.test.ts`
 
 ### DEV-129 — Secrets are redacted from logs
 
@@ -2331,7 +2331,7 @@ Not an empty success.
 
 **Enforced at:** `src/application/device-inventory/use-cases/GetDeviceCredentialsUseCase.ts:50`
 **Message:** `No credentials configured for this device`
-**Tests:** `tests/integration/use-cases/device-inventory/GetDeviceCredentialsUseCase.integration.test.ts`
+**Tests:** `tests/integration/use-cases/device-inventory/GetDeviceCredentialsUseCase.integration.test.ts`, `tests/integration/credentials.routes.test.ts`
 
 ### DEV-132 — Deleting credentials succeeds whether or not any exist
 
@@ -2345,7 +2345,7 @@ Idempotent, and does not check that the device exists.
 is already true when there are none. _(inferred)_
 
 **Enforced at:** `src/application/device-inventory/use-cases/DeleteDeviceCredentialsUseCase.ts:39`
-**Tests:** `tests/integration/use-cases/device-inventory/DeleteDeviceCredentialsUseCase.integration.test.ts`
+**Tests:** `tests/integration/use-cases/device-inventory/DeleteDeviceCredentialsUseCase.integration.test.ts`, `tests/integration/credentials.routes.test.ts`
 
 ### DEV-133 — A device's credentials hold an HTTP login, SNMP access, or both
 
@@ -2367,7 +2367,7 @@ credential row with neither protocol opens nothing.
 
 **Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:164-170`; HTTP-only consumers in `RebootWirelessDeviceUseCase.ts` and `UbiquitiHttpCollector.ts` (`collect`)
 **Message:** `An HTTP login or SNMP access is required`
-**Tests:** `tests/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`, `tests/application/wireless-monitoring/use-cases/RebootWirelessDeviceUseCase.test.ts`, `tests/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.test.ts`
+**Tests:** `tests/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`, `tests/application/wireless-monitoring/use-cases/RebootWirelessDeviceUseCase.test.ts`, `tests/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.test.ts`, `tests/integration/credentials.routes.test.ts`
 
 ---
 
