@@ -77,6 +77,41 @@ describe('Location Routes — /api/locations', () => {
       });
     });
 
+    it('[DEV-094] 201 — creates customer premises with coordinates and only a neighborhood', async () => {
+      const res = await request(app)
+        .post('/api/locations')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          name: 'Casa Cliente',
+          type: 'CUSTOMER_PREMISES',
+          neighborhood: 'El Poblado',
+          latitude: 6.2442,
+          longitude: -75.5812
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data).toMatchObject({
+        neighborhood: 'El Poblado',
+        municipality: null,
+        address: null
+      });
+    });
+
+    it('[DEV-096] 400 — rejects customer premises with a partial address and no coordinates', async () => {
+      const res = await request(app)
+        .post('/api/locations')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          name: 'Casa Cliente',
+          type: 'CUSTOMER_PREMISES',
+          neighborhood: 'El Poblado',
+          municipality: 'Medellín'
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/complete address/);
+    });
+
     it('[DEV-099] 400 — rejects missing name', async () => {
       const res = await request(app)
         .post('/api/locations')

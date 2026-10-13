@@ -2036,40 +2036,44 @@ a point on Earth. The explicit finite check exists because `NaN` passes a naive
 **Message:** `latitude must be a finite number` / `longitude must be a finite number` / `altitude must be a finite number`, plus range messages from `Guard.inRange`
 **Tests:** `tests/domain/device-inventory/value-objects/Coordinates.test.ts`, `tests/integration/use-cases/device-inventory/UpdateLocationUseCase.integration.test.ts`
 
-### DEV-094 — An address is all three parts or none
+### DEV-094 — Address parts are independent; any one of them makes an address
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain
-**Since:** 2026-07-28
+**Since:** 2026-07-28 · **Changed:** 2026-10-13 (parts no longer required together)
 
-Street, municipality and neighborhood must be supplied together. Supplying any
-one of them requires all three. On update, the rule is applied to the merged
-result of current and incoming fields, not to the incoming fields alone.
+Street, municipality and neighborhood are each optional on their own. A location
+can carry a municipality alone, a neighborhood alone, both without a street, or
+all three. On update, each part is merged with what is stored: an omitted part
+is kept, `null` clears it.
 
 All three absent is a legitimate outcome, not a failure — it means the location
 has no address. `Address.createOptional` is the single factory expressing that
-three-way outcome (none → `null`, partial → failure, all → an `Address`), which
-is why both the create path and the update path can share it.
+outcome (none → `null`, any part → an `Address`), which is why both the create
+path and the update path share it. `Address.create` itself refuses all three
+absent.
 
-**Why:** A partial address cannot be navigated to. Accepting one would create the
-appearance of a known address while leaving a technician unable to find the
-site.
+**Why:** Sites are often known only roughly — a neighborhood, a town — while the
+exact spot comes from coordinates taken on site. Requiring a street forced made-up
+or blank addresses onto those locations. Whether a location can be navigated to
+is a separate question, answered by DEV-096.
 
-**Enforced at:** `src/domain/device-inventory/value-objects/Address.ts:61` (`Address.createOptional`)
-**Reached from:** `Location.updateAddressFields` (`Location.ts:126`), `CreateLocationUseCase.ts:74`
-**Message:** `An address requires a street, municipality, and neighborhood`
-**Tests:** `tests/domain/device-inventory/value-objects/Address.test.ts`, `tests/domain/device-inventory/aggregates/Location.test.ts`, `tests/integration/use-cases/device-inventory/UpdateLocationUseCase.integration.test.ts`
+**Enforced at:** `src/domain/device-inventory/value-objects/Address.ts` (`Address.create`, `Address.createOptional`)
+**Reached from:** `Location.updateAddressFields`, `CreateLocationUseCase.ts:74`; read back by `src/infrastructure/mappers/LocationMapper.ts` (`toDomain`), which keeps a row with any part set
+**Message:** `An address needs a street, municipality, or neighborhood`
+**Tests:** `tests/domain/device-inventory/value-objects/Address.test.ts`, `tests/domain/device-inventory/aggregates/Location.test.ts`, `tests/application/device-inventory/use-cases/UpdateLocationUseCase.test.ts`, `tests/infrastructure/mappers/LocationMapper.test.ts`, `tests/integration/use-cases/device-inventory/GetLocationUseCase.integration.test.ts`, `tests/integration/location.routes.test.ts`
 
-### DEV-095 — Address parts are non-empty and length-capped
+### DEV-095 — Address parts that are given are non-empty and length-capped
 
 **Type:** Validation · **Status:** Active
 **Layer:** Domain
-**Since:** 2026-07-28
+**Since:** 2026-07-28 · **Changed:** 2026-10-13 (absent parts allowed)
 
-Street ≤ 255, municipality ≤ 100, neighborhood ≤ 150. All trimmed.
+Street ≤ 255, municipality ≤ 100, neighborhood ≤ 150. All trimmed. A part that is
+sent must not be blank — an unknown part is sent as `null`, not `""`.
 
-**Enforced at:** `src/domain/device-inventory/value-objects/Address.ts:36-56` (`Address.create`, reached from `createOptional` — DEV-094)
-**Message:** `Street address cannot exceed 255 characters` (and the parallel messages for the other two)
+**Enforced at:** `src/domain/device-inventory/value-objects/Address.ts` (`Address.create`, reached from `createOptional` — DEV-094)
+**Message:** `Street address cannot be empty`, `Street address cannot exceed 255 characters` (and the parallel messages for the other two)
 **Tests:** `tests/domain/device-inventory/value-objects/Address.test.ts`
 
 ### DEV-096 — A CUSTOMER_PREMISES location must be navigable
@@ -2078,8 +2082,10 @@ Street ≤ 255, municipality ≤ 100, neighborhood ≤ 150. All trimmed.
 **Layer:** Domain
 **Since:** 2026-07-28
 
-It must have coordinates **or** a complete address. Either satisfies the rule;
-having neither is rejected. Enforced at creation, when changing an existing
+It must have coordinates **or** a complete address — street, municipality and
+neighborhood all set (`Address.isComplete`). Either satisfies the rule; having
+neither is rejected. A partial address (DEV-094) counts only alongside
+coordinates. Enforced at creation, when changing an existing
 location's type to `CUSTOMER_PREMISES`, and when editing the address of a
 location that already is one.
 
@@ -2090,7 +2096,7 @@ already know where their own towers and offices are.
 **Enforced at:** `src/domain/device-inventory/aggregates/Location.ts:204` (`Location.validateCustomerPremisesNavigability`)
 **Reached from:** `create`, `updateType`, `updateAddressFields` — each asks the type itself via `LocationType.isCustomerPremises()` rather than comparing against a constant
 **Message:** `A CUSTOMER_PREMISES location must have coordinates or a complete address (street, municipality, and neighborhood) so technicians can navigate to it`
-**Tests:** `tests/domain/device-inventory/aggregates/Location.test.ts`, `tests/domain/device-inventory/value-objects/LocationType.test.ts`
+**Tests:** `tests/domain/device-inventory/aggregates/Location.test.ts`, `tests/domain/device-inventory/value-objects/LocationType.test.ts`, `tests/integration/location.routes.test.ts`
 
 ### DEV-097 — A location with devices assigned cannot be deleted
 

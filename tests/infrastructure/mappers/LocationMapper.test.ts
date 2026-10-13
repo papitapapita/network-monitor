@@ -211,6 +211,15 @@ describe('LocationMapper', () => {
         expect(result.value.neighborhood).toBeNull();
       });
 
+      it('[DEV-094] should keep the other parts when one is null in raw', () => {
+        const raw = makeRawLocation({ address: null });
+
+        const result = LocationMapper.toDomain(raw);
+
+        expect(result.value.municipality).toBe('Medellín');
+        expect(result.value.neighborhood).toBe('Robledo');
+      });
+
       it('should map address as null when it is null in raw', () => {
         const raw = makeRawLocation({ address: null });
 

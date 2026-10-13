@@ -557,6 +557,8 @@ interface PaginatedResponse<T> {
 ```
 
 > latitude and longitude must always be provided together or both null/omitted.
+>
+> **Address parts are independent (DEV-094).** `address` (street), `neighborhood` and `municipality` can each be sent alone or left out — send `null` for a part you do not know, not an empty string (a blank part is a 400). A `CUSTOMER_PREMISES` location still needs **coordinates or all three address parts** (DEV-096), otherwise `400` `"A CUSTOMER_PREMISES location must have coordinates or a complete address ..."` — a neighborhood plus coordinates is fine.
 
 ---
 
@@ -673,6 +675,8 @@ Returns all locations that have coordinates, each with their nested devices. Int
 // Response
 { success: true, data: LocationDTO }
 ```
+
+> Each address part is updated on its own; omitted parts are kept, `null` clears one. On a `CUSTOMER_PREMISES` location without coordinates, clearing any part is refused with `400` (DEV-096).
 
 ---
 

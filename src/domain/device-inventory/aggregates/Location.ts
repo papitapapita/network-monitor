@@ -219,7 +219,7 @@ export class Location extends AggregateRoot<
     props: Pick<LocationProps, 'address' | 'coordinates'>
   ): Result<void> {
     if (props.coordinates != null) return Result.ok<void>();
-    if (props.address != null) return Result.ok<void>();
+    if (props.address?.isComplete()) return Result.ok<void>();
 
     return Result.fail<void>(
       'A CUSTOMER_PREMISES location must have coordinates or a complete address ' +

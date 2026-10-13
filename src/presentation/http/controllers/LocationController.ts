@@ -216,6 +216,9 @@ export class LocationController {
       errorMessage.includes('cannot be empty') ||
       errorMessage.includes('must be') ||
       errorMessage.includes('must not exceed') ||
+      errorMessage.includes('cannot exceed') ||
+      errorMessage.includes('must have') ||
+      errorMessage.includes('needs a') ||
       errorMessage.includes('At least one')
     ) {
       return 400;

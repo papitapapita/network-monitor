@@ -62,14 +62,14 @@ export class LocationMapper {
 
     let address: Address | null = null;
     if (
-      raw.address != null &&
-      raw.municipality != null &&
+      raw.address != null ||
+      raw.municipality != null ||
       raw.neighborhood != null
     ) {
       address = Address.reconstitute({
-        street: raw.address,
-        municipality: raw.municipality,
-        neighborhood: raw.neighborhood
+        street: raw.address ?? null,
+        municipality: raw.municipality ?? null,
+        neighborhood: raw.neighborhood ?? null
       });
     }
 

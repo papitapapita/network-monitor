@@ -64,17 +64,20 @@ describe('GetLocationUseCase — integration', () => {
     expect(result.value.neighborhood).toBe('Centro');
   });
 
-  it('fails when an address is given without a street and neighborhood', async () => {
-    const result = await createUseCase.execute({
+  it('[DEV-094] reads back a municipality saved without a street or neighborhood', async () => {
+    const created = await createUseCase.execute({
       name: 'Partial Address Tower',
       type: 'TOWER',
       municipality: 'Campinas'
     });
+    expect(created.isSuccess).toBe(true);
 
-    expect(result.isFailure).toBe(true);
-    expect(result.error).toMatch(
-      /address requires a street, municipality, and neighborhood/i
-    );
+    const result = await getUseCase.execute({ id: created.value.id });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.municipality).toBe('Campinas');
+    expect(result.value.neighborhood).toBeNull();
+    expect(result.value.address).toBeNull();
   });
 
   // ──────────────────────────────────────────────────────────────

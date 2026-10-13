@@ -127,22 +127,20 @@ describe('Address', () => {
 
     // -----------------------------------------------------------------------
     describe('street validation', () => {
-      it('should fail when street is null', () => {
-        const result = Address.create(
-          validProps({ street: null as unknown as string })
-        );
+      it('[DEV-094] should accept an address with no street', () => {
+        const result = Address.create(validProps({ street: null }));
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('street');
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.street).toBeNull();
       });
 
-      it('should fail when street is undefined', () => {
+      it('[DEV-094] should treat an undefined street as absent', () => {
         const result = Address.create(
-          validProps({ street: undefined as unknown as string })
+          validProps({ street: undefined as unknown as null })
         );
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('street');
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.street).toBeNull();
       });
 
       it('should fail when street is not a string', () => {
@@ -180,22 +178,22 @@ describe('Address', () => {
 
     // -----------------------------------------------------------------------
     describe('municipality validation', () => {
-      it('should fail when municipality is null', () => {
+      it('[DEV-094] should accept an address with no municipality', () => {
         const result = Address.create(
-          validProps({ municipality: null as unknown as string })
+          validProps({ municipality: null })
         );
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('municipality');
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.municipality).toBeNull();
       });
 
-      it('should fail when municipality is undefined', () => {
+      it('[DEV-094] should treat an undefined municipality as absent', () => {
         const result = Address.create(
-          validProps({ municipality: undefined as unknown as string })
+          validProps({ municipality: undefined as unknown as null })
         );
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('municipality');
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.municipality).toBeNull();
       });
 
       it('should fail when municipality is not a string', () => {
@@ -237,22 +235,22 @@ describe('Address', () => {
 
     // -----------------------------------------------------------------------
     describe('neighborhood validation', () => {
-      it('should fail when neighborhood is null', () => {
+      it('[DEV-094] should accept an address with no neighborhood', () => {
         const result = Address.create(
-          validProps({ neighborhood: null as unknown as string })
+          validProps({ neighborhood: null })
         );
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('neighborhood');
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.neighborhood).toBeNull();
       });
 
-      it('should fail when neighborhood is undefined', () => {
+      it('[DEV-094] should treat an undefined neighborhood as absent', () => {
         const result = Address.create(
-          validProps({ neighborhood: undefined as unknown as string })
+          validProps({ neighborhood: undefined as unknown as null })
         );
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('neighborhood');
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.neighborhood).toBeNull();
       });
 
       it('should fail when neighborhood is not a string', () => {
@@ -293,34 +291,47 @@ describe('Address', () => {
     });
 
     // -----------------------------------------------------------------------
-    describe('Guard short-circuit ordering', () => {
-      it('should report a street error before checking municipality when both are null', () => {
-        const result = Address.create(
-          validProps({
-            street: null as unknown as string,
-            municipality: null as unknown as string
-          })
-        );
+    describe('[DEV-094] at least one part', () => {
+      it('should fail when every part is absent', () => {
+        const result = Address.create({
+          street: null,
+          municipality: null,
+          neighborhood: null
+        });
 
         expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('street');
+        expect(result.error).toBe(
+          'An address needs a street, municipality, or neighborhood'
+        );
       });
 
-      it('should report a municipality error before checking neighborhood when street is valid but municipality is null', () => {
-        const result = Address.create(
-          validProps({
-            municipality: null as unknown as string,
-            neighborhood: null as unknown as string
-          })
-        );
+      it('should accept a neighborhood and municipality without a street', () => {
+        const result = Address.create(validProps({ street: null }));
 
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('municipality');
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.municipality).toBe('Medellín');
+        expect(result.value.neighborhood).toBe('El Poblado');
       });
     });
   });
 
   // -------------------------------------------------------------------------
+  describe('[DEV-096] isComplete()', () => {
+    it('should be true when street, municipality and neighborhood are all set', () => {
+      expect(Address.create(validProps()).value.isComplete()).toBe(
+        true
+      );
+    });
+
+    it('should be false when any part is missing', () => {
+      expect(
+        Address.create(
+          validProps({ street: null })
+        ).value.isComplete()
+      ).toBe(false);
+    });
+  });
+
   describe('reconstitute()', () => {
     it('should create an Address instance without validating', () => {
       const address = Address.reconstitute({
@@ -508,13 +519,12 @@ describe('Address', () => {
           .map(([key]) => key)
           .join(', ');
 
-        it(`should fail when only ${supplied} is supplied`, () => {
+        it(`[DEV-094] should accept only ${supplied}`, () => {
           const result = Address.createOptional(partial);
 
-          expect(result.isFailure).toBe(true);
-          expect(result.error).toBe(
-            'An address requires a street, municipality, and neighborhood'
-          );
+          expect(result.isSuccess).toBe(true);
+          expect(result.value).toBeInstanceOf(Address);
+          expect(result.value!.isComplete()).toBe(false);
         });
       }
     });

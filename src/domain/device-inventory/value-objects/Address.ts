@@ -1,16 +1,24 @@
 import { ValueObject, Result, Guard } from 'domain/shared/core';
 import { AddressProps } from '../props';
 
+type AddressPart = keyof AddressProps;
+
+const PARTS: { key: AddressPart; label: string; max: number }[] = [
+  { key: 'street', label: 'Street address', max: 255 },
+  { key: 'municipality', label: 'Municipality', max: 100 },
+  { key: 'neighborhood', label: 'Neighborhood', max: 150 }
+];
+
 export class Address extends ValueObject<AddressProps> {
-  get street(): string {
+  get street(): string | null {
     return this._props.street;
   }
 
-  get municipality(): string {
+  get municipality(): string | null {
     return this._props.municipality;
   }
 
-  get neighborhood(): string {
+  get neighborhood(): string | null {
     return this._props.neighborhood;
   }
 
@@ -18,90 +26,53 @@ export class Address extends ValueObject<AddressProps> {
     super(props);
   }
 
+  // Each part is optional on its own: a site is often known by its
+  // neighborhood or municipality before anyone has a street for it.
   public static create(props: AddressProps): Result<Address> {
-    const guardResult = Guard.combine([
-      Guard.againstNullOrUndefined(props.street, 'street'),
-      Guard.isString(props.street, 'street'),
-      Guard.againstNullOrUndefined(
-        props.municipality,
-        'municipality'
-      ),
-      Guard.isString(props.municipality, 'municipality'),
-      Guard.againstNullOrUndefined(
-        props.neighborhood,
-        'neighborhood'
-      ),
-      Guard.isString(props.neighborhood, 'neighborhood')
-    ]);
-    if (!guardResult.succeeded) {
-      return Result.fail<Address>(guardResult.message!);
+    const cleaned: Record<AddressPart, string | null> = {
+      street: null,
+      municipality: null,
+      neighborhood: null
+    };
+
+    for (const { key, label, max } of PARTS) {
+      const value = props[key];
+      if (value === null || value === undefined) continue;
+
+      const guardResult = Guard.isString(value, key);
+      if (!guardResult.succeeded) {
+        return Result.fail<Address>(guardResult.message!);
+      }
+
+      const trimmed = value.trim();
+      if (trimmed.length === 0) {
+        return Result.fail<Address>(`${label} cannot be empty`);
+      }
+      if (trimmed.length > max) {
+        return Result.fail<Address>(
+          `${label} cannot exceed ${max} characters`
+        );
+      }
+      cleaned[key] = trimmed;
     }
 
-    const street = props.street.trim();
-    if (street.length === 0) {
-      return Result.fail<Address>('Street address cannot be empty');
-    }
-    if (street.length > 255) {
+    if (PARTS.every(({ key }) => cleaned[key] === null)) {
       return Result.fail<Address>(
-        'Street address cannot exceed 255 characters'
+        'An address needs a street, municipality, or neighborhood'
       );
     }
 
-    const municipality = props.municipality.trim();
-    if (municipality.length === 0) {
-      return Result.fail<Address>('Municipality cannot be empty');
-    }
-    if (municipality.length > 100) {
-      return Result.fail<Address>(
-        'Municipality cannot exceed 100 characters'
-      );
-    }
-
-    const neighborhood = props.neighborhood.trim();
-    if (neighborhood.length === 0) {
-      return Result.fail<Address>('Neighborhood cannot be empty');
-    }
-    if (neighborhood.length > 150) {
-      return Result.fail<Address>(
-        'Neighborhood cannot exceed 150 characters'
-      );
-    }
-
-    return Result.ok<Address>(
-      new Address({ street, municipality, neighborhood })
-    );
+    return Result.ok<Address>(new Address(cleaned));
   }
 
-  public static createOptional(props: {
-    street: string | null;
-    municipality: string | null;
-    neighborhood: string | null;
-  }): Result<Address | null> {
-    const { street, municipality, neighborhood } = props;
-
-    if (
-      street === null &&
-      municipality === null &&
-      neighborhood === null
-    ) {
+  public static createOptional(
+    props: AddressProps
+  ): Result<Address | null> {
+    if (PARTS.every(({ key }) => props[key] == null)) {
       return Result.ok<Address | null>(null);
     }
 
-    if (
-      street === null ||
-      municipality === null ||
-      neighborhood === null
-    ) {
-      return Result.fail<Address | null>(
-        'An address requires a street, municipality, and neighborhood'
-      );
-    }
-
-    const addressResult = Address.create({
-      street,
-      municipality,
-      neighborhood
-    });
+    const addressResult = Address.create(props);
     if (addressResult.isFailure) {
       return Result.fail<Address | null>(addressResult.error);
     }
@@ -111,5 +82,9 @@ export class Address extends ValueObject<AddressProps> {
 
   public static reconstitute(props: AddressProps): Address {
     return new Address(props);
+  }
+
+  public isComplete(): boolean {
+    return PARTS.every(({ key }) => this._props[key] !== null);
   }
 }

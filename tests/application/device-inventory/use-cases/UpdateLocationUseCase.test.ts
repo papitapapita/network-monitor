@@ -321,12 +321,15 @@ describe('UpdateLocationUseCase', () => {
       expect(result.value!.address).toBe('Av. 6N # 25-41');
     });
 
-    it('should fail when municipality is cleared in isolation (address must be complete or absent)', async () => {
+    it('[DEV-094] should clear municipality alone and keep the other parts', async () => {
       const result = await useCase.execute(
         makeRequest({ municipality: null })
       );
 
-      expect(result.isFailure).toBe(true);
+      expect(result.isSuccess).toBe(true);
+      expect(result.value!.municipality).toBeNull();
+      expect(result.value!.neighborhood).not.toBeNull();
+      expect(result.value!.address).not.toBeNull();
     });
 
     it('should succeed when all address fields are cleared to null together', async () => {

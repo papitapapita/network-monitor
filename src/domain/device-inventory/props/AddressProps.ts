@@ -1,5 +1,5 @@
 export interface AddressProps {
-  readonly street: string;
-  readonly municipality: string;
-  readonly neighborhood: string;
+  readonly street: string | null;
+  readonly municipality: string | null;
+  readonly neighborhood: string | null;
 }

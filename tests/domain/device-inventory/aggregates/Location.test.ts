@@ -289,6 +289,76 @@ describe('Location', () => {
 
         expect(result.isSuccess).toBe(true);
       });
+
+      it('should keep a neighborhood and municipality with no street', () => {
+        const partial = Address.create({
+          street: null,
+          municipality: 'Medellín',
+          neighborhood: 'El Poblado'
+        }).value;
+
+        const result = Location.create(
+          validProps({ address: partial })
+        );
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.address).toBeNull();
+        expect(result.value.municipality).toBe('Medellín');
+        expect(result.value.neighborhood).toBe('El Poblado');
+      });
+    });
+
+    describe('[DEV-096] a partial address on customer premises', () => {
+      const customerPremises = LocationType.reconstitute(
+        LocationType.CUSTOMER_PREMISES
+      );
+      const neighborhoodOnly = () =>
+        Address.create({
+          street: null,
+          municipality: null,
+          neighborhood: 'El Poblado'
+        }).value;
+
+      it('should fail without coordinates, since nobody can navigate to it', () => {
+        const result = Location.create(
+          validProps({
+            type: customerPremises,
+            address: neighborhoodOnly()
+          })
+        );
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toContain('complete address');
+      });
+
+      it('should succeed when coordinates lead the technician there', () => {
+        const result = Location.create(
+          validProps({
+            type: customerPremises,
+            address: neighborhoodOnly(),
+            coordinates: makeCoords()
+          })
+        );
+
+        expect(result.isSuccess).toBe(true);
+        expect(result.value.neighborhood).toBe('El Poblado');
+      });
+
+      it('should refuse to drop the street of one that has no coordinates', () => {
+        const location = Location.create(
+          validProps({
+            type: customerPremises,
+            address: makeAddress()
+          })
+        ).value;
+
+        const result = location.updateAddressFields({
+          address: null
+        });
+
+        expect(result.isFailure).toBe(true);
+        expect(location.address).toBe('Calle 10 # 43-28');
+      });
     });
   });
 
