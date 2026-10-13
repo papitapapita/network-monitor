@@ -24,3 +24,5 @@ export * from './DeleteDeviceNotificationPolicyDTO';
 export * from './MutedAlertTypesResponseDTO';
 export * from './SetMutedAlertTypesDTO';
 export * from './NotificationSettingsDTO';
+export * from './PushSubscriptionDTOs';
+export * from './SendPushAlertDTO';

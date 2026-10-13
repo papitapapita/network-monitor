@@ -13,3 +13,4 @@ export * from './PrismaNotificationSettingsRepository';
 export * from './PrismaVendorSettingsRepository';
 export * from './PrismaDeviceListQuery';
 export * from './PrismaAlertListQuery';
+export * from './PrismaPushSubscriptionRepository';

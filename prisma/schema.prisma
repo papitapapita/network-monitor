@@ -51,6 +51,7 @@ model User {
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   technician Technician?
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
 }
@@ -426,6 +427,24 @@ model MutedAlertType {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@map("muted_alert_types")
+}
+
+/// A phone or browser receiving the install's alerts as push notifications
+/// (NOT-220). The endpoint is the push service's address for that browser.
+model PushSubscription {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  endpoint  String   @unique @db.VarChar(2048)
+  p256dh    String   @db.VarChar(255)
+  auth      String   @db.VarChar(255)
+  userAgent String?  @map("user_agent") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 /// The install's notification settings, edited from the dashboard (NOT-200).

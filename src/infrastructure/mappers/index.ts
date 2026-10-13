@@ -7,3 +7,4 @@ export * from './DeviceModelMapper';
 export * from './AlertMapper';
 export * from './DeviceNotificationPolicyMapper';
 export * from './MutedAlertTypeMapper';
+export * from './PushSubscriptionMapper';

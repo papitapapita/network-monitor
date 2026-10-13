@@ -29,3 +29,4 @@ export * from './vendor-settings.schemas';
 export * from './billing-settings.schemas';
 export * from './device-backup.schemas';
 export * from './alert-threshold.schemas';
+export * from './push.schemas';

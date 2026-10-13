@@ -2272,6 +2272,137 @@ it next to the chat field, sending the value **as typed**, before saving.
 
 ---
 
+## Phone Notifications `/api/push`
+
+Makes the dashboard installable on a phone (PWA) and sends every alert the
+install's Telegram chat gets to the phones of users who turned notifications
+on (NOT-220…228). Telegram keeps working as before. Every action applies
+only to the **signed-in user's own phones**, and every role may use it.
+
+### Frontend work this needs (not provided by the backend)
+
+1. **Web app manifest**, `app/manifest.ts` in Next. It needs `name`,
+   `short_name`, `start_url: '/'`, `display: 'standalone'`, `theme_color`,
+   `background_color`, and icons at 192×192 and 512×512 (plus a `maskable`
+   one). This is what gives the phone an icon on its home screen.
+2. **A service worker** served from the root, `public/sw.js`, registered on
+   load. It handles two events:
+   ```js
+   self.addEventListener('push', (event) => {
+     const p = event.data.json(); // PushPayload, below
+     event.waitUntil(
+       self.registration.showNotification(p.title, {
+         body: p.body,
+         tag: p.tag,
+         renotify: true,
+         icon: '/icons/icon-192.png',
+         badge: '/icons/badge-72.png',
+         data: { url: p.url }
+       })
+     );
+   });
+   self.addEventListener('notificationclick', (event) => {
+     event.notification.close();
+     event.waitUntil(clients.openWindow(event.notification.data.url));
+   });
+   ```
+3. **An "Activar notificaciones en este teléfono" switch**, for example in
+   the user menu or the notification settings. It must be started by a tap,
+   because iOS refuses a permission prompt that wasn't triggered by the user:
+   1. `GET /api/push/public-key`. If `enabled` is `false`, hide the switch.
+   2. `Notification.requestPermission()` must return `'granted'`.
+   3. `registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: publicKey })`.
+      The key is base64url. Convert it to a `Uint8Array` first.
+   4. `POST /api/push/subscriptions` with `subscription.toJSON()` as the body.
+   5. Offer "Enviar prueba", which calls `POST /api/push/test`.
+
+   Turning it off: `subscription.unsubscribe()`, then
+   `DELETE /api/push/subscriptions`. The switch's state is whether
+   `pushManager.getSubscription()` returns one.
+
+   On each app load, if a subscription exists, `POST` it again. It's
+   idempotent and keeps the server current when the browser rotates its keys
+   or a different user signs in on the phone.
+4. **iPhone:** push only works after the user taps Share → "Agregar a
+   inicio" and opens the app from that icon (iOS 16.4+). In Safari, when not
+   standalone (`!matchMedia('(display-mode: standalone)').matches`), show
+   that instruction instead of the switch.
+
+```ts
+// What the service worker receives in each push
+interface PushPayload {
+  title: string; // '🔴 Torre Norte está caída desde las 10:02' — already has its icon
+  body: string; // detail, may be ''
+  url: string; // path on this origin: '/devices/:id' or '/alerts'
+  tag: string; // a later message with the same tag replaces the earlier one (recovery replaces the outage)
+  urgent: boolean;
+}
+```
+
+### `GET /api/push/public-key`
+
+**Status:** 200 | 401  
+**Roles:** all
+
+```ts
+{ success: true, data: { enabled: boolean; publicKey: string | null } } // enabled: false → server has no VAPID keys, hide the feature
+```
+
+---
+
+### `POST /api/push/subscriptions` — Turn on for this phone
+
+**Status:** 200 | 400 | 401 | 503  
+**Roles:** all
+
+```ts
+// Request body — PushSubscription.toJSON() as the browser gives it (extra fields like expirationTime are ignored)
+{ endpoint: string; keys: { p256dh: string; auth: string } }
+
+// Response
+{ success: true, data: { endpoint: string; userAgent: string | null; createdAt: string } }
+```
+
+> Idempotent per `endpoint`: sending it again updates the keys. If another
+> user signs in on the same phone and sends it, the phone moves to that user.
+> `400` `"endpoint must be an https URL"` or a missing key. `503`
+> `"Phone notifications are not configured on this server"`.
+
+---
+
+### `DELETE /api/push/subscriptions` — Turn off for this phone
+
+**Status:** 200 | 400 | 401  
+**Roles:** all
+
+```ts
+// Request body
+{ endpoint: string }
+
+// Response
+{ success: true, data: null } // also when nothing was subscribed there
+```
+
+---
+
+### `POST /api/push/test` — Send a test notification
+
+**Status:** 200 | 401 | 409 | 502 | 503  
+**Roles:** all
+
+Sends "✅ Notificación de prueba" to every phone the caller has subscribed.
+
+```ts
+// No body. Response:
+{ success: true, data: { delivered: number } }
+```
+
+> `409` `"This user has no phone subscribed to notifications"`. `502`
+> `"Test notification not delivered to any phone"`. `503` when push isn't
+> configured.
+
+---
+
 ## Alerts `/api/alerts`
 
 This is the **unified operational-alert list**. Every bounded context that detects an infrastructure problem records into this one store, so dashboards (and future ticketing) read a single place instead of chasing per-context lists. Both **device-availability** alerts and **wireless-link** alerts land here.

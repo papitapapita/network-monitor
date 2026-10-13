@@ -3,7 +3,7 @@
 Two different jobs under one context. **Alerts** are the durable record that
 something was wrong with a device and for how long. **Notifications** are the
 messages that go out about it — to the operations team over Telegram, and to
-subscribers over WhatsApp.
+subscribers over WhatsApp, and as push notifications to the staff's phones.
 
 The split matters: an alert that nobody could be told about is still an alert,
 and a delivery failure never loses the record of the fault.
@@ -24,6 +24,7 @@ Format and conventions: [README.md](README.md).
 | `NOT-170` … `NOT-189` | Device notification policy (quiet hours, delay override) |
 | `NOT-190` … `NOT-199` | Global alert-type muting                                 |
 | `NOT-200` … `NOT-219` | Install notification settings (dashboard)                |
+| `NOT-220` … `NOT-239` | Phone notifications (Web Push)                           |
 
 ## Layer coverage
 
@@ -1630,3 +1631,190 @@ on the same permission because it posts to a chat of the caller's choosing.
 
 **Enforced at:** `src/presentation/http/routes/notification-settings.routes.ts` (`authorize`)
 **Tests:** `tests/integration/notification-settings.routes.test.ts`
+
+---
+
+## Phone notifications (Web Push)
+
+The dashboard can be installed on a phone as an app (a PWA). Once a user turns
+notifications on, every alert that would go to the install's Telegram chat also
+shows up on that phone as a notification. These rules cover who receives
+notifications and how a phone's subscription is kept.
+
+### NOT-220 — A phone is subscribed by the push service's https address and its two keys
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-10-13
+
+A subscription is what the phone's browser hands over when the user allows
+notifications: an `endpoint` (the push service's address for that browser) and
+two keys, `p256dh` and `auth`, which encrypt every message to it. The endpoint
+must be an `https` URL of at most 2048 characters. Each key must be base64url
+and at most 255 characters. The browser's user agent is kept so the user can
+tell their phones apart. It is cut to 255 characters, and a blank one is
+stored as none.
+
+**Why:** The server makes a request to whatever endpoint it is given. Real push
+services (Google, Apple, Mozilla) are only ever on https, so refusing anything
+else stops a forged subscription from pointing the server at an address inside
+the network.
+
+**Enforced at:** `src/domain/notifications/entities/PushSubscription.ts`, `src/presentation/http/validation/push.schemas.ts`
+**Reached from:** `POST /api/push/subscriptions`
+**Tests:** `tests/domain/notifications/entities/PushSubscription.test.ts`, `tests/integration/use-cases/notifications/SubscribePushUseCase.integration.test.ts`, `tests/integration/push.routes.test.ts`
+
+### NOT-221 — One phone, one subscription: the latest user to subscribe it owns it
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Infrastructure (database)
+**Since:** 2026-10-13
+
+The endpoint is unique. If the same phone subscribes again, the existing row is
+updated with the new keys. If a different user signs in on that phone and
+subscribes, the row moves to them.
+
+**Why:** A browser has one endpoint, so two rows for it would deliver every
+alert twice. A shared phone belongs to whoever is using it now.
+
+**Enforced at:** `prisma/schema.prisma` (`PushSubscription.endpoint @unique`), `src/infrastructure/persistence/PrismaPushSubscriptionRepository.ts` (`save`)
+**Tests:** `tests/integration/use-cases/notifications/SubscribePushUseCase.integration.test.ts`
+
+### NOT-222 — Every subscribed phone gets every alert the Telegram chat gets, and push never holds Telegram back
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Infrastructure (composition)
+**Since:** 2026-10-13
+
+Push sits next to the install's Telegram chat, inside the same filters:
+expired subscription (`R17`), quiet hours (`NOT-174`), muted types
+(`NOT-190`) and the wireless switch (`NOT-203`). If one of those holds an
+alert back from Telegram, the phones don't get it either. Every user's phones
+receive it, whatever their role. A phone that fails costs only its own copy.
+Push failures are logged and never reported to the alert, so the alert does not
+stay unnotified and the Telegram message is not sent a second time. The
+vendor's chat (`AGT-023`) and subscriber WhatsApp notices are not pushed.
+
+**Why:** The phone is a second way of reaching the same people the chat
+reaches, so it follows the same rules. Telegram remains the delivery that
+counts. A phone switched off for the night must not make Telegram resend.
+
+**Enforced at:** `src/application/notifications/use-cases/SendPushAlertUseCase.ts`, `src/application/notifications/shared/PushDelivery.ts`, `src/infrastructure/notifications/PushAlertPublisher.ts`, `src/infrastructure/di/container.ts`
+**Tests:** `tests/application/notifications/use-cases/PushUseCases.test.ts`, `tests/infrastructure/notifications/PushAlertPublisher.test.ts`, `tests/integration/use-cases/notifications/SendPushAlertUseCase.integration.test.ts`
+
+### NOT-223 — A disabled user's phones stop receiving alerts; a deleted user's phones are forgotten
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (database)
+**Since:** 2026-10-13
+
+Alerts skip the phones of a disabled account (`IDN-013`). Its subscriptions
+are kept, so re-enabling the account brings its notifications back. Deleting a
+user deletes their subscriptions.
+
+**Why:** Someone who has left the company must stop seeing the network's
+faults on their personal phone the moment they are disabled.
+
+**Enforced at:** `src/infrastructure/persistence/PrismaPushSubscriptionRepository.ts` (`listActive`), `prisma/schema.prisma` (`onDelete: Cascade`)
+**Tests:** `tests/integration/use-cases/notifications/SendPushAlertUseCase.integration.test.ts`, `tests/integration/use-cases/notifications/SubscribePushUseCase.integration.test.ts`
+
+### NOT-224 — A subscription the push service reports gone is deleted
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Infrastructure
+**Since:** 2026-10-13
+
+When the push service answers `404` or `410`, the subscription is deleted. That
+happens when the user uninstalled the app, revoked permission, or the
+subscription expired. Any other failure (a `5xx`, a timeout) keeps it for the
+next alert.
+
+**Why:** A gone endpoint never comes back. Trying it on every alert wastes a
+request and fills the log. A temporary outage at the push service is no reason
+to drop someone's phone.
+
+**Enforced at:** `src/infrastructure/notifications/WebPushSender.ts`, `src/application/notifications/shared/PushDelivery.ts`
+**Tests:** `tests/infrastructure/notifications/WebPushSender.test.ts`, `tests/application/notifications/use-cases/PushUseCases.test.ts`, `tests/integration/use-cases/notifications/SendPushAlertUseCase.integration.test.ts`
+
+### NOT-225 — Any signed-in user turns notifications on or off for their own phones only
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation · Application
+**Since:** 2026-10-13
+
+| Endpoint                         | Permission |
+| -------------------------------- | ---------- |
+| `GET /api/push/public-key`       | `read`     |
+| `POST /api/push/subscriptions`   | `read`     |
+| `DELETE /api/push/subscriptions` | `read`     |
+| `POST /api/push/test`            | `read`     |
+
+A subscription is always saved for the caller. Unsubscribing removes only the
+caller's own subscription. If nothing of theirs was subscribed at that
+endpoint, the request still succeeds and changes nothing.
+
+**Why:** Getting notifications on your own phone changes nothing for anyone
+else, so even a viewer may do it. Unsubscribing succeeding without a match
+lets the phone's switch always settle, even after the subscription has expired.
+
+**Enforced at:** `src/presentation/http/routes/push.routes.ts`, `src/presentation/http/controllers/PushController.ts`, `src/application/notifications/use-cases/UnsubscribePushUseCase.ts`
+**Tests:** `tests/integration/push.routes.test.ts`, `tests/integration/use-cases/notifications/UnsubscribePushUseCase.integration.test.ts`
+
+### NOT-226 — A test notification reaches only the caller's own phones
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-13
+
+The test is sent in Spanish to each phone the caller has subscribed. It fails
+when they have none (`409`) or when none of them received it (`502`).
+Nothing is stored, except that phones reported gone are deleted
+(`NOT-224`).
+
+**Why:** The user needs to see a notification arrive before trusting the phone
+with real alerts. Other people's phones must not buzz for someone else's test.
+
+**Enforced at:** `src/application/notifications/use-cases/SendTestPushUseCase.ts`
+**Tests:** `tests/application/notifications/use-cases/PushUseCases.test.ts`, `tests/integration/use-cases/notifications/SendTestPushUseCase.integration.test.ts`, `tests/integration/push.routes.test.ts`
+
+### NOT-227 — A recovery replaces the outage notification it ends
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-13
+
+Each notification carries a tag, `<alert type>:<device id>` (or
+`<alert type>:install` for alerts not about a device). The phone replaces an
+earlier notification with the same tag instead of stacking a new one. Open
+alerts are sent as urgent. Recoveries are sent at normal urgency. A message the
+phone could not receive within 24 hours is dropped. Tapping a device alert
+opens that device's page. Any other alert opens the alert list.
+
+**Why:** "Torre Norte caída" followed by "Torre Norte en línea" should leave
+one line on the lock screen, not two. An alert more than a day old belongs in
+the dashboard's history, not in a notification.
+
+**Enforced at:** `src/application/notifications/use-cases/SendPushAlertUseCase.ts`, `src/infrastructure/notifications/WebPushSender.ts`
+**Tests:** `tests/application/notifications/use-cases/PushUseCases.test.ts`, `tests/infrastructure/notifications/WebPushSender.test.ts`
+
+### NOT-228 — Phone notifications are on only when the server has its VAPID keys
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (composition)
+**Since:** 2026-10-13
+
+`VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` turn push on. Generate them with
+`npx web-push generate-vapid-keys`, once per install. If both are unset, push
+is off: the public-key endpoint reports `enabled: false`, subscribing and
+testing answer `503`, and alerts go to Telegram alone. One key without the
+other stops the boot. So does a contact the push services would refuse:
+`VAPID_SUBJECT` must be a `mailto:` or `https://` address, and when it is
+unset, `APP_PUBLIC_URL` is used, which then must be https.
+
+**Why:** Phones only accept messages signed with the key they subscribed with.
+Changing the keys silently disconnects every phone, so they belong in the
+server's env, set once. A half-configured server would otherwise fail every
+alert later instead of failing at startup.
+
+**Enforced at:** `src/infrastructure/notifications/config/webPushConfig.ts`, `src/infrastructure/di/container.ts`, `src/presentation/http/controllers/PushController.ts`
+**Tests:** `tests/infrastructure/notifications/config/webPushConfig.test.ts`, `tests/integration/push.routes.test.ts`

@@ -11,6 +11,7 @@ import {
   createNotificationPolicyBulkRoutes
 } from './notification-policy.routes';
 import { createNotificationMuteRoutes } from './notification-mute.routes';
+import { createPushRoutes } from './push.routes';
 import { createNotificationSettingsRoutes } from './notification-settings.routes';
 import { createAlertRoutes } from './alert.routes';
 import { createScanRoutes } from './scan.routes';
@@ -295,6 +296,9 @@ export function setupRoutes(
     '/notification-mutes',
     createNotificationMuteRoutes(container.notificationMuteController)
   );
+
+  // Phone notifications: /api/push
+  apiRouter.use('/push', createPushRoutes(container.pushController));
 
   // Install notification settings: /api/notification-settings
   apiRouter.use(

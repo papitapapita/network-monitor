@@ -4,7 +4,10 @@ import { WinstonLogger } from '../logging';
 import { PrismaAgentRepository } from '../probe-agents/repositories';
 import { NodeAgentSecretService } from '../probe-agents/crypto';
 import { loadAgentPublicUrl } from '../probe-agents/config';
-import { loadAppPublicUrl } from '../notifications/config';
+import {
+  loadAppPublicUrl,
+  loadWebPushConfig
+} from '../notifications/config';
 import {
   PrismaAgentAssignmentQuery,
   PrismaAgentDeviceIndex,
@@ -130,6 +133,7 @@ import {
   PrismaDeviceCredentialsRepository,
   PrismaDeviceNotificationPolicyRepository,
   PrismaMutedAlertTypeRepository,
+  PrismaPushSubscriptionRepository,
   PrismaNotificationSettingsRepository,
   PrismaVendorSettingsRepository
 } from '../persistence/';
@@ -142,6 +146,7 @@ import {
   NotificationPolicyController,
   NotificationMuteController,
   NotificationSettingsController,
+  PushController,
   VendorSettingsController,
   AlertController,
   ScanController,
@@ -314,7 +319,9 @@ import {
   SubscriptionAlertPublisher,
   SwitchedOffAlertPublisher,
   TelegramTestMessageSender,
-  WhenConfiguredAlertPublisher
+  WhenConfiguredAlertPublisher,
+  WebPushSender,
+  PushAlertPublisher
 } from '../notifications';
 import {
   OverdueDeviceDownAlertOrchestrator,
@@ -364,7 +371,7 @@ import {
   GetServiceEnforcementStatusUseCase
 } from 'application/service-enforcement/use-cases';
 import { ContractedServiceStatusChangedEnforcementHandler } from 'application/service-enforcement/event-handlers';
-import { EventDispatcher } from 'domain/shared/core';
+import { EventDispatcher, Result } from 'domain/shared/core';
 import { ContractedServiceStatusChangedEvent } from 'domain/customers/events';
 import {
   DeviceCreatedEvent,
@@ -405,6 +412,10 @@ import {
   BulkUpsertDeviceNotificationPoliciesUseCase,
   GetMutedAlertTypesUseCase,
   SetMutedAlertTypesUseCase,
+  SubscribePushUseCase,
+  UnsubscribePushUseCase,
+  SendTestPushUseCase,
+  SendPushAlertUseCase,
   SendSubscriptionReminderUseCase,
   GetNotificationSettingsUseCase,
   UpdateNotificationSettingsUseCase,
@@ -575,6 +586,7 @@ export class DependencyContainer {
   public pollingController: PollingController;
   public notificationPolicyController: NotificationPolicyController;
   public notificationMuteController: NotificationMuteController;
+  public pushController: PushController;
   public notificationSettingsController: NotificationSettingsController;
   public vendorSettingsController: VendorSettingsController;
   public agentController: AgentController;
@@ -1784,6 +1796,36 @@ export class DependencyContainer {
     // AlertPublisher adapter are built first so every alert-producing
     // use case can deliver through the one shared spine.
     const appPublicUrl = loadAppPublicUrl(process.env);
+    const pushSubscriptionRepository =
+      new PrismaPushSubscriptionRepository(this.prisma);
+    // NOT-228: phone notifications only once the VAPID keys are set.
+    const webPushConfig = loadWebPushConfig(
+      process.env,
+      appPublicUrl
+    );
+    const pushSender = webPushConfig
+      ? new WebPushSender(webPushConfig)
+      : null;
+    this.pushController = new PushController(
+      webPushConfig?.publicKey ?? null,
+      new SubscribePushUseCase(
+        pushSubscriptionRepository,
+        this.logger
+      ),
+      new UnsubscribePushUseCase(
+        pushSubscriptionRepository,
+        this.logger
+      ),
+      // Unreachable without keys: the controller answers 503 first.
+      new SendTestPushUseCase(
+        pushSubscriptionRepository,
+        pushSender ?? {
+          send: async () => Result.fail('Push not configured')
+        },
+        this.logger
+      ),
+      this.logger
+    );
     const sendAlertNotificationUseCase =
       new SendAlertNotificationUseCase(
         this.deviceRepository,
@@ -1798,7 +1840,19 @@ export class DependencyContainer {
     const alertPublisher = new SubscriptionAlertPublisher(
       new QuietHoursAlertPublisher(
         new MutedTypeAlertPublisher(
-          new AlertPublisher(sendAlertNotificationUseCase),
+          pushSender
+            ? new FanOutAlertPublisher([
+                new AlertPublisher(sendAlertNotificationUseCase),
+                new PushAlertPublisher(
+                  new SendPushAlertUseCase(
+                    pushSubscriptionRepository,
+                    pushSender,
+                    this.logger
+                  ),
+                  this.logger
+                )
+              ])
+            : new AlertPublisher(sendAlertNotificationUseCase),
           this.mutedAlertTypeRepository,
           this.logger
         ),

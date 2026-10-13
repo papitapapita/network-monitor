@@ -34,3 +34,4 @@ export * from './VendorSettingsController';
 export * from './BillingSettingsController';
 export * from './DeviceBackupController';
 export * from './AlertThresholdsController';
+export * from './PushController';
