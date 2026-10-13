@@ -1307,21 +1307,21 @@ interface DeviceCredentialsResponseDTO {
 **Status:** 200 | 400 | 403 | 404  
 **Roles:** ADMIN (`manage-credentials`)
 
-Upserts the credentials for the device. **HTTP credentials are the required pair** and are replaced on every call.
+Upserts the credentials for the device. A device needs **an HTTP login, SNMP access, or both**: AirOS radios are read over HTTP, Mimosa radios over SNMP only.
 
-The SNMP fields are optional and **nothing polls them today** — all polling is ICMP ping plus AirOS HTTP. They stay in the contract for the future "SNMP system metrics" work, so clients should simply omit them: an omitted SNMP field keeps whatever is stored, and only an explicit `null` clears it.
+Every field is optional on its own: an omitted field keeps whatever is stored, and only an explicit `null` clears it. So a form that edits only the HTTP login never wipes the SNMP keys, and vice versa.
 
 ```ts
 // Request body
 {
-  // HTTP / web-UI credentials — required
-  httpUsername: string
-  httpPassword: string
-  httpPort?: number   // 1–65535; default 443
+  // HTTP / web-UI login — send both, null both to clear, or omit both to keep
+  httpUsername?: string | null
+  httpPassword?: string | null
+  httpPort?: number   // 1–65535; omit to keep the stored value (default 443)
   sshPort?: number    // 1–65535; omit to keep the stored value (default 22).
                       // RouterOS backups log in on it with httpUsername/httpPassword.
 
-  // SNMP — optional, not consumed by any collector yet.
+  // SNMP — Mimosa is polled with these.
   // Omit to keep the stored value; send null to clear it.
   snmpVersion?: 1 | 2 | 3        // required as soon as any SNMP field is sent
 
@@ -1343,7 +1343,8 @@ The SNMP fields are optional and **nothing polls them today** — all polling is
 
 **Business rules:**
 
-- `httpUsername` and `httpPassword` are both required; neither may be blank.
+- After merging with what is stored, the device must have a complete HTTP login or complete SNMP access, or the call fails with `400 { error: 'An HTTP login or SNMP access is required' }` and nothing is saved.
+- `httpUsername` and `httpPassword` go together: both sent (neither blank), both `null`, or both omitted — otherwise `400 { error: 'httpUsername and httpPassword must be set together' }`.
 - SNMP validation runs only when the request carries an SNMP field:
   - `snmpVersion` is required as soon as any other SNMP field is sent.
   - `snmpVersion = 1` or `2` → `snmpCommunity` is required.
@@ -3061,7 +3062,7 @@ Reboots the antenna remotely via its AirOS 8 HTTP API. Requires the device to ha
 
 > **202 means the device acknowledged the reboot request** — it then goes offline for ~1–2 minutes while restarting. Expect polls/status to fail during that window; show a "rebooting…" state rather than an error.  
 > Returns 404 if the device has no wireless polling configuration.  
-> Returns 400 if credentials are not configured or the device has no IP address.  
+> Returns 400 if credentials are not configured, the device has SNMP access but no HTTP login (`"HTTP credentials not configured for device"`), or it has no IP address.  
 > Returns 500 if the device is unreachable or authentication against it fails.  
 > This is a destructive-ish action — put it behind a confirmation dialog in the UI.
 

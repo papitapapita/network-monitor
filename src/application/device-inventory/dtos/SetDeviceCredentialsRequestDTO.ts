@@ -1,13 +1,13 @@
-// httpUsername + httpPassword are the required pair and are replaced on every
-// call. The SNMP fields are optional and nothing polls them yet: omitting one
-// keeps whatever is stored, sending null clears it. sshPort, the port RouterOS
-// backups log in on with the same username and password, is kept when
-// omitted (default 22). Sensitive fields are
+// A device needs an HTTP login, SNMP access, or both: AirOS answers over HTTP,
+// Mimosa only over SNMP. Every field is optional on its own — omitting one keeps
+// whatever is stored, sending null clears it — but httpUsername and
+// httpPassword travel together. sshPort, the port RouterOS backups log in on
+// with the same username and password, defaults to 22. Sensitive fields are
 // encrypted at rest (AES-256-GCM).
 export interface SetDeviceCredentialsRequestDTO {
   deviceId: string;
-  httpUsername: string;
-  httpPassword: string;
+  httpUsername?: string | null;
+  httpPassword?: string | null;
   httpPort?: number;
   sshPort?: number;
   snmpVersion?: 1 | 2 | 3;

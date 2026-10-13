@@ -36,10 +36,9 @@ export class DeviceCredentialsMapper {
     };
   }
 
-  // HTTP fields are replaced outright. SNMP fields are carried forward from
-  // the stored row when the request omits them: no client collects SNMP today,
-  // so a plain HTTP save must not silently wipe keys that would be tedious to
-  // re-enter. Passing null for an SNMP field still clears it.
+  // Fields the request omits are carried forward from the stored row, so a
+  // save that only touches HTTP never wipes SNMP keys and vice versa. Passing
+  // null still clears a field.
   public static extractCreateData(
     dto: SetDeviceCredentialsRequestDTO,
     existing?: DeviceCredentials | null
@@ -68,9 +67,9 @@ export class DeviceCredentialsMapper {
       ),
       snmpV3PrivKey: keep(dto.snmpV3PrivKey, existing?.snmpV3PrivKey),
       snmpPort: dto.snmpPort ?? existing?.snmpPort ?? 161,
-      httpUsername: dto.httpUsername ?? null,
-      httpPassword: dto.httpPassword ?? null,
-      httpPort: dto.httpPort ?? 443,
+      httpUsername: keep(dto.httpUsername, existing?.httpUsername),
+      httpPassword: keep(dto.httpPassword, existing?.httpPassword),
+      httpPort: dto.httpPort ?? existing?.httpPort ?? 443,
       sshPort: dto.sshPort ?? existing?.sshPort ?? 22
     };
   }

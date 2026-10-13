@@ -31,12 +31,17 @@ export class UbiquitiHttpCollector
     credentials: DecryptedCredentials,
     deviceType: 'STATION' | 'ACCESS_POINT'
   ): Promise<Result<WirelessCollectionResult>> {
+    if (!credentials.httpUsername || !credentials.httpPassword) {
+      return Result.fail(
+        'HTTP credentials not configured for device'
+      );
+    }
     const fetchResult = await this.client.fetchStatus(
       ipAddress,
       credentials.httpPort,
       {
-        username: credentials.httpUsername ?? '',
-        password: credentials.httpPassword ?? ''
+        username: credentials.httpUsername,
+        password: credentials.httpPassword
       }
     );
     if (fetchResult.isFailure) {

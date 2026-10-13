@@ -37,7 +37,7 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 | Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Domain**                            |    45 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144, DEV-162, DEV-164, DEV-169 |
-| **Application**                       |    48 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172 |
+| **Application**                       |    49 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-133, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172 |
 | **Application + Domain**              |     6 | DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160                                                                                                                                                                                                                                                                                                                                     |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                                                                              |
 | **Infrastructure + Domain**           |     2 | DEV-028, DEV-161 |
@@ -56,7 +56,7 @@ departure:
   DEV-065, DEV-066, DEV-067, DEV-097) span two aggregates for the same reason.
   A domain service could hold them; a use case holding them is the pragmatic
   equivalent.
-- **The credential rules** (DEV-120 – DEV-132) are deliberately outside the
+- **The credential rules** (DEV-120 – DEV-133) are deliberately outside the
   domain, and the Device Credentials section says so: they are infrastructure
   access secrets, not part of a device's identity.
 
@@ -2151,23 +2151,23 @@ Credentials never enter the domain layer — they are infrastructure access
 secrets, not part of the device's identity. Every rule below lives in the
 application layer.
 
-### DEV-120 — HTTP username and password are required, together
+### DEV-120 — HTTP username and password are set together
 
 **Type:** Validation · **Status:** Active
 **Layer:** Application (not in domain)
-**Since:** 2026-07-28
+**Since:** 2026-07-28 · **Changed:** 2026-10-13 (HTTP became optional)
 
-Both must be present and non-blank on every save. There is no way to store one
-without the other.
+A save may omit the HTTP login, clear it (`null` for both), or send it — but
+both halves must be in the same state, and a sent username or password cannot
+be blank. Whether HTTP is needed at all is DEV-133.
 
-**Why:** HTTP is the collection path actually in use today — the wireless
-collector authenticates against the device's web interface. Credentials without
-both halves cannot log in, so storing them would only produce collection
-failures later. See also DEV-122: SNMP is the optional pair.
+**Why:** A username without its password (or the reverse) cannot log in to the
+device's web interface, so storing it would only produce collection failures
+later.
 
-**Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:36`
-**Message:** `httpUsername and httpPassword are required`
-**Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
+**Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:31-43`
+**Message:** `httpUsername and httpPassword must be set together`
+**Tests:** `tests/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
 ### DEV-121 — Credentials can only be set for a device that exists
 
@@ -2175,7 +2175,7 @@ failures later. See also DEV-122: SNMP is the optional pair.
 **Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
-**Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:134`
+**Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:145`
 **Message:** `Device not found`
 **Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
@@ -2189,11 +2189,11 @@ If **any** SNMP field is present, `snmpVersion` becomes mandatory and the
 version-specific rules (DEV-123 to DEV-126) apply. If none is present, SNMP is
 skipped entirely.
 
-**Why:** No client collects SNMP today — nothing polls it. The rules are kept
-intact so the capability survives untouched until SNMP metrics land, but they
-must not force every HTTP-only save to supply SNMP fields it does not have.
+**Why:** Most of the fleet is AirOS, read over HTTP, and has no SNMP fields to
+send. Mimosa radios are read over SNMP (DEV-133), so once any SNMP field
+arrives it must make a complete credential.
 
-**Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:48-56`
+**Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:45-62`
 **Message:** `snmpVersion is required when SNMP credentials are provided`
 **Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
@@ -2203,7 +2203,7 @@ must not force every HTTP-only save to supply SNMP fields it does not have.
 **Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
-**Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:66`
+**Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:67`
 **Message:** `snmpVersion must be 1, 2, or 3`
 **Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
@@ -2216,7 +2216,7 @@ must not force every HTTP-only save to supply SNMP fields it does not have.
 **Why:** The community string is the entire authentication mechanism in these
 versions. Without it there is no credential at all.
 
-**Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:73`
+**Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:74`
 **Message:** `snmpCommunity is required for SNMPv1 and SNMPv2`
 **Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
@@ -2231,7 +2231,7 @@ All three of `snmpV3AuthUser`, `snmpV3AuthProto`, `snmpV3AuthKey`.
 **Why:** v3 replaces the community string with user-based authentication; the
 three fields are one credential and any subset cannot authenticate.
 
-**Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:79-89`
+**Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:80-92`
 **Message:** `snmpV3AuthUser is required for SNMPv3` / `snmpV3AuthProto is required for SNMPv3` / `snmpV3AuthKey is required for SNMPv3`
 **Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
@@ -2246,7 +2246,7 @@ Privacy (encryption) is optional in v3; requesting it without a key is not.
 **Why:** The protocol names the cipher, the key feeds it. Naming a cipher with
 no key would fail at connection time.
 
-**Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:94`
+**Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:95`
 **Message:** `snmpV3PrivKey is required when snmpV3PrivProto is set`
 **Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
@@ -2254,11 +2254,11 @@ no key would fail at connection time.
 
 **Type:** Validation · **Status:** Active
 **Layer:** Application (not in domain)
-**Since:** 2026-07-28 · **Changed:** 2026-10-07 (SSH port)
+**Since:** 2026-07-28 · **Changed:** 2026-10-07 (SSH port), 2026-10-13 (HTTP port kept)
 
-SNMP defaults to 161, HTTP to 443, SSH to 22. The SSH port, which RouterOS
-backups log in on (`BKP-055`), is kept when a later save omits it, like the SNMP
-fields (`DEV-130`); the HTTP port is reset to 443.
+SNMP defaults to 161, HTTP to 443, SSH to 22. Every port is kept when a later
+save omits it, like the other fields (`DEV-130`). The SSH port is the one
+RouterOS backups log in on (`BKP-055`).
 
 **Why:** The range is the TCP/UDP port space. The defaults are the standard SNMP
 port and HTTPS, which is what the devices in the fleet listen on. _(inferred)_
@@ -2300,26 +2300,26 @@ secret fields with `***` before the request is logged.
 credential save would write plaintext passwords into the log files, which are
 retained and less protected than the database.
 
-**Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:168`
+**Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:185`
 **Tests:** _none_
 
-### DEV-130 — A save replaces HTTP fields but preserves omitted SNMP fields
+### DEV-130 — A save keeps every field it omits; `null` clears it
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application (not in domain)
-**Since:** 2026-07-28
+**Since:** 2026-07-28 · **Changed:** 2026-10-13 (HTTP fields kept too)
 
-HTTP username and password are taken from the request outright. SNMP fields are
-carried forward from the stored row when the request omits them. Passing an
-explicit `null` still clears a field — omission and `null` mean different
-things.
+HTTP and SNMP fields alike are carried forward from the stored row when the
+request omits them. Passing an explicit `null` clears a field — omission and
+`null` mean different things.
 
-**Why:** No client sends SNMP fields today, so a routine HTTP credential update
-would otherwise wipe SNMP keys that are tedious to re-enter and that nobody
-intended to touch. Honouring explicit `null` keeps deliberate clearing possible.
+**Why:** A device can carry both an HTTP login and SNMP keys, and the two are
+edited separately. A routine update of one must not wipe the other, which is
+tedious to re-enter and which nobody intended to touch. Honouring explicit
+`null` keeps deliberate clearing possible.
 
 **Enforced at:** `src/application/device-inventory/mappers/DeviceCredentialsMapper.ts:42` (`extractCreateData`)
-**Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
+**Tests:** `tests/application/device-inventory/mappers/DeviceCredentialsMapper.test.ts`, `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
 ### DEV-131 — Reading credentials for a device with none configured is a failure
 
@@ -2346,6 +2346,28 @@ is already true when there are none. _(inferred)_
 
 **Enforced at:** `src/application/device-inventory/use-cases/DeleteDeviceCredentialsUseCase.ts:39`
 **Tests:** `tests/integration/use-cases/device-inventory/DeleteDeviceCredentialsUseCase.integration.test.ts`
+
+### DEV-133 — A device's credentials hold an HTTP login, SNMP access, or both
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-10-13
+
+After the save is merged with what was stored (DEV-130), the device must still
+have a complete HTTP login (`hasHttpCredentials`) or complete SNMP access
+(`hasSnmpCredentials`, DEV-128). A save that would leave neither is rejected and
+nothing is written. Features that only work over HTTP — AirOS polling, reboots —
+fail with `HTTP credentials not configured for device` on a device that has SNMP
+alone, instead of trying to log in with an empty password.
+
+**Why:** Vendors answer on different protocols. AirOS radios are read over
+their web interface; Mimosa radios expose nothing over HTTP and are read over
+SNMP only. Requiring HTTP forced made-up logins onto Mimosa devices, while a
+credential row with neither protocol opens nothing.
+
+**Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:164-170`; HTTP-only consumers in `RebootWirelessDeviceUseCase.ts` and `UbiquitiHttpCollector.ts` (`collect`)
+**Message:** `An HTTP login or SNMP access is required`
+**Tests:** `tests/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`, `tests/application/wireless-monitoring/use-cases/RebootWirelessDeviceUseCase.test.ts`, `tests/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.test.ts`
 
 ---
 
@@ -3009,7 +3031,7 @@ explicitly in the category that gets a thorough integration suite, and DEV-003
 sibling, which is the likely reason it was missed.
 
 **G-17 — DEV-129 has no test of any kind.** The `sanitizeForLogging` override at
-`SetDeviceCredentialsUseCase.ts:168` is what keeps device passwords and SNMP
+`SetDeviceCredentialsUseCase.ts:185` is what keeps device passwords and SNMP
 keys out of the Winston logs, and nothing anywhere asserts that it does. It is
 the only rule in this book with `**Tests:** _none_`.
 

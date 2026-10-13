@@ -308,39 +308,88 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
   // Validation failures
   // ──────────────────────────────────────────────────────────────
 
-  it('[DEV-120] fails when no HTTP credentials are supplied', async () => {
-    const result = await useCase.execute({
-      deviceId
-    } as never);
+  it('[DEV-133] fails when the request carries neither HTTP nor SNMP', async () => {
+    const result = await useCase.execute({ deviceId });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(
-      /httpUsername and httpPassword are required/i
+      /An HTTP login or SNMP access is required/
     );
+    const row = await prisma.deviceCredentials.findUnique({
+      where: { deviceId }
+    });
+    expect(row).toBeNull();
   });
 
-  it('[DEV-120] fails when only SNMP credentials are supplied', async () => {
+  it('[DEV-133] stores SNMP alone for a device with no web login, as a Mimosa has', async () => {
     const result = await useCase.execute({
       deviceId,
       snmpVersion: 2,
       snmpCommunity: 'public-ro'
-    } as never);
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.hasHttpCredentials).toBe(false);
+    expect(result.value.hasSnmpCredentials).toBe(true);
+    const row = await prisma.deviceCredentials.findUnique({
+      where: { deviceId }
+    });
+    expect(row!.httpUsername).toBeNull();
+    expect(row!.httpPassword).toBeNull();
+  });
+
+  it('[DEV-130] keeps the stored HTTP login when a later call sends SNMP only', async () => {
+    await useCase.execute({
+      deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'pw',
+      httpPort: 8443
+    });
+
+    const result = await useCase.execute({
+      deviceId,
+      snmpVersion: 2,
+      snmpCommunity: 'public-ro'
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.httpUsername).toBe('ubnt');
+    expect(result.value.hasHttpCredentials).toBe(true);
+    expect(result.value.httpPort).toBe(8443);
+  });
+
+  it('[DEV-133] fails when clearing HTTP would leave the device with no way in', async () => {
+    await useCase.execute({
+      deviceId,
+      httpUsername: 'ubnt',
+      httpPassword: 'pw'
+    });
+
+    const result = await useCase.execute({
+      deviceId,
+      httpUsername: null,
+      httpPassword: null
+    });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(
-      /httpUsername and httpPassword are required/i
+      /An HTTP login or SNMP access is required/
     );
+    const row = await prisma.deviceCredentials.findUnique({
+      where: { deviceId }
+    });
+    expect(row!.httpUsername).toBe('ubnt');
   });
 
   it('[DEV-120] fails when httpPassword is missing', async () => {
     const result = await useCase.execute({
       deviceId,
       httpUsername: 'ubnt'
-    } as never);
+    });
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(
-      /httpUsername and httpPassword are required/i
+      /httpUsername and httpPassword must be set together/
     );
   });
 

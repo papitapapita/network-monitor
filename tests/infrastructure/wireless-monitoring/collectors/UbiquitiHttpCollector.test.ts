@@ -216,6 +216,22 @@ describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
     );
   });
 
+  it('[DEV-133] should fail without calling the device when it has no HTTP login', async () => {
+    const client = makeClient(staStatusBody);
+
+    const result = await new UbiquitiHttpCollector(client).collect(
+      '192.168.1.1',
+      { ...credentials, httpUsername: null, httpPassword: null },
+      'STATION'
+    );
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toBe(
+      'HTTP credentials not configured for device'
+    );
+    expect(client.fetchStatus).not.toHaveBeenCalled();
+  });
+
   // ===========================================================================
   describe('collect — STATION mode', () => {
     it('should return success with parsed device fields', async () => {

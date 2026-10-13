@@ -210,25 +210,11 @@ describe('SetDeviceCredentialsUseCase', () => {
   });
 
   // =========================================================================
-  describe('[DEV-120] beforeExecute — HTTP credentials are required', () => {
+  describe('[DEV-120] beforeExecute — HTTP username and password go together', () => {
     it('should pass with HTTP credentials alone and no SNMP fields', async () => {
       const result = await useCase.execute(makeHttpRequest());
 
       expect(result.isSuccess).toBe(true);
-    });
-
-    it('should fail when both httpUsername and httpPassword are missing', async () => {
-      const result = await useCase.execute(
-        makeHttpRequest({
-          httpUsername: undefined,
-          httpPassword: undefined
-        })
-      );
-
-      expect(result.isFailure).toBe(true);
-      expect(result.error).toContain(
-        'httpUsername and httpPassword are required'
-      );
     });
 
     it('should fail when httpPassword is missing', async () => {
@@ -238,7 +224,18 @@ describe('SetDeviceCredentialsUseCase', () => {
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain(
-        'httpUsername and httpPassword are required'
+        'httpUsername and httpPassword must be set together'
+      );
+    });
+
+    it('should fail when only httpUsername is cleared', async () => {
+      const result = await useCase.execute(
+        makeHttpRequest({ httpUsername: null })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'httpUsername and httpPassword must be set together'
       );
     });
 
@@ -249,11 +246,14 @@ describe('SetDeviceCredentialsUseCase', () => {
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain(
-        'httpUsername and httpPassword are required'
+        'httpUsername and httpPassword must be set together'
       );
     });
+  });
 
-    it('should fail when only SNMP credentials are supplied', async () => {
+  // =========================================================================
+  describe('[DEV-133] executeImpl — HTTP login or SNMP access', () => {
+    it('should pass with SNMP credentials alone, as a Mimosa has', async () => {
       const result = await useCase.execute(
         makeV2Request({
           httpUsername: undefined,
@@ -261,10 +261,57 @@ describe('SetDeviceCredentialsUseCase', () => {
         })
       );
 
+      expect(result.isSuccess).toBe(true);
+      const saved: DeviceCredentials =
+        credentialsRepo.save.mock.calls[0][1];
+      expect(saved.httpUsername).toBeNull();
+      expect(saved.snmpCommunity).toBe('public');
+    });
+
+    it('should fail when the request carries neither HTTP nor SNMP', async () => {
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_ID
+      });
+
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain(
-        'httpUsername and httpPassword are required'
+        'An HTTP login or SNMP access is required'
       );
+      expect(credentialsRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('should fail when clearing HTTP would leave no SNMP behind', async () => {
+      credentialsRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(
+          makeStoredCredentials({
+            snmpV3AuthUser: null,
+            snmpV3AuthKey: null
+          })
+        )
+      );
+
+      const result = await useCase.execute(
+        makeHttpRequest({ httpUsername: null, httpPassword: null })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'An HTTP login or SNMP access is required'
+      );
+    });
+
+    it('should pass when clearing HTTP leaves stored SNMP behind', async () => {
+      credentialsRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makeStoredCredentials())
+      );
+
+      const result = await useCase.execute(
+        makeHttpRequest({ httpUsername: null, httpPassword: null })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.hasHttpCredentials).toBe(false);
+      expect(result.value.hasSnmpCredentials).toBe(true);
     });
   });
 
@@ -654,7 +701,7 @@ describe('SetDeviceCredentialsUseCase', () => {
   });
 
   // =========================================================================
-  describe('[DEV-130] executeImpl — stored SNMP values survive an HTTP-only save', () => {
+  describe('[DEV-130] executeImpl — omitted fields keep their stored values', () => {
     beforeEach(() => {
       credentialsRepo.findByDeviceId.mockResolvedValue(
         Result.ok(makeStoredCredentials())
@@ -676,7 +723,7 @@ describe('SetDeviceCredentialsUseCase', () => {
       expect(saved.snmpPort).toBe(1161);
     });
 
-    it('should replace the HTTP fields rather than keeping the stored ones', async () => {
+    it('should replace the HTTP login with the one the request sends', async () => {
       await useCase.execute(makeHttpRequest());
 
       const saved: DeviceCredentials =
@@ -684,7 +731,22 @@ describe('SetDeviceCredentialsUseCase', () => {
 
       expect(saved.httpUsername).toBe('ubnt');
       expect(saved.httpPassword).toBe('http-secret');
-      expect(saved.httpPort).toBe(443);
+      expect(saved.httpPort).toBe(8443);
+    });
+
+    it('should keep the stored HTTP login when an SNMP-only save omits it', async () => {
+      await useCase.execute(
+        makeV2Request({
+          httpUsername: undefined,
+          httpPassword: undefined
+        })
+      );
+
+      const saved: DeviceCredentials =
+        credentialsRepo.save.mock.calls[0][1];
+
+      expect(saved.httpUsername).toBe('stored-user');
+      expect(saved.httpPassword).toBe('stored-pw');
     });
 
     it('[DEV-127] should keep the stored sshPort when the request omits it', async () => {

@@ -281,6 +281,36 @@ describe('[WLS-024] RebootWirelessDeviceUseCase', () => {
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Credentials not configured');
     });
+
+    it('[DEV-133] should fail without rebooting when only SNMP is configured', async () => {
+      const {
+        useCase,
+        wirelessDeviceConfigRepo,
+        credentialsRepo,
+        rebooter
+      } = makeUseCase();
+      wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makePollingConfig())
+      );
+      credentialsRepo.findByDeviceId.mockResolvedValue(
+        Result.ok({
+          ...makeCredentials(),
+          snmpCommunity: 'public',
+          httpUsername: null,
+          httpPassword: null
+        })
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'HTTP credentials not configured for device'
+      );
+      expect(rebooter.reboot).not.toHaveBeenCalled();
+    });
   });
 
   describe('Repository failures', () => {

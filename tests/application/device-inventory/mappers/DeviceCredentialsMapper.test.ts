@@ -366,7 +366,7 @@ describe('DeviceCredentialsMapper', () => {
   // ==========================================================================
   describe('extractCreateData()', () => {
     // ------------------------------------------------------------------------
-    describe('HTTP fields — always replaced', () => {
+    describe('HTTP fields — omitted keeps, null clears', () => {
       it('should pass httpUsername through as-is', () => {
         const result = DeviceCredentialsMapper.extractCreateData(
           makeRequest({ httpUsername: 'operator' })
@@ -398,7 +398,7 @@ describe('DeviceCredentialsMapper', () => {
         expect(result.httpPort).toBe(8080);
       });
 
-      it('should replace stored HTTP values rather than keeping them', () => {
+      it('should replace stored HTTP values with the ones the request sends', () => {
         const result = DeviceCredentialsMapper.extractCreateData(
           makeRequest({
             httpUsername: 'new-user',
@@ -413,7 +413,38 @@ describe('DeviceCredentialsMapper', () => {
 
         expect(result.httpUsername).toBe('new-user');
         expect(result.httpPassword).toBe('new-pw');
-        expect(result.httpPort).toBe(443);
+        expect(result.httpPort).toBe(8443);
+      });
+
+      it('should keep stored HTTP values when the request omits them', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest({
+            httpUsername: undefined,
+            httpPassword: undefined
+          }),
+          makeCredentials({
+            httpUsername: 'old-user',
+            httpPassword: 'old-pw',
+            httpPort: 8443
+          })
+        );
+
+        expect(result.httpUsername).toBe('old-user');
+        expect(result.httpPassword).toBe('old-pw');
+        expect(result.httpPort).toBe(8443);
+      });
+
+      it('should clear stored HTTP values when the request sends null', () => {
+        const result = DeviceCredentialsMapper.extractCreateData(
+          makeRequest({ httpUsername: null, httpPassword: null }),
+          makeCredentials({
+            httpUsername: 'old-user',
+            httpPassword: 'old-pw'
+          })
+        );
+
+        expect(result.httpUsername).toBeNull();
+        expect(result.httpPassword).toBeNull();
       });
     });
 

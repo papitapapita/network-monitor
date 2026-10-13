@@ -29,18 +29,20 @@ export class SetDeviceCredentialsUseCase extends UseCase<
       return Result.fail('deviceId is required');
     }
 
+    // Omitted, cleared (null) or sent — the pair must be in the same state.
+    const { httpUsername: user, httpPassword: pass } = request;
+    const samePresence =
+      (user === undefined) === (pass === undefined) &&
+      (user === null) === (pass === null);
     if (
-      !request.httpUsername?.trim() ||
-      !request.httpPassword?.trim()
+      !samePresence ||
+      (typeof user === 'string' && (!user.trim() || !pass?.trim()))
     ) {
       return Result.fail(
-        'httpUsername and httpPassword are required'
+        'httpUsername and httpPassword must be set together'
       );
     }
 
-    // SNMP is not collected by any client today — nothing polls it yet. The
-    // rules below still hold for callers that do send it, so the capability
-    // survives untouched until SNMP metrics land.
     const hasSnmpInput = [
       request.snmpVersion,
       request.snmpCommunity,
@@ -156,6 +158,17 @@ export class SetDeviceCredentialsUseCase extends UseCase<
       existingResult.value
     );
 
+    const response = DeviceCredentialsMapper.toDTO(
+      request.deviceId.trim(),
+      credentials
+    );
+    if (
+      !response.hasHttpCredentials &&
+      !response.hasSnmpCredentials
+    ) {
+      return this.fail('An HTTP login or SNMP access is required');
+    }
+
     const saveResult = await this.credentialsRepo.save(
       deviceId,
       credentials
@@ -166,12 +179,7 @@ export class SetDeviceCredentialsUseCase extends UseCase<
       );
     }
 
-    return this.ok(
-      DeviceCredentialsMapper.toDTO(
-        request.deviceId.trim(),
-        credentials
-      )
-    );
+    return this.ok(response);
   }
 
   protected sanitizeForLogging(data: unknown): unknown {

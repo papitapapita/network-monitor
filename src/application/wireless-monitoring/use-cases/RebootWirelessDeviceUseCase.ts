@@ -90,10 +90,14 @@ export class RebootWirelessDeviceUseCase extends UseCase<
       return this.fail('Credentials not configured for device');
     }
 
+    if (!credentials.httpUsername || !credentials.httpPassword) {
+      return this.fail('HTTP credentials not configured for device');
+    }
+
     const ipAddress = config.ipAddress.value;
     const httpCreds: HttpCredentials = {
-      username: credentials.httpUsername ?? '',
-      password: credentials.httpPassword ?? '',
+      username: credentials.httpUsername,
+      password: credentials.httpPassword,
       port: credentials.httpPort
     };
 
