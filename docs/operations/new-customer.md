@@ -44,6 +44,8 @@ The script:
 
 - creates `~/nms-customers/redesnorte/` with fresh secrets, a port pair and a
   subnet;
+- generates the install's phone-notification keys (`VAPID_*` in
+  `backend.env`, NOT-228);
 - starts the install and waits until the backend is healthy, which includes
   running the migrations;
 - creates your vendor account.
@@ -86,6 +88,11 @@ deploy/customer/update-customers.sh redesnorte # only some
 
 The script rebuilds both images and restarts the installs on them. Each
 backend runs its pending migrations as it starts.
+
+An install without phone-notification keys gets them on this run. Keys
+already there are never replaced: changing them would silently stop
+notifications on every phone already subscribed, so don't edit them by hand
+either.
 
 Agents are separate: copy a new signed release into the installers folder and
 they update themselves (AGT-080 … AGT-085).

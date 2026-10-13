@@ -9,6 +9,8 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=vapid.sh
+. "$HERE/vapid.sh"
 ROOT="${NMS_CUSTOMERS_DIR:-$HOME/nms-customers}"
 BACKEND_REPO="${NMS_BACKEND_REPO:-$(cd "$HERE/../.." && pwd)}"
 FRONTEND_REPO="${NMS_FRONTEND_REPO:-$(cd "$BACKEND_REPO/.." && pwd)/frontend}"
@@ -43,6 +45,7 @@ for name in "${NAMES[@]}"; do
   [ -f "$dir/.env" ] || { echo "error: $dir is not a customer install" >&2; exit 1; }
   echo "Updating $name"
   cp "$HERE/compose.yml" "$dir/compose.yml"
+  ensure_vapid_keys "$dir"
   docker compose --project-directory "$dir" up -d
 done
 

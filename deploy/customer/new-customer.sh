@@ -12,6 +12,8 @@ usage() {
 }
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=vapid.sh
+. "$HERE/vapid.sh"
 ROOT="${NMS_CUSTOMERS_DIR:-$HOME/nms-customers}"
 
 [ $# -ge 1 ] || usage
@@ -111,6 +113,7 @@ VENDOR_EMAIL=$VENDOR_EMAIL
 VENDOR_PASSWORD=$VENDOR_PASSWORD
 SUBSCRIPTION_PAID_UNTIL=$PAID_UNTIL
 EOF
+ensure_vapid_keys "$DIR"
 
 echo "Starting $NAME (index $INDEX)..."
 docker compose --project-directory "$DIR" up -d
