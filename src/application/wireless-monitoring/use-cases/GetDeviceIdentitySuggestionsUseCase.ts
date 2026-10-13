@@ -10,6 +10,7 @@ import {
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import { IDeviceRepository } from '../interfaces';
+import { resolveReportedAp } from '../services';
 import {
   DeviceIdentitySuggestionDTO,
   DeviceIdentitySuggestionsResponseDTO,
@@ -140,20 +141,19 @@ export class GetDeviceIdentitySuggestionsUseCase extends UseCase<
     config: WirelessDeviceConfig,
     snapshot: WirelessSnapshot
   ): Promise<DeviceIdentitySuggestionDTO | null> {
-    let reported = snapshot.remoteApDeviceId;
-    const remoteApIp = snapshot.metrics.remoteApIp;
-    if (!reported && remoteApIp) {
-      const byIp =
-        await this.deviceRepo.findIdByIpAddress(remoteApIp);
-      if (byIp.isFailure) {
-        this.logger.warn('AP lookup by IP failed', {
-          deviceId: config.deviceId.toString(),
-          error: byIp.error
-        });
-        return null;
-      }
-      reported = byIp.value;
+    const reportedResult = await resolveReportedAp(
+      this.deviceRepo,
+      snapshot.remoteApDeviceId,
+      snapshot.metrics.remoteApIp
+    );
+    if (reportedResult.isFailure) {
+      this.logger.warn('AP lookup by IP failed', {
+        deviceId: config.deviceId.toString(),
+        error: reportedResult.error
+      });
+      return null;
     }
+    const reported = reportedResult.value;
     if (!reported || reported.equals(config.deviceId)) return null;
 
     const declared = config.parentApDeviceId;

@@ -2543,7 +2543,7 @@ interface WirelessThroughputDTO {
 interface WirelessAlertDTO {
   id: string; // UUID
   deviceId: string; // UUID
-  metric: string; // e.g. "signal_rx_dbm", "latency_ms", "clock_drift_s", "firmware_version_changed", "remote_ap_mac_changed"
+  metric: string; // e.g. "signal_rx_dbm", "latency_ms", "clock_drift_s", "firmware_version_changed", "remote_ap_mac_changed", "parent_ap_mismatch"
   severity: WirelessAlertSeverity;
   threshold: number;
   lastValue: number;
@@ -2648,7 +2648,7 @@ there rather than assuming it.
 
 > **`provisionedLanSpeedMbps` is usually not something you set (WLS-089/WLS-099).** It's the negotiated Ethernet speed (`10`, `100`, `1000`, `2500` or `10000` — WLS-165) this device's LAN port is expected to run at, and it auto-fills itself: the first poll that reports a speed for a device with no baseline yet stores that reading here, and every degradation warning after that compares against it instead of one fixed number shared by every device. Set it explicitly only to correct a baseline captured while the port was already degraded (e.g. right after this feature went live), or to pre-seed it before the first poll.
 
-> **`parentApDeviceId` is declared, not observed (WLS-162).** It's the operator's record of which AP this CPE is *meant* to sit on — separate from whatever the radio's own last poll reported it's actually talking to. Set it to drive `GET /api/devices/:id/wireless/clients/expected` on the AP side; leave it unset and that AP's expected roster simply won't include this device. A poll fills an unset value by itself when the AP MAC the radio reports exactly matches a device in inventory (WLS-012). It never overwrites a declared value: a mismatch shows up as a `parentApDeviceId` identity suggestion (WLS-151).
+> **`parentApDeviceId` is declared, not observed (WLS-162).** It's the operator's record of which AP this CPE is *meant* to sit on — separate from whatever the radio's own last poll reported it's actually talking to. Set it to drive `GET /api/devices/:id/wireless/clients/expected` on the AP side; leave it unset and that AP's expected roster simply won't include this device. A poll fills an unset value by itself when the AP MAC the radio reports exactly matches a device in inventory (WLS-012). It never overwrites a declared value: a mismatch shows up as a `parentApDeviceId` identity suggestion (WLS-151), and after three polls in a row also as a `parent_ap_mismatch` warning alert (WLS-013).
 
 > **Frontend:** set the device's `category` first (`PATCH /api/devices/:id`) — it decides which of the two fields this endpoint will accept, and creating this config **locks it**: the category cannot be changed again until the config is deleted. Sending `deviceType` in the body is now ignored by the schema.  
 > Returns 404 if the device does not exist.  
@@ -2842,6 +2842,15 @@ limit?: number // 1–1000
 > `{ parentApDeviceId: suggestedValue }`. Because a poll already declares the
 > AP when the MAC match is exact and none is declared (WLS-012), this
 > suggestion usually means drift or an IP-only match.
+>
+> **Drift alert (WLS-013).** When the radio reports an AP other than the
+> declared one for three polls in a row, a `WARNING` alert with metric
+> `parent_ap_mismatch` (type `wireless:parent_ap_mismatch:WARNING` on
+> `/api/alerts`) opens and is notified. Its message names both APs. It is the
+> same mismatch this suggestion offers, so a link from the alert to this
+> device's suggestions is the fix. Accepting the suggestion closes the alert
+> on the next poll. It opens no ticket. It can be muted like any wireless
+> metric (`parent_ap_mismatch`).
 
 ---
 
@@ -5251,7 +5260,7 @@ Results are ordered by `scheduledFor` (unscheduled last), then `startTime` (tick
 
 ### Tickets opened automatically from alerts
 
-Tickets are not only created by hand. When a **new** alert is recorded — ICMP device-down or wireless — the backend opens a ticket for it with `origin: 'DEVICE_ALERT'` or `'WIRELESS_ALERT'` and `originAlertId` set to the alert.
+Tickets are not only created by hand. When a **new** alert is recorded — ICMP device-down or wireless — the backend opens a ticket for it with `origin: 'DEVICE_ALERT'` or `'WIRELESS_ALERT'` and `originAlertId` set to the alert. The exception is `wireless:parent_ap_mismatch:WARNING` (WLS-013), an inventory correction that is fixed by accepting the parent AP suggestion, not by a site visit.
 
 Two levels of deduplication mean the technician does not drown:
 

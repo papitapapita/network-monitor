@@ -601,6 +601,9 @@ model WirelessPollingConfiguration {
   // SetNull rather than Cascade — deleting the AP shouldn't delete an
   // unrelated CPE's polling config, just its declared link.
   parentApDeviceId        String?            @map("parent_ap_device_id") @db.Uuid
+  // Consecutive polls the radio reported an AP other than the declared one
+  // (WLS-013).
+  parentApMismatchPolls   Int                @default(0) @map("parent_ap_mismatch_polls")
   lastPolledAt            DateTime?          @map("last_polled_at") @db.Timestamptz
   createdAt               DateTime           @default(now()) @map("created_at") @db.Timestamptz
   updatedAt               DateTime           @updatedAt @map("updated_at") @db.Timestamptz

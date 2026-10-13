@@ -164,6 +164,7 @@ export class CreateWirelessConfigUseCase extends UseCase<
       clientsProvisionedLimit: data.clientsProvisionedLimit ?? null,
       provisionedLanSpeedMbps: data.provisionedLanSpeedMbps ?? null,
       parentApDeviceId,
+      parentApMismatchPolls: 0,
       lastPolledAt: null
     });
     if (configResult.isFailure) {

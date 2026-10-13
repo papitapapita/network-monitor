@@ -55,6 +55,7 @@ function makeConfig(
     provisionedLanSpeedMbps:
       overrides.provisionedLanSpeedMbps ?? null,
     parentApDeviceId: overrides.parentApDeviceId ?? null,
+    parentApMismatchPolls: 0,
     lastPolledAt: overrides.lastPolledAt ?? null
   });
 }

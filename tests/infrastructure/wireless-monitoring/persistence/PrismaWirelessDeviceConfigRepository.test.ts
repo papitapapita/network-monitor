@@ -38,6 +38,7 @@ const buildDomainConfig = (): WirelessDeviceConfig => {
     clientsProvisionedLimit: 10,
     provisionedLanSpeedMbps: null,
     parentApDeviceId: null,
+    parentApMismatchPolls: 0,
     lastPolledAt: new Date('2024-01-01T12:00:00Z')
   });
 };
@@ -53,6 +54,7 @@ const makePrismaRow = () => ({
   clientsProvisionedLimit: 10,
   provisionedLanSpeedMbps: null,
   parentApDeviceId: null,
+  parentApMismatchPolls: 0,
   lastPolledAt: new Date('2024-01-01T12:00:00Z')
 });
 

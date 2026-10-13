@@ -295,11 +295,57 @@ An exact match is therefore unambiguous enough to apply without asking. A
 declared parent is never overwritten, because a station that now reports a
 different AP may have moved, or may be roaming for a while. That difference is
 drift for an operator to resolve (WLS-151), not something a poll should
-silently "fix".
+silently "fix". The operator is told about it when it persists
+([WLS-013](#wls-013--a-station-reporting-an-ap-other-than-its-declared-one-for-three-polls-raises-a-warning)).
 
 **Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts` (`declareParentApIfUnset`), `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts`
 **Reached from:** `PollWirelessDeviceUseCase.poll`
 **Tests:** `tests/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.test.ts`, `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/PollWirelessDeviceUseCase.integration.test.ts`
+
+### WLS-013 — A station reporting an AP other than its declared one for three polls raises a warning
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (called from the poll use case)
+**Since:** 2026-10-13
+
+Each poll of a `STATION` with a declared `parentApDeviceId` works out the AP
+the radio reports, the same way the identity suggestion does
+([WLS-151](#wls-151--identity-suggestions-offer-the-ap-the-radio-reports-as-the-stations-parent-ap)):
+the device matched by the AP MAC, or else the device matched by the AP IP. If
+that AP differs from the declared one, the config counts one more mismatched
+poll. On the third mismatched poll in a row, a `parent_ap_mismatch` `WARNING`
+alert opens and is notified, naming both APs:
+`<station> está conectado a <AP reportado>, pero su AP declarado es <AP declarado>`.
+It opens once and stays open while the mismatch lasts.
+
+- A poll that reports the declared AP resets the count to zero, and closes the
+  alert if one is open.
+- A poll whose radio reports no AP, or an AP that matches no device in
+  inventory, counts neither way. The count stays where it was.
+- Changing the declared parent resets the count. Accepting the suggestion
+  therefore closes the alert on the next poll. Removing the declared parent
+  closes it too.
+- The declared parent is never changed by this rule
+  ([WLS-012](#wls-012--a-stations-parent-ap-is-declared-from-its-first-poll-when-the-radios-ap-mac-is-in-inventory)).
+- Unlike other wireless alerts, it opens no ticket. Its recovery is not
+  announced, as with every `WARNING`.
+
+**Why:** The declared topology is the source of truth for the expected-clients
+roster
+([WLS-163](#wls-163--the-expected-clients-query-diffs-declared-stations-against-a-live-snapshot))
+and link diagnosis
+([WLS-184](#wls-184--the-parent-hop-is-the-declared-ap-else-the-ap-the-radio-last-reported)),
+so it must match the network. A suggestion alone waits for someone to open the
+device. The alert brings the operator to it. Three polls keep a CPE that
+briefly roams, or flaps while misaligned, from paging anyone. The instant
+change is already reported by `remote_ap_mac_changed`
+([WLS-098](#wls-098--a-change-of-identity-is-a-warning)).
+The alert is an inventory correction and not a service fault. A ticket would
+only add a second thing to close after accepting the suggestion.
+
+**Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts` (`recordReportedParentAp`), `src/domain/wireless-monitoring/services/ParentApDrift.ts` (`evaluateParentApDrift`), `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts` (`evaluateParentApDrift`), `src/application/wireless-monitoring/event-handlers/WirelessAlertTriggeredAlertRecordHandler.ts` (no ticket)
+**Reached from:** `PollWirelessDeviceUseCase.poll`
+**Tests:** `tests/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.test.ts`, `tests/domain/wireless-monitoring/services/ParentApDrift.test.ts`, `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/application/wireless-monitoring/event-handlers/WirelessAlertTriggeredAlertRecordHandler.test.ts`, `tests/integration/use-cases/wireless-monitoring/PollWirelessDeviceUseCase.integration.test.ts`
 
 ### WLS-006 — A polling interval is between 60 seconds and 24 hours
 
@@ -2009,7 +2055,9 @@ fills in the parent AP automatically only when it is certain. This rule covers
 everything else. An IP match is weaker than a MAC match: private addresses
 repeat across sites and get reassigned, so the system suggests it and does not
 apply it. When a declared AP differs from the reported one, the station has
-moved, or the declaration was wrong, and only the operator knows which.
+moved, or the declaration was wrong, and only the operator knows which. If the
+difference lasts, the operator is also alerted
+([WLS-013](#wls-013--a-station-reporting-an-ap-other-than-its-declared-one-for-three-polls-raises-a-warning)).
 
 **Enforced at:** `src/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.ts` (`suggestParentAp`)
 **Reached from:** `GET /api/devices/:id/wireless/identity/suggestions`

@@ -57,6 +57,9 @@ export class WirelessDeviceConfig extends AggregateRoot<
   get parentApDeviceId(): DeviceId | null {
     return this.props.parentApDeviceId;
   }
+  get parentApMismatchPolls(): number {
+    return this.props.parentApMismatchPolls;
+  }
 
   public static create(
     props: WirelessDeviceConfigProps
@@ -231,6 +234,11 @@ export class WirelessDeviceConfig extends AggregateRoot<
     ) {
       return Result.fail('parentApDeviceId cannot reference itself');
     }
+    if (
+      !sameDeviceId(this.props.parentApDeviceId, parentApDeviceId)
+    ) {
+      this.props.parentApMismatchPolls = 0;
+    }
     this.props.parentApDeviceId = parentApDeviceId;
     return Result.ok();
   }
@@ -271,6 +279,31 @@ export class WirelessDeviceConfig extends AggregateRoot<
       !reportedApDeviceId.equals(this.props.deviceId)
     ) {
       this.props.parentApDeviceId = reportedApDeviceId;
+      this.props.parentApMismatchPolls = 0;
     }
   }
+
+  // A poll whose radio reported no AP, or one not in inventory, is no
+  // evidence either way and leaves the streak where it was.
+  public recordReportedParentAp(
+    reportedApDeviceId: DeviceId | null
+  ): void {
+    if (reportedApDeviceId === null) return;
+    const declared = this.props.parentApDeviceId;
+    const mismatched =
+      this.props.deviceType === 'STATION' &&
+      declared !== null &&
+      !reportedApDeviceId.equals(declared) &&
+      !reportedApDeviceId.equals(this.props.deviceId);
+    this.props.parentApMismatchPolls = mismatched
+      ? this.props.parentApMismatchPolls + 1
+      : 0;
+  }
+}
+
+function sameDeviceId(
+  a: DeviceId | null,
+  b: DeviceId | null
+): boolean {
+  return a === null || b === null ? a === b : a.equals(b);
 }

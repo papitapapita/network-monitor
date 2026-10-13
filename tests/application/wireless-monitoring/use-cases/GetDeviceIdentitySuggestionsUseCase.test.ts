@@ -85,6 +85,7 @@ function makeStationConfig(
       parentApDeviceId: parentApUuid
         ? DeviceId.parse(parentApUuid).value
         : null,
+      parentApMismatchPolls: 0,
       lastPolledAt: null
     }
   );

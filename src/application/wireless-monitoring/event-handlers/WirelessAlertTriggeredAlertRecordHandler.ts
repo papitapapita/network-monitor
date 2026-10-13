@@ -1,12 +1,17 @@
 import { IHandle } from 'domain/shared/interfaces';
 import { AlertSeverity } from 'domain/shared/enums';
 import { WirelessAlertTriggeredEvent } from 'domain/wireless-monitoring/events';
+import { PARENT_AP_MISMATCH_METRIC } from 'domain/wireless-monitoring/services';
 import {
   ILogger,
   IAlertRecorder
 } from 'application/shared/interfaces';
 
 const SOURCE = 'Enlace inalámbrico';
+
+// An inventory correction, not a service fault: the operator accepts the
+// suggested AP instead of working a ticket (WLS-013).
+const UNTICKETED_METRICS = new Set([PARENT_AP_MISMATCH_METRIC]);
 
 /**
  * Records each triggered wireless alert into the shared alert store so it
@@ -41,7 +46,8 @@ export class WirelessAlertTriggeredAlertRecordHandler
             severity: alert.severity,
             threshold: alert.threshold,
             currentValue: alert.currentValue
-          }
+          },
+          skipTicket: UNTICKETED_METRICS.has(alert.metric)
         });
 
         if (result.isFailure) {

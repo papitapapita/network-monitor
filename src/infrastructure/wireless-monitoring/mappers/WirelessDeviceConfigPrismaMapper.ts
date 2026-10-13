@@ -16,6 +16,7 @@ type PrismaWirelessDeviceConfigRow = {
   clientsProvisionedLimit: number | null;
   provisionedLanSpeedMbps: number | null;
   parentApDeviceId: string | null;
+  parentApMismatchPolls: number;
   lastPolledAt: Date | null;
 };
 
@@ -30,6 +31,7 @@ type PersistenceData = {
   clientsProvisionedLimit: number | null;
   provisionedLanSpeedMbps: number | null;
   parentApDeviceId: string | null;
+  parentApMismatchPolls: number;
   lastPolledAt: Date | null;
 };
 
@@ -71,6 +73,7 @@ export class WirelessDeviceConfigPrismaMapper {
       clientsProvisionedLimit: raw.clientsProvisionedLimit,
       provisionedLanSpeedMbps: raw.provisionedLanSpeedMbps,
       parentApDeviceId,
+      parentApMismatchPolls: raw.parentApMismatchPolls,
       lastPolledAt: raw.lastPolledAt
     };
 
@@ -94,6 +97,7 @@ export class WirelessDeviceConfigPrismaMapper {
       clientsProvisionedLimit: config.clientsProvisionedLimit,
       provisionedLanSpeedMbps: config.provisionedLanSpeedMbps,
       parentApDeviceId: config.parentApDeviceId?.toString() ?? null,
+      parentApMismatchPolls: config.parentApMismatchPolls,
       lastPolledAt: config.lastPolledAt
     };
   }

@@ -74,6 +74,7 @@ function makeConfig(
           ? overrides.provisionedLanSpeedMbps
           : null,
       parentApDeviceId: null,
+      parentApMismatchPolls: 0,
       lastPolledAt: null
     }
   );

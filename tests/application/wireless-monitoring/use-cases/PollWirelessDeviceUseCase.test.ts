@@ -86,6 +86,7 @@ function makePollingConfig(
     provisionedLanSpeedMbps?: number | null;
     ipAddress?: IPAddress | null;
     parentApDeviceId?: DeviceId | null;
+    parentApMismatchPolls?: number;
   } = {}
 ): WirelessDeviceConfig {
   const ipResult = IPAddress.create(VALID_IP);
@@ -114,6 +115,7 @@ function makePollingConfig(
           ? overrides.provisionedLanSpeedMbps
           : null,
       parentApDeviceId: overrides.parentApDeviceId ?? null,
+      parentApMismatchPolls: overrides.parentApMismatchPolls ?? 0,
       lastPolledAt: null
     }
   );
@@ -1878,6 +1880,214 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
       expect(config.parentApDeviceId).toBeNull();
+    });
+  });
+
+  describe('[WLS-013] parent AP drift alert', () => {
+    const declaredId = DeviceId.parse(
+      '550e8400-e29b-41d4-a716-4466554400aa'
+    ).value;
+    const reportedId = DeviceId.parse(
+      '550e8400-e29b-41d4-a716-4466554400ff'
+    ).value;
+
+    function useConfig(config: WirelessDeviceConfig): void {
+      mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(config)
+      );
+    }
+
+    function useApNames(): void {
+      mocks.deviceRepo.findBasicInfoById.mockImplementation(
+        async (id: DeviceId) =>
+          Result.ok({
+            name: id.equals(declaredId) ? 'AP-Sur' : 'AP-Norte',
+            macAddress: null
+          })
+      );
+    }
+
+    function savedMetrics(): string[] {
+      return mocks.alertRecordRepo.save.mock.calls.map(
+        ([record]) => record.metric
+      );
+    }
+
+    function activeDriftAlert(): WirelessAlertRecord {
+      return WirelessAlertRecord.open(
+        makeDeviceId(),
+        'parent_ap_mismatch',
+        'WARNING',
+        3,
+        3,
+        'drift'
+      ).value;
+    }
+
+    it('should count a poll whose radio reports another AP', async () => {
+      configureHappyPath(mocks);
+      const config = makePollingConfig({
+        parentApDeviceId: declaredId
+      });
+      useConfig(config);
+      mocks.deviceRepo.findIdByMacAddress.mockResolvedValue(
+        Result.ok(reportedId)
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(config.parentApMismatchPolls).toBe(1);
+      expect(config.parentApDeviceId).toBe(declaredId);
+      expect(
+        mocks.wirelessDeviceConfigRepo.save
+      ).toHaveBeenCalledWith(config);
+    });
+
+    it('should fall back to the AP the radio reports by IP', async () => {
+      configureHappyPath(mocks);
+      mocks.collector.collect.mockResolvedValue(
+        Result.ok(makeHttpResult({ remoteApIp: '10.0.0.2' }))
+      );
+      const config = makePollingConfig({
+        parentApDeviceId: declaredId
+      });
+      useConfig(config);
+      mocks.deviceRepo.findIdByIpAddress.mockResolvedValue(
+        Result.ok(reportedId)
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(mocks.deviceRepo.findIdByIpAddress).toHaveBeenCalledWith(
+        '10.0.0.2'
+      );
+      expect(config.parentApMismatchPolls).toBe(1);
+    });
+
+    it('should open the alert on the poll that reaches the streak', async () => {
+      configureHappyPath(mocks);
+      useApNames();
+      const config = makePollingConfig({
+        parentApDeviceId: declaredId,
+        parentApMismatchPolls: 2
+      });
+      useConfig(config);
+      mocks.deviceRepo.findIdByMacAddress.mockResolvedValue(
+        Result.ok(reportedId)
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(savedMetrics()).toContain('parent_ap_mismatch');
+      const record = mocks.alertRecordRepo.save.mock.calls[0][0];
+      expect(record.message).toContain('AP-Norte');
+      expect(record.message).toContain('AP-Sur');
+      expect(result.value.alertsTriggered).toBe(1);
+    });
+
+    it('should not open the alert before the streak is reached', async () => {
+      configureHappyPath(mocks);
+      useApNames();
+      const config = makePollingConfig({
+        parentApDeviceId: declaredId,
+        parentApMismatchPolls: 1
+      });
+      useConfig(config);
+      mocks.deviceRepo.findIdByMacAddress.mockResolvedValue(
+        Result.ok(reportedId)
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(savedMetrics()).not.toContain('parent_ap_mismatch');
+    });
+
+    it('should not open it again while it is active', async () => {
+      configureHappyPath(mocks);
+      useApNames();
+      mocks.alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([activeDriftAlert()])
+      );
+      const config = makePollingConfig({
+        parentApDeviceId: declaredId,
+        parentApMismatchPolls: 5
+      });
+      useConfig(config);
+      mocks.deviceRepo.findIdByMacAddress.mockResolvedValue(
+        Result.ok(reportedId)
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(savedMetrics()).not.toContain('parent_ap_mismatch');
+      expect(
+        mocks.deviceRepo.findBasicInfoById
+      ).not.toHaveBeenCalled();
+    });
+
+    it('should clear the alert once the radio reports the declared AP', async () => {
+      configureHappyPath(mocks);
+      const active = activeDriftAlert();
+      mocks.alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([active])
+      );
+      mocks.alertRecordRepo.findActiveByDeviceMetricAndSeverity.mockResolvedValue(
+        Result.ok(active)
+      );
+      const config = makePollingConfig({
+        parentApDeviceId: declaredId,
+        parentApMismatchPolls: 5
+      });
+      useConfig(config);
+      mocks.deviceRepo.findIdByMacAddress.mockResolvedValue(
+        Result.ok(declaredId)
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(config.parentApMismatchPolls).toBe(0);
+      expect(active.isActive).toBe(false);
+      expect(result.value.alertsCleared).toBe(1);
+    });
+
+    it('should not look up the AP by IP when no parent is declared', async () => {
+      configureHappyPath(mocks);
+      mocks.collector.collect.mockResolvedValue(
+        Result.ok(makeHttpResult({ remoteApIp: '10.0.0.2' }))
+      );
+      useConfig(makePollingConfig());
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(
+        mocks.deviceRepo.findIdByIpAddress
+      ).not.toHaveBeenCalled();
+    });
+
+    it('should keep polling when the IP lookup fails', async () => {
+      configureHappyPath(mocks);
+      mocks.collector.collect.mockResolvedValue(
+        Result.ok(makeHttpResult({ remoteApIp: '10.0.0.2' }))
+      );
+      const config = makePollingConfig({
+        parentApDeviceId: declaredId,
+        parentApMismatchPolls: 2
+      });
+      useConfig(config);
+      mocks.deviceRepo.findIdByIpAddress.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(config.parentApMismatchPolls).toBe(2);
     });
   });
 

@@ -96,6 +96,7 @@ function makeConfig(
         deviceType === 'STATION'
           ? DeviceId.parse(AP_DEVICE_UUID).value
           : null,
+      parentApMismatchPolls: 0,
       lastPolledAt: null
     }
   );

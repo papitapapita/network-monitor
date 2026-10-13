@@ -70,6 +70,7 @@ function makeConfig(
       parentApDeviceId: overrides.parentApDeviceId
         ? DeviceId.parse(overrides.parentApDeviceId).value
         : null,
+      parentApMismatchPolls: 0,
       lastPolledAt: null
     }
   );

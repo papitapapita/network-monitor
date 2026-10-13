@@ -25,6 +25,7 @@ const makeFullRow = (): PrismaWirelessDeviceConfigRow => ({
   clientsProvisionedLimit: 10,
   provisionedLanSpeedMbps: null,
   parentApDeviceId: null,
+  parentApMismatchPolls: 0,
   lastPolledAt: new Date('2024-01-01T12:00:00Z')
 });
 
@@ -39,6 +40,7 @@ const makeMinimalRow = (): PrismaWirelessDeviceConfigRow => ({
   clientsProvisionedLimit: null,
   provisionedLanSpeedMbps: null,
   parentApDeviceId: null,
+  parentApMismatchPolls: 0,
   lastPolledAt: null
 });
 
@@ -57,6 +59,7 @@ const buildDomainConfig = (): WirelessDeviceConfig => {
     clientsProvisionedLimit: 10,
     provisionedLanSpeedMbps: null,
     parentApDeviceId: null,
+    parentApMismatchPolls: 0,
     lastPolledAt: new Date('2024-01-01T12:00:00Z')
   });
 };
@@ -143,7 +146,10 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
 
     it('should map parentApDeviceId to a DeviceId when present', () => {
       const apDeviceUuid = 'a1b2c3d4-58f0-479a-8534-b0b01e9942bb';
-      const row = { ...makeMinimalRow(), parentApDeviceId: apDeviceUuid };
+      const row = {
+        ...makeMinimalRow(),
+        parentApDeviceId: apDeviceUuid
+      };
 
       const config = WirelessDeviceConfigPrismaMapper.toDomain(row);
 
@@ -212,6 +218,7 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
         clientsProvisionedLimit: null,
         provisionedLanSpeedMbps: null,
         parentApDeviceId: null,
+        parentApMismatchPolls: 0,
         lastPolledAt: null
       });
 
@@ -240,6 +247,7 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
         clientsProvisionedLimit: null,
         provisionedLanSpeedMbps: null,
         parentApDeviceId: apDeviceId,
+        parentApMismatchPolls: 0,
         lastPolledAt: null
       });
 
@@ -256,6 +264,19 @@ describe('WirelessDeviceConfigPrismaMapper', () => {
         WirelessDeviceConfigPrismaMapper.toPersistence(config);
 
       expect(data.parentApDeviceId).toBeNull();
+    });
+  });
+
+  describe('[WLS-013] parentApMismatchPolls', () => {
+    it('should carry the mismatch streak through a round-trip', () => {
+      const row = { ...makeFullRow(), parentApMismatchPolls: 4 };
+
+      const domain = WirelessDeviceConfigPrismaMapper.toDomain(row);
+      const persisted =
+        WirelessDeviceConfigPrismaMapper.toPersistence(domain);
+
+      expect(domain.parentApMismatchPolls).toBe(4);
+      expect(persisted.parentApMismatchPolls).toBe(4);
     });
   });
 

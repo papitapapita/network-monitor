@@ -97,6 +97,25 @@ describe('[WLS-124] WirelessAlertTriggeredAlertRecordHandler', () => {
     );
   });
 
+  it('should open a ticket for a metric alert', async () => {
+    await handler.handle(makeEvent([makeAlert('CRITICAL')]));
+    expect(recorder.open).toHaveBeenCalledWith(
+      expect.objectContaining({ skipTicket: false })
+    );
+  });
+
+  it('[WLS-013] should not open a ticket for a parent AP mismatch', async () => {
+    await handler.handle(
+      makeEvent([makeAlert('WARNING', 'parent_ap_mismatch')])
+    );
+    expect(recorder.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'wireless:parent_ap_mismatch:WARNING',
+        skipTicket: true
+      })
+    );
+  });
+
   it('should log and continue when a record fails', async () => {
     recorder.open.mockResolvedValue(Result.fail('db down'));
     await handler.handle(makeEvent([makeAlert('CRITICAL')]));

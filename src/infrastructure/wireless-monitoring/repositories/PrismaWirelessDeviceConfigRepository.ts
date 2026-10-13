@@ -19,6 +19,7 @@ type RawPollingConfig = {
   clients_provisioned_limit: number | null;
   provisioned_lan_speed_mbps: number | null;
   parent_ap_device_id: string | null;
+  parent_ap_mismatch_polls: number;
   last_polled_at: Date | null;
 };
 
@@ -49,6 +50,7 @@ export class PrismaWirelessDeviceConfigRepository
           clientsProvisionedLimit: data.clientsProvisionedLimit,
           provisionedLanSpeedMbps: data.provisionedLanSpeedMbps,
           parentApDeviceId: data.parentApDeviceId,
+          parentApMismatchPolls: data.parentApMismatchPolls,
           lastPolledAt: data.lastPolledAt
         },
         create: {
@@ -62,6 +64,7 @@ export class PrismaWirelessDeviceConfigRepository
           clientsProvisionedLimit: data.clientsProvisionedLimit,
           provisionedLanSpeedMbps: data.provisionedLanSpeedMbps,
           parentApDeviceId: data.parentApDeviceId,
+          parentApMismatchPolls: data.parentApMismatchPolls,
           lastPolledAt: data.lastPolledAt
         }
       });
@@ -171,6 +174,7 @@ export class PrismaWirelessDeviceConfigRepository
           wpc.clients_provisioned_limit,
           wpc.provisioned_lan_speed_mbps,
           wpc.parent_ap_device_id,
+          wpc.parent_ap_mismatch_polls,
           wpc.last_polled_at
         FROM wireless_polling_configurations wpc
         JOIN devices d ON d.id = wpc.device_id
@@ -199,6 +203,7 @@ export class PrismaWirelessDeviceConfigRepository
           clientsProvisionedLimit: r.clients_provisioned_limit,
           provisionedLanSpeedMbps: r.provisioned_lan_speed_mbps,
           parentApDeviceId: r.parent_ap_device_id,
+          parentApMismatchPolls: r.parent_ap_mismatch_polls,
           lastPolledAt: r.last_polled_at
         })
       );

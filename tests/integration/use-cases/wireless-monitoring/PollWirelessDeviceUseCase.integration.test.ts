@@ -296,6 +296,108 @@ describe('PollWirelessDeviceUseCase — integration', () => {
     });
   });
 
+  describe('[WLS-013] parent AP drift', () => {
+    const REPORTED_AP_MAC = 'F4:92:BF:00:00:02';
+
+    const seedAp = (ip: string) =>
+      seedDiagnosableDevice(prisma, deviceModelId, {
+        ip,
+        deviceType: 'ACCESS_POINT'
+      });
+
+    const seedDriftedCpe = async () => {
+      const declared = await seedAp('192.168.90.40');
+      const reported = await seedAp('192.168.90.41');
+      await prisma.device.update({
+        where: { id: reported },
+        data: { macAddress: REPORTED_AP_MAC }
+      });
+      const cpe = await seedDiagnosableDevice(prisma, deviceModelId, {
+        ip: '192.168.90.42',
+        parentApDeviceId: declared
+      });
+      collector.setResult({ remoteApMac: REPORTED_AP_MAC });
+      return { declared, reported, cpe };
+    };
+
+    const driftAlert = (deviceId: string) =>
+      prisma.wirelessAlertRecord.findFirst({
+        where: { deviceId, metric: 'parent_ap_mismatch' },
+        orderBy: { triggeredAt: 'desc' }
+      });
+
+    const pollTimes = async (
+      useCase: PollWirelessDeviceUseCase,
+      deviceId: string,
+      times: number
+    ) => {
+      for (let i = 0; i < times; i++) {
+        await useCase.execute({ deviceId, forceExecution: true });
+      }
+    };
+
+    it('counts each poll that reports another AP, keeping the declaration', async () => {
+      const { declared, cpe } = await seedDriftedCpe();
+      const { useCase } = build(true);
+
+      await pollTimes(useCase, cpe, 2);
+
+      const row =
+        await prisma.wirelessPollingConfiguration.findUnique({
+          where: { deviceId: cpe }
+        });
+      expect(row?.parentApMismatchPolls).toBe(2);
+      expect(row?.parentApDeviceId).toBe(declared);
+      expect(await driftAlert(cpe)).toBeNull();
+    });
+
+    // The shared alert and any ticket are written by fire-and-forget
+    // handlers of the snapshot's event.
+    const waitForSharedAlert = async (deviceId: string) => {
+      for (let i = 0; i < 20; i++) {
+        const row = await prisma.alertEvent.findFirst({
+          where: {
+            deviceId,
+            type: 'wireless:parent_ap_mismatch:WARNING'
+          }
+        });
+        if (row) return row;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      return null;
+    };
+
+    it('opens the alert on the third poll, without a ticket', async () => {
+      const { cpe } = await seedDriftedCpe();
+      const { useCase } = build(true);
+
+      await pollTimes(useCase, cpe, 3);
+
+      const alert = await driftAlert(cpe);
+      expect(alert?.isActive).toBe(true);
+      expect(alert?.severity).toBe('WARNING');
+      expect(await waitForSharedAlert(cpe)).not.toBeNull();
+      await new Promise((r) => setTimeout(r, 300));
+      expect(
+        await prisma.ticket.count({ where: { deviceId: cpe } })
+      ).toBe(0);
+    });
+
+    it('clears once the operator declares the reported AP', async () => {
+      const { reported, cpe } = await seedDriftedCpe();
+      const { useCase } = build(true);
+      await pollTimes(useCase, cpe, 3);
+
+      await prisma.wirelessPollingConfiguration.update({
+        where: { deviceId: cpe },
+        data: { parentApDeviceId: reported, parentApMismatchPolls: 0 }
+      });
+      await pollTimes(useCase, cpe, 1);
+
+      expect((await driftAlert(cpe))?.isActive).toBe(false);
+    });
+  });
+
   describe('[WLS-201] alert thresholds', () => {
     // A 15 km link at 40 MHz: past the 10 km default.
     const longLink = () =>

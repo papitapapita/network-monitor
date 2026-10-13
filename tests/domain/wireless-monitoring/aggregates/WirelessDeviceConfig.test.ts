@@ -23,6 +23,7 @@ function makeProps(
     clientsProvisionedLimit: null,
     provisionedLanSpeedMbps: null,
     parentApDeviceId: null,
+    parentApMismatchPolls: 0,
     lastPolledAt: null,
     ...overrides
   };
@@ -297,6 +298,7 @@ describe('[WLS-008] WirelessDeviceConfig', () => {
         clientsProvisionedLimit: 50,
         provisionedLanSpeedMbps: null,
         parentApDeviceId: null,
+        parentApMismatchPolls: 0,
         lastPolledAt
       });
 
@@ -881,6 +883,93 @@ describe('[WLS-008] WirelessDeviceConfig', () => {
       config.declareParentApIfUnset(DeviceId.create());
 
       expect(config.domainEvents.length).toBe(0);
+    });
+
+    it('should reset the mismatch streak when it declares a parent', () => {
+      const config = makeConfig({ parentApMismatchPolls: 4 });
+      config.declareParentApIfUnset(DeviceId.create());
+
+      expect(config.parentApMismatchPolls).toBe(0);
+    });
+  });
+
+  // =========================================================================
+  describe('[WLS-013] recordReportedParentAp(reportedApDeviceId)', () => {
+    it('should count a poll that reports an AP other than the declared one', () => {
+      const config = makeConfig({
+        parentApDeviceId: DeviceId.create()
+      });
+      config.recordReportedParentAp(DeviceId.create());
+      config.recordReportedParentAp(DeviceId.create());
+
+      expect(config.parentApMismatchPolls).toBe(2);
+    });
+
+    it('should reset the streak when the reported AP matches the declared one', () => {
+      const declared = DeviceId.create();
+      const config = makeConfig({
+        parentApDeviceId: declared,
+        parentApMismatchPolls: 5
+      });
+      config.recordReportedParentAp(declared);
+
+      expect(config.parentApMismatchPolls).toBe(0);
+    });
+
+    it('should leave the streak alone when no AP is reported', () => {
+      const config = makeConfig({
+        parentApDeviceId: DeviceId.create(),
+        parentApMismatchPolls: 2
+      });
+      config.recordReportedParentAp(null);
+
+      expect(config.parentApMismatchPolls).toBe(2);
+    });
+
+    it('should not count when no parent is declared', () => {
+      const config = makeConfig({ parentApMismatchPolls: 2 });
+      config.recordReportedParentAp(DeviceId.create());
+
+      expect(config.parentApMismatchPolls).toBe(0);
+    });
+
+    it('should not count the station reporting itself', () => {
+      const config = makeConfig({
+        parentApDeviceId: DeviceId.create()
+      });
+      config.recordReportedParentAp(config.deviceId);
+
+      expect(config.parentApMismatchPolls).toBe(0);
+    });
+
+    it('should never count on an ACCESS_POINT', () => {
+      const config = makeConfig({ deviceType: 'ACCESS_POINT' });
+      config.recordReportedParentAp(DeviceId.create());
+
+      expect(config.parentApMismatchPolls).toBe(0);
+    });
+
+    it('should reset the streak when the declared parent changes', () => {
+      const config = makeConfig({
+        parentApDeviceId: DeviceId.create(),
+        parentApMismatchPolls: 3
+      });
+      config.updateParentApDeviceId(DeviceId.create());
+
+      expect(config.parentApMismatchPolls).toBe(0);
+    });
+
+    it('should keep the streak when the declared parent is re-saved unchanged', () => {
+      const declared = DeviceId.create();
+      const config = makeConfig({
+        parentApDeviceId: declared,
+        parentApMismatchPolls: 3
+      });
+      config.updateParentApDeviceId(
+        DeviceId.parse(declared.toString()).value
+      );
+
+      expect(config.parentApMismatchPolls).toBe(3);
     });
   });
 

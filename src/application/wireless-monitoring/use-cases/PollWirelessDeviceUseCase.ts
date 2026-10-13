@@ -10,7 +10,13 @@ import {
   WirelessSnapshot,
   IWirelessAlertEvaluator,
   EvaluationContext,
-  IAlertThresholdsRepository
+  IAlertThresholdsRepository,
+  AlertDecision,
+  WirelessDeviceConfig,
+  evaluateParentApDrift,
+  PARENT_AP_MISMATCH_METRIC,
+  PARENT_AP_MISMATCH_POLLS,
+  ParentApNames
 } from 'domain/wireless-monitoring';
 import { UseCase } from 'application/shared/core';
 import {
@@ -37,7 +43,10 @@ import {
   PollWirelessDeviceResponseDTO
 } from '../dtos';
 import { CollectedMetricsMapper } from '../mappers';
-import { resolveAlertThresholds } from '../services';
+import {
+  resolveAlertThresholds,
+  resolveReportedAp
+} from '../services';
 
 // Shared with the controller, which picks the status from them (WLS-029).
 export const AGENT_READ_FAILURES: Record<AgentReadRefusal, string> = {
@@ -348,11 +357,17 @@ export class PollWirelessDeviceUseCase
     }
     const metrics = metricsResult.value;
 
-    const decisions = this.alertEvaluator.evaluate(
-      metrics,
+    const driftDecision = await this.evaluateParentApDrift(
+      config,
+      remoteApDeviceId,
+      collected.remoteApIp,
       activeAlertsMap,
-      ctx
+      ctx.deviceName
     );
+    const decisions = [
+      ...this.alertEvaluator.evaluate(metrics, activeAlertsMap, ctx),
+      ...(driftDecision ? [driftDecision] : [])
+    ];
 
     const openDecisions = decisions.filter(
       (d) => d.action === 'OPEN'
@@ -517,6 +532,74 @@ export class PollWirelessDeviceUseCase
       alertsCleared: clearDecisions.length,
       collectionMethod: collector.method
     });
+  }
+
+  private async evaluateParentApDrift(
+    config: WirelessDeviceConfig,
+    macMatch: DeviceId | null,
+    remoteApIp: string | null,
+    activeAlerts: Map<string, WirelessAlertRecord>,
+    deviceName: string
+  ): Promise<AlertDecision | null> {
+    if (config.deviceType !== 'STATION') return null;
+    const declared = config.parentApDeviceId;
+
+    let reported: DeviceId | null = null;
+    if (declared) {
+      const reportedResult = await resolveReportedAp(
+        this.deviceRepo,
+        macMatch,
+        remoteApIp
+      );
+      if (reportedResult.isFailure) {
+        this.logger.warn('AP lookup by IP failed', {
+          deviceId: config.deviceId.toString(),
+          error: reportedResult.error
+        });
+      } else {
+        reported = reportedResult.value;
+        config.recordReportedParentAp(reported);
+      }
+    }
+
+    const alertActive = activeAlerts.has(
+      `${PARENT_AP_MISMATCH_METRIC}:WARNING`
+    );
+    const apNames =
+      !alertActive &&
+      declared &&
+      reported &&
+      config.parentApMismatchPolls >= PARENT_AP_MISMATCH_POLLS
+        ? await this.parentApNames(declared, reported)
+        : null;
+    return evaluateParentApDrift(
+      config,
+      alertActive,
+      deviceName,
+      apNames
+    );
+  }
+
+  private async parentApNames(
+    declared: DeviceId,
+    reported: DeviceId
+  ): Promise<ParentApNames | null> {
+    const [declaredInfo, reportedInfo] = await Promise.all([
+      this.deviceRepo.findBasicInfoById(declared),
+      this.deviceRepo.findBasicInfoById(reported)
+    ]);
+    if (
+      declaredInfo.isFailure ||
+      !declaredInfo.value ||
+      reportedInfo.isFailure ||
+      !reportedInfo.value
+    ) {
+      return null;
+    }
+    return {
+      declared: declaredInfo.value.name,
+      reported: reportedInfo.value.name
+    };
   }
 
   private skipped(

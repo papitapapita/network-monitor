@@ -69,6 +69,7 @@ function makePollingConfig(
       clientsProvisionedLimit: null,
       provisionedLanSpeedMbps: null,
       parentApDeviceId: null,
+      parentApMismatchPolls: 0,
       lastPolledAt: null
     }
   );

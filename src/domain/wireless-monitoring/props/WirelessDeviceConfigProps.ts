@@ -23,4 +23,7 @@ export interface WirelessDeviceConfigProps {
   // from WirelessMetrics.remoteApDeviceId (what the radio currently reports)
   // — this is the operator's intent, used to detect drift between the two.
   parentApDeviceId: DeviceId | null;
+  // Consecutive polls whose radio reported an AP other than the declared
+  // parent (WLS-013).
+  parentApMismatchPolls: number;
 }
