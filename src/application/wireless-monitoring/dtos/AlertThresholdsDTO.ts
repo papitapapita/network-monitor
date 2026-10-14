@@ -16,7 +16,15 @@ export interface AlertThresholdsDTO {
   // Keyed by channel width in MHz, e.g. { "40": 100 }.
   minCapacityMbps: Record<string, number>;
   maxDistanceKm: Record<string, number>;
+  confirmBeforeAlerting: boolean;
 }
+
+// The confirmation switch came after the threshold screen; a save that
+// leaves it out keeps the install's current setting (WLS-203).
+export type UpdateAlertThresholdsRequestDTO = Omit<
+  AlertThresholdsDTO,
+  'confirmBeforeAlerting'
+> & { confirmBeforeAlerting?: boolean };
 
 export type AlertThresholdOverridesDTO = Partial<AlertThresholdsDTO>;
 

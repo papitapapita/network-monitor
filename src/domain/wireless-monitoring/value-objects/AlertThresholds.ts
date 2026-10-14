@@ -22,7 +22,8 @@ const DEFAULTS: AlertThresholdsProps = {
   saturationPercent: 80,
   clientDropPercent: 50,
   minCapacityMbps: { 20: 50, 40: 100, 80: 200 },
-  maxDistanceKm: { 20: 15, 40: 10, 80: 5 }
+  maxDistanceKm: { 20: 15, 40: 10, 80: 5 },
+  confirmBeforeAlerting: true
 };
 
 type GroupValidators = {
@@ -102,6 +103,12 @@ function widthTable(
   return null;
 }
 
+function flag(name: string, value: unknown): string | null {
+  return typeof value === 'boolean'
+    ? null
+    : `${name} must be true or false`;
+}
+
 const VALIDATORS: GroupValidators = {
   signalDbm: (v) => pair('signalDbm', v, -100, -40, true),
   snrDb: (v) => pair('snrDb', v, 1, 60, true),
@@ -118,7 +125,8 @@ const VALIDATORS: GroupValidators = {
   minCapacityMbps: (v) =>
     widthTable('minCapacityMbps', v, 1, 10_000, true),
   maxDistanceKm: (v) =>
-    widthTable('maxDistanceKm', v, 0.1, 200, false)
+    widthTable('maxDistanceKm', v, 0.1, 200, false),
+  confirmBeforeAlerting: (v) => flag('confirmBeforeAlerting', v)
 };
 
 export const ALERT_THRESHOLD_KEYS = Object.keys(
@@ -173,6 +181,10 @@ export class AlertThresholds extends ValueObject<AlertThresholdsProps> {
   }
   get maxDistanceKm(): ChannelWidthThresholds {
     return this._props.maxDistanceKm;
+  }
+
+  get confirmBeforeAlerting(): boolean {
+    return this._props.confirmBeforeAlerting;
   }
 
   minCapacityKbpsFor(channelWidthMhz: number): number | null {

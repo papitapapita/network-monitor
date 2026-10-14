@@ -6,7 +6,7 @@ import {
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import {
-  AlertThresholdsDTO,
+  UpdateAlertThresholdsRequestDTO,
   GlobalAlertThresholdsResponseDTO
 } from '../dtos';
 import { AlertThresholdsMapper } from '../mappers';
@@ -14,7 +14,7 @@ import { AlertThresholdsMapper } from '../mappers';
 // Replaced as a whole: the screen shows every threshold and saves them
 // together. Takes effect on the next poll, with no restart (WLS-200).
 export class UpdateAlertThresholdsUseCase extends UseCase<
-  AlertThresholdsDTO,
+  UpdateAlertThresholdsRequestDTO,
   GlobalAlertThresholdsResponseDTO
 > {
   constructor(
@@ -25,10 +25,24 @@ export class UpdateAlertThresholdsUseCase extends UseCase<
   }
 
   protected async executeImpl(
-    request: AlertThresholdsDTO
+    request: UpdateAlertThresholdsRequestDTO
   ): Promise<Result<GlobalAlertThresholdsResponseDTO>> {
+    let confirmBeforeAlerting = request.confirmBeforeAlerting;
+    if (confirmBeforeAlerting === undefined) {
+      const current = await this.repository.getGlobal();
+      if (current.isFailure) {
+        return this.fail(
+          `Failed to read alert thresholds: ${current.error}`
+        );
+      }
+      confirmBeforeAlerting = current.value.confirmBeforeAlerting;
+    }
+
     const thresholds = AlertThresholds.create(
-      AlertThresholdsMapper.toProps(request)
+      AlertThresholdsMapper.toProps({
+        ...request,
+        confirmBeforeAlerting
+      })
     );
     if (thresholds.isFailure) return this.fail(thresholds.error!);
 

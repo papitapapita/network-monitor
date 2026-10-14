@@ -18,6 +18,8 @@ export interface AlertThresholdsProps {
   readonly clientDropPercent: number;
   readonly minCapacityMbps: ChannelWidthThresholds;
   readonly maxDistanceKm: ChannelWidthThresholds;
+  // Re-read the radio before opening a flicker-prone alert (WLS-203).
+  readonly confirmBeforeAlerting: boolean;
 }
 
 export type AlertThresholdOverridesProps =

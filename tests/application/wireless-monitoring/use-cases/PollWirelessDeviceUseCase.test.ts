@@ -259,9 +259,14 @@ function makeMocks() {
 
   const alertThresholdsRepo: jest.Mocked<IAlertThresholdsRepository> =
     {
-      getGlobal: jest
-        .fn()
-        .mockResolvedValue(Result.ok(AlertThresholds.defaults())),
+      // Confirmation re-reads the radio; WLS-203's own block turns it on.
+      getGlobal: jest.fn().mockResolvedValue(
+        Result.ok(
+          AlertThresholds.defaults().withOverrides({
+            confirmBeforeAlerting: false
+          })
+        )
+      ),
       saveGlobal: jest.fn(),
       findOverrides: jest
         .fn()
@@ -318,7 +323,8 @@ function makeUseCase(
     mocks.alertThresholdsRepo,
     mocks.alertPublisher,
     mocks.logger,
-    mocks.agentReader
+    mocks.agentReader,
+    { samples: 5, intervalMs: 0, cooldownMs: 600_000 }
   );
 }
 
@@ -2296,6 +2302,182 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
         'Failed to load alert thresholds: connection reset'
       );
       expect(mocks.alertEvaluator.evaluate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('[WLS-203] confirming an alert before it opens', () => {
+    const signalOpen: AlertDecision = {
+      metric: 'signal_rx_dbm',
+      action: 'OPEN',
+      severity: 'WARNING',
+      currentValue: -75,
+      threshold: -70,
+      message:
+        'Señal débil en equipo CPE-001: -75 dBm (umbral: -70 dBm)'
+    };
+
+    beforeEach(() => {
+      configureHappyPath(mocks);
+      mocks.alertThresholdsRepo.getGlobal.mockResolvedValue(
+        Result.ok(AlertThresholds.defaults())
+      );
+    });
+
+    function savedMetrics(): string[] {
+      return mocks.alertRecordRepo.save.mock.calls.map(
+        ([record]) => record.metric
+      );
+    }
+
+    it('opens the alert when most fresh readings breach too', async () => {
+      mocks.alertEvaluator.evaluate.mockReturnValue([signalOpen]);
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.value.alertsTriggered).toBe(1);
+      expect(mocks.collector.collect).toHaveBeenCalledTimes(6);
+      expect(savedMetrics()).toEqual(['signal_rx_dbm']);
+    });
+
+    it('holds the alert back when the fresh readings do not agree', async () => {
+      mocks.alertEvaluator.evaluate
+        .mockReturnValueOnce([signalOpen])
+        .mockReturnValueOnce([signalOpen])
+        .mockReturnValueOnce([signalOpen])
+        .mockReturnValue([]);
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.value.alertsTriggered).toBe(0);
+      expect(mocks.alertRecordRepo.save).not.toHaveBeenCalled();
+      expect(mocks.logger.info).toHaveBeenCalledWith(
+        'Alert not confirmed by re-reading the radio',
+        expect.objectContaining({
+          alerts: ['signal_rx_dbm:WARNING'],
+          samples: 5
+        })
+      );
+    });
+
+    it('leaves the snapshot without the alert it held back', async () => {
+      mocks.alertEvaluator.evaluate
+        .mockReturnValueOnce([signalOpen])
+        .mockReturnValue([]);
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      const snapshot = mocks.snapshotRepo.save.mock.calls[0]![0];
+      expect(snapshot.alerts).toHaveLength(0);
+    });
+
+    it('opens alerts outside the confirmed metrics on the first reading', async () => {
+      mocks.alertEvaluator.evaluate.mockReturnValueOnce([
+        { ...signalOpen, metric: 'cpu_percent' }
+      ]);
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(mocks.collector.collect).toHaveBeenCalledTimes(1);
+      expect(savedMetrics()).toEqual(['cpu_percent']);
+    });
+
+    it('never re-reads for a clear', async () => {
+      mocks.alertEvaluator.evaluate.mockReturnValueOnce([
+        { ...signalOpen, action: 'CLEAR' }
+      ]);
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(mocks.collector.collect).toHaveBeenCalledTimes(1);
+    });
+
+    it('opens on the first reading when the install turned confirmation off', async () => {
+      mocks.alertThresholdsRepo.getGlobal.mockResolvedValue(
+        Result.ok(
+          AlertThresholds.defaults().withOverrides({
+            confirmBeforeAlerting: false
+          })
+        )
+      );
+      mocks.alertEvaluator.evaluate.mockReturnValueOnce([signalOpen]);
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(mocks.collector.collect).toHaveBeenCalledTimes(1);
+      expect(savedMetrics()).toEqual(['signal_rx_dbm']);
+    });
+
+    it("follows the device's override over the install", async () => {
+      mocks.alertThresholdsRepo.findOverrides.mockResolvedValue(
+        Result.ok(
+          AlertThresholdOverrides.create({
+            confirmBeforeAlerting: false
+          }).value
+        )
+      );
+      mocks.alertEvaluator.evaluate.mockReturnValueOnce([signalOpen]);
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(mocks.collector.collect).toHaveBeenCalledTimes(1);
+      expect(savedMetrics()).toEqual(['signal_rx_dbm']);
+    });
+
+    it('opens the alert when the radio cannot be re-read at all', async () => {
+      mocks.collector.collect
+        .mockResolvedValueOnce(Result.ok(makeHttpResult()))
+        .mockResolvedValue(Result.fail('HTTPS_TIMEOUT'));
+      mocks.alertEvaluator.evaluate.mockReturnValueOnce([signalOpen]);
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(savedMetrics()).toEqual(['signal_rx_dbm']);
+    });
+
+    it('does not re-check a rejected alert until the cooldown passes', async () => {
+      mocks.alertEvaluator.evaluate
+        .mockReturnValueOnce([signalOpen])
+        .mockReturnValueOnce([])
+        .mockReturnValueOnce([])
+        .mockReturnValueOnce([])
+        .mockReturnValueOnce([])
+        .mockReturnValueOnce([])
+        .mockReturnValue([signalOpen]);
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+      mocks.collector.collect.mockClear();
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(mocks.collector.collect).toHaveBeenCalledTimes(1);
+      expect(result.value.alertsTriggered).toBe(0);
+      expect(mocks.alertRecordRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('re-reads through the agent a radio is read by', async () => {
+      mocks.deviceReach.readerFor.mockResolvedValue(
+        Result.ok({ by: 'agent', agentId: 'agent-1' })
+      );
+      mocks.agentReader.read.mockResolvedValue({
+        kind: 'measured',
+        reading: makeHttpResult(),
+        measuredAt: new Date()
+      });
+      mocks.alertEvaluator.evaluate.mockReturnValue([signalOpen]);
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(mocks.agentReader.read).toHaveBeenCalledTimes(6);
+      expect(mocks.collector.collect).not.toHaveBeenCalled();
+      expect(savedMetrics()).toEqual(['signal_rx_dbm']);
     });
   });
 });

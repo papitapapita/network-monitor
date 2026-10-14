@@ -16,7 +16,10 @@ import {
   evaluateParentApDrift,
   PARENT_AP_MISMATCH_METRIC,
   PARENT_AP_MISMATCH_POLLS,
-  ParentApNames
+  ParentApNames,
+  ConfirmationSample,
+  needsConfirmation,
+  confirmAlertDecisions
 } from 'domain/wireless-monitoring';
 import { UseCase } from 'application/shared/core';
 import {
@@ -36,7 +39,10 @@ import {
   IAgentRadioReader,
   NoAgentRadioReader,
   AgentReadRefusal,
-  WirelessCollectionResult
+  WirelessCollectionResult,
+  WirelessReader,
+  IWirelessCollector,
+  DecryptedCredentials
 } from '../interfaces';
 import {
   PollWirelessDeviceRequestDTO,
@@ -57,6 +63,35 @@ export const AGENT_READ_FAILURES: Record<AgentReadRefusal, string> = {
   AGENT_ERROR: 'its on-site agent could not read it'
 };
 
+export interface AlertConfirmationConfig {
+  samples: number;
+  intervalMs: number;
+  // how long a rejected alert waits before the radio is re-read for it
+  cooldownMs: number;
+}
+
+// About half a minute of readings: long enough to outlast a burst or a
+// fade, short enough that a real fault still alerts promptly (WLS-203).
+export const DEFAULT_ALERT_CONFIRMATION: AlertConfirmationConfig = {
+  samples: 5,
+  intervalMs: 4000,
+  cooldownMs: 10 * 60_000
+};
+
+interface RadioTarget {
+  reader: WirelessReader;
+  collector: IWirelessCollector;
+  ipAddress: string;
+  vendorSlug: string;
+  deviceType: 'STATION' | 'ACCESS_POINT';
+  credentials: DecryptedCredentials;
+}
+
+type RadioRead =
+  | { kind: 'read'; collected: WirelessCollectionResult; at: Date }
+  | { kind: 'skipped' }
+  | { kind: 'failed'; error: string };
+
 export class PollWirelessDeviceUseCase
   extends UseCase<
     PollWirelessDeviceRequestDTO,
@@ -65,6 +100,7 @@ export class PollWirelessDeviceUseCase
   implements IWirelessPollOrchestrator
 {
   private readonly activePolls = new Set<string>();
+  private readonly confirmationCooldowns = new Map<string, number>();
 
   constructor(
     private readonly wirelessDeviceConfigRepo: IWirelessDeviceConfigRepository,
@@ -80,7 +116,8 @@ export class PollWirelessDeviceUseCase
     private readonly alertThresholdsRepo: IAlertThresholdsRepository,
     private readonly alertPublisher: IAlertPublisher | null,
     logger: ILogger,
-    private readonly agentReader: IAgentRadioReader = NoAgentRadioReader
+    private readonly agentReader: IAgentRadioReader = NoAgentRadioReader,
+    private readonly confirmation: AlertConfirmationConfig = DEFAULT_ALERT_CONFIRMATION
   ) {
     super(logger, 'PollWirelessDeviceUseCase');
   }
@@ -217,64 +254,27 @@ export class PollWirelessDeviceUseCase
       by: reader.by
     });
 
-    let collected: WirelessCollectionResult;
+    const radio: RadioTarget = {
+      reader,
+      collector,
+      ipAddress,
+      vendorSlug,
+      deviceType: config.deviceType,
+      credentials
+    };
+    const read = await this.readRadio(
+      radio,
+      request.forceExecution ?? false,
+      now
+    );
+    if (read.kind === 'skipped') {
+      return this.ok(this.skipped(request, now));
+    }
+    if (read.kind === 'failed') return this.fail(read.error);
+    const collected = read.collected;
     // The rest of the cycle is timed by the reading, which an agent may have
     // taken some seconds after this poll started.
-    let collectedAt = now;
-    if (reader.by === 'agent') {
-      const answer = await this.agentReader.read(reader.agentId, {
-        ipAddress,
-        vendor: vendorSlug,
-        deviceType: config.deviceType,
-        credentials
-      });
-      if (answer.kind === 'refused') {
-        // The schedule waits for the agent to come back (or be updated)
-        // instead of counting each cycle as a failed poll.
-        if (
-          !request.forceExecution &&
-          (answer.reason === 'AGENT_OFFLINE' ||
-            answer.reason === 'PROBE_UNSUPPORTED')
-        ) {
-          return this.ok(this.skipped(request, now));
-        }
-        this.logger.warn('Agent could not read the radio', {
-          ip: ipAddress,
-          vendor: vendorSlug,
-          reason: answer.reason,
-          error: answer.error
-        });
-        const reason = AGENT_READ_FAILURES[answer.reason];
-        return this.fail(
-          `Cannot poll device — ${
-            answer.reason === 'AGENT_ERROR'
-              ? `${reason}: ${answer.error}`
-              : reason
-          }`
-        );
-      }
-      collected = answer.reading;
-      collectedAt = answer.measuredAt;
-    } else {
-      const collectResult = await collector.collect(
-        ipAddress,
-        credentials,
-        config.deviceType
-      );
-
-      if (collectResult.isFailure) {
-        this.logger.warn('Wireless collector failed', {
-          ip: ipAddress,
-          vendor: vendorSlug,
-          method: collector.method,
-          error: collectResult.error
-        });
-        return this.fail(
-          `Failed to collect metrics: ${collectResult.error}`
-        );
-      }
-      collected = collectResult.value;
-    }
+    const collectedAt = read.at;
 
     // Auto-calibrate this device's LAN-speed baseline off its first
     // reported speed, so WLS-089 can warn on degradation from whatever
@@ -364,8 +364,20 @@ export class PollWirelessDeviceUseCase
       activeAlertsMap,
       ctx.deviceName
     );
+    const evaluated = this.alertEvaluator.evaluate(
+      metrics,
+      activeAlertsMap,
+      ctx
+    );
     const decisions = [
-      ...this.alertEvaluator.evaluate(metrics, activeAlertsMap, ctx),
+      ...(await this.confirmAlerts(
+        evaluated,
+        radio,
+        activeAlertsMap,
+        ctx,
+        deviceId,
+        now
+      )),
       ...(driftDecision ? [driftDecision] : [])
     ];
 
@@ -532,6 +544,159 @@ export class PollWirelessDeviceUseCase
       alertsCleared: clearDecisions.length,
       collectionMethod: collector.method
     });
+  }
+
+  private async readRadio(
+    radio: RadioTarget,
+    forceExecution: boolean,
+    now: Date
+  ): Promise<RadioRead> {
+    const { reader, collector, ipAddress, vendorSlug } = radio;
+    if (reader.by === 'agent') {
+      const answer = await this.agentReader.read(reader.agentId, {
+        ipAddress,
+        vendor: vendorSlug,
+        deviceType: radio.deviceType,
+        credentials: radio.credentials
+      });
+      if (answer.kind === 'refused') {
+        // The schedule waits for the agent to come back (or be updated)
+        // instead of counting each cycle as a failed poll.
+        if (
+          !forceExecution &&
+          (answer.reason === 'AGENT_OFFLINE' ||
+            answer.reason === 'PROBE_UNSUPPORTED')
+        ) {
+          return { kind: 'skipped' };
+        }
+        this.logger.warn('Agent could not read the radio', {
+          ip: ipAddress,
+          vendor: vendorSlug,
+          reason: answer.reason,
+          error: answer.error
+        });
+        const reason = AGENT_READ_FAILURES[answer.reason];
+        return {
+          kind: 'failed',
+          error: `Cannot poll device — ${
+            answer.reason === 'AGENT_ERROR'
+              ? `${reason}: ${answer.error}`
+              : reason
+          }`
+        };
+      }
+      return {
+        kind: 'read',
+        collected: answer.reading,
+        at: answer.measuredAt
+      };
+    }
+
+    const collectResult = await collector.collect(
+      ipAddress,
+      radio.credentials,
+      radio.deviceType
+    );
+    if (collectResult.isFailure) {
+      this.logger.warn('Wireless collector failed', {
+        ip: ipAddress,
+        vendor: vendorSlug,
+        method: collector.method,
+        error: collectResult.error
+      });
+      return {
+        kind: 'failed',
+        error: `Failed to collect metrics: ${collectResult.error}`
+      };
+    }
+    return { kind: 'read', collected: collectResult.value, at: now };
+  }
+
+  // Holds back the alerts a single reading misjudges until a short run of
+  // fresh readings agrees with it (WLS-203).
+  private async confirmAlerts(
+    decisions: AlertDecision[],
+    radio: RadioTarget,
+    activeAlerts: Map<string, WirelessAlertRecord>,
+    ctx: EvaluationContext,
+    deviceId: DeviceId,
+    now: Date
+  ): Promise<AlertDecision[]> {
+    if (!ctx.thresholds.confirmBeforeAlerting) return decisions;
+    const candidates = decisions.filter(needsConfirmation);
+    if (candidates.length === 0) return decisions;
+
+    const nowMs = now.getTime();
+    const cooldownKey = (d: AlertDecision): string =>
+      `${deviceId.toString()}:${d.metric}:${d.severity}`;
+    const toCheck = candidates.filter((d) => {
+      const until = this.confirmationCooldowns.get(cooldownKey(d));
+      if (until === undefined) return true;
+      if (until > nowMs) return false;
+      this.confirmationCooldowns.delete(cooldownKey(d));
+      return true;
+    });
+
+    const confirmed = new Set<AlertDecision>();
+    if (toCheck.length > 0) {
+      const samples = await this.takeConfirmationSamples(
+        radio,
+        activeAlerts,
+        ctx
+      );
+      const outcome = confirmAlertDecisions(toCheck, samples);
+      for (const d of outcome.confirmed) confirmed.add(d);
+      for (const d of outcome.rejected) {
+        this.confirmationCooldowns.set(
+          cooldownKey(d),
+          nowMs + this.confirmation.cooldownMs
+        );
+      }
+      if (outcome.rejected.length > 0) {
+        this.logger.info(
+          'Alert not confirmed by re-reading the radio',
+          {
+            deviceId: deviceId.toString(),
+            alerts: outcome.rejected.map(
+              (d) => `${d.metric}:${d.severity}`
+            ),
+            samples: samples.length
+          }
+        );
+      }
+    }
+
+    return decisions.filter(
+      (d) => !needsConfirmation(d) || confirmed.has(d)
+    );
+  }
+
+  private async takeConfirmationSamples(
+    radio: RadioTarget,
+    activeAlerts: Map<string, WirelessAlertRecord>,
+    ctx: EvaluationContext
+  ): Promise<ConfirmationSample[]> {
+    const samples: ConfirmationSample[] = [];
+    for (let i = 0; i < this.confirmation.samples; i++) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, this.confirmation.intervalMs)
+      );
+      const read = await this.readRadio(radio, true, new Date());
+      if (read.kind !== 'read') continue;
+      const metrics = CollectedMetricsMapper.toMetrics(
+        read.collected
+      );
+      if (metrics.isFailure) continue;
+      samples.push({
+        metrics: metrics.value,
+        decisions: this.alertEvaluator.evaluate(
+          metrics.value,
+          activeAlerts,
+          { ...ctx, collectedAt: read.at }
+        )
+      });
+    }
+    return samples;
   }
 
   private async evaluateParentApDrift(

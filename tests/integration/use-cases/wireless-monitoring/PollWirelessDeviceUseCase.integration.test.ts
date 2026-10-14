@@ -12,6 +12,7 @@ import { DeviceEligibilityService } from 'domain/device-inventory/services';
 import { WirelessAlertEvaluator } from 'domain/wireless-monitoring/services';
 import { IAlertRule } from 'domain/wireless-monitoring/services/rules/IAlertRule';
 import { DistanceRule } from 'domain/wireless-monitoring/services/rules/DistanceRule';
+import { SignalStrengthRule } from 'domain/wireless-monitoring/services/rules/SignalStrengthRule';
 import {
   PrismaWirelessAlertRecordRepository,
   PrismaWirelessDeviceConfigRepository,
@@ -66,7 +67,11 @@ describe('PollWirelessDeviceUseCase — integration', () => {
     deviceModelId = await seedWirelessDeviceModel(prisma);
   });
 
-  const build = (serverOnSite: boolean, rules: IAlertRule[] = []) => {
+  const build = (
+    serverOnSite: boolean,
+    rules: IAlertRule[] = [],
+    confirmation = { samples: 3, intervalMs: 0, cooldownMs: 600_000 }
+  ) => {
     const deviceRepo = new PrismaDeviceRepository(prisma);
     const configRepo = new PrismaWirelessDeviceConfigRepository(
       prisma,
@@ -96,7 +101,8 @@ describe('PollWirelessDeviceUseCase — integration', () => {
       new PrismaAlertThresholdsRepository(prisma),
       null,
       new WinstonLogger(),
-      agent
+      agent,
+      confirmation
     );
     return { useCase, configRepo };
   };
@@ -433,6 +439,74 @@ describe('PollWirelessDeviceUseCase — integration', () => {
 
       expect(result.isSuccess).toBe(true);
       expect(await distanceAlerts(deviceId)).toBe(0);
+    });
+  });
+
+  describe('[WLS-203] confirming an alert before it opens', () => {
+    const weak = { signalRxDbm: -75 };
+
+    const signalAlerts = (deviceId: string) =>
+      prisma.wirelessAlertRecord.count({
+        where: { deviceId, metric: 'signal_rx_dbm', isActive: true }
+      });
+
+    it('opens once the fresh readings show the same weak signal', async () => {
+      const deviceId = await seedRadio('192.168.90.40');
+      collector.setResult(weak);
+      const { useCase } = build(true, [new SignalStrengthRule()]);
+
+      await useCase.execute({ deviceId, forceExecution: true });
+
+      expect(collector.calls).toHaveLength(4);
+      expect(await signalAlerts(deviceId)).toBe(1);
+    });
+
+    it('stays quiet when only the first reading was weak', async () => {
+      const deviceId = await seedRadio('192.168.90.41');
+      collector.queue(weak);
+      const { useCase } = build(true, [new SignalStrengthRule()]);
+
+      const result = await useCase.execute({
+        deviceId,
+        forceExecution: true
+      });
+
+      expect(result.value.alertsTriggered).toBe(0);
+      expect(await signalAlerts(deviceId)).toBe(0);
+      const snapshot = await prisma.wirelessSnapshot.findFirst({
+        where: { deviceId }
+      });
+      expect(snapshot?.signalRxDbm).toBe(-75);
+    });
+
+    it('opens on the first reading when the install turned it off', async () => {
+      const deviceId = await seedRadio('192.168.90.42');
+      await prisma.wirelessAlertThresholds.create({
+        data: { id: 1, thresholds: { confirmBeforeAlerting: false } }
+      });
+      collector.queue(weak);
+      const { useCase } = build(true, [new SignalStrengthRule()]);
+
+      await useCase.execute({ deviceId, forceExecution: true });
+
+      expect(collector.calls).toHaveLength(1);
+      expect(await signalAlerts(deviceId)).toBe(1);
+    });
+
+    it('follows a device that turned it off over the install', async () => {
+      const deviceId = await seedRadio('192.168.90.43');
+      await prisma.wirelessAlertThresholdOverride.create({
+        data: {
+          deviceId,
+          overrides: { confirmBeforeAlerting: false }
+        }
+      });
+      collector.queue(weak);
+      const { useCase } = build(true, [new SignalStrengthRule()]);
+
+      await useCase.execute({ deviceId, forceExecution: true });
+
+      expect(await signalAlerts(deviceId)).toBe(1);
     });
   });
 });

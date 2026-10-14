@@ -24,6 +24,12 @@ describe('AlertThresholds', () => {
       expect(t.maxDistanceKm).toEqual({ 20: 15, 40: 10, 80: 5 });
     });
 
+    it('confirm flicker-prone alerts before opening them', () => {
+      expect(AlertThresholds.defaults().confirmBeforeAlerting).toBe(
+        true
+      );
+    });
+
     it('pass their own validation', () => {
       expect(
         AlertThresholds.create(AlertThresholds.defaults().values)
@@ -128,6 +134,24 @@ describe('AlertThresholds', () => {
       );
       expect(result.error).toBe(
         'snrDb must have a warning and a critical value'
+      );
+    });
+
+    it('accepts turning confirmation off', () => {
+      const result = AlertThresholds.create(
+        makeProps({ confirmBeforeAlerting: false })
+      );
+      expect(result.value.confirmBeforeAlerting).toBe(false);
+    });
+
+    it('rejects a confirmation switch that is not true or false', () => {
+      const result = AlertThresholds.create(
+        makeProps({
+          confirmBeforeAlerting: 'yes' as unknown as boolean
+        })
+      );
+      expect(result.error).toBe(
+        'confirmBeforeAlerting must be true or false'
       );
     });
 

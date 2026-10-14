@@ -2625,6 +2625,7 @@ as a whole. It covers every numeric rule:
 | `minCapacityMbps`   | 20 → 50, 40 → 100, 80 → 200  | per width, whole 1…10000             | WLS-094 |
 | `maxDistanceKm`     | 20 → 15, 40 → 10, 80 → 5     | per width, 0.1…200                   | WLS-095 |
 | `clockDriftSeconds` | 300                          | whole 10…86400                       | WLS-096 |
+| `confirmBeforeAlerting` | on                       | on or off                            | WLS-203 |
 
 A channel-width table may hold any of 5, 10, 20, 30, 40, 50, 60, 80 and 160 MHz.
 A width with no entry is not checked, which is how an install turns the capacity
@@ -2690,6 +2691,64 @@ part of setting that device up, which operators already do. _(inferred)_
 
 **Enforced at:** `src/presentation/http/routes/alert-threshold.routes.ts`
 **Tests:** `tests/integration/alert-threshold.routes.test.ts`
+
+### WLS-203 — A flicker-prone alert opens only once fresh readings confirm it
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain + Application
+**Since:** 2026-10-13
+
+While `confirmBeforeAlerting` is on (the default), six alerts do not open on
+the poll that first sees them: `ccq_percent`, `latency_ms`, `signal_rx_dbm`,
+`signal_tx_dbm`, `snr_db` and `capacity_kbps`. The poll re-reads the radio 5
+times, 4 s apart, the same way it read it the first time (itself or through the
+device's agent). It judges each reading by the same rules and thresholds. An
+alert opens only when more than half of the readings that came back breach at
+the same metric and severity. Otherwise it does not open and nothing is
+notified. The poll's snapshot keeps the first reading, without the alert.
+
+An alert that is not confirmed is not re-checked on that device for 10 minutes.
+During that time it does not open, even if a poll sees the breach again. When
+no reading comes back at all, the alert opens as it would have without the
+check.
+
+Every other alert, and every clear, works as before. Like a threshold, the
+switch is set for the install (WLS-200, `manage-settings`) and a device can
+override it (WLS-201, `update`). A save of the install's thresholds that leaves
+the switch out keeps the current value, so a screen built before the switch
+existed does not reset it.
+
+**Why:** Operators were notified about links that looked fine when they
+checked. These six metrics swing from one reading to the next: a burst of
+retries, one slow frame or a brief fade crosses the line while the link is
+healthy. A real fault is still there half a minute later. The cost is that a
+real alert opens about 25 s later. The cooldown stops a link sitting near a
+threshold from taking a poll slot for 20 s on every cycle. Opening when the
+radio stops answering avoids hiding an alert on a radio that is actually
+failing. Saturation is left out because a burst of traffic is real use, and
+G-7 already questions what that alert measures.
+
+**Enforced at:** `src/domain/wireless-monitoring/services/AlertConfirmation.ts`; `PollWirelessDeviceUseCase.confirmAlerts`
+**Reached from:** `PollWirelessDeviceUseCase` (scheduled and manual polls)
+**Tests:** `tests/domain/wireless-monitoring/services/AlertConfirmation.test.ts`, `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/application/wireless-monitoring/use-cases/AlertThresholdsUseCases.test.ts`, `tests/integration/use-cases/wireless-monitoring/PollWirelessDeviceUseCase.integration.test.ts`, `tests/integration/alert-threshold.routes.test.ts`
+
+### WLS-204 — Low CCQ on an idle link does not confirm a CCQ alert
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-10-13
+
+While WLS-203 confirms a `ccq_percent` alert, a reading whose transmit plus
+receive throughput is under 0.5 Mbps does not count as a breach. A reading with
+no throughput figure counts normally. A CCQ alert on a link that stays idle
+through the check therefore does not open. No other metric is affected.
+
+**Why:** airMAX works out CCQ from the frames it sent. On an idle link it sends
+very few, so a handful of retries makes the link read as poor when nothing is
+wrong. This is how low CCQ alerts arrived at night for links that were fine.
+
+**Enforced at:** `src/domain/wireless-monitoring/services/AlertConfirmation.ts` (`CCQ_IDLE_TRAFFIC_BPS`)
+**Tests:** `tests/domain/wireless-monitoring/services/AlertConfirmation.test.ts`
 
 ---
 
@@ -2776,3 +2835,11 @@ that were chosen to match the default `latencyMs` (WLS-086). The radio findings
 of a diagnosis use the configured thresholds (WLS-188, WLS-200), but these ping
 bands do not. An install that changes `latencyMs` can see a diagnosis and a
 standing alert disagree about the same latency.
+
+### G-10 — Confirmation cooldowns are per-process and lost on restart
+
+WLS-203's 10-minute cooldown is kept in memory, like G-2's guards. After a
+restart, the first poll that sees a breach re-checks it at once. A second
+instance would keep its own cooldowns. The confirmation also runs inside the
+poll, so a poll that confirms takes about 25 s and can trip the orchestrator's
+"Poll duration exceeded 30s" warning when the reads are slow.

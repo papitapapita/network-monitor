@@ -24,12 +24,13 @@ const thresholdsShape = z
     saturationPercent: z.number(),
     clientDropPercent: z.number(),
     minCapacityMbps: channelWidthTable,
-    maxDistanceKm: channelWidthTable
+    maxDistanceKm: channelWidthTable,
+    confirmBeforeAlerting: z.boolean()
   })
   .strict();
 
 export const updateAlertThresholdsSchema = z.object({
-  body: thresholdsShape
+  body: thresholdsShape.partial({ confirmBeforeAlerting: true })
 });
 
 export const getDeviceAlertThresholdsSchema = z.object({

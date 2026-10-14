@@ -31,7 +31,8 @@ export class AlertThresholdsMapper {
       saturationPercent: thresholds.saturationPercent,
       clientDropPercent: thresholds.clientDropPercent,
       minCapacityMbps: widthTableToDTO(thresholds.minCapacityMbps),
-      maxDistanceKm: widthTableToDTO(thresholds.maxDistanceKm)
+      maxDistanceKm: widthTableToDTO(thresholds.maxDistanceKm),
+      confirmBeforeAlerting: thresholds.confirmBeforeAlerting
     };
   }
 

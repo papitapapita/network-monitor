@@ -3527,6 +3527,7 @@ warning / 5 % critical, CPU and memory 5 %), so the margin moves with the value
 you set (WLS-081). An alert already open when a threshold changes is re-judged
 on the next poll. It clears once the reading passes the new clear line.
 
+  confirmBeforeAlerting: boolean;    // re-read the radio before opening a flicker-prone alert (WLS-203)
 ### `GET /api/wireless/alert-thresholds`
 
 **Status:** 200 | 401  
@@ -3546,12 +3547,22 @@ on the next poll. It clears once the reading passes the new clear line.
 
 ### `PUT /api/wireless/alert-thresholds` — Save
 
+| `confirmBeforeAlerting` | `true`                           |
 **Status:** 200 | 400 | 401 | 403  
 **Roles:** ADMIN (`manage-settings`; OPERATOR and VIEWER get `403`)
 
 ```ts
 // Request body — every group, nothing else. Replaces the set as a whole.
 AlertThresholdsDTO
+**`confirmBeforeAlerting`** (WLS-203) is an on/off switch, not a limit. While it
+is on, a CCQ, latency, signal (Rx/Tx), SNR or capacity alert does not open on
+the poll that first sees it. The server re-reads the radio 5 times, 4 s apart,
+and opens the alert only if most of those readings breach too. A low CCQ on an
+idle link (under 0.5 Mbps of traffic) does not count (WLS-204). An alert that
+is not confirmed is not re-checked for 10 minutes. Alerts that pass the check
+open about 25 s later than before. Other alerts and every clear are unaffected.
+Show it as a toggle, e.g. "Confirmar antes de alertar".
+
 
 // Response — same shape as GET
 ```
@@ -3576,6 +3587,7 @@ AlertThresholdsDTO
     overrides: Partial<AlertThresholdsDTO>; // {} when the device follows the install
     install: AlertThresholdsDTO;            // the install's set, to show what is inherited
     effective: AlertThresholdsDTO;          // what this device actually alerts at
+// confirmBeforeAlerting may be left out: the install keeps its current value.
   }
 }
 ```
@@ -3600,7 +3612,9 @@ AlertThresholdsDTO
 > `warning` and `critical`. The two channel-width tables are the exception:
 > they merge per width, so `{ "maxDistanceKm": { "40": 20 } }` changes 40 MHz
 > only and keeps the install's 20 and 80 MHz values. A device cannot remove a
-> width the install checks. To stop checking one, set a generous value.  
+> width the install checks. To stop checking one, set a generous value.
+> `{ "confirmBeforeAlerting": false }` turns the confirmation off for this
+> device only.  
 > `400` with the same messages as the install `PUT`. `404` when the device
 > has no wireless config.
 

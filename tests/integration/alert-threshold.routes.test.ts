@@ -26,7 +26,8 @@ const DEFAULTS = {
   saturationPercent: 80,
   clientDropPercent: 50,
   minCapacityMbps: { '20': 50, '40': 100, '80': 200 },
-  maxDistanceKm: { '20': 15, '40': 10, '80': 5 }
+  maxDistanceKm: { '20': 15, '40': 10, '80': 5 },
+  confirmBeforeAlerting: true
 };
 
 const SAVED = {
@@ -132,6 +133,35 @@ describe('Alert Threshold Routes', () => {
       expect(res.status).toBe(400);
     });
 
+    it('[WLS-203] 200 — a save without the confirmation switch keeps it', async () => {
+      await request(app)
+        .put('/api/wireless/alert-thresholds')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ ...DEFAULTS, confirmBeforeAlerting: false });
+      const { confirmBeforeAlerting: _omitted, ...withoutSwitch } =
+        SAVED;
+
+      const res = await request(app)
+        .put('/api/wireless/alert-thresholds')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(withoutSwitch);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.thresholds).toEqual({
+        ...SAVED,
+        confirmBeforeAlerting: false
+      });
+    });
+
+    it('[WLS-203] 400 — rejects a confirmation switch that is not true or false', async () => {
+      const res = await request(app)
+        .put('/api/wireless/alert-thresholds')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ ...DEFAULTS, confirmBeforeAlerting: 'yes' });
+
+      expect(res.status).toBe(400);
+    });
+
     it('400 — rejects an unknown field', async () => {
       const res = await request(app)
         .put('/api/wireless/alert-thresholds')
@@ -219,6 +249,22 @@ describe('Alert Threshold Routes', () => {
         ...DEFAULTS,
         maxDistanceKm: { '20': 15, '40': 30, '80': 5 }
       });
+    });
+
+    it('[WLS-203] 200 — a device turns confirmation off for itself', async () => {
+      const res = await request(app)
+        .put(`/api/devices/${deviceId}/wireless/alert-thresholds`)
+        .set('Authorization', `Bearer ${operatorToken}`)
+        .send({ overrides: { confirmBeforeAlerting: false } });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.overrides).toEqual({
+        confirmBeforeAlerting: false
+      });
+      expect(res.body.data.install.confirmBeforeAlerting).toBe(true);
+      expect(res.body.data.effective.confirmBeforeAlerting).toBe(
+        false
+      );
     });
 
     it('[WLS-201] 200 — empty overrides return the device to the install', async () => {

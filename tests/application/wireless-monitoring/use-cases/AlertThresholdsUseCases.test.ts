@@ -140,6 +140,61 @@ describe('[WLS-200] UpdateAlertThresholdsUseCase', () => {
   });
 });
 
+describe('[WLS-203] UpdateAlertThresholdsUseCase — confirmation switch', () => {
+  const { confirmBeforeAlerting: _omitted, ...withoutSwitch } =
+    DEFAULTS_DTO;
+
+  it('keeps the current setting when a save leaves it out', async () => {
+    const repo = makeThresholdsRepo(
+      AlertThresholds.defaults().withOverrides({
+        confirmBeforeAlerting: false
+      })
+    );
+    const useCase = new UpdateAlertThresholdsUseCase(
+      repo,
+      makeLogger()
+    );
+
+    const result = await useCase.execute(withoutSwitch);
+
+    expect(result.value.thresholds.confirmBeforeAlerting).toBe(false);
+    const saved = repo.saveGlobal.mock.calls[0]![0];
+    expect(saved.confirmBeforeAlerting).toBe(false);
+  });
+
+  it('saves the setting a save sends', async () => {
+    const repo = makeThresholdsRepo();
+    const useCase = new UpdateAlertThresholdsUseCase(
+      repo,
+      makeLogger()
+    );
+
+    const result = await useCase.execute({
+      ...withoutSwitch,
+      confirmBeforeAlerting: false
+    });
+
+    expect(result.value.thresholds.confirmBeforeAlerting).toBe(false);
+    expect(repo.getGlobal).not.toHaveBeenCalled();
+  });
+
+  it('fails without saving when the current setting cannot be read', async () => {
+    const repo = makeThresholdsRepo();
+    repo.getGlobal.mockResolvedValue(Result.fail('connection reset'));
+    const useCase = new UpdateAlertThresholdsUseCase(
+      repo,
+      makeLogger()
+    );
+
+    const result = await useCase.execute(withoutSwitch);
+
+    expect(result.error).toBe(
+      'Failed to read alert thresholds: connection reset'
+    );
+    expect(repo.saveGlobal).not.toHaveBeenCalled();
+  });
+});
+
 describe('[WLS-201] GetDeviceAlertThresholdsUseCase', () => {
   it('returns the overrides, the install set and the result of both', async () => {
     const overrides = AlertThresholdOverrides.create({

@@ -8,13 +8,15 @@ import {
 /**
  * Controllable stand-in for a radio. Doubles as its own resolver so a use
  * case gets it for any vendor slug. Call setResult() to change the reading
- * or fail() to make every read error.
+ * or fail() to make every read error. queue() serves readings in order
+ * before falling back to the set one.
  */
 export class FakeWirelessCollector
   implements IWirelessCollector, IWirelessCollectorResolver
 {
   readonly method = 'http_api' as const;
   readonly calls: string[] = [];
+  private readonly queued: Result<WirelessCollectionResult>[] = [];
   private result: Result<WirelessCollectionResult> = Result.ok(
     FakeWirelessCollector.reading()
   );
@@ -66,8 +68,17 @@ export class FakeWirelessCollector
     this.result = Result.fail(error);
   }
 
+  queue(...readings: Partial<WirelessCollectionResult>[]): void {
+    for (const overrides of readings) {
+      this.queued.push(
+        Result.ok(FakeWirelessCollector.reading(overrides))
+      );
+    }
+  }
+
   reset(): void {
     this.calls.length = 0;
+    this.queued.length = 0;
     this.setResult();
   }
 
@@ -79,6 +90,6 @@ export class FakeWirelessCollector
     ipAddress: string
   ): Promise<Result<WirelessCollectionResult>> {
     this.calls.push(ipAddress);
-    return this.result;
+    return this.queued.shift() ?? this.result;
   }
 }
