@@ -92,8 +92,8 @@ before 2026-09-30 are all refused once, when this ships.
 | Role       | Allowed operations                                                      |
 | ---------- | ----------------------------------------------------------------------- |
 | `VENDOR`   | everything `ADMIN` has, plus manage-installation                        |
-| `ADMIN`    | read, create, update, delete, activate, bulk-import, manage-credentials, manage-users, manage-settings |
-| `OPERATOR` | read, create, update, activate, bulk-import                             |
+| `ADMIN`    | read, create, update, delete, activate, bulk-import, manage-credentials, reveal-credentials, manage-users, manage-settings |
+| `OPERATOR` | read, create, update, activate, bulk-import, reveal-credentials         |
 | `VIEWER`   | read only                                                               |
 
 `VENDOR` is the company that sells and runs the install; `ADMIN` is the
@@ -107,8 +107,13 @@ permission. Reading them stays on `read` because the response is masked. It
 also gates downloading a configuration backup, which holds the same secrets
 (BKP-041), and comparing two backups (BKP-072).
 
-`manage-users` gates `/api/users` except `/api/users/me/password`, which every
-role may use (IDN-140).
+`reveal-credentials` gates seeing a device's secrets in plaintext
+(`POST /api/devices/:id/credentials/reveal`) and the password re-check that
+unlocks it (`POST /api/users/me/credential-reveal`). Operators hold it but
+still cannot change credentials; viewers get `403` (IDN-035).
+
+`manage-users` gates `/api/users` except `/api/users/me/password` and
+`/api/users/me/credential-reveal` (IDN-140, IDN-086).
 
 `manage-settings` gates changing the install's settings from the dashboard:
 today `PUT /api/notification-settings` and its test message (IDN-034),
@@ -1282,7 +1287,7 @@ would otherwise trip the "MAC already assigned to another device" check.
 > Success: the DTO object directly (or 204 No Content).  
 > Error: `{ error: string }`.
 
-Sensitive fields (`snmpCommunity`, `snmpV3AuthKey`, `snmpV3PrivKey`, `httpPassword`) are **never returned in plaintext** — they are always masked as `'***'` in responses.
+Sensitive fields (`snmpCommunity`, `snmpV3AuthKey`, `snmpV3PrivKey`, `httpPassword`) are masked as `'***'` in every response except the reveal endpoint below, which returns them in plaintext after the user re-enters their password.
 
 ```ts
 interface DeviceCredentialsResponseDTO {
@@ -1369,6 +1374,56 @@ Every field is optional on its own: an omitted field keeps whatever is stored, a
 ```
 
 > Returns 404 with `{ error: 'No credentials configured for this device' }` if no credentials have been saved yet.
+
+---
+
+### `POST /api/devices/:id/credentials/reveal` — Reveal Credentials
+
+**Status:** 200 | 400 | 401 | 403 | 404  
+**Roles:** ADMIN, OPERATOR (`reveal-credentials`) — never VIEWER
+
+Returns the stored credentials with every secret in plaintext. The user must
+first unlock with their password; the unlock lasts **5 minutes** and works for
+any device in that time (DEV-134, IDN-086).
+
+```ts
+// Headers
+X-Credential-Reveal-Token: string // revealToken from POST /api/users/me/credential-reveal
+
+// No request body
+
+// Response (raw, no wrapper), sent with Cache-Control: no-store
+interface RevealedDeviceCredentialsDTO {
+  deviceId: string;
+  snmpVersion: 1 | 2 | 3;
+  snmpCommunity: string | null;
+  snmpV3AuthUser: string | null;
+  snmpV3AuthProto: 'MD5' | 'SHA' | null;
+  snmpV3AuthKey: string | null;
+  snmpV3PrivProto: 'DES' | 'AES' | null;
+  snmpV3PrivKey: string | null;
+  snmpPort: number;
+  httpUsername: string | null;
+  httpPassword: string | null;
+  httpPort: number;
+  sshPort: number;
+}
+```
+
+> **Flow for the frontend:** on "show password", if no unlock is held or it has
+> expired, ask for the user's password, call `POST /api/users/me/credential-reveal`,
+> keep `revealToken` in memory only (never `localStorage`) for
+> `expiresInSeconds`, then call this endpoint with the header. Hide the
+> plaintext again when the unlock expires.
+>
+> `403 { success: false, error: 'Enter your password to see device credentials' }`
+> — no unlock, an expired one, another user's, or the account's sessions ended
+> since (password or role change). Ask for the password again.
+> `403 { success: false, error: 'Forbidden' }` — the role lacks
+> `reveal-credentials` (VIEWER); hide the "show" button for that role.
+> `404 { error: 'No credentials configured for this device' }`.
+>
+> Every reveal is logged with the user and the device (DEV-135).
 
 ---
 
@@ -6008,6 +6063,28 @@ interface UserAccountDTO {
 > The change signs this account out everywhere, this session included: **replace
 > the stored token with the one returned**. `400 Current password is incorrect`
 > on a wrong current password.
+
+---
+
+### `POST /api/users/me/credential-reveal` — Unlock device credentials
+
+**Status:** 200 | 400 | 401 | 403 | 429  
+**Roles:** ADMIN, OPERATOR (`reveal-credentials`) — never VIEWER
+
+```ts
+// Request body
+{ password: string } // the signed-in user's own password
+
+// Response
+{ success: true, data: { revealToken: string; expiresInSeconds: number } } // 300
+```
+
+> Send `revealToken` as `X-Credential-Reveal-Token` to
+> `POST /api/devices/:id/credentials/reveal`. It is not a session token and
+> opens nothing else (IDN-086).
+> `400 Password is incorrect` on a wrong password. Wrong passwords count toward
+> the same pause as sign-in (IDN-044): after five, this endpoint and login answer
+> `429 Too many failed sign-in attempts. Try again later.` until the pause ends.
 
 ---
 

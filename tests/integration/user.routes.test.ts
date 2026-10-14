@@ -56,7 +56,8 @@ describe('User Routes — /api/users', () => {
         request(app).post(PATH),
         request(app).patch(`${PATH}/${GHOST_ID}`),
         request(app).post(`${PATH}/${GHOST_ID}/two-factor/reset`),
-        request(app).post(`${PATH}/me/password`)
+        request(app).post(`${PATH}/me/password`),
+        request(app).post(`${PATH}/me/credential-reveal`)
       ]);
 
       for (const res of responses) expect(res.status).toBe(401);
@@ -477,6 +478,71 @@ describe('User Routes — /api/users', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.error).toBe('Current password is incorrect');
+    });
+  });
+
+  describe('[IDN-086] POST /api/users/me/credential-reveal', () => {
+    const unlock = (token: string, password: string) =>
+      request(app)
+        .post(`${PATH}/me/credential-reveal`)
+        .set('Authorization', as(token))
+        .send({ password });
+
+    it('200 — an operator unlocks credentials for five minutes', async () => {
+      const { token } = await staff();
+
+      const res = await unlock(token, PASSWORD);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({
+        revealToken: expect.any(String),
+        expiresInSeconds: 300
+      });
+      const session = await request(app)
+        .get('/api/installation')
+        .set('Authorization', as(res.body.data.revealToken));
+      expect(session.status).toBe(401);
+    });
+
+    it('400 — the password is wrong', async () => {
+      const { token } = await staff();
+
+      const res = await unlock(token, 'guess');
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Password is incorrect');
+    });
+
+    it('[IDN-044] 429 — five wrong passwords pause it, and sign-in with it', async () => {
+      const { token } = await staff();
+      for (let i = 0; i < 5; i++) await unlock(token, 'guess');
+
+      const res = await unlock(token, PASSWORD);
+
+      expect(res.status).toBe(429);
+      const login = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'staff@isp.example', password: PASSWORD });
+      expect(login.status).toBe(429);
+    });
+
+    it('400 — the password is missing', async () => {
+      const { token } = await staff();
+
+      const res = await request(app)
+        .post(`${PATH}/me/credential-reveal`)
+        .set('Authorization', as(token))
+        .send({});
+
+      expect(res.status).toBe(400);
+    });
+
+    it('[IDN-035] 403 — a viewer cannot unlock credentials', async () => {
+      const { token } = await staff('viewer@isp.example', 'VIEWER');
+
+      const res = await unlock(token, PASSWORD);
+
+      expect(res.status).toBe(403);
     });
   });
 

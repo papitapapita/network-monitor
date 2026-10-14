@@ -3,6 +3,7 @@ import { ILogger } from 'application/shared/interfaces';
 import {
   SetDeviceCredentialsUseCase,
   GetDeviceCredentialsUseCase,
+  RevealDeviceCredentialsUseCase,
   DeleteDeviceCredentialsUseCase
 } from 'application/device-inventory/use-cases';
 
@@ -11,6 +12,7 @@ export class CredentialsController {
     private readonly setCredentials: SetDeviceCredentialsUseCase,
     private readonly getCredentials: GetDeviceCredentialsUseCase,
     private readonly deleteCredentials: DeleteDeviceCredentialsUseCase,
+    private readonly revealCredentials: RevealDeviceCredentialsUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -42,6 +44,31 @@ export class CredentialsController {
         deviceId: req.params.id
       });
 
+      if (result.isFailure) {
+        res
+          .status(this.getErrorStatusCode(result.error!))
+          .json({ error: result.error });
+        return;
+      }
+
+      res.status(200).json(result.value);
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public reveal = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.revealCredentials.execute({
+        deviceId: req.params.id,
+        revealedBy: req.user!.userId
+      });
+
+      // Plaintext secrets must not linger in a browser or proxy cache.
+      res.set('Cache-Control', 'no-store');
       if (result.isFailure) {
         res
           .status(this.getErrorStatusCode(result.error!))

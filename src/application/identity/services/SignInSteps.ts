@@ -134,6 +134,7 @@ const SECRET_FIELDS = [
   'recoveryCode',
   'trustedBrowserToken',
   'token',
+  'revealToken',
   'recoveryCodes',
   'secret',
   'otpauthUri'

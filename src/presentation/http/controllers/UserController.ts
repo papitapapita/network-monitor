@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { ILogger } from 'application/shared/interfaces';
 import { Result } from 'domain/shared/core';
-import { TWO_FACTOR_OFF } from 'domain/identity';
+import { SIGN_IN_PAUSED, TWO_FACTOR_OFF } from 'domain/identity';
 import { setSessionCookies } from '../middleware/sessionCookies';
 import {
   ListUsersUseCase,
@@ -10,10 +10,12 @@ import {
   UpdateUserUseCase,
   ChangeOwnPasswordUseCase,
   ResetTwoFactorUseCase,
+  UnlockCredentialRevealUseCase,
   ADMIN_RESET_NEEDS_VENDOR,
   OWN_ACCOUNT_REFUSED,
   VENDOR_ACCOUNT_PROTECTED,
-  WRONG_CURRENT_PASSWORD
+  WRONG_CURRENT_PASSWORD,
+  WRONG_PASSWORD
 } from 'application/identity';
 
 export class UserController {
@@ -23,6 +25,7 @@ export class UserController {
     private readonly updateUserUseCase: UpdateUserUseCase,
     private readonly changeOwnPasswordUseCase: ChangeOwnPasswordUseCase,
     private readonly resetTwoFactorUseCase: ResetTwoFactorUseCase,
+    private readonly unlockCredentialRevealUseCase: UnlockCredentialRevealUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -80,6 +83,18 @@ export class UserController {
       true
     );
 
+  public unlockCredentialReveal = (
+    req: Request,
+    res: Response
+  ): Promise<void> =>
+    this.run(res, 200, () =>
+      this.unlockCredentialRevealUseCase.execute({
+        userId: req.user!.userId,
+        password: req.body.password,
+        sourceIp: req.ip ?? null
+      })
+    );
+
   private async run<T>(
     res: Response,
     status: number,
@@ -112,11 +127,13 @@ export class UserController {
       return 403;
     }
     if (errorMessage === TWO_FACTOR_OFF) return 409;
+    if (errorMessage === SIGN_IN_PAUSED) return 429;
     if (errorMessage === INVITATION_NOT_SENT) return 503;
     if (errorMessage.includes('not found')) return 404;
     if (errorMessage.includes('already exists')) return 409;
     if (
       errorMessage === WRONG_CURRENT_PASSWORD ||
+      errorMessage === WRONG_PASSWORD ||
       errorMessage === 'Nothing to update' ||
       errorMessage.includes('Invalid') ||
       errorMessage.includes('must be') ||

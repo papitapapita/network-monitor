@@ -99,6 +99,18 @@ describe('JwtTokenService', () => {
     expect(exp! - iat!).toBe(7 * 24 * 60 * 60);
   });
 
+  it('[IDN-086] a credential reveal unlock lasts five minutes', () => {
+    const token = tokens.signChallenge({
+      userId: 'u-1',
+      tokenVersion: 0,
+      kind: 'credential-reveal'
+    });
+    const { iat, exp } = jwt.decode(token) as jwt.JwtPayload;
+
+    expect(exp! - iat!).toBe(5 * 60);
+    expect(tokens.verify(token).isFailure).toBe(true);
+  });
+
   it('[IDN-171] a remembered browser is neither a session nor a challenge', () => {
     const token = tokens.signChallenge({
       userId: 'u-1',

@@ -37,7 +37,7 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 | Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Domain**                            |    45 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144, DEV-162, DEV-164, DEV-169 |
-| **Application**                       |    50 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-133, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172, DEV-173 |
+| **Application**                       |    52 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-133, DEV-134, DEV-135, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172, DEV-173 |
 | **Application + Domain**              |     6 | DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160                                                                                                                                                                                                                                                                                                                                     |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                                                                              |
 | **Infrastructure + Domain**           |     2 | DEV-028, DEV-161 |
@@ -56,7 +56,7 @@ departure:
   DEV-065, DEV-066, DEV-067, DEV-097) span two aggregates for the same reason.
   A domain service could hold them; a use case holding them is the pragmatic
   equivalent.
-- **The credential rules** (DEV-120 – DEV-133) are deliberately outside the
+- **The credential rules** (DEV-120 – DEV-135) are deliberately outside the
   domain, and the Device Credentials section says so: they are infrastructure
   access secrets, not part of a device's identity.
 
@@ -2274,11 +2274,13 @@ port and HTTPS, which is what the devices in the fleet listen on. _(inferred)_
 **Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`,
 `tests/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.test.ts`
 
-### DEV-128 — Stored secrets are never returned; they are masked as `***`
+### DEV-128 — Reading credentials masks every stored secret as `***`
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application (not in domain)
-**Since:** 2026-07-28
+**Since:** 2026-07-28 · **Revised:** 2026-10-14 (plaintext reveal, DEV-134)
+
+The ordinary read, `GET /api/devices/:id/credentials`, never returns a secret.
 
 `snmpCommunity`, `snmpV3AuthKey`, `snmpV3PrivKey` and `httpPassword` come back
 as `***` when set and `null` when absent. Two booleans — `hasSnmpCredentials`,
@@ -2288,7 +2290,9 @@ for v3.
 
 **Why:** Masking rather than omitting lets the UI distinguish "a password is
 set" from "no password configured" — which changes what the form should show —
-without ever putting the secret on the wire.
+without putting the secret on the wire. The one way to see a secret is the
+separate, unlocked reveal (`DEV-134`), so the form never carries one by
+accident.
 
 **Enforced at:** `src/application/device-inventory/mappers/DeviceCredentialsMapper.ts:8`
 **Tests:** `tests/integration/use-cases/device-inventory/GetDeviceCredentialsUseCase.integration.test.ts`, `tests/integration/credentials.routes.test.ts`
@@ -2374,6 +2378,50 @@ credential row with neither protocol opens nothing.
 **Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts:164-170`; HTTP-only consumers in `RebootWirelessDeviceUseCase.ts` and `UbiquitiHttpCollector.ts` (`collect`)
 **Message:** `An HTTP login or SNMP access is required`
 **Tests:** `tests/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`, `tests/application/wireless-monitoring/use-cases/RebootWirelessDeviceUseCase.test.ts`, `tests/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.test.ts`, `tests/integration/credentials.routes.test.ts`
+
+### DEV-134 — An unlocked operator or administrator can read the secrets in plaintext
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-10-14
+
+`POST /api/devices/:id/credentials/reveal` returns the stored credentials with
+`snmpCommunity`, `snmpV3AuthKey`, `snmpV3PrivKey` and `httpPassword` decrypted.
+It needs `reveal-credentials` (`IDN-035`) and a current unlock in the
+`X-Credential-Reveal-Token` header (`IDN-086`). The response is sent with
+`Cache-Control: no-store`. A device with nothing saved fails as an ordinary read
+does (`DEV-131`). The use case never logs the response.
+
+**Why:** A technician working on a radio needs its login, and the system is
+where that login is kept. A separate endpoint rather than an option on the
+ordinary read means no screen that only shows a device can put a secret on the
+wire, and the unlock check sits on exactly one route. It is a `POST` so no
+browser or proxy treats the answer as something to cache or prefetch.
+
+**Enforced at:** `src/application/device-inventory/use-cases/RevealDeviceCredentialsUseCase.ts`,
+`src/application/device-inventory/mappers/DeviceCredentialsMapper.ts` (`toRevealedDTO`),
+`src/presentation/http/controllers/CredentialsController.ts` (`reveal`),
+`src/presentation/http/routes/credentials.routes.ts`
+**Tests:** `tests/integration/use-cases/device-inventory/RevealDeviceCredentialsUseCase.integration.test.ts`,
+`tests/integration/credentials.routes.test.ts`
+
+### DEV-135 — Every reveal is logged with who saw which device
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-10-14
+
+Each successful reveal writes a `warn` log line `Device credentials revealed`
+with the device id and the id of the user who saw it, and no secret. The
+request audit line (`IDN-120`) records the call as well.
+
+**Why:** Once a password has been shown, the only remaining protection is
+knowing who has it. After a former employee leaves, or a radio is changed
+without permission, the log answers which devices' passwords to change. A
+`warn` makes it stand out from routine reads.
+
+**Enforced at:** `src/application/device-inventory/use-cases/RevealDeviceCredentialsUseCase.ts`
+**Tests:** `tests/integration/use-cases/device-inventory/RevealDeviceCredentialsUseCase.integration.test.ts`
 
 ---
 
@@ -2463,7 +2511,8 @@ meaningful. /31 and /32 are exempt because they have no reserved pair.
 `PUT` and `DELETE /api/devices/:id/credentials` require a dedicated
 `manage-credentials` permission, granted to ADMIN (and VENDOR, which holds
 everything ADMIN does — IDN-030). `GET` stays on `read`
-(DEV-141) because the response is masked (DEV-129).
+(DEV-141) because the response is masked (DEV-128). Seeing the secrets in
+plaintext is a separate permission that operators hold too (DEV-134, IDN-035).
 
 **Why:** These endpoints write the passwords and SNMP keys that open the
 equipment itself. Under DEV-141 they sat behind the same `update` permission as

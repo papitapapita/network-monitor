@@ -48,3 +48,9 @@ export const changeOwnPasswordSchema = z.object({
     newPassword: password
   })
 });
+
+export const unlockCredentialRevealSchema = z.object({
+  body: z.object({
+    password: z.string().min(1, 'password is required')
+  })
+});

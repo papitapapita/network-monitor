@@ -25,6 +25,7 @@ export * from './DeleteDeviceModelUseCase';
 export * from './ScanNetworkSegmentUseCase';
 export * from './SetDeviceCredentialsUseCase';
 export * from './GetDeviceCredentialsUseCase';
+export * from './RevealDeviceCredentialsUseCase';
 export * from './DeleteDeviceCredentialsUseCase';
 export * from './GetMapLocationsUseCase';
 export * from './DeleteLocationUseCase';

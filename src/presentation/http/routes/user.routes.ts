@@ -8,7 +8,8 @@ import {
 import {
   createUserSchema,
   updateUserSchema,
-  changeOwnPasswordSchema
+  changeOwnPasswordSchema,
+  unlockCredentialRevealSchema
 } from '../validation';
 
 // The customer's administrator manages the staff; everyone manages their own
@@ -22,6 +23,15 @@ export function createUserRoutes(controller: UserController): Router {
     createRateLimiter('write'),
     validateRequest(changeOwnPasswordSchema),
     controller.changeOwnPassword
+  );
+
+  // Only wrong passwords spend the budget, as at sign-in (IDN-086).
+  router.post(
+    '/me/credential-reveal',
+    authorize('reveal-credentials'),
+    createRateLimiter('sign-in'),
+    validateRequest(unlockCredentialRevealSchema),
+    controller.unlockCredentialReveal
   );
 
   router.get(

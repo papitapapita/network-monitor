@@ -37,6 +37,7 @@ export * from './ScanNetworkSegmentRequestDTO';
 export * from './ScanNetworkSegmentResponseDTO';
 export * from './SetDeviceCredentialsRequestDTO';
 export * from './DeviceCredentialsResponseDTO';
+export * from './RevealedDeviceCredentialsDTO';
 export * from './MapPinDTO';
 export * from './DeleteLocationRequestDTO';
 export * from './AssignDevicesToAgentRequestDTO';

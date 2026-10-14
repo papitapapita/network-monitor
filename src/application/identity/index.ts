@@ -22,3 +22,6 @@ export * from './use-cases/CreateUserUseCase';
 export * from './use-cases/UpdateUserUseCase';
 export * from './use-cases/ChangeOwnPasswordUseCase';
 export * from './use-cases/ResetTwoFactorUseCase';
+export * from './dtos/CredentialRevealDTOs';
+export * from './use-cases/UnlockCredentialRevealUseCase';
+export * from './services/CredentialRevealGate';

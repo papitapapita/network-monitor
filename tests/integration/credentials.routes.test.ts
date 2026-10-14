@@ -203,6 +203,145 @@ describe('Credentials Routes', () => {
     });
   });
 
+  describe('[DEV-134] POST /api/devices/:id/credentials/reveal', () => {
+    const PASSWORD = 'integration-test-pass';
+    const reveal = (
+      id: string,
+      token: string,
+      revealToken?: string
+    ) => {
+      const req = request(app)
+        .post(`${url(id)}/reveal`)
+        .set('Authorization', `Bearer ${token}`);
+      return revealToken
+        ? req.set('X-Credential-Reveal-Token', revealToken)
+        : req;
+    };
+    const unlock = async (token: string) => {
+      const res = await request(app)
+        .post('/api/users/me/credential-reveal')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ password: PASSWORD });
+      expect(res.status).toBe(200);
+      return res.body.data.revealToken as string;
+    };
+    const saveAll = () =>
+      request(app)
+        .put(url(deviceId))
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ ...HTTP_LOGIN, ...SNMP_V2 });
+
+    it('200 — an unlocked operator sees the secrets in plaintext, uncached', async () => {
+      await saveAll();
+
+      const res = await reveal(
+        deviceId,
+        operatorToken,
+        await unlock(operatorToken)
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.headers['cache-control']).toBe('no-store');
+      expect(res.body).toEqual({
+        deviceId,
+        snmpVersion: 2,
+        snmpCommunity: 'public-ro',
+        snmpV3AuthUser: null,
+        snmpV3AuthProto: null,
+        snmpV3AuthKey: null,
+        snmpV3PrivProto: null,
+        snmpV3PrivKey: null,
+        snmpPort: 161,
+        httpUsername: 'ubnt',
+        httpPassword: 'super-secret',
+        httpPort: 443,
+        sshPort: 22
+      });
+    });
+
+    it('[IDN-086] one unlock opens every device for its five minutes', async () => {
+      await saveAll();
+      const revealToken = await unlock(adminToken);
+
+      const first = await reveal(deviceId, adminToken, revealToken);
+      const again = await reveal(deviceId, adminToken, revealToken);
+
+      expect(first.status).toBe(200);
+      expect(again.status).toBe(200);
+    });
+
+    it('[IDN-086] 403 — without an unlock', async () => {
+      await saveAll();
+
+      const res = await reveal(deviceId, operatorToken);
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe(
+        'Enter your password to see device credentials'
+      );
+      expect(JSON.stringify(res.body)).not.toContain('super-secret');
+    });
+
+    it("[IDN-086] 403 — with another user's unlock", async () => {
+      await saveAll();
+
+      const res = await reveal(
+        deviceId,
+        operatorToken,
+        await unlock(adminToken)
+      );
+
+      expect(res.status).toBe(403);
+    });
+
+    it('[IDN-086] 403 — with a session token in place of an unlock', async () => {
+      await saveAll();
+
+      const res = await reveal(
+        deviceId,
+        operatorToken,
+        operatorToken
+      );
+
+      expect(res.status).toBe(403);
+    });
+
+    it('[IDN-035] 403 — a viewer cannot reveal credentials', async () => {
+      await saveAll();
+
+      const res = await reveal(deviceId, viewerToken);
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('Forbidden');
+    });
+
+    it('[DEV-131] 404 — a device with no credentials saved', async () => {
+      const res = await reveal(
+        deviceId,
+        operatorToken,
+        await unlock(operatorToken)
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it('400 — rejects a malformed device id', async () => {
+      const res = await reveal(
+        INVALID_ID,
+        operatorToken,
+        await unlock(operatorToken)
+      );
+
+      expect(res.status).toBe(400);
+    });
+
+    it('401 — rejects a request with no Authorization header', async () => {
+      const res = await request(app).post(`${url(deviceId)}/reveal`);
+
+      expect(res.status).toBe(401);
+    });
+  });
+
   describe('DELETE /api/devices/:id/credentials', () => {
     it('204 — removes the saved credentials', async () => {
       await request(app)

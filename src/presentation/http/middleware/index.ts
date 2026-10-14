@@ -6,3 +6,4 @@ export * from './rateLimiter';
 export * from './auditLog';
 export * from './subscriptionGuard';
 export * from './sessionCookies';
+export * from './requireCredentialReveal';

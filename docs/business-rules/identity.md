@@ -31,13 +31,13 @@ Format and conventions: [README.md](README.md).
 | Layer                         | Rules |
 | ----------------------------- | ----- |
 | Application                   | 21    |
-| Presentation (middleware)     | 16    |
+| Presentation (middleware)     | 17    |
 | Infrastructure                | 12    |
 | Domain (aggregate)            | 6     |
 | Domain (value object)         | 4     |
 | Presentation                  | 4     |
 | Domain                        | 2     |
-| Domain (permission table)     | 2     |
+| Domain (permission table)     | 3     |
 | Application · Presentation    | 1     |
 | Infrastructure + Presentation | 1     |
 | Infrastructure (database)     | 1     |
@@ -284,14 +284,15 @@ the right place for that argument to happen.
 **Message:** `Invalid role: <value>. Must be one of: VENDOR, ADMIN, OPERATOR, VIEWER`
 **Tests:** `tests/domain/identity/value-objects/UserRole.test.ts`
 
-### IDN-021 — There are nine permissions
+### IDN-021 — There are eleven permissions
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain (permission table)
-**Since:** 2026-08-05 · **Revised:** 2026-09-30
+**Since:** 2026-08-05 · **Revised:** 2026-10-14 (`reveal-credentials`, IDN-035)
 
 `read`, `create`, `update`, `delete`, `activate`, `bulk-import`,
-`manage-credentials`, `manage-users`, `manage-installation`.
+`manage-credentials`, `reveal-credentials`, `manage-users`, `manage-settings`,
+`manage-installation`.
 
 **Why:** Permissions are verbs, not resources — one `delete` covers customers,
 devices and alerts alike. That keeps the table small enough to hold in your head,
@@ -306,13 +307,13 @@ endpoint is omitted entirely instead (`BIL-140`).
 
 **Type:** Policy · **Status:** Active
 **Layer:** Domain (permission table)
-**Since:** 2026-08-05 · **Revised:** 2026-09-30 (`manage-settings`, IDN-034)
+**Since:** 2026-08-05 · **Revised:** 2026-10-14 (`reveal-credentials`, IDN-035)
 
 | Role         | Permissions                                                                                           |
 | ------------ | ----------------------------------------------------------------------------------------------------- |
 | **VENDOR**   | everything ADMIN has, plus `manage-installation`                                                                         |
-| **ADMIN**    | `read`, `create`, `update`, `delete`, `activate`, `bulk-import`, `manage-credentials`, `manage-users`, `manage-settings` |
-| **OPERATOR** | `read`, `create`, `update`, `activate`, `bulk-import`                                                 |
+| **ADMIN**    | `read`, `create`, `update`, `delete`, `activate`, `bulk-import`, `manage-credentials`, `reveal-credentials`, `manage-users`, `manage-settings` |
+| **OPERATOR** | `read`, `create`, `update`, `activate`, `bulk-import`, `reveal-credentials`                           |
 | **VIEWER**   | `read`                                                                                                |
 
 An operator lacks `delete`, `manage-credentials`, `manage-users` and
@@ -413,6 +414,32 @@ sit below `manage-installation`, which stays the vendor's.
 `src/presentation/http/routes/notification-settings.routes.ts`
 **Tests:** `tests/domain/identity/permissions/Permission.test.ts`,
 `tests/integration/notification-settings.routes.test.ts`
+
+### IDN-035 — Operators and administrators may see device secrets; viewers may not
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (permission table)
+**Since:** 2026-10-14
+
+`reveal-credentials`, held by `OPERATOR` and `ADMIN` (and so by `VENDOR`),
+gates seeing a device's stored passwords and SNMP keys in plaintext
+(`DEV-134`) and unlocking that view (`IDN-086`). A `VIEWER` answers `403`
+on both. Seeing is separate from changing: an operator still lacks
+`manage-credentials` (`DEV-144`).
+
+**Why:** A technician on site needs the radio's login to work on it, and
+asking an administrator for it every time either stalls the job or ends with
+the password shared in a chat. A viewer only watches the network and has no
+reason to open a device. Keeping seeing and changing on separate permissions
+lets the person in the field log in without being able to lock everyone else
+out of the equipment.
+
+**Enforced at:** `src/domain/identity/permissions/Permission.ts`,
+`src/presentation/http/routes/credentials.routes.ts`,
+`src/presentation/http/routes/user.routes.ts`
+**Tests:** `tests/domain/identity/permissions/Permission.test.ts`,
+`tests/integration/credentials.routes.test.ts`,
+`tests/integration/user.routes.test.ts`
 
 ---
 
@@ -839,6 +866,52 @@ add, so Bearer requests need no such check.
 **Message:** `Cross-site request refused` (`403`)
 **Tests:** `tests/presentation/http/middleware/authenticate.test.ts`,
 `tests/integration/auth.routes.test.ts`
+
+### IDN-086 — Device secrets are shown only for five minutes after the password is typed again
+
+**Type:** Policy · **Status:** Active
+**Layer:** Presentation (middleware)
+**Since:** 2026-10-14
+
+A signed-in user with `reveal-credentials` (`IDN-035`) sends their own password
+to `POST /api/users/me/credential-reveal` and gets back an unlock token that
+lasts five minutes. Every plaintext read (`DEV-134`) must carry it in the
+`X-Credential-Reveal-Token` header, or it answers
+`403 Enter your password to see device credentials`. Within its five minutes
+the unlock opens any device, as often as needed.
+
+The unlock belongs to its account: another user's unlock, a session token, or
+an expired one is refused. It carries the account's `tokenVersion`, so a
+password change, a role change or disabling ends it along with the sessions
+(`IDN-065`). It is not a session and opens nothing else.
+
+A wrong password counts toward the account's sign-in pause exactly as at
+login (`IDN-044`), and while a pause runs even the right password is refused
+with `429`. The right password does not clear the count. The unlock endpoint
+shares sign-in's budget of failed attempts (`IDN-103`).
+
+**Why:** A session lasts 24 hours (`IDN-061`) and is often left open on a shared
+office computer or a phone. Typing the password again proves the person at the
+screen is the account's owner right now, before the keys to the equipment are
+shown. Five minutes rather than one password per device is what makes the
+check bearable for a technician working through several radios. Counting
+wrong passwords toward the pause stops a stolen session from being used to
+guess the account's password.
+
+**Enforced at:** `src/application/identity/use-cases/UnlockCredentialRevealUseCase.ts`,
+`src/application/identity/services/CredentialRevealGate.ts`,
+`src/presentation/http/middleware/requireCredentialReveal.ts`,
+`src/infrastructure/identity/services/JwtTokenService.ts` (`credential-reveal` lifetime)
+**Message:** `Enter your password to see device credentials` (`403`),
+`Password is incorrect` (`400`),
+`Too many failed sign-in attempts. Try again later.` (`429`)
+**Tests:** `tests/application/identity/use-cases/UnlockCredentialRevealUseCase.test.ts`,
+`tests/application/identity/services/CredentialRevealGate.test.ts`,
+`tests/presentation/http/middleware/requireCredentialReveal.test.ts`,
+`tests/infrastructure/identity/services/JwtTokenService.test.ts`,
+`tests/integration/use-cases/identity/UnlockCredentialRevealUseCase.integration.test.ts`,
+`tests/integration/user.routes.test.ts`,
+`tests/integration/credentials.routes.test.ts`
 
 ---
 

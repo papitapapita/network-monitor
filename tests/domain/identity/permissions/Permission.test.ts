@@ -18,8 +18,8 @@ describe('ROLE_PERMISSIONS', () => {
       );
     });
 
-    it('should grant exactly 10 permissions', () => {
-      expect(vendorPerms).toHaveLength(10);
+    it('should grant exactly 11 permissions', () => {
+      expect(vendorPerms).toHaveLength(11);
     });
 
     it('should include manage-installation', () => {
@@ -31,8 +31,8 @@ describe('ROLE_PERMISSIONS', () => {
   describe('ADMIN permissions', () => {
     const adminPerms: Permission[] = ROLE_PERMISSIONS[UserRole.ADMIN];
 
-    it('should grant exactly 9 permissions', () => {
-      expect(adminPerms).toHaveLength(9);
+    it('should grant exactly 10 permissions', () => {
+      expect(adminPerms).toHaveLength(10);
     });
 
     it('[IDN-034] should include manage-settings', () => {
@@ -71,6 +71,10 @@ describe('ROLE_PERMISSIONS', () => {
       expect(adminPerms).toContain('manage-credentials');
     });
 
+    it('[IDN-035] should include reveal-credentials', () => {
+      expect(adminPerms).toContain('reveal-credentials');
+    });
+
     it('[IDN-033] should NOT include manage-installation', () => {
       expect(adminPerms).not.toContain('manage-installation');
     });
@@ -81,8 +85,8 @@ describe('ROLE_PERMISSIONS', () => {
     const operatorPerms: Permission[] =
       ROLE_PERMISSIONS[UserRole.OPERATOR];
 
-    it('should grant exactly 5 permissions', () => {
-      expect(operatorPerms).toHaveLength(5);
+    it('should grant exactly 6 permissions', () => {
+      expect(operatorPerms).toHaveLength(6);
     });
 
     it('should include read', () => {
@@ -111,6 +115,10 @@ describe('ROLE_PERMISSIONS', () => {
 
     it('should NOT include manage-credentials', () => {
       expect(operatorPerms).not.toContain('manage-credentials');
+    });
+
+    it('[IDN-035] should include reveal-credentials', () => {
+      expect(operatorPerms).toContain('reveal-credentials');
     });
 
     it('should NOT include manage-installation', () => {
@@ -157,6 +165,10 @@ describe('ROLE_PERMISSIONS', () => {
 
     it('should NOT include bulk-import', () => {
       expect(viewerPerms).not.toContain('bulk-import');
+    });
+
+    it('[IDN-035] should NOT include reveal-credentials', () => {
+      expect(viewerPerms).not.toContain('reveal-credentials');
     });
   });
 

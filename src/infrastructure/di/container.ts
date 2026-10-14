@@ -115,7 +115,9 @@ import {
   CreateUserUseCase,
   UpdateUserUseCase,
   ResetTwoFactorUseCase,
-  ChangeOwnPasswordUseCase
+  ChangeOwnPasswordUseCase,
+  UnlockCredentialRevealUseCase,
+  CredentialRevealGate
 } from 'application/identity';
 import { EnsureVendorAccountUseCase } from 'application/identity/use-cases/EnsureVendorAccountUseCase';
 import { AuthController } from 'presentation/http/controllers/AuthController';
@@ -298,6 +300,7 @@ import {
 import {
   SetDeviceCredentialsUseCase,
   GetDeviceCredentialsUseCase,
+  RevealDeviceCredentialsUseCase,
   DeleteDeviceCredentialsUseCase,
   GetMapLocationsUseCase,
   DeleteLocationUseCase
@@ -586,6 +589,7 @@ export class DependencyContainer {
   // Identity
   public tokenService: ITokenService;
   public sessionValidator: SessionValidator;
+  public credentialRevealGate: CredentialRevealGate;
   public userController: UserController;
   private ensureVendorAccountUseCase: EnsureVendorAccountUseCase;
   public authController: AuthController;
@@ -1213,6 +1217,10 @@ export class DependencyContainer {
 
     this.tokenService = jwtTokenService;
     this.sessionValidator = new SessionValidator(userRepository);
+    this.credentialRevealGate = new CredentialRevealGate(
+      userRepository,
+      jwtTokenService
+    );
     this.userController = new UserController(
       new ListUsersUseCase(userRepository, this.logger),
       new CreateUserUseCase(
@@ -1235,6 +1243,13 @@ export class DependencyContainer {
         this.logger
       ),
       new ResetTwoFactorUseCase(userRepository, this.logger),
+      new UnlockCredentialRevealUseCase(
+        userRepository,
+        bcryptPasswordService,
+        jwtTokenService,
+        signInSteps,
+        this.logger
+      ),
       this.logger
     );
     this.authController = new AuthController(
@@ -2266,6 +2281,10 @@ export class DependencyContainer {
       setDeviceCredentialsUseCase,
       getDeviceCredentialsUseCase,
       deleteDeviceCredentialsUseCase,
+      new RevealDeviceCredentialsUseCase(
+        this.deviceCredentialsRepository,
+        this.logger
+      ),
       this.logger
     );
 

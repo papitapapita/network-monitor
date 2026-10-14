@@ -1,6 +1,7 @@
 import { DeviceCredentials } from '../interfaces';
 import {
   DeviceCredentialsResponseDTO,
+  RevealedDeviceCredentialsDTO,
   SetDeviceCredentialsRequestDTO
 } from '../dtos';
 
@@ -33,6 +34,27 @@ export class DeviceCredentialsMapper {
       sshPort: c.sshPort,
       hasSnmpCredentials,
       hasHttpCredentials: !!(c.httpUsername && c.httpPassword)
+    };
+  }
+
+  public static toRevealedDTO(
+    deviceId: string,
+    c: DeviceCredentials
+  ): RevealedDeviceCredentialsDTO {
+    return {
+      deviceId,
+      snmpVersion: c.snmpVersion,
+      snmpCommunity: c.snmpCommunity,
+      snmpV3AuthUser: c.snmpV3AuthUser,
+      snmpV3AuthProto: c.snmpV3AuthProto,
+      snmpV3AuthKey: c.snmpV3AuthKey,
+      snmpV3PrivProto: c.snmpV3PrivProto,
+      snmpV3PrivKey: c.snmpV3PrivKey,
+      snmpPort: c.snmpPort,
+      httpUsername: c.httpUsername,
+      httpPassword: c.httpPassword,
+      httpPort: c.httpPort,
+      sshPort: c.sshPort
     };
   }
 

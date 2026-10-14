@@ -45,6 +45,7 @@ import {
   createAuditLogMiddleware,
   createAuthenticateMiddleware,
   createRateLimiter,
+  createRequireCredentialRevealMiddleware,
   createSubscriptionGuard
 } from '../middleware';
 
@@ -140,7 +141,12 @@ export function setupRoutes(
   // Device credentials: /api/devices/:id/credentials
   apiRouter.use(
     '/devices',
-    createCredentialsRoutes(container.credentialsController)
+    createCredentialsRoutes(
+      container.credentialsController,
+      createRequireCredentialRevealMiddleware(
+        container.credentialRevealGate
+      )
+    )
   );
 
   // =====================================
