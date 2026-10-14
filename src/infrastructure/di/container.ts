@@ -131,6 +131,7 @@ import {
   PrismaDeviceStateRepository,
   PrismaAlertRepository,
   PrismaAlertListQuery,
+  PrismaPollingStatusListQuery,
   PrismaDeviceCredentialsRepository,
   PrismaDeviceNotificationPolicyRepository,
   PrismaMutedAlertTypeRepository,
@@ -491,6 +492,7 @@ import {
   IngestPingResultsUseCase,
   ConfigureDevicePollingUseCase,
   GetDevicePollingStatusUseCase,
+  ListDevicePollingStatusesUseCase,
   GetDevicePollingHistoryUseCase,
   DeleteDevicePingHistoryUseCase,
   CreateDevicePollingUseCase,
@@ -1556,6 +1558,12 @@ export class DependencyContainer {
       this.logger,
       agentStatusQuery
     );
+    const listPollingStatusesUseCase =
+      new ListDevicePollingStatusesUseCase(
+        new PrismaPollingStatusListQuery(this.prisma),
+        this.logger,
+        agentStatusQuery
+      );
     const getPollingHistoryUseCase =
       new GetDevicePollingHistoryUseCase(
         this.pingResultRepository,
@@ -1576,6 +1584,7 @@ export class DependencyContainer {
     this.pollingController = new PollingController(
       executePollingCycleUseCase,
       getPollingStatusUseCase,
+      listPollingStatusesUseCase,
       getPollingHistoryUseCase,
       configurePollingUseCase,
       createDevicePollingUseCase,

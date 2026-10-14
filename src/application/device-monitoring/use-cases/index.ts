@@ -3,6 +3,7 @@ export * from './IngestPingResultsUseCase';
 export * from './ExecutePollingCycleUseCase';
 export * from './ConfigureDevicePollingUseCase';
 export * from './GetDevicePollingStatusUseCase';
+export * from './ListDevicePollingStatusesUseCase';
 export * from './GetDevicePollingHistoryUseCase';
 export * from './DeleteDevicePingHistoryUseCase';
 export * from './PurgeOldPingResultsUseCase';

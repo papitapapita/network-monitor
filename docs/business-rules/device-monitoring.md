@@ -158,7 +158,7 @@ device and records no history sample.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application · Infrastructure (read model)
-**Since:** 2026-09-28 · **Revised:** 2026-09-30 (off site, devices with no agent too)
+**Since:** 2026-09-28 · **Revised:** 2026-09-30 (off site, devices with no agent too), 2026-10-13 (the all-devices status list)
 
 A device placed behind an on-site agent (`MON-022`) is shown as UNKNOWN while
 that agent is not reporting: offline (`AGT-021`), paired but never connected
@@ -167,7 +167,8 @@ that agent is not reporting: offline (`AGT-021`), paired but never connected
 device list (`connectivity.status` is
 `UNKNOWN`, `downSince` is `null`, `lastSeen` is kept; the `UNKNOWN` filter
 includes it and the `UP`/`DOWN` filters leave it out) and the polling status
-(`currentStatus` is `UNKNOWN`). The stored `DeviceState` is not touched: when
+(`currentStatus` is `UNKNOWN`, for one device or the dashboard's list of all
+of them). The stored `DeviceState` is not touched: when
 the agent reports again the device shows whatever it measures next. If the
 agent's status cannot be read, the polling status falls back to the stored
 state.
@@ -180,8 +181,8 @@ nothing either, so its devices are no better known; neither is a device with
 no agent on a server that never pings it. Leaving the stored state alone keeps
 the history honest and lets the next live result decide.
 
-**Enforced at:** `src/application/device-monitoring/use-cases/GetDevicePollingStatusUseCase.ts`, `src/application/device-monitoring/mappers/PollingMapper.ts`, `src/infrastructure/persistence/PrismaDeviceListQuery.ts`, `src/infrastructure/probe-agents/queries/PrismaAgentStatusQuery.ts`
-**Tests:** `tests/application/device-monitoring/use-cases/GetDevicePollingStatusUseCase.test.ts`, `tests/infrastructure/persistence/PrismaDeviceListQuery.test.ts`, `tests/integration/use-cases/device-monitoring/GetDevicePollingStatusUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/ListDevicesUseCase.integration.test.ts`
+**Enforced at:** `src/application/device-monitoring/use-cases/GetDevicePollingStatusUseCase.ts`, `src/application/device-monitoring/use-cases/ListDevicePollingStatusesUseCase.ts`, `src/application/device-monitoring/mappers/PollingMapper.ts`, `src/infrastructure/persistence/PrismaDeviceListQuery.ts`, `src/infrastructure/probe-agents/queries/PrismaAgentStatusQuery.ts`
+**Tests:** `tests/application/device-monitoring/use-cases/GetDevicePollingStatusUseCase.test.ts`, `tests/application/device-monitoring/use-cases/ListDevicePollingStatusesUseCase.test.ts`, `tests/infrastructure/persistence/PrismaDeviceListQuery.test.ts`, `tests/integration/use-cases/device-monitoring/GetDevicePollingStatusUseCase.integration.test.ts`, `tests/integration/use-cases/device-monitoring/ListDevicePollingStatusesUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/ListDevicesUseCase.integration.test.ts`
 
 ---
 

@@ -150,6 +150,49 @@ describe('Polling Routes — /api/devices/:id/poll(ing/*)', () => {
   });
 
   // ─────────────────────────────────────────────────────────────
+  // GET /api/devices/polling/statuses
+  // ─────────────────────────────────────────────────────────────
+
+  describe('GET /api/devices/polling/statuses', () => {
+    it('200 — returns the status of every monitored device', async () => {
+      const res = await request(app)
+        .get('/api/devices/polling/statuses')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0]).toMatchObject({
+        deviceId: monitoredDeviceId,
+        pollingEnabled: true,
+        consecutiveFailures: 0,
+        lastResult: null
+      });
+    });
+
+    it('200 — a VIEWER can read it', async () => {
+      const viewerToken = await seedAndGetToken(
+        app,
+        prisma,
+        'VIEWER'
+      );
+
+      const res = await request(app)
+        .get('/api/devices/polling/statuses')
+        .set('Authorization', `Bearer ${viewerToken}`);
+
+      expect(res.status).toBe(200);
+    });
+
+    it('401 — rejects a request with no Authorization header', async () => {
+      const res = await request(app).get(
+        '/api/devices/polling/statuses'
+      );
+
+      expect(res.status).toBe(401);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
   // GET /api/devices/:id/polling/history
   // ─────────────────────────────────────────────────────────────
 

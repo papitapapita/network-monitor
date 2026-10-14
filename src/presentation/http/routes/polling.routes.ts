@@ -20,6 +20,7 @@ import {
  *
  * Routes:
  * - POST   /api/devices/:id/poll              - Manual poll
+ * - GET    /api/devices/polling/statuses      - Current status, every device
  * - GET    /api/devices/:id/polling/status    - Current status
  * - GET    /api/devices/:id/polling/history   - Ping history
  * - DELETE /api/devices/:id/polling/history   - Delete ping history
@@ -36,6 +37,13 @@ export function createPollingRoutes(
     createRateLimiter('write'),
     validateRequest(pollDeviceSchema),
     controller.poll
+  );
+
+  router.get(
+    '/polling/statuses',
+    authorize('read'),
+    createRateLimiter('read'),
+    controller.listStatuses
   );
 
   router.get(

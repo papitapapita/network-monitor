@@ -1924,6 +1924,31 @@ monitoring before polling it"`. A manual poll would write a real reading over
 
 ---
 
+### `GET /api/devices/polling/statuses` — Current Status, Every Device
+
+> **New 2026-10-13.** One request for the dashboard instead of one
+> `GET /api/devices/:id/polling/status` per device, which spent the whole
+> 100/min read budget on installs with more than ~100 monitored devices.
+
+**Status:** 200 | 401
+
+```ts
+// Response — not wrapped, same as the single-device route
+Array<{ /* exactly the GET /api/devices/:id/polling/status shape */ }>
+```
+
+One item per device that has a polling configuration, whether `pollingEnabled`
+is `true` or `false`; filter on it client side. Deleted devices are left out.
+A device never polled comes back with `lastPolled: null`, `lastResult: null`
+and `currentStatus: 'UNKNOWN'`. `currentStatus` follows the same rules as the
+single-device route, including `'UNKNOWN'` behind an agent that is not
+reporting (MON-006). Unordered: key by `deviceId`. Any role can read it.
+
+**Frontend:** poll this once per refresh and drop the per-device status
+calls on the dashboard. Keep the single-device route for the device page.
+
+---
+
 ### `GET /api/devices/:id/polling/history` — History + Stats
 
 > For a device behind an on-site agent, history can fill in **after the fact**:

@@ -8,6 +8,7 @@ import {
   NOT_ON_MONITORED_NETWORK
 } from '../../../../src/application/device-monitoring/use-cases/ExecutePollingCycleUseCase';
 import { GetDevicePollingStatusUseCase } from '../../../../src/application/device-monitoring/use-cases/GetDevicePollingStatusUseCase';
+import { ListDevicePollingStatusesUseCase } from '../../../../src/application/device-monitoring/use-cases/ListDevicePollingStatusesUseCase';
 import { GetDevicePollingHistoryUseCase } from '../../../../src/application/device-monitoring/use-cases/GetDevicePollingHistoryUseCase';
 import { ConfigureDevicePollingUseCase } from '../../../../src/application/device-monitoring/use-cases/ConfigureDevicePollingUseCase';
 import { CreateDevicePollingUseCase } from '../../../../src/application/device-monitoring/use-cases/CreateDevicePollingUseCase';
@@ -26,6 +27,11 @@ const createMockGetPollingStatusUseCase = () =>
   ({
     execute: jest.fn()
   }) as unknown as GetDevicePollingStatusUseCase;
+
+const createMockListPollingStatusesUseCase = () =>
+  ({
+    execute: jest.fn()
+  }) as unknown as ListDevicePollingStatusesUseCase;
 
 const createMockGetPollingHistoryUseCase = () =>
   ({
@@ -121,6 +127,7 @@ describe('PollingController', () => {
   let controller: PollingController;
   let mockExecutePollingCycleUseCase: ExecutePollingCycleUseCase;
   let mockGetPollingStatusUseCase: GetDevicePollingStatusUseCase;
+  let mockListPollingStatusesUseCase: ListDevicePollingStatusesUseCase;
   let mockGetPollingHistoryUseCase: GetDevicePollingHistoryUseCase;
   let mockConfigurePollingUseCase: ConfigureDevicePollingUseCase;
   let mockCreatePollingUseCase: CreateDevicePollingUseCase;
@@ -131,6 +138,8 @@ describe('PollingController', () => {
     mockExecutePollingCycleUseCase =
       createMockExecutePollingCycleUseCase();
     mockGetPollingStatusUseCase = createMockGetPollingStatusUseCase();
+    mockListPollingStatusesUseCase =
+      createMockListPollingStatusesUseCase();
     mockGetPollingHistoryUseCase =
       createMockGetPollingHistoryUseCase();
     mockConfigurePollingUseCase = createMockConfigurePollingUseCase();
@@ -142,6 +151,7 @@ describe('PollingController', () => {
     controller = new PollingController(
       mockExecutePollingCycleUseCase,
       mockGetPollingStatusUseCase,
+      mockListPollingStatusesUseCase,
       mockGetPollingHistoryUseCase,
       mockConfigurePollingUseCase,
       mockCreatePollingUseCase,
@@ -581,6 +591,60 @@ describe('PollingController', () => {
           { error: 'Connection pool exhausted' }
         );
       });
+    });
+  });
+
+  // =========================================================================
+  describe('listStatuses (GET /api/devices/polling/statuses)', () => {
+    it('returns 200 with every device status', async () => {
+      const { res, statusMock, jsonMock } = createMockResponse();
+      (
+        mockListPollingStatusesUseCase.execute as jest.Mock
+      ).mockResolvedValue(Result.ok([mockPollingStatusResult]));
+
+      await controller.listStatuses(
+        createMockRequest({}) as Request,
+        res as Response
+      );
+
+      expect(statusMock).toHaveBeenCalledWith(200);
+      expect(jsonMock).toHaveBeenCalledWith([
+        mockPollingStatusResult
+      ]);
+    });
+
+    it('returns 500 when the statuses cannot be read', async () => {
+      const { res, statusMock, jsonMock } = createMockResponse();
+      (
+        mockListPollingStatusesUseCase.execute as jest.Mock
+      ).mockResolvedValue(
+        Result.fail('Failed to load polling statuses: Database error')
+      );
+
+      await controller.listStatuses(
+        createMockRequest({}) as Request,
+        res as Response
+      );
+
+      expect(statusMock).toHaveBeenCalledWith(500);
+      expect(jsonMock).toHaveBeenCalledWith({
+        error: 'Failed to load polling statuses: Database error'
+      });
+    });
+
+    it('returns 500 and logs when the use case throws', async () => {
+      const { res, statusMock } = createMockResponse();
+      (
+        mockListPollingStatusesUseCase.execute as jest.Mock
+      ).mockRejectedValue(new Error('boom'));
+
+      await controller.listStatuses(
+        createMockRequest({}) as Request,
+        res as Response
+      );
+
+      expect(statusMock).toHaveBeenCalledWith(500);
+      expect(mockLogger.error).toHaveBeenCalled();
     });
   });
 

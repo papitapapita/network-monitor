@@ -3,6 +3,7 @@ import { ILogger } from 'application/shared/interfaces';
 import {
   ExecutePollingCycleUseCase,
   GetDevicePollingStatusUseCase,
+  ListDevicePollingStatusesUseCase,
   GetDevicePollingHistoryUseCase,
   ConfigureDevicePollingUseCase,
   CreateDevicePollingUseCase,
@@ -15,6 +16,7 @@ export class PollingController {
   constructor(
     private readonly executePollingCycleUseCase: ExecutePollingCycleUseCase,
     private readonly getPollingStatusUseCase: GetDevicePollingStatusUseCase,
+    private readonly listPollingStatusesUseCase: ListDevicePollingStatusesUseCase,
     private readonly getPollingHistoryUseCase: GetDevicePollingHistoryUseCase,
     private readonly configurePollingUseCase: ConfigureDevicePollingUseCase,
     private readonly createPollingUseCase: CreateDevicePollingUseCase,
@@ -56,6 +58,24 @@ export class PollingController {
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);
         res.status(statusCode).json({ error: result.error });
+        return;
+      }
+
+      res.status(200).json(result.value);
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public listStatuses = async (
+    _req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.listPollingStatusesUseCase.execute();
+
+      if (result.isFailure) {
+        res.status(500).json({ error: result.error });
         return;
       }
 
