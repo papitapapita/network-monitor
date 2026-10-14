@@ -228,6 +228,32 @@ describe('UpdateDeviceUseCase — integration', () => {
     expect(config!.enabled).toBe(true);
   });
 
+  it('[MON-024] renaming a monitored device leaves its polling on', async () => {
+    const id = await createDevice({
+      ipAddress: '10.100.0.2',
+      locationId,
+      status: 'ACTIVE',
+      monitoringEnabled: true
+    });
+    await waitForPollingConfig(prisma, id);
+
+    const result = await updateUseCase.execute({
+      id,
+      name: 'Renamed Router'
+    });
+    expect(result.isSuccess).toBe(true);
+
+    // Handlers are dispatched without being awaited; give a wrong write time
+    // to land before asserting it never happened.
+    await new Promise((r) => setTimeout(r, 300));
+
+    const config = await prisma.pollingConfiguration.findFirst({
+      where: { deviceId: id }
+    });
+    expect(config!.enabled).toBe(true);
+    expect(config!.ipAddress).toBe('10.100.0.2');
+  });
+
   it('[DEV-047] updating MAC to its own current value does not fail', async () => {
     const mac = 'AA:BB:CC:DD:EE:01';
     const id = await createDevice({ macAddress: mac });

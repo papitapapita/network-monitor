@@ -14,12 +14,15 @@ export class DeviceIPAddressChangedHandler
   public async handle(
     event: DeviceDetailsUpdatedEvent
   ): Promise<void> {
-    if (!('ipAddress' in event.updatedFields)) {
+    // The event always carries the ipAddress key; undefined means the update
+    // left the IP alone, null means it was cleared. Testing for the key read
+    // every name or description edit as a cleared IP and turned polling off.
+    const newIpAddress = event.updatedFields.ipAddress;
+    if (newIpAddress === undefined) {
       return;
     }
 
     const deviceId = event.aggregateId;
-    const newIpAddress = event.updatedFields.ipAddress ?? null;
 
     try {
       const result =

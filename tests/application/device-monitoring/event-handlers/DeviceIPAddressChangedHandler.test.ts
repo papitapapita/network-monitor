@@ -210,24 +210,26 @@ describe('DeviceIPAddressChangedHandler', () => {
 
       expect(config.enabled).toBe(false);
     });
+  });
 
-    it('should set the IP address to null when updatedFields.ipAddress is undefined (key present via ?? null)', async () => {
-      // Key present but undefined — handler coerces to null via ?? null.
+  describe('[MON-024] handle — an edit that leaves the IP alone', () => {
+    // Device.applyChanges always emits the ipAddress key, undefined when the
+    // update did not set it — this is the shape a rename actually produces.
+    it('should not touch the polling configuration when ipAddress is present but undefined', async () => {
       const config = makeConfig(ORIGINAL_IP);
       repo.findByDeviceId.mockResolvedValue(Result.ok(config));
-      repo.save.mockResolvedValue(Result.ok(config));
 
-      const event = new DeviceDetailsUpdatedEvent({
-        aggregateId: makeDeviceId(),
-        deviceName: DeviceName.reconstitute('Core-Router-01'),
-        updatedFields: { ipAddress: undefined },
-        dateTimeOccurred: new Date('2024-06-01T12:00:00.000Z')
-      });
+      await handler.handle(
+        makeEvent({
+          name: DeviceName.reconstitute('Renamed'),
+          ipAddress: undefined
+        })
+      );
 
-      await handler.handle(event);
-
-      expect(config.ipAddress).toBeNull();
-      expect(repo.save).toHaveBeenCalledTimes(1);
+      expect(repo.findByDeviceId).not.toHaveBeenCalled();
+      expect(repo.save).not.toHaveBeenCalled();
+      expect(config.enabled).toBe(true);
+      expect(config.ipAddress?.toString()).toBe(ORIGINAL_IP);
     });
   });
 

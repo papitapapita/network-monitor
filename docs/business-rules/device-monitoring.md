@@ -362,6 +362,26 @@ install keeps pinging its network from the server, as before.
 **Message:** `Cannot poll device <id> — this server is not on the monitored network`
 **Tests:** `tests/application/device-monitoring/use-cases/ExecutePollingCycleUseCase.test.ts`, `tests/infrastructure/persistence/PrismaPollingConfigurationRepository.test.ts`, `tests/presentation/http/controllers/PollingController.test.ts`, `tests/integration/use-cases/device-monitoring/ExecutePollingCycleUseCase.integration.test.ts`, `tests/integration/polling.routes.test.ts`
 
+### MON-024 — Editing a device's details touches its polling only when the IP changes
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-14
+
+A device update that sets a new IP address moves the polling configuration to
+it. An update that clears the IP also turns polling off, since there is nothing
+left to ping. Any other edit — name, description, MAC, serial, category,
+installed date, owner — leaves the polling configuration exactly as it was.
+
+**Why:** Until 2026-10-14 an edit that did not mention the IP was read as one
+that cleared it, so renaming a monitored device switched its polling off and
+blanked the polling IP while the device still showed monitoring on. Polling
+stopped with no alert and no UNKNOWN state to give it away.
+
+**Enforced at:** `src/application/device-monitoring/event-handlers/DeviceIPAddressChangedHandler.ts`
+**Reached from:** `PATCH /api/devices/:id` via `DeviceController.update`
+**Tests:** `tests/application/device-monitoring/event-handlers/DeviceIPAddressChangedHandler.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`
+
 ---
 
 ## Ping history and retention
