@@ -185,29 +185,6 @@ export class PrismaContractedServiceRepository
     }
   }
 
-  public async findAll(
-    limit?: number,
-    offset?: number
-  ): Promise<Result<ContractedService[]>> {
-    try {
-      const rawRecords = await this.prisma.contractedService.findMany(
-        {
-          take: limit,
-          skip: offset,
-          orderBy: { createdAt: 'desc' }
-        }
-      );
-
-      return this.mapMany(rawRecords);
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      return Result.fail<ContractedService[]>(
-        `Database error finding all contracted services: ${errorMessage}`
-      );
-    }
-  }
-
   public async delete(
     id: ContractedServiceId
   ): Promise<Result<void>> {
@@ -243,19 +220,6 @@ export class PrismaContractedServiceRepository
         error instanceof Error ? error.message : String(error);
       return Result.fail<boolean>(
         `Database error checking contracted service existence: ${errorMessage}`
-      );
-    }
-  }
-
-  public async count(): Promise<Result<number>> {
-    try {
-      const count = await this.prisma.contractedService.count();
-      return Result.ok<number>(count);
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      return Result.fail<number>(
-        `Database error counting contracted services: ${errorMessage}`
       );
     }
   }

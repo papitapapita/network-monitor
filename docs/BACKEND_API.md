@@ -3998,7 +3998,45 @@ interface ContractedServiceDTO {
   createdAt: string; // ISO 8601
   updatedAt: string;
 }
+
+// Returned by GET /:id and by every GET / response (filtered or not).
+// Read-only summaries next to the id fields — the id fields stay.
+interface ContractedServiceDetailDTO extends ContractedServiceDTO {
+  customer: {
+    id: string;
+    fullName: string;
+    phone: string;
+    email: string | null;
+    cedula: string | null;
+  };
+  servicePlan: {
+    id: string;
+    name: string;
+    downloadMbps: number;
+    uploadMbps: number;
+    monthlyPrice: number;
+    isActive: boolean;
+  };
+  device: {
+    id: string;
+    name: string;
+    ipAddress: string | null;
+    macAddress: string | null;
+    status: DeviceStatus;
+    category: DeviceCategory | null;
+    deletedAt: string | null; // ISO 8601 — set when the device is in the trash
+  } | null; // null exactly when deviceId is null
+}
 ```
+
+> `POST` and `PUT` still return the plain `ContractedServiceDTO`. Re-fetch `GET /:id` if you need the summaries after a write.
+
+**Device link — what to expect:**
+
+- **A device has at most one contracted service row, ever.** Cancelling a service does **not** release its device: the cancelled service keeps `deviceId`, and because a device can back only one service (cancelled ones count), that device cannot be assigned to a new service until the cancelled one is deleted (`DELETE /:id`). So `?deviceId=` returns **0 or 1** items, never a history.
+- **Soft-deleted device** (in the trash, `DELETE /api/devices/:id`): only possible once its service is `CANCELLED`. The service keeps `deviceId`, and `device` is still filled in with `deletedAt` set. `?deviceId=` still finds it.
+- **Hard-deleted device** (permanent delete or trash purge): the link is erased — the service's `deviceId` becomes `null` and `device` is `null`. Nothing records which device it used to be, so `?deviceId=` no longer finds it.
+- **No device yet** (a `PENDING` service waiting for installation, or one whose device was released after suspending): `deviceId: null`, `device: null`.
 
 ### `POST /api/contracted-services` — Create
 
@@ -4053,6 +4091,7 @@ When a service transitions **out of `SUSPENDED`** (→ `ACTIVE` or `CANCELLED`),
 ```ts
 // Query params (all optional)
 customerId?: string  // UUID — filter by customer
+deviceId?:   string  // UUID — filter by device; combines with customerId (AND)
 limit?:      number  // 1–100, default 20
 offset?:     number  // ≥0, default 0
 
@@ -4060,7 +4099,7 @@ offset?:     number  // ≥0, default 0
 {
   success: true,
   data: {
-    contractedServices: ContractedServiceDTO[]
+    contractedServices: ContractedServiceDetailDTO[]
     total: number
     hasMore: boolean
     limit: number
@@ -4069,15 +4108,20 @@ offset?:     number  // ≥0, default 0
 }
 ```
 
+- **Filtered by `customerId` and/or `deviceId`:** returns the whole matching set, newest `startDate` first. `limit` and `offset` are ignored; the response reports `limit: <count>`, `offset: 0`, `hasMore: false`.
+- **Unfiltered:** paged with `limit`/`offset`, newest `createdAt` first.
+- A well-formed `deviceId` or `customerId` that matches nothing returns **200 with an empty list**, never 404. A malformed one returns 400.
+- **Device page:** `GET /api/contracted-services?deviceId=<id>` returns 0 or 1 item (see _Device link_ above). The live service is the one whose `status !== 'CANCELLED'`.
+
 ---
 
 ### `GET /api/contracted-services/:id` — Get by ID
 
-**Status:** 200 | 404
+**Status:** 200 | 400 | 404
 
 ```ts
 // Response
-{ success: true, data: ContractedServiceDTO }
+{ success: true, data: ContractedServiceDetailDTO }
 ```
 
 ---

@@ -142,6 +142,67 @@ describe('Contracted Service Routes — /api/contracted-services', () => {
       ).toBe(true);
     });
 
+    it('[CUS-123] 200 — filters by deviceId with embedded summaries', async () => {
+      const deviceId = await seedDeviceId();
+      await request(app)
+        .post('/api/contracted-services')
+        .set('Authorization', auth())
+        .send({ customerId, servicePlanId, deviceId });
+      await request(app)
+        .post('/api/contracted-services')
+        .set('Authorization', auth())
+        .send({ customerId, servicePlanId });
+
+      const res = await request(app)
+        .get(`/api/contracted-services?deviceId=${deviceId}`)
+        .set('Authorization', auth());
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.total).toBe(1);
+      expect(res.body.data.contractedServices[0]).toMatchObject({
+        deviceId,
+        customer: { id: customerId },
+        servicePlan: { id: servicePlanId },
+        device: { id: deviceId, deletedAt: null }
+      });
+    });
+
+    it('[CUS-123] 200 — empty list for a device with no service', async () => {
+      const res = await request(app)
+        .get(`/api/contracted-services?deviceId=${GHOST_ID}`)
+        .set('Authorization', auth());
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.contractedServices).toEqual([]);
+    });
+
+    it('400 — rejects a malformed deviceId', async () => {
+      const res = await request(app)
+        .get(`/api/contracted-services?deviceId=${INVALID_ID}`)
+        .set('Authorization', auth());
+      expect(res.status).toBe(400);
+    });
+
+    it('[CUS-124] 200 — get by id embeds summaries, device null when unbonded', async () => {
+      const created = await request(app)
+        .post('/api/contracted-services')
+        .set('Authorization', auth())
+        .send({ customerId, servicePlanId });
+
+      const res = await request(app)
+        .get(`/api/contracted-services/${created.body.data.id}`)
+        .set('Authorization', auth());
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({
+        id: created.body.data.id,
+        customerId,
+        customer: { id: customerId, fullName: 'Test Customer' },
+        servicePlan: { id: servicePlanId, monthlyPrice: 80000 },
+        device: null
+      });
+    });
+
     it('404 — unknown id', async () => {
       const res = await request(app)
         .get(`/api/contracted-services/${GHOST_ID}`)

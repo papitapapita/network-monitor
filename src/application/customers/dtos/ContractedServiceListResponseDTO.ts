@@ -1,7 +1,7 @@
-import { ContractedServiceResponseDTO } from './ContractedServiceResponseDTO';
+import { ContractedServiceDetailDTO } from './ContractedServiceDetailDTO';
 
 export interface ContractedServiceListResponseDTO {
-  contractedServices: ContractedServiceResponseDTO[];
+  contractedServices: ContractedServiceDetailDTO[];
   total: number;
   hasMore: boolean;
   limit: number;

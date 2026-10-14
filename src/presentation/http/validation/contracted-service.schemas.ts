@@ -56,6 +56,7 @@ export const deleteContractedServiceSchema = z.object({
 export const listContractedServicesSchema = z.object({
   query: z.object({
     customerId: uuidField('customerId').optional(),
+    deviceId: uuidField('deviceId').optional(),
     limit: z
       .string()
       .regex(/^\d+$/, 'Limit must be a positive integer')

@@ -330,6 +330,29 @@ export async function seedActiveContractedService(
   return service.id;
 }
 
+/** Creates a contracted service in any status directly via Prisma. Returns its UUID. */
+export async function seedContractedService(
+  prisma: PrismaClient,
+  customerId: string,
+  servicePlanId: string,
+  overrides: {
+    deviceId?: string | null;
+    status?: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
+    startDate?: Date;
+  } = {}
+): Promise<string> {
+  const service = await prisma.contractedService.create({
+    data: {
+      customerId,
+      servicePlanId,
+      deviceId: overrides.deviceId ?? null,
+      status: overrides.status ?? 'PENDING',
+      startDate: overrides.startDate ?? new Date()
+    }
+  });
+  return service.id;
+}
+
 /**
  * Cleans the tickets bounded context in FK-safe order: tickets reference
  * technicians, so they must go first. Call this before cleanCustomers() —

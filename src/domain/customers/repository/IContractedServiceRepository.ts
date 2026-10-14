@@ -27,11 +27,6 @@ export interface IContractedServiceRepository {
   findByStatus(
     status: ContractedServiceStatus
   ): Promise<Result<ContractedService[]>>;
-  findAll(
-    limit?: number,
-    offset?: number
-  ): Promise<Result<ContractedService[]>>;
   delete(id: ContractedServiceId): Promise<Result<void>>;
   exists(id: ContractedServiceId): Promise<Result<boolean>>;
-  count(): Promise<Result<number>>;
 }

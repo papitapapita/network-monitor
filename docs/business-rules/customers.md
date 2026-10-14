@@ -24,7 +24,7 @@ Format and conventions: [README.md](README.md).
 | ---------------------------------- | ----- |
 | Domain (aggregate)                 | 32    |
 | Domain (value object)              | 10    |
-| Application                        | 10    |
+| Application                        | 12    |
 | Application + database constraint  | 7     |
 | Presentation                       | 3     |
 | Presentation + Application         | 1     |
@@ -1137,7 +1137,55 @@ caller is invariably rendering the whole list on an account screen. Paging it
 would make the common case take two requests to be sure it had everything.
 
 **Enforced at:** `src/application/customers/use-cases/ListContractedServicesUseCase.ts`
-**Tests:** `tests/integration/contracted-service.routes.test.ts`
+**Tests:** `tests/integration/contracted-service.routes.test.ts`,
+`tests/integration/use-cases/customers/ListContractedServicesUseCase.integration.test.ts`
+
+### CUS-123 — Listing one device's services returns all of them, unpaged
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-13
+
+`GET /api/contracted-services?deviceId=…` ignores `limit` and `offset`, combines
+with `customerId` as an AND, and returns the matching set newest `startDate`
+first. A device with no service — or an id that matches no device — gives an
+empty list, not a not-found.
+
+Because a cancelled service keeps its device (`CUS-068`) and a device backs at
+most one service (`CUS-100`), the set has at most one item. A device that was
+hard-deleted is no longer on any service (`CUS-105`), so filtering by its old id
+finds nothing.
+
+**Why:** The device page asks "who is on this antenna?", and "nobody" is a normal
+answer, not an error. Following `CUS-122` keeps both filters consistent for the
+caller.
+
+**Enforced at:** `src/application/customers/use-cases/ListContractedServicesUseCase.ts`,
+`src/infrastructure/customers/queries/PrismaContractedServiceDetailQuery.ts`
+**Tests:** `tests/integration/use-cases/customers/ListContractedServicesUseCase.integration.test.ts`,
+`tests/integration/contracted-service.routes.test.ts`
+
+### CUS-124 — Service reads embed the customer, plan and device they point at
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-13
+
+`GET /api/contracted-services/:id` and every `GET /api/contracted-services`
+response carry read-only `customer`, `servicePlan` and `device` summaries
+next to the id fields. `device` is `null` exactly when `deviceId` is `null`. A
+device in the trash still appears, with its `deletedAt` set. Writes (`POST`,
+`PUT`) keep returning the plain service.
+
+**Why:** A service screen that only knows ids needs three more requests to show
+a name. The device summary belongs to device-inventory, so it is joined on a
+read-only query port (`IContractedServiceDetailQuery`) and never enters the
+`ContractedService` aggregate or its repository.
+
+**Enforced at:** `src/application/customers/interfaces/IContractedServiceDetailQuery.ts`,
+`src/infrastructure/customers/queries/PrismaContractedServiceDetailQuery.ts`
+**Tests:** `tests/infrastructure/customers/queries/PrismaContractedServiceDetailQuery.test.ts`,
+`tests/integration/use-cases/customers/GetContractedServiceUseCase.integration.test.ts`
 
 ---
 

@@ -45,6 +45,9 @@ export class ContractedServiceController {
         customerId: req.query.customerId
           ? String(req.query.customerId)
           : undefined,
+        deviceId: req.query.deviceId
+          ? String(req.query.deviceId)
+          : undefined,
         limit: req.query.limit ? Number(req.query.limit) : undefined,
         offset: req.query.offset
           ? Number(req.query.offset)

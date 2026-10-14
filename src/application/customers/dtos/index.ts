@@ -15,6 +15,7 @@ export * from './DeleteServicePlanRequestDTO';
 export * from './ListServicePlansQueryDTO';
 
 export * from './ContractedServiceResponseDTO';
+export * from './ContractedServiceDetailDTO';
 export * from './ContractedServiceListResponseDTO';
 export * from './CreateContractedServiceRequestDTO';
 export * from './UpdateContractedServiceRequestDTO';

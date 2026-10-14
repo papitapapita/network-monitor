@@ -1,20 +1,19 @@
 import { ContractedServiceId } from 'domain/shared/ids';
-import { IContractedServiceRepository } from 'domain/customers/repository';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
-import { ContractedServiceMapper } from '../mappers';
+import { IContractedServiceDetailQuery } from '../interfaces';
 import {
   GetContractedServiceRequestDTO,
-  ContractedServiceResponseDTO
+  ContractedServiceDetailDTO
 } from '../dtos';
 
 export class GetContractedServiceUseCase extends UseCase<
   GetContractedServiceRequestDTO,
-  ContractedServiceResponseDTO
+  ContractedServiceDetailDTO
 > {
   constructor(
-    private readonly contractedServiceRepository: IContractedServiceRepository,
+    private readonly contractedServiceDetailQuery: IContractedServiceDetailQuery,
     logger: ILogger
   ) {
     super(logger, 'GetContractedServiceUseCase');
@@ -31,7 +30,7 @@ export class GetContractedServiceUseCase extends UseCase<
 
   protected async executeImpl(
     request: GetContractedServiceRequestDTO
-  ): Promise<Result<ContractedServiceResponseDTO>> {
+  ): Promise<Result<ContractedServiceDetailDTO>> {
     const idResult = ContractedServiceId.parse(request.id.trim());
     if (idResult.isFailure) {
       return this.fail(
@@ -40,7 +39,9 @@ export class GetContractedServiceUseCase extends UseCase<
     }
 
     const findResult =
-      await this.contractedServiceRepository.findById(idResult.value);
+      await this.contractedServiceDetailQuery.findById(
+        idResult.value
+      );
     if (findResult.isFailure) {
       return this.fail(findResult.error!);
     }
@@ -48,6 +49,6 @@ export class GetContractedServiceUseCase extends UseCase<
       return this.fail(`Contracted service not found: ${request.id}`);
     }
 
-    return this.ok(ContractedServiceMapper.toDTO(findResult.value));
+    return this.ok(findResult.value);
   }
 }

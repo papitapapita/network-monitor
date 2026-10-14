@@ -1,6 +1,7 @@
 import { ContractedService } from 'domain/customers';
 import {
   ContractedServiceResponseDTO,
+  ContractedServiceDetailDTO,
   ContractedServiceListResponseDTO
 } from '../dtos';
 
@@ -24,13 +25,13 @@ export class ContractedServiceMapper {
   }
 
   public static toListDTO(
-    services: ContractedService[],
+    services: ContractedServiceDetailDTO[],
     total: number,
     limit: number = 20,
     offset: number = 0
   ): ContractedServiceListResponseDTO {
     return {
-      contractedServices: services.map((s) => this.toDTO(s)),
+      contractedServices: services,
       total,
       hasMore: offset + services.length < total,
       limit,

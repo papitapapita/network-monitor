@@ -73,7 +73,8 @@ import { PrismaUserRepository } from '../identity/repositories/PrismaUserReposit
 import {
   PrismaCustomerRepository,
   PrismaServicePlanRepository,
-  PrismaContractedServiceRepository
+  PrismaContractedServiceRepository,
+  PrismaContractedServiceDetailQuery
 } from '../customers';
 import {
   PrismaBillRepository,
@@ -785,6 +786,8 @@ export class DependencyContainer {
         this.logger
       );
 
+      const contractedServiceDetailQuery =
+        new PrismaContractedServiceDetailQuery(this.prisma);
       this.contractedServiceController =
         new ContractedServiceController(
           new CreateContractedServiceUseCase(
@@ -794,11 +797,11 @@ export class DependencyContainer {
             this.logger
           ),
           new GetContractedServiceUseCase(
-            this.contractedServiceRepository,
+            contractedServiceDetailQuery,
             this.logger
           ),
           new ListContractedServicesUseCase(
-            this.contractedServiceRepository,
+            contractedServiceDetailQuery,
             this.logger
           ),
           new UpdateContractedServiceUseCase(

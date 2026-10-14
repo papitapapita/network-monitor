@@ -67,10 +67,8 @@ function makeServiceRepo(): jest.Mocked<IContractedServiceRepository> {
     findByServicePlanId: jest.fn(),
     findByDeviceId: jest.fn(),
     findByStatus: jest.fn(),
-    findAll: jest.fn(),
     delete: jest.fn(),
-    exists: jest.fn(),
-    count: jest.fn()
+    exists: jest.fn()
   };
 }
 
