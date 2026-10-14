@@ -14,6 +14,11 @@ interface AirOsCredentials {
   password: string;
 }
 
+// What the AirOS web UI itself posts. There is no /api/system/reboot — the
+// radio answers it with 404.
+const REBOOT_PATH = '/reboot.cgi';
+const REBOOT_BODY = 'reboot=yes';
+
 interface AirOsSession {
   cookie: string;
   csrfId: string | null;
@@ -130,12 +135,7 @@ export class AirOsHttpClient {
       session = authResult.value;
     }
 
-    const postResult = await this.doPost(
-      ip,
-      port,
-      '/api/system/reboot',
-      session
-    );
+    const postResult = await this.postReboot(ip, port, session);
     if (postResult.isFailure) return Result.fail(postResult.error!);
 
     if (this.isSessionExpired(postResult.value.statusCode)) {
@@ -143,10 +143,9 @@ export class AirOsHttpClient {
       const reAuthResult = await this.authenticate(ip, port, creds);
       if (reAuthResult.isFailure)
         return Result.fail(reAuthResult.error!);
-      const retryResult = await this.doPost(
+      const retryResult = await this.postReboot(
         ip,
         port,
-        '/api/system/reboot',
         reAuthResult.value
       );
       if (retryResult.isFailure) {
@@ -328,26 +327,29 @@ export class AirOsHttpClient {
     });
   }
 
-  private doPost(
+  private postReboot(
     ip: string,
     port: number,
-    path: string,
     session: AirOsSession
   ): Promise<Result<HttpsResponse>> {
     const headers: Record<string, string | number> = {
       Cookie: session.cookie,
-      'Content-Length': 0
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Length': Buffer.byteLength(REBOOT_BODY)
     };
     if (session.csrfId) {
       headers['X-CSRF-ID'] = session.csrfId;
     }
-    return this.httpsRequest({
-      hostname: ip,
-      port,
-      path,
-      method: 'POST',
-      headers
-    });
+    return this.httpsRequest(
+      {
+        hostname: ip,
+        port,
+        path: REBOOT_PATH,
+        method: 'POST',
+        headers
+      },
+      REBOOT_BODY
+    );
   }
 
   private httpsRequest(

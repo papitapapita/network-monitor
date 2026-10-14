@@ -495,8 +495,9 @@ describe('[WLS-040] [WLS-041] [WLS-042] [WLS-043] [WLS-044] [WLS-045] [WLS-046] 
     function stubReboot(options: {
       authHeaders?: Record<string, string | string[]>;
       rebootStatusCodes?: number[];
-    }): { requests: https.RequestOptions[] } {
+    }): { requests: https.RequestOptions[]; writes: string[] } {
       const requests: https.RequestOptions[] = [];
+      const writes: string[] = [];
       let rebootCallCount = 0;
       (https.request as jest.Mock).mockImplementation(
         (
@@ -541,28 +542,36 @@ describe('[WLS-040] [WLS-041] [WLS-042] [WLS-043] [WLS-044] [WLS-045] [WLS-046] 
               res.emit('end');
             }
           });
-          req.write = jest.fn();
+          req.write = jest
+            .fn()
+            .mockImplementation((chunk: string) =>
+              writes.push(chunk)
+            );
           req.destroy = jest.fn();
           return req;
         }
       );
-      return { requests };
+      return { requests, writes };
     }
 
-    it('should POST to /api/system/reboot with cookie and CSRF header', async () => {
-      const { requests } = stubReboot({});
+    it('should POST reboot=yes to /reboot.cgi with cookie and CSRF header', async () => {
+      const { requests, writes } = stubReboot({});
 
       const client = new AirOsHttpClient();
       const result = await client.reboot(IP, PORT, CREDS);
 
       expect(result.isSuccess).toBe(true);
       const rebootReq = requests.find(
-        (r) => r.path === '/api/system/reboot'
+        (r) => r.path === '/reboot.cgi'
       );
       expect(rebootReq).toBeDefined();
       expect(rebootReq!.method).toBe('POST');
       expect(rebootReq!.headers?.['Cookie']).toBe(SESSION_COOKIE);
       expect(rebootReq!.headers?.['X-CSRF-ID']).toBe(CSRF_ID);
+      expect(rebootReq!.headers?.['Content-Type']).toBe(
+        'application/x-www-form-urlencoded'
+      );
+      expect(writes).toContain('reboot=yes');
     });
 
     it('should tolerate a missing x-csrf-id header on auth', async () => {
@@ -575,7 +584,7 @@ describe('[WLS-040] [WLS-041] [WLS-042] [WLS-043] [WLS-044] [WLS-045] [WLS-046] 
 
       expect(result.isSuccess).toBe(true);
       const rebootReq = requests.find(
-        (r) => r.path === '/api/system/reboot'
+        (r) => r.path === '/reboot.cgi'
       );
       expect(rebootReq!.headers?.['X-CSRF-ID']).toBeUndefined();
     });

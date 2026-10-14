@@ -740,7 +740,7 @@ would double the load the interval floor (WLS-006) exists to bound.
 **Layer:** Infrastructure
 **Since:** 2026-08-03 · **Revised:** 2026-09-21
 
-Any of these three status codes on `/status.cgi` or `/api/system/reboot` drops
+Any of these three status codes on `/status.cgi` or `/reboot.cgi` drops
 the cached session, re-authenticates once, and retries the request. A second
 failure is returned to the caller.
 
