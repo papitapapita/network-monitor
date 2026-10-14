@@ -13,6 +13,7 @@ function makeProps(
     telegramChatId: '-1001234567890',
     downAlertDelayMinutes: 60,
     wirelessAlertsEnabled: true,
+    alertTicketMode: 'SUGGEST',
     ...overrides
   };
 }
@@ -97,5 +98,33 @@ describe('[NOT-200] NotificationSettings', () => {
     expect(result.error).toBe(
       'wirelessAlertsEnabled must be true or false'
     );
+  });
+
+  describe('[NOT-205] alertTicketMode', () => {
+    it.each(['SUGGEST', 'AUTOMATIC'] as const)(
+      'accepts %s',
+      (mode) => {
+        const result = NotificationSettings.create(
+          makeProps({ alertTicketMode: mode })
+        );
+
+        expect(result.value.alertTicketMode).toBe(mode);
+        expect(result.value.opensTicketsAutomatically).toBe(
+          mode === 'AUTOMATIC'
+        );
+      }
+    );
+
+    it('refuses an unknown mode', () => {
+      const result = NotificationSettings.create(
+        makeProps({
+          alertTicketMode: 'SOMETIMES' as never
+        })
+      );
+
+      expect(result.error).toBe(
+        'alertTicketMode must be one of: SUGGEST, AUTOMATIC'
+      );
+    });
   });
 });

@@ -320,6 +320,7 @@ import {
   InstallLabelAlertPublisher,
   SubscriptionAlertPublisher,
   SwitchedOffAlertPublisher,
+  TicketModeGatedOpener,
   TelegramTestMessageSender,
   WhenConfiguredAlertPublisher,
   WebPushSender,
@@ -342,6 +343,7 @@ import {
   CustomerDirectoryAdapter,
   DeviceDirectoryAdapter,
   TicketOpenerAdapter,
+  AlertDirectoryAdapter,
   TechnicianNotifierAdapter
 } from '../tickets/adapters';
 import {
@@ -357,12 +359,14 @@ import {
   CancelTicketUseCase,
   DeleteTicketUseCase,
   OpenTicketFromAlertUseCase,
+  CreateTicketFromAlertUseCase,
   CreateTechnicianUseCase,
   GetTechnicianUseCase,
   ListTechniciansUseCase,
   UpdateTechnicianUseCase,
   DeleteTechnicianUseCase
 } from 'application/tickets/use-cases';
+import { ITicketOpener } from 'application/tickets/interfaces';
 import { TicketAssignedNotificationHandler } from 'application/tickets/event-handlers';
 import { TicketAssignedEvent } from 'domain/tickets/events';
 import { EnforcementRouterResolver } from 'application/service-enforcement/services';
@@ -577,7 +581,7 @@ export class DependencyContainer {
   public ticketRepository: PrismaTicketRepository;
   public technicianRepository: PrismaTechnicianRepository;
   // undefined when tickets are disabled — alerts then open no tickets
-  private ticketOpener: TicketOpenerAdapter | undefined;
+  private ticketOpener: ITicketOpener | undefined;
 
   // Identity
   public tokenService: ITokenService;
@@ -1084,15 +1088,21 @@ export class DependencyContainer {
       );
       const deviceDirectory = new DeviceDirectoryAdapter(this.prisma);
 
-      // Built here rather than inline below because the notifications context
-      // needs it: OpenAlertUseCase turns a newly recorded alert into a ticket.
-      this.ticketOpener = new TicketOpenerAdapter(
+      const openTicketFromAlertUseCase =
         new OpenTicketFromAlertUseCase(
           this.ticketRepository,
           customerDirectory,
           deviceDirectory,
           this.logger
-        )
+        );
+
+      // Built here rather than inline below because the notifications context
+      // needs it: OpenAlertUseCase turns a newly recorded alert into a ticket,
+      // when the administrator's ticket mode says so (NOT-205).
+      this.ticketOpener = new TicketModeGatedOpener(
+        new TicketOpenerAdapter(openTicketFromAlertUseCase),
+        this.notificationSettingsRepository,
+        this.logger
       );
 
       this.ticketController = new TicketController(
@@ -1134,6 +1144,12 @@ export class DependencyContainer {
         new ResolveTicketUseCase(this.ticketRepository, this.logger),
         new CancelTicketUseCase(this.ticketRepository, this.logger),
         new DeleteTicketUseCase(this.ticketRepository, this.logger),
+        new CreateTicketFromAlertUseCase(
+          new AlertDirectoryAdapter(this.prisma),
+          this.ticketRepository,
+          openTicketFromAlertUseCase,
+          this.logger
+        ),
         this.logger
       );
 
@@ -1923,7 +1939,8 @@ export class DependencyContainer {
     );
     const listAlertsUseCase = new ListAlertsUseCase(
       new PrismaAlertListQuery(this.prisma),
-      this.logger
+      this.logger,
+      this.modules.has('tickets')
     );
     const getAlertByIdUseCase = new GetAlertByIdUseCase(
       this.alertRepository,

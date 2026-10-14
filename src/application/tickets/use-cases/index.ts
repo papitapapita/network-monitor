@@ -1,6 +1,7 @@
 export * from './AssignTicketUseCase';
 export * from './CancelTicketUseCase';
 export * from './CreateTechnicianUseCase';
+export * from './CreateTicketFromAlertUseCase';
 export * from './CreateTicketUseCase';
 export * from './DeleteTechnicianUseCase';
 export * from './DeleteTicketUseCase';

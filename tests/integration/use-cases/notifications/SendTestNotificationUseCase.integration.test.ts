@@ -22,7 +22,8 @@ describe('[NOT-202] SendTestNotificationUseCase — integration', () => {
         NotificationSettings.reconstitute({
           telegramChatId: defaultChat,
           downAlertDelayMinutes: 60,
-          wirelessAlertsEnabled: true
+          wirelessAlertsEnabled: true,
+          alertTicketMode: 'SUGGEST'
         })
       ),
       sender,

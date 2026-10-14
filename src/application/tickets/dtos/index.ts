@@ -26,3 +26,5 @@ export * from './TicketListResponseDTO';
 export * from './TicketResponseDTO';
 export * from './UpdateTechnicianRequestDTO';
 export * from './UpdateTicketRequestDTO';
+export * from './TicketAlertSummaryDTO';
+export * from './CreateTicketFromAlertRequestDTO';

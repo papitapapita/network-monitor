@@ -2239,8 +2239,21 @@ interface NotificationSettingsDTO {
   telegramChatId: string | null; // '-1001234567890' or '@channel'; null = no chat, alerts are recorded but not sent
   downAlertDelayMinutes: number; // 0–1440: how long a device stays DOWN before its alert is sent (a device's own override wins)
   wirelessAlertsEnabled: boolean; // false: wireless alerts are recorded but not sent (NOT-203)
+  alertTicketMode: 'SUGGEST' | 'AUTOMATIC'; // since 2026-10-14 — default SUGGEST (NOT-205)
 }
 ```
+
+`alertTicketMode` decides what a new alert does about tickets:
+
+- **`SUGGEST`** (default): no ticket is opened. The alert list marks the alert
+  `ticketSuggested: true`, and a person opens one with
+  `POST /api/tickets/from-alert`. Show it as a "Crear ticket" action on the
+  alert.
+- **`AUTOMATIC`**: every alert opens a ticket on its own, one per device, as
+  before.
+
+On the settings screen, a two-option control such as "Sugerir tickets" /
+"Crear tickets automáticamente" fits.
 
 ### `GET /api/notification-settings`
 
@@ -2259,7 +2272,7 @@ interface NotificationSettingsDTO {
 **Roles:** ADMIN (`manage-settings`; OPERATOR and VIEWER get `403`)
 
 ```ts
-// Request body — all three, nothing else
+// Request body — every field; alertTicketMode may be omitted (keeps the saved mode)
 NotificationSettingsDTO
 
 // Response
@@ -2268,7 +2281,8 @@ NotificationSettingsDTO
 
 > `400` with the rule's message, e.g.
 > `"telegramChatId must be a numeric chat id or a @channel name"` or
-> `"downAlertDelayMinutes must be a whole number from 0 to 1440"`.
+> `"downAlertDelayMinutes must be a whole number from 0 to 1440"` or
+> `"alertTicketMode must be one of: SUGGEST, AUTOMATIC"`.
 > Warn before saving `telegramChatId: null`: alerts stop reaching anyone.
 
 ---
@@ -2479,7 +2493,7 @@ offset?:   number                  // ≥0, default 0
 {
   success: true,
   data: {
-    alerts: AlertListItemDTO[]  // AlertDTO & { deviceName: string }
+    alerts: AlertListItemDTO[]
     total: number
     hasMore: boolean
     limit: number
@@ -2488,6 +2502,17 @@ offset?:   number                  // ≥0, default 0
 }
 ```
 
+```ts
+interface AlertListItemDTO extends AlertDTO {
+  deviceName: string;
+  // since 2026-10-14 — this alert's own live ticket (OPEN, ASSIGNED or IN_PROGRESS)
+  ticket: { id: string; code: number; status: TicketStatus } | null;
+  // since 2026-10-14 — open alert with no ticket of its own: offer "Crear ticket"
+  ticketSuggested: boolean;
+}
+```
+
+> **Tickets (NOT-206).** When `ticketSuggested` is `true`, show a "Crear ticket" action that calls `POST /api/tickets/from-alert`. When `ticket` is set, link to it (`#code`) instead. Only a ticket opened from **this** alert counts: two alerts on the same device each get their own suggestion. `ticketSuggested` is always `false` on a resolved alert and on an install without the tickets module. Re-fetch the list after creating a ticket.  
 > Results are ordered by `startedAt` descending (newest first).  
 > Omit `deviceId` to list alerts across all devices. Filters combine with AND, so `?status=OPEN&severity=CRITICAL` is the open critical alerts, wireless-link alerts included. An unknown `status` or `severity` is a `400`.  
 > `deviceName` is the device's **current** name, so a renamed device's old alerts show the new name. Only the list carries it; `GET /api/alerts/:id` returns a plain `AlertDTO`.  
@@ -3502,6 +3527,7 @@ interface AlertThresholdsDTO {
   clientDropPercent: number;         // whole, 10…90 — share of an AP's clients lost between polls
   minCapacityMbps: Record<string, number>; // channel width (MHz) → floor; whole, 1…10000
   maxDistanceKm: Record<string, number>;   // channel width (MHz) → maximum; 0.1…200, decimals allowed
+  confirmBeforeAlerting: boolean;    // re-read the radio before opening a flicker-prone alert (WLS-203)
 }
 ```
 
@@ -3521,13 +3547,22 @@ missing from a table is not checked at all. Defaults:
 | `clientDropPercent` | 50                                   |
 | `minCapacityMbps`   | `{ "20": 50, "40": 100, "80": 200 }` |
 | `maxDistanceKm`     | `{ "20": 15, "40": 10, "80": 5 }`    |
+| `confirmBeforeAlerting` | `true`                           |
 
 Each rule still clears slightly past its threshold (signal and SNR 2 dB, CCQ 3 %
 warning / 5 % critical, CPU and memory 5 %), so the margin moves with the value
 you set (WLS-081). An alert already open when a threshold changes is re-judged
 on the next poll. It clears once the reading passes the new clear line.
 
-  confirmBeforeAlerting: boolean;    // re-read the radio before opening a flicker-prone alert (WLS-203)
+**`confirmBeforeAlerting`** (WLS-203) is an on/off switch, not a limit. While it
+is on, a CCQ, latency, signal (Rx/Tx), SNR or capacity alert does not open on
+the poll that first sees it. The server re-reads the radio 5 times, 4 s apart,
+and opens the alert only if most of those readings breach too. A low CCQ on an
+idle link (under 0.5 Mbps of traffic) does not count (WLS-204). An alert that
+is not confirmed is not re-checked for 10 minutes. Alerts that pass the check
+open about 25 s later than before. Other alerts and every clear are unaffected.
+Show it as a toggle, e.g. "Confirmar antes de alertar".
+
 ### `GET /api/wireless/alert-thresholds`
 
 **Status:** 200 | 401  
@@ -3547,22 +3582,13 @@ on the next poll. It clears once the reading passes the new clear line.
 
 ### `PUT /api/wireless/alert-thresholds` — Save
 
-| `confirmBeforeAlerting` | `true`                           |
 **Status:** 200 | 400 | 401 | 403  
 **Roles:** ADMIN (`manage-settings`; OPERATOR and VIEWER get `403`)
 
 ```ts
 // Request body — every group, nothing else. Replaces the set as a whole.
+// confirmBeforeAlerting may be left out: the install keeps its current value.
 AlertThresholdsDTO
-**`confirmBeforeAlerting`** (WLS-203) is an on/off switch, not a limit. While it
-is on, a CCQ, latency, signal (Rx/Tx), SNR or capacity alert does not open on
-the poll that first sees it. The server re-reads the radio 5 times, 4 s apart,
-and opens the alert only if most of those readings breach too. A low CCQ on an
-idle link (under 0.5 Mbps of traffic) does not count (WLS-204). An alert that
-is not confirmed is not re-checked for 10 minutes. Alerts that pass the check
-open about 25 s later than before. Other alerts and every clear are unaffected.
-Show it as a toggle, e.g. "Confirmar antes de alertar".
-
 
 // Response — same shape as GET
 ```
@@ -3587,7 +3613,6 @@ Show it as a toggle, e.g. "Confirmar antes de alertar".
     overrides: Partial<AlertThresholdsDTO>; // {} when the device follows the install
     install: AlertThresholdsDTO;            // the install's set, to show what is inherited
     effective: AlertThresholdsDTO;          // what this device actually alerts at
-// confirmBeforeAlerting may be left out: the install keeps its current value.
   }
 }
 ```
@@ -5265,6 +5290,31 @@ An empty day returns `200` with `tickets: []` and `total: 0` — not `404`. `404
 
 ---
 
+### `POST /api/tickets/from-alert` — Create from an alert
+
+_Since 2026-10-14 (TKT-115)._
+
+**Status:** 201 | 400 | 401 | 403 | 404 | 409  
+**Roles:** ADMIN, OPERATOR
+
+```ts
+// Request body
+{ alertId: string } // UUID of an alert from GET /api/alerts
+
+// Response
+{ success: true, data: TicketDTO }
+```
+
+**Business rules:**
+
+- The ticket is built from the alert: `origin` `WIRELESS_ALERT` or `DEVICE_ALERT`, `originAlertId` the alert, the alert's device, the device's customer (if any), title `"<device name>: <alert description>"`, and priority `URGENT` for a `CRITICAL` alert, otherwise `HIGH`. `createdBy` is the caller.
+- **Any alert works, open or resolved.** The alert gets its own ticket even when the device already has one for another alert.
+- `409` while the alert already has a live ticket (`"A live ticket already exists for this alert: #<code>"`). A resolved or cancelled ticket does not block a new one.
+- `404` if the alert does not exist; `400` for a malformed id.
+- Edit the result like any ticket: `PUT /:id` to change the title or priority, `POST /:id/assign` to dispatch.
+
+---
+
 ### `GET /api/tickets` — List
 
 **Status:** 200 | 400  
@@ -5474,9 +5524,11 @@ Results are ordered by `scheduledFor` (unscheduled last), then `startTime` (tick
 
 ---
 
-### Tickets opened automatically from alerts
+### Tickets from alerts
 
-Tickets are not only created by hand. When a **new** alert is recorded — ICMP device-down or wireless — the backend opens a ticket for it with `origin: 'DEVICE_ALERT'` or `'WIRELESS_ALERT'` and `originAlertId` set to the alert. The exception is `wireless:parent_ap_mismatch:WARNING` (WLS-013), an inventory correction that is fixed by accepting the parent AP suggestion, not by a site visit.
+**Since 2026-10-14 the default is to suggest, not open (NOT-205).** In `SUGGEST` mode (`alertTicketMode` in [Notification Settings](#notification-settings-apinotification-settings)) no ticket opens on its own: the alert list marks the alert `ticketSuggested: true` and a person opens one with [`POST /api/tickets/from-alert`](#post-apiticketsfrom-alert--create-from-an-alert). Everything below describes `AUTOMATIC` mode.
+
+When a **new** alert is recorded — ICMP device-down or wireless — the backend opens a ticket for it with `origin: 'DEVICE_ALERT'` or `'WIRELESS_ALERT'` and `originAlertId` set to the alert. The exception is `wireless:parent_ap_mismatch:WARNING` (WLS-013), an inventory correction that is fixed by accepting the parent AP suggestion, not by a site visit.
 
 Two levels of deduplication mean the technician does not drown:
 

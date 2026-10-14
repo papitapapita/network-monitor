@@ -7,6 +7,7 @@ import {
 } from '../middleware';
 import {
   createTicketSchema,
+  createTicketFromAlertSchema,
   listTicketsSchema,
   technicianDaySchema,
   getTicketByIdSchema,
@@ -45,6 +46,15 @@ export function createTicketRoutes(
     createRateLimiter('write'),
     validateRequest(createTicketSchema),
     controller.create
+  );
+
+  // A person accepting an alert's ticket suggestion (TKT-115).
+  router.post(
+    '/from-alert',
+    authorize('create'),
+    createRateLimiter('write'),
+    validateRequest(createTicketFromAlertSchema),
+    controller.createFromAlert
   );
 
   router.get(

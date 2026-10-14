@@ -4,6 +4,8 @@ import { PrismaClient } from '../../src/generated/prisma/client';
 import { createTestApp } from './helpers/createTestApp';
 import {
   cleanDatabase,
+  cleanTickets,
+  seedTicket,
   seedDeviceModel,
   seedMonitoredDevice,
   GHOST_ID,
@@ -31,6 +33,7 @@ describe('Alert Routes — GET /api/alerts', () => {
   });
 
   beforeEach(async () => {
+    await cleanTickets(prisma);
     await cleanDatabase(prisma);
     adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
     const seeded = await seedMonitoredDevice(prisma, deviceModelId);
@@ -265,6 +268,81 @@ describe('Alert Routes — GET /api/alerts', () => {
     expect(res.body.data.alerts[0].deviceName).toBe(
       'Monitored Test Device'
     );
+  });
+
+  it('[NOT-205] 200 — suggests a ticket for an open alert without one', async () => {
+    const open = await prisma.alertEvent.create({
+      data: {
+        deviceId,
+        severity: 'WARNING',
+        type: 'wireless:ccq:WARNING'
+      }
+    });
+    await prisma.alertEvent.create({
+      data: { deviceId, severity: 'WARNING', resolvedAt: new Date() }
+    });
+
+    const res = await request(app)
+      .get('/api/alerts')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    const byId = new Map(
+      res.body.data.alerts.map((a: { id: string }) => [a.id, a])
+    );
+    expect(byId.get(open.id)).toMatchObject({
+      ticket: null,
+      ticketSuggested: true
+    });
+    const resolved = res.body.data.alerts.find(
+      (a: { id: string }) => a.id !== open.id
+    );
+    expect(resolved.ticketSuggested).toBe(false);
+  });
+
+  it('[TKT-115] 200 — shows the alert’s own live ticket, and only its own', async () => {
+    const withTicket = await prisma.alertEvent.create({
+      data: {
+        deviceId,
+        severity: 'WARNING',
+        type: 'wireless:ccq:WARNING'
+      }
+    });
+    const sibling = await prisma.alertEvent.create({
+      data: {
+        deviceId,
+        severity: 'WARNING',
+        type: 'wireless:snr:WARNING'
+      }
+    });
+    const ticketId = await seedTicket(prisma, {
+      deviceId,
+      origin: 'WIRELESS_ALERT',
+      originAlertId: withTicket.id,
+      status: 'ASSIGNED'
+    });
+    // A finished ticket no longer covers the alert.
+    await seedTicket(prisma, {
+      deviceId,
+      origin: 'WIRELESS_ALERT',
+      originAlertId: sibling.id,
+      status: 'RESOLVED'
+    });
+
+    const res = await request(app)
+      .get('/api/alerts')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    const byId = new Map(
+      res.body.data.alerts.map((a: { id: string }) => [a.id, a])
+    );
+    expect(byId.get(withTicket.id)).toMatchObject({
+      ticket: { id: ticketId, status: 'ASSIGNED' },
+      ticketSuggested: false
+    });
+    expect(byId.get(sibling.id)).toMatchObject({
+      ticket: null,
+      ticketSuggested: true
+    });
   });
 
   it.each(['status=CLOSED', 'severity=INFO'])(

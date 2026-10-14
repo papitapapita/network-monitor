@@ -25,7 +25,8 @@ export class PrismaNotificationSettingsRepository
         NotificationSettings.reconstitute({
           telegramChatId: row.telegramChatId,
           downAlertDelayMinutes: row.downAlertDelayMinutes,
-          wirelessAlertsEnabled: row.wirelessAlertsEnabled
+          wirelessAlertsEnabled: row.wirelessAlertsEnabled,
+          alertTicketMode: row.alertTicketMode
         })
       );
     } catch (error) {
@@ -39,7 +40,8 @@ export class PrismaNotificationSettingsRepository
     const data = {
       telegramChatId: settings.telegramChatId,
       downAlertDelayMinutes: settings.downAlertDelayMinutes,
-      wirelessAlertsEnabled: settings.wirelessAlertsEnabled
+      wirelessAlertsEnabled: settings.wirelessAlertsEnabled,
+      alertTicketMode: settings.alertTicketMode
     };
     try {
       await this.prisma.notificationSettings.upsert({

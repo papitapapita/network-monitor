@@ -30,11 +30,11 @@ Format and conventions: [README.md](README.md).
 
 | Layer                     | Rules |
 | ------------------------- | ----- |
-| Application                  | 40    |
+| Application                  | 41    |
 | Domain (aggregate/entity/VO) | 19    |
 | Presentation                 | 5     |
 | Infrastructure (database)    | 2     |
-| Infrastructure (composition) | 2     |
+| Infrastructure (composition) | 3     |
 
 `Alert` is a deliberately thin aggregate — it holds one three-flag lifecycle
 (`resolvedAt`, `notifiedAt`, `recoveryNotifiedAt`) and refuses to move any of
@@ -621,6 +621,7 @@ successful `Alert.markNotified()` — never on a retry, never when the publish
 is suppressed or fails. Wireless alerts are unaffected: `OpenAlertUseCase`
 still tickets immediately for any caller that does not set `skipTicket`
 (`NOT-091`), since wireless has no equivalent record/notify delay to defer to.
+Both paths open a ticket only in `AUTOMATIC` ticket mode (`NOT-205`).
 
 **Why:** A ticket is a bigger interruption than a Telegram message — it is a
 work order someone is expected to act on. Ticketing every blip the moment it
@@ -1527,13 +1528,17 @@ preferences.
 **Layer:** Domain · Application · Infrastructure
 **Since:** 2026-09-30
 
-Three settings are stored per install and replaced together:
+Four settings are stored per install and replaced together:
 
 | Setting                 | Allowed values                                                                     |
 | ----------------------- | ---------------------------------------------------------------------------------- |
 | `telegramChatId`        | a numeric chat id (groups are negative) or a public `@channel` name; `null` = none |
 | `downAlertDelayMinutes` | a whole number from 0 to 1440                                                      |
 | `wirelessAlertsEnabled` | `true` or `false`                                                                  |
+| `alertTicketMode`       | `SUGGEST` or `AUTOMATIC` (`NOT-205`)                                               |
+
+`alertTicketMode` alone may be left out of a save, which keeps the saved mode,
+so a dashboard that predates it can still save the other three.
 
 Spaces around the chat id are trimmed and an empty one means `null`. A save
 takes effect on the next alert, with no restart: the chat is looked up on
@@ -1560,7 +1565,8 @@ vendor can see it.
 
 With nothing saved, the settings are `TELEGRAM_CHAT_ID` (unset = no chat),
 `DEVICE_DOWN_ALERT_DELAY_MINUTES` (unset = 60) and
-`WIRELESS_ALERT_NOTIFICATIONS_ENABLED` (anything but `false` = on). An env
+`WIRELESS_ALERT_NOTIFICATIONS_ENABLED` (anything but `false` = on), and
+`alertTicketMode` is `SUGGEST` — no env value predates it. An env
 value that `NOT-200` would refuse stops the boot. Once saved, the stored values
 win and the env ones are ignored. The table holds at most one row.
 
@@ -1631,6 +1637,53 @@ on the same permission because it posts to a chat of the caller's choosing.
 
 **Enforced at:** `src/presentation/http/routes/notification-settings.routes.ts` (`authorize`)
 **Tests:** `tests/integration/notification-settings.routes.test.ts`
+
+### NOT-205 — A new alert suggests a ticket unless the administrator chose automatic tickets
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (composition)
+**Since:** 2026-10-14
+
+In `SUGGEST` mode, the default, a new alert opens no ticket: it is recorded,
+notified and listed as usual, and the alert list offers a ticket for it
+(`NOT-206`), which a person accepts or ignores (`TKT-115`). In `AUTOMATIC` mode
+every alert that opened a ticket before still does, folded per device
+(`TKT-113`). The mode is read on every alert, so a save applies from the next
+one. If the settings cannot be read, nothing is opened and the alert still
+offers its ticket.
+
+**Why:** Opening a ticket for every alert filled the technicians' day sheets
+with faults that cleared on their own. A person looking at the alert knows
+whether it is worth a visit. Failing towards a suggestion loses nothing — the
+alert still offers the ticket — whereas a wrong automatic ticket lands on
+someone's day.
+
+**Enforced at:** `src/infrastructure/notifications/TicketModeGatedOpener.ts`, `src/domain/notifications/value-objects/NotificationSettings.ts`, `src/infrastructure/di/container.ts`
+**Tests:** `tests/infrastructure/notifications/TicketModeGatedOpener.test.ts`, `tests/domain/notifications/value-objects/NotificationSettings.test.ts`, `tests/integration/use-cases/notifications/UnifiedAlertRecording.integration.test.ts`
+
+### NOT-206 — An open alert with no ticket of its own offers one
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-14
+
+Each alert in `GET /api/alerts` carries `ticket` — its own live ticket (open,
+assigned or in progress) with id, code and status, or `null` — and
+`ticketSuggested`, which is `true` when the alert is open and `ticket` is
+`null`. A ticket opened for another alert on the same device does not count,
+and neither does a resolved or cancelled one. On an install without the
+tickets module nothing is suggested. The suggestion is the same in both ticket
+modes.
+
+**Why:** A device can be failing in two unrelated ways — poor radio
+performance and a disconnected LAN — and each may be its own job. Showing the
+suggestion even in automatic mode lets a person split an alert out of the
+device's folded ticket. A resolved alert stops nagging, though a person can
+still raise a ticket for it (`TKT-115`).
+
+**Enforced at:** `src/application/notifications/use-cases/ListAlertsUseCase.ts`, `src/infrastructure/persistence/PrismaAlertListQuery.ts`
+**Reached from:** `GET /api/alerts`
+**Tests:** `tests/application/notifications/use-cases/ListAlertsUseCase.test.ts`, `tests/integration/alert.routes.test.ts`
 
 ---
 

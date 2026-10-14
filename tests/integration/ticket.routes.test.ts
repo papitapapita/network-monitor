@@ -294,6 +294,112 @@ describe('Ticket Routes — /api/tickets', () => {
     });
   });
 
+  describe('[TKT-115] POST /api/tickets/from-alert', () => {
+    const seedAlert = (type = 'wireless:ccq:WARNING') =>
+      prisma.alertEvent.create({
+        data: {
+          deviceId,
+          severity: 'WARNING',
+          type,
+          description: 'CCQ bajo'
+        }
+      });
+
+    it('201 — opens a ticket from the alert, authored by the caller', async () => {
+      const alert = await seedAlert();
+
+      const res = await request(app)
+        .post('/api/tickets/from-alert')
+        .set('Authorization', auth())
+        .send({ alertId: alert.id });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toMatchObject({
+        origin: 'WIRELESS_ALERT',
+        originAlertId: alert.id,
+        deviceId,
+        description: 'CCQ bajo',
+        priority: 'HIGH'
+      });
+      expect(res.body.data.createdBy).not.toBeNull();
+    });
+
+    it('201 — a second alert on the same device gets its own ticket', async () => {
+      const first = await seedAlert();
+      const second = await seedAlert('lan_disconnected');
+      await request(app)
+        .post('/api/tickets/from-alert')
+        .set('Authorization', auth())
+        .send({ alertId: first.id });
+
+      const res = await request(app)
+        .post('/api/tickets/from-alert')
+        .set('Authorization', auth())
+        .send({ alertId: second.id });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.originAlertId).toBe(second.id);
+      expect(res.body.data.origin).toBe('DEVICE_ALERT');
+      expect(await prisma.ticket.count({ where: { deviceId } })).toBe(
+        2
+      );
+    });
+
+    it('409 — the alert already has a live ticket', async () => {
+      const alert = await seedAlert();
+      await request(app)
+        .post('/api/tickets/from-alert')
+        .set('Authorization', auth())
+        .send({ alertId: alert.id });
+
+      const res = await request(app)
+        .post('/api/tickets/from-alert')
+        .set('Authorization', auth())
+        .send({ alertId: alert.id });
+
+      expect(res.status).toBe(409);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('404 — the alert does not exist', async () => {
+      const res = await request(app)
+        .post('/api/tickets/from-alert')
+        .set('Authorization', auth())
+        .send({ alertId: GHOST_ID });
+
+      expect(res.status).toBe(404);
+    });
+
+    it('400 — rejects a malformed alert id', async () => {
+      const res = await request(app)
+        .post('/api/tickets/from-alert')
+        .set('Authorization', auth())
+        .send({ alertId: INVALID_ID });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('403 — a VIEWER cannot create one', async () => {
+      const alert = await seedAlert();
+
+      const res = await request(app)
+        .post('/api/tickets/from-alert')
+        .set('Authorization', `Bearer ${viewerToken}`)
+        .send({ alertId: alert.id });
+
+      expect(res.status).toBe(403);
+    });
+
+    it('401 — rejects a request with no token', async () => {
+      const res = await request(app)
+        .post('/api/tickets/from-alert')
+        .send({ alertId: GHOST_ID });
+
+      expect(res.status).toBe(401);
+    });
+  });
+
   describe('GET /api/tickets', () => {
     it('200 — lists tickets with the pagination envelope', async () => {
       await seedTicket(prisma, { customerId, deviceId });

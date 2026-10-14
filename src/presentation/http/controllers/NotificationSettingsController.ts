@@ -25,7 +25,8 @@ export class NotificationSettingsController {
       this.updateUseCase.execute({
         telegramChatId: req.body.telegramChatId,
         downAlertDelayMinutes: req.body.downAlertDelayMinutes,
-        wirelessAlertsEnabled: req.body.wirelessAlertsEnabled
+        wirelessAlertsEnabled: req.body.wirelessAlertsEnabled,
+        alertTicketMode: req.body.alertTicketMode
       })
     );
 

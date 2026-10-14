@@ -15,7 +15,9 @@ export class ListAlertsUseCase extends UseCase<
 
   constructor(
     private readonly alertListQuery: IAlertListQuery,
-    logger: ILogger
+    logger: ILogger,
+    // False on an install without the tickets module: nothing to suggest.
+    private readonly ticketsEnabled = true
   ) {
     super(logger, 'ListAlertsUseCase');
   }
@@ -85,7 +87,16 @@ export class ListAlertsUseCase extends UseCase<
 
     return this.ok(
       AlertMapper.toListDTO(
-        alertsResult.value,
+        alertsResult.value.map((row) => ({
+          ...row,
+          // NOT-205: an open alert with no ticket of its own offers one,
+          // whatever the ticket mode — automatic mode folds a device's later
+          // alerts into one ticket, and a person may still split them out.
+          ticketSuggested:
+            this.ticketsEnabled &&
+            row.status === 'OPEN' &&
+            row.ticket === null
+        })),
         countResult.value,
         limit,
         offset

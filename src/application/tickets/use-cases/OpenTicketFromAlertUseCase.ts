@@ -5,7 +5,7 @@ import {
   TicketCategory,
   TicketOrigin
 } from 'domain/tickets';
-import { CustomerId, DeviceId } from 'domain/shared/ids';
+import { CustomerId, DeviceId, UserId } from 'domain/shared/ids';
 import { Result, UniqueEntityID } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
@@ -19,8 +19,9 @@ import { ICustomerDirectory, IDeviceDirectory } from '../interfaces';
 const MAX_TITLE_LENGTH = 150;
 
 /**
- * Opens a ticket for a firing alert. Has no HTTP surface — it is reached only
- * from the wireless event handler and from the device-down alert pipeline.
+ * Opens a ticket for a firing alert. Has no HTTP surface of its own — it is
+ * reached from both alert pipelines when tickets open automatically, and
+ * through CreateTicketFromAlertUseCase when a person accepts a suggestion.
  */
 export class OpenTicketFromAlertUseCase extends UseCase<
   OpenTicketFromAlertRequestDTO,
@@ -96,12 +97,27 @@ export class OpenTicketFromAlertUseCase extends UseCase<
       return this.ok(TicketMapper.toDTO(existingResult.value));
     }
 
+    let createdBy: UserId | null = null;
+    if (
+      request.createdBy !== undefined &&
+      request.createdBy !== null
+    ) {
+      const userIdResult = UserId.parse(request.createdBy);
+      if (userIdResult.isFailure) {
+        return this.fail(`Invalid createdBy: ${userIdResult.error}`);
+      }
+      createdBy = userIdResult.value;
+    }
+
     // A device with several breaching metrics is still one site visit. Fold
-    // later alerts into the ticket already raised for that device.
+    // later alerts into the ticket already raised for that device — unless a
+    // person chose this alert, who has already judged it a separate job.
     const deviceTicketResult =
-      await this.ticketRepository.findActiveAlertTicketForDevice(
-        request.deviceId.trim()
-      );
+      request.foldIntoDeviceTicket === false
+        ? Result.ok<Ticket | null>(null)
+        : await this.ticketRepository.findActiveAlertTicketForDevice(
+            request.deviceId.trim()
+          );
     if (deviceTicketResult.isFailure) {
       return this.fail(deviceTicketResult.error!);
     }
@@ -166,7 +182,7 @@ export class OpenTicketFromAlertUseCase extends UseCase<
       deviceId: deviceIdResult.value,
       address: null,
       scheduledFor: null,
-      createdBy: null
+      createdBy
     });
     if (ticketResult.isFailure) {
       return this.fail(ticketResult.error!);

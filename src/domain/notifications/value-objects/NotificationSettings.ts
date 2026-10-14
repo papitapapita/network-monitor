@@ -1,8 +1,12 @@
 import { ValueObject, Result } from 'domain/shared/core';
 import { isTelegramChatId } from 'domain/shared/value-objects';
-import { NotificationSettingsProps } from '../props';
+import { AlertTicketMode, NotificationSettingsProps } from '../props';
 
 export const MAX_DOWN_ALERT_DELAY_MINUTES = 1440;
+export const ALERT_TICKET_MODES: readonly AlertTicketMode[] = [
+  'SUGGEST',
+  'AUTOMATIC'
+];
 
 // The install's own notification settings (NOT-200), edited by the
 // customer's administrator and replaced as a whole.
@@ -21,6 +25,14 @@ export class NotificationSettings extends ValueObject<NotificationSettingsProps>
 
   get wirelessAlertsEnabled(): boolean {
     return this._props.wirelessAlertsEnabled;
+  }
+
+  get alertTicketMode(): AlertTicketMode {
+    return this._props.alertTicketMode;
+  }
+
+  get opensTicketsAutomatically(): boolean {
+    return this._props.alertTicketMode === 'AUTOMATIC';
   }
 
   private constructor(props: NotificationSettingsProps) {
@@ -64,6 +76,9 @@ export class NotificationSettings extends ValueObject<NotificationSettingsProps>
     }
     if (typeof props.wirelessAlertsEnabled !== 'boolean') {
       return 'wirelessAlertsEnabled must be true or false';
+    }
+    if (!ALERT_TICKET_MODES.includes(props.alertTicketMode)) {
+      return `alertTicketMode must be one of: ${ALERT_TICKET_MODES.join(', ')}`;
     }
     return null;
   }

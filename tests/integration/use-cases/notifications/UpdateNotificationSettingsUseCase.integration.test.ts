@@ -10,7 +10,8 @@ import { createTestPrisma } from '../../helpers/db';
 const DEFAULTS = NotificationSettings.reconstitute({
   telegramChatId: '-100111',
   downAlertDelayMinutes: 60,
-  wirelessAlertsEnabled: true
+  wirelessAlertsEnabled: true,
+  alertTicketMode: 'SUGGEST'
 });
 
 describe('[NOT-200] UpdateNotificationSettingsUseCase — integration', () => {
@@ -67,6 +68,37 @@ describe('[NOT-200] UpdateNotificationSettingsUseCase — integration', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].telegramChatId).toBe('@isp_alertas');
     expect(rows[0].downAlertDelayMinutes).toBe(0);
+  });
+
+  it('[NOT-205] stores the ticket mode, and an omitted mode keeps it', async () => {
+    await useCase.execute({
+      telegramChatId: '-100222',
+      downAlertDelayMinutes: 10,
+      wirelessAlertsEnabled: true,
+      alertTicketMode: 'AUTOMATIC'
+    });
+    await useCase.execute({
+      telegramChatId: '-100222',
+      downAlertDelayMinutes: 20,
+      wirelessAlertsEnabled: true
+    });
+
+    const row = await prisma.notificationSettings.findUnique({
+      where: { id: 1 }
+    });
+    expect(row?.alertTicketMode).toBe('AUTOMATIC');
+    expect(row?.downAlertDelayMinutes).toBe(20);
+  });
+
+  it('[NOT-205] an omitted mode on the first save takes the default', async () => {
+    await useCase.execute({
+      telegramChatId: '-100222',
+      downAlertDelayMinutes: 10,
+      wirelessAlertsEnabled: true
+    });
+
+    const read = await repo.get();
+    expect(read.value.alertTicketMode).toBe('SUGGEST');
   });
 
   it('writes nothing when a value is refused', async () => {

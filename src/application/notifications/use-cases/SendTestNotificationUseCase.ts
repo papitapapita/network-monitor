@@ -45,7 +45,8 @@ export class SendTestNotificationUseCase extends UseCase<
       const candidate = NotificationSettings.create({
         telegramChatId: request.telegramChatId,
         downAlertDelayMinutes: current.value.downAlertDelayMinutes,
-        wirelessAlertsEnabled: current.value.wirelessAlertsEnabled
+        wirelessAlertsEnabled: current.value.wirelessAlertsEnabled,
+        alertTicketMode: current.value.alertTicketMode
       });
       if (candidate.isFailure) return this.fail(candidate.error);
       chatId = candidate.value.telegramChatId;

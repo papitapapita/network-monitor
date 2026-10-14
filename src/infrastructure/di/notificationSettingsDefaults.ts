@@ -15,7 +15,9 @@ export function loadNotificationSettingsDefaults(
   const result = NotificationSettings.create({
     telegramChatId: env.TELEGRAM_CHAT_ID?.trim() || null,
     downAlertDelayMinutes: delay,
-    wirelessAlertsEnabled: rawWireless !== 'false'
+    wirelessAlertsEnabled: rawWireless !== 'false',
+    // No env predates this setting; suggesting is the product default.
+    alertTicketMode: 'SUGGEST'
   });
   if (result.isFailure) {
     throw new Error(`Notification settings in env: ${result.error}`);

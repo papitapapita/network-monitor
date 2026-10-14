@@ -33,7 +33,8 @@ function makeRepo(
         NotificationSettings.reconstitute({
           telegramChatId: '-100',
           downAlertDelayMinutes: 60,
-          wirelessAlertsEnabled
+          wirelessAlertsEnabled,
+          alertTicketMode: 'SUGGEST'
         })
       )
     ),

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { ILogger } from 'application/shared/interfaces';
 import {
   CreateTicketUseCase,
+  CreateTicketFromAlertUseCase,
   GetTicketUseCase,
   ListTicketsUseCase,
   GetTechnicianDayUseCase,
@@ -27,6 +28,7 @@ export class TicketController {
     private readonly resolveUseCase: ResolveTicketUseCase,
     private readonly cancelUseCase: CancelTicketUseCase,
     private readonly deleteUseCase: DeleteTicketUseCase,
+    private readonly createFromAlertUseCase: CreateTicketFromAlertUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -38,6 +40,30 @@ export class TicketController {
       const result = await this.createUseCase.execute({
         ...req.body,
         // Authorship comes from the token, never from the payload.
+        createdBy: req.user?.userId ?? null
+      });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res
+          .status(statusCode)
+          .json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(201).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public createFromAlert = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.createFromAlertUseCase.execute({
+        alertId: req.body.alertId,
         createdBy: req.user?.userId ?? null
       });
 

@@ -133,6 +133,16 @@ const offsetField = z
   .transform(Number)
   .refine((n) => n >= 0, { message: 'Offset must be non-negative' });
 
+export const createTicketFromAlertSchema = z.object({
+  body: z
+    .object({
+      alertId: z
+        .string()
+        .uuid('Invalid alert ID: must be a valid UUID')
+    })
+    .strict()
+});
+
 export const createTicketSchema = z.object({
   body: z
     .object({

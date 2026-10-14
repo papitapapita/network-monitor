@@ -9,17 +9,19 @@ import { cleanDatabase } from './helpers/db';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
 
 // The env defaults: TELEGRAM_CHAT_ID (pinned by setup.ts),
-// DEVICE_DOWN_ALERT_DELAY_MINUTES=60, wireless alerts on.
+// DEVICE_DOWN_ALERT_DELAY_MINUTES=60, wireless alerts on, tickets suggested.
 const ENV_DEFAULTS = {
   telegramChatId: process.env.TELEGRAM_CHAT_ID,
   downAlertDelayMinutes: 60,
-  wirelessAlertsEnabled: true
+  wirelessAlertsEnabled: true,
+  alertTicketMode: 'SUGGEST'
 };
 
 const SAVED = {
   telegramChatId: '-1009998887776',
   downAlertDelayMinutes: 15,
-  wirelessAlertsEnabled: false
+  wirelessAlertsEnabled: false,
+  alertTicketMode: 'AUTOMATIC'
 };
 
 describe('Notification Settings Routes — /api/notification-settings', () => {
@@ -110,6 +112,33 @@ describe('Notification Settings Routes — /api/notification-settings', () => {
         .send({ ...SAVED, downAlertDelayMinutes: 2000 });
 
       expect(res.status).toBe(400);
+    });
+
+    it('[NOT-205] 200 — keeps the saved ticket mode when the body omits it', async () => {
+      await request(app)
+        .put('/api/notification-settings')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(SAVED);
+
+      const { alertTicketMode: _omitted, ...withoutMode } = SAVED;
+      const res = await request(app)
+        .put('/api/notification-settings')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ ...withoutMode, downAlertDelayMinutes: 30 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.alertTicketMode).toBe('AUTOMATIC');
+      expect(res.body.data.downAlertDelayMinutes).toBe(30);
+    });
+
+    it('[NOT-205] 400 — refuses an unknown ticket mode', async () => {
+      const res = await request(app)
+        .put('/api/notification-settings')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ ...SAVED, alertTicketMode: 'SOMETIMES' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('alertTicketMode');
     });
 
     it('400 — refuses a body missing a setting', async () => {

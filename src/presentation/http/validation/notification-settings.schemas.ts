@@ -6,7 +6,8 @@ export const updateNotificationSettingsSchema = z.object({
     .object({
       telegramChatId: z.string().max(64).nullable(),
       downAlertDelayMinutes: z.number(),
-      wirelessAlertsEnabled: z.boolean()
+      wirelessAlertsEnabled: z.boolean(),
+      alertTicketMode: z.string().max(16).optional()
     })
     .strict()
 });

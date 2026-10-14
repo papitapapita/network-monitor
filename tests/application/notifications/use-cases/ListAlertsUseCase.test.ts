@@ -1,8 +1,10 @@
 // Source: src/application/notifications/use-cases/ListAlertsUseCase.ts
 
 import { ListAlertsUseCase } from '../../../../src/application/notifications/use-cases/ListAlertsUseCase';
-import { IAlertListQuery } from '../../../../src/application/notifications/interfaces';
-import { AlertListItemDTO } from '../../../../src/application/notifications/dtos';
+import {
+  AlertListRow,
+  IAlertListQuery
+} from '../../../../src/application/notifications/interfaces';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
@@ -29,7 +31,9 @@ function makeQuery(): jest.Mocked<IAlertListQuery> {
   };
 }
 
-function makeItem(): AlertListItemDTO {
+function makeItem(
+  overrides: Partial<AlertListRow> = {}
+): AlertListRow {
   return {
     id: VALID_ALERT_UUID,
     deviceId: VALID_DEVICE_UUID,
@@ -44,7 +48,9 @@ function makeItem(): AlertListItemDTO {
     resolvedAt: null,
     notifiedAt: null,
     recoveryNotifiedAt: null,
-    durationSecs: null
+    durationSecs: null,
+    ticket: null,
+    ...overrides
   };
 }
 
@@ -55,6 +61,56 @@ describe('ListAlertsUseCase', () => {
   beforeEach(() => {
     query = makeQuery();
     useCase = new ListAlertsUseCase(query, makeLogger());
+  });
+
+  describe('[NOT-205] ticket suggestion', () => {
+    const TICKET = {
+      id: '550e8400-e29b-41d4-a716-446655440099',
+      code: 7,
+      status: 'OPEN'
+    };
+
+    async function listOne(row: AlertListRow, ticketsEnabled = true) {
+      query.list.mockResolvedValue(Result.ok([row]));
+      query.count.mockResolvedValue(Result.ok(1));
+      const result = await new ListAlertsUseCase(
+        query,
+        makeLogger(),
+        ticketsEnabled
+      ).execute({});
+      return result.value.alerts[0];
+    }
+
+    it('suggests a ticket for an open alert without one', async () => {
+      const alert = await listOne(makeItem());
+
+      expect(alert.ticketSuggested).toBe(true);
+      expect(alert.ticket).toBeNull();
+    });
+
+    it('does not suggest when the alert already has a live ticket', async () => {
+      const alert = await listOne(makeItem({ ticket: TICKET }));
+
+      expect(alert.ticketSuggested).toBe(false);
+      expect(alert.ticket).toEqual(TICKET);
+    });
+
+    it('does not suggest for a resolved alert', async () => {
+      const alert = await listOne(
+        makeItem({
+          status: 'RESOLVED',
+          resolvedAt: '2024-06-01T11:00:00.000Z'
+        })
+      );
+
+      expect(alert.ticketSuggested).toBe(false);
+    });
+
+    it('never suggests on an install without the tickets module', async () => {
+      const alert = await listOne(makeItem(), false);
+
+      expect(alert.ticketSuggested).toBe(false);
+    });
   });
 
   describe('pagination', () => {
@@ -156,7 +212,9 @@ describe('ListAlertsUseCase', () => {
       const result = await useCase.execute({});
 
       expect(result.isSuccess).toBe(true);
-      expect(result.value.alerts).toEqual([item]);
+      expect(result.value.alerts).toEqual([
+        { ...item, ticketSuggested: true }
+      ]);
     });
 
     it('fails when list fails', async () => {

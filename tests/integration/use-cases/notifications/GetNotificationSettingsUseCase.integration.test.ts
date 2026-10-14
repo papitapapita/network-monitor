@@ -10,7 +10,8 @@ import { createTestPrisma } from '../../helpers/db';
 const DEFAULTS = NotificationSettings.reconstitute({
   telegramChatId: '-100111',
   downAlertDelayMinutes: 60,
-  wirelessAlertsEnabled: true
+  wirelessAlertsEnabled: true,
+  alertTicketMode: 'SUGGEST'
 });
 
 describe('[NOT-201] GetNotificationSettingsUseCase — integration', () => {

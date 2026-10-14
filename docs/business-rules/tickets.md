@@ -21,7 +21,7 @@ Format and conventions: [README.md](README.md).
 | --------------------------------- | ----- |
 | Domain (aggregate)                | 23    |
 | Domain (value object)             | 6     |
-| Application                       | 6     |
+| Application                       | 7     |
 | Application + database constraint | 4     |
 | Infrastructure (database)         | 1     |
 
@@ -803,7 +803,8 @@ unreadable, and would let a hand-made ticket suppress a real alert's own via
 **Layer:** Application
 **Since:** 2026-08-04
 
-Two levels of deduplication before an alert-origin ticket is created:
+Two levels of deduplication before an alert-origin ticket is created
+automatically (`NOT-205`, `AUTOMATIC` mode):
 
 1. If a non-terminal ticket already exists for that exact alert id, it is
    returned unchanged.
@@ -814,7 +815,8 @@ Two levels of deduplication before an alert-origin ticket is created:
 single failing device typically breaches several metrics at once. Without both
 checks one dead antenna becomes dozens of jobs on a technician's day sheet.
 Level 2 is the product rule that matters: a device with five breaching metrics
-is still one site visit.
+is still one site visit. It does not apply when a person picks the alert
+([TKT-115]): they have already judged it a separate job.
 
 **Enforced at:** `src/application/tickets/use-cases/OpenTicketFromAlertUseCase.ts`
 **Tests:** `tests/integration/use-cases/tickets/OpenTicketFromAlertUseCase.integration.test.ts`
@@ -833,3 +835,26 @@ floor is `HIGH` rather than `NORMAL` — a human can always lower it.
 
 **Enforced at:** `src/application/tickets/use-cases/OpenTicketFromAlertUseCase.ts` (`mapSeverity`)
 **Tests:** `tests/application/tickets/use-cases/OpenTicketFromAlertUseCase.test.ts`
+
+### TKT-115 — A person can open a ticket from any alert, one live ticket per alert
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-14
+
+`POST /api/tickets/from-alert` with an `alertId` opens a ticket from that
+alert, open or resolved, with the same origin, title, description and priority
+an automatic one would get ([TKT-114]), and the caller as its author. It is
+refused (`409`) while the alert already has a live ticket, and a resolved or
+cancelled one does not block a new one. The device's other live tickets do not
+matter: the alert gets its own. Needs the `create` permission.
+
+**Why:** Tickets are suggested rather than opened by default (`NOT-205`), so
+this is the normal way an alert becomes a job. The person chose this alert, so
+folding it into the device's existing ticket ([TKT-113]) would undo their
+choice. One live ticket per alert stops a double click raising two.
+
+**Enforced at:** `src/application/tickets/use-cases/CreateTicketFromAlertUseCase.ts`, `src/application/tickets/use-cases/OpenTicketFromAlertUseCase.ts` (`foldIntoDeviceTicket`), `src/infrastructure/tickets/adapters/AlertDirectoryAdapter.ts`
+**Reached from:** `POST /api/tickets/from-alert`
+**Message:** `A live ticket already exists for this alert: #<code>`
+**Tests:** `tests/application/tickets/use-cases/CreateTicketFromAlertUseCase.test.ts`, `tests/application/tickets/use-cases/OpenTicketFromAlertUseCase.test.ts`, `tests/integration/use-cases/tickets/CreateTicketFromAlertUseCase.integration.test.ts`, `tests/integration/ticket.routes.test.ts`, `tests/presentation/http/controllers/TicketController.test.ts`

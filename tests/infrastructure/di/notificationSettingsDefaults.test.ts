@@ -23,6 +23,12 @@ describe('[NOT-201] loadNotificationSettingsDefaults', () => {
     expect(settings.wirelessAlertsEnabled).toBe(true);
   });
 
+  it('[NOT-205] suggests tickets rather than opening them', () => {
+    const settings = loadNotificationSettingsDefaults({});
+
+    expect(settings.alertTicketMode).toBe('SUGGEST');
+  });
+
   it('stops the boot on a delay the dashboard would refuse', () => {
     expect(() =>
       loadNotificationSettingsDefaults({

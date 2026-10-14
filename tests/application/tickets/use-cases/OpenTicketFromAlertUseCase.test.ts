@@ -144,6 +144,46 @@ describe('OpenTicketFromAlertUseCase', () => {
     expect(ticketRepo.save).not.toHaveBeenCalled();
   });
 
+  it('[TKT-115] opens its own ticket when told not to fold into the device ticket', async () => {
+    (
+      ticketRepo.findActiveAlertTicketForDevice as any
+    ).mockResolvedValue(Result.ok(makeTicket()));
+
+    const result = await useCase.execute({
+      ...request(),
+      foldIntoDeviceTicket: false
+    });
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.originAlertId).toBe(ALERT_ID);
+    expect(
+      ticketRepo.findActiveAlertTicketForDevice
+    ).not.toHaveBeenCalled();
+    expect(ticketRepo.save).toHaveBeenCalledTimes(1);
+  });
+
+  it('[TKT-115] records who created the ticket', async () => {
+    const userId = '550e8400-e29b-41d4-a716-446655440077';
+
+    const result = await useCase.execute({
+      ...request(),
+      createdBy: userId
+    });
+
+    expect(result.value.createdBy).toBe(userId);
+  });
+
+  it('refuses a malformed createdBy', async () => {
+    const result = await useCase.execute({
+      ...request(),
+      createdBy: 'not-a-uuid'
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toContain('Invalid createdBy');
+    expect(ticketRepo.save).not.toHaveBeenCalled();
+  });
+
   it('opens the ticket with no customer when the device serves nobody', async () => {
     (customerDirectory.findContactByDevice as any).mockResolvedValue(
       Result.ok(null)

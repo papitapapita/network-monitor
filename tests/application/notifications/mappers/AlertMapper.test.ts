@@ -228,7 +228,12 @@ describe('AlertMapper', () => {
   // ===========================================================================
   describe('toListDTO()', () => {
     function item(alert: Alert): AlertListItemDTO {
-      return { ...AlertMapper.toDTO(alert), deviceName: 'Router A' };
+      return {
+        ...AlertMapper.toDTO(alert),
+        deviceName: 'Router A',
+        ticket: null,
+        ticketSuggested: true
+      };
     }
 
     it('should set hasMore to true when offset + items.length < total', () => {

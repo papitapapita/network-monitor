@@ -6,8 +6,19 @@ import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceR
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import { DeviceEligibilityService } from 'domain/device-inventory/services';
 import { AlertSeverity } from 'domain/shared/enums';
+import { PrismaNotificationSettingsRepository } from 'infrastructure/persistence/PrismaNotificationSettingsRepository';
+import { TicketModeGatedOpener } from 'infrastructure/notifications/TicketModeGatedOpener';
+import {
+  CustomerDirectoryAdapter,
+  DeviceDirectoryAdapter,
+  TicketOpenerAdapter
+} from 'infrastructure/tickets/adapters';
+import { PrismaTicketRepository } from 'infrastructure/tickets/repositories';
+import { OpenTicketFromAlertUseCase } from 'application/tickets/use-cases';
+import { NotificationSettings } from 'domain/notifications/value-objects';
 import {
   cleanDatabase,
+  cleanTickets,
   createTestPrisma,
   seedDeviceModel,
   seedMonitoredDevice
@@ -137,5 +148,105 @@ describe('Unified alert recording — integration', () => {
     });
     expect(stillOpen).toHaveLength(1);
     expect(stillOpen[0].type).toBe('wireless:throughput:WARNING');
+  });
+});
+
+describe('[NOT-205] Alert ticket mode — integration', () => {
+  let prisma: PrismaClient;
+  let settingsRepo: PrismaNotificationSettingsRepository;
+  let openAlert: OpenAlertUseCase;
+  let deviceModelId: string;
+  let deviceId: string;
+
+  const SUGGEST_DEFAULTS = NotificationSettings.reconstitute({
+    telegramChatId: null,
+    downAlertDelayMinutes: 60,
+    wirelessAlertsEnabled: true,
+    alertTicketMode: 'SUGGEST'
+  });
+
+  beforeAll(async () => {
+    prisma = createTestPrisma();
+    deviceModelId = await seedDeviceModel(prisma);
+    const logger = new WinstonLogger();
+    settingsRepo = new PrismaNotificationSettingsRepository(
+      prisma,
+      SUGGEST_DEFAULTS
+    );
+    openAlert = new OpenAlertUseCase(
+      new PrismaAlertRepository(prisma),
+      new PrismaDeviceRepository(prisma),
+      new DeviceEligibilityService(),
+      logger,
+      new TicketModeGatedOpener(
+        new TicketOpenerAdapter(
+          new OpenTicketFromAlertUseCase(
+            new PrismaTicketRepository(prisma),
+            new CustomerDirectoryAdapter(prisma),
+            new DeviceDirectoryAdapter(prisma),
+            logger
+          )
+        ),
+        settingsRepo,
+        logger
+      )
+    );
+  });
+
+  afterAll(async () => {
+    // The row would override the env defaults in every later suite.
+    await prisma.notificationSettings.deleteMany();
+    await cleanTickets(prisma);
+    await prisma.$disconnect();
+  });
+
+  beforeEach(async () => {
+    await prisma.notificationSettings.deleteMany();
+    await cleanTickets(prisma);
+    await cleanDatabase(prisma);
+    const seeded = await seedMonitoredDevice(prisma, deviceModelId);
+    deviceId = seeded.deviceId;
+  });
+
+  const alertInput = () => ({
+    deviceId,
+    severity: AlertSeverity.WARNING,
+    source: 'Enlace inalámbrico',
+    type: 'wireless:ccq_percent:WARNING',
+    description: 'CCQ bajo',
+    details: {}
+  });
+
+  it('records the alert but opens no ticket in SUGGEST mode', async () => {
+    await openAlert.execute(alertInput());
+
+    expect(
+      await prisma.alertEvent.count({ where: { deviceId } })
+    ).toBe(1);
+    expect(await prisma.ticket.count({ where: { deviceId } })).toBe(
+      0
+    );
+  });
+
+  it('opens the ticket once the administrator switches to AUTOMATIC', async () => {
+    await settingsRepo.save(
+      NotificationSettings.reconstitute({
+        telegramChatId: null,
+        downAlertDelayMinutes: 60,
+        wirelessAlertsEnabled: true,
+        alertTicketMode: 'AUTOMATIC'
+      })
+    );
+
+    await openAlert.execute(alertInput());
+
+    const alert = await prisma.alertEvent.findFirstOrThrow({
+      where: { deviceId }
+    });
+    const tickets = await prisma.ticket.findMany({
+      where: { deviceId }
+    });
+    expect(tickets).toHaveLength(1);
+    expect(tickets[0].originAlertId).toBe(alert.id);
   });
 });

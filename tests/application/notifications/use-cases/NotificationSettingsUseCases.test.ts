@@ -31,7 +31,8 @@ function makeSettings(
   return NotificationSettings.reconstitute({
     telegramChatId,
     downAlertDelayMinutes: 60,
-    wirelessAlertsEnabled: true
+    wirelessAlertsEnabled: true,
+    alertTicketMode: 'SUGGEST'
   });
 }
 
@@ -56,7 +57,8 @@ describe('GetNotificationSettingsUseCase', () => {
     expect(result.value).toEqual({
       telegramChatId: '-100123',
       downAlertDelayMinutes: 60,
-      wirelessAlertsEnabled: true
+      wirelessAlertsEnabled: true,
+      alertTicketMode: 'SUGGEST'
     });
   });
 
@@ -93,10 +95,73 @@ describe('[NOT-200] UpdateNotificationSettingsUseCase', () => {
     expect(result.value).toEqual({
       telegramChatId: '-200',
       downAlertDelayMinutes: 10,
-      wirelessAlertsEnabled: false
+      wirelessAlertsEnabled: false,
+      alertTicketMode: 'SUGGEST'
     });
     expect(repo.save).toHaveBeenCalledTimes(1);
     expect(repo.save.mock.calls[0][0].telegramChatId).toBe('-200');
+  });
+
+  it('[NOT-205] saves the ticket mode it is given', async () => {
+    const repo = makeRepo();
+    const useCase = new UpdateNotificationSettingsUseCase(
+      repo,
+      makeLogger()
+    );
+
+    const result = await useCase.execute({
+      telegramChatId: null,
+      downAlertDelayMinutes: 60,
+      wirelessAlertsEnabled: true,
+      alertTicketMode: 'AUTOMATIC'
+    });
+
+    expect(result.value.alertTicketMode).toBe('AUTOMATIC');
+    expect(repo.save.mock.calls[0][0].alertTicketMode).toBe(
+      'AUTOMATIC'
+    );
+  });
+
+  it('[NOT-205] keeps the saved ticket mode when the request omits it', async () => {
+    const repo = makeRepo(
+      NotificationSettings.reconstitute({
+        telegramChatId: null,
+        downAlertDelayMinutes: 60,
+        wirelessAlertsEnabled: true,
+        alertTicketMode: 'AUTOMATIC'
+      })
+    );
+    const useCase = new UpdateNotificationSettingsUseCase(
+      repo,
+      makeLogger()
+    );
+
+    const result = await useCase.execute({
+      telegramChatId: null,
+      downAlertDelayMinutes: 30,
+      wirelessAlertsEnabled: true
+    });
+
+    expect(result.value.alertTicketMode).toBe('AUTOMATIC');
+    expect(result.value.downAlertDelayMinutes).toBe(30);
+  });
+
+  it('[NOT-205] refuses an unknown ticket mode', async () => {
+    const repo = makeRepo();
+    const useCase = new UpdateNotificationSettingsUseCase(
+      repo,
+      makeLogger()
+    );
+
+    const result = await useCase.execute({
+      telegramChatId: null,
+      downAlertDelayMinutes: 60,
+      wirelessAlertsEnabled: true,
+      alertTicketMode: 'SOMETIMES'
+    });
+
+    expect(result.error).toContain('alertTicketMode');
+    expect(repo.save).not.toHaveBeenCalled();
   });
 
   it('saves nothing when a value is refused', async () => {

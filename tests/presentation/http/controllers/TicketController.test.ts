@@ -63,6 +63,7 @@ describe('TicketController', () => {
   let resolve: UseCaseMock;
   let cancel: UseCaseMock;
   let remove: UseCaseMock;
+  let createFromAlert: UseCaseMock;
   let logger: ReturnType<typeof makeLogger>;
   let controller: TicketController;
 
@@ -78,6 +79,7 @@ describe('TicketController', () => {
     resolve = makeUseCase();
     cancel = makeUseCase();
     remove = makeUseCase();
+    createFromAlert = makeUseCase();
     logger = makeLogger();
 
     controller = new TicketController(
@@ -92,6 +94,7 @@ describe('TicketController', () => {
       resolve as never,
       cancel as never,
       remove as never,
+      createFromAlert as never,
       logger
     );
   });
@@ -136,6 +139,57 @@ describe('TicketController', () => {
       expect(create.execute).toHaveBeenCalledWith(
         expect.objectContaining({ createdBy: null })
       );
+    });
+  });
+
+  describe('createFromAlert', () => {
+    const ALERT_ID = 'aaaaaaaa-0000-4000-8000-000000000001';
+
+    it('[TKT-115] takes the alert from the body and the author from the token', async () => {
+      createFromAlert.execute.mockResolvedValue(
+        Result.ok({ id: 't1' })
+      );
+      const req = makeRequest({
+        body: { alertId: ALERT_ID },
+        user: { userId: 'real-user', email: 'a@b.c', role: 'ADMIN' }
+      } as never);
+      const res = makeResponse();
+
+      await controller.createFromAlert(req, res);
+
+      expect(createFromAlert.execute).toHaveBeenCalledWith({
+        alertId: ALERT_ID,
+        createdBy: 'real-user'
+      });
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    it('[TKT-115] answers 409 when the alert already has a live ticket', async () => {
+      createFromAlert.execute.mockResolvedValue(
+        Result.fail('A live ticket already exists for this alert: #7')
+      );
+      const res = makeResponse();
+
+      await controller.createFromAlert(
+        makeRequest({ body: { alertId: ALERT_ID } }),
+        res
+      );
+
+      expect(res.status).toHaveBeenCalledWith(409);
+    });
+
+    it('[TKT-115] answers 404 when the alert does not exist', async () => {
+      createFromAlert.execute.mockResolvedValue(
+        Result.fail(`Alert not found: ${ALERT_ID}`)
+      );
+      const res = makeResponse();
+
+      await controller.createFromAlert(
+        makeRequest({ body: { alertId: ALERT_ID } }),
+        res
+      );
+
+      expect(res.status).toHaveBeenCalledWith(404);
     });
   });
 

@@ -27,7 +27,8 @@ function makeSettings(
   return NotificationSettings.reconstitute({
     telegramChatId: '-100',
     downAlertDelayMinutes,
-    wirelessAlertsEnabled: true
+    wirelessAlertsEnabled: true,
+    alertTicketMode: 'SUGGEST'
   });
 }
 

@@ -8,7 +8,8 @@ export class NotificationSettingsMapper {
     return {
       telegramChatId: settings.telegramChatId,
       downAlertDelayMinutes: settings.downAlertDelayMinutes,
-      wirelessAlertsEnabled: settings.wirelessAlertsEnabled
+      wirelessAlertsEnabled: settings.wirelessAlertsEnabled,
+      alertTicketMode: settings.alertTicketMode
     };
   }
 }
