@@ -4033,9 +4033,10 @@ interface ContractedServiceDetailDTO extends ContractedServiceDTO {
 
 **Device link — what to expect:**
 
-- **A device has at most one contracted service row, ever.** Cancelling a service does **not** release its device: the cancelled service keeps `deviceId`, and because a device can back only one service (cancelled ones count), that device cannot be assigned to a new service until the cancelled one is deleted (`DELETE /:id`). So `?deviceId=` returns **0 or 1** items, never a history.
-- **Soft-deleted device** (in the trash, `DELETE /api/devices/:id`): only possible once its service is `CANCELLED`. The service keeps `deviceId`, and `device` is still filled in with `deletedAt` set. `?deviceId=` still finds it.
-- **Hard-deleted device** (permanent delete or trash purge): the link is erased — the service's `deviceId` becomes `null` and `device` is `null`. Nothing records which device it used to be, so `?deviceId=` no longer finds it.
+- **A device backs at most one contracted service, and cancelling releases it.** A `CANCELLED` service always has `deviceId: null` and `device: null` — it no longer records which device it used. So `?deviceId=` returns **0 or 1** items, and that item is never `CANCELLED`: it is the device's current service.
+- **Cancelling also retires the device** (automatically, a moment after the `PUT` returns), going by the device's `ownerType`: `COMPANY` → `INVENTORY` (back to stock, free for the next customer); `CLIENT` → `DECOMMISSIONED` (the customer kept it); not set → left as it was. A retired device has monitoring off and its `ipAddress` cleared. A device already `DAMAGED`/`DECOMMISSIONED` is not touched. Re-fetch the device if you show its status after cancelling.
+- **Soft-deleted device** (in the trash): a device with a non-cancelled service cannot be deleted, and cancelling releases it, so in practice no service points at one — `device.deletedAt` is there for completeness and will be `null`.
+- **Hard-deleted device** (permanent delete or trash purge): same as above — no service can still point at it; if one did, its `deviceId` and `device` would be `null`.
 - **No device yet** (a `PENDING` service waiting for installation, or one whose device was released after suspending): `deviceId: null`, `device: null`.
 
 ### `POST /api/contracted-services` — Create
@@ -4065,7 +4066,7 @@ interface ContractedServiceDetailDTO extends ContractedServiceDTO {
 | (create) → `PENDING`               | —                      | only possible initial status                                                                   |
 | `PENDING` / `SUSPENDED` → `ACTIVE` | `deviceId` must be set | 409 `"Cannot activate a contracted service without a device assigned"` otherwise               |
 | `PENDING` / `ACTIVE` → `SUSPENDED` | —                      | triggers suspension side effects (see below)                                                   |
-| any → `CANCELLED`                  | —                      | **terminal** — every later update returns 409 `"Cannot modify a cancelled contracted service"` |
+| any → `CANCELLED`                  | —                      | **terminal** — every later update returns 409 `"Cannot modify a cancelled contracted service"`. Releases the device (`deviceId` → `null`) and retires it by owner — see _Device link_ |
 | any → `PENDING`                    | **not allowed**        | `PENDING` is not a valid `status` value on `PUT` — returns 400                                 |
 
 **Suspension side effects (automatic, server-side):**
@@ -4149,6 +4150,7 @@ offset?:     number  // ≥0, default 0
 - `deviceId: null` on an **ACTIVE** service returns 409 `"Cannot release the device of an ACTIVE service; suspend it first"`.
 - A device can belong to only one contracted service — assigning a taken device returns 409 `"This device is already assigned to another contracted service"`.
 - **CANCELLED is terminal** — any update to a cancelled service returns 409.
+- **Cancelling releases the device** — the response already has `deviceId: null`, even for an `ACTIVE` service (no need to suspend first). The device is then set to `INVENTORY` or `DECOMMISSIONED` by its owner (see _Device link_).
 - Fields in one request are applied in a fixed order: plan change → suspend → device change → activate → cancel. So a single `PUT` can do `{ status: 'SUSPENDED', deviceId: null }` (suspend then release) or `{ deviceId: '…', status: 'ACTIVE' }` (assign then activate).
 
 ---

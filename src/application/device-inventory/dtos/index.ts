@@ -41,3 +41,4 @@ export * from './MapPinDTO';
 export * from './DeleteLocationRequestDTO';
 export * from './AssignDevicesToAgentRequestDTO';
 export * from './AssignDevicesToAgentResponseDTO';
+export * from './RetireDeviceAfterCancellationDTOs';

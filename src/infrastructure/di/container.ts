@@ -373,7 +373,12 @@ import {
 } from 'application/service-enforcement/use-cases';
 import { ContractedServiceStatusChangedEnforcementHandler } from 'application/service-enforcement/event-handlers';
 import { EventDispatcher, Result } from 'domain/shared/core';
-import { ContractedServiceStatusChangedEvent } from 'domain/customers/events';
+import {
+  ContractedServiceStatusChangedEvent,
+  ContractedServiceCancelledEvent
+} from 'domain/customers/events';
+import { ContractedServiceCancelledDeviceHandler } from 'application/device-inventory/event-handlers';
+import { RetireDeviceAfterCancellationUseCase } from 'application/device-inventory/use-cases';
 import {
   DeviceCreatedEvent,
   DeviceStatusChangedEvent,
@@ -2371,6 +2376,16 @@ export class DependencyContainer {
     );
 
     // Register cross-context event handlers
+    EventDispatcher.register(
+      ContractedServiceCancelledEvent.name,
+      new ContractedServiceCancelledDeviceHandler(
+        new RetireDeviceAfterCancellationUseCase(
+          this.deviceRepository,
+          this.logger
+        ),
+        this.logger
+      )
+    );
     EventDispatcher.register(
       DeviceCreatedEvent.name,
       new DeviceProvisionedHandler(

@@ -22,7 +22,7 @@ Format and conventions: [README.md](README.md).
 
 | Layer                              | Rules |
 | ---------------------------------- | ----- |
-| Domain (aggregate)                 | 32    |
+| Domain (aggregate)                 | 33    |
 | Domain (value object)              | 10    |
 | Application                        | 12    |
 | Application + database constraint  | 7     |
@@ -1039,6 +1039,9 @@ subscriber's line is actually cut when the equipment is pulled, rather than
 staying nominally live on hardware that is gone.
 
 **Enforced at:** `src/domain/customers/aggregates/ContractedService.ts` (`releaseDevice`)
+Cancelling is the one exception: it releases the device whatever the status
+(`CUS-106`).
+
 **Message:** `Cannot release the device of an ACTIVE service; suspend it first`
 **Tests:** `tests/domain/customers/aggregates/ContractedService.test.ts`
 
@@ -1084,6 +1087,32 @@ link to their bills with it.
 
 **Backed by:** `ContractedService.device … onDelete: SetNull` in `prisma/schema.prisma`
 **Tests:** `tests/infrastructure/customers/repositories/PrismaContractedServiceRepository.test.ts`
+
+### CUS-106 — Cancelling a service releases its device
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-10-13
+
+`cancel()` sets `deviceId` to `null` in the same step as the status change, from
+any status — ACTIVE included, which `CUS-102` would otherwise refuse. It
+announces the release with `DeviceAssignedToServiceEvent` (`CUS-101`) and the
+cancellation with `ContractedServiceCancelledEvent`, which carries the released
+device so device-inventory can take the unit off the network (`DEV-173`).
+
+Services cancelled before this rule had their device released by migration
+`20261014120000_cancelled_services_release_device`; the devices' own status
+was left alone.
+
+**Why:** A device backs at most one service, cancelled ones included
+(`CUS-100`), and nothing can be changed on a cancelled service (`CUS-068`). A
+cancelled service that kept its device therefore locked that device away for
+good — the only way to give it to the next subscriber was to delete the
+cancelled service and the history with it.
+
+**Enforced at:** `src/domain/customers/aggregates/ContractedService.ts` (`cancel`)
+**Tests:** `tests/domain/customers/aggregates/ContractedService.test.ts`,
+`tests/integration/contracted-service.routes.test.ts`
 
 ---
 
@@ -1151,10 +1180,10 @@ with `customerId` as an AND, and returns the matching set newest `startDate`
 first. A device with no service — or an id that matches no device — gives an
 empty list, not a not-found.
 
-Because a cancelled service keeps its device (`CUS-068`) and a device backs at
-most one service (`CUS-100`), the set has at most one item. A device that was
-hard-deleted is no longer on any service (`CUS-105`), so filtering by its old id
-finds nothing.
+A device backs at most one service (`CUS-100`) and cancelling releases it
+(`CUS-106`), so the set has at most one item and it is never CANCELLED. A device
+that was hard-deleted is no longer on any service (`CUS-105`), so filtering by
+its old id finds nothing either.
 
 **Why:** The device page asks "who is on this antenna?", and "nobody" is a normal
 answer, not an error. Following `CUS-122` keeps both filters consistent for the
@@ -1174,7 +1203,8 @@ caller.
 `GET /api/contracted-services/:id` and every `GET /api/contracted-services`
 response carry read-only `customer`, `servicePlan` and `device` summaries
 next to the id fields. `device` is `null` exactly when `deviceId` is `null`. A
-device in the trash still appears, with its `deletedAt` set. Writes (`POST`,
+device in the trash would still appear with its `deletedAt` set, though since
+`CUS-106` and `DEV-075` together no service can point at one. Writes (`POST`,
 `PUT`) keep returning the plain service.
 
 **Why:** A service screen that only knows ids needs three more requests to show

@@ -285,6 +285,102 @@ describe('Contracted Service Routes — /api/contracted-services', () => {
     });
   });
 
+  describe('[CUS-106] cancelling releases the device', () => {
+    async function seedOwnedDevice(
+      ownerType: 'COMPANY' | 'CLIENT'
+    ): Promise<string> {
+      const modelId = await seedDeviceModel(prisma);
+      const device = await prisma.device.create({
+        data: {
+          name: 'CPE Cancel',
+          deviceModelId: modelId,
+          status: 'ACTIVE',
+          owner: ownerType,
+          serialNumber: `SN-${ownerType}`,
+          ipAddress: '10.30.0.9',
+          monitoringEnabled: true
+        }
+      });
+      return device.id;
+    }
+
+    async function cancelActiveServiceOn(
+      deviceId: string
+    ): Promise<string> {
+      const created = await request(app)
+        .post('/api/contracted-services')
+        .set('Authorization', auth())
+        .send({ customerId, servicePlanId, deviceId });
+      const id = created.body.data.id;
+      await request(app)
+        .put(`/api/contracted-services/${id}`)
+        .set('Authorization', auth())
+        .send({ status: 'ACTIVE' });
+      const res = await request(app)
+        .put(`/api/contracted-services/${id}`)
+        .set('Authorization', auth())
+        .send({ status: 'CANCELLED' });
+      expect(res.status).toBe(200);
+      expect(res.body.data.deviceId).toBeNull();
+      return id;
+    }
+
+    async function waitForDeviceStatus(
+      deviceId: string,
+      status: string
+    ): Promise<void> {
+      for (let i = 0; i < 20; i++) {
+        const row = await prisma.device.findUnique({
+          where: { id: deviceId }
+        });
+        if (row?.status === status) return;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      throw new Error(`device ${deviceId} never reached ${status}`);
+    }
+
+    it('[DEV-173] frees a company device for the next customer', async () => {
+      const deviceId = await seedOwnedDevice('COMPANY');
+      await cancelActiveServiceOn(deviceId);
+
+      await waitForDeviceStatus(deviceId, 'INVENTORY');
+      const row = await prisma.device.findUniqueOrThrow({
+        where: { id: deviceId }
+      });
+      expect(row).toMatchObject({
+        monitoringEnabled: false,
+        ipAddress: null
+      });
+
+      const lookup = await request(app)
+        .get(`/api/contracted-services?deviceId=${deviceId}`)
+        .set('Authorization', auth());
+      expect(lookup.body.data.contractedServices).toEqual([]);
+
+      const next = await request(app)
+        .post('/api/contracted-services')
+        .set('Authorization', auth())
+        .send({ customerId, servicePlanId, deviceId });
+      expect(next.status).toBe(201);
+    });
+
+    it('[DEV-173] decommissions a device the customer kept', async () => {
+      const deviceId = await seedOwnedDevice('CLIENT');
+      const serviceId = await cancelActiveServiceOn(deviceId);
+
+      await waitForDeviceStatus(deviceId, 'DECOMMISSIONED');
+
+      const service = await request(app)
+        .get(`/api/contracted-services/${serviceId}`)
+        .set('Authorization', auth());
+      expect(service.body.data).toMatchObject({
+        status: 'CANCELLED',
+        deviceId: null,
+        device: null
+      });
+    });
+  });
+
   describe('DELETE /api/contracted-services/:id', () => {
     it('204 — deletes a service', async () => {
       const created = await request(app)

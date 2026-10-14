@@ -6,7 +6,8 @@ import {
   ContractedServiceStatus,
   ContractedServiceCreatedEvent,
   DeviceAssignedToServiceEvent,
-  ContractedServiceStatusChangedEvent
+  ContractedServiceStatusChangedEvent,
+  ContractedServiceCancelledEvent
 } from '../../../../src/domain/customers';
 import {
   CustomerId,
@@ -154,6 +155,73 @@ describe('ContractedService', () => {
       expect(
         service.changePlan(ServicePlanId.create()).isFailure
       ).toBe(true);
+    });
+
+    describe('[CUS-106] releases the device', () => {
+      it('unbonds the device, even from an ACTIVE service', () => {
+        const deviceId = DeviceId.create();
+        const service = ContractedService.create(
+          validProps({
+            status: ContractedServiceStatus.ACTIVE,
+            deviceId
+          })
+        ).value;
+        service.clearEvents();
+
+        const result = service.cancel();
+
+        expect(result.isSuccess).toBe(true);
+        expect(service.status).toBe(
+          ContractedServiceStatus.CANCELLED
+        );
+        expect(service.deviceId).toBeNull();
+        const assigned = service.domainEvents.find(
+          (e) => e instanceof DeviceAssignedToServiceEvent
+        ) as DeviceAssignedToServiceEvent;
+        expect(assigned.previousDeviceId!.equals(deviceId)).toBe(
+          true
+        );
+        expect(assigned.newDeviceId).toBeNull();
+      });
+
+      it('announces the cancellation with the released device', () => {
+        const deviceId = DeviceId.create();
+        const service = ContractedService.create(
+          validProps({ deviceId })
+        ).value;
+        service.clearEvents();
+
+        service.cancel();
+
+        const cancelled = service.domainEvents.find(
+          (e) => e instanceof ContractedServiceCancelledEvent
+        ) as ContractedServiceCancelledEvent;
+        expect(cancelled.releasedDeviceId!.equals(deviceId)).toBe(
+          true
+        );
+        expect(
+          service.domainEvents.some(
+            (e) => e instanceof ContractedServiceStatusChangedEvent
+          )
+        ).toBe(true);
+      });
+
+      it('announces a null device when the service had none', () => {
+        const service = ContractedService.create(validProps()).value;
+        service.clearEvents();
+
+        service.cancel();
+
+        expect(
+          service.domainEvents.some(
+            (e) => e instanceof DeviceAssignedToServiceEvent
+          )
+        ).toBe(false);
+        const cancelled = service.domainEvents.find(
+          (e) => e instanceof ContractedServiceCancelledEvent
+        ) as ContractedServiceCancelledEvent;
+        expect(cancelled.releasedDeviceId).toBeNull();
+      });
     });
   });
 

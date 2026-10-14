@@ -5,3 +5,4 @@ export * from './ServicePlanUpdatedEvent';
 export * from './ContractedServiceCreatedEvent';
 export * from './DeviceAssignedToServiceEvent';
 export * from './ContractedServiceStatusChangedEvent';
+export * from './ContractedServiceCancelledEvent';

@@ -104,59 +104,6 @@ describe('ListContractedServicesUseCase — integration', () => {
       expect(result.value.contractedServices).toEqual([]);
     });
 
-    it('[CUS-100] a cancelled service keeps the device, so it is the one returned', async () => {
-      const deviceId = await seedDevice(prisma, modelId);
-      const cancelledId = await seedContractedService(
-        prisma,
-        customerId,
-        servicePlanId,
-        { deviceId, status: 'CANCELLED' }
-      );
-      const liveId = await seedContractedService(
-        prisma,
-        customerId,
-        servicePlanId,
-        { status: 'PENDING' }
-      );
-
-      await expect(
-        prisma.contractedService.update({
-          where: { id: liveId },
-          data: { deviceId }
-        })
-      ).rejects.toThrow();
-
-      const result = await useCase.execute({ deviceId });
-
-      expect(result.value.contractedServices).toHaveLength(1);
-      expect(result.value.contractedServices[0]).toMatchObject({
-        id: cancelledId,
-        status: 'CANCELLED'
-      });
-    });
-
-    it('shows a soft-deleted device with its deletedAt', async () => {
-      const deviceId = await seedDevice(prisma, modelId);
-      await seedContractedService(prisma, customerId, servicePlanId, {
-        deviceId,
-        status: 'CANCELLED'
-      });
-      const deletedAt = new Date('2026-10-01T12:00:00Z');
-      await prisma.device.update({
-        where: { id: deviceId },
-        data: { deletedAt }
-      });
-
-      const result = await useCase.execute({ deviceId });
-
-      expect(result.value.contractedServices[0].device).toMatchObject(
-        {
-          id: deviceId,
-          deletedAt: deletedAt.toISOString()
-        }
-      );
-    });
-
     it('[CUS-105] a hard-deleted device leaves no trace to filter by', async () => {
       const deviceId = await seedDevice(prisma, modelId);
       const id = await seedContractedService(

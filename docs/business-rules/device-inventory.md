@@ -37,7 +37,7 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 | Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Domain**                            |    45 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144, DEV-162, DEV-164, DEV-169 |
-| **Application**                       |    49 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-133, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172 |
+| **Application**                       |    50 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-133, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172, DEV-173 |
 | **Application + Domain**              |     6 | DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160                                                                                                                                                                                                                                                                                                                                     |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                                                                              |
 | **Infrastructure + Domain**           |     2 | DEV-028, DEV-161 |
@@ -2945,6 +2945,38 @@ its total in agreement (DEV-145).
 **Reached from:** `GET /api/devices` via `DeviceController.list`
 **Message:** `Invalid agentId: <reason>`
 **Tests:** `tests/application/device-inventory/use-cases/ListDevicesUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ListDevicesUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
+
+### DEV-173 — A device released by a cancelled service is retired according to its owner
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-13
+
+When a contracted service is cancelled and releases its device (CUS-106):
+
+| Owner     | Device becomes   | Meaning                                          |
+| --------- | ---------------- | ------------------------------------------------ |
+| `COMPANY` | `INVENTORY`      | ours — it comes back to the warehouse as stock   |
+| `CLIENT`  | `DECOMMISSIONED` | the customer kept it — gone from our network     |
+| not set   | unchanged        | nobody recorded whose it is; an operator decides |
+
+A retired device also has monitoring switched off and its IP address cleared,
+so polling and alerts stop (DEV-087) and the address is free for the next
+subscriber's device. A device already `DAMAGED` or `DECOMMISSIONED` is left as
+it is, and so is one in the recycle bin. If the change is refused — for example
+a unit with neither serial nor MAC cannot enter the retired set (DEV-053) — it
+is logged and the device stays as it was; the cancellation itself is never
+undone.
+
+**Why:** A cancelled subscriber's antenna that stays ACTIVE keeps being polled,
+and its first missed poll opens an alert and a ticket for a customer who
+left. The owner is the only recorded fact that says whether the unit is
+returning, and the system cannot know more than that — a damaged unit, or one
+whose owner was never filled in, needs a person.
+
+**Enforced at:** `src/application/device-inventory/use-cases/RetireDeviceAfterCancellationUseCase.ts`
+**Reached from:** `ContractedServiceCancelledEvent` → `ContractedServiceCancelledDeviceHandler`
+**Tests:** `tests/application/device-inventory/use-cases/RetireDeviceAfterCancellationUseCase.test.ts`, `tests/integration/use-cases/device-inventory/RetireDeviceAfterCancellationUseCase.integration.test.ts`, `tests/integration/contracted-service.routes.test.ts`
 
 ---
 

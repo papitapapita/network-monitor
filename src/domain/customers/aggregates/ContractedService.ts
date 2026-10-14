@@ -10,7 +10,8 @@ import { ContractedServiceProps } from '../props';
 import {
   ContractedServiceCreatedEvent,
   DeviceAssignedToServiceEvent,
-  ContractedServiceStatusChangedEvent
+  ContractedServiceStatusChangedEvent,
+  ContractedServiceCancelledEvent
 } from '../events';
 
 export class ContractedService extends AggregateRoot<
@@ -208,11 +209,40 @@ export class ContractedService extends AggregateRoot<
     return this.activate();
   }
 
+  // Cancelling frees the device so it can back the next subscription
+  // (CUS-106). It bypasses CUS-102: that rule protects a live service from
+  // losing its equipment, and a cancelled one is no longer live.
   public cancel(): Result<void> {
     const cancelledGuard = this.ensureNotCancelled();
     if (cancelledGuard.isFailure) return cancelledGuard;
 
-    return this.changeStatus(ContractedServiceStatus.CANCELLED);
+    const releasedDeviceId = this.props.deviceId;
+    const statusResult = this.changeStatus(
+      ContractedServiceStatus.CANCELLED
+    );
+    if (statusResult.isFailure) return statusResult;
+
+    if (releasedDeviceId !== null) {
+      this.props.deviceId = null;
+      this.addDomainEvent(
+        new DeviceAssignedToServiceEvent({
+          aggregateId: this.id,
+          previousDeviceId: releasedDeviceId,
+          newDeviceId: null,
+          dateTimeOccurred: this.props.updatedAt
+        })
+      );
+    }
+
+    this.addDomainEvent(
+      new ContractedServiceCancelledEvent({
+        aggregateId: this.id,
+        releasedDeviceId,
+        dateTimeOccurred: this.props.updatedAt
+      })
+    );
+
+    return Result.ok<void>();
   }
 
   public changePlan(newServicePlanId: ServicePlanId): Result<void> {
