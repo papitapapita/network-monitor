@@ -14,6 +14,7 @@ Conventions, rule types and the ID scheme are in [README.md](README.md).
 | `MON-020` – `MON-039` | Polling configuration and scheduling |
 | `MON-040` – `MON-059` | Ping history and retention           |
 | `MON-060` – `MON-079` | Live router traffic                  |
+| `MON-080` – `MON-099` | Network sweep                        |
 
 This file covers the reachability lifecycle only. The rules that decide **which**
 devices may be monitored at all live with the device itself — see DEV-057
@@ -583,3 +584,122 @@ directly, where SSH would need the command's text parsed.
 
 **Enforced at:** `src/application/device-monitoring/services/resolveRouterTrafficTarget.ts`, `src/infrastructure/monitoring/router-traffic/PrismaRouterTrafficTargetsQuery.ts`
 **Tests:** `tests/application/device-monitoring/services/resolveRouterTrafficTarget.test.ts`, `tests/integration/wireless-stream.routes.test.ts`
+
+## Network sweep
+
+An on-demand ping of every in-service device at once, to see what is up and
+what is down right now, typically after a large outage. Nothing here is stored.
+
+### MON-080 — A network sweep only reports; it changes nothing
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-17
+
+`GET /api/network/sweep/stream` pings the devices once, now, and streams what
+answered. It writes no ping history, does not touch any device's reachability
+(`MON-001`) or its last-polled time, and raises, closes and delays no alert. A
+device the sweep finds down stays UP on the dashboard until the scheduler
+says otherwise. Only the user who started it sees the results, and they are
+not kept on the server. Operators and administrators may start one (`create`,
+the same as a manual poll); a viewer may not.
+
+**Why:** A sweep pings each device once, briefly. If one dropped packet counted
+as a failed poll, a sweep could mark devices down, start their down-alert
+delay (`NOT-101`) and send a burst of alerts during the very outage the
+operator is already looking at. The scheduler stays the one writer of
+reachability, with its own thresholds.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/RunNetworkSweepUseCase.ts`, `src/presentation/http/routes/network-sweep.routes.ts`
+**Reached from:** `GET /api/network/sweep/stream` via `NetworkSweepController.stream`
+**Tests:** `tests/integration/use-cases/device-monitoring/RunNetworkSweepUseCase.integration.test.ts`, `tests/integration/network-sweep.routes.test.ts`
+
+### MON-081 — A sweep covers the in-service devices and says why it skipped any
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-17
+
+The sweep covers every device whose status is `ACTIVE` or `COMMISSIONING` and
+that is not in the recycle bin, optionally narrowed to one `locationId` and/or
+one `category`. Stock and retired units are left out entirely. Of the devices
+covered, these are reported as skipped, with no ping sent, checked in this
+order:
+
+| Reason                     | When                                                                       |
+| -------------------------- | -------------------------------------------------------------------------- |
+| `MONITORING_DISABLED`      | The device's monitoring is off, or it has no enabled polling configuration |
+| `BEHIND_AGENT`             | The device sits behind an on-site agent (`MON-084`)                        |
+| `NOT_ON_MONITORED_NETWORK` | The server is hosted off site and the device has no agent (`MON-023`)      |
+| `NO_IP_ADDRESS`            | Its polling configuration has no IP address                                |
+
+The address pinged is the polling configuration's, the same one the
+scheduler pings.
+
+**Why:** The same devices the scheduler watches, so a sweep answers the same
+question as the dashboard, only fresher. Every covered device appears in the
+results, skipped or not, so the totals add up and a missing device is never
+mistaken for a dead one.
+
+**Enforced at:** `src/infrastructure/monitoring/network-sweep/PrismaNetworkSweepTargetsQuery.ts`, `src/application/device-monitoring/use-cases/RunNetworkSweepUseCase.ts` (`skipReason`)
+**Message:** `NETWORK_SWEEP_SKIP_DETAILS` in the use case, sent as `detail`
+**Tests:** `tests/application/device-monitoring/use-cases/RunNetworkSweepUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/RunNetworkSweepUseCase.integration.test.ts`
+
+### MON-082 — A sweep ping waits 1 second, tries 3 times, and asks the backbone first
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-17
+
+Each device gets up to 3 pings, back to back, each waiting 1 second for a
+reply. The first reply makes it `UP` and the rest are not sent; it is `DOWN`
+only when all 3 go unanswered. A ping program that cannot run at all is
+reported as `ERROR`, not `DOWN`. Up to 64 devices are pinged at a time. The
+order is gateways, then aggregation switches, then access points, then
+everything else, each by name.
+
+**Why:** A scheduled poll waits up to 5 seconds per attempt and pauses a second
+between attempts, which would make a sweep of a few hundred devices take
+minutes. Live devices answer in milliseconds, so a 1-second wait costs
+nothing for them; 3 misses in a row keep one lost packet from showing a live
+device as down. A sweep of 500 devices takes a few seconds when most are up
+and about half a minute in the worst case. The backbone goes first because
+its answer decides what the rest mean: a dead gateway explains every dead
+device behind it.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/RunNetworkSweepUseCase.ts` (`DEFAULT_NETWORK_SWEEP_OPTIONS`, `CATEGORY_ORDER`), `src/infrastructure/di/container.ts` (the 1-second probe)
+**Tests:** `tests/application/device-monitoring/use-cases/RunNetworkSweepUseCase.test.ts`, `tests/application/device-monitoring/services/PingCycleProbe.test.ts`, `tests/integration/use-cases/device-monitoring/RunNetworkSweepUseCase.integration.test.ts`
+
+### MON-083 — One sweep at a time; closing the stream stops it
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-17
+
+While a sweep is running, starting another is refused with `409`
+`"A network sweep is already running"`, whoever started the first. When the
+caller closes the stream, no further ping is started; the few already out
+finish and their results are dropped. The next sweep may start as soon as
+the last one has finished, whether it completed, was stopped or failed.
+
+**Why:** Two sweeps at once double the pings sent into a network that may
+already be struggling, for the same answer. Leaving a page should not leave
+the server pinging for nobody.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/RunNetworkSweepUseCase.ts` (`running`, `pingAll`), `src/presentation/http/controllers/NetworkSweepController.ts`
+**Reached from:** `GET /api/network/sweep/stream`
+**Message:** `A network sweep is already running`
+**Tests:** `tests/application/device-monitoring/use-cases/RunNetworkSweepUseCase.test.ts`, `tests/integration/network-sweep.routes.test.ts`
+
+### MON-084 — Devices behind an on-site agent are not swept yet
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-17
+
+A device with an `agentId` is reported as skipped with `BEHIND_AGENT`. This
+server never pings it itself, as for any poll (`MON-022`).
+
+**Why:** A sweep through an agent needs a new agent request that pings a whole
+list at once; the agent's single-device ping, built for one manual poll
+behind the HTTP proxy, is too slow for that. It is planned for a later agent
+release. Until then, skipping keeps the single-writer rule and avoids reporting
+customer-network devices as down from a server that cannot reach them.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/RunNetworkSweepUseCase.ts` (`skipReason`)
+**Tests:** `tests/application/device-monitoring/use-cases/RunNetworkSweepUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/RunNetworkSweepUseCase.integration.test.ts`

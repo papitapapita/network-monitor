@@ -5,3 +5,4 @@ export * from './IPollingStatusListQuery';
 export * from './IRouterTrafficTargetsQuery';
 export * from './IRouterTrafficReader';
 export * from './IRouterTrafficMonitor';
+export * from './INetworkSweepTargetsQuery';

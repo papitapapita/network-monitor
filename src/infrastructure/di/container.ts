@@ -157,6 +157,7 @@ import {
   ScanController,
   WirelessController,
   WirelessStreamController,
+  NetworkSweepController,
   LinkDiagnosisController,
   AlertThresholdsController,
   CredentialsController,
@@ -318,7 +319,11 @@ import {
   RouterOsTrafficReader,
   RouterTrafficMonitor
 } from '../monitoring/router-traffic';
-import { WatchRouterTrafficUseCase } from 'application/device-monitoring/use-cases';
+import {
+  RunNetworkSweepUseCase,
+  WatchRouterTrafficUseCase
+} from 'application/device-monitoring/use-cases';
+import { PrismaNetworkSweepTargetsQuery } from '../monitoring/network-sweep';
 import {
   TelegramNotificationService,
   WhatsAppNotificationService,
@@ -624,6 +629,7 @@ export class DependencyContainer {
   public scanController: ScanController;
   public wirelessController: WirelessController;
   public wirelessStreamController: WirelessStreamController;
+  public networkSweepController: NetworkSweepController;
   public linkDiagnosisController: LinkDiagnosisController;
   public alertThresholdsController: AlertThresholdsController;
   public credentialsController: CredentialsController;
@@ -1555,6 +1561,16 @@ export class DependencyContainer {
       probeHealthReporter,
       this.serverOnSite,
       new AgentChannelPingProbe(connectedAgents)
+    );
+    // MON-080..MON-084: a snapshot of the whole network, on demand.
+    this.networkSweepController = new NetworkSweepController(
+      new RunNetworkSweepUseCase(
+        new PrismaNetworkSweepTargetsQuery(this.prisma),
+        new PingCycleProbe(pingService, 0, 1_000),
+        this.logger,
+        this.serverOnSite
+      ),
+      this.logger
     );
     const configurePollingUseCase = new ConfigureDevicePollingUseCase(
       this.pollingConfigRepository,

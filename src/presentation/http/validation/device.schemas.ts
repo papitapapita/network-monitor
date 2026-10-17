@@ -39,7 +39,7 @@ const RETIRED_STATUSES = [
   'DECOMMISSIONED'
 ] as const;
 
-const DEVICE_CATEGORIES = [
+export const DEVICE_CATEGORIES = [
   'CPE',
   'WIRELESS_CPE',
   'ACCESS_POINT',

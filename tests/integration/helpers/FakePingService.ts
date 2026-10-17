@@ -14,14 +14,23 @@ export class FakePingService implements IPingService {
     latencyMs: 10
   };
 
+  private readonly byIp = new Map<string, PingResponse>();
+  readonly pinged: { ipAddress: string; timeoutMs?: number }[] = [];
+
   setResult(result: PingResponse): void {
     this._result = result;
   }
 
+  // Wins over setResult() for that one address.
+  setResultFor(ipAddress: string, result: PingResponse): void {
+    this.byIp.set(ipAddress, result);
+  }
+
   async ping(
-    _ipAddress: string,
-    _timeoutMs?: number
+    ipAddress: string,
+    timeoutMs?: number
   ): Promise<Result<PingResponse>> {
-    return Result.ok(this._result);
+    this.pinged.push({ ipAddress, timeoutMs });
+    return Result.ok(this.byIp.get(ipAddress) ?? this._result);
   }
 }

@@ -9,3 +9,4 @@ export * from './DeleteDevicePingHistoryUseCase';
 export * from './PurgeOldPingResultsUseCase';
 export * from './SuspendDeviceMonitoringUseCase';
 export * from './WatchRouterTrafficUseCase';
+export * from './RunNetworkSweepUseCase';

@@ -19,6 +19,7 @@ import { createWirelessRoutes } from './wireless.routes';
 import { createAlertThresholdRoutes } from './alert-threshold.routes';
 import { createWirelessStreamRoutes } from './wireless-stream.routes';
 import { createWirelessDiagnosisRoutes } from './wireless-diagnosis.routes';
+import { createNetworkSweepRoutes } from './network-sweep.routes';
 import { createCredentialsRoutes } from './credentials.routes';
 import { createDeviceBackupRoutes } from './device-backup.routes';
 import { createAuthRoutes } from './auth.routes';
@@ -103,6 +104,15 @@ export function setupRoutes(
     '/',
     createWirelessStreamRoutes(
       container.wirelessStreamController,
+      container.tokenService,
+      container.sessionValidator,
+      container.getLogger()
+    )
+  );
+  apiRouter.use(
+    '/',
+    createNetworkSweepRoutes(
+      container.networkSweepController,
       container.tokenService,
       container.sessionValidator,
       container.getLogger()

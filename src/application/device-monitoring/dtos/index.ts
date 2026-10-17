@@ -14,3 +14,4 @@ export * from './SingleDevicePollingResultDTO';
 export * from './IngestPingResultsDTO';
 export * from './IngestPingResultsResponseDTO';
 export * from './RouterTrafficDTO';
+export * from './NetworkSweepDTO';

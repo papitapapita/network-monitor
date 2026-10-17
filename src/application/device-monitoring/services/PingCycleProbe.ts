@@ -14,7 +14,9 @@ export type PingCycleOutcome =
 export class PingCycleProbe {
   constructor(
     private readonly pingService: IPingService,
-    private readonly retryDelayMs: number = 1_000
+    private readonly retryDelayMs: number = 1_000,
+    // Unset: the ping service's own default reply wait.
+    private readonly timeoutMs?: number
   ) {}
 
   // failuresBeforeDown doubles as the intra-cycle attempt budget: the device
@@ -37,7 +39,10 @@ export class PingCycleProbe {
         );
       }
       attempts++;
-      const pingResult = await this.pingService.ping(ipAddress);
+      const pingResult =
+        this.timeoutMs === undefined
+          ? await this.pingService.ping(ipAddress)
+          : await this.pingService.ping(ipAddress, this.timeoutMs);
       if (pingResult.isFailure) {
         lastProbeError = pingResult.error;
         continue;

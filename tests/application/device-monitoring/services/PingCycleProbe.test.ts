@@ -46,6 +46,27 @@ describe('PingCycleProbe', () => {
 
       expect(pingService.ping).toHaveBeenCalledWith(TEST_IP);
     });
+
+    // MON-082: the network sweep's probe waits 1 s for a reply, not 5
+    it('passes its reply wait to every attempt when given one', async () => {
+      probe = new PingCycleProbe(pingService, 0, 1_000);
+      pingService.ping
+        .mockResolvedValueOnce(unreachable())
+        .mockResolvedValueOnce(reachable(4));
+
+      await probe.run(TEST_IP, 3);
+
+      expect(pingService.ping).toHaveBeenNthCalledWith(
+        1,
+        TEST_IP,
+        1_000
+      );
+      expect(pingService.ping).toHaveBeenNthCalledWith(
+        2,
+        TEST_IP,
+        1_000
+      );
+    });
   });
 
   describe('a device that never answers', () => {

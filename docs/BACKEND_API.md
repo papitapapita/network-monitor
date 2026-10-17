@@ -2009,6 +2009,138 @@ calls on the dashboard. Keep the single-device route for the device page.
 
 ---
 
+### `GET /api/network/sweep/stream` — Network Sweep (SSE)
+
+**Status:** 200 (`text/event-stream`) | 400 | 401 | 403 | 409 | 500  
+**Roles:** `VENDOR`, `ADMIN`, `OPERATOR` (`create`, same as a manual poll) · **Since:** 2026-10-17
+
+Pings every in-service device **once, now**, and streams what answered, device
+by device. It's the "what is up after the outage?" button (MON-080 … MON-084).
+
+- **It changes nothing.** No ping history, no device status, no alert. A device
+  the sweep finds `DOWN` still shows `ONLINE` in
+  `GET /api/devices/polling/statuses` until the scheduler says otherwise.
+  Show sweep results as a separate, timestamped snapshot ("Barrido 14:32"),
+  never merged into the live status. Nothing is stored server side: cache the
+  last sweep in the browser if you want to show it again.
+- **Which devices:** status `ACTIVE` or `COMMISSIONING`, not in the recycle
+  bin. Stock and retired units aren't listed at all.
+- **How fast:** up to 3 pings per device, 1 s each, stopping at the first reply;
+  64 devices at a time. A few seconds for a few hundred mostly-live devices,
+  up to about 30 s when most are dead. Results arrive as they come, backbone
+  first (gateways, aggregation switches, access points, then the rest).
+- **One at a time per install.** A second request while one runs gets `409`.
+  Closing the stream (`es.close()`) stops the sweep.
+- `GET` because EventSource can only GET. Same authentication as the other
+  streams: the session cookie (`new EventSource(url, { withCredentials: true })`),
+  `?token=` or a Bearer header. It isn't counted against the
+  5-streams-per-user cap.
+
+**Query params** (all optional, combinable)
+
+| Param        | Type             | Meaning                                                                                  |
+| ------------ | ---------------- | ---------------------------------------------------------------------------------------- |
+| `token`      | string           | The JWT, for EventSource                                                                 |
+| `locationId` | UUID             | Only devices at this location                                                            |
+| `category`   | `DeviceCategory` | Only this category: `CPE`, `WIRELESS_CPE`, `ACCESS_POINT`, `GATEWAY`, `AGGREGATION_SWITCH`, `OTHER` |
+
+**Events**, in this order. Unlike the other streams, **this one ends by
+itself**: after `sweep-done` the server closes it. Call `es.close()` on
+`sweep-done`, or EventSource reconnects and starts a new sweep.
+
+| Order            | Event          | Payload                  |
+| ---------------- | -------------- | ------------------------ |
+| First            | `sweep-start`  | `NetworkSweepStartDTO`   |
+| One per device   | `sweep-result` | `NetworkSweepResultDTO`  |
+| Last             | `sweep-done`   | `NetworkSweepSummaryDTO` |
+
+```ts
+type NetworkSweepOutcome = 'UP' | 'DOWN' | 'ERROR' | 'SKIPPED';
+
+type NetworkSweepSkipReason =
+  | 'MONITORING_DISABLED' // monitoring is off for the device
+  | 'BEHIND_AGENT' // behind an on-site agent: not swept yet (planned with a later agent release)
+  | 'NOT_ON_MONITORED_NETWORK' // server hosted off site, device has no agent
+  | 'NO_IP_ADDRESS'; // no IP in its polling configuration
+
+interface NetworkSweepStartDTO {
+  startedAt: string; // ISO 8601
+  total: number; // every device that will get a sweep-result, skipped ones included
+  toPing: number; // how many of them are actually pinged — use for the progress bar
+  filters: { locationId?: string; category?: string };
+}
+
+interface NetworkSweepResultDTO {
+  deviceId: string;
+  deviceName: string;
+  ipAddress: string | null;
+  category: DeviceCategory | null;
+  locationId: string | null;
+  locationName: string | null;
+  outcome: NetworkSweepOutcome;
+  latencyMs: number | null; // UP only
+  attempts: number; // pings sent: 1–3; 0 when skipped
+  reason: NetworkSweepSkipReason | null; // SKIPPED only
+  detail: string | null; // human-readable reason (SKIPPED) or ping error (ERROR)
+  at: string; // ISO 8601, when this device's answer came in
+}
+
+interface NetworkSweepSummaryDTO {
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
+  total: number;
+  up: number;
+  down: number;
+  error: number; // the server's ping program could not run — not a dead device
+  skipped: number;
+  cancelled: false; // always false on the wire: a stopped sweep sends no sweep-done
+}
+```
+
+```js
+const params = new URLSearchParams({ token: jwt });
+if (locationId) params.set('locationId', locationId);
+const es = new EventSource(`/api/network/sweep/stream?${params}`);
+const results = new Map();
+
+es.addEventListener('sweep-start', (e) => {
+  const { total, toPing } = JSON.parse(e.data); // size the progress bar
+});
+es.addEventListener('sweep-result', (e) => {
+  const r = JSON.parse(e.data);
+  results.set(r.deviceId, r);
+});
+es.addEventListener('sweep-done', (e) => {
+  es.close(); // required — otherwise EventSource reconnects and sweeps again
+  const summary = JSON.parse(e.data);
+});
+es.onerror = () => es.close(); // a refusal (409, 403, …) comes as JSON, which EventSource reports as an error
+```
+
+Skipped devices arrive right after `sweep-start`, before any pinged one.
+Errors before the stream opens come as JSON with a status code, not as
+events:
+
+| Status | `error`                                          | Show                                         |
+| ------ | ------------------------------------------------ | -------------------------------------------- |
+| `409`  | `A network sweep is already running`             | "a sweep is already running", retry shortly  |
+| `400`  | `category must be one of: …` / invalid UUID      | a bug in the filter UI                       |
+| `403`  | (VIEWER)                                         | hide the button for viewers                  |
+| `500`  | `Failed to load the devices to sweep: …`         | a retry                                      |
+
+EventSource doesn't expose the status code. To show the `409` message, check
+for it with a `fetch` to the same URL (Bearer header) when `onerror` fires
+before `sweep-start`, or just say "the sweep could not start, try again in a
+moment".
+
+**Frontend:** a "Barrer red" button for operators and admins, with
+optional location and category filters. While it runs, show progress
+(`results.size` of `total`) and a live list sorted DOWN first. Present
+`BEHIND_AGENT` devices as "not checked (behind agent)", not as down.
+
+---
+
 ### `GET /api/devices/:id/polling/history` — History + Stats
 
 > For a device behind an on-site agent, history can fill in **after the fact**:
@@ -3104,7 +3236,8 @@ the failure path runs before any stream header is written, so a 404 looks like
 every other 404 here.
 
 **Authentication.** These two routes, the diagnosis stream below and the
-router traffic stream (`GET /api/routers/traffic/stream`) accept
+router traffic stream (`GET /api/routers/traffic/stream`) and the network
+sweep (`GET /api/network/sweep/stream`) accept
 `?token=<jwt>` in addition to `Authorization: Bearer` — the browser
 `EventSource` API cannot set headers. Every other route in this document
 remains header-only.
