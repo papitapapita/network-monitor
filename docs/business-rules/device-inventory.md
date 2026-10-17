@@ -2256,21 +2256,22 @@ no key would fail at connection time.
 **Message:** `snmpV3PrivKey is required when snmpV3PrivProto is set`
 **Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`
 
-### DEV-127 — Ports are between 1 and 65535, defaulting to 161, 443 and 22
+### DEV-127 — Ports are between 1 and 65535, defaulting to 161, 443, 22 and 8728
 
 **Type:** Validation · **Status:** Active
 **Layer:** Application (not in domain)
-**Since:** 2026-07-28 · **Changed:** 2026-10-07 (SSH port), 2026-10-13 (HTTP port kept)
+**Since:** 2026-07-28 · **Changed:** 2026-10-07 (SSH port), 2026-10-13 (HTTP port kept), 2026-10-14 (API port)
 
-SNMP defaults to 161, HTTP to 443, SSH to 22. Every port is kept when a later
-save omits it, like the other fields (`DEV-130`). The SSH port is the one
-RouterOS backups log in on (`BKP-055`).
+SNMP defaults to 161, HTTP to 443, SSH to 22, the RouterOS API to 8728. Every
+port is kept when a later save omits it, like the other fields (`DEV-130`).
+The SSH port is the one RouterOS backups log in on (`BKP-055`); the API port
+the one live router traffic reads (`MON-066`).
 
 **Why:** The range is the TCP/UDP port space. The defaults are the standard SNMP
 port and HTTPS, which is what the devices in the fleet listen on. _(inferred)_
 
 **Enforced at:** `src/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.ts` (`beforeExecute`); defaults in `DeviceCredentialsMapper.ts` (`extractCreateData`)
-**Message:** `snmpPort must be between 1 and 65535` / `httpPort must be between 1 and 65535` / `sshPort must be between 1 and 65535`
+**Message:** `snmpPort must be between 1 and 65535` / `httpPort must be between 1 and 65535` / `sshPort must be between 1 and 65535` / `apiPort must be between 1 and 65535`
 **Tests:** `tests/integration/use-cases/device-inventory/SetDeviceCredentialsUseCase.integration.test.ts`,
 `tests/application/device-inventory/use-cases/SetDeviceCredentialsUseCase.test.ts`
 

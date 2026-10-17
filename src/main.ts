@@ -92,6 +92,7 @@ async function bootstrap(): Promise<Server> {
     // server.close() waits for open connections, and an SSE stream never
     // closes on its own — end them first or shutdown hangs indefinitely.
     container.linkDiagnosisRunner.stopAll();
+    void container.routerTrafficMonitor.stop();
     container.eventStreamHub.closeAll();
     container.agentGateway.closeAll();
     server.close(async () => {

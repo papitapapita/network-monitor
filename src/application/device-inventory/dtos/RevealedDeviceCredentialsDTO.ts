@@ -13,4 +13,5 @@ export interface RevealedDeviceCredentialsDTO {
   httpPassword: string | null;
   httpPort: number;
   sshPort: number;
+  apiPort: number;
 }

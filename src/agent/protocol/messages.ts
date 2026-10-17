@@ -32,15 +32,21 @@ export const CloseCode = {
 
 // What an agent can do beyond its scheduled pings (AGT-100). The backend
 // sends a probe request only to an agent that named `probe` in its hello,
-// an enforce request only to one that named `enforce` (AGT-110), and a
-// backup request only to one that named `backup` (AGT-113), so an older
-// agent never receives a request it does not understand.
-export type AgentCapability = 'probe' | 'enforce' | 'backup';
+// an enforce request only to one that named `enforce` (AGT-110), a backup
+// request only to one that named `backup` (AGT-113), and a traffic request
+// only to one that named `traffic` (AGT-116), so an older agent never
+// receives a request it does not understand.
+export type AgentCapability =
+  | 'probe'
+  | 'enforce'
+  | 'backup'
+  | 'traffic';
 
 export const AGENT_CAPABILITIES: readonly AgentCapability[] = [
   'probe',
   'enforce',
-  'backup'
+  'backup',
+  'traffic'
 ];
 
 // ── Agent → backend ───────────────────────────────────────────────────────
@@ -190,6 +196,19 @@ export interface BackupConfigWire {
   content: string;
 }
 
+// The most interfaces a traffic answer may carry: a router's static links,
+// never its per-customer dynamic ones (MON-063).
+export const MAX_TRAFFIC_INTERFACES = 64;
+
+// One interface's current rate as the router computes it (AGT-117).
+export interface InterfaceTrafficWire {
+  name: string;
+  type: string;
+  running: boolean;
+  rxBps: number;
+  txBps: number;
+}
+
 // The answer to one probe request (AGT-101). `at` is the agent-clock time
 // the measurement started; `error` means it could not be made at all.
 export type ProbeResultMessage =
@@ -213,6 +232,13 @@ export type ProbeResultMessage =
       kind: 'backup';
       at: number;
       config: BackupConfigWire;
+    }
+  | {
+      type: 'probe.result';
+      requestId: string;
+      kind: 'traffic';
+      at: number;
+      interfaces: InterfaceTrafficWire[];
     }
   | { type: 'probe.result'; requestId: string; error: string };
 
@@ -304,6 +330,14 @@ export interface BackupLoginWire {
   sshPort: number;
 }
 
+// The router's RouterOS API login for a traffic request, held by the agent
+// only while it reads the router (AGT-118).
+export interface TrafficLoginWire {
+  username: string;
+  password: string;
+  apiPort: number;
+}
+
 export type BackupDeviceKindWire =
   | 'ACCESS_POINT'
   | 'ROUTER'
@@ -313,7 +347,7 @@ export type BackupDeviceKindWire =
 // requestId (AGT-101). `attempts` is the device's failuresBeforeDown;
 // `vendor` picks the collector the backend would have used. A `backup`
 // reads the device's configuration with the backend's own fetchers
-// (AGT-114).
+// (AGT-114); a `traffic` reads a router's interface rates (AGT-117).
 export type ProbeRequestMessage =
   | {
       type: 'probe';
@@ -339,6 +373,13 @@ export type ProbeRequestMessage =
       vendor: string;
       deviceKind: BackupDeviceKindWire;
       login: BackupLoginWire;
+    }
+  | {
+      type: 'probe';
+      requestId: string;
+      kind: 'traffic';
+      ip: string;
+      login: TrafficLoginWire;
     };
 
 // The enforcement router's address and API login, sent with each enforce

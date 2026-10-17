@@ -13,6 +13,7 @@ Conventions, rule types and the ID scheme are in [README.md](README.md).
 | `MON-001` – `MON-019` | Reachability state                   |
 | `MON-020` – `MON-039` | Polling configuration and scheduling |
 | `MON-040` – `MON-059` | Ping history and retention           |
+| `MON-060` – `MON-079` | Live router traffic                  |
 
 This file covers the reachability lifecycle only. The rules that decide **which**
 devices may be monitored at all live with the device itself — see DEV-057
@@ -454,3 +455,131 @@ in hand. That only ever looks correct within one page.
 **Enforced at:** `src/application/device-monitoring/use-cases/GetDevicePollingHistoryUseCase.ts`, backed by `PrismaPingResultRepository.findByDevice`
 **Reached from:** `GET /api/devices/:id/polling/history`
 **Tests:** `tests/application/device-monitoring/use-cases/GetDevicePollingHistoryUseCase.test.ts`, `tests/infrastructure/persistence/PrismaPingResultRepository.test.ts`
+
+## Live router traffic
+
+What the main routers carry right now, per interface, read from the router
+itself while someone is looking. Nothing here is stored.
+
+### MON-060 — Live traffic shows the in-service GATEWAY devices
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-14
+
+`GET /api/routers/traffic/stream` lists every device whose category is
+`GATEWAY`, whose status is `ACTIVE` or `COMMISSIONING`, and which is not in the
+recycle bin, ordered by name. Every role may open it (`read`).
+
+**Why:** The category already says "this device routes" (see the
+`DeviceCategory` note in `BACKEND_API.md`). Picking the routers by it needs
+nothing new to configure: a router appears the moment it is categorised.
+
+**Enforced at:** `src/infrastructure/monitoring/router-traffic/PrismaRouterTrafficTargetsQuery.ts`, `src/presentation/http/routes/wireless-stream.routes.ts`
+**Reached from:** `GET /api/routers/traffic/stream`
+**Tests:** `tests/integration/use-cases/device-monitoring/WatchRouterTrafficUseCase.integration.test.ts`, `tests/integration/wireless-stream.routes.test.ts`
+
+### MON-061 — A main router that cannot be read is listed with the reason
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-14
+
+Only a MikroTik is read: its vendor's slug must be `mikrotik`. A router from
+another vendor, one with no IP address, or one with no username and password
+saved is still listed, with no interfaces and an `error` that says which:
+`"Live traffic is read from MikroTik routers only"`,
+`"The router has no IP address"`,
+`"The router has no username and password saved"`. Nothing is sent to it.
+
+**Why:** A router missing from the page reads as "the page is broken"; a router
+listed with the reason tells the operator what to fix.
+
+**Enforced at:** `src/application/device-monitoring/services/resolveRouterTrafficTarget.ts`
+**Tests:** `tests/application/device-monitoring/services/resolveRouterTrafficTarget.test.ts`, `tests/integration/use-cases/device-monitoring/WatchRouterTrafficUseCase.integration.test.ts`
+
+### MON-062 — Routers are read every 2 seconds, only while someone watches
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-14
+
+The first viewer to open the stream starts one loop that reads every readable
+router every 2 seconds. Each answer goes to every viewer as one router's
+`router-traffic` frame, success or failure. A later viewer opens with the
+newest reading of each router. A read still out when the next one is due is
+skipped, not stacked. On the first tick with no viewer left the loop stops and
+the router logins close (`MON-064`). The list of routers is read again every
+minute while the loop runs, so a router added or edited shows up without
+reopening the page.
+
+**Why:** A router asked every 2 s by nobody is load for nothing. One shared
+loop means a second open page costs the routers nothing.
+
+**Enforced at:** `src/infrastructure/monitoring/router-traffic/RouterTrafficMonitor.ts`
+**Reached from:** `GET /api/routers/traffic/stream`
+**Tests:** `tests/integration/use-cases/device-monitoring/WatchRouterTrafficUseCase.integration.test.ts`, `tests/presentation/http/controllers/WirelessStreamController.test.ts`
+
+### MON-063 — Only a router's static, enabled interfaces are shown, at most 64
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-14
+
+The interfaces read are the ones RouterOS lists as not disabled and not
+dynamic: ethernet, SFP, bridges, VLANs, bonding and the like. Each comes with
+its type, whether it is running, and the receive and transmit rate in bits per
+second as RouterOS computes it (`/interface/monitor-traffic once`). At most
+the first 64 are read.
+
+**Why:** A gateway serving PPPoE has one dynamic interface per connected
+customer, hundreds of them. Those are subscribers, not the router's links, and
+would bury the WAN uplink the page exists to show.
+
+**Enforced at:** `src/infrastructure/monitoring/router-traffic/RouterOsTrafficReader.ts`, `src/agent/protocol/messages.ts` (`MAX_TRAFFIC_INTERFACES`)
+**Tests:** `tests/infrastructure/monitoring/router-traffic/RouterOsTrafficReader.test.ts`
+
+### MON-064 — The router login stays open between reads and closes after 30 s unused
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-14
+
+The reader logs in to a router once and keeps the connection for the next
+read. A read that fails or gets no answer within 5 seconds drops the
+connection, and the next read logs in again. A connection unused for 30
+seconds is closed, and when the last viewer leaves every connection is closed
+at once.
+
+**Why:** RouterOS writes every API login to its log. Logging in every 2 s would
+put 1,800 lines an hour in the router's log while the page is open.
+
+**Enforced at:** `src/infrastructure/monitoring/router-traffic/RouterOsTrafficReader.ts`
+**Tests:** `tests/infrastructure/monitoring/router-traffic/RouterOsTrafficReader.test.ts`
+
+### MON-065 — Off site, a router is read through the agent it sits behind
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-14
+
+With the server on site it reads every router itself. Off site it reads
+nothing itself: a router assigned to an agent is read through that agent
+(`AGT-116` … `AGT-118`), and one behind no agent is listed with
+`"The router is not behind an agent"`. An agent that is offline, too old to
+read traffic (`"The agent must be updated to read router traffic"`), or that
+does not answer within 8 seconds shows that as the router's error.
+
+**Why:** As `MON-023`: a server off site cannot reach the network it manages.
+
+**Enforced at:** `src/infrastructure/di/container.ts`, `src/infrastructure/probe-agents/adapters/AgentChannelTrafficReader.ts`
+**Tests:** `tests/infrastructure/probe-agents/adapters/AgentChannelTrafficReader.test.ts`, `tests/integration/agent-traffic.test.ts`
+
+### MON-066 — A router is read with its HTTP login on its RouterOS API port
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-14
+
+The login is the device's saved HTTP username and password, the same one
+RouterOS backups use over SSH (`BKP-055`), on the credentials' `apiPort`
+(default 8728, `DEV-127`). The router's API service must be enabled for it.
+
+**Why:** One login per device, as everywhere else. The API answers rates
+directly, where SSH would need the command's text parsed.
+
+**Enforced at:** `src/application/device-monitoring/services/resolveRouterTrafficTarget.ts`, `src/infrastructure/monitoring/router-traffic/PrismaRouterTrafficTargetsQuery.ts`
+**Tests:** `tests/application/device-monitoring/services/resolveRouterTrafficTarget.test.ts`, `tests/integration/wireless-stream.routes.test.ts`

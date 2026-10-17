@@ -5,6 +5,7 @@ import type {
   WirelessCollectionResult
 } from 'application/wireless-monitoring/interfaces';
 import type { IConfigFetcherResolver } from 'application/device-backups/interfaces';
+import type { IRouterTrafficReader } from 'application/device-monitoring/interfaces';
 import {
   PingReadingWire,
   ProbeRequestMessage,
@@ -34,9 +35,11 @@ export const DEFAULT_PROBE_RUNNER_OPTIONS: ProbeRunnerOptions = {
 const MAX_PING_ATTEMPTS = 10;
 
 // Answers the backend's probe requests (AGT-101) with the same ping loop,
-// wireless collectors and config fetchers (AGT-114) the backend runs in
-// process. The credentials in a request live only as long as the request
-// (AGT-102, AGT-115): nothing here stores or logs them.
+// wireless collectors, config fetchers (AGT-114) and router traffic reader
+// (AGT-117) the backend runs in process. The credentials in a request live
+// only as long as the request (AGT-102, AGT-115), except a router login,
+// which the traffic reader holds open between reads (AGT-118): nothing here
+// stores or logs them.
 export class ProbeRunner {
   private running = 0;
   private readonly waiting: Array<() => void> = [];
@@ -45,6 +48,7 @@ export class ProbeRunner {
     private readonly ping: PingProbe,
     private readonly collectors: IWirelessCollectorResolver,
     private readonly fetchers: IConfigFetcherResolver,
+    private readonly traffic: IRouterTrafficReader,
     private readonly logger: ILogger,
     private readonly options: ProbeRunnerOptions = DEFAULT_PROBE_RUNNER_OPTIONS
   ) {}
@@ -114,6 +118,24 @@ export class ProbeRunner {
         kind: 'backup',
         at,
         config: fetched.value
+      };
+    }
+
+    if (request.kind === 'traffic') {
+      const read = await this.traffic.read({
+        host: request.ip,
+        port: request.login.apiPort,
+        username: request.login.username,
+        password: request.login.password,
+        agentId: null
+      });
+      if (read.isFailure) return failed(request, read.error);
+      return {
+        type: 'probe.result',
+        requestId: request.requestId,
+        kind: 'traffic',
+        at,
+        interfaces: read.value
       };
     }
 

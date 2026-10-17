@@ -2,3 +2,6 @@ export * from './IPingService';
 export * from './IProbeHealthReporter';
 export * from './IAgentPingProbe';
 export * from './IPollingStatusListQuery';
+export * from './IRouterTrafficTargetsQuery';
+export * from './IRouterTrafficReader';
+export * from './IRouterTrafficMonitor';

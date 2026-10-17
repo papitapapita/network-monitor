@@ -255,7 +255,8 @@ describe('Credentials Routes', () => {
         httpUsername: 'ubnt',
         httpPassword: 'super-secret',
         httpPort: 443,
-        sshPort: 22
+        sshPort: 22,
+        apiPort: 8728
       });
     });
 

@@ -3,7 +3,8 @@ import {
   AGENT_CAPABILITIES,
   AGENT_PLATFORMS,
   AgentMessage,
-  MAX_BACKUP_CONFIG_BYTES
+  MAX_BACKUP_CONFIG_BYTES,
+  MAX_TRAFFIC_INTERFACES
 } from 'agent/protocol';
 
 const epochMs = z.number().int().nonnegative();
@@ -118,7 +119,7 @@ const pingReading = z.union([
   })
 ]);
 
-// Four shapes under one type, so it is its own union inside the
+// Five shapes under one type, so it is its own union inside the
 // discriminated one.
 const probeResult = z.union([
   z.object({
@@ -144,6 +145,23 @@ const probeResult = z.union([
       format: z.enum(['AIROS_CFG', 'ROUTEROS_EXPORT']),
       content: z.string().max(MAX_BACKUP_CONFIG_BYTES)
     })
+  }),
+  z.object({
+    type: z.literal('probe.result'),
+    requestId,
+    kind: z.literal('traffic'),
+    at: epochMs,
+    interfaces: z
+      .array(
+        z.object({
+          name: z.string().min(1).max(255),
+          type: z.string().max(64),
+          running: z.boolean(),
+          rxBps: z.number().nonnegative(),
+          txBps: z.number().nonnegative()
+        })
+      )
+      .max(MAX_TRAFFIC_INTERFACES)
   }),
   z.object({
     type: z.literal('probe.result'),

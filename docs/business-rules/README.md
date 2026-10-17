@@ -15,7 +15,7 @@ different document for a different audience.
 | Customers           | [customers.md](customers.md)                     | `CUS-001` … `CUS-140` |
 | Billing             | [billing.md](billing.md)                         | `BIL-001` … `BIL-264` |
 | Quoting             | [quoting.md](quoting.md)                         | `QUO-001` … `QUO-142` |
-| Device Monitoring   | [device-monitoring.md](device-monitoring.md)     | `MON-001` … `MON-042` |
+| Device Monitoring   | [device-monitoring.md](device-monitoring.md)     | `MON-001` … `MON-066` |
 | Wireless Monitoring | [wireless-monitoring.md](wireless-monitoring.md) | `WLS-001` … `WLS-204` |
 | Service Enforcement | [service-enforcement.md](service-enforcement.md) | `SVC-001` … `SVC-120` |
 | Notifications       | [notifications.md](notifications.md)             | `NOT-001` … `NOT-228` |
@@ -23,7 +23,7 @@ different document for a different audience.
 | Tickets             | [tickets.md](tickets.md)                         | `TKT-001` … `TKT-115` |
 | Shared Kernel       | [shared.md](shared.md)                           | `SHR-001` … `SHR-104` |
 | Installation        | [installation.md](installation.md)               | `INS-001` … `INS-043` |
-| Probe Agents        | [probe-agents.md](probe-agents.md)               | `AGT-001` … `AGT-115` |
+| Probe Agents        | [probe-agents.md](probe-agents.md)               | `AGT-001` … `AGT-118` |
 | Device Backups      | [device-backups.md](device-backups.md)           | `BKP-001` … `BKP-072` |
 
 Every context now has a file. Two conventions settled while filling them in:

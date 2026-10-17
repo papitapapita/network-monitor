@@ -16,6 +16,11 @@ import {
   THROUGHPUT_FLEET_CHANNEL,
   throughputDeviceChannel
 } from 'application/wireless-monitoring/channels';
+import { WatchRouterTrafficUseCase } from 'application/device-monitoring/use-cases';
+import {
+  ROUTER_TRAFFIC_CHANNEL,
+  ROUTER_TRAFFIC_SNAPSHOT_EVENT
+} from 'application/device-monitoring/channels';
 
 // Streams are long-lived, so the shared rate limiter cannot bound them —
 // these caps do. Sockets, not requests per minute, are the scarce resource.
@@ -34,6 +39,7 @@ export class WirelessStreamController {
     private readonly getWirelessThroughputUseCase: GetWirelessThroughputUseCase,
     private readonly getFleetWirelessThroughputUseCase: GetFleetWirelessThroughputUseCase,
     private readonly getLinkDiagnosisUseCase: GetLinkDiagnosisUseCase,
+    private readonly watchRouterTrafficUseCase: WatchRouterTrafficUseCase,
     private readonly hub: IEventStreamHub,
     private readonly logger: ILogger
   ) {}
@@ -98,6 +104,38 @@ export class WirelessStreamController {
         res,
         THROUGHPUT_FLEET_CHANNEL,
         THROUGHPUT_SNAPSHOT_EVENT,
+        result.value
+      );
+    } catch (error) {
+      this.releaseSlot(req);
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  // Lives here rather than in a controller of its own so the per-user and
+  // fleet-wide caps count every stream a user holds.
+  public streamRouterTraffic = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      if (!this.reserveSlot(req, res)) return;
+
+      const result = await this.watchRouterTrafficUseCase.execute();
+
+      if (result.isFailure) {
+        this.releaseSlot(req);
+        res
+          .status(this.getErrorStatusCode(result.error!))
+          .json({ error: result.error });
+        return;
+      }
+
+      this.openStream(
+        req,
+        res,
+        ROUTER_TRAFFIC_CHANNEL,
+        ROUTER_TRAFFIC_SNAPSHOT_EVENT,
         result.value
       );
     } catch (error) {

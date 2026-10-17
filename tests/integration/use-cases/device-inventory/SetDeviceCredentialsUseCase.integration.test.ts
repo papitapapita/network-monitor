@@ -216,6 +216,45 @@ describe('SetDeviceCredentialsUseCase — integration', () => {
     expect(row!.sshPort).toBe(2222);
   });
 
+  it('[DEV-127] defaults apiPort to 8728 and keeps it when a later call omits it', async () => {
+    const first = await useCase.execute({
+      deviceId,
+      httpUsername: 'admin',
+      httpPassword: 'pw'
+    });
+    expect(first.value.apiPort).toBe(8728);
+
+    await useCase.execute({
+      deviceId,
+      httpUsername: 'admin',
+      httpPassword: 'pw',
+      apiPort: 8729
+    });
+    const result = await useCase.execute({
+      deviceId,
+      httpUsername: 'admin',
+      httpPassword: 'rotated-pw'
+    });
+
+    expect(result.value.apiPort).toBe(8729);
+    const row = await prisma.deviceCredentials.findUnique({
+      where: { deviceId }
+    });
+    expect(row!.apiPort).toBe(8729);
+  });
+
+  it('[DEV-127] fails with an out-of-range apiPort', async () => {
+    const result = await useCase.execute({
+      deviceId,
+      httpUsername: 'admin',
+      httpPassword: 'pw',
+      apiPort: 0
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toBe('apiPort must be between 1 and 65535');
+  });
+
   it('[DEV-127] fails with an out-of-range sshPort', async () => {
     const result = await useCase.execute({
       deviceId,

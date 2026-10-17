@@ -18,6 +18,7 @@ import {
 } from '../probe-agents/queries';
 import {
   AgentChannelConfigFetcher,
+  AgentChannelTrafficReader,
   AgentChannelPingProbe,
   AgentChannelRadioReader,
   DeviceMonitoringPingResultSink
@@ -312,6 +313,12 @@ import {
   NetworkScannerService
 } from '../monitoring/network-scanner';
 import { PollingOrchestrator } from '../monitoring/orchestrator';
+import {
+  PrismaRouterTrafficTargetsQuery,
+  RouterOsTrafficReader,
+  RouterTrafficMonitor
+} from '../monitoring/router-traffic';
+import { WatchRouterTrafficUseCase } from 'application/device-monitoring/use-cases';
 import {
   TelegramNotificationService,
   WhatsAppNotificationService,
@@ -643,6 +650,7 @@ export class DependencyContainer {
   public wirelessPollingOrchestrator: WirelessPollingOrchestrator;
   // lifecycle managed by main.ts — live diagnosis timers must stop on shutdown
   public linkDiagnosisRunner: LinkDiagnosisRunner;
+  public routerTrafficMonitor: RouterTrafficMonitor;
   public dataRetentionOrchestrator: DataRetentionOrchestrator;
   public configBackupOrchestrator: ConfigBackupOrchestrator;
   public overdueDeviceDownAlertOrchestrator: OverdueDeviceDownAlertOrchestrator;
@@ -2248,10 +2256,25 @@ export class DependencyContainer {
         this.logger
       );
 
+    // Live router traffic (MON-060); off site the routers are read through
+    // their agent (MON-065).
+    this.routerTrafficMonitor = new RouterTrafficMonitor(
+      new PrismaRouterTrafficTargetsQuery(this.prisma),
+      this.serverOnSite
+        ? new RouterOsTrafficReader(this.logger)
+        : new AgentChannelTrafficReader(connectedAgents),
+      this.eventStreamHub,
+      this.logger
+    );
+
     this.wirelessStreamController = new WirelessStreamController(
       getWirelessThroughputUseCase,
       getFleetWirelessThroughputUseCase,
       getLinkDiagnosisUseCase,
+      new WatchRouterTrafficUseCase(
+        this.routerTrafficMonitor,
+        this.logger
+      ),
       this.eventStreamHub,
       this.logger
     );

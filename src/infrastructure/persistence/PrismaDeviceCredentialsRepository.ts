@@ -42,7 +42,8 @@ export class PrismaDeviceCredentialsRepository
           : null,
         snmpPort: raw.snmpPort,
         httpPort: raw.httpPort,
-        sshPort: raw.sshPort
+        sshPort: raw.sshPort,
+        apiPort: raw.apiPort
       });
     } catch (error) {
       return Result.fail(
@@ -109,7 +110,8 @@ export class PrismaDeviceCredentialsRepository
         : null,
       snmpPort: c.snmpPort,
       httpPort: c.httpPort,
-      sshPort: c.sshPort
+      sshPort: c.sshPort,
+      apiPort: c.apiPort
     };
   }
 }

@@ -8,3 +8,4 @@ export * from './GetDevicePollingHistoryUseCase';
 export * from './DeleteDevicePingHistoryUseCase';
 export * from './PurgeOldPingResultsUseCase';
 export * from './SuspendDeviceMonitoringUseCase';
+export * from './WatchRouterTrafficUseCase';

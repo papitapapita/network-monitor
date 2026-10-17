@@ -15,6 +15,7 @@ export interface DeviceCredentialsResponseDTO {
   httpPassword: '***' | null;
   httpPort: number;
   sshPort: number;
+  apiPort: number;
   hasSnmpCredentials: boolean;
   hasHttpCredentials: boolean;
 }

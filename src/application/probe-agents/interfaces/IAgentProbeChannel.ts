@@ -6,6 +6,10 @@ import type {
   AgentConfigFetchRequest,
   FetchedConfig
 } from 'application/device-backups/interfaces';
+import type {
+  InterfaceTrafficReading,
+  RouterConnectionTarget
+} from 'application/device-monitoring/interfaces';
 import { AgentPingOutcome } from './IAgentPingResultSink';
 
 export type AgentProbeFailureReason =
@@ -59,4 +63,10 @@ export interface IAgentProbeChannel {
     agentId: string,
     request: AgentConfigFetchRequest
   ): Promise<AgentProbeOutcome<FetchedConfig>>;
+
+  // AGT-116: only an agent that names `traffic` is asked.
+  readTraffic(
+    agentId: string,
+    router: RouterConnectionTarget
+  ): Promise<AgentProbeOutcome<InterfaceTrafficReading[]>>;
 }

@@ -30,6 +30,7 @@ import { ResultBuffer } from './results/ResultBuffer';
 import { ProbeRunner } from './probes/ProbeRunner';
 import { EnforceRunner } from './enforce/EnforceRunner';
 import { RouterOsQueueService } from 'infrastructure/service-enforcement/RouterOsQueueService';
+import { RouterOsTrafficReader } from 'infrastructure/monitoring/router-traffic/RouterOsTrafficReader';
 import {
   AirOsConfigFetcher,
   ConfigFetcherRegistry,
@@ -139,6 +140,7 @@ async function main(): Promise<void> {
         )
       }
     ]),
+    new RouterOsTrafficReader(logger),
     logger
   );
   runtime = new AgentRuntime({

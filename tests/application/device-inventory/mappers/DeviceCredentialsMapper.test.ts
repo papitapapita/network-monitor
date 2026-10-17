@@ -30,6 +30,7 @@ function makeCredentials(
     httpPassword: null,
     httpPort: 80,
     sshPort: 22,
+    apiPort: 8728,
     ...overrides
   };
 }

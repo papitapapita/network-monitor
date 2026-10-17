@@ -149,6 +149,7 @@ function makeStoredCredentials(
     snmpPort: 1161,
     httpPort: 8443,
     sshPort: 2222,
+    apiPort: 8729,
     ...overrides
   };
 }
@@ -567,6 +568,20 @@ describe('SetDeviceCredentialsUseCase', () => {
         );
       }
     );
+
+    it.each([0, 65536, 8728.5])(
+      '[DEV-127] should fail when apiPort is %s',
+      async (apiPort) => {
+        const result = await useCase.execute(
+          makeV2Request({ apiPort })
+        );
+
+        expect(result.isFailure).toBe(true);
+        expect(result.error).toBe(
+          'apiPort must be between 1 and 65535'
+        );
+      }
+    );
   });
 
   // =========================================================================
@@ -637,6 +652,15 @@ describe('SetDeviceCredentialsUseCase', () => {
         credentialsRepo.save.mock.calls[0][1];
 
       expect(savedCredentials.sshPort).toBe(22);
+    });
+
+    it('[DEV-127] should default apiPort to 8728 when nothing is stored', async () => {
+      await useCase.execute(makeV2Request());
+
+      const savedCredentials: DeviceCredentials =
+        credentialsRepo.save.mock.calls[0][1];
+
+      expect(savedCredentials.apiPort).toBe(8728);
     });
 
     it('should call credentialsRepo.save with data shaped by extractCreateData (SNMPv3)', async () => {
@@ -765,6 +789,15 @@ describe('SetDeviceCredentialsUseCase', () => {
         credentialsRepo.save.mock.calls[0][1];
 
       expect(saved.sshPort).toBe(2200);
+    });
+
+    it('[DEV-127] should keep the stored apiPort when the request omits it', async () => {
+      await useCase.execute(makeHttpRequest());
+
+      const saved: DeviceCredentials =
+        credentialsRepo.save.mock.calls[0][1];
+
+      expect(saved.apiPort).toBe(8729);
     });
 
     it('should clear a stored SNMP field when the request sends null', async () => {

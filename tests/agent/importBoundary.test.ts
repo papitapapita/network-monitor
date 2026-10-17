@@ -69,7 +69,8 @@ describe('agent import boundary', () => {
     // Everything it borrows from the backend: the ping probe and the
     // wireless collectors it runs for the backend (AGT-101), the RouterOS
     // client it changes suspension queues with (AGT-111), the config
-    // fetchers it takes backups with (AGT-114), the logger, and Result.
+    // fetchers it takes backups with (AGT-114), the router traffic reader
+    // (AGT-117), the logger, and Result.
     expect(
       backendCode
         .filter((input) => !input.startsWith('src/domain/shared/'))
@@ -88,6 +89,7 @@ describe('agent import boundary', () => {
       'src/infrastructure/device-backups/fetchers/index.ts',
       'src/infrastructure/logging/WinstonLogger.ts',
       'src/infrastructure/monitoring/ping/PingService.ts',
+      'src/infrastructure/monitoring/router-traffic/RouterOsTrafficReader.ts',
       'src/infrastructure/service-enforcement/RouterOsQueueService.ts',
       'src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts',
       'src/infrastructure/wireless-monitoring/collectors/MimosaSnmpCollector.ts',

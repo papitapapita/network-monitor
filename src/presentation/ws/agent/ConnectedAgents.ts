@@ -15,6 +15,10 @@ import type {
   AgentConfigFetchRequest,
   FetchedConfig
 } from 'application/device-backups/interfaces';
+import type {
+  InterfaceTrafficReading,
+  RouterConnectionTarget
+} from 'application/device-monitoring/interfaces';
 import { BackupFormat } from 'domain/device-backups/enums';
 import { ProbeResultMessage } from 'agent/protocol';
 import {
@@ -41,17 +45,23 @@ export interface ProbeTimeouts {
   // nightly run, which no proxy times, and a large router's export takes
   // some seconds.
   backupMs?: number;
+  // One read of a router whose login the agent already holds open; the
+  // live page asks again every couple of seconds, so waiting longer only
+  // shows an older number.
+  trafficMs?: number;
 }
 
 export const DEFAULT_PROBE_TIMEOUTS: ProbeTimeouts = {
   pingMs: 25_000,
   wirelessMs: 25_000,
   enforceMs: 20_000,
-  backupMs: 45_000
+  backupMs: 45_000,
+  trafficMs: 8_000
 };
 
 const DEFAULT_ENFORCE_MS = 20_000;
 const DEFAULT_BACKUP_MS = 45_000;
+const DEFAULT_TRAFFIC_MS = 8_000;
 
 // The agents connected right now, one session each (AGT-045), and the way
 // the rest of the backend asks one of them to measure a device (AGT-103).
@@ -170,6 +180,33 @@ export class ConnectedAgents
     };
   }
 
+  async readTraffic(
+    agentId: string,
+    router: RouterConnectionTarget
+  ): Promise<AgentProbeOutcome<InterfaceTrafficReading[]>> {
+    const answer = await this.probe(
+      agentId,
+      {
+        type: 'probe',
+        kind: 'traffic',
+        ip: router.host,
+        login: {
+          username: router.username,
+          password: router.password,
+          apiPort: router.port
+        }
+      },
+      this.probeTimeouts.trafficMs ?? DEFAULT_TRAFFIC_MS
+    );
+    if (!answer.ok) return answer;
+    if (answer.result.kind !== 'traffic') return wrongKind();
+    return {
+      ok: true,
+      reading: answer.result.interfaces,
+      measuredAt: answer.measuredAt
+    };
+  }
+
   async enforce(
     agentId: string,
     router: RouterConnection,
@@ -232,17 +269,8 @@ export class ConnectedAgents
     if (!session) {
       return fail('AGENT_OFFLINE', 'The agent is not connected');
     }
-    if (
-      request.kind === 'backup'
-        ? !session.canBackUp
-        : !session.canProbe
-    ) {
-      return fail(
-        'PROBE_UNSUPPORTED',
-        request.kind === 'backup'
-          ? 'The agent must be updated to take backups'
-          : 'The agent must be updated to answer this request'
-      );
+    if (!session.canAnswer(request.kind)) {
+      return fail('PROBE_UNSUPPORTED', UNSUPPORTED[request.kind]);
     }
     const answer = await session.probe(request, timeoutMs);
     switch (answer.kind) {
@@ -269,6 +297,13 @@ export class ConnectedAgents
     };
   }
 }
+
+const UNSUPPORTED: Record<ProbeRequest['kind'], string> = {
+  ping: 'The agent must be updated to answer this request',
+  wireless: 'The agent must be updated to answer this request',
+  backup: 'The agent must be updated to take backups',
+  traffic: 'The agent must be updated to read router traffic'
+};
 
 function fail(
   reason: AgentProbeFailure['reason'],

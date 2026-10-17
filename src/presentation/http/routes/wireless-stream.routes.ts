@@ -12,11 +12,12 @@ import {
 import {
   streamDeviceThroughputSchema,
   streamFleetThroughputSchema,
-  streamLinkDiagnosisSchema
+  streamLinkDiagnosisSchema,
+  streamRouterTrafficSchema
 } from '../validation';
 
 /**
- * Server-Sent Events routes for live wireless throughput.
+ * Server-Sent Events routes for live wireless throughput and router traffic.
  * Mounted under /api by the router index, ahead of the global Bearer-only
  * authenticate middleware — these carry their own stream authentication.
  *
@@ -24,6 +25,7 @@ import {
  * - GET /api/devices/:id/wireless/throughput/stream - Live throughput, one device
  * - GET /api/wireless/throughput/stream             - Live throughput, whole fleet
  * - GET /api/devices/:id/wireless/diagnosis/stream  - Live diagnosis session frames
+ * - GET /api/routers/traffic/stream                 - Live traffic, main routers
  *
  * No rate limiter: express-rate-limit assumes short-lived requests, and the
  * controller's per-user and fleet-wide connection caps bound these instead.
@@ -71,6 +73,15 @@ export function createWirelessStreamRoutes(
     authorize('read'),
     validateRequest(streamLinkDiagnosisSchema),
     controller.streamLinkDiagnosis
+  );
+
+  router.get(
+    '/routers/traffic/stream',
+    auditLog,
+    streamAuth,
+    authorize('read'),
+    validateRequest(streamRouterTrafficSchema),
+    controller.streamRouterTraffic
   );
 
   return router;

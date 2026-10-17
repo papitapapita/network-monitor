@@ -32,6 +32,7 @@ export class DeviceCredentialsMapper {
       httpPassword: c.httpPassword ? '***' : null,
       httpPort: c.httpPort,
       sshPort: c.sshPort,
+      apiPort: c.apiPort,
       hasSnmpCredentials,
       hasHttpCredentials: !!(c.httpUsername && c.httpPassword)
     };
@@ -54,7 +55,8 @@ export class DeviceCredentialsMapper {
       httpUsername: c.httpUsername,
       httpPassword: c.httpPassword,
       httpPort: c.httpPort,
-      sshPort: c.sshPort
+      sshPort: c.sshPort,
+      apiPort: c.apiPort
     };
   }
 
@@ -92,7 +94,8 @@ export class DeviceCredentialsMapper {
       httpUsername: keep(dto.httpUsername, existing?.httpUsername),
       httpPassword: keep(dto.httpPassword, existing?.httpPassword),
       httpPort: dto.httpPort ?? existing?.httpPort ?? 443,
-      sshPort: dto.sshPort ?? existing?.sshPort ?? 22
+      sshPort: dto.sshPort ?? existing?.sshPort ?? 22,
+      apiPort: dto.apiPort ?? existing?.apiPort ?? 8728
     };
   }
 }

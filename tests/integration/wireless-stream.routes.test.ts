@@ -32,6 +32,14 @@ import {
   PrismaContractedServiceRepository,
   PrismaServicePlanRepository
 } from '../../src/infrastructure/customers';
+import { WatchRouterTrafficUseCase } from '../../src/application/device-monitoring/use-cases';
+import {
+  PrismaRouterTrafficTargetsQuery,
+  RouterTrafficMonitor
+} from '../../src/infrastructure/monitoring/router-traffic';
+import { FakeRouterTrafficReader } from './helpers/FakeRouterTrafficReader';
+import { seedMainRouter } from './helpers/routerTraffic';
+import { Result } from '../../src/domain/shared/core';
 
 // ─────────────────────────────────────────────────────────────
 // Local seed helpers
@@ -95,6 +103,8 @@ describe('Wireless throughput stream routes', () => {
   let token: string;
   let deviceModelId: string;
   let diagnosis: LinkDiagnosisStack;
+  let trafficReader: FakeRouterTrafficReader;
+  let trafficMonitor: RouterTrafficMonitor;
 
   beforeAll(async () => {
     // the diagnosis stream reads a runner wired to fakes, so no probe
@@ -119,6 +129,15 @@ describe('Wireless throughput stream routes', () => {
         // own, so a test controls exactly which frames reach the stream
         { pingIntervalMs: 60_000, radioIntervalMs: 60_000 }
       );
+      trafficReader = new FakeRouterTrafficReader();
+      // same: only the opening read reaches the stream
+      trafficMonitor = new RouterTrafficMonitor(
+        new PrismaRouterTrafficTargetsQuery(p),
+        trafficReader,
+        c.eventStreamHub,
+        logger,
+        { intervalMs: 60_000 }
+      );
       c.wirelessStreamController = new WirelessStreamController(
         new GetWirelessThroughputUseCase(
           snapshots,
@@ -133,6 +152,7 @@ describe('Wireless throughput stream routes', () => {
           logger
         ),
         diagnosis.get,
+        new WatchRouterTrafficUseCase(trafficMonitor, logger),
         c.eventStreamHub,
         logger
       );
@@ -144,6 +164,7 @@ describe('Wireless throughput stream routes', () => {
 
   afterAll(async () => {
     diagnosis.runner.stopAll();
+    await trafficMonitor.stop();
     container.eventStreamHub.closeAll();
     await container.disconnect();
   });
@@ -152,10 +173,12 @@ describe('Wireless throughput stream routes', () => {
     await cleanDatabase(prisma);
     deviceModelId = await seedWirelessDeviceModel(prisma);
     token = await seedAndGetToken(app, prisma, 'ADMIN');
+    trafficReader.reads.length = 0;
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     diagnosis.runner.stopAll();
+    await trafficMonitor.stop();
     container.eventStreamHub.closeAll();
   });
 
@@ -418,6 +441,125 @@ describe('Wireless throughput stream routes', () => {
       const res = await request(app).get(streamPath(GHOST_ID));
 
       expect(res.status).toBe(401);
+    });
+  });
+
+  describe('[MON-060] GET /api/routers/traffic/stream', () => {
+    const path = '/api/routers/traffic/stream';
+
+    it('opens with every main router, then streams its interface rates', async () => {
+      await seedMainRouter(prisma, {
+        name: 'Core',
+        ip: '10.0.0.1',
+        login: { username: 'api', password: 'secreto', apiPort: 8729 }
+      });
+      trafficReader.answer(
+        '10.0.0.1',
+        Result.ok([
+          {
+            name: 'ether1-wan',
+            type: 'ether',
+            running: true,
+            rxBps: 120_000_000,
+            txBps: 15_000_000
+          }
+        ])
+      );
+
+      const res = await readSseStream(app, path, {
+        token,
+        expectEvents: 2
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.events[0]).toEqual({
+        event: 'router-traffic-snapshot',
+        data: {
+          intervalSeconds: 60,
+          routers: [
+            expect.objectContaining({
+              deviceName: 'Core',
+              error: null,
+              interfaces: []
+            })
+          ]
+        }
+      });
+      expect(res.events[1]).toEqual({
+        event: 'router-traffic',
+        data: expect.objectContaining({
+          deviceName: 'Core',
+          at: expect.any(String),
+          error: null,
+          interfaces: [
+            {
+              name: 'ether1-wan',
+              type: 'ether',
+              running: true,
+              rxBps: 120_000_000,
+              txBps: 15_000_000
+            }
+          ]
+        })
+      });
+      expect(trafficReader.reads[0]).toEqual({
+        host: '10.0.0.1',
+        port: 8729,
+        username: 'api',
+        password: 'secreto',
+        agentId: null
+      });
+    });
+
+    it('[MON-061] lists a router it cannot read with the reason', async () => {
+      await seedMainRouter(prisma, {
+        name: 'No login',
+        ip: '10.0.0.2',
+        login: null
+      });
+
+      const res = await readSseStream(app, path, { token });
+
+      expect(res.status).toBe(200);
+      expect(
+        (res.events[0].data as { routers: unknown[] }).routers
+      ).toEqual([
+        expect.objectContaining({
+          deviceName: 'No login',
+          error: 'The router has no username and password saved'
+        })
+      ]);
+      expect(trafficReader.reads).toHaveLength(0);
+    });
+
+    it('opens with an empty list when there is no main router', async () => {
+      const res = await readSseStream(app, path, { token });
+
+      expect(res.status).toBe(200);
+      expect(res.events[0].data).toEqual({
+        intervalSeconds: 60,
+        routers: []
+      });
+    });
+
+    it('rejects a request with no credentials', async () => {
+      const res = await request(app).get(path);
+
+      expect(res.status).toBe(401);
+    });
+
+    it('allows a VIEWER', async () => {
+      const viewerToken = await seedAndGetToken(
+        app,
+        prisma,
+        'VIEWER'
+      );
+
+      const res = await readSseStream(app, path, {
+        token: viewerToken
+      });
+
+      expect(res.status).toBe(200);
     });
   });
 

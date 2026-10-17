@@ -6,6 +6,7 @@ import { WirelessStreamController } from '../../../../src/presentation/http/cont
 import { GetWirelessThroughputUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetWirelessThroughputUseCase';
 import { GetFleetWirelessThroughputUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetFleetWirelessThroughputUseCase';
 import { GetLinkDiagnosisUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetLinkDiagnosisUseCase';
+import { WatchRouterTrafficUseCase } from '../../../../src/application/device-monitoring/use-cases/WatchRouterTrafficUseCase';
 import {
   ILogger,
   IEventStreamHub
@@ -92,6 +93,7 @@ describe('[WLS-146] WirelessStreamController', () => {
   let getThroughput: { execute: jest.Mock };
   let getFleetThroughput: { execute: jest.Mock };
   let getDiagnosis: { execute: jest.Mock };
+  let watchRouterTraffic: { execute: jest.Mock };
   let hub: jest.Mocked<IEventStreamHub>;
   let logger: jest.Mocked<ILogger>;
   let controller: WirelessStreamController;
@@ -100,6 +102,7 @@ describe('[WLS-146] WirelessStreamController', () => {
     getThroughput = { execute: jest.fn() };
     getFleetThroughput = { execute: jest.fn() };
     getDiagnosis = { execute: jest.fn() };
+    watchRouterTraffic = { execute: jest.fn() };
     hub = createMockHub();
     logger = createMockLogger();
 
@@ -107,6 +110,7 @@ describe('[WLS-146] WirelessStreamController', () => {
       getThroughput as unknown as GetWirelessThroughputUseCase,
       getFleetThroughput as unknown as GetFleetWirelessThroughputUseCase,
       getDiagnosis as unknown as GetLinkDiagnosisUseCase,
+      watchRouterTraffic as unknown as WatchRouterTrafficUseCase,
       hub,
       logger
     );
@@ -306,6 +310,56 @@ describe('[WLS-146] WirelessStreamController', () => {
       await controller.streamLinkDiagnosis(req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.writeHead).not.toHaveBeenCalled();
+      expect(hub.subscribe).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('[MON-062] streamRouterTraffic', () => {
+    const snapshot = {
+      intervalSeconds: 2,
+      routers: [
+        {
+          deviceId: DEVICE_UUID,
+          deviceName: 'Core',
+          at: null,
+          error: null,
+          interfaces: []
+        }
+      ]
+    };
+
+    it('opens with every main router on the router-traffic channel', async () => {
+      watchRouterTraffic.execute.mockResolvedValue(
+        Result.ok(snapshot)
+      );
+      const req = createMockRequest();
+      const { res } = createMockResponse();
+
+      await controller.streamRouterTraffic(req, res);
+
+      const written = (res.write as jest.Mock).mock.calls.map(
+        (c) => c[0]
+      );
+      expect(written[1]).toBe(
+        `event: router-traffic-snapshot\ndata: ${JSON.stringify(snapshot)}\n\n`
+      );
+      expect(hub.subscribe).toHaveBeenCalledWith(
+        'router-traffic',
+        res
+      );
+    });
+
+    it('answers JSON on failure without opening the stream', async () => {
+      watchRouterTraffic.execute.mockResolvedValue(
+        Result.fail('Database error listing main routers: reset')
+      );
+      const req = createMockRequest();
+      const { res, statusMock } = createMockResponse();
+
+      await controller.streamRouterTraffic(req, res);
+
+      expect(statusMock).toHaveBeenCalledWith(500);
       expect(res.writeHead).not.toHaveBeenCalled();
       expect(hub.subscribe).not.toHaveBeenCalled();
     });

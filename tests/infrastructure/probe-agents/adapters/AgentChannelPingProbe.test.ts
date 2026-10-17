@@ -5,7 +5,8 @@ describe('AgentChannelPingProbe', () => {
   const channel = {
     ping: jest.fn(),
     readRadio: jest.fn(),
-    fetchConfig: jest.fn()
+    fetchConfig: jest.fn(),
+    readTraffic: jest.fn()
   } satisfies jest.Mocked<IAgentProbeChannel>;
   const probe = new AgentChannelPingProbe(channel);
 

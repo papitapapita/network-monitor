@@ -4,6 +4,7 @@
 // runtime with its files in a temp directory. Only the ping is faked.
 
 import { Server } from 'http';
+import { FakeRouterTrafficReader } from './helpers/FakeRouterTrafficReader';
 import { AddressInfo } from 'net';
 import { mkdtempSync, rmSync } from 'fs';
 import os from 'os';
@@ -114,6 +115,7 @@ describe('Agent app — end to end', () => {
         ping,
         new WirelessCollectorRegistry({}),
         new ConfigFetcherRegistry([]),
+        new FakeRouterTrafficReader(),
         logger
       ),
       enforcer: new EnforceRunner(

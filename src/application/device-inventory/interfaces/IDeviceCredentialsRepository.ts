@@ -14,6 +14,7 @@ export interface DeviceCredentials {
   snmpPort: number;
   httpPort: number;
   sshPort: number;
+  apiPort: number;
 }
 
 export interface IDeviceCredentialsRepository {

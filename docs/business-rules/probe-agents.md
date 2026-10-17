@@ -1361,3 +1361,64 @@ never sit on the customer's PC.
 
 **Enforced at:** `src/agent/probes/ProbeRunner.ts`
 **Tests:** `tests/agent/probes/ProbeRunner.test.ts`
+
+### AGT-116 — Only an agent that names `traffic` is asked to read a router's traffic
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Presentation · Agent program
+**Since:** 2026-10-14
+
+From version `0.6.0` the hello names `traffic` beside `probe`, `enforce` and
+`backup`. The backend sends a traffic request only to an agent that named it;
+any other answers `PROBE_UNSUPPORTED` ("The agent must be updated to read
+router traffic") without being asked, and is never sent the router's login.
+Offline, timeout and error end the request as in `AGT-103`.
+
+**Why:** As `AGT-113`: a `0.5.0` agent does not know this kind, and must not
+receive a login it would not use.
+
+**Enforced at:** `src/agent/protocol/messages.ts` (`AGENT_CAPABILITIES`), `src/presentation/ws/agent/AgentSession.ts` (`canReadTraffic`, `canAnswer`), `src/presentation/ws/agent/ConnectedAgents.ts` (`probe`)
+**Tests:** `tests/integration/agent-traffic.test.ts`
+
+### AGT-117 — An agent reads a router's interface rates when asked, with the backend's own reader
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program · Presentation
+**Since:** 2026-10-14
+
+A traffic request is a probe request of kind `traffic`: a request id, the
+router's address and its RouterOS API login (username, password, API port).
+The agent reads it with the reader the server uses on site (`MON-063`,
+`MON-064`) and answers with each interface's name, type, whether it is
+running, and its receive and transmit rate in bits per second. A router that
+refuses or does not answer is answered with an error. A traffic read counts
+toward the 4 requests at once of `AGT-101`.
+
+The backend waits 8 seconds for the answer. More than 64 interfaces, or a
+negative rate, is a protocol error, like any malformed answer.
+
+**Why:** Off site, only the agent can reach the router (`MON-065`). The live
+page asks again every 2 seconds, so waiting longer than a few reads would only
+show an older number.
+
+**Enforced at:** `src/agent/probes/ProbeRunner.ts`, `src/agent/main.ts`, `src/agent/protocol/messages.ts`, `src/presentation/ws/agent/ConnectedAgents.ts` (`readTraffic`), `src/presentation/ws/agent/agentMessageSchema.ts`
+**Tests:** `tests/agent/probes/ProbeRunner.test.ts`, `tests/agent/importBoundary.test.ts`, `tests/integration/agent-traffic.test.ts`
+
+### AGT-118 — The router login in a traffic request is held only while the router is being read
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Agent program
+**Since:** 2026-10-14
+
+Unlike `AGT-102`, `AGT-112` and `AGT-115`, the agent keeps the router's API
+connection open between traffic reads (`MON-064`). The login lives in memory
+only, inside that open connection, and goes when the connection closes: 30
+seconds after the last read, on any failed read, or when the agent stops. It
+is never saved and never logged.
+
+**Why:** A login every 2 seconds fills the router's log. Holding the open
+connection, in memory and for seconds, keeps the login off the customer's PC's
+disk, which is what `AGT-102` protects.
+
+**Enforced at:** `src/agent/probes/ProbeRunner.ts`, `src/infrastructure/monitoring/router-traffic/RouterOsTrafficReader.ts`
+**Tests:** `tests/agent/probes/ProbeRunner.test.ts`, `tests/infrastructure/monitoring/router-traffic/RouterOsTrafficReader.test.ts`

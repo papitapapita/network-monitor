@@ -22,6 +22,10 @@ export const streamFleetThroughputSchema = z.object({
   query: z.object(streamQueryFields).optional()
 });
 
+export const streamRouterTrafficSchema = z.object({
+  query: z.object(streamQueryFields).optional()
+});
+
 export type StreamDeviceThroughputInput = z.infer<
   typeof streamDeviceThroughputSchema
 >;
@@ -30,4 +34,7 @@ export type StreamLinkDiagnosisInput = z.infer<
 >;
 export type StreamFleetThroughputInput = z.infer<
   typeof streamFleetThroughputSchema
+>;
+export type StreamRouterTrafficInput = z.infer<
+  typeof streamRouterTrafficSchema
 >;

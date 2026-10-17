@@ -8,6 +8,7 @@ import type {
   BackupConfigWire,
   BackupDeviceKindWire,
   BackupLoginWire,
+  InterfaceTrafficWire,
   ProbeCredentialsWire,
   ProbeRequestMessage,
   WirelessReadingWire
@@ -29,6 +30,10 @@ import type {
   WirelessCollectionResult
 } from '../../../src/application/wireless-monitoring/interfaces';
 import { WirelessCollectorRegistry } from '../../../src/infrastructure/wireless-monitoring/collectors';
+import type {
+  InterfaceTrafficReading,
+  IRouterTrafficReader
+} from '../../../src/application/device-monitoring/interfaces';
 import { silentLogger } from '../helpers';
 import { makeWirelessCollectionResult } from '../../fixtures/wirelessCollection';
 
@@ -63,6 +68,10 @@ const configMatches: Same<
   Wire<FetchedConfig>,
   Omit<BackupConfigWire, 'format'> & { format: BackupFormat }
 > = true;
+const trafficMatches: Same<
+  InterfaceTrafficReading,
+  InterfaceTrafficWire
+> = true;
 const formatsMatch: Same<
   `${BackupFormat}`,
   BackupConfigWire['format']
@@ -87,6 +96,26 @@ const backupRequest = (
   deviceKind,
   login: LOGIN
 });
+
+const trafficRequest = (): ProbeRequestMessage => ({
+  type: 'probe',
+  requestId: 't-1',
+  kind: 'traffic',
+  ip: '10.0.0.1',
+  login: {
+    username: 'api',
+    password: 'router-secreto',
+    apiPort: 8729
+  }
+});
+
+const ETHER1: InterfaceTrafficReading = {
+  name: 'ether1-wan',
+  type: 'ether',
+  running: true,
+  rxBps: 120_000_000,
+  txBps: 15_000_000
+};
 
 const CREDENTIALS: ProbeCredentialsWire = {
   snmpVersion: 2,
@@ -129,6 +158,7 @@ describe('ProbeRunner', () => {
   let ping: { run: jest.Mock };
   let collector: jest.Mocked<IWirelessCollector>;
   let fetcher: jest.Mocked<IConfigFetcher>;
+  let traffic: jest.Mocked<IRouterTrafficReader>;
   let logger: ReturnType<typeof silentLogger>;
   let runner: ProbeRunner;
 
@@ -155,6 +185,10 @@ describe('ProbeRunner', () => {
         })
       )
     };
+    traffic = {
+      read: jest.fn().mockResolvedValue(Result.ok([ETHER1])),
+      releaseAll: jest.fn()
+    };
     logger = silentLogger();
     runner = new ProbeRunner(
       ping,
@@ -166,6 +200,7 @@ describe('ProbeRunner', () => {
           fetcher
         }
       ]),
+      traffic,
       logger
     );
   });
@@ -177,8 +212,9 @@ describe('ProbeRunner', () => {
       loginMatches,
       kindMatches,
       configMatches,
-      formatsMatch
-    ]).toEqual([true, true, true, true, true, true]);
+      formatsMatch,
+      trafficMatches
+    ]).toEqual([true, true, true, true, true, true, true]);
     expect(MAX_BACKUP_CONFIG_BYTES).toBe(MAX_CONFIG_BYTES);
   });
 
@@ -232,6 +268,48 @@ describe('ProbeRunner', () => {
 
   it('[AGT-115] never logs the login it was given', async () => {
     await runner.run(backupRequest());
+
+    const logged = JSON.stringify(
+      Object.values(logger)
+        .filter((fn) => jest.isMockFunction(fn))
+        .flatMap((fn) => (fn as jest.Mock).mock.calls)
+    );
+    expect(logged).not.toContain('router-secreto');
+  });
+
+  it('[AGT-117] reads the router traffic on the API port it was given', async () => {
+    const result = await runner.run(trafficRequest());
+
+    expect(traffic.read).toHaveBeenCalledWith({
+      host: '10.0.0.1',
+      port: 8729,
+      username: 'api',
+      password: 'router-secreto',
+      agentId: null
+    });
+    expect(result).toEqual({
+      type: 'probe.result',
+      requestId: 't-1',
+      kind: 'traffic',
+      at: expect.any(Number),
+      interfaces: [ETHER1]
+    });
+  });
+
+  it('[AGT-117] answers an error when the router cannot be read', async () => {
+    traffic.read.mockResolvedValue(
+      Result.fail('RouterOS API error: invalid user name or password')
+    );
+
+    expect(await runner.run(trafficRequest())).toEqual({
+      type: 'probe.result',
+      requestId: 't-1',
+      error: 'RouterOS API error: invalid user name or password'
+    });
+  });
+
+  it('[AGT-118] never logs the router login it was given', async () => {
+    await runner.run(trafficRequest());
 
     const logged = JSON.stringify(
       Object.values(logger)
@@ -381,6 +459,7 @@ describe('ProbeRunner', () => {
       ping,
       new WirelessCollectorRegistry({}),
       new ConfigFetcherRegistry([]),
+      traffic,
       logger,
       { maxConcurrent: 2, maxQueued: 1 }
     );

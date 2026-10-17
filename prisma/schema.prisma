@@ -535,6 +535,8 @@ model DeviceCredentials {
   httpPort        Int      @default(443) @map("http_port")
   // RouterOS backups log in over SSH with the HTTP username and password.
   sshPort         Int      @default(22) @map("ssh_port")
+  // Live router traffic reads the RouterOS API with the same login.
+  apiPort         Int      @default(8728) @map("api_port")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
 

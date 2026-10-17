@@ -5,6 +5,7 @@
 // requests. Only the agent's ping and its radio are faked.
 
 import { Server } from 'http';
+import { FakeRouterTrafficReader } from './helpers/FakeRouterTrafficReader';
 import { AddressInfo } from 'net';
 import { mkdtempSync, rmSync } from 'fs';
 import os from 'os';
@@ -199,6 +200,7 @@ describe('Agent probes — end to end, server hosted off site', () => {
         ping,
         new WirelessCollectorRegistry({ ubiquiti: radio }),
         new ConfigFetcherRegistry([]),
+        new FakeRouterTrafficReader(),
         logger
       ),
       enforcer: new EnforceRunner(fakeRouter, logger),

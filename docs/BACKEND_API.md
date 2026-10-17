@@ -1304,6 +1304,7 @@ interface DeviceCredentialsResponseDTO {
   httpPassword: '***' | null; // masked; null if not set
   httpPort: number; // default 443
   sshPort: number; // default 22 — RouterOS backups log in here with the HTTP login
+  apiPort: number; // default 8728 — live router traffic reads the RouterOS API here with the HTTP login
   hasSnmpCredentials: boolean; // true if the effective SNMP secret is present
   hasHttpCredentials: boolean; // true if both httpUsername and httpPassword are set
 }
@@ -1329,6 +1330,9 @@ Every field is optional on its own: an omitted field keeps whatever is stored, a
   httpPort?: number   // 1–65535; omit to keep the stored value (default 443)
   sshPort?: number    // 1–65535; omit to keep the stored value (default 22).
                       // RouterOS backups log in on it with httpUsername/httpPassword.
+  apiPort?: number    // 1–65535; omit to keep the stored value (default 8728).
+                      // Live router traffic reads the RouterOS API on it with
+                      // httpUsername/httpPassword (since 2026-10-14).
 
   // SNMP — Mimosa is polled with these.
   // Omit to keep the stored value; send null to clear it.
@@ -1407,6 +1411,7 @@ interface RevealedDeviceCredentialsDTO {
   httpPassword: string | null;
   httpPort: number;
   sshPort: number;
+  apiPort: number;
 }
 ```
 
@@ -3098,7 +3103,8 @@ A Server-Sent Events stream, not a JSON endpoint. Errors are still plain JSON �
 the failure path runs before any stream header is written, so a 404 looks like
 every other 404 here.
 
-**Authentication.** These two routes, and the diagnosis stream below, accept
+**Authentication.** These two routes, the diagnosis stream below and the
+router traffic stream (`GET /api/routers/traffic/stream`) accept
 `?token=<jwt>` in addition to `Authorization: Bearer` — the browser
 `EventSource` API cannot set headers. Every other route in this document
 remains header-only.
@@ -3169,6 +3175,100 @@ es.addEventListener('throughput', (e) => {
 Devices that have never been polled are absent — a row of nulls would read as
 idle rather than unknown. An empty fleet is `{ "devices": [], "total": 0 }`, not
 a 404.
+
+---
+
+### `GET /api/routers/traffic/stream` — Live Router Traffic (SSE)
+
+**Status:** 200 (`text/event-stream`) | 401 | 429 | 500  
+**Roles:** every role (`read`) · **Since:** 2026-10-14
+
+What the **main routers** carry right now, per interface, read from the router
+itself every 2 seconds while the stream is open (MON-060 … MON-066). This is the
+live traffic page's source; unlike `/api/wireless/throughput/stream`, it does
+not wait for a poll, so the numbers are at most ~2 s old.
+
+- **Which routers:** every device with `category: 'GATEWAY'`, status `ACTIVE` or
+  `COMMISSIONING`, not in the recycle bin, by name. Setting a device's category
+  to `GATEWAY` is how a router gets onto the page.
+- **What is needed to read one:** a MikroTik with an IP address, an HTTP
+  username/password saved in its credentials, and the RouterOS **API** service
+  enabled on the credentials' `apiPort` (default 8728). On an install hosted
+  off site, the router must also be assigned to an agent running `0.6.0` or
+  newer.
+- **Which interfaces:** the router's static, enabled interfaces (ether, sfp,
+  bridge, vlan, …), at most 64. Dynamic ones — one PPPoE/L2TP session per
+  customer — are left out.
+
+Same transport and authentication as the throughput streams. **The opening
+frame has a different event name and shape from the ones that follow:**
+
+| Order       | Event                     | Payload                                 |
+| ----------- | ------------------------- | --------------------------------------- |
+| First only  | `router-traffic-snapshot` | `RouterTrafficSnapshotDTO`              |
+| Every later | `router-traffic`          | A single `RouterTrafficDTO` for one router |
+
+```ts
+interface RouterInterfaceTrafficDTO {
+  name: string; // 'ether1-wan'
+  type: string; // RouterOS's own type: 'ether', 'sfp-sfpplus', 'bridge', 'vlan', …
+  running: boolean; // link up
+  rxBps: number; // bits per second received on this interface
+  txBps: number; // bits per second sent
+}
+
+interface RouterTrafficDTO {
+  deviceId: string;
+  deviceName: string;
+  at: string | null; // ISO time of the last read; null until the first one finishes
+  // Why there are no rates. Set → interfaces is []. Show it on the router's card.
+  error: string | null;
+  interfaces: RouterInterfaceTrafficDTO[];
+}
+
+interface RouterTrafficSnapshotDTO {
+  intervalSeconds: number; // 2 — how often a router's frame arrives
+  routers: RouterTrafficDTO[]; // every main router, readable or not
+}
+```
+
+```js
+const es = new EventSource(`/api/routers/traffic/stream?token=${jwt}`);
+const routers = new Map();
+
+es.addEventListener('router-traffic-snapshot', (e) => {
+  for (const r of JSON.parse(e.data).routers) routers.set(r.deviceId, r);
+});
+es.addEventListener('router-traffic', (e) => {
+  const r = JSON.parse(e.data);
+  routers.set(r.deviceId, r); // replace the router's card; append rates to its chart
+});
+```
+
+> The opening frame of the **first** viewer has `at: null` and empty
+> `interfaces` for every router — the routers are only asked once someone
+> opens the page; their first `router-traffic` frame follows within a couple
+> of seconds. A viewer who joins later opens with the newest reading.
+
+`error` values the page should expect:
+
+| `error`                                              | Meaning                                                             |
+| ---------------------------------------------------- | ------------------------------------------------------------------- |
+| `Live traffic is read from MikroTik routers only`    | The GATEWAY is another vendor's                                     |
+| `The router has no IP address`                       | Set the device's IP                                                 |
+| `The router has no username and password saved`      | Save an HTTP login in the device's credentials                      |
+| `The router is not behind an agent`                  | Off site only: assign the router to the site's agent                |
+| `The agent must be updated to read router traffic`   | Off site only: the agent is older than `0.6.0`                      |
+| `The agent is not connected` / `The agent disconnected` | Off site only: the agent is offline                              |
+| `The agent did not answer in time`                   | Off site only: no answer within 8 s                                 |
+| `RouterOS API error: …`                              | The router refused the login, the API service is off, or it timed out |
+
+No frame for a router means its read is still out; a slow router is skipped,
+not queued. Nothing is stored — closing every viewer stops the reads. An empty
+list is `{ "intervalSeconds": 2, "routers": [] }`, not a 404. `500` with
+`{ "error": "Database error listing main routers: …" }` when the list cannot be
+read; `429` as for the other streams (the 5-per-user cap counts every stream a
+user holds).
 
 ---
 
@@ -3856,7 +3956,7 @@ interface AgentOutageDTO {
 
 ### `GET /agent/v1/ws` — Agent WebSocket (agents only)
 
-The agents' live connection, authenticated with the agent token from enrollment (`Authorization: Bearer <token>`); never called by the dashboard. Protocol and close codes: `src/agent/protocol/` and `docs/business-rules/probe-agents.md` (`AGT-040` … `AGT-045`, updates `AGT-082`, `AGT-084`, requests from the backend `AGT-100` … `AGT-115`). An agent names what it answers in its hello: `probe` from `0.3.0`, `enforce` from `0.4.0`, `backup` from `0.5.0`.
+The agents' live connection, authenticated with the agent token from enrollment (`Authorization: Bearer <token>`); never called by the dashboard. Protocol and close codes: `src/agent/protocol/` and `docs/business-rules/probe-agents.md` (`AGT-040` … `AGT-045`, updates `AGT-082`, `AGT-084`, requests from the backend `AGT-100` … `AGT-118`). An agent names what it answers in its hello: `probe` from `0.3.0`, `enforce` from `0.4.0`, `backup` from `0.5.0`, `traffic` from `0.6.0`.
 
 ---
 

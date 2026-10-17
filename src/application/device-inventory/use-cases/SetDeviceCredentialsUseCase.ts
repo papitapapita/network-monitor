@@ -123,6 +123,15 @@ export class SetDeviceCredentialsUseCase extends UseCase<
       return Result.fail('sshPort must be between 1 and 65535');
     }
 
+    if (
+      request.apiPort !== undefined &&
+      (!Number.isInteger(request.apiPort) ||
+        request.apiPort < 1 ||
+        request.apiPort > 65535)
+    ) {
+      return Result.fail('apiPort must be between 1 and 65535');
+    }
+
     return null;
   }
 

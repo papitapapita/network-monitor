@@ -7,6 +7,7 @@
 // suite starts.
 
 import { Server } from 'http';
+import { FakeRouterTrafficReader } from './helpers/FakeRouterTrafficReader';
 import { AddressInfo } from 'net';
 import { mkdtempSync, rmSync } from 'fs';
 import os from 'os';
@@ -155,6 +156,7 @@ describe('Agent backups — end to end, server hosted off site', () => {
             }
           }
         ]),
+        new FakeRouterTrafficReader(),
         logger
       ),
       enforcer: new EnforceRunner(

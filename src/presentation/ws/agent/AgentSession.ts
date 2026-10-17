@@ -178,6 +178,26 @@ export class AgentSession {
     );
   }
 
+  // AGT-116: only an agent that said it reads router traffic is ever asked to.
+  get canReadTraffic(): boolean {
+    return (
+      this.greeted &&
+      !this.closed &&
+      this.capabilities.includes('traffic')
+    );
+  }
+
+  canAnswer(kind: ProbeRequest['kind']): boolean {
+    switch (kind) {
+      case 'backup':
+        return this.canBackUp;
+      case 'traffic':
+        return this.canReadTraffic;
+      default:
+        return this.canProbe;
+    }
+  }
+
   // AGT-103: sent at once, outside the message queue, and answered by
   // request id; an answer that never comes ends as a timeout, and closing
   // the session ends every request still waiting.
@@ -185,9 +205,9 @@ export class AgentSession {
     request: ProbeRequest,
     timeoutMs: number
   ): Promise<ProbeAnswer> {
-    const supported =
-      request.kind === 'backup' ? this.canBackUp : this.canProbe;
-    if (!supported) return Promise.resolve({ kind: 'closed' });
+    if (!this.canAnswer(request.kind)) {
+      return Promise.resolve({ kind: 'closed' });
+    }
     return this.request<ProbeResultMessage>(
       (requestId) =>
         ({ ...request, requestId }) as ProbeRequestMessage,
