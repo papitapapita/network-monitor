@@ -52,12 +52,18 @@ if [ -n "$REMOTE" ]; then
   HOST="${REMOTE%%:*}"
   DIR=""
   [[ "$REMOTE" == *:* ]] && DIR="${REMOTE#*:}"
+  # One connection, opened here and reused by every ssh and scp below, so a
+  # password is asked once per run rather than once per command.
+  SSH_SOCKETS="$(mktemp -d)"
+  SSH_OPTS=(-o ControlMaster=auto -o "ControlPath=$SSH_SOCKETS/%C" -o ControlPersist=300)
+  trap 'ssh "${SSH_OPTS[@]}" -O exit "$HOST" 2>/dev/null; rm -rf "$SSH_SOCKETS"' EXIT
+  ssh "${SSH_OPTS[@]}" -fN "$HOST" || fail "could not connect to $HOST"
   if [ -z "$DIR" ]; then
-    DIR="$(ssh "$HOST" "sed -n 's/^INSTALLERS_DIR=//p' \"$vendor_env\"" | tr -d "\"'\r")" ||
+    DIR="$(ssh "${SSH_OPTS[@]}" "$HOST" "sed -n 's/^INSTALLERS_DIR=//p' \"$vendor_env\"" | tr -d "\"'\r")" ||
       fail "could not read INSTALLERS_DIR from vendor.env on $HOST"
   fi
   [ -n "$DIR" ] || fail "INSTALLERS_DIR is empty in vendor.env on $HOST; pass --remote $HOST:/dir"
-  run() { ssh "$HOST" "$(printf '%q ' "$@")"; }
+  run() { ssh "${SSH_OPTS[@]}" "$HOST" "$(printf '%q ' "$@")"; }
   WHERE="$HOST:$DIR"
 else
   DIR="${INSTALLERS_DIR:-}"
@@ -106,7 +112,7 @@ FILES+=("$MANIFEST")
 for f in "${FILES[@]}"; do
   echo "  $f"
   if [ -n "$REMOTE" ]; then
-    scp -q "$OUT/$f" "$HOST:$DIR/.$f.part"
+    scp -q "${SSH_OPTS[@]}" "$OUT/$f" "$HOST:$DIR/.$f.part"
   else
     cp "$OUT/$f" "$DIR/.$f.part"
   fi
