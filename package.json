@@ -11,6 +11,7 @@
     "dev:agent": "tsx src/agent/main.ts",
     "package:agent": "node scripts/agent/package.mjs",
     "agent:release-key": "node scripts/agent/release-key.mjs",
+    "release:agent": "deploy/agent/release-agent.sh",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write src tests docs",
     "format:check": "prettier --check src tests docs",

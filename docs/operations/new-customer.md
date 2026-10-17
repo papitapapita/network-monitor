@@ -94,8 +94,31 @@ already there are never replaced: changing them would silently stop
 notifications on every phone already subscribed, so don't edit them by hand
 either.
 
-Agents are separate: copy a new signed release into the installers folder and
-they update themselves (AGT-080 … AGT-085).
+Agents are separate: a new signed release in the installers folder reaches
+them by itself (AGT-080 … AGT-085). See "Releasing a new agent version".
+
+## Releasing a new agent version
+
+Bump `AGENT_VERSION` in `src/agent/version.ts`, commit, then from the backend
+repo:
+
+```
+deploy/agent/release-agent.sh                        # on the machine with the installs
+deploy/agent/release-agent.sh --remote user@laptop   # from another machine, over SSH
+```
+
+It packages the agent at the current commit, checks every binary's checksum
+and signature against the key the agents carry, and copies the installers and
+the update into `INSTALLERS_DIR`, the manifest last. With `--remote`, that is
+`INSTALLERS_DIR` from the other machine's `vendor.env`, or a folder you give
+(`--remote user@laptop:/srv/nms-installers`). It refuses to run with
+uncommitted changes, without the release key, or when the folder already has
+this version or a newer one. `--no-package` publishes what `dist/agent`
+already holds.
+
+Connected agents are offered the update within a minute, and the version in
+_Agentes_ changes once each one restarts on it. One whose new version can't
+reach the backend puts the previous one back by itself (AGT-085).
 
 ## Backups and restore
 
