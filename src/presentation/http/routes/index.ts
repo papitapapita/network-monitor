@@ -22,6 +22,7 @@ import { createWirelessDiagnosisRoutes } from './wireless-diagnosis.routes';
 import { createNetworkSweepRoutes } from './network-sweep.routes';
 import { createCredentialsRoutes } from './credentials.routes';
 import { createDeviceBackupRoutes } from './device-backup.routes';
+import { createPowerControlRoutes } from './power-control.routes';
 import { createAuthRoutes } from './auth.routes';
 import { createAdminRoutes } from './admin.routes';
 import { createUserRoutes } from './user.routes';
@@ -167,6 +168,16 @@ export function setupRoutes(
   apiRouter.use(
     '/devices',
     createDeviceBackupRoutes(container.deviceBackupController)
+  );
+
+  // =====================================
+  // POWER-CONTROL BOUNDED CONTEXT
+  // =====================================
+
+  // PoE ports: /api/locations/:id/poe-ports, /api/devices/:id/power-source
+  apiRouter.use(
+    '/',
+    createPowerControlRoutes(container.powerControlController)
   );
 
   // Device Models: /api/device-models

@@ -31,3 +31,4 @@ export * from './device-backup.schemas';
 export * from './alert-threshold.schemas';
 export * from './push.schemas';
 export * from './network-sweep.schemas';
+export * from './power-control.schemas';

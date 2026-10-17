@@ -93,16 +93,26 @@ enum DeviceType {
   @@map("device_type")
 }
 
+// The firmware a PoE-out switch model runs, so the app knows how to read its
+// ports (PWR-001). Null: the model is not a PoE switch.
+enum PoeSwitchOs {
+  ROUTEROS
+  SWOS
+
+  @@map("poe_switch_os")
+}
+
 model DeviceModel {
-  id         String     @id @default(uuid()) @db.Uuid
-  vendorId   String     @map("vendor_id") @db.Uuid
-  vendor     Vendor     @relation(fields: [vendorId], references: [id], onDelete: Restrict)
-  model      String     @db.VarChar(150)
-  deviceType DeviceType @map("device_type")
-  isWireless Boolean    @default(false) @map("is_wireless")
-  imageUrl   String?    @map("image_url") @db.VarChar(500)
-  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+  id          String       @id @default(uuid()) @db.Uuid
+  vendorId    String       @map("vendor_id") @db.Uuid
+  vendor      Vendor       @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  model       String       @db.VarChar(150)
+  deviceType  DeviceType   @map("device_type")
+  isWireless  Boolean      @default(false) @map("is_wireless")
+  imageUrl    String?      @map("image_url") @db.VarChar(500)
+  poeSwitchOs PoeSwitchOs? @map("poe_switch_os")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz
 
   devices        Device[]
   quotationItems QuotationLineItem[]

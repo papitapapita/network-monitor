@@ -24,6 +24,7 @@ type PrismaDeviceModelRecord = {
   deviceType: string;
   isWireless: boolean;
   imageUrl: string | null;
+  poeSwitchOs: string | null;
   createdAt: Date;
   updatedAt: Date;
   vendor: { name: string; slug: string };
@@ -39,6 +40,7 @@ function makeRaw(
     deviceType: 'ROUTER',
     isWireless: false,
     imageUrl: null,
+    poeSwitchOs: null,
     createdAt: NOW,
     updatedAt: NOW,
     vendor: { name: 'Mikrotik', slug: 'mikrotik' },
@@ -68,6 +70,7 @@ function makeDeviceModel(
     ),
     isWireless: overrides.isWireless ?? false,
     imageUrl: overrides.imageUrl ?? null,
+    poeSwitchOs: null,
     createdAt: NOW,
     updatedAt: NOW
   });
@@ -298,7 +301,7 @@ describe('DeviceModelMapper', () => {
         expect(Object.keys(data)).not.toContain('vendorSlug');
       });
 
-      it('should include exactly the eight base fields in the persistence shape', () => {
+      it('should include exactly the nine base fields in the persistence shape', () => {
         const dm = makeDeviceModel();
 
         const data = DeviceModelMapper.toPersistence(dm);
@@ -311,6 +314,7 @@ describe('DeviceModelMapper', () => {
             'imageUrl',
             'isWireless',
             'model',
+            'poeSwitchOs',
             'updatedAt',
             'vendorId'
           ].sort()

@@ -1,5 +1,6 @@
 import { VendorId } from 'domain/shared/ids';
 import { DeviceType } from '../value-objects/DeviceType';
+import { PoeSwitchOs } from '../enums/PoeSwitchOs';
 
 export interface DeviceModelProps {
   vendorId: VendorId;
@@ -11,6 +12,8 @@ export interface DeviceModelProps {
   deviceType: DeviceType;
   isWireless: boolean;
   imageUrl: string | null;
+  // null: the model is not a PoE-out switch (PWR-001)
+  poeSwitchOs: PoeSwitchOs | null;
   createdAt: Date;
   updatedAt: Date;
 }

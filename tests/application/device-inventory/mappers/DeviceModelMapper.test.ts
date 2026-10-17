@@ -43,6 +43,7 @@ function makeDeviceModel(
     ),
     isWireless: overrides.isWireless ?? false,
     imageUrl: null,
+    poeSwitchOs: null,
     createdAt: overrides.createdAt ?? BASE_DATE,
     updatedAt: overrides.updatedAt ?? UPDATED_DATE
   });
@@ -123,6 +124,7 @@ describe('DeviceModelMapper', () => {
             'model',
             'deviceType',
             'isWireless',
+            'poeSwitchOs',
             'createdAt',
             'updatedAt'
           ].sort()

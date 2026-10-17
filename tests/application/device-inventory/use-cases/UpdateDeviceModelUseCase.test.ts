@@ -73,6 +73,7 @@ function makeDeviceModel(): DeviceModel {
       deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
       isWireless: false,
       imageUrl: null,
+      poeSwitchOs: null,
       createdAt: NOW,
       updatedAt: NOW
     }
@@ -380,6 +381,7 @@ describe('UpdateDeviceModelUseCase', () => {
           deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
           isWireless: false,
           imageUrl: null,
+          poeSwitchOs: null,
           createdAt: NOW,
           updatedAt: NOW
         }
@@ -575,6 +577,37 @@ describe('UpdateDeviceModelUseCase', () => {
   });
 
   // =========================================================================
+  describe('[DEV-031] executeImpl — poeSwitchOs', () => {
+    beforeEach(() => {
+      (deviceModelRepo.findById as any).mockResolvedValue(
+        Result.ok(makeDeviceModel())
+      );
+      (deviceModelRepo.save as any).mockImplementation(
+        async (m: DeviceModel) => Result.ok(m)
+      );
+    });
+
+    it('should mark the model as a PoE switch', async () => {
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        poeSwitchOs: 'SWOS'
+      });
+
+      expect(result.value.poeSwitchOs).toBe('SWOS');
+    });
+
+    it('should refuse a value that is not a known firmware', async () => {
+      const result = await useCase.execute({
+        id: VALID_UUID,
+        poeSwitchOs: 'SWOS_LITE'
+      });
+
+      expect(result.error).toBe('Invalid poeSwitchOs: SWOS_LITE');
+      expect(deviceModelRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
   describe('[DEV-027] executeImpl — isWireless refusal while configs exist', () => {
     const DEVICE_UUID_1 = '550e8400-e29b-41d4-a716-446655440010';
     const DEVICE_UUID_2 = '550e8400-e29b-41d4-a716-446655440011';
@@ -590,6 +623,7 @@ describe('UpdateDeviceModelUseCase', () => {
           deviceType: DeviceType.reconstitute(DeviceType.ANTENNA),
           isWireless: true,
           imageUrl: null,
+          poeSwitchOs: null,
           createdAt: NOW,
           updatedAt: NOW
         }

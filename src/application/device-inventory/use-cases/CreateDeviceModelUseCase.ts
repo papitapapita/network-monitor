@@ -1,5 +1,6 @@
 import { DeviceModel } from 'domain/device-inventory/aggregates';
 import { DeviceType } from 'domain/device-inventory/value-objects';
+import { isPoeSwitchOs } from 'domain/device-inventory/enums';
 import {
   IDeviceModelRepository,
   IVendorRepository
@@ -54,6 +55,11 @@ export class CreateDeviceModelUseCase extends UseCase<
       return this.fail(deviceTypeResult.error!);
     }
 
+    const poeSwitchOs = data.poeSwitchOs ?? null;
+    if (poeSwitchOs !== null && !isPoeSwitchOs(poeSwitchOs)) {
+      return this.fail(`Invalid poeSwitchOs: ${poeSwitchOs}`);
+    }
+
     const vendorIdResult = VendorId.parse(data.vendorId.trim());
     if (vendorIdResult.isFailure) {
       return this.fail(`Invalid vendor ID: ${vendorIdResult.error}`);
@@ -92,7 +98,8 @@ export class CreateDeviceModelUseCase extends UseCase<
       vendorSlug: vendor.slug,
       model: modelTrimmed,
       deviceType: deviceTypeResult.value,
-      isWireless: data.isWireless
+      isWireless: data.isWireless,
+      poeSwitchOs
     });
 
     if (deviceModelResult.isFailure) {

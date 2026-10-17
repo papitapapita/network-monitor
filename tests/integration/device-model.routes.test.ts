@@ -147,6 +147,31 @@ describe('Device Model Routes — /api/device-models', () => {
       expect(res.body.data.isWireless).toBe(true);
     });
 
+    it('[DEV-031] 201 — a model is not a PoE switch unless stated', async () => {
+      const res = await request(app)
+        .post('/api/device-models')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ vendorId, model: 'CRS326', deviceType: 'SWITCH' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.poeSwitchOs).toBeNull();
+    });
+
+    it('[DEV-031] 201 — records the firmware of a PoE switch model', async () => {
+      const res = await request(app)
+        .post('/api/device-models')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          vendorId,
+          model: 'CSS106-1G-4P-1S',
+          deviceType: 'SWITCH',
+          poeSwitchOs: 'SWOS'
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.poeSwitchOs).toBe('SWOS');
+    });
+
     it('[DEV-020] 400 — rejects missing vendorId', async () => {
       const res = await request(app)
         .post('/api/device-models')
@@ -497,6 +522,37 @@ describe('Device Model Routes — /api/device-models', () => {
       await expect(
         prisma.wirelessPollingConfiguration.count()
       ).resolves.toBe(1);
+    });
+
+    it('[DEV-031] 200 — marks a model as a PoE switch and back', async () => {
+      const marked = await request(app)
+        .put(`/api/device-models/${modelId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ poeSwitchOs: 'ROUTEROS' });
+
+      expect(marked.status).toBe(200);
+      expect(marked.body.data.poeSwitchOs).toBe('ROUTEROS');
+
+      const cleared = await request(app)
+        .put(`/api/device-models/${modelId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ poeSwitchOs: null });
+
+      expect(cleared.status).toBe(200);
+      expect(cleared.body.data.poeSwitchOs).toBeNull();
+      const row = await prisma.deviceModel.findUnique({
+        where: { id: modelId }
+      });
+      expect(row!.poeSwitchOs).toBeNull();
+    });
+
+    it('[DEV-031] 400 — rejects a poeSwitchOs other than ROUTEROS or SWOS', async () => {
+      const res = await request(app)
+        .put(`/api/device-models/${modelId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ poeSwitchOs: 'SWOS_LITE' });
+
+      expect(res.status).toBe(400);
     });
 
     it('[DEV-024] 400 — rejects a deviceType outside the seven allowed values', async () => {

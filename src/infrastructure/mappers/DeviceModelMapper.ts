@@ -2,7 +2,14 @@ import { DeviceModel } from 'domain/device-inventory/aggregates';
 import { DeviceType } from 'domain/device-inventory/value-objects';
 import { DeviceModelId, VendorId } from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
-import { DeviceType as PrismaDeviceType } from 'generated/prisma/client';
+import {
+  isPoeSwitchOs,
+  PoeSwitchOs
+} from 'domain/device-inventory/enums';
+import {
+  DeviceType as PrismaDeviceType,
+  PoeSwitchOs as PrismaPoeSwitchOs
+} from 'generated/prisma/client';
 
 type PrismaDeviceModelRecord = {
   id: string;
@@ -11,6 +18,7 @@ type PrismaDeviceModelRecord = {
   deviceType: string;
   isWireless: boolean;
   imageUrl: string | null;
+  poeSwitchOs: string | null;
   createdAt: Date;
   updatedAt: Date;
   vendor: {
@@ -26,6 +34,7 @@ type DeviceModelPersistenceData = {
   deviceType: PrismaDeviceType;
   isWireless: boolean;
   imageUrl: string | null;
+  poeSwitchOs: PrismaPoeSwitchOs | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -54,6 +63,12 @@ export class DeviceModelMapper {
       );
     }
 
+    if (raw.poeSwitchOs !== null && !isPoeSwitchOs(raw.poeSwitchOs)) {
+      return Result.fail<DeviceModel>(
+        `Data integrity violation: unrecognised PoeSwitchOs "${raw.poeSwitchOs}" in persistence store`
+      );
+    }
+
     const deviceModel = DeviceModel.reconstitute(idResult.value, {
       vendorId: vendorIdResult.value,
       vendorName: raw.vendor.name,
@@ -62,6 +77,7 @@ export class DeviceModelMapper {
       deviceType: DeviceType.reconstitute(raw.deviceType),
       isWireless: raw.isWireless,
       imageUrl: raw.imageUrl,
+      poeSwitchOs: raw.poeSwitchOs as PoeSwitchOs | null,
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt
     });
@@ -79,6 +95,8 @@ export class DeviceModelMapper {
       deviceType: deviceModel.deviceType.value as PrismaDeviceType,
       isWireless: deviceModel.isWireless,
       imageUrl: deviceModel.imageUrl,
+      poeSwitchOs:
+        deviceModel.poeSwitchOs as PrismaPoeSwitchOs | null,
       createdAt: deviceModel.createdAt,
       updatedAt: deviceModel.updatedAt
     };

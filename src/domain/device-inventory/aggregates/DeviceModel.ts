@@ -2,6 +2,7 @@ import { AggregateRoot, Result, Guard } from 'domain/shared/core';
 import { DeviceModelId, VendorId } from 'domain/shared/ids';
 import { DeviceModelProps } from '../props';
 import { DeviceType } from '../value-objects';
+import { PoeSwitchOs } from '../enums';
 export class DeviceModel extends AggregateRoot<
   DeviceModelProps,
   DeviceModelId
@@ -38,6 +39,10 @@ export class DeviceModel extends AggregateRoot<
     return this.props.imageUrl;
   }
 
+  get poeSwitchOs(): PoeSwitchOs | null {
+    return this.props.poeSwitchOs;
+  }
+
   get createdAt(): Date {
     return this.props.createdAt;
   }
@@ -49,8 +54,16 @@ export class DeviceModel extends AggregateRoot<
   public static create(
     props: Omit<
       DeviceModelProps,
-      'createdAt' | 'updatedAt' | 'isWireless' | 'imageUrl'
-    > & { isWireless?: boolean; imageUrl?: string | null }
+      | 'createdAt'
+      | 'updatedAt'
+      | 'isWireless'
+      | 'imageUrl'
+      | 'poeSwitchOs'
+    > & {
+      isWireless?: boolean;
+      imageUrl?: string | null;
+      poeSwitchOs?: PoeSwitchOs | null;
+    }
   ): Result<DeviceModel> {
     const validationResult = DeviceModel.validate(props);
     if (validationResult.isFailure) {
@@ -65,6 +78,7 @@ export class DeviceModel extends AggregateRoot<
         ...props,
         isWireless: props.isWireless ?? false,
         imageUrl: props.imageUrl ?? null,
+        poeSwitchOs: props.poeSwitchOs ?? null,
         createdAt: now,
         updatedAt: now
       },
@@ -149,6 +163,13 @@ export class DeviceModel extends AggregateRoot<
     return Result.ok<void>();
   }
 
+  public updatePoeSwitchOs(value: PoeSwitchOs | null): Result<void> {
+    if (this.props.poeSwitchOs === value) return Result.ok<void>();
+    this.props.poeSwitchOs = value;
+    this.props.updatedAt = new Date();
+    return Result.ok<void>();
+  }
+
   public updateVendor(
     vendorId: VendorId,
     vendorName: string,
@@ -174,7 +195,11 @@ export class DeviceModel extends AggregateRoot<
   private static validate(
     props: Omit<
       DeviceModelProps,
-      'createdAt' | 'updatedAt' | 'isWireless' | 'imageUrl'
+      | 'createdAt'
+      | 'updatedAt'
+      | 'isWireless'
+      | 'imageUrl'
+      | 'poeSwitchOs'
     >
   ): Result<void> {
     const guardResult = Guard.combine([

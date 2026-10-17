@@ -5,6 +5,7 @@ import {
 } from 'domain/device-inventory/repository';
 import { IWirelessDeviceConfigRepository } from 'domain/wireless-monitoring/repository';
 import { DeviceType } from 'domain/device-inventory/value-objects';
+import { isPoeSwitchOs } from 'domain/device-inventory/enums';
 import { DeviceModelId, VendorId } from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
@@ -161,6 +162,21 @@ export class UpdateDeviceModelUseCase extends UseCase<
       );
       if (wirelessResult.isFailure) {
         return this.fail(wirelessResult.error!);
+      }
+    }
+
+    if (data.poeSwitchOs !== undefined) {
+      if (
+        data.poeSwitchOs !== null &&
+        !isPoeSwitchOs(data.poeSwitchOs)
+      ) {
+        return this.fail(`Invalid poeSwitchOs: ${data.poeSwitchOs}`);
+      }
+      const poeResult = deviceModel.updatePoeSwitchOs(
+        data.poeSwitchOs
+      );
+      if (poeResult.isFailure) {
+        return this.fail(poeResult.error!);
       }
     }
 

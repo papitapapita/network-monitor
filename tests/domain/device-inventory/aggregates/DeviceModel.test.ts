@@ -3,7 +3,8 @@
 import {
   DeviceModel,
   DeviceModelProps,
-  DeviceType
+  DeviceType,
+  PoeSwitchOs
 } from '../../../../src/domain/device-inventory';
 import {
   DeviceModelId,
@@ -30,6 +31,7 @@ function makeProps(
     deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
     isWireless: false,
     imageUrl: null,
+    poeSwitchOs: null,
     ...overrides
   };
 }
@@ -291,6 +293,7 @@ describe('DeviceModel', () => {
         deviceType: DeviceType.reconstitute(DeviceType.SWITCH),
         isWireless: false,
         imageUrl: null,
+        poeSwitchOs: null,
         createdAt,
         updatedAt
       });
@@ -606,6 +609,55 @@ describe('DeviceModel', () => {
         expect(result.isFailure).toBe(true);
         expect(result.error).toContain('imageUrl');
       });
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-031] updatePoeSwitchOs()', () => {
+    it('should default to not being a PoE switch', () => {
+      expect(makeDeviceModel().poeSwitchOs).toBeNull();
+    });
+
+    it('should record the firmware given at creation', () => {
+      expect(
+        makeDeviceModel({ poeSwitchOs: PoeSwitchOs.SWOS }).poeSwitchOs
+      ).toBe(PoeSwitchOs.SWOS);
+    });
+
+    it('should mark the model as a PoE switch and bump updatedAt', () => {
+      const deviceModel = makeDeviceModel();
+      const before = deviceModel.updatedAt;
+
+      const result = deviceModel.updatePoeSwitchOs(
+        PoeSwitchOs.ROUTEROS
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(deviceModel.poeSwitchOs).toBe(PoeSwitchOs.ROUTEROS);
+      expect(deviceModel.updatedAt.getTime()).toBeGreaterThanOrEqual(
+        before.getTime()
+      );
+    });
+
+    it('should clear it back to null', () => {
+      const deviceModel = makeDeviceModel({
+        poeSwitchOs: PoeSwitchOs.ROUTEROS
+      });
+
+      deviceModel.updatePoeSwitchOs(null);
+
+      expect(deviceModel.poeSwitchOs).toBeNull();
+    });
+
+    it('should leave updatedAt alone when nothing changes', () => {
+      const deviceModel = makeDeviceModel({
+        poeSwitchOs: PoeSwitchOs.SWOS
+      });
+      const before = deviceModel.updatedAt;
+
+      deviceModel.updatePoeSwitchOs(PoeSwitchOs.SWOS);
+
+      expect(deviceModel.updatedAt).toBe(before);
     });
   });
 

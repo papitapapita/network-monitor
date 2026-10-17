@@ -38,6 +38,7 @@ function makeDeviceModel(): DeviceModel {
       deviceType: DeviceType.reconstitute(DeviceType.ROUTER),
       isWireless: false,
       imageUrl: null,
+      poeSwitchOs: null,
       createdAt: NOW,
       updatedAt: NOW
     }

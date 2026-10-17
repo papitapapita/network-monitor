@@ -36,3 +36,4 @@ export * from './DeviceBackupController';
 export * from './AlertThresholdsController';
 export * from './PushController';
 export * from './NetworkSweepController';
+export * from './PowerControlController';

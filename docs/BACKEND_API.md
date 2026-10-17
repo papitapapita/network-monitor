@@ -523,6 +523,7 @@ interface DeviceModelDTO {
   model: string;
   deviceType: DeviceType;
   isWireless: boolean; // hardware has a radio — gates wireless configs
+  poeSwitchOs: 'ROUTEROS' | 'SWOS' | null; // PoE-out switch firmware; null = not one
   createdAt: string; // ISO 8601
   updatedAt: string;
 }
@@ -1610,6 +1611,125 @@ The file holds the device's passwords and wireless keys. Returns 404
 
 ---
 
+## Power Control `/api/locations/:id/poe-ports`, `/api/devices/:id/power-source`
+
+> **Response envelope:** raw data directly — **no `{ success, data }` wrapper**.
+> Error: `{ error: string }`. Both responses carry `Cache-Control: no-store`.
+
+Phase 1 of storm power control: **read only**. Nothing is stored, and nothing
+on a switch is changed. Each request reads the switches live (10 s timeout per
+switch, all at once). Off/on, timers and "turn off all at a site" come later.
+
+A **PoE switch** is a device whose model has `poeSwitchOs` set, `ACTIVE` or
+`COMMISSIONING`, at the location (PWR-001, PWR-010). It is read with its saved
+device credentials' HTTP username and password: RouterOS on `apiPort`, SwOS
+over plain HTTP on `httpPort`, where the 443 default means port 80 (PWR-012).
+On site this server reads every switch. Off site none is read yet; a switch
+behind an agent is listed with the reason (PWR-013).
+
+Each port's **label** names the antenna it powers by that antenna's IP: the
+first valid IPv4 in it (PWR-030). On RouterOS the label is the interface
+comment, or the name when only the name holds an IP; on SwOS the port name.
+
+```ts
+type PoeMode = 'OFF' | 'AUTO' | 'FORCED_ON' | 'UNKNOWN';
+type PoeStatus = 'POWERED' | 'NO_LOAD' | 'OFF' | 'FAULT' | 'UNKNOWN';
+
+// MATCHED: a device holds the IP and is at this site
+// MATCHED_OTHER_LOCATION: it is recorded at another site (or none) — fix one
+// UNMATCHED: no IP in the label, or no device holds it
+// DUPLICATE: the same IP is on more than one port at the site — fix the labels
+type PoePortMatchKind =
+  | 'MATCHED'
+  | 'MATCHED_OTHER_LOCATION'
+  | 'UNMATCHED'
+  | 'DUPLICATE';
+
+interface PoePortDTO {
+  port: string; // "ether2" (RouterOS), "Port2" (SwOS)
+  label: string; // as read from the switch
+  mode: PoeMode; // what the port is set to
+  status: PoeStatus; // what it is doing now
+  powerWatts: number | null;
+  voltage: number | null;
+  match: {
+    kind: PoePortMatchKind;
+    ip: string | null; // the IP read from the label
+    deviceId: string | null; // set for MATCHED and MATCHED_OTHER_LOCATION
+    deviceName: string | null;
+    deviceLocationName: string | null;
+  };
+}
+
+interface PoeSwitchDTO {
+  deviceId: string;
+  name: string;
+  ipAddress: string | null;
+  firmware: 'ROUTEROS' | 'SWOS';
+  firmwareVersion: string | null; // "6.49.10 (long-term)", "2.13"
+  readable: boolean; // false: not tried, see reason
+  reason: string | null; // why it was not tried (no IP, no login, off site)
+  error: string | null; // tried and failed; ports is then empty
+  ports: PoePortDTO[]; // PoE-out ports only, no PoE-in or SFP
+}
+```
+
+---
+
+### `GET /api/locations/:id/poe-ports` — PoE ports at a site
+
+**Status:** 200 | 400 | 401 | 404
+**Roles:** ADMIN, OPERATOR, VIEWER (`read`)
+
+```ts
+// Response
+{
+  locationId: string
+  locationName: string
+  switches: PoeSwitchDTO[]  // by name; [] when the site has none
+}
+```
+
+One switch failing does not fail the request: it is listed with its `error`
+and the others are shown (PWR-014).
+
+---
+
+### `GET /api/devices/:id/power-source` — Which port powers this device
+
+**Status:** 200 | 400 | 401 | 404
+**Roles:** ADMIN, OPERATOR, VIEWER (`read`)
+
+Looks at the PoE switches at the device's own location only (PWR-041).
+
+```ts
+// Response
+{
+  deviceId: string
+  // FOUND: exactly one port · DUPLICATE: more than one, all in sources
+  // NONE: every switch at the site was read and none names it
+  // UNKNOWN: none found, but a switch in unreadSwitches could not be read
+  kind: 'FOUND' | 'DUPLICATE' | 'NONE' | 'UNKNOWN'
+  reason: string | null  // why NONE / UNKNOWN / DUPLICATE; null when FOUND
+  sources: {
+    switchDeviceId: string
+    switchName: string
+    port: string
+    mode: PoeMode
+    status: PoeStatus
+    powerWatts: number | null
+  }[]
+  unreadSwitches: { deviceId: string; name: string; reason: string }[]
+}
+```
+
+`NONE` reasons: `The device has no IP address`,
+`The device has no location, so no switch is looked at`,
+`There is no PoE switch at the device location`,
+`No PoE port at the device location is labelled with its IP`.
+
+---
+
 ## Vendors `/api/vendors`
 
 ### `POST /api/vendors` — Create
@@ -1719,6 +1839,7 @@ offset?: number  // ≥0, default 0
   model: string       // required, 1–150 chars
   deviceType: DeviceType  // required
   isWireless?: boolean    // default false
+  poeSwitchOs?: 'ROUTEROS' | 'SWOS' | null  // default null (DEV-031)
 }
 
 // Response
@@ -1733,6 +1854,9 @@ offset?: number  // ≥0, default 0
 > with `isWireless: false` are refused a wireless config. Getting it wrong here
 > is cheap to fix later — but only until a device on the model is configured,
 > see `PUT /api/device-models/:id`.
+> `poeSwitchOs` marks a PoE-out switch model and the firmware it runs (hEX PoE
+> → `ROUTEROS`, CSS106 → `SWOS`). Devices on such a model appear under
+> `GET /api/locations/:id/poe-ports`. Any other value answers 400.
 
 ---
 
@@ -1782,6 +1906,7 @@ offset?: number  // ≥0, default 0
   model?: string       // 1–150 chars
   deviceType?: DeviceType
   isWireless?: boolean
+  poeSwitchOs?: 'ROUTEROS' | 'SWOS' | null  // null clears it
 }
 
 // Response

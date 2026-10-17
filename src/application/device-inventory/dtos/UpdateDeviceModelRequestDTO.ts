@@ -4,4 +4,5 @@ export interface UpdateDeviceModelRequestDTO {
   model?: string;
   deviceType?: string;
   isWireless?: boolean;
+  poeSwitchOs?: string | null;
 }

@@ -551,6 +551,18 @@ import {
   PrismaDeviceBackupStateRepository
 } from '../device-backups';
 import { DeviceBackupController } from 'presentation/http/controllers/DeviceBackupController';
+import {
+  GetDevicePowerSourceUseCase,
+  ListSitePoePortsUseCase,
+  SitePoeInspector
+} from 'application/power-control';
+import {
+  PoeSwitchReaderRegistry,
+  PrismaPoeSwitchTargetsQuery,
+  RouterOsPoeReader,
+  SwOsPoeReader
+} from '../power-control';
+import { PowerControlController } from 'presentation/http/controllers/PowerControlController';
 import { loadNotificationSettingsDefaults } from './notificationSettingsDefaults';
 import { loadVendorAccount } from './vendorAccount';
 import { loadInstallersDir } from './installersDir';
@@ -635,6 +647,7 @@ export class DependencyContainer {
   public alertThresholdsController: AlertThresholdsController;
   public credentialsController: CredentialsController;
   public deviceBackupController: DeviceBackupController;
+  public powerControlController: PowerControlController;
   public customerController: CustomerController | null = null;
   public ticketController: TicketController | null = null;
   public technicianController: TechnicianController | null = null;
@@ -2450,6 +2463,35 @@ export class DependencyContainer {
         this.logger
       ),
       {},
+      this.logger
+    );
+
+    // =====================================
+    // POWER CONTROL
+    // =====================================
+
+    const poeSwitchTargets = new PrismaPoeSwitchTargetsQuery(
+      this.prisma,
+      this.serverOnSite
+    );
+    const sitePoeInspector = new SitePoeInspector(
+      poeSwitchTargets,
+      new PoeSwitchReaderRegistry({
+        ROUTEROS: new RouterOsPoeReader(this.logger),
+        SWOS: new SwOsPoeReader(this.logger)
+      })
+    );
+    this.powerControlController = new PowerControlController(
+      new ListSitePoePortsUseCase(
+        poeSwitchTargets,
+        sitePoeInspector,
+        this.logger
+      ),
+      new GetDevicePowerSourceUseCase(
+        poeSwitchTargets,
+        sitePoeInspector,
+        this.logger
+      ),
       this.logger
     );
 

@@ -3,4 +3,5 @@ export interface CreateDeviceModelRequestDTO {
   model: string;
   deviceType: string;
   isWireless?: boolean;
+  poeSwitchOs?: string | null;
 }

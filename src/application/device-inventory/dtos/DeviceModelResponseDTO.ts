@@ -6,6 +6,7 @@ export interface DeviceModelResponseDTO {
   model: string;
   deviceType: string;
   isWireless: boolean;
+  poeSwitchOs: string | null;
   createdAt: string;
   updatedAt: string;
 }

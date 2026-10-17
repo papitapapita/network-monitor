@@ -13,6 +13,16 @@ const DEVICE_TYPES = [
   'SWITCH'
 ] as const;
 
+const POE_SWITCH_OS = ['ROUTEROS', 'SWOS'] as const;
+
+const poeSwitchOsSchema = z
+  .enum(POE_SWITCH_OS, {
+    error: () => ({
+      message: `poeSwitchOs must be one of: ${POE_SWITCH_OS.join(', ')}, or null`
+    })
+  })
+  .nullable();
+
 export const listDeviceModelsSchema = z.object({
   query: z.object({
     limit: z
@@ -64,7 +74,9 @@ export const createDeviceModelSchema = z.object({
       })
     }),
 
-    isWireless: z.boolean().optional()
+    isWireless: z.boolean().optional(),
+
+    poeSwitchOs: poeSwitchOsSchema.optional()
   })
 });
 
@@ -99,14 +111,17 @@ export const updateDeviceModelSchema = z.object({
         })
         .optional(),
 
-      isWireless: z.boolean().optional()
+      isWireless: z.boolean().optional(),
+
+      poeSwitchOs: poeSwitchOsSchema.optional()
     })
     .refine(
       (body) =>
         body.vendorId !== undefined ||
         body.model !== undefined ||
         body.deviceType !== undefined ||
-        body.isWireless !== undefined,
+        body.isWireless !== undefined ||
+        body.poeSwitchOs !== undefined,
       { message: 'At least one field must be provided for update' }
     )
 });

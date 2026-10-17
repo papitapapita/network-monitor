@@ -18,6 +18,7 @@ export class DeviceModelMapper {
       model: deviceModel.model,
       deviceType: deviceModel.deviceType.value,
       isWireless: deviceModel.isWireless,
+      poeSwitchOs: deviceModel.poeSwitchOs,
       createdAt: deviceModel.createdAt.toISOString(),
       updatedAt: deviceModel.updatedAt.toISOString()
     };
@@ -43,7 +44,8 @@ export class DeviceModelMapper {
       vendorId: dto.vendorId,
       model: dto.model,
       deviceType: dto.deviceType,
-      isWireless: dto.isWireless
+      isWireless: dto.isWireless,
+      poeSwitchOs: dto.poeSwitchOs
     };
   }
 
@@ -53,6 +55,7 @@ export class DeviceModelMapper {
       model?: string;
       deviceType?: string;
       isWireless?: boolean;
+      poeSwitchOs?: string | null;
     } = {};
     if (dto.vendorId !== undefined) updates.vendorId = dto.vendorId;
     if (dto.model !== undefined) updates.model = dto.model;
@@ -60,6 +63,8 @@ export class DeviceModelMapper {
       updates.deviceType = dto.deviceType;
     if (dto.isWireless !== undefined)
       updates.isWireless = dto.isWireless;
+    if (dto.poeSwitchOs !== undefined)
+      updates.poeSwitchOs = dto.poeSwitchOs;
     return updates;
   }
 }
