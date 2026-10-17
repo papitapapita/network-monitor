@@ -167,8 +167,7 @@ describe('RunNetworkSweepUseCase — integration', () => {
       expect(results.map((r) => r.deviceId)).toEqual([commissioning]);
     });
 
-    it('skips devices nobody monitors, behind an agent, or with no address', async () => {
-      const agent = await seedAgent(prisma, { status: 'ACTIVE' });
+    it('skips devices nobody monitors or with no address', async () => {
       const off = await seedSweepDevice(prisma, deviceModelId, {
         name: 'Off',
         ip: '10.50.2.1',
@@ -184,15 +183,6 @@ describe('RunNetworkSweepUseCase — integration', () => {
         ip: '10.50.2.3',
         withPollingConfig: false
       });
-      const behindAgent = await seedSweepDevice(
-        prisma,
-        deviceModelId,
-        {
-          name: 'Remote',
-          ip: '10.50.2.4',
-          agentId: agent.id
-        }
-      );
       const noIp = await seedSweepDevice(prisma, deviceModelId, {
         name: 'No IP',
         ip: null
@@ -202,7 +192,7 @@ describe('RunNetworkSweepUseCase — integration', () => {
       const result = await useCase.execute(request);
 
       expect(ping.pinged).toHaveLength(0);
-      expect(result.value).toMatchObject({ total: 5, skipped: 5 });
+      expect(result.value).toMatchObject({ total: 4, skipped: 4 });
       const reasons = Object.fromEntries(
         results.map((r) => [r.deviceId, r.reason])
       );
@@ -210,7 +200,6 @@ describe('RunNetworkSweepUseCase — integration', () => {
         [off]: 'MONITORING_DISABLED',
         [configOff]: 'MONITORING_DISABLED',
         [noConfig]: 'MONITORING_DISABLED',
-        [behindAgent]: 'BEHIND_AGENT',
         [noIp]: 'NO_IP_ADDRESS'
       });
     });
@@ -254,6 +243,83 @@ describe('RunNetworkSweepUseCase — integration', () => {
 
       expect(results.map((r) => r.deviceId)).toEqual([gateway]);
       expect(results[0].category).toBe('GATEWAY');
+    });
+  });
+
+  // MON-084
+  describe('devices behind an agent', () => {
+    it('asks their agent, with its name on each result', async () => {
+      const agent = await seedAgent(prisma, {
+        name: 'Torre Norte',
+        status: 'ACTIVE'
+      });
+      const remote = await seedSweepDevice(prisma, deviceModelId, {
+        name: 'Remote',
+        ip: '10.50.6.1',
+        agentId: agent.id
+      });
+      const local = await seedSweepDevice(prisma, deviceModelId, {
+        name: 'Local',
+        ip: '10.50.6.2'
+      });
+      const asked: [string, string[], number][] = [];
+      const agentSweep = buildNetworkSweep(
+        prisma,
+        ping,
+        new WinstonLogger(),
+        true,
+        {
+          sweep: async (agentId, ips, attempts) => {
+            asked.push([agentId, ips, attempts]);
+            return {
+              kind: 'measured',
+              outcomes: ips.map(() => ({
+                kind: 'measured',
+                isReachable: true,
+                latencyMs: 12,
+                attempts: 1
+              }))
+            };
+          }
+        }
+      );
+      const { request, results } = collect();
+
+      await agentSweep.execute(request);
+
+      expect(asked).toEqual([[agent.id, ['10.50.6.1'], 3]]);
+      expect(ping.pinged.map((p) => p.ipAddress)).toEqual([
+        '10.50.6.2'
+      ]);
+      const byId = new Map(results.map((r) => [r.deviceId, r]));
+      expect(byId.get(remote)).toMatchObject({
+        agentName: 'Torre Norte',
+        outcome: 'UP',
+        latencyMs: 12
+      });
+      expect(byId.get(local)).toMatchObject({ agentName: null });
+    });
+
+    it('reports them as errors when their agent is not connected', async () => {
+      const agent = await seedAgent(prisma, { status: 'ACTIVE' });
+      const remote = await seedSweepDevice(prisma, deviceModelId, {
+        name: 'Remote',
+        ip: '10.50.6.3',
+        agentId: agent.id
+      });
+      const { request, results } = collect();
+
+      const result = await useCase.execute(request);
+
+      expect(ping.pinged).toHaveLength(0);
+      expect(results).toEqual([
+        expect.objectContaining({
+          deviceId: remote,
+          outcome: 'ERROR',
+          detail: 'The agent is not connected'
+        })
+      ]);
+      expect(result.value).toMatchObject({ error: 1, skipped: 0 });
     });
   });
 

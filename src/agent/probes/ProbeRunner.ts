@@ -7,6 +7,7 @@ import type {
 import type { IConfigFetcherResolver } from 'application/device-backups/interfaces';
 import type { IRouterTrafficReader } from 'application/device-monitoring/interfaces';
 import {
+  MAX_SWEEP_TARGETS,
   PingReadingWire,
   ProbeRequestMessage,
   ProbeResultMessage,
@@ -36,10 +37,11 @@ const MAX_PING_ATTEMPTS = 10;
 
 // Answers the backend's probe requests (AGT-101) with the same ping loop,
 // wireless collectors, config fetchers (AGT-114) and router traffic reader
-// (AGT-117) the backend runs in process. The credentials in a request live
-// only as long as the request (AGT-102, AGT-115), except a router login,
-// which the traffic reader holds open between reads (AGT-118): nothing here
-// stores or logs them.
+// (AGT-117) the backend runs in process, and sweeps a batch of addresses
+// with the quick ping the backend's own sweep uses (AGT-119). The
+// credentials in a request live only as long as the request (AGT-102,
+// AGT-115), except a router login, which the traffic reader holds open
+// between reads (AGT-118): nothing here stores or logs them.
 export class ProbeRunner {
   private running = 0;
   private readonly waiting: Array<() => void> = [];
@@ -50,7 +52,9 @@ export class ProbeRunner {
     private readonly fetchers: IConfigFetcherResolver,
     private readonly traffic: IRouterTrafficReader,
     private readonly logger: ILogger,
-    private readonly options: ProbeRunnerOptions = DEFAULT_PROBE_RUNNER_OPTIONS
+    private readonly options: ProbeRunnerOptions = DEFAULT_PROBE_RUNNER_OPTIONS,
+    // MON-082: a short reply wait and no pause between attempts.
+    private readonly sweepPing: PingProbe = ping
   ) {}
 
   async run(
@@ -79,16 +83,38 @@ export class ProbeRunner {
     request: ProbeRequestMessage
   ): Promise<ProbeResultMessage> {
     const at = Date.now();
+
+    if (request.kind === 'sweep') {
+      this.logger.debug('Probe request', {
+        kind: request.kind,
+        targets: request.ips.length
+      });
+      if (request.ips.length > MAX_SWEEP_TARGETS) {
+        return failed(
+          request,
+          `A sweep names at most ${MAX_SWEEP_TARGETS} addresses`
+        );
+      }
+      const attempts = clampAttempts(request.attempts);
+      const readings = await Promise.all(
+        request.ips.map((ip) => this.sweepOne(ip, attempts))
+      );
+      return {
+        type: 'probe.result',
+        requestId: request.requestId,
+        kind: 'sweep',
+        at,
+        readings
+      };
+    }
+
     this.logger.debug('Probe request', {
       kind: request.kind,
       ip: request.ip
     });
 
     if (request.kind === 'ping') {
-      const attempts = Math.min(
-        Math.max(Math.trunc(request.attempts) || 1, 1),
-        MAX_PING_ATTEMPTS
-      );
+      const attempts = clampAttempts(request.attempts);
       const outcome = await this.ping.run(request.ip, attempts);
       return {
         type: 'probe.result',
@@ -164,6 +190,26 @@ export class ProbeRunner {
     };
   }
 
+  // One address that cannot be pinged must not fail the whole batch.
+  private async sweepOne(
+    ip: string,
+    attempts: number
+  ): Promise<PingReadingWire> {
+    try {
+      return toPingReadingWire(
+        await this.sweepPing.run(ip, attempts)
+      );
+    } catch (error) {
+      return {
+        probeError: (error instanceof Error
+          ? error.message
+          : String(error)
+        ).slice(0, 500),
+        attempts: 1
+      };
+    }
+  }
+
   private acquire(): Promise<void> {
     if (this.running < this.options.maxConcurrent) {
       this.running++;
@@ -181,6 +227,13 @@ export class ProbeRunner {
     this.running--;
     this.waiting.shift()?.();
   }
+}
+
+function clampAttempts(attempts: number): number {
+  return Math.min(
+    Math.max(Math.trunc(attempts) || 1, 1),
+    MAX_PING_ATTEMPTS
+  );
 }
 
 function failed(

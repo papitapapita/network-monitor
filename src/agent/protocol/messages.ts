@@ -33,20 +33,23 @@ export const CloseCode = {
 // What an agent can do beyond its scheduled pings (AGT-100). The backend
 // sends a probe request only to an agent that named `probe` in its hello,
 // an enforce request only to one that named `enforce` (AGT-110), a backup
-// request only to one that named `backup` (AGT-113), and a traffic request
-// only to one that named `traffic` (AGT-116), so an older agent never
-// receives a request it does not understand.
+// request only to one that named `backup` (AGT-113), a traffic request only
+// to one that named `traffic` (AGT-116), and a sweep request only to one
+// that named `sweep` (AGT-119), so an older agent never receives a request
+// it does not understand.
 export type AgentCapability =
   | 'probe'
   | 'enforce'
   | 'backup'
-  | 'traffic';
+  | 'traffic'
+  | 'sweep';
 
 export const AGENT_CAPABILITIES: readonly AgentCapability[] = [
   'probe',
   'enforce',
   'backup',
-  'traffic'
+  'traffic',
+  'sweep'
 ];
 
 // ── Agent → backend ───────────────────────────────────────────────────────
@@ -209,6 +212,10 @@ export interface InterfaceTrafficWire {
   txBps: number;
 }
 
+// The most addresses one sweep request names (AGT-119): pinged all at once,
+// so a batch of dead devices still answers in a few seconds.
+export const MAX_SWEEP_TARGETS = 32;
+
 // The answer to one probe request (AGT-101). `at` is the agent-clock time
 // the measurement started; `error` means it could not be made at all.
 export type ProbeResultMessage =
@@ -239,6 +246,14 @@ export type ProbeResultMessage =
       kind: 'traffic';
       at: number;
       interfaces: InterfaceTrafficWire[];
+    }
+  | {
+      type: 'probe.result';
+      requestId: string;
+      kind: 'sweep';
+      at: number;
+      // One per address of the request, in the same order.
+      readings: PingReadingWire[];
     }
   | { type: 'probe.result'; requestId: string; error: string };
 
@@ -347,7 +362,8 @@ export type BackupDeviceKindWire =
 // requestId (AGT-101). `attempts` is the device's failuresBeforeDown;
 // `vendor` picks the collector the backend would have used. A `backup`
 // reads the device's configuration with the backend's own fetchers
-// (AGT-114); a `traffic` reads a router's interface rates (AGT-117).
+// (AGT-114); a `traffic` reads a router's interface rates (AGT-117); a
+// `sweep` pings a batch of addresses at once with a short wait (AGT-119).
 export type ProbeRequestMessage =
   | {
       type: 'probe';
@@ -380,6 +396,13 @@ export type ProbeRequestMessage =
       kind: 'traffic';
       ip: string;
       login: TrafficLoginWire;
+    }
+  | {
+      type: 'probe';
+      requestId: string;
+      kind: 'sweep';
+      ips: string[];
+      attempts: number;
     };
 
 // The enforcement router's address and API login, sent with each enforce

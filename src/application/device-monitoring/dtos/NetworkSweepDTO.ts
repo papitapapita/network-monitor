@@ -2,7 +2,6 @@ export type NetworkSweepOutcome = 'UP' | 'DOWN' | 'ERROR' | 'SKIPPED';
 
 export type NetworkSweepSkipReason =
   | 'MONITORING_DISABLED'
-  | 'BEHIND_AGENT'
   | 'NOT_ON_MONITORED_NETWORK'
   | 'NO_IP_ADDRESS';
 
@@ -26,6 +25,8 @@ export interface NetworkSweepResultDTO {
   category: string | null;
   locationId: string | null;
   locationName: string | null;
+  // the on-site agent that pings it; null when this server does
+  agentName: string | null;
   outcome: NetworkSweepOutcome;
   latencyMs: number | null;
   attempts: number;

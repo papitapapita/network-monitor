@@ -16,6 +16,7 @@ export interface NetworkSweepCandidate {
   locationId: string | null;
   locationName: string | null;
   agentId: string | null;
+  agentName: string | null;
   // the device's flag and its polling configuration's, both on
   monitored: boolean;
 }

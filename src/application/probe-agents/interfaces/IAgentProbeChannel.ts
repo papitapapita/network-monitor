@@ -69,4 +69,12 @@ export interface IAgentProbeChannel {
     agentId: string,
     router: RouterConnectionTarget
   ): Promise<AgentProbeOutcome<InterfaceTrafficReading[]>>;
+
+  // AGT-119: only an agent that names `sweep` is asked. One reading per
+  // address, in the same order.
+  sweep(
+    agentId: string,
+    ipAddresses: string[],
+    attempts: number
+  ): Promise<AgentProbeOutcome<AgentPingOutcome[]>>;
 }

@@ -49,6 +49,9 @@ export interface ProbeTimeouts {
   // live page asks again every couple of seconds, so waiting longer only
   // shows an older number.
   trafficMs?: number;
+  // A batch of addresses pinged at once, each for at most a few seconds
+  // (AGT-119), possibly behind other requests in the agent's queue.
+  sweepMs?: number;
 }
 
 export const DEFAULT_PROBE_TIMEOUTS: ProbeTimeouts = {
@@ -56,12 +59,14 @@ export const DEFAULT_PROBE_TIMEOUTS: ProbeTimeouts = {
   wirelessMs: 25_000,
   enforceMs: 20_000,
   backupMs: 45_000,
-  trafficMs: 8_000
+  trafficMs: 8_000,
+  sweepMs: 20_000
 };
 
 const DEFAULT_ENFORCE_MS = 20_000;
 const DEFAULT_BACKUP_MS = 45_000;
 const DEFAULT_TRAFFIC_MS = 8_000;
+const DEFAULT_SWEEP_MS = 20_000;
 
 // The agents connected right now, one session each (AGT-045), and the way
 // the rest of the backend asks one of them to measure a device (AGT-103).
@@ -207,6 +212,30 @@ export class ConnectedAgents
     };
   }
 
+  async sweep(
+    agentId: string,
+    ipAddresses: string[],
+    attempts: number
+  ): Promise<AgentProbeOutcome<AgentPingOutcome[]>> {
+    const answer = await this.probe(
+      agentId,
+      { type: 'probe', kind: 'sweep', ips: ipAddresses, attempts },
+      this.probeTimeouts.sweepMs ?? DEFAULT_SWEEP_MS
+    );
+    if (!answer.ok) return answer;
+    if (
+      answer.result.kind !== 'sweep' ||
+      answer.result.readings.length !== ipAddresses.length
+    ) {
+      return wrongKind();
+    }
+    return {
+      ok: true,
+      reading: answer.result.readings.map(fromPingReadingWire),
+      measuredAt: answer.measuredAt
+    };
+  }
+
   async enforce(
     agentId: string,
     router: RouterConnection,
@@ -302,7 +331,8 @@ const UNSUPPORTED: Record<ProbeRequest['kind'], string> = {
   ping: 'The agent must be updated to answer this request',
   wireless: 'The agent must be updated to answer this request',
   backup: 'The agent must be updated to take backups',
-  traffic: 'The agent must be updated to read router traffic'
+  traffic: 'The agent must be updated to read router traffic',
+  sweep: 'The agent must be updated to sweep the network'
 };
 
 function fail(

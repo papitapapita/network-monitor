@@ -2012,7 +2012,7 @@ calls on the dashboard. Keep the single-device route for the device page.
 ### `GET /api/network/sweep/stream` — Network Sweep (SSE)
 
 **Status:** 200 (`text/event-stream`) | 400 | 401 | 403 | 409 | 500  
-**Roles:** `VENDOR`, `ADMIN`, `OPERATOR` (`create`, same as a manual poll) · **Since:** 2026-10-17
+**Roles:** `VENDOR`, `ADMIN`, `OPERATOR` (`create`, same as a manual poll) · **Since:** 2026-10-17 · **Updated:** 2026-10-17 (devices behind an agent are swept through it; `BEHIND_AGENT` removed, `agentName` added)
 
 Pings every in-service device **once, now**, and streams what answered, device
 by device. It's the "what is up after the outage?" button (MON-080 … MON-084).
@@ -2029,6 +2029,11 @@ by device. It's the "what is up after the outage?" button (MON-080 … MON-084).
   64 devices at a time. A few seconds for a few hundred mostly-live devices,
   up to about 30 s when most are dead. Results arrive as they come, backbone
   first (gateways, aggregation switches, access points, then the rest).
+- **Devices behind an on-site agent** are pinged by that agent the same way,
+  in batches of 32, so their results arrive in bursts of up to 32 at once. Each
+  result has an `agentName`. If the agent is offline or too old (before
+  `0.7.0`), its devices come back as `ERROR` with the reason in `detail`, never
+  as `DOWN`.
 - **One at a time per install.** A second request while one runs gets `409`.
   Closing the stream (`es.close()`) stops the sweep.
 - `GET` because EventSource can only GET. Same authentication as the other
@@ -2059,9 +2064,8 @@ type NetworkSweepOutcome = 'UP' | 'DOWN' | 'ERROR' | 'SKIPPED';
 
 type NetworkSweepSkipReason =
   | 'MONITORING_DISABLED' // monitoring is off for the device
-  | 'BEHIND_AGENT' // behind an on-site agent: not swept yet (planned with a later agent release)
-  | 'NOT_ON_MONITORED_NETWORK' // server hosted off site, device has no agent
-  | 'NO_IP_ADDRESS'; // no IP in its polling configuration
+  | 'NO_IP_ADDRESS' // no IP in its polling configuration
+  | 'NOT_ON_MONITORED_NETWORK'; // server hosted off site, device has no agent
 
 interface NetworkSweepStartDTO {
   startedAt: string; // ISO 8601
@@ -2077,11 +2081,12 @@ interface NetworkSweepResultDTO {
   category: DeviceCategory | null;
   locationId: string | null;
   locationName: string | null;
+  agentName: string | null; // the on-site agent that pinged it; null when the server did
   outcome: NetworkSweepOutcome;
   latencyMs: number | null; // UP only
   attempts: number; // pings sent: 1–3; 0 when skipped
   reason: NetworkSweepSkipReason | null; // SKIPPED only
-  detail: string | null; // human-readable reason (SKIPPED) or ping error (ERROR)
+  detail: string | null; // human-readable reason (SKIPPED) or why it could not be pinged (ERROR)
   at: string; // ISO 8601, when this device's answer came in
 }
 
@@ -2092,7 +2097,7 @@ interface NetworkSweepSummaryDTO {
   total: number;
   up: number;
   down: number;
-  error: number; // the server's ping program could not run — not a dead device
+  error: number; // could not be pinged (ping program failed, agent offline/outdated/timed out) — not a dead device
   skipped: number;
   cancelled: false; // always false on the wire: a stopped sweep sends no sweep-done
 }
@@ -2129,6 +2134,15 @@ events:
 | `403`  | (VIEWER)                                         | hide the button for viewers                  |
 | `500`  | `Failed to load the devices to sweep: …`         | a retry                                      |
 
+`detail` values on `ERROR` results from devices behind an agent:
+
+| `detail`                                         | Show                                          |
+| ------------------------------------------------ | --------------------------------------------- |
+| `The agent is not connected`                     | "agent {agentName} offline": group them       |
+| `The agent must be updated to sweep the network` | "update agent {agentName}"                    |
+| `The agent did not answer in time`               | "agent {agentName} did not answer"            |
+| anything else                                    | the text as is                                |
+
 EventSource doesn't expose the status code. To show the `409` message, check
 for it with a `fetch` to the same URL (Bearer header) when `onerror` fires
 before `sweep-start`, or just say "the sweep could not start, try again in a
@@ -2136,8 +2150,10 @@ moment".
 
 **Frontend:** a "Barrer red" button for operators and admins, with
 optional location and category filters. While it runs, show progress
-(`results.size` of `total`) and a live list sorted DOWN first. Present
-`BEHIND_AGENT` devices as "not checked (behind agent)", not as down.
+(`results.size` of `total`) and a live list sorted DOWN first. Show `ERROR`
+devices as "unknown", not as down. When many share an `agentName` and
+`detail`, collapse them into one line ("Agent Torre Norte offline — 120
+devices not checked"): after an outage, a dead agent is the news.
 
 ---
 

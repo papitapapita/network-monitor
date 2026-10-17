@@ -51,6 +51,9 @@ describe('parseAgentMessage', () => {
     expect(hello(['backup', 'probe', 'enforce'])).toMatchObject({
       capabilities: ['probe', 'enforce', 'backup']
     });
+    expect(hello(['sweep', 'probe'])).toMatchObject({
+      capabilities: ['probe', 'sweep']
+    });
     expect(hello()).toMatchObject({ capabilities: [] });
     expect(hello('probe')).toBeNull();
   });
@@ -124,6 +127,38 @@ describe('parseAgentMessage', () => {
       ).toBeNull();
     }
   );
+
+  it('[AGT-119] accepts a sweep answer with a reading per address', () => {
+    const answer = {
+      type: 'probe.result',
+      requestId: 's-1',
+      kind: 'sweep',
+      at: 1,
+      readings: [
+        { reachable: true, latencyMs: 3, attempts: 1 },
+        { reachable: false, latencyMs: null, attempts: 3 },
+        { probeError: 'spawn ping EAGAIN', attempts: 1 }
+      ]
+    };
+
+    expect(ok(answer)).toEqual(answer);
+  });
+
+  it('[AGT-119] rejects a sweep answer with more readings than a batch holds', () => {
+    expect(
+      ok({
+        type: 'probe.result',
+        requestId: 's-1',
+        kind: 'sweep',
+        at: 1,
+        readings: Array.from({ length: 33 }, () => ({
+          reachable: true,
+          latencyMs: 1,
+          attempts: 1
+        }))
+      })
+    ).toBeNull();
+  });
 
   it('[AGT-111] accepts every shape of enforce answer', () => {
     const answers = [

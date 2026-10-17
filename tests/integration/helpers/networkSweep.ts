@@ -3,6 +3,7 @@ import { ILogger } from '../../../src/application/shared/interfaces';
 import { PingCycleProbe } from '../../../src/application/device-monitoring/services';
 import { RunNetworkSweepUseCase } from '../../../src/application/device-monitoring/use-cases';
 import { PrismaNetworkSweepTargetsQuery } from '../../../src/infrastructure/monitoring/network-sweep';
+import { IAgentSweepProbe } from '../../../src/application/device-monitoring/interfaces';
 import { FakePingService } from './FakePingService';
 
 // A device with its polling configuration, monitored and in service unless
@@ -63,15 +64,25 @@ export async function seedSweepDevice(
   return device.id;
 }
 
+const noAgentConnected: IAgentSweepProbe = {
+  sweep: async () => ({
+    kind: 'refused',
+    reason: 'AGENT_OFFLINE',
+    error: 'The agent is not connected'
+  })
+};
+
 export function buildNetworkSweep(
   prisma: PrismaClient,
   ping: FakePingService,
   logger: ILogger,
-  serverOnSite = true
+  serverOnSite = true,
+  agentProbe: IAgentSweepProbe = noAgentConnected
 ): RunNetworkSweepUseCase {
   return new RunNetworkSweepUseCase(
     new PrismaNetworkSweepTargetsQuery(prisma),
     new PingCycleProbe(ping, 0, 1_000),
+    agentProbe,
     logger,
     serverOnSite
   );

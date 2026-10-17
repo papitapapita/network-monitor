@@ -4,6 +4,7 @@ import {
   AGENT_PLATFORMS,
   AgentMessage,
   MAX_BACKUP_CONFIG_BYTES,
+  MAX_SWEEP_TARGETS,
   MAX_TRAFFIC_INTERFACES
 } from 'agent/protocol';
 
@@ -119,7 +120,7 @@ const pingReading = z.union([
   })
 ]);
 
-// Five shapes under one type, so it is its own union inside the
+// Six shapes under one type, so it is its own union inside the
 // discriminated one.
 const probeResult = z.union([
   z.object({
@@ -162,6 +163,13 @@ const probeResult = z.union([
         })
       )
       .max(MAX_TRAFFIC_INTERFACES)
+  }),
+  z.object({
+    type: z.literal('probe.result'),
+    requestId,
+    kind: z.literal('sweep'),
+    at: epochMs,
+    readings: z.array(pingReading).max(MAX_SWEEP_TARGETS)
   }),
   z.object({
     type: z.literal('probe.result'),

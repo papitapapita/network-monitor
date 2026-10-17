@@ -33,6 +33,7 @@ export class PrismaNetworkSweepTargetsQuery
           agentId: true,
           monitoringEnabled: true,
           location: { select: { name: true } },
+          agent: { select: { name: true } },
           pollingConfiguration: {
             select: { ipAddress: true, enabled: true }
           }
@@ -47,6 +48,7 @@ export class PrismaNetworkSweepTargetsQuery
           locationId: row.locationId,
           locationName: row.location?.name ?? null,
           agentId: row.agentId,
+          agentName: row.agent?.name ?? null,
           monitored:
             row.monitoringEnabled &&
             (row.pollingConfiguration?.enabled ?? false)

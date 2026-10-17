@@ -27,7 +27,10 @@ import {
 import { enrollAgent } from './identity/enrollAgent';
 import { PollScheduler } from './polling/PollScheduler';
 import { ResultBuffer } from './results/ResultBuffer';
-import { ProbeRunner } from './probes/ProbeRunner';
+import {
+  DEFAULT_PROBE_RUNNER_OPTIONS,
+  ProbeRunner
+} from './probes/ProbeRunner';
 import { EnforceRunner } from './enforce/EnforceRunner';
 import { RouterOsQueueService } from 'infrastructure/service-enforcement/RouterOsQueueService';
 import { RouterOsTrafficReader } from 'infrastructure/monitoring/router-traffic/RouterOsTrafficReader';
@@ -141,7 +144,9 @@ async function main(): Promise<void> {
       }
     ]),
     new RouterOsTrafficReader(logger),
-    logger
+    logger,
+    DEFAULT_PROBE_RUNNER_OPTIONS,
+    new PingCycleProbe(new PingService(), 0, 1_000)
   );
   runtime = new AgentRuntime({
     credentials: new CredentialStore(

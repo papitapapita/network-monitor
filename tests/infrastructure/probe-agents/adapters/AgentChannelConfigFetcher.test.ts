@@ -8,7 +8,8 @@ describe('AgentChannelConfigFetcher', () => {
     ping: jest.fn(),
     readRadio: jest.fn(),
     fetchConfig: jest.fn(),
-    readTraffic: jest.fn()
+    readTraffic: jest.fn(),
+    sweep: jest.fn()
   } satisfies jest.Mocked<IAgentProbeChannel>;
   const fetcher = new AgentChannelConfigFetcher(channel);
   const request: AgentConfigFetchRequest = {

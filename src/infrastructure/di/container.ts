@@ -20,6 +20,7 @@ import {
   AgentChannelConfigFetcher,
   AgentChannelTrafficReader,
   AgentChannelPingProbe,
+  AgentChannelSweepProbe,
   AgentChannelRadioReader,
   DeviceMonitoringPingResultSink
 } from '../probe-agents/adapters';
@@ -1567,6 +1568,7 @@ export class DependencyContainer {
       new RunNetworkSweepUseCase(
         new PrismaNetworkSweepTargetsQuery(this.prisma),
         new PingCycleProbe(pingService, 0, 1_000),
+        new AgentChannelSweepProbe(connectedAgents),
         this.logger,
         this.serverOnSite
       ),

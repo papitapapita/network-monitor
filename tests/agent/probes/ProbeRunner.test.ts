@@ -3,7 +3,10 @@ import {
   ProbeRunner,
   toWirelessReadingWire
 } from '../../../src/agent/probes/ProbeRunner';
-import { MAX_BACKUP_CONFIG_BYTES } from '../../../src/agent/protocol';
+import {
+  MAX_BACKUP_CONFIG_BYTES,
+  MAX_SWEEP_TARGETS
+} from '../../../src/agent/protocol';
 import type {
   BackupConfigWire,
   BackupDeviceKindWire,
@@ -140,6 +143,14 @@ const pingRequest = (
   ip: '10.0.0.9',
   attempts: 3,
   ...overrides
+});
+
+const sweepRequest = (ips: string[]): ProbeRequestMessage => ({
+  type: 'probe',
+  requestId: 's-1',
+  kind: 'sweep',
+  ips,
+  attempts: 3
 });
 
 const wirelessRequest = (
@@ -495,5 +506,130 @@ describe('ProbeRunner', () => {
     );
     expect(logged).not.toContain('secreto');
     expect(logged).not.toContain('public');
+  });
+
+  describe('sweep', () => {
+    let sweepPing: { run: jest.Mock };
+
+    beforeEach(() => {
+      sweepPing = {
+        run: jest.fn(async (ip: string) =>
+          ip.endsWith('.2')
+            ? {
+                kind: 'measured',
+                isReachable: false,
+                latencyMs: null,
+                attempts: 3
+              }
+            : {
+                kind: 'measured',
+                isReachable: true,
+                latencyMs: 4,
+                attempts: 1
+              }
+        )
+      };
+      runner = new ProbeRunner(
+        ping,
+        new WirelessCollectorRegistry({}),
+        new ConfigFetcherRegistry([]),
+        traffic,
+        logger,
+        { maxConcurrent: 4, maxQueued: 100 },
+        sweepPing
+      );
+    });
+
+    it('[AGT-119] pings every address with the quick ping and answers in the same order', async () => {
+      const result = await runner.run(
+        sweepRequest(['10.0.0.1', '10.0.0.2', '10.0.0.3'])
+      );
+
+      expect(ping.run).not.toHaveBeenCalled();
+      expect(sweepPing.run.mock.calls).toEqual([
+        ['10.0.0.1', 3],
+        ['10.0.0.2', 3],
+        ['10.0.0.3', 3]
+      ]);
+      expect(result).toEqual({
+        type: 'probe.result',
+        requestId: 's-1',
+        kind: 'sweep',
+        at: expect.any(Number),
+        readings: [
+          { reachable: true, latencyMs: 4, attempts: 1 },
+          { reachable: false, latencyMs: null, attempts: 3 },
+          { reachable: true, latencyMs: 4, attempts: 1 }
+        ]
+      });
+    });
+
+    it('[AGT-119] pings the whole batch at once, as one probe', async () => {
+      let inFlight = 0;
+      let peak = 0;
+      sweepPing.run.mockImplementation(async () => {
+        inFlight++;
+        peak = Math.max(peak, inFlight);
+        await new Promise((resolve) => setImmediate(resolve));
+        inFlight--;
+        return {
+          kind: 'measured',
+          isReachable: true,
+          latencyMs: 1,
+          attempts: 1
+        };
+      });
+      const ips = Array.from(
+        { length: MAX_SWEEP_TARGETS },
+        (_, i) => `10.1.0.${i + 1}`
+      );
+
+      await runner.run(sweepRequest(ips));
+
+      expect(peak).toBe(MAX_SWEEP_TARGETS);
+    });
+
+    it('[AGT-119] answers one address that cannot be pinged as a probe error, not the batch', async () => {
+      sweepPing.run.mockImplementationOnce(async () => {
+        throw new Error('spawn ping EAGAIN');
+      });
+
+      const result = await runner.run(
+        sweepRequest(['10.0.0.1', '10.0.0.3'])
+      );
+
+      expect(result).toMatchObject({
+        kind: 'sweep',
+        readings: [
+          { probeError: 'spawn ping EAGAIN', attempts: 1 },
+          { reachable: true, latencyMs: 4, attempts: 1 }
+        ]
+      });
+    });
+
+    it('[AGT-119] refuses a batch larger than the protocol allows', async () => {
+      const ips = Array.from(
+        { length: MAX_SWEEP_TARGETS + 1 },
+        (_, i) => `10.2.0.${i + 1}`
+      );
+
+      const result = await runner.run(sweepRequest(ips));
+
+      expect(sweepPing.run).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        type: 'probe.result',
+        requestId: 's-1',
+        error: `A sweep names at most ${MAX_SWEEP_TARGETS} addresses`
+      });
+    });
+
+    it('[AGT-119] keeps the attempts within the ping limit', async () => {
+      await runner.run({
+        ...sweepRequest(['10.0.0.1']),
+        attempts: 50
+      } as ProbeRequestMessage);
+
+      expect(sweepPing.run).toHaveBeenCalledWith('10.0.0.1', 10);
+    });
   });
 });

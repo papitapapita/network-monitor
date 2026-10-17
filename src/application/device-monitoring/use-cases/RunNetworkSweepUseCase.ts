@@ -2,6 +2,8 @@ import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import {
+  AgentSweepAnswer,
+  IAgentSweepProbe,
   INetworkSweepTargetsQuery,
   NetworkSweepCandidate
 } from '../interfaces';
@@ -22,7 +24,6 @@ export const NETWORK_SWEEP_SKIP_DETAILS: Record<
   string
 > = {
   MONITORING_DISABLED: 'Monitoring is disabled for this device',
-  BEHIND_AGENT: 'Devices behind an on-site agent are not swept yet',
   NOT_ON_MONITORED_NETWORK:
     'This server is not on the monitored network',
   NO_IP_ADDRESS: 'The device has no IP address configured for polling'
@@ -39,15 +40,21 @@ const CATEGORY_ORDER: Record<string, number> = {
 export interface NetworkSweepOptions {
   concurrency: number;
   attempts: number;
+  // MON-084: addresses per request to an agent, and requests out at once
+  // per agent; together the agent's share of pings in flight.
+  agentBatchSize: number;
+  agentBatchesInFlight: number;
 }
 
 export const DEFAULT_NETWORK_SWEEP_OPTIONS: NetworkSweepOptions = {
   concurrency: 64,
-  attempts: 3
+  attempts: 3,
+  agentBatchSize: 32,
+  agentBatchesInFlight: 2
 };
 
-// MON-080: pings every in-service device once, now, and reports what
-// answered. A snapshot only: nothing is written and nothing is alerted.
+// MON-080: pings every in-service device once, now, from this server or
+// from the agent it sits behind, and reports what answered. A snapshot only: nothing is written and nothing is alerted.
 export class RunNetworkSweepUseCase extends UseCase<
   RunNetworkSweepDTO,
   NetworkSweepSummaryDTO
@@ -58,6 +65,8 @@ export class RunNetworkSweepUseCase extends UseCase<
     private readonly targets: INetworkSweepTargetsQuery,
     // MON-082: built with a short reply wait and no pause between attempts.
     private readonly probe: PingCycleProbe,
+    // MON-084: devices behind an on-site agent are pinged by it.
+    private readonly agentProbe: IAgentSweepProbe,
     logger: ILogger,
     private readonly serverOnSite = true,
     private readonly options: NetworkSweepOptions = DEFAULT_NETWORK_SWEEP_OPTIONS
@@ -130,7 +139,18 @@ export class RunNetworkSweepUseCase extends UseCase<
       filters
     });
     skipped.forEach(emit);
-    await this.pingAll(toPing, emit, signal);
+    await Promise.all([
+      this.pingAll(
+        toPing.filter((c) => c.agentId === null),
+        emit,
+        signal
+      ),
+      this.sweepThroughAgents(
+        toPing.filter((c) => c.agentId !== null),
+        emit,
+        signal
+      )
+    ]);
 
     const finishedAt = new Date();
     return this.ok({
@@ -143,14 +163,15 @@ export class RunNetworkSweepUseCase extends UseCase<
     });
   }
 
-  // Same order as the scheduler's own guards: off, behind an agent, off site.
+  // A device behind an agent is pinged by it wherever this server runs
+  // (MON-022, MON-023).
   private skipReason(
     candidate: NetworkSweepCandidate
   ): NetworkSweepSkipReason | null {
     if (!candidate.monitored) return 'MONITORING_DISABLED';
-    if (candidate.agentId !== null) return 'BEHIND_AGENT';
-    if (!this.serverOnSite) return 'NOT_ON_MONITORED_NETWORK';
     if (!candidate.ipAddress) return 'NO_IP_ADDRESS';
+    if (candidate.agentId !== null) return null;
+    if (!this.serverOnSite) return 'NOT_ON_MONITORED_NETWORK';
     return null;
   }
 
@@ -175,6 +196,85 @@ export class RunNetworkSweepUseCase extends UseCase<
       targets.length
     );
     await Promise.all(Array.from({ length: workers }, worker));
+  }
+
+  // MON-084: every agent at once, each sent its devices in batches, a couple
+  // out at a time; the same cancellation as pingAll.
+  private async sweepThroughAgents(
+    targets: NetworkSweepCandidate[],
+    emit: (result: NetworkSweepResultDTO) => void,
+    signal: AbortSignal | undefined
+  ): Promise<void> {
+    const byAgent = new Map<string, NetworkSweepCandidate[]>();
+    for (const target of targets) {
+      const devices = byAgent.get(target.agentId!) ?? [];
+      devices.push(target);
+      byAgent.set(target.agentId!, devices);
+    }
+    await Promise.all(
+      [...byAgent].map(([agentId, devices]) =>
+        this.sweepAgent(agentId, devices, emit, signal)
+      )
+    );
+  }
+
+  private async sweepAgent(
+    agentId: string,
+    devices: NetworkSweepCandidate[],
+    emit: (result: NetworkSweepResultDTO) => void,
+    signal: AbortSignal | undefined
+  ): Promise<void> {
+    const size = this.options.agentBatchSize;
+    const batches = Array.from(
+      { length: Math.ceil(devices.length / size) },
+      (_, i) => devices.slice(i * size, (i + 1) * size)
+    );
+    let next = 0;
+    const worker = async (): Promise<void> => {
+      while (next < batches.length && !signal?.aborted) {
+        const batch = batches[next++];
+        const answer = await this.askAgent(
+          agentId,
+          batch.map((device) => device.ipAddress!)
+        );
+        if (signal?.aborted) return;
+        const at = new Date();
+        batch.forEach((device, i) =>
+          emit(
+            toResult(
+              device,
+              answer.kind === 'measured'
+                ? fromOutcome(answer.outcomes[i], at)
+                : { outcome: 'ERROR', detail: answer.error, at }
+            )
+          )
+        );
+      }
+    };
+    const workers = Math.min(
+      this.options.agentBatchesInFlight,
+      batches.length
+    );
+    await Promise.all(Array.from({ length: workers }, worker));
+  }
+
+  private async askAgent(
+    agentId: string,
+    ipAddresses: string[]
+  ): Promise<AgentSweepAnswer> {
+    try {
+      return await this.agentProbe.sweep(
+        agentId,
+        ipAddresses,
+        this.options.attempts
+      );
+    } catch (error) {
+      return {
+        kind: 'refused',
+        reason: 'AGENT_ERROR',
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
   }
 
   // One device's failure must not end the sweep for the rest.
@@ -221,8 +321,10 @@ interface SweepReading {
   at: Date;
 }
 
-function fromOutcome(outcome: PingCycleOutcome): SweepReading {
-  const at = new Date();
+function fromOutcome(
+  outcome: PingCycleOutcome,
+  at = new Date()
+): SweepReading {
   if (outcome.kind === 'probe-unavailable') {
     return {
       outcome: 'ERROR',
@@ -250,6 +352,7 @@ function toResult(
     category: candidate.category,
     locationId: candidate.locationId,
     locationName: candidate.locationName,
+    agentName: candidate.agentName,
     outcome: reading.outcome,
     latencyMs: reading.latencyMs ?? null,
     attempts: reading.attempts ?? 0,

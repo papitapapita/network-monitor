@@ -627,12 +627,12 @@ order:
 | Reason                     | When                                                                       |
 | -------------------------- | -------------------------------------------------------------------------- |
 | `MONITORING_DISABLED`      | The device's monitoring is off, or it has no enabled polling configuration |
-| `BEHIND_AGENT`             | The device sits behind an on-site agent (`MON-084`)                        |
-| `NOT_ON_MONITORED_NETWORK` | The server is hosted off site and the device has no agent (`MON-023`)      |
 | `NO_IP_ADDRESS`            | Its polling configuration has no IP address                                |
+| `NOT_ON_MONITORED_NETWORK` | The server is hosted off site and the device has no agent (`MON-023`)      |
 
-The address pinged is the polling configuration's, the same one the
-scheduler pings.
+A device behind an on-site agent is never skipped for where the server runs:
+its agent pings it (`MON-084`). The address pinged is the polling
+configuration's, the same one the scheduler pings.
 
 **Why:** The same devices the scheduler watches, so a sweep answers the same
 question as the dashboard, only fresher. Every covered device appears in the
@@ -682,24 +682,42 @@ the last one has finished, whether it completed, was stopped or failed.
 already be struggling, for the same answer. Leaving a page should not leave
 the server pinging for nobody.
 
-**Enforced at:** `src/application/device-monitoring/use-cases/RunNetworkSweepUseCase.ts` (`running`, `pingAll`), `src/presentation/http/controllers/NetworkSweepController.ts`
+**Enforced at:** `src/application/device-monitoring/use-cases/RunNetworkSweepUseCase.ts` (`running`, `pingAll`, `sweepAgent`), `src/presentation/http/controllers/NetworkSweepController.ts`
 **Reached from:** `GET /api/network/sweep/stream`
 **Message:** `A network sweep is already running`
 **Tests:** `tests/application/device-monitoring/use-cases/RunNetworkSweepUseCase.test.ts`, `tests/integration/network-sweep.routes.test.ts`
 
-### MON-084 — Devices behind an on-site agent are not swept yet
+### MON-084 — Devices behind an on-site agent are swept by their agent
 
 **Type:** Policy · **Status:** Active
 **Since:** 2026-10-17
 
-A device with an `agentId` is reported as skipped with `BEHIND_AGENT`. This
-server never pings it itself, as for any poll (`MON-022`).
+A device with an `agentId` is pinged by its agent, never by this server, as
+for any poll (`MON-022`), and whether this server runs on site or not
+(`MON-023`). Each agent is sent its devices in batches of 32, backbone first
+(`MON-082`), with 2 batches out at a time, so it has up to 64 pings in flight
+like the server. Every agent is asked at the same time, alongside the
+server's own pings. The agent pings the same way: 3 tries, 1 second each
+(`AGT-119`). Each result names the agent (`agentName`).
 
-**Why:** A sweep through an agent needs a new agent request that pings a whole
-list at once; the agent's single-device ping, built for one manual poll
-behind the HTTP proxy, is too slow for that. It is planned for a later agent
-release. Until then, skipping keeps the single-writer rule and avoids reporting
-customer-network devices as down from a server that cannot reach them.
+When a batch cannot be asked, every device in it is reported as `ERROR`, with
+the reason as `detail`, never as `DOWN`:
 
-**Enforced at:** `src/application/device-monitoring/use-cases/RunNetworkSweepUseCase.ts` (`skipReason`)
-**Tests:** `tests/application/device-monitoring/use-cases/RunNetworkSweepUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/RunNetworkSweepUseCase.integration.test.ts`
+| Situation                               | `detail`                                         |
+| --------------------------------------- | ------------------------------------------------ |
+| The agent is not connected              | `The agent is not connected`                     |
+| The agent runs a version before `0.7.0` | `The agent must be updated to sweep the network` |
+| The agent did not answer within 20 s    | `The agent did not answer in time`               |
+| The agent answered with an error        | the agent's message                              |
+
+Closing the stream stops the agents' sweeps too (`MON-083`): no new batch is
+sent, and batches already out finish and are dropped.
+
+**Why:** Only the agent can reach a customer's network. One request per batch
+instead of one per device keeps a sweep of hundreds of devices to a handful
+of messages. Each batch is answered within a few seconds even if every device
+in it is dead. A device whose agent cannot be asked is unknown, not dead: after
+an outage, "agent offline" is itself the answer the operator needs.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/RunNetworkSweepUseCase.ts` (`skipReason`, `sweepThroughAgents`, `sweepAgent`), `src/infrastructure/probe-agents/adapters/AgentChannelSweepProbe.ts`, `src/presentation/ws/agent/ConnectedAgents.ts` (`sweep`)
+**Tests:** `tests/application/device-monitoring/use-cases/RunNetworkSweepUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/RunNetworkSweepUseCase.integration.test.ts`, `tests/infrastructure/probe-agents/adapters/AgentChannelSweepProbe.test.ts`, `tests/integration/agent-sweep.test.ts`

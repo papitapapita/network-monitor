@@ -1422,3 +1422,39 @@ disk, which is what `AGT-102` protects.
 
 **Enforced at:** `src/agent/probes/ProbeRunner.ts`, `src/infrastructure/monitoring/router-traffic/RouterOsTrafficReader.ts`
 **Tests:** `tests/agent/probes/ProbeRunner.test.ts`, `tests/infrastructure/monitoring/router-traffic/RouterOsTrafficReader.test.ts`
+
+### AGT-119 — An agent that names `sweep` pings a batch of addresses at once when asked
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program · Presentation
+**Since:** 2026-10-17
+
+From version `0.7.0` the hello names `sweep` beside `probe`, `enforce`,
+`backup` and `traffic`. The backend sends a sweep request only to an agent
+that named it. Any other agent gets `PROBE_UNSUPPORTED` ("The agent must be
+updated to sweep the network") without being asked.
+
+A sweep request is a probe request of kind `sweep`. It carries a request id,
+up to 32 addresses and an attempt count (kept between 1 and 10, as for a
+ping). The agent pings every address at once with the sweep's quick ping: up
+to the attempt count, back to back, each waiting 1 second for a reply, stopping
+at the first reply (`MON-082`). It answers with one reading per address, in
+the order asked, each shaped like a ping answer. An address whose ping cannot
+run gets a probe error in its place, and the rest of the batch is still
+answered. A request with more than 32 addresses gets an error. The whole batch
+counts as one of the 4 requests at once of `AGT-101`.
+
+The backend waits 20 seconds for the answer. Offline, timeout and error end
+the request as in `AGT-103`. An answer with more than 32 readings is a protocol
+error, like any malformed answer. One whose count does not match the addresses
+asked is treated as an agent error.
+
+**Why:** Off site, only the agent can reach the devices (`MON-084`). The
+single-device ping of `AGT-101` waits up to 5 seconds per attempt, pauses
+between attempts and shares 4 slots, which would make a sweep of a few hundred
+devices take minutes. One batch is answered within a few seconds even if every
+device in it is dead. Like the other requests, an agent that does not know
+this kind must not leave the backend waiting until its timeout.
+
+**Enforced at:** `src/agent/protocol/messages.ts` (`AGENT_CAPABILITIES`, `MAX_SWEEP_TARGETS`), `src/agent/probes/ProbeRunner.ts`, `src/agent/main.ts`, `src/presentation/ws/agent/AgentSession.ts` (`canSweep`, `canAnswer`), `src/presentation/ws/agent/ConnectedAgents.ts` (`sweep`), `src/presentation/ws/agent/agentMessageSchema.ts`
+**Tests:** `tests/agent/probes/ProbeRunner.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/integration/agent-sweep.test.ts`

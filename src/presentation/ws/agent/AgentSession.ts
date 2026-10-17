@@ -187,12 +187,23 @@ export class AgentSession {
     );
   }
 
+  // AGT-119: only an agent that said it sweeps is ever sent a batch.
+  get canSweep(): boolean {
+    return (
+      this.greeted &&
+      !this.closed &&
+      this.capabilities.includes('sweep')
+    );
+  }
+
   canAnswer(kind: ProbeRequest['kind']): boolean {
     switch (kind) {
       case 'backup':
         return this.canBackUp;
       case 'traffic':
         return this.canReadTraffic;
+      case 'sweep':
+        return this.canSweep;
       default:
         return this.canProbe;
     }
