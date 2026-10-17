@@ -88,6 +88,36 @@ describe('RouterOsQueueService', () => {
         '=max-limit=1k/1k'
       ]);
     });
+
+    it('[SVC-024] should place the queue above every existing queue', async () => {
+      const client = stubClient();
+      client.write
+        .mockResolvedValueOnce([{ '.id': '*A' }, { '.id': '*B' }])
+        .mockResolvedValueOnce([]);
+
+      const service = new RouterOsQueueService();
+      const result = await service.addSuspensionQueue(CONNECTION, {
+        name: 'suspend-abc',
+        targetIp: '10.20.30.40'
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(client.write).toHaveBeenNthCalledWith(
+        1,
+        '/queue/simple/print',
+        ['=.proplist=.id']
+      );
+      expect(client.write).toHaveBeenNthCalledWith(
+        2,
+        '/queue/simple/add',
+        [
+          '=name=suspend-abc',
+          '=target=10.20.30.40/32',
+          '=max-limit=1k/1k',
+          '=place-before=*A'
+        ]
+      );
+    });
   });
 
   describe('removeSuspensionQueue', () => {

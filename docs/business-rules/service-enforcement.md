@@ -202,6 +202,26 @@ throttle subscribers who owe nothing. Normalising on read is what lets
 **Enforced at:** `src/infrastructure/service-enforcement/RouterOsQueueService.ts` (`stripCidr`)
 **Tests:** `tests/infrastructure/service-enforcement/RouterOsQueueService.test.ts`
 
+### SVC-024 — The suspension queue goes above every other queue
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Infrastructure (RouterOS client)
+**Since:** 2026-10-17
+
+The queue is added with `place-before` the first simple queue on the router, so
+it is always at the top of the list. On a router with no simple queues it is
+simply added.
+
+**Why:** RouterOS checks simple queues from top to bottom and the first one
+that matches carries the traffic. Insetel's router has a plan queue for some
+subscribers on the same IP; a suspension queue added at the bottom sits under
+it and never throttles anything. Only placement on creation is enforced: a
+suspension queue someone drags lower by hand stays there, and deleting it lets
+`SVC-083` recreate it at the top within a minute.
+
+**Enforced at:** `src/infrastructure/service-enforcement/RouterOsQueueService.ts` (`addSuspensionQueue`)
+**Tests:** `tests/infrastructure/service-enforcement/RouterOsQueueService.test.ts`
+
 ---
 
 ## Releasing a suspension

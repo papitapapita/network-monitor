@@ -43,10 +43,16 @@ export class RouterOsQueueService implements IRouterQueueService {
     queue: SuspensionQueue
   ): Promise<Result<void>> {
     return this.withClient(connection, async (client) => {
+      // SVC-024: simple queues match top-down, so a plan queue on the same IP
+      // above ours would carry the traffic and the throttle would never apply
+      const [first] = (await client.write('/queue/simple/print', [
+        '=.proplist=.id'
+      ])) as QueuePrintRow[];
       await client.write('/queue/simple/add', [
         `=name=${queue.name}`,
         `=target=${queue.targetIp}/32`,
-        `=max-limit=${SUSPENSION_MAX_LIMIT}`
+        `=max-limit=${SUSPENSION_MAX_LIMIT}`,
+        ...(first?.['.id'] ? [`=place-before=${first['.id']}`] : [])
       ]);
     });
   }
