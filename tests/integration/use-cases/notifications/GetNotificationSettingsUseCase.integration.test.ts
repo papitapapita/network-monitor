@@ -42,7 +42,8 @@ describe('[NOT-201] GetNotificationSettingsUseCase — integration', () => {
     expect(result.value).toEqual({
       telegramChatId: '-100111',
       downAlertDelayMinutes: 60,
-      wirelessAlertsEnabled: true
+      wirelessAlertsEnabled: true,
+      alertTicketMode: 'SUGGEST'
     });
   });
 
@@ -52,7 +53,8 @@ describe('[NOT-201] GetNotificationSettingsUseCase — integration', () => {
         id: 1,
         telegramChatId: null,
         downAlertDelayMinutes: 5,
-        wirelessAlertsEnabled: false
+        wirelessAlertsEnabled: false,
+        alertTicketMode: 'AUTOMATIC'
       }
     });
 
@@ -61,7 +63,8 @@ describe('[NOT-201] GetNotificationSettingsUseCase — integration', () => {
     expect(result.value).toEqual({
       telegramChatId: null,
       downAlertDelayMinutes: 5,
-      wirelessAlertsEnabled: false
+      wirelessAlertsEnabled: false,
+      alertTicketMode: 'AUTOMATIC'
     });
   });
 });
