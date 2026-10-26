@@ -2,6 +2,7 @@
 
 import { OverdueDeviceDownAlertOrchestrator } from '../../../../src/infrastructure/notifications/orchestrator/OverdueDeviceDownAlertOrchestrator';
 import { RaiseOverdueDeviceDownAlertsUseCase } from '../../../../src/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase';
+import { ResolveStrandedDeviceDownAlertsUseCase } from '../../../../src/application/notifications/use-cases/ResolveStrandedDeviceDownAlertsUseCase';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
@@ -13,6 +14,17 @@ function makeUseCase(): jest.Mocked<
   Pick<RaiseOverdueDeviceDownAlertsUseCase, 'execute'>
 > {
   return { execute: jest.fn() };
+}
+
+function makeSweep(): jest.Mocked<
+  Pick<ResolveStrandedDeviceDownAlertsUseCase, 'execute'>
+> {
+  return { execute: jest.fn() };
+}
+
+// A tick awaits the scan and then the sweep; give both chains time to settle.
+async function flush(): Promise<void> {
+  for (let i = 0; i < 10; i++) await Promise.resolve();
 }
 
 function makeLogger(): jest.Mocked<ILogger> {
@@ -31,6 +43,9 @@ interface OrchestratorFixture {
   useCase: jest.Mocked<
     Pick<RaiseOverdueDeviceDownAlertsUseCase, 'execute'>
   >;
+  sweep: jest.Mocked<
+    Pick<ResolveStrandedDeviceDownAlertsUseCase, 'execute'>
+  >;
   logger: jest.Mocked<ILogger>;
   orchestrator: OverdueDeviceDownAlertOrchestrator;
 }
@@ -39,16 +54,19 @@ function makeOrchestrator(
   checkIntervalMs = 1_000
 ): OrchestratorFixture {
   const useCase = makeUseCase();
+  const sweep = makeSweep();
   const logger = makeLogger();
   useCase.execute.mockResolvedValue(Result.ok(0));
+  sweep.execute.mockResolvedValue(Result.ok(0));
 
   const orchestrator = new OverdueDeviceDownAlertOrchestrator(
     useCase as unknown as RaiseOverdueDeviceDownAlertsUseCase,
+    sweep as unknown as ResolveStrandedDeviceDownAlertsUseCase,
     { checkIntervalMs },
     logger
   );
 
-  return { useCase, logger, orchestrator };
+  return { useCase, sweep, logger, orchestrator };
 }
 
 // ---------------------------------------------------------------------------
@@ -69,8 +87,7 @@ describe('OverdueDeviceDownAlertOrchestrator', () => {
       const { useCase, orchestrator } = makeOrchestrator(60_000);
 
       orchestrator.start();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flush();
 
       expect(useCase.execute).toHaveBeenCalledTimes(1);
     });
@@ -91,12 +108,10 @@ describe('OverdueDeviceDownAlertOrchestrator', () => {
       const { useCase, orchestrator } = makeOrchestrator(INTERVAL_MS);
 
       orchestrator.start();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flush();
 
       jest.advanceTimersByTime(INTERVAL_MS);
-      await Promise.resolve();
-      await Promise.resolve();
+      await flush();
 
       expect(useCase.execute).toHaveBeenCalledTimes(2);
     });
@@ -107,12 +122,10 @@ describe('OverdueDeviceDownAlertOrchestrator', () => {
 
       orchestrator.start();
       orchestrator.start();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flush();
 
       jest.advanceTimersByTime(INTERVAL_MS);
-      await Promise.resolve();
-      await Promise.resolve();
+      await flush();
 
       expect(useCase.execute).toHaveBeenCalledTimes(2);
     });
@@ -125,13 +138,11 @@ describe('OverdueDeviceDownAlertOrchestrator', () => {
       const { useCase, orchestrator } = makeOrchestrator(INTERVAL_MS);
 
       orchestrator.start();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flush();
 
       orchestrator.stop();
       jest.advanceTimersByTime(INTERVAL_MS * 3);
-      await Promise.resolve();
-      await Promise.resolve();
+      await flush();
 
       expect(useCase.execute).toHaveBeenCalledTimes(1);
     });
@@ -190,8 +201,7 @@ describe('OverdueDeviceDownAlertOrchestrator', () => {
       );
 
       orchestrator.start();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flush();
 
       expect(logger.error).toHaveBeenCalledWith(
         '[OverdueDeviceDownAlertOrchestrator] Scan failed',
@@ -205,8 +215,7 @@ describe('OverdueDeviceDownAlertOrchestrator', () => {
       useCase.execute.mockRejectedValue(new Error('boom'));
 
       orchestrator.start();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flush();
 
       expect(logger.error).toHaveBeenCalledWith(
         '[OverdueDeviceDownAlertOrchestrator] Unexpected error',
@@ -220,13 +229,78 @@ describe('OverdueDeviceDownAlertOrchestrator', () => {
       useCase.execute.mockResolvedValueOnce(Result.fail('transient'));
 
       orchestrator.start();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flush();
 
       jest.advanceTimersByTime(INTERVAL_MS);
-      await Promise.resolve();
-      await Promise.resolve();
+      await flush();
 
+      expect(useCase.execute).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // =========================================================================
+  describe('[NOT-229] stranded alerts and overlapping scans', () => {
+    it('should sweep stranded alerts after every scan', async () => {
+      const INTERVAL_MS = 5_000;
+      const { sweep, orchestrator } = makeOrchestrator(INTERVAL_MS);
+
+      orchestrator.start();
+      await flush();
+      jest.advanceTimersByTime(INTERVAL_MS);
+      await flush();
+
+      expect(sweep.execute).toHaveBeenCalledTimes(2);
+    });
+
+    it('should still sweep when the scan fails', async () => {
+      const { useCase, sweep, orchestrator } =
+        makeOrchestrator(60_000);
+      useCase.execute.mockResolvedValue(
+        Result.fail('DB unavailable')
+      );
+
+      orchestrator.start();
+      await flush();
+
+      expect(sweep.execute).toHaveBeenCalledTimes(1);
+    });
+
+    it('should log an error when the sweep fails', async () => {
+      const { sweep, logger, orchestrator } =
+        makeOrchestrator(60_000);
+      sweep.execute.mockResolvedValue(Result.fail('DB unavailable'));
+
+      orchestrator.start();
+      await flush();
+
+      expect(logger.error).toHaveBeenCalledWith(
+        '[OverdueDeviceDownAlertOrchestrator] Stranded-alert sweep failed',
+        expect.any(Error)
+      );
+    });
+
+    it('should skip a tick while the previous scan is still running', async () => {
+      const INTERVAL_MS = 5_000;
+      const { useCase, orchestrator } = makeOrchestrator(INTERVAL_MS);
+      let finishScan: (
+        value: ReturnType<typeof Result.ok<number>>
+      ) => void = () => {};
+      useCase.execute.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishScan = resolve;
+        })
+      );
+
+      orchestrator.start();
+      await flush();
+      jest.advanceTimersByTime(INTERVAL_MS * 2);
+      await flush();
+      expect(useCase.execute).toHaveBeenCalledTimes(1);
+
+      finishScan(Result.ok(0));
+      await flush();
+      jest.advanceTimersByTime(INTERVAL_MS);
+      await flush();
       expect(useCase.execute).toHaveBeenCalledTimes(2);
     });
   });

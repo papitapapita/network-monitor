@@ -1,5 +1,6 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
+import { DeviceState } from 'domain/device-monitoring/aggregates';
 import { IDeviceStateRepository } from 'domain/device-monitoring/repository';
 import {
   IDeviceNotificationPolicyRepository,
@@ -71,9 +72,12 @@ export class RaiseOverdueDeviceDownAlertsUseCase {
       );
       if (now - state.downSince.getTime() < delayMs) continue;
 
+      const current = await this.stillInSameDownStreak(state);
+      if (current === null) continue;
+
       const result = await this.sendDeviceDownAlertUseCase.execute({
-        deviceId: state.deviceId.toString(),
-        consecutiveFailures: state.consecutiveFailures,
+        deviceId: current.deviceId.toString(),
+        consecutiveFailures: current.consecutiveFailures,
         occurredAt: state.downSince
       });
 
@@ -89,6 +93,41 @@ export class RaiseOverdueDeviceDownAlertsUseCase {
     }
 
     return Result.ok(raised);
+  }
+
+  // The down list is read once, then walked one device at a time with a
+  // publish per alert — long enough on a bad night for a device near the end
+  // to have recovered, and its recovery to have closed its alert, before the
+  // scan reaches it. Raising off the snapshot then opens a fresh alert for a
+  // device that is up, which nothing would ever close (NOT-229). Re-read just
+  // before raising; a different downSince is a new streak the next scan
+  // judges on its own delay.
+  private async stillInSameDownStreak(
+    snapshot: DeviceState
+  ): Promise<DeviceState | null> {
+    const result = await this.deviceStateRepository.findByDeviceId(
+      snapshot.deviceId
+    );
+    if (result.isFailure) {
+      this.logger.warn(
+        'RaiseOverdueDeviceDownAlertsUseCase: could not re-read device state, skipping until the next scan',
+        {
+          deviceId: snapshot.deviceId.toString(),
+          error: result.error
+        }
+      );
+      return null;
+    }
+
+    const current = result.value;
+    if (
+      current === null ||
+      !current.status.isDown() ||
+      current.downSince?.getTime() !== snapshot.downSince?.getTime()
+    ) {
+      return null;
+    }
+    return current;
   }
 
   private async effectiveAlertDelayMs(

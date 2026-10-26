@@ -14,10 +14,14 @@ export class PrismaAlertRepository implements IAlertRepository {
 
       await this.prisma.alertEvent.upsert({
         where: { id: data.id },
+        // These timestamps only ever go from null to set, so a null here means
+        // "this copy never saw it", not "clear it". A scan holding an alert
+        // across a slow publish must not reopen one a recovery resolved in the
+        // meantime (NOT-229).
         update: {
-          resolvedAt: data.resolvedAt,
-          notifiedAt: data.notifiedAt,
-          recoveryNotifiedAt: data.recoveryNotifiedAt
+          resolvedAt: data.resolvedAt ?? undefined,
+          notifiedAt: data.notifiedAt ?? undefined,
+          recoveryNotifiedAt: data.recoveryNotifiedAt ?? undefined
         },
         // Prisma's generated type expects enum literal for severity and a JSON
         // input value for details — casts required from the mapper's plain shape
@@ -89,6 +93,21 @@ export class PrismaAlertRepository implements IAlertRepository {
     } catch (error) {
       return Result.fail(
         `Database error finding open alerts by device: ${(error as Error).message}`
+      );
+    }
+  }
+
+  async findAllOpenByType(type: string): Promise<Result<Alert[]>> {
+    try {
+      const records = await this.prisma.alertEvent.findMany({
+        where: { type, resolvedAt: null },
+        orderBy: { startedAt: 'asc' }
+      });
+
+      return Result.ok(records.map(AlertMapper.toDomain));
+    } catch (error) {
+      return Result.fail(
+        `Database error finding open alerts by type: ${(error as Error).message}`
       );
     }
   }

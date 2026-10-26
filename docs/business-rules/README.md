@@ -16,9 +16,9 @@ different document for a different audience.
 | Billing             | [billing.md](billing.md)                         | `BIL-001` … `BIL-264` |
 | Quoting             | [quoting.md](quoting.md)                         | `QUO-001` … `QUO-142` |
 | Device Monitoring   | [device-monitoring.md](device-monitoring.md)     | `MON-001` … `MON-084` |
-| Wireless Monitoring | [wireless-monitoring.md](wireless-monitoring.md) | `WLS-001` … `WLS-204` |
+| Wireless Monitoring | [wireless-monitoring.md](wireless-monitoring.md) | `WLS-001` … `WLS-205` |
 | Service Enforcement | [service-enforcement.md](service-enforcement.md) | `SVC-001` … `SVC-120` |
-| Notifications       | [notifications.md](notifications.md)             | `NOT-001` … `NOT-228` |
+| Notifications       | [notifications.md](notifications.md)             | `NOT-001` … `NOT-229` |
 | Identity & Access   | [identity.md](identity.md)                       | `IDN-001` … `IDN-184` |
 | Tickets             | [tickets.md](tickets.md)                         | `TKT-001` … `TKT-115` |
 | Shared Kernel       | [shared.md](shared.md)                           | `SHR-001` … `SHR-104` |

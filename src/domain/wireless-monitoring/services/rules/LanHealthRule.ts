@@ -45,8 +45,12 @@ export class LanHealthRule implements IAlertRule {
     // device's own baseline (captured from its first poll, WLS-089).
     // Falls back to the fixed 10/100 Mbps thresholds when a device has no
     // baseline yet (should only happen transiently, e.g. a failed save).
+    // A port with no link has no negotiated speed — airOS reports 0 for an
+    // unplugged eth0 — so a down port is left to lan_status alone instead of
+    // also paging as a degraded one (WLS-205).
     const lanSpeed = metrics.lanSpeedMbps;
-    if (lanSpeed !== null) {
+    const hasLink = lanStatus !== 'DOWN' && lanSpeed !== 0;
+    if (lanSpeed !== null && hasLink) {
       const key = 'lan_speed_mbps:WARNING';
       const active = activeAlerts.get(key);
       const baseline = context.provisionedLanSpeedMbps;

@@ -1,6 +1,7 @@
 export * from './SendDeviceDownAlertUseCase';
 export * from './SendDeviceRecoveryAlertUseCase';
 export * from './RaiseOverdueDeviceDownAlertsUseCase';
+export * from './ResolveStrandedDeviceDownAlertsUseCase';
 export * from './ListAlertsUseCase';
 export * from './GetAlertByIdUseCase';
 export * from './DeleteAlertUseCase';

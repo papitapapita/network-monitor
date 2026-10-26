@@ -93,7 +93,7 @@ function activeMap(
   return m;
 }
 
-describe('[WLS-088] [WLS-089] [WLS-090] LanHealthRule', () => {
+describe('[WLS-088] [WLS-089] [WLS-090] [WLS-205] LanHealthRule', () => {
   let rule: LanHealthRule;
 
   beforeEach(() => {
@@ -364,6 +364,78 @@ describe('[WLS-088] [WLS-089] [WLS-090] LanHealthRule', () => {
         expect(decision).toBeDefined();
         expect(decision!.action).toBe('OPEN');
       });
+    });
+  });
+
+  describe('[WLS-205] a port with no link', () => {
+    it('should open only the CRITICAL lan_status alert when the port is down and reports 0 Mbps', () => {
+      const metrics = makeMetrics({
+        lanStatus: 'DOWN',
+        lanSpeedMbps: 0
+      });
+      const result = rule.evaluate(
+        metrics,
+        makeContext({ provisionedLanSpeedMbps: 1000 }),
+        new Map()
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0].metric).toBe('lan_status');
+      expect(result[0].severity).toBe('CRITICAL');
+    });
+
+    it('should not judge speed while the port is down, whatever speed it reports', () => {
+      const metrics = makeMetrics({
+        lanStatus: 'DOWN',
+        lanSpeedMbps: 10
+      });
+      const result = rule.evaluate(metrics, makeContext(), new Map());
+      const speedDecisions = result.filter(
+        (d) => d.metric === 'lan_speed_mbps'
+      );
+      expect(speedDecisions).toHaveLength(0);
+    });
+
+    it('should not open a speed warning for a 0 Mbps reading without a lan status', () => {
+      const metrics = makeMetrics({ lanSpeedMbps: 0 });
+      const result = rule.evaluate(
+        metrics,
+        makeContext({ provisionedLanSpeedMbps: 1000 }),
+        new Map()
+      );
+      expect(result).toHaveLength(0);
+    });
+
+    it('should leave an already-open speed warning open while the port is down', () => {
+      const metrics = makeMetrics({
+        lanStatus: 'DOWN',
+        lanSpeedMbps: 0
+      });
+      const alerts = activeMap(['lan_speed_mbps', 'WARNING']);
+      const result = rule.evaluate(
+        metrics,
+        makeContext({ provisionedLanSpeedMbps: 1000 }),
+        alerts
+      );
+      const speedDecisions = result.filter(
+        (d) => d.metric === 'lan_speed_mbps'
+      );
+      expect(speedDecisions).toHaveLength(0);
+    });
+
+    it('should still warn on a slow speed once the port is back up', () => {
+      const metrics = makeMetrics({
+        lanStatus: 'UP',
+        lanSpeedMbps: 100
+      });
+      const result = rule.evaluate(
+        metrics,
+        makeContext({ provisionedLanSpeedMbps: 1000 }),
+        new Map()
+      );
+      const decision = result.find(
+        (d) => d.metric === 'lan_speed_mbps'
+      );
+      expect(decision?.action).toBe('OPEN');
     });
   });
 

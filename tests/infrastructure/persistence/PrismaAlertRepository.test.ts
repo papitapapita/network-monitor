@@ -169,11 +169,46 @@ describe('PrismaAlertRepository', () => {
         const call = prisma.alertEvent.upsert.mock
           .calls[0][0] as Record<string, Record<string, unknown>>;
 
-        expect(call.update).toEqual({
-          resolvedAt: fakePersistenceData.resolvedAt,
-          notifiedAt: fakePersistenceData.notifiedAt,
-          recoveryNotifiedAt: fakePersistenceData.recoveryNotifiedAt
-        });
+        expect(Object.keys(call.update).sort()).toEqual([
+          'notifiedAt',
+          'recoveryNotifiedAt',
+          'resolvedAt'
+        ]);
+      });
+
+      it('[NOT-229] should leave a timestamp this copy has as null untouched, never clear it', async () => {
+        prisma.alertEvent.upsert.mockResolvedValue(
+          fakePersistenceData
+        );
+
+        await repository.save(fakeAlert);
+
+        const call = prisma.alertEvent.upsert.mock
+          .calls[0][0] as Record<string, Record<string, unknown>>;
+        expect(call.update.resolvedAt).toBeUndefined();
+        expect(call.update.notifiedAt).toBeUndefined();
+        expect(call.update.recoveryNotifiedAt).toBeUndefined();
+      });
+
+      it('[NOT-229] should write the timestamps this copy has set', async () => {
+        const resolvedAt = new Date('2024-01-02T00:00:00.000Z');
+        const notifiedAt = new Date('2024-01-01T01:00:00.000Z');
+        MockedAlertMapper.toPersistence.mockReturnValue({
+          ...fakePersistenceData,
+          resolvedAt,
+          notifiedAt
+        } as never);
+        prisma.alertEvent.upsert.mockResolvedValue(
+          fakePersistenceData
+        );
+
+        await repository.save(fakeAlert);
+
+        const call = prisma.alertEvent.upsert.mock
+          .calls[0][0] as Record<string, Record<string, unknown>>;
+        expect(call.update.resolvedAt).toBe(resolvedAt);
+        expect(call.update.notifiedAt).toBe(notifiedAt);
+        expect(call.update.recoveryNotifiedAt).toBeUndefined();
       });
 
       it('should not include id, deviceId, severity, or startedAt in the update clause', async () => {
@@ -472,6 +507,48 @@ describe('PrismaAlertRepository', () => {
 
         expect(result.error).toContain('socket error');
       });
+    });
+  });
+
+  // =========================================================================
+  describe('findAllOpenByType()', () => {
+    it('should query unresolved alerts of that type, oldest first', async () => {
+      prisma.alertEvent.findMany.mockResolvedValue([]);
+
+      await repository.findAllOpenByType('device_unreachable');
+
+      expect(prisma.alertEvent.findMany).toHaveBeenCalledWith({
+        where: { type: 'device_unreachable', resolvedAt: null },
+        orderBy: { startedAt: 'asc' }
+      });
+    });
+
+    it('should map every row to an Alert', async () => {
+      prisma.alertEvent.findMany.mockResolvedValue([
+        makeRawAlertRecord(),
+        makeRawAlertRecord(VALID_UUID_2)
+      ]);
+
+      const result = await repository.findAllOpenByType(
+        'device_unreachable'
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value).toHaveLength(2);
+      expect(MockedAlertMapper.toDomain).toHaveBeenCalledTimes(2);
+    });
+
+    it('should return a failed Result when Prisma throws', async () => {
+      prisma.alertEvent.findMany.mockRejectedValue(
+        new Error('socket error')
+      );
+
+      const result = await repository.findAllOpenByType(
+        'device_unreachable'
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('socket error');
     });
   });
 

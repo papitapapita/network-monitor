@@ -98,12 +98,24 @@ const STUB_ALERT_DTO = {
   durationSecs: null
 };
 
+// The re-read before raising sees what the scan saw unless a test says
+// otherwise: findByDeviceId answers from the last down list handed out.
 function makeDeviceStateRepo(): jest.Mocked<IDeviceStateRepository> {
-  return {
+  const repo: jest.Mocked<IDeviceStateRepository> = {
     findByDeviceId: jest.fn(),
     findAllDown: jest.fn(),
     save: jest.fn()
   };
+  repo.findByDeviceId.mockImplementation(async (deviceId) => {
+    const last = repo.findAllDown.mock.results.at(-1)?.value as
+      | Promise<Result<DeviceState[]>>
+      | undefined;
+    const states = last ? (await last).value : [];
+    return Result.ok(
+      states.find((s) => s.deviceId.equals(deviceId)) ?? null
+    );
+  });
+  return repo;
 }
 
 function makePolicyRepo(): jest.Mocked<IDeviceNotificationPolicyRepository> {
@@ -510,6 +522,118 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
       expect(
         sendDeviceDownAlertUseCase.execute
       ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('[NOT-229] the device is re-read just before its alert is raised', () => {
+    it('skips a device that recovered after the down list was read', async () => {
+      const snapshot = makeDeviceState(VALID_DEVICE_UUID_1);
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([snapshot])
+      );
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(
+          makeDeviceState(VALID_DEVICE_UUID_1, {
+            status: ReachabilityStatus.createUp(),
+            downSince: null
+          })
+        )
+      );
+
+      const result = await useCase.execute();
+
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).not.toHaveBeenCalled();
+      expect(result.value).toBe(0);
+    });
+
+    it('skips a device that went down again in a new streak since the read', async () => {
+      const snapshot = makeDeviceState(VALID_DEVICE_UUID_1);
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([snapshot])
+      );
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(
+          makeDeviceState(VALID_DEVICE_UUID_1, {
+            downSince: FIXED_DATE
+          })
+        )
+      );
+
+      await useCase.execute();
+
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).not.toHaveBeenCalled();
+    });
+
+    it('skips a device whose state is gone', async () => {
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([makeDeviceState(VALID_DEVICE_UUID_1)])
+      );
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(null)
+      );
+
+      await useCase.execute();
+
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).not.toHaveBeenCalled();
+    });
+
+    it('skips a device it cannot re-read and still raises the rest', async () => {
+      const first = makeDeviceState(VALID_DEVICE_UUID_1);
+      const second = makeDeviceState(VALID_DEVICE_UUID_2);
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([first, second])
+      );
+      deviceStateRepo.findByDeviceId
+        .mockResolvedValueOnce(Result.fail('connection reset'))
+        .mockResolvedValueOnce(Result.ok(second));
+      sendDeviceDownAlertUseCase.execute.mockResolvedValue(
+        Result.ok(STUB_ALERT_DTO)
+      );
+
+      await useCase.execute();
+
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).toHaveBeenCalledTimes(1);
+      expect(sendDeviceDownAlertUseCase.execute).toHaveBeenCalledWith(
+        expect.objectContaining({ deviceId: VALID_DEVICE_UUID_2 })
+      );
+      expect(logger.warn).toHaveBeenCalled();
+    });
+
+    it('reports the failure count as of the re-read, and the streak start from the scan', async () => {
+      const snapshot = makeDeviceState(VALID_DEVICE_UUID_1, {
+        consecutiveFailures: 5
+      });
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([snapshot])
+      );
+      deviceStateRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(
+          makeDeviceState(VALID_DEVICE_UUID_1, {
+            consecutiveFailures: 9
+          })
+        )
+      );
+      sendDeviceDownAlertUseCase.execute.mockResolvedValue(
+        Result.ok(STUB_ALERT_DTO)
+      );
+
+      await useCase.execute();
+
+      expect(sendDeviceDownAlertUseCase.execute).toHaveBeenCalledWith(
+        {
+          deviceId: VALID_DEVICE_UUID_1,
+          consecutiveFailures: 9,
+          occurredAt: snapshot.downSince
+        }
+      );
     });
   });
 });

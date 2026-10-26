@@ -1443,7 +1443,8 @@ that customer, which is what CRITICAL means here.
 **Since:** 2026-08-03
 **Revised:** 2026-09-04 (thresholds are now per-device, relative to a
 baseline captured from the device's own first poll — see WLS-099 — instead of
-the fixed 10/100 Mbps values every device shared before)
+the fixed 10/100 Mbps values every device shared before); 2026-10-26 (not
+evaluated while the port is down — see WLS-205)
 
 Once a device has a baseline (`provisionedLanSpeedMbps`), the rule opens the
 moment negotiated speed drops below it, and clears only once negotiated speed
@@ -2749,6 +2750,26 @@ wrong. This is how low CCQ alerts arrived at night for links that were fine.
 
 **Enforced at:** `src/domain/wireless-monitoring/services/AlertConfirmation.ts` (`CCQ_IDLE_TRAFFIC_BPS`)
 **Tests:** `tests/domain/wireless-monitoring/services/AlertConfirmation.test.ts`
+
+### WLS-205 — A down LAN port raises one alert, not a speed warning as well
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-10-26
+
+While `lanStatus` is `DOWN`, the speed check of WLS-089 is skipped: no speed
+warning opens and none clears. A reading of 0 Mbps is skipped the same way, even
+with no LAN status. WLS-088's CRITICAL alert is the only one a down port raises.
+A speed warning that was already open stays open until the port is back up and
+WLS-089 clears it.
+
+**Why:** A port with no link has no negotiated speed. airOS reports `0` for an
+unplugged eth0, which is below every baseline, so each unplugged cable used to
+send two notifications: "Puerto LAN caído" (CRITICAL) and "Velocidad LAN
+degradada … 0 Mbps" (WARNING). Both described the same fault.
+
+**Enforced at:** `src/domain/wireless-monitoring/services/rules/LanHealthRule.ts` (`hasLink`)
+**Tests:** `tests/domain/wireless-monitoring/services/rules/LanHealthRule.test.ts`
 
 ---
 

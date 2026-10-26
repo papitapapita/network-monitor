@@ -87,6 +87,7 @@ function makeAlertRepo(): jest.Mocked<IAlertRepository> {
       .fn()
       .mockResolvedValue(Result.ok(null)),
     findAllOpenByDeviceId: jest.fn(),
+    findAllOpenByType: jest.fn(),
     deleteById: jest.fn(),
     deleteResolvedOlderThan: jest.fn()
   };

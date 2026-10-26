@@ -433,6 +433,7 @@ import {
   SendSuspensionNoticeUseCase,
   SendAlertNotificationUseCase,
   RaiseOverdueDeviceDownAlertsUseCase,
+  ResolveStrandedDeviceDownAlertsUseCase,
   GetDeviceNotificationPolicyUseCase,
   UpsertDeviceNotificationPolicyUseCase,
   DeleteDeviceNotificationPolicyUseCase,
@@ -1977,9 +1978,16 @@ export class DependencyContainer {
         this.logger,
         agentStatusQuery
       );
+    const resolveStrandedDeviceDownAlertsUseCase =
+      new ResolveStrandedDeviceDownAlertsUseCase(
+        this.alertRepository,
+        this.deviceStateRepository,
+        this.logger
+      );
     this.overdueDeviceDownAlertOrchestrator =
       new OverdueDeviceDownAlertOrchestrator(
         raiseOverdueDeviceDownAlertsUseCase,
+        resolveStrandedDeviceDownAlertsUseCase,
         { checkIntervalMs: 60_000 },
         this.logger
       );
