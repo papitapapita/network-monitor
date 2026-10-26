@@ -25,6 +25,7 @@ function makeRawRow(overrides: Record<string, unknown> = {}) {
     vendorId: VENDOR_UUID,
     model: 'RB760iGS',
     deviceType: 'ROUTER',
+    poeSwitchOs: null,
     createdAt: NOW,
     updatedAt: NOW,
     vendor: {
