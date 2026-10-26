@@ -350,6 +350,57 @@ post-mortem.
 **Reached from:** `DELETE /api/alerts`
 **Tests:** `tests/application/notifications/use-cases/BulkDeleteAlertsUseCase.test.ts`, `tests/integration/use-cases/notifications/BulkDeleteAlertsUseCase.integration.test.ts`, `tests/integration/alert.routes.test.ts`
 
+### NOT-229 — A device's down alert closes when the device is back, even if the recovery was missed
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application, Infrastructure (persistence)
+**Since:** 2026-10-26
+
+A `device_unreachable` alert stays open only while its device is down. Four
+mechanisms keep it that way:
+
+1. Saving an alert never clears `resolvedAt`, `notifiedAt` or
+   `recoveryNotifiedAt` once they are set. A copy that was loaded before
+   another path set one of them leaves it as stored.
+2. Just before the down-alert scan raises an alert, it re-reads the device's
+   state. It skips the device if the device is no longer down, or if
+   `downSince` differs from the scan's snapshot (a new streak, which the next
+   scan judges on its own delay).
+3. A scan tick that finds the previous scan still running is skipped.
+4. Every scan tick also closes any open down alert whose device is `UP` and
+   was last seen after the alert started. These are closed silently: no
+   recovery notification is sent, and a warning is logged.
+
+**Why:** The down alert is opened and closed on separate paths: the
+went-offline handler, the scan, and the came-online handler. They run
+concurrently and are not awaited. On a night when many devices drop, the scan
+walks a long list, publishing one alert at a time. A device that recovered in
+the meantime could:
+- have its resolved alert written back as open, by a scan holding a stale copy
+  across a slow or quiet-hours-suppressed publish;
+- get a brand-new alert from the stale snapshot after its recovery had already
+  run;
+- get two alerts from overlapping scans, of which the recovery closes only one.
+
+Nothing closed such an alert. The next outage reused it through the
+(device, type) dedupe, and the recovery then reported the device "offline for 3
+days", counting from the night the alert was stranded. Rule 4 also cleans up
+alerts stranded before this fix.
+
+**Known gap:** a recovery that lands while the "down" message is still being
+sent gets no "back up" message. The recovery path skips that message for an
+alert that was never notified (the NOT-097 blip rule), and at that moment the
+scan has not yet recorded its send. The scan then finishes sending "X no
+responde" and records it, so the team is told the device is down and never that
+it came back. The alert itself still closes correctly. The window is the
+duration of one Telegram call, about a second. It was left as is on
+2026-10-26 as too unlikely to justify more code. The fix, if it is ever needed,
+is for the sweep in rule 4 to send the recovery message for an alert that was
+notified, has no recovery notification and is only minutes old.
+
+**Enforced at:** `src/infrastructure/persistence/PrismaAlertRepository.ts` (`save`), `src/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.ts` (`stillInSameDownStreak`), `src/infrastructure/notifications/orchestrator/OverdueDeviceDownAlertOrchestrator.ts` (`isScanning`), `src/application/notifications/use-cases/ResolveStrandedDeviceDownAlertsUseCase.ts`
+**Tests:** `tests/application/notifications/use-cases/ResolveStrandedDeviceDownAlertsUseCase.test.ts`, `tests/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.test.ts`, `tests/infrastructure/notifications/orchestrator/OverdueDeviceDownAlertOrchestrator.test.ts`, `tests/infrastructure/persistence/PrismaAlertRepository.test.ts`, `tests/integration/use-cases/notifications/ResolveStrandedDeviceDownAlertsUseCase.integration.test.ts`
+
 ---
 
 ## Deduplication and the shared alert store
@@ -1931,43 +1982,3 @@ alert later instead of failing at startup.
 
 **Enforced at:** `src/infrastructure/notifications/config/webPushConfig.ts`, `src/infrastructure/di/container.ts`, `src/presentation/http/controllers/PushController.ts`
 **Tests:** `tests/infrastructure/notifications/config/webPushConfig.test.ts`, `tests/integration/push.routes.test.ts`
-
-### NOT-229 — A device's down alert closes when the device is back, even if the recovery was missed
-
-**Type:** Invariant · **Status:** Active
-**Layer:** Application, Infrastructure (persistence)
-**Since:** 2026-10-26
-
-A `device_unreachable` alert stays open only while its device is down. Four
-mechanisms keep it that way:
-
-1. Saving an alert never clears `resolvedAt`, `notifiedAt` or
-   `recoveryNotifiedAt` once they are set. A copy that was loaded before
-   another path set one of them leaves it as stored.
-2. Just before the down-alert scan raises an alert, it re-reads the device's
-   state. It skips the device if the device is no longer down, or if
-   `downSince` differs from the scan's snapshot (a new streak, which the next
-   scan judges on its own delay).
-3. A scan tick that finds the previous scan still running is skipped.
-4. Every scan tick also closes any open down alert whose device is `UP` and
-   was last seen after the alert started. These are closed silently: no
-   recovery notification is sent, and a warning is logged.
-
-**Why:** The down alert is opened and closed on separate paths: the
-went-offline handler, the scan, and the came-online handler. They run
-concurrently and are not awaited. On a night when many devices drop, the scan
-walks a long list, publishing one alert at a time. A device that recovered in
-the meantime could:
-- have its resolved alert written back as open, by a scan holding a stale copy
-  across a slow or quiet-hours-suppressed publish;
-- get a brand-new alert from the stale snapshot after its recovery had already
-  run;
-- get two alerts from overlapping scans, of which the recovery closes only one.
-
-Nothing closed such an alert. The next outage reused it through the
-(device, type) dedupe, and the recovery then reported the device "offline for 3
-days", counting from the night the alert was stranded. Rule 4 also cleans up
-alerts stranded before this fix.
-
-**Enforced at:** `src/infrastructure/persistence/PrismaAlertRepository.ts` (`save`), `src/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.ts` (`stillInSameDownStreak`), `src/infrastructure/notifications/orchestrator/OverdueDeviceDownAlertOrchestrator.ts` (`isScanning`), `src/application/notifications/use-cases/ResolveStrandedDeviceDownAlertsUseCase.ts`
-**Tests:** `tests/application/notifications/use-cases/ResolveStrandedDeviceDownAlertsUseCase.test.ts`, `tests/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.test.ts`, `tests/infrastructure/notifications/orchestrator/OverdueDeviceDownAlertOrchestrator.test.ts`, `tests/infrastructure/persistence/PrismaAlertRepository.test.ts`, `tests/integration/use-cases/notifications/ResolveStrandedDeviceDownAlertsUseCase.integration.test.ts`
