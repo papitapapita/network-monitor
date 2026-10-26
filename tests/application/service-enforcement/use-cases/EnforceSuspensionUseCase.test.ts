@@ -26,6 +26,7 @@ import {
 import { IPAddress } from '../../../../src/domain/shared/value-objects/IPAddress';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
+import { PaymentDay } from '../../../../src/domain/customers';
 
 const CS_UUID = '550e8400-e29b-41d4-a716-446655440080';
 const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440081';
@@ -107,6 +108,7 @@ function makeService(
           : DeviceId.parse(DEVICE_UUID).value,
       status: overrides.status ?? ContractedServiceStatus.SUSPENDED,
       startDate: NOW,
+      paymentDay: PaymentDay.default(),
       createdAt: NOW,
       updatedAt: NOW
     }

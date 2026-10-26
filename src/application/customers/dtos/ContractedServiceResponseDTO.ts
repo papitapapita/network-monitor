@@ -5,6 +5,7 @@ export interface ContractedServiceResponseDTO {
   deviceId: string | null;
   status: string;
   startDate: string;
+  paymentDay: number;
   createdAt: string;
   updatedAt: string;
 }

@@ -4,8 +4,7 @@ import { Customer } from 'domain/customers/aggregates';
 import {
   PhoneNumber,
   Cedula,
-  EmailAddress,
-  PaymentDay
+  EmailAddress
 } from 'domain/customers/value-objects';
 
 interface CustomerRecord {
@@ -14,7 +13,6 @@ interface CustomerRecord {
   phone: string;
   email: string | null;
   cedula: string | null;
-  paymentDay: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,7 +38,6 @@ export class CustomerPrismaMapper {
           raw.cedula !== null
             ? Cedula.reconstitute(raw.cedula)
             : null,
-        paymentDay: PaymentDay.reconstitute(raw.paymentDay),
         createdAt: raw.createdAt,
         updatedAt: raw.updatedAt
       })
@@ -56,7 +53,6 @@ export class CustomerPrismaMapper {
         customer.email !== null ? customer.email.toString() : null,
       cedula:
         customer.cedula !== null ? customer.cedula.toString() : null,
-      paymentDay: customer.paymentDay.value,
       createdAt: customer.createdAt,
       updatedAt: customer.updatedAt
     };

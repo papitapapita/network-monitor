@@ -7,6 +7,7 @@ import {
 } from 'domain/shared/ids';
 import { ContractedServiceStatus } from '../enums';
 import { ContractedServiceProps } from '../props';
+import { PaymentDay } from '../value-objects';
 import {
   ContractedServiceCreatedEvent,
   DeviceAssignedToServiceEvent,
@@ -45,6 +46,10 @@ export class ContractedService extends AggregateRoot<
     return this.props.startDate;
   }
 
+  get paymentDay(): PaymentDay {
+    return this.props.paymentDay;
+  }
+
   get createdAt(): Date {
     return this.props.createdAt;
   }
@@ -66,7 +71,8 @@ export class ContractedService extends AggregateRoot<
         'servicePlanId'
       ),
       Guard.againstNullOrUndefined(props.startDate, 'startDate'),
-      Guard.isDate(props.startDate, 'startDate')
+      Guard.isDate(props.startDate, 'startDate'),
+      Guard.againstNullOrUndefined(props.paymentDay, 'paymentDay')
     ]);
     if (!guardResult.succeeded) {
       return Result.fail<ContractedService>(guardResult.message!);
@@ -262,6 +268,27 @@ export class ContractedService extends AggregateRoot<
     }
 
     this.props.servicePlanId = newServicePlanId;
+    this.touch();
+    return Result.ok<void>();
+  }
+
+  public changePaymentDay(newPaymentDay: PaymentDay): Result<void> {
+    const cancelledGuard = this.ensureNotCancelled();
+    if (cancelledGuard.isFailure) return cancelledGuard;
+
+    const guardResult = Guard.againstNullOrUndefined(
+      newPaymentDay,
+      'paymentDay'
+    );
+    if (!guardResult.succeeded) {
+      return Result.fail<void>(guardResult.message!);
+    }
+
+    if (this.props.paymentDay.equals(newPaymentDay)) {
+      return Result.ok<void>();
+    }
+
+    this.props.paymentDay = newPaymentDay;
     this.touch();
     return Result.ok<void>();
   }

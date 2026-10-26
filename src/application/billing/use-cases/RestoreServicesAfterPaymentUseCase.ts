@@ -1,5 +1,5 @@
 import { Result } from 'domain/shared/core';
-import { CustomerId } from 'domain/shared/ids';
+import { BillId } from 'domain/shared/ids';
 import { BillStatus } from 'domain/billing/enums';
 import {
   IBillRepository,
@@ -13,8 +13,9 @@ import {
   RestoreServicesAfterPaymentResultDTO
 } from '../dtos';
 
-// BIL-311: once a customer has no OVERDUE bill left, every one of their
-// suspended services comes back — while the automatic cut is on.
+// BIL-311: once a paid bill's service has no OVERDUE bill left, it comes back
+// if suspended — while the automatic cut is on. The customer's other services
+// are not touched.
 export class RestoreServicesAfterPaymentUseCase extends UseCase<
   RestoreServicesAfterPaymentRequestDTO,
   RestoreServicesAfterPaymentResultDTO
@@ -31,9 +32,9 @@ export class RestoreServicesAfterPaymentUseCase extends UseCase<
   protected async executeImpl(
     request: RestoreServicesAfterPaymentRequestDTO
   ): Promise<Result<RestoreServicesAfterPaymentResultDTO>> {
-    const customerId = CustomerId.parse(request.customerId);
-    if (customerId.isFailure) {
-      return this.fail(`Invalid customerId: ${customerId.error}`);
+    const billId = BillId.parse(request.billId);
+    if (billId.isFailure) {
+      return this.fail(`Invalid billId: ${billId.error}`);
     }
 
     const settings = await this.settingsRepository.get();
@@ -42,25 +43,41 @@ export class RestoreServicesAfterPaymentUseCase extends UseCase<
         `Failed to load billing settings: ${settings.error}`
       );
     }
-    const skipped = { attempted: false, restored: 0, failed: [] };
-    if (!settings.value.automaticCutEnabled) return this.ok(skipped);
+    if (!settings.value.automaticCutEnabled) {
+      return this.ok({ attempted: false, restored: 0, failed: [] });
+    }
 
-    const overdue = await this.billRepository.count({
-      customerId: customerId.value,
-      status: BillStatus.OVERDUE
-    });
-    if (overdue.isFailure) return this.fail(overdue.error!);
-    if (overdue.value > 0) return this.ok(skipped);
+    const bill = await this.billRepository.findById(billId.value);
+    if (bill.isFailure) return this.fail(bill.error!);
+    if (bill.value === null) {
+      return this.fail(`Bill not found: ${request.billId}`);
+    }
 
-    const outcome = await this.serviceAccess.restoreSuspendedServices(
-      request.customerId
-    );
-    if (outcome.isFailure) return this.fail(outcome.error!);
-
-    return this.ok({
+    const outcome: RestoreServicesAfterPaymentResultDTO = {
       attempted: true,
-      restored: outcome.value.changed,
-      failed: outcome.value.failed
-    });
+      restored: 0,
+      failed: []
+    };
+    for (const item of bill.value.lineItems) {
+      const id = item.contractedServiceId.toString();
+
+      const overdue = await this.billRepository.count({
+        contractedServiceId: item.contractedServiceId,
+        status: BillStatus.OVERDUE
+      });
+      if (overdue.isFailure) {
+        outcome.failed.push({ id, error: overdue.error! });
+        continue;
+      }
+      if (overdue.value > 0) continue;
+
+      const restored = await this.serviceAccess.restoreService(id);
+      if (restored.isFailure) {
+        outcome.failed.push({ id, error: restored.error! });
+        continue;
+      }
+      if (restored.value) outcome.restored++;
+    }
+    return this.ok(outcome);
   }
 }

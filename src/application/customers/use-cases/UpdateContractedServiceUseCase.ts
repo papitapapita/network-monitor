@@ -5,7 +5,8 @@ import {
 } from 'domain/shared/ids';
 import {
   ContractedService,
-  ContractedServiceStatus
+  ContractedServiceStatus,
+  PaymentDay
 } from 'domain/customers';
 import {
   IServicePlanRepository,
@@ -81,6 +82,17 @@ export class UpdateContractedServiceUseCase extends UseCase<
         request.servicePlanId
       );
       if (applied.isFailure) return this.fail(applied.error!);
+    }
+
+    if (request.paymentDay !== undefined) {
+      const paymentDayResult = PaymentDay.create(request.paymentDay);
+      if (paymentDayResult.isFailure) {
+        return this.fail(paymentDayResult.error!);
+      }
+      const changed = service.changePaymentDay(
+        paymentDayResult.value
+      );
+      if (changed.isFailure) return this.fail(changed.error!);
     }
 
     // 2. Deactivating transition before a device change, so the device of an

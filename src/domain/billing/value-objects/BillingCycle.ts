@@ -11,7 +11,7 @@ interface BillingCycleProps {
   readonly previousIssueDay: Date;
 }
 
-// One customer's bill for one month: due on their payment day (the 30th is
+// One service's bill for one month: due on its payment day (the 30th is
 // the month's last day when shorter), issued from issueLeadDays before it
 // (BIL-283), covering the month their settings' billing mode names (BIL-282).
 export class BillingCycle extends ValueObject<BillingCycleProps> {
@@ -24,7 +24,7 @@ export class BillingCycle extends ValueObject<BillingCycleProps> {
     return this._props.dueDate;
   }
 
-  // Last month's issue day for the same customer, as a calendar date.
+  // Last month's issue day for the same service, as a calendar date.
   get previousIssueDay(): Date {
     return this._props.previousIssueDay;
   }

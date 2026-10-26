@@ -11,7 +11,8 @@ import {
 import { PrismaContractedServiceRepository } from '../../../../src/infrastructure/customers/repositories/PrismaContractedServiceRepository';
 import {
   ContractedService,
-  ContractedServiceStatus
+  ContractedServiceStatus,
+  PaymentDay
 } from '../../../../src/domain/customers';
 import { ContractedServiceStatusChangedEvent } from '../../../../src/domain/customers/events';
 import {
@@ -44,6 +45,7 @@ function makeRaw(overrides: Record<string, unknown> = {}) {
     deviceId: DEVICE_UUID,
     status: 'ACTIVE',
     startDate: NOW,
+    paymentDay: 30,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides
@@ -71,6 +73,7 @@ function makeService(): ContractedService {
       deviceId: DeviceId.parse(DEVICE_UUID).value,
       status: 'ACTIVE' as any,
       startDate: NOW,
+      paymentDay: PaymentDay.default(),
       createdAt: NOW,
       updatedAt: NOW
     }

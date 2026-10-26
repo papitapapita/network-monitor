@@ -11,10 +11,10 @@ import { Result } from '../../../../src/domain/shared/core/Result';
 import { makeLogger } from '../../probe-agents/fixtures';
 
 describe('RestoreServicesOnPaymentHandler', () => {
-  const customerId = CustomerId.create();
+  const billId = BillId.create();
   const event = new BillPaidEvent({
-    aggregateId: BillId.create(),
-    customerId,
+    aggregateId: billId,
+    customerId: CustomerId.create(),
     paidAt: new Date('2026-10-12T15:00:00Z'),
     dateTimeOccurred: new Date('2026-10-12T15:00:00Z')
   });
@@ -35,11 +35,11 @@ describe('RestoreServicesOnPaymentHandler', () => {
     );
   });
 
-  it("[BIL-311] asks to restore the paying customer's services", async () => {
+  it("[BIL-311] asks to restore the paid bill's services", async () => {
     await handler.handle(event);
 
     expect(execute).toHaveBeenCalledWith({
-      customerId: customerId.toString()
+      billId: billId.toString()
     });
     expect(logger.error).not.toHaveBeenCalled();
   });

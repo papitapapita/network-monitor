@@ -47,43 +47,6 @@ describe('CreateCustomerUseCase — integration', () => {
     expect(row.email).toBe('juan@example.com');
   });
 
-  it('[CUS-025] stores the 30th when no payment day is given', async () => {
-    const result = await useCase.execute({
-      fullName: 'Juan Perez',
-      phone: '3001234567'
-    });
-
-    const row = await prisma.customer.findUniqueOrThrow({
-      where: { id: result.value.id }
-    });
-    expect(row.paymentDay).toBe(30);
-  });
-
-  it('[CUS-024] stores the 15th group', async () => {
-    const result = await useCase.execute({
-      fullName: 'Juan Perez',
-      phone: '3001234567',
-      paymentDay: 15
-    });
-
-    const row = await prisma.customer.findUniqueOrThrow({
-      where: { id: result.value.id }
-    });
-    expect(row.paymentDay).toBe(15);
-  });
-
-  it('[CUS-024] the database refuses a payment day outside 15 and 30', async () => {
-    await expect(
-      prisma.customer.create({
-        data: {
-          fullName: 'Juan Perez',
-          phone: '3001234567',
-          paymentDay: 20
-        }
-      })
-    ).rejects.toThrow(/customers_payment_day_check/);
-  });
-
   it('[CUS-016] refuses a phone that is already registered', async () => {
     await seedCustomer(prisma, { phone: '3001234567' });
 

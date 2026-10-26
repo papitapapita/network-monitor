@@ -19,7 +19,7 @@ import {
   PrismaBillingSettingsRepository
 } from 'infrastructure/billing/repositories';
 import {
-  PrismaBillableCustomersQuery,
+  PrismaBillableServicesQuery,
   PrismaBillingContactsQuery
 } from 'infrastructure/billing/queries';
 import { ContractedServiceAccessAdapter } from 'infrastructure/billing/adapters';
@@ -65,11 +65,10 @@ describe('RunBillingCycleUseCase — integration', () => {
     );
     useCase = new RunBillingCycleUseCase(
       new PrismaBillingSettingsRepository(prisma),
-      new PrismaBillableCustomersQuery(prisma),
+      new PrismaBillableServicesQuery(prisma),
       billRepository,
       new GenerateBillUseCase(
         billRepository,
-        customerRepository,
         new PrismaContractedServiceRepository(prisma),
         new PrismaServicePlanRepository(prisma),
         logger
@@ -145,11 +144,11 @@ describe('RunBillingCycleUseCase — integration', () => {
   ): Promise<string> {
     const customerId = await seedCustomer(prisma, {
       phone,
-      paymentDay,
       email: emailAddress
     });
     await seedActiveContractedService(prisma, customerId, planId, {
-      startDate
+      startDate,
+      paymentDay
     });
     return customerId;
   }
@@ -174,7 +173,8 @@ describe('RunBillingCycleUseCase — integration', () => {
     period = { year: 2026, month: 9 }
   ): Promise<string> {
     const service = await prisma.contractedService.findFirstOrThrow({
-      where: { customerId }
+      where: { customerId },
+      orderBy: { createdAt: 'asc' }
     });
     const bill = await prisma.bill.create({
       data: {
@@ -218,7 +218,7 @@ describe('RunBillingCycleUseCase — integration', () => {
     expect(bill.status).toBe('PENDING');
   });
 
-  it('[BIL-283] issues the bill of a customer whose window is open, due on their day', async () => {
+  it('[BIL-283] issues the bill of a service whose window is open, due on its day', async () => {
     await enableBilling();
     const customer15 = await seedBillable('3000000015', 15);
     await seedBillable('3000000030', 30);
@@ -238,6 +238,52 @@ describe('RunBillingCycleUseCase — integration', () => {
     expect(bills[0].dueDate).toEqual(DUE_15_OCT);
     expect(Number(bills[0].lineItems[0].monthlyPrice)).toBe(80000);
     expect(Number(bills[0].lineItems[0].amount)).toBe(80000);
+  });
+
+  it("[BIL-283] a customer's services in different groups are billed apart, each on its own day", async () => {
+    await enableBilling();
+    const customerId = await seedBillable('3000000015', 15);
+    const service15 = await prisma.contractedService.findFirstOrThrow(
+      {
+        where: { customerId }
+      }
+    );
+    await seedActiveContractedService(prisma, customerId, planId, {
+      startDate: LONG_AGO,
+      paymentDay: 30
+    });
+
+    const result = await useCase.execute({ now: NOW });
+
+    expect(result.value.generated).toBe(1);
+    const bill = await prisma.bill.findFirstOrThrow({
+      include: { lineItems: true }
+    });
+    expect(bill.dueDate).toEqual(DUE_15_OCT);
+    expect(bill.lineItems.map((l) => l.contractedServiceId)).toEqual([
+      service15.id
+    ]);
+  });
+
+  it('[BIL-007] two services in the same group get a bill each', async () => {
+    await enableBilling();
+    const customerId = await seedBillable('3000000015', 15);
+    await seedActiveContractedService(prisma, customerId, planId, {
+      startDate: LONG_AGO,
+      paymentDay: 15
+    });
+
+    const result = await useCase.execute({ now: NOW });
+
+    expect(result.value.generated).toBe(2);
+    const bills = await prisma.bill.findMany({
+      include: { lineItems: true }
+    });
+    expect(bills).toHaveLength(2);
+    expect(bills.every((b) => b.lineItems.length === 1)).toBe(true);
+    expect(bills.every((b) => b.customerId === customerId)).toBe(
+      true
+    );
   });
 
   it('[BIL-288] a service that started inside the billed month is charged from its first day', async () => {
@@ -390,7 +436,7 @@ describe('RunBillingCycleUseCase — integration', () => {
     expect(await prisma.bill.count()).toBe(1);
   });
 
-  it('[BIL-284] skips a customer whose only service is suspended', async () => {
+  it('[BIL-284] skips a suspended service', async () => {
     await enableBilling();
     const customerId = await seedBillable('3000000015', 15);
     await prisma.contractedService.updateMany({
@@ -448,7 +494,7 @@ describe('RunBillingCycleUseCase — integration', () => {
       return service.status;
     }
 
-    it('suspends a customer still unpaid after the grace days', async () => {
+    it('suspends a service still unpaid after the grace days', async () => {
       await enableBilling('ADVANCE', true);
       const customerId = await seedBillable('3000000030', 30);
       // Due 30 Sep: grace ran 1–3 Oct.
@@ -462,6 +508,38 @@ describe('RunBillingCycleUseCase — integration', () => {
 
       expect(result.value.cut).toBe(1);
       expect(await serviceStatus(customerId)).toBe('SUSPENDED');
+    });
+
+    it("suspends only the unpaid service, not the customer's other one", async () => {
+      await enableBilling('ADVANCE', true);
+      const customerId = await seedBillable('3000000030', 30);
+      const owing = await prisma.contractedService.findFirstOrThrow({
+        where: { customerId },
+        orderBy: { createdAt: 'asc' }
+      });
+      const paidUp = await seedActiveContractedService(
+        prisma,
+        customerId,
+        planId,
+        { startDate: LONG_AGO, paymentDay: 15 }
+      );
+      await seedBill(
+        customerId,
+        'OVERDUE',
+        new Date('2026-10-01T04:59:59.999Z')
+      );
+
+      const result = await useCase.execute({ now: NOW });
+
+      expect(result.value.cut).toBe(1);
+      const status = async (id: string) =>
+        (
+          await prisma.contractedService.findUniqueOrThrow({
+            where: { id }
+          })
+        ).status;
+      expect(await status(owing.id)).toBe('SUSPENDED');
+      expect(await status(paidUp)).toBe('ACTIVE');
     });
 
     it('cuts a bill that only went overdue in the same run', async () => {
@@ -478,7 +556,7 @@ describe('RunBillingCycleUseCase — integration', () => {
       expect(await serviceStatus(customerId)).toBe('SUSPENDED');
     });
 
-    it('leaves a customer alone during the grace days', async () => {
+    it('leaves a service alone during the grace days', async () => {
       await enableBilling('ADVANCE', true);
       const customerId = await seedBillable('3000000030', 30);
       // Due 10 Oct: the last grace day is 13 Oct.

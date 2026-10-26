@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted — 2026-10-05
+Accepted — 2026-10-05 · Amended 2026-10-26: the payment day, the bill, the cut
+and the restore belong to each contracted service, not to the customer.
 
 ## Context
 
@@ -26,16 +27,20 @@ network.
 
 ### Collection groups and the cycle
 
-- Each customer pays by the **15th or the 30th** (`Customer.paymentDay`,
-  CUS-024; default 30, CUS-025). The 30th means the last day in February.
+- Each contracted service pays by the **15th or the 30th**
+  (`ContractedService.paymentDay`, CUS-024; default 30, CUS-025). The 30th
+  means the last day in February. A customer can hold services in both groups.
+- **One bill per service and period** (BIL-007): a customer with two services
+  gets two bills, each due on its own day.
 - That day is the bill's **due date** (end of day, Colombian time, UTC-5).
 - The bill is **issued 5 days earlier**.
 - After the due date the bill goes **OVERDUE**; **3 grace days** follow.
-- The day after the last grace day, unpaid customers are **cut**.
+- The day after the last grace day, the unpaid **service is cut**; the
+  customer's other services keep running.
 - Lead days and grace days are install settings, editable by the ISP's admin.
 - The **billing mode** is a setting too: paid in advance (a bill due in October
   is for October) or after use (for September). ISPs do both.
-- Customers with only suspended services are not billed.
+- Suspended services are not billed.
 - A new customer's first bill is **prorated** from the day their service
   started. Paid in advance, it also covers the days of the joining month that
   no bill charged. Bills made by hand stay whole-month.
@@ -49,8 +54,8 @@ network.
   the entry is fine, never in the future), and the user who entered it. The
   bill's existing pay action records it.
 - A bill is paid only when the **full amount** is recorded.
-- Paying every overdue bill of a suspended customer restores the service —
-  all of their suspended services, at once.
+- Paying a bill restores each suspended service on it that has no other
+  overdue bill. The customer's other services are left alone.
 - The automatic cut has its own switch, off by default, separate from
   automatic billing.
 - Online sources (a gateway webhook or a bank's collection file) arrive later
@@ -103,8 +108,8 @@ One commit per slice, reviewed before the next.
 
 ## Consequences
 
-- Billing reads the customer's payment day through a read-only query port, not
-  the customers repository.
+- Billing reads each service's payment day through a read-only query port
+  (`IBillableServicesQuery`), not the customers repository.
 - The agent gains a second request type; older agents without `enforce` are
   refused with a reason, as probes are today.
 - Until DIAN is connected, the ISP keeps issuing its legal invoices the way it

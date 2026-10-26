@@ -19,6 +19,7 @@ export class ContractedServiceMapper {
           : null,
       status: service.status,
       startDate: service.startDate.toISOString(),
+      paymentDay: service.paymentDay.value,
       createdAt: service.createdAt.toISOString(),
       updatedAt: service.updatedAt.toISOString()
     };

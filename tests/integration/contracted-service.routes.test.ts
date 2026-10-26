@@ -63,8 +63,40 @@ describe('Contracted Service Routes — /api/contracted-services', () => {
         customerId,
         servicePlanId,
         deviceId: null,
-        status: 'PENDING'
+        status: 'PENDING',
+        paymentDay: 30
       });
+    });
+
+    it('201 — [CUS-024] puts the service in the 15th group', async () => {
+      const res = await request(app)
+        .post('/api/contracted-services')
+        .set('Authorization', auth())
+        .send({ customerId, servicePlanId, paymentDay: 15 });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.paymentDay).toBe(15);
+    });
+
+    it('400 — [CUS-024] rejects a payment day other than 15 or 30', async () => {
+      const res = await request(app)
+        .post('/api/contracted-services')
+        .set('Authorization', auth())
+        .send({ customerId, servicePlanId, paymentDay: 20 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe(
+        'Payment day must be one of 15, 30'
+      );
+    });
+
+    it('400 — rejects a payment day that is not a whole number', async () => {
+      const res = await request(app)
+        .post('/api/contracted-services')
+        .set('Authorization', auth())
+        .send({ customerId, servicePlanId, paymentDay: '15' });
+
+      expect(res.status).toBe(400);
     });
 
     it('201 — creates a service bonded to a device', async () => {
@@ -199,7 +231,8 @@ describe('Contracted Service Routes — /api/contracted-services', () => {
         customerId,
         customer: { id: customerId, fullName: 'Test Customer' },
         servicePlan: { id: servicePlanId, monthlyPrice: 80000 },
-        device: null
+        device: null,
+        paymentDay: 30
       });
     });
 
@@ -232,6 +265,32 @@ describe('Contracted Service Routes — /api/contracted-services', () => {
       expect(res.status).toBe(200);
       expect(res.body.data.status).toBe('ACTIVE');
       expect(res.body.data.deviceId).toBe(deviceId);
+    });
+
+    it('200 — [CUS-024] moves a service to the 15th group', async () => {
+      const id = await createService();
+
+      const res = await request(app)
+        .put(`/api/contracted-services/${id}`)
+        .set('Authorization', auth())
+        .send({ paymentDay: 15 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.paymentDay).toBe(15);
+    });
+
+    it('400 — [CUS-024] rejects a payment day other than 15 or 30', async () => {
+      const id = await createService();
+
+      const res = await request(app)
+        .put(`/api/contracted-services/${id}`)
+        .set('Authorization', auth())
+        .send({ paymentDay: 31 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe(
+        'Payment day must be one of 15, 30'
+      );
     });
 
     it('409 — cannot activate without a device', async () => {

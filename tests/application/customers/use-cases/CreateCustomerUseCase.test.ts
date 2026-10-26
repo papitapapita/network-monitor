@@ -120,36 +120,4 @@ describe('CreateCustomerUseCase', () => {
     expect(result.isFailure).toBe(true);
     expect(repo.save).not.toHaveBeenCalled();
   });
-
-  describe('payment day', () => {
-    it('should default to the 30th when omitted', async () => {
-      const result = await useCase.execute({
-        fullName: 'Juan',
-        phone: '3001234567'
-      });
-      expect(result.isSuccess).toBe(true);
-      expect(result.value.paymentDay).toBe(30);
-    });
-
-    it('should accept the 15th', async () => {
-      const result = await useCase.execute({
-        fullName: 'Juan',
-        phone: '3001234567',
-        paymentDay: 15
-      });
-      expect(result.isSuccess).toBe(true);
-      expect(result.value.paymentDay).toBe(15);
-    });
-
-    it('should reject any other day without saving', async () => {
-      const result = await useCase.execute({
-        fullName: 'Juan',
-        phone: '3001234567',
-        paymentDay: 20
-      });
-      expect(result.isFailure).toBe(true);
-      expect(result.error).toBe('Payment day must be one of 15, 30');
-      expect(repo.save).not.toHaveBeenCalled();
-    });
-  });
 });

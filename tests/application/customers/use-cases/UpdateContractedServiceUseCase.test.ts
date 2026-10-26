@@ -15,7 +15,8 @@ import {
 } from '../../../../src/domain/customers/repository';
 import {
   ContractedService,
-  ContractedServiceStatus
+  ContractedServiceStatus,
+  PaymentDay
 } from '../../../../src/domain/customers';
 import {
   ContractedServiceId,
@@ -81,6 +82,7 @@ function makeService(
       deviceId,
       status,
       startDate: NOW,
+      paymentDay: PaymentDay.default(),
       createdAt: NOW,
       updatedAt: NOW
     }
@@ -123,6 +125,36 @@ describe('UpdateContractedServiceUseCase', () => {
     });
     expect(result.isFailure).toBe(true);
     expect(result.error).toContain('Invalid target status');
+  });
+
+  it('[CUS-024] should move the service to the 15th group', async () => {
+    (serviceRepo.findById as any).mockResolvedValue(
+      Result.ok(
+        makeService(ContractedServiceStatus.ACTIVE, DeviceId.create())
+      )
+    );
+    const result = await useCase.execute({
+      id: CS_UUID,
+      paymentDay: 15
+    });
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.paymentDay).toBe(15);
+    expect(serviceRepo.save).toHaveBeenCalledTimes(1);
+  });
+
+  it('[CUS-024] should reject a payment day outside 15 and 30', async () => {
+    (serviceRepo.findById as any).mockResolvedValue(
+      Result.ok(
+        makeService(ContractedServiceStatus.ACTIVE, DeviceId.create())
+      )
+    );
+    const result = await useCase.execute({
+      id: CS_UUID,
+      paymentDay: 31
+    });
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toBe('Payment day must be one of 15, 30');
+    expect(serviceRepo.save).not.toHaveBeenCalled();
   });
 
   it('should assign a device and activate in one call', async () => {
@@ -195,6 +227,7 @@ describe('UpdateContractedServiceUseCase', () => {
         deviceId: DeviceId.parse(DEVICE_UUID).value,
         status: ContractedServiceStatus.ACTIVE,
         startDate: NOW,
+        paymentDay: PaymentDay.default(),
         createdAt: NOW,
         updatedAt: NOW
       }

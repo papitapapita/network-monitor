@@ -14,6 +14,7 @@ import {
   cleanCustomers,
   cleanDatabase,
   createTestPrisma,
+  GHOST_ID,
   seedCustomer,
   seedDevice,
   seedDeviceModel,
@@ -87,11 +88,12 @@ describe('RestoreServicesAfterPaymentUseCase — integration', () => {
     return service.id;
   }
 
-  async function seedBill(status: 'PAID' | 'OVERDUE', month: number) {
-    const service = await prisma.contractedService.findFirstOrThrow({
-      where: { customerId }
-    });
-    await prisma.bill.create({
+  async function seedBill(
+    serviceIds: string[],
+    status: 'PAID' | 'OVERDUE',
+    month: number
+  ): Promise<string> {
+    const bill = await prisma.bill.create({
       data: {
         customerId,
         periodYear: 2026,
@@ -102,16 +104,17 @@ describe('RestoreServicesAfterPaymentUseCase — integration', () => {
         paidAt:
           status === 'PAID' ? new Date('2026-09-20T15:00:00Z') : null,
         lineItems: {
-          create: {
-            contractedServiceId: service.id,
+          create: serviceIds.map((contractedServiceId) => ({
+            contractedServiceId,
             servicePlanId: planId,
             planName: 'Plan 50',
             monthlyPrice: 80000,
             amount: 80000
-          }
+          }))
         }
       }
     });
+    return bill.id;
   }
 
   async function statusOf(id: string): Promise<string> {
@@ -122,52 +125,66 @@ describe('RestoreServicesAfterPaymentUseCase — integration', () => {
     ).status;
   }
 
-  it('[BIL-311] brings back every suspended service once nothing is overdue', async () => {
+  it("[BIL-311] brings back the paid bill's service and leaves the customer's other service cut", async () => {
     await cutOn();
-    const cut = await seedSuspended('SN-CUT');
-    const byHand = await seedSuspended('SN-HAND');
-    await seedBill('PAID', 9);
+    const paid = await seedSuspended('SN-PAID');
+    const other = await seedSuspended('SN-OTHER');
+    const billId = await seedBill([paid], 'PAID', 9);
 
-    const result = await useCase.execute({ customerId });
+    const result = await useCase.execute({ billId });
 
     expect(result.value).toEqual({
       attempted: true,
-      restored: 2,
+      restored: 1,
       failed: []
     });
-    expect(await statusOf(cut)).toBe('ACTIVE');
-    expect(await statusOf(byHand)).toBe('ACTIVE');
+    expect(await statusOf(paid)).toBe('ACTIVE');
+    expect(await statusOf(other)).toBe('SUSPENDED');
   });
 
-  it('[BIL-311] keeps the services suspended while another bill is overdue', async () => {
+  it('[BIL-311] keeps the service suspended while another of its bills is overdue', async () => {
     await cutOn();
     const cut = await seedSuspended('SN-CUT');
-    await seedBill('PAID', 9);
-    await seedBill('OVERDUE', 8);
+    const billId = await seedBill([cut], 'PAID', 9);
+    await seedBill([cut], 'OVERDUE', 8);
 
-    const result = await useCase.execute({ customerId });
+    const result = await useCase.execute({ billId });
 
-    expect(result.value.attempted).toBe(false);
+    expect(result.value.restored).toBe(0);
     expect(await statusOf(cut)).toBe('SUSPENDED');
+  });
+
+  it("[BIL-311] another service's overdue bill does not hold this one back", async () => {
+    await cutOn();
+    const paid = await seedSuspended('SN-PAID');
+    const owing = await seedSuspended('SN-OWING');
+    const billId = await seedBill([paid], 'PAID', 9);
+    await seedBill([owing], 'OVERDUE', 9);
+
+    await useCase.execute({ billId });
+
+    expect(await statusOf(paid)).toBe('ACTIVE');
+    expect(await statusOf(owing)).toBe('SUSPENDED');
   });
 
   it('[BIL-311] restores nothing while the automatic cut is off', async () => {
     await cutOn(false);
     const cut = await seedSuspended('SN-CUT');
-    await seedBill('PAID', 9);
+    const billId = await seedBill([cut], 'PAID', 9);
 
-    const result = await useCase.execute({ customerId });
+    const result = await useCase.execute({ billId });
 
     expect(result.value.attempted).toBe(false);
     expect(await statusOf(cut)).toBe('SUSPENDED');
   });
 
-  it('[BIL-311] reports a service that cannot come back and restores the rest', async () => {
+  it('[BIL-311] reports a service on the bill that cannot come back and restores the rest', async () => {
     await cutOn();
     const withDevice = await seedSuspended('SN-CUT');
     const noDevice = await seedSuspended(null);
+    const billId = await seedBill([withDevice, noDevice], 'PAID', 9);
 
-    const result = await useCase.execute({ customerId });
+    const result = await useCase.execute({ billId });
 
     expect(result.value.restored).toBe(1);
     expect(result.value.failed).toEqual([
@@ -181,9 +198,17 @@ describe('RestoreServicesAfterPaymentUseCase — integration', () => {
     expect(await statusOf(noDevice)).toBe('SUSPENDED');
   });
 
-  it('fails for a malformed customer id', async () => {
-    const result = await useCase.execute({ customerId: 'nope' });
+  it('fails for an unknown bill', async () => {
+    await cutOn();
 
-    expect(result.error).toContain('Invalid customerId');
+    const result = await useCase.execute({ billId: GHOST_ID });
+
+    expect(result.error).toBe(`Bill not found: ${GHOST_ID}`);
+  });
+
+  it('fails for a malformed bill id', async () => {
+    const result = await useCase.execute({ billId: 'nope' });
+
+    expect(result.error).toContain('Invalid billId');
   });
 });

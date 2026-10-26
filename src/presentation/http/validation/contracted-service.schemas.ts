@@ -8,6 +8,9 @@ const uuidField = (label: string) =>
     .string()
     .regex(UUID_REGEX, `Invalid ${label} (must be a UUID v4)`);
 
+// Shape only; which days are allowed lives in PaymentDay (CUS-024).
+const paymentDayField = z.number().int();
+
 const STATUS_VALUES = ['ACTIVE', 'SUSPENDED', 'CANCELLED'] as const;
 
 export const createContractedServiceSchema = z.object({
@@ -18,7 +21,8 @@ export const createContractedServiceSchema = z.object({
     startDate: z
       .string()
       .datetime({ message: 'startDate must be an ISO 8601 datetime' })
-      .optional()
+      .optional(),
+    paymentDay: paymentDayField.optional()
   })
 });
 
@@ -30,13 +34,15 @@ export const updateContractedServiceSchema = z.object({
     .object({
       servicePlanId: uuidField('servicePlanId').optional(),
       deviceId: uuidField('deviceId').nullable().optional(),
-      status: z.enum(STATUS_VALUES).optional()
+      status: z.enum(STATUS_VALUES).optional(),
+      paymentDay: paymentDayField.optional()
     })
     .refine(
       (body) =>
         body.servicePlanId !== undefined ||
         body.deviceId !== undefined ||
-        body.status !== undefined,
+        body.status !== undefined ||
+        body.paymentDay !== undefined,
       { message: 'At least one field must be provided for update' }
     )
 });

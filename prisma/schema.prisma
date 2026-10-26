@@ -712,15 +712,13 @@ enum ContractedServiceStatus {
 }
 
 model Customer {
-  id         String   @id @default(uuid()) @db.Uuid
-  fullName   String   @map("full_name") @db.VarChar(150)
-  phone      String   @unique @db.VarChar(20)
-  email      String?  @unique @db.VarChar(255)
-  cedula     String?  @unique @db.VarChar(20)
-  /// 15 or 30: the day of the month the bill is due (CUS-024).
-  paymentDay Int      @default(30) @map("payment_day") @db.SmallInt
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  id        String   @id @default(uuid()) @db.Uuid
+  fullName  String   @map("full_name") @db.VarChar(150)
+  phone     String   @unique @db.VarChar(20)
+  email     String?  @unique @db.VarChar(255)
+  cedula    String?  @unique @db.VarChar(20)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   contractedServices ContractedService[]
   bills              Bill[]
@@ -754,6 +752,8 @@ model ContractedService {
   deviceId      String?                 @unique @map("device_id") @db.Uuid
   status        ContractedServiceStatus @default(PENDING)
   startDate     DateTime                @map("start_date") @db.Timestamptz
+  /// 15 or 30: the day of the month the service's bill is due (CUS-024).
+  paymentDay    Int                     @default(30) @map("payment_day") @db.SmallInt
   createdAt     DateTime                @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime                @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -780,16 +780,20 @@ enum BillStatus {
 }
 
 model Bill {
-  id          String     @id @default(uuid()) @db.Uuid
-  customerId  String     @map("customer_id") @db.Uuid
-  periodYear  Int        @map("period_year")
-  periodMonth Int        @map("period_month")
-  status      BillStatus @default(PENDING)
-  issueDate   DateTime   @map("issue_date") @db.Timestamptz
-  dueDate     DateTime   @map("due_date") @db.Timestamptz
-  paidAt      DateTime?  @map("paid_at") @db.Timestamptz
-  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+  id                  String     @id @default(uuid()) @db.Uuid
+  customerId          String     @map("customer_id") @db.Uuid
+  // The one service billed (BIL-007); null on older multi-service bills.
+  // Unique per period among non-cancelled bills — a partial index in
+  // migration 20261026140000, not expressible in the Prisma schema DSL.
+  contractedServiceId String?    @map("contracted_service_id") @db.Uuid
+  periodYear          Int        @map("period_year")
+  periodMonth         Int        @map("period_month")
+  status              BillStatus @default(PENDING)
+  issueDate           DateTime   @map("issue_date") @db.Timestamptz
+  dueDate             DateTime   @map("due_date") @db.Timestamptz
+  paidAt              DateTime?  @map("paid_at") @db.Timestamptz
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime   @updatedAt @map("updated_at") @db.Timestamptz
 
   customer  Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
   lineItems BillLineItem[]

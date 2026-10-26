@@ -5,4 +5,5 @@ export interface UpdateContractedServiceRequestDTO {
   deviceId?: string | null;
   // target lifecycle state: ACTIVE | SUSPENDED | CANCELLED
   status?: string;
+  paymentDay?: number;
 }

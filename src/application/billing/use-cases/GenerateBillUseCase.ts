@@ -1,4 +1,4 @@
-import { CustomerId } from 'domain/shared/ids';
+import { ContractedServiceId } from 'domain/shared/ids';
 import { Money } from 'domain/shared/value-objects';
 import {
   Bill,
@@ -14,7 +14,6 @@ import {
   ContractedServiceStatus
 } from 'domain/customers';
 import {
-  ICustomerRepository,
   IServicePlanRepository,
   IContractedServiceRepository
 } from 'domain/customers/repository';
@@ -31,13 +30,14 @@ interface Proration {
   previousIssueDay: Date;
 }
 
+// One bill per service and period (BIL-007): a customer with several
+// services gets a bill for each, due on that service's own payment day.
 export class GenerateBillUseCase extends UseCase<
   GenerateBillRequestDTO,
   BillResponseDTO
 > {
   constructor(
     private readonly billRepository: IBillRepository,
-    private readonly customerRepository: ICustomerRepository,
     private readonly contractedServiceRepository: IContractedServiceRepository,
     private readonly servicePlanRepository: IServicePlanRepository,
     logger: ILogger
@@ -49,10 +49,10 @@ export class GenerateBillUseCase extends UseCase<
     request: GenerateBillRequestDTO
   ): Promise<Result<void> | null> {
     if (
-      !request.customerId ||
-      request.customerId.trim().length === 0
+      !request.contractedServiceId ||
+      request.contractedServiceId.trim().length === 0
     ) {
-      return Result.fail('customerId is required');
+      return Result.fail('contractedServiceId is required');
     }
     return null;
   }
@@ -60,15 +60,15 @@ export class GenerateBillUseCase extends UseCase<
   protected async executeImpl(
     request: GenerateBillRequestDTO
   ): Promise<Result<BillResponseDTO>> {
-    const customerIdResult = CustomerId.parse(
-      request.customerId.trim()
+    const serviceIdResult = ContractedServiceId.parse(
+      request.contractedServiceId.trim()
     );
-    if (customerIdResult.isFailure) {
+    if (serviceIdResult.isFailure) {
       return this.fail(
-        `Invalid customerId: ${customerIdResult.error}`
+        `Invalid contractedServiceId: ${serviceIdResult.error}`
       );
     }
-    const customerId = customerIdResult.value;
+    const serviceId = serviceIdResult.value;
 
     const periodResult = BillingPeriod.create(
       request.year,
@@ -96,18 +96,26 @@ export class GenerateBillUseCase extends UseCase<
     }
     const proration = prorationResult.value;
 
-    const customerExists =
-      await this.customerRepository.exists(customerId);
-    if (customerExists.isFailure) {
-      return this.fail(customerExists.error!);
+    const serviceResult =
+      await this.contractedServiceRepository.findById(serviceId);
+    if (serviceResult.isFailure) {
+      return this.fail(serviceResult.error!);
     }
-    if (!customerExists.value) {
-      return this.fail(`Customer not found: ${request.customerId}`);
+    const service = serviceResult.value;
+    if (service === null) {
+      return this.fail(
+        `Contracted service not found: ${request.contractedServiceId}`
+      );
+    }
+    if (service.status !== ContractedServiceStatus.ACTIVE) {
+      return this.fail(
+        'Contracted service is not active and cannot be billed'
+      );
     }
 
     const duplicateCheck =
-      await this.billRepository.existsForCustomerAndPeriod(
-        customerId,
+      await this.billRepository.existsForServiceAndPeriod(
+        serviceId,
         period
       );
     if (duplicateCheck.isFailure) {
@@ -115,46 +123,28 @@ export class GenerateBillUseCase extends UseCase<
     }
     if (duplicateCheck.value) {
       return this.fail(
-        `A bill already exists for customer ${request.customerId} for period ${period.toString()}`
+        `A bill already exists for service ${request.contractedServiceId} for period ${period.toString()}`
       );
     }
 
-    const servicesResult =
-      await this.contractedServiceRepository.findByCustomerId(
-        customerId
-      );
-    if (servicesResult.isFailure) {
-      return this.fail(servicesResult.error!);
-    }
-
-    const activeServices = servicesResult.value.filter(
-      (service) => service.status === ContractedServiceStatus.ACTIVE
-    );
-    if (activeServices.length === 0) {
-      return this.fail(
-        'Customer has no active contracted services for billing'
-      );
-    }
-
-    const lineItemsResult = await this.buildLineItems(
-      customerId,
+    const lineItemResult = await this.buildLineItem(
       period,
-      activeServices,
+      service,
       proration
     );
-    if (lineItemsResult.isFailure) {
-      return this.fail(lineItemsResult.error!);
+    if (lineItemResult.isFailure) {
+      return this.fail(lineItemResult.error!);
     }
-    if (lineItemsResult.value.length === 0) {
+    if (lineItemResult.value === null) {
       return this.fail(
-        `Customer has no services to bill for period ${period.toString()}`
+        `Service has nothing to bill for period ${period.toString()}`
       );
     }
 
     const billResult = Bill.create({
-      customerId,
+      customerId: service.customerId,
       period,
-      lineItems: lineItemsResult.value,
+      lineItems: [lineItemResult.value],
       issueDate,
       dueDate
     });
@@ -229,102 +219,84 @@ export class GenerateBillUseCase extends UseCase<
     });
   }
 
-  // Services on a live bill for the month before `period`.
+  // Whether the service is on a live bill for the month before `period`.
   private async billedLastPeriod(
-    customerId: CustomerId,
+    service: ContractedService,
     period: BillingPeriod
-  ): Promise<Result<Set<string>>> {
+  ): Promise<Result<boolean>> {
     const previous =
       period.month === 1
         ? BillingPeriod.create(period.year - 1, 12)
         : BillingPeriod.create(period.year, period.month - 1);
-    if (previous.isFailure) return Result.ok(new Set());
+    if (previous.isFailure) return Result.ok(false);
 
     const bills = await this.billRepository.findAll({
-      customerId,
+      contractedServiceId: service.id,
       period: previous.value
     });
     if (bills.isFailure) return Result.fail(bills.error!);
 
-    const billed = new Set<string>();
-    for (const bill of bills.value) {
-      if (bill.status === BillStatus.CANCELLED) continue;
-      for (const item of bill.lineItems) {
-        billed.add(item.contractedServiceId.toString());
-      }
-    }
-    return Result.ok(billed);
+    return Result.ok(
+      bills.value.some((bill) => bill.status !== BillStatus.CANCELLED)
+    );
   }
 
-  private async buildLineItems(
-    customerId: CustomerId,
+  // Null when proration leaves nothing to charge in `period`.
+  private async buildLineItem(
     period: BillingPeriod,
-    services: ContractedService[],
+    service: ContractedService,
     proration: Proration | null
-  ): Promise<Result<BillLineItem[]>> {
-    const lineItems: BillLineItem[] = [];
-
-    let billedLastPeriod = new Set<string>();
+  ): Promise<Result<BillLineItem | null>> {
+    let billedLastPeriod = false;
     if (proration?.billingMode === BillingMode.ADVANCE) {
-      const billed = await this.billedLastPeriod(customerId, period);
+      const billed = await this.billedLastPeriod(service, period);
       if (billed.isFailure) return Result.fail(billed.error!);
       billedLastPeriod = billed.value;
     }
 
-    for (const service of services) {
-      const servicePeriod =
-        proration === null
-          ? ServicePeriod.ofPeriod(period)
-          : ServicePeriod.forAutomaticBill({
-              period,
-              billingMode: proration.billingMode,
-              serviceStart: service.startDate,
-              previousIssueDay: proration.previousIssueDay,
-              billedLastPeriod: billedLastPeriod.has(
-                service.id.toString()
-              )
-            });
-      if (servicePeriod === null) continue;
+    const servicePeriod =
+      proration === null
+        ? ServicePeriod.ofPeriod(period)
+        : ServicePeriod.forAutomaticBill({
+            period,
+            billingMode: proration.billingMode,
+            serviceStart: service.startDate,
+            previousIssueDay: proration.previousIssueDay,
+            billedLastPeriod
+          });
+    if (servicePeriod === null) return Result.ok(null);
 
-      const planResult = await this.servicePlanRepository.findById(
-        service.servicePlanId
-      );
-      if (planResult.isFailure) {
-        return Result.fail(planResult.error!);
-      }
-
-      const plan = planResult.value;
-      if (plan === null) {
-        // Data integrity issue, not a client error — fail the whole run
-        // rather than silently dropping the line item.
-        return Result.fail(
-          `Data integrity error: service plan ${service.servicePlanId.toString()} referenced by contracted service ${service.id.toString()} does not exist`
-        );
-      }
-
-      const priceResult = Money.create(plan.monthlyPrice);
-      if (priceResult.isFailure) {
-        return Result.fail(priceResult.error!);
-      }
-
-      const lineItemResult = BillLineItem.create({
-        contractedServiceId: service.id,
-        servicePlanId: plan.id,
-        planName: plan.name,
-        monthlyPrice: priceResult.value,
-        amount:
-          proration === null
-            ? priceResult.value
-            : servicePeriod.chargeFor(priceResult.value),
-        servicePeriod
-      });
-      if (lineItemResult.isFailure) {
-        return Result.fail(lineItemResult.error!);
-      }
-
-      lineItems.push(lineItemResult.value);
+    const planResult = await this.servicePlanRepository.findById(
+      service.servicePlanId
+    );
+    if (planResult.isFailure) {
+      return Result.fail(planResult.error!);
     }
 
-    return Result.ok(lineItems);
+    const plan = planResult.value;
+    if (plan === null) {
+      // Data integrity issue, not a client error — fail the whole run
+      // rather than silently dropping the line item.
+      return Result.fail(
+        `Data integrity error: service plan ${service.servicePlanId.toString()} referenced by contracted service ${service.id.toString()} does not exist`
+      );
+    }
+
+    const priceResult = Money.create(plan.monthlyPrice);
+    if (priceResult.isFailure) {
+      return Result.fail(priceResult.error!);
+    }
+
+    return BillLineItem.create({
+      contractedServiceId: service.id,
+      servicePlanId: plan.id,
+      planName: plan.name,
+      monthlyPrice: priceResult.value,
+      amount:
+        proration === null
+          ? priceResult.value
+          : servicePeriod.chargeFor(priceResult.value),
+      servicePeriod
+    });
   }
 }

@@ -37,6 +37,7 @@ export class PrismaContractedServiceRepository
           deviceId: data.deviceId,
           status: data.status,
           startDate: data.startDate,
+          paymentDay: data.paymentDay,
           updatedAt: data.updatedAt
         }
       });

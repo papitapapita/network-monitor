@@ -7,6 +7,7 @@ import {
 } from 'domain/shared/ids';
 import { ContractedService } from 'domain/customers/aggregates';
 import { ContractedServiceStatus } from 'domain/customers/enums';
+import { PaymentDay } from 'domain/customers/value-objects';
 import { ContractedServiceStatus as PrismaContractedServiceStatus } from 'generated/prisma/client';
 
 interface ContractedServiceRecord {
@@ -16,6 +17,7 @@ interface ContractedServiceRecord {
   deviceId: string | null;
   status: string;
   startDate: Date;
+  paymentDay: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -65,6 +67,7 @@ export class ContractedServicePrismaMapper {
         deviceId,
         status: this.mapStatusFromPrisma(raw.status),
         startDate: raw.startDate,
+        paymentDay: PaymentDay.reconstitute(raw.paymentDay),
         createdAt: raw.createdAt,
         updatedAt: raw.updatedAt
       })
@@ -78,6 +81,7 @@ export class ContractedServicePrismaMapper {
     deviceId: string | null;
     status: PrismaContractedServiceStatus;
     startDate: Date;
+    paymentDay: number;
     createdAt: Date;
     updatedAt: Date;
   } {
@@ -91,6 +95,7 @@ export class ContractedServicePrismaMapper {
           : null,
       status: this.mapStatusToPrisma(service.status),
       startDate: service.startDate,
+      paymentDay: service.paymentDay.value,
       createdAt: service.createdAt,
       updatedAt: service.updatedAt
     };

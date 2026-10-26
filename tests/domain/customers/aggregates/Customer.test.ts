@@ -7,7 +7,6 @@ import {
   PhoneNumber,
   Cedula,
   EmailAddress,
-  PaymentDay,
   CustomerCreatedEvent,
   CustomerUpdatedEvent
 } from '../../../../src/domain/customers';
@@ -26,7 +25,6 @@ function validProps(
     phone: makePhone(),
     email: null,
     cedula: null,
-    paymentDay: PaymentDay.default(),
     ...overrides
   };
 }
@@ -61,13 +59,6 @@ describe('Customer', () => {
 
     it('should fail with an empty name', () => {
       const result = Customer.create(validProps({ fullName: '   ' }));
-      expect(result.isFailure).toBe(true);
-    });
-
-    it('should fail when payment day is missing', () => {
-      const result = Customer.create(
-        validProps({ paymentDay: null as unknown as PaymentDay })
-      );
       expect(result.isFailure).toBe(true);
     });
 
@@ -149,43 +140,6 @@ describe('Customer', () => {
       customer.changePhone(makePhone('300 123 4567'));
 
       expect(customer.domainEvents).toHaveLength(0);
-    });
-  });
-
-  describe('changePaymentDay()', () => {
-    it('should move the customer to the other group and record it', () => {
-      const customer = Customer.create(validProps()).value;
-      customer.clearEvents();
-
-      const result = customer.changePaymentDay(
-        PaymentDay.create(15).value
-      );
-
-      expect(result.isSuccess).toBe(true);
-      expect(customer.paymentDay.value).toBe(15);
-      expect(customer.domainEvents).toHaveLength(1);
-      const event = customer.domainEvents[0] as CustomerUpdatedEvent;
-      expect(event.changedFields).toEqual(['paymentDay']);
-    });
-
-    it('should be a no-op for the same day', () => {
-      const customer = Customer.create(validProps()).value;
-      customer.clearEvents();
-
-      customer.changePaymentDay(PaymentDay.create(30).value);
-
-      expect(customer.domainEvents).toHaveLength(0);
-    });
-
-    it('should fail when the day is missing', () => {
-      const customer = Customer.create(validProps()).value;
-
-      const result = customer.changePaymentDay(
-        null as unknown as PaymentDay
-      );
-
-      expect(result.isFailure).toBe(true);
-      expect(customer.paymentDay.value).toBe(30);
     });
   });
 });

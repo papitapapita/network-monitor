@@ -12,9 +12,9 @@ import {
   ContractedService,
   ContractedServiceStatus,
   PhoneNumber,
-  PaymentDay,
   Cedula,
-  EmailAddress
+  EmailAddress,
+  PaymentDay
 } from '../../../../src/domain/customers';
 import {
   CustomerId,
@@ -35,7 +35,6 @@ describe('CustomerMapper.toDTO', () => {
         phone: PhoneNumber.reconstitute('3001234567'),
         email: EmailAddress.reconstitute('juan@example.com'),
         cedula: Cedula.reconstitute('1036612'),
-        paymentDay: PaymentDay.reconstitute(30),
         createdAt: NOW,
         updatedAt: NOW
       }
@@ -47,7 +46,6 @@ describe('CustomerMapper.toDTO', () => {
       phone: '3001234567',
       email: 'juan@example.com',
       cedula: '1036612',
-      paymentDay: 30,
       createdAt: NOW.toISOString(),
       updatedAt: NOW.toISOString()
     });
@@ -61,7 +59,6 @@ describe('CustomerMapper.toDTO', () => {
         phone: PhoneNumber.reconstitute('3001234567'),
         email: null,
         cedula: null,
-        paymentDay: PaymentDay.reconstitute(30),
         createdAt: NOW,
         updatedAt: NOW
       }
@@ -79,7 +76,6 @@ describe('CustomerMapper.toDTO', () => {
         phone: PhoneNumber.reconstitute('3001234567'),
         email: null,
         cedula: null,
-        paymentDay: PaymentDay.reconstitute(30),
         createdAt: NOW,
         updatedAt: NOW
       }
@@ -116,7 +112,7 @@ describe('ServicePlanMapper.toDTO', () => {
 });
 
 describe('ContractedServiceMapper.toDTO', () => {
-  it('should serialize ids, status and dates', () => {
+  it('should serialize ids, status, dates and payment day', () => {
     const service = ContractedService.reconstitute(
       ContractedServiceId.parse(UUID).value,
       {
@@ -125,11 +121,13 @@ describe('ContractedServiceMapper.toDTO', () => {
         deviceId: DeviceId.create(),
         status: ContractedServiceStatus.ACTIVE,
         startDate: NOW,
+        paymentDay: PaymentDay.create(15).value,
         createdAt: NOW,
         updatedAt: NOW
       }
     );
     const dto = ContractedServiceMapper.toDTO(service);
+    expect(dto.paymentDay).toBe(15);
     expect(dto.status).toBe('ACTIVE');
     expect(dto.deviceId).not.toBeNull();
     expect(dto.startDate).toBe(NOW.toISOString());
@@ -144,6 +142,7 @@ describe('ContractedServiceMapper.toDTO', () => {
         deviceId: null,
         status: ContractedServiceStatus.PENDING,
         startDate: NOW,
+        paymentDay: PaymentDay.default(),
         createdAt: NOW,
         updatedAt: NOW
       }

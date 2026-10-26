@@ -1,5 +1,5 @@
 import { Result } from 'domain/shared/core';
-import { CustomerId } from 'domain/shared/ids';
+import { ContractedServiceId } from 'domain/shared/ids';
 import {
   BillingCycle,
   BillingSettings,
@@ -12,7 +12,7 @@ import {
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import {
-  IBillableCustomersQuery,
+  IBillableServicesQuery,
   ICustomerServiceAccess
 } from '../interfaces';
 import {
@@ -29,21 +29,21 @@ type Failures = BillingCycleRunResultDTO['failed'];
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // The daily billing run (BIL-284): marks unpaid bills overdue once their due
-// date has passed, cuts customers still unpaid after the grace days when the
+// date has passed, cuts services still unpaid after the grace days when the
 // automatic cut is on (BIL-310), sends the payment reminders of the last two
-// grace days (BIL-321), then issues the bills whose issue window is open and
-// sends them by email and, with a bill template, WhatsApp (BIL-324). Does
-// nothing while automatic billing is off. Safe to repeat: a period already
-// billed — even cancelled — is never billed again by the run. Bills it issues
-// are prorated (BIL-287..290); a customer whose services all start after the
-// billed month waits for the next cycle.
+// grace days (BIL-321), then issues a bill for each active service whose
+// issue window is open and sends it by email and, with a bill template,
+// WhatsApp (BIL-324). Does nothing while automatic billing is off. Safe to
+// repeat: a service's period already billed — even cancelled — is never billed
+// again by the run. Bills it issues are prorated (BIL-287..290); a service
+// that starts after the billed month waits for the next cycle.
 export class RunBillingCycleUseCase extends UseCase<
   RunBillingCycleRequestDTO,
   BillingCycleRunResultDTO
 > {
   constructor(
     private readonly settingsRepository: IBillingSettingsRepository,
-    private readonly billableCustomers: IBillableCustomersQuery,
+    private readonly billableServices: IBillableServicesQuery,
     private readonly billRepository: IBillRepository,
     private readonly generateBillUseCase: GenerateBillUseCase,
     private readonly serviceAccess: ICustomerServiceAccess,
@@ -140,29 +140,27 @@ export class RunBillingCycleUseCase extends UseCase<
     return Result.ok(marked);
   }
 
-  // BIL-310: the day after the last grace day, every customer still holding
-  // an OVERDUE bill has their active services suspended.
+  // BIL-310: the day after the last grace day, every active service still on
+  // an OVERDUE bill is suspended. The customer's other services keep running.
   private async cutUnpaid(
     now: Date,
     graceDays: number,
     failed: Failures
   ): Promise<Result<number>> {
     const graceEnd = new Date(now.getTime() - graceDays * DAY_MS);
-    const customers =
-      await this.billRepository.findCustomersOverdueBefore(graceEnd);
-    if (customers.isFailure) return Result.fail(customers.error!);
+    const services =
+      await this.billRepository.findServicesOverdueBefore(graceEnd);
+    if (services.isFailure) return Result.fail(services.error!);
 
     let cut = 0;
-    for (const customerId of customers.value) {
-      const id = customerId.toString();
-      const outcome =
-        await this.serviceAccess.suspendActiveServices(id);
-      if (outcome.isFailure) {
-        failed.push({ id, error: outcome.error! });
+    for (const serviceId of services.value) {
+      const id = serviceId.toString();
+      const suspended = await this.serviceAccess.suspendService(id);
+      if (suspended.isFailure) {
+        failed.push({ id, error: suspended.error! });
         continue;
       }
-      failed.push(...outcome.value.failed);
-      if (outcome.value.changed > 0) cut++;
+      if (suspended.value) cut++;
     }
     return Result.ok(cut);
   }
@@ -178,31 +176,30 @@ export class RunBillingCycleUseCase extends UseCase<
       whatsAppSent: number;
     }>
   > {
-    const customers = await this.billableCustomers.listBillable();
-    if (customers.isFailure) return Result.fail(customers.error!);
+    const services = await this.billableServices.listBillable();
+    if (services.isFailure) return Result.fail(services.error!);
 
     let generated = 0;
     let emailed = 0;
     let whatsAppSent = 0;
-    for (const customer of customers.value) {
+    for (const service of services.value) {
       const cycle = BillingCycle.openAt(
         now,
-        customer.paymentDay,
+        service.paymentDay,
         settings
       );
       if (cycle === null) continue;
-      if (!cycle.covers(new Date(customer.firstServiceStart)))
-        continue;
+      if (!cycle.covers(new Date(service.startDate))) continue;
 
-      const id = customer.customerId;
-      const customerId = CustomerId.parse(id);
-      if (customerId.isFailure) {
-        failed.push({ id, error: customerId.error! });
+      const id = service.contractedServiceId;
+      const serviceId = ContractedServiceId.parse(id);
+      if (serviceId.isFailure) {
+        failed.push({ id, error: serviceId.error! });
         continue;
       }
 
       const existing = await this.billRepository.count({
-        customerId: customerId.value,
+        contractedServiceId: serviceId.value,
         period: cycle.period
       });
       if (existing.isFailure) {
@@ -212,7 +209,7 @@ export class RunBillingCycleUseCase extends UseCase<
       if (existing.value > 0) continue;
 
       const bill = await this.generateBillUseCase.execute({
-        customerId: id,
+        contractedServiceId: id,
         year: cycle.period.year,
         month: cycle.period.month,
         issueDate: now.toISOString(),

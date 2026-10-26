@@ -11,13 +11,13 @@ import {
 import { GenerateBillUseCase } from '../../../../src/application/billing/use-cases/GenerateBillUseCase';
 import { IBillRepository } from '../../../../src/domain/billing/repository';
 import {
-  ICustomerRepository,
   IServicePlanRepository,
   IContractedServiceRepository
 } from '../../../../src/domain/customers/repository';
 import {
   ContractedService,
   ContractedServiceStatus,
+  PaymentDay,
   ServicePlan
 } from '../../../../src/domain/customers';
 import {
@@ -60,28 +60,11 @@ function makeBillRepo(): jest.Mocked<IBillRepository> {
     findByCustomerId: jest.fn(),
     findAll: jest.fn(),
     count: jest.fn(),
-    existsForCustomerAndPeriod: jest.fn(),
+    existsForServiceAndPeriod: jest.fn(),
     exists: jest.fn(),
     findPendingDueBefore: jest.fn(),
     findOverdueDueBetween: jest.fn(),
-    findCustomersOverdueBefore: jest.fn()
-  };
-}
-
-function makeCustomerRepo(): jest.Mocked<ICustomerRepository> {
-  return {
-    save: jest.fn(),
-    findById: jest.fn(),
-    findByPhone: jest.fn(),
-    findByCedula: jest.fn(),
-    findByEmail: jest.fn(),
-    findAll: jest.fn(),
-    delete: jest.fn(),
-    exists: jest.fn(),
-    existsByPhone: jest.fn(),
-    existsByCedula: jest.fn(),
-    existsByEmail: jest.fn(),
-    count: jest.fn()
+    findServicesOverdueBefore: jest.fn()
   };
 }
 
@@ -120,7 +103,8 @@ function makeActiveService(
     servicePlanId,
     deviceId: DeviceId.create(),
     status: ContractedServiceStatus.ACTIVE,
-    startDate
+    startDate,
+    paymentDay: PaymentDay.default()
   }).value;
 }
 
@@ -164,28 +148,42 @@ function makePlan(
 
 describe('GenerateBillUseCase', () => {
   let billRepo: jest.Mocked<IBillRepository>;
-  let customerRepo: jest.Mocked<ICustomerRepository>;
   let serviceRepo: jest.Mocked<IContractedServiceRepository>;
   let planRepo: jest.Mocked<IServicePlanRepository>;
   let useCase: GenerateBillUseCase;
   let customerId: CustomerId;
 
+  function serviceIs(service: ContractedService | null): void {
+    (serviceRepo.findById as any).mockResolvedValue(
+      Result.ok(service)
+    );
+  }
+
+  function generate(
+    service: ContractedService,
+    extra: Record<string, unknown> = {}
+  ) {
+    return useCase.execute({
+      contractedServiceId: service.id.toString(),
+      year: 2024,
+      month: 3,
+      ...extra
+    });
+  }
+
   beforeEach(() => {
     billRepo = makeBillRepo();
-    customerRepo = makeCustomerRepo();
     serviceRepo = makeServiceRepo();
     planRepo = makePlanRepo();
     useCase = new GenerateBillUseCase(
       billRepo,
-      customerRepo,
       serviceRepo,
       planRepo,
       makeLogger()
     );
     customerId = CustomerId.parse(CUSTOMER_UUID).value;
 
-    (customerRepo.exists as any).mockResolvedValue(Result.ok(true));
-    (billRepo.existsForCustomerAndPeriod as any).mockResolvedValue(
+    (billRepo.existsForServiceAndPeriod as any).mockResolvedValue(
       Result.ok(false)
     );
     (billRepo.save as any).mockImplementation(async (b: unknown) =>
@@ -197,69 +195,43 @@ describe('GenerateBillUseCase', () => {
     jest.clearAllMocks();
   });
 
-  it('should snapshot planName + monthlyPrice for each active service and compute the exact total', async () => {
-    const planA = makePlan({ name: 'Fiber 50', monthlyPrice: 19990 });
-    const planB = makePlan({
+  it("[BIL-007] bills one service: a single line snapshotting its plan, for the service's customer", async () => {
+    const plan = makePlan({
       name: 'Fiber 100',
       monthlyPrice: 25000.75
     });
-    const serviceA = makeActiveService(customerId, planA.id);
-    const serviceB = makeActiveService(customerId, planB.id);
+    const service = makeActiveService(customerId, plan.id);
+    serviceIs(service);
+    (planRepo.findById as any).mockResolvedValue(Result.ok(plan));
 
-    (serviceRepo.findByCustomerId as any).mockResolvedValue(
-      Result.ok([serviceA, serviceB])
-    );
-    (planRepo.findById as any).mockImplementation(
-      async (id: ServicePlanId) => {
-        if (id.equals(planA.id)) return Result.ok(planA);
-        if (id.equals(planB.id)) return Result.ok(planB);
-        return Result.ok(null);
-      }
-    );
-
-    const result = await useCase.execute({
-      customerId: CUSTOMER_UUID,
-      year: 2024,
-      month: 3
-    });
+    const result = await generate(service);
 
     expect(result.isSuccess).toBe(true);
     const dto = result.value;
-    expect(dto.lineItems).toHaveLength(2);
-    expect(dto.lineItems).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          planName: 'Fiber 50',
-          monthlyPrice: 19990
-        }),
-        expect.objectContaining({
-          planName: 'Fiber 100',
-          monthlyPrice: 25000.75
-        })
-      ])
-    );
-    expect(dto.total).toBe(44990.75);
+    expect(dto.customerId).toBe(CUSTOMER_UUID);
+    expect(dto.lineItems).toHaveLength(1);
+    expect(dto.lineItems[0]).toMatchObject({
+      contractedServiceId: service.id.toString(),
+      planName: 'Fiber 100',
+      monthlyPrice: 25000.75
+    });
+    expect(dto.total).toBe(25000.75);
     expect(dto.status).toBe('PENDING');
     expect(billRepo.save).toHaveBeenCalledTimes(1);
+    expect(serviceRepo.findByCustomerId).not.toHaveBeenCalled();
   });
 
-  it('[BIL-291] a bill made by hand charges every active service the whole month', async () => {
+  it('[BIL-291] a bill made by hand charges the whole month', async () => {
     const plan = makePlan({ monthlyPrice: 19990 });
     const service = makeActiveService(
       customerId,
       plan.id,
       new Date('2024-03-20T15:00:00.000Z')
     );
-    (serviceRepo.findByCustomerId as any).mockResolvedValue(
-      Result.ok([service])
-    );
+    serviceIs(service);
     (planRepo.findById as any).mockResolvedValue(Result.ok(plan));
 
-    const result = await useCase.execute({
-      customerId: CUSTOMER_UUID,
-      year: 2024,
-      month: 3
-    });
+    const result = await generate(service);
 
     expect(result.value.lineItems[0]).toMatchObject({
       monthlyPrice: 19990,
@@ -276,26 +248,16 @@ describe('GenerateBillUseCase', () => {
       previousIssueDay: '2024-02-10'
     };
     let plan: ServicePlan;
+    let service: ContractedService;
 
     function startedOn(iso: string): ContractedService {
-      const service = makeActiveService(
-        customerId,
-        plan.id,
-        new Date(iso)
-      );
-      (serviceRepo.findByCustomerId as any).mockResolvedValue(
-        Result.ok([service])
-      );
+      service = makeActiveService(customerId, plan.id, new Date(iso));
+      serviceIs(service);
       return service;
     }
 
     function run(proration: Record<string, string> = PRORATION) {
-      return useCase.execute({
-        customerId: CUSTOMER_UUID,
-        year: 2024,
-        month: 3,
-        proration: proration as any
-      });
+      return generate(service, { proration });
     }
 
     beforeEach(() => {
@@ -325,9 +287,11 @@ describe('GenerateBillUseCase', () => {
 
       const result = await run();
 
-      expect(
-        billRepo.findAll.mock.calls[0][0]!.period!.toString()
-      ).toBe('2024-02');
+      const filters = billRepo.findAll.mock.calls[0][0]!;
+      expect(filters.period!.toString()).toBe('2024-02');
+      expect(filters.contractedServiceId!.equals(service.id)).toBe(
+        true
+      );
       expect(result.value.lineItems[0]).toMatchObject({
         amount: 19990 + 6893,
         serviceFrom: '2024-02-20',
@@ -336,7 +300,7 @@ describe('GenerateBillUseCase', () => {
     });
 
     it("[BIL-289] does not charge last month's days again when last month's bill holds the service", async () => {
-      const service = startedOn('2024-02-20T15:00:00.000Z');
+      startedOn('2024-02-20T15:00:00.000Z');
       (billRepo.findAll as any).mockResolvedValue(
         Result.ok([
           makeLastMonthBill(customerId, service, BillStatus.PAID)
@@ -352,7 +316,7 @@ describe('GenerateBillUseCase', () => {
     });
 
     it('[BIL-289] a cancelled bill for last month does not count as billed', async () => {
-      const service = startedOn('2024-02-20T15:00:00.000Z');
+      startedOn('2024-02-20T15:00:00.000Z');
       (billRepo.findAll as any).mockResolvedValue(
         Result.ok([
           makeLastMonthBill(customerId, service, BillStatus.CANCELLED)
@@ -381,13 +345,13 @@ describe('GenerateBillUseCase', () => {
       });
     });
 
-    it('[BIL-287] fails when every service starts after the month', async () => {
+    it('[BIL-287] fails when the service starts after the month', async () => {
       startedOn('2024-04-02T15:00:00.000Z');
 
       const result = await run();
 
       expect(result.error).toBe(
-        'Customer has no services to bill for period 2024-03'
+        'Service has nothing to bill for period 2024-03'
       );
       expect(billRepo.save).not.toHaveBeenCalled();
     });
@@ -419,90 +383,69 @@ describe('GenerateBillUseCase', () => {
     });
   });
 
-  it('should fail when the customer does not exist', async () => {
-    (customerRepo.exists as any).mockResolvedValue(Result.ok(false));
+  it('should fail when the service does not exist', async () => {
+    const service = makeActiveService(customerId, makePlan().id);
+    serviceIs(null);
 
+    const result = await generate(service);
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toContain('Contracted service not found');
+    expect(billRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('should fail for a malformed service id', async () => {
     const result = await useCase.execute({
-      customerId: CUSTOMER_UUID,
+      contractedServiceId: 'nope',
       year: 2024,
       month: 3
     });
 
     expect(result.isFailure).toBe(true);
-    expect(result.error).toContain('Customer not found');
-    expect(billRepo.save).not.toHaveBeenCalled();
+    expect(result.error).toContain('Invalid contractedServiceId');
   });
 
-  it('should fail when a non-cancelled bill already exists for the period', async () => {
-    (billRepo.existsForCustomerAndPeriod as any).mockResolvedValue(
+  it('[BIL-007] should fail when a non-cancelled bill already holds the service for the period', async () => {
+    const service = makeActiveService(customerId, makePlan().id);
+    serviceIs(service);
+    (billRepo.existsForServiceAndPeriod as any).mockResolvedValue(
       Result.ok(true)
     );
 
-    const result = await useCase.execute({
-      customerId: CUSTOMER_UUID,
-      year: 2024,
-      month: 3
-    });
+    const result = await generate(service);
 
     expect(result.isFailure).toBe(true);
-    expect(result.error).toContain('already exists');
+    expect(result.error).toBe(
+      `A bill already exists for service ${service.id.toString()} for period 2024-03`
+    );
+    expect(
+      billRepo.existsForServiceAndPeriod.mock.calls[0][0].equals(
+        service.id
+      )
+    ).toBe(true);
     expect(billRepo.save).not.toHaveBeenCalled();
   });
 
-  it('should fail when the customer has no contracted services at all', async () => {
-    (serviceRepo.findByCustomerId as any).mockResolvedValue(
-      Result.ok([])
-    );
-
-    const result = await useCase.execute({
-      customerId: CUSTOMER_UUID,
-      year: 2024,
-      month: 3
-    });
-
-    expect(result.isFailure).toBe(true);
-    expect(result.error).toContain(
-      'Customer has no active contracted services for billing'
-    );
-    expect(billRepo.save).not.toHaveBeenCalled();
-  });
-
-  it('should fail when all contracted services are SUSPENDED', async () => {
-    const plan = makePlan();
-    const service = makeActiveService(customerId, plan.id);
+  it('[BIL-081] should fail when the service is SUSPENDED', async () => {
+    const service = makeActiveService(customerId, makePlan().id);
     service.suspend();
+    serviceIs(service);
 
-    (serviceRepo.findByCustomerId as any).mockResolvedValue(
-      Result.ok([service])
-    );
-
-    const result = await useCase.execute({
-      customerId: CUSTOMER_UUID,
-      year: 2024,
-      month: 3
-    });
+    const result = await generate(service);
 
     expect(result.isFailure).toBe(true);
-    expect(result.error).toContain(
-      'Customer has no active contracted services for billing'
+    expect(result.error).toBe(
+      'Contracted service is not active and cannot be billed'
     );
     expect(billRepo.save).not.toHaveBeenCalled();
   });
 
-  it('should fail the whole generation when a referenced service plan is missing', async () => {
-    const plan = makePlan();
-    const service = makeActiveService(customerId, plan.id);
-
-    (serviceRepo.findByCustomerId as any).mockResolvedValue(
-      Result.ok([service])
-    );
+  it('should fail the whole generation when the service plan is missing', async () => {
+    const service = makeActiveService(customerId, makePlan().id);
+    serviceIs(service);
     (planRepo.findById as any).mockResolvedValue(Result.ok(null));
 
-    const result = await useCase.execute({
-      customerId: CUSTOMER_UUID,
-      year: 2024,
-      month: 3
-    });
+    const result = await generate(service);
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toContain('Data integrity error');
@@ -513,20 +456,13 @@ describe('GenerateBillUseCase', () => {
   it('should propagate a repository save failure', async () => {
     const plan = makePlan();
     const service = makeActiveService(customerId, plan.id);
-
-    (serviceRepo.findByCustomerId as any).mockResolvedValue(
-      Result.ok([service])
-    );
+    serviceIs(service);
     (planRepo.findById as any).mockResolvedValue(Result.ok(plan));
     (billRepo.save as any).mockResolvedValue(
       Result.fail('DB write failed')
     );
 
-    const result = await useCase.execute({
-      customerId: CUSTOMER_UUID,
-      year: 2024,
-      month: 3
-    });
+    const result = await generate(service);
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toContain('Failed to persist bill');

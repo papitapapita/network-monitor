@@ -1,4 +1,8 @@
-import { BillId, CustomerId } from 'domain/shared/ids';
+import {
+  BillId,
+  ContractedServiceId,
+  CustomerId
+} from 'domain/shared/ids';
 import { Result } from 'domain/shared/core';
 import { Bill } from '../aggregates';
 import { BillStatus } from '../enums';
@@ -6,6 +10,8 @@ import { BillingPeriod } from '../value-objects';
 
 export interface BillFilters {
   customerId?: CustomerId;
+  // Bills with a line for this service.
+  contractedServiceId?: ContractedServiceId;
   status?: BillStatus;
   period?: BillingPeriod;
 }
@@ -24,8 +30,9 @@ export interface IBillRepository {
     offset?: number
   ): Promise<Result<Bill[]>>;
   count(filters?: BillFilters): Promise<Result<number>>;
-  existsForCustomerAndPeriod(
-    customerId: CustomerId,
+  // Ignores cancelled bills.
+  existsForServiceAndPeriod(
+    contractedServiceId: ContractedServiceId,
     period: BillingPeriod
   ): Promise<Result<boolean>>;
   exists(id: BillId): Promise<Result<boolean>>;
@@ -36,8 +43,8 @@ export interface IBillRepository {
     from: Date,
     to: Date
   ): Promise<Result<Bill[]>>;
-  // Each customer, once, holding an OVERDUE bill due before `instant`.
-  findCustomersOverdueBefore(
+  // Each service, once, on an OVERDUE bill due before `instant`.
+  findServicesOverdueBefore(
     instant: Date
-  ): Promise<Result<CustomerId[]>>;
+  ): Promise<Result<ContractedServiceId[]>>;
 }

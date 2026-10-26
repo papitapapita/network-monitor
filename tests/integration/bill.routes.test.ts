@@ -12,6 +12,7 @@ import {
   seedCustomer,
   seedServicePlan,
   seedActiveContractedService,
+  seedContractedService,
   seedDevice,
   seedDeviceModel,
   GHOST_ID,
@@ -28,6 +29,7 @@ describe('Bill Routes — /api/bills', () => {
 
   let customerId: string;
   let servicePlanId: string;
+  let serviceId: string;
 
   const auth = () => `Bearer ${token}`;
 
@@ -49,7 +51,7 @@ describe('Bill Routes — /api/bills', () => {
       name: 'Test Plan 50/10',
       monthlyPrice: 80000
     });
-    await seedActiveContractedService(
+    serviceId = await seedActiveContractedService(
       prisma,
       customerId,
       servicePlanId
@@ -57,7 +59,7 @@ describe('Bill Routes — /api/bills', () => {
   });
 
   async function generateBill(body: {
-    customerId: string;
+    contractedServiceId: string;
     year: number;
     month: number;
     issueDate?: string;
@@ -73,7 +75,11 @@ describe('Bill Routes — /api/bills', () => {
     it('401 — rejects every route without a token', async () => {
       const generate = await request(app)
         .post('/api/bills/generate')
-        .send({ customerId, year: 2026, month: 1 });
+        .send({
+          contractedServiceId: serviceId,
+          year: 2026,
+          month: 1
+        });
       expect(generate.status).toBe(401);
 
       const generateBulk = await request(app)
@@ -107,9 +113,9 @@ describe('Bill Routes — /api/bills', () => {
   });
 
   describe('Validation', () => {
-    it('400 — rejects a malformed customerId', async () => {
+    it('400 — rejects a malformed contractedServiceId', async () => {
       const res = await generateBill({
-        customerId: INVALID_ID,
+        contractedServiceId: INVALID_ID,
         year: 2026,
         month: 1
       });
@@ -119,7 +125,7 @@ describe('Bill Routes — /api/bills', () => {
 
     it('400 — rejects month 13', async () => {
       const res = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 13
       });
@@ -129,7 +135,7 @@ describe('Bill Routes — /api/bills', () => {
 
     it('400 — rejects a year out of range', async () => {
       const res = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2101,
         month: 1
       });
@@ -141,7 +147,7 @@ describe('Bill Routes — /api/bills', () => {
   describe('POST /api/bills/generate', () => {
     it('201 — generates a bill with snapshot line items and correct total', async () => {
       const res = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 1
       });
@@ -156,6 +162,7 @@ describe('Bill Routes — /api/bills', () => {
       });
       expect(res.body.data.lineItems).toHaveLength(1);
       expect(res.body.data.lineItems[0]).toMatchObject({
+        contractedServiceId: serviceId,
         servicePlanId,
         planName: 'Test Plan 50/10',
         monthlyPrice: 80000,
@@ -170,7 +177,7 @@ describe('Bill Routes — /api/bills', () => {
       const joinedLate = await seedCustomer(prisma, {
         phone: '3001234568'
       });
-      await seedActiveContractedService(
+      const lateService = await seedActiveContractedService(
         prisma,
         joinedLate,
         servicePlanId,
@@ -181,7 +188,7 @@ describe('Bill Routes — /api/bills', () => {
         .post('/api/bills/generate')
         .set('Authorization', auth())
         .send({
-          customerId: joinedLate,
+          contractedServiceId: lateService,
           year: 2026,
           month: 1,
           proration: {
@@ -198,16 +205,16 @@ describe('Bill Routes — /api/bills', () => {
       });
     });
 
-    it('409 — a duplicate bill for the same customer and period is rejected', async () => {
+    it('[BIL-007] 409 — a duplicate bill for the same service and period is rejected', async () => {
       const first = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 2
       });
       expect(first.status).toBe(201);
 
       const second = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 2
       });
@@ -217,7 +224,7 @@ describe('Bill Routes — /api/bills', () => {
 
     it('201 — regenerating the same period succeeds after the prior bill is cancelled', async () => {
       const first = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 3
       });
@@ -229,7 +236,7 @@ describe('Bill Routes — /api/bills', () => {
       expect(cancelRes.status).toBe(200);
 
       const second = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 3
       });
@@ -237,25 +244,90 @@ describe('Bill Routes — /api/bills', () => {
       expect(second.body.data.id).not.toBe(first.body.data.id);
     });
 
-    it('409 — a customer with no active contracted services cannot be billed', async () => {
-      const bareCustomerId = await seedCustomer(prisma, {
-        phone: '3009999997'
+    it('[BIL-007] 201 — a second service of the same customer gets its own bill for the period', async () => {
+      const second = await seedActiveContractedService(
+        prisma,
+        customerId,
+        servicePlanId
+      );
+
+      const first = await generateBill({
+        contractedServiceId: serviceId,
+        year: 2026,
+        month: 2
+      });
+      const other = await generateBill({
+        contractedServiceId: second,
+        year: 2026,
+        month: 2
       });
 
+      expect(first.status).toBe(201);
+      expect(other.status).toBe(201);
+      expect(other.body.data.customerId).toBe(customerId);
+      expect(other.body.data.lineItems).toHaveLength(1);
+      expect(other.body.data.lineItems[0].contractedServiceId).toBe(
+        second
+      );
+    });
+
+    it('[BIL-007] the database refuses a second live bill for a service and period', async () => {
+      const first = await generateBill({
+        contractedServiceId: serviceId,
+        year: 2026,
+        month: 2
+      });
+      const row = await prisma.bill.findUniqueOrThrow({
+        where: { id: first.body.data.id }
+      });
+      expect(row.contractedServiceId).toBe(serviceId);
+
+      await expect(
+        prisma.bill.create({
+          data: {
+            customerId,
+            contractedServiceId: serviceId,
+            periodYear: 2026,
+            periodMonth: 2,
+            issueDate: new Date(),
+            dueDate: new Date()
+          }
+        })
+      ).rejects.toThrow(/Unique constraint/);
+    });
+
+    it('[BIL-081] 409 — a service that is not active cannot be billed', async () => {
+      const pending = await seedContractedService(
+        prisma,
+        customerId,
+        servicePlanId
+      );
+
       const res = await generateBill({
-        customerId: bareCustomerId,
+        contractedServiceId: pending,
         year: 2026,
         month: 1
       });
       expect(res.status).toBe(409);
-      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBe(
+        'Contracted service is not active and cannot be billed'
+      );
+    });
+
+    it('404 — an unknown service cannot be billed', async () => {
+      const res = await generateBill({
+        contractedServiceId: GHOST_ID,
+        year: 2026,
+        month: 1
+      });
+      expect(res.status).toBe(404);
     });
   });
 
   describe('GET /api/bills', () => {
     it('200 — lists bills and filters by status, customerId and period', async () => {
       const generated = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 4
       });
@@ -304,7 +376,7 @@ describe('Bill Routes — /api/bills', () => {
   describe('GET /api/bills/:id', () => {
     it('200 — returns a bill by id', async () => {
       const generated = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 5
       });
@@ -350,7 +422,7 @@ describe('Bill Routes — /api/bills', () => {
         }
       );
       const generated = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 1,
         issueDate: '2026-01-10T11:00:00.000Z',
@@ -396,7 +468,7 @@ describe('Bill Routes — /api/bills', () => {
 
     it('200 — marks a pending bill paid and sets paidAt', async () => {
       const generated = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 6
       });
@@ -414,7 +486,7 @@ describe('Bill Routes — /api/bills', () => {
 
     it('[BIL-300] 200 — records how, when and by whom the bill was paid', async () => {
       const generated = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 5
       });
@@ -453,7 +525,7 @@ describe('Bill Routes — /api/bills', () => {
 
     it('[BIL-300] 400 — the method is required and must be known', async () => {
       const generated = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 4
       });
@@ -474,7 +546,7 @@ describe('Bill Routes — /api/bills', () => {
 
     it('[BIL-301] 400 — part of the total is refused and the bill stays unpaid', async () => {
       const generated = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 3
       });
@@ -494,7 +566,7 @@ describe('Bill Routes — /api/bills', () => {
 
     it('[BIL-302] 400 — a payment date in the future is refused', async () => {
       const generated = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 2
       });
@@ -510,7 +582,7 @@ describe('Bill Routes — /api/bills', () => {
 
     it('409 — paying an already-paid bill is rejected', async () => {
       const generated = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 7
       });
@@ -534,7 +606,7 @@ describe('Bill Routes — /api/bills', () => {
   describe('POST /api/bills/:id/cancel', () => {
     it('409 — cannot cancel a paid bill', async () => {
       const generated = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 8
       });
@@ -557,7 +629,7 @@ describe('Bill Routes — /api/bills', () => {
   describe('POST /api/bills/:id/overdue', () => {
     it('409 — a bill is not overdue before its due date', async () => {
       const generated = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 9
       });
@@ -572,7 +644,7 @@ describe('Bill Routes — /api/bills', () => {
 
     it('200 — a bill generated with a past due date can be marked overdue', async () => {
       const generated = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year: 2026,
         month: 10,
         issueDate: '2020-01-01T00:00:00.000Z',
@@ -609,7 +681,7 @@ describe('Bill Routes — /api/bills', () => {
       const month = 11;
 
       const preBilled = await generateBill({
-        customerId,
+        contractedServiceId: serviceId,
         year,
         month
       });
@@ -633,9 +705,41 @@ describe('Bill Routes — /api/bills', () => {
       ).toBe(true);
       expect(
         res.body.data.skipped.some(
-          (s: { customerId: string }) => s.customerId === customerId
+          (s: { contractedServiceId: string }) =>
+            s.contractedServiceId === serviceId
         )
       ).toBe(true);
+    });
+
+    it('[BIL-084] 200 — bills each active service once, and skips one already billed', async () => {
+      const second = await seedActiveContractedService(
+        prisma,
+        customerId,
+        servicePlanId
+      );
+      await generateBill({
+        contractedServiceId: serviceId,
+        year: 2026,
+        month: 1
+      });
+
+      const res = await request(app)
+        .post('/api/bills/generate-bulk')
+        .set('Authorization', auth())
+        .send({ year: 2026, month: 1 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.generated).toHaveLength(1);
+      expect(
+        res.body.data.generated[0].lineItems[0].contractedServiceId
+      ).toBe(second);
+      expect(res.body.data.skipped).toEqual([
+        {
+          contractedServiceId: serviceId,
+          reason: `A bill already exists for service ${serviceId} for period 2026-01`
+        }
+      ]);
+      expect(res.body.data.failed).toEqual([]);
     });
   });
 });

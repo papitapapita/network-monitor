@@ -19,10 +19,7 @@ import {
 } from '../../../../src/domain/billing';
 import { ICustomerRepository } from '../../../../src/domain/customers/repository';
 import { Customer } from '../../../../src/domain/customers/aggregates';
-import {
-  PhoneNumber,
-  PaymentDay
-} from '../../../../src/domain/customers/value-objects';
+import { PhoneNumber } from '../../../../src/domain/customers/value-objects';
 import {
   BillId,
   CustomerId,
@@ -67,7 +64,6 @@ function makeCustomer(): Customer {
       phone: PhoneNumber.reconstitute('3001234567'),
       email: null,
       cedula: null,
-      paymentDay: PaymentDay.reconstitute(30),
       createdAt: NOW,
       updatedAt: NOW
     }
@@ -95,11 +91,11 @@ function makeBillRepo(): jest.Mocked<IBillRepository> {
     findByCustomerId: jest.fn(),
     findAll: jest.fn(),
     count: jest.fn(),
-    existsForCustomerAndPeriod: jest.fn(),
+    existsForServiceAndPeriod: jest.fn(),
     exists: jest.fn(),
     findPendingDueBefore: jest.fn(),
     findOverdueDueBetween: jest.fn(),
-    findCustomersOverdueBefore: jest.fn()
+    findServicesOverdueBefore: jest.fn()
   };
 }
 

@@ -4,7 +4,6 @@ export interface CustomerResponseDTO {
   phone: string;
   email: string | null;
   cedula: string | null;
-  paymentDay: number;
   createdAt: string;
   updatedAt: string;
 }

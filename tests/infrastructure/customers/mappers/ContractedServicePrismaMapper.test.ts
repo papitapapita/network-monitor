@@ -18,6 +18,7 @@ function makeRaw(overrides: Record<string, unknown> = {}) {
     deviceId: DEVICE_UUID,
     status: 'ACTIVE',
     startDate: NOW,
+    paymentDay: 30,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides
@@ -34,6 +35,13 @@ describe('ContractedServicePrismaMapper', () => {
         ContractedServiceStatus.ACTIVE
       );
       expect(result.value.deviceId?.toString()).toBe(DEVICE_UUID);
+    });
+
+    it('should map the payment day', () => {
+      const result = ContractedServicePrismaMapper.toDomain(
+        makeRaw({ paymentDay: 15 })
+      );
+      expect(result.value.paymentDay.value).toBe(15);
     });
 
     it('should map a null deviceId', () => {

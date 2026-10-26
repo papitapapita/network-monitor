@@ -32,7 +32,7 @@ const monthField = z
 
 export const generateBillSchema = z.object({
   body: z.object({
-    customerId: uuidField('customerId'),
+    contractedServiceId: uuidField('contractedServiceId'),
     year: yearField,
     month: monthField,
     issueDate: z

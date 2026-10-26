@@ -15,9 +15,11 @@ import { IBillRepository } from '../../../../src/domain/billing/repository';
 import { IContractedServiceRepository } from '../../../../src/domain/customers/repository';
 import {
   ContractedService,
-  ContractedServiceStatus
+  ContractedServiceStatus,
+  PaymentDay
 } from '../../../../src/domain/customers';
 import {
+  ContractedServiceId,
   CustomerId,
   ServicePlanId,
   DeviceId,
@@ -51,11 +53,11 @@ function makeBillRepo(): jest.Mocked<IBillRepository> {
     findByCustomerId: jest.fn(),
     findAll: jest.fn(),
     count: jest.fn(),
-    existsForCustomerAndPeriod: jest.fn(),
+    existsForServiceAndPeriod: jest.fn(),
     exists: jest.fn(),
     findPendingDueBefore: jest.fn(),
     findOverdueDueBetween: jest.fn(),
-    findCustomersOverdueBefore: jest.fn()
+    findServicesOverdueBefore: jest.fn()
   };
 }
 
@@ -86,7 +88,8 @@ function makeActiveService(
     servicePlanId: ServicePlanId.create(),
     deviceId: DeviceId.create(),
     status: ContractedServiceStatus.ACTIVE,
-    startDate: NOW
+    startDate: NOW,
+    paymentDay: PaymentDay.default()
   }).value;
 }
 
@@ -124,7 +127,7 @@ describe('GenerateBillsForPeriodUseCase', () => {
       makeLogger()
     );
 
-    (billRepo.existsForCustomerAndPeriod as any).mockResolvedValue(
+    (billRepo.existsForServiceAndPeriod as any).mockResolvedValue(
       Result.ok(false)
     );
   });
@@ -153,7 +156,7 @@ describe('GenerateBillsForPeriodUseCase', () => {
     expect(generateBillUseCase.execute).not.toHaveBeenCalled();
   });
 
-  it('should delegate once per unique customer even with multiple active services', async () => {
+  it('[BIL-084] should bill each active service on its own, even two of one customer', async () => {
     const customerId = CustomerId.create();
     const serviceA = makeActiveService(customerId);
     const serviceB = makeActiveService(customerId);
@@ -171,37 +174,37 @@ describe('GenerateBillsForPeriodUseCase', () => {
     });
 
     expect(result.isSuccess).toBe(true);
-    expect(result.value.generated).toHaveLength(1);
-    expect(generateBillUseCase.execute).toHaveBeenCalledTimes(1);
+    expect(result.value.generated).toHaveLength(2);
+    expect(
+      generateBillUseCase.execute.mock.calls.map(
+        ([req]) => req.contractedServiceId
+      )
+    ).toEqual([serviceA.id.toString(), serviceB.id.toString()]);
   });
 
-  it('should partition customers into generated, skipped, and failed — and keep going past a failure', async () => {
-    const customerA = CustomerId.create();
-    const customerB = CustomerId.create();
-    const customerC = CustomerId.create();
-    const customerD = CustomerId.create();
+  it('should partition services into generated, skipped, and failed — and keep going past a failure', async () => {
+    const customerId = CustomerId.create();
+    const serviceA = makeActiveService(customerId);
+    const serviceB = makeActiveService(customerId);
+    const serviceC = makeActiveService(customerId);
+    const serviceD = makeActiveService(customerId);
 
     (serviceRepo.findByStatus as any).mockResolvedValue(
-      Result.ok([
-        makeActiveService(customerA),
-        makeActiveService(customerB),
-        makeActiveService(customerC),
-        makeActiveService(customerD)
-      ])
+      Result.ok([serviceA, serviceB, serviceC, serviceD])
     );
 
-    (billRepo.existsForCustomerAndPeriod as any).mockImplementation(
-      async (customerId: CustomerId) =>
-        Result.ok(customerId.equals(customerB))
+    (billRepo.existsForServiceAndPeriod as any).mockImplementation(
+      async (serviceId: ContractedServiceId) =>
+        Result.ok(serviceId.equals(serviceB.id))
     );
 
     generateBillUseCase.execute.mockImplementation(async (req) => {
-      if (req.customerId === customerC.toString()) {
+      if (req.contractedServiceId === serviceC.id.toString()) {
         return Result.fail(
-          'Customer has no active contracted services for billing'
+          'Contracted service is not active and cannot be billed'
         );
       }
-      return Result.ok(makeBillDTO(req.customerId));
+      return Result.ok(makeBillDTO(customerId.toString()));
     });
 
     const result = await useCase.execute({
@@ -212,31 +215,23 @@ describe('GenerateBillsForPeriodUseCase', () => {
     expect(result.isSuccess).toBe(true);
     const dto = result.value;
     expect(dto.period).toBe('2024-03');
-
-    expect(dto.generated.map((b) => b.customerId)).toEqual(
-      expect.arrayContaining([
-        customerA.toString(),
-        customerD.toString()
-      ])
-    );
     expect(dto.generated).toHaveLength(2);
 
     expect(dto.skipped).toEqual([
       {
-        customerId: customerB.toString(),
+        contractedServiceId: serviceB.id.toString(),
         reason: expect.stringContaining('already exists')
       }
     ]);
 
     expect(dto.failed).toEqual([
       {
-        customerId: customerC.toString(),
-        error:
-          'Customer has no active contracted services for billing'
+        contractedServiceId: serviceC.id.toString(),
+        error: 'Contracted service is not active and cannot be billed'
       }
     ]);
 
-    // The loop must not have aborted after customerC's failure.
+    // The loop must not have aborted after serviceC's failure.
     expect(generateBillUseCase.execute).toHaveBeenCalledTimes(3);
   });
 });

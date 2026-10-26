@@ -16,8 +16,8 @@ import {
 import {
   Customer,
   PhoneNumber,
-  PaymentDay,
-  ContractedService
+  ContractedService,
+  PaymentDay
 } from '../../../../src/domain/customers';
 import {
   CustomerId,
@@ -79,7 +79,6 @@ function makeCustomer(): Customer {
     phone: PhoneNumber.reconstitute('3001234567'),
     email: null,
     cedula: null,
-    paymentDay: PaymentDay.reconstitute(30),
     createdAt: NOW,
     updatedAt: NOW
   });
@@ -124,7 +123,8 @@ describe('DeleteCustomerUseCase', () => {
       customerId: CustomerId.parse(VALID_UUID).value,
       servicePlanId: ServicePlanId.create(),
       deviceId: null,
-      startDate: NOW
+      startDate: NOW,
+      paymentDay: PaymentDay.default()
     }).value;
     (serviceRepo.findByCustomerId as any).mockResolvedValue(
       Result.ok([service])

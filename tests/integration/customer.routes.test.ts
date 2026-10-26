@@ -50,53 +50,9 @@ describe('Customer Routes — /api/customers', () => {
         fullName: 'Juan Perez',
         phone: '3001234567',
         email: null,
-        cedula: null,
-        paymentDay: 30
+        cedula: null
       });
       expect(res.body.data.id).toBeDefined();
-    });
-
-    it('201 — [CUS-024] puts a customer in the 15th group', async () => {
-      const res = await request(app)
-        .post('/api/customers')
-        .set('Authorization', auth())
-        .send({
-          fullName: 'Juan Perez',
-          phone: '3001234567',
-          paymentDay: 15
-        });
-
-      expect(res.status).toBe(201);
-      expect(res.body.data.paymentDay).toBe(15);
-    });
-
-    it('400 — [CUS-024] rejects a payment day other than 15 or 30', async () => {
-      const res = await request(app)
-        .post('/api/customers')
-        .set('Authorization', auth())
-        .send({
-          fullName: 'Juan Perez',
-          phone: '3001234567',
-          paymentDay: 20
-        });
-
-      expect(res.status).toBe(400);
-      expect(res.body.error).toBe(
-        'Payment day must be one of 15, 30'
-      );
-    });
-
-    it('400 — rejects a payment day that is not a whole number', async () => {
-      const res = await request(app)
-        .post('/api/customers')
-        .set('Authorization', auth())
-        .send({
-          fullName: 'Juan Perez',
-          phone: '3001234567',
-          paymentDay: '15'
-        });
-
-      expect(res.status).toBe(400);
     });
 
     it('201 — normalizes phone and lowercases email', async () => {
@@ -215,27 +171,6 @@ describe('Customer Routes — /api/customers', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.data.fullName).toBe('Renamed Person');
-    });
-
-    it('200 — [CUS-024] moves a customer to the 15th group', async () => {
-      const id = await seedCustomer(prisma, { phone: '3009990000' });
-      const res = await request(app)
-        .put(`/api/customers/${id}`)
-        .set('Authorization', auth())
-        .send({ paymentDay: 15 });
-
-      expect(res.status).toBe(200);
-      expect(res.body.data.paymentDay).toBe(15);
-    });
-
-    it('400 — [CUS-024] rejects a payment day other than 15 or 30', async () => {
-      const id = await seedCustomer(prisma, { phone: '3009990000' });
-      const res = await request(app)
-        .put(`/api/customers/${id}`)
-        .set('Authorization', auth())
-        .send({ paymentDay: 31 });
-
-      expect(res.status).toBe(400);
     });
 
     it('409 — rejects a phone owned by another customer', async () => {

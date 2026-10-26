@@ -156,31 +156,35 @@ arrangement.
 **Message:** `dueDate cannot be before issueDate`
 **Tests:** `tests/domain/billing/aggregates/Bill.test.ts`
 
-### BIL-007 — A customer has at most one bill per period
+### BIL-007 — A subscription has at most one live bill per period
 
-**Type:** Policy · **Status:** Active
-**Layer:** Application
-**Since:** 2026-08-05
+**Type:** Invariant · **Status:** Active
+**Layer:** Application + database constraint
+**Since:** 2026-08-05 · **Changed:** 2026-10-26 (one bill per subscription, not per customer)
 
+Each bill charges exactly one contracted service, so a customer with two
+services gets two bills a month, each due on its service's own payment day
+(`CUS-024`). A cancelled bill does not count: a period can be billed again by
+hand after cancelling (the daily run still never re-bills it, `BIL-284`).
 Checked on single generation and again on each iteration of the bulk run.
 
 **Why:** Billing a month twice is the failure mode that costs real money and
 real trust. The check makes re-running a generation safe, which is what makes it
-safe to re-run after a partial failure (`BIL-087`).
+safe to re-run after a partial failure (`BIL-087`). The bill follows the
+service because the payment day, the cut and the restore all do.
 
 **Enforced at:** `src/application/billing/use-cases/GenerateBillUseCase.ts`,
 `src/application/billing/use-cases/GenerateBillsForPeriodUseCase.ts`
-**Message:** `A bill already exists for customer <id> for period <YYYY-MM>`
+**Backed by:** `bills_service_period_active_key` (partial unique index on
+`contracted_service_id, period_year, period_month` where not cancelled) in
+`prisma/migrations/20261026140000_service_payment_day/migration.sql`. Bills
+issued before this change may hold several services; their
+`contracted_service_id` is null and the index does not cover them.
+**Message:** `A bill already exists for service <id> for period <YYYY-MM>`
 **Tests:** `tests/application/billing/use-cases/GenerateBillUseCase.test.ts`,
-`tests/application/billing/use-cases/GenerateBillsForPeriodUseCase.test.ts`
-
-**Known gap — this rule has no database backing.** Unlike the uniqueness rules
-in `CUS-016` … `CUS-018`, there is no unique index on
-`(customer_id, period_year, period_month)`. Two concurrent generation runs for
-the same period can both pass the check and both insert. Nothing in the product
-issues concurrent runs today, which is why it has not bitten; adding
-`@@unique([customerId, periodYear, periodMonth])` to `Bill` is the fix, and it
-would turn this Policy into an Invariant.
+`tests/application/billing/use-cases/GenerateBillsForPeriodUseCase.test.ts`,
+`tests/integration/bill.routes.test.ts`,
+`tests/integration/use-cases/billing/RunBillingCycleUseCase.integration.test.ts`
 
 ### BIL-008 — An omitted issue date means today
 
@@ -529,52 +533,49 @@ transition that did not happen.
 
 ## Generation
 
-### BIL-080 — A bill is generated only for a customer that exists
+### BIL-080 — A bill is generated only for a subscription that exists
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Changed:** 2026-10-26 (names the subscription, not the customer)
 
-**Why:** Checked before the work of assembling line items, so a mistyped id
+The bill's customer is the subscription's customer.
+
+**Why:** Checked before the work of assembling the line item, so a mistyped id
 fails immediately and with a message that names what was not found.
 
 **Enforced at:** `src/application/billing/use-cases/GenerateBillUseCase.ts`
-**Message:** `Customer not found: <id>`
-**Tests:** `tests/application/billing/use-cases/GenerateBillUseCase.test.ts`
+**Message:** `Contracted service not found: <id>`
+**Tests:** `tests/application/billing/use-cases/GenerateBillUseCase.test.ts`, `tests/integration/bill.routes.test.ts`
 
-### BIL-081 — A bill covers the customer's ACTIVE subscriptions only
+### BIL-081 — Only an ACTIVE subscription is billed
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Changed:** 2026-10-26 (one subscription per bill)
 
-PENDING, SUSPENDED and CANCELLED subscriptions produce no line item.
+A PENDING, SUSPENDED or CANCELLED subscription cannot be billed.
 
 **Why:** ACTIVE is the state that means service is being delivered (`CUS-067`).
 A pending installation has not started; a suspended line is not being provided.
 Billing either would charge for something the subscriber did not receive.
 
 **Enforced at:** `src/application/billing/use-cases/GenerateBillUseCase.ts`, `src/presentation/http/controllers/BillController.ts` (`generate` passes only the request's documented fields)
+**Message:** `Contracted service is not active and cannot be billed`
 **Tests:** `tests/application/billing/use-cases/GenerateBillUseCase.test.ts`, `tests/integration/bill.routes.test.ts`
 
 **Note on partial months.** The rule reads status at the moment of generation,
 not across the period. A subscription suspended on the 28th is billed in full
-for that month, and one activated on the 28th is billed in full too. Proration
-is not implemented and would change this rule rather than extend it.
+for that month. Proration applies to the daily run only (`BIL-287` … `BIL-291`).
 
 ### BIL-082 — A customer with no active subscriptions cannot be billed
 
-**Type:** Policy · **Status:** Active
-**Layer:** Application
-**Since:** 2026-08-05
+**Type:** Policy · **Status:** Removed
+**Since:** 2026-08-05 · **Removed:** 2026-10-26
 
-**Why:** `BIL-030` would refuse the empty bill anyway, further down, with a
-message about line items. Catching it here says the thing the operator needs to
-hear: this customer has nothing to bill for.
-
-**Enforced at:** `src/application/billing/use-cases/GenerateBillUseCase.ts`
-**Message:** `Customer has no active contracted services for billing`
-**Tests:** `tests/application/billing/use-cases/GenerateBillUseCase.test.ts`
+**Why it was removed:** Bills are now generated per subscription (`BIL-007`),
+so there is no customer-level bill to refuse. A subscription that is not active
+is refused by `BIL-081`.
 
 ### BIL-083 — A subscription pointing at a missing plan fails the whole bill
 
@@ -589,26 +590,25 @@ any supported path — reaching it means the data is already broken. Issuing a
 bill missing a line would undercharge the subscriber quietly and leave no
 evidence; failing loudly puts the corruption in front of someone.
 
-**Enforced at:** `src/application/billing/use-cases/GenerateBillUseCase.ts` (`buildLineItems`)
+**Enforced at:** `src/application/billing/use-cases/GenerateBillUseCase.ts` (`buildLineItem`)
 **Message:** `Data integrity error: service plan <id> referenced by contracted service <id> does not exist`
 **Tests:** `tests/application/billing/use-cases/GenerateBillUseCase.test.ts`
 
-### BIL-084 — Bulk generation bills every customer holding an active subscription, once
+### BIL-084 — Bulk generation bills every active subscription, once
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Changed:** 2026-10-26 (per subscription, not per customer)
 
-Customers are derived from ACTIVE subscriptions and de-duplicated, so a customer
-with three active lines is billed one bill with three items.
+Each ACTIVE subscription gets its own bill, so a customer with three active
+lines gets three bills.
 
-**Why:** The bill is per customer, not per subscription — that is what makes one
-document, one due date, and one payment. Deriving the customer list from active
-subscriptions rather than from the customer table also means nobody with nothing
-to pay for receives a run.
+**Why:** The bill is per subscription (`BIL-007`). Deriving the list from active
+subscriptions rather than from the customer table also means nobody with
+nothing to pay for receives a bill.
 
-**Enforced at:** `src/application/billing/use-cases/GenerateBillsForPeriodUseCase.ts` (`uniqueCustomerIds`)
-**Tests:** `tests/application/billing/use-cases/GenerateBillsForPeriodUseCase.test.ts`
+**Enforced at:** `src/application/billing/use-cases/GenerateBillsForPeriodUseCase.ts`
+**Tests:** `tests/application/billing/use-cases/GenerateBillsForPeriodUseCase.test.ts`, `tests/integration/bill.routes.test.ts`
 
 ### BIL-085 — Bulk generation reports generated, skipped and failed separately
 
@@ -626,32 +626,32 @@ the first does not.
 **Enforced at:** `src/application/billing/use-cases/GenerateBillsForPeriodUseCase.ts`
 **Tests:** `tests/application/billing/use-cases/GenerateBillsForPeriodUseCase.test.ts`
 
-### BIL-086 — Bulk generation skips a customer already billed for the period
+### BIL-086 — Bulk generation skips a subscription already billed for the period
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
-**Since:** 2026-08-05
+**Since:** 2026-08-05 · **Changed:** 2026-10-26 (per subscription)
 
-The customer lands in `skipped`, not in `failed`.
+The subscription lands in `skipped`, not in `failed`.
 
 **Why:** `BIL-007` states the constraint; this states what the bulk run does
 about it. Skipping rather than failing is what makes a re-run after a partial
 failure the obvious recovery instead of a risk.
 
 **Enforced at:** `src/application/billing/use-cases/GenerateBillsForPeriodUseCase.ts`
-**Message:** `A bill already exists for customer <id> for period <YYYY-MM>`
-**Tests:** `tests/application/billing/use-cases/GenerateBillsForPeriodUseCase.test.ts`
+**Message:** `A bill already exists for service <id> for period <YYYY-MM>`
+**Tests:** `tests/application/billing/use-cases/GenerateBillsForPeriodUseCase.test.ts`, `tests/integration/bill.routes.test.ts`
 
-### BIL-087 — One customer's failure does not stop the run
+### BIL-087 — One subscription's failure does not stop the run
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
 **Since:** 2026-08-05
 
-The error is recorded against that customer and the loop continues.
+The error is recorded against that subscription and the loop continues.
 
 **Why:** A monthly billing run is the job that must not half-happen invisibly.
-Aborting on the first bad row would leave the customers after it in the list
+Aborting on the first bad row would leave the subscriptions after it in the list
 unbilled, with nothing but a stack trace to say who they were.
 
 **Enforced at:** `src/application/billing/use-cases/GenerateBillsForPeriodUseCase.ts`
@@ -720,7 +720,7 @@ at the number they have today, not the one they had in January.
 
 A larger `limit` is clamped, not rejected.
 
-**Why:** Same reasoning as `CUS-120`. Bills accumulate one per customer per
+**Why:** Same reasoning as `CUS-120`. Bills accumulate one per subscription per
 month forever, so this is the table where an unbounded read hurts first.
 
 **Enforced at:** `src/application/billing/use-cases/ListBillsUseCase.ts` (`MAX_LIMIT`)
@@ -1369,7 +1369,8 @@ dates.
 **Layer:** Domain (value object)
 **Since:** 2026-10-06
 
-The due date is 23:59:59.999 Colombian time on the customer's payment day; the
+The due date is 23:59:59.999 Colombian time on the subscription's payment day
+(`CUS-024`); the
 30th is the last day of February. The bill is issued from `issueLeadDays`
 before the due day through the due day itself, so a run missed on the issue
 day still issues it on a later day of that window.
@@ -1388,17 +1389,17 @@ silently skipping a month.
 **Since:** 2026-10-06
 
 From 6:00 Colombian time, once per day while automatic billing is on; a failed
-run is retried on the next check (every 15 minutes). It bills each customer
-holding an `ACTIVE` service whose issue window is open, unless that period
-already has a bill — even a cancelled one. One customer's failure is recorded
-and the run goes on (`BIL-087`).
+run is retried on the next check (every 15 minutes). It bills each `ACTIVE`
+service whose issue window is open, unless that service's period already has a
+bill — even a cancelled one. One service's failure is recorded and the run goes
+on (`BIL-087`).
 
 **Why:** A restart or a retry must never bill twice. A bill the operator
 cancelled was cancelled on purpose; reissuing it the next morning would undo
-that. Suspended customers are not billed (`BIL-081`), so a cut customer's debt
+that. Suspended services are not billed (`BIL-081`), so a cut service's debt
 does not keep growing.
 
-**Enforced at:** `src/application/billing/use-cases/RunBillingCycleUseCase.ts`, `src/infrastructure/billing/orchestrator/BillingCycleOrchestrator.ts`, `src/infrastructure/billing/queries/PrismaBillableCustomersQuery.ts`
+**Enforced at:** `src/application/billing/use-cases/RunBillingCycleUseCase.ts`, `src/infrastructure/billing/orchestrator/BillingCycleOrchestrator.ts`, `src/infrastructure/billing/queries/PrismaBillableServicesQuery.ts`
 **Tests:** `tests/application/billing/use-cases/RunBillingCycleUseCase.test.ts`, `tests/infrastructure/billing/orchestrator/BillingCycleOrchestrator.test.ts`, `tests/integration/use-cases/billing/RunBillingCycleUseCase.integration.test.ts`
 
 ### BIL-285 — Everyone reads the billing settings; only the administrator changes them
@@ -1613,43 +1614,47 @@ Cutting means suspending the customer's subscriptions. What a suspension does
 on the network — the `1k/1k` queue — and the customer's notice belong to
 [service-enforcement.md](service-enforcement.md).
 
-### BIL-310 — A customer still unpaid after the grace days is cut
+### BIL-310 — A subscription still unpaid after the grace days is cut
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
-**Since:** 2026-10-06
+**Since:** 2026-10-06 · **Changed:** 2026-10-26 (cuts the unpaid subscription, not every one the customer has)
 
 While both automatic billing and `automaticCutEnabled` are on, the daily run
-suspends every `ACTIVE` service of each customer holding an `OVERDUE` bill
-whose due date is more than `graceDays` days past. With 3 grace days, a bill
-due on the 15th is cut on the 19th. Bills made by hand count too. The run
-marks bills overdue first, so a bill that turns overdue that morning is
-counted. It repeats every morning: a service reactivated by hand while a bill
-is still overdue is suspended again the next day. One customer's failure is
-recorded and the run goes on.
+suspends each `ACTIVE` service on an `OVERDUE` bill whose due date is more than
+`graceDays` days past. The customer's other services keep running. With 3
+grace days, a bill due on the 15th is cut on the 19th. Bills made by hand count
+too. The run marks bills overdue first, so a bill that turns overdue that
+morning is counted. It repeats every morning: a service reactivated by hand
+while its bill is still overdue is suspended again the next day. One service's
+failure is recorded and the run goes on.
 
 **Why:** Cutting is the reason for the grace days and the overdue state, and it
-cannot depend on someone remembering. It has its own switch, off by default
+cannot depend on someone remembering. Each service has its own payment day
+(`CUS-024`) and its own bill (`BIL-007`), so a late payment on one line must not
+take down a line that is paid up. It has its own switch, off by default
 (`BIL-281`), so an ISP can bill automatically and still cut by hand until it
 trusts the system.
 
-**Enforced at:** `src/application/billing/use-cases/RunBillingCycleUseCase.ts` (`cutUnpaid`), `src/infrastructure/billing/adapters/ContractedServiceAccessAdapter.ts`, `src/infrastructure/billing/repositories/PrismaBillRepository.ts` (`findCustomersOverdueBefore`)
+**Enforced at:** `src/application/billing/use-cases/RunBillingCycleUseCase.ts` (`cutUnpaid`), `src/infrastructure/billing/adapters/ContractedServiceAccessAdapter.ts`, `src/infrastructure/billing/repositories/PrismaBillRepository.ts` (`findServicesOverdueBefore`)
 **Tests:** `tests/application/billing/use-cases/RunBillingCycleUseCase.test.ts`, `tests/infrastructure/billing/adapters/ContractedServiceAccessAdapter.test.ts`, `tests/integration/use-cases/billing/RunBillingCycleUseCase.integration.test.ts`
 
-### BIL-311 — Paying the last overdue bill brings every suspended service back
+### BIL-311 — Paying a subscription's last overdue bill brings it back
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
-**Since:** 2026-10-06
+**Since:** 2026-10-06 · **Changed:** 2026-10-26 (per subscription, not per customer)
 
-As soon as a payment is saved, if `automaticCutEnabled` is on and the customer
-has no `OVERDUE` bill left, all of their `SUSPENDED` services are reactivated —
-including ones an operator suspended by hand. A service with no device cannot
-be reactivated; it is logged and the rest still come back.
+As soon as a payment is saved, if `automaticCutEnabled` is on, each service on
+the paid bill that has no `OVERDUE` bill left and is `SUSPENDED` is reactivated
+— even if an operator suspended it by hand. The customer's other services are
+left as they are. A service with no device cannot be reactivated; it is logged
+and the rest still come back.
 
 **Why:** A customer who has paid should be back online in seconds, not the
-next morning. The ISP chose to restore everything rather than track why each
-service was suspended.
+next morning. The ISP chose to restore rather than track why a service was
+suspended. Restoring only the paid bill's services matches the cut (`BIL-310`):
+paying one line does not reconnect another line that is still owed.
 
 **Enforced at:** `src/application/billing/use-cases/RestoreServicesAfterPaymentUseCase.ts`, `src/application/billing/event-handlers/RestoreServicesOnPaymentHandler.ts` (on `BillPaidEvent`), `src/infrastructure/billing/adapters/ContractedServiceAccessAdapter.ts`
 **Tests:** `tests/application/billing/use-cases/RestoreServicesAfterPaymentUseCase.test.ts`, `tests/application/billing/event-handlers/RestoreServicesOnPaymentHandler.test.ts`, `tests/infrastructure/billing/adapters/ContractedServiceAccessAdapter.test.ts`, `tests/integration/use-cases/billing/RestoreServicesAfterPaymentUseCase.integration.test.ts`, `tests/integration/bill.routes.test.ts`

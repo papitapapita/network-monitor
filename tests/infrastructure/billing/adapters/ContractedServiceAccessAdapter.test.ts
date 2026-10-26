@@ -3,7 +3,8 @@
 import { ContractedServiceAccessAdapter } from '../../../../src/infrastructure/billing/adapters';
 import {
   ContractedService,
-  ContractedServiceStatus
+  ContractedServiceStatus,
+  PaymentDay
 } from '../../../../src/domain/customers';
 import { IContractedServiceRepository } from '../../../../src/domain/customers/repository';
 import {
@@ -13,28 +14,31 @@ import {
 } from '../../../../src/domain/shared/ids';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
-const CUSTOMER = '11111111-1111-4111-8111-111111111111';
-
 function service(
   status: ContractedServiceStatus,
   withDevice = true
 ): ContractedService {
   return ContractedService.create({
-    customerId: CustomerId.parse(CUSTOMER).value,
+    customerId: CustomerId.create(),
     servicePlanId: ServicePlanId.create(),
     deviceId: withDevice ? DeviceId.create() : null,
     status,
-    startDate: new Date('2026-01-10T15:00:00Z')
+    startDate: new Date('2026-01-10T15:00:00Z'),
+    paymentDay: PaymentDay.default()
   }).value;
 }
 
 describe('ContractedServiceAccessAdapter', () => {
-  let repo: { findByCustomerId: jest.Mock; save: jest.Mock };
+  let repo: { findById: jest.Mock; save: jest.Mock };
   let adapter: ContractedServiceAccessAdapter;
+
+  function found(s: ContractedService | null): void {
+    repo.findById.mockResolvedValue(Result.ok(s));
+  }
 
   beforeEach(() => {
     repo = {
-      findByCustomerId: jest.fn(),
+      findById: jest.fn(),
       save: jest.fn(async (s: ContractedService) => Result.ok(s))
     };
     adapter = new ContractedServiceAccessAdapter(
@@ -42,68 +46,107 @@ describe('ContractedServiceAccessAdapter', () => {
     );
   });
 
-  it('[BIL-310] suspends only the active services', async () => {
+  it('[BIL-310] suspends an active service', async () => {
     const active = service(ContractedServiceStatus.ACTIVE);
-    const pending = service(ContractedServiceStatus.PENDING, false);
-    repo.findByCustomerId.mockResolvedValue(
-      Result.ok([active, pending])
-    );
+    found(active);
 
-    const result = await adapter.suspendActiveServices(CUSTOMER);
+    const result = await adapter.suspendService(active.id.toString());
 
-    expect(result.value).toEqual({ changed: 1, failed: [] });
+    expect(result.value).toBe(true);
     expect(active.status).toBe(ContractedServiceStatus.SUSPENDED);
-    expect(pending.status).toBe(ContractedServiceStatus.PENDING);
+    expect(repo.findById.mock.calls[0][0].equals(active.id)).toBe(
+      true
+    );
     expect(repo.save).toHaveBeenCalledTimes(1);
   });
 
-  it('[BIL-311] restores every suspended service and reports one it cannot', async () => {
+  it('[BIL-310] leaves a service that is not active alone', async () => {
+    const pending = service(ContractedServiceStatus.PENDING, false);
+    found(pending);
+
+    const result = await adapter.suspendService(
+      pending.id.toString()
+    );
+
+    expect(result.value).toBe(false);
+    expect(pending.status).toBe(ContractedServiceStatus.PENDING);
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  it('[BIL-311] restores a suspended service', async () => {
     const back = service(ContractedServiceStatus.SUSPENDED);
+    found(back);
+
+    const result = await adapter.restoreService(back.id.toString());
+
+    expect(result.value).toBe(true);
+    expect(back.status).toBe(ContractedServiceStatus.ACTIVE);
+  });
+
+  it('[BIL-311] leaves a cancelled service alone', async () => {
+    const cancelled = service(ContractedServiceStatus.ACTIVE);
+    cancelled.cancel();
+    found(cancelled);
+
+    const result = await adapter.restoreService(
+      cancelled.id.toString()
+    );
+
+    expect(result.value).toBe(false);
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  it('fails when the suspended service has no device to come back on', async () => {
     const noDevice = service(
       ContractedServiceStatus.SUSPENDED,
       false
     );
-    repo.findByCustomerId.mockResolvedValue(
-      Result.ok([back, noDevice])
+    found(noDevice);
+
+    const result = await adapter.restoreService(
+      noDevice.id.toString()
     );
 
-    const result = await adapter.restoreSuspendedServices(CUSTOMER);
-
-    expect(back.status).toBe(ContractedServiceStatus.ACTIVE);
-    expect(result.value.changed).toBe(1);
-    expect(result.value.failed).toEqual([
-      {
-        id: noDevice.id.toString(),
-        error:
-          'Cannot activate a contracted service without a device assigned'
-      }
-    ]);
+    expect(result.error).toBe(
+      'Cannot activate a contracted service without a device assigned'
+    );
+    expect(repo.save).not.toHaveBeenCalled();
   });
 
-  it('reports a service that could not be saved', async () => {
+  it('reports false for a service that no longer exists', async () => {
+    const gone = service(ContractedServiceStatus.ACTIVE);
+    found(null);
+
+    const result = await adapter.suspendService(gone.id.toString());
+
+    expect(result.value).toBe(false);
+  });
+
+  it('fails when the service could not be saved', async () => {
     const active = service(ContractedServiceStatus.ACTIVE);
-    repo.findByCustomerId.mockResolvedValue(Result.ok([active]));
+    found(active);
     repo.save.mockResolvedValue(Result.fail('DB down'));
 
-    const result = await adapter.suspendActiveServices(CUSTOMER);
+    const result = await adapter.suspendService(active.id.toString());
 
-    expect(result.value).toEqual({
-      changed: 0,
-      failed: [{ id: active.id.toString(), error: 'DB down' }]
-    });
+    expect(result.error).toBe('DB down');
   });
 
-  it('fails when the services cannot be read', async () => {
-    repo.findByCustomerId.mockResolvedValue(Result.fail('DB down'));
+  it('fails when the service cannot be read', async () => {
+    repo.findById.mockResolvedValue(Result.fail('DB down'));
 
     expect(
-      (await adapter.suspendActiveServices(CUSTOMER)).error
+      (
+        await adapter.suspendService(
+          service(ContractedServiceStatus.ACTIVE).id.toString()
+        )
+      ).error
     ).toBe('DB down');
   });
 
-  it('fails for a malformed customer id', async () => {
-    expect(
-      (await adapter.restoreSuspendedServices('nope')).error
-    ).toContain('Invalid customerId');
+  it('fails for a malformed service id', async () => {
+    expect((await adapter.restoreService('nope')).error).toContain(
+      'Invalid contractedServiceId'
+    );
   });
 });

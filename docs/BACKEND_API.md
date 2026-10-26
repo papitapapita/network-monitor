@@ -4308,6 +4308,13 @@ Outside `/api`, no JWT — the pairing code is the credential. Documented so the
 
 ## Customers `/api/customers`
 
+> **⚠ Breaking change (2026-10-26): `paymentDay` left the customer.** The 15th/30th collection group now belongs to each contracted service, because one customer can hold several services that fall due on different days (CUS-024).
+>
+> - `CustomerDTO` no longer has `paymentDay`.
+> - `POST /api/customers` and `PUT /api/customers/:id` no longer accept it. It is ignored if sent, and a `PUT` whose only field is `paymentDay` gets `400` (`At least one field must be provided for update`).
+>
+> **Frontend:** remove the payment-day field from the customer form and the customer detail view, and ask for it on each service instead (see [Contracted Services](#contracted-services-apicontracted-services)). The migration copied each customer's old day onto all of their services, so nothing changes for existing data.
+
 ```ts
 interface CustomerDTO {
   id: string; // UUID
@@ -4315,7 +4322,6 @@ interface CustomerDTO {
   phone: string;
   email: string | null;
   cedula: string | null;
-  paymentDay: 15 | 30; // the day of the month the bill is due (CUS-024)
   createdAt: string; // ISO 8601
   updatedAt: string;
 }
@@ -4332,7 +4338,6 @@ interface CustomerDTO {
   phone: string            // required, 7–20 chars, digits/spaces/()/.-/+ allowed
   email?: string | null    // max 255 chars, valid email format
   cedula?: string | null   // 6–15 chars, digits/dots/spaces
-  paymentDay?: number      // 15 or 30, default 30 (CUS-024, CUS-025)
 }
 
 // Response
@@ -4387,7 +4392,6 @@ offset?: number  // ≥0, default 0
   phone?: string
   email?: string | null
   cedula?: string | null
-  paymentDay?: number      // 15 or 30
 }
 
 // Response
@@ -4520,6 +4524,15 @@ offset?: number  // ≥0, default 0
 
 ## Contracted Services `/api/contracted-services`
 
+> **⚠ Breaking change (2026-10-26): each service has its own `paymentDay`** (`15 | 30`, CUS-024), the day of the month its bill falls due. It used to be on the customer.
+>
+> - `ContractedServiceDTO.paymentDay`, and so also `ContractedServiceDetailDTO`, is always present.
+> - `POST /api/contracted-services` takes `paymentDay?: 15 | 30`; omitted means `30` (CUS-025).
+> - `PUT /api/contracted-services/:id` takes `paymentDay?: 15 | 30`. It can be the only field sent. A cancelled service refuses it with `409`.
+> - Any other number → `400` `"Payment day must be one of 15, 30"`; a non-integer (e.g. `"15"` as a string) → `400` from validation.
+>
+> **Frontend:** add a "Fecha de corte / día de pago" selector (15 or 30, default 30) to the create-service form and the edit-service form, and show it in the service list and detail. The automatic cut and restore also act on one service now, not on the whole customer (BIL-310, BIL-311). A customer can therefore have one service `SUSPENDED` and another `ACTIVE` at the same time, so show status per service, not per customer.
+
 ```ts
 type ContractedServiceStatus =
   | 'PENDING'
@@ -4534,6 +4547,7 @@ interface ContractedServiceDTO {
   deviceId: string | null; // UUID — the CPE device assigned to this service
   status: ContractedServiceStatus;
   startDate: string; // ISO 8601
+  paymentDay: 15 | 30; // the day of the month this service's bill is due (CUS-024)
   createdAt: string; // ISO 8601
   updatedAt: string;
 }
@@ -4589,6 +4603,7 @@ interface ContractedServiceDetailDTO extends ContractedServiceDTO {
   servicePlanId: string     // required, UUID
   deviceId?: string | null  // UUID — CPE device for this service
   startDate?: string        // ISO 8601 datetime; defaults to now if omitted
+  paymentDay?: number       // integer, 15 or 30; default 30 (CUS-024, CUS-025)
 }
 
 // Response
@@ -4596,7 +4611,8 @@ interface ContractedServiceDetailDTO extends ContractedServiceDTO {
 ```
 
 > New services are **always created as `PENDING`** — the create endpoint does not accept a `status` field. To activate one, assign a device (if not done at creation) and send `PUT /:id` with `{ status: 'ACTIVE' }`.  
-> **Billing only includes `ACTIVE` services** — `POST /api/bills/generate` returns 409 for a customer whose services are all PENDING/SUSPENDED/CANCELLED.
+> **Billing only includes `ACTIVE` services** — `POST /api/bills/generate` returns 409 for a service that is PENDING/SUSPENDED/CANCELLED.  
+> **Payment day (since 2026-10-26):** the 15th/30th collection group belongs to the service, not the customer — two services of one customer can fall due on different days, and each gets its own bill. Any other day → `400` `"Payment day must be one of 15, 30"`; a non-integer → `400` from validation.
 
 **Contracted service status lifecycle:**
 
@@ -4676,6 +4692,7 @@ offset?:     number  // ≥0, default 0
   servicePlanId?: string         // UUID — change the plan (plan must exist → 404 otherwise)
   deviceId?: string | null       // UUID — assign CPE; null releases it
   status?: 'ACTIVE' | 'SUSPENDED' | 'CANCELLED'   // ⚠ PENDING is NOT accepted → 400
+  paymentDay?: number            // 15 or 30 — moves the service to the other collection group; 409 on a cancelled service
 }
 
 // Response
@@ -4765,7 +4782,16 @@ Uses the standard `{ success, data }` envelope.
 
 ## Bills `/api/bills`
 
-One bill per customer per billing period (`'YYYY-MM'`). Line items snapshot the plan name and price **at generation time** — later plan price changes never affect existing bills. Each line's `amount` is what it charges: the monthly price, or a prorated share on bills from the daily automatic run (BIL-287…290). `total` is the sum of the line amounts.
+> **⚠ Breaking change (2026-10-26): bills are per contracted service, not per customer** (BIL-007).
+>
+> - `POST /api/bills/generate` takes **`contractedServiceId`** instead of `customerId`. Sending only `customerId` now gets `400`. Errors: `404` unknown service; `409` `"Contracted service is not active and cannot be billed"`; `409` when a non-cancelled bill already exists for that service and period.
+> - `POST /api/bills/generate-bulk`: one bill per ACTIVE service, so a customer with two services gets two bills. The `skipped[]` and `failed[]` entries carry **`contractedServiceId`** instead of `customerId`.
+> - `BillDTO` is unchanged and still has `customerId`. New bills have exactly one entry in `lineItems`, and `lineItems[0].contractedServiceId` names the service. Bills from before this date may have several lines.
+> - The due date of an automatic bill is the service's `paymentDay`.
+>
+> **Frontend:** the "generate bill" dialog must pick a **service** (e.g. the customer's ACTIVE services, from `GET /api/contracted-services?customerId=`), not a customer. Update the bulk-result view to read `contractedServiceId`. In a customer's bill list, expect several bills for the same period and label each with its service or plan (`lineItems[0].planName`).
+
+One bill per **contracted service** per billing period (`'YYYY-MM'`) — a customer with two services gets two bills a month, each due on its service's `paymentDay` (BIL-007, since 2026-10-26). New bills have exactly one line item; bills issued before that date may hold several. Line items snapshot the plan name and price **at generation time** — later plan price changes never affect existing bills. Each line's `amount` is what it charges: the monthly price, or a prorated share on bills from the daily automatic run (BIL-287…290). `total` is the sum of the line amounts.
 
 **Lifecycle:** `PENDING → PAID | OVERDUE | CANCELLED`. `PAID` and `CANCELLED` are terminal. `OVERDUE` bills can still be paid or cancelled.
 
@@ -4812,7 +4838,7 @@ interface BillDTO {
 }
 ```
 
-### `POST /api/bills/generate` — Generate Bill for a Customer
+### `POST /api/bills/generate` — Generate Bill for a Contracted Service
 
 **Status:** 201 | 400 | 404 | 409 | 500  
 **Roles:** ADMIN, OPERATOR
@@ -4820,7 +4846,7 @@ interface BillDTO {
 ```ts
 // Request body
 {
-  customerId: string   // required, UUID
+  contractedServiceId: string   // required, UUID — ⚠ was customerId before 2026-10-26
   year: number         // required, integer 2000–2100
   month: number        // required, integer 1–12
   issueDate?: string   // ISO 8601 datetime; default: now
@@ -4833,21 +4859,21 @@ interface BillDTO {
 
 **Business rules:**
 
-- One line item per **ACTIVE** contracted service of the customer (PENDING/SUSPENDED/CANCELLED services are excluded).
-- Every line charges the full monthly price for the whole month (`serviceFrom`/`serviceTo` = the period's first and last day), whatever the service's start date. Only the automatic run prorates (BIL-291).
-- Returns 409 if the customer has no ACTIVE contracted services.
-- Returns 409 if a non-cancelled bill already exists for this customer + period. Cancelled bills don't block regeneration.
-- Returns 404 if the customer does not exist.
+- One line item: the service's plan. The bill's `customerId` is the service's customer.
+- The line charges the full monthly price for the whole month (`serviceFrom`/`serviceTo` = the period's first and last day), whatever the service's start date. Only the automatic run prorates (BIL-291).
+- Returns 409 `"Contracted service is not active and cannot be billed"` if the service is not ACTIVE.
+- Returns 409 if a non-cancelled bill already exists for this service + period. Cancelled bills don't block regeneration. Another service of the same customer is billed separately.
+- Returns 404 if the service does not exist.
 
 ---
 
-### `POST /api/bills/generate-bulk` — Generate Bills for All Customers
+### `POST /api/bills/generate-bulk` — Generate Bills for All Active Services
 
 **Status:** 200 | 400  
 **Roles:** ADMIN, OPERATOR  
 **Rate limit:** bulk-import bucket — 5 / hr
 
-Generates bills for **every customer that has at least one ACTIVE contracted service**. Per-customer failures never abort the run — inspect the three result buckets.
+Generates one bill for **every ACTIVE contracted service** (a customer with two gets two). Per-service failures never abort the run — inspect the three result buckets.
 
 ```ts
 // Request body
@@ -4858,14 +4884,14 @@ Generates bills for **every customer that has at least one ACTIVE contracted ser
   dueDate?: string     // ISO 8601 datetime; default: issueDate + 15 days
 }
 
-// Response — always 200 even if some customers failed
+// Response — always 200 even if some services failed
 {
   success: true,
   data: {
     period: string   // 'YYYY-MM'
     generated: BillDTO[]
-    skipped: Array<{ customerId: string; reason: string }>  // e.g. bill already exists
-    failed:  Array<{ customerId: string; error: string }>
+    skipped: Array<{ contractedServiceId: string; reason: string }>  // e.g. bill already exists — ⚠ was customerId
+    failed:  Array<{ contractedServiceId: string; error: string }>
   }
 }
 ```
@@ -4950,7 +4976,7 @@ The PDF includes the bill header (period, status, issue/due/paid dates), the cus
 { success: true, data: BillDTO }
 ```
 
-> Allowed from `PENDING` or `OVERDUE`. Returns 409 if the bill is already `PAID` or `CANCELLED`. The signed-in user is recorded as `recordedByUserId`. One payment per bill, never edited (BIL-300…303). With the automatic cut on, paying the customer's last `OVERDUE` bill reactivates their suspended services right after the response (BIL-311). **Breaking:** `method` is now required; a body-less request gets 400.
+> Allowed from `PENDING` or `OVERDUE`. Returns 409 if the bill is already `PAID` or `CANCELLED`. The signed-in user is recorded as `recordedByUserId`. One payment per bill, never edited (BIL-300…303). With the automatic cut on, paying a bill reactivates each suspended service on it that has no other `OVERDUE` bill, right after the response; the customer's other services are not touched (BIL-311). **Breaking:** `method` is now required; a body-less request gets 400.
 
 ---
 
@@ -4994,14 +5020,14 @@ the first save the defaults apply, with automatic billing **off** (BIL-281), so
 `GET` always answers. A save applies from the next daily run, with no restart.
 
 While `automaticBillingEnabled` is true, a daily run (from 6:00, Colombian time)
-issues each customer's bill on its own and marks unpaid bills `OVERDUE`:
+issues each service's bill on its own and marks unpaid bills `OVERDUE`:
 
-- A customer's bill is due at the end of their `paymentDay` (15 or 30; the 30th
-  is the month's last day in February) — see `CustomerDTO.paymentDay`.
+- A service's bill is due at the end of its `paymentDay` (15 or 30; the 30th
+  is the month's last day in February) — see `ContractedServiceDTO.paymentDay`.
 - It is issued from `issueLeadDays` before that day; a run missed that day
   issues it on any later day up to the due date (BIL-283).
-- Only customers with an `ACTIVE` service are billed; a period that already
-  has a bill — even a cancelled one — is never billed again by the run
+- Only `ACTIVE` services are billed, one bill each; a service's period that
+  already has a bill — even a cancelled one — is never billed again by the run
   (BIL-284).
 - Its bills are prorated: a service that started inside the billed month is
   charged from its start day, at monthly price × days ÷ days in that month, in
@@ -5011,11 +5037,11 @@ issues each customer's bill on its own and marks unpaid bills `OVERDUE`:
   month's remaining days (BIL-289).
 - After the due date, every `PENDING` bill goes `OVERDUE`, hand-made ones too
   (BIL-286).
-- With `automaticCutEnabled`, the day after the last grace day every customer
-  still holding an `OVERDUE` bill has their `ACTIVE` services suspended, and
-  again each morning while it stays unpaid (BIL-310). Recording a payment that
-  leaves the customer with no `OVERDUE` bill reactivates **all** their
-  suspended services at once, hand-suspended ones included (BIL-311).
+- With `automaticCutEnabled`, the day after the last grace day each `ACTIVE`
+  service on an `OVERDUE` bill is suspended — only that service, not the
+  customer's others — and again each morning while it stays unpaid (BIL-310).
+  Recording a payment reactivates each suspended service on the paid bill that
+  has no other `OVERDUE` bill, hand-suspended ones included (BIL-311).
 - Each bill the run issues is emailed with its PDF to customers who have an
   email (BIL-320) and, when `billWhatsAppTemplate` is set, sent by WhatsApp
   with the PDF as the template's document header (BIL-324). That template

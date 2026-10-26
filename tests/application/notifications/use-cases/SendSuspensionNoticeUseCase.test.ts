@@ -8,12 +8,12 @@ import { ContractedService } from '../../../../src/domain/customers/aggregates/C
 import { Customer } from '../../../../src/domain/customers/aggregates/Customer';
 import { ContractedServiceStatus } from '../../../../src/domain/customers/enums/ContractedServiceStatus';
 import { PhoneNumber } from '../../../../src/domain/customers/value-objects/PhoneNumber';
-import { PaymentDay } from '../../../../src/domain/customers/value-objects/PaymentDay';
 import { ContractedServiceId } from '../../../../src/domain/shared/ids/ContractedServiceId';
 import { CustomerId } from '../../../../src/domain/shared/ids/CustomerId';
 import { ServicePlanId } from '../../../../src/domain/shared/ids/ServicePlanId';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
+import { PaymentDay } from '../../../../src/domain/customers';
 
 const CS_UUID = '550e8400-e29b-41d4-a716-446655440060';
 const CUSTOMER_UUID = '550e8400-e29b-41d4-a716-446655440061';
@@ -72,6 +72,7 @@ function makeService(): ContractedService {
       deviceId: null,
       status: ContractedServiceStatus.SUSPENDED,
       startDate: NOW,
+      paymentDay: PaymentDay.default(),
       createdAt: NOW,
       updatedAt: NOW
     }
@@ -86,7 +87,6 @@ function makeCustomer(): Customer {
       phone: PhoneNumber.reconstitute('+573001234567'),
       email: null,
       cedula: null,
-      paymentDay: PaymentDay.reconstitute(30),
       createdAt: NOW,
       updatedAt: NOW
     }

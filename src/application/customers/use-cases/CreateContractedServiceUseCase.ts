@@ -3,7 +3,7 @@ import {
   ServicePlanId,
   DeviceId
 } from 'domain/shared/ids';
-import { ContractedService } from 'domain/customers';
+import { ContractedService, PaymentDay } from 'domain/customers';
 import {
   ICustomerRepository,
   IServicePlanRepository,
@@ -75,6 +75,15 @@ export class CreateContractedServiceUseCase extends UseCase<
       return this.fail(startDateResult.error!);
     }
 
+    let paymentDay = PaymentDay.default();
+    if (request.paymentDay !== undefined) {
+      const paymentDayResult = PaymentDay.create(request.paymentDay);
+      if (paymentDayResult.isFailure) {
+        return this.fail(paymentDayResult.error!);
+      }
+      paymentDay = paymentDayResult.value;
+    }
+
     const customerExists = await this.customerRepository.exists(
       customerIdResult.value
     );
@@ -115,7 +124,8 @@ export class CreateContractedServiceUseCase extends UseCase<
       customerId: customerIdResult.value,
       servicePlanId: servicePlanIdResult.value,
       deviceId,
-      startDate: startDateResult.value
+      startDate: startDateResult.value,
+      paymentDay
     });
     if (serviceResult.isFailure) {
       return this.fail(serviceResult.error!);

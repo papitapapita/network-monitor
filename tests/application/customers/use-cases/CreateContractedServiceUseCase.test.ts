@@ -14,7 +14,10 @@ import {
   IServicePlanRepository,
   IContractedServiceRepository
 } from '../../../../src/domain/customers/repository';
-import { ContractedService } from '../../../../src/domain/customers';
+import {
+  ContractedService,
+  PaymentDay
+} from '../../../../src/domain/customers';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
@@ -118,6 +121,37 @@ describe('CreateContractedServiceUseCase', () => {
     expect(result.value.deviceId).toBeNull();
   });
 
+  describe('payment day', () => {
+    it('[CUS-025] should default to the 30th when omitted', async () => {
+      const result = await useCase.execute({
+        customerId: CUSTOMER_UUID,
+        servicePlanId: PLAN_UUID
+      });
+      expect(result.value.paymentDay).toBe(30);
+    });
+
+    it('[CUS-024] should accept the 15th', async () => {
+      const result = await useCase.execute({
+        customerId: CUSTOMER_UUID,
+        servicePlanId: PLAN_UUID,
+        paymentDay: 15
+      });
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.paymentDay).toBe(15);
+    });
+
+    it('[CUS-024] should reject any other day without saving', async () => {
+      const result = await useCase.execute({
+        customerId: CUSTOMER_UUID,
+        servicePlanId: PLAN_UUID,
+        paymentDay: 20
+      });
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe('Payment day must be one of 15, 30');
+      expect(serviceRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
   it('should fail when the customer does not exist', async () => {
     (customerRepo.exists as any).mockResolvedValue(Result.ok(false));
     const result = await useCase.execute({
@@ -145,7 +179,8 @@ describe('CreateContractedServiceUseCase', () => {
           customerId: CUSTOMER_UUID as any,
           servicePlanId: PLAN_UUID as any,
           deviceId: null,
-          startDate: new Date()
+          startDate: new Date(),
+          paymentDay: PaymentDay.default()
         }).value
       )
     );

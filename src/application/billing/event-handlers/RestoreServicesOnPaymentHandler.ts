@@ -3,7 +3,7 @@ import { BillPaidEvent } from 'domain/billing/events';
 import { ILogger } from 'application/shared/interfaces';
 import { RestoreServicesAfterPaymentUseCase } from '../use-cases';
 
-// Restores a paid-up customer's service as soon as the payment is saved
+// Restores the paid bill's services as soon as the payment is saved
 // (BIL-311).
 export class RestoreServicesOnPaymentHandler
   implements IHandle<BillPaidEvent>
@@ -14,16 +14,14 @@ export class RestoreServicesOnPaymentHandler
   ) {}
 
   async handle(event: BillPaidEvent): Promise<void> {
-    const customerId = event.customerId.toString();
+    const billId = event.aggregateId.toString();
     try {
-      const result = await this.restoreUseCase.execute({
-        customerId
-      });
+      const result = await this.restoreUseCase.execute({ billId });
       if (result.isFailure) {
         this.logger.error(
           'RestoreServicesOnPaymentHandler: use case failed',
           undefined,
-          { customerId, error: result.error }
+          { billId, error: result.error }
         );
         return;
       }
@@ -31,7 +29,7 @@ export class RestoreServicesOnPaymentHandler
         this.logger.warn(
           'RestoreServicesOnPaymentHandler: a service could not be restored',
           {
-            customerId,
+            billId,
             contractedServiceId: failure.id,
             error: failure.error
           }

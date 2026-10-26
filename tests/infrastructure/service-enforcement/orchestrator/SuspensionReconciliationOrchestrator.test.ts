@@ -27,6 +27,7 @@ import {
 import { IPAddress } from '../../../../src/domain/shared/value-objects/IPAddress';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
+import { PaymentDay } from '../../../../src/domain/customers';
 
 const CS_UUID = '550e8400-e29b-41d4-a716-4466554400a1';
 const DEVICE_UUID = '550e8400-e29b-41d4-a716-4466554400a2';
@@ -102,6 +103,7 @@ function makeSuspendedService(
       deviceId,
       status: ContractedServiceStatus.SUSPENDED,
       startDate: NOW,
+      paymentDay: PaymentDay.default(),
       createdAt: NOW,
       updatedAt: NOW
     }

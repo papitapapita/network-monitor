@@ -22,9 +22,6 @@ const emailField = z
   .email('Email is not valid')
   .max(255, 'Email cannot exceed 255 characters');
 
-// Shape only; which days are allowed lives in PaymentDay (CUS-024).
-const paymentDayField = z.number().int();
-
 const cedulaField = z
   .string()
   .trim()
@@ -35,8 +32,7 @@ export const createCustomerSchema = z.object({
     fullName: nameField,
     phone: phoneField,
     email: emailField.nullable().optional(),
-    cedula: cedulaField.nullable().optional(),
-    paymentDay: paymentDayField.optional()
+    cedula: cedulaField.nullable().optional()
   })
 });
 
@@ -51,16 +47,14 @@ export const updateCustomerSchema = z.object({
       fullName: nameField.optional(),
       phone: phoneField.optional(),
       email: emailField.nullable().optional(),
-      cedula: cedulaField.nullable().optional(),
-      paymentDay: paymentDayField.optional()
+      cedula: cedulaField.nullable().optional()
     })
     .refine(
       (body) =>
         body.fullName !== undefined ||
         body.phone !== undefined ||
         body.email !== undefined ||
-        body.cedula !== undefined ||
-        body.paymentDay !== undefined,
+        body.cedula !== undefined,
       { message: 'At least one field must be provided for update' }
     )
 });

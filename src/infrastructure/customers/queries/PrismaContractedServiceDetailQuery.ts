@@ -146,6 +146,7 @@ export class PrismaContractedServiceDetailQuery
       deviceId: raw.deviceId,
       status: raw.status,
       startDate: raw.startDate.toISOString(),
+      paymentDay: raw.paymentDay,
       createdAt: raw.createdAt.toISOString(),
       updatedAt: raw.updatedAt.toISOString(),
       customer: { ...raw.customer },

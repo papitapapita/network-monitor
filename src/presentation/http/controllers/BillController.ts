@@ -30,10 +30,10 @@ export class BillController {
   ): Promise<void> => {
     try {
       // Picked field by field: proration is the daily run's alone (BIL-291).
-      const { customerId, year, month, issueDate, dueDate } =
+      const { contractedServiceId, year, month, issueDate, dueDate } =
         req.body;
       const result = await this.generateUseCase.execute({
-        customerId,
+        contractedServiceId,
         year,
         month,
         issueDate,
@@ -220,7 +220,7 @@ export class BillController {
     if (
       errorMessage.includes('already exists') ||
       errorMessage.includes('Cannot') ||
-      errorMessage.includes('no active contracted services') ||
+      errorMessage.includes('is not active') ||
       errorMessage.includes('not past its due date')
     ) {
       return 409;

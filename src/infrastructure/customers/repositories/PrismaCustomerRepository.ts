@@ -25,7 +25,6 @@ export class PrismaCustomerRepository implements ICustomerRepository {
           phone: data.phone,
           email: data.email,
           cedula: data.cedula,
-          paymentDay: data.paymentDay,
           updatedAt: data.updatedAt
         }
       });

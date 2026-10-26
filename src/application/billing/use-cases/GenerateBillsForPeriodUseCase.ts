@@ -1,10 +1,6 @@
-import { CustomerId } from 'domain/shared/ids';
 import { BillingPeriod } from 'domain/billing';
 import { IBillRepository } from 'domain/billing/repository';
-import {
-  ContractedService,
-  ContractedServiceStatus
-} from 'domain/customers';
+import { ContractedServiceStatus } from 'domain/customers';
 import { IContractedServiceRepository } from 'domain/customers/repository';
 import { Result } from 'domain/shared/core';
 import { UseCase } from 'application/shared/core';
@@ -50,34 +46,35 @@ export class GenerateBillsForPeriodUseCase extends UseCase<
       return this.fail(servicesResult.error!);
     }
 
-    const customerIds = this.uniqueCustomerIds(servicesResult.value);
-
     const generated: BulkGenerateBillsResponseDTO['generated'] = [];
     const skipped: BulkGenerateBillsResponseDTO['skipped'] = [];
     const failed: BulkGenerateBillsResponseDTO['failed'] = [];
 
-    for (const customerId of customerIds) {
-      const raw = customerId.toString();
+    for (const service of servicesResult.value) {
+      const raw = service.id.toString();
 
       const existsResult =
-        await this.billRepository.existsForCustomerAndPeriod(
-          customerId,
+        await this.billRepository.existsForServiceAndPeriod(
+          service.id,
           period
         );
       if (existsResult.isFailure) {
-        failed.push({ customerId: raw, error: existsResult.error! });
+        failed.push({
+          contractedServiceId: raw,
+          error: existsResult.error!
+        });
         continue;
       }
       if (existsResult.value) {
         skipped.push({
-          customerId: raw,
-          reason: `A bill already exists for customer ${raw} for period ${period.toString()}`
+          contractedServiceId: raw,
+          reason: `A bill already exists for service ${raw} for period ${period.toString()}`
         });
         continue;
       }
 
       const genResult = await this.generateBillUseCase.execute({
-        customerId: raw,
+        contractedServiceId: raw,
         year: request.year,
         month: request.month,
         issueDate: request.issueDate,
@@ -85,7 +82,10 @@ export class GenerateBillsForPeriodUseCase extends UseCase<
       });
 
       if (genResult.isFailure) {
-        failed.push({ customerId: raw, error: genResult.error });
+        failed.push({
+          contractedServiceId: raw,
+          error: genResult.error
+        });
         continue;
       }
 
@@ -98,18 +98,5 @@ export class GenerateBillsForPeriodUseCase extends UseCase<
       skipped,
       failed
     });
-  }
-
-  private uniqueCustomerIds(
-    services: ContractedService[]
-  ): CustomerId[] {
-    const seen = new Map<string, CustomerId>();
-    for (const service of services) {
-      const raw = service.customerId.toString();
-      if (!seen.has(raw)) {
-        seen.set(raw, service.customerId);
-      }
-    }
-    return Array.from(seen.values());
   }
 }

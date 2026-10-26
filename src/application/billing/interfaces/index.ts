@@ -1,5 +1,5 @@
 export * from './IBillPdfRenderer';
 export * from './ICollectionAccountPdfRenderer';
-export * from './IBillableCustomersQuery';
+export * from './IBillableServicesQuery';
 export * from './ICustomerServiceAccess';
 export * from './IBillingContactsQuery';

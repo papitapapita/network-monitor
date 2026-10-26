@@ -234,7 +234,6 @@ export async function seedCustomer(
     phone?: string;
     email?: string | null;
     cedula?: string | null;
-    paymentDay?: number;
   } = {}
 ): Promise<string> {
   const phone = overrides.phone ?? '3001234567';
@@ -245,8 +244,7 @@ export async function seedCustomer(
       fullName: overrides.fullName ?? 'Test Customer',
       phone,
       email: overrides.email ?? null,
-      cedula: overrides.cedula ?? null,
-      paymentDay: overrides.paymentDay
+      cedula: overrides.cedula ?? null
     }
   });
   return customer.id;
@@ -316,7 +314,11 @@ export async function seedActiveContractedService(
   prisma: PrismaClient,
   customerId: string,
   servicePlanId: string,
-  overrides: { deviceId?: string | null; startDate?: Date } = {}
+  overrides: {
+    deviceId?: string | null;
+    startDate?: Date;
+    paymentDay?: number;
+  } = {}
 ): Promise<string> {
   const service = await prisma.contractedService.create({
     data: {
@@ -324,7 +326,8 @@ export async function seedActiveContractedService(
       servicePlanId,
       deviceId: overrides.deviceId ?? null,
       status: 'ACTIVE',
-      startDate: overrides.startDate ?? new Date()
+      startDate: overrides.startDate ?? new Date(),
+      paymentDay: overrides.paymentDay
     }
   });
   return service.id;
@@ -339,6 +342,7 @@ export async function seedContractedService(
     deviceId?: string | null;
     status?: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
     startDate?: Date;
+    paymentDay?: number;
   } = {}
 ): Promise<string> {
   const service = await prisma.contractedService.create({
@@ -347,7 +351,8 @@ export async function seedContractedService(
       servicePlanId,
       deviceId: overrides.deviceId ?? null,
       status: overrides.status ?? 'PENDING',
-      startDate: overrides.startDate ?? new Date()
+      startDate: overrides.startDate ?? new Date(),
+      paymentDay: overrides.paymentDay
     }
   });
   return service.id;

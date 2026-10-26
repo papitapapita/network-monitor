@@ -1,11 +1,14 @@
-import { PrismaClient } from 'generated/prisma/client';
+import { Prisma, PrismaClient } from 'generated/prisma/client';
 import { Bill } from 'domain/billing/aggregates';
-import { BillStatus } from 'domain/billing/enums';
 import {
   BillFilters,
   IBillRepository
 } from 'domain/billing/repository';
-import { BillId, CustomerId } from 'domain/shared/ids';
+import {
+  BillId,
+  ContractedServiceId,
+  CustomerId
+} from 'domain/shared/ids';
 import { BillingPeriod } from 'domain/billing/value-objects';
 import { Result, EventDispatcher } from 'domain/shared/core';
 import { BillPrismaMapper } from '../mappers';
@@ -66,7 +69,7 @@ export class PrismaBillRepository implements IBillRepository {
 
       if (isUniqueViolation(error)) {
         return Result.fail<Bill>(
-          'A bill for this customer and period already exists'
+          'A bill for this service and period already exists'
         );
       }
       if (isForeignKeyViolation(error)) {
@@ -172,14 +175,18 @@ export class PrismaBillRepository implements IBillRepository {
     }
   }
 
-  public async existsForCustomerAndPeriod(
-    customerId: CustomerId,
+  public async existsForServiceAndPeriod(
+    contractedServiceId: ContractedServiceId,
     period: BillingPeriod
   ): Promise<Result<boolean>> {
     try {
       const count = await this.prisma.bill.count({
         where: {
-          customerId: customerId.toString(),
+          lineItems: {
+            some: {
+              contractedServiceId: contractedServiceId.toString()
+            }
+          },
           periodYear: period.year,
           periodMonth: period.month,
           status: { not: 'CANCELLED' }
@@ -190,7 +197,7 @@ export class PrismaBillRepository implements IBillRepository {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       return Result.fail<boolean>(
-        `Database error checking bill existence for customer and period: ${errorMessage}`
+        `Database error checking bill existence for service and period: ${errorMessage}`
       );
     }
   }
@@ -251,20 +258,22 @@ export class PrismaBillRepository implements IBillRepository {
     }
   }
 
-  public async findCustomersOverdueBefore(
+  public async findServicesOverdueBefore(
     instant: Date
-  ): Promise<Result<CustomerId[]>> {
+  ): Promise<Result<ContractedServiceId[]>> {
     try {
-      const rows = await this.prisma.bill.findMany({
-        where: { status: 'OVERDUE', dueDate: { lt: instant } },
-        select: { customerId: true },
-        distinct: ['customerId'],
-        orderBy: { customerId: 'asc' }
+      const rows = await this.prisma.billLineItem.findMany({
+        where: {
+          bill: { status: 'OVERDUE', dueDate: { lt: instant } }
+        },
+        select: { contractedServiceId: true },
+        distinct: ['contractedServiceId'],
+        orderBy: { contractedServiceId: 'asc' }
       });
 
-      const ids: CustomerId[] = [];
+      const ids: ContractedServiceId[] = [];
       for (const row of rows) {
-        const id = CustomerId.parse(row.customerId);
+        const id = ContractedServiceId.parse(row.contractedServiceId);
         if (id.isFailure) return Result.fail(id.error);
         ids.push(id.value);
       }
@@ -272,27 +281,24 @@ export class PrismaBillRepository implements IBillRepository {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      return Result.fail<CustomerId[]>(
-        `Database error finding overdue customers: ${errorMessage}`
+      return Result.fail<ContractedServiceId[]>(
+        `Database error finding overdue services: ${errorMessage}`
       );
     }
   }
 
-  private buildWhere(filters: BillFilters): {
-    customerId?: string;
-    status?: BillStatus;
-    periodYear?: number;
-    periodMonth?: number;
-  } {
-    const where: {
-      customerId?: string;
-      status?: BillStatus;
-      periodYear?: number;
-      periodMonth?: number;
-    } = {};
+  private buildWhere(filters: BillFilters): Prisma.BillWhereInput {
+    const where: Prisma.BillWhereInput = {};
 
     if (filters.customerId) {
       where.customerId = filters.customerId.toString();
+    }
+    if (filters.contractedServiceId) {
+      where.lineItems = {
+        some: {
+          contractedServiceId: filters.contractedServiceId.toString()
+        }
+      };
     }
     if (filters.status) {
       where.status = filters.status;

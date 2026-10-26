@@ -146,6 +146,7 @@ export class ContractedServiceController {
       errorMessage.includes('invalid') ||
       errorMessage.includes('required') ||
       errorMessage.includes('must have') ||
+      errorMessage.includes('must be') ||
       errorMessage.includes('without a device') ||
       errorMessage.includes('is not a valid')
     ) {

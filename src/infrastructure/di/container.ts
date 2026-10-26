@@ -84,7 +84,7 @@ import {
   PrismaCollectionAccountRepository,
   PrismaBankAccountRepository,
   PrismaBillingSettingsRepository,
-  PrismaBillableCustomersQuery,
+  PrismaBillableServicesQuery,
   PrismaBillingContactsQuery,
   PrismaBillReminderLog,
   BillingCycleOrchestrator,
@@ -870,7 +870,6 @@ export class DependencyContainer {
     if (this.modules.has('billing')) {
       const generateBillUseCase = new GenerateBillUseCase(
         this.billRepository,
-        this.customerRepository,
         this.contractedServiceRepository,
         this.servicePlanRepository,
         this.logger
@@ -933,7 +932,7 @@ export class DependencyContainer {
       this.billingCycleOrchestrator = new BillingCycleOrchestrator(
         new RunBillingCycleUseCase(
           billingSettingsRepository,
-          new PrismaBillableCustomersQuery(this.prisma),
+          new PrismaBillableServicesQuery(this.prisma),
           this.billRepository,
           generateBillUseCase,
           serviceAccess,

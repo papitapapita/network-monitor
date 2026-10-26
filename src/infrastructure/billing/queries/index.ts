@@ -1,2 +1,2 @@
-export * from './PrismaBillableCustomersQuery';
+export * from './PrismaBillableServicesQuery';
 export * from './PrismaBillingContactsQuery';

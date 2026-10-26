@@ -7,7 +7,8 @@ import {
   ContractedServiceCreatedEvent,
   DeviceAssignedToServiceEvent,
   ContractedServiceStatusChangedEvent,
-  ContractedServiceCancelledEvent
+  ContractedServiceCancelledEvent,
+  PaymentDay
 } from '../../../../src/domain/customers';
 import {
   CustomerId,
@@ -21,6 +22,7 @@ function validProps(overrides: Record<string, unknown> = {}) {
     servicePlanId: ServicePlanId.create(),
     deviceId: null,
     startDate: new Date('2024-01-01T00:00:00Z'),
+    paymentDay: PaymentDay.default(),
     ...overrides
   };
 }
@@ -59,6 +61,20 @@ describe('ContractedService', () => {
     it('should fail with an invalid startDate', () => {
       const result = ContractedService.create(
         validProps({ startDate: 'nope' })
+      );
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('[CUS-024] should carry its own payment day', () => {
+      const service = ContractedService.create(
+        validProps({ paymentDay: PaymentDay.create(15).value })
+      ).value;
+      expect(service.paymentDay.value).toBe(15);
+    });
+
+    it('should fail when payment day is missing', () => {
+      const result = ContractedService.create(
+        validProps({ paymentDay: null })
       );
       expect(result.isFailure).toBe(true);
     });
@@ -234,6 +250,57 @@ describe('ContractedService', () => {
 
       expect(result.isSuccess).toBe(true);
       expect(service.servicePlanId.equals(newPlanId)).toBe(true);
+    });
+  });
+
+  describe('changePaymentDay()', () => {
+    it('[CUS-024] should move the service to the other group', () => {
+      const service = ContractedService.create(validProps()).value;
+      const before = service.updatedAt;
+
+      const result = service.changePaymentDay(
+        PaymentDay.create(15).value
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(service.paymentDay.value).toBe(15);
+      expect(service.updatedAt.getTime()).toBeGreaterThanOrEqual(
+        before.getTime()
+      );
+    });
+
+    it('should leave the service untouched for the same day', () => {
+      const service = ContractedService.create(validProps()).value;
+      const before = service.updatedAt;
+
+      service.changePaymentDay(PaymentDay.create(30).value);
+
+      expect(service.updatedAt).toBe(before);
+    });
+
+    it('should fail when the day is missing', () => {
+      const service = ContractedService.create(validProps()).value;
+
+      const result = service.changePaymentDay(
+        null as unknown as PaymentDay
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(service.paymentDay.value).toBe(30);
+    });
+
+    it('should refuse a cancelled service', () => {
+      const service = ContractedService.create(validProps()).value;
+      service.cancel();
+
+      const result = service.changePaymentDay(
+        PaymentDay.create(15).value
+      );
+
+      expect(result.error).toBe(
+        'Cannot modify a cancelled contracted service'
+      );
+      expect(service.paymentDay.value).toBe(30);
     });
   });
 });

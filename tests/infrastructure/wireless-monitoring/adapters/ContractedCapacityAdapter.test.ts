@@ -6,7 +6,8 @@ import {
   ContractedServiceStatus,
   IContractedServiceRepository,
   IServicePlanRepository,
-  ServicePlan
+  ServicePlan,
+  PaymentDay
 } from '../../../../src/domain/customers';
 import {
   ContractedServiceId,
@@ -46,6 +47,7 @@ function makeService(
       deviceId,
       status,
       startDate: new Date(),
+      paymentDay: PaymentDay.default(),
       createdAt: new Date(),
       updatedAt: new Date()
     }

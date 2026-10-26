@@ -1,9 +1,10 @@
 export interface RestoreServicesAfterPaymentRequestDTO {
-  customerId: string;
+  // The bill just paid.
+  billId: string;
 }
 
 export interface RestoreServicesAfterPaymentResultDTO {
-  // False when nothing was tried: the cut is off or a bill is still overdue.
+  // False when nothing was tried: the cut is off.
   attempted: boolean;
   restored: number;
   failed: { id: string; error: string }[];

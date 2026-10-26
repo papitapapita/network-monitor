@@ -11,8 +11,7 @@ import {
 import { PrismaCustomerRepository } from '../../../../src/infrastructure/customers/repositories/PrismaCustomerRepository';
 import {
   Customer,
-  PhoneNumber,
-  PaymentDay
+  PhoneNumber
 } from '../../../../src/domain/customers';
 import { CustomerId } from '../../../../src/domain/shared/ids';
 import { EventDispatcher } from '../../../../src/domain/shared/core';
@@ -35,7 +34,6 @@ function makeRaw(overrides: Record<string, unknown> = {}) {
     phone: '3001234567',
     email: null,
     cedula: null,
-    paymentDay: 30,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides
@@ -60,7 +58,6 @@ function makeCustomer(): Customer {
     phone: PhoneNumber.reconstitute('3001234567'),
     email: null,
     cedula: null,
-    paymentDay: PaymentDay.reconstitute(30),
     createdAt: NOW,
     updatedAt: NOW
   });

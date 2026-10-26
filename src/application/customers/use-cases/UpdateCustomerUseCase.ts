@@ -3,8 +3,7 @@ import {
   Customer,
   PhoneNumber,
   Cedula,
-  EmailAddress,
-  PaymentDay
+  EmailAddress
 } from 'domain/customers';
 import { ICustomerRepository } from 'domain/customers/repository';
 import { Result } from 'domain/shared/core';
@@ -124,19 +123,6 @@ export class UpdateCustomerUseCase extends UseCase<
         }
       }
       const changeResult = customer.changeCedula(cedula);
-      if (changeResult.isFailure) {
-        return this.fail(changeResult.error!);
-      }
-    }
-
-    if (data.paymentDay !== undefined) {
-      const paymentDayResult = PaymentDay.create(data.paymentDay);
-      if (paymentDayResult.isFailure) {
-        return this.fail(paymentDayResult.error!);
-      }
-      const changeResult = customer.changePaymentDay(
-        paymentDayResult.value
-      );
       if (changeResult.isFailure) {
         return this.fail(changeResult.error!);
       }

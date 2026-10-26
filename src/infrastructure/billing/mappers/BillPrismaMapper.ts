@@ -117,6 +117,7 @@ export class BillPrismaMapper {
     bill: {
       id: string;
       customerId: string;
+      contractedServiceId: string | null;
       periodYear: number;
       periodMonth: number;
       status: PrismaBillStatus;
@@ -153,6 +154,12 @@ export class BillPrismaMapper {
       bill: {
         id: billId,
         customerId: bill.customerId.toString(),
+        // Backs BIL-007 with a unique index; bills from before one bill per
+        // service carry several lines and leave it null.
+        contractedServiceId:
+          bill.lineItems.length === 1
+            ? bill.lineItems[0].contractedServiceId.toString()
+            : null,
         periodYear: bill.period.year,
         periodMonth: bill.period.month,
         status: this.mapStatusToPrisma(bill.status),

@@ -4,7 +4,7 @@ interface PaymentDayProps {
   value: number;
 }
 
-// The day of the month a customer's bill must be paid by. ISPs run two
+// The day of the month a service's bill must be paid by. ISPs run two
 // collection groups, the 15th and the 30th; the 30th means the month's last
 // day in February (CUS-024).
 export class PaymentDay extends ValueObject<PaymentDayProps> {

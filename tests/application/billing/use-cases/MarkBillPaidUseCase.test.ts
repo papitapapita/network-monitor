@@ -53,11 +53,11 @@ function makeBillRepo(): jest.Mocked<IBillRepository> {
     findByCustomerId: jest.fn(),
     findAll: jest.fn(),
     count: jest.fn(),
-    existsForCustomerAndPeriod: jest.fn(),
+    existsForServiceAndPeriod: jest.fn(),
     exists: jest.fn(),
     findPendingDueBefore: jest.fn(),
     findOverdueDueBetween: jest.fn(),
-    findCustomersOverdueBefore: jest.fn()
+    findServicesOverdueBefore: jest.fn()
   };
 }
 
