@@ -21,6 +21,7 @@ function makeFakePrismaClient() {
       create: jest.fn(),
       findMany: jest.fn(),
       count: jest.fn(),
+      aggregate: jest.fn(),
       deleteMany: jest.fn()
     },
     $transaction: jest.fn()
@@ -376,6 +377,114 @@ describe('PrismaPingResultRepository', () => {
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('findByDevice failed');
+    });
+  });
+
+  // ===========================================================================
+  describe('[MON-043] statsByDevice()', () => {
+    const deviceId = DeviceId.parse(VALID_DEVICE_UUID).value;
+    const FROM = new Date('2024-06-01T00:00:00.000Z');
+    const TO = new Date('2024-06-02T00:00:00.000Z');
+
+    function aggregateRow(
+      reachable: number,
+      avg: unknown,
+      min: unknown,
+      max: unknown
+    ) {
+      return {
+        _count: { _all: reachable },
+        _avg: { latencyMs: avg },
+        _min: { latencyMs: min },
+        _max: { latencyMs: max }
+      };
+    }
+
+    it('counts and aggregates over the device and the date window only', async () => {
+      prisma.$transaction.mockResolvedValue([
+        0,
+        aggregateRow(0, null, null, null)
+      ]);
+
+      await repo.statsByDevice(deviceId, {
+        fromDate: FROM,
+        toDate: TO
+      });
+
+      const window = {
+        deviceId: VALID_DEVICE_UUID,
+        checkedAt: { gte: FROM, lte: TO }
+      };
+      expect(prisma.pingResult.count).toHaveBeenCalledWith({
+        where: window
+      });
+      expect(prisma.pingResult.aggregate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { ...window, isReachable: true }
+        })
+      );
+    });
+
+    it('takes no limit or offset', async () => {
+      prisma.$transaction.mockResolvedValue([
+        0,
+        aggregateRow(0, null, null, null)
+      ]);
+
+      await repo.statsByDevice(deviceId, {});
+
+      const countArgs = prisma.pingResult.count.mock.calls[0][0];
+      const aggregateArgs =
+        prisma.pingResult.aggregate.mock.calls[0][0];
+      expect(countArgs).not.toHaveProperty('take');
+      expect(countArgs).not.toHaveProperty('skip');
+      expect(aggregateArgs).not.toHaveProperty('take');
+      expect(aggregateArgs).not.toHaveProperty('skip');
+    });
+
+    it('returns the counts and the latency figures as numbers', async () => {
+      // Decimal columns come back as Decimal objects, not numbers
+      const decimal = (n: number) => ({ toString: () => String(n) });
+      prisma.$transaction.mockResolvedValue([
+        1440,
+        aggregateRow(1400, decimal(8.5), decimal(2), decimal(41))
+      ]);
+
+      const result = await repo.statsByDevice(deviceId, {});
+
+      expect(result.value).toEqual({
+        total: 1440,
+        reachable: 1400,
+        averageLatencyMs: 8.5,
+        minLatencyMs: 2,
+        maxLatencyMs: 41
+      });
+    });
+
+    it('returns null latency figures when nothing answered', async () => {
+      prisma.$transaction.mockResolvedValue([
+        10,
+        aggregateRow(0, null, null, null)
+      ]);
+
+      const result = await repo.statsByDevice(deviceId, {});
+
+      expect(result.value).toEqual({
+        total: 10,
+        reachable: 0,
+        averageLatencyMs: null,
+        minLatencyMs: null,
+        maxLatencyMs: null
+      });
+    });
+
+    it('fails when the query throws', async () => {
+      prisma.$transaction.mockRejectedValue(new Error('db gone'));
+
+      const result = await repo.statsByDevice(deviceId, {});
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('statsByDevice failed: db gone');
     });
   });
 

@@ -4,7 +4,8 @@ export interface PollingHistoryDTO {
   deviceId: string;
   results: PollingResultDTO[];
   totalCount: number;
-  // Statistics are computed across all matching results, not just the current page.
+  // Computed over every result in the date window, whatever the page and the
+  // status filter (MON-043).
   statistics: {
     successRate: number;
     averageResponseTime: number;

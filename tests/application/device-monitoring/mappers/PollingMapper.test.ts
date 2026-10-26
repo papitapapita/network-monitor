@@ -3,7 +3,10 @@
 import { PollingMapper } from 'application/device-monitoring/mappers/PollingMapper';
 import { PollingConfiguration } from 'domain/device-monitoring/entities/PollingConfiguration';
 import { DeviceState } from 'domain/device-monitoring/aggregates/DeviceState';
-import { PingResultRecord } from 'domain/device-monitoring/repository/IPingResultRepository';
+import {
+  PingResultRecord,
+  PingResultStats
+} from 'domain/device-monitoring/repository/IPingResultRepository';
 import { DeviceId } from 'domain/shared/ids/DeviceId';
 import { PollingConfigurationId } from 'domain/shared/ids/PollingConfigurationId';
 import { PollingInterval } from 'domain/device-monitoring/value-objects/PollingInterval';
@@ -746,6 +749,19 @@ describe('PollingMapper', () => {
 
   // ==========================================================================
   describe('toHistoryDTO()', () => {
+    function makeStats(
+      overrides: Partial<PingResultStats> = {}
+    ): PingResultStats {
+      return {
+        total: 0,
+        reachable: 0,
+        averageLatencyMs: null,
+        minLatencyMs: null,
+        maxLatencyMs: null,
+        ...overrides
+      };
+    }
+
     // ------------------------------------------------------------------------
     describe('happy path — page with mixed reachable and unreachable records', () => {
       it('should map deviceId to the provided string', () => {
@@ -753,7 +769,12 @@ describe('PollingMapper', () => {
           makePingRecord({ isReachable: true, latencyMs: 50 })
         ];
 
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
+        const dto = PollingMapper.toHistoryDTO(
+          page,
+          DEVICE_UUID,
+          1,
+          makeStats()
+        );
 
         expect(dto.deviceId).toBe(DEVICE_UUID);
       });
@@ -761,7 +782,12 @@ describe('PollingMapper', () => {
       it('should map totalCount to the provided count', () => {
         const page = [makePingRecord()];
 
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 42);
+        const dto = PollingMapper.toHistoryDTO(
+          page,
+          DEVICE_UUID,
+          42,
+          makeStats()
+        );
 
         expect(dto.totalCount).toBe(42);
       });
@@ -773,7 +799,12 @@ describe('PollingMapper', () => {
           makePingRecord({ id: 'id-3' })
         ];
 
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 3);
+        const dto = PollingMapper.toHistoryDTO(
+          page,
+          DEVICE_UUID,
+          3,
+          makeStats()
+        );
 
         expect(dto.results).toHaveLength(3);
       });
@@ -784,7 +815,12 @@ describe('PollingMapper', () => {
           makePingRecord({ id: 'rec-bbb' })
         ];
 
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 2);
+        const dto = PollingMapper.toHistoryDTO(
+          page,
+          DEVICE_UUID,
+          2,
+          makeStats()
+        );
 
         expect(dto.results[0].id).toBe('rec-aaa');
         expect(dto.results[1].id).toBe('rec-bbb');
@@ -795,7 +831,12 @@ describe('PollingMapper', () => {
           makePingRecord({ isReachable: true, latencyMs: 20 })
         ];
 
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
+        const dto = PollingMapper.toHistoryDTO(
+          page,
+          DEVICE_UUID,
+          1,
+          makeStats()
+        );
 
         expect(dto.results[0].status).toBe('SUCCESS');
       });
@@ -805,7 +846,12 @@ describe('PollingMapper', () => {
           makePingRecord({ isReachable: false, latencyMs: null })
         ];
 
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
+        const dto = PollingMapper.toHistoryDTO(
+          page,
+          DEVICE_UUID,
+          1,
+          makeStats()
+        );
 
         expect(dto.results[0].status).toBe('FAILED');
       });
@@ -815,7 +861,12 @@ describe('PollingMapper', () => {
           makePingRecord({ isReachable: true, latencyMs: 77 })
         ];
 
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
+        const dto = PollingMapper.toHistoryDTO(
+          page,
+          DEVICE_UUID,
+          1,
+          makeStats()
+        );
 
         expect(dto.results[0].metrics).toEqual({ latencyMs: 77 });
       });
@@ -825,7 +876,12 @@ describe('PollingMapper', () => {
           makePingRecord({ isReachable: false, latencyMs: null })
         ];
 
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
+        const dto = PollingMapper.toHistoryDTO(
+          page,
+          DEVICE_UUID,
+          1,
+          makeStats()
+        );
 
         expect(dto.results[0].metrics).toBeNull();
       });
@@ -836,7 +892,12 @@ describe('PollingMapper', () => {
           makePingRecord({ isReachable: false, latencyMs: null })
         ];
 
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 2);
+        const dto = PollingMapper.toHistoryDTO(
+          page,
+          DEVICE_UUID,
+          2,
+          makeStats()
+        );
 
         expect(dto.results[0].deviceStatus).toBe('ONLINE');
         expect(dto.results[1].deviceStatus).toBe('OFFLINE');
@@ -844,196 +905,117 @@ describe('PollingMapper', () => {
     });
 
     // ------------------------------------------------------------------------
-    describe('statistics — successRate', () => {
-      it('should compute successRate as 100 when all page records are reachable', () => {
-        const page = [
-          makePingRecord({ isReachable: true, latencyMs: 10 }),
-          makePingRecord({ isReachable: true, latencyMs: 20 })
-        ];
+    describe('[MON-043] statistics come from the window, not the page', () => {
+      it('reports 100% for a device that answered every ping, whatever the page size', () => {
+        const page = Array.from({ length: 50 }, (_, i) =>
+          makePingRecord({
+            id: `id-${i}`,
+            isReachable: true,
+            latencyMs: 5
+          })
+        );
 
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 2);
+        const dto = PollingMapper.toHistoryDTO(
+          page,
+          DEVICE_UUID,
+          1440,
+          makeStats({ total: 1440, reachable: 1440 })
+        );
 
         expect(dto.statistics.successRate).toBe(100);
+        expect(dto.statistics.uptimePercentage).toBe(100);
       });
 
-      it('should compute successRate as 0 when all page records are unreachable', () => {
+      it('computes successRate as reachable over total from the stats', () => {
+        const dto = PollingMapper.toHistoryDTO(
+          [makePingRecord({ isReachable: false, latencyMs: null })],
+          DEVICE_UUID,
+          4,
+          makeStats({ total: 4, reachable: 3 })
+        );
+
+        expect(dto.statistics.successRate).toBe(75);
+      });
+
+      it('takes the latency figures from the stats, not from the page rows', () => {
         const page = [
-          makePingRecord({ isReachable: false, latencyMs: null }),
-          makePingRecord({ isReachable: false, latencyMs: null })
+          makePingRecord({ isReachable: true, latencyMs: 999 })
         ];
 
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 2);
+        const dto = PollingMapper.toHistoryDTO(
+          page,
+          DEVICE_UUID,
+          100,
+          makeStats({
+            total: 100,
+            reachable: 90,
+            averageLatencyMs: 12.5,
+            minLatencyMs: 3,
+            maxLatencyMs: 40
+          })
+        );
 
-        expect(dto.statistics.successRate).toBe(0);
+        expect(dto.statistics.averageResponseTime).toBe(12.5);
+        expect(dto.statistics.minResponseTime).toBe(3);
+        expect(dto.statistics.maxResponseTime).toBe(40);
       });
 
-      it('should compute successRate based on totalCount, not page length', () => {
-        // 1 success out of 4 total = 25%
-        const page = [
-          makePingRecord({ isReachable: true, latencyMs: 30 })
-        ];
+      it('mirrors successRate as uptimePercentage', () => {
+        const dto = PollingMapper.toHistoryDTO(
+          [],
+          DEVICE_UUID,
+          0,
+          makeStats({ total: 8, reachable: 2 })
+        );
 
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 4);
-
-        expect(dto.statistics.successRate).toBe(25);
-      });
-
-      it('should set successRate to 0 when totalCount is 0', () => {
-        const dto = PollingMapper.toHistoryDTO([], DEVICE_UUID, 0);
-
-        expect(dto.statistics.successRate).toBe(0);
-      });
-
-      it('should mirror successRate as uptimePercentage', () => {
-        const page = [
-          makePingRecord({ isReachable: true, latencyMs: 10 }),
-          makePingRecord({ isReachable: false, latencyMs: null })
-        ];
-
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 2);
-
+        expect(dto.statistics.uptimePercentage).toBe(25);
         expect(dto.statistics.uptimePercentage).toBe(
           dto.statistics.successRate
         );
       });
-    });
 
-    // ------------------------------------------------------------------------
-    describe('statistics — response time aggregates', () => {
-      it('should compute averageResponseTime across all reachable records in the page', () => {
-        const page = [
-          makePingRecord({ isReachable: true, latencyMs: 100 }),
-          makePingRecord({ isReachable: true, latencyMs: 200 }),
-          makePingRecord({ isReachable: true, latencyMs: 300 })
-        ];
-
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 3);
-
-        expect(dto.statistics.averageResponseTime).toBe(200);
-      });
-
-      it('should compute minResponseTime as the lowest latency across reachable records', () => {
-        const page = [
-          makePingRecord({ isReachable: true, latencyMs: 50 }),
-          makePingRecord({ isReachable: true, latencyMs: 10 }),
-          makePingRecord({ isReachable: true, latencyMs: 30 })
-        ];
-
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 3);
-
-        expect(dto.statistics.minResponseTime).toBe(10);
-      });
-
-      it('should compute maxResponseTime as the highest latency across reachable records', () => {
-        const page = [
-          makePingRecord({ isReachable: true, latencyMs: 50 }),
-          makePingRecord({ isReachable: true, latencyMs: 10 }),
-          makePingRecord({ isReachable: true, latencyMs: 300 })
-        ];
-
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 3);
-
-        expect(dto.statistics.maxResponseTime).toBe(300);
-      });
-
-      it('should exclude unreachable records from latency calculations', () => {
-        const page = [
-          makePingRecord({ isReachable: true, latencyMs: 40 }),
-          makePingRecord({ isReachable: false, latencyMs: null }),
-          makePingRecord({ isReachable: true, latencyMs: 60 })
-        ];
-
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 3);
-
-        expect(dto.statistics.averageResponseTime).toBe(50);
-        expect(dto.statistics.minResponseTime).toBe(40);
-        expect(dto.statistics.maxResponseTime).toBe(60);
-      });
-
-      it('should exclude records where latencyMs is null even if isReachable is true', () => {
-        const page = [
-          makePingRecord({ isReachable: true, latencyMs: null }),
-          makePingRecord({ isReachable: true, latencyMs: 80 })
-        ];
-
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 2);
-
-        expect(dto.statistics.averageResponseTime).toBe(80);
-        expect(dto.statistics.minResponseTime).toBe(80);
-        expect(dto.statistics.maxResponseTime).toBe(80);
-      });
-
-      it('should set averageResponseTime to 0 when no reachable records exist', () => {
-        const page = [
-          makePingRecord({ isReachable: false, latencyMs: null })
-        ];
-
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
-
-        expect(dto.statistics.averageResponseTime).toBe(0);
-      });
-
-      it('should set minResponseTime to 0 when no reachable records exist', () => {
-        const page = [
-          makePingRecord({ isReachable: false, latencyMs: null })
-        ];
-
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
-
-        expect(dto.statistics.minResponseTime).toBe(0);
-      });
-
-      it('should set maxResponseTime to 0 when no reachable records exist', () => {
-        const page = [
-          makePingRecord({ isReachable: false, latencyMs: null })
-        ];
-
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
-
-        expect(dto.statistics.maxResponseTime).toBe(0);
-      });
-    });
-
-    // ------------------------------------------------------------------------
-    describe('edge case — empty page', () => {
-      it('should return an empty results array', () => {
-        const dto = PollingMapper.toHistoryDTO([], DEVICE_UUID, 0);
+      it('reports every figure as 0 for an empty window', () => {
+        const dto = PollingMapper.toHistoryDTO(
+          [],
+          DEVICE_UUID,
+          0,
+          makeStats()
+        );
 
         expect(dto.results).toEqual([]);
+        expect(dto.statistics).toEqual({
+          successRate: 0,
+          averageResponseTime: 0,
+          minResponseTime: 0,
+          maxResponseTime: 0,
+          uptimePercentage: 0
+        });
       });
 
-      it('should set all statistics to 0 for an empty page with zero totalCount', () => {
-        const dto = PollingMapper.toHistoryDTO([], DEVICE_UUID, 0);
+      it('reports latency as 0 when nothing in the window answered', () => {
+        const dto = PollingMapper.toHistoryDTO(
+          [],
+          DEVICE_UUID,
+          0,
+          makeStats({ total: 10, reachable: 0 })
+        );
 
         expect(dto.statistics.successRate).toBe(0);
         expect(dto.statistics.averageResponseTime).toBe(0);
         expect(dto.statistics.minResponseTime).toBe(0);
         expect(dto.statistics.maxResponseTime).toBe(0);
-        expect(dto.statistics.uptimePercentage).toBe(0);
       });
 
-      it('should set all statistics to 0 for an empty page with non-zero totalCount', () => {
-        // Non-zero totalCount with empty page is an unlikely but valid edge case
-        // (e.g., page offset beyond available records)
-        const dto = PollingMapper.toHistoryDTO([], DEVICE_UUID, 10);
+      it('keeps the statistics when the page is past the end of the window', () => {
+        const dto = PollingMapper.toHistoryDTO(
+          [],
+          DEVICE_UUID,
+          10,
+          makeStats({ total: 10, reachable: 10, averageLatencyMs: 7 })
+        );
 
-        expect(dto.statistics.successRate).toBe(0);
-        expect(dto.statistics.averageResponseTime).toBe(0);
-      });
-    });
-
-    // ------------------------------------------------------------------------
-    describe('edge case — single record in page', () => {
-      it('should compute averageResponseTime equal to minResponseTime equal to maxResponseTime for a single record', () => {
-        const page = [
-          makePingRecord({ isReachable: true, latencyMs: 123 })
-        ];
-
-        const dto = PollingMapper.toHistoryDTO(page, DEVICE_UUID, 1);
-
-        expect(dto.statistics.averageResponseTime).toBe(123);
-        expect(dto.statistics.minResponseTime).toBe(123);
-        expect(dto.statistics.maxResponseTime).toBe(123);
+        expect(dto.statistics.successRate).toBe(100);
+        expect(dto.statistics.averageResponseTime).toBe(7);
       });
     });
   });

@@ -39,8 +39,16 @@ function makePingResultRepo(): jest.Mocked<IPingResultRepository> {
     saveOnce: jest.fn(),
     findLatestByDevice: jest.fn(),
     findByDevice: jest.fn(),
+    statsByDevice: jest.fn().mockResolvedValue(
+      Result.ok({
+        total: 0,
+        reachable: 0,
+        averageLatencyMs: null,
+        minLatencyMs: null,
+        maxLatencyMs: null
+      })
+    ),
     deleteOlderThan: jest.fn(),
-
     deleteByDevice: jest.fn()
   };
 }
@@ -458,6 +466,90 @@ describe('GetDevicePollingHistoryUseCase', () => {
       expect(result.value.statistics).toBeDefined();
       expect(typeof result.value.statistics.successRate).toBe(
         'number'
+      );
+    });
+  });
+
+  // ===========================================================================
+  describe('[MON-043] statistics over the whole window', () => {
+    const FROM = new Date('2024-06-01T00:00:00.000Z');
+    const TO = new Date('2024-06-02T00:00:00.000Z');
+
+    beforeEach(() => {
+      pingResultRepo.findByDevice.mockResolvedValue(
+        Result.ok({
+          records: [makePingRecord({ latencyMs: 999 })],
+          total: 1440
+        })
+      );
+    });
+
+    it('asks for the statistics of the date window', async () => {
+      await useCase.execute(
+        makeRequest({
+          fromDate: FROM,
+          toDate: TO,
+          limit: 50,
+          offset: 100
+        })
+      );
+
+      expect(pingResultRepo.statsByDevice).toHaveBeenCalledWith(
+        DeviceId.parse(VALID_DEVICE_UUID).value,
+        { fromDate: FROM, toDate: TO }
+      );
+    });
+
+    it('does not narrow the statistics by the status filter', async () => {
+      await useCase.execute(
+        makeRequest({ fromDate: FROM, status: ['FAILED'] })
+      );
+
+      expect(pingResultRepo.findByDevice).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ isReachable: false })
+      );
+      expect(pingResultRepo.statsByDevice).toHaveBeenCalledWith(
+        expect.anything(),
+        { fromDate: FROM, toDate: undefined }
+      );
+    });
+
+    it('reports the window figures, not the page ones', async () => {
+      pingResultRepo.statsByDevice.mockResolvedValue(
+        Result.ok({
+          total: 1440,
+          reachable: 1440,
+          averageLatencyMs: 8,
+          minLatencyMs: 2,
+          maxLatencyMs: 30
+        })
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ limit: 50 })
+      );
+
+      expect(result.value.totalCount).toBe(1440);
+      expect(result.value.statistics).toEqual({
+        successRate: 100,
+        averageResponseTime: 8,
+        minResponseTime: 2,
+        maxResponseTime: 30,
+        uptimePercentage: 100
+      });
+    });
+
+    it('fails when the statistics cannot be computed', async () => {
+      pingResultRepo.statsByDevice.mockResolvedValue(
+        Result.fail('timeout')
+      );
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(
+        'Failed to compute polling statistics'
       );
     });
   });

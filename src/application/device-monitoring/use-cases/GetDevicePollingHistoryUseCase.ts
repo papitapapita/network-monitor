@@ -72,29 +72,44 @@ export class GetDevicePollingHistoryUseCase extends UseCase<
 
     const isReachable = this.resolveIsReachableFilter(query.status);
 
-    const pageResult = await this.pingResultRepo.findByDevice(
-      deviceIdResult.value,
-      {
+    const deviceId = deviceIdResult.value;
+    const window = { fromDate: query.fromDate, toDate: query.toDate };
+
+    // The status filter narrows the rows only. The statistics describe the
+    // device over the whole date window, so that a FAILED-only listing still
+    // shows how the device did instead of a fixed 0% (MON-043).
+    const [pageResult, statsResult] = await Promise.all([
+      this.pingResultRepo.findByDevice(deviceId, {
         isReachable,
-        fromDate: query.fromDate,
-        toDate: query.toDate,
+        ...window,
         sortBy: query.sortBy,
         sortOrder: query.sortOrder,
         limit,
         offset
-      }
-    );
+      }),
+      this.pingResultRepo.statsByDevice(deviceId, window)
+    ]);
 
     if (pageResult.isFailure) {
       return this.fail(
         `Failed to retrieve polling history: ${pageResult.error}`
       );
     }
+    if (statsResult.isFailure) {
+      return this.fail(
+        `Failed to compute polling statistics: ${statsResult.error}`
+      );
+    }
 
     const { records, total } = pageResult.value;
 
     return this.ok(
-      PollingMapper.toHistoryDTO(records, query.deviceId, total)
+      PollingMapper.toHistoryDTO(
+        records,
+        query.deviceId,
+        total,
+        statsResult.value
+      )
     );
   }
 

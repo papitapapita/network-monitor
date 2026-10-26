@@ -6,6 +6,8 @@ import {
   PingResultRecord,
   PingResultFilters,
   PingResultPage,
+  PingResultStats,
+  PingResultWindow,
   CreatePingResultInput
 } from 'domain/device-monitoring/repository';
 
@@ -81,19 +83,10 @@ export class PrismaPingResultRepository
     filters: PingResultFilters
   ): Promise<Result<PingResultPage>> {
     try {
-      const where: Prisma.PingResultWhereInput = {
-        deviceId: deviceId.toString()
-      };
+      const where = this.windowWhere(deviceId, filters);
 
       if (filters.isReachable !== undefined) {
         where.isReachable = filters.isReachable;
-      }
-
-      if (filters.fromDate || filters.toDate) {
-        where.checkedAt = {
-          ...(filters.fromDate && { gte: filters.fromDate }),
-          ...(filters.toDate && { lte: filters.toDate })
-        };
       }
 
       const sortOrder = filters.sortOrder === 'ASC' ? 'asc' : 'desc';
@@ -122,6 +115,38 @@ export class PrismaPingResultRepository
     }
   }
 
+  async statsByDevice(
+    deviceId: DeviceId,
+    window: PingResultWindow
+  ): Promise<Result<PingResultStats>> {
+    try {
+      const where = this.windowWhere(deviceId, window);
+
+      const [total, reachable] = await this.prisma.$transaction([
+        this.prisma.pingResult.count({ where }),
+        this.prisma.pingResult.aggregate({
+          where: { ...where, isReachable: true },
+          _count: { _all: true },
+          _avg: { latencyMs: true },
+          _min: { latencyMs: true },
+          _max: { latencyMs: true }
+        })
+      ]);
+
+      return Result.ok({
+        total,
+        reachable: reachable._count._all,
+        averageLatencyMs: this.toNumber(reachable._avg.latencyMs),
+        minLatencyMs: this.toNumber(reachable._min.latencyMs),
+        maxLatencyMs: this.toNumber(reachable._max.latencyMs)
+      });
+    } catch (error) {
+      return Result.fail(
+        `statsByDevice failed: ${(error as Error).message}`
+      );
+    }
+  }
+
   async deleteOlderThan(cutoff: Date): Promise<Result<number>> {
     try {
       const { count } = await this.prisma.pingResult.deleteMany({
@@ -140,16 +165,7 @@ export class PrismaPingResultRepository
     filters: { fromDate?: Date; toDate?: Date }
   ): Promise<Result<number>> {
     try {
-      const where: Prisma.PingResultWhereInput = {
-        deviceId: deviceId.toString()
-      };
-
-      if (filters.fromDate || filters.toDate) {
-        where.checkedAt = {
-          ...(filters.fromDate && { gte: filters.fromDate }),
-          ...(filters.toDate && { lte: filters.toDate })
-        };
-      }
+      const where = this.windowWhere(deviceId, filters);
 
       const { count } = await this.prisma.pingResult.deleteMany({
         where
@@ -165,6 +181,30 @@ export class PrismaPingResultRepository
   // ============================================================================
   // Private Helpers
   // ============================================================================
+
+  private windowWhere(
+    deviceId: DeviceId,
+    window: PingResultWindow
+  ): Prisma.PingResultWhereInput {
+    const where: Prisma.PingResultWhereInput = {
+      deviceId: deviceId.toString()
+    };
+
+    if (window.fromDate || window.toDate) {
+      where.checkedAt = {
+        ...(window.fromDate && { gte: window.fromDate }),
+        ...(window.toDate && { lte: window.toDate })
+      };
+    }
+
+    return where;
+  }
+
+  private toNumber(value: unknown): number | null {
+    return value === null || value === undefined
+      ? null
+      : Number(value);
+  }
 
   private toRecord(raw: {
     id: string;

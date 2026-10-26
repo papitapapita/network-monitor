@@ -2311,16 +2311,27 @@ offset?:   number   // ≥0
     metrics: { latencyMs: number } | null
     deviceStatus: DeviceOnlineStatus
   }>
-  totalCount: number
+  totalCount: number          // rows matching every filter, status included
   statistics: {
     successRate: number        // 0–100 %
     averageResponseTime: number // ms
     minResponseTime: number
     maxResponseTime: number
-    uptimePercentage: number   // 0–100 %
+    uptimePercentage: number   // 0–100 %, same value as successRate
   }
 }
 ```
+
+**`statistics` cover the whole date window (MON-043).** They are computed over
+every ping for the device between `fromDate` and `toDate`, not over the
+returned page. `limit` and `offset` do not change them, and neither does
+`status`: `status=FAILED` lists only the failures, but `successRate` still
+reports how the device did across the window. Latency figures cover pings that
+answered and are `0` when none did. All five figures are computed from the same
+set of pings. Before 2026-10-26 they came from the page and were wrong whenever
+`totalCount > limit` (e.g. 3.5 % instead of 100 % for a day of pings at
+`limit=50`), so a client that computes its own figures from the rows to work
+around this can use these instead, without fetching up to 1,000 rows.
 
 ---
 

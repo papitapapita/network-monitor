@@ -189,6 +189,115 @@ describe('GetDevicePollingHistoryUseCase — integration', () => {
   // Validation failures
   // ──────────────────────────────────────────────────────────────
 
+  describe('[MON-043] statistics cover the whole window, whatever the page', () => {
+    const DAY_START = new Date('2026-10-25T00:00:00.000Z');
+    const minute = (n: number) =>
+      new Date(DAY_START.getTime() + n * 60_000);
+
+    // One ping a minute for a day: the bug report's scenario.
+    async function seedDay(
+      isReachableAt: (i: number) => boolean,
+      latencyAt: (i: number) => number
+    ): Promise<void> {
+      await prisma.pingResult.createMany({
+        data: Array.from({ length: 1440 }, (_, i) => ({
+          deviceId,
+          isReachable: isReachableAt(i),
+          latencyMs: isReachableAt(i) ? latencyAt(i) : null,
+          checkedAt: minute(i)
+        }))
+      });
+    }
+
+    it('reports 100% for a device that always answered, at any limit', async () => {
+      await seedDay(
+        () => true,
+        () => 10
+      );
+
+      for (const limit of [50, 500]) {
+        const result = await historyUseCase.execute({
+          deviceId,
+          fromDate: DAY_START,
+          limit
+        });
+
+        expect(result.value.totalCount).toBe(1440);
+        expect(result.value.results).toHaveLength(limit);
+        expect(result.value.statistics.successRate).toBe(100);
+        expect(result.value.statistics.uptimePercentage).toBe(100);
+      }
+    });
+
+    it('computes latency over the whole window, the same on every page', async () => {
+      await seedDay(
+        () => true,
+        (i) => i + 1
+      );
+
+      const first = await historyUseCase.execute({
+        deviceId,
+        fromDate: DAY_START,
+        limit: 50
+      });
+      const later = await historyUseCase.execute({
+        deviceId,
+        fromDate: DAY_START,
+        limit: 50,
+        offset: 700
+      });
+
+      const expected = {
+        successRate: 100,
+        averageResponseTime: 720.5,
+        minResponseTime: 1,
+        maxResponseTime: 1440,
+        uptimePercentage: 100
+      };
+      expect(first.value.statistics).toEqual(expected);
+      expect(later.value.statistics).toEqual(expected);
+    });
+
+    it('counts failures across the window and keeps them out of latency', async () => {
+      // every fourth ping fails
+      await seedDay(
+        (i) => i % 4 !== 0,
+        () => 20
+      );
+
+      const result = await historyUseCase.execute({
+        deviceId,
+        fromDate: DAY_START,
+        limit: 10
+      });
+
+      expect(result.value.statistics.successRate).toBe(75);
+      expect(result.value.statistics.averageResponseTime).toBe(20);
+    });
+
+    it('follows the date window but not the status filter', async () => {
+      await seedDay(
+        (i) => i % 4 !== 0,
+        () => 20
+      );
+
+      const result = await historyUseCase.execute({
+        deviceId,
+        fromDate: DAY_START,
+        toDate: minute(99),
+        status: ['FAILED'],
+        limit: 5
+      });
+
+      expect(result.value.totalCount).toBe(25);
+      expect(
+        result.value.results.every((r) => r.status === 'FAILED')
+      ).toBe(true);
+      expect(result.value.statistics.successRate).toBe(75);
+      expect(result.value.statistics.averageResponseTime).toBe(20);
+    });
+  });
+
   it('fails when deviceId is empty', async () => {
     const result = await historyUseCase.execute({ deviceId: '' });
 

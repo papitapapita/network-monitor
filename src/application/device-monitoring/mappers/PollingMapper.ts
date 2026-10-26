@@ -1,6 +1,9 @@
 import { PollingConfiguration } from 'domain/device-monitoring/entities';
 import { DeviceState } from 'domain/device-monitoring/aggregates';
-import { PingResultRecord } from 'domain/device-monitoring/repository';
+import {
+  PingResultRecord,
+  PingResultStats
+} from 'domain/device-monitoring/repository';
 import {
   DevicePollingStatusDTO,
   PollingResultDTO,
@@ -137,26 +140,16 @@ export class PollingMapper {
     };
   }
 
+  // The page is only the rows to show; the figures come from stats, which
+  // cover the whole window whatever the page size (MON-043).
   public static toHistoryDTO(
     page: PingResultRecord[],
     deviceId: string,
-    totalCount: number
+    totalCount: number,
+    stats: PingResultStats
   ): PollingHistoryDTO {
-    const successCount = page.filter((r) => r.isReachable).length;
-    const latencies = page
-      .filter((r) => r.isReachable && r.latencyMs !== null)
-      .map((r) => r.latencyMs as number);
-
     const successRate =
-      totalCount > 0 ? (successCount / totalCount) * 100 : 0;
-    const averageResponseTime =
-      latencies.length > 0
-        ? latencies.reduce((sum, l) => sum + l, 0) / latencies.length
-        : 0;
-    const minResponseTime =
-      latencies.length > 0 ? Math.min(...latencies) : 0;
-    const maxResponseTime =
-      latencies.length > 0 ? Math.max(...latencies) : 0;
+      stats.total > 0 ? (stats.reachable / stats.total) * 100 : 0;
 
     return {
       deviceId,
@@ -166,9 +159,9 @@ export class PollingMapper {
       totalCount,
       statistics: {
         successRate,
-        averageResponseTime,
-        minResponseTime,
-        maxResponseTime,
+        averageResponseTime: stats.averageLatencyMs ?? 0,
+        minResponseTime: stats.minLatencyMs ?? 0,
+        maxResponseTime: stats.maxLatencyMs ?? 0,
         uptimePercentage: successRate
       }
     };

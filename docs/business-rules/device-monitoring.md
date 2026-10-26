@@ -457,6 +457,37 @@ in hand. That only ever looks correct within one page.
 **Reached from:** `GET /api/devices/:id/polling/history`
 **Tests:** `tests/application/device-monitoring/use-cases/GetDevicePollingHistoryUseCase.test.ts`, `tests/infrastructure/persistence/PrismaPingResultRepository.test.ts`
 
+### MON-043 — Ping history statistics describe the whole date window, not the page
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application, Infrastructure (persistence)
+**Since:** 2026-10-26
+
+The `statistics` returned by `GET /api/devices/:id/polling/history` are
+computed in the database over every ping for the device inside
+`fromDate`–`toDate`. `limit` and `offset` do not affect them:
+- `successRate` is pings that answered over all pings in the window, `0` for an
+  empty window.
+- `averageResponseTime`, `minResponseTime` and `maxResponseTime` cover the pings
+  that answered with a latency, and are `0` when there are none.
+- `uptimePercentage` equals `successRate`.
+
+The `status` filter narrows the listed rows and `totalCount` only. The
+statistics ignore it.
+
+**Why:** Before this rule the figures were derived from the returned page but
+divided by the whole window's count, so they mixed two scopes. A device that
+answered all 1,440 pings in a day reported 3.5 % at `limit=50` and 35 % at
+`limit=500`, and the latency figures changed from page to page. The status
+filter is left out of the statistics because applying it makes them say
+nothing: with `status=FAILED`, the success rate would always be 0 % and there
+would be no latency to report. Kept to the window, the figures stay a true
+summary of the device's period, whichever rows are being listed.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/GetDevicePollingHistoryUseCase.ts`, `src/application/device-monitoring/mappers/PollingMapper.ts` (`toHistoryDTO`), `src/infrastructure/persistence/PrismaPingResultRepository.ts` (`statsByDevice`)
+**Reached from:** `GET /api/devices/:id/polling/history`
+**Tests:** `tests/application/device-monitoring/use-cases/GetDevicePollingHistoryUseCase.test.ts`, `tests/application/device-monitoring/mappers/PollingMapper.test.ts`, `tests/infrastructure/persistence/PrismaPingResultRepository.test.ts`, `tests/integration/use-cases/device-monitoring/GetDevicePollingHistoryUseCase.integration.test.ts`
+
 ## Live router traffic
 
 What the main routers carry right now, per interface, read from the router
