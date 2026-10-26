@@ -41,6 +41,7 @@ export class NotificationPolicyController {
     try {
       const result = await this.upsertPolicyUseCase.execute({
         deviceId: req.params.id,
+        quietHoursMode: req.body?.quietHoursMode,
         quietHoursStart: req.body?.quietHoursStart ?? null,
         quietHoursEnd: req.body?.quietHoursEnd ?? null,
         alertDelayMinutes: req.body?.alertDelayMinutes ?? null
@@ -86,6 +87,7 @@ export class NotificationPolicyController {
     try {
       const result = await this.bulkUpsertPoliciesUseCase.execute({
         deviceIds: req.body?.deviceIds ?? [],
+        quietHoursMode: req.body?.quietHoursMode,
         quietHoursStart: req.body?.quietHoursStart ?? null,
         quietHoursEnd: req.body?.quietHoursEnd ?? null,
         alertDelayMinutes: req.body?.alertDelayMinutes ?? null

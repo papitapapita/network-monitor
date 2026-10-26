@@ -162,7 +162,8 @@ describe('[NOT-205] Alert ticket mode — integration', () => {
     telegramChatId: null,
     downAlertDelayMinutes: 60,
     wirelessAlertsEnabled: true,
-    alertTicketMode: 'SUGGEST'
+    alertTicketMode: 'SUGGEST',
+    quietHours: null
   });
 
   beforeAll(async () => {
@@ -234,7 +235,8 @@ describe('[NOT-205] Alert ticket mode — integration', () => {
         telegramChatId: null,
         downAlertDelayMinutes: 60,
         wirelessAlertsEnabled: true,
-        alertTicketMode: 'AUTOMATIC'
+        alertTicketMode: 'AUTOMATIC',
+        quietHours: null
       })
     );
 

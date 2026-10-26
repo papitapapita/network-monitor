@@ -17,7 +17,10 @@ export function loadNotificationSettingsDefaults(
     downAlertDelayMinutes: delay,
     wirelessAlertsEnabled: rawWireless !== 'false',
     // No env predates this setting; suggesting is the product default.
-    alertTicketMode: 'SUGGEST'
+    alertTicketMode: 'SUGGEST',
+    // Nor this one: no install-wide quiet hours until the administrator
+    // sets them, so every device notifies as it did before (NOT-207).
+    quietHours: null
   });
   if (result.isFailure) {
     throw new Error(`Notification settings in env: ${result.error}`);

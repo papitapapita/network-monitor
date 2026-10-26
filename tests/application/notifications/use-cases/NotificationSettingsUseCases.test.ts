@@ -9,6 +9,7 @@ import {
 } from '../../../../src/application/notifications/use-cases/SendTestNotificationUseCase';
 import { INotificationSettingsRepository } from '../../../../src/domain/notifications/repository/INotificationSettingsRepository';
 import { NotificationSettings } from '../../../../src/domain/notifications/value-objects/NotificationSettings';
+import { QuietHours } from '../../../../src/domain/notifications/value-objects/QuietHours';
 import { ITestMessageSender } from '../../../../src/application/notifications/interfaces/ITestMessageSender';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
@@ -32,7 +33,8 @@ function makeSettings(
     telegramChatId,
     downAlertDelayMinutes: 60,
     wirelessAlertsEnabled: true,
-    alertTicketMode: 'SUGGEST'
+    alertTicketMode: 'SUGGEST',
+    quietHours: null
   });
 }
 
@@ -58,7 +60,9 @@ describe('GetNotificationSettingsUseCase', () => {
       telegramChatId: '-100123',
       downAlertDelayMinutes: 60,
       wirelessAlertsEnabled: true,
-      alertTicketMode: 'SUGGEST'
+      alertTicketMode: 'SUGGEST',
+      quietHoursStart: null,
+      quietHoursEnd: null
     });
   });
 
@@ -96,7 +100,9 @@ describe('[NOT-200] UpdateNotificationSettingsUseCase', () => {
       telegramChatId: '-200',
       downAlertDelayMinutes: 10,
       wirelessAlertsEnabled: false,
-      alertTicketMode: 'SUGGEST'
+      alertTicketMode: 'SUGGEST',
+      quietHoursStart: null,
+      quietHoursEnd: null
     });
     expect(repo.save).toHaveBeenCalledTimes(1);
     expect(repo.save.mock.calls[0][0].telegramChatId).toBe('-200');
@@ -128,7 +134,8 @@ describe('[NOT-200] UpdateNotificationSettingsUseCase', () => {
         telegramChatId: null,
         downAlertDelayMinutes: 60,
         wirelessAlertsEnabled: true,
-        alertTicketMode: 'AUTOMATIC'
+        alertTicketMode: 'AUTOMATIC',
+        quietHours: null
       })
     );
     const useCase = new UpdateNotificationSettingsUseCase(
@@ -162,6 +169,102 @@ describe('[NOT-200] UpdateNotificationSettingsUseCase', () => {
 
     expect(result.error).toContain('alertTicketMode');
     expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  describe('[NOT-207] install quiet hours', () => {
+    const BASE = {
+      telegramChatId: null,
+      downAlertDelayMinutes: 60,
+      wirelessAlertsEnabled: true
+    };
+
+    function savedWith(
+      start: string,
+      end: string
+    ): NotificationSettings {
+      return NotificationSettings.reconstitute({
+        telegramChatId: null,
+        downAlertDelayMinutes: 60,
+        wirelessAlertsEnabled: true,
+        alertTicketMode: 'SUGGEST',
+        quietHours: QuietHours.fromHHmm(start, end).value
+      });
+    }
+
+    it('saves the window it is given', async () => {
+      const repo = makeRepo();
+      const useCase = new UpdateNotificationSettingsUseCase(
+        repo,
+        makeLogger()
+      );
+
+      const result = await useCase.execute({
+        ...BASE,
+        quietHoursStart: '22:00',
+        quietHoursEnd: '06:30'
+      });
+
+      expect(result.value.quietHoursStart).toBe('22:00');
+      expect(result.value.quietHoursEnd).toBe('06:30');
+      expect(
+        repo.save.mock.calls[0][0].quietHours?.end.toString()
+      ).toBe('06:30');
+    });
+
+    it('keeps the saved window when the request omits it', async () => {
+      const repo = makeRepo(savedWith('23:00', '05:00'));
+      const useCase = new UpdateNotificationSettingsUseCase(
+        repo,
+        makeLogger()
+      );
+
+      const result = await useCase.execute(BASE);
+
+      expect(result.value.quietHoursStart).toBe('23:00');
+      expect(result.value.quietHoursEnd).toBe('05:00');
+    });
+
+    it('clears the saved window when sent as null', async () => {
+      const repo = makeRepo(savedWith('23:00', '05:00'));
+      const useCase = new UpdateNotificationSettingsUseCase(
+        repo,
+        makeLogger()
+      );
+
+      const result = await useCase.execute({
+        ...BASE,
+        quietHoursStart: null,
+        quietHoursEnd: null
+      });
+
+      expect(result.value.quietHoursStart).toBeNull();
+      expect(repo.save.mock.calls[0][0].quietHours).toBeNull();
+    });
+
+    it.each([
+      [{ quietHoursStart: '22:00' }, 'must be sent together'],
+      [
+        { quietHoursStart: '22:00', quietHoursEnd: null },
+        'must both be set'
+      ],
+      [
+        { quietHoursStart: '22:00', quietHoursEnd: '22:00' },
+        'cannot be the same time'
+      ],
+      [{ quietHoursStart: '24:00', quietHoursEnd: '06:00' }, '']
+    ])('refuses %j', async (window, message) => {
+      const repo = makeRepo();
+      const useCase = new UpdateNotificationSettingsUseCase(
+        repo,
+        makeLogger()
+      );
+
+      const result = await useCase.execute({ ...BASE, ...window });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain(message);
+      expect(repo.save).not.toHaveBeenCalled();
+    });
   });
 
   it('saves nothing when a value is refused', async () => {

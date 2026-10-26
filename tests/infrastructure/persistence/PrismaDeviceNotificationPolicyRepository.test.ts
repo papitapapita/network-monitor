@@ -42,6 +42,7 @@ function makeFakeDomainEntity(): DeviceNotificationPolicy {
     DeviceNotificationPolicyId.parse(VALID_ID).value,
     {
       deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
+      quietHoursMode: 'INHERIT',
       quietHours: null,
       alertDelayMinutes: null,
       createdAt: new Date(),
@@ -54,6 +55,7 @@ function makeFakePersistenceData() {
   return {
     id: VALID_ID,
     deviceId: VALID_DEVICE_UUID,
+    quietHoursMode: 'CUSTOM' as const,
     quietHoursStart: '22:00',
     quietHoursEnd: '07:00',
     alertDelayMinutes: 15,
@@ -153,6 +155,19 @@ describe('PrismaDeviceNotificationPolicyRepository', () => {
           where: { deviceId: VALID_DEVICE_UUID }
         })
       );
+    });
+
+    it('[NOT-170] should write the quiet-hours mode on both create and update', async () => {
+      prisma.deviceNotificationPolicy.upsert.mockResolvedValue(
+        makeFakePrismaRow()
+      );
+
+      await repo.save(fakeEntity);
+
+      const args =
+        prisma.deviceNotificationPolicy.upsert.mock.calls[0][0];
+      expect(args.create.quietHoursMode).toBe('CUSTOM');
+      expect(args.update.quietHoursMode).toBe('CUSTOM');
     });
 
     it('should return a failed Result when Prisma throws', async () => {

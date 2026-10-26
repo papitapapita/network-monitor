@@ -14,6 +14,7 @@ function makeProps(
     downAlertDelayMinutes: 60,
     wirelessAlertsEnabled: true,
     alertTicketMode: 'SUGGEST',
+    quietHours: null,
     ...overrides
   };
 }

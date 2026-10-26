@@ -71,7 +71,8 @@ describe('RaiseOverdueDeviceDownAlertsUseCase — integration', () => {
             telegramChatId: null,
             downAlertDelayMinutes: ALERT_DELAY_MS / 60_000,
             wirelessAlertsEnabled: true,
-            alertTicketMode: 'SUGGEST'
+            alertTicketMode: 'SUGGEST',
+            quietHours: null
           })
         ),
         logger,

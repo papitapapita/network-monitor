@@ -7,6 +7,7 @@ export class DeviceNotificationPolicyMapper {
   ): DeviceNotificationPolicyResponseDTO {
     return {
       deviceId: policy.deviceId.toString(),
+      quietHoursMode: policy.quietHoursMode,
       quietHoursStart: policy.quietHours?.start.toString() ?? null,
       quietHoursEnd: policy.quietHours?.end.toString() ?? null,
       alertDelayMinutes: policy.alertDelayMinutes,
@@ -19,6 +20,7 @@ export class DeviceNotificationPolicyMapper {
   ): DeviceNotificationPolicyResponseDTO {
     return {
       deviceId,
+      quietHoursMode: 'INHERIT',
       quietHoursStart: null,
       quietHoursEnd: null,
       alertDelayMinutes: null,

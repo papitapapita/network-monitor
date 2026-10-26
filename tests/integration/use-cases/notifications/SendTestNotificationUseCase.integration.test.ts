@@ -23,7 +23,8 @@ describe('[NOT-202] SendTestNotificationUseCase — integration', () => {
           telegramChatId: defaultChat,
           downAlertDelayMinutes: 60,
           wirelessAlertsEnabled: true,
-          alertTicketMode: 'SUGGEST'
+          alertTicketMode: 'SUGGEST',
+          quietHours: null
         })
       ),
       sender,

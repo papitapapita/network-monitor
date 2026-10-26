@@ -32,6 +32,7 @@ function makeDTO(
 ): DeviceNotificationPolicyResponseDTO {
   return {
     deviceId,
+    quietHoursMode: 'CUSTOM',
     quietHoursStart: '22:00',
     quietHoursEnd: '07:00',
     alertDelayMinutes: null,

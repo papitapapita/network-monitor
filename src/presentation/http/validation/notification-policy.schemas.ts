@@ -7,6 +7,9 @@ const timeOfDaySchema = z
 
 const policyFieldsSchema = z
   .object({
+    quietHoursMode: z
+      .enum(['INHERIT', 'CUSTOM', 'ALWAYS_NOTIFY'])
+      .optional(),
     quietHoursStart: timeOfDaySchema.nullable().optional(),
     quietHoursEnd: timeOfDaySchema.nullable().optional(),
     alertDelayMinutes: z.number().int().min(0).nullable().optional()
@@ -20,6 +23,17 @@ const policyFieldsSchema = z
     {
       message:
         'quietHoursStart and quietHoursEnd must both be set, or both be null'
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.quietHoursMode === undefined) return true;
+      const hasWindow = (data.quietHoursStart ?? null) !== null;
+      return (data.quietHoursMode === 'CUSTOM') === hasWindow;
+    },
+    {
+      message:
+        'quietHoursStart and quietHoursEnd must be set when quietHoursMode is CUSTOM, and only then'
     }
   );
 

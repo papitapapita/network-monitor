@@ -68,7 +68,7 @@ describe('GetDeviceNotificationPolicyUseCase', () => {
     expect(result.error).toContain('Device not found');
   });
 
-  it('[NOT-170] should return default (always-notify) values when no policy row exists', async () => {
+  it('[NOT-170] should return default (inherit the install window) values when no policy row exists', async () => {
     policyRepo.findByDeviceId.mockResolvedValue(Result.ok(null));
 
     const result = await useCase.execute({
@@ -78,6 +78,7 @@ describe('GetDeviceNotificationPolicyUseCase', () => {
     expect(result.isSuccess).toBe(true);
     expect(result.value).toEqual({
       deviceId: VALID_DEVICE_UUID,
+      quietHoursMode: 'INHERIT',
       quietHoursStart: null,
       quietHoursEnd: null,
       alertDelayMinutes: null,
@@ -95,6 +96,7 @@ describe('GetDeviceNotificationPolicyUseCase', () => {
       DeviceNotificationPolicyId.create(),
       {
         deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
+        quietHoursMode: 'CUSTOM',
         quietHours,
         alertDelayMinutes: 15,
         createdAt: updatedAt,
@@ -110,6 +112,7 @@ describe('GetDeviceNotificationPolicyUseCase', () => {
     expect(result.isSuccess).toBe(true);
     expect(result.value).toEqual({
       deviceId: VALID_DEVICE_UUID,
+      quietHoursMode: 'CUSTOM',
       quietHoursStart: '22:00',
       quietHoursEnd: '07:00',
       alertDelayMinutes: 15,

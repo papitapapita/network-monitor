@@ -14,14 +14,18 @@ const ENV_DEFAULTS = {
   telegramChatId: process.env.TELEGRAM_CHAT_ID,
   downAlertDelayMinutes: 60,
   wirelessAlertsEnabled: true,
-  alertTicketMode: 'SUGGEST'
+  alertTicketMode: 'SUGGEST',
+  quietHoursStart: null,
+  quietHoursEnd: null
 };
 
 const SAVED = {
   telegramChatId: '-1009998887776',
   downAlertDelayMinutes: 15,
   wirelessAlertsEnabled: false,
-  alertTicketMode: 'AUTOMATIC'
+  alertTicketMode: 'AUTOMATIC',
+  quietHoursStart: '22:30',
+  quietHoursEnd: '06:00'
 };
 
 describe('Notification Settings Routes — /api/notification-settings', () => {
@@ -129,6 +133,73 @@ describe('Notification Settings Routes — /api/notification-settings', () => {
       expect(res.status).toBe(200);
       expect(res.body.data.alertTicketMode).toBe('AUTOMATIC');
       expect(res.body.data.downAlertDelayMinutes).toBe(30);
+    });
+
+    it('[NOT-207] 200 — keeps the saved quiet hours when the body omits them', async () => {
+      await request(app)
+        .put('/api/notification-settings')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(SAVED);
+
+      const {
+        quietHoursStart: _start,
+        quietHoursEnd: _end,
+        ...withoutWindow
+      } = SAVED;
+      const res = await request(app)
+        .put('/api/notification-settings')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(withoutWindow);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.quietHoursStart).toBe('22:30');
+      expect(res.body.data.quietHoursEnd).toBe('06:00');
+    });
+
+    it('[NOT-207] 200 — clears the quiet hours when sent as null', async () => {
+      await request(app)
+        .put('/api/notification-settings')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(SAVED);
+
+      const res = await request(app)
+        .put('/api/notification-settings')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          ...SAVED,
+          quietHoursStart: null,
+          quietHoursEnd: null
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.quietHoursStart).toBeNull();
+      expect(res.body.data.quietHoursEnd).toBeNull();
+    });
+
+    it.each([
+      [
+        'a start with no end',
+        { quietHoursStart: '22:00', quietHoursEnd: null }
+      ],
+      [
+        'only one bound sent',
+        { quietHoursStart: '22:00', quietHoursEnd: undefined }
+      ],
+      [
+        'a malformed time',
+        { quietHoursStart: '7:00', quietHoursEnd: '06:00' }
+      ],
+      [
+        'equal bounds',
+        { quietHoursStart: '22:00', quietHoursEnd: '22:00' }
+      ]
+    ])('[NOT-207] 400 — refuses %s', async (_label, window) => {
+      const res = await request(app)
+        .put('/api/notification-settings')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ ...SAVED, ...window });
+
+      expect(res.status).toBe(400);
     });
 
     it('[NOT-205] 400 — refuses an unknown ticket mode', async () => {

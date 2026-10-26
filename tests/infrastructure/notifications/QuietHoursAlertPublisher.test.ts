@@ -7,6 +7,9 @@ import {
   QUIET_HOURS_SUPPRESSED
 } from '../../../src/application/shared/interfaces/IAlertPublisher';
 import { IDeviceNotificationPolicyRepository } from '../../../src/domain/notifications/repository/IDeviceNotificationPolicyRepository';
+import { INotificationSettingsRepository } from '../../../src/domain/notifications/repository/INotificationSettingsRepository';
+import { NotificationSettings } from '../../../src/domain/notifications/value-objects/NotificationSettings';
+import { QuietHoursMode } from '../../../src/domain/notifications/props';
 import { ILogger } from '../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../src/domain/shared/core/Result';
 import { DeviceNotificationPolicy } from '../../../src/domain/notifications/entities/DeviceNotificationPolicy';
@@ -43,15 +46,45 @@ function makePolicyRepo(): jest.Mocked<IDeviceNotificationPolicyRepository> {
   };
 }
 
-function makePolicyWithinWindow(): DeviceNotificationPolicy {
-  const quietHours = QuietHours.create(
-    TimeOfDay.create('00:00').value,
-    TimeOfDay.create('23:59').value
+function makeSettingsRepo(
+  quietHours: QuietHours | null = null
+): jest.Mocked<INotificationSettingsRepository> {
+  return {
+    get: jest.fn().mockResolvedValue(
+      Result.ok(
+        NotificationSettings.reconstitute({
+          telegramChatId: '-100123',
+          downAlertDelayMinutes: 60,
+          wirelessAlertsEnabled: true,
+          alertTicketMode: 'SUGGEST',
+          quietHours
+        })
+      )
+    ),
+    save: jest.fn()
+  };
+}
+
+function window(start: string, end: string): QuietHours {
+  return QuietHours.create(
+    TimeOfDay.create(start).value,
+    TimeOfDay.create(end).value
   ).value;
+}
+
+// "now" is pinned to local 10:00 in beforeEach.
+const COVERS_NOW = () => window('00:00', '23:59');
+const MISSES_NOW = () => window('22:00', '23:00');
+
+function makePolicy(
+  quietHoursMode: QuietHoursMode,
+  quietHours: QuietHours | null = null
+): DeviceNotificationPolicy {
   return DeviceNotificationPolicy.reconstitute(
     DeviceNotificationPolicyId.create(),
     {
       deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
+      quietHoursMode,
       quietHours,
       alertDelayMinutes: null,
       createdAt: FIXED_DATE,
@@ -76,20 +109,27 @@ function makeNotification(): AlertNotification {
 describe('QuietHoursAlertPublisher', () => {
   let inner: jest.Mocked<IAlertPublisher>;
   let policyRepo: jest.Mocked<IDeviceNotificationPolicyRepository>;
+  let settingsRepo: jest.Mocked<INotificationSettingsRepository>;
   let publisher: QuietHoursAlertPublisher;
 
+  function build(): void {
+    publisher = new QuietHoursAlertPublisher(
+      inner,
+      policyRepo,
+      settingsRepo,
+      makeLogger()
+    );
+  }
+
   beforeEach(() => {
-    // isWithinQuietHours reads the real wall clock (server-local time), so
-    // "now" is pinned to a known local hour rather than left to whatever
+    // Quiet hours are read against the real wall clock (server-local time),
+    // so "now" is pinned to a known local hour rather than left to whatever
     // time the test happens to run at.
     jest.useFakeTimers().setSystemTime(new Date(2026, 5, 1, 10, 0));
     inner = makeInner();
     policyRepo = makePolicyRepo();
-    publisher = new QuietHoursAlertPublisher(
-      inner,
-      policyRepo,
-      makeLogger()
-    );
+    settingsRepo = makeSettingsRepo();
+    build();
   });
 
   afterEach(() => {
@@ -97,52 +137,103 @@ describe('QuietHoursAlertPublisher', () => {
     jest.useRealTimers();
   });
 
-  it('[NOT-170] forwards to the inner publisher when the device has no policy', async () => {
-    const result = await publisher.publish(makeNotification());
+  describe('[NOT-170] a device with no policy follows the install window', () => {
+    it('forwards when the install has no quiet hours', async () => {
+      const result = await publisher.publish(makeNotification());
 
-    expect(inner.publish).toHaveBeenCalledTimes(1);
-    expect(result.isSuccess).toBe(true);
+      expect(inner.publish).toHaveBeenCalledTimes(1);
+      expect(result.isSuccess).toBe(true);
+    });
+
+    it('[NOT-207] suppresses inside the install window', async () => {
+      settingsRepo = makeSettingsRepo(COVERS_NOW());
+      build();
+
+      const result = await publisher.publish(makeNotification());
+
+      expect(inner.publish).not.toHaveBeenCalled();
+      expect(result.error).toBe(QUIET_HOURS_SUPPRESSED);
+    });
+
+    it('forwards outside the install window', async () => {
+      settingsRepo = makeSettingsRepo(MISSES_NOW());
+      build();
+
+      await publisher.publish(makeNotification());
+
+      expect(inner.publish).toHaveBeenCalledTimes(1);
+    });
   });
 
-  it('forwards to the inner publisher when outside the configured window', async () => {
-    const quietHours = QuietHours.create(
-      TimeOfDay.create('22:00').value,
-      TimeOfDay.create('23:00').value
-    ).value;
-    const policy = DeviceNotificationPolicy.reconstitute(
-      DeviceNotificationPolicyId.create(),
-      {
-        deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
-        quietHours,
-        alertDelayMinutes: null,
-        createdAt: FIXED_DATE,
-        updatedAt: FIXED_DATE
-      }
-    );
-    policyRepo.findByDeviceId.mockResolvedValue(Result.ok(policy));
+  describe('[NOT-170] INHERIT', () => {
+    it('suppresses inside the install window', async () => {
+      policyRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makePolicy('INHERIT'))
+      );
+      settingsRepo = makeSettingsRepo(COVERS_NOW());
+      build();
 
-    // "now" is pinned to local 10:00 in beforeEach — outside 22:00-23:00.
-    await publisher.publish(makeNotification());
+      const result = await publisher.publish(makeNotification());
 
-    expect(inner.publish).toHaveBeenCalledTimes(1);
+      expect(result.error).toBe(QUIET_HOURS_SUPPRESSED);
+    });
   });
 
-  it('[NOT-174] suppresses without forwarding when inside the configured window', async () => {
-    policyRepo.findByDeviceId.mockResolvedValue(
-      Result.ok(makePolicyWithinWindow())
-    );
+  describe('[NOT-170] CUSTOM', () => {
+    it('[NOT-174] suppresses inside its own window', async () => {
+      policyRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makePolicy('CUSTOM', COVERS_NOW()))
+      );
 
-    const result = await publisher.publish(makeNotification());
+      const result = await publisher.publish(makeNotification());
 
-    expect(inner.publish).not.toHaveBeenCalled();
-    expect(result.isFailure).toBe(true);
-    expect(result.error).toBe(QUIET_HOURS_SUPPRESSED);
+      expect(inner.publish).not.toHaveBeenCalled();
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe(QUIET_HOURS_SUPPRESSED);
+    });
+
+    it('forwards outside its own window even inside the install window', async () => {
+      policyRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makePolicy('CUSTOM', MISSES_NOW()))
+      );
+      settingsRepo = makeSettingsRepo(COVERS_NOW());
+      build();
+
+      await publisher.publish(makeNotification());
+
+      expect(inner.publish).toHaveBeenCalledTimes(1);
+      expect(settingsRepo.get).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('[NOT-170] ALWAYS_NOTIFY', () => {
+    it('forwards even inside the install window', async () => {
+      policyRepo.findByDeviceId.mockResolvedValue(
+        Result.ok(makePolicy('ALWAYS_NOTIFY'))
+      );
+      settingsRepo = makeSettingsRepo(COVERS_NOW());
+      build();
+
+      const result = await publisher.publish(makeNotification());
+
+      expect(inner.publish).toHaveBeenCalledTimes(1);
+      expect(result.isSuccess).toBe(true);
+    });
   });
 
   it('fails open (notifies anyway) when the policy lookup itself fails', async () => {
     policyRepo.findByDeviceId.mockResolvedValue(
       Result.fail('db unavailable')
     );
+
+    const result = await publisher.publish(makeNotification());
+
+    expect(inner.publish).toHaveBeenCalledTimes(1);
+    expect(result.isSuccess).toBe(true);
+  });
+
+  it('fails open (notifies anyway) when the settings lookup fails', async () => {
+    settingsRepo.get.mockResolvedValue(Result.fail('db unavailable'));
 
     const result = await publisher.publish(makeNotification());
 
@@ -161,7 +252,9 @@ describe('QuietHoursAlertPublisher', () => {
     expect(result.isSuccess).toBe(true);
   });
 
-  it('forwards an alert with no device without looking up a policy', async () => {
+  it('[NOT-178] forwards an alert with no device without looking up a policy, even inside the install window', async () => {
+    settingsRepo = makeSettingsRepo(COVERS_NOW());
+    build();
     const notification = { ...makeNotification(), deviceId: null };
 
     const result = await publisher.publish(notification);

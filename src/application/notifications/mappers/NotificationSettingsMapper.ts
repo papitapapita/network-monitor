@@ -9,7 +9,9 @@ export class NotificationSettingsMapper {
       telegramChatId: settings.telegramChatId,
       downAlertDelayMinutes: settings.downAlertDelayMinutes,
       wirelessAlertsEnabled: settings.wirelessAlertsEnabled,
-      alertTicketMode: settings.alertTicketMode
+      alertTicketMode: settings.alertTicketMode,
+      quietHoursStart: settings.quietHours?.start.toString() ?? null,
+      quietHoursEnd: settings.quietHours?.end.toString() ?? null
     };
   }
 }

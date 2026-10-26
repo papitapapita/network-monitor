@@ -42,7 +42,7 @@ describe('Notification Policy Routes — /api/devices/:id/notification-policy', 
   });
 
   describe('GET /api/devices/:id/notification-policy', () => {
-    it('[NOT-177] 200 — returns always-notify defaults when no policy exists', async () => {
+    it('[NOT-177] 200 — returns inherit defaults when no policy exists', async () => {
       const res = await request(app)
         .get(`/api/devices/${deviceId}/notification-policy`)
         .set('Authorization', `Bearer ${adminToken}`);
@@ -50,6 +50,7 @@ describe('Notification Policy Routes — /api/devices/:id/notification-policy', 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({
         deviceId,
+        quietHoursMode: 'INHERIT',
         quietHoursStart: null,
         quietHoursEnd: null,
         alertDelayMinutes: null
@@ -92,10 +93,56 @@ describe('Notification Policy Routes — /api/devices/:id/notification-policy', 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({
         deviceId,
+        quietHoursMode: 'CUSTOM',
         quietHoursStart: '22:00',
         quietHoursEnd: '07:00',
         alertDelayMinutes: 10
       });
+    });
+
+    it('[NOT-170] 200 — opts the device out of quiet hours with ALWAYS_NOTIFY', async () => {
+      const res = await request(app)
+        .put(`/api/devices/${deviceId}/notification-policy`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ quietHoursMode: 'ALWAYS_NOTIFY' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        quietHoursMode: 'ALWAYS_NOTIFY',
+        quietHoursStart: null,
+        quietHoursEnd: null
+      });
+    });
+
+    it('[NOT-170] 400 — rejects CUSTOM without a window', async () => {
+      const res = await request(app)
+        .put(`/api/devices/${deviceId}/notification-policy`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ quietHoursMode: 'CUSTOM' });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('[NOT-170] 400 — rejects a window on a mode that does not use one', async () => {
+      const res = await request(app)
+        .put(`/api/devices/${deviceId}/notification-policy`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          quietHoursMode: 'INHERIT',
+          quietHoursStart: '22:00',
+          quietHoursEnd: '07:00'
+        });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('[NOT-170] 400 — rejects an unknown mode', async () => {
+      const res = await request(app)
+        .put(`/api/devices/${deviceId}/notification-policy`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ quietHoursMode: 'NEVER' });
+
+      expect(res.status).toBe(400);
     });
 
     it('200 — the window is visible on a subsequent GET', async () => {
@@ -150,7 +197,7 @@ describe('Notification Policy Routes — /api/devices/:id/notification-policy', 
   });
 
   describe('DELETE /api/devices/:id/notification-policy', () => {
-    it('204 — resets the device back to always-notify defaults', async () => {
+    it('204 — resets the device back to inheriting the install window', async () => {
       await request(app)
         .put(`/api/devices/${deviceId}/notification-policy`)
         .set('Authorization', `Bearer ${adminToken}`)
@@ -164,6 +211,7 @@ describe('Notification Policy Routes — /api/devices/:id/notification-policy', 
       const after = await request(app)
         .get(`/api/devices/${deviceId}/notification-policy`)
         .set('Authorization', `Bearer ${adminToken}`);
+      expect(after.body.quietHoursMode).toBe('INHERIT');
       expect(after.body.quietHoursStart).toBeNull();
     });
 

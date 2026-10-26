@@ -28,8 +28,8 @@ Format and conventions: [README.md](README.md).
 
 ## Layer coverage
 
-| Layer                     | Rules |
-| ------------------------- | ----- |
+| Layer                        | Rules |
+| ---------------------------- | ----- |
 | Application                  | 41    |
 | Domain (aggregate/entity/VO) | 19    |
 | Presentation                 | 5     |
@@ -667,7 +667,7 @@ alert immediately, unnotified. A periodic scan
 (`IDeviceStateRepository.findAllDown`, unfiltered by time — the delay is no
 longer uniform across devices, see `NOT-173`) and, for each one, calls
 `SendDeviceDownAlertUseCase` once `now - downSince` has reached that device's
-effective delay — which now only decides whether to *notify* the already-open
+effective delay — which now only decides whether to _notify_ the already-open
 alert, not whether to create it. `SendDeviceDownAlertUseCase` already dedupes
 against an existing open alert (`NOT-060`), so re-selecting a still-down
 device on every scan is safe. A device that recovers before its delay elapses
@@ -1108,33 +1108,53 @@ this device page anyone right now (quiet hours), and how long should it wait
 before opening a down alert at all (delay override). Both default to "off":
 no window, no override.
 
-### NOT-170 — A device with no quiet-hours window always notifies
+### NOT-170 — A device inherits the install's quiet hours unless it sets its own or opts out
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain
-**Since:** 2026-09-02
+**Since:** 2026-09-02 · **Revised:** 2026-10-26
 
-`DeviceNotificationPolicy.quietHours` is `null` unless explicitly set, and
-`isWithinQuietHours` is unconditionally `false` while it is `null`. There is
-no separate "important" boolean — the absence of a window is what makes a
-device important.
+`DeviceNotificationPolicy.quietHoursMode` is one of three values:
 
-**Why:** A second flag redundant with "no window configured" could disagree
-with it — a device flagged important but still carrying a leftover window,
-or the reverse. Collapsing the concept into one property makes that
-contradiction unrepresentable, the same reasoning `NOT-030` applies to a
-single nullable timestamp over a status-plus-date pair.
+| Mode            | Quiet hours that apply                                   |
+| --------------- | -------------------------------------------------------- |
+| `INHERIT`       | The install's window (`NOT-207`), or none if it has none |
+| `CUSTOM`        | The device's own `quietHours`, ignoring the install's    |
+| `ALWAYS_NOTIFY` | None — the device is never silenced by quiet hours       |
 
-**Enforced at:** `src/domain/notifications/entities/DeviceNotificationPolicy.ts` (`isWithinQuietHours`)
+`quietHours` is set exactly when the mode is `CUSTOM`; any other pairing is
+refused by `create` and `setQuietHours`, by the request schema, and by the
+`device_notification_policies_quiet_hours_only_when_custom` CHECK constraint.
+A device with no policy row behaves as `INHERIT`, and so does one reset with
+`DELETE`. When a request omits the mode, it is `CUSTOM` if a window is sent and
+`INHERIT` if not — what a dashboard that predates the mode meant by each.
+
+**Why:** A null window used to mean "always notify", which left no way to say
+"follow the install's window". With an install-wide window, the device needs
+both "inherit" and "never silence me", and a boolean next to the window could
+contradict it — an "always notify" flag on a device still carrying a window.
+One mode with the window tied to `CUSTOM` keeps that contradiction
+unrepresentable, the same reasoning `NOT-030` applies to a single nullable
+timestamp over a status-plus-date pair. Rows from before the mode existed
+became `CUSTOM` if they had a window and `INHERIT` otherwise; with no install
+window saved yet, both behave exactly as before.
+
+**Enforced at:** `src/domain/notifications/entities/DeviceNotificationPolicy.ts` (`validateQuietHours`, `effectiveQuietHours`),
+`src/application/notifications/use-cases/UpsertDeviceNotificationPolicyUseCase.ts`,
+`src/presentation/http/validation/notification-policy.schemas.ts`
+**Backed by:** `device_notification_policies_quiet_hours_only_when_custom` CHECK constraint, migration `20261026120000`
+**Message:** `quietHoursStart and quietHoursEnd must be set when quietHoursMode is CUSTOM, and only then`
 **Tests:** `tests/domain/notifications/entities/DeviceNotificationPolicy.test.ts`,
 `tests/application/notifications/use-cases/GetDeviceNotificationPolicyUseCase.test.ts`,
 `tests/application/notifications/use-cases/UpsertDeviceNotificationPolicyUseCase.test.ts`,
 `tests/application/notifications/use-cases/DeleteDeviceNotificationPolicyUseCase.test.ts`,
+`tests/infrastructure/mappers/DeviceNotificationPolicyMapper.test.ts`,
 `tests/infrastructure/persistence/PrismaDeviceNotificationPolicyRepository.test.ts`,
 `tests/infrastructure/notifications/QuietHoursAlertPublisher.test.ts`,
 `tests/integration/use-cases/notifications/GetDeviceNotificationPolicyUseCase.integration.test.ts`,
 `tests/integration/use-cases/notifications/UpsertDeviceNotificationPolicyUseCase.integration.test.ts`,
-`tests/integration/use-cases/notifications/DeleteDeviceNotificationPolicyUseCase.integration.test.ts`
+`tests/integration/use-cases/notifications/DeleteDeviceNotificationPolicyUseCase.integration.test.ts`,
+`tests/integration/notification-policy.routes.test.ts`
 
 ### NOT-171 — Quiet hours are both-or-neither, and each bound is a 24-hour HH:mm time
 
@@ -1235,13 +1255,15 @@ rather than by device/time — so this entry's reasoning covers both.
 alert-producing path uses — device down, device recovery, wireless open and
 cleared alerts (`NOT-063`, `NOT-090`). During a device's configured window
 it returns `Result.fail(QUIET_HOURS_SUPPRESSED)` without forwarding to the
-real publisher. It never touches `Alert` or `WirelessAlertRecord` creation,
+real publisher. The window is the device's effective one (`NOT-170`): its
+own for `CUSTOM`, the install's (`NOT-207`) for `INHERIT` or no policy row,
+none for `ALWAYS_NOTIFY`. It never touches `Alert` or `WirelessAlertRecord` creation,
 which happens earlier in each producing use case and is unaffected — a
 device still opens its alert on schedule (`NOT-090`/`NOT-097`) and it
 remains visible on `GET /api/alerts` regardless of quiet hours. Only the
-Telegram push is muted. A failure to load the device's policy fails open —
-the real publisher is still called — so an infrastructure hiccup in this
-table never silently swallows a real alert.
+Telegram push is muted. A failure to load the device's policy, or the
+install's settings, fails open — the real publisher is still called — so an
+infrastructure hiccup in either table never silently swallows a real alert.
 
 **Why:** The alert is the operational record of the fault; the notification
 is a best-effort page (`NOT-036`/`NOT-063` already separate these).
@@ -1337,7 +1359,8 @@ guessing which id had the typo.
 **Why:** This is device configuration, not alert triage — the same tier as
 polling config (`PATCH /api/devices/:id/polling/config`, also `update`), not
 the alert-specific split in `NOT-150`. There is no delete-tier permission
-here at all: `DELETE` only resets a device to its always-notify default, it
+here at all: `DELETE` only resets a device to inheriting the install's quiet
+hours (`NOT-170`), it
 does not destroy history the way alert deletion does — gating it behind
 administrator-only would mismatch the permission against what the action
 actually risks.
@@ -1354,8 +1377,11 @@ actually risks.
 `QuietHoursAlertPublisher` forwards an alert whose `deviceId` is `null`
 (`NOT-100`) without looking up a policy.
 
-**Why:** Quiet hours are a per-device window (`NOT-170`); an alert about an
-agent has no device to carry one. An offline agent silences every device behind
+This holds for the install's window (`NOT-207`) too: an alert with no device
+inherits nothing.
+
+**Why:** Quiet hours are decided per device (`NOT-170`); an alert about an
+agent has no device to carry a policy. An offline agent silences every device behind
 it, so there is nothing a quiet window would be protecting.
 
 **Enforced at:** `src/infrastructure/notifications/QuietHoursAlertPublisher.ts`
@@ -1488,10 +1514,10 @@ itself.
 **Layer:** Presentation
 **Since:** 2026-09-04
 
-| Endpoint                       | Permission |
-| ------------------------------- | ---------- |
-| `GET /api/notification-mutes`  | `read`     |
-| `PUT /api/notification-mutes`  | `update`   |
+| Endpoint                      | Permission |
+| ----------------------------- | ---------- |
+| `GET /api/notification-mutes` | `read`     |
+| `PUT /api/notification-mutes` | `update`   |
 
 **Why:** Same reasoning as `NOT-177`: this is standing configuration of what
 pages an operator, not alert triage, so it sits at the device-configuration
@@ -1684,6 +1710,40 @@ still raise a ticket for it (`TKT-115`).
 **Enforced at:** `src/application/notifications/use-cases/ListAlertsUseCase.ts`, `src/infrastructure/persistence/PrismaAlertListQuery.ts`
 **Reached from:** `GET /api/alerts`
 **Tests:** `tests/application/notifications/use-cases/ListAlertsUseCase.test.ts`, `tests/integration/alert.routes.test.ts`
+
+### NOT-207 — The administrator can set install-wide quiet hours, which every inheriting device follows
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain · Application · Infrastructure
+**Since:** 2026-10-26
+
+`NotificationSettings.quietHours` is an optional `HH:mm` window, saved with
+the other settings from `PUT /api/notification-settings` as `quietHoursStart`
+and `quietHoursEnd`. The pair is sent together or not at all — omitted, the
+saved window is kept; both `null` clears it. The bounds follow `NOT-171` and
+`NOT-172`. It starts empty on every install (no env predates it), so nothing
+is silenced until the administrator sets it. Every device in `INHERIT` mode,
+and every device with no policy row, follows it from the next alert
+(`NOT-170`); a `CUSTOM` device uses its own window and an `ALWAYS_NOTIFY`
+device is never silenced. A suppressed notification behaves as any other
+quiet-hours suppression (`NOT-174`, `NOT-175`).
+
+**Why:** Setting the same window on every device one bulk update at a time
+(`NOT-176`) copied it per device, so a device added later had none and moving
+the window meant re-running the bulk update. One install-wide window that
+devices inherit by default is what "the network sleeps at night, except the
+core" actually means.
+
+**Enforced at:** `src/domain/notifications/value-objects/NotificationSettings.ts`,
+`src/application/notifications/use-cases/UpdateNotificationSettingsUseCase.ts`,
+`src/presentation/http/validation/notification-settings.schemas.ts`,
+`src/infrastructure/notifications/QuietHoursAlertPublisher.ts`
+**Backed by:** `notification_settings_quiet_hours_both_or_neither` CHECK constraint, migration `20261026120000`
+**Reached from:** `PUT /api/notification-settings`
+**Tests:** `tests/application/notifications/use-cases/NotificationSettingsUseCases.test.ts`,
+`tests/infrastructure/notifications/QuietHoursAlertPublisher.test.ts`,
+`tests/integration/use-cases/notifications/UpdateNotificationSettingsUseCase.integration.test.ts`,
+`tests/integration/notification-settings.routes.test.ts`
 
 ---
 

@@ -41,6 +41,7 @@ export class BulkUpsertDeviceNotificationPoliciesUseCase extends UseCase<
       const result =
         await this.upsertDeviceNotificationPolicyUseCase.execute({
           deviceId,
+          quietHoursMode: request.quietHoursMode,
           quietHoursStart: request.quietHoursStart,
           quietHoursEnd: request.quietHoursEnd,
           alertDelayMinutes: request.alertDelayMinutes

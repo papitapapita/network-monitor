@@ -1,6 +1,9 @@
 import { PrismaClient } from 'generated/prisma/client';
 import { Result } from 'domain/shared/core';
-import { NotificationSettings } from 'domain/notifications/value-objects';
+import {
+  NotificationSettings,
+  QuietHours
+} from 'domain/notifications/value-objects';
 import { INotificationSettingsRepository } from 'domain/notifications/repository';
 
 const ROW_ID = 1;
@@ -21,12 +24,31 @@ export class PrismaNotificationSettingsRepository
         where: { id: ROW_ID }
       });
       if (!row) return Result.ok(this.defaults);
+
+      let quietHours: QuietHours | null = null;
+      if (
+        row.quietHoursStart !== null &&
+        row.quietHoursEnd !== null
+      ) {
+        const window = QuietHours.fromHHmm(
+          row.quietHoursStart,
+          row.quietHoursEnd
+        );
+        if (window.isFailure) {
+          return Result.fail(
+            `Data integrity violation: invalid quiet hours "${row.quietHoursStart}"-"${row.quietHoursEnd}" in notification_settings`
+          );
+        }
+        quietHours = window.value;
+      }
+
       return Result.ok(
         NotificationSettings.reconstitute({
           telegramChatId: row.telegramChatId,
           downAlertDelayMinutes: row.downAlertDelayMinutes,
           wirelessAlertsEnabled: row.wirelessAlertsEnabled,
-          alertTicketMode: row.alertTicketMode
+          alertTicketMode: row.alertTicketMode,
+          quietHours
         })
       );
     } catch (error) {
@@ -41,7 +63,9 @@ export class PrismaNotificationSettingsRepository
       telegramChatId: settings.telegramChatId,
       downAlertDelayMinutes: settings.downAlertDelayMinutes,
       wirelessAlertsEnabled: settings.wirelessAlertsEnabled,
-      alertTicketMode: settings.alertTicketMode
+      alertTicketMode: settings.alertTicketMode,
+      quietHoursStart: settings.quietHours?.start.toString() ?? null,
+      quietHoursEnd: settings.quietHours?.end.toString() ?? null
     };
     try {
       await this.prisma.notificationSettings.upsert({

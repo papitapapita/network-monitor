@@ -28,6 +28,24 @@ describe('QuietHours', () => {
     });
   });
 
+  describe('[NOT-171] fromHHmm(start, end)', () => {
+    it('should build the window from HH:mm strings', () => {
+      const result = QuietHours.fromHHmm('22:00', '07:00');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.start.toString()).toBe('22:00');
+      expect(result.value.end.toString()).toBe('07:00');
+    });
+
+    it.each([
+      ['25:00', '07:00'],
+      ['22:00', '7:00'],
+      ['22:00', '22:00']
+    ])('should refuse %s-%s', (start, end) => {
+      expect(QuietHours.fromHHmm(start, end).isFailure).toBe(true);
+    });
+  });
+
   describe('[NOT-172] contains(now) — same-day window', () => {
     const window = QuietHours.create(
       time('08:00'),

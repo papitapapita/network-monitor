@@ -58,6 +58,7 @@ describe('UpsertDeviceNotificationPolicyUseCase — integration', () => {
       where: { deviceId }
     });
     expect(row).not.toBeNull();
+    expect(row!.quietHoursMode).toBe('CUSTOM');
     expect(row!.quietHoursStart).toBe('22:00');
     expect(row!.alertDelayMinutes).toBe(10);
   });
@@ -86,7 +87,7 @@ describe('UpsertDeviceNotificationPolicyUseCase — integration', () => {
     expect(rows[0].alertDelayMinutes).toBe(5);
   });
 
-  it('[NOT-170] clears the window back to null on request', async () => {
+  it('[NOT-170] clears the window back to inheriting on request', async () => {
     const deviceId = await seedDevice(prisma, deviceModelId);
     await useCase.execute({
       deviceId,
@@ -103,8 +104,51 @@ describe('UpsertDeviceNotificationPolicyUseCase — integration', () => {
     });
 
     expect(result.isSuccess).toBe(true);
+    expect(result.value.quietHoursMode).toBe('INHERIT');
     expect(result.value.quietHoursStart).toBeNull();
     expect(result.value.quietHoursEnd).toBeNull();
+  });
+
+  it('[NOT-170] stores ALWAYS_NOTIFY and drops a previous window', async () => {
+    const deviceId = await seedDevice(prisma, deviceModelId);
+    await useCase.execute({
+      deviceId,
+      quietHoursStart: '22:00',
+      quietHoursEnd: '07:00',
+      alertDelayMinutes: null
+    });
+
+    await useCase.execute({
+      deviceId,
+      quietHoursMode: 'ALWAYS_NOTIFY',
+      quietHoursStart: null,
+      quietHoursEnd: null,
+      alertDelayMinutes: null
+    });
+
+    const row = await prisma.deviceNotificationPolicy.findUnique({
+      where: { deviceId }
+    });
+    expect(row!.quietHoursMode).toBe('ALWAYS_NOTIFY');
+    expect(row!.quietHoursStart).toBeNull();
+  });
+
+  it('[NOT-170] refuses a window on a non-CUSTOM row at the database too', async () => {
+    const deviceId = await seedDevice(prisma, deviceModelId);
+
+    await expect(
+      prisma.deviceNotificationPolicy.create({
+        data: {
+          deviceId,
+          quietHoursMode: 'ALWAYS_NOTIFY',
+          quietHoursStart: '22:00',
+          quietHoursEnd: '07:00',
+          updatedAt: new Date()
+        }
+      })
+    ).rejects.toThrow(
+      'device_notification_policies_quiet_hours_only_when_custom'
+    );
   });
 
   it('fails with a not-found error when the device does not exist (GHOST_ID)', async () => {

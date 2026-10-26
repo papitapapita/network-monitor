@@ -1,5 +1,6 @@
 export interface DeviceNotificationPolicyResponseDTO {
   deviceId: string;
+  quietHoursMode: string;
   quietHoursStart: string | null;
   quietHoursEnd: string | null;
   alertDelayMinutes: number | null;

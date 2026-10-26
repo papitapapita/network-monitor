@@ -11,7 +11,8 @@ const DEFAULTS = NotificationSettings.reconstitute({
   telegramChatId: '-100111',
   downAlertDelayMinutes: 60,
   wirelessAlertsEnabled: true,
-  alertTicketMode: 'SUGGEST'
+  alertTicketMode: 'SUGGEST',
+  quietHours: null
 });
 
 describe('[NOT-201] GetNotificationSettingsUseCase — integration', () => {
@@ -43,7 +44,9 @@ describe('[NOT-201] GetNotificationSettingsUseCase — integration', () => {
       telegramChatId: '-100111',
       downAlertDelayMinutes: 60,
       wirelessAlertsEnabled: true,
-      alertTicketMode: 'SUGGEST'
+      alertTicketMode: 'SUGGEST',
+      quietHoursStart: null,
+      quietHoursEnd: null
     });
   });
 
@@ -54,7 +57,9 @@ describe('[NOT-201] GetNotificationSettingsUseCase — integration', () => {
         telegramChatId: null,
         downAlertDelayMinutes: 5,
         wirelessAlertsEnabled: false,
-        alertTicketMode: 'AUTOMATIC'
+        alertTicketMode: 'AUTOMATIC',
+        quietHoursStart: '23:00',
+        quietHoursEnd: '05:30'
       }
     });
 
@@ -64,7 +69,9 @@ describe('[NOT-201] GetNotificationSettingsUseCase — integration', () => {
       telegramChatId: null,
       downAlertDelayMinutes: 5,
       wirelessAlertsEnabled: false,
-      alertTicketMode: 'AUTOMATIC'
+      alertTicketMode: 'AUTOMATIC',
+      quietHoursStart: '23:00',
+      quietHoursEnd: '05:30'
     });
   });
 });

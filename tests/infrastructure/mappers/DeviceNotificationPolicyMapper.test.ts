@@ -6,6 +6,7 @@ import { DeviceNotificationPolicyId } from '../../../src/domain/shared/ids/Devic
 import { DeviceId } from '../../../src/domain/shared/ids/DeviceId';
 import { QuietHours } from '../../../src/domain/notifications/value-objects/QuietHours';
 import { TimeOfDay } from '../../../src/domain/shared/value-objects/TimeOfDay';
+import { QuietHoursMode } from '../../../src/domain/notifications/props';
 
 const VALID_ID = '550e8400-e29b-41d4-a716-446655440096';
 const VALID_DEVICE_ID = '550e8400-e29b-41d4-a716-446655440097';
@@ -15,6 +16,7 @@ const UPDATED_AT = new Date('2026-01-02T00:00:00.000Z');
 type RawRecord = {
   id: string;
   deviceId: string;
+  quietHoursMode: QuietHoursMode;
   quietHoursStart: string | null;
   quietHoursEnd: string | null;
   alertDelayMinutes: number | null;
@@ -28,6 +30,7 @@ function makeRawRecord(
   return {
     id: VALID_ID,
     deviceId: VALID_DEVICE_ID,
+    quietHoursMode: 'CUSTOM',
     quietHoursStart: '22:00',
     quietHoursEnd: '07:00',
     alertDelayMinutes: 15,
@@ -39,6 +42,7 @@ function makeRawRecord(
 
 function makeEntity(
   overrides: {
+    quietHoursMode?: QuietHoursMode;
     quietHours?: QuietHours | null;
     alertDelayMinutes?: number | null;
   } = {}
@@ -47,6 +51,7 @@ function makeEntity(
     DeviceNotificationPolicyId.parse(VALID_ID).value,
     {
       deviceId: DeviceId.parse(VALID_DEVICE_ID).value,
+      quietHoursMode: overrides.quietHoursMode ?? 'CUSTOM',
       quietHours:
         overrides.quietHours !== undefined
           ? overrides.quietHours
@@ -72,21 +77,27 @@ describe('DeviceNotificationPolicyMapper', () => {
 
       expect(entity.id.toString()).toBe(VALID_ID);
       expect(entity.deviceId.toString()).toBe(VALID_DEVICE_ID);
+      expect(entity.quietHoursMode).toBe('CUSTOM');
       expect(entity.quietHours?.start.toString()).toBe('22:00');
       expect(entity.quietHours?.end.toString()).toBe('07:00');
       expect(entity.alertDelayMinutes).toBe(15);
     });
 
-    it('should map a null quiet-hours window to null', () => {
-      const entity = DeviceNotificationPolicyMapper.toDomain(
-        makeRawRecord({
-          quietHoursStart: null,
-          quietHoursEnd: null
-        })
-      );
+    it.each<QuietHoursMode>(['INHERIT', 'ALWAYS_NOTIFY'])(
+      'should map %s with no window',
+      (quietHoursMode) => {
+        const entity = DeviceNotificationPolicyMapper.toDomain(
+          makeRawRecord({
+            quietHoursMode,
+            quietHoursStart: null,
+            quietHoursEnd: null
+          })
+        );
 
-      expect(entity.quietHours).toBeNull();
-    });
+        expect(entity.quietHoursMode).toBe(quietHoursMode);
+        expect(entity.quietHours).toBeNull();
+      }
+    );
 
     it('should map a null alertDelayMinutes to null', () => {
       const entity = DeviceNotificationPolicyMapper.toDomain(
@@ -124,9 +135,13 @@ describe('DeviceNotificationPolicyMapper', () => {
 
     it('should serialize no window as both fields null', () => {
       const raw = DeviceNotificationPolicyMapper.toPersistence(
-        makeEntity({ quietHours: null })
+        makeEntity({
+          quietHoursMode: 'ALWAYS_NOTIFY',
+          quietHours: null
+        })
       );
 
+      expect(raw.quietHoursMode).toBe('ALWAYS_NOTIFY');
       expect(raw.quietHoursStart).toBeNull();
       expect(raw.quietHoursEnd).toBeNull();
     });

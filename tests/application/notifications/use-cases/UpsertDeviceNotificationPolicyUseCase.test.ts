@@ -55,6 +55,7 @@ function makeExistingPolicy(): DeviceNotificationPolicy {
     DeviceNotificationPolicyId.create(),
     {
       deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
+      quietHoursMode: 'INHERIT',
       quietHours: null,
       alertDelayMinutes: null,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -132,6 +133,7 @@ describe('UpsertDeviceNotificationPolicyUseCase', () => {
     expect(policyRepo.save).toHaveBeenCalledTimes(1);
     expect(result.value).toEqual({
       deviceId: VALID_DEVICE_UUID,
+      quietHoursMode: 'CUSTOM',
       quietHoursStart: '22:00',
       quietHoursEnd: '07:00',
       alertDelayMinutes: 10,
@@ -155,11 +157,12 @@ describe('UpsertDeviceNotificationPolicyUseCase', () => {
     expect(saved.quietHours?.start.toString()).toBe('22:00');
   });
 
-  it('[NOT-170] should clear the window back to null (always notify)', async () => {
+  it('[NOT-170] should go back to inheriting when the window is cleared with no mode', async () => {
     const existing = DeviceNotificationPolicy.reconstitute(
       DeviceNotificationPolicyId.create(),
       {
         deviceId: DeviceId.parse(VALID_DEVICE_UUID).value,
+        quietHoursMode: 'CUSTOM',
         quietHours: QuietHours.create(
           TimeOfDay.create('22:00').value,
           TimeOfDay.create('07:00').value
@@ -176,8 +179,73 @@ describe('UpsertDeviceNotificationPolicyUseCase', () => {
     );
 
     expect(result.isSuccess).toBe(true);
+    expect(result.value.quietHoursMode).toBe('INHERIT');
     expect(result.value.quietHoursStart).toBeNull();
     expect(result.value.quietHoursEnd).toBeNull();
+  });
+
+  it('[NOT-170] should save ALWAYS_NOTIFY when asked for explicitly', async () => {
+    const result = await useCase.execute(
+      makeRequest({ quietHoursMode: 'ALWAYS_NOTIFY' })
+    );
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.quietHoursMode).toBe('ALWAYS_NOTIFY');
+    expect(policyRepo.save.mock.calls[0][0].quietHoursMode).toBe(
+      'ALWAYS_NOTIFY'
+    );
+  });
+
+  it('[NOT-170] should switch an existing policy from CUSTOM to ALWAYS_NOTIFY', async () => {
+    const existing = makeExistingPolicy();
+    existing.setQuietHours(
+      'CUSTOM',
+      QuietHours.create(
+        TimeOfDay.create('22:00').value,
+        TimeOfDay.create('07:00').value
+      ).value
+    );
+    policyRepo.findByDeviceId.mockResolvedValue(Result.ok(existing));
+
+    const result = await useCase.execute(
+      makeRequest({ quietHoursMode: 'ALWAYS_NOTIFY' })
+    );
+
+    expect(result.isSuccess).toBe(true);
+    expect(existing.quietHoursMode).toBe('ALWAYS_NOTIFY');
+    expect(existing.quietHours).toBeNull();
+  });
+
+  it('[NOT-170] should fail for CUSTOM with no window', async () => {
+    const result = await useCase.execute(
+      makeRequest({ quietHoursMode: 'CUSTOM' })
+    );
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toContain('when quietHoursMode is CUSTOM');
+    expect(policyRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('[NOT-170] should fail for ALWAYS_NOTIFY carrying a window', async () => {
+    const result = await useCase.execute(
+      makeRequest({
+        quietHoursMode: 'ALWAYS_NOTIFY',
+        quietHoursStart: '22:00',
+        quietHoursEnd: '07:00'
+      })
+    );
+
+    expect(result.isFailure).toBe(true);
+    expect(policyRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('[NOT-170] should fail for an unknown mode', async () => {
+    const result = await useCase.execute(
+      makeRequest({ quietHoursMode: 'NEVER' })
+    );
+
+    expect(result.isFailure).toBe(true);
+    expect(result.error).toContain('quietHoursMode must be one of');
   });
 
   it('should fail when saving the policy fails', async () => {

@@ -398,18 +398,19 @@ model PollingConfiguration {
   @@map("polling_configurations")
 }
 
-/// Per-device notification settings: an optional quiet-hours window that
-/// suppresses outbound alert notifications (not the alert record itself —
+/// Per-device notification settings: how the device's quiet hours are
+/// chosen — the install's window, its own, or none at all (NOT-170) — which
+/// suppress outbound alert notifications (not the alert record itself —
 /// see NOT-174 in docs/business-rules/notifications.md), and an optional
 /// override of the system-wide down-alert delay.
-/// A device with no window configured always notifies (NOT-170) — there is
-/// deliberately no separate "important" boolean.
 model DeviceNotificationPolicy {
   id       String @id @default(uuid()) @db.Uuid
   deviceId String @unique @map("device_id") @db.Uuid
 
-  // Both null or both set — enforced by a CHECK constraint (migration
-  // 20260902120000), not expressible in the Prisma schema DSL.
+  quietHoursMode QuietHoursMode @default(INHERIT) @map("quiet_hours_mode")
+  // Set exactly when the mode is CUSTOM, both or neither — enforced by CHECK
+  // constraints (migrations 20260902120000, 20261026120000), not expressible
+  // in the Prisma schema DSL.
   quietHoursStart String? @map("quiet_hours_start") @db.VarChar(5)
   quietHoursEnd   String? @map("quiet_hours_end") @db.VarChar(5)
 
@@ -423,6 +424,16 @@ model DeviceNotificationPolicy {
   device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@map("device_notification_policies")
+}
+
+/// INHERIT: the install's quiet hours, if any (NOT-207). CUSTOM: the device's
+/// own window. ALWAYS_NOTIFY: never silenced by quiet hours.
+enum QuietHoursMode {
+  INHERIT
+  CUSTOM
+  ALWAYS_NOTIFY
+
+  @@map("quiet_hours_mode")
 }
 
 /// Global, standing list of alert-type keys (a wireless metric name, or
@@ -465,6 +476,10 @@ model NotificationSettings {
   downAlertDelayMinutes Int             @map("down_alert_delay_minutes")
   wirelessAlertsEnabled Boolean         @map("wireless_alerts_enabled")
   alertTicketMode       AlertTicketMode @default(SUGGEST) @map("alert_ticket_mode")
+  // Install-wide quiet hours (NOT-207); both null or both set (CHECK
+  // constraint, migration 20261026120000).
+  quietHoursStart       String?         @map("quiet_hours_start") @db.VarChar(5)
+  quietHoursEnd         String?         @map("quiet_hours_end") @db.VarChar(5)
   updatedAt             DateTime        @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("notification_settings")

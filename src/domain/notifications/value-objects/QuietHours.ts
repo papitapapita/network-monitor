@@ -36,6 +36,21 @@ export class QuietHours extends ValueObject<QuietHoursProps> {
     return Result.ok<QuietHours>(new QuietHours({ start, end }));
   }
 
+  public static fromHHmm(
+    start: string,
+    end: string
+  ): Result<QuietHours> {
+    const startResult = TimeOfDay.create(start);
+    if (startResult.isFailure) {
+      return Result.fail<QuietHours>(startResult.error);
+    }
+    const endResult = TimeOfDay.create(end);
+    if (endResult.isFailure) {
+      return Result.fail<QuietHours>(endResult.error);
+    }
+    return QuietHours.create(startResult.value, endResult.value);
+  }
+
   public static reconstitute(props: QuietHoursProps): QuietHours {
     return new QuietHours(props);
   }

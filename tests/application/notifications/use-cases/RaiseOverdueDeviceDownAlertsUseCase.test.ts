@@ -28,7 +28,8 @@ function makeSettings(
     telegramChatId: '-100',
     downAlertDelayMinutes,
     wirelessAlertsEnabled: true,
-    alertTicketMode: 'SUGGEST'
+    alertTicketMode: 'SUGGEST',
+    quietHours: null
   });
 }
 
@@ -72,6 +73,7 @@ function makePolicy(
     DeviceNotificationPolicyId.create(),
     {
       deviceId: makeDeviceId(uuid),
+      quietHoursMode: 'INHERIT',
       quietHours: null,
       alertDelayMinutes,
       createdAt: FIXED_DATE,

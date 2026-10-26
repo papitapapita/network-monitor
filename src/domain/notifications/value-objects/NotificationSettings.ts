@@ -1,6 +1,7 @@
 import { ValueObject, Result } from 'domain/shared/core';
 import { isTelegramChatId } from 'domain/shared/value-objects';
 import { AlertTicketMode, NotificationSettingsProps } from '../props';
+import { QuietHours } from './QuietHours';
 
 export const MAX_DOWN_ALERT_DELAY_MINUTES = 1440;
 export const ALERT_TICKET_MODES: readonly AlertTicketMode[] = [
@@ -29,6 +30,10 @@ export class NotificationSettings extends ValueObject<NotificationSettingsProps>
 
   get alertTicketMode(): AlertTicketMode {
     return this._props.alertTicketMode;
+  }
+
+  get quietHours(): QuietHours | null {
+    return this._props.quietHours;
   }
 
   get opensTicketsAutomatically(): boolean {

@@ -3,11 +3,11 @@ import {
   DeviceId,
   DeviceNotificationPolicyId
 } from 'domain/shared/ids';
-import { TimeOfDay } from 'domain/shared/value-objects';
 import {
   DeviceNotificationPolicy,
   QuietHours
 } from 'domain/notifications';
+import { QuietHoursMode } from 'domain/notifications/props';
 import { IDeviceNotificationPolicyRepository } from 'domain/notifications/repository';
 import { IDeviceRepository } from 'domain/device-inventory/repository';
 import { UseCase } from 'application/shared/core';
@@ -68,6 +68,9 @@ export class UpsertDeviceNotificationPolicyUseCase extends UseCase<
       return this.fail(quietHoursResult.error);
     }
     const quietHours = quietHoursResult.value;
+    // An unknown string is refused by DeviceNotificationPolicy.
+    const quietHoursMode = (request.quietHoursMode ??
+      (quietHours ? 'CUSTOM' : 'INHERIT')) as QuietHoursMode;
 
     const existingResult =
       await this.policyRepository.findByDeviceId(deviceId);
@@ -80,12 +83,14 @@ export class UpsertDeviceNotificationPolicyUseCase extends UseCase<
     const policyResult = existingResult.value
       ? this.applyUpdates(
           existingResult.value,
+          quietHoursMode,
           quietHours,
           request.alertDelayMinutes
         )
       : DeviceNotificationPolicy.create(
           {
             deviceId,
+            quietHoursMode,
             quietHours,
             alertDelayMinutes: request.alertDelayMinutes
           },
@@ -112,10 +117,14 @@ export class UpsertDeviceNotificationPolicyUseCase extends UseCase<
 
   private applyUpdates(
     policy: DeviceNotificationPolicy,
+    quietHoursMode: QuietHoursMode,
     quietHours: QuietHours | null,
     alertDelayMinutes: number | null
   ): Result<DeviceNotificationPolicy> {
-    const quietHoursResult = policy.setQuietHours(quietHours);
+    const quietHoursResult = policy.setQuietHours(
+      quietHoursMode,
+      quietHours
+    );
     if (quietHoursResult.isFailure) {
       return Result.fail(quietHoursResult.error);
     }
@@ -139,16 +148,10 @@ export class UpsertDeviceNotificationPolicyUseCase extends UseCase<
       return Result.ok(null);
     }
 
-    const startResult = TimeOfDay.create(request.quietHoursStart);
-    if (startResult.isFailure) {
-      return Result.fail(startResult.error);
-    }
-    const endResult = TimeOfDay.create(request.quietHoursEnd);
-    if (endResult.isFailure) {
-      return Result.fail(endResult.error);
-    }
-
-    return QuietHours.create(startResult.value, endResult.value);
+    return QuietHours.fromHHmm(
+      request.quietHoursStart,
+      request.quietHoursEnd
+    );
   }
 
   protected sanitizeForLogging(data: unknown): unknown {

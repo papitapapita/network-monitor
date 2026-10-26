@@ -43,7 +43,7 @@ describe('GetDeviceNotificationPolicyUseCase — integration', () => {
     await cleanDatabase(prisma);
   });
 
-  it('[NOT-170] returns always-notify defaults when no policy row exists', async () => {
+  it('[NOT-170] returns inherit defaults when no policy row exists', async () => {
     const deviceId = await seedDevice(prisma, deviceModelId);
 
     const result = await useCase.execute({ deviceId });
@@ -51,6 +51,7 @@ describe('GetDeviceNotificationPolicyUseCase — integration', () => {
     expect(result.isSuccess).toBe(true);
     expect(result.value).toEqual({
       deviceId,
+      quietHoursMode: 'INHERIT',
       quietHoursStart: null,
       quietHoursEnd: null,
       alertDelayMinutes: null,
@@ -63,6 +64,7 @@ describe('GetDeviceNotificationPolicyUseCase — integration', () => {
     await prisma.deviceNotificationPolicy.create({
       data: {
         deviceId,
+        quietHoursMode: 'CUSTOM',
         quietHoursStart: '22:00',
         quietHoursEnd: '07:00',
         alertDelayMinutes: 15,
@@ -73,6 +75,7 @@ describe('GetDeviceNotificationPolicyUseCase — integration', () => {
     const result = await useCase.execute({ deviceId });
 
     expect(result.isSuccess).toBe(true);
+    expect(result.value.quietHoursMode).toBe('CUSTOM');
     expect(result.value.quietHoursStart).toBe('22:00');
     expect(result.value.quietHoursEnd).toBe('07:00');
     expect(result.value.alertDelayMinutes).toBe(15);

@@ -11,7 +11,8 @@ const DEFAULTS = NotificationSettings.reconstitute({
   telegramChatId: '-100111',
   downAlertDelayMinutes: 60,
   wirelessAlertsEnabled: true,
-  alertTicketMode: 'SUGGEST'
+  alertTicketMode: 'SUGGEST',
+  quietHours: null
 });
 
 describe('[NOT-200] UpdateNotificationSettingsUseCase — integration', () => {
@@ -99,6 +100,55 @@ describe('[NOT-200] UpdateNotificationSettingsUseCase — integration', () => {
 
     const read = await repo.get();
     expect(read.value.alertTicketMode).toBe('SUGGEST');
+  });
+
+  it('[NOT-207] stores the install quiet hours, and omitting them keeps them', async () => {
+    await useCase.execute({
+      telegramChatId: '-100222',
+      downAlertDelayMinutes: 10,
+      wirelessAlertsEnabled: true,
+      quietHoursStart: '22:00',
+      quietHoursEnd: '06:00'
+    });
+    await useCase.execute({
+      telegramChatId: '-100222',
+      downAlertDelayMinutes: 20,
+      wirelessAlertsEnabled: true
+    });
+
+    const row = await prisma.notificationSettings.findUnique({
+      where: { id: 1 }
+    });
+    expect(row?.quietHoursStart).toBe('22:00');
+    expect(row?.quietHoursEnd).toBe('06:00');
+    const read = await repo.get();
+    expect(read.value.quietHours?.start.toString()).toBe('22:00');
+  });
+
+  it('[NOT-207] an omitted window on the first save means no install quiet hours', async () => {
+    await useCase.execute({
+      telegramChatId: '-100222',
+      downAlertDelayMinutes: 10,
+      wirelessAlertsEnabled: true
+    });
+
+    const read = await repo.get();
+    expect(read.value.quietHours).toBeNull();
+  });
+
+  it('[NOT-207] refuses a one-sided window at the database too', async () => {
+    await expect(
+      prisma.notificationSettings.create({
+        data: {
+          id: 1,
+          downAlertDelayMinutes: 1,
+          wirelessAlertsEnabled: true,
+          quietHoursStart: '22:00'
+        }
+      })
+    ).rejects.toThrow(
+      'notification_settings_quiet_hours_both_or_neither'
+    );
   });
 
   it('writes nothing when a value is refused', async () => {

@@ -26,7 +26,9 @@ export class NotificationSettingsController {
         telegramChatId: req.body.telegramChatId,
         downAlertDelayMinutes: req.body.downAlertDelayMinutes,
         wirelessAlertsEnabled: req.body.wirelessAlertsEnabled,
-        alertTicketMode: req.body.alertTicketMode
+        alertTicketMode: req.body.alertTicketMode,
+        quietHoursStart: req.body.quietHoursStart,
+        quietHoursEnd: req.body.quietHoursEnd
       })
     );
 
@@ -59,7 +61,11 @@ export class NotificationSettingsController {
     if (errorMessage.startsWith(TEST_MESSAGE_NOT_DELIVERED))
       return 502;
     if (errorMessage === NO_TELEGRAM_CHAT) return 409;
-    if (errorMessage.includes('must be')) return 400;
+    if (
+      errorMessage.includes('must be') ||
+      errorMessage.includes('cannot be')
+    )
+      return 400;
     return 500;
   }
 

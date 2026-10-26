@@ -26,7 +26,8 @@ function makeRepo(
           telegramChatId: '-100',
           downAlertDelayMinutes: 60,
           wirelessAlertsEnabled: true,
-          alertTicketMode
+          alertTicketMode,
+          quietHours: null
         })
       )
     ),

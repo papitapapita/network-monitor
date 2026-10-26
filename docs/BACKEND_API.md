@@ -2400,19 +2400,31 @@ toDate?:   string
 > **Response envelope:** these endpoints return **raw data** — no `{ success, data }` wrapper.  
 > Error: `{ error: string }`.
 
-Controls, per device: an optional **quiet-hours window** that mutes outbound
+Controls, per device: **which quiet hours apply** — quiet hours mute outbound
 alert notifications (device-down, device-recovery, and wireless alerts —
-never the alert record itself, which still opens/lists normally), and an
+never the alert record itself, which still opens/lists normally) — and an
 optional **override of the down-alert delay**
 (the install's `downAlertDelayMinutes` from
 [Notification Settings](#notification-settings-apinotification-settings)
 otherwise).
 
-> **A device with no window configured always notifies.** There is no
-> separate "important device" flag — leaving both `quietHoursStart` and
-> `quietHoursEnd` unset (or clearing them) _is_ what marks a device as
-> always-notify. Quiet hours are evaluated against the **server's local
-> wall-clock time**, not the caller's timezone.
+> **Since 2026-10-26 a device follows the install's quiet hours unless it
+> says otherwise (NOT-170).** `quietHoursMode` picks one of three:
+>
+> - **`INHERIT`** (default): the install's window (`quietHoursStart`/`quietHoursEnd`
+>   in [Notification Settings](#notification-settings-apinotification-settings)),
+>   or none if the install has none.
+> - **`CUSTOM`**: the device's own `quietHoursStart`/`quietHoursEnd`, ignoring
+>   the install's.
+> - **`ALWAYS_NOTIFY`**: never silenced by quiet hours — the "important
+>   device" case, e.g. the core router.
+>
+> `quietHoursStart`/`quietHoursEnd` are set **exactly when** the mode is
+> `CUSTOM`. A device with no policy row is `INHERIT`. **Behaviour change:**
+> a device with no window used to always notify; it now inherits — identical
+> until the administrator saves an install window, after which a device that
+> must keep paging needs `ALWAYS_NOTIFY`. Quiet hours are evaluated against
+> the **server's local wall-clock time**, not the caller's timezone.
 >
 > Down-alert and wireless-alert notifications suppressed by quiet hours are
 > retried automatically once the window ends (as long as the underlying
@@ -2434,14 +2446,15 @@ otherwise).
 // Response
 {
   deviceId: string;
-  quietHoursStart: string | null; // "HH:mm", 24-hour, or null
+  quietHoursMode: 'INHERIT' | 'CUSTOM' | 'ALWAYS_NOTIFY'; // since 2026-10-26
+  quietHoursStart: string | null; // "HH:mm", 24-hour; set only when CUSTOM
   quietHoursEnd: string | null;
   alertDelayMinutes: number | null; // override; null = use the system default
   updatedAt: string | null; // ISO 8601; null if never configured
 }
 ```
 
-> Returns always-notify defaults (`quietHoursStart`/`quietHoursEnd`/`alertDelayMinutes`/`updatedAt` all `null`) when no policy row has ever been saved for this device — this is not a `404`.
+> Returns the defaults (`quietHoursMode: 'INHERIT'`, `quietHoursStart`/`quietHoursEnd`/`alertDelayMinutes`/`updatedAt` all `null`) when no policy row has ever been saved for this device — this is not a `404`. The response shows the device's own setting, not the install window it inherits; read that from `GET /api/notification-settings`.
 
 ---
 
@@ -2453,7 +2466,8 @@ otherwise).
 ```ts
 // Request body — full replace; both quiet-hours fields must be set together, or both omitted/null
 {
-  quietHoursStart?: string | null  // "HH:mm", 24-hour
+  quietHoursMode?: 'INHERIT' | 'CUSTOM' | 'ALWAYS_NOTIFY' // omitted: CUSTOM if a window is sent, else INHERIT
+  quietHoursStart?: string | null  // "HH:mm", 24-hour — required with CUSTOM, refused with the others
   quietHoursEnd?: string | null
   alertDelayMinutes?: number | null // ≥ 0
 }
@@ -2461,7 +2475,11 @@ otherwise).
 // Response: the resulting policy, same shape as GET
 ```
 
-> Upserts — creates the policy row if none exists yet, or replaces it. The device must exist. Omitting a field (or sending it as `null`) clears that setting back to its default (no window / system default delay).
+> Upserts — creates the policy row if none exists yet, or replaces it. The device must exist. Omitting a field (or sending it as `null`) clears that setting back to its default (inherit the install window / system default delay).
+>
+> `400` `"quietHoursStart and quietHoursEnd must be set when quietHoursMode is CUSTOM, and only then"` for `CUSTOM` without a window, or a window with `INHERIT`/`ALWAYS_NOTIFY`; `400` for an unknown mode.
+>
+> A screen fits a three-option control — "Horario de la red" (`INHERIT`), "Horario propio" (`CUSTOM`, shows the two time fields), "Notificar siempre" (`ALWAYS_NOTIFY`).
 
 ---
 
@@ -2470,7 +2488,7 @@ otherwise).
 **Status:** 204 (no body) | 400  
 **Roles:** ADMIN, OPERATOR
 
-> Resets the device to always-notify with the system default delay by deleting its policy row. Idempotent — succeeds even if the device never had one, and does **not** 404 for an unknown device id (only a malformed UUID returns `400`).
+> Resets the device to inheriting the install's quiet hours (`INHERIT`) with the system default delay by deleting its policy row. Idempotent — succeeds even if the device never had one, and does **not** 404 for an unknown device id (only a malformed UUID returns `400`).
 
 ---
 
@@ -2483,6 +2501,7 @@ otherwise).
 // Request body
 {
   deviceIds: string[]              // required, at least one
+  quietHoursMode?: 'INHERIT' | 'CUSTOM' | 'ALWAYS_NOTIFY' // same rules as the single-device PUT
   quietHoursStart?: string | null
   quietHoursEnd?: string | null
   alertDelayMinutes?: number | null
@@ -2492,6 +2511,7 @@ otherwise).
 {
   updated: Array<{                 // same shape as GET, one per successfully-updated device
     deviceId: string
+    quietHoursMode: 'INHERIT' | 'CUSTOM' | 'ALWAYS_NOTIFY'
     quietHoursStart: string | null
     quietHoursEnd: string | null
     alertDelayMinutes: number | null
@@ -2573,8 +2593,18 @@ interface NotificationSettingsDTO {
   downAlertDelayMinutes: number; // 0–1440: how long a device stays DOWN before its alert is sent (a device's own override wins)
   wirelessAlertsEnabled: boolean; // false: wireless alerts are recorded but not sent (NOT-203)
   alertTicketMode: 'SUGGEST' | 'AUTOMATIC'; // since 2026-10-14 — default SUGGEST (NOT-205)
+  quietHoursStart: string | null; // since 2026-10-26 — install-wide quiet hours, "HH:mm" 24-hour (NOT-207)
+  quietHoursEnd: string | null; // both null = no install quiet hours (the default)
 }
 ```
+
+`quietHoursStart`/`quietHoursEnd` are the **install's quiet hours** (NOT-207):
+every device whose policy is `INHERIT` — or that has no policy at all —
+withholds its notifications inside this window, the same way a device's own
+window does (see [Notification Policy](#notification-policy-apidevicesidnotification-policy-apinotification-policiesbulk)).
+A device on `CUSTOM` uses its own window instead and one on `ALWAYS_NOTIFY` is
+never silenced. Overnight windows (`22:00`–`06:00`) cross midnight; start and
+end cannot be equal. Server-local time.
 
 `alertTicketMode` decides what a new alert does about tickets:
 
@@ -2605,7 +2635,9 @@ On the settings screen, a two-option control such as "Sugerir tickets" /
 **Roles:** ADMIN (`manage-settings`; OPERATOR and VIEWER get `403`)
 
 ```ts
-// Request body — every field; alertTicketMode may be omitted (keeps the saved mode)
+// Request body — every field; alertTicketMode may be omitted (keeps the saved mode),
+// and quietHoursStart/quietHoursEnd may be omitted together (keeps the saved window).
+// Send both as null to remove the install's quiet hours.
 NotificationSettingsDTO
 
 // Response
@@ -2615,7 +2647,10 @@ NotificationSettingsDTO
 > `400` with the rule's message, e.g.
 > `"telegramChatId must be a numeric chat id or a @channel name"` or
 > `"downAlertDelayMinutes must be a whole number from 0 to 1440"` or
-> `"alertTicketMode must be one of: SUGGEST, AUTOMATIC"`.
+> `"alertTicketMode must be one of: SUGGEST, AUTOMATIC"` or
+> `"quietHoursStart and quietHoursEnd must both be set, or both be null"` or
+> `"quietHoursStart and quietHoursEnd must be sent together"` or
+> `"quiet hours start and end cannot be the same time"`.
 > Warn before saving `telegramChatId: null`: alerts stop reaching anyone.
 
 ---

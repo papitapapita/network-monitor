@@ -3,12 +3,14 @@ import {
   DeviceNotificationPolicyId
 } from 'domain/shared/ids';
 import { DeviceNotificationPolicy } from 'domain/notifications/entities';
+import { QuietHoursMode } from 'domain/notifications/props';
 import { TimeOfDay } from 'domain/shared/value-objects';
 import { QuietHours } from 'domain/notifications/value-objects';
 
 type PrismaDeviceNotificationPolicyRecord = {
   id: string;
   deviceId: string;
+  quietHoursMode: QuietHoursMode;
   quietHoursStart: string | null;
   quietHoursEnd: string | null;
   alertDelayMinutes: number | null;
@@ -53,6 +55,7 @@ export class DeviceNotificationPolicyMapper {
       policyIdResult.value,
       {
         deviceId: deviceIdResult.value,
+        quietHoursMode: raw.quietHoursMode,
         quietHours,
         alertDelayMinutes: raw.alertDelayMinutes,
         createdAt: raw.createdAt,
@@ -67,6 +70,7 @@ export class DeviceNotificationPolicyMapper {
     return {
       id: entity.id.toString(),
       deviceId: entity.deviceId.toString(),
+      quietHoursMode: entity.quietHoursMode,
       quietHoursStart: entity.quietHours?.start.toString() ?? null,
       quietHoursEnd: entity.quietHours?.end.toString() ?? null,
       alertDelayMinutes: entity.alertDelayMinutes,

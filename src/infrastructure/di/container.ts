@@ -1944,6 +1944,7 @@ export class DependencyContainer {
           this.logger
         ),
         this.deviceNotificationPolicyRepository,
+        this.notificationSettingsRepository,
         this.logger
       ),
       getSubscriptionStatusUseCase,

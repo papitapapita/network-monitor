@@ -41,6 +41,7 @@ export class PrismaDeviceNotificationPolicyRepository
       await this.prisma.deviceNotificationPolicy.upsert({
         where: { deviceId: data.deviceId },
         update: {
+          quietHoursMode: data.quietHoursMode,
           quietHoursStart: data.quietHoursStart,
           quietHoursEnd: data.quietHoursEnd,
           alertDelayMinutes: data.alertDelayMinutes
@@ -48,6 +49,7 @@ export class PrismaDeviceNotificationPolicyRepository
         create: {
           id: data.id,
           deviceId: data.deviceId,
+          quietHoursMode: data.quietHoursMode,
           quietHoursStart: data.quietHoursStart,
           quietHoursEnd: data.quietHoursEnd,
           alertDelayMinutes: data.alertDelayMinutes
