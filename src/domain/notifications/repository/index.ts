@@ -3,3 +3,4 @@ export * from './IDeviceNotificationPolicyRepository';
 export * from './IMutedAlertTypeRepository';
 export * from './INotificationSettingsRepository';
 export * from './IPushSubscriptionRepository';
+export * from './IInboxNotificationRepository';

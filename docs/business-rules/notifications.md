@@ -26,14 +26,15 @@ Format and conventions: [README.md](README.md).
 | `NOT-200` … `NOT-219` | Install notification settings (dashboard)                |
 | `NOT-220` … `NOT-239` | Phone notifications (Web Push)                           |
 | `NOT-240` … `NOT-259` | Outages behind an upstream device (topology)             |
+| `NOT-260` … `NOT-279` | In-app inbox                                             |
 
 ## Layer coverage
 
 | Layer                        | Rules |
 | ---------------------------- | ----- |
-| Application                  | 46    |
-| Domain (aggregate/entity/VO) | 22    |
-| Presentation                 | 5     |
+| Application                  | 49    |
+| Domain (aggregate/entity/VO) | 24    |
+| Presentation                 | 6     |
 | Infrastructure (database)    | 2     |
 | Infrastructure (composition) | 3     |
 
@@ -2154,3 +2155,103 @@ should the 40 clients behind it.
 
 **Enforced at:** `src/application/notifications/use-cases/SendDeviceDownAlertUseCase.ts`, `src/infrastructure/notifications/QuietHoursAlertPublisher.ts`
 **Tests:** `tests/application/notifications/use-cases/SendDeviceDownAlertUseCase.test.ts`
+
+## In-app inbox
+
+Inside the dashboard, each user has an inbox: a list of what the install told its
+staff, with a bell showing how many they haven't read yet. Telegram and phone
+notifications reach people outside the app. The inbox keeps a copy that's still
+there when they come back. These rules cover how a user reads their inbox. Which
+notices land in it is covered by later rules in this range.
+
+### NOT-260 — Every user has their own inbox and reaches only their own
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Presentation
+**Since:** 2026-10-27
+
+Each recipient gets their own copy of a notification, so reading it marks it read
+for that user alone. Every role can open its inbox. Listing, counting and
+marking only ever touch the caller's own notifications. Asking to mark another
+user's notification as read answers "not found", the same as for an id that
+doesn't exist. A deleted user's inbox goes with them.
+
+**Why:** One operator reading a notice doesn't mean the others have seen it.
+Answering "not found" rather than "forbidden" doesn't reveal that someone else
+has that notification.
+
+**Enforced at:** `src/domain/notifications/repository/IInboxNotificationRepository.ts`, `src/infrastructure/persistence/PrismaInboxNotificationRepository.ts`, `src/application/notifications/use-cases/MarkInboxNotificationReadUseCase.ts`, `src/presentation/http/routes/inbox-notification.routes.ts`, `prisma/schema.prisma` (`InboxNotification.user`, `onDelete: Cascade`)
+**Reached from:** `GET /api/notifications`, `GET /api/notifications/unread-count`, `POST /api/notifications/:id/read`, `POST /api/notifications/read-all`
+**Tests:** `tests/integration/inbox-notification.routes.test.ts`, `tests/integration/use-cases/notifications/ListInboxNotificationsUseCase.integration.test.ts`, `tests/integration/use-cases/notifications/MarkInboxNotificationReadUseCase.integration.test.ts`, `tests/integration/use-cases/notifications/MarkAllInboxNotificationsReadUseCase.integration.test.ts`
+
+### NOT-261 — The inbox lists newest first, 20 at a time, optionally unread only
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-27
+
+The list is ordered by when each notification arrived, newest first. A page
+holds 20 by default and at most 100. The list can be limited to unread
+notifications. Every page also reports the total for the current filter, whether
+more pages follow, and the user's unread count.
+
+**Why:** The newest notice is the one that matters. Including the unread count
+with each page keeps the bell in step without a second request.
+
+**Enforced at:** `src/application/notifications/use-cases/ListInboxNotificationsUseCase.ts`, `src/infrastructure/persistence/PrismaInboxNotificationRepository.ts` (`listForUser`), `src/presentation/http/validation/inbox-notification.schemas.ts`
+**Reached from:** `GET /api/notifications`
+**Tests:** `tests/application/notifications/use-cases/InboxNotificationUseCases.test.ts`, `tests/integration/use-cases/notifications/ListInboxNotificationsUseCase.integration.test.ts`, `tests/integration/inbox-notification.routes.test.ts`
+
+### NOT-262 — A notification remembers when it was first read
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-10-27
+
+Reading a notification records the time. Reading it again, or marking all as
+read, keeps the original time. There is no way to mark a notification unread.
+
+**Why:** The first read is when the user learned about it. Overwriting that time
+would lose it.
+
+**Enforced at:** `src/domain/notifications/entities/InboxNotification.ts` (`markRead`), `src/infrastructure/persistence/PrismaInboxNotificationRepository.ts` (`markAllRead`)
+**Reached from:** `POST /api/notifications/:id/read`, `POST /api/notifications/read-all`
+**Tests:** `tests/domain/notifications/entities/InboxNotification.test.ts`, `tests/integration/use-cases/notifications/MarkInboxNotificationReadUseCase.integration.test.ts`, `tests/integration/use-cases/notifications/MarkAllInboxNotificationsReadUseCase.integration.test.ts`
+
+### NOT-263 — "Mark all as read" covers only the caller's unread notifications
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-27
+
+Every unread notification of the caller is marked read at once, and the answer
+says how many there were. Other users' inboxes are untouched.
+
+**Why:** After an incident with dozens of notices, nobody should have to clear
+them one by one.
+
+**Enforced at:** `src/application/notifications/use-cases/MarkAllInboxNotificationsReadUseCase.ts`
+**Reached from:** `POST /api/notifications/read-all`
+**Tests:** `tests/application/notifications/use-cases/InboxNotificationUseCases.test.ts`, `tests/integration/use-cases/notifications/MarkAllInboxNotificationsReadUseCase.integration.test.ts`, `tests/integration/inbox-notification.routes.test.ts`
+
+### NOT-264 — A notification is filed under a category taken from its alert type
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-10-27
+
+| Alert type                               | Category   |
+| ---------------------------------------- | ---------- |
+| `device_unreachable`                     | `device`   |
+| `wireless:<metric>:<severity>`           | `wireless` |
+| `agent_offline`, `agent_clock`, …        | `agent`    |
+| `backup_failing`                         | `backup`   |
+| `sign_in_paused`, `two_factor_reset`     | `security` |
+| anything else                            | `other`    |
+
+**Why:** The inbox shows an icon for each kind of notice. The category is
+worked out from the type when the notification is created, so a producer cannot
+file one in the wrong place.
+
+**Enforced at:** `src/domain/notifications/entities/InboxNotification.ts` (`categoryFor`)
+**Tests:** `tests/domain/notifications/entities/InboxNotification.test.ts`

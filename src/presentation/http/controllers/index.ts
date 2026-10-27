@@ -39,3 +39,4 @@ export * from './NetworkSweepController';
 export * from './PowerControlController';
 export * from './TopologyController';
 export * from './RadioSettingsController';
+export * from './InboxNotificationController';

@@ -27,3 +27,4 @@ export * from './NotificationSettingsDTO';
 export * from './PushSubscriptionDTOs';
 export * from './SendPushAlertDTO';
 export * from './AffectedDeviceDTO';
+export * from './InboxNotificationDTOs';

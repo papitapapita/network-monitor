@@ -27,3 +27,7 @@ export * from './SubscribePushUseCase';
 export * from './UnsubscribePushUseCase';
 export * from './SendTestPushUseCase';
 export * from './SendPushAlertUseCase';
+export * from './ListInboxNotificationsUseCase';
+export * from './GetUnreadInboxCountUseCase';
+export * from './MarkInboxNotificationReadUseCase';
+export * from './MarkAllInboxNotificationsReadUseCase';

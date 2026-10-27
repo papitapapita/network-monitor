@@ -3027,6 +3027,116 @@ Sends "✅ Notificación de prueba" to every phone the caller has subscribed.
 
 ---
 
+## Notification Inbox `/api/notifications`
+
+**Since:** 2026-10-27 · **Roles:** all
+
+Each user's **in-app inbox**: what the install told its staff, kept so it's still
+there after a missed Telegram message or a closed tab (NOT-260…264). Every action
+applies only to the **signed-in user's own inbox**.
+
+> **Status: storage and reading only.** Nothing writes to the inbox yet. The next
+> backend slices add the live stream (`GET /api/notifications/stream`, which will
+> drive the floating card) and start filling the inbox from every alert, agent,
+> backup and sign-in notice. You can build the bell, badge and list page against
+> these endpoints now; they will show an empty inbox until then.
+
+Errors from a request the user just made (a save that failed, a timeout) are
+**not** inbox notifications. Keep showing those as frontend-only toasts.
+
+```ts
+type InboxCategory =
+  | 'device' // device_unreachable
+  | 'wireless' // wireless:<metric>:<severity>
+  | 'agent' // agent_offline, agent_clock, …
+  | 'backup' // backup_failing
+  | 'security' // sign_in_paused, two_factor_reset
+  | 'other';
+
+interface InboxNotificationDTO {
+  id: string;
+  category: InboxCategory; // pick the icon from this
+  severity: 'WARNING' | 'CRITICAL';
+  resolved: boolean; // true for a recovery ("volvió a responder") — show it green
+  type: string; // the alert type, e.g. 'device_unreachable'
+  title: string; // one sentence, Spanish, ready to show
+  body: string | null; // extra lines; may contain '\n'
+  deviceId: string | null; // link to /devices/:id when set
+  alertId: string | null; // link to the alert when set; null if the alert was deleted
+  occurredAt: string; // ISO — when it happened
+  readAt: string | null; // ISO — null means unread
+  createdAt: string; // ISO — when it reached the inbox; the list is ordered by this
+}
+```
+
+`deviceId` and `alertId` become `null` when the device or alert is deleted. The
+notification itself stays.
+
+---
+
+### `GET /api/notifications` — List
+
+**Status:** 200 | 400 | 401 | 429
+
+| Query    | Type             | Default | Notes                   |
+| -------- | ---------------- | ------- | ----------------------- |
+| `unread` | `'true'/'false'` | `false` | `true` → unread only    |
+| `limit`  | 1–100            | `20`    |                         |
+| `offset` | ≥ 0              | `0`     |                         |
+
+Newest first.
+
+```ts
+{
+  success: true,
+  data: {
+    notifications: InboxNotificationDTO[];
+    total: number; // matching the filter
+    unread: number; // the user's unread count, whatever the filter — use it for the badge
+    hasMore: boolean;
+    limit: number;
+    offset: number;
+  }
+}
+```
+
+---
+
+### `GET /api/notifications/unread-count` — Badge count
+
+**Status:** 200 | 401 | 429
+
+```ts
+{ success: true, data: { unread: number } }
+```
+
+---
+
+### `POST /api/notifications/:id/read` — Mark one read
+
+**Status:** 200 | 400 | 401 | 404 | 429
+
+No body. Returns the `InboxNotificationDTO`. Marking one that's already read
+succeeds and keeps its original `readAt` (NOT-262). Call this when the user
+opens or clicks the notification.
+
+> `404` `"Notification not found"` also covers another user's notification
+> (NOT-260). `400` for a malformed id.
+
+---
+
+### `POST /api/notifications/read-all` — Mark all read
+
+**Status:** 200 | 401 | 429
+
+No body. Marks every unread notification of the caller.
+
+```ts
+{ success: true, data: { marked: number } } // how many were unread
+```
+
+---
+
 ## Alerts `/api/alerts`
 
 This is the **unified operational-alert list**. Every bounded context that detects an infrastructure problem records into this one store, so dashboards (and future ticketing) read a single place instead of chasing per-context lists. Both **device-availability** alerts and **wireless-link** alerts land here.
@@ -4075,6 +4185,12 @@ login, on its `sshPort`.
 >
 > The wireless status shows the new name after the next poll; trigger one
 > with `POST /api/devices/:id/wireless/poll` to see it at once.
+
+> **Known issue (2026-10-27):** renaming does not work on an **AirOS 6** radio
+> (old BusyBox shell). A hardware test still failed after two fixes: the name
+> check no longer uses `grep -x`, and the name is applied through
+> `/proc/sys/kernel/hostname` because there is no `hostname` command. Expect a
+> `502` there. Not yet verified on AirOS 8. Left as is for now.
 
 ---
 

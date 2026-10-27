@@ -22,3 +22,4 @@ export * from './CollectionAccountId';
 export * from './BankAccountId';
 export * from './AgentId';
 export * from './ConfigBackupId';
+export * from './InboxNotificationId';

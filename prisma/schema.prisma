@@ -50,8 +50,9 @@ model User {
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  technician        Technician?
-  pushSubscriptions PushSubscription[]
+  technician         Technician?
+  pushSubscriptions  PushSubscription[]
+  inboxNotifications InboxNotification[]
 
   @@map("users")
 }
@@ -257,6 +258,7 @@ model Device {
   notificationPolicy           DeviceNotificationPolicy?
   pingResults                  PingResult[]
   alertEvents                  AlertEvent[]
+  inboxNotifications           InboxNotification[]
   deviceCredentials            DeviceCredentials?
   wirelessSnapshots            WirelessSnapshot[]
   wirelessAlertRecords         WirelessAlertRecord[]
@@ -372,9 +374,10 @@ model AlertEvent {
   causedByAlertId    String?       @map("caused_by_alert_id") @db.Uuid
 
   // Relations
-  device   Device       @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  causedBy AlertEvent?  @relation("AlertCause", fields: [causedByAlertId], references: [id], onDelete: SetNull)
-  affected AlertEvent[] @relation("AlertCause")
+  device             Device              @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  causedBy           AlertEvent?         @relation("AlertCause", fields: [causedByAlertId], references: [id], onDelete: SetNull)
+  affected           AlertEvent[]        @relation("AlertCause")
+  inboxNotifications InboxNotification[]
 
   @@index([deviceId, startedAt(sort: Desc)])
   @@index([causedByAlertId])
@@ -476,6 +479,39 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscriptions")
+}
+
+/// One user's copy of something the install told its staff (NOT-260).
+/// One row per recipient, so each user's read state is their own.
+model InboxNotification {
+  id         String        @id @default(uuid()) @db.Uuid
+  userId     String        @map("user_id") @db.Uuid
+  category   String        @db.VarChar(20)
+  severity   AlertSeverity
+  resolved   Boolean       @default(false)
+  type       String        @db.VarChar(100)
+  title      String        @db.Text
+  body       String?       @db.Text
+  deviceId   String?       @map("device_id") @db.Uuid
+  alertId    String?       @map("alert_id") @db.Uuid
+  // A retried delivery of the same notice lands on the same key, so the
+  // inbox keeps one copy of it.
+  dedupKey   String        @map("dedup_key") @db.VarChar(255)
+  occurredAt DateTime      @map("occurred_at") @db.Timestamptz
+  readAt     DateTime?     @map("read_at") @db.Timestamptz
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device Device?     @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  alert  AlertEvent? @relation(fields: [alertId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, dedupKey])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, readAt])
+  @@index([createdAt])
+  @@index([deviceId])
+  @@index([alertId])
+  @@map("inbox_notifications")
 }
 
 /// The install's notification settings, edited from the dashboard (NOT-200).

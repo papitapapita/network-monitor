@@ -13,6 +13,7 @@ import {
 } from './notification-policy.routes';
 import { createNotificationMuteRoutes } from './notification-mute.routes';
 import { createPushRoutes } from './push.routes';
+import { createInboxNotificationRoutes } from './inbox-notification.routes';
 import { createNotificationSettingsRoutes } from './notification-settings.routes';
 import { createAlertRoutes } from './alert.routes';
 import { createScanRoutes } from './scan.routes';
@@ -334,6 +335,14 @@ export function setupRoutes(
 
   // Phone notifications: /api/push
   apiRouter.use('/push', createPushRoutes(container.pushController));
+
+  // In-app inbox: /api/notifications
+  apiRouter.use(
+    '/notifications',
+    createInboxNotificationRoutes(
+      container.inboxNotificationController
+    )
+  );
 
   // Install notification settings: /api/notification-settings
   apiRouter.use(

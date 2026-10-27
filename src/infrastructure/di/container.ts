@@ -141,6 +141,7 @@ import {
   PrismaDeviceNotificationPolicyRepository,
   PrismaMutedAlertTypeRepository,
   PrismaPushSubscriptionRepository,
+  PrismaInboxNotificationRepository,
   PrismaNotificationSettingsRepository,
   PrismaVendorSettingsRepository
 } from '../persistence/';
@@ -156,6 +157,7 @@ import {
   NotificationMuteController,
   NotificationSettingsController,
   PushController,
+  InboxNotificationController,
   VendorSettingsController,
   AlertController,
   ScanController,
@@ -454,6 +456,10 @@ import {
   GetMutedAlertTypesUseCase,
   SetMutedAlertTypesUseCase,
   SubscribePushUseCase,
+  ListInboxNotificationsUseCase,
+  GetUnreadInboxCountUseCase,
+  MarkInboxNotificationReadUseCase,
+  MarkAllInboxNotificationsReadUseCase,
   UnsubscribePushUseCase,
   SendTestPushUseCase,
   SendPushAlertUseCase,
@@ -647,6 +653,7 @@ export class DependencyContainer {
   public notificationPolicyController: NotificationPolicyController;
   public notificationMuteController: NotificationMuteController;
   public pushController: PushController;
+  public inboxNotificationController: InboxNotificationController;
   public notificationSettingsController: NotificationSettingsController;
   public vendorSettingsController: VendorSettingsController;
   public agentController: AgentController;
@@ -1932,6 +1939,28 @@ export class DependencyContainer {
       ),
       this.logger
     );
+    const inboxNotificationRepository =
+      new PrismaInboxNotificationRepository(this.prisma);
+    this.inboxNotificationController =
+      new InboxNotificationController(
+        new ListInboxNotificationsUseCase(
+          inboxNotificationRepository,
+          this.logger
+        ),
+        new GetUnreadInboxCountUseCase(
+          inboxNotificationRepository,
+          this.logger
+        ),
+        new MarkInboxNotificationReadUseCase(
+          inboxNotificationRepository,
+          this.logger
+        ),
+        new MarkAllInboxNotificationsReadUseCase(
+          inboxNotificationRepository,
+          this.logger
+        ),
+        this.logger
+      );
     const sendAlertNotificationUseCase =
       new SendAlertNotificationUseCase(
         this.deviceRepository,
