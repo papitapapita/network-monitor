@@ -83,7 +83,7 @@ token and send the user to the login screen.** The role that counts is the
 account's current one; after a `401` the new login returns it. Tokens issued
 before 2026-09-30 are all refused once, when this ships.
 
-> **SSE exception:** the two wireless throughput streams also accept
+> **SSE exception:** the live streams (every `…/stream` endpoint) also accept
 > `?token=<jwt>`, because the browser `EventSource` API cannot set headers. No
 > other endpoint does. With the cookie it is no longer needed.
 
@@ -150,7 +150,9 @@ SSE streams are not rate-limited beyond opening them, which counts toward the
 per-IP total — a connection held open for hours is the wrong thing to count per
 minute. They are capped by concurrency instead: 5 streams per
 user and 200 per server, exceeding either returns `429` with
-`{ error: 'Too many streams' }`.
+`{ error: 'Too many streams' }`. The inbox stream
+(`GET /api/notifications/stream`) has its own limit of 10 per user, since every
+open tab holds one, but still counts toward the 200.
 
 ---
 
@@ -3035,11 +3037,11 @@ Each user's **in-app inbox**: what the install told its staff, kept so it's stil
 there after a missed Telegram message or a closed tab (NOT-260…264). Every action
 applies only to the **signed-in user's own inbox**.
 
-> **Status: storage and reading only.** Nothing writes to the inbox yet. The next
-> backend slices add the live stream (`GET /api/notifications/stream`, which will
-> drive the floating card) and start filling the inbox from every alert, agent,
-> backup and sign-in notice. You can build the bell, badge and list page against
-> these endpoints now; they will show an empty inbox until then.
+> **Status: storage, reading and the live badge.** Nothing writes to the inbox
+> yet. The next backend slice starts filling it from every alert, agent, backup
+> and sign-in notice, and adds a `notification` event to the stream to drive the
+> floating card. You can build the bell, badge, list page and stream now; the
+> inbox stays empty until then.
 
 Errors from a request the user just made (a save that failed, a timeout) are
 **not** inbox notifications. Keep showing those as frontend-only toasts.
@@ -3078,11 +3080,11 @@ notification itself stays.
 
 **Status:** 200 | 400 | 401 | 429
 
-| Query    | Type             | Default | Notes                   |
-| -------- | ---------------- | ------- | ----------------------- |
-| `unread` | `'true'/'false'` | `false` | `true` → unread only    |
-| `limit`  | 1–100            | `20`    |                         |
-| `offset` | ≥ 0              | `0`     |                         |
+| Query    | Type             | Default | Notes                |
+| -------- | ---------------- | ------- | -------------------- |
+| `unread` | `'true'/'false'` | `false` | `true` → unread only |
+| `limit`  | 1–100            | `20`    |                      |
+| `offset` | ≥ 0              | `0`     |                      |
 
 Newest first.
 
@@ -3134,6 +3136,38 @@ No body. Marks every unread notification of the caller.
 ```ts
 { success: true, data: { marked: number } } // how many were unread
 ```
+
+---
+
+### `GET /api/notifications/stream` — Live inbox (SSE)
+
+**Since:** 2026-10-27 · **Status:** 200 | 401 | 429 | 500
+
+Server-Sent Events for the signed-in user's own inbox (NOT-265). Open one per
+tab while the user is signed in:
+
+```ts
+const es = new EventSource('/api/notifications/stream', {
+  withCredentials: true
+});
+es.addEventListener('unread', (e) => {
+  const { unread } = JSON.parse(e.data) as { unread: number };
+  setBadge(unread);
+});
+```
+
+| Event    | Data                 | When                                                         |
+| -------- | -------------------- | ------------------------------------------------------------ |
+| `unread` | `{ unread: number }` | first frame on open, then each time the unread count changes |
+
+- The first frame is always `unread`, so a reconnect brings the badge back in
+  step. If the list page is open, refetch it on that first frame too.
+- Today the count changes when the user marks one or all read, in any tab.
+- Errors come as JSON before the stream opens: `401` (no or bad token), `429`
+  `Too many streams` (10 per user, 200 per server).
+- Accepts the session cookie, a Bearer header or `?token=<jwt>`.
+- The server sends `: ping` comments every 15 s and asks the browser to wait
+  5 s before reconnecting.
 
 ---
 

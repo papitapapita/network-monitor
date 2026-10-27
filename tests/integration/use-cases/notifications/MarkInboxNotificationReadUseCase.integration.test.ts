@@ -7,6 +7,8 @@ import {
 } from 'application/notifications/use-cases/MarkInboxNotificationReadUseCase';
 import { PrismaInboxNotificationRepository } from 'infrastructure/persistence/PrismaInboxNotificationRepository';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
+import { SseBroadcaster } from 'infrastructure/realtime/SseBroadcaster';
+import { InboxStream } from 'application/notifications/shared/InboxStream';
 import {
   cleanDatabase,
   createTestPrisma,
@@ -19,17 +21,23 @@ import { seedInboxNotification } from '../../helpers/inboxNotifications';
 describe('MarkInboxNotificationReadUseCase — integration', () => {
   let prisma: PrismaClient;
   let useCase: MarkInboxNotificationReadUseCase;
+  let hub: SseBroadcaster;
   let aliceId: string;
 
   beforeAll(() => {
     prisma = createTestPrisma();
+    const repository = new PrismaInboxNotificationRepository(prisma);
+    const logger = new WinstonLogger();
+    hub = new SseBroadcaster(logger);
     useCase = new MarkInboxNotificationReadUseCase(
-      new PrismaInboxNotificationRepository(prisma),
-      new WinstonLogger()
+      repository,
+      new InboxStream(hub, repository, logger),
+      logger
     );
   });
 
   afterAll(async () => {
+    hub.closeAll();
     await cleanDatabase(prisma);
     await prisma.$disconnect();
   });
@@ -95,5 +103,24 @@ describe('MarkInboxNotificationReadUseCase — integration', () => {
     });
 
     expect(result.error).toMatch(/^Invalid notification ID/);
+  });
+
+  it('[NOT-265] pushes the new unread count to the caller’s open streams', async () => {
+    const id = await seedInboxNotification(prisma, aliceId);
+    await seedInboxNotification(prisma, aliceId);
+    const frames: string[] = [];
+    const client = {
+      write: (frame: string) => frames.push(frame),
+      end: () => undefined
+    };
+    const unsubscribe = hub.subscribe(
+      `inbox:user:${aliceId}`,
+      client
+    );
+
+    await useCase.execute({ userId: aliceId, id });
+    unsubscribe();
+
+    expect(frames).toEqual(['event: unread\ndata: {"unread":1}\n\n']);
   });
 });

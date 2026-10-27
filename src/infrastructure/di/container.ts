@@ -158,6 +158,7 @@ import {
   NotificationSettingsController,
   PushController,
   InboxNotificationController,
+  InboxStreamController,
   VendorSettingsController,
   AlertController,
   ScanController,
@@ -468,7 +469,10 @@ import {
   UpdateNotificationSettingsUseCase,
   SendTestNotificationUseCase
 } from 'application/notifications/use-cases';
-import { OutageRollup } from 'application/notifications/shared';
+import {
+  InboxStream,
+  OutageRollup
+} from 'application/notifications/shared';
 import {
   DeviceCameOnlineNotificationHandler,
   DeviceWentOfflineAlertRecordHandler,
@@ -654,6 +658,7 @@ export class DependencyContainer {
   public notificationMuteController: NotificationMuteController;
   public pushController: PushController;
   public inboxNotificationController: InboxNotificationController;
+  public inboxStreamController: InboxStreamController;
   public notificationSettingsController: NotificationSettingsController;
   public vendorSettingsController: VendorSettingsController;
   public agentController: AgentController;
@@ -1939,28 +1944,45 @@ export class DependencyContainer {
       ),
       this.logger
     );
+    // Every live stream (inbox, throughput, diagnosis, traffic) shares this
+    // one SSE hub, so the install-wide connection cap counts them all.
+    this.eventStreamHub = new SseBroadcaster(this.logger);
+
     const inboxNotificationRepository =
       new PrismaInboxNotificationRepository(this.prisma);
+    const inboxStream = new InboxStream(
+      this.eventStreamHub,
+      inboxNotificationRepository,
+      this.logger
+    );
+    const getUnreadInboxCountUseCase = new GetUnreadInboxCountUseCase(
+      inboxNotificationRepository,
+      this.logger
+    );
     this.inboxNotificationController =
       new InboxNotificationController(
         new ListInboxNotificationsUseCase(
           inboxNotificationRepository,
           this.logger
         ),
-        new GetUnreadInboxCountUseCase(
-          inboxNotificationRepository,
-          this.logger
-        ),
+        getUnreadInboxCountUseCase,
         new MarkInboxNotificationReadUseCase(
           inboxNotificationRepository,
+          inboxStream,
           this.logger
         ),
         new MarkAllInboxNotificationsReadUseCase(
           inboxNotificationRepository,
+          inboxStream,
           this.logger
         ),
         this.logger
       );
+    this.inboxStreamController = new InboxStreamController(
+      getUnreadInboxCountUseCase,
+      this.eventStreamHub,
+      this.logger
+    );
     const sendAlertNotificationUseCase =
       new SendAlertNotificationUseCase(
         this.deviceRepository,
@@ -2307,7 +2329,6 @@ export class DependencyContainer {
     );
 
     // Live throughput (SSE)
-    this.eventStreamHub = new SseBroadcaster(this.logger);
 
     // Live link diagnosis (frames stream over the same SSE hub)
     this.linkDiagnosisRunner = new LinkDiagnosisRunner(

@@ -32,9 +32,9 @@ Format and conventions: [README.md](README.md).
 
 | Layer                        | Rules |
 | ---------------------------- | ----- |
-| Application                  | 49    |
+| Application                  | 50    |
 | Domain (aggregate/entity/VO) | 24    |
-| Presentation                 | 6     |
+| Presentation                 | 7     |
 | Infrastructure (database)    | 2     |
 | Infrastructure (composition) | 3     |
 
@@ -2255,3 +2255,24 @@ file one in the wrong place.
 
 **Enforced at:** `src/domain/notifications/entities/InboxNotification.ts` (`categoryFor`)
 **Tests:** `tests/domain/notifications/entities/InboxNotification.test.ts`
+
+### NOT-265 — An open dashboard tab sees its user's unread count change live
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Presentation
+**Since:** 2026-10-27
+
+Each open tab can hold a live stream of its user's own inbox. The stream opens
+with the user's unread count and sends the new count whenever it changes, such
+as when the user reads a notification in another tab. A user holds at most 10
+inbox streams at once. These count toward the install-wide limit of 200 live
+streams of any kind. A stream carries only the signed-in user's own inbox.
+
+**Why:** The bell badge must stay right in every open tab without each one
+asking the server every few seconds. Each tab keeps its stream open the whole
+time, so the per-user limit is higher than the 5 that the other live screens
+share.
+
+**Enforced at:** `src/application/notifications/shared/InboxStream.ts`, `src/application/notifications/use-cases/MarkInboxNotificationReadUseCase.ts`, `src/application/notifications/use-cases/MarkAllInboxNotificationsReadUseCase.ts`, `src/presentation/http/controllers/InboxStreamController.ts`, `src/presentation/http/routes/inbox-stream.routes.ts`
+**Reached from:** `GET /api/notifications/stream`
+**Tests:** `tests/application/notifications/shared/InboxStream.test.ts`, `tests/presentation/http/controllers/InboxStreamController.test.ts`, `tests/integration/inbox-stream.routes.test.ts`, `tests/integration/use-cases/notifications/MarkInboxNotificationReadUseCase.integration.test.ts`, `tests/integration/use-cases/notifications/MarkAllInboxNotificationsReadUseCase.integration.test.ts`

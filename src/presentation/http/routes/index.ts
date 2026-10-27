@@ -14,6 +14,7 @@ import {
 import { createNotificationMuteRoutes } from './notification-mute.routes';
 import { createPushRoutes } from './push.routes';
 import { createInboxNotificationRoutes } from './inbox-notification.routes';
+import { createInboxStreamRoutes } from './inbox-stream.routes';
 import { createNotificationSettingsRoutes } from './notification-settings.routes';
 import { createAlertRoutes } from './alert.routes';
 import { createScanRoutes } from './scan.routes';
@@ -108,6 +109,15 @@ export function setupRoutes(
     '/',
     createWirelessStreamRoutes(
       container.wirelessStreamController,
+      container.tokenService,
+      container.sessionValidator,
+      container.getLogger()
+    )
+  );
+  apiRouter.use(
+    '/',
+    createInboxStreamRoutes(
+      container.inboxStreamController,
       container.tokenService,
       container.sessionValidator,
       container.getLogger()

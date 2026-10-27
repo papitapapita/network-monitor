@@ -6,6 +6,7 @@ import {
   MarkAllInboxNotificationsReadDTO,
   MarkAllInboxNotificationsReadResponseDTO
 } from '../dtos';
+import { InboxStream } from '../shared';
 
 // NOT-263: only the caller's own unread notifications; ones already read keep
 // the time they were first read (NOT-262).
@@ -15,6 +16,7 @@ export class MarkAllInboxNotificationsReadUseCase extends UseCase<
 > {
   constructor(
     private readonly repository: IInboxNotificationRepository,
+    private readonly stream: InboxStream,
     logger: ILogger
   ) {
     super(logger, 'MarkAllInboxNotificationsReadUseCase');
@@ -31,6 +33,9 @@ export class MarkAllInboxNotificationsReadUseCase extends UseCase<
       return this.fail(
         `Failed to mark notifications read: ${marked.error}`
       );
+    }
+    if (marked.value > 0) {
+      await this.stream.unreadChanged(request.userId);
     }
     return this.ok({ marked: marked.value });
   }

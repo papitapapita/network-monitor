@@ -4,6 +4,7 @@ import { IInboxNotificationRepository } from 'domain/notifications/repository';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import { InboxNotificationMapper } from '../mappers';
+import { InboxStream } from '../shared';
 import {
   InboxNotificationDTO,
   MarkInboxNotificationReadDTO
@@ -19,6 +20,7 @@ export class MarkInboxNotificationReadUseCase extends UseCase<
 > {
   constructor(
     private readonly repository: IInboxNotificationRepository,
+    private readonly stream: InboxStream,
     logger: ILogger
   ) {
     super(logger, 'MarkInboxNotificationReadUseCase');
@@ -53,6 +55,7 @@ export class MarkInboxNotificationReadUseCase extends UseCase<
     if (saved.isFailure) {
       return this.fail(`Failed to save notification: ${saved.error}`);
     }
+    await this.stream.unreadChanged(request.userId);
     return this.ok(InboxNotificationMapper.toDTO(saved.value));
   }
 }

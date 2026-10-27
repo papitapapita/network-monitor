@@ -13,3 +13,9 @@ export const listInboxNotificationsSchema = z.object({
 export const markInboxNotificationReadSchema = z.object({
   params: z.object({ id: z.string().uuid() })
 });
+
+// EventSource cannot set an Authorization header, so the token may ride the
+// query string instead — createStreamAuthenticateMiddleware accepts either.
+export const streamInboxSchema = z.object({
+  query: z.object({ token: z.string().min(1).optional() }).optional()
+});

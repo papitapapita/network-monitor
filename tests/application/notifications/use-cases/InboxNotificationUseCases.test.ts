@@ -14,6 +14,7 @@ import { InboxNotification } from '../../../../src/domain/notifications/entities
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { AlertSeverity } from '../../../../src/domain/shared/enums';
 import { Result } from '../../../../src/domain/shared/core/Result';
+import { InboxStream } from '../../../../src/application/notifications/shared/InboxStream';
 
 const USER_ID = '6f1c2b1e-3c1a-4d8a-9a3e-1b2c3d4e5f60';
 
@@ -40,6 +41,12 @@ function makeNotification(
     title: 'AP Norte no responde',
     occurredAt
   }).value;
+}
+
+function makeStream(): jest.Mocked<InboxStream> {
+  return {
+    unreadChanged: jest.fn().mockResolvedValue(undefined)
+  } as unknown as jest.Mocked<InboxStream>;
 }
 
 function makeRepo(
@@ -177,8 +184,10 @@ describe('MarkInboxNotificationReadUseCase', () => {
   it('[NOT-262] marks it read and saves it', async () => {
     const notification = makeNotification();
     const repo = makeRepo([notification]);
+    const stream = makeStream();
     const useCase = new MarkInboxNotificationReadUseCase(
       repo,
+      stream,
       makeLogger()
     );
 
@@ -190,6 +199,7 @@ describe('MarkInboxNotificationReadUseCase', () => {
     expect(result.isSuccess).toBe(true);
     expect(result.value.readAt).not.toBeNull();
     expect(repo.save).toHaveBeenCalledWith(notification);
+    expect(stream.unreadChanged).toHaveBeenCalledWith(USER_ID);
   });
 
   it('[NOT-262] leaves an already read one untouched', async () => {
@@ -197,8 +207,10 @@ describe('MarkInboxNotificationReadUseCase', () => {
     const firstRead = new Date('2026-10-27T15:00:00Z');
     notification.markRead(firstRead);
     const repo = makeRepo([notification]);
+    const stream = makeStream();
     const useCase = new MarkInboxNotificationReadUseCase(
       repo,
+      stream,
       makeLogger()
     );
 
@@ -209,12 +221,15 @@ describe('MarkInboxNotificationReadUseCase', () => {
 
     expect(result.value.readAt).toBe(firstRead.toISOString());
     expect(repo.save).not.toHaveBeenCalled();
+    expect(stream.unreadChanged).not.toHaveBeenCalled();
   });
 
   it('[NOT-260] is not found when it is not the caller’s', async () => {
     const repo = makeRepo([]);
+    const stream = makeStream();
     const useCase = new MarkInboxNotificationReadUseCase(
       repo,
+      stream,
       makeLogger()
     );
 
@@ -228,8 +243,10 @@ describe('MarkInboxNotificationReadUseCase', () => {
 
   it('rejects a malformed id', async () => {
     const repo = makeRepo();
+    const stream = makeStream();
     const useCase = new MarkInboxNotificationReadUseCase(
       repo,
+      stream,
       makeLogger()
     );
 
@@ -246,8 +263,10 @@ describe('MarkInboxNotificationReadUseCase', () => {
 describe('MarkAllInboxNotificationsReadUseCase', () => {
   it('[NOT-263] marks the caller’s unread ones and says how many', async () => {
     const repo = makeRepo();
+    const stream = makeStream();
     const useCase = new MarkAllInboxNotificationsReadUseCase(
       repo,
+      stream,
       makeLogger()
     );
 
@@ -258,5 +277,21 @@ describe('MarkAllInboxNotificationsReadUseCase', () => {
       USER_ID,
       expect.any(Date)
     );
+    expect(stream.unreadChanged).toHaveBeenCalledWith(USER_ID);
+  });
+
+  it('[NOT-265] pushes nothing when there was nothing to mark', async () => {
+    const repo = makeRepo();
+    repo.markAllRead.mockResolvedValue(Result.ok(0));
+    const stream = makeStream();
+    const useCase = new MarkAllInboxNotificationsReadUseCase(
+      repo,
+      stream,
+      makeLogger()
+    );
+
+    await useCase.execute({ userId: USER_ID });
+
+    expect(stream.unreadChanged).not.toHaveBeenCalled();
   });
 });

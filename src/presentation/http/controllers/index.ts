@@ -40,3 +40,4 @@ export * from './PowerControlController';
 export * from './TopologyController';
 export * from './RadioSettingsController';
 export * from './InboxNotificationController';
+export * from './InboxStreamController';
